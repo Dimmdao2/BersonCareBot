@@ -29,6 +29,7 @@ import {
   type AnalyticsPeriodValue,
 } from '@/app/app/doctor/analytics/clients/analyticsPeriodUi';
 import { PlatformAnalyticsLineChart } from './PlatformAnalyticsLineChart';
+import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
 
 /** Подписи — презентация, поэтому живут в UI, а не рядом с доменными типами. */
 const ENTRY_CHANNEL_LABELS: Record<PlatformEntryChannel, string> = {
@@ -41,13 +42,6 @@ const ENTRY_CHANNEL_LABELS: Record<PlatformEntryChannel, string> = {
 
 function formatInt(value: number): string {
   return new Intl.NumberFormat('ru-RU').format(Math.round(value));
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024) return `${formatInt(value)} Б`;
-  if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} КиБ`;
-  if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} МиБ`;
-  return `${(value / 1024 ** 3).toFixed(2)} ГиБ`;
 }
 
 function formatShare(value: number | null): string {
@@ -465,12 +459,12 @@ function VideoVolumeBlock({
     <DoctorSection>
       <DoctorSectionTitle>{title}</DoctorSectionTitle>
       <DoctorMetricList>
-        <DoctorStatCard id={`${idPrefix}-orig`} title="Оригиналы" value={formatBytes(slice.originalsBytes)} />
+        <DoctorStatCard id={`${idPrefix}-orig`} title="Оригиналы" value={formatBytesAsMb(slice.originalsBytes)} />
         <DoctorStatCard id={`${idPrefix}-n`} title="Роликов" value={formatInt(slice.videoCount)} />
         <DoctorStatCard
           id={`${idPrefix}-avg`}
           title="Среднее на ролик"
-          value={slice.averageBytes == null ? '—' : formatBytes(slice.averageBytes)}
+          value={slice.averageBytes == null ? '—' : formatBytesAsMb(slice.averageBytes)}
         />
         <DoctorStatCard id={`${idPrefix}-xcode`} title="Конвертация" value="—" />
       </DoctorMetricList>
