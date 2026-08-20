@@ -66,6 +66,38 @@ git diff --check 4a352a6a8^..4a352a6a8: PASS
 forbidden ownership/elevation statements in changed reset paths: none
 ```
 
+## B1 closed: static TEST database ownership contract
+
+`deploy/host/test-db-ownership-contract.test.mjs` statically verifies that
+`deploy-test.sh`, `deploy-test-saas.sh`, and `restore-test-db-from-dump.sh` agree on `postgres` as the
+restore-stage owner. It also rejects recreation of `bersoncarebot_test`, `GRANT CREATE ON DATABASE`, and
+any `CREATE ROLE`/`ALTER ROLE` issue of `BYPASSRLS` in those entrypoints. It reads only repository files;
+it does not contact TEST or PROD.
+
+Baseline command:
+
+```bash
+node --test deploy/host/test-db-ownership-contract.test.mjs
+```
+
+Output:
+
+```text
+# pass 2
+# fail 0
+```
+
+Injection: changed only `RESTORE_ROLE=postgres` to `RESTORE_ROLE=app_object_owner` in
+`deploy/host/restore-test-db-from-dump.sh`, then reran the same command. Output:
+
+```text
+deploy/host/restore-test-db-from-dump.sh: expected owner postgres, found app_object_owner
+# pass 1
+# fail 1
+```
+
+The injection was reverted with `RESTORE_ROLE=postgres`; the baseline was green again.
+
 ## Full reset run
 
 Command executed in the foreground; complete captured transcript:
