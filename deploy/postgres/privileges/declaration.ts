@@ -2966,6 +2966,20 @@ const REV10_CONTEXT = {
     resolve_public_booking_organization: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-tenant.resolve',
       functionIdentity: 'app.resolve_public_booking_organization(uuid,uuid)' },
+    // Две двери ЗАПИСИ (миграция 0048). Личность резолвится до выбора арендатора, поэтому её
+    // класс — `pre_session`; отношение с клиникой заводится уже под ПАЦИЕНТСКИМ принципалом, чтобы
+    // человек мог записать в клиенты только себя.
+    resolve_public_booking_client_by_phone: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-client.resolve',
+      functionIdentity: 'app.resolve_public_booking_client_by_phone(text,text,boolean)' },
+    enroll_current_patient_in_public_booking_clinic: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.enroll',
+      functionIdentity: 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)' },
+    // Компенсация неудавшейся записи (миграция 0052). Зачисление коммитится раньше приёма и вместе
+    // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
+    revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -4040,6 +4054,95 @@ const REV10_CONTEXT = {
           'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
           'sort_order', 'is_active'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
+    // и класс `pre_session` стоит до выбора арендатора.
+    'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve or create the canonical person for a proven public-booking phone',
+      typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'phone_normalized', 'display_name', 'role',
+          'patient_phone_trust_at', 'merged_into_id', 'first_name', 'last_name', 'patronymic', 'birth_date'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized',
+          'is_primary', 'confirmed_at', 'source_origin', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'first_name', 'last_name',
+          'patronymic', 'display_name', 'birth_date', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Отношение с клиникой. Человек берётся из принятого пациентского контекста, а не из аргумента,
+    // поэтому записать в клиенты можно только себя. Канал подтверждения — АРГУМЕНТ (миграция 0052):
+    // почта такой же полноправный канал, что и телефон (`AUTH_AND_IDENTITY_CANON.md` §15), а состав
+    // обязательных полей публичной формы задаёт клиника (`OWNER_PRODUCT_RULES.md` §33).
+    //
+    // Оплаченное число клиентов эта дверь НЕ проверяет и не расходует (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2: «запись на приём сама по себе лимита не расходует»). 0052 звала
+    // сюда `app.assert_org_patient_count_quota_available` делегированием — 0053 убрала вызов, поэтому
+    // делегирования здесь больше нет.
+    'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'make the identified public-booking visitor a client of a published clinic',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
+    // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
+    // возраст в окне одной попытки и отсутствие живого приёма.
+    'app.revoke_public_booking_enrollment(uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'undo a public-booking client relationship whose booking failed',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'created_at', 'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          // Возраст строки дверь только ЧИТАЕТ — он и есть признак «эту строку завела воронка».
+          operationColumns: { UPDATE: ['status', 'portal_activated_at', 'portal_activated_via'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // ЕДИНСТВЕННЫЙ потолок оплаченного числа клиентов. Владелец — коммерческий шов: ровно у него уже
+    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники: её писатель карточек
+    // зовёт функцию из своей реляционной транзакции. Публичная дверь (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2) больше НЕ вызывающий — запись на приём не тратит оплаченное
+    // место, и у этой функции снова ровно один вызывающий, как до 0052.
+    'app.assert_org_patient_count_quota_available(uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_staff'],
+      purpose: 'the only patient_count ceiling, spent by the staff card writer alone',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id', 'tariff_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_org_entitlement_overrides',
+          columns: ['organization_id', 'mechanic', 'expires_at', 'quota'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

@@ -212,6 +212,30 @@ export function portTypedArgsForFunctionIdentity(
  * Byte framing shared with app.hash_port_typed_args. Values are PostgreSQL 16 binary-send bytes;
  * this function deliberately does not guess a SQL type from JavaScript input.
  */
+/**
+ * Patient roots that necessarily run BEFORE the session can claim a tenant, and may therefore carry
+ * an identity-only patient principal.
+ *
+ * Both describe the RELATIONSHIP rather than data inside a clinic: the first asks which clinics
+ * this person belongs to, the second makes them belong to one (first public booking). Demanding an
+ * organisation here would be circular — the tenant-claim gate only accepts an organisation the
+ * person already has an `org_enrollments` row for, and the second root is what creates that row.
+ *
+ * The identity claims (`actorRef`, `subjectRef`) are still mandatory above, so this is not a
+ * weaker principal, only an un-scoped one; the patient wall checks identity, never organisation.
+ */
+function isPatientRootBeforeATenantClaim(
+  purpose: string | undefined,
+  functionIdentity: string | undefined,
+): boolean {
+  return (
+    (purpose === 'patient.organization.resolve' &&
+      functionIdentity === 'app.read_current_patient_active_organizations()') ||
+    (purpose === 'booking.public-client.enroll' &&
+      functionIdentity === 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
+  );
+}
+
 export function hashPortTypedArgs(args: readonly PortTypedArg[]): Buffer {
   if (args.length === 0) return Buffer.from(PORT_CONTEXT_ZERO_ARGS_HASH);
   if (args.length > 64) throw new Error('port typed args may contain at most 64 values');
@@ -297,11 +321,8 @@ function assertPrincipal(principal: PortContextPrincipal): void {
         !principal.actorRef ||
         !principal.subjectRef ||
         (!principal.organizationId &&
-          !(
-            principal.purpose === 'relation' ||
-            (principal.purpose === 'patient.organization.resolve' &&
-              principal.functionIdentity === 'app.read_current_patient_active_organizations()')
-          )) ||
+          principal.purpose !== 'relation' &&
+          !isPatientRootBeforeATenantClaim(principal.purpose, principal.functionIdentity)) ||
         principal.integratorUserId !== undefined ||
         principal.requestId
       )
