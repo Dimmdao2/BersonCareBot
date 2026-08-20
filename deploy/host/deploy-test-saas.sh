@@ -16,9 +16,9 @@
 # Run as user `dev` (uses sudo for postgres/deploy/systemctl). This is NOT the normal code deploy:
 # it deliberately recreates TEST from a clean dump and therefore requires an explicit destructive confirmation
 # plus hash-bound FIO inputs. Normal code deploys use deploy/host/deploy-test.sh and never restore TEST.
-# Public destructive entrypoint: bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
-#   --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
-#   --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> [branch]
+# Public destructive entrypoint: bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset [branch]
+# Protected FIO inputs default to /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json
+# and its fio-owner-reviewed-test.sha256 sidecar. Explicit --fio-manifest* arguments override those defaults.
 set -euo pipefail
 
 DEPLOY_TEST_SAAS_SCRIPT_DIR="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)")"
@@ -39,6 +39,9 @@ source "$MEDIA_CONTROL_CUTOVER_LIB"
 
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
+PROTECTED_INPUTS_DIR=/opt/env/bersoncarebot/protected-inputs
+CANONICAL_FIO_MANIFEST="$PROTECTED_INPUTS_DIR/fio-owner-reviewed-test.manifest.json"
+CANONICAL_FIO_HASH_SIDECAR="$PROTECTED_INPUTS_DIR/fio-owner-reviewed-test.sha256"
 BRANCH="feat/doctor-ui-rebuild"
 CONFIRM_FULL_RESET=0
 PREPARE_CUTOVER_SOURCE_ONLY=0
@@ -2299,8 +2302,9 @@ full_reset_usage(){
   cat <<'EOF'
 Usage:
   bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
-    --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
-    --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
+    [--fio-manifest=/absolute/path/to/manifest.json] \
+    [--fio-manifest-file-sha256=<sha256>] \
+    [--fio-manifest-sha256=<sha256>] [--fio-review-source-sha256=<sha256>] \
     [--prepare-cutover-source-only] \
     [--cutover-dry-run] \
     [branch]
@@ -2309,14 +2313,66 @@ This command destroys and recreates bersoncarebot_test from a fresh production d
 owner-authorized full migration rehearsal. For ordinary code deploys use:
   bash deploy/host/deploy-test.sh [branch]
 
-Protected FIO inputs must be regular, non-symlink files owned by deploy with mode 0600. Their hashes bind this
-run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
+Protected FIO inputs default to
+  /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json
+with hashes read from the adjacent fio-owner-reviewed-test.sha256 sidecar. Explicit arguments override the
+corresponding defaults. Protected files must be regular, non-symlink files owned by deploy with mode 0600.
+Their hashes bind this run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
 
 --prepare-cutover-source-only runs the complete hash-bound data stage and aggregate assertions, leaves
 TEST writers stopped, and exits before schema migration. It never starts the historical migration runners.
 --cutover-dry-run executes the complete A -> B transaction and all reports, rolls it back, then exits
 before post-migration checks. The preceding TEST reset/data-preparation stages are unchanged.
 EOF
+}
+
+read_fio_hash_sidecar_value(){
+  local key="$1" count value
+  count="$(sudo -u deploy awk -F= -v key="$key" '$1 == key { count += 1 } END { print count + 0 }' "$CANONICAL_FIO_HASH_SIDECAR")"
+  [ "$count" = "1" ] || {
+    echo "FATAL: protected FIO hash sidecar must contain exactly one $key entry: $CANONICAL_FIO_HASH_SIDECAR" >&2
+    exit 2
+  }
+  value="$(sudo -u deploy awk -F= -v key="$key" '$1 == key { print substr($0, index($0, "=") + 1) }' "$CANONICAL_FIO_HASH_SIDECAR")"
+  printf '%s\n' "$value"
+}
+
+resolve_fio_protected_inputs(){
+  local sidecar_owner_mode
+  if [ -z "$FIO_MANIFEST" ]; then
+    FIO_MANIFEST="$CANONICAL_FIO_MANIFEST"
+  fi
+  sudo -u deploy test -e "$FIO_MANIFEST" || {
+    echo "FATAL: FIO manifest is missing: $FIO_MANIFEST" >&2
+    exit 2
+  }
+
+  if [ -z "$FIO_MANIFEST_FILE_SHA256" ] || [ -z "$FIO_MANIFEST_SHA256" ] || [ -z "$FIO_REVIEW_SOURCE_SHA256" ]; then
+    sudo -u deploy test -e "$CANONICAL_FIO_HASH_SIDECAR" || {
+      echo "FATAL: protected FIO hash sidecar is missing: $CANONICAL_FIO_HASH_SIDECAR" >&2
+      exit 2
+    }
+    sudo -u deploy test -f "$CANONICAL_FIO_HASH_SIDECAR" && sudo -u deploy test ! -L "$CANONICAL_FIO_HASH_SIDECAR" || {
+      echo "FATAL: protected FIO hash sidecar must be a regular non-symlink file: $CANONICAL_FIO_HASH_SIDECAR" >&2
+      exit 2
+    }
+    sidecar_owner_mode="$(sudo -u deploy stat -Lc '%U:%a' -- "$CANONICAL_FIO_HASH_SIDECAR")"
+    [ "$sidecar_owner_mode" = "deploy:600" ] || {
+      echo "FATAL: protected FIO hash sidecar must be owned by deploy with mode 0600 (got $sidecar_owner_mode): $CANONICAL_FIO_HASH_SIDECAR" >&2
+      exit 2
+    }
+    if [ -z "$FIO_MANIFEST_FILE_SHA256" ]; then
+      FIO_MANIFEST_FILE_SHA256="$(read_fio_hash_sidecar_value FIO_MANIFEST_FILE_SHA256)"
+    fi
+    if [ -z "$FIO_MANIFEST_SHA256" ]; then
+      FIO_MANIFEST_SHA256="$(read_fio_hash_sidecar_value FIO_MANIFEST_SHA256)"
+    fi
+    if [ -z "$FIO_REVIEW_SOURCE_SHA256" ]; then
+      FIO_REVIEW_SOURCE_SHA256="$(read_fio_hash_sidecar_value FIO_REVIEW_SOURCE_SHA256)"
+    fi
+  fi
+  echo "   FIO manifest path: $FIO_MANIFEST"
+  echo "   FIO hash inputs: resolved; explicit options override $CANONICAL_FIO_HASH_SIDECAR"
 }
 
 parse_full_reset_args(){
@@ -2351,10 +2407,7 @@ parse_full_reset_args(){
     echo "FATAL: full TEST reset requires --confirm-full-reset; ordinary deploys use deploy/host/deploy-test.sh" >&2
     exit 2
   }
-  [ -n "$FIO_MANIFEST" ] || { echo "FATAL: --fio-manifest is required for a data-complete reset" >&2; exit 2; }
-  [ -n "$FIO_MANIFEST_FILE_SHA256" ] || { echo "FATAL: --fio-manifest-file-sha256 is required" >&2; exit 2; }
-  [ -n "$FIO_MANIFEST_SHA256" ] || { echo "FATAL: --fio-manifest-sha256 is required" >&2; exit 2; }
-  [ -n "$FIO_REVIEW_SOURCE_SHA256" ] || { echo "FATAL: --fio-review-source-sha256 is required" >&2; exit 2; }
+  resolve_fio_protected_inputs
   [[ "$FIO_MANIFEST_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-manifest-sha256 must be 64 hex characters" >&2; exit 2; }
   [[ "$FIO_REVIEW_SOURCE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-review-source-sha256 must be 64 hex characters" >&2; exit 2; }
   FIO_MANIFEST_SHA256="${FIO_MANIFEST_SHA256,,}"
@@ -2365,8 +2418,12 @@ assert_hash_bound_protected_input(){
   local label="$1" path="$2" expected_hash="$3" owner_mode actual_hash
   [[ "$expected_hash" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: $label SHA-256 must be 64 hex characters" >&2; exit 2; }
   [[ "$path" = /* ]] || { echo "FATAL: $label path must be absolute" >&2; exit 2; }
+  sudo -u deploy test -e "$path" || {
+    echo "FATAL: $label is missing: $path" >&2
+    exit 2
+  }
   sudo -u deploy test -f "$path" && sudo -u deploy test ! -L "$path" || {
-    echo "FATAL: $label must be a regular non-symlink file" >&2
+    echo "FATAL: $label must be a regular non-symlink file: $path" >&2
     exit 2
   }
   owner_mode="$(sudo -u deploy stat -Lc '%U:%a' -- "$path")"
