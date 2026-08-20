@@ -7,6 +7,7 @@
 | слой | коммит | вердикт |
 |---|---|---|
 | Appointment-scoped payment controls | product `cfbfa8d5e` + independent audit `a87f77adf` (`wt/doctor-appointment-payments-20260820`) | **FAIL → worker handoff, NOT FOR LAND.** Owner payment outcome не готов: отсутствует entitlement gate для cash/link, cash idempotency неатомарна, общий booking payment ошибочно целиком засчитывается каждой записи, zero-price и stale link/QR неверны, orchestration живёт в route, plan отмечен преждевременно. Blind kill-set: **8 убитых / 0 непойманных**; acceptance оставлен красным для fixer. Evidence: `docs/_TODO/runs/doctor-appointment-payments-audit-20260820.md`. |
+| Appointment payment audit fixes | fixer `992cd85d4` (`wt/doctor-appointment-payments-20260820`), принят лидом по исходному kill-set | **PARTIAL PASS → QR correction, NOT FOR LAND.** Исходные acceptance стали зелёными: route 7/7, UI 8/8, payment service 12/12; webapp typecheck и migration gates PASS. Лид при чтении итогового diff нашёл отдельный repo-rule/privacy blocker: `AppointmentPaymentSection` передаёт платёжный URL пациента в hardcoded `https://quickchart.io/qr`, то есть заводит внешнюю интеграцию в обход `system_settings` и раскрывает payment URL третьей стороне. Требуется локальный QR без network request; повторный blind-pass исходных восьми классов не нужен. Evidence: `docs/_TODO/runs/doctor-appointment-payments-audit-20260820.md` + итоговый diff `992cd85d4`. |
 
 ## DEV doctor runtime — 16.08
 
