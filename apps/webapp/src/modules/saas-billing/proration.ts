@@ -34,45 +34,6 @@ export function proratedRemainingPeriodAmountMinor(input: {
   return Number(amount);
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/**
- * Решение владельца 18.08: «она оплачивает счёт (с расчётом сколько сотрудников и сколько ДНЕЙ надо
- * оплатить до конца оплаченного периода текущего тарифа)». Место, купленное посреди периода, стоит
- * не полный тариф места, а его долю до конца УЖЕ ОПЛАЧЕННОГО периода.
- *
- * Days, not milliseconds, and that is not cosmetic: the same number is quoted to the clinic on the
- * screen and re-checked when it confirms. A millisecond-precise quote is stale the instant it is
- * rendered, so every confirmation would come back `price_changed` and the clinic could never
- * finish the purchase. Truncating `asOf` to the start of its UTC day freezes the quote for the
- * whole day, and makes the midpoint of a period cost exactly half.
- *
- * A window that is missing, malformed or already over yields the FULL seat price: there is no
- * remaining paid period to prorate against, and a seat must never fall out free.
- */
-export function proratedSeatPriceMinor(input: {
-  seatPriceMinor: number;
-  periodStartsAt: string | null;
-  periodEndsAt: string | null;
-  asOf: string;
-}): number {
-  if (!input.periodStartsAt || !input.periodEndsAt) return input.seatPriceMinor;
-  const startsAt = new Date(input.periodStartsAt).getTime();
-  const endsAt = new Date(input.periodEndsAt).getTime();
-  const asOf = new Date(input.asOf).getTime();
-  if (!Number.isFinite(startsAt) || !Number.isFinite(endsAt) || !Number.isFinite(asOf)) {
-    return input.seatPriceMinor;
-  }
-  if (endsAt <= startsAt || asOf >= endsAt) return input.seatPriceMinor;
-  return proratedRemainingPeriodAmountMinor({
-    currentPriceMinor: 0,
-    targetPriceMinor: input.seatPriceMinor,
-    periodStartsAt: input.periodStartsAt,
-    periodEndsAt: input.periodEndsAt,
-    asOf: new Date(Math.floor(asOf / DAY_MS) * DAY_MS).toISOString(),
-  });
-}
-
 /**
  * Решение владельца 18.08: «Счётчик оплаченных мест только растёт — тоже косяк. Удалили/отключили
  * сотрудника — со следующего периода стоимость меньше».

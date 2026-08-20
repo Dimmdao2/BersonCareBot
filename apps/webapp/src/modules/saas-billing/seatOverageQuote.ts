@@ -31,23 +31,29 @@ export type SeatOverageQuote = {
   expiresAt: string;
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 const QUOTE_TTL_MS = 15 * 60 * 1000;
 
 /**
- * Срок жизни котировки — минимум из пятнадцати минут и начала следующих суток UTC.
+ * Срок жизни котировки — минимум из пятнадцати минут и момента, в который цена перестаёт быть
+ * верной.
  *
- * Граница суток здесь не про аккуратность, а про правильность: `proratedSeatPriceMinor` округляет
- * `asOf` вниз до начала суток UTC, поэтому цена меняется ровно в полночь UTC. Котировка, пережившая
- * полночь, обещала бы вчерашнюю — то есть большую — цену за сегодняшний, более короткий, остаток
- * периода. Прежняя сверка сумм отказывала ровно в этот момент; отказ сохранён дословно.
+ * Это не про аккуратность, а про правильность: цена места считается целыми сутками остатка,
+ * отсчитанными назад от конца оплаченного периода, и меняется ровно на границе таких суток.
+ * Котировка, пережившая границу, обещала бы прежнюю — то есть большую — цену за более короткий
+ * остаток.
  *
- * Пятнадцать минут — верхняя граница внутри суток: столько нужно человеку, чтобы прочитать цену,
- * решить и нажать, включая возврат через ветку «место освободилось». Это НЕ срок оплаты счёта —
- * у счёта свой `expiresAt` от `provider.invoiceValidityDays`; котировке достаточно дожить до клика.
+ * Сам этот момент файл НЕ считает: `priceStableUntil` приходит из того же предложения единственной
+ * двери (`seatOverage.ts`), что и цена. Своя копия календаря здесь означала бы вторую копию
+ * правила Р-15 — ровно тот разъезд, из-за которого работа и делалась.
+ *
+ * Пятнадцать минут — верхняя граница: столько нужно человеку, чтобы прочитать цену, решить и
+ * нажать, включая возврат через ветку «место освободилось». Это НЕ срок оплаты счёта — у счёта
+ * свой `expiresAt` (заданная длительность от выставления); котировке достаточно дожить до клика.
  */
-function quoteExpiresAtMs(nowMs: number): number {
-  return Math.min(nowMs + QUOTE_TTL_MS, Math.floor(nowMs / DAY_MS) * DAY_MS + DAY_MS);
+function quoteExpiresAtMs(nowMs: number, priceStableUntil: string): number {
+  const priceStableUntilMs = Date.parse(priceStableUntil);
+  if (!Number.isFinite(priceStableUntilMs)) throw new Error('seat_overage_price_window_invalid');
+  return Math.min(nowMs + QUOTE_TTL_MS, priceStableUntilMs);
 }
 
 function requireSigningSecret(): string {
@@ -85,9 +91,11 @@ export function issueSeatOverageQuote(input: {
   organizationId: string;
   priceMinor: number;
   currency: string;
+  /** Момент, до которого цена неподвижна, — из предложения двери, вместе с ценой (Р-15). */
+  priceStableUntil: string;
   nowMs?: number;
 }): { token: string; expiresAt: string } {
-  const expiresAtMs = quoteExpiresAtMs(input.nowMs ?? Date.now());
+  const expiresAtMs = quoteExpiresAtMs(input.nowMs ?? Date.now(), input.priceStableUntil);
   const payload: Payload = {
     org: input.organizationId,
     k: randomUUID(),
@@ -187,6 +195,7 @@ export function seatOverageQuoteBody(input: {
   organizationId: string;
   priceMinor: number;
   currency: string;
+  priceStableUntil: string;
 }): SeatOverageQuoteBody {
   const quote = issueSeatOverageQuote(input);
   return {

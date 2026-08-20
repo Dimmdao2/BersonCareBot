@@ -56,6 +56,7 @@ export async function handleSeatOveragePurchase(
           organizationId: ctx.organizationId,
           priceMinor: result.priceMinor,
           currency: result.currency,
+          priceStableUntil: result.priceStableUntil,
         }),
       },
       { status: 402 },
@@ -67,16 +68,27 @@ export async function handleSeatOveragePurchase(
       { status: 409 },
     );
   }
-  // outcome === 'checkout'
-  if (!result.invoice.providerCheckoutUrl) {
+  // Р-15: пока клиника думала, оплаченный период кончился. Остатка нет — продавать не во что,
+  // и место открывается только после оплаты продления, а не этого счёта.
+  if (result.outcome === 'paid_period_over') {
     return NextResponse.json(
-      { ok: false, error: 'saas_billing_checkout_unavailable' },
-      { status: 502 },
+      { ok: false, error: 'seat_overage_paid_period_over' },
+      { status: 409 },
     );
   }
+  // outcome === 'seat_opened'. Р-15 в действующей редакции: место уже открыто, счёт выставлен и
+  // ждёт оплаты. Отсутствие ссылки на оплату здесь больше НЕ ошибка запроса: доступ она не решает,
+  // клиника оплатит счёт из раздела оплаты. Поэтому 200 со ссылкой, если она есть, и без неё, если
+  // провайдер её не вернул, — вместо прежнего 502, который отменял бы уже открытое место.
   return NextResponse.json({
     ok: true,
-    checkoutUrl: result.invoice.providerCheckoutUrl,
+    outcome: 'seat_opened',
     invoiceId: result.invoice.id,
+    amountMinor: result.invoice.amountMinor,
+    currency: result.invoice.currency,
+    invoiceExpiresAt: result.invoice.expiresAt,
+    ...(result.invoice.providerCheckoutUrl
+      ? { checkoutUrl: result.invoice.providerCheckoutUrl }
+      : {}),
   });
 }

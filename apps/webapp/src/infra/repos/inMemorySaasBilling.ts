@@ -12,8 +12,8 @@ import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
 import {
   carriedSeatDebtMinor,
   proratedRemainingPeriodAmountMinor,
-  proratedSeatPriceMinor,
 } from '@/modules/saas-billing/proration';
+import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
 import {
   reissueWithSuccessor,
   saasBillingInvoiceCancelVerdict,
@@ -91,8 +91,15 @@ export function createInMemorySaasBillingRepository(
       postTrialBehavior: string;
       postTrialTariffId: string | null;
     } | null;
+    /**
+     * Часы двойника. Нужны с тех пор, как момент продажи места определяет сам репозиторий, а не
+     * сценарий: без общих часов сценарный тест с подменённым временем спрашивал бы у двойника
+     * настоящее «сейчас» и получал цену другого дня.
+     */
+    now?: () => Date;
   } = {},
 ): SaasBillingRepositoryPort {
+  const now = input.now ?? (() => new Date());
   const rows = new Map<string, SaasBillingSubscription>();
   const organizationTariffs = new Map<string, string | null>();
   const organizationTrials = new Map<
@@ -835,12 +842,9 @@ export function createInMemorySaasBillingRepository(
               savedPaymentMethodId: input.savedPaymentMethodId,
             });
           }
-          if (paidInvoice.invoiceKind === 'seat_overage' && paidInvoice.status !== 'paid') {
-            rows.set(subscriptionKeyValue, {
-              ...subscription,
-              paidAdditionalSeats: subscription.paidAdditionalSeats + paidInvoice.additionalSeatQuantity,
-            });
-          }
+          // Место уже открыто в момент выставления этого счёта (Р-15, действующая редакция: см.
+          // `createSeatOverageInvoiceIfNeeded` ниже), и здесь оно НЕ открывается второй раз: приём
+          // денег только закрывает счёт (как в pg-репозитории, `pgSaasBilling.ts`).
           if (
             paidInvoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
             paidInvoice.status !== 'paid' &&
@@ -955,28 +959,40 @@ export function createInMemorySaasBillingRepository(
           row.providerIdempotencyKey === input.providerIdempotencyKey,
       );
       if (existing) return { outcome: 'invoice' as const, invoice: existing, created: false };
-      const authority = [...rows.values()].find(
-        (row) =>
+      const authorityEntry = [...rows.entries()].find(
+        ([, row]) =>
           row.id === input.saasBillingSubscriptionId && row.organizationId === input.organizationId,
       );
-      if (!authority) throw new Error('saas_billing_subscription_not_found');
-      // Как в pg-репозитории: цену места считает сервер — из тарифа, пропорционально дням до конца
-      // оплаченного периода, — а цена из котировки только СВЕРЯЕТСЯ. Двойник, который выставлял бы
-      // счёт на присланную сумму, описывал бы контракт, которого нет.
+      if (!authorityEntry) throw new Error('saas_billing_subscription_not_found');
+      const [authorityKey, authority] = authorityEntry;
+      // Как в pg-репозитории: решение принимает ЕДИНСТВЕННАЯ дверь `decideSeatOverage`, а цена из
+      // котировки только СВЕРЯЕТСЯ. Двойник со своим расчётом описывал бы контракт, которого нет.
+      // Мест у двойника нет вовсе, поэтому он всегда стоит ровно на пределе: `used` = предел.
       const seatTariff = tariffs.get(purchasedTariffId(authority));
-      const seatPriceMinor = seatTariff?.additionalSeatPriceMinor ?? null;
-      const seatCurrency = seatTariff?.currency ?? null;
-      if (seatPriceMinor === null || seatCurrency === null) {
+      const offer = decideSeatOverage({
+        includedSeats: 0,
+        paidAdditionalSeats: authority.paidAdditionalSeats,
+        used: authority.paidAdditionalSeats,
+        additionalSeatPriceMinor: seatTariff?.additionalSeatPriceMinor ?? null,
+        currency: seatTariff?.currency ?? null,
+        currentPeriodStartsAt: authority.currentPeriodStartsAt,
+        currentPeriodEndsAt: authority.currentPeriodEndsAt,
+        asOf: now().toISOString(),
+      });
+      if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
+      if (offer.outcome === 'seat_not_sold') {
         return { outcome: 'seat_overage_unavailable' as const };
       }
-      const priceMinor = proratedSeatPriceMinor({
-        seatPriceMinor,
-        periodStartsAt: authority.currentPeriodStartsAt,
-        periodEndsAt: authority.currentPeriodEndsAt,
-        asOf: input.servicePeriodStartsAt,
-      });
-      if (input.quotePriceMinor !== priceMinor || input.quoteCurrency !== seatCurrency) {
-        return { outcome: 'price_changed' as const, priceMinor, currency: seatCurrency };
+      if (offer.outcome === 'paid_period_over') {
+        return { outcome: 'paid_period_over' as const };
+      }
+      if (input.quotePriceMinor !== offer.priceMinor || input.quoteCurrency !== offer.currency) {
+        return {
+          outcome: 'price_changed' as const,
+          priceMinor: offer.priceMinor,
+          currency: offer.currency,
+          priceStableUntil: offer.priceStableUntil,
+        };
       }
       const row: SaasBillingInvoice = {
         id: crypto.randomUUID(),
@@ -988,15 +1004,16 @@ export function createInMemorySaasBillingRepository(
         invoiceKind: 'seat_overage',
         additionalSeatQuantity: 1,
         description: 'Дополнительное место специалиста сверх тарифа',
-        amountMinor: priceMinor,
+        amountMinor: offer.priceMinor,
+        currency: offer.currency,
         carriedDebtMinor: 0,
         supersededByInvoiceId: null,
-        currency: seatCurrency,
         tariffBillingPeriod: 'month',
         tariffSnapshot: null,
-        servicePeriodStartsAt: input.servicePeriodStartsAt,
-        servicePeriodEndsAt: input.servicePeriodEndsAt,
-        expiresAt: input.expiresAt,
+        servicePeriodStartsAt: offer.servicePeriodStartsAt,
+        servicePeriodEndsAt: offer.servicePeriodEndsAt,
+        // Р-19: срок у счёта за место один — конец периода той же услуги, что он продаёт.
+        expiresAt: offer.servicePeriodEndsAt,
         status: 'draft',
         providerId: input.providerId,
         providerInvoiceRef: null,
@@ -1004,13 +1021,20 @@ export function createInMemorySaasBillingRepository(
         providerIdempotencyKey: input.providerIdempotencyKey,
       };
       invoices.set(row.id, row);
+      // Место открывается СРАЗУ вместе с выставлением счёта (Р-15) — как в pg-репозитории, где это
+      // одна транзакция под замком организации. Приём платежа счётчика больше не трогает.
+      rows.set(authorityKey, {
+        ...authority,
+        paidAdditionalSeats: authority.paidAdditionalSeats + 1,
+      });
       return { outcome: 'invoice' as const, invoice: row, created: true };
     },
 
     async cancelSaasBillingInvoice({ saasBillingInvoiceId }) {
       const current = invoices.get(saasBillingInvoiceId);
       if (!current) return { outcome: 'invoice_not_found' as const };
-      // Тот же вердикт, что у pg-репозитория, экрана и маршрута: счёт за место не отменяют.
+      // Тот же вердикт, что у pg-репозитория, экрана и маршрута: счёт за место сюда доходит с
+      // `seat_invoice_not_cancellable` (Р-17) и место поэтому не закрывает.
       const verdict = saasBillingInvoiceCancelVerdict(current);
       if (!verdict.allowed) {
         return verdict.refusal === 'seat_invoice_not_cancellable'

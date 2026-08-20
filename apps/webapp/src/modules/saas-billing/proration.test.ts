@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   billableAdditionalSeats,
   proratedRemainingPeriodAmountMinor,
-  proratedSeatPriceMinor,
   saasBillingPeriodAmountMinor,
 } from './proration';
 
@@ -34,6 +33,24 @@ describe('proratedRemainingPeriodAmountMinor', () => {
     ).toBe(1);
   });
 
+  /**
+   * Потолок `Math.min(endsAt - startsAt, endsAt - asOf)`. Несущий, а не декоративный: дверь места
+   * округляет остаток вверх до целых суток от КОНЦА периода (Р-15) и на периоде, длина которого не
+   * кратна суткам, подставляет сюда момент РАНЬШЕ начала периода. Без потолка доплата за место
+   * выходит дороже полной цены места — находка F4 слепого аудита 19.08.
+   */
+  it('never charges more than the whole period, even asked about a moment before it started', () => {
+    expect(
+      proratedRemainingPeriodAmountMinor({
+        currentPriceMinor: 0,
+        targetPriceMinor: 150_000,
+        periodStartsAt: '2026-08-01T12:00:00.000Z',
+        periodEndsAt: '2026-08-31T11:00:00.000Z',
+        asOf: '2026-08-01T11:00:00.000Z',
+      }),
+    ).toBe(150_000);
+  });
+
   it('returns zero, never a negative charge, at and after the paid boundary', () => {
     for (const asOf of [periodEndsAt, '2026-08-12T00:00:00.000Z']) {
       expect(
@@ -46,89 +63,6 @@ describe('proratedRemainingPeriodAmountMinor', () => {
         }),
       ).toBe(0);
     }
-  });
-});
-
-/**
- * Решение владельца 18.08: «Если клиника ПОСРЕДИ ПЕРИОДА добавляет сотрудника — она оплачивает счёт
- * (с расчётом сколько сотрудников и сколько дней надо оплатить до конца оплаченного периода)».
- * Пробивается: место посреди периода снова стоит полный тариф места.
- */
-describe('proratedSeatPriceMinor', () => {
-  // 30 дней: 01.08 00:00 → 31.08 00:00.
-  const periodStartsAt = '2026-08-01T00:00:00.000Z';
-  const periodEndsAt = '2026-08-31T00:00:00.000Z';
-  const seatPriceMinor = 150_000;
-
-  it('costs exactly half at the midpoint of a 30-day period', () => {
-    expect(
-      proratedSeatPriceMinor({
-        seatPriceMinor,
-        periodStartsAt,
-        periodEndsAt,
-        asOf: '2026-08-16T09:41:00.000Z',
-      }),
-    ).toBe(75_000);
-  });
-
-  it('costs the full seat price on the first day and one day on the last', () => {
-    expect(
-      proratedSeatPriceMinor({
-        seatPriceMinor,
-        periodStartsAt,
-        periodEndsAt,
-        asOf: '2026-08-01T10:00:00.000Z',
-      }),
-    ).toBe(150_000);
-    expect(
-      proratedSeatPriceMinor({
-        seatPriceMinor,
-        periodStartsAt,
-        periodEndsAt,
-        asOf: '2026-08-30T18:00:00.000Z',
-      }),
-    ).toBe(5_000);
-  });
-
-  /**
-   * The клиника confirms the price it was shown. A quote that moves between the render and the
-   * click comes back `price_changed` every time and the purchase can never complete — so the
-   * price is counted in days and holds still for the whole day.
-   */
-  it('holds one price for the whole day, so a confirmation cannot race the clock', () => {
-    const atStartOfDay = proratedSeatPriceMinor({
-      seatPriceMinor,
-      periodStartsAt,
-      periodEndsAt,
-      asOf: '2026-08-16T00:00:00.000Z',
-    });
-    const atEndOfDay = proratedSeatPriceMinor({
-      seatPriceMinor,
-      periodStartsAt,
-      periodEndsAt,
-      asOf: '2026-08-16T23:59:59.999Z',
-    });
-    expect(atEndOfDay).toBe(atStartOfDay);
-  });
-
-  it('never hands out a free seat when there is no remaining paid window', () => {
-    for (const window of [
-      { periodStartsAt: null, periodEndsAt },
-      { periodStartsAt, periodEndsAt: null },
-      { periodStartsAt: periodEndsAt, periodEndsAt: periodStartsAt },
-    ]) {
-      expect(
-        proratedSeatPriceMinor({ seatPriceMinor, ...window, asOf: '2026-08-16T00:00:00.000Z' }),
-      ).toBe(150_000);
-    }
-    expect(
-      proratedSeatPriceMinor({
-        seatPriceMinor,
-        periodStartsAt,
-        periodEndsAt,
-        asOf: '2026-09-02T00:00:00.000Z',
-      }),
-    ).toBe(150_000);
   });
 });
 
