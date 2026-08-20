@@ -217,6 +217,7 @@ AS $function$
       'operator_health_alert_config',
       'admin_incident_alert_config',
       'app_display_timezone',
+      'telegram_mode',
       'notif_template:created:patient',
       'notif_template:created:doctor',
       'notif_template:cancelled:patient',

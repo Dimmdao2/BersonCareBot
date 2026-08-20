@@ -3,6 +3,7 @@ import { createDbPort } from '../db/client.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
   fetchIntegratorProviderRuntimeSettingValueJson,
+  fetchIntegratorRuntimeSettingValueJson,
   type IntegratorProviderRuntimeSettingKey,
   parseSystemSettingStringValue,
   parseSystemSettingTrueLiteral,
@@ -11,10 +12,12 @@ import { runWithBootstrapPrincipal } from '../principal/organizationPrincipal.js
 
 export type TelegramRuntimeConfig = {
   enabled: boolean;
+  mode: TelegramRuntimeMode;
   botToken: string;
   webhookSecret: string;
   sendMenuOnButtonPress: boolean;
 };
+export type TelegramRuntimeMode = 'webhook' | 'long_polling';
 export type MaxRuntimeConfig = {
   enabled: boolean;
   apiKey: string;
@@ -28,27 +31,43 @@ const value = async (db: DbPort, key: IntegratorProviderRuntimeSettingKey): Prom
   return raw === null ? '' : (parseSystemSettingStringValue(raw) ?? '');
 };
 const url = (input: string): string => (z.string().url().safeParse(input).success ? input : '');
+const telegramRuntimeModeSchema = z.enum(['webhook', 'long_polling']);
+
+export const isTelegramRuntimeConfigEnabled = (
+  mode: TelegramRuntimeMode,
+  botToken: string,
+  webhookSecret: string,
+): boolean => Boolean(botToken && (mode === 'long_polling' || webhookSecret));
 
 /** The single DB-backed runtime accessor for platform provider configuration. */
 export async function readTelegramRuntimeConfig(db: DbPort): Promise<TelegramRuntimeConfig> {
   try {
-    const [botToken, webhookSecret, menu] = await runWithBootstrapPrincipal(
+    const [botToken, webhookSecret, menu, rawMode] = await runWithBootstrapPrincipal(
       { source: 'integrator-server-runtime-config' },
       () =>
         Promise.all([
           value(db, 'telegram_bot_token'),
           value(db, 'telegram_webhook_secret'),
           fetchIntegratorProviderRuntimeSettingValueJson(db, 'telegram_send_menu_on_button_press'),
+          fetchIntegratorRuntimeSettingValueJson(db, 'telegram_mode'),
         ]),
     );
+    const mode = telegramRuntimeModeSchema.safeParse(parseSystemSettingStringValue(rawMode)).data ?? 'long_polling';
     return {
-      enabled: Boolean(botToken && webhookSecret),
+      enabled: isTelegramRuntimeConfigEnabled(mode, botToken, webhookSecret),
+      mode,
       botToken,
       webhookSecret,
       sendMenuOnButtonPress: menu !== null && parseSystemSettingTrueLiteral(menu),
     };
   } catch {
-    return { enabled: false, botToken: '', webhookSecret: '', sendMenuOnButtonPress: false };
+    return {
+      enabled: false,
+      mode: 'long_polling',
+      botToken: '',
+      webhookSecret: '',
+      sendMenuOnButtonPress: false,
+    };
   }
 }
 export function getTelegramRuntimeConfig(): Promise<TelegramRuntimeConfig> {
