@@ -1,4 +1,5 @@
 -- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)') IS NOT NULL;
 CREATE FUNCTION app.enqueue_integrator_outgoing_delivery(
