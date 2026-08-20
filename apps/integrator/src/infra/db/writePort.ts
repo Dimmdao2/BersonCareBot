@@ -555,7 +555,7 @@ export function createDbWritePort(
                     id,
                     hashPayload(directInput),
                   ),
-                  payload: directInput,
+                  payload: { ...directInput, organizationId: fallbackOrganizationId },
                 }),
             );
             logger.warn(

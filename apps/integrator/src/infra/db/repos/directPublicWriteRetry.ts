@@ -18,12 +18,13 @@ export type DirectPublicWriteRetryOperation =
   | 'reminder_delivery_log_append'
   | 'content_access_grant_upsert';
 
-export type DirectPublicWriteRetryPayload =
+export type DirectPublicWriteRetryPayload = (
   | UpsertReminderRuleDirectInput
   | AppendSupportDeliveryEventDirectInput
   | ReminderOccurrenceFinalizedDirectInput
   | ReminderDeliveryLoggedDirectInput
-  | ContentAccessGrantDirectInput;
+  | ContentAccessGrantDirectInput
+) & { organizationId: string };
 
 export type DirectPublicWriteRetryRow = {
   id: number;

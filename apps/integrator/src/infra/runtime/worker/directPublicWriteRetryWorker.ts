@@ -32,6 +32,17 @@ import {
 const RETRY_BASE_SECONDS = 30;
 const MAX_BACKOFF_SECONDS = 3600;
 
+class DirectPublicWriteRetryOrganizationMismatchError extends Error {
+  constructor(
+    readonly retryId: number,
+    readonly retryOrganizationId: string,
+    readonly payloadOrganizationId: unknown,
+  ) {
+    super('direct public write retry organization mismatch');
+    this.name = 'DirectPublicWriteRetryOrganizationMismatchError';
+  }
+}
+
 export type DirectPublicWriteRetryExecutor = (
   db: DbPort,
   retry: DirectPublicWriteRetryRow,
@@ -41,6 +52,14 @@ export async function executeDirectPublicWriteRetry(
   db: DbPort,
   retry: DirectPublicWriteRetryRow,
 ): Promise<void> {
+  const payloadOrganizationId = (retry.payload as { organizationId?: unknown }).organizationId;
+  if (typeof payloadOrganizationId !== 'string' || payloadOrganizationId !== retry.organizationId) {
+    throw new DirectPublicWriteRetryOrganizationMismatchError(
+      retry.id,
+      retry.organizationId,
+      payloadOrganizationId,
+    );
+  }
   if (
     retry.operation === 'reminder_rule_upsert' ||
     retry.operation === 'support_delivery_attempt_append'
@@ -94,6 +113,19 @@ export async function runDirectPublicWriteRetryWorkerTick(
           await completeDirectPublicWriteRetry(db, retry.id);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
+          if (err instanceof DirectPublicWriteRetryOrganizationMismatchError) {
+            await failDirectPublicWriteRetry(db, retry.id, message);
+            logger.error(
+              {
+                retryId: err.retryId,
+                operation: retry.operation,
+                retryOrganizationId: err.retryOrganizationId,
+                payloadOrganizationId: err.payloadOrganizationId,
+              },
+              'direct public write retry rejected organization mismatch',
+            );
+            continue;
+          }
           if (retry.attemptCount >= retry.maxAttempts) {
             await failDirectPublicWriteRetry(db, retry.id, message);
             logger.warn(

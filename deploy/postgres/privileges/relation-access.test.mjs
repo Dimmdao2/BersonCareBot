@@ -234,12 +234,17 @@ test('delivery replay capability has only the exact projection relation operatio
       const table = declaration.databases[dbName].tables[relation];
       const contextGate = table.policies.find((candidate) =>
         candidate.name.startsWith('rev10_context_gate_'));
-      const business = table.policies.find((candidate) =>
-        candidate.name.startsWith('rev10_direct_business_'));
+      const workerBusiness = table.policies.find((candidate) =>
+        candidate.name.startsWith('rev10_delivery_replay_worker_'));
+      const staffBusiness = table.policies.find((candidate) =>
+        candidate.name.startsWith('rev10_delivery_replay_staff_'));
       assert.ok(contextGate?.to.includes(deliveryRole), `${dbName}:${relation}:context gate`);
-      assert.ok(business?.to.includes(deliveryRole), `${dbName}:${relation}:business policy`);
-      assert.match(business?.using ?? '', /app_operational_delivery_worker'::name THEN true/u);
-      assert.match(business?.using ?? '', /app_staff'::name THEN organization_id = \(SELECT app\.current_org_id\(\)\)/u);
+      assert.deepEqual(workerBusiness?.to, [deliveryRole], `${dbName}:${relation}:worker policy`);
+      assert.match(workerBusiness?.using ?? '', /claimed_retry\.organization_id =/u);
+      assert.match(workerBusiness?.using ?? '', /claimed_retry\.payload ->> 'organizationId'/u);
+      assert.doesNotMatch(workerBusiness?.using ?? '', /THEN true/u);
+      assert.deepEqual(staffBusiness?.to, ['app_staff'], `${dbName}:${relation}:staff policy`);
+      assert.match(staffBusiness?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/u);
     }
   }
 });

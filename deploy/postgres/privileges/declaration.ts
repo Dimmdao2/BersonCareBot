@@ -7128,8 +7128,6 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   const rolePredicate = ordinaryRoles.length > 0
     ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
     : 'false';
-  if (tableKey === 'public.content_access_grants_webapp') return "(CASE WHEN current_user = 'app_operational_delivery_worker'::name THEN true WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) ELSE false END)";
-  if (tableKey === 'public.reminder_delivery_events') return "(CASE WHEN current_user = 'app_operational_delivery_worker'::name THEN true WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) OR (app.current_integrator_user_id() IS NOT NULL AND integrator_user_id = app.current_integrator_user_id()) ELSE false END)";
   if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
     + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = (SELECT app.current_org_id()))'
     + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = (SELECT app.current_org_id())))';
@@ -7162,6 +7160,48 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = (SELECT app.current_org_id()) AND access_member.status = 'active'))`;
   if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
   return `(${rolePredicate})`;
+}
+
+function revision10DeliveryReplayPolicies(tableKey: string, index: number): PolicyDecl[] | undefined {
+  const deliveryRole = 'app_operational_delivery_worker';
+  const staffRole = 'app_staff';
+  if (tableKey === 'public.content_access_grants_webapp') {
+    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
+      + ` WHERE claimed_retry.status = 'processing'`
+      + ` AND claimed_retry.operation = 'content_access_grant_upsert'`
+      + ' AND claimed_retry.organization_id = content_access_grants_webapp.organization_id'
+      + ` AND claimed_retry.payload ->> 'organizationId' = content_access_grants_webapp.organization_id::text`
+      + ` AND claimed_retry.payload ->> 'integratorGrantId' = content_access_grants_webapp.integrator_grant_id))`;
+    const staffWall = "(organization_id = (SELECT app.current_org_id()))";
+    return [
+      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [deliveryRole], using: workerWall, withCheck: workerWall,
+        note: 'delivery replay may reach only the organization and grant named by a claimed retry' },
+      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [staffRole], using: staffWall, withCheck: staffWall,
+        note: 'staff reaches content grants only inside its accepted organization context' },
+    ];
+  }
+  if (tableKey === 'public.reminder_delivery_events') {
+    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
+      + ` WHERE claimed_retry.status = 'processing'`
+      + ` AND claimed_retry.operation = 'reminder_delivery_log_append'`
+      + ' AND claimed_retry.organization_id = reminder_delivery_events.organization_id'
+      + ` AND claimed_retry.payload ->> 'organizationId' = reminder_delivery_events.organization_id::text`
+      + ` AND claimed_retry.payload ->> 'integratorDeliveryLogId' = reminder_delivery_events.integrator_delivery_log_id))`;
+    const staffWall = '(organization_id = (SELECT app.current_org_id())'
+      + ' OR (app.current_integrator_user_id() IS NOT NULL'
+      + ' AND integrator_user_id = app.current_integrator_user_id()))';
+    return [
+      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [deliveryRole], using: workerWall, withCheck: workerWall,
+        note: 'delivery replay may append only the organization and event named by a claimed retry' },
+      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [staffRole], using: staffWall, withCheck: staffWall,
+        note: 'staff reaches delivery events only inside its accepted organization context' },
+    ];
+  }
+  return undefined;
 }
 
 function revision10CoursesPolicies(index: number): PolicyDecl[] {
@@ -7487,11 +7527,15 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       'public.reminder_delivery_events', 'public.reminder_occurrence_history',
       'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
-    const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
-      name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
-      using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
-      note: `exact direct role business wall for ${key}`,
-    }] : [];
+    const deliveryReplayPolicies = access?.kind === 'direct'
+      ? revision10DeliveryReplayPolicies(key, index)
+      : undefined;
+    const directBusiness: PolicyDecl[] = deliveryReplayPolicies
+      ?? (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
+        name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
+        using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
+        note: `exact direct role business wall for ${key}`,
+      }] : []);
     const runtimeBusinessBaseRaw: PolicyDecl[] = !active ? []
       : key === 'public.system_settings' && access?.kind === 'direct'
         ? revision10SystemSettingsPolicies(index)
