@@ -520,6 +520,30 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       (`D10_GRANT_FIX_VERIFY_2026-08-20.md`, независимая живая проверка на `bcb_webapp_dev`, 5/5 kill-set).
       Следующий шаг — сам снос транспорта (fanout/outbox/воркер/`/api/integrator/events`) по тексту выше, не
       ещё один круг фикса.
+      ✅ **STAGE 1 (интегратор) СДЕЛАН 20.08** — ветка `wt/d10-transport-stage1-20260820` (`210c57ea2`),
+      отчёт `D10_TRANSPORT_REMOVAL_STAGE1_2026-08-20.md`, вердикт в очереди аудита. Удалены fanout, outbox-репо
+      и merge-политика, projection-воркер и его обвязка, `/health/projection`, emit-клиент к
+      `/api/integrator/events`, контракт события и projection-health tooling в `src`. Сохранены (и это
+      требование, а не недосмотр): очередь доставки, общая идемпотентность, очередь direct-write retry, общий
+      HTTP-клиент к вебаппу и `jsonStableStringify`. Диff −1109/+173, только удаления.
+      **Перепроверено ведущим своей рукой, не по отчёту:** `tsc --noEmit` EXIT=0; `vitest run` по интегратору
+      EXIT=0 — 97 файлов, 489 passed; `eslint apps/integrator/src --max-warnings=0` EXIT=0. Цель этапа
+      подтверждена независимо: `rg` по `apps/integrator/src` даёт **ноль писателей** в `projection_outbox`.
+      🟡 **Остаток D10 — четыре пункта, ни один не сделан:**
+      1. **Stage 2, сторона вебаппа:** маршрут `/api/integrator/events`, исключение CSRF
+         (`src/middleware/csrfOrigin.ts:3`), `modules/integrator/events.ts`,
+         `modules/integrator/ingestErrorClassification.ts`, запись в `protectedActionRegistry.ts:1275`.
+      2. **Хвосты вне `apps/integrator/src/**`** (воркер честно назвал их сам, менять молча не стал):
+         `apps/integrator/package.json`, `apps/integrator/scripts/projection-health.mjs`, deploy-скрипты
+         proxy/check и deploy-доки всё ещё держат снятую projection-health команду и эндпоинт.
+      3. **Мёртвая тестовая оснастка, воркер её не заметил, нашёл ведущий:**
+         `apps/integrator/src/infra/db/stubIntegratorDrizzleForTests.ts` теперь **ноль вызовов во всём
+         репозитории** — его пользователями были удалённые projection-тесты. Строка
+         `D20_INTEGRATOR_MAP.md:372` («ОСТАЁТСЯ … используется 3 интеграционными тестами») протухла и помечена.
+      4. **DROP `integrator.projection_outbox` миграцией** — вместе с Drizzle-декларацией таблицы
+         (`infra/db/schema/integratorQueues.ts`) и мёртвой заглушкой из п. 3. Строго последним, после 1–3.
+         Воркеры миграции не применяют.
+      ⛔ Ветка stage 1 — КОД, лежит неприземлённой: ждёт явного разрешения владельца (третья такая ветка).
 - [x] **D11 — блок дневника и ЛФК удалён из бота.** Настоящий дневник живёт в вебаппе. Решение — **Р-D11**
       (§2.3). Прогон — `docs/_TODO/runs/integrator-diary-removal/`.
 - [x] **D12b — перепись ДОСТИЖИМЫХ сценариев исполнителя.** ✅ **ЗАКРЫТО 31.07** (`43eff0ac8`),
