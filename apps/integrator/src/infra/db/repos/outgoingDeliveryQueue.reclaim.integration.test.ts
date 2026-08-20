@@ -6,9 +6,9 @@
  * - repeated worker crashes recycle one row forever instead of dead-lettering it;
  * - an expired "sent" queue row remains stored, or cleanup removes its durable attempt journal.
  *
- * Fixture writes and cleanup use the port-context tenant-service capability. Reclaim/claim
- * observations use the exact worker capability and therefore app_operational_delivery_worker
- * (SELECT/UPDATE only).
+ * Guarded admin-socket setup/cleanup creates unique rows only after the named DEV/TEST database
+ * guard. Reclaim/claim observations use the exact worker capability and therefore
+ * app_operational_delivery_worker (SELECT/UPDATE only).
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -36,6 +36,10 @@ describe.skipIf(!enabled)(
     );
     const writtenQueueEventIds: string[] = [];
 
+    function sqlLiteral(value: string): string {
+      return `'${value.replaceAll("'", "''")}'`;
+    }
+
     type AttemptJournalSnapshot = {
       rowCount: number;
       ids: string[];
@@ -50,21 +54,23 @@ describe.skipIf(!enabled)(
     }): Promise<{ id: string; eventId: string }> {
       const eventId = `d10b-${randomUUID()}`;
       writtenQueueEventIds.push(eventId);
-      const result = await harness.withFixtures((db) =>
-        runIntegratorSql<{ id: string }>(
-          db,
-          sql`INSERT INTO public.outgoing_delivery_queue (
-            event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
-            next_retry_at, last_attempt_at, sent_at, reclaim_count
-          ) VALUES (
-            ${eventId}, 'operator_alert', 'telegram', '{}'::jsonb, ${input.status}, 1, 6,
-            now(), ${input.lastAttemptAt ?? null}::timestamptz,
-            ${input.sentAt ?? null}::timestamptz, ${input.reclaimCount ?? 0}
-          )
-          RETURNING id`,
-        ),
-      );
-      const id = result.rows[0]?.id;
+      const lastAttemptAt = input.lastAttemptAt === undefined
+        ? 'NULL'
+        : `${sqlLiteral(input.lastAttemptAt)}::timestamptz`;
+      const sentAt = input.sentAt === undefined
+        ? 'NULL'
+        : `${sqlLiteral(input.sentAt)}::timestamptz`;
+      const id = harness.withAdminSocket(`
+        INSERT INTO public.outgoing_delivery_queue (
+          event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
+          next_retry_at, last_attempt_at, sent_at, reclaim_count
+        ) VALUES (
+          ${sqlLiteral(eventId)}, 'operator_alert', 'telegram', '{}'::jsonb,
+          ${sqlLiteral(input.status)}, 1, 6, now(), ${lastAttemptAt}, ${sentAt},
+          ${input.reclaimCount ?? 0}
+        )
+        RETURNING id;
+      `);
       if (!id) throw new Error('insertQueueRow: no id returned');
       return { id, eventId };
     }
@@ -93,31 +99,22 @@ describe.skipIf(!enabled)(
     // и делает это строже подставной строки — следим за всеми записями, а не за одной своей.
     // Списка идентификаторов здесь нет намеренно: параметризованный пустой массив приводил к
     // `cannot cast type record to text[]` на настоящей базе (поймано живым прогоном 31.07).
-    async function readAttemptJournalSnapshot(db: DbPort): Promise<AttemptJournalSnapshot> {
-      const result = await runIntegratorSql<{
-        row_count: number;
-        ids: string[];
-        content_fingerprint: string;
-      }>(
-        db,
-        sql`SELECT
-              count(*)::integer AS row_count,
-              COALESCE(
-                array_agg(attempt.id::text ORDER BY attempt.id),
-                ARRAY[]::text[]
-              ) AS ids,
-              md5(COALESCE(
-                string_agg(to_jsonb(attempt)::text, '' ORDER BY attempt.id),
-                ''
-              )) AS content_fingerprint
-            FROM public.notification_delivery_attempts AS attempt`,
-      );
-      const row = result.rows[0];
-      if (!row) throw new Error('readAttemptJournalSnapshot: aggregate row missing');
+    async function readAttemptJournalSnapshot(): Promise<AttemptJournalSnapshot> {
+      const raw = harness.withAdminSocket(`
+        SELECT json_build_object(
+          'rowCount', count(*)::integer,
+          'ids', COALESCE(array_agg(attempt.id::text ORDER BY attempt.id), ARRAY[]::text[]),
+          'contentFingerprint', md5(COALESCE(
+            string_agg(to_jsonb(attempt)::text, '' ORDER BY attempt.id), ''
+          ))
+        )::text
+        FROM public.notification_delivery_attempts AS attempt;
+      `);
+      const row = JSON.parse(raw) as AttemptJournalSnapshot;
       return {
-        rowCount: row.row_count,
+        rowCount: row.rowCount,
         ids: row.ids,
-        contentFingerprint: row.content_fingerprint,
+        contentFingerprint: row.contentFingerprint,
       };
     }
 
@@ -127,16 +124,11 @@ describe.skipIf(!enabled)(
 
     afterAll(async () => {
       await harness.assertTestDatabases();
-      await harness.withFixtures(async (db) => {
-        if (writtenQueueEventIds.length > 0) {
-          for (const eventId of writtenQueueEventIds) {
-            await runIntegratorSql(
-              db,
-              sql`DELETE FROM public.outgoing_delivery_queue WHERE event_id = ${eventId}`,
-            );
-          }
-        }
-      });
+      for (const eventId of writtenQueueEventIds) {
+        harness.withAdminSocket(
+          `DELETE FROM public.outgoing_delivery_queue WHERE event_id = ${sqlLiteral(eventId)};`,
+        );
+      }
       if (writtenQueueEventIds.length > 0) {
         for (const eventId of writtenQueueEventIds) {
           const remaining = await harness.withRuntime((db) =>
@@ -204,7 +196,7 @@ describe.skipIf(!enabled)(
       const enqueueEventId = `d10b-enqueue-${randomUUID()}`;
       writtenQueueEventIds.push(enqueueEventId);
 
-      const journalBefore = await harness.withFixtures(readAttemptJournalSnapshot);
+      const journalBefore = await readAttemptJournalSnapshot();
       expect(
         journalBefore.rowCount,
         'notification_delivery_attempts is empty under app_staff; 0 = 0 cannot prove journal preservation',
@@ -221,9 +213,7 @@ describe.skipIf(!enabled)(
 
       expect(await readQueueRow(expired.id)).toBeUndefined();
       expect(await readQueueRow(recent.id)).toMatchObject({ status: 'sent' });
-      const journalAfter = await harness.withFixtures((db) =>
-        readAttemptJournalSnapshot(db),
-      );
+      const journalAfter = await readAttemptJournalSnapshot();
       expect(journalAfter.rowCount).toBe(journalBefore.rowCount);
       expect(journalAfter.contentFingerprint).toBe(journalBefore.contentFingerprint);
     });

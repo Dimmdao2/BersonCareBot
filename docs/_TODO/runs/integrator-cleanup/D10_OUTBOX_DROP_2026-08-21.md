@@ -1,5 +1,39 @@
 # D10 — окончательный снос `integrator.projection_outbox` — 2026-08-21
 
+## D10 + D20 convergence — 2026-08-21
+
+Этот раздел фиксирует последующую продуктовую конвергенцию, **не повторный аудит D10**. Независимый audit commit
+`2ae7bd70d536e7101ad87999e88b938f5e34c4eb` сохранил свой PASS для D10 product commit
+`5c24a29e4de6f2f9c115274eefa88b9729e38256`; combined branch заново независимым аудитом не объявляется.
+
+- `integrator.projection_outbox` и его declaration-derived access остаются удалёнными.
+- Единственная journal capability осталась
+  `app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)`;
+  legacy `app.record_operational_delivery_attempt_audit(...)` не возвращалась.
+- Оба queue producer-вызова теперь используют один параметризованный product root
+  `app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)` под
+  существующим infra principal. Forward migration
+  `20260821T001200_parameterize_integrator_outgoing_delivery_enqueue.sql` содержит exact accepted-context check,
+  не содержит GRANT/REVOKE и не применялась.
+- Privilege и port-context artifacts получены только генераторами:
+  `node deploy/postgres/privileges/generate-cli.mjs --all`,
+  `node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only`, затем оба `--check` — exit 0.
+
+Проверки классифицированы: generator/check, migration/function/callsite gates и typecheck — **test**;
+live fixture/read-only cleanup census и просмотр generated diff — **view**. Статические test-gates: `pnpm test:db-privileges`
+→ 154 passed, 29 skipped, 0 failed; `node scripts/check-c4-migration-owned-function-bodies.mjs` → `OK`;
+`node --test deploy/postgres/privileges/function-census.test.mjs` → 19/19; catalog
+`node --test deploy/postgres/privileges/port-context-callsite-catalog.test.mjs` → 5/5. Отдельная fault injection
+journal identity намеренно дала catalog exit 1 (`wrong catalog descriptor count`), затем identity восстановлена,
+artifacts заново сгенерированы и catalog снова 5/5.
+
+**Live blocker (view, DEV only):** под host lock opt-in четыре файла исполнили 16/16, но получили 7 passed / 9 failed:
+live `bcb_webapp_dev` ещё не содержит canonical journal capability и нового generic enqueue capability. Ошибки ровно
+`Missing unique declared integrator port capability for app.record_operator_delivery_attempt(...)` и
+`...app.enqueue_integrator_outgoing_delivery(...)`. Миграция и reconcile этим worker не применялись. Lead должен
+сначала выполнить sanctioned DEV `migrate-dev.sh` reconcile, затем повторить тот же четырёхфайловый opt-in command.
+Не трогались TEST/PROD.
+
 ## Итог
 
 `integrator.projection_outbox` выведена из активной схемы, Drizzle, privilege declaration и deploy SQL.

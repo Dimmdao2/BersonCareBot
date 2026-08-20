@@ -74,36 +74,32 @@ export async function enqueueOutgoingDeliveryIfAbsent(
 ): Promise<boolean> {
   const maxAttempts = Math.max(1, Math.trunc(input.maxAttempts ?? 6));
   const payloadJson = attachCurrentCorrelationToOutgoingPayload(input.payloadJson);
-  const res = await runIntegratorSql<{ inserted: boolean }>(
-    db,
-    sql`INSERT INTO public.outgoing_delivery_queue (
-       event_id,
-       kind,
-       channel,
-       payload_json,
-       status,
-       attempt_count,
-       max_attempts,
-       next_retry_at
-     ) VALUES (
-       ${input.eventId},
-       ${input.kind},
-       ${input.channel},
-       ${JSON.stringify(payloadJson)}::jsonb,
-       'pending',
-       0,
-       ${maxAttempts},
-       COALESCE(${input.nextRetryAt ?? null}::timestamptz, now())
-     )
-     ON CONFLICT (event_id) DO NOTHING
-     RETURNING true AS inserted`,
+  const payloadJsonText = JSON.stringify(payloadJson);
+  const result = await runWithDbInfraPrincipal({ source: 'delivery-handler' }, () =>
+    runIntegratorNamedRoot<{ inserted: boolean }>(
+      db,
+      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)',
+      [
+        input.eventId,
+        input.kind,
+        input.channel,
+        payloadJsonText,
+        maxAttempts,
+        input.nextRetryAt ?? null,
+        getCurrentOrganizationPrincipalId() ?? null,
+      ],
+      sql`SELECT app.enqueue_integrator_outgoing_delivery(
+        ${input.eventId}, ${input.kind}, ${input.channel}, ${payloadJsonText}, ${maxAttempts},
+        ${input.nextRetryAt ?? null}::timestamptz, ${getCurrentOrganizationPrincipalId() ?? null}::uuid
+      ) AS inserted`,
+    ),
   );
-  // Retention belongs to the producer boundary deliberately: every successful queue producer
-  // already needs app_staff INSERT, and that same existing role owns DELETE. The delivery worker
-  // has only SELECT/UPDATE, so invoking retention from its tick would fail in locked runtime.
+  // Retention belongs to the producer boundary deliberately: the enqueue root is called under
+  // the delivery-handler infra principal, while the delivery worker has only SELECT/UPDATE.
+  // Invoking retention from its tick would therefore fail in locked runtime.
   const retention = await getOutgoingDeliveryReclaimConfig(db);
   await deleteExpiredSentOutgoingDeliveries(db, retention.doneRetentionDays);
-  return Boolean(res.rows[0]?.inserted);
+  return result.rows[0]?.inserted === true;
 }
 
 /**
@@ -125,10 +121,11 @@ export async function enqueueAcceptedIncomingReplyIfAbsent(
   const result = await runWithDbInfraPrincipal({ source: 'delivery-handler' }, () =>
     runIntegratorNamedRoot<{ inserted: boolean }>(
       db,
-      'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)',
-      [eventId, channel, payloadJsonText, maxAttempts, organizationId ?? null],
-      sql`SELECT app.enqueue_integrator_inbound_reply(
-        ${eventId}, ${channel}, ${payloadJsonText}, ${maxAttempts}, ${organizationId ?? null}::uuid
+      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)',
+      [eventId, 'inbound_reply', channel, payloadJsonText, maxAttempts, null, organizationId ?? null],
+      sql`SELECT app.enqueue_integrator_outgoing_delivery(
+        ${eventId}, 'inbound_reply', ${channel}, ${payloadJsonText}, ${maxAttempts},
+        NULL::timestamptz, ${organizationId ?? null}::uuid
       ) AS inserted`,
     ),
   );

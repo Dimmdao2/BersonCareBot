@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import { createDbPort } from './client.js';
@@ -53,6 +54,8 @@ export function createRealPostgresIntegrationTestHarness(
   runtimeSource: IntegratorWorkerTestSource,
   principalContextMode: RealPostgresPrincipalContextMode,
 ) {
+  let adminDatabaseName: string | undefined;
+
   function withFixtures<T>(fn: (db: DbPort) => Promise<T>): Promise<T> {
     return runWithOrganizationPrincipal(TEST_FIXTURE_ORGANIZATION_ID, () => fn(createDbPort()));
   }
@@ -85,10 +88,26 @@ export function createRealPostgresIntegrationTestHarness(
         `${runtimeSource} connection must run as app_operational_delivery_worker, got "${runtimeIdentity.currentRole}"`,
       );
     }
+    adminDatabaseName = fixtureIdentity.databaseName;
+  }
+
+  function withAdminSocket(sqlText: string): string {
+    if (adminDatabaseName === undefined) {
+      throw new Error('integration harness admin socket requires assertTestDatabases() first');
+    }
+    assertTestDatabaseName(adminDatabaseName, 'admin-socket fixture connection');
+    return execFileSync(
+      'sudo',
+      ['-n', '-u', 'postgres', 'psql', '-X', '-A', '-t', '-q',
+        '-h', '/var/run/postgresql', '-p', '5432', '-d', adminDatabaseName,
+        '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+      { input: sqlText, encoding: 'utf8', maxBuffer: 8 * 1024 * 1024 },
+    ).trim();
   }
 
   return {
     assertTestDatabases,
+    withAdminSocket,
     withFixtures,
     withRuntime,
   };

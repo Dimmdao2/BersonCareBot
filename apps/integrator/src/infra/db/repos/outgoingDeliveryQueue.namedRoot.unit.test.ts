@@ -48,12 +48,14 @@ describe('inbound reply retry enqueue boundary', () => {
     );
     expect(fakes.runNamedRoot.mock.calls[0]?.slice(0, 3)).toEqual([
       db,
-      'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)',
+      'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)',
       [
         'event-1',
+        'inbound_reply',
         'telegram',
         JSON.stringify({ intent: { type: 'message.send' } }),
         4,
+        null,
         '22222222-2222-4222-8222-222222222222',
       ],
     ]);

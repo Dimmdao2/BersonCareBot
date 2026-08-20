@@ -2320,10 +2320,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'integrator.reminder-occurrence-finalized.record',
       functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
-    integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
+    integrator_outgoing_delivery_enqueue: { port: 'integrator', runtimeName: 'outgoing_delivery_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
-      contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',
-      functionIdentity: 'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)' },
+      contextClass: 'service', purpose: 'delivery.outgoing.enqueue',
+      functionIdentity: 'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)' },
     integrator_webhook_outcome_record: { port: 'integrator', runtimeName: 'webhook_outcome_record',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'integrator.webhook-outcome.record',
@@ -3315,15 +3315,15 @@ const REV10_CONTEXT = {
         'app_tenant_service',
       ],
     },
-    'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': rev10Function({
+    'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_operational_delivery_worker'], purpose: 'enqueue one failed accepted-event messenger reply',
-      typedArgs: ['text', 'text', 'text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      execute: ['app_operational_delivery_worker'], purpose: 'enqueue one integrator-owned outgoing delivery',
+      typedArgs: ['text', 'text', 'text', 'text', 'integer', 'timestamp with time zone', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
         columns: ['event_id', 'kind', 'channel', 'payload_json', 'status', 'attempt_count', 'max_attempts',
           'next_retry_at', 'organization_id'], operations: ['SELECT' as const, 'INSERT' as const],
-        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0410' as const }],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in D20 parameterized enqueue root' as const }],
     }),
     // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
     // mechanism taking a context, not one function per message kind). Runtime roles get EXECUTE

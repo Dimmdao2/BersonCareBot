@@ -16,6 +16,46 @@ GRANT, миграций или изменения DB-объектов.
 - `operatorDeliveryAttempts.integration.test.ts`: FAIL, 8/9: тот же fixture-разрыв плюс несовпадение named-root
   identity для journal writer.
 
+## D10 + D20 convergence — 2026-08-21
+
+Предыдущие FINDING 1/2 ниже — сохранённый D20 red baseline; fixture finding закрыт admin-socket fixture pattern,
+а journal identity исправлена canonical capability declaration. Current live blocker указан в этом разделе.
+
+Фикстуры queue и journal больше не выдают `INSERT`/`DELETE` за `app_tenant_service` или worker. После
+`assertTestDatabaseName` они используют существующий guarded admin-socket pattern (`postgres` через
+`/var/run/postgresql`, строго `bcb_webapp_dev` или `*_test`), unique `d10b-`/`d987-` IDs и явную cleanup. Product
+вызов не замаскирован: producer использует один параметризованный named root
+`app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid)` с exact
+accepted-context check в pending forward migration. Ни role grant, ни test-only capability не добавлялись.
+
+Проверки классифицированы так: generator/check, migration/function/callsite, unit и typecheck — **test**; opt-in
+live run и cleanup census — **view**. Test evidence: оба generator `--check` exit 0; `pnpm test:db-privileges` —
+154 passed / 29 skipped / 0 failed; `node scripts/check-c4-migration-owned-function-bodies.mjs` — `OK`;
+`node --test deploy/postgres/privileges/function-census.test.mjs` — 19/19; port-context catalog — 5/5. Таргетная
+fault injection canonical `app.record_operator_delivery_attempt(...)` сделала catalog красным (exit 1, missing
+exact descriptor); identity сразу восстановлена, artifacts regenerated и тот же catalog снова 5/5.
+
+Финальный live **view** выполнен под lock на DEV:
+
+```bash
+/home/dev/brain/host-orch/run-tests.sh "cd /home/dev/dev-projects/bcb-wt-d20-portcontext-convergence-20260821 && set -a && source /home/dev/dev-projects/BersonCareBot/.env && set +a && RUN_INTEGRATOR_SQL_PERMISSION_TEST=1 RUN_OUTGOING_DELIVERY_RECLAIM_TEST=1 RUN_OPERATOR_DELIVERY_ATTEMPT_TEST=1 RUN_REMINDER_RULES_RLS_TEST=1 USE_REAL_DATABASE=1 pnpm --dir apps/integrator exec vitest run src/infra/db/runIntegratorSql.integration.test.ts src/infra/db/repos/outgoingDeliveryQueue.reclaim.integration.test.ts src/infra/db/repos/operatorDeliveryAttempts.integration.test.ts src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts"
+```
+
+Exit 1: **4 files, 16/16 executed, 7 passed / 9 failed / 0 skipped**. Это точный sanctioned-DEV blocker, а не
+ослабленная проверка: live catalog ещё не reconciled и поэтому не содержит canonical journal capability и нового
+generic enqueue capability. Сообщения: `Missing unique declared integrator port capability for
+app.record_operator_delivery_attempt(...)` и `...app.enqueue_integrator_outgoing_delivery(...)`. Worker не применял
+миграцию и не запускал reconcile; lead должен выполнить sanctioned DEV `migrate-dev.sh` reconcile и затем повторить
+эту же команду. TEST/PROD не затрагивались.
+
+После красного run cleanup **view** проверен read-only command:
+
+```bash
+sudo -n -u postgres psql -X -A -t -q -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT 'queue_test_rows=' || count(*) FROM public.outgoing_delivery_queue WHERE event_id LIKE 'd10b-%' OR event_id LIKE 'd987-%'; SELECT 'journal_test_rows=' || count(*) FROM public.notification_delivery_attempts WHERE event_id LIKE 'd987-%'; SELECT 'reminder_test_rows=' || count(*) FROM public.reminder_rules WHERE integrator_rule_id LIKE 'rls-it-%'; ROLLBACK;"
+```
+
+Exit 0: `queue_test_rows=0`, `journal_test_rows=0`, `reminder_test_rows=0`.
+
 ## Почему было skipped и что изменилось
 
 До правки каждый файл требовал непустой `DB_PRINCIPAL_SIGNING_SECRET`; первые, второй и четвёртый дополнительно
