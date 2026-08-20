@@ -42,6 +42,7 @@ DEPLOY_REPO=/opt/projects/bersoncarebot-test
 BRANCH="feat/doctor-ui-rebuild"
 CONFIRM_FULL_RESET=0
 PREPARE_CUTOVER_SOURCE_ONLY=0
+CUTOVER_MODE=commit
 FIO_MANIFEST=""
 FIO_MANIFEST_FILE_SHA256=""
 FIO_MANIFEST_SHA256=""
@@ -2301,6 +2302,7 @@ Usage:
     --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
     --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
     [--prepare-cutover-source-only] \
+    [--cutover-dry-run] \
     [branch]
 
 This command destroys and recreates bersoncarebot_test from a fresh production dump. It is only for an
@@ -2312,6 +2314,8 @@ run to the exact owner-reviewed inputs. No patient data is printed by this wrapp
 
 --prepare-cutover-source-only runs the complete hash-bound data stage and aggregate assertions, leaves
 TEST writers stopped, and exits before schema migration. It never starts the historical migration runners.
+--cutover-dry-run executes the complete A -> B transaction and all reports, rolls it back, then exits
+before post-migration checks. The preceding TEST reset/data-preparation stages are unchanged.
 EOF
 }
 
@@ -2321,6 +2325,7 @@ parse_full_reset_args(){
     case "$arg" in
       --confirm-full-reset) CONFIRM_FULL_RESET=1 ;;
       --prepare-cutover-source-only) PREPARE_CUTOVER_SOURCE_ONLY=1 ;;
+      --cutover-dry-run) CUTOVER_MODE=dryrun ;;
       --fio-manifest=*) FIO_MANIFEST="${arg#*=}" ;;
       --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
       --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
@@ -2641,7 +2646,13 @@ sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
   -v cutover_database="$DB" \
   -v canonical_organization_id="$ORG_ID" \
   -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
+  -v cutover_mode="$CUTOVER_MODE" \
   -f "$DEPLOY_REPO/$CUTOVER_MIGRATION"
+
+if [ "$CUTOVER_MODE" = "dryrun" ]; then
+  log "CUTOVER DRY RUN COMPLETE — transaction rolled back; post-migration checks intentionally skipped"
+  exit 0
+fi
 
 expected_ledger_rows="$(awk '/^INSERT INTO drizzle\.__drizzle_migrations / { count += 1 } END { print count + 0 }' "$DEPLOY_REPO/$TARGET_LEDGER_ARTIFACT")"
 [ "$expected_ledger_rows" -gt 0 ] || { echo "FATAL: target ledger artifact has no drizzle migration rows: $TARGET_LEDGER_ARTIFACT" >&2; exit 1; }
