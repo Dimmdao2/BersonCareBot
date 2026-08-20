@@ -9,6 +9,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableTariff';
 
@@ -199,10 +200,9 @@ export function PayTariffButton({
         </Button>
       </div>
       <Select value={selectedTariffId} onValueChange={(value) => setSelectedTariffId(value ?? '')}>
-        <SelectTrigger
-          className="w-full"
-          displayLabel={tariffChange.choices.find((choice) => choice.id === selectedTariffId)?.name}
-        />
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Выберите тариф" />
+        </SelectTrigger>
         <SelectContent>
           {tariffChange.choices.map((choice) => (
             <SelectItem key={choice.id} value={choice.id} label={choice.name}>
