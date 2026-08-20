@@ -27,7 +27,7 @@ async function listRuntimeTypeScriptFiles(root: string): Promise<string[]> {
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
     throw error;
   }
   const nested = await Promise.all(
