@@ -1350,21 +1350,22 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       singleton-настройка существует, но варианты `read_only` / `blocked` перекрываются тарифной лестницей и потому
       ещё не образуют самостоятельное runtime-поведение. Не расползать это поведение по механикам, свести в один вход.
 
-      **Реальность 20.08:** singleton и UI действительно существуют: `saas_paid_period_policy` +
-      `set_paid_period_policy` в
-      `apps/webapp/src/app/api/admin/commercial/route.ts`; global ladder в миграции
-      `0376_tariff_billing_periods_post_paid_policy_local.sql`; UI «После завершения оплаченного периода» в
-      `CommercialConstructorClient.tsx`; re-audit **`62b69f339` accepted** (MF-1/MF-2 TS commercial access).
-      Но пункт не закрыт: при наличии `system_access_policy` обе SQL-двери сначала строят `grace/read_only/disabled`
-      по тарифной лестнице от `degradation_started_at`; поэтому выбранные в singleton варианты `read_only` и
-      `blocked` не определяют итоговое состояние и фактически различаются только от варианта перехода на другой тариф.
+      ⛔ **ПЕРЕОТКРЫТО 20.08:** прежнее доказательство было ложным: UI и singleton существовали, но
+      `app.resolve_organization_{cabinet,mechanic}_access` после global lifecycle снова применял
+      `tariff.system_access_policy`, поэтому тариф мог заменить выбранный outcome `read_only`/`blocked`.
+      Forward migration `20260820T175432_paid_period_global_access_authority.sql` ставит global outcome
+      перед тарифной лестницей в ОБЕИХ SQL-дверях; `requireEntitlementForMutation` расширен для
+      mechanic-less mutation и закрывает `POST /api/doctor/clients`. Повторно закрывать только после
+      целевого прогона: зависимости рабочего дерева отсутствуют (`pnpm --dir apps/webapp test -- …` →
+      `vitest: not found`). Owner walkthrough/full CI не закрывать этим пунктом.
 
-- [ ] **Т13. `read_only` при неоплате запрещает все записи в одном общем месте, а не через двери отдельных
-      механик.** Решение владельца 19.08 — [`OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md) Т13.
-      **Реальность 20.08:** `isCabinetEntryBlocked` пропускает `read_only`; отказ записи существует только там,
-      где маршрут отдельно вызвал `requireEntitlementForMutation`. После удаления `patient_count`
-      `POST /api/doctor/clients` не вызывает commercial resolver и создаёт пациента в `read_only`; доказательство —
-      [`PATIENT_COUNT_REMOVAL_AUDIT_2026-08-19.md`](../../REPORTS/PATIENT_COUNT_REMOVAL_AUDIT_2026-08-19.md).
+- [ ] **T13. Только чтение при неоплате — общая mutation-дверь.** Реализация 20.08: mechanic-less
+      `POST /api/doctor/clients` проходит расширенный существующий `requireEntitlementForMutation`,
+      получает `commercial_read_only`/`commercial_blocked` до `createDoctorClient`; остальные
+      mechanic-bearing write paths остаются на том же chokepoint и получают SQL global outcome.
+      Повторно закрыть только после целевого прогона route/UI/org-entitlements tests; он сейчас
+      заблокирован отсутствующим `vitest` в рабочем дереве. Чтение в read_only и owner walkthrough
+      этим пунктом не закрыты.
 
 - [x] **Т9. Периоды оплаты задаются в тарифе, а не в коде; «день» как период — убрать.** Владелец 04.08,
       дословно: «И что блять за тарифное значение день для оплаты? Я понимаю месяц, полгода, год - но даже это
@@ -1492,6 +1493,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 - [ ] **4b.4** **ЧАСТИЧНО, повторно открыто сверкой кода 20.08:** хардкода по имени механики нет, решает класс
       и значение из данных, но утверждение «разные значения → разное поведение» ложно для capability-пары
       `read_only` / `disable_immediately`; обе заканчиваются `disabled` после перехода.
+      **20.08:** controls удалены из commercial constructor по команде владельца; сохранённый backend
+      lifecycle не меняется, а отсутствие поля сохраняет существующее значение `downgradePolicies`.
       «филиалы блокируем», «файлы особые») — они становятся значениями, а не ветками. Проверка: тест ставит по одной
       механике разные значения ручек и получает разное поведение без правки кода.
 - [x] **4b.5** ✅ **ЗАКРЫТО 31.07** (`ab5a8de02`): было ЧАСТИЧНО — «отказ виден» покрыт давно, а на «данные не удаляются» и «включение возвращает как было» тестов НЕ БЫЛО вовсе. Дописаны на настоящем маршруте курсов; лид проверил поломкой: залипшее решение «выключено» роняет тест восстановления. Свойства механизма, которые НЕ настраиваются и обязаны выполняться при любых значениях: данные не

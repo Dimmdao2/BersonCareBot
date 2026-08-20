@@ -108,8 +108,8 @@ describe('commercial constructor access ladder', () => {
     expect(screen.queryByText(/квот/i)).not.toBeInTheDocument();
   });
 
-  // #1069 T1 (owner 05.08): one system ladder only — no per-mechanic exception UI.
-  it('shows only the system access ladder form, never mechanic exceptions', async () => {
+  // #1069 T1/T10/T13: one global paid-period policy and no tariff downgrade controls in the UI.
+  it('shows only the system access ladder form, never mechanic exceptions or downgrade controls', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => ({
@@ -131,6 +131,7 @@ describe('commercial constructor access ladder', () => {
     expect(screen.queryByText(/Исключения по механикам/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Добавить исключение/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Исключение:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/При переходе на меньший тариф/i)).not.toBeInTheDocument();
   });
 
   it('submits and reloads only the system access policy', async () => {
@@ -195,6 +196,7 @@ describe('commercial constructor access ladder', () => {
         },
       }),
     );
+    expect((submitted!.tariff as Record<string, unknown>).downgradePolicies).toBeUndefined();
 
     fireEvent.click(await screen.findByRole('button', { name: /Тариф с политикой/ }));
 

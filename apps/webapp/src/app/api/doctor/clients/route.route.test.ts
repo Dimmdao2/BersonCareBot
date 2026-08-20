@@ -3,20 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * Т12 (владелец 19.08, дословно): «лимит клиентов - убрать».
  *
- * Что здесь доказывается ПОВЕДЕНИЕМ, а не отсутствием строки в коде: врач заводит клиента, и по
- * дороге НИКТО не спрашивает тариф. Реестр механик поднимается настоящий, резолвер механик —
- * настоящая функция `resolveMechanicAccess`, которой подсунут порт, отвечающий «выключено» на
- * ЛЮБУЮ механику. Если бы у создания клиента остался хоть какой-то тарифный гейт, он бы прочитал
- * этот порт и вернул 403; тест ловит и это (`expect(...).not.toHaveBeenCalled()`), и результат.
+ * T12 removes the patient-count mechanic; T13 still requires the cabinet-wide commercial mutation
+ * door. The route therefore never asks a made-up patient mechanic but does refuse the global
+ * read-only rung before the patient-creation service runs.
  *
  * Ниже по стеку тоже настоящее: `createDoctorClient` и `createPatientOrganizationService`. Весь
- * запрос выполняется внутри `runWithoutMechanicWriteClearance` — то есть в контексте, где ни одно
- * mutation-решение не отмечено. Прежняя физическая дверь 3.2 на этом бросала
- * `MechanicWriteClearanceRequiredError`; теперь двери нет.
+ * The request carries no mechanic write clearance because creation has no tariff mechanic.
  */
 const fakes = vi.hoisted(() => ({
   requireDoctorWorkspaceApiContext: vi.fn(),
   resolveMechanicAccess: vi.fn(),
+  resolveCabinetAccess: vi.fn(),
   createManualOrganizationClient: vi.fn(),
 }));
 
@@ -40,7 +37,10 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       } as unknown as PatientOrganizationPort,
     }),
     emailSetupAccess: { requestContactEmailSetup: vi.fn() },
-    orgEntitlements: { resolveMechanicAccess: fakes.resolveMechanicAccess },
+    orgEntitlements: {
+      resolveMechanicAccess: fakes.resolveMechanicAccess,
+      resolveCabinetAccess: fakes.resolveCabinetAccess,
+    },
   }),
 }));
 
@@ -59,7 +59,7 @@ function request(lastName: string) {
   });
 }
 
-describe('doctor client create — Т12, у клиники нет лимита клиентов', () => {
+describe('doctor client create — Т12/T13', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.requireDoctorWorkspaceApiContext.mockResolvedValue({
@@ -77,6 +77,11 @@ describe('doctor client create — Т12, у клиники нет лимита �
       warning: null,
       mutationAllowed: false,
     });
+    fakes.resolveCabinetAccess.mockResolvedValue({
+      state: 'full_access',
+      policySource: 'global_paid_period',
+      warning: null,
+    });
     fakes.createManualOrganizationClient.mockImplementation(async () => ({
       ok: true as const,
       userId: 'patient-1',
@@ -89,7 +94,7 @@ describe('doctor client create — Т12, у клиники нет лимита �
     }));
   });
 
-  it('заводит клиента, не спросив тариф, и на сотом клиенте так же, как на первом', async () => {
+  it('заводит клиента без несуществующего лимита пациентов, когда кабинет доступен для записи', async () => {
     // «При любом числе уже существующих пациентов»: сотня подряд, ни одна не встречает потолка.
     for (let index = 0; index < 100; index += 1) {
       const response = await runWithoutMechanicWriteClearance(() =>
@@ -106,6 +111,42 @@ describe('doctor client create — Т12, у клиники нет лимита �
 
     expect(fakes.createManualOrganizationClient).toHaveBeenCalledTimes(100);
     expect(fakes.resolveMechanicAccess).not.toHaveBeenCalled();
+    expect(fakes.resolveCabinetAccess).toHaveBeenCalledTimes(100);
+  });
+
+  it('отказывает в read_only до создания пациента', async () => {
+    fakes.resolveCabinetAccess.mockResolvedValue({
+      state: 'read_only',
+      policySource: 'global_paid_period',
+      warning: null,
+    });
+
+    const response = await runWithoutMechanicWriteClearance(() => POST(request('Иванов')));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'commercial_read_only',
+    });
+    expect(fakes.createManualOrganizationClient).not.toHaveBeenCalled();
+    expect(fakes.resolveMechanicAccess).not.toHaveBeenCalled();
+  });
+
+  it('закрывает создание пациента при blocked до вызова сервиса', async () => {
+    fakes.resolveCabinetAccess.mockResolvedValue({
+      state: 'disabled',
+      policySource: 'global_paid_period',
+      warning: null,
+    });
+
+    const response = await runWithoutMechanicWriteClearance(() => POST(request('Иванов')));
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'commercial_blocked',
+    });
+    expect(fakes.createManualOrganizationClient).not.toHaveBeenCalled();
   });
 
   it('отказ по существу дела остаётся отказом: 409 на занятый email', async () => {

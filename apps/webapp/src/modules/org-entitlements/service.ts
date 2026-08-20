@@ -185,7 +185,11 @@ function assertDowngradePolicy(mechanic: OrgMechanic, value: string): asserts va
   }
 }
 
-function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>) {
+type TariffInput = Omit<Tariff, 'id' | 'createdAt' | 'updatedAt' | 'downgradePolicies'> & {
+  downgradePolicies?: DowngradePolicyMap;
+};
+
+function normalizeTariffInput(input: TariffInput) {
   const name = input.name.trim();
   if (!name) throw new Error('tariff_name_required');
   if (
@@ -244,7 +248,7 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
     }
   }
   const downgradePolicies: DowngradePolicyMap = {};
-  for (const [mechanic, value] of Object.entries(input.downgradePolicies)) {
+  for (const [mechanic, value] of Object.entries(input.downgradePolicies ?? {})) {
     if (mechanic === 'clinical_tests') continue;
     assertMechanic(mechanic);
     if (!value) continue;
@@ -752,18 +756,26 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     getTrialPolicy: () => port.getTrialPolicy(),
     getPaidPeriodPolicy: () => port.getPaidPeriodPolicy(),
     getRegistrationTariffPolicy: () => port.getRegistrationTariffPolicy(),
-    createTariff: (
-      input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
-      audit: PlatformMutationAudit,
-    ) => {
+    createTariff: (input: TariffInput, audit: PlatformMutationAudit) => {
       return port.createTariff(normalizeTariffInput(input), audit);
     },
-    updateTariff: (
+    updateTariff: async (
       id: string,
-      input: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'>,
+      input: TariffInput,
       audit: PlatformMutationAudit,
     ) => {
-      return port.updateTariff(id, normalizeTariffInput(input), audit);
+      const current = input.downgradePolicies === undefined
+        ? (await port.listTariffs()).find((tariff) => tariff.id === id)
+        : null;
+      if (input.downgradePolicies === undefined && !current) throw new Error('tariff_not_found');
+      return port.updateTariff(
+        id,
+        normalizeTariffInput({
+          ...input,
+          downgradePolicies: input.downgradePolicies ?? current!.downgradePolicies,
+        }),
+        audit,
+      );
     },
     archiveTariff: (id: string, audit: PlatformMutationAudit) => {
       return port.archiveTariff(id, audit);
