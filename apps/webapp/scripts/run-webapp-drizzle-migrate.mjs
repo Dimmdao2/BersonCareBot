@@ -19,16 +19,19 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 import {
-  collectMigrationProofs,
-  describeProof,
-  findUnprovedMigrations,
-  interpretProofAnswers,
+  collectExpectedObjects,
+  describeObject,
+  findForeignLedgerRows,
+  findMigrationNameViolations,
+  findRenamedAppliedMigrations,
+  readFrozenLegacyMigrationNames,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
-  renderProofSql,
+  renderObjectPresenceSql,
   selectPendingMigrations,
   splitStatements,
+  TIMESTAMP_MIGRATION_NAME,
 } from '../../../deploy/postgres/privileges/migration-order.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,8 +48,7 @@ const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
  */
 export function selectMigrationPhase(migrations, beforeTag) {
   if (!beforeTag) return { migrations, bounded: false };
-  // Историческая схема NNNN[suffix]_ и канон YYYYMMDDTHHMMSS_ (владелец, 20.08) — обе законны.
-  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag) && !/^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$/.test(beforeTag)) {
+  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag) && !TIMESTAMP_MIGRATION_NAME.test(beforeTag)) {
     throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG invalid tag=${beforeTag}`);
   }
   const at = migrations.findIndex((migration) => migration.tag === beforeTag);
@@ -205,6 +207,15 @@ if (process.argv.includes('--self-test')) {
   if (selectPendingMigrations(ledgerFixture, ledgerFixture).length !== 0) {
     throw new Error('migration selection self-test would re-apply an applied migration');
   }
+  // A pending file byte-identical to a foreign ledger row is an applied migration under a new name.
+  const renamedFixture = [{ tag: '20260820T010000_renamed', hash: 'shared-hash' }];
+  const renamedForeign = findForeignLedgerRows([], [{ tag: '0009_old_name', hash: 'shared-hash' }]);
+  if (findRenamedAppliedMigrations(renamedFixture, renamedForeign).length !== 1) {
+    throw new Error('migration rename self-test did not catch a byte-identical foreign ledger row');
+  }
+  if (findRenamedAppliedMigrations([{ tag: '20260820T010000_new', hash: 'unseen-hash' }], renamedForeign).length !== 0) {
+    throw new Error('migration rename self-test flagged unrelated content as a rename');
+  }
   try {
     assertNoTransactionForbiddenConcurrentIndexes([
       { tag: '9999_bad', source: 'CREATE INDEX CONCURRENTLY bad_index ON public.example (id);' },
@@ -229,57 +240,7 @@ if (process.argv.includes('--self-test')) {
       if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
     }
   }
-  // Rule 3: an answer is matched by the `at` it carries, never by arrival order, and a short answer
-  // set is a refusal.  Read positionally, a `UNION ALL` that returns its rows in another order
-  // reports an absent object as present — which is the whole failure this gate exists to stop.
-  const proofFixture = [
-    { kind: 'verify', tag: '0001_first', probe: 'SELECT true' },
-    { kind: 'verify', tag: '0002_second', probe: 'SELECT true' },
-    { kind: 'verify', tag: '0003_third', probe: 'SELECT true' },
-  ];
-  const shuffled = [
-    { at: 2, present: true },
-    { at: 0, present: false },
-    { at: 1, present: true },
-  ];
-  const unmet = interpretProofAnswers(proofFixture, shuffled);
-  if (unmet.length !== 1 || unmet[0].tag !== '0001_first') {
-    throw new Error('migration proof self-test read an out-of-order answer by position');
-  }
-  try {
-    interpretProofAnswers(proofFixture, [{ at: 0, present: true }, { at: 1, present: true }]);
-    throw new Error('migration proof self-test accepted a short answer set');
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
-  }
   console.log('run-webapp-drizzle-migrate diagnostic self-test: OK');
-  process.exit(0);
-}
-
-/**
- * The lint-time half of rule 3, plus the journal freeze.
- *
- * Reading the folder is what checks the freeze pin: `readLegacyJournalEntries` refuses a historical
- * map that does not digest to `meta/_journal.frozen`.  Then every migration has to owe a proof, so a
- * new one that creates no nameable object cannot land without saying how it can be checked.
- */
-if (process.argv.includes('--check-migration-proofs')) {
-  try {
-    readLegacyJournalEntries(migrationsFolder);
-    const unproved = findUnprovedMigrations(readMigrationFolder(migrationsFolder));
-    if (unproved.length > 0) {
-      console.error(
-        `check-migration-proofs: ${unproved.join(', ')} leave no object this checkout can probe and carry no`
-          + ' `-- BCB-MIGRATION-VERIFY: SELECT …` header, so a ledger row written by hand for them is'
-          + ' indistinguishable from one a runner wrote after executing them.',
-      );
-      process.exit(1);
-    }
-  } catch (error) {
-    console.error(`check-migration-proofs: ${error instanceof Error ? error.message : String(error)}`);
-    process.exit(1);
-  }
-  console.log('run-webapp-drizzle-migrate migration proof check: OK');
   process.exit(0);
 }
 
@@ -300,47 +261,56 @@ if (!url) {
 
 assertNoTransactionForbiddenConcurrentIndexes(readCurrentMigrationSources());
 
-// The frozen historical map is read before anything else, so a hand-extended one refuses here and
-// not three steps later with a stack trace.
-try {
-  readLegacyJournalEntries(migrationsFolder);
-} catch (error) {
-  console.error(`[migrate] ${error instanceof Error ? error.message : String(error)}`);
+const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
+const phase = selectMigrationPhase(readMigrationFolder(migrationsFolder), beforeTag);
+
+// The name rule used to live only in `pnpm run lint` (`check-drizzle-migration-order.sh`): a file
+// with an old hand-picked number, not in the frozen legacy snapshot, was never checked by this
+// entrypoint at all before applying it — proven live on 20.08 for the DEV/TEST wrapper
+// (MIGRATION_TIMESTAMP_NAMES_AUDIT_2026-08-20.md §3(a); this path reads the same folder the same
+// way). Checked before opening a connection, against the frozen file, never the live journal (see
+// `findJournalGrowth` in migration-order.mjs's module doc).
+const nameViolations = findMigrationNameViolations(phase.migrations, readFrozenLegacyMigrationNames(migrationsFolder));
+if (nameViolations.length > 0) {
+  console.error(
+    `[migrate] migration_name_violation ${nameViolations
+      .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case, and the frozen legacy `
+        + 'snapshot (meta/_journal.frozen.json) does not know it as a legacy name.')
+      .join(' ')}`,
+  );
   process.exit(1);
 }
 
-const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
-const allMigrations = readMigrationFolder(migrationsFolder);
-// Same refusal the lint gate makes, in front of the database: a migration that owes no proof turns
-// "applied" into a claim nobody can check.
-const unproved = findUnprovedMigrations(allMigrations);
-if (unproved.length > 0) {
-  console.error(`[migrate] migrations_without_a_proof ${unproved.join(', ')}`);
-  process.exit(1);
-}
-const phase = selectMigrationPhase(allMigrations, beforeTag);
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 let running = null;
 try {
   await pool.query(renderLedgerBootstrapSql(readLegacyJournalEntries(migrationsFolder)));
-  const ledgerRows = (await pool.query('SELECT tag FROM drizzle.__drizzle_migrations')).rows;
+  const ledgerRows = (await pool.query('SELECT tag, hash FROM drizzle.__drizzle_migrations')).rows;
   const pending = selectPendingMigrations(phase.migrations, ledgerRows);
   const pendingTags = new Set(pending.map((migration) => migration.tag));
   const applied = phase.migrations.filter((migration) => !pendingTags.has(migration.tag));
 
-  // A ledger row is a claim. Before adding to it, make it answer for what it describes: the objects
-  // the applied migrations still hold, and the explicit VERIFY probe of the ones that hold none.
-  // The answers are matched by the `at` each row carries — `UNION ALL` promises no order, and a row
-  // read by position turns a missing answer into a silent "present".
-  const expected = collectMigrationProofs(applied);
-  const presenceSql = renderProofSql(expected);
+  // A pending file byte-identical to a ledger row this checkout cannot name is an applied migration
+  // wearing a new name, not new work — see migrate-local.mjs for the same guard on the DEV/TEST path.
+  const renamed = findRenamedAppliedMigrations(pending, findForeignLedgerRows(phase.migrations, ledgerRows));
+  if (renamed.length > 0) {
+    throw new Error(
+      `migration_renamed_after_apply ${renamed
+        .map(({ migration, row }) => `${migration.tag} (matches ledger row created_at=${row.createdAt})`)
+        .join('; ')}`,
+    );
+  }
+
+  // A ledger row is a claim. Before adding to it, make it answer for the schema it describes.
+  const expected = collectExpectedObjects(applied);
+  const presenceSql = renderObjectPresenceSql(expected);
   if (presenceSql) {
-    const answers = (await pool.query(presenceSql)).rows;
-    const missing = interpretProofAnswers(expected, answers);
+    const present = (await pool.query(presenceSql)).rows;
+    const missing = expected.filter((_, index) => present[index]?.present === false);
     if (missing.length > 0) {
       throw new Error(
-        `migration_ledger_answers_for_absent_objects ${missing.map(describeProof).join('; ')}`,
+        `migration_ledger_answers_for_absent_objects ${missing.map(describeObject).join('; ')}`,
       );
     }
   }
@@ -367,11 +337,15 @@ try {
   running = null;
   console.log(
     `[migrate] Drizzle migrations complete total=${phase.migrations.length} applied-now=${pending.length}`
-      + ` verified-proofs=${expected.length}${phase.bounded ? ` bounded-before=${beforeTag}` : ''}`,
+      + ` verified-objects=${expected.length}${phase.bounded ? ` bounded-before=${beforeTag}` : ''}`,
   );
 } catch (error) {
   exitCode = 1;
-  if (error instanceof Error && error.message.startsWith('migration_ledger_answers_for_absent_objects ')) {
+  if (
+    error instanceof Error
+    && (error.message.startsWith('migration_ledger_answers_for_absent_objects ')
+      || error.message.startsWith('migration_renamed_after_apply '))
+  ) {
     console.error(`[migrate] ${error.message}`);
   } else {
     console.error(renderStructuredMigrationFailureDiagnostic(error, running));

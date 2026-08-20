@@ -1,6 +1,7 @@
 {
   "version": "7",
   "dialect": "postgresql",
+  "frozenNote": "Checked-in, human-edited-only snapshot of the legacy NNNN[suffix]_slug migration-name allowlist. Read by findMigrationNameViolations/findJournalGrowth in deploy/postgres/privileges/migration-order.mjs. meta/_journal.json stays live (its remaining job is the when->tag ledger backfill map); this file must never be written by code, and its entry count is not expected to change again -- see docs/REPORTS/MIGRATION_TIMESTAMP_FIX_2026-08-20.md (F2).",
   "entries": [
     {
       "idx": 0,
