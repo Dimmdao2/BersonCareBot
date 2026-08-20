@@ -17,9 +17,6 @@ type OperatorAttemptParams = {
   occurredAt?: unknown;
 };
 
-const OPERATOR_DELIVERY_ATTEMPT_ROOT =
-  'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)';
-
 const OUTGOING_DELIVERY_WORKER_SOURCE = 'worker:outgoing-delivery-tick';
 
 export async function recordOperatorDeliveryAttempt(
@@ -56,9 +53,13 @@ export async function recordOperatorDeliveryAttempt(
     payloadText,
     occurredAt,
   ] as const;
+  // Идентичность корня стоит ЛИТЕРАЛОМ прямо в вызове, а не в константе выше: сторож
+  // `port-context-callsite-catalog.test.mjs` сверяет каталог capability с местами вызова, читая
+  // аргумент статически. Константа прячет идентичность от сверки, и расхождение каталога с кодом
+  // становится невидимым до первого живого отказа принципала.
   await runIntegratorNamedRoot(
     db,
-    OPERATOR_DELIVERY_ATTEMPT_ROOT,
+    'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
     functionArgs,
     sql`SELECT app.record_operator_delivery_attempt(
       ${intentType}, ${eventId}, ${correlationId}, ${organizationId}::uuid, ${channel}, ${status},

@@ -2318,7 +2318,7 @@ const REV10_CONTEXT = {
       runtimeName: 'delivery_attempt_audit', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
-      functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
+      functionIdentity: 'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
     integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
       runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
