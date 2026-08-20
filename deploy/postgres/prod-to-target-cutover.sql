@@ -5,7 +5,13 @@
 
 \if :{?cutover_mode}
 \else
-  \set cutover_mode commit
+  DO $cutover_mode_required$
+  BEGIN
+    RAISE EXCEPTION USING
+      ERRCODE = '22023',
+      MESSAGE = 'CUTOVER MODE VALIDATION failed: cutover_mode is required; pass -v cutover_mode=commit to commit, or -v cutover_mode=dryrun to validate and roll back';
+  END
+  $cutover_mode_required$;
 \endif
 
 SELECT set_config('bcb.cutover.requested_mode', :'cutover_mode', false) AS ignored
