@@ -161,4 +161,82 @@ describe('direct public write retry worker', () => {
     expect(fakes.delivery).toHaveBeenCalledOnce();
     expect(fakes.contentGrant).toHaveBeenCalledOnce();
   });
+
+  it.each([
+    [
+      'reminder occurrence',
+      'reminder_occurrence_sent_record' as const,
+      {
+        integratorOccurrenceId: 'occurrence-foreign',
+        integratorRuleId: 'rule-foreign',
+        integratorUserId: '91',
+        platformUserId: 'b0000000-0000-4000-8000-000000000091',
+        organizationId: 'a0000000-0000-4000-8000-000000000002',
+        category: 'appointment',
+        status: 'sent' as const,
+        deliveryChannel: 'telegram',
+        errorCode: null,
+        occurredAt: '2026-08-20T10:00:00.000Z',
+      },
+      fakes.occurrence,
+    ],
+    [
+      'reminder delivery event',
+      'reminder_delivery_log_append' as const,
+      {
+        organizationId: 'a0000000-0000-4000-8000-000000000002',
+        integratorDeliveryLogId: 'delivery-foreign',
+        integratorOccurrenceId: 'occurrence-foreign',
+        integratorRuleId: 'rule-foreign',
+        integratorUserId: '91',
+        channel: 'telegram',
+        status: 'success' as const,
+        errorCode: null,
+        payloadJson: {},
+        createdAt: '2026-08-20T10:00:00.000Z',
+      },
+      fakes.delivery,
+    ],
+    [
+      'content access grant',
+      'content_access_grant_upsert' as const,
+      {
+        organizationId: 'a0000000-0000-4000-8000-000000000002',
+        integratorGrantId: 'grant-foreign',
+        integratorUserId: '91',
+        platformUserId: 'b0000000-0000-4000-8000-000000000091',
+        contentId: 'content-foreign',
+        purpose: 'reminder',
+        tokenHash: null,
+        expiresAt: '2026-08-21T10:00:00.000Z',
+        revokedAt: null,
+        metaJson: {},
+        createdAt: '2026-08-20T10:00:00.000Z',
+      },
+      fakes.contentGrant,
+    ],
+  ])('rejects a %s replay whose payload names a foreign organization', async (
+    _label,
+    operation,
+    payload,
+    writer,
+  ) => {
+    let replayRejected = false;
+    try {
+      await executeDirectPublicWriteRetry(unusedDb, {
+        id: 91,
+        operation,
+        organizationId: 'a0000000-0000-4000-8000-000000000001',
+        idempotencyKey: 'direct-public-write:foreign-91',
+        payload,
+        attemptCount: 1,
+        maxAttempts: 5,
+      });
+    } catch {
+      replayRejected = true;
+    }
+
+    expect.soft(replayRejected).toBe(true);
+    expect.soft(writer).not.toHaveBeenCalled();
+  });
 });
