@@ -7,7 +7,9 @@ MAIN=/home/dev/dev-projects/BersonCareBot
 FEAT=feat/doctor-ui-rebuild
 QUEUE="$MAIN/docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md"
 # Общий host-cap; per-orchestrator limit задаёт AGENTS.md §24.3.
-MAX_AGENTS=${ORCH_MAX_AGENTS:-8}
+# Потолок 4, а не 8 (владелец, 20.08): «агентов тебе разрешаю максимум 4 — иначе ты не успеешь сводить».
+# Ограничение не по железу, а по пропускной способности ведущего: результаты надо принимать и сводить.
+MAX_AGENTS=${ORCH_MAX_AGENTS:-4}
 PORT=/home/dev/brain/host-orch/agent-run.mjs
 
 die() { echo "ОТКАЗ: $*" >&2; exit 1; }
