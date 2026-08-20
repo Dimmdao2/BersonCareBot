@@ -203,3 +203,47 @@ test_generator_exit=0; test_verifier_exit=3
 Пункты 1–3 проходят. Коммит не принимается: пункт 4 оставляет два взаимоисключающих role-контракта
 в одном исполняемом TEST deploy path, а пункт 5 не закрывает остаточный `CONNECT`, из-за которого
 TEST environment verifier возвращает `3`.
+
+## 6. Исправление closure-контракта — 2026-08-20
+
+`deploy/host/deploy-test-saas.sh` больше не запускает legacy bridge и runtime handoff, которые
+возвращали `app_owner` права bypass. P2-B передаёт три таблицы `app.context_signing_secrets`,
+`app.principal_context`, `app.context_nonce_ledger` роли `app_object_owner`. Closure-gate теперь
+требует для `app_owner`: существование, `NOLOGIN`, отсутствие bypass и inherit, ноль членов и ноль
+DB-local объектов; отдельно он требует владельца `app_object_owner` у P2-B таблиц и
+`app_seam_*_owner` у specialist/login SECURITY DEFINER функций. Whole-class gate требует ровно
+46 distinct `app_seam_*_owner` для всех `app` SECURITY DEFINER функций и называет signature/owner
+при расхождении.
+
+Инъекция была выполнена временной заменой условия на `rolbypassrls` и затем отменена. Команда без
+pipe:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bersoncarebot_test \
+  -v ON_ERROR_STOP=1 -c "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND NOT rolcanlogin AND rolbypassrls AND NOT rolinherit) THEN RAISE EXCEPTION 'retired app_owner / specialist-owner seam contract diverged'; END IF; END \$\$;"
+```
+
+Она завершилась кодом `1` и назвала расхождение:
+
+```text
+ERROR:  retired app_owner / specialist-owner seam contract diverged
+injection_exit=1
+```
+
+Инъекция отменена; рабочий контракт снова использует `NOT rolbypassrls`.
+
+Проверка после отката без pipe вернула `retired_app_owner_contract = t` и код `0`:
+
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bersoncarebot_test \
+  -v ON_ERROR_STOP=1 -c "SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_owner' AND NOT rolcanlogin AND NOT rolbypassrls AND NOT rolinherit) AS retired_app_owner_contract;"
+```
+
+`/home/dev/brain/host-orch/run-tests.sh "node --test deploy/host/*.test.mjs"` завершился кодом `0`:
+21 tests passed, 0 failed. Известный worktree-артефакт `converge-saas-smoke-login-passwords` в этом
+прогоне не возник.
+
+Пункт 5 не является кодовой правкой: у `app_owner` нет явного `CONNECT` grant. На TEST `datacl`
+равен `NULL`, поэтому `CONNECT` приходит от `PUBLIC` по default ACL; на DEV заполненный `datacl`
+его закрывает. Это остаток прерванного третьего прогона. Свежий полный TEST reset пересоздаёт базу
+и штатно закрывает ACL; запуск reset в этой работе намеренно не выполнялся.
