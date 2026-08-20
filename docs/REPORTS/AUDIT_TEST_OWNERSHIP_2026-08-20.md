@@ -112,3 +112,39 @@ NOT REACHED** (живой reconcile за гейтом ФИО; воркер эт�
 
 Прочие незакрытые поведения — «сброс доходит до конца» и «reconcile зелёный на живой базе» —
 заблокированы за owner-gated стопом ФИО и НЕ являются дефектами данной работы.
+
+## Ре-гейт B1 — закрытие блокера тестом `d1ce2cd55`
+
+**Предмет:** коммит `d1ce2cd553b6260c88a1089922fd175f06f9cdbf` (воркер `ownertest-20260820`, codex
+gpt-5.6-terra): новый `deploy/host/test-db-ownership-contract.test.mjs` (108 строк) + секция «B1 closed» в
+`TEST_RESET_OWNERSHIP_2026-08-20.md`. Независимый адверсарный аудитор — Opus 4.8; самопроверки нет.
+Проверяется ТОЛЬКО закрытие B1 и что оно ничего не сломало; ранее выданные PASS-пункты не переоткрываются.
+
+| # | Утверждение | Команда | Вывод | Вердикт |
+|---|---|---|---|---|
+| 1 | Тест ловит ИМЕННО B1-регрессию и НАЗЫВАЕТ расхождение | `sed -i 's/^RESTORE_ROLE=postgres$/RESTORE_ROLE=app_object_owner/' restore-test-db-from-dump.sh; node --test …contract.test.mjs` | `not ok 1 … deploy/host/restore-test-db-from-dump.sh: expected owner postgres, found app_object_owner` · `# fail 1`. Откат `git checkout` → `git status` чист, baseline `# pass 2 # fail 0` | **PASS** |
+| 2 | Ловит и ДРУГИЕ входы в ту же яму, а не одну строку | 7 отдельных инъекций с откатом: saas `db_owner`(919)→bersoncarebot_test; deploy-test.sh identity `$DB\|postgres`→app_object_owner; saas `platform_users_owner`(921); restore `createdb --owner`(41); restore хардкод `pg_restore --role=app_object_owner`(53); restore `database_owner`-ассерт(59); test-2: `CREATE ROLE bersoncarebot_test`, `GRANT CREATE ON DATABASE`, `ALTER ROLE … BYPASSRLS`, `CREATE ROLE … BYPASSRLS` | Каждая → `# fail 1` с точным сообщением (`expected owner postgres, found …` / `must not create retired role` / `must not grant CREATE ON DATABASE` / `must not issue BYPASSRLS`). Все 11 инъекций откатаны, дерево чисто. Удаление гарда целиком тоже красит (`missing … assertion`, ветка `requiredMatch`/`saasFunction`) | **PASS** |
+| 3 | Тест не жульничает под текущий текст (косметика) | C1: вставка комментария + пустой строки в restore. C2: перенос `createdb` на строку-продолжение `\`. C3: консистентное переименование `RESTORE_ROLE`→`RESTORE_OWNER` во всём restore | C1 → `# pass 2` (комментарии стрипаются `executableSource`, безопасно). C2 → `# fail 1 missing createdb owner` (backslash line-continuation рвёт `\bcreatedb\s+--owner`). C3 → `# fail 1 missing RESTORE_ROLE assignment` (тест привязан к имени переменной). Оба покраснения — в fail-safe направлении (ложный RED, не немой GREEN) | **PASS с оговоркой** (см. ниже) |
+| 4 | Логика скриптов НЕ менялась этим коммитом | `git show --stat d1ce2cd55` | 2 файла: `…contract.test.mjs` (+108), `TEST_RESET_OWNERSHIP_2026-08-20.md` (+32). Ни одного `.sh`/`.sql`/миграции | **PASS** |
+| 5 | Прогон всей папки; проверка argon2-утверждения | `node --test deploy/host/*.test.mjs` в этом worktree; тот же файл в главном дереве `/home/dev/dev-projects/BersonCareBot` | В worktree: `# pass 18 # fail 1`, единственный fail — `converge-saas-smoke-login-passwords.test.mjs` → `ERR_MODULE_NOT_FOUND: Cannot find package 'argon2'` (в worktree нет `node_modules`; `git worktree add` их не копирует). В главном дереве тот же тест `# pass 3 # fail 0 EXIT=0` (`node_modules/.pnpm/argon2@0.44.0` присутствует). Наш `…contract.test.mjs` импортирует только `node:*` — идентичен в обоих деревьях | **PASS** — артефакт среды, НЕ дефект |
+| 6 | Границы целы | `git show --stat`; ни одной живой команды к БД за весь аудит (только `git`/`node --test`/`grep`/`sed` по файлам + read-only чтение отчёта) | 0 выданных прав, 0 созданных ролей, миграции не тронуты, база `bersoncarebot_test` (в середине owner-gated сброса) не тронута, ПРОД не тронут. Все инъекции откатаны, финальный `git status --porcelain` пуст | **PASS** |
+
+### Оговорка к пункту 3 (не блокер)
+
+Тест статический (по своей же шапке — «intentionally static», т.к. разрушительный путь нельзя прогнать в CI),
+поэтому неизбежно привязан к тексту скриптов. Он **не** краснеет от комментариев и пустых строк, но
+**краснеет** от (а) консистентного переименования переменной `RESTORE_ROLE` и (б) переноса команд
+`createdb`/`pg_restore` через shell line-continuation `\`. Это ложные RED в **fail-safe** направлении: они
+заставляют человека посмотреть, но НЕ дают контракту владения тихо уехать обратно (опасное направление —
+«тест зелёный при откате контракта» — закрыто пунктами 1–2). Для гейта против немого регресса это приемлемо;
+хрупкость к рефактору стоит записать, но она **не переоткрывает B1**. Не покрытый тестом вектор вне списка
+брифа: membership-`GRANT bersoncarebot_test TO <role>` (косвенная эскалация) — рантайм-ассерт
+`deploy-test-saas.sh:163` его ловит живьём, статикой — нет; это наблюдение, не находка B1.
+
+### ВЕРДИКТ ре-гейта: **PASS — B1 ЗАКРЫТ**
+
+Блокер B1 («нет постоянного теста на контракт владения») закрыт: `test-db-ownership-contract.test.mjs`
+ловит точную B1-регрессию и все её родственные входы, называет расхождение (файл/ожидалось/найдено),
+не трогает логику скриптов, границ не нарушает. Инъекция брифа, ранее оставлявшая 16/16 deploy-тестов
+зелёными, теперь краснит. Прочие открытые поведения ветки (доведение сброса, живой reconcile) остаются за
+owner-gated стопом ФИО и B1 не касаются.
