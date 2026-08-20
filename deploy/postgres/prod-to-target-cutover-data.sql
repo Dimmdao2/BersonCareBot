@@ -892,20 +892,51 @@ WHERE binding.channel_code = identity_row.resource
   AND binding.display_handle IS NULL
   AND NULLIF(btrim(state_row.username), '') IS NOT NULL;
 
--- Move still-live retry debt to the canonical queue; terminal legacy rows are audit-only residue.
+-- Будущие напоминания о приёме, ещё не отправленные на проде, переезжают в каноническую очередь.
+-- Что это за строки: в `integrator.rubitime_create_retry_jobs` со статусом `pending` лежат
+-- заготовленные заранее напоминания «приём через 24 часа» и «приём через 2 часа» (eventId вида
+-- `booking-reminder:<bookingId>:24h`), у которых `next_try_at` — момент отправки в будущем. В
+-- целевой схеме их никто не пересоздаёт: `app.replace_appointment_reminder_generation` вызывается
+-- событием жизненного цикла записи, а не обходом уже существующих будущих приёмов. Не перенести —
+-- значит молча не напомнить живому пациенту о его приёме.
+--
+-- Вид строки — существующий универсальный `outbound_message` (решение владельца 19.08: новых видов
+-- не заводим, тип сообщения — это `purpose` ВНУТРИ вида). Форма payload собрана ровно так, как её
+-- собирает `app.enqueue_outbound_message`, иначе воркер не распознает намерение. Статус переносится
+-- дословно, `next_retry_at` — исходный `next_try_at`, поэтому напоминание уйдёт в свой срок, а не
+-- сразу после переезда. Терминальные легаси-строки (`done`/`dead`) — уже отработанный след, их
+-- перенос создал бы повторную отправку.
 INSERT INTO public.outgoing_delivery_queue (
   event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
   next_retry_at, last_attempt_at, last_error, created_at, updated_at, organization_id
 )
 SELECT
-  legacy.payload_json #>> '{intent,meta,eventId}',
-  'inbound_reply',
-  COALESCE(
-    NULLIF(legacy.payload_json #>> '{intent,payload,delivery,channels,0}', ''),
-    NULLIF(legacy.payload_json #>> '{targets,0,resource}', '')
+  'appointment_reminder:' || (legacy.payload_json #>> '{intent,meta,eventId}'),
+  'outbound_message',
+  legacy.payload_json #>> '{targets,0,resource}',
+  jsonb_build_object(
+    'purpose', 'appointment_reminder',
+    'booking', legacy.payload_json -> 'booking',
+    'intent', jsonb_build_object(
+      'type', 'message.send',
+      'meta', jsonb_build_object(
+        'eventId', 'appointment_reminder:' || (legacy.payload_json #>> '{intent,meta,eventId}'),
+        'occurredAt', legacy.payload_json #>> '{intent,meta,occurredAt}',
+        'source', legacy.payload_json #>> '{targets,0,resource}',
+        'correlationId', 'appointment_reminder:' || (legacy.payload_json #>> '{intent,meta,eventId}'),
+        'outboundMessageClass', 'routine_product',
+        'outboundCapability', 'essential_delivery'
+      ),
+      'payload', jsonb_build_object(
+        'recipient', legacy.payload_json #> '{targets,0,address}',
+        'message', jsonb_build_object('text', legacy.payload_json #>> '{intent,payload,message,text}'),
+        'delivery', jsonb_build_object(
+          'channels', jsonb_build_array(legacy.payload_json #>> '{targets,0,resource}')
+        )
+      )
+    )
   ),
-  legacy.payload_json,
-  CASE legacy.status WHEN 'processing' THEN 'failed_retryable' ELSE 'pending' END,
+  legacy.status,
   legacy.attempts_done,
   legacy.max_attempts,
   legacy.next_try_at,
@@ -915,10 +946,14 @@ SELECT
   legacy.updated_at,
   current_setting('bcb.cutover.canonical_organization_id')::uuid
 FROM cutover_source_integrator.rubitime_create_retry_jobs legacy
-WHERE legacy.status IN ('pending', 'processing')
+WHERE legacy.status = 'pending'
+  AND NULLIF(legacy.payload_json #>> '{intent,payload,message,text}', '') IS NOT NULL
+  AND (legacy.payload_json #>> '{targets,0,resource}') IN ('telegram', 'max')
+  AND legacy.payload_json #> '{targets,0,address}' IS NOT NULL
   AND NOT EXISTS (
     SELECT 1 FROM public.outgoing_delivery_queue existing
-    WHERE existing.event_id = legacy.payload_json #>> '{intent,meta,eventId}'
+    WHERE existing.event_id
+      = 'appointment_reminder:' || (legacy.payload_json #>> '{intent,meta,eventId}')
   );
 
 -- Rebuild the initial organization membership and patient visibility graph for every active
@@ -1089,15 +1124,6 @@ DO $copy_gate$
 DECLARE
   violations bigint;
 BEGIN
-  SELECT count(*) INTO violations
-  FROM cutover_source_integrator.rubitime_create_retry_jobs legacy
-  WHERE legacy.status IN ('pending', 'processing')
-    AND NOT EXISTS (
-      SELECT 1 FROM public.outgoing_delivery_queue target
-      WHERE target.event_id = legacy.payload_json #>> '{intent,meta,eventId}'
-    );
-  IF violations <> 0 THEN RAISE EXCEPTION 'legacy retry jobs not copied: %', violations; END IF;
-
   SELECT count(*) INTO violations
   FROM cutover_source_integrator.contacts legacy
   WHERE NOT EXISTS (
