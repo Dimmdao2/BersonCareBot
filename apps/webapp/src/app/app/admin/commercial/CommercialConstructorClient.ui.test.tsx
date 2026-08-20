@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommercialConstructorClient } from './CommercialConstructorClient';
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
