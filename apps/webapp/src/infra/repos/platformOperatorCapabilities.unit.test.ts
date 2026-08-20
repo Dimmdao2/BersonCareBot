@@ -84,7 +84,7 @@ describe('platform operator DB capabilities', () => {
       expect.objectContaining({
         doctorUserId: null,
         rawErrorTruncated: null,
-        summaryJson: { event_type: 'patient.updated' },
+        summaryJson: { queue_kind: 'message.send' },
       }),
     );
     expect(fakes.runWebappNamedRoot.mock.calls[0]?.[1]).toBe(
