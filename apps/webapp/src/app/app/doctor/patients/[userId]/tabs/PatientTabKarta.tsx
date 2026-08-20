@@ -839,12 +839,6 @@ function Comorbidities({
         {items !== null && error && (
           <p className="py-1 text-xs text-destructive">Не удалось загрузить.</p>
         )}
-        {items !== null && !error && items.length === 0 && !adding && (
-          <p className="py-2 text-xs text-muted-foreground">
-            {tab === 'active' ? 'Сопутствующих заболеваний нет.' : 'Снятых записей нет.'}
-          </p>
-        )}
-
         {items?.map((co) =>
           editingId === co.id ? (
             <div
@@ -1721,7 +1715,8 @@ export function PatientTabKarta({
 }: Props) {
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
-  const [historyVisible, setHistoryVisible] = useState(true);
+  // The selected visit detail remains out of the way until the specialist explicitly opens it.
+  const [historyVisible, setHistoryVisible] = useState(false);
 
   // Create-visit mode picker: null = closed; opens when user clicks «+ Новый визит»
   // (but NOT when auto-opened via pendingAppointmentId, which bypasses the picker).
@@ -1887,16 +1882,12 @@ export function PatientTabKarta({
                   <ComplaintRow key={c.id} c={c} userId={userId} onSaved={fetchClinical} />
                 ))}
             </div>
-            <p className={doctorSectionSubtitleClass}>
-              ⚑ — приоритет · N/10 — выраженность (обновляется каждым визитом, по значениям строится
-              график динамики) · ✎ — правка: снять / в историю
-            </p>
           </section>
 
-          {/* Актуальный диагноз — read-only; diagnoses are added via visits (KARTA-02) */}
+          {/* Diagnoses share one list regardless of their preliminary/confirmed state. */}
           <section className={doctorSectionCardClass}>
             <div className="flex items-center justify-between">
-              <h3 className={doctorSectionTitleClass}>Актуальный диагноз</h3>
+              <h3 className={doctorSectionTitleClass}>Диагнозы</h3>
               <span className={miniTabRowClass}>
                 <MiniTab active>Текущий</MiniTab>
                 <MiniTab>История</MiniTab>
@@ -1910,39 +1901,11 @@ export function PatientTabKarta({
                 <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
               )}
               {!loading &&
-                !fetchError &&
-                diagnoses.filter((d) => d.clinicalStatus === 'подтверждённый').length === 0 && (
-                  <p className="py-2 text-xs text-muted-foreground">
-                    Подтверждённых диагнозов нет.
-                  </p>
-                )}
-              {!loading &&
                 diagnoses
-                  .filter((d) => d.clinicalStatus === 'подтверждённый')
                   .map((d) => (
                     <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
                   ))}
             </div>
-            {/* Предварительные диагнозы — не становятся актуальными автоматически (VIZ-15) */}
-            {!loading &&
-              !fetchError &&
-              diagnoses.filter((d) => d.clinicalStatus === 'предварительный').length > 0 && (
-                <div className="mt-2 border-t border-border pt-2">
-                  <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Предварительные
-                  </p>
-                  <div className="flex flex-col gap-1.5">
-                    {diagnoses
-                      .filter((d) => d.clinicalStatus === 'предварительный')
-                      .map((d) => (
-                        <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
-                      ))}
-                  </div>
-                </div>
-              )}
-            <p className={doctorSectionSubtitleClass}>
-              по клику на диагноз: подтвердить · уточнить · снять (уходит в историю с датой)
-            </p>
           </section>
 
           {/* Сопутствующие заболевания — реальные данные /api/doctor/patients/[id]/comorbidities */}
@@ -2006,12 +1969,6 @@ export function PatientTabKarta({
                 </tbody>
               </table>
             )}
-            {!anamnesisLoading &&
-              !anamnesisError &&
-              anamnesis.trauma.length === 0 &&
-              anamnesisAddOpen !== 'trauma' && (
-                <p className="text-xs text-muted-foreground">Травм и операций не внесено.</p>
-              )}
 
             {/* Болезни, стрессы */}
             <div className="flex items-center gap-1.5">

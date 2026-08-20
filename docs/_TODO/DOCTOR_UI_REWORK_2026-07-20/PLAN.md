@@ -303,6 +303,8 @@ UI-5b остаётся фактически открытой в `#971` и нач
 
 ### UI-7 — коммуникационные возможности
 
+- **Owner-deferred 2026-08-20:** UI-7a / `#964` scheduled messages is not part of UI-5b/#971; its checkboxes
+  remain open (deferred, not cancelled). This pass does not change scheduler or message-scheduling code.
 - **UI-7a scheduled messages — owner correction 2026-08-17:** текущий scope только минимальный. У отправки в
   doctor/patient chat и doctor/patient comments появляется выбор даты/времени; сообщение записывается в планировщик,
   уходит в назначенный момент, видно точному отправителю как ожидающее и может быть им отменено.
@@ -636,7 +638,8 @@ brief или заменять одним общим пунктом.
 - [ ] Tabs находятся под header и sticky; рабочие tabs используют внутренний 50/50, mobile показывает одну часть.
 - [ ] `Overview`, `Communications` и `Visits` не дублируют данные; существующие блоки и messaging path
       переиспользованы.
-- [ ] Выбранная запись о визите справа скрыта по умолчанию.
+- [x] Выбранная запись о визите справа скрыта по умолчанию.
+      (✓ `PatientTabKarta.tsx`: visit history starts collapsed and opens only through the existing history control.)
 - [ ] KPI `Визиты / Будущие записи / Абонементы` открывают соответствующий left content над диагнозом.
 - [ ] Справа находятся Notes/Tasks/Dynamics/Program/Completion; пустые Notes/Tasks показывают только add action.
 - [ ] Program summary содержит только название, дату контроля и этапы; состав упражнений скрыт.
@@ -647,12 +650,18 @@ brief или заменять одним общим пунктом.
 - [ ] `Списать` доступно только активному абонементу; `Пересчитать` сохранено.
 - [ ] Верхнее `Добавить абонемент` открывает справа configuration/selection/payment; реальная online payment
       остаётся `#819`.
-- [ ] Убрана пустая/объяснительная подпись про приоритет и выраженность.
-- [ ] Убран пустой текст «диагнозов нет».
-- [ ] Убраны тексты-инструкции «по клику ...».
-- [ ] Убран пустой текст об отсутствии сопутствующих состояний.
-- [ ] Убран пустой текст «травм не внесено».
-- [ ] Диагноз не называется «Актуальный»; preliminary diagnoses входят в единый список.
+- [x] Убрана пустая/объяснительная подпись про приоритет и выраженность.
+      (✓ `PatientTabKarta.tsx`: symptom section no longer renders the priority/severity instruction.)
+- [x] Убран пустой текст «диагнозов нет».
+      (✓ `PatientTabKarta.tsx`: diagnosis list has no empty-state explanation.)
+- [x] Убраны тексты-инструкции «по клику ...».
+      (✓ `PatientTabKarta.tsx`: diagnosis interaction instruction removed.)
+- [x] Убран пустой текст об отсутствии сопутствующих состояний.
+      (✓ `PatientTabKarta.tsx`: empty comorbidities state renders no explanatory prose.)
+- [x] Убран пустой текст «травм не внесено».
+      (✓ `PatientTabKarta.tsx`: empty trauma state renders no explanatory prose.)
+- [x] Диагноз не называется «Актуальный»; preliminary diagnoses входят в единый список.
+      (✓ `PatientTabKarta.tsx`: section is «Диагнозы» and renders a single `diagnoses` list.)
 - [ ] Symptom colors переиспользуют существующую Overview color logic.
 - [ ] Visibility, authorship, ownership, counts/search/export и access matrix закрыты после U5A без
       cross-organization раскрытия.

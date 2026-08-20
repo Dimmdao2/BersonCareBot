@@ -14,15 +14,17 @@ import { z } from 'zod';
 import { routePaths } from '@/app-layer/routes/paths';
 
 const VALID_TABS = new Set([
-  'overview',
   'karta',
   'program',
-  'records',
   'files',
+  'account',
+  'overview',
+  'records',
   'comms',
   'finances',
-  'account',
 ]);
+
+const LEGACY_TABS = new Set(['overview', 'records', 'comms', 'finances']);
 
 type PageProps = {
   params: Promise<{ userId: string; tabSlug: string[] }>;
@@ -41,5 +43,5 @@ export default async function PatientCardTabRedirectPage({ params }: PageProps) 
     notFound();
   }
 
-  redirect(`${routePaths.doctorPatients}/${userId}?tab=${tab}`);
+  redirect(`${routePaths.doctorPatients}/${userId}?tab=${LEGACY_TABS.has(tab) ? 'karta' : tab}`);
 }
