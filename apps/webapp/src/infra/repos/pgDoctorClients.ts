@@ -736,7 +736,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            pp.display_number AS package_display_number,
            EXISTS (
              SELECT 1
-             FROM clinical_visits cv
+             FROM clinical_visit cv
              WHERE cv.canonical_appointment_id = bea.id
                AND cv.patient_user_id = bea.platform_user_id
                AND cv.organization_id = bea.organization_id
