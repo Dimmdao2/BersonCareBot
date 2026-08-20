@@ -63,6 +63,7 @@ RESTORE=deploy/host/restore-test-db-from-dump.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
+LEGACY_APPOINTMENT_CARRY=deploy/postgres/prod-to-target-carry-legacy-appointments.sql
 PRE_CUTOVER_DATA_ASSERTIONS=deploy/postgres/pre-cutover-data-stage-assertions.sql
 CUTOVER_MIGRATION=deploy/postgres/prod-to-target-cutover.sql
 TARGET_LEDGER_ARTIFACT=deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql
@@ -3346,6 +3347,13 @@ fio_review_source_sha_q="$(shell_quote "$FIO_REVIEW_SOURCE_SHA256")"
 fio_rollback_dir_q="$(shell_quote "$POSTGRES_CUTOVER_INPUT_DIR/fio-rollback")"
 run_postgres_repo_as_test_restore_owner \
   "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
+
+log "carry unresolved legacy appointment history (pre-assertion cutover data stage)"
+sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
+  -v cutover_database="$DB" \
+  -v canonical_organization_id="$ORG_ID" \
+  -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
+  -f "$DEPLOY_REPO/$LEGACY_APPOINTMENT_CARRY"
 
 log "pre-cutover data-stage assertions"
 sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
