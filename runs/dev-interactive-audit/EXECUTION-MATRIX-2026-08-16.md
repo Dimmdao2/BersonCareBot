@@ -18,7 +18,7 @@ Authority: `full-control-pass-brief.md`. Executable declarations: `scenarios.mjs
 Those counts come from:
 
 ```sh
-node --input-type=module -e "import {ROLE_SCENARIOS} from './runs/dev-interactive-audit/scenarios.mjs'; for (const [role,v] of Object.entries(ROLE_SCENARIOS)) console.log(role, v.routes.length)"
+node --input-type=module -e "import {CONTROL_ADAPTER_MATRIX,ROLE_SCENARIOS} from './runs/dev-interactive-audit/scenarios.mjs'; for (const [role,scenario] of Object.entries(ROLE_SCENARIOS)) console.log(role, 'routes='+scenario.requiredStateSeeds.length, 'controls='+CONTROL_ADAPTER_MATRIX.filter((adapter) => adapter.role === role).length)"
 ```
 
 Each page records exact final URL with preserved query, a unique main/panel marker, navigation status,

@@ -3,15 +3,30 @@
  * Binary live gate for the already-running canonical DEV server. It neither
  * starts services nor changes schema/grants. Mutation adapters are opt-in.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from '../clickthrough/lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
+  buildTraversalPlan,
+  classifyControlInventory,
+  initializeRenderedTraversal,
+  missingCanonicalNavigation,
+  staticContractViolations,
+  validateDoctorPatientTabTraversal,
+} from './audit-engine.mjs';
+import {
   canonicalAuditUrl,
+  classifyRenderedControl,
+  createPageEvidenceLedger,
+  classifyRoute,
+  discoverBounded,
+  aggregateRoleArtifacts,
   listRowNamePattern,
+  routeSelectors,
   routeContractMatches,
   evaluatePageObservation,
-  routePatternMatches,
   routeTemplateKey,
   shouldIgnoreRequestFailure,
   summarizeBinaryGate,
@@ -23,10 +38,8 @@ const outDir = 'runs/dev-interactive-audit/out';
 const password = process.env.DEV_AUDIT_PASSWORD || '';
 const allowSynthetic = process.env.DEV_AUDIT_ALLOW_SYNTHETIC === '1';
 const mutationsEnabled = process.env.DEV_AUDIT_MUTATE === '1';
-const skipRoutes = process.env.DEV_AUDIT_SKIP_ROUTES === '1';
 const configuredOrganizationId = process.env.DEV_AUDIT_ORGANIZATION_ID || null;
 const patientName = process.env.DEV_AUDIT_PATIENT_NAME || 'Берсон Дмитрий';
-const patientPhone = '+79189000782';
 const requiredRoles = Object.keys(ROLE_SCENARIOS);
 const requestedRoles = (process.env.DEV_AUDIT_ROLES || requiredRoles.join(','))
   .split(',')
@@ -36,14 +49,7 @@ const aggregateArtifacts = (process.env.DEV_AUDIT_AGGREGATE_ARTIFACTS || '')
   .split(',')
   .map((path) => path.trim())
   .filter(Boolean);
-let stopRequested = false;
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    if (stopRequested) process.exit(130);
-    stopRequested = true;
-    console.error(JSON.stringify({ event: 'dev_audit_stop_requested', signal }));
-  });
-}
+const auditRunId = process.env.DEV_AUDIT_RUN_ID || crypto.randomUUID();
 for (const role of requestedRoles) {
   if (!ROLE_SCENARIOS[role]) throw new Error(`DEV_AUDIT_ROLES contains unknown role: ${role}`);
 }
@@ -55,7 +61,6 @@ if (base.protocol !== 'http:' || base.hostname !== '127.0.0.1' || base.port !== 
 const nowMs = () => performance.now();
 const compactError = (error) =>
   (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').slice(0, 300);
-/** What the surface actually rendered at the moment an action check gave up. */
 const observedSurfaceText = async (page, selector) => {
   try {
     return (await page.locator(selector).first().innerText()).replace(/\s+/g, ' ').slice(0, 600);
@@ -83,6 +88,25 @@ const stats = (numbers) => {
 };
 const equalJson = (left, right) => JSON.stringify(left) === JSON.stringify(right);
 
+function productSourceFiles(root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) return productSourceFiles(path);
+    return /\.[cm]?[jt]sx?$/.test(entry.name) && !/\.(?:test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
+      ? [path]
+      : [];
+  });
+}
+
+function productContractStaticGate() {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '../../apps/webapp/src');
+  return staticContractViolations(
+    ROLE_SCENARIOS,
+    productSourceFiles(root).map((path) => ({ path, source: readFileSync(path, 'utf8') })),
+    DOCTOR_PATIENT_CARD_TABS,
+  );
+}
+
 async function firstVisible(locator) {
   for (let index = 0; index < (await locator.count()); index += 1) {
     const candidate = locator.nth(index);
@@ -101,26 +125,31 @@ async function settlePage(page) {
   return { settle_ms: Math.round(nowMs() - started), network_idle: networkIdle };
 }
 
-function attachEvidence(page, evidence, navigationState) {
+function attachEvidence(page, evidence, navigationState, ledger) {
   page.on('console', (message) => {
     const item = { url: canonicalAuditUrl(page.url()), message: message.text().slice(0, 500) };
-    if (message.type() === 'error') evidence.consoleErrors.push(item);
+    if (message.type() === 'error') {
+      evidence.consoleErrors.push(item);
+      const origin = message.location()?.url;
+      ledger.recordConsole(item, origin && sameOrigin(origin) ? canonicalAuditUrl(origin) : null);
+    }
     if (message.type() === 'warning') evidence.consoleWarnings.push(item);
   });
-  page.on('pageerror', (error) =>
-    evidence.consoleErrors.push({
+  page.on('pageerror', (error) => {
+    const item = {
       url: canonicalAuditUrl(page.url()),
       message: `pageerror: ${error.message}`.slice(0, 500),
-    }),
-  );
+    };
+    evidence.consoleErrors.push(item);
+    ledger.recordConsole(item, null);
+  });
+  page.on('request', (request) => ledger.ownRequest(request));
   page.on('requestfailed', (request) => {
     const detail = request.failure()?.errorText ?? 'failed';
     if (
       shouldIgnoreRequestFailure({
         errorText: detail,
         harnessNavigationActive: navigationState.active,
-        url: request.url(),
-        resourceType: request.resourceType(),
       })
     ) {
       evidence.ignoredHarnessAborts += 1;
@@ -134,6 +163,7 @@ function attachEvidence(page, evidence, navigationState) {
     };
     evidence.failures.push(item);
     evidence.network.push(item);
+    ledger.recordRequest(request, item);
   });
   page.on('response', (response) => {
     const item = {
@@ -149,11 +179,12 @@ function attachEvidence(page, evidence, navigationState) {
     if (response.status() >= 400) {
       evidence.failures.push({ kind: 'http', ...item });
       evidence.network.push({ kind: 'http', ...item });
+      ledger.recordRequest(response.request(), { kind: 'http', ...item });
     }
   });
 }
 
-async function authenticate(context, page, label, scenario) {
+async function authenticate(context, label, scenario) {
   const cookieValue = scenario.sessionCookieEnv ? process.env[scenario.sessionCookieEnv] : null;
   if (cookieValue) {
     await context.addCookies([
@@ -163,27 +194,14 @@ async function authenticate(context, page, label, scenario) {
   }
   const email = process.env[scenario.emailEnv] || scenario.defaultEmail;
   if (email && password) {
-    await page.goto(`${baseUrl}/app`, { waitUntil: 'domcontentloaded', timeout: 120_000 });
-    const response = await page.evaluate(
-      async ({ loginUrl, loginEmail, loginPassword }) => {
-        const result = await fetch(loginUrl, {
-          method: 'POST',
-          credentials: 'include',
-          headers: { 'content-type': 'application/json', 'X-Real-IP': '127.0.0.1' },
-          body: JSON.stringify({ email: loginEmail, password: loginPassword }),
-        });
-        return { status: result.status, body: await result.json().catch(() => null) };
-      },
-      {
-        loginUrl: `${baseUrl}/api/auth/email-password/login`,
-        loginEmail: email,
-        loginPassword: password,
-      },
-    );
-    const body = response.body;
-    if (response.status !== 200 || body?.ok !== true || body?.factorRequired === true) {
+    const response = await context.request.post(`${baseUrl}/api/auth/email-password/login`, {
+      headers: { Origin: baseUrl },
+      data: { email, password },
+    });
+    const body = await response.json().catch(() => null);
+    if (response.status() !== 200 || body?.ok !== true || body?.factorRequired === true) {
       throw new Error(
-        `actual_${label}_login_failed:${response.status}:${body?.error ?? 'unknown'}`,
+        `actual_${label}_login_failed:${response.status()}:${body?.error ?? 'unknown'}`,
       );
     }
     return { kind: 'actual_email_password' };
@@ -198,45 +216,30 @@ async function authenticate(context, page, label, scenario) {
   return { kind: 'synthetic_dev_bypass' };
 }
 
-async function requestJson(page, evidence, pathname, options = {}) {
+async function requestJson(context, evidence, pathname, options = {}) {
   const started = nowMs();
-  const response = await page.evaluate(
-    async ({ requestUrl, requestMethod, requestHeaders }) => {
-      const result = await fetch(requestUrl, {
-        method: requestMethod,
-        credentials: 'include',
-        headers: requestHeaders,
-      });
-      return {
-        ok: result.ok,
-        status: result.status,
-        body: await result.json().catch(() => null),
-      };
-    },
-    {
-      requestUrl: `${baseUrl}${pathname}`,
-      requestMethod: options.method || 'GET',
-      requestHeaders: { 'X-Real-IP': '127.0.0.1', ...(options.headers || {}) },
-    },
-  );
-  const body = response.body;
+  const response = await context.request.fetch(`${baseUrl}${pathname}`, {
+    headers: { Origin: baseUrl, ...(options.headers || {}) },
+    ...options,
+  });
+  const body = await response.json().catch(() => null);
   const item = {
     method: options.method || 'GET',
-    status: response.status,
+    status: response.status(),
     url: canonicalAuditUrl(pathname),
     resource: 'audit-action',
     duration_ms: Math.round(nowMs() - started),
   };
   evidence.api.push(item);
-  if (response.status >= 400) {
+  if (response.status() >= 400) {
     evidence.failures.push({ kind: 'action_http', ...item });
     evidence.network.push({ kind: 'action_http', ...item });
   }
-  return { ok: response.ok, status: response.status, body, duration_ms: item.duration_ms };
+  return { ok: response.ok(), status: response.status(), body, duration_ms: item.duration_ms };
 }
 
-async function assertIdentity(page, evidence, label, scenario, expectedOrganizationId) {
-  const me = await requestJson(page, evidence, '/api/me');
+async function assertIdentity(context, evidence, label, scenario, expectedOrganizationId) {
+  const me = await requestJson(context, evidence, '/api/me');
   const user = me.body?.user;
   const expected = scenario.identity;
   const contact = Array.isArray(user?.contacts)
@@ -259,13 +262,13 @@ async function assertIdentity(page, evidence, label, scenario, expectedOrganizat
     if (me.body?.platformAccess?.dbRole !== 'admin') reasons.push('global_admin_db_role_mismatch');
     if (me.body?.platformAccess?.tier !== null) reasons.push('global_admin_tier_not_na');
   } else if (label === 'doctor') {
-    const workspace = await requestJson(page, evidence, '/api/doctor/booking-engine/overview');
+    const workspace = await requestJson(context, evidence, '/api/doctor/booking-engine/overview');
     organizationId = workspace.body?.organizationId ?? null;
     if (!workspace.ok || workspace.body?.organization?.id !== organizationId) {
       reasons.push('doctor_workspace_missing');
     }
   } else {
-    const organization = await requestJson(page, evidence, '/api/patient/organization-context');
+    const organization = await requestJson(context, evidence, '/api/patient/organization-context');
     organizationId = organization.body?.context?.ok
       ? organization.body.context.organizationId
       : null;
@@ -288,7 +291,7 @@ async function navigate(page, navigationState, target) {
   navigationState.active = true;
   const started = nowMs();
   try {
-    const response = await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 120_000 });
+    const response = await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 });
     const domcontentloadedMs = Math.round(nowMs() - started);
     const settled = await settlePage(page);
     return { response, domcontentloadedMs, ...settled };
@@ -298,32 +301,44 @@ async function navigate(page, navigationState, target) {
 }
 
 async function semanticEvidence(page, selectors) {
-  if (selectors.length > 0) {
-    await Promise.any(
-      selectors.map((selector) =>
-        page.locator(selector).waitFor({ state: 'visible', timeout: 15_000 }),
-      ),
-    ).catch(() => undefined);
-  }
-  const anchors = await Promise.all(
-    selectors.map(async (selector) => {
-      const locator = page.locator(selector);
-      const count = await locator.count();
+  const evidenceFor = async (selector) => {
+    if (selector?.kind === 'compound') {
+      const parts = await Promise.all(selector.all.map(evidenceFor));
       return {
-        name: selector,
-        count,
-        visible: count === 1 && (await locator.isVisible().catch(() => false)),
+        name: `compound:${parts.map((part) => part.name).join('&')}`,
+        count: parts.every((part) => part.count === 1) ? 1 : 0,
+        visible: parts.every((part) => part.visible),
       };
-    }),
-  );
+    }
+    if (selector?.kind === 'patient_messages') {
+      const composer = page.getByRole('textbox', { name: 'Текст сообщения', exact: true });
+      const submit = page.getByRole('button', { name: 'Отправить', exact: true });
+      const [composerCount, submitCount] = await Promise.all([composer.count(), submit.count()]);
+      return {
+        name: selector.name,
+        count: composerCount === 1 && submitCount === 1 ? 1 : 0,
+        visible:
+          composerCount === 1 && submitCount === 1 &&
+          (await composer.isVisible().catch(() => false)) &&
+          (await submit.isVisible().catch(() => false)),
+      };
+    }
+    const locator = selector?.kind === 'text'
+      ? page.getByText(selector.text, { exact: selector.exact !== false })
+      : page.locator(selector);
+    const count = await locator.count();
+    return {
+      name: typeof selector === 'string' ? selector : `${selector.kind}:${selector.text ?? ''}`,
+      count,
+      visible: count === 1 && (await locator.isVisible().catch(() => false)),
+    };
+  };
+  const anchors = await Promise.all(selectors.map(evidenceFor));
   return { mainCount: await page.locator('main').count(), anchors };
 }
 
 function selectorsForRoute(scenario, expectedUrl) {
-  for (const [pattern, selectors] of Object.entries(scenario.routeEvidence ?? {})) {
-    if (routePatternMatches(pattern, expectedUrl)) return selectors;
-  }
-  return [];
+  return routeSelectors(scenario, expectedUrl);
 }
 
 async function clickRequiredTabs(page, labels) {
@@ -358,11 +373,10 @@ async function clickRequiredTabs(page, labels) {
   return proofs;
 }
 
-async function pageProof(page, navigationState, target, scenario, evidence) {
+async function pageProof(page, navigationState, target, scenario, evidence, ledger) {
   const started = nowMs();
-  const failuresBefore = evidence.failures.length;
-  const consoleBefore = evidence.consoleErrors.length;
-  const warningsBefore = evidence.consoleWarnings.length;
+  const expectedUrl = canonicalAuditUrl(target);
+  ledger.begin(expectedUrl);
   const navigation = await navigate(page, navigationState, target);
   const body = (
     await page
@@ -372,46 +386,10 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   )
     .replace(/\s+/g, ' ')
     .trim();
-  const expectedUrl = canonicalAuditUrl(target);
   const finalUrl = canonicalAuditUrl(page.url());
   const selectors = selectorsForRoute(scenario, expectedUrl);
+  const classification = classifyRoute(scenario, target);
   const semantics = await semanticEvidence(page, selectors);
-  const horizontalOverflow = await page.evaluate(() => {
-    const viewportWidth = globalThis.visualViewport?.width ?? document.documentElement.clientWidth;
-    const tolerance = 1;
-    const offenders = [];
-    for (const node of document.body?.querySelectorAll('*') ?? []) {
-      if (!(node instanceof HTMLElement)) continue;
-      const style = getComputedStyle(node);
-      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
-      const rect = node.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) continue;
-      const overflowLeftPx = Math.max(0, -rect.left - tolerance);
-      const overflowRightPx = Math.max(0, rect.right - viewportWidth - tolerance);
-      if (overflowLeftPx <= 0 && overflowRightPx <= 0) continue;
-      const className = typeof node.className === 'string' ? node.className : '';
-      offenders.push({
-        tag: node.tagName.toLowerCase(),
-        id: node.id || null,
-        testId: node.getAttribute('data-testid'),
-        classSnippet: className.length > 120 ? `${className.slice(0, 117)}…` : className,
-        rect: { left: rect.left, right: rect.right, width: rect.width },
-        overflowLeftPx,
-        overflowRightPx,
-      });
-    }
-    offenders.sort(
-      (left, right) =>
-        right.overflowLeftPx + right.overflowRightPx -
-        (left.overflowLeftPx + left.overflowRightPx),
-    );
-    return {
-      viewportWidth,
-      documentScrollOverflow:
-        document.documentElement.scrollWidth > document.documentElement.clientWidth + tolerance,
-      offenders: offenders.slice(0, 12),
-    };
-  });
   const allowedFinalTemplates = scenario.allowedFinalTemplates?.[expectedUrl] ?? [];
   const exactUrl = routeContractMatches(page.url(), target, allowedFinalTemplates);
   const visibleFatal = /(?:404|not found|internal server error|application error)/i.test(body);
@@ -423,17 +401,18 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   } catch (error) {
     tabFailure = compactError(error);
   }
+  const localEvidence = ledger.snapshot(expectedUrl);
+  ledger.end();
   const status = navigation.response?.status() ?? null;
   const observation = evaluatePageObservation({
     responseOk: Boolean(navigation.response?.ok()),
     urlOk: exactUrl,
     visibleFatal,
     ...semantics,
-    failures: evidence.failures.slice(failuresBefore),
-    consoleErrors: evidence.consoleErrors.slice(consoleBefore),
-    consoleWarnings: evidence.consoleWarnings.slice(warningsBefore),
+    failures: localEvidence.failures,
+    consoleErrors: localEvidence.consoleErrors,
   });
-  const pass = observation.pass && !tabFailure && tabs.every((tab) => tab.pass);
+  const pass = observation.pass && classification.pass && !tabFailure && tabs.every((tab) => tab.pass);
   return {
     url: expectedUrl,
     final_url: finalUrl,
@@ -442,8 +421,12 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
     exact_url: exactUrl,
     ...(allowedFinalTemplates.length ? { intentional_redirect_templates: allowedFinalTemplates } : {}),
     semantic_evidence: semantics,
-    horizontal_overflow: horizontalOverflow,
-    failure_reasons: [...observation.reasons, ...(tabFailure ? ['required_tab_failure'] : [])],
+    classification: classification.classification ?? null,
+    failure_reasons: [
+      ...observation.reasons,
+      ...(classification.pass ? [] : [classification.reason]),
+      ...(tabFailure ? ['required_tab_failure'] : []),
+    ],
     navigation_status: status,
     navigation_ms: Math.round(nowMs() - started),
     domcontentloaded_ms: navigation.domcontentloadedMs,
@@ -454,16 +437,7 @@ async function pageProof(page, navigationState, target, scenario, evidence) {
   };
 }
 
-async function discoverUniqueTemplates(page, label, queuedTemplates) {
-  const prefixes = {
-    global_admin: ['/app/admin/organizations/'],
-    doctor: [
-      '/app/doctor/content/',
-      '/app/doctor/courses/',
-      '/app/doctor/treatment-program-templates/',
-    ],
-    patient: ['/app/patient/content/', '/app/patient/treatment/program/'],
-  }[label];
+async function discoverUniqueTemplates(page, scenario, queuedTemplates) {
   const hrefs = await page
     .locator('a[href]')
     .evaluateAll((anchors) =>
@@ -471,16 +445,49 @@ async function discoverUniqueTemplates(page, label, queuedTemplates) {
         .map((anchor) => anchor.href)
         .filter((href) => href.startsWith(`${globalThis.location.origin}/app/`)),
     );
-  const found = [];
-  for (const href of hrefs) {
-    const value = new URL(href);
-    if (!prefixes.some((prefix) => value.pathname.startsWith(prefix))) continue;
-    const key = routeTemplateKey(href);
-    if (queuedTemplates.has(key)) continue;
-    queuedTemplates.add(key);
-    found.push(href);
-  }
-  return found;
+  return discoverBounded({ knownTemplates: queuedTemplates, hrefs, scenario, limit: 120, baseUrl });
+}
+
+async function inventoryRenderedControls(page, scenario) {
+  const controls = await page.locator(
+    'button, input[type="submit"], a[href], [role="button"], [role="switch"], input[type="checkbox"], input[type="radio"], select, [role="combobox"], input:not([type="hidden"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]), textarea',
+  ).evaluateAll((nodes) => nodes.filter((node) => {
+    const style = globalThis.getComputedStyle(node);
+    return !node.hasAttribute('disabled') && style.display !== 'none' && style.visibility !== 'hidden';
+  }).map((node) => {
+    const role = node.getAttribute('role');
+    const tag = node.tagName.toLowerCase();
+    const type = node.getAttribute('type');
+    const kind = role === 'switch' ? 'switch'
+      : role === 'combobox' || tag === 'select' ? 'combobox'
+        : type === 'checkbox' ? 'checkbox'
+          : type === 'radio' ? 'radio'
+            : tag === 'textarea' || (tag === 'input' && type !== 'button') ? 'editable'
+              : tag === 'a' ? 'link' : 'button';
+    return {
+      kind,
+      id: node.id,
+      name: node.getAttribute('name'),
+      ariaLabel: node.getAttribute('aria-label'),
+      testId: node.getAttribute('data-testid'),
+      href: tag === 'a' ? node.href : null,
+    };
+  }));
+  return classifyControlInventory(
+    controls,
+    scenario.auditRole,
+    `${await page.url()}`,
+    CONTROL_ADAPTER_MATRIX,
+    classifyRenderedControl,
+    { scenario, observedTemplates: scenario.observedTemplates },
+  );
+}
+
+async function renderedNavigationHrefs(page) {
+  return page.locator('nav a[href]').evaluateAll((anchors) => anchors.filter((anchor) => {
+    const style = globalThis.getComputedStyle(anchor);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }).map((anchor) => anchor.href));
 }
 
 function registrationPolicy(body) {
@@ -518,8 +525,7 @@ async function waitForPost(page, pathname, action) {
   );
   await action();
   const response = await responsePromise;
-  const body = await response.json().catch(() => null);
-  return { ok: response.ok(), status: response.status(), body };
+  return { ok: response.ok(), status: response.status() };
 }
 
 async function waitForPatientReminderPatch(page, action) {
@@ -557,7 +563,7 @@ async function selectOptionInForm(page, form, label) {
 async function commercialUiCycles(page, context, evidence, navigationState) {
   await navigate(page, navigationState, `${baseUrl}/app/admin/commercial`);
   await openCommercialTrialTab(page, navigationState);
-  const read = () => requestJson(page, evidence, '/api/admin/commercial');
+  const read = () => requestJson(context, evidence, '/api/admin/commercial');
   const results = [];
 
   let registrationChanged;
@@ -701,7 +707,7 @@ async function selectDoctorTime(page, testId, value) {
 }
 
 async function doctorScheduleUiCycle(page, context, evidence, navigationState) {
-  const read = () => requestJson(page, evidence, '/api/doctor/booking-engine/working-hours');
+  const read = () => requestJson(context, evidence, '/api/doctor/booking-engine/working-hours');
   let selected;
   let changedSnapshot;
   return runReversibleCycle({
@@ -771,7 +777,7 @@ function availabilitySnapshot(body) {
 }
 
 async function doctorAvailabilityUiCycle(page, context, evidence, navigationState) {
-  const read = () => requestJson(page, evidence, '/api/admin/booking-engine/overview');
+  const read = () => requestJson(context, evidence, '/api/admin/booking-engine/overview');
   let selected;
   let changedSnapshot;
   return runReversibleCycle({
@@ -811,60 +817,66 @@ async function doctorAvailabilityUiCycle(page, context, evidence, navigationStat
   });
 }
 
-async function resolveActualPatient(page, evidence) {
-  const response = await requestJson(
-    page,
-    evidence,
-    `/api/doctor/clients/search?q=${encodeURIComponent(patientPhone)}&limit=10`,
-  );
-  const exact = (response.body?.clients ?? []).filter(
-    (client) => client.phone === patientPhone && client.displayName === patientName,
-  );
-  if (!response.ok || exact.length !== 1)
-    throw new Error(`actual_patient_match_count:${exact.length}`);
-  return exact[0];
+async function resolveRenderedDoctorPatient(page, navigationState, scenario, evidence, ledger) {
+  await pageProof(page, navigationState, `${baseUrl}/app/doctor/patients`, scenario, evidence, ledger);
+  const links = page.locator('#doctor-patients-list a[href*="/app/doctor/patients/"]');
+  const candidate = links.filter({ hasText: patientName });
+  if ((await candidate.count()) !== 1)
+    throw new Error(`rendered_patient_link_match_count:${await candidate.count()}`);
+  const href = await candidate.getAttribute('href');
+  if (!href) throw new Error('rendered_patient_link_href_missing');
+  const discovery = discoverBounded({
+    knownTemplates: new Set(['/app/doctor/patients']),
+    hrefs: [new URL(href, baseUrl).href],
+    scenario,
+    limit: 1,
+    baseUrl,
+  });
+  if (discovery.violations.length || discovery.discovered.length !== 1 || !discovery.discovered[0].classification.pass)
+    throw new Error('rendered_patient_link_not_bfs_discoverable');
+  return { href: discovery.discovered[0].href };
 }
 
-async function doctorPatientCardTabs(page, navigationState, patient) {
-  const results = [];
-  for (const [tabId, label] of DOCTOR_PATIENT_CARD_TABS) {
-    const target = `${baseUrl}/app/doctor/patients/${patient.id}?tab=${tabId}`;
-    const navigation = await navigate(page, navigationState, target);
-    const button = page.getByRole('button', { name: label, exact: true });
-    const activeClass = (await button.getAttribute('class')) ?? '';
-    const card = page.locator(`[id="doctor-patient-card-header"]`);
-    const body = (
-      await page
-        .locator('main')
-        .innerText()
-        .catch(() => '')
-    ).trim();
-    const programRoute = `/app/doctor/patients/:uuid/programs/:uuid`;
-    const urlOk = routeContractMatches(page.url(), target, tabId === 'program' ? [programRoute] : []);
-    const programRedirected = tabId === 'program' && canonicalAuditUrl(page.url()) === programRoute;
-    const substantiveSurface = programRedirected
-      ? await page.locator('#doctor-program-instance-summary').isVisible().catch(() => false)
-      : (await card.isVisible().catch(() => false)) && activeClass.includes('bg-primary/15');
-    const pass =
-      Boolean(navigation.response?.ok()) && urlOk && substantiveSurface && body.length > 20;
-    results.push({
-      url: canonicalAuditUrl(target),
-      final_url: canonicalAuditUrl(page.url()),
-      pass,
-      substantive: pass,
-      exact_url: urlOk,
-      ...(tabId === 'program' ? { intentional_redirect_templates: [programRoute] } : {}),
-      main_marker: { pass: true, marker: `Карточка пациента / ${label}` },
-      navigation_status: navigation.response?.status() ?? null,
-      characters: body.length,
-      navigation_ms: navigation.domcontentloadedMs + navigation.settle_ms,
-      domcontentloaded_ms: navigation.domcontentloadedMs,
-      settle_ms: navigation.settle_ms,
-      network_idle: navigation.network_idle,
-      patient_card_tab: tabId,
-    });
+async function doctorPatientCardTabs(page, navigationState, patient, scenario, evidence, ledger) {
+  // The only patient sample is a rendered list href. Each tab is clicked from
+  // that rendered card; no entity/tab URL is constructed by the harness.
+  const card = await pageProof(page, navigationState, patient.href, scenario, evidence, ledger);
+  const tabProofs = [];
+  let programHref = null;
+  for (const [tabId, label, contract] of DOCTOR_PATIENT_CARD_TABS) {
+    const tab = await firstVisible(page.getByRole('tab', { name: label, exact: true }))
+      ?? await firstVisible(page.getByRole('button', { name: label, exact: true }));
+    if (!tab) throw new Error(`doctor_patient_tab_absent:${tabId}`);
+    await tab.click();
+    await settlePage(page);
+    const selected = (await tab.getAttribute('aria-selected')) === 'true'
+      || (await tab.getAttribute('data-state')) === 'active'
+      || canonicalAuditUrl(page.url()).includes(`tab=${tabId}`);
+    const semantics = await semanticEvidence(page, [contract]);
+    const evidencePass = semantics.anchors[0]?.count === 1 && semantics.anchors[0]?.visible;
+    tabProofs.push({ tab: tabId, pass: selected && evidencePass, semantic_evidence: semantics });
+    if (tabId === 'program') {
+      const discoveredWhileProgramActive = await discoverUniqueTemplates(
+        page,
+        scenario,
+        new Set([routeTemplateKey(patient.href)]),
+      );
+      const program = discoveredWhileProgramActive.discovered.filter((item) =>
+        /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/.test(item.template),
+      );
+      if (discoveredWhileProgramActive.violations.length || program.length !== 1 || !program[0].classification.pass)
+        throw new Error('rendered_program_detail_not_bfs_discoverable_while_program_tab_active');
+      programHref = program[0].href;
+    }
   }
-  return results;
+  if (!programHref) throw new Error('rendered_program_detail_href_absent_while_program_tab_active');
+  const tabGate = validateDoctorPatientTabTraversal({
+    expectedTabs: DOCTOR_PATIENT_CARD_TABS,
+    tabProofs,
+    programHref,
+  });
+  if (!tabGate.pass) throw new Error(tabGate.violations.join(','));
+  return [{ ...card, tabs: tabProofs, pass: card.pass && tabProofs.every((tab) => tab.pass) }, await pageProof(page, navigationState, programHref, scenario, evidence, ledger)];
 }
 
 async function doctorCommentsAndPaymentControls(page, navigationState, patient, runPayment) {
@@ -879,9 +891,9 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     if ((await comments.count()) !== 1) throw new Error(`comments_surface_count:${await comments.count()}`);
     await comments.waitFor({ state: 'visible', timeout: 15_000 });
     const patientRows = comments.getByText(listRowNamePattern(patientName));
-    await patientRows.first().waitFor({ state: 'visible', timeout: 15_000 });
     if ((await patientRows.count()) !== 1)
       throw new Error(`comments_patient_match_count:${await patientRows.count()}`);
+    await patientRows.waitFor({ state: 'visible', timeout: 15_000 });
     results.push({
       id: 'doctor.comments-patient-list',
       pass: true,
@@ -892,9 +904,6 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
       id: 'doctor.comments-patient-list',
       pass: false,
       failure: compactError(error),
-      // A Playwright timeout only says the locator never matched; it never says what the list
-      // actually held. Without the rendered list the artifact cannot distinguish a missing
-      // patient from a locator that no longer matches the rendered row.
       observed_patient_list: await observedSurfaceText(page, '#doctor-communications-comments'),
       duration_ms: Math.round(nowMs() - started),
     });
@@ -904,7 +913,7 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     await navigate(
       page,
       navigationState,
-      `${baseUrl}/app/doctor/patients/${patient.id}?tab=finances`,
+      new URL('?tab=finances', patient.href).href,
     );
     const amount = page.locator('#acq-amount');
     const submit = page.getByRole('button', { name: 'Создать ссылку на оплату', exact: true });
@@ -919,7 +928,7 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
     } else {
       const response = await waitForPost(
         page,
-        `/api/doctor/patients/${patient.id}/acquiring-charge`,
+        `/api/doctor/patients/${new URL(patient.href).pathname.split('/').at(-1)}/acquiring-charge`,
         () => submit.click(),
       );
       const visible = await page
@@ -930,7 +939,6 @@ async function doctorCommentsAndPaymentControls(page, navigationState, patient, 
         id: 'doctor.payment-link-control',
         pass: response.ok && visible,
         status: response.status,
-        failure_reason: response.body?.reason ?? response.body?.error ?? null,
         retained_dev_payment_attempt: response.ok,
         duration_ms: Math.round(nowMs() - started),
       });
@@ -1194,38 +1202,47 @@ async function auditRole(label, scenario, expectedOrganizationId) {
     ignoredHarnessAborts: 0,
   };
   const navigationState = { active: false };
-  attachEvidence(page, evidence, navigationState);
+  const ledger = createPageEvidenceLedger();
+  attachEvidence(page, evidence, navigationState, ledger);
   try {
-    const authentication = await authenticate(context, page, label, scenario);
-    // The role gate starts after successful authentication. Discard aborted
-    // prefetches and public-auth bootstrap traffic from the temporary `/app`
-    // origin page used only to establish the real browser session.
-    evidence.failures.length = 0;
-    evidence.consoleErrors.length = 0;
-    evidence.consoleWarnings.length = 0;
-    evidence.network.length = 0;
-    evidence.api.length = 0;
-    evidence.ignoredHarnessAborts = 0;
+    const authentication = await authenticate(context, label, scenario);
     const identityAssertion = await assertIdentity(
-      page,
+      context,
       evidence,
       label,
       scenario,
       expectedOrganizationId,
     );
-    console.error(
-      JSON.stringify({ event: 'dev_audit_identity', role: label, pass: identityAssertion.pass }),
-    );
-    const queue = skipRoutes ? [] : scenario.routes.map((route) => new URL(route, baseUrl).href);
-    const queuedTemplates = new Set(queue.map((route) => routeTemplateKey(route)));
     const pages = [];
-    while (queue.length > 0 && pages.length < 55 && !stopRequested) {
+    const discoveryViolations = [...productContractStaticGate()];
+    const renderedControls = [];
+    // The only way canonical nav destinations enter this queue is through a
+    // rendered product <nav>.  The manifest stays an oracle, never a seed.
+    const plan = buildTraversalPlan(scenario, baseUrl);
+    const navigationHrefs = [];
+    for (const root of plan.navigationRoots) {
+      const rootProof = await pageProof(page, navigationState, root, scenario, evidence, ledger);
+      pages.push(rootProof);
+      navigationHrefs.push(...await renderedNavigationHrefs(page));
+    }
+    const traversal = initializeRenderedTraversal({ scenario, baseUrl, navigationHrefs });
+    const queue = traversal.queue;
+    const queuedTemplates = traversal.queuedTemplates;
+    const canonicalNavigationSeen = traversal.canonicalNavigationSeen;
+    discoveryViolations.push(...traversal.violations);
+    while (queue.length > 0) {
       const target = queue.shift();
       try {
-        const cold = await pageProof(page, navigationState, target, scenario, evidence);
-        const discovered = await discoverUniqueTemplates(page, label, queuedTemplates);
-        queue.push(...discovered);
-        const warm = await pageProof(page, navigationState, target, scenario, evidence);
+        const cold = await pageProof(page, navigationState, target, scenario, evidence, ledger);
+        const discovery = await discoverUniqueTemplates(page, scenario, queuedTemplates);
+        discoveryViolations.push(...discovery.violations);
+        queue.push(...discovery.discovered.map((item) => item.href));
+        renderedControls.push(...(await inventoryRenderedControls(page, {
+          ...scenario,
+          auditRole: label,
+          observedTemplates: queuedTemplates,
+        })));
+        const warm = await pageProof(page, navigationState, target, scenario, evidence, ledger);
         pages.push({
           ...cold,
           pass: cold.pass && warm.pass,
@@ -1242,25 +1259,15 @@ async function auditRole(label, scenario, expectedOrganizationId) {
           error: compactError(error),
         });
       }
-      console.error(
-        JSON.stringify({
-          event: 'dev_audit_page',
-          role: label,
-          index: pages.length,
-          remaining: queue.length,
-          url: pages.at(-1)?.url ?? canonicalAuditUrl(target),
-          pass: pages.at(-1)?.pass ?? false,
-        }),
-      );
     }
 
     const actionChecks = [];
-    if (!stopRequested && label === 'global_admin' && mutationsEnabled) {
+    if (label === 'global_admin' && mutationsEnabled) {
       actionChecks.push(...(await commercialUiCycles(page, context, evidence, navigationState)));
     }
-    if (!stopRequested && label === 'doctor') {
-      const patient = await resolveActualPatient(page, evidence);
-      pages.push(...(await doctorPatientCardTabs(page, navigationState, patient)));
+    if (label === 'doctor') {
+      const patient = await resolveRenderedDoctorPatient(page, navigationState, scenario, evidence, ledger);
+      pages.push(...(await doctorPatientCardTabs(page, navigationState, patient, scenario, evidence, ledger)));
       actionChecks.push(
         ...(await doctorCommentsAndPaymentControls(
           page,
@@ -1276,7 +1283,7 @@ async function auditRole(label, scenario, expectedOrganizationId) {
         );
       }
     }
-    if (!stopRequested && label === 'patient') {
+    if (label === 'patient') {
       actionChecks.push(await patientWarmupFromHome(page, navigationState));
       actionChecks.push(await patientPhoneSurface(page, navigationState));
       if (mutationsEnabled) {
@@ -1334,9 +1341,21 @@ async function auditRole(label, scenario, expectedOrganizationId) {
         actionChecks.push(await patientChatSend(page, navigationState));
       }
     }
+    discoveryViolations.push(
+      ...missingCanonicalNavigation(scenario, canonicalNavigationSeen).map(
+        (route) => `canonical_navigation_missing:${route}`,
+      ),
+    );
     return {
       role: label,
-      complete: !stopRequested && queue.length === 0,
+      audit_provenance: {
+        role: label,
+        run_id: auditRunId,
+        base_url: baseUrl,
+        mutations_enabled: mutationsEnabled,
+        organization_id: identityAssertion.organization_id,
+        started_at: new Date().toISOString(),
+      },
       authentication,
       authenticated: identityAssertion.pass,
       identity_assertion: identityAssertion,
@@ -1353,10 +1372,13 @@ async function auditRole(label, scenario, expectedOrganizationId) {
       console_warnings: evidence.consoleWarnings,
       network_failures: evidence.network,
       ignored_harness_aborts: evidence.ignoredHarnessAborts,
+      discovery_violations: [...new Set(discoveryViolations)],
+      rendered_controls: renderedControls,
+      unattributed_page_events: ledger.unattributed,
     };
   } finally {
-    await context.close().catch(() => undefined);
-    await browser.close().catch(() => undefined);
+    await context.close();
+    await browser.close();
   }
 }
 
@@ -1364,19 +1386,14 @@ async function main() {
   mkdirSync(outDir, { recursive: true });
   const startedAt = new Date().toISOString();
   const results = [];
-  let expectedOrganizationId = configuredOrganizationId;
   for (const label of requestedRoles) {
     const scenario = ROLE_SCENARIOS[label];
     try {
-      const result = await auditRole(label, scenario, expectedOrganizationId);
+      const result = await auditRole(label, scenario, configuredOrganizationId);
       results.push(result);
-      if (label === 'doctor' && !expectedOrganizationId && result.identity_assertion?.pass) {
-        expectedOrganizationId = result.identity_assertion.organization_id;
-      }
     } catch (error) {
       results.push({
         role: label,
-        complete: false,
         authenticated: false,
         identity_assertion: { pass: false, reasons: ['fatal_role_error'] },
         fatal_error: compactError(error),
@@ -1387,16 +1404,25 @@ async function main() {
       });
     }
   }
-  const aggregateResults = [...results];
+  const artifactReports = [];
   for (const artifactPath of aggregateArtifacts) {
     const artifact = JSON.parse(readFileSync(artifactPath, 'utf8'));
     if (!Array.isArray(artifact.results)) throw new Error(`aggregate artifact has no results: ${artifactPath}`);
-    aggregateResults.push(...artifact.results);
+    artifactReports.push(artifact);
   }
-  // Latest local result wins for a restarted role; missing role artifacts remain a hard failure.
-  const byRole = new Map();
-  for (const result of aggregateResults) byRole.set(result.role, result);
-  const gate = summarizeBinaryGate([...byRole.values()], requiredRoles);
+  const aggregated = aggregateRoleArtifacts({
+    currentResults: results,
+    artifacts: artifactReports,
+    requiredRoles,
+    expected: {
+      base_url: baseUrl,
+      mutations_enabled: mutationsEnabled,
+      organization_id: configuredOrganizationId,
+      run_id: auditRunId,
+    },
+  });
+  const summarized = summarizeBinaryGate(aggregated.results, requiredRoles);
+  const gate = { pass: summarized.pass && aggregated.violations.length === 0, violations: [...aggregated.violations, ...summarized.violations] };
   const finishedAt = new Date().toISOString();
   const report = {
     started_at: startedAt,
@@ -1405,7 +1431,7 @@ async function main() {
     mutations_enabled: mutationsEnabled,
     requested_roles: requestedRoles,
     aggregate_artifacts: aggregateArtifacts,
-    expected_organization_id: expectedOrganizationId,
+    expected_organization_id: aggregated.organization_id,
     binary_gate: gate,
     control_adapter_matrix: CONTROL_ADAPTER_MATRIX,
     results,

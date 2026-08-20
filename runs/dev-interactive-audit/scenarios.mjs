@@ -1,3 +1,95 @@
+/**
+ * These are product selectors/semantic primitives, not harness markers.  A
+ * compound contract is used only where a route has no single unique landmark:
+ * every part must be unique and visible in the live page.
+ */
+const semanticText = (text) => ({ kind: 'text', text, exact: true });
+const compound = (...parts) => ({ kind: 'compound', all: parts });
+const explicitRoute = (template, semanticContract, classification = 'substantive') => ({
+  template,
+  classification,
+  semanticContract: { selectors: [semanticContract] },
+});
+
+const CONTRACT = Object.freeze({
+  '/app/admin/system-health': '[aria-label="Сигналы изоляции за 7 дней"]',
+  '/app/account?tab=security': '#account-current-password',
+  // This URL resolves to the aggregate-only platform stub, never the clinical shell.
+  '/app/doctor/analytics': '[data-doctor-page-header]',
+  '/app/admin/clinics': '#clinics-filter-q',
+  '/app/admin/commercial': '#trial-duration',
+  '/app/admin/payments': '#platform-payments',
+  '/app/admin/app-settings': '#smtp-host',
+  '/app/admin/auth': '#auth-google-client-id',
+  '/app/admin/booking': '#booking-online-default-color',
+  '/app/admin/integrations': compound(semanticText('Интеграции'), semanticText('Доступность')),
+  '/app/admin/technical': '#error-tracking-dsn',
+  '/app/admin/health-archive': compound(semanticText('Архив сбоев'), semanticText('Загружаем архив…')),
+  '/app/admin/audit-log': '#admin-audit-log',
+  '/app/admin/clinics/:uuid': compound(semanticText('Переопределения'), semanticText('Аккаунты клиники')),
+  '/app/admin/booking/catalog': '#booking-online-default-color',
+  '/app/admin/booking/form-public': '#booking-online-default-color',
+  '/app/admin/booking/payments': '#booking-online-default-color',
+  '/app/admin/promo': compound(semanticText('Промо-программа по умолчанию'), semanticText('Статистика (promo)')),
+
+  '/app/doctor': '#doctor-today-dashboard',
+  '/app/doctor/patient-home': '#patient-home-practice-target-heading',
+  '/app/doctor/patients': '#doctor-patients-list',
+  '/app/doctor/schedule': '#doctor-schedule-tabs',
+  '/app/doctor/schedule?tab=cal': '[aria-label="Календарь"]',
+  '/app/doctor/schedule?tab=work': '[aria-label="Фильтр по филиалу"]',
+  '/app/doctor/schedule?tab=setup&section=calendar': semanticText('Календарь'),
+  '/app/doctor/schedule?tab=setup&section=locations': '#booking-online-location',
+  '/app/doctor/schedule?tab=setup&section=services': semanticText('Услуги'),
+  '/app/doctor/schedule?tab=setup&section=specialists': semanticText('Специалисты'),
+  '/app/doctor/schedule?tab=setup&section=form': semanticText('Форма записи'),
+  '/app/doctor/schedule?tab=setup&section=payments': semanticText('Платежи'),
+  '/app/doctor/schedule?tab=setup&section=rules': semanticText('Правила записи'),
+  '/app/doctor/schedule?tab=setup&section=notifications': '#notification-presentation-title',
+  '/app/doctor/schedule?tab=setup&section=packages': compound(semanticText('Шаблоны абонементов'), semanticText('Создать шаблон')),
+  '/app/doctor/communications': '#doctor-communications-tabs',
+  '/app/doctor/exercises': '#ex-title',
+  '/app/doctor/lfk-templates': '#doctor-lfk-templates-new-link',
+  '/app/doctor/clinical-tests': '#doctor-clinical-tests-create',
+  '/app/doctor/test-sets': '#ts-title',
+  '/app/doctor/recommendations': '#doctor-recommendations-create',
+  '/app/doctor/treatment-program-templates': '#doctor-treatment-program-templates-new',
+  '/app/doctor/treatment-program-promo': compound(semanticText('Промо-программа по умолчанию'), semanticText('Статистика (promo)')),
+  '/app/doctor/references': semanticText('Справочники не найдены.'),
+  '/app/doctor/content': '#doctor-content-header',
+  '/app/doctor/content/library': '#doctor-content-library-section',
+  '/app/doctor/courses': semanticText('Новый курс'),
+  '/app/settings': '#org-brand-name',
+  '/app/settings?tab=organization': '#org-brand-name',
+  '/app/settings?tab=team': semanticText('Команда'),
+  '/app/settings?tab=billing': '#saas-billing-email',
+  '/app/account': '#doctor-account-email',
+
+  '/app/patient': '#patient-home-today-layout',
+  '/app/patient/treatment': '#patient-tp-list-hero-title',
+  '/app/patient/diary': '#patient-diary-wellbeing-week-section',
+  '/app/patient/booking': semanticText('Запись'),
+  '/app/patient/messages': { kind: 'patient_messages', name: 'patient_messages_thread' },
+  '/app/patient/profile': compound('#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'),
+  '/app/patient/organizations': '[aria-label="Доступные организации"]',
+  '/app/patient/notifications': semanticText('Пока нет уведомлений.'),
+  '/app/patient/notifications/settings': compound(semanticText('Каналы'), semanticText('Типы уведомлений')),
+  '/app/patient/reminders': '#patient-reminders-rehab',
+  '/app/patient/purchases': compound(semanticText('Мои покупки'), semanticText('Курсы, доступы и подписки')),
+  '/app/patient/courses': compound(semanticText('Курсы'), semanticText('Каталог курсов')),
+  '/app/patient/about': compound(semanticText('О специалисте'), semanticText('на моём сайте')),
+  '/app/patient/address': compound(semanticText('Адрес кабинета'), semanticText('Открыть адрес')),
+  '/app/patient/help': compound(semanticText('Справка'), semanticText('Поддержка')),
+  '/app/patient/support': '#support-message',
+  '/app/patient/install': compound(semanticText('Установить приложение'), semanticText('Установка на устройство')),
+});
+
+const contractsFor = (routes) => routes.map((route) => {
+  const contract = CONTRACT[route];
+  if (!contract) throw new Error(`missing_explicit_route_contract:${route}`);
+  return explicitRoute(route, contract);
+});
+
 export const ROLE_SCENARIOS = Object.freeze({
   global_admin: {
     syntheticToken: 'admin',
@@ -5,7 +97,15 @@ export const ROLE_SCENARIOS = Object.freeze({
     defaultEmail: 'dimmdao@gmail.com',
     identity: { role: 'admin', contactKind: 'email', contactValue: 'dimmdao@gmail.com' },
     elevateAdminMode: false,
-    routes: [
+    allowedPathnames: ['/app/admin/', '/app/account', '/app/doctor/analytics'],
+    canonicalNavigationRoots: ['/app/admin/system-health'],
+    canonicalNavigationDestinations: [
+      '/app/account?tab=security', '/app/doctor/analytics', '/app/admin/clinics',
+      '/app/admin/commercial', '/app/admin/payments', '/app/admin/app-settings', '/app/admin/auth',
+      '/app/admin/booking', '/app/admin/integrations', '/app/admin/technical',
+      '/app/admin/system-health', '/app/admin/health-archive', '/app/admin/audit-log',
+    ],
+    requiredStateSeeds: [
       '/app/admin/system-health',
       '/app/account?tab=security',
       '/app/doctor/analytics',
@@ -19,32 +119,30 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/admin/technical',
       '/app/admin/health-archive',
       '/app/admin/audit-log',
+      '/app/admin/booking/catalog',
+      '/app/admin/booking/form-public',
+      '/app/admin/booking/payments',
+      '/app/admin/promo',
     ],
     requiredTabs: {
       '/app/admin/commercial': ['Тарифы', 'Организации', 'Триал', 'Уведомления', 'Рассылки'],
     },
-    // Semantic anchors intentionally avoid translated/editorial headings.
-    routeEvidence: {
-      '/app/admin/system-health': ['#system-health-root'],
-      '/app/account?tab=security': ['#account-current-password'],
-      // `/app/doctor/analytics` resolves to the platform stub
-      // `app/app/(global-admin)/doctor/analytics/page.tsx` (requirePlatformOperationsPage), which
-      // is deliberately aggregate-only and currently renders header + empty state — the clinical
-      // `DoctorAnalyticsShell` (`#doctor-analytics-tabs`) must never be composed under it. The
-      // platform menu still points here (platformNavLinks.ts, slices 5-7 will move the href), so
-      // the route stays in the gate; the anchor pins "the platform page shell rendered", while the
-      // final-URL / error-boundary / console checks catch the guard redirect and render failures.
-      '/app/doctor/analytics': ['[data-doctor-page-header]'],
-      '/app/admin/clinics': ['#clinics-filter-q'],
-      '/app/admin/commercial': ['[role="tab"][aria-selected="true"]'],
-      '/app/admin/payments': ['#platform-payments'],
-      '/app/admin/app-settings': ['#app-support-contact'],
-      '/app/admin/auth': ['#auth-telegram-bot'],
-      '/app/admin/audit-log': ['#admin-audit-log'],
-      '/app/admin/booking': ['#booking-online-default-color'],
-      '/app/admin/integrations': ['#platform-integration-availability'],
-      '/app/admin/technical': ['#test-account-emails'],
-      '/app/admin/health-archive': ['#health-failure-archive'],
+    routeClassifications: [
+      ...contractsFor([
+        '/app/admin/system-health', '/app/account?tab=security', '/app/doctor/analytics',
+        '/app/admin/clinics', '/app/admin/commercial', '/app/admin/payments', '/app/admin/app-settings',
+        '/app/admin/auth', '/app/admin/booking', '/app/admin/integrations', '/app/admin/technical',
+        '/app/admin/health-archive', '/app/admin/audit-log', '/app/admin/clinics/:uuid',
+      ]),
+      ...['/app/admin/booking/catalog', '/app/admin/booking/form-public', '/app/admin/booking/payments']
+        .map((template) => ({ ...explicitRoute(template, CONTRACT[template]), staticTemplate: '/app/admin/booking', classification: 'redirect', finalTemplate: '/app/admin/booking' })),
+      { ...explicitRoute('/app/admin/promo', CONTRACT['/app/admin/promo']), staticTemplate: '/app/doctor/treatment-program-promo', classification: 'redirect', finalTemplate: '/app/doctor/treatment-program-promo' },
+    ],
+    allowedFinalTemplates: {
+      '/app/admin/booking/catalog': ['/app/admin/booking'],
+      '/app/admin/booking/form-public': ['/app/admin/booking'],
+      '/app/admin/booking/payments': ['/app/admin/booking'],
+      '/app/admin/promo': ['/app/doctor/treatment-program-promo'],
     },
   },
   doctor: {
@@ -52,7 +150,17 @@ export const ROLE_SCENARIOS = Object.freeze({
     emailEnv: 'DEV_AUDIT_DOCTOR_EMAIL',
     defaultEmail: 'dimmdao@yandex.ru',
     identity: { role: 'doctor', contactKind: 'email', contactValue: 'dimmdao@yandex.ru' },
-    routes: [
+    allowedPathnames: ['/app/doctor', '/app/settings', '/app/account'],
+    canonicalNavigationRoots: ['/app/doctor'],
+    canonicalNavigationDestinations: [
+      '/app/doctor', '/app/doctor/patient-home', '/app/doctor/patients', '/app/doctor/schedule',
+      '/app/doctor/communications', '/app/doctor/exercises', '/app/doctor/lfk-templates',
+      '/app/doctor/clinical-tests', '/app/doctor/test-sets', '/app/doctor/recommendations',
+      '/app/doctor/treatment-program-templates', '/app/doctor/treatment-program-promo',
+      '/app/doctor/references', '/app/doctor/content', '/app/doctor/content/library',
+      '/app/doctor/courses', '/app/settings', '/app/account',
+    ],
+    requiredStateSeeds: [
       '/app/doctor',
       '/app/doctor/patient-home',
       '/app/doctor/patients',
@@ -84,74 +192,39 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/settings?tab=billing',
       '/app/account',
     ],
-    routeEvidence: {
-      '/app/doctor': ['#doctor-today-dashboard'],
-      '/app/doctor/patient-home': ['#patient-home-mood-icons-heading'],
-      '/app/doctor/patients': ['#doctor-patients-header'],
-      '/app/doctor/schedule?tab=cal': ['[data-testid="cal-toolbar"]'],
-      '/app/doctor/schedule?tab=work': ['[data-testid="schedule-work-tab"]'],
-      '/app/doctor/schedule?tab=setup&section=calendar': [
-        '[data-testid="setup-section-calendar"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=locations': [
-        '[data-testid="setup-section-locations"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=services': [
-        '[data-testid="setup-section-services"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=specialists': [
-        '[data-testid="setup-section-specialists"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=form': [
-        '[data-testid="setup-section-form"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=payments': [
-        '[data-testid="setup-section-payments"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=rules': [
-        '[data-testid="setup-section-rules"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=notifications': [
-        '[data-testid="setup-section-notifications"]',
-      ],
-      '/app/doctor/schedule?tab=setup&section=packages': [
-        '[data-testid="setup-section-packages"]',
-      ],
-      '/app/doctor/communications': ['#doctor-communications-tabs'],
-      '/app/doctor/exercises': ['#doctor-exercises-create-link-desktop'],
-      '/app/doctor/lfk-templates': ['#doctor-lfk-templates-new-link'],
-      '/app/doctor/clinical-tests': ['#doctor-clinical-tests-create'],
-      '/app/doctor/test-sets': ['#doctor-test-sets-header'],
-      '/app/doctor/recommendations': ['#doctor-recommendations-create'],
-      '/app/doctor/treatment-program-templates': [
-        '#doctor-treatment-program-templates-new',
-      ],
-      '/app/doctor/treatment-program-promo': ['#doctor-treatment-program-promo-header'],
-      '/app/doctor/content': ['#doctor-content-header'],
-      '/app/doctor/content/library': ['#doctor-content-library-section'],
-      '/app/doctor/references': ['[aria-label="Поиск по названию или коду"]'],
-      '/app/doctor/courses': ['#doctor-courses-header'],
-      '/app/settings?tab=organization': ['#patient-label-select'],
-      '/app/settings?tab=team': ['[aria-label="Участники команды"]'],
-      '/app/settings?tab=billing': ['[aria-label="Механики тарифа"]'],
-      '/app/account': ['[aria-label="Разделы аккаунта"]'],
-      '/app/doctor/content/sections/edit/warmups': ['main form input[name="title"]'],
-      '/app/doctor/content/:slug': ['#doctor-content-header'],
-      '/app/doctor/courses/new': ['#course-title'],
-      '/app/doctor/courses/:uuid': ['#edit-course-title'],
-      '/app/doctor/treatment-program-templates/:uuid': ['#tpl-prog-title'],
-    },
+    routeClassifications: [
+      ...contractsFor([
+        '/app/doctor', '/app/doctor/patient-home', '/app/doctor/patients',
+        '/app/doctor/schedule', '/app/settings',
+        '/app/doctor/schedule?tab=cal', '/app/doctor/schedule?tab=work',
+        '/app/doctor/schedule?tab=setup&section=calendar', '/app/doctor/schedule?tab=setup&section=locations',
+        '/app/doctor/schedule?tab=setup&section=services', '/app/doctor/schedule?tab=setup&section=specialists',
+        '/app/doctor/schedule?tab=setup&section=form', '/app/doctor/schedule?tab=setup&section=payments',
+        '/app/doctor/schedule?tab=setup&section=rules', '/app/doctor/schedule?tab=setup&section=notifications',
+        '/app/doctor/schedule?tab=setup&section=packages', '/app/doctor/communications', '/app/doctor/exercises',
+        '/app/doctor/lfk-templates', '/app/doctor/clinical-tests', '/app/doctor/test-sets',
+        '/app/doctor/recommendations', '/app/doctor/treatment-program-templates',
+        '/app/doctor/treatment-program-promo', '/app/doctor/references', '/app/doctor/content',
+        '/app/doctor/content/library', '/app/doctor/courses', '/app/settings?tab=organization',
+        '/app/settings?tab=team', '/app/settings?tab=billing', '/app/account',
+      ]),
+      { template: /^\/app\/doctor\/patients\/:uuid\?tab=(?:overview|karta|program|records|files|comms|finances|account)(?:&.*)?$/, staticTemplate: '/app/doctor/patients/:uuid', classification: 'substantive', semanticContract: { selectors: ['#doctor-patient-card-header'] } },
+      { template: /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/, staticTemplate: '/app/doctor/patients/:uuid/programs/:uuid', classification: 'substantive', semanticContract: { selectors: ['#doctor-program-instance-summary'] } },
+    ],
     allowedFinalTemplates: {
       '/app/doctor/references': ['/app/doctor/references/clinical_test_measure_kind'],
     },
   },
   patient: {
     syntheticToken: 'client',
-    sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',
     emailEnv: 'DEV_AUDIT_PATIENT_EMAIL',
     defaultEmail: 'kinesiospace@gmail.com',
+    sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',
     identity: { role: 'client', contactKind: 'phone', contactValue: '+79189000782' },
-    routes: [
+    allowedPathnames: ['/app/patient'],
+    canonicalNavigationRoots: ['/app/patient'],
+    canonicalNavigationDestinations: ['/app/patient', '/app/patient/treatment', '/app/patient/diary', '/app/patient/booking', '/app/patient/messages'],
+    requiredStateSeeds: [
       '/app/patient',
       '/app/patient/treatment',
       '/app/patient/diary',
@@ -170,49 +243,32 @@ export const ROLE_SCENARIOS = Object.freeze({
       '/app/patient/support',
       '/app/patient/install',
     ],
-    routeEvidence: {
-      '/app/patient': ['#patient-home-today-layout'],
-      '/app/patient/treatment': [
-        '#patient-treatment-program-detail',
-        '#patient-tp-list-hero-title',
-      ],
-      '/app/patient/diary': ['#patient-diary-wellbeing-week-section'],
-      '/app/patient/booking': ['#patient-booking-format-options'],
-      '/app/patient/messages': ['[data-testid="patient-messages-readonly-notice"]', 'textarea'],
-      '/app/patient/profile': ['#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'],
-      '/app/patient/organizations': ['#patient-organizations-list'],
-      '/app/patient/notifications': ['#patient-notifications-inbox'],
-      '/app/patient/notifications/settings': ['#patient-notification-topics'],
-      '/app/patient/reminders': ['#patient-reminders-rehab'],
-      '/app/patient/purchases': ['#patient-purchases-history'],
-      '/app/patient/courses': ['#patient-courses-catalog'],
-      '/app/patient/about': ['#patient-about-specialist'],
-      '/app/patient/address': ['#patient-address-details'],
-      '/app/patient/help': ['#patient-help-directory'],
-      '/app/patient/support': ['#patient-support-form'],
-      '/app/patient/install': ['#patient-install-guide'],
-      '/app/patient/content/:slug': ['article[id^="patient-content-article-"]'],
-    },
     allowedFinalTemplates: {
       '/app/patient/treatment': ['/app/patient/treatment/:uuid'],
     },
+    routeClassifications: contractsFor([
+      '/app/patient', '/app/patient/treatment', '/app/patient/diary', '/app/patient/booking',
+      '/app/patient/messages', '/app/patient/profile', '/app/patient/organizations',
+      '/app/patient/notifications', '/app/patient/notifications/settings', '/app/patient/reminders',
+      '/app/patient/purchases', '/app/patient/courses', '/app/patient/about', '/app/patient/address',
+      '/app/patient/help', '/app/patient/support', '/app/patient/install',
+    ]),
   },
 });
 
 export const DOCTOR_PATIENT_CARD_TABS = Object.freeze([
-  ['overview', 'Обзор'],
-  ['karta', 'Карточка'],
-  ['program', 'Программа'],
-  ['records', 'Визиты'],
-  ['files', 'Файлы'],
-  ['comms', 'Коммуникации'],
-  ['finances', 'Финансы'],
-  ['account', 'Учётка'],
+  ['karta', 'Карточка', compound(semanticText('Актуальный диагноз'), semanticText('История визитов'))],
+  ['program', 'Программа', semanticText('Программа лечения')],
+  ['files', 'Файлы', compound('#upload-file-input', '#upload-display-name')],
+  ['account', 'Учётка', compound(semanticText('Контакты и каналы'), semanticText('Блокировки и доступ'))],
 ]);
 
 export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   {
     id: 'admin.registration-tariff-policy',
+    controlId: 'Сохранить стартовый тариф',
+    controlKind: 'button',
+    disposition: 'reversible_adapter',
     role: 'global_admin',
     route: '/app/admin/commercial',
     contract:
@@ -220,18 +276,27 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'admin.trial-policy',
+    controlId: 'Сохранить правило',
+    controlKind: 'button',
+    disposition: 'reversible_adapter',
     role: 'global_admin',
     route: '/app/admin/commercial',
     contract: 'UI duration +/- 1 day -> save/reload -> GET exact -> UI restore/reload -> GET exact',
   },
   {
     id: 'admin.paid-period-policy',
+    controlId: 'Сохранить правило после оплаты',
+    controlKind: 'button',
+    disposition: 'reversible_adapter',
     role: 'global_admin',
     route: '/app/admin/commercial',
     contract: 'UI toggle isActive -> save/reload -> GET exact -> UI restore/reload -> GET exact',
   },
   {
     id: 'doctor.working-schedule',
+    controlId: 'btn-save',
+    controlKind: 'button',
+    disposition: 'reversible_adapter',
     role: 'doctor',
     route: '/app/doctor/schedule?tab=work',
     contract:
@@ -239,6 +304,9 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'doctor.service-location-availability',
+    controlId: 'service-location-availability-switch',
+    controlKind: 'switch',
+    disposition: 'reversible_adapter',
     role: 'doctor',
     route: '/app/doctor/schedule?tab=setup&section=locations',
     contract:
@@ -246,6 +314,9 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'doctor.comments-patient-list',
+    controlId: 'btn-comments',
+    controlKind: 'button',
+    disposition: 'inspected_navigation',
     role: 'doctor',
     route: '/app/doctor/communications?tab=comments',
     contract:
@@ -253,18 +324,27 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'doctor.payment-link-control',
+    controlId: 'Создать ссылку на оплату',
+    controlKind: 'button',
+    disposition: 'retained_dev_action',
     role: 'doctor',
     route: '/app/doctor/patients/:uuid?tab=finances',
     contract: 'fill and submit rendered payment-link form -> require successful link readback',
   },
   {
     id: 'patient.program-reminder-enabled',
+    controlId: 'Включить напоминание программы',
+    controlKind: 'switch',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract: 'exact program switch -> inverse -> reload/read -> click restore -> reload/read',
   },
   {
     id: 'patient.program-reminder-time',
+    controlId: 'Изменить расписание',
+    controlKind: 'button',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract:
@@ -272,12 +352,18 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'patient.warmup-reminder-enabled',
+    controlId: 'warmup-reminder-switch',
+    controlKind: 'switch',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract: 'exact warmup switch -> inverse -> reload/read -> click restore -> reload/read',
   },
   {
     id: 'patient.warmup-reminder-time',
+    controlId: 'warmup-reminder-schedule',
+    controlKind: 'button',
+    disposition: 'reversible_adapter',
     role: 'patient',
     route: '/app/patient/reminders',
     contract:
@@ -285,18 +371,28 @@ export const CONTROL_ADAPTER_MATRIX = Object.freeze([
   },
   {
     id: 'patient.phone-change-flow',
+    controlId: 'phone-change-action',
+    controlKind: 'button',
+    disposition: 'external_manual_only',
     role: 'patient',
     route: '/app/patient/profile',
+    reason: 'changes identity/contact and is observed only up to the bind-phone surface',
     contract: 'open bind-phone flow only; not mutated because it changes identity/contact',
   },
   {
     id: 'patient.daily-warmup-home-cta',
+    controlId: 'daily-warmup-home-cta',
+    controlKind: 'link',
+    disposition: 'inspected_navigation',
     role: 'patient',
     route: '/app/patient',
     contract: 'click rendered home CTA -> require a substantive daily-warmup content page',
   },
   {
     id: 'patient.chat-send',
+    controlId: 'Отправить',
+    controlKind: 'button',
+    disposition: 'retained_dev_action',
     role: 'patient',
     route: '/app/patient/messages',
     contract:
