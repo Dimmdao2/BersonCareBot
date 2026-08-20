@@ -331,3 +331,58 @@ sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d postgres -v ON_ERR
 
 То есть после всех прогонов не осталось ни одной базы с префиксом proof-а. Это число получено
 ровно приведённой выше командой.
+
+## Исправление находки: named DEV + transaction rollback
+
+`relation-birth-wall.behaviour.devDbProof.test.mjs` больше не создаёт PostgreSQL из `template0` и
+не исполняет schema snapshot. Проба ходит только в именованную `bcb_webapp_dev`: каждый вызов psql
+начинает транзакцию и завершает её `ROLLBACK`. Внутри отката очищается реестр стены, исполняется
+настоящий `contract.sql`, а пробные relation/реестр/event trigger остаются только в этой
+транзакции. Так проверяется существенное состояние snapshot B — включённая стена при пустом
+реестре — без новой базы.
+
+### Штатный прогон — PASS
+
+```bash
+RUN_RELATION_BIRTH_WALL_DB=1 node --test deploy/postgres/privileges/relation-birth-wall.behaviour.devDbProof.test.mjs
+```
+
+`FINAL_RELATION_BIRTH_WALL_TEST_EXIT=0`; все пять subtest зелёные. В частности, настоящий
+`contract.sql` проходит свой `ALTER TABLE app_ext.port_context_capabilities` при пустом реестре,
+незаявленная таблица получает `42501`, а заявленная создаётся с `ENABLE` и `FORCE RLS`.
+
+### Инъекция A: убрать initial disarm — PASS
+
+Временно удалена первая строка `DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall;` из
+`deploy/postgres/port-context/contract.sql`, затем выполнена та же команда без pipe.
+
+`INJECTION_A_TEST_EXIT=1`. Первый контрактный subtest упал с SQLSTATE `42501` на
+`app_ext.port_context_capabilities`; значит, проверка ловит отсутствие disarm перед собственным
+DDL. После прогона строка возвращена; `git diff --exit-code --
+deploy/postgres/port-context/contract.sql` вернул код `0`.
+
+### Инъекция B: не навешивать стену — PASS
+
+Временно убран `CREATE EVENT TRIGGER bcb_relation_birth_wall …` из `contract.sql`, затем выполнена
+та же команда без pipe.
+
+`INJECTION_B_TEST_EXIT=1`: незаявленная таблица создалась с exit `0`, после чего normal assertion
+покраснел; заявленная таблица получила `false|false` вместо `true|true`. Trigger возвращён;
+`git diff --exit-code -- deploy/postgres/port-context/contract.sql` снова вернул код `0`.
+
+### Базы и откат — PASS
+
+До и после штатного прогона выполнена команда (без pipe):
+
+```bash
+sudo -n -u postgres psql -X -A -t -q -h /var/run/postgresql -p 5432 -d postgres -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT count(*) FROM pg_database; ROLLBACK;"
+```
+
+Вывод до: `8` (`PG_DATABASE_COUNT_BEFORE_EXIT=0`); после: `8`
+(`PG_DATABASE_COUNT_AFTER_EXIT=0`). Пробные таблицы после прогона отсутствуют; команда:
+
+```bash
+sudo -n -u postgres psql -X -A -t -q -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT to_regclass('app_ext.bcb_birth_wall_undeclared_proof') IS NULL AND to_regclass('app_ext.bcb_birth_wall_declared_proof') IS NULL; ROLLBACK;"
+```
+
+вывела `t` (`PROBE_TABLE_ABSENCE_EXIT=0`).
