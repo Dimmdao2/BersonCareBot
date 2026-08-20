@@ -1,5 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { DbPort, WebappEventBody, WebappEventsPort } from '../../kernel/contracts/index.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+
+const fakes = vi.hoisted(() => ({ recordFinalized: vi.fn() }));
+
+vi.mock('./directPublic/writeReminderProjectionDirect.js', () => ({
+  recordReminderOccurrenceFinalizedDirect: fakes.recordFinalized,
+  appendReminderDeliveryEventDirect: vi.fn(),
+  upsertContentAccessGrantDirect: vi.fn(),
+}));
 import { createDbWritePort } from './writePort.js';
 
 function unusedDbPort(): DbPort {
@@ -13,15 +21,8 @@ function unusedDbPort(): DbPort {
   };
 }
 
-describe('reminder occurrence history fanout', () => {
-  it('publishes an orphaned failed occurrence for durable history ingest', async () => {
-    const emitted: WebappEventBody[] = [];
-    const webappEventsPort: WebappEventsPort = {
-      async emit(event) {
-        emitted.push(event);
-        return { ok: true, status: 202 };
-      },
-    };
+describe('reminder occurrence history direct write', () => {
+  it('records an orphaned failed occurrence through the canonical public writer', async () => {
     const expireOrphanedReminderOccurrences = vi.fn().mockResolvedValue([
       {
         occurrenceId: 'occ-orphaned-1',
@@ -38,7 +39,6 @@ describe('reminder occurrence history fanout', () => {
     ]);
     const writePort = createDbWritePort({
       db: unusedDbPort(),
-      webappEventsPort,
       expireOrphanedReminderOccurrences,
     });
 
@@ -51,22 +51,16 @@ describe('reminder occurrence history fanout', () => {
       expect.anything(),
       '2026-07-31T09:03:01.000Z',
     );
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0]).toMatchObject({
-      eventType: 'reminder.occurrence.finalized',
-      occurredAt: '2026-07-31T09:00:00.000Z',
-      payload: {
+    expect(fakes.recordFinalized).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
         integratorOccurrenceId: 'occ-orphaned-1',
         integratorRuleId: 'rule-1',
         integratorUserId: 'non-numeric-user-id',
         platformUserId: '9f000001-0000-4000-8000-000000000001',
         organizationId: 'a0000000-0000-4000-8000-000000000001',
-        category: 'exercise',
         status: 'failed',
-        deliveryChannel: null,
-        errorCode: 'orphaned_past_slot',
-        occurredAt: '2026-07-31T09:00:00.000Z',
-      },
-    });
+      }),
+    );
   });
 });

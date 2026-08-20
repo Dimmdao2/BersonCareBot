@@ -821,7 +821,10 @@ const patientComorbiditiesService = createPatientComorbiditiesService({ patientC
 const patientPaymentsPort = !inMemoryRepos
   ? createPgPatientPaymentsPort()
   : inMemoryPatientPaymentsPort;
-const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPort });
+const patientPaymentsService = createPatientPaymentsService({
+  patientPaymentsPort,
+  assertWriteClearance: assertMechanicWriteClearance,
+});
 // acquiringGateway is initialized below, after systemSettingsService + paymentsConfigReader are set up.
 
 const systemSettingsPort = !inMemoryRepos

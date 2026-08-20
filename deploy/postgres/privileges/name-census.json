@@ -92,6 +92,7 @@
     "app.record_current_patient_symptom_entry",
     "app.record_integrator_support_delivery_attempt",
     "app.record_media_transcode_job_outcome",
+    "app.record_reminder_occurrence_finalized_projection",
     "app.refresh_saas_billing_invoice_purchased_tariff",
     "app.release_carried_seat_debt",
     "app.remove_all_current_patient_web_push_subscriptions",

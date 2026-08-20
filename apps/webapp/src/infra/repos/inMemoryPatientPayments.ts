@@ -32,6 +32,16 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
       throw new Error('payment_amount_must_be_positive_integer');
     }
+    const idempotencyKey = input.idempotencyKey?.trim() || null;
+    if (idempotencyKey) {
+      const existing = payments.find(
+        (payment) =>
+          payment.organizationId === input.organizationId &&
+          payment.appointmentId === (input.appointmentId ?? null) &&
+          payment.idempotencyKey === idempotencyKey,
+      );
+      if (existing) return existing;
+    }
     const row: PaymentRow = {
       id: randomUUID(),
       organizationId: input.organizationId,
@@ -43,6 +53,8 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       comment: input.comment ?? null,
       service: input.service ?? null,
       visitId: input.visitId ?? null,
+      appointmentId: input.appointmentId ?? null,
+      idempotencyKey,
       provider: null,
       providerPaymentId: null,
       createdBy: input.createdBy,
@@ -50,6 +62,13 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
     };
     payments.push(row);
     return row;
+  },
+
+  async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
+    return payments.filter(
+      (payment) =>
+        payment.appointmentId === appointmentId && payment.patientUserId === patientUserId,
+    );
   },
 
   async findByProviderPaymentReference(
@@ -101,6 +120,8 @@ export const inMemoryPatientPaymentsPort: PatientPaymentsPort = {
       comment: input.description ?? null,
       service: null,
       visitId: null,
+      appointmentId: input.appointmentId ?? null,
+      idempotencyKey: null,
       provider: input.provider,
       providerPaymentId: input.providerPaymentId,
       createdBy: input.createdBy,
