@@ -521,7 +521,7 @@ export async function createContentAccessGrant(
     expiresAt: string;
     metaJson?: Record<string, unknown>;
   },
-): Promise<string> {
+): Promise<{ createdAt: string; organizationId: string | null }> {
   const d = getIntegratorDrizzleSession(db);
   const organizationIdExpression = organizationIdForIntegratorUserSql(input.userId);
   const rows = await d
@@ -537,8 +537,15 @@ export async function createContentAccessGrant(
       organizationId: organizationIdExpression,
       createdAt: sql`now()`,
     })
-    .returning({ created_at: contentAccessGrants.createdAt });
-  return rows[0]?.created_at ?? new Date().toISOString();
+    .returning({
+      created_at: contentAccessGrants.createdAt,
+      organization_id: contentAccessGrants.organizationId,
+    });
+  const row = rows[0];
+  return {
+    createdAt: row?.created_at ?? new Date().toISOString(),
+    organizationId: row?.organization_id ?? null,
+  };
 }
 
 /** Integrator `users.id` (text) owning the occurrence's rule, or null if missing. */

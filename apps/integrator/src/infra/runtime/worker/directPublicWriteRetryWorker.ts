@@ -8,6 +8,14 @@ import {
   type UpsertReminderRuleDirectInput,
 } from '../../db/directPublic/writeReminderRulesDirect.js';
 import {
+  appendReminderDeliveryEventDirect,
+  recordReminderOccurrenceFinalizedDirect,
+  upsertContentAccessGrantDirect,
+  type ContentAccessGrantDirectInput,
+  type ReminderDeliveryLoggedDirectInput,
+  type ReminderOccurrenceFinalizedDirectInput,
+} from '../../db/directPublic/writeReminderProjectionDirect.js';
+import {
   claimDueDirectPublicWriteRetries,
   completeDirectPublicWriteRetry,
   failDirectPublicWriteRetry,
@@ -16,7 +24,10 @@ import {
   type DirectPublicWriteRetryRow,
 } from '../../db/repos/directPublicWriteRetry.js';
 import { logger } from '../../observability/logger.js';
-import { runWithInfraPrincipal, runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
+import {
+  runWithInfraPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../principal/organizationPrincipal.js';
 
 const RETRY_BASE_SECONDS = 30;
 const MAX_BACKOFF_SECONDS = 3600;
@@ -35,7 +46,32 @@ export async function executeDirectPublicWriteRetry(
       await upsertReminderRuleDirect(db, retry.payload as UpsertReminderRuleDirectInput);
       return;
     }
-    await appendSupportDeliveryEventDirect(db, retry.payload as AppendSupportDeliveryEventDirectInput);
+    if (retry.operation === 'support_delivery_attempt_append') {
+      await appendSupportDeliveryEventDirect(
+        db,
+        retry.payload as AppendSupportDeliveryEventDirectInput,
+      );
+      return;
+    }
+    if (
+      retry.operation === 'reminder_occurrence_sent_record' ||
+      retry.operation === 'reminder_occurrence_failed_record' ||
+      retry.operation === 'reminder_occurrence_expired_record'
+    ) {
+      await recordReminderOccurrenceFinalizedDirect(
+        db,
+        retry.payload as ReminderOccurrenceFinalizedDirectInput,
+      );
+      return;
+    }
+    if (retry.operation === 'reminder_delivery_log_append') {
+      await appendReminderDeliveryEventDirect(
+        db,
+        retry.payload as ReminderDeliveryLoggedDirectInput,
+      );
+      return;
+    }
+    await upsertContentAccessGrantDirect(db, retry.payload as ContentAccessGrantDirectInput);
   });
 }
 

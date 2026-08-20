@@ -3051,6 +3051,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "Выданные пациенту доступы к контенту — пациент теряет доступ к выданным ему материалам",
     "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts",
       "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/repos/pgEntitlements.ts",
@@ -3077,6 +3078,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "integrator_grant_id",
           "integrator_user_id",
           "meta_json",
+          "organization_id",
           "platform_user_id",
           "purpose",
           "revoked_at",
@@ -3093,6 +3095,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "expires_at",
           "integrator_user_id",
           "meta_json",
+          "organization_id",
           "platform_user_id",
           "purpose",
           "revoked_at",
@@ -7044,6 +7047,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "события доставки напоминаний из интегратора — без неё не видно, дошло ли напоминание, и не считается здоровье конвейера",
     "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts",
       "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
       "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
@@ -7070,6 +7074,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "integrator_occurrence_id",
           "integrator_rule_id",
           "integrator_user_id",
+          "organization_id",
           "payload_json",
           "status"
         ]
@@ -7080,7 +7085,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "integrator_user_id"
+          "integrator_user_id",
+          "organization_id"
         ]
       },
       {
@@ -7128,6 +7134,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "история срабатываний напоминаний: подписанный tenant-scoped integrator event добавляет проекцию, человек только читает или обслуживает её",
     "codePaths": [
+      "apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts",
       "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
       "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
       "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
