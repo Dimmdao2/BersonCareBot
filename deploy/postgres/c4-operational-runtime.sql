@@ -920,81 +920,6 @@ REVOKE ALL ON FUNCTION app.open_or_touch_operator_probe_incident(text, text, tex
 GRANT EXECUTE ON FUNCTION app.open_or_touch_operator_probe_incident(text, text, text)
   TO app_operational_scheduler;
 
--- Delivery attempt audit for the channels app.record_global_email_delivery_attempt cannot take:
--- that one hard-pins p_channel = 'email', so a worker-drained max/telegram/sms attempt had no
--- persistence path at all and fell through to a direct cross-schema INSERT that 42P01'd.
-CREATE OR REPLACE FUNCTION app.record_operational_delivery_attempt_audit(
-  p_intent_type text,
-  p_intent_event_id text,
-  p_correlation_id text,
-  p_channel text,
-  p_status text,
-  p_attempt integer,
-  p_reason text,
-  p_payload_json jsonb,
-  p_occurred_at timestamp with time zone
-)
-RETURNS void
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-BEGIN
-  IF p_intent_type IS NULL
-    OR NULLIF(btrim(p_intent_event_id), '') IS NULL
-    OR p_channel IS NULL
-    -- Vocabulary is `Channel` in apps/integrator/src/kernel/contracts/unifiedMessage.ts: the SMS tag
-    -- is 'smsc', NOT 'sms' -- that file says so in capitals and forbids renaming it. 'unknown' is
-    -- written by the dev-redirect SUPPRESS branch (dispatchPort.ts, readChannel(intent) ?? 'unknown')
-    -- and must persist too, or that path starts rolling back instead of recording a suppressed send.
-    OR p_channel NOT IN ('max', 'telegram', 'smsc', 'web_push', 'email', 'unknown')
-    OR p_status IS NULL
-    OR p_status NOT IN ('success', 'failed')
-    OR p_attempt IS NULL
-    OR p_attempt NOT BETWEEN 1 AND 100
-    OR p_payload_json IS NULL
-    OR jsonb_typeof(p_payload_json) <> 'object'
-    OR p_occurred_at IS NULL
-    OR length(p_intent_type) > 200
-    OR length(p_intent_event_id) > 500
-    OR length(COALESCE(p_correlation_id, '')) > 500
-    OR length(COALESCE(p_reason, '')) > 1000
-    OR pg_column_size(p_payload_json) > 65536
-  THEN
-    RAISE EXCEPTION 'invalid operational delivery attempt audit input'
-      USING ERRCODE = '23514';
-  END IF;
-
-  INSERT INTO integrator.delivery_attempt_logs (
-    intent_type, intent_event_id, correlation_id, channel,
-    status, attempt, reason, payload_json, occurred_at
-  ) VALUES (
-    NULLIF(p_intent_type, ''),
-    NULLIF(p_intent_event_id, ''),
-    NULLIF(p_correlation_id, ''),
-    p_channel,
-    p_status,
-    p_attempt,
-    NULLIF(p_reason, ''),
-    p_payload_json,
-    p_occurred_at
-  );
-END
-$function$;
-ALTER FUNCTION app.record_operational_delivery_attempt_audit(
-  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
-) OWNER TO app_owner;
-REVOKE ALL ON FUNCTION app.record_operational_delivery_attempt_audit(
-  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
-) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.record_operational_delivery_attempt_audit(
-  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
-) FROM app_staff, app_patient, app_worker,
-  app_operational_diagnostic, app_operational_scheduler, app_operational_media_worker;
-GRANT EXECUTE ON FUNCTION app.record_operational_delivery_attempt_audit(
-  text, text, text, text, text, integer, text, jsonb, timestamp with time zone
-) TO app_operational_delivery_worker;
-
 GRANT EXECUTE ON FUNCTION app.release_principal_context() TO
   app_operational_diagnostic,
   app_operational_delivery_worker,
@@ -1379,7 +1304,6 @@ WITH managed(role_name) AS (VALUES
   ('function','app.revalidate_specialist_task_reminder_materialization(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.apply_specialist_task_reminder_success_outcome(uuid)','EXECUTE','app_operational_delivery_worker',false),
   ('function','app.read_operational_verbose_log_flag()','EXECUTE','app_operational_delivery_worker',false),
-  ('function','app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamp with time zone)','EXECUTE','app_operational_delivery_worker',false),
   ('schema','app','USAGE','app_operational_scheduler',false),
   ('schema','integrator','USAGE','app_operational_scheduler',false),
   ('schema','public','USAGE','app_operational_scheduler',false),

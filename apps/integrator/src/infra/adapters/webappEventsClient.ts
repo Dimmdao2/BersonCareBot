@@ -235,32 +235,6 @@ export function createWebappEventsPort(deps: {
       }
     },
 
-    async syncSupportUserMessage(input: { body: string; idempotencyKey: string }): Promise<{
-      ok: boolean;
-      status: number;
-      error?: string;
-      canonicalWrite?: { conversationId: string; organizationId: string };
-    }> {
-      const result = await postSignedJson({
-        path: '/api/integrator/support/sync-user-message',
-        body: input.body,
-        idempotencyKey: input.idempotencyKey,
-      });
-      const canonicalWrite =
-        result.canonicalWrite?.conversationId && result.canonicalWrite.organizationId
-          ? {
-              conversationId: result.canonicalWrite.conversationId,
-              organizationId: result.canonicalWrite.organizationId,
-            }
-          : undefined;
-      const baseResult = {
-        ok: result.ok,
-        status: result.status,
-        ...(result.error ? { error: result.error } : {}),
-      };
-      return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
-    },
-
     async setSupportStatus(input: { body: string; idempotencyKey: string }): Promise<{
       ok: boolean;
       status: number;
