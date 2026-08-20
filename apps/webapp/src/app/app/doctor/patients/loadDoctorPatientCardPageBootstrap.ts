@@ -17,30 +17,13 @@ import {
 import { loadDoctorPatientMessagesSnapshot } from './loadDoctorPatientMessagesSnapshot';
 import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program/types';
 import { pickOpenTreatmentProgramInstance } from './treatmentProgramInstanceOpen';
-import {
-  envelopeFromSettled,
-  type BootstrapEnvelope,
-} from './doctorPatientCardBootstrapShared';
+import { envelopeFromSettled, type BootstrapEnvelope } from './doctorPatientCardBootstrapShared';
 
-export type PatientCardTabId =
-  | 'karta'
-  | 'program'
-  | 'files'
-  | 'account';
+export type PatientCardTabId = 'karta' | 'program' | 'files' | 'account';
 
-const PATIENT_CARD_TABS: PatientCardTabId[] = [
-  'karta',
-  'program',
-  'files',
-  'account',
-];
+const PATIENT_CARD_TABS: PatientCardTabId[] = ['karta', 'program', 'files', 'account'];
 
-const LEGACY_PATIENT_CARD_TABS = new Set([
-  'overview',
-  'records',
-  'comms',
-  'finances',
-]);
+const LEGACY_PATIENT_CARD_TABS = new Set(['overview', 'records', 'comms', 'finances']);
 
 export function resolvePatientCardTab(tab: string | undefined): PatientCardTabId {
   if (tab && PATIENT_CARD_TABS.includes(tab as PatientCardTabId)) {
@@ -67,7 +50,9 @@ export type DoctorPatientCardTabBootstrap = {
   initialClinicalState: BootstrapEnvelope<
     Awaited<ReturnType<Deps['patientClinical']['getClinicalState']>>
   > | null;
-  initialVisits: BootstrapEnvelope<Awaited<ReturnType<Deps['patientClinical']['listVisits']>>> | null;
+  initialVisits: BootstrapEnvelope<
+    Awaited<ReturnType<Deps['patientClinical']['listVisits']>>
+  > | null;
   initialNotes: BootstrapEnvelope<Awaited<ReturnType<Deps['doctorNotes']['listForUser']>>> | null;
   initialTasks: BootstrapEnvelope<
     Awaited<ReturnType<Deps['specialistTasks']['listPatientTasks']>>
@@ -81,13 +66,9 @@ export type DoctorPatientCardTabBootstrap = {
   initialProgramInstances: BootstrapEnvelope<
     Awaited<ReturnType<Deps['treatmentProgramInstance']['listForPatientClinicalView']>>
   > | null;
-  initialFiles:
-    | BootstrapEnvelope<
-        Array<
-          Awaited<ReturnType<Deps['patientFiles']['listFiles']>>[number] & { previewUrl: null }
-        >
-      >
-    | null;
+  initialFiles: BootstrapEnvelope<
+    Array<Awaited<ReturnType<Deps['patientFiles']['listFiles']>>[number] & { previewUrl: null }>
+  > | null;
   initialAnamnesis: BootstrapEnvelope<
     Awaited<ReturnType<Deps['patientClinical']['getAnamnesis']>>
   > | null;
@@ -386,9 +367,9 @@ export async function loadDoctorPatientCardTabBootstrap(
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
       ),
-      deps.doctorClients.getPatientProgramInteractionPolicy(patientUserId).catch(
-        (): PatientProgramInteractionPolicy | null => null,
-      ),
+      deps.doctorClients
+        .getPatientProgramInteractionPolicy(patientUserId)
+        .catch((): PatientProgramInteractionPolicy | null => null),
       membershipAccess.specialistNavigation && deps.memberships
         ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
         : Promise.resolve(null),
@@ -403,7 +384,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         );
       })(),
       withDoctorWorkspacePrincipal(workspace, () =>
-        loadDoctorPatientMessagesSnapshot(deps, patientUserId, workspace.organizationId),
+        loadDoctorPatientMessagesSnapshot(deps, patientUserId, workspace.organizationId, workspace),
       ),
       withDoctorWorkspacePrincipal(workspace, () =>
         deps.patientClinical.getAnamnesis(patientUserId),
@@ -449,7 +430,6 @@ export async function loadDoctorPatientCardTabBootstrap(
       initialProgramInstances: envelopeFromSettled(programInstancesResult[0]!),
     };
   }
-
 
   if (activeTab === 'files') {
     const fileRecordsResult = await Promise.allSettled([

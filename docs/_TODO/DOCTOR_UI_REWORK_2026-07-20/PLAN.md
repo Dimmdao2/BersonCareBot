@@ -255,12 +255,25 @@ UI-5b остаётся фактически открытой в `#971` и нач
   sticky-полосой, как в прежней формулировке строки 220. Sticky-поведение header/tabs сохраняется — оно теперь
   идёт через сам `DoctorPageHeader`;
 - этот bounded этап **сохраняет текущий состав legacy-вкладок** (`Обзор · Карточка · Программа · Визиты · Файлы ·
-  Коммуникации · Финансы · Учётка`) — их содержимое (Overview/Visits/Communications/Finances) ещё не мигрировано
+Коммуникации · Финансы · Учётка`) — их содержимое (Overview/Visits/Communications/Finances) ещё не мигрировано
   в целевую четырёхвкладочную композицию `Карточка / Программа / Файлы / Учётка` из чеклиста UI-5b выше; финальный
   состав остаётся целью полного UI-5b, не этого этапа;
 - mobile-фикс той же правкой: identity-блок карточки пациента больше не форсирует `min-w-[280px]`, а `Обзор` и
   `Учётка` переходят в одну колонку ниже существующего desktop breakpoint (`md:grid-cols-2`) вместо постоянной
   50/50 через inline `gridTemplateColumns` — на узком экране не остаётся видимого фрагмента правой колонки.
+
+**UI-5b current-code/data-gap census 2026-08-20 (implementation authority):**
+
+| Existing seam                                                    | Reuse in four-tab composition                           | Measured gap closed in `#971` candidate                                                                                                                                                |
+| ---------------------------------------------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PatientTabKarta` clinical state + visit notes                   | One 50/50 master/detail shell                           | Legacy right visit feed was always a second stacked surface; selected appointment now maps by canonical appointment id and is absent until selection.                                  |
+| `PatientTabRecords` appointments + membership list/history       | KPI-controlled left master content above diagnoses      | Appointment projection had no visit-presence flag; membership actions/configuration were split across Records/Finances.                                                                |
+| `PatientTabOverview` notes/tasks/dynamics/program/calendar       | Ordered right detail content                            | Legacy Overview repeated clinical/KPI blocks and rendered program exercises plus empty Notes/Tasks prose.                                                                              |
+| `DoctorClientMembershipsPanel`                                   | Right configuration/selection/payment after Add/Consume | Full mode repeated package cards; `showPackageList=false` reuses only canonical forms/actions.                                                                                         |
+| `DoctorOpenChatButton`                                           | Header chat/messenger actions                           | Removed `comms` tab id could blank the card; all shortcuts now stay on the four-tab composition and use the existing modal path.                                                       |
+| `loadDoctorPatientMessagesSnapshot` + messaging actor-aware list | Read-only card widget snapshot                          | Direct patient lookup admitted null-org/non-authorized conversations; exact organization, specialist identity and actor-authorized conversation are now required before content/count. |
+
+No second patient-card route/tree, schema, migration, search UI or UI-7 scheduler was introduced.
 
 ### UI-6 — Сегодня
 
@@ -381,21 +394,21 @@ UI-EX-HOST галочками выше.
 candidate июля остаётся evidence только для того дерева и не считается текущим deploy/acceptance доказательством.
 `DONE repository` означает code/test/audit evidence; owner acceptance остаётся отдельным слоем.
 
-| Scope                | Статус                                        | Точный остаток                                                                                                                                        |
-| -------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| UI-0                 | `DONE repository / owner pending`             | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke.                                                                           |
-| UI-1                 | `DONE repository / owner pending`             | Picker и UI-1c реализованы. Money/provider и SCH-G5 остаются отдельными gates. Текущий candidate SHA/live acceptance не записаны.                     |
-| UI-2                 | `DONE repository / public live gated`         | Built-in Online и public split доказаны в repository; published-slug live proof остаётся U6B `#926`. Expanded online chain `#215` не входит.          |
-| UI-3                 | `DONE repository / owner pending`             | Presentation, broadcast IA и shared composer закрыты; scheduled send вынесен в отдельный UI-7a.                                                       |
-| UI-4                 | `DONE repository / owner pending`             | Right-pane preview удалён по owner ruling 2026-07-23; обычный режим = list + filters, строка открывает full card.                                     |
-| UI-5                 | `UI-5a DONE / UI-5b OPEN #971`                | Full-workspace route reuse закрыт. `#796` больше не блокирует старт; полный composition/data-policy checklist UI-5b не реализован.                    |
-| UI-6                 | `DONE current contract / product residual`    | Текущие signals/list switch реализованы; «Самые активные», новые counters и hiding остаются без exact owner contract в `#963`.                        |
-| UI-7                 | `OPEN #964 / minimal scope 2026-08-17`        | Нужны дата/время, planner dispatch, creator-visible pending и cancel. Расширенный старый UI исключён.                                                 |
-| UI-8                 | `DONE current contract`                       | S4/C5 organization-only commercial contour и reminder defaults закрыты; существующие назначения не изменены.                                          |
-| UI-9                 | `DONE repository / owner pending`             | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно.                                          |
-| UI-EX-HOST           | `DONE repository / owner pending`             | Четыре хоста работают в упражнениях/CMS; immediate iframe mount решён владельцем. Analytics handoff для `hosted_video` остаётся в Global Admin stage. |
-| Client mood residual | `DONE repository`                             | Empty chart скрывается, mood controls остаются.                                                                                                       |
-| UI-P                 | `DONE repository #977 / owner visual pending` | Shared radius/padding/input/list/tab/menu contracts реализованы и прошли test/audit; открыта live visual acceptance.                                  |
+| Scope                | Статус                                          | Точный остаток                                                                                                                                        |
+| -------------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UI-0                 | `DONE repository / owner pending`               | Четыре symptoms закрыты; отдельная owner live recheck не подменяется smoke.                                                                           |
+| UI-1                 | `DONE repository / owner pending`               | Picker и UI-1c реализованы. Money/provider и SCH-G5 остаются отдельными gates. Текущий candidate SHA/live acceptance не записаны.                     |
+| UI-2                 | `DONE repository / public live gated`           | Built-in Online и public split доказаны в repository; published-slug live proof остаётся U6B `#926`. Expanded online chain `#215` не входит.          |
+| UI-3                 | `DONE repository / owner pending`               | Presentation, broadcast IA и shared composer закрыты; scheduled send вынесен в отдельный UI-7a.                                                       |
+| UI-4                 | `DONE repository / owner pending`               | Right-pane preview удалён по owner ruling 2026-07-23; обычный режим = list + filters, строка открывает full card.                                     |
+| UI-5                 | `UI-5a DONE / UI-5b candidate implemented #971` | Four-tab composition and focused gates are repository-ready in the isolated worktree; live mobile/owner acceptance and integration remain separate.   |
+| UI-6                 | `DONE current contract / product residual`      | Текущие signals/list switch реализованы; «Самые активные», новые counters и hiding остаются без exact owner contract в `#963`.                        |
+| UI-7                 | `OPEN #964 / minimal scope 2026-08-17`          | Нужны дата/время, planner dispatch, creator-visible pending и cancel. Расширенный старый UI исключён.                                                 |
+| UI-8                 | `DONE current contract`                         | S4/C5 organization-only commercial contour и reminder defaults закрыты; существующие назначения не изменены.                                          |
+| UI-9                 | `DONE repository / owner pending`               | Personal exercises/media exact-org implementation и high-risk audit закрыты; live owner acceptance отдельно.                                          |
+| UI-EX-HOST           | `DONE repository / owner pending`               | Четыре хоста работают в упражнениях/CMS; immediate iframe mount решён владельцем. Analytics handoff для `hosted_video` остаётся в Global Admin stage. |
+| Client mood residual | `DONE repository`                               | Empty chart скрывается, mood controls остаются.                                                                                                       |
+| UI-P                 | `DONE repository #977 / owner visual pending`   | Shared radius/padding/input/list/tab/menu contracts реализованы и прошли test/audit; открыта live visual acceptance.                                  |
 
 Эта таблица отменяет прежние blanket-формулировки «baseline проверен» для полного UI-1/UI-3/UI-4/UI-6 scope:
 повторять закрытую часть нельзя, но перечисленный residual обязан получить собственный exact task/acceptance.
@@ -628,28 +641,44 @@ brief или заменять одним общим пунктом.
 
 - [ ] При активной карточке поиск доступен, результаты показаны dropdown под полем.
 - [x] Sticky header содержит только ФИО и полную подпись «Дата рождения»; пол/рост/вес/chips/mini-stats убраны.
-      (✓ header now ФИО PatientCardClient.tsx:266 + «Дата рождения» :387; удалены Пол-блок, Рост/Вес display+inline
-      форма+state/handlers+physical-data plumbing, chips Архив/Заблокирован, правая mini-stats сводка, приписка возраста.
+      (✓ `PatientCardClient.tsx`: header ФИО + «Дата рождения»; из identity display и inline editor удалены Пол,
+      Рост/Вес, physical-data state/handlers, chips Архив/Заблокирован, правая mini-stats сводка и приписка возраста.
       Звезда «★ На сопровождении» :284 и portal-invite :476 ОСТАВЛЕНЫ намеренно по owner 2026-07-23 — это НЕ chips из
       UI-5b, не спец-нарушение.)
 - [x] Edit affordance ФИО имеет увеличенный отступ и не слипается с именем.
       (✓ FIO row gap-1.5→gap-2.5 + pencil ml-0.5 PatientCardClient.tsx:273)
-- [ ] Справа находятся phone/email/messenger deep links; chat открывает существующую modal/messaging path.
-- [ ] Tabs находятся под header и sticky; рабочие tabs используют внутренний 50/50, mobile показывает одну часть.
-- [ ] `Overview`, `Communications` и `Visits` не дублируют данные; существующие блоки и messaging path
-      переиспользованы.
+- [x] Справа находятся phone/email/messenger deep links; chat открывает существующую modal/messaging path.
+      (✓ `PatientCardClient.tsx`: tel/mailto + три `DoctorOpenChatButton` на canonical embedded-chat modal.)
+- [x] Tabs находятся под header и sticky; рабочие tabs используют внутренний 50/50, mobile показывает одну часть.
+      (✓ `PatientCardTabsNav` в `DoctorPageHeader.tabs`; `PatientTabKarta` composition = `md:grid-cols-2`, mobile
+      `Данные / Детали` одновременно монтирует и показывает только выбранную часть.)
+- [x] `Overview`, `Communications` и `Visits` не дублируют данные; существующие блоки и messaging path
+      переиспользованы. (✓ `PatientCardTabPanels` монтирует один composed `PatientTabKarta`: legacy
+      `PatientTabOverview`/`PatientTabRecords` перенесены в slots, stacked `PatientTabComms`/`PatientTabFinances`
+      удалены; chat остаётся `DoctorOpenChatButton`.)
 - [x] Выбранная запись о визите справа скрыта по умолчанию.
-      (✓ `PatientTabKarta.tsx`: visit history starts collapsed and opens only through the existing history control.)
-- [ ] KPI `Визиты / Будущие записи / Абонементы` открывают соответствующий left content над диагнозом.
-- [ ] Справа находятся Notes/Tasks/Dynamics/Program/Completion; пустые Notes/Tasks показывают только add action.
-- [ ] Program summary содержит только название, дату контроля и этапы; состав упражнений скрыт.
-- [ ] Активный этап программы визуально выделен.
-- [ ] Клик по названию открывает существующую программу.
-- [ ] Оформленный визит предлагает «Открыть заметки», а не повторное создание визита.
-- [ ] Membership list и history перенесены из «Финансы» в левую часть card flow.
-- [ ] `Списать` доступно только активному абонементу; `Пересчитать` сохранено.
-- [ ] Верхнее `Добавить абонемент` открывает справа configuration/selection/payment; реальная online payment
-      остаётся `#819`.
+      (✓ `PatientCardTabPanels.selectedVisitAppointmentId` starts `null`; selection test in
+      `PatientCardClient.ui.test.tsx` proves detail appears only after `Открыть заметки`.)
+- [x] KPI `Визиты / Будущие записи / Абонементы` открывают соответствующий left content над диагнозом.
+      (✓ `PatientTabRecords` `compositionMode="master"`; behavioral test covers all three selectors.)
+- [x] Справа находятся Notes/Tasks/Dynamics/Program/Completion; пустые Notes/Tasks показывают только add action.
+      (✓ `PatientTabOverview` right-pane order 1–5; empty Notes/Tasks prose removed.)
+- [x] Program summary содержит только название, дату контроля и этапы; состав упражнений скрыт.
+      (✓ `PatientTabOverview`: `expectedStageControlDateIso`, stage pager; exercise/media rows removed.)
+- [x] Активный этап программы визуально выделен.
+      (✓ `PatientTabOverview`: `in_progress` stage gets primary border/background.)
+- [x] Клик по названию открывает существующую программу.
+      (✓ title button delegates to existing `selectTab('program')` / `PatientTabProgram`.)
+- [x] Оформленный визит предлагает «Открыть заметки», а не повторное создание визита.
+      (✓ `PatientAppointmentItem.hasVisitRecord` comes from exact-org `clinical_visits` existence; both legacy and
+      composed render paths covered by `PatientTabRecords.ui.test.tsx`.)
+- [x] Membership list и history перенесены из «Финансы» в левую часть card flow.
+      (✓ composed `MembershipPanel` classifies active/history and is reachable from left KPI.)
+- [x] `Списать` доступно только активному абонементу; `Пересчитать` сохранено.
+      (✓ actions render only inside `classifiedPackages.active`; recalc reuses canonical endpoint.)
+- [x] Верхнее `Добавить абонемент` открывает справа configuration/selection/payment; реальная online payment
+      остаётся `#819`. (✓ right detail reuses `DoctorClientMembershipsPanel` forms with catalog/manual selection,
+      paid amount and canonical create/consume paths; `showPackageList={false}` prevents duplicate cards.)
 - [x] Убрана пустая/объяснительная подпись про приоритет и выраженность.
       (✓ `PatientTabKarta.tsx`: symptom section no longer renders the priority/severity instruction.)
 - [x] Убран пустой текст «диагнозов нет».
@@ -662,9 +691,13 @@ brief или заменять одним общим пунктом.
       (✓ `PatientTabKarta.tsx`: empty trauma state renders no explanatory prose.)
 - [x] Диагноз не называется «Актуальный»; preliminary diagnoses входят в единый список.
       (✓ `PatientTabKarta.tsx`: section is «Диагнозы» and renders a single `diagnoses` list.)
-- [ ] Symptom colors переиспользуют существующую Overview color logic.
-- [ ] Visibility, authorship, ownership, counts/search/export и access matrix закрыты после U5A без
-      cross-organization раскрытия.
+- [x] Symptom colors переиспользуют существующую Overview color logic.
+      (✓ shared `overviewSymptomSeverityBadgeClass` is consumed by `PatientTabKarta`.)
+- [x] Visibility, authorship, ownership, counts/search/export и access matrix закрыты после U5A без
+      cross-organization раскрытия. (✓ `#928` remains the record-class authority; UI-5b preserves the standalone
+      guards/bootstrap. `loadDoctorPatientMessagesSnapshot` now requires exact organization plus actor-authorized
+      conversation and specialist participant identity; route tests cover foreign patient, null organization and
+      missing specialist fail-closed outcomes.)
 
 #### UI-6 — Today (`#850`, residual `#963`)
 

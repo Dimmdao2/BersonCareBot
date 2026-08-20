@@ -15,6 +15,7 @@ const fakes = vi.hoisted(() => ({
   withDoctorWorkspacePrincipal: vi.fn(),
   getClientIdentity: vi.fn<AppDeps['doctorClientsPort']['getClientIdentityForOrganization']>(),
   listConversationsByUser: vi.fn(),
+  listOpenConversations: vi.fn(),
   listMessagesSince: vi.fn(),
   countUnreadUserMessagesForAdminByConversation: vi.fn(),
   ensureConversation: vi.fn(),
@@ -84,14 +85,36 @@ function webappConversation(organizationId: string | null) {
   };
 }
 
+function permittedConversation() {
+  return {
+    conversationId: 'conv-1',
+    integratorConversationId: `webapp:organization:${ORGANIZATION_ID}:platform:${PATIENT_ID}`,
+    source: 'webapp',
+    integratorUserId: null,
+    adminScope: 'org',
+    status: 'open',
+    openedAt: '2026-08-05T11:00:00.000Z',
+    lastMessageAt: '2026-08-05T12:00:00.000Z',
+    closedAt: null,
+    closeReason: null,
+    displayName: 'Messages patient',
+    phoneNormalized: null,
+    channelExternalId: null,
+    lastMessageText: 'hello',
+    lastSenderRole: 'user',
+    unreadFromUserCount: 1,
+  };
+}
+
 describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.requireDoctorWorkspace.mockResolvedValue({ ok: true, ctx: doctorContext });
-    fakes.withDoctorWorkspacePrincipal.mockImplementation(
-      (_ctx: unknown, fn: () => unknown) => fn(),
+    fakes.withDoctorWorkspacePrincipal.mockImplementation((_ctx: unknown, fn: () => unknown) =>
+      fn(),
     );
     fakes.getClientIdentity.mockResolvedValue(clientIdentity);
+    fakes.listOpenConversations.mockResolvedValue([permittedConversation()]);
     fakes.buildAppDeps.mockReturnValue({
       doctorClientsPort: { getClientIdentityForOrganization: fakes.getClientIdentity },
       supportCommunication: {
@@ -101,11 +124,15 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
           fakes.countUnreadUserMessagesForAdminByConversation,
         ensureConversation: fakes.ensureConversation,
       },
+      messaging: {
+        doctorSupport: { listOpenConversations: fakes.listOpenConversations },
+      },
     } as unknown as AppDeps);
   });
 
   it('returns empty ok snapshot without calling ensure when no conversation exists', async () => {
     fakes.listConversationsByUser.mockResolvedValue([]);
+    fakes.listOpenConversations.mockResolvedValue([]);
 
     const response = await GET(new Request('http://test/messages-snapshot'), {
       params: Promise.resolve({ userId: PATIENT_ID }),
@@ -121,6 +148,11 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
     expect(fakes.listConversationsByUser).toHaveBeenCalledWith(PATIENT_ID);
     expect(fakes.ensureConversation).not.toHaveBeenCalled();
     expect(fakes.listMessagesSince).not.toHaveBeenCalled();
+    expect(fakes.listOpenConversations).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      visibilityActor: doctorContext,
+      limit: 100,
+    });
   });
 
   it('returns 404 when patient is outside the doctor organization', async () => {
@@ -190,5 +222,46 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
     });
     expect(fakes.listMessagesSince).not.toHaveBeenCalled();
     expect(fakes.countUnreadUserMessagesForAdminByConversation).not.toHaveBeenCalled();
+  });
+
+  it('does not expose a same-organization conversation absent from the actor-authorized list', async () => {
+    fakes.listConversationsByUser.mockResolvedValue([webappConversation(ORGANIZATION_ID)]);
+    fakes.listOpenConversations.mockResolvedValue([]);
+
+    const response = await GET(new Request('http://test/messages-snapshot'), {
+      params: Promise.resolve({ userId: PATIENT_ID }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      conversationId: undefined,
+      messages: [],
+      unreadFromUserCount: 0,
+    });
+    expect(fakes.listMessagesSince).not.toHaveBeenCalled();
+    expect(fakes.countUnreadUserMessagesForAdminByConversation).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the workspace has no specialist participant identity', async () => {
+    fakes.requireDoctorWorkspace.mockResolvedValue({
+      ok: true,
+      ctx: { ...doctorContext, specialistId: null, canManageAllSpecialists: true },
+    });
+    fakes.listConversationsByUser.mockResolvedValue([webappConversation(ORGANIZATION_ID)]);
+
+    const response = await GET(new Request('http://test/messages-snapshot'), {
+      params: Promise.resolve({ userId: PATIENT_ID }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      conversationId: undefined,
+      messages: [],
+      unreadFromUserCount: 0,
+    });
+    expect(fakes.listConversationsByUser).not.toHaveBeenCalled();
+    expect(fakes.listOpenConversations).not.toHaveBeenCalled();
   });
 });

@@ -251,6 +251,8 @@ export type PatientAppointmentItem = {
   patientPackageId?: string | null;
   packageTitle?: string | null;
   packageDisplayNumber?: number | null;
+  /** True when this canonical appointment already owns a clinical visit note. */
+  hasVisitRecord?: boolean;
 };
 
 export type DoctorClientsPort = {

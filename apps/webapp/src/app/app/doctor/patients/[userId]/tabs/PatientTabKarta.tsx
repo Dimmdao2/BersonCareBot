@@ -37,7 +37,7 @@
  *   - Анамнез: GET .../anamnesis (real). POST .../anamnesis to append entries.
  *   - Сопутствующие заболевания: MOCK (deferred).
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -48,7 +48,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import type {
   ActiveComplaint,
@@ -78,6 +77,7 @@ import {
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { VisitCatalogTextarea } from './karta/VisitCatalogTextarea';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
+import { overviewSymptomSeverityBadgeClass } from './PatientTabOverview';
 
 type Props = {
   userId: string;
@@ -102,14 +102,25 @@ type Props = {
   initialAnamnesis?: AnamnesisState | null;
   /** SSR-provided active comorbidities — skips the Comorbidities component's initial fetch. */
   initialComorbidities?: Comorbidity[] | null;
+  /** UI-5b master/detail composition slots. Omitted for legacy standalone use. */
+  composition?: {
+    leftContent: ReactNode;
+    rightContent: ReactNode;
+    selectedAppointmentId: string | null;
+    onCloseSelectedVisit: () => void;
+    mobilePane: 'master' | 'detail';
+    onMobilePaneChange: (pane: 'master' | 'detail') => void;
+  };
 };
 
 // ---------------------------------------------------------------------------
 // Styles (unchanged from original)
 // ---------------------------------------------------------------------------
 
-const severityBadgeClass =
-  'flex-none self-center rounded-md bg-primary/15 px-1.5 py-px text-xs font-bold text-primary';
+const severityBadgeClass = cn(
+  overviewSymptomSeverityBadgeClass,
+  'flex-none self-center rounded-md px-1.5 py-px text-xs',
+);
 const editIconClass =
   'flex-none cursor-pointer self-center text-sm text-muted-foreground hover:text-foreground';
 const dateMetaClass = 'flex-none self-center text-xs text-muted-foreground';
@@ -1477,9 +1488,7 @@ function AddTraumaForm({
         <div className="flex flex-col gap-0.5">
           <label className="text-xs text-muted-foreground">Тип</label>
           <Select value={type} onValueChange={(v) => setType(v ?? 'Травма')}>
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
+            <SelectTrigger className="w-full" displayLabel={type} />
             <SelectContent>
               {TRAUMA_TYPES.map((t) => (
                 <SelectItem key={t} value={t}>
@@ -1712,6 +1721,7 @@ export function PatientTabKarta({
   initialVisits,
   initialAnamnesis,
   initialComorbidities,
+  composition,
 }: Props) {
   const hasSsrClinical = initialClinicalState != null && initialVisits != null;
   const [panelOpen, setPanelOpen] = useState(false);
@@ -1814,6 +1824,12 @@ export function PatientTabKarta({
     }
   }, [pendingAppointmentId]);
 
+  useEffect(() => {
+    const handleNewVisit = () => setModePickerOpen(true);
+    window.addEventListener('patient:new-visit', handleNewVisit);
+    return () => window.removeEventListener('patient:new-visit', handleNewVisit);
+  }, []);
+
   // Treat as loading while userId doesn't match loaded data
   const isStale = loadedUserId !== userId;
   const loading = isStale || isLoading;
@@ -1826,17 +1842,23 @@ export function PatientTabKarta({
    *   ADD + history HIDDEN: 1fr / 1.3fr  — form column wider, card clear
    *   ADD + history VISIBLE: 0.75fr / 1.25fr — right dominant, card blurred
    */
-  const gridCols = !panelOpen
-    ? 'lg:grid-cols-[1.1fr_1fr]'
-    : historyVisible
-      ? 'lg:grid-cols-[0.75fr_1.25fr]'
-      : 'lg:grid-cols-[1fr_1.3fr]';
+  const gridCols = composition
+    ? 'md:grid-cols-2'
+    : !panelOpen
+      ? 'lg:grid-cols-[1.1fr_1fr]'
+      : historyVisible
+        ? 'lg:grid-cols-[0.75fr_1.25fr]'
+        : 'lg:grid-cols-[1fr_1.3fr]';
 
   /**
    * Blur the LEFT clinical card ONLY when panel is open, history is visible, AND there are
    * actual visits — don't blur when opening a new form on an empty history (VIZ-05).
    */
   const leftBlur = panelOpen && historyVisible && visits.length > 0;
+  const selectedVisit = composition?.selectedAppointmentId
+    ? (visits.find((visit) => visit.canonicalAppointmentId === composition.selectedAppointmentId) ??
+      null)
+    : null;
 
   // Callback for NewVisitPanel after successful save — refetch + close panel + show history
   const handleVisitSaved = useCallback(() => {
@@ -1848,14 +1870,36 @@ export function PatientTabKarta({
 
   return (
     <>
+      {composition ? (
+        <div className="mb-2 flex gap-1 md:hidden" aria-label="Часть карточки">
+          <Button
+            type="button"
+            size="sm"
+            variant={composition.mobilePane === 'master' ? 'default' : 'outline'}
+            onClick={() => composition.onMobilePaneChange('master')}
+          >
+            Данные
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={composition.mobilePane === 'detail' ? 'default' : 'outline'}
+            onClick={() => composition.onMobilePaneChange('detail')}
+          >
+            Детали
+          </Button>
+        </div>
+      ) : null}
       <div className={cn('grid items-start gap-2.5', gridCols)}>
         {/* ── LEFT: clinical state (Карта) ─────────────────────────────────── */}
         <div
           className={cn(
             'flex flex-col gap-2.5 transition-all duration-200',
             leftBlur && 'opacity-50 blur-[1.5px]',
+            composition?.mobilePane === 'detail' && 'hidden md:flex',
           )}
         >
+          {composition?.leftContent}
           {/* Жалобы */}
           <section className={doctorSectionCardClass}>
             <div className="flex items-center justify-between">
@@ -1901,10 +1945,9 @@ export function PatientTabKarta({
                 <p className="py-1 text-xs text-destructive">Не удалось загрузить диагнозы.</p>
               )}
               {!loading &&
-                diagnoses
-                  .map((d) => (
-                    <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
-                  ))}
+                diagnoses.map((d) => (
+                  <DiagnosisRow key={d.id} d={d} userId={userId} onSaved={fetchClinical} />
+                ))}
             </div>
           </section>
 
@@ -2071,37 +2114,14 @@ export function PatientTabKarta({
         </div>
 
         {/* ── RIGHT: visits feed / new-visit panel ─────────────────────────── */}
-        <div className="flex flex-col gap-2.5">
-          {/* ── History header row — ALWAYS at the top of the right column.
-             This ensures the toggle arrow (◀/▶) never jumps when panelOpen
-             or visitType changes. The «+ Новый визит» button is hidden while
-             the form is open to avoid double-open. ────────────────────────── */}
-          <div className="flex items-center gap-2">
-            {!loading && visits.length > 0 ? (
-              <HistoryToggleBtn
-                visible={historyVisible}
-                onToggle={() => setHistoryVisible((v) => !v)}
-              />
-            ) : null}
-            <h2 className={doctorSectionTitleClass}>История визитов</h2>
-            {!loading && (
-              <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
-            )}
-            {!panelOpen && (
-              <Button
-                type="button"
-                onClick={() => setModePickerOpen(true)}
-                size="xs"
-                className="ml-auto"
-              >
-                + Новый визит
-              </Button>
-            )}
-          </div>
-
-          {/* ── New visit form (shown when panelOpen) ────────────────────────── */}
-          {panelOpen && (
-            <div className={cn('relative z-10', historyVisible ? 'max-h-[78vh]' : 'max-h-[85vh]')}>
+        <div
+          className={cn(
+            'flex flex-col gap-2.5',
+            composition?.mobilePane === 'master' && 'hidden md:flex',
+          )}
+        >
+          {composition ? (
+            panelOpen ? (
               <NewVisitPanel
                 userId={userId}
                 activeComplaints={complaints}
@@ -2117,54 +2137,129 @@ export function PatientTabKarta({
                 }}
                 onSaved={handleVisitSaved}
               />
-            </div>
-          )}
-
-          {/* ── History feed (shown when historyVisible) ─────────────────────── */}
-          {historyVisible ? (
-            <div
-              className={cn(
-                'flex flex-col gap-2.5',
-                panelOpen && 'max-h-[60vh] overflow-y-auto opacity-80',
-              )}
-            >
-              {loading && (
-                <p className="animate-pulse py-2 text-xs text-muted-foreground">
-                  Загрузка истории визитов…
-                </p>
-              )}
-              {!loading && fetchError && (
-                <p className="py-1 text-xs text-destructive">
-                  Не удалось загрузить историю визитов.
-                </p>
-              )}
-              {!loading && !fetchError && visits.length === 0 && (
-                <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
-              )}
-              {!loading &&
-                visits.map((v, i) => (
-                  <VisitCard
-                    key={v.id}
-                    visit={v}
-                    defaultExpanded={i === 0}
-                    userId={userId}
-                    onSaved={fetchClinical}
-                  />
-                ))}
-              {!panelOpen && (
-                <p className={doctorSectionSubtitleClass}>
-                  История визитов — справа. «+ Новый визит» переключает экран в режим добавления.
-                  Стрелка ◀ скрывает историю — карта снова видна чётко рядом с формой.
-                </p>
-              )}
-            </div>
-          ) : (
-            !panelOpen && (
-              <p className={doctorSectionSubtitleClass}>
-                История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
-                визитов.
-              </p>
+            ) : selectedVisit ? (
+              <section className={doctorSectionCardClass}>
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className={doctorSectionTitleClass}>Заметки визита</h2>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={composition.onCloseSelectedVisit}
+                  >
+                    Закрыть
+                  </Button>
+                </div>
+                <VisitCard
+                  visit={selectedVisit}
+                  defaultExpanded
+                  userId={userId}
+                  onSaved={fetchClinical}
+                />
+              </section>
+            ) : (
+              composition.rightContent
             )
+          ) : (
+            <>
+              {/* ── History header row — ALWAYS at the top of the right column.
+             This ensures the toggle arrow (◀/▶) never jumps when panelOpen
+             or visitType changes. The «+ Новый визит» button is hidden while
+             the form is open to avoid double-open. ────────────────────────── */}
+              <div className="flex items-center gap-2">
+                {!loading && visits.length > 0 ? (
+                  <HistoryToggleBtn
+                    visible={historyVisible}
+                    onToggle={() => setHistoryVisible((v) => !v)}
+                  />
+                ) : null}
+                <h2 className={doctorSectionTitleClass}>История визитов</h2>
+                {!loading && (
+                  <span className={doctorSectionSubtitleClass}>{visits.length} визитов</span>
+                )}
+                {!panelOpen && (
+                  <Button
+                    type="button"
+                    onClick={() => setModePickerOpen(true)}
+                    size="xs"
+                    className="ml-auto"
+                  >
+                    + Новый визит
+                  </Button>
+                )}
+              </div>
+
+              {/* ── New visit form (shown when panelOpen) ────────────────────────── */}
+              {panelOpen && (
+                <div
+                  className={cn('relative z-10', historyVisible ? 'max-h-[78vh]' : 'max-h-[85vh]')}
+                >
+                  <NewVisitPanel
+                    userId={userId}
+                    activeComplaints={complaints}
+                    activeDiagnoses={diagnoses}
+                    pendingVisitDate={pendingVisitDate}
+                    pendingLocation={pendingPrefillLocation ?? sourceAppointment?.location ?? null}
+                    pendingService={pendingPrefillService ?? sourceAppointment?.serviceName ?? null}
+                    sourceAppointment={sourceAppointment}
+                    onPendingConsumed={onPendingConsumed}
+                    onClose={() => {
+                      setPanelOpen(false);
+                      setSourceAppointment(null);
+                    }}
+                    onSaved={handleVisitSaved}
+                  />
+                </div>
+              )}
+
+              {/* ── History feed (shown when historyVisible) ─────────────────────── */}
+              {historyVisible ? (
+                <div
+                  className={cn(
+                    'flex flex-col gap-2.5',
+                    panelOpen && 'max-h-[60vh] overflow-y-auto opacity-80',
+                  )}
+                >
+                  {loading && (
+                    <p className="animate-pulse py-2 text-xs text-muted-foreground">
+                      Загрузка истории визитов…
+                    </p>
+                  )}
+                  {!loading && fetchError && (
+                    <p className="py-1 text-xs text-destructive">
+                      Не удалось загрузить историю визитов.
+                    </p>
+                  )}
+                  {!loading && !fetchError && visits.length === 0 && (
+                    <p className="py-2 text-xs text-muted-foreground">Визитов пока нет.</p>
+                  )}
+                  {!loading &&
+                    visits.map((v, i) => (
+                      <VisitCard
+                        key={v.id}
+                        visit={v}
+                        defaultExpanded={i === 0}
+                        userId={userId}
+                        onSaved={fetchClinical}
+                      />
+                    ))}
+                  {!panelOpen && (
+                    <p className={doctorSectionSubtitleClass}>
+                      История визитов — справа. «+ Новый визит» переключает экран в режим
+                      добавления. Стрелка ◀ скрывает историю — карта снова видна чётко рядом с
+                      формой.
+                    </p>
+                  )}
+                </div>
+              ) : (
+                !panelOpen && (
+                  <p className={doctorSectionSubtitleClass}>
+                    История скрыта — карта видна слева без блюра. Нажмите ▶, чтобы вернуть историю
+                    визитов.
+                  </p>
+                )
+              )}
+            </>
           )}
         </div>
       </div>
@@ -2182,6 +2277,7 @@ export function PatientTabKarta({
             setSourceAppointment(null);
           }
           setPanelOpen(true);
+          composition?.onMobilePaneChange('detail');
         }}
       />
     </>

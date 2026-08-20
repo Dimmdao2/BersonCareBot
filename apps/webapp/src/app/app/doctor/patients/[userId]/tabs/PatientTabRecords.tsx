@@ -82,7 +82,7 @@ function mapRealToDisplay(item: PatientAppointmentItem): DisplayAppointment {
     service: item.serviceName ?? 'Запись',
     status: item.status === 'rescheduled' ? 'rescheduled' : item.status,
     durationMin: item.durationMin ?? undefined,
-    hasVisitRecord: false, // PatientAppointmentItem doesn't include visit-record presence yet
+    hasVisitRecord: item.hasVisitRecord === true,
     isPackage: item.isPackage ?? null,
     patientPackageId: item.patientPackageId ?? null,
     packageTitle: item.packageTitle ?? null,
@@ -101,12 +101,6 @@ function fmtDate(isoOrSlash: string): string {
   return isoOrSlash;
 }
 
-function fmtDateShort(iso: string): string {
-  const parts = iso.split('-');
-  if (parts.length === 3) return `${parts[2]}.${parts[1]}`;
-  return iso;
-}
-
 function fmtWeekday(iso: string): string {
   const d = new Date(iso + 'T00:00:00');
   if (isNaN(d.getTime())) return '';
@@ -120,6 +114,11 @@ function openTab(tabId: string) {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('patient:open-tab', { detail: { tab: tabId } }));
   }
+}
+
+function openNewVisit() {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('patient:new-visit'));
 }
 
 // ---------------------------------------------------------------------------
@@ -182,8 +181,12 @@ type Props = {
   /** SSR-provided patient packages. When present, skips the MembershipPanel client fetch. */
   initialPackages?: ApiPackage[] | null;
   membershipsVisible?: boolean;
+  membershipMutationsAllowed?: boolean;
   /** SSR-provided payments summary. When present, skips the PaymentsPanel initial fetch. */
   initialPaymentsSummary?: { payments: PaymentItem[]; totalPaidMinor: number } | null;
+  compositionMode?: 'master';
+  onOpenVisitNotes?: (appointmentId: string) => void;
+  onOpenMembershipConfiguration?: () => void;
 };
 
 export function PatientTabRecords({
@@ -193,10 +196,17 @@ export function PatientTabRecords({
   initialAppointments,
   initialPackages,
   membershipsVisible = true,
+  membershipMutationsAllowed = true,
   initialPaymentsSummary,
+  compositionMode,
+  onOpenVisitNotes,
+  onOpenMembershipConfiguration,
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
+  const [compositionSection, setCompositionSection] = useState<
+    'visits' | 'upcoming' | 'memberships'
+  >('visits');
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
   // can derive «loading» when the prop changes — instead of resetting state
@@ -268,6 +278,116 @@ export function PatientTabRecords({
   const cancelsHistory = historyList.filter(
     (a) => a.status === 'canceled' || a.status === 'no_show',
   );
+
+  if (compositionMode === 'master') {
+    const activeMembershipCount = (initialPackages ?? []).filter((pkg) =>
+      isActivePackageStatus(pkg.status),
+    ).length;
+    const sections = [
+      { id: 'visits' as const, label: 'Визиты', value: historyList.length },
+      { id: 'upcoming' as const, label: 'Будущие записи', value: upcomingList.length },
+      { id: 'memberships' as const, label: 'Абонементы', value: activeMembershipCount },
+    ];
+    const rows = compositionSection === 'upcoming' ? upcomingList : historyList;
+
+    return (
+      <section className="flex flex-col gap-2.5" aria-label="Записи и абонементы">
+        <div className="grid grid-cols-3 gap-2">
+          {sections.map((section) => (
+            <Button
+              key={section.id}
+              type="button"
+              variant="ghost"
+              aria-pressed={compositionSection === section.id}
+              onClick={() => setCompositionSection(section.id)}
+              className={cn(
+                doctorStatCardShellClass,
+                doctorStatCardInteractiveClass,
+                'h-auto min-w-0 flex-col items-start text-left',
+                compositionSection === section.id && 'border-primary/50 bg-primary/10',
+              )}
+            >
+              <span className={doctorMetricLabelClass}>{section.label}</span>
+              <span className={cn(doctorMetricValueClass, 'mt-0.5')}>{section.value}</span>
+            </Button>
+          ))}
+        </div>
+
+        {compositionSection === 'memberships' ? (
+          membershipsVisible ? (
+            <MembershipPanel
+              userId={userId}
+              initialPackages={initialPackages}
+              highlightedPackageId={highlightedPackageId}
+              onToggleHighlight={(packageId) => {
+                setHighlightedPackageId((current) => (current === packageId ? null : packageId));
+              }}
+              onOpenConfiguration={onOpenMembershipConfiguration}
+              mutationsAllowed={membershipMutationsAllowed}
+            />
+          ) : null
+        ) : (
+          <div className={doctorSectionCardClass}>
+            <div className="flex items-center justify-between gap-2">
+              <p className={doctorSectionTitleClass}>
+                {compositionSection === 'upcoming' ? 'Будущие записи' : 'Визиты'}
+              </p>
+              {compositionSection === 'visits' ? (
+                <Button type="button" size="xs" onClick={openNewVisit}>
+                  + Новый визит
+                </Button>
+              ) : null}
+            </div>
+            {isLoading ? (
+              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка записей…</p>
+            ) : fetchError ? (
+              <p className="py-1 text-xs text-destructive">Не удалось загрузить записи.</p>
+            ) : (
+              <div className="flex max-h-[360px] flex-col gap-1.5 overflow-y-auto">
+                {rows.map((appt) => (
+                  <div
+                    key={appt.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-background px-2.5 py-2 text-xs"
+                  >
+                    <span className="font-semibold text-foreground">{fmtDate(appt.date)}</span>
+                    <span className="text-muted-foreground">{appt.time}</span>
+                    <span className="min-w-0 flex-1 truncate">{appt.service}</span>
+                    <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
+                    {appt.status === 'completed' && appt.hasVisitRecord ? (
+                      <Button
+                        type="button"
+                        size="xs"
+                        variant="outline"
+                        onClick={() => onOpenVisitNotes?.(appt.id)}
+                      >
+                        Открыть заметки
+                      </Button>
+                    ) : null}
+                    {appt.status === 'completed' && !appt.hasVisitRecord ? (
+                      <Button
+                        type="button"
+                        size="xs"
+                        onClick={() =>
+                          onCreateVisitFromAppointment?.({
+                            id: appt.id,
+                            location: appt.location || undefined,
+                            service: appt.service || undefined,
+                            durationMin: appt.durationMin,
+                          })
+                        }
+                      >
+                        Оформить визит
+                      </Button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <div className={cn(doctorPageStackClass)}>
@@ -453,20 +573,12 @@ export function PatientTabRecords({
                     type="button"
                     variant="ghost"
                     onClick={() => {
-                      if (onCreateVisitFromAppointment) {
-                        onCreateVisitFromAppointment({
-                          id: appt.id,
-                          location: appt.location || undefined,
-                          service: appt.service || undefined,
-                          durationMin: appt.durationMin,
-                        });
-                      } else {
-                        openTab('karta');
-                      }
+                      onOpenVisitNotes?.(appt.id);
+                      if (!onOpenVisitNotes) openTab('karta');
                     }}
                     className="text-[11px] text-muted-foreground whitespace-nowrap flex-none hover:text-primary"
                   >
-                    визит {fmtDateShort(appt.date)} →
+                    Открыть заметки
                   </Button>
                 )}
               </div>
@@ -637,12 +749,16 @@ function MembershipPanel({
   initialPackages,
   highlightedPackageId,
   onToggleHighlight,
+  onOpenConfiguration,
+  mutationsAllowed = true,
 }: {
   userId: string;
   /** SSR-provided packages. When present, skips the initial client fetch. */
   initialPackages?: ApiPackage[] | null;
   highlightedPackageId: string | null;
   onToggleHighlight: (packageId: string) => void;
+  onOpenConfiguration?: () => void;
+  mutationsAllowed?: boolean;
 }) {
   const [openHistoryPackageIds, setOpenHistoryPackageIds] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -768,6 +884,16 @@ function MembershipPanel({
     });
   }
 
+  async function recalculate(packageId: string) {
+    const response = await fetch(
+      `/api/doctor/booking-engine/patient-packages/${packageId}/recalc`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' } },
+    ).catch(() => null);
+    if (response?.ok) {
+      window.dispatchEvent(new CustomEvent('patient:packages-changed'));
+    }
+  }
+
   return (
     <div className={doctorSectionCardClass}>
       <div className="flex items-center gap-2">
@@ -776,6 +902,11 @@ function MembershipPanel({
           <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-[#e7f4ec] text-[#1f7a45]">
             активных {classifiedPackages.active.length}
           </span>
+        ) : null}
+        {mutationsAllowed ? (
+          <Button type="button" size="xs" className="ml-auto" onClick={onOpenConfiguration}>
+            Добавить абонемент
+          </Button>
         ) : null}
       </div>
 
@@ -841,6 +972,21 @@ function MembershipPanel({
                     действует до: {fmtDate(pkg.validUntil.slice(0, 10))}
                   </p>
                 ) : null}
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {mutationsAllowed ? (
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="outline"
+                      onClick={() => void recalculate(pkg.id)}
+                    >
+                      Пересчитать
+                    </Button>
+                  ) : null}
+                  <Button type="button" size="xs" onClick={onOpenConfiguration}>
+                    Списать
+                  </Button>
+                </div>
               </div>
             );
           })}
@@ -948,10 +1094,6 @@ function MembershipPanel({
           })}
         </div>
       ) : null}
-
-      <p className={cn(doctorSectionSubtitleClass, 'text-[11px] leading-relaxed')}>
-        Работа с абонементом — здесь. Карточка «Абонемент» на Обзоре ведёт сюда по клику.
-      </p>
     </div>
   );
 }

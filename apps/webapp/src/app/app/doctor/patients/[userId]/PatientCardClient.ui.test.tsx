@@ -1,6 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DoctorPatientCardShellMeta, DoctorPatientCardTabBootstrap } from '../loadDoctorPatientCardPageBootstrap';
+import type { ReactNode } from 'react';
+import type {
+  DoctorPatientCardShellMeta,
+  DoctorPatientCardTabBootstrap,
+} from '../loadDoctorPatientCardPageBootstrap';
 
 /**
  * Owner correction 2026-08-20: patient-card tabs move from an internal strip inside the identity
@@ -10,7 +14,25 @@ import type { DoctorPatientCardShellMeta, DoctorPatientCardTabBootstrap } from '
  * mounted/visible and where the tab controls live, not the panels' own content.
  */
 vi.mock('./tabs/PatientTabKarta', () => ({
-  PatientTabKarta: () => <div data-testid="panel-karta">karta panel</div>,
+  PatientTabKarta: ({
+    composition,
+  }: {
+    composition?: {
+      leftContent: ReactNode;
+      rightContent: ReactNode;
+      selectedAppointmentId: string | null;
+    };
+  }) => (
+    <div data-testid="panel-karta">
+      karta panel
+      {composition?.leftContent}
+      {composition?.selectedAppointmentId ? (
+        <div data-testid="selected-visit-detail">{composition.selectedAppointmentId}</div>
+      ) : (
+        composition?.rightContent
+      )}
+    </div>
+  ),
 }));
 vi.mock('./tabs/PatientTabOverview', () => ({
   PatientTabOverview: ({ onTabSwitch }: { onTabSwitch?: (tabId: string) => void }) => (
@@ -19,11 +41,25 @@ vi.mock('./tabs/PatientTabOverview', () => ({
     </button>
   ),
 }));
-vi.mock('./tabs/PatientTabRecords', () => ({ PatientTabRecords: () => null }));
-vi.mock('./tabs/PatientTabFinances', () => ({ PatientTabFinances: () => null }));
-vi.mock('./tabs/PatientTabComms', () => ({
-  PatientTabComms: () => <div data-testid="card-communications">communications</div>,
+vi.mock('./tabs/PatientTabRecords', () => ({
+  PatientTabRecords: ({
+    onOpenVisitNotes,
+    onOpenMembershipConfiguration,
+  }: {
+    onOpenVisitNotes?: (appointmentId: string) => void;
+    onOpenMembershipConfiguration?: () => void;
+  }) => (
+    <div data-testid="card-master-pane">
+      <button type="button" onClick={() => onOpenVisitNotes?.('appointment-1')}>
+        Открыть заметки
+      </button>
+      <button type="button" onClick={onOpenMembershipConfiguration}>
+        Добавить абонемент
+      </button>
+    </div>
+  ),
 }));
+vi.mock('./tabs/PatientTabFinances', () => ({ PatientTabFinances: () => null }));
 vi.mock('./tabs/PatientTabProgram', () => ({
   PatientTabProgram: () => <div data-testid="panel-program">program panel</div>,
 }));
@@ -32,6 +68,9 @@ vi.mock('./tabs/PatientTabFiles', () => ({
 }));
 vi.mock('./tabs/PatientTabAccount', () => ({
   PatientTabAccount: () => <div data-testid="panel-account">account panel</div>,
+}));
+vi.mock('@/app/app/doctor/clients/DoctorClientMembershipsPanel', () => ({
+  DoctorClientMembershipsPanel: () => <div data-testid="membership-configuration">config</div>,
 }));
 
 const { PatientCardClient } = await import('./PatientCardClient');
@@ -207,13 +246,34 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
       />,
     );
 
-    const communications = await screen.findByTestId('card-communications');
-    expect(communications.closest('.hidden')).toBeNull();
+    const karta = await screen.findByTestId('panel-karta');
+    expect(karta.closest('.hidden')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'вся переписка' }));
 
     await waitFor(() => {
-      expect(screen.getByTestId('card-communications').closest('.hidden')).toBeNull();
+      expect(screen.getByTestId('panel-karta').closest('.hidden')).toBeNull();
     });
+  });
+
+  it('keeps selected visit detail hidden until selection and opens membership configuration in the detail pane', async () => {
+    render(
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={fulfilledThenable(tabBootstrap)}
+        initialTab="karta"
+        patientListHref={patientListHref}
+      />,
+    );
+
+    await screen.findByTestId('card-master-pane');
+    expect(screen.queryByTestId('selected-visit-detail')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
+    expect(await screen.findByTestId('selected-visit-detail')).toHaveTextContent('appointment-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
+    expect(await screen.findByTestId('membership-configuration')).toBeInTheDocument();
+    expect(screen.queryByTestId('selected-visit-detail')).not.toBeInTheDocument();
   });
 });
