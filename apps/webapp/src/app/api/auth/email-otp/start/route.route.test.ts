@@ -5,13 +5,22 @@ type StartResult =
       ok: true;
       challengeId: string;
       retryAfterSeconds?: number;
-      deliveryFailed?: true;
+      suppressedOutcome?:
+        | 'email_otp_unknown_address'
+        | 'email_otp_cooldown_suppressed'
+        | 'email_otp_locked'
+        | 'email_delivery_failed';
     }
-  | { ok: false; code: 'invalid_email' | 'rate_limited'; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      code: 'invalid_email' | 'rate_limited';
+      retryAfterSeconds?: number;
+      suppressedOutcome?: 'email_otp_cooldown_suppressed';
+    };
 
 const fakes = vi.hoisted(() => ({
   stampBootstrapPrincipal: vi.fn(),
-  loggerWarn: vi.fn(),
+  loggerError: vi.fn(),
   ensureAuthModulePortsBound: vi.fn(),
   buildAppDeps: vi.fn(),
   isEmailOtpStartRateLimitedByKey: vi.fn(),
@@ -23,7 +32,7 @@ const fakes = vi.hoisted(() => ({
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
   stampBootstrapPrincipal: fakes.stampBootstrapPrincipal,
 }));
-vi.mock('@/app-layer/logging/logger', () => ({ logger: { warn: fakes.loggerWarn } }));
+vi.mock('@/app-layer/logging/logger', () => ({ logger: { error: fakes.loggerError } }));
 vi.mock('@/app-layer/di/bindAuthModulePorts', () => ({
   ensureAuthModulePortsBound: fakes.ensureAuthModulePortsBound,
 }));
@@ -78,39 +87,59 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
-  it('returns the same neutral public schema for known, unknown, provider-success, and provider-failure paths', async () => {
+  it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {
     const results: StartResult[] = [
       { ok: true, challengeId: '00000000-0000-4000-8000-000000000101', retryAfterSeconds: 60 },
-      { ok: true, challengeId: '00000000-0000-4000-8000-000000000102', retryAfterSeconds: 60 },
-      { ok: true, challengeId: '00000000-0000-4000-8000-000000000103', retryAfterSeconds: 60 },
       {
         ok: true,
-        challengeId: '00000000-0000-4000-8000-000000000104',
+        challengeId: '00000000-0000-4000-8000-000000000101',
         retryAfterSeconds: 60,
-        deliveryFailed: true,
+        suppressedOutcome: 'email_otp_unknown_address',
+      },
+      {
+        ok: true,
+        challengeId: '00000000-0000-4000-8000-000000000103',
+        retryAfterSeconds: 60,
+        suppressedOutcome: 'email_delivery_failed',
+      },
+      {
+        ok: false,
+        code: 'rate_limited',
+        retryAfterSeconds: 55,
+        suppressedOutcome: 'email_otp_cooldown_suppressed',
       },
     ];
-    const publicResponses: Array<{ status: number; body: Record<string, unknown> }> = [];
+    const publicResponses: Array<{ status: number; body: string }> = [];
 
     for (const result of results) {
       fakes.startPublicEmailOtpChallenge.mockResolvedValueOnce(result);
       const response = await resolveAfterPublicFloor(POST(request()));
       publicResponses.push({
         status: response.status,
-        body: (await response.json()) as Record<string, unknown>,
+        body: await response.text(),
       });
     }
 
     expect(publicResponses.map(({ status }) => status)).toEqual([200, 200, 200, 200]);
+    expect(publicResponses[1]?.body).toBe(publicResponses[0]?.body);
     for (const { body } of publicResponses) {
-      expect(Object.keys(body).sort()).toEqual(['challengeId', 'ok', 'retryAfterSeconds']);
-      expect(body).toMatchObject({ ok: true, retryAfterSeconds: 60 });
-      expect(body).not.toHaveProperty('error');
-      expect(body).not.toHaveProperty('deliveryFailed');
+      const json = JSON.parse(body) as Record<string, unknown>;
+      expect(Object.keys(json).sort()).toEqual(['challengeId', 'ok', 'retryAfterSeconds']);
+      expect(json).toMatchObject({ ok: true, retryAfterSeconds: 60 });
+      expect(json).not.toHaveProperty('error');
+      expect(json).not.toHaveProperty('suppressedOutcome');
     }
-    expect(fakes.loggerWarn).toHaveBeenCalledWith(
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      { route: 'auth/email-otp/start', outcome: 'email_otp_unknown_address' },
+      'auth/email-otp/start outcome suppressed',
+    );
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      { route: 'auth/email-otp/start', outcome: 'email_otp_cooldown_suppressed' },
+      'auth/email-otp/start outcome suppressed',
+    );
+    expect(fakes.loggerError).toHaveBeenCalledWith(
       { route: 'auth/email-otp/start', outcome: 'email_delivery_failed' },
-      'auth/email-otp/start delivery failed',
+      'auth/email-otp/start outcome suppressed',
     );
   });
 
@@ -207,8 +236,8 @@ describe('public email OTP start anti-enumeration', () => {
     expect(body.challengeId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
-    expect(fakes.loggerWarn).toHaveBeenCalledTimes(1);
-    const capturedLogs = JSON.stringify(fakes.loggerWarn.mock.calls);
+    expect(fakes.loggerError).toHaveBeenCalledTimes(1);
+    const capturedLogs = JSON.stringify(fakes.loggerError.mock.calls);
     expect(capturedLogs).not.toContain(submittedEmail);
     expect(capturedLogs).not.toContain(submittedOtp);
   });

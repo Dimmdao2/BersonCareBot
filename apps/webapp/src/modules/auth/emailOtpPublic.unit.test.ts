@@ -20,13 +20,15 @@ function publicDb(options?: {
 }): EmailOtpPublicDbPort {
   return {
     findOrCreatePublicEmailUser: vi.fn(),
-    findPublicEmailUser: vi.fn().mockResolvedValue(
-      options?.userId === undefined
-        ? { userId: knownUserId }
-        : options.userId === null
-          ? null
-          : { userId: options.userId },
-    ),
+    findPublicEmailUser: vi
+      .fn()
+      .mockResolvedValue(
+        options?.userId === undefined
+          ? { userId: knownUserId }
+          : options.userId === null
+            ? null
+            : { userId: options.userId },
+      ),
     registerPublicEmailPatient: vi.fn(),
     consumeLatestEmailChallenge: vi.fn(),
     findEmailSendCooldownByEmail: vi.fn().mockResolvedValue(options?.cooldown ?? null),
@@ -45,7 +47,7 @@ beforeEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
-  it('keeps known and unknown valid email results in the same success schema', async () => {
+  it('marks the fabricated unknown-address success for server-side observability', async () => {
     const known = await startPublicEmailOtpChallenge('known@example.test', publicDb());
     const unknown = await startPublicEmailOtpChallenge(
       'unknown@example.test',
@@ -53,23 +55,40 @@ describe('public email OTP start anti-enumeration', () => {
     );
 
     expect(known).toMatchObject({ ok: true, retryAfterSeconds: 60 });
-    expect(unknown).toMatchObject({ ok: true, retryAfterSeconds: 60 });
-    expect(Object.keys(unknown).sort()).toEqual(Object.keys(known).sort());
+    expect(unknown).toMatchObject({
+      ok: true,
+      retryAfterSeconds: 60,
+      suppressedOutcome: 'email_otp_unknown_address',
+    });
     expect(unknown.ok && unknown.challengeId).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
     );
   });
 
-  it('folds provider failure into a neutral result but retains server-only evidence', async () => {
-    fakes.startEmailChallenge.mockResolvedValueOnce({ ok: false, code: 'email_send_failed' });
+  it('folds provider failures and account lockouts into neutral results with server-only classifications', async () => {
+    fakes.startEmailChallenge
+      .mockResolvedValueOnce({ ok: false, code: 'email_send_failed' })
+      .mockResolvedValueOnce({ ok: false, code: 'too_many_attempts', retryAfterSeconds: 60 });
 
-    const result = await startPublicEmailOtpChallenge('known@example.test', publicDb());
+    const providerFailure = await startPublicEmailOtpChallenge('known@example.test', publicDb());
+    const accountLockout = await startPublicEmailOtpChallenge('known@example.test', publicDb());
 
-    expect(result).toMatchObject({ ok: true, retryAfterSeconds: 60, deliveryFailed: true });
-    expect(result).not.toHaveProperty('code');
-    expect(result.ok && result.challengeId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    );
+    expect(providerFailure).toMatchObject({
+      ok: true,
+      retryAfterSeconds: 60,
+      suppressedOutcome: 'email_delivery_failed',
+    });
+    expect(accountLockout).toMatchObject({
+      ok: true,
+      retryAfterSeconds: 60,
+      suppressedOutcome: 'email_otp_locked',
+    });
+    for (const result of [providerFailure, accountLockout]) {
+      expect(result).not.toHaveProperty('code');
+      expect(result.ok && result.challengeId).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+      );
+    }
   });
 
   it('preserves invalid-email and per-email rate-limit results', async () => {
@@ -80,7 +99,12 @@ describe('public email OTP start anti-enumeration', () => {
     );
 
     expect(invalid).toEqual({ ok: false, code: 'invalid_email' });
-    expect(limited).toEqual({ ok: false, code: 'rate_limited', retryAfterSeconds: 55 });
+    expect(limited).toEqual({
+      ok: false,
+      code: 'rate_limited',
+      retryAfterSeconds: 55,
+      suppressedOutcome: 'email_otp_cooldown_suppressed',
+    });
     expect(fakes.startEmailChallenge).not.toHaveBeenCalled();
   });
 });
