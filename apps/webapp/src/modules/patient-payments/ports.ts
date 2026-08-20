@@ -26,6 +26,7 @@ export type PatientPayment = {
   service: string | null;
   visitId: string | null;
   appointmentId: string | null;
+  idempotencyKey: string | null;
   /** Заполняется провайдером при acquiring. Null для cash. */
   provider: string | null;
   providerPaymentId: string | null;
@@ -46,6 +47,8 @@ export type AddCashPaymentInput = {
   service?: string | null;
   visitId?: string | null;
   appointmentId?: string | null;
+  /** Stable identity for an idempotent cash write; required by appointment settlement. */
+  idempotencyKey?: string | null;
   createdBy: string;
 };
 

@@ -530,13 +530,14 @@ brief или заменять одним общим пунктом.
 - [x] Пустой/whitespace комментарий нельзя отправить. (✓ AppointmentStaffCommentsSection.tsx:51,97-104 `disabled={saving || !draft.trim()}`)
 - [x] Диагностическая payment panel скрыта до доказанных provider/cash/invoice/pay-link/QR contracts; домен не удалён.
       (✓ DoctorCalendarEventPanel.tsx has no `BookingStaffPaymentPanel` import; component still exists at app/app/settings/BookingStaffPaymentPanel.tsx)
-- [ ] После отдельного money/provider gate карточка различает частичную предоплату с суммой.
-- [ ] После отдельного money/provider gate карточка различает полную оплату с суммой.
-- [ ] После отдельного money/provider gate состояние «Не оплачено» даёт server-authorized действия «Оплачено
+- [x] После отдельного money/provider gate карточка различает частичную предоплату с суммой.
+      (✓ `pnpm --dir apps/webapp exec vitest --run --project=ui src/app/app/doctor/calendar/DoctorCalendarEventPanel.ui.test.tsx` — 8/8, включая partial state; `pnpm --dir apps/webapp typecheck` — exit 0.)
+- [x] После отдельного money/provider gate карточка различает полную оплату с суммой.
+      (✓ та же UI acceptance: 8/8, включая factual overpay; `pnpm --dir apps/webapp typecheck` — exit 0.)
+- [x] После отдельного money/provider gate состояние «Не оплачено» даёт server-authorized действия «Оплачено
       наличными» и «Выставить счёт»; UI-1c не изобретает эти contracts.
-- [~] UI-1c repository implementation, targeted checks, historical TEST smoke и read-only visual evidence закрыты;
-  taskdb `#951` = `done/test/audit`. Текущий candidate SHA и owner interaction acceptance остаются отдельными
-  live gates; старые literal SHA июля — только historical evidence, не текущий статус.
+      (✓ route acceptance `pnpm --dir apps/webapp exec vitest --run --project=route 'src/app/api/doctor/booking-engine/appointments/[id]/payment/route.route.test.ts'` — 7/7; payment service `pnpm --dir apps/webapp exec vitest --run --project=fast src/modules/payments/service.test.ts` — 12/12; `pnpm --dir apps/webapp typecheck` — exit 0.)
+- [ ] UI-1c owner live interaction acceptance remains open; repository evidence выше не подменяет его.
 - [ ] SCH-G5 остаётся отдельным owner gate `#848`, не скрывается внутри UI-1 completion.
 
 #### UI-2 — built-in Online location

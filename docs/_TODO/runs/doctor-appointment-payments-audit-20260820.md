@@ -86,3 +86,27 @@
 ## Итог
 
 `FAIL` по `cfbfa8d5e`: owner payment outcome не готов к land. Acceptance-тесты намеренно оставлены красными для worker; product-код аудитором не исправлялся.
+
+---
+
+## Fixer appendix — 2026-08-20
+
+Исправление выполнено поверх audit oracle; история независимого `FAIL` выше не изменялась.
+
+- `payments.getAppointmentPaymentSummary()` теперь подставляет существующую appointment share, рассчитанную через `resolveAppointmentAmountMinor()`. `staffAppointmentPayments` — application coordinator, потому что соединяет два независимых модуля (`payments` и `patient-payments`); перенос этого orchestration в любой из них создал бы обратную module dependency.
+- POST route остался parse/auth/guard/call/response: оба mutation path вызывают `requireEntitlementForMutation(..., 'payments')`; `patient-payments.addCashPayment()` получил тот же injected physical `assertWriteClearance('payments')`, что и provider intent.
+- Cash identity `staff-appointment-cash:<appointmentId>:<remainingMinor>` хранится в `patient_payment.idempotency_key`. Unlanded migration дополнена partial unique index `(organization_id, appointment_id, idempotency_key)`; Drizzle insert делает `ON CONFLICT DO NOTHING` в transaction и читает ровно одну existing row, а не выполняет read-before-insert.
+- При смене appointment UI синхронно очищает summary/error/link/QR и version-gates GET/POST ответы. QR по-прежнему строится только из exact server-returned URL.
+
+### Exact validation results
+
+- `pnpm --dir apps/webapp exec vitest --run --project=route 'src/app/api/doctor/booking-engine/appointments/[id]/payment/route.route.test.ts'` → `PASS`: 1 file, 7/7 tests.
+- `pnpm --dir apps/webapp exec vitest --run --project=ui src/app/app/doctor/calendar/DoctorCalendarEventPanel.ui.test.tsx` → `PASS`: 1 file, 8/8 tests.
+- `pnpm --dir apps/webapp test:fast -- 'src/modules/payments/service.test.ts'` → `FAIL` outside this stage: the script expands to the whole fast project (106 files) and 41 unrelated suites cannot resolve unbuilt workspace packages `@bersoncare/db-principal`, `@bersoncare/platform-merge`, or `@bersoncare/operator-db-schema`; target service was not red.
+- `pnpm --dir apps/webapp exec vitest --run --project=fast src/modules/payments/service.test.ts` → `PASS`: 1 file, 12/12 tests.
+- `pnpm --dir apps/webapp typecheck` → `PASS` (exit 0): no remaining target diagnostics and no external luxon diagnostic in this worktree.
+- Scoped ESLint over product, repository, module, route and acceptance paths → `PASS`: 0 errors, 2 existing warnings in `AppointmentPaymentSection.tsx` (hook dependency and raw QR `<img>`).
+- `bash apps/webapp/scripts/check-drizzle-migration-order.sh` → `PASS`; `bash apps/webapp/scripts/check-legacy-migrations-frozen.sh` → `PASS`; `node scripts/check-migration-privileges.mjs` → `PASS` (`OK (60 migration files)`).
+- `pnpm exec prettier --check` over all changed TypeScript files → `PASS`; the repository's Prettier installation has no SQL parser, so the migration is validated by the required migration gates instead. `git diff --check` → `PASS`.
+
+Owner live interaction acceptance remains open; no DEV/TEST DB, dev server, PROD, full CI, push, integrator source, or dependency change was performed.

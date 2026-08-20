@@ -6,6 +6,7 @@ import {
   integer,
   timestamp,
   index,
+  uniqueIndex,
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core';
@@ -50,6 +51,8 @@ export const patientPayment = pgTable(
     visitId: uuid('visit_id'),
     /** Canonical booking appointment this ledger row settles (when applicable). */
     appointmentId: uuid('appointment_id'),
+    /** Stable caller-owned cash mutation identity; null for legacy/non-idempotent ledger rows. */
+    idempotencyKey: text('idempotency_key'),
     /** Идентификатор провайдера (заполняется при acquiring). */
     provider: text('provider'),
     /** Внешний ID платежа у провайдера (заполняется при acquiring). */
@@ -63,6 +66,9 @@ export const patientPayment = pgTable(
     index('idx_patient_payment_organization_id').on(table.organizationId),
     index('idx_patient_payment_patient_user_id').on(table.patientUserId),
     index('idx_patient_payment_appointment_id').on(table.appointmentId),
+    uniqueIndex('uq_patient_payment_appointment_idempotency')
+      .on(table.organizationId, table.appointmentId, table.idempotencyKey)
+      .where(sql`${table.idempotencyKey} IS NOT NULL`),
     index('idx_patient_payment_created_at').on(table.createdAt),
     foreignKey({
       columns: [table.organizationId],
