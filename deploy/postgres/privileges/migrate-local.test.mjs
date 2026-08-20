@@ -215,10 +215,11 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
     (tag, index) => `${'a'.repeat(64)}\t${1800000000100 + index * 100}\t${tag}`,
   );
   // A row this checkout cannot name, carrying the exact content hash of a pending file: the
-  // scenario a rename of an already-applied migration produces.
+  // scenario a rename of an already-applied migration produces. `hash` overrides `matchesTag`'s
+  // derived hash for simulating content drift — a foreign row that is NOT a byte-identical rename.
   if (foreignRow) {
-    const content = readFileSync(join(migrations, `${foreignRow.matchesTag}.sql`), 'utf8');
-    const hash = createHash('sha256').update(content).digest('hex');
+    const hash = foreignRow.hash
+      ?? createHash('sha256').update(readFileSync(join(migrations, `${foreignRow.matchesTag}.sql`), 'utf8')).digest('hex');
     ledgerLines.push(`${hash}\t${foreignRow.createdAt}\t${foreignRow.tag}`);
   }
   const ledger = ledgerLines.join('\n');
@@ -428,4 +429,112 @@ test('a new timestamp-named file is applied normally, not refused by the name ga
   const transaction = readFileSync(runtime.capture, 'utf8');
   assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.door_new_work/u);
   assert.match(result.stdout, /pending=1 total=4/u);
+});
+
+// --relabel: the pure-identity-change case a plain rename is refused for above. A foreign row
+// byte-identical to a file this checkout already carries under a new name is repointed by a ledger
+// UPDATE only — no statement in the file runs again.
+test('relabel repoints a foreign row at its renamed file without re-running any statement', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: '0009_old_name_from_another_branch', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, [
+    '--relabel',
+    '0009_old_name_from_another_branch:0001_late_arrival',
+  ]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(
+    transaction,
+    /UPDATE drizzle\.__drizzle_migrations SET tag = '0001_late_arrival' WHERE tag = '0009_old_name_from_another_branch';/u,
+  );
+  assert.doesNotMatch(transaction, /app\.door_0001_late_arrival\(\) RETURNS/u, 'relabel must not re-run the file');
+  assert.doesNotMatch(transaction, /INSERT INTO drizzle\.__drizzle_migrations \(hash, created_at, tag\)/u);
+  assert.match(result.stdout, /pending=0 total=3/u);
+  assert.match(result.stdout, /relabeled=1/u);
+});
+
+test('relabel refuses when the renamed file content has drifted from the foreign row', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: {
+      tag: '0009_old_name_from_another_branch',
+      hash: 'f'.repeat(64),
+      createdAt: 1800000000350,
+    },
+  });
+
+  const result = runLedgerMigrator(runtime, [
+    '--relabel',
+    '0009_old_name_from_another_branch:0001_late_arrival',
+  ]);
+
+  assert.notEqual(result.status, 0, 'content drift must not be silently relabeled');
+  assert.match(result.stderr, /is not a pure rename/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('relabel refuses an old tag that is not a foreign ledger row', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+
+  const result = runLedgerMigrator(runtime, ['--relabel', '0009_never_applied:0001_late_arrival']);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /is not a foreign ledger row of .* \(nothing to relabel\)/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+// --drop-foreign: a foreign row with no claimant anywhere in the folder — the legacy-backfill
+// mislabel shape, not a rename — is removed by a ledger DELETE, and nothing else in the transaction
+// changes.
+test('drop-foreign deletes a foreign row with no claimant in this folder', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    foreignRow: { tag: '0050_mislabelled_legacy_row', hash: 'b'.repeat(64), createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--drop-foreign', '0050_mislabelled_legacy_row']);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /DELETE FROM drizzle\.__drizzle_migrations WHERE tag = '0050_mislabelled_legacy_row';/u);
+  assert.match(result.stdout, /pending=0 total=3/u);
+  assert.match(result.stdout, /dropped-foreign=1/u);
+});
+
+test('drop-foreign refuses a row whose hash a file in this folder still claims', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: '0050_mislabelled_legacy_row', matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--drop-foreign', '0050_mislabelled_legacy_row']);
+
+  assert.notEqual(result.status, 0, 'a row a file still claims by hash must not be dropped');
+  assert.match(result.stderr, /this is a rename, not a dead row/u);
+  assert.match(result.stderr, /--relabel 0050_mislabelled_legacy_row:0001_late_arrival/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('drop-foreign refuses a tag that is not a foreign ledger row', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+
+  const result = runLedgerMigrator(runtime, ['--drop-foreign', '0002_third']);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /is not a foreign ledger row of .* \(nothing to drop\)/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('relabel and drop-foreign are refused without --drizzle-folder', () => {
+  const result = spawnSync(
+    process.execPath,
+    [migratorPath, '--db', 'bcb_webapp_dev', '--migrator', 'bcb_dev_migrator', '--relabel', 'a:b'],
+    { encoding: 'utf8' },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--relabel and --drop-foreign are supported only with --drizzle-folder/u);
 });

@@ -160,6 +160,21 @@ const migrator = value('migrator');
 // is never inferred: the operator spells out every tag, so a second, unrelated hole opened later
 // still stops the run instead of riding along on a stale flag.
 const reapplyTags = values('reapply');
+// --relabel repoints a foreign ledger row (applied under a name this checkout does not carry — a
+// rename, or a legacy `when`-slot backfill that mislabelled the wrong row, see
+// `renderLedgerBootstrapSql`) at the file that is its true identity today, WITHOUT running a single
+// statement again. It is only ever a ledger UPDATE; the hash equality check below is what makes that
+// safe instead of a hand-wave — see the validation next to its use.
+const relabelPairs = values('relabel').map((pair) => {
+  const at = pair.indexOf(':');
+  if (at <= 0 || at === pair.length - 1) throw new Error(`--relabel must be <old-tag>:<new-tag>, got '${pair}'`);
+  return { oldTag: pair.slice(0, at), newTag: pair.slice(at + 1) };
+});
+// --drop-foreign removes a foreign ledger row that is not a rename of anything in this folder — a
+// dead legacy-backfill mislabel with no file that will ever claim its name again. Refused, not
+// silently accepted, when any file in the folder shares its hash: that shape is --relabel's, not
+// this one's.
+const dropForeignTags = values('drop-foreign');
 const legacyOwners = values('owner');
 const legacyMigration = process.argv.includes('--migration') ? realpathSync(resolve(value('migration'))) : null;
 let steps = values('step').map((step) => {
@@ -171,8 +186,15 @@ const drizzleFolder = process.argv.includes('--drizzle-folder')
   ? realpathSync(resolve(value('drizzle-folder')))
   : null;
 let drizzleSummary = null;
+// Declared here, not inside the `if (drizzleFolder)` block below, so the final transaction assembly
+// (which runs after that block, for both the drizzle-folder and legacy-step paths) can splice them in.
+let relabelStatements = [];
+let dropForeignStatements = [];
 if (reapplyTags.length > 0 && !drizzleFolder) {
   throw new Error('--reapply is supported only with --drizzle-folder');
+}
+if ((relabelPairs.length > 0 || dropForeignTags.length > 0) && !drizzleFolder) {
+  throw new Error('--relabel and --drop-foreign are supported only with --drizzle-folder');
 }
 if (drizzleFolder) {
   if (steps.length > 0 || legacyOwners.length > 0 || legacyMigration) {
@@ -196,7 +218,54 @@ if (drizzleFolder) {
     );
   }
   const appliedRows = readAppliedDrizzleRows(db);
-  const pendingByLedger = selectPendingMigrations(migrations, appliedRows);
+  const foreign = findForeignLedgerRows(migrations, appliedRows);
+  const foreignByTag = new Map(foreign.filter((row) => row.tag).map((row) => [row.tag, row]));
+
+  const relabeledNewTags = new Set();
+  for (const { oldTag, newTag } of relabelPairs) {
+    const row = foreignByTag.get(oldTag);
+    if (!row) {
+      fail(`--relabel names ${oldTag}, which is not a foreign ledger row of ${db} (nothing to relabel)`);
+    }
+    const file = migrations.find((migration) => migration.tag === newTag);
+    if (!file) {
+      fail(`--relabel names ${newTag}, which is not a migration file in ${drizzleFolder}`);
+    }
+    if (appliedRows.some((applied) => applied.tag === newTag)) {
+      fail(`--relabel names ${newTag}, which ${db} already carries a ledger row for`);
+    }
+    if (file.hash !== row.hash) {
+      fail(
+        `--relabel ${oldTag}:${newTag} refused: ${newTag}.sql hash (${file.hash}) does not match the `
+          + `foreign row's hash (${row.hash}); this is not a pure rename, so relabeling would hide content `
+          + 'drift instead of proving its absence. Resolve the drift first (rollback and reapply under the new name).',
+      );
+    }
+    relabelStatements.push(
+      `UPDATE drizzle.__drizzle_migrations SET tag = ${sqlLiteral(newTag)} WHERE tag = ${sqlLiteral(oldTag)};`,
+    );
+    relabeledNewTags.add(newTag);
+  }
+
+  for (const tag of dropForeignTags) {
+    const row = foreignByTag.get(tag);
+    if (!row) {
+      fail(`--drop-foreign names ${tag}, which is not a foreign ledger row of ${db} (nothing to drop)`);
+    }
+    const claimant = migrations.find((migration) => migration.hash === row.hash);
+    if (claimant) {
+      fail(
+        `--drop-foreign ${tag} refused: its hash (${row.hash}) matches ${claimant.tag}.sql in this folder — `
+          + `this is a rename, not a dead row. Use --relabel ${tag}:${claimant.tag} instead.`,
+      );
+    }
+    dropForeignStatements.push(`DELETE FROM drizzle.__drizzle_migrations WHERE tag = ${sqlLiteral(tag)};`);
+  }
+
+  // Migrations this same run is about to relabel onto count as applied for pending purposes — they
+  // are not re-executed, only re-tagged, by the statements collected above.
+  const effectiveAppliedRows = [...appliedRows, ...[...relabeledNewTags].map((tag) => ({ tag }))];
+  const pendingByLedger = selectPendingMigrations(migrations, effectiveAppliedRows);
   const pendingTags = new Set(pendingByLedger.map((migration) => migration.tag));
 
   const unknownReapply = reapplyTags.filter((tag) => !migrations.some((migration) => migration.tag === tag));
@@ -227,7 +296,6 @@ if (drizzleFolder) {
   const pending = migrations.filter(
     (migration) => pendingTags.has(migration.tag) || reapplyTags.includes(migration.tag),
   );
-  const foreign = findForeignLedgerRows(migrations, appliedRows);
   // A pending file byte-identical to a ledger row this checkout cannot name did not just arrive —
   // it is an applied migration under a new name.  The order-is-the-file-name rule makes a rename
   // the migration's identity change; running it again would apply already-applied DDL a second time
@@ -259,8 +327,10 @@ if (drizzleFolder) {
     total: migrations.length,
     reapplied: reapplyTags.length,
     foreign: foreign.length,
+    relabeled: relabelStatements.length,
+    droppedForeign: dropForeignStatements.length,
   };
-  if (pending.length === 0) {
+  if (pending.length === 0 && relabelStatements.length === 0 && dropForeignStatements.length === 0) {
     console.log(
       `Drizzle owner-ordered migration already current for ${sqlIdentifier(db)}: pending=0 total=${migrations.length} `
         + `verified-objects=${collectExpectedObjects(applied).length} foreign-ledger-rows=${foreign.length}`,
@@ -296,6 +366,8 @@ const temporaryMembershipAssertion = renderTemporaryMembershipAssertion(migrator
 const statements = [
   '\\set ON_ERROR_STOP on',
   'BEGIN;',
+  ...relabelStatements,
+  ...dropForeignStatements,
   ...owners.map((owner) => `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`),
   ...temporarySchemaCreates.map(({ owner, schema }) =>
     `GRANT CREATE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
@@ -360,10 +432,10 @@ if (result.status !== 0) process.exit(result.status ?? 1);
 if (drizzleSummary) {
   if (rollbackOnly) {
     console.log(
-      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign}`,
+      `Drizzle owner-ordered migration validated and rolled back for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign}`,
     );
   } else {
-    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign}`);
+    console.log(`Drizzle owner-ordered migration committed for ${qDb}: pending=${drizzleSummary.pending} total=${drizzleSummary.total} reapplied=${drizzleSummary.reapplied} foreign-ledger-rows=${drizzleSummary.foreign} relabeled=${drizzleSummary.relabeled} dropped-foreign=${drizzleSummary.droppedForeign}`);
   }
 } else {
   console.log(`revision-10 migration committed for ${qDb} with temporary ${qMigrator} owner memberships revoked`);
