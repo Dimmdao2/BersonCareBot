@@ -5,6 +5,18 @@
 -- Required psql variables: app_staff_login, app_patient_login,
 -- app_global_admin_login, integrator_login.
 
+-- Этот файл — авторитет стены рождения отношений: ниже он объявляет и её функцию, и её event
+-- trigger, и её реестр `app_control.relation_wall_registry`.  Собственные DDL этого файла судить
+-- ПРЕЖНЕЙ стеной нельзя.  На свежей базе стена приезжает из снимка схемы B
+-- (`generated/prod-to-target/schema-post.sql` несёт event trigger), а реестр приезжает ПУСТЫМ:
+-- pg_dump схемы не несёт строк.  Reconcile применяет этот файл ДО посева реестра
+-- (`generate-cli.mjs --relation-wall-registry` в `privileges/reconcile-access.mjs`), и тогда
+-- `ALTER TABLE app_ext.port_context_capabilities …` ниже отвергается стеной с 42501 «rejected
+-- undeclared table»: на пустом реестре объявлено ноль таблиц.  На DEV это не всплывало — там
+-- реестр заполнен прошлыми прогонами и переживает reconcile.  Снимаем стену на время СВОЕГО
+-- прохода и ставим обратно ниже, в той же транзакции: снаружи ни один DDL без неё не проходит.
+DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall;
+
 CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS app_ext;
 -- Declaration-owned wall metadata is a closed admin surface; the generated

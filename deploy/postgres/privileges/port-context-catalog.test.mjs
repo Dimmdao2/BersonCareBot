@@ -321,3 +321,29 @@ test('catalog closure requires one exact owner policy on every private relation'
   }
   assert.match(sql, /private relation owner policy missing or non-exact/);
 });
+
+// Стена рождения отношений приезжает на свежую базу из снимка схемы B, а её реестр приезжает
+// пустым: pg_dump схемы не несёт строк. Reconcile применяет contract.sql ДО посева реестра, и
+// собственные `ALTER TABLE` контракта по охраняемым схемам оказывались перед пустой стеной —
+// 42501 «rejected undeclared table», полный сброс TEST вставал на правах. Контракт обязан снимать
+// стену перед своим первым охраняемым DDL и ставить её обратно в той же транзакции.
+test('the contract disarms the relation birth wall before its own guarded DDL', () => {
+  const contract = readFileSync(new URL('../port-context/contract.sql', import.meta.url), 'utf8');
+  const drops = [...contract.matchAll(/^DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall;/gmu)];
+  const creates = [...contract.matchAll(/^CREATE EVENT TRIGGER bcb_relation_birth_wall$/gmu)];
+  assert.equal(drops.length, 2, 'стена снимается дважды: перед своим DDL и перед пересозданием');
+  assert.equal(creates.length, 1, 'стена ставится обратно ровно один раз');
+
+  const guardedDdl = [...contract.matchAll(
+    /^(?:CREATE TABLE(?: IF NOT EXISTS)?|ALTER TABLE(?: ONLY)?) (app|app_ext|public|integrator)\./gmu,
+  )];
+  assert.ok(guardedDdl.length > 0, 'в контракте есть DDL по охраняемым схемам');
+  assert.ok(
+    drops[0].index < guardedDdl[0].index,
+    'стена должна сниматься ДО первого охраняемого DDL контракта',
+  );
+  assert.ok(
+    guardedDdl[guardedDdl.length - 1].index < creates[0].index,
+    'стена должна ставиться обратно ПОСЛЕ последнего охраняемого DDL контракта',
+  );
+});
