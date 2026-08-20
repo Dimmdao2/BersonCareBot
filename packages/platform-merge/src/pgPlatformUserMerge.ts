@@ -35,6 +35,39 @@ export type VerifiedDistinctIntegratorUserIds = {
   duplicateIntegratorUserId: string;
 };
 
+/**
+ * Owner rule D26 §5.2: automatic merge is only safe for an account with no
+ * clinical history.  Manual support merge is intentionally excluded: support
+ * is the only actor allowed to move a real history.
+ */
+async function assertAutomaticMergeHasNoMedicalHistory(
+  client: PlatformMergeDbClient,
+  duplicateId: string,
+): Promise<void> {
+  const history = await runMergeSql<{ has_medical_history: boolean }>(
+    client,
+    sql`SELECT EXISTS (
+      SELECT 1 FROM clinical_visit WHERE patient_user_id = ${duplicateId}::uuid
+      UNION ALL SELECT 1 FROM doctor_notes WHERE user_id = ${duplicateId}::uuid
+      UNION ALL SELECT 1 FROM patient_bookings WHERE platform_user_id = ${duplicateId}::uuid
+      UNION ALL SELECT 1 FROM be_appointments WHERE platform_user_id = ${duplicateId}::uuid
+      UNION ALL SELECT 1 FROM treatment_program_instances
+        WHERE patient_user_id = ${duplicateId}::uuid AND assignment_source = 'doctor'
+      UNION ALL SELECT 1 FROM support_conversation_messages message
+        INNER JOIN support_conversations conversation ON conversation.id = message.conversation_id
+        WHERE conversation.platform_user_id = ${duplicateId}::uuid AND message.sender_role = 'user'
+      UNION ALL SELECT 1 FROM program_item_discussion_messages
+        WHERE patient_user_id = ${duplicateId}::uuid AND sender_role = 'patient'
+    ) AS has_medical_history`,
+  );
+  if (history.rows[0]?.has_medical_history) {
+    throw new MergeDependentConflictError(
+      'medical_history: automatic merge requires support',
+      [duplicateId],
+    );
+  }
+}
+
 const CHANNEL_CODES = ['telegram', 'max', 'vk'] as const;
 
 /** Сравнение UUID из PostgreSQL (::text) и из сессии/запроса (регистр, дефисы). */
@@ -234,6 +267,10 @@ export async function mergePlatformUsersInTransaction(
       targetId,
       duplicateId,
     ]);
+  }
+
+  if (reason !== 'manual') {
+    await assertAutomaticMergeHasNoMedicalHistory(client, duplicateId);
   }
 
   const manualResolution = reason === 'manual' ? options!.resolution! : undefined;
