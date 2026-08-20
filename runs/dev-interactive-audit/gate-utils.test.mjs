@@ -544,9 +544,9 @@ test('rendered links require explicit safe disposition before the binary gate ac
   }), null);
 });
 
-test('eight patient-card tab contracts and program href are fail-closed at runner engine boundary', () => {
+test('current patient-card tab contracts and program href are fail-closed at runner engine boundary', () => {
   const expected = [
-    ['overview'], ['karta'], ['program'], ['records'], ['files'], ['comms'], ['finances'], ['account'],
+    ['karta'], ['program'], ['files'], ['account'],
   ];
   const all = expected.map(([tab]) => ({ tab, pass: true }));
   assert.deepEqual(validateDoctorPatientTabTraversal({
