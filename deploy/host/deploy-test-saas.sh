@@ -46,8 +46,6 @@ FIO_MANIFEST=""
 FIO_MANIFEST_FILE_SHA256=""
 FIO_MANIFEST_SHA256=""
 FIO_REVIEW_SOURCE_SHA256=""
-RUBITIME_CSV=""
-RUBITIME_CSV_SHA256=""
 API_ENV=/opt/env/bersoncarebot/api.test
 WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
@@ -63,9 +61,9 @@ RESTORE=deploy/host/restore-test-db-from-dump.sh
 OVERRIDE=deploy/postgres/test-settings-override.sql   # repo-tracked (was /tmp); post-migrate partial-index upserts + identity normalization
 DATAFIX=deploy/postgres/p0-data-fix-doctor-admin-split.sql
 OWNER_IDENTITY_CONSOLIDATION=apps/webapp/scripts/consolidate-owner-identity.sql
-LEGACY_APPOINTMENT_CUTOVER=apps/webapp/scripts/cutover-legacy-appointments.ts
 PRE_CUTOVER_DATA_ASSERTIONS=deploy/postgres/pre-cutover-data-stage-assertions.sql
 CUTOVER_MIGRATION=deploy/postgres/prod-to-target-cutover.sql
+TARGET_LEDGER_ARTIFACT=deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql
 C4D_MEDIA_OWNER_ONLINE_INDEX=deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql
 P0_5B_ROLES=deploy/postgres/p0-5b-role-split-staff-patient.sql
 P0_5B_GRANTS=deploy/postgres/p0-5b-grants.sql
@@ -118,7 +116,6 @@ SERVICES_RELEASED=0
 LEGACY_ELEVATION_CLEANUP_REQUIRED=1
 POSTGRES_CUTOVER_INPUT_DIR=""
 POSTGRES_FIO_MANIFEST=""
-POSTGRES_RUBITIME_CSV=""
 TEST_SMTP_SNAPSHOT=""
 SMTP_SNAPSHOT_VALIDATOR="$DEPLOY_TEST_SAAS_SCRIPT_DIR/validate-smtp-outbound-snapshot.mjs"
 # Post-health gate failures collected instead of aborting. See run_closure_gate + CLOSURE_GATE_RED_EXIT.
@@ -232,7 +229,6 @@ cleanup_postgres_cutover_inputs(){
   fi
   POSTGRES_CUTOVER_INPUT_DIR=""
   POSTGRES_FIO_MANIFEST=""
-  POSTGRES_RUBITIME_CSV=""
 }
 cleanup_test_smtp_snapshot(){
   if [ -z "${TEST_SMTP_SNAPSHOT:-}" ]; then
@@ -977,18 +973,12 @@ stage_cutover_inputs_for_postgres(){
   }
   POSTGRES_CUTOVER_INPUT_DIR="$(sudo -u postgres mktemp -d /tmp/bcb-test-cutover-inputs.XXXXXX)"
   POSTGRES_FIO_MANIFEST="$POSTGRES_CUTOVER_INPUT_DIR/fio-owner-reviewed.manifest.json"
-  POSTGRES_RUBITIME_CSV="$POSTGRES_CUTOVER_INPUT_DIR/rubitime-records.csv"
   sudo install -o postgres -g postgres -m 0600 -- "$FIO_MANIFEST" "$POSTGRES_FIO_MANIFEST"
-  sudo install -o postgres -g postgres -m 0600 -- "$RUBITIME_CSV" "$POSTGRES_RUBITIME_CSV"
   [ "$(sudo -u postgres sha256sum -- "$POSTGRES_FIO_MANIFEST" | awk '{print $1}')" = "$FIO_MANIFEST_FILE_SHA256" ] || {
     echo "FATAL: staged FIO manifest SHA-256 mismatch" >&2
     return 1
   }
-  [ "$(sudo -u postgres sha256sum -- "$POSTGRES_RUBITIME_CSV" | awk '{print $1}')" = "$RUBITIME_CSV_SHA256" ] || {
-    echo "FATAL: staged Rubitime CSV SHA-256 mismatch" >&2
-    return 1
-  }
-  echo "   protected cutover inputs: staged for local PostgreSQL migration executor"
+  echo "   protected FIO manifest: staged for local PostgreSQL migration executor"
 }
 
 run_postgres_repo_with_test_db_owner_role(){
@@ -3154,7 +3144,6 @@ Usage:
   bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset \
     --fio-manifest=/secure/fio-manifest.json --fio-manifest-file-sha256=<sha256> \
     --fio-manifest-sha256=<sha256> --fio-review-source-sha256=<sha256> \
-    --rubitime-csv=/secure/records.csv --rubitime-csv-sha256=<sha256> \
     [--prepare-cutover-source-only] \
     [branch]
 
@@ -3163,9 +3152,7 @@ owner-authorized full migration rehearsal. For ordinary code deploys use:
   bash deploy/host/deploy-test.sh [branch]
 
 Protected FIO inputs must be regular, non-symlink files owned by deploy with mode 0600. Their hashes bind this
-run to the exact owner-reviewed inputs. The owner-reviewed Rubitime CSV follows the same protected-input
-contract. It is consumed only by the pre-migration legacy appointment transition and is never copied into
-the repository or printed. No patient data is printed by this wrapper.
+run to the exact owner-reviewed inputs. No patient data is printed by this wrapper.
 
 --prepare-cutover-source-only runs the complete hash-bound data stage and aggregate assertions, leaves
 TEST writers stopped, and exits before schema migration. It never starts the historical migration runners.
@@ -3182,8 +3169,6 @@ parse_full_reset_args(){
       --fio-manifest-file-sha256=*) FIO_MANIFEST_FILE_SHA256="${arg#*=}" ;;
       --fio-manifest-sha256=*) FIO_MANIFEST_SHA256="${arg#*=}" ;;
       --fio-review-source-sha256=*) FIO_REVIEW_SOURCE_SHA256="${arg#*=}" ;;
-      --rubitime-csv=*) RUBITIME_CSV="${arg#*=}" ;;
-      --rubitime-csv-sha256=*) RUBITIME_CSV_SHA256="${arg#*=}" ;;
       --help|-h)
         full_reset_usage
         exit 0
@@ -3209,14 +3194,10 @@ parse_full_reset_args(){
   [ -n "$FIO_MANIFEST_FILE_SHA256" ] || { echo "FATAL: --fio-manifest-file-sha256 is required" >&2; exit 2; }
   [ -n "$FIO_MANIFEST_SHA256" ] || { echo "FATAL: --fio-manifest-sha256 is required" >&2; exit 2; }
   [ -n "$FIO_REVIEW_SOURCE_SHA256" ] || { echo "FATAL: --fio-review-source-sha256 is required" >&2; exit 2; }
-  [ -n "$RUBITIME_CSV" ] || { echo "FATAL: --rubitime-csv is required for a data-complete reset" >&2; exit 2; }
-  [ -n "$RUBITIME_CSV_SHA256" ] || { echo "FATAL: --rubitime-csv-sha256 is required" >&2; exit 2; }
   [[ "$FIO_MANIFEST_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-manifest-sha256 must be 64 hex characters" >&2; exit 2; }
   [[ "$FIO_REVIEW_SOURCE_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --fio-review-source-sha256 must be 64 hex characters" >&2; exit 2; }
-  [[ "$RUBITIME_CSV_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] || { echo "FATAL: --rubitime-csv-sha256 must be 64 hex characters" >&2; exit 2; }
   FIO_MANIFEST_SHA256="${FIO_MANIFEST_SHA256,,}"
   FIO_REVIEW_SOURCE_SHA256="${FIO_REVIEW_SOURCE_SHA256,,}"
-  RUBITIME_CSV_SHA256="${RUBITIME_CSV_SHA256,,}"
 }
 
 assert_hash_bound_protected_input(){
@@ -3328,7 +3309,6 @@ esac
 parse_full_reset_args "$@"
 log "DESTRUCTIVE full-reset confirmation + owner input preflight"
 assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_FILE_SHA256"
-assert_hash_bound_protected_input "Rubitime CSV" "$RUBITIME_CSV" "$RUBITIME_CSV_SHA256"
 [ -r "$SRC_REPO/$RESTORE" ] || { echo "FATAL: missing required file: $SRC_REPO/$RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER"; exit 1; }
@@ -3341,9 +3321,9 @@ sudo -u deploy test -f "$SAAS_SMOKE_LOGIN_ENV" && sudo -u deploy test ! -L "$SAA
   exit 1
 }
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
-[ -r "$SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$LEGACY_APPOINTMENT_CUTOVER"; exit 1; }
 [ -r "$SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS"; exit 1; }
 [ -r "$SRC_REPO/$CUTOVER_MIGRATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$CUTOVER_MIGRATION"; exit 1; }
+[ -r "$SRC_REPO/$TARGET_LEDGER_ARTIFACT" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TARGET_LEDGER_ARTIFACT"; exit 1; }
 [ -r "$SRC_REPO/$PRIVILEGE_GENERATOR" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRIVILEGE_GENERATOR"; exit 1; }
 [ -r "$SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_MIGRATION_LEGACY_ROLE_BRIDGE"; exit 1; }
 [ -r "$SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4D_MEDIA_OWNER_ONLINE_INDEX"; exit 1; }
@@ -3475,15 +3455,6 @@ fio_rollback_dir_q="$(shell_quote "$POSTGRES_CUTOVER_INPUT_DIR/fio-rollback")"
 run_postgres_repo_with_test_db_owner_bypass \
   "pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- --test --manifest $fio_manifest_q --confirm-manifest-sha256 $fio_manifest_sha_q --confirm-review-source-sha256 $fio_review_source_sha_q --rollback-dir $fio_rollback_dir_q"
 
-# 5. Transfer accepted legacy appointment history before migration 0262 drops the provider tables
-#    and 0386 drops appointment_records. The script is one transaction and refuses a non-zero live
-#    unresolved remainder; the protected source dump remains the raw audit/rollback archive.
-log "legacy appointment transfer (pre-migration, owner-reviewed CSV)"
-rubitime_csv_q="$(shell_quote "$POSTGRES_RUBITIME_CSV")"
-rubitime_csv_sha_q="$(shell_quote "$RUBITIME_CSV_SHA256")"
-run_postgres_repo_with_test_db_owner_bypass \
-  "pnpm --dir apps/webapp run cutover:legacy-appointments -- --commit --csv $rubitime_csv_q --csv-sha256 $rubitime_csv_sha_q --expected-database '$DB' --organization-id '$ORG_ID' --specialist-id '$CANONICAL_SPECIALIST'"
-
 log "pre-cutover data-stage assertions"
 sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
   -v expected_database="$DB" \
@@ -3513,8 +3484,13 @@ sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
   -v canonical_specialist_id="$CANONICAL_SPECIALIST" \
   -f "$DEPLOY_REPO/$CUTOVER_MIGRATION"
 
+expected_ledger_rows="$(awk '/^INSERT INTO drizzle\.__drizzle_migrations / { count += 1 } END { print count + 0 }' "$DEPLOY_REPO/$TARGET_LEDGER_ARTIFACT")"
+[ "$expected_ledger_rows" -gt 0 ] || { echo "FATAL: target ledger artifact has no drizzle migration rows: $TARGET_LEDGER_ARTIFACT" >&2; exit 1; }
 CNT="$(sudo -u postgres psql -d "$DB" -tAc "SELECT count(*) FROM drizzle.__drizzle_migrations;")"
-[ "${CNT:-0}" -ge 178 ] || { echo "FATAL: drizzle migration count ${CNT:-0} < 178"; exit 1; }
+[ "${CNT:-0}" -ge "$expected_ledger_rows" ] || {
+  echo "FATAL: drizzle migration ledger did not arrive: got ${CNT:-0}, target artifact requires at least $expected_ledger_rows" >&2
+  exit 1
+}
 # platform_users.session_epoch (D1, 2026-07-26): the session chokepoint compares it on every request
 # and fails closed, so TEST code released onto a database without it 401s every session including
 # fresh logins. Same column is asserted by deploy/host/webapp-post-migrate-schema-check.sh on prod
@@ -3524,7 +3500,7 @@ for col in "system_settings.organization_id" "user_phone_history.organization_id
   ok="$(sudo -u postgres psql -d "$DB" -tAc "SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='$t' AND column_name='$c');")"
   [ "$ok" = "t" ] || { echo "FATAL: missing column $col after migrate"; exit 1; }
 done
-echo "   drizzle migrations = $CNT (org columns present)"
+echo "   drizzle migrations = $CNT (target ledger rows = $expected_ledger_rows; org columns present)"
 
 # 7. test-only settings override (repo-tracked; post-migrate partial-index upserts, send-safety,
 #    maintenance, allowlist, identity role-allowlist normalization, DB lock). Applied from the deploy
