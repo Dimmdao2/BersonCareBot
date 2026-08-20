@@ -17,19 +17,11 @@
 // grounded against the actual schema instead of a hand-maintained TSV
 // snapshot (`all-218-signals.tsv`) that can silently drift.
 //
-// Schema qualification: the webapp's `db/schema/*.ts` is drizzle-kit
-// introspection output that declares `pgTable(...)` WITHOUT a schema
-// qualifier for every table the webapp's DB role can see — including
-// tables that physically live in the `integrator` Postgres schema (the
-// webapp reads across schemas via search_path). So `pgTable(...)` alone
-// cannot tell `public.*` from `integrator.*`. The migrations are
-// authoritative for schema placement instead:
-//   - a name created by an integrator-migration CREATE TABLE is
-//     `integrator.<table>` (even if also mirrored in schema.ts).
-//   - everything else (webapp-migration-created tables, plus any
-//     schema.ts-declared table with no integrator-migration origin, e.g.
-//     `public.be_*` and pre-migration-era baseline tables) is
-//     `public.<table>`.
+// Schema qualification: an explicit schema in migration SQL is authoritative
+// for CREATE/DROP/RENAME. Only an unqualified identifier uses the runner's
+// default: webapp migrations create in `public`, while integrator migrations
+// create in `integrator`. This matters in both directions because either runner
+// may deliberately operate on a table in the other runner's schema.
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { basename, join } from 'node:path';
@@ -42,20 +34,12 @@ export const sourceDirs = Object.freeze({
   integratorIntegrationsRoot: 'apps/integrator/src/integrations',
 });
 
-// Table name, optionally prefixed by a schema-qualifier (`public.` / `"public".`)
-// which we deliberately discard here — schema placement is decided by which
-// migrations directory (webapp vs integrator) the CREATE TABLE came from,
-// not by an explicit qualifier in the SQL text.
 const CREATE_TABLE_RE =
-  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
+  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:"?([a-zA-Z0-9_]+)"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 const DROP_TABLE_RE =
-  /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
-const QUALIFIED_CREATE_TABLE_RE =
-  /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?"?([a-zA-Z0-9_]+)"?\."?([a-zA-Z0-9_]+)"?/gi;
-const QUALIFIED_DROP_TABLE_RE =
-  /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?"?([a-zA-Z0-9_]+)"?\."?([a-zA-Z0-9_]+)"?/gi;
+  /DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?([a-zA-Z0-9_]+)"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 const RENAME_TABLE_RE =
-  /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?\s+RENAME\s+TO\s+(?:"?[a-zA-Z0-9_]+"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
+  /ALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:"?([a-zA-Z0-9_]+)"?\.)?"?([a-zA-Z0-9_]+)"?\s+RENAME\s+TO\s+(?:"?([a-zA-Z0-9_]+)"?\.)?"?([a-zA-Z0-9_]+)"?/gi;
 const ACCESS_CONTRACT_TABLE_RE = /\bTABLE\s+"(public|integrator)"\."([a-zA-Z0-9_]+)"/g;
 
 // Base tables whose existence is real but whose CREATE TABLE is never a
@@ -119,19 +103,33 @@ function discoverIntegratorMigrationFiles(repoRoot) {
 // they occur in the text (statement order matters: e.g. a single migration
 // file dropping and immediately recreating the same table must net to
 // "exists", not "dropped").
-function extractOrderedStatements(content) {
+function extractOrderedStatements(content, defaultSchema) {
   const events = [];
 
   for (const match of content.matchAll(CREATE_TABLE_RE)) {
-    events.push({ index: match.index, kind: 'create', table: match[1] });
+    events.push({
+      index: match.index,
+      kind: 'create',
+      table: `${match[1] ?? defaultSchema}.${match[2]}`,
+    });
   }
 
   for (const match of content.matchAll(DROP_TABLE_RE)) {
-    events.push({ index: match.index, kind: 'drop', table: match[1] });
+    events.push({
+      index: match.index,
+      kind: 'drop',
+      table: `${match[1] ?? defaultSchema}.${match[2]}`,
+    });
   }
 
   for (const match of content.matchAll(RENAME_TABLE_RE)) {
-    events.push({ index: match.index, kind: 'rename', from: match[1], to: match[2] });
+    const fromSchema = match[1] ?? defaultSchema;
+    events.push({
+      index: match.index,
+      kind: 'rename',
+      from: `${fromSchema}.${match[2]}`,
+      to: `${match[3] ?? fromSchema}.${match[4]}`,
+    });
   }
 
   events.sort((a, b) => a.index - b.index);
@@ -165,13 +163,13 @@ function readAccessContractTables(repoRoot) {
 // file, CREATE/DROP/RENAME are replayed in the order they appear in the SQL
 // text, so a file that drops and recreates (or renames) the same table
 // nets out correctly instead of being order-grouped by statement type.
-function readMigrationCreatedTables(dirFiles) {
+function readMigrationCreatedTables(migrationSources) {
   const tables = new Set();
 
-  for (const file of dirFiles) {
+  for (const { file, defaultSchema } of migrationSources) {
     const content = stripSqlLineComments(readFileSync(file, 'utf8'));
 
-    for (const event of extractOrderedStatements(content)) {
+    for (const event of extractOrderedStatements(content, defaultSchema)) {
       if (event.kind === 'create') {
         tables.add(event.table);
       } else if (event.kind === 'drop') {
@@ -186,48 +184,6 @@ function readMigrationCreatedTables(dirFiles) {
   return tables;
 }
 
-function readQualifiedDrops(files, schema) {
-  const tables = new Set();
-
-  for (const file of files) {
-    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
-    const regex = new RegExp(QUALIFIED_DROP_TABLE_RE.source, QUALIFIED_DROP_TABLE_RE.flags);
-    let match;
-
-    while ((match = regex.exec(content)) !== null) {
-      if (match[1] === schema) tables.add(match[2]);
-    }
-  }
-
-  return tables;
-}
-
-// Integrator migrations normally create unqualified tables in the integrator schema, but a
-// migration may deliberately move a shared runtime relation into public. Replay those explicit
-// CREATE/DROP statements separately so one historical unqualified table name cannot hide the new
-// qualified public relation (booking_calendar_map is the first such cutover).
-function readQualifiedMigrationTables(files, schema) {
-  const tables = new Set();
-
-  for (const file of files) {
-    const content = stripSqlLineComments(readFileSync(file, 'utf8'));
-    const events = [];
-    for (const match of content.matchAll(QUALIFIED_CREATE_TABLE_RE)) {
-      if (match[1] === schema) events.push({ index: match.index, kind: 'create', table: match[2] });
-    }
-    for (const match of content.matchAll(QUALIFIED_DROP_TABLE_RE)) {
-      if (match[1] === schema) events.push({ index: match.index, kind: 'drop', table: match[2] });
-    }
-    events.sort((left, right) => left.index - right.index);
-    for (const event of events) {
-      if (event.kind === 'create') tables.add(event.table);
-      else tables.delete(event.table);
-    }
-  }
-
-  return tables;
-}
-
 /**
  * Returns the sorted, schema-qualified list of base tables that actually
  * exist per the repo's own schema declarations and migration history
@@ -235,50 +191,24 @@ function readQualifiedMigrationTables(files, schema) {
  */
 export function readActualBaseTables({ repoRoot = process.cwd() } = {}) {
   const accessContractTables = readAccessContractTables(repoRoot);
-  const contractIntegratorNames = new Set(
-    Array.from(accessContractTables)
-      .filter((table) => table.startsWith('integrator.'))
-      .map((table) => table.slice('integrator.'.length)),
-  );
 
   // Chronological order matters (CREATE/RENAME/DROP are replayed in file
   // order). The maintained webapp ledger starts at the complete B0 baseline.
   const webappMigrationFiles = listSqlFiles(join(repoRoot, sourceDirs.webappMigrations));
-  const webappCreatedTables = readMigrationCreatedTables(webappMigrationFiles);
-
   const integratorMigrationFiles = discoverIntegratorMigrationFiles(repoRoot);
-  const integratorTables = readMigrationCreatedTables(integratorMigrationFiles);
-  for (const table of contractIntegratorNames) integratorTables.add(table);
-  const explicitlyPublicIntegratorTables = readQualifiedMigrationTables(
-    integratorMigrationFiles,
-    'public',
+  const migrationSources = [
+    ...webappMigrationFiles.map((file) => ({ file, defaultSchema: 'public' })),
+    ...integratorMigrationFiles.map((file) => ({ file, defaultSchema: 'integrator' })),
+  ].sort(
+    (left, right) =>
+      basename(left.file).localeCompare(basename(right.file)) ||
+      left.file.localeCompare(right.file),
   );
-  // A later webapp migration may retire an explicitly qualified integrator table.
-  // Account for that cross-runner DROP instead of resurrecting the table merely because
-  // its historical CREATE remains in the integrator migration ledger.
-  for (const table of readQualifiedDrops(webappMigrationFiles, 'integrator')) {
-    integratorTables.delete(table);
-  }
+  const migrationTables = readMigrationCreatedTables(migrationSources);
 
-  // Migrations are authoritative for schema placement: a table created by an
-  // integrator migration is `integrator.<table>` even though it is also
-  // mirrored (unqualified) in the webapp's drizzle-kit-introspected
-  // schema.ts. Everything else the webapp knows about — either created by
-  // its own migrations, or declared in schema.ts with no integrator origin
-  // (baseline/pre-migration-era tables, `public.be_*`, etc.) — is public.
-  const publicTables = new Set([
-    ...Array.from(accessContractTables)
-      .filter((table) => table.startsWith('public.'))
-      .map((table) => table.slice('public.'.length)),
-    ...webappCreatedTables,
-    ...explicitlyPublicIntegratorTables,
-  ]);
-
-  return [
-    ...Array.from(publicTables, (table) => `public.${table}`),
-    ...Array.from(integratorTables, (table) => `integrator.${table}`),
-    ...RUNNER_BOOTSTRAPPED_TABLES,
-  ].sort();
+  return Array.from(
+    new Set([...accessContractTables, ...migrationTables, ...RUNNER_BOOTSTRAPPED_TABLES]),
+  ).sort();
 }
 
 if (process.argv.includes('--print')) {
