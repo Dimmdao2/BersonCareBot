@@ -10,6 +10,7 @@
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база>   # login-рендер (НЕ коммитится)
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база> --port-context-env <webapp|integrator>
  *   node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only # exact DB capability seeds
+ *   node deploy/postgres/privileges/generate-cli.mjs --legacy-role-quarantine <role> # attribute-only; no CREATE/GRANT
  *
  * Флаги:
  *   --declaration <путь>  другой файл декларации (по умолчанию ./declaration.ts) — нужен пруф-фикстурам
@@ -36,6 +37,7 @@ import {
   generatePortContextCapabilitySeedSql,
   generatePortContextCapabilityVerifierSql,
   generatePrivilegesSql,
+  generateLegacyRoleQuarantineSql,
   generateSharedRoleBaselineSql,
   generateSharedRoleVerifierSql,
   renderEnvSql,
@@ -53,10 +55,13 @@ function parseArgs(argv) {
   const knownFlags = new Set([
     'all', 'check', 'gaps', 'census', 'stdout', 'no-allowlist', 'port-context-only',
     'port-context-verify',
-    'env-login-shells', 'env-login-variables', 'env-verify', 'shared-role-baseline', 'shared-role-verify',
+    'env-login-shells', 'env-login-variables', 'env-verify',
+    'shared-role-baseline', 'shared-role-verify',
     'catalog-closure-verify', 'pre-session-gate-verify', 'relation-wall-registry', 'target-access-only',
   ]);
-  const knownValues = new Set(['db', 'out', 'out-dir', 'declaration', 'env', 'port-context-env']);
+  const knownValues = new Set([
+    'db', 'out', 'out-dir', 'declaration', 'env', 'legacy-role-quarantine', 'port-context-env',
+  ]);
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token.startsWith('--')) throw new Error(`неожиданный аргумент '${token}'`);
@@ -164,6 +169,17 @@ async function main() {
       throw new Error('--shared-role-baseline is cluster-wide and rejects --db/--env');
     }
     process.stdout.write(generateSharedRoleBaselineSql(declaration));
+    return;
+  }
+
+  if (args.values.has('legacy-role-quarantine')) {
+    if (args.values.has('db') || args.values.has('env')) {
+      throw new Error('--legacy-role-quarantine is cluster-wide and rejects --db/--env');
+    }
+    process.stdout.write(generateLegacyRoleQuarantineSql(
+      declaration,
+      { only: [args.values.get('legacy-role-quarantine')] },
+    ));
     return;
   }
 
