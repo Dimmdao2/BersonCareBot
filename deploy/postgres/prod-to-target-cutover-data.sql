@@ -610,7 +610,7 @@ SELECT DISTINCT ON (appointment.id)
   legacy.created_at,
   legacy.updated_at
 FROM cutover_source_integrator.booking_calendar_map legacy
-LEFT JOIN public.be_external_entity_mappings mapping
+LEFT JOIN cutover_source_public.be_external_entity_mappings mapping
   ON mapping.external_system = 'rubitime'
  AND mapping.entity_type = 'appointment'
  AND mapping.external_id = legacy.rubitime_record_id
@@ -637,7 +637,7 @@ SET canonical_appointment_id = COALESCE(
 FROM cutover_source_public.clinical_visit source_visit
 JOIN cutover_source_public.appointment_records legacy
   ON legacy.id = source_visit.appointment_record_id
-LEFT JOIN public.be_external_entity_mappings mapping
+LEFT JOIN cutover_source_public.be_external_entity_mappings mapping
   ON mapping.external_system = 'rubitime'
  AND mapping.entity_type = 'appointment'
  AND mapping.external_id = legacy.integrator_record_id
@@ -1110,7 +1110,7 @@ BEGIN
     SELECT DISTINCT
       appointment.id AS canonical_id
     FROM cutover_source_integrator.booking_calendar_map legacy
-    LEFT JOIN public.be_external_entity_mappings mapping
+    LEFT JOIN cutover_source_public.be_external_entity_mappings mapping
       ON mapping.external_system = 'rubitime'
      AND mapping.entity_type = 'appointment'
      AND mapping.external_id = legacy.rubitime_record_id
