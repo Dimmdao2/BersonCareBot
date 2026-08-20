@@ -159,4 +159,9 @@ export type PlatformEntitlementsPort = {
     organizationId: string,
     audit: PlatformMutationAudit,
   ): Promise<{ created: boolean; endsAt: string } | null>;
+  setOrganizationActive(
+    organizationId: string,
+    isActive: boolean,
+    audit: PlatformMutationAudit,
+  ): Promise<{ isActive: boolean; changed: boolean }>;
 };
