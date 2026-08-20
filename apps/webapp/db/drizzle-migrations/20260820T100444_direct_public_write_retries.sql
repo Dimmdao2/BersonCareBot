@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-OWNER: app_object_owner
 -- BCB-MIGRATION-VERIFY: SELECT to_regclass('integrator.direct_public_write_retries') IS NOT NULL
 -- Direct-write durability replaces the retired HTTP projection outbox only for D4/D5 fallback failures.
 -- Grants and RLS belong exclusively to deploy/postgres/privileges reconciliation, never migrations.
