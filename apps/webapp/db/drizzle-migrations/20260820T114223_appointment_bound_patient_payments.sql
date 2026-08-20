@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-OWNER: app_object_owner
 -- A patient ledger entry may settle exactly one canonical booking appointment.
 ALTER TABLE public.patient_payment
   ADD COLUMN appointment_id uuid NULL REFERENCES public.be_appointments(id) ON DELETE SET NULL;

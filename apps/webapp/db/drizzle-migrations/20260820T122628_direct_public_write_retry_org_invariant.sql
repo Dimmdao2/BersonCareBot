@@ -1,3 +1,4 @@
+-- BCB-MIGRATION-OWNER: app_object_owner
 -- BCB-MIGRATION-VERIFY: SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'integrator.direct_public_write_retries'::regclass AND conname = 'direct_public_write_retries_operation_check' AND pg_get_constraintdef(oid) LIKE '%content_access_grant_upsert%') AND EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'integrator.direct_public_write_retries'::regclass AND conname = 'direct_public_write_retries_payload_org_check' AND convalidated)
 -- RLS/ACL remains exclusively in deploy/postgres/privileges reconciliation.
 -- This object migration makes the durable row fail closed before replay when its payload names another org.
