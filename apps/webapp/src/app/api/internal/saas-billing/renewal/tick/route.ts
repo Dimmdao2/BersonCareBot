@@ -19,6 +19,9 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 
 /**
  * POST — К5: raises the renewal invoice for every `paid_subscription` whose paid period has ended.
+ * A seat-overage invoice unpaid by period end is not reissued (Р-19 removed reissue entirely) — its
+ * debt carries into that same renewal invoice as `carriedDebtMinor` (Р-18), inside
+ * `runDueSaasBillingRenewals` itself.
  * Secured with `Authorization: Bearer <INTERNAL_JOB_SECRET>`, called only by cron — never by a user
  * request or a screen open. Filtering ("which organizations are due") happens inside
  * `runDueSaasBillingRenewals`'s one declared enumeration root; nothing here
@@ -55,7 +58,9 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const result = await buildAppDeps().saasBilling.runDueSaasBillingRenewals({ limit });
+    const saasBilling = buildAppDeps().saasBilling;
+    const renewals = await saasBilling.runDueSaasBillingRenewals({ limit });
+    const result = { ...renewals };
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_SAAS_BILLING_JOB_FAMILY,
       jobKey: OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,

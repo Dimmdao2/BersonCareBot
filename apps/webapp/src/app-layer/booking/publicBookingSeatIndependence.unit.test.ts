@@ -64,7 +64,9 @@ vi.mock('@/modules/patient-booking/inPersonBookingResolve', () => ({
 
 import { createVerifiedPublicBooking } from './createVerifiedPublicBooking';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
-import { decideClinicTeamQuota } from '@/infra/repos/transactionQuotaPort';
+// Р-15 (19.08): «можно ли продать место и почём» — единственная дверь `decideSeatOverage`, у неё же
+// теперь и решение «пропустить/отказать», которое раньше жило отдельно в `decideClinicTeamQuota`.
+import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
 
 /** Drizzle renders `sql` lazily; the identity of a root is read out of the template chunks. */
 function sqlText(fragment: unknown): string {
@@ -229,7 +231,7 @@ describe('the specialist seat is still limited', () => {
 
   it('refuses one more specialist at the ceiling when no seat can be sold', () => {
     expect(
-      decideClinicTeamQuota({
+      decideSeatOverage({
         includedSeats: 2,
         paidAdditionalSeats: 0,
         used: 2,
@@ -237,11 +239,11 @@ describe('the specialist seat is still limited', () => {
         currency: null,
         ...period,
       }),
-    ).toEqual({ allowed: false, code: 'seat_limit_reached' });
+    ).toEqual({ outcome: 'seat_not_sold' });
   });
 
   it('at the ceiling asks the clinic to buy a seat rather than letting one through', () => {
-    const decision = decideClinicTeamQuota({
+    const decision = decideSeatOverage({
       includedSeats: 2,
       paidAdditionalSeats: 1,
       used: 3,
@@ -249,13 +251,12 @@ describe('the specialist seat is still limited', () => {
       currency: 'RUB',
       ...period,
     });
-    expect(decision.allowed).toBe(false);
-    expect(decision).toMatchObject({ code: 'seat_overage_confirmation_required', currency: 'RUB' });
+    expect(decision).toMatchObject({ outcome: 'purchasable', currency: 'RUB' });
   });
 
   it('lets a specialist through while a paid seat is still free', () => {
     expect(
-      decideClinicTeamQuota({
+      decideSeatOverage({
         includedSeats: 2,
         paidAdditionalSeats: 1,
         used: 2,
@@ -263,6 +264,6 @@ describe('the specialist seat is still limited', () => {
         currency: 'RUB',
         ...period,
       }),
-    ).toEqual({ allowed: true });
+    ).toEqual({ outcome: 'seat_available' });
   });
 });

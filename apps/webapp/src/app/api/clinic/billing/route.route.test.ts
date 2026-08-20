@@ -216,9 +216,19 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     });
   }
 
-  function quoteFor(priceMinor: number, organization: string = organizationId): string {
-    return issueSeatOverageQuote({ organizationId: organization, priceMinor, currency: 'RUB' })
-      .token;
+  function quoteFor(
+    priceMinor: number,
+    organization: string = organizationId,
+    // Момент неподвижности цены (Р-15) приходит от двери и задаётся здесь явно, а не берётся у
+    // машины.
+    priceStableUntil: string = '2999-01-01T00:00:00.000Z',
+  ): string {
+    return issueSeatOverageQuote({
+      organizationId: organization,
+      priceMinor,
+      currency: 'RUB',
+      priceStableUntil,
+    }).token;
   }
 
   it('does not issue an invoice when a seat became available', async () => {
@@ -326,12 +336,14 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
    * полночью остаток оплаченного периода короче и место дешевле. Прежняя сверка сумм отказывала
    * ровно здесь — отказ сохранён.
    */
-  it('refuses a quote that would cross the UTC day boundary its price is rounded by', async () => {
+  it('refuses a quote that would cross the clinic day boundary its price is rounded by', async () => {
     vi.useFakeTimers();
     try {
-      vi.setSystemTime(new Date('2026-08-19T23:55:00.000Z'));
-      const quote = quoteFor(15_000);
-      vi.setSystemTime(new Date('2026-08-20T00:00:00.000Z'));
+      // Конец московских суток 19.08 — 21:00 UTC. Именно в этот момент цена места пересчитывается
+      // на новый, более короткий остаток периода (Р-15), поэтому котировка его не переживает.
+      vi.setSystemTime(new Date('2026-08-19T20:55:00.000Z'));
+      const quote = quoteFor(15_000, organizationId, '2026-08-19T21:00:00.000Z');
+      vi.setSystemTime(new Date('2026-08-19T21:00:00.000Z'));
 
       const response = await POST(request({ purchase: 'seat_overage', quote }));
 
@@ -350,6 +362,7 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
       outcome: 'price_changed',
       priceMinor: 18_000,
       currency: 'RUB',
+      priceStableUntil: '2999-01-01T00:00:00.000Z',
     });
 
     const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
@@ -377,10 +390,21 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     });
   });
 
-  it('returns the idempotent checkout invoice', async () => {
+  /**
+   * Р-15 в действующей редакции: место уже открыто, счёт выставлен. Ответ называет сумму и срок —
+   * их показывает экран команды, — а ссылка на оплату идёт довеском, потому что доступ она больше
+   * не решает.
+   */
+  it('reports the opened seat and the issued invoice, idempotently', async () => {
     purchaseSeatOverage.mockResolvedValue({
-      outcome: 'checkout',
-      invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
+      outcome: 'seat_opened',
+      invoice: {
+        id: 'seat-invoice',
+        amountMinor: 15_000,
+        currency: 'RUB',
+        expiresAt: '2026-08-19T12:00:00.000Z',
+        providerCheckoutUrl: 'https://pay.example/seat',
+      },
     });
 
     const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
@@ -388,9 +412,35 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
     expect(response.status).toBe(200);
     await expect(response.json()).resolves.toEqual({
       ok: true,
-      checkoutUrl: 'https://pay.example/seat',
+      outcome: 'seat_opened',
       invoiceId: 'seat-invoice',
+      amountMinor: 15_000,
+      currency: 'RUB',
+      invoiceExpiresAt: '2026-08-19T12:00:00.000Z',
+      checkoutUrl: 'https://pay.example/seat',
     });
+  });
+
+  /**
+   * Пробивается: отсутствие ссылки на оплату снова отвечает 502, то есть уже открытое место
+   * выглядит для экрана как несостоявшееся действие.
+   */
+  it('still reports the opened seat when the provider returned no payment link', async () => {
+    purchaseSeatOverage.mockResolvedValue({
+      outcome: 'seat_opened',
+      invoice: {
+        id: 'seat-invoice',
+        amountMinor: 15_000,
+        currency: 'RUB',
+        expiresAt: '2026-08-19T12:00:00.000Z',
+        providerCheckoutUrl: null,
+      },
+    });
+
+    const response = await POST(request({ purchase: 'seat_overage', quote: quoteFor(15_000) }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, outcome: 'seat_opened' });
   });
 
   /**
@@ -399,8 +449,14 @@ describe('POST /api/clinic/billing seat overage purchase', () => {
    */
   it('sends one and the same purchase identity when the same quote is submitted twice', async () => {
     purchaseSeatOverage.mockResolvedValue({
-      outcome: 'checkout',
-      invoice: { id: 'seat-invoice', providerCheckoutUrl: 'https://pay.example/seat' },
+      outcome: 'seat_opened',
+      invoice: {
+        id: 'seat-invoice',
+        amountMinor: 15_000,
+        currency: 'RUB',
+        expiresAt: '2026-08-19T12:00:00.000Z',
+        providerCheckoutUrl: 'https://pay.example/seat',
+      },
     });
     const quote = quoteFor(15_000);
 

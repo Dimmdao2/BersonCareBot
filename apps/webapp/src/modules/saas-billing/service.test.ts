@@ -20,6 +20,7 @@ import { createInMemorySaasBillingRepository } from '@/infra/repos/inMemorySaasB
 import { resolveCommercialAccess } from '@/infra/repos/commercialAccessComputation';
 import type { BillingPeriodOption } from './billingPeriodCatalog';
 import type { SeatOverageQuote } from './seatOverageQuote';
+import { SAAS_BILLING_INVOICE_VALIDITY_DAYS } from './invoiceValidity';
 
 /** Котировка, уже прошедшая проверку подписи: сервис получает именно её, а не тело запроса. */
 function seatQuote(input: {
@@ -1405,12 +1406,16 @@ describe('Р-10/Р-14: future paid invoice waits for the paid boundary', () => {
 
 describe('§5.1 paid additional-seat state machine', () => {
   /**
-   * Решение владельца 18.08: «Доп счёт только один раз, и только до конца основного оплаченного
-   * периода». Счёт за место продаётся В уже оплаченный период, а не открывает новый полный период
-   * от сегодня поверх него. Пробивается: окно счёта снова считается как now + один период тарифа,
-   * то есть перекрывает уже оплаченные дни и берёт за них деньги второй раз.
+   * Решение владельца Р-15 (19.08): «можно ли продать место и почём» решает ОДНО место, а не два.
+   * До 19.08 сценарий решал это сам — проверял оплаченный период и собирал окно услуги и срок
+   * оплаты, — и на кончившемся периоде отвечал не так, как расчёт цены на пути приглашения.
+   *
+   * Пробивается: сценарий снова приносит репозиторию собственные `servicePeriod*`/`expiresAt`
+   * (или, до 20.08, `invoiceValidityDays`), то есть вторая дверь вернулась. Сам расчёт окна, цены и
+   * срока (Р-19: срок счёта — конец периода, а не настраиваемая длительность) проверяется у двери
+   * (`seatOverage.unit.test.ts`).
    */
-  it('sells the seat into the already-paid period, not into a fresh full period', async () => {
+  it('never carries a window, a deadline or a validity setting of its own', async () => {
     const createSeatOverageInvoiceIfNeeded = vi.fn(async () => ({
       outcome: 'seat_overage_unavailable' as const,
     }));
@@ -1439,17 +1444,25 @@ describe('§5.1 paid additional-seat state machine', () => {
       quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'req-mid-period', priceMinor: 75_000 }),
     });
 
-    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
-      expect.objectContaining({
-        servicePeriodStartsAt: '2026-08-16T09:41:00.000Z',
-        servicePeriodEndsAt: '2026-08-31T00:00:00.000Z',
-      }),
-    );
+    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      saasBillingSubscriptionId: 'subscription-1',
+      quotePriceMinor: 75_000,
+      quoteCurrency: 'RUB',
+      providerId: expect.any(String),
+      providerIdempotencyKey: 'saas_seat_overage:org-1:req-mid-period',
+    });
   });
 
-  /** Нет оплаченного периода — место продавать не во что: клиника сначала платит за тариф. */
-  it('refuses a seat when no paid period is running', async () => {
-    const createSeatOverageInvoiceIfNeeded = vi.fn();
+  /**
+   * Нет оплаченного периода — место продавать не во что (Р-15). Ответ приходит от единственной
+   * двери, а сценарий его только передаёт. Пробивается: сценарий снова отвечает на этот вопрос сам
+   * и расходится с дверью — как расходился до 19.08 на КОНЧИВШЕМСЯ периоде.
+   */
+  it('relays the door verdict when there is no paid period to sell into', async () => {
+    const createSeatOverageInvoiceIfNeeded = vi.fn(async () => ({
+      outcome: 'paid_period_over' as const,
+    }));
     const service = createSaasBillingService({
       repository: {
         ...SAAS_REPO_BILLING_PERIOD_STUB,
@@ -1475,8 +1488,8 @@ describe('§5.1 paid additional-seat state machine', () => {
         organizationId: 'org-1',
         quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'req-no-period', priceMinor: 150_000 }),
       }),
-    ).resolves.toEqual({ outcome: 'seat_overage_unavailable' });
-    expect(createSeatOverageInvoiceIfNeeded).not.toHaveBeenCalled();
+    ).resolves.toEqual({ outcome: 'paid_period_over' });
+    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledTimes(1);
   });
 
   it('retries an existing draft with the same provider key instead of returning an unusable draft', async () => {
@@ -1486,6 +1499,9 @@ describe('§5.1 paid additional-seat state machine', () => {
       invoiceKind: 'seat_overage',
       additionalSeatQuantity: 1,
       amountMinor: 15_000,
+      // Р-15: у счёта за место срок есть ВСЕГДА — он приходит от двери вместе с суммой и уходит
+      // провайдеру. Строка без него означала бы бессрочный счёт за место, которого не бывает.
+      expiresAt: '2026-09-01T00:00:00.000Z',
       providerIdempotencyKey: 'saas_seat_overage:org-1:stable-key',
       status: 'draft',
     };
@@ -1530,7 +1546,7 @@ describe('§5.1 paid additional-seat state machine', () => {
       quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'stable-key', priceMinor: 15_000 }),
     });
 
-    expect(result).toMatchObject({ outcome: 'checkout', invoice: { id: 'seat-draft' } });
+    expect(result).toMatchObject({ outcome: 'seat_opened', invoice: { id: 'seat-draft' } });
     expect(createIntent).toHaveBeenCalledOnce();
     expect(createIntent).toHaveBeenCalledWith(expect.objectContaining({
       idempotencyKey: 'saas_seat_overage:org-1:stable-key',
@@ -1553,6 +1569,10 @@ describe('§5.1 paid additional-seat state machine', () => {
         },
       ],
       trialPolicy: null,
+      // Момент продажи места определяет репозиторий (там единственная дверь), поэтому часы у него
+      // и у сценария обязаны быть одни: иначе двойник спросит настоящее «сейчас» и посчитает
+      // цену другого дня.
+      now: () => clock,
     });
     const service = createSaasBillingService({
       repository,
@@ -1584,14 +1604,16 @@ describe('§5.1 paid additional-seat state machine', () => {
       },
     });
 
-    // Посреди периода: с 16.07 до 01.08 остаётся 16 дней из 31 → 150 000 × 16 / 31 = 77 419,35…,
-    // округляется вверх до 77 420. Полная цена места — 150 000: за уже оплаченные дни не платят.
+    // Посреди периода: от МОМЕНТА покупки (16.07 12:00) до 01.08 00:00 остаётся 15 суток 12 часов
+    // из 31, вверх до 16 целых суток → 150 000 × 16 / 31 = 77 419,35…, вверх до 77 420. Полная цена
+    // места — 150 000: за уже прошедшее не платят. ⚠️ Прежнее число 78 025 считалось от НАЧАЛА
+    // местных суток — редакция Р-15, отменённая владельцем 19.08.
     clock = new Date('2026-07-16T12:00:00.000Z');
     const purchase = await service.purchaseSeatOverage({
       organizationId: 'org-seat',
       quote: seatQuote({ organizationId: 'org-seat', purchaseKey: 'request-1', priceMinor: 77_420 }),
     });
-    if (purchase.outcome !== 'checkout') throw new Error('expected seat checkout');
+    if (purchase.outcome !== 'seat_opened') throw new Error('expected an opened seat');
     expect(purchase.invoice).toMatchObject({
       amountMinor: 77_420,
       currency: 'RUB',
@@ -1599,9 +1621,11 @@ describe('§5.1 paid additional-seat state machine', () => {
       // «Доп счёт … только до конца основного оплаченного периода».
       servicePeriodEndsAt: '2026-08-01T00:00:00.000Z',
     });
+    // Р-15 в действующей редакции: место открыто ВЫСТАВЛЕНИЕМ счёта, деньги ещё не приходили.
     const before = (await service.getOrganizationBillingOverview('org-seat')).subscriptions.find(
       (row) => row.source === 'paid_subscription',
     );
+    expect(before?.paidAdditionalSeats).toBe(1);
 
     for (const eventId of ['seat-event-1', 'seat-event-2']) {
       await service.captureSaasBillingProviderWebhookEvent({
@@ -1650,6 +1674,10 @@ describe('§5.1 paid additional-seat state machine', () => {
         },
       ],
       trialPolicy: null,
+      // Момент продажи места определяет репозиторий (там единственная дверь), поэтому часы у него
+      // и у сценария обязаны быть одни: иначе двойник спросит настоящее «сейчас» и посчитает
+      // цену другого дня.
+      now: () => clock,
     });
     const service = createSaasBillingService({
       repository,
@@ -1693,7 +1721,14 @@ describe('§5.1 paid additional-seat state machine', () => {
       }),
     });
 
-    expect(stale).toEqual({ outcome: 'price_changed', priceMinor: 77_420, currency: 'RUB' });
+    expect(stale).toEqual({
+      outcome: 'price_changed',
+      priceMinor: 77_420,
+      currency: 'RUB',
+      // Р-15: цена неподвижна до следующей границы целых суток остатка — 01.08 00:00 минус
+      // 15 суток. Столько живёт котировка; у счёта срок свой.
+      priceStableUntil: '2026-07-17T00:00:00.000Z',
+    });
     expect((await service.getOrganizationBillingOverview('org-stale')).invoices).toHaveLength(
       invoicesBefore,
     );
@@ -1707,7 +1742,7 @@ describe('§5.1 paid additional-seat state machine', () => {
         priceMinor: 77_420,
       }),
     });
-    if (fresh.outcome !== 'checkout') throw new Error('expected seat checkout');
+    if (fresh.outcome !== 'seat_opened') throw new Error('expected an opened seat');
     expect(fresh.invoice.amountMinor).toBe(77_420);
 
     // Повтор той же котировки — тот же счёт, а не второй: ключ идемпотентности выводится из неё.
@@ -1719,7 +1754,7 @@ describe('§5.1 paid additional-seat state machine', () => {
         priceMinor: 77_420,
       }),
     });
-    if (replay.outcome !== 'checkout') throw new Error('expected seat checkout');
+    if (replay.outcome !== 'seat_opened') throw new Error('expected an opened seat');
     expect(replay.invoice.id).toBe(fresh.invoice.id);
     expect(
       (await service.getOrganizationBillingOverview('org-stale')).invoices.filter(
@@ -3790,54 +3825,6 @@ describe('срок жизни счёта берётся из настройки 
     await service.runDueSaasBillingRenewals();
 
     expect(createSaasBillingRenewalInvoiceIfAbsent).toHaveBeenCalledWith(
-      expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
-    );
-  });
-
-  it('счёт за место сверх тарифа живёт тот же настроенный срок, а не до конца периода услуги', async () => {
-    const createSeatOverageInvoiceIfNeeded = vi.fn(async (input: { expiresAt: string }) => ({
-      outcome: 'invoice' as const,
-      invoice: { ...invoice, invoiceKind: 'seat_overage' as const, expiresAt: input.expiresAt },
-      created: true,
-    }));
-    const service = createSaasBillingService({
-      repository: {
-        ...SAAS_REPO_BILLING_PERIOD_STUB,
-        requireOwnTariffBillingSubscription: async () => ({
-          saasBillingSubscriptionId: 'subscription-1',
-          currentTariffId: 'tariff-1',
-          purchasedTariffPriceMinor: 10_000,
-          tariffId: 'tariff-1',
-          billingPeriod: 'month' as const,
-          currentPeriodStartsAt: '2026-08-01T00:00:00.000Z',
-          currentPeriodEndsAt: '2026-09-01T00:00:00.000Z',
-          savedPaymentMethodId: null,
-          additionalSeatPriceMinor: 1_000,
-          currency: 'RUB',
-        }),
-        createSeatOverageInvoiceIfNeeded,
-        attachSaasBillingInvoiceProviderIntent: async (input: unknown) => ({
-          ...invoice,
-          ...(input as object),
-        }),
-      } as unknown as SaasBillingRepositoryPort,
-      settings: settingsWithValidityDays(7),
-      resolvePaymentProvider: () =>
-        ({
-          createIntent: async () => ({
-            providerIntentRef: 'provider-intent-1',
-            checkoutUrl: 'https://yookassa.example.test/checkout-1',
-          }),
-        }) as never,
-      now: () => new Date(ISSUED_AT),
-    });
-
-    await service.purchaseSeatOverage({
-      organizationId: 'org-1',
-      quote: seatQuote({ organizationId: 'org-1', purchaseKey: 'req-1', priceMinor: 1_000 }),
-    });
-
-    expect(createSeatOverageInvoiceIfNeeded).toHaveBeenCalledWith(
       expect.objectContaining({ expiresAt: EXPECTED_EXPIRES_AT }),
     );
   });

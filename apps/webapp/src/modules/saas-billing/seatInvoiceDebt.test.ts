@@ -38,7 +38,9 @@ const PERIOD_ENDS_AT = '2026-08-01T00:00:00.000Z';
 
 function scenario() {
   let clock = new Date(PERIOD_STARTS_AT);
-  const repository = createInMemorySaasBillingRepository({ tariffs: [TARIFF] });
+  // Момент продажи места решает репозиторий (единственная дверь, `decideSeatOverage`), не
+  // сценарий, — общие часы обязаны идти и сюда, иначе двойник спросит настоящее «сейчас».
+  const repository = createInMemorySaasBillingRepository({ tariffs: [TARIFF], now: () => clock });
   const createIntent = vi.fn(
     async (input: Parameters<PaymentProviderPort['createIntent']>[0]) => ({
       providerIntentRef: `intent-${input.subjectRef}`,
@@ -100,7 +102,7 @@ function scenario() {
           expiresAt: '2999-01-01T00:00:00.000Z',
         },
       });
-      if (result.outcome !== 'checkout') {
+      if (result.outcome !== 'seat_opened') {
         throw new Error(`test_seed_seat_purchase_failed:${result.outcome}`);
       }
       return result.invoice;
@@ -174,8 +176,10 @@ describe('неоплаченный к концу периода счёт за м
     await world.pay(paidSeat.id, 'event-seat-paid');
     const unpaidSeat = await world.buySeat('seat-unpaid');
 
-    // Место, за которое заплатили, открыто; неоплаченное — нет.
-    expect((await world.subscription()).paidAdditionalSeats).toBe(1);
+    // Р-15 (действующая редакция): место открывается СРАЗУ выставлением счёта, а не платежом —
+    // открыты оба, оплачено только одно. Именно поэтому за неоплаченное остаётся долг ниже, а не
+    // просто закрытое место.
+    expect((await world.subscription()).paidAdditionalSeats).toBe(2);
 
     world.setNow(PERIOD_ENDS_AT);
     const nextPeriod = await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
@@ -201,7 +205,10 @@ describe('неоплаченный к концу периода счёт за м
     world.setNow(PERIOD_ENDS_AT);
     await world.service.createOwnTariffRenewalInvoice(ORGANIZATION_ID);
 
-    expect((await world.subscription()).paidAdditionalSeats).toBe(1);
+    // Оба места (оплаченное и то, чей долг только что унесло строкой в новый счёт) остаются
+    // открытыми — продление не отбирает место задним числом за отрезок, который уже прошёл и
+    // услугу по которому клиника уже оказала (Р-18).
+    expect((await world.subscription()).paidAdditionalSeats).toBe(2);
   });
 
   it('не трогает счёт за место, чей отрезок услуги ещё идёт', async () => {

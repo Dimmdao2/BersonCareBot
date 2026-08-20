@@ -10,6 +10,10 @@ export type SaasBillingSubscriptionStatus = 'pending_payment' | 'active' | 'expi
 export type SaasBillingInvoiceStatus = 'draft' | 'pending' | 'paid' | 'failed' | 'void';
 export type SaasBillingInvoiceKind = 'tariff_period' | 'seat_overage';
 /** Existing `tariff_period` rows that are a paid-period upgrade use this visible, durable description. */
+/** Единственный текст строки счёта за место — и у выставления, и у перевыставления, и у провайдера. */
+export const SAAS_BILLING_SEAT_OVERAGE_DESCRIPTION =
+  'Дополнительное место специалиста сверх тарифа';
+
 export const SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION = 'Доплата за повышение тарифа';
 /** К2 — `pending` until the provider webhook confirms it; `failed` frees the amount for a retry. */
 export type SaasBillingRefundStatus = 'pending' | 'succeeded' | 'failed' | 'canceled';
@@ -214,7 +218,9 @@ export type SaasBillingPlatformBreakdownRow = {
 export type SaasBillingSeatOverageInvoiceResult =
   | { outcome: 'seat_available' }
   | { outcome: 'seat_overage_unavailable' }
-  | { outcome: 'price_changed'; priceMinor: number; currency: string }
+  /** Р-15: оплаченного периода нет или он кончился — остатка, в который продают место, нет. */
+  | { outcome: 'paid_period_over' }
+  | { outcome: 'price_changed'; priceMinor: number; currency: string; priceStableUntil: string }
   | { outcome: 'invoice'; invoice: SaasBillingInvoice; created: boolean };
 
 export type SaasBillingReconciliationDiscrepancy =
@@ -527,6 +533,11 @@ export type SaasBillingRepositoryPort = {
    * unit price under the clinic billing principal while holding the same organization lock as
    * invite creation. A same-key draft is returned before the capacity check so a failed PSP call
    * remains retryable with the original provider idempotency key.
+   *
+   * У входа НЕТ ни отрезка услуги, ни срока оплаты: и то, и другое выдаёт единственная дверь
+   * `modules/saas-billing/seatOverage.ts` вместе с ценой, под тем же замком. Пока эти параметры
+   * здесь были, сценарный слой считал их сам — и на кончившемся периоде выписывал счёт, чья услуга
+   * заканчивалась раньше, чем начиналась. Убраны из сигнатуры, чтобы второй ответ не компилировался.
    */
   createSeatOverageInvoiceIfNeeded(input: {
     organizationId: string;
@@ -541,11 +552,8 @@ export type SaasBillingRepositoryPort = {
     quoteCurrency: string;
     providerId: string;
     providerIdempotencyKey: string;
-    servicePeriodStartsAt: string;
-    servicePeriodEndsAt: string;
-    /** Срок оплаты счёта — из настройки, одинаково для всех путей выставления. */
-    expiresAt: string;
   }): Promise<SaasBillingSeatOverageInvoiceResult>;
+
   /**
    * К4 — platform-wide by design, same as the refund reservation this mirrors: looked up by
    * invoice id alone, not organization-scoped (see `reserveSaasBillingRefund`). Only `draft`/

@@ -228,6 +228,33 @@ async function carrySeatDebtInto(
     );
 }
 
+/**
+ * ЕДИНСТВЕННОЕ место, где двигается `paid_additional_seats` — счётчик, который в действующей
+ * редакции Р-15 И ЕСТЬ доступ к дополнительному месту: место открывает не платёж, а инкремент
+ * здесь. Пишущих сейчас два (выставление счёта, успешный возврат — отмена счёта за место не
+ * существует как самостоятельное действие, Р-17), и пока каждый двигал счётчик своим `update`,
+ * забыть подвинуть его было нормальным состоянием кода — так место и оставалось открытым после
+ * возврата. Одна точка делает пропуск видимым: закрыть место, минуя её, нечем (AGENTS.md §5).
+ *
+ * Замок организации она НЕ берёт сама: оба вызывающих уже держат его (или строку подписки
+ * `FOR UPDATE`) с момента, когда прочитали счётчик, — взять его здесь заново значило бы решать под
+ * замком то, что решили до него.
+ */
+async function moveSeatOverageAllowance(
+  tx: Transaction,
+  saasBillingSubscriptionId: string,
+  delta: number,
+): Promise<void> {
+  await tx
+    .update(saasBillingSubscriptions)
+    .set({
+      // `greatest(…, 0)`: счётчик мест не уходит в минус ни при каком порядке выставлений и возвратов.
+      paidAdditionalSeats: sql`greatest(${saasBillingSubscriptions.paidAdditionalSeats} + ${delta}, 0)`,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(saasBillingSubscriptions.id, saasBillingSubscriptionId));
+}
+
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
 const OPEN_REFUND_STATUSES = ['pending', 'succeeded'] as const;
 
@@ -1472,12 +1499,11 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
                 .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
             }
             if (invoice.invoiceKind === 'seat_overage') {
-              if (!wasPaid) {
-                await tx.update(saasBillingSubscriptions).set({
-                  paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + ${invoice.additionalSeatQuantity}`,
-                  updatedAt: new Date().toISOString(),
-                }).where(eq(saasBillingSubscriptions.id, subscription.id));
-              }
+              // Место уже открыто в момент выставления этого счёта (Р-15, действующая редакция:
+              // `moveSeatOverageAllowance` вызывается там же, где вставляется строка счёта), и
+              // здесь оно НЕ открывается второй раз: приём денег только закрывает счёт. Ветка
+              // оставлена явной, потому что молчаливое падение в `else if` ниже отправило бы счёт
+              // за место в `promotePaidInvoice`, то есть в продление тарифного периода.
             } else if (
               invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
               !wasPaid &&
@@ -1638,10 +1664,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           )
           .limit(1)
           .for('update');
-        const decision = await quota.resolveClinicTeamAvailability();
-        if (decision.allowed) return { outcome: 'seat_available' as const };
-        if (decision.code === 'seat_limit_reached') {
+        const offer = await quota.resolveClinicTeamAvailability();
+        if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
+        if (offer.outcome === 'seat_not_sold') {
           return { outcome: 'seat_overage_unavailable' as const };
+        }
+        // Р-15: остатка оплаченного периода нет — продавать не во что, счёт не выписывается.
+        if (offer.outcome === 'paid_period_over') {
+          return { outcome: 'paid_period_over' as const };
         }
 
         const effectiveTariffResult = await tx.execute(sql`
@@ -1673,16 +1703,17 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
         // Котировка сервера сверяется со свежим расчётом под той же блокировкой. Расхождение
         // возможно, пока котировка жива: тариф отредактировали, период сдвинулся. На счёт всегда
-        // идёт `decision.priceMinor` — то, что посчитал `decideClinicTeamQuota` здесь и сейчас, —
-        // а не число из запроса; равенство лишь доказывает, что человеку показали именно его.
+        // идёт `offer.priceMinor` — то, что посчитала единственная дверь здесь и сейчас, — а не
+        // число из запроса; равенство лишь доказывает, что человеку показали именно его.
         if (
-          input.quotePriceMinor !== decision.priceMinor ||
-          input.quoteCurrency !== decision.currency
+          input.quotePriceMinor !== offer.priceMinor ||
+          input.quoteCurrency !== offer.currency
         ) {
           return {
             outcome: 'price_changed' as const,
-            priceMinor: decision.priceMinor,
-            currency: decision.currency,
+            priceMinor: offer.priceMinor,
+            currency: offer.currency,
+            priceStableUntil: offer.priceStableUntil,
           };
         }
         if (existing) {
@@ -1702,17 +1733,29 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           invoiceKind: 'seat_overage',
           additionalSeatQuantity: 1,
           description: 'Дополнительное место специалиста сверх тарифа',
-          amountMinor: decision.priceMinor,
-          currency: decision.currency,
+          amountMinor: offer.priceMinor,
+          currency: offer.currency,
           tariffBillingPeriod: tariff.billing_period,
           tariffSnapshot: tariff.tariff_snapshot,
-          servicePeriodStartsAt: input.servicePeriodStartsAt,
-          servicePeriodEndsAt: input.servicePeriodEndsAt,
-          expiresAt: input.expiresAt,
+          // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения. Собранные по отдельности,
+          // они и разъезжались: полный тариф за ноль дней и услуга, кончавшаяся раньше начала.
+          servicePeriodStartsAt: offer.servicePeriodStartsAt,
+          servicePeriodEndsAt: offer.servicePeriodEndsAt,
+          // Р-19: срок у счёта за место один — конец периода, той же услуги, что он продаёт;
+          // отдельного срока «от выставления» и перевыставления по нему больше нет.
+          expiresAt: offer.servicePeriodEndsAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
         });
+        // Р-15 в действующей редакции: «Место открывается СРАЗУ, пропорциональная доплата уходит в
+        // следующий счёт». Счётчик растёт здесь, в одной транзакции с выставлением счёта и под тем
+        // же замком организации, — а НЕ в приёме платежа: платёж перестал быть условием доступа.
+        // Прежний порядок (открыть по оплате) и был механизмом находки F1 слепого аудита 19.08:
+        // приём денег место открывал, а срока счёта не проверял никто.
+        if (inserted.created) {
+          await moveSeatOverageAllowance(tx, subscription.id, +1);
+        }
         return { outcome: 'invoice' as const, ...inserted };
           },
         ),
@@ -1732,7 +1775,9 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         const invoice = toSaasBillingInvoice(invoiceRow);
         // Кнопки на экране может не быть, а запрос прийти. Вердикт тот же самый, что читает экран
         // (`invoiceOperations.ts`), и стоит он ЗДЕСЬ — в единственном месте, где строка счёта уже
-        // заблокирована и решение нельзя обойти другим входом.
+        // заблокирована и решение нельзя обойти другим входом. Счёт за место сюда доходит с
+        // вердиктом `seat_invoice_not_cancellable` (Р-17): отмена как отдельное действие
+        // оператора над этим счётом не существует, и место она поэтому не закрывает.
         const verdict = saasBillingInvoiceCancelVerdict(invoice);
         if (!verdict.allowed) {
           return verdict.refusal === 'seat_invoice_not_cancellable'
@@ -2188,10 +2233,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .where(and(eq(saasBillingRefunds.id, refund.id), eq(saasBillingRefunds.status, 'pending'))).returning();
         if (!row) return toSaasBillingRefund(refund);
         if (status === 'succeeded' && invoice.invoiceKind === 'seat_overage') {
-          await tx.update(saasBillingSubscriptions).set({
-            paidAdditionalSeats: sql`greatest(${saasBillingSubscriptions.paidAdditionalSeats} - ${invoice.additionalSeatQuantity}, 0)`,
-            updatedAt: new Date().toISOString(),
-          }).where(eq(saasBillingSubscriptions.id, subscription.id));
+          await moveSeatOverageAllowance(tx, subscription.id, -invoice.additionalSeatQuantity);
         }
         return toSaasBillingRefund(row);
       });
