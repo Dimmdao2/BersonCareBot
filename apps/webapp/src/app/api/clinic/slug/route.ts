@@ -12,7 +12,13 @@ const bodySchema = z
   .strict();
 
 function statusForError(code: OrganizationSlugMutationErrorCode): number {
-  return code === 'slug_unavailable' || code === 'slug_unchanged' ? 409 : 400;
+  // `self_rename_allowance_spent` — конфликт состояния, а не негодный ввод: тело запроса правильное,
+  // исчерпано право. Отдаётся отдельным кодом, чтобы человек НЕ увидел «имя занято» (владелец 19.08).
+  return code === 'slug_unavailable' ||
+    code === 'slug_unchanged' ||
+    code === 'self_rename_allowance_spent'
+    ? 409
+    : 400;
 }
 
 function pgCode(error: unknown): string {
@@ -42,6 +48,9 @@ export async function POST(request: Request) {
       organizationId: gate.ctx.organizationId,
       slug: parsed.data.slug,
       irreversibleRenameConfirmed: parsed.data.irreversibleRenameConfirmed,
+      // Гейт маршрута — кабинет клиники, значит смена всегда самостоятельная. Из тела запроса это
+      // никогда не приходит: иначе клиника объявила бы себя админом и обошла единственную смену.
+      initiatedBy: 'clinic',
     });
     if (!result.ok) {
       return NextResponse.json(

@@ -22,17 +22,19 @@ describe('identifyPublicBookingPayer', () => {
   beforeEach(() => vi.resetAllMocks());
 
   it.each([
-    ['current session', { kind: 'session' } as const, deps(), 'user-session'],
+    ['current session', { kind: 'session' } as const, deps(), 'user-session', 'public_booking_session'],
     [
       'verified email session',
       { kind: 'verified_email_session', submittedEmail: ' USER@example.test ' } as const,
       deps({ verifiedEmail: 'user@example.test' }),
       'user-session',
+      'public_booking_verified_email',
     ],
-  ])('returns the canonical user for %s', async (_name, proof, input, expectedUserId) => {
+  ])('returns the canonical user for %s', async (_name, proof, input, expectedUserId, expectedChannel) => {
     await expect(identifyPublicBookingPayer(input, proof)).resolves.toEqual({
       ok: true,
       platformUserId: expectedUserId,
+      channel: expectedChannel,
     });
   });
 
@@ -45,7 +47,11 @@ describe('identifyPublicBookingPayer', () => {
         contactPhone: '+79990000000',
         contactName: 'Пациент',
       }),
-    ).resolves.toEqual({ ok: true, platformUserId: 'user-sms' });
+    ).resolves.toEqual({
+      ok: true,
+      platformUserId: 'user-sms',
+      channel: 'public_booking_phone_otp',
+    });
   });
 
   it.each([

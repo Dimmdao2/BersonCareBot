@@ -2587,6 +2587,21 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
       purpose: 'media.transcode.enqueue',
       functionIdentity: 'app.enqueue_media_transcode_job_for_service(uuid)' },
+    // Разбор той же очереди. До 0050 он шёл отношением и отбивался `42501 accepted organization
+    // context required` на КАЖДОМ обороте петли: диспетчер межарендный, `organization_id` у него
+    // нет, а политика роли на `public.media_transcode_jobs` требует именно его.
+    media_transcode_claim: { port: 'webapp', runtimeName: 'media_transcode_claim',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.claim',
+      functionIdentity: 'app.claim_media_transcode_job(text,integer)' },
+    media_transcode_job_media_read: { port: 'webapp', runtimeName: 'media_transcode_job_media_read',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.job-media.read',
+      functionIdentity: 'app.read_media_transcode_job_media(uuid,uuid,text)' },
+    media_transcode_outcome_record: { port: 'webapp', runtimeName: 'media_transcode_outcome_record',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.outcome.record',
+      functionIdentity: 'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)' },
     // Both context classes reach the SAME root: the message context, not the caller class, decides
     // what gets sent. A patient booking and a staff-initiated notice are one mechanism.
     patient_outbound_message_enqueue: { port: 'webapp',
@@ -2956,6 +2971,20 @@ const REV10_CONTEXT = {
     resolve_public_booking_organization: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-tenant.resolve',
       functionIdentity: 'app.resolve_public_booking_organization(uuid,uuid)' },
+    // Две двери ЗАПИСИ (миграция 0048). Личность резолвится до выбора арендатора, поэтому её
+    // класс — `pre_session`; отношение с клиникой заводится уже под ПАЦИЕНТСКИМ принципалом, чтобы
+    // человек мог записать в клиенты только себя.
+    resolve_public_booking_client_by_phone: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-client.resolve',
+      functionIdentity: 'app.resolve_public_booking_client_by_phone(text,text,boolean)' },
+    enroll_current_patient_in_public_booking_clinic: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.enroll',
+      functionIdentity: 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)' },
+    // Компенсация неудавшейся записи (миграция 0052). Зачисление коммитится раньше приёма и вместе
+    // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
+    revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -3381,12 +3410,17 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.saas_billing_invoices',
           columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
-            'expires_at', 'status', 'provider_invoice_ref', 'tariff_id', 'tariff_name', 'amount_minor',
-            'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+            'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor', 'tariff_id', 'tariff_name',
+            'amount_minor', 'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot',
+            'updated_at'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           operationColumns: {
+            // `carried_debt_minor` ЧИТАЕТСЯ (миграция 0050): пересчитанная сумма периода складывается
+            // из цены тарифа, мест и уже переехавшего долга. Без этого чтения смена тарифа под
+            // черновиком тихо прощала бы долг прошлого периода. Писать эту колонку шов не вправе:
+            // долг назначает только та дверь, которая гасит счёт-предшественник.
             SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
-              'expires_at', 'status', 'provider_invoice_ref'],
+              'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor'],
             UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
               'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
           },
@@ -3402,6 +3436,32 @@ const REV10_CONTEXT = {
             'mailing_templates', 'mechanic_access_policies', 'mechanics', 'name', 'price_minor', 'quotas',
             'system_access_policy', 'updated_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Миграция 0050. Снять переехавший долг со счёта-преемника, когда оплата за место всё-таки
+    // пришла по старой живой ссылке провайдера. Сумму шов НЕ принимает — выводит её из строки
+    // погашенного счёта, а организацию сверяет на каждой строке цепочки. Писать `amount_minor` и
+    // `carried_debt_minor` арендной роли по-прежнему нельзя: денежная стена ровно за тем и стоит,
+    // чтобы сумму счёта менял один узкий шов, а не любой путь под ролью клиники.
+    'app.release_carried_seat_debt(uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'release a carried seat debt from its successor invoice when the superseded invoice is paid after all',
+      typedArgs: ['uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+            'carried_debt_minor', 'superseded_by_invoice_id', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            SELECT: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+              'carried_debt_minor', 'superseded_by_invoice_id'],
+            // Обе денежные колонки меняются ОДНИМ вычитанием и только вниз: снимается ровно та
+            // сумма, что переехала. `carried_debt_minor <= amount_minor` держит ограничение таблицы.
+            UPDATE: ['amount_minor', 'carried_debt_minor', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.touch_current_patient_support_conversation_activity(uuid)': {
@@ -3999,6 +4059,95 @@ const REV10_CONTEXT = {
           'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
           'sort_order', 'is_active'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
+    // и класс `pre_session` стоит до выбора арендатора.
+    'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve or create the canonical person for a proven public-booking phone',
+      typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'phone_normalized', 'display_name', 'role',
+          'patient_phone_trust_at', 'merged_into_id', 'first_name', 'last_name', 'patronymic', 'birth_date'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized',
+          'is_primary', 'confirmed_at', 'source_origin', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'first_name', 'last_name',
+          'patronymic', 'display_name', 'birth_date', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Отношение с клиникой. Человек берётся из принятого пациентского контекста, а не из аргумента,
+    // поэтому записать в клиенты можно только себя. Канал подтверждения — АРГУМЕНТ (миграция 0052):
+    // почта такой же полноправный канал, что и телефон (`AUTH_AND_IDENTITY_CANON.md` §15), а состав
+    // обязательных полей публичной формы задаёт клиника (`OWNER_PRODUCT_RULES.md` §33).
+    //
+    // Оплаченное число клиентов эта дверь НЕ проверяет и не расходует (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2: «запись на приём сама по себе лимита не расходует»). 0052 звала
+    // сюда `app.assert_org_patient_count_quota_available` делегированием — 0053 убрала вызов, поэтому
+    // делегирования здесь больше нет.
+    'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'make the identified public-booking visitor a client of a published clinic',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
+    // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
+    // возраст в окне одной попытки и отсутствие живого приёма.
+    'app.revoke_public_booking_enrollment(uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'undo a public-booking client relationship whose booking failed',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'created_at', 'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          // Возраст строки дверь только ЧИТАЕТ — он и есть признак «эту строку завела воронка».
+          operationColumns: { UPDATE: ['status', 'portal_activated_at', 'portal_activated_via'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // ЕДИНСТВЕННЫЙ потолок оплаченного числа клиентов. Владелец — коммерческий шов: ровно у него уже
+    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники: её писатель карточек
+    // зовёт функцию из своей реляционной транзакции. Публичная дверь (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2) больше НЕ вызывающий — запись на приём не тратит оплаченное
+    // место, и у этой функции снова ровно один вызывающий, как до 0052.
+    'app.assert_org_patient_count_quota_available(uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_staff'],
+      purpose: 'the only patient_count ceiling, spent by the staff card writer alone',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id', 'tariff_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_org_entitlement_overrides',
+          columns: ['organization_id', 'mechanic', 'expires_at', 'quota'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -5394,7 +5543,12 @@ const REV10_CONTEXT = {
         PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.submit_current_patient_test_attempt)),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
       owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
-      execute: ['app_seam_patient_lfk_media_owner'],
+      // Ядро зовут только `_for_staff`/`_for_service` — оба SECURITY DEFINER ТОГО ЖЕ владельца,
+      // то есть внутри них `current_user` уже владелец ядра и EXECUTE у него подразумеваемый.
+      // Явный грант владельцу самому себе ничего не добавлял, а внутренний делегированный шов по
+      // канону обязан быть caller-free (как все `*_impl`); проверка увидела это, когда
+      // `public.media_transcode_jobs` осталась без прямых ролей (миграция 0050).
+      execute: [],
       purpose: 'private idempotent media transcode producer shared by exact patient/staff/service roots',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'], invocation: 'internal' as const,
@@ -5468,6 +5622,76 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [], delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
+    }),
+    // Три двери разбора очереди пересборки видео (миграция 0050). Постановка в очередь уже стояла
+    // за корнем этого же шва (`app.enqueue_media_transcode_job_for_staff/_for_service`), а разбор
+    // ходил отношением под `app_operational_media_worker` — и не мог взять НИ ОДНОЙ работы:
+    // единственная разрешающая политика этой роли на `public.media_transcode_jobs` состоит из
+    // арендаторских веток, обе зовут `app.current_org_id()` подзапросом-InitPlan'ом, а та на роли
+    // воркера не возвращает NULL, а поднимает `42501 accepted organization context required`.
+    // Отказ приходит ровно тогда, когда узлу есть что фильтровать, поэтому ПУСТАЯ очередь молчала,
+    // а первая же поставленная работа начинала петлю падения. Замер на TEST 19.08: воркер падал
+    // раз в 5 секунд с 18.08 19:26, видео не пересобиралось больше суток; воспроизведено на живой
+    // bcb_webapp_dev тем же боевым маршрутом при возвращённых старых правах.
+    // Диспетчер очереди межарендный по построению — своего `organization_id` у него нет и быть не
+    // может, поэтому дверь у него собственная, а стена «организация работы = организация файла»
+    // стоит в теле каждого корня.
+    'app.claim_media_transcode_job(text,integer)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.claim',
+      typedArgs: ['text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'attempts', 'created_at',
+            'updated_at', 'locked_at', 'locked_by', 'last_error', 'next_attempt_at',
+            'processing_started_at', 'finished_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files', columns: ['id', 'organization_id'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_media_transcode_job_media(uuid,uuid,text)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.job-media.read',
+      typedArgs: ['uuid', 'uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'locked_by'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'mime_type', 's3_key', 'hls_master_playlist_s3_key',
+            'video_processing_status', 'video_duration_seconds', 'usage_purpose'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Один исход — одна дверь. Ветка выбирается параметром из ЗАКРЫТОГО списка внутри тела, как у
+    // соседа `app.prune_retention_target(text,integer,boolean)`: каждый исход сохраняет своё
+    // поведение, общей у них только эта дверь.
+    'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.outcome.record',
+      typedArgs: ['uuid', 'uuid', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'locked_by', 'locked_at',
+            'last_error', 'next_attempt_at', 'processing_started_at', 'finished_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'mime_type', 's3_key', 'video_processing_status',
+            'video_processing_error', 'video_delivery_override', 'available_qualities_json',
+            'hls_master_playlist_s3_key', 'hls_artifact_prefix', 'poster_s3_key',
+            'video_duration_seconds'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
@@ -6312,18 +6536,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['SELECT'], columns: ['media_id', 'user_id'] },
     ],
   },
-  'public.media_transcode_jobs': {
-    kind: 'direct',
-    purpose: 'the accepted operational media worker claims and completes cross-tenant transcode jobs',
-    codePaths: ['apps/webapp/src/infra/repos/pgMediaWorkerControl.ts'],
-    grants: [
-      { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
-        'attempts', 'finished_at', 'last_error', 'locked_at', 'locked_by', 'next_attempt_at',
-        'processing_started_at', 'status', 'updated_at',
-      ] },
-    ],
-  },
+  // `public.media_transcode_jobs` прямой поверхности БОЛЬШЕ НЕ ИМЕЕТ. Гранты
+  // `app_operational_media_worker` стояли здесь с формулировкой «диспетчер забирает и завершает
+  // межарендные работы», но были мертвы: единственная разрешающая политика этой роли на таблице
+  // (`rev10_saas_org_dormant_p0_8_4`) собрана из арендаторских веток, обе зовут
+  // `app.current_org_id()`, а та роль воркера не принимает и поднимает 42501 — то есть ни один
+  // оператор под этой ролью не доходил до строки очереди. Убраны в миграции 0050 вместе с переводом диспетчера на
+  // три корня шва `app_seam_patient_lfk_media_owner`; без прямых ролей генератор больше не рисует
+  // на таблицу и саму неудовлетворимую политику. Доступ теперь целиком `named-seams`.
   'public.operator_job_status': {
     kind: 'direct',
     purpose: 'the accepted webapp worker records and reads scheduler health ticks',

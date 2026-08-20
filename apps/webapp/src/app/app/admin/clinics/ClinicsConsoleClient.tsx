@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { apiJson } from '@/shared/lib/apiJson';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import type { SaasBillingOverview as SaasBillingOverviewData } from '@/modules/saas-billing/ports';
 import {
@@ -40,7 +39,9 @@ import {
   DialogTitle,
 } from '@/shared/ui/doctor/primitives/dialog';
 import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
+import { apiJson } from '@/shared/lib/apiJson';
 import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
+import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
 
 export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
@@ -574,7 +575,7 @@ function OrganizationAccountPanel({
   onOrganizationsRefresh,
 }: {
   organization: PlatformOrganizationSummary;
-  onOrganizationsRefresh: () => Promise<void>;
+  onOrganizationsRefresh: () => Promise<boolean>;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -594,9 +595,10 @@ function OrganizationAccountPanel({
       });
       setDialogOpen(false);
       setReason('');
-      await onOrganizationsRefresh();
+      const refreshed = await onOrganizationsRefresh();
+      if (!refreshed) setActionError('Сохранено, но список не обновился — обновите страницу.');
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'network');
+      setActionError(error instanceof Error ? error.message : 'Не удалось сохранить');
     } finally {
       setBusy(false);
     }
@@ -651,9 +653,7 @@ function OrganizationAccountPanel({
               maxLength={500}
               placeholder="Зачем меняете состояние"
             />
-            {actionError ? (
-              <p className="text-sm text-destructive">Не удалось сохранить: {actionError}</p>
-            ) : null}
+            {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
           </div>
           <DialogFooter>
             <Button
@@ -694,7 +694,7 @@ function ClinicDetail({
   organizationId: string;
   billing: SaasBillingOverviewData | null;
   billingError: boolean;
-  onOrganizationsRefresh: () => Promise<void>;
+  onOrganizationsRefresh: () => Promise<boolean>;
 }) {
   const organization = data.organizations.find((item) => item.id === organizationId);
   const tariffsById = useMemo(
@@ -755,29 +755,11 @@ function ClinicDetail({
         </dl>
       </DoctorSection>
 
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Пробный период</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        {organization.trial ? (
-          <dl className="grid gap-2 sm:grid-cols-3">
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Статус</dt>
-              <dd className="mt-1 font-medium">{TRIAL_STATUS_LABELS[organization.trial.status]}</dd>
-            </div>
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Окончание</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.endsAt)}</dd>
-            </div>
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Скидка на оплату до</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.discountEndsAt)}</dd>
-            </div>
-          </dl>
-        ) : (
-          <DoctorEmptyState size="xs">Пробный период не запускался.</DoctorEmptyState>
-        )}
-      </DoctorSection>
+      <OrganizationCommercialPanel
+        organization={organization}
+        tariffs={data.tariffs}
+        onUpdated={onOrganizationsRefresh}
+      />
 
       <ClinicAccountsSection members={members} />
       <OverridesSection organization={organization} />
@@ -824,11 +806,15 @@ export function ClinicsConsoleClient({
   );
   const [billingError, setBillingError] = useState(false);
 
-  const reloadOrganizations = useCallback(async () => {
-    const response = await fetch('/api/admin/organizations', { cache: 'no-store' });
-    const body = (await response.json().catch(() => null)) as ClinicsApiResponse | null;
-    if (response.ok && body?.ok) {
+  const reloadOrganizations = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/admin/organizations', { cache: 'no-store' });
+      const body = (await response.json().catch(() => null)) as ClinicsApiResponse | null;
+      if (!response.ok || !body?.ok) return false;
       setData(body);
+      return true;
+    } catch {
+      return false;
     }
   }, []);
 

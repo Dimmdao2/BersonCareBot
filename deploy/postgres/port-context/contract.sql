@@ -310,6 +310,14 @@ BEGIN
             cap.purpose = 'patient.organization.resolve'
             AND cap.function_identity = pg_catalog.to_regprocedure('app.read_current_patient_active_organizations()')
           )
+          -- Первая публичная запись: посетитель ещё НЕ клиент этой клиники, поэтому заявить её он
+          -- не может — эту строку `org_enrollments` создаёт как раз этот корень. Требовать здесь
+          -- организацию значило бы замкнуть круг. Личность при этом обязательна (`actor_ref`,
+          -- `subject_ref` выше), и сам корень берёт человека из контекста, а не из аргумента.
+          OR (
+            cap.purpose = 'booking.public-client.enroll'
+            AND cap.function_identity = pg_catalog.to_regprocedure('app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
+          )
         )
       ))
     ))

@@ -14,6 +14,18 @@ export const MEDIA_READABLE_SQL_M = mediaReadableSql('m');
  * WHERE clause fragment (without cursor/cutoff/limit) aligned with legacy reconcile candidate selection.
  * Use the same alias in `FROM media_files <alias>` and in {@link legacyHlsReconcileEligibleForEnqueueSqlFilter}
  * (`size_bytes` cap applies only to enqueue / health COUNT semantics).
+ *
+ * «Уже в очереди?» здесь НЕ спрашивается. Раньше тут стоял `NOT EXISTS (… media_transcode_jobs …)`,
+ * и он был слеп: очередь принадлежит инфра-роли, ни `app_operational_media_worker` (под которым идёт
+ * reconcile), ни `app_staff` (под которым идёт админская метрика) читать её отношением не могут.
+ * Замер на bcb_webapp_dev 19.08: до миграции 0050 подзапрос молча возвращал ноль строк, после неё —
+ * `42501 permission denied for table media_transcode_jobs`, и весь тик отвечал 500.
+ *
+ * Правило при этом не потеряно и не раздвоено: «эта работа уже в очереди» знает и отвечает
+ * ЕДИНСТВЕННЫЙ хозяин очереди — корень постановки `app.enqueue_media_transcode_job_core`, и его
+ * ответ приходит в отчёт тика полем `alreadyQueued`. Для обычной ветки подзапрос был вдобавок
+ * избыточен: у файла с активной работой `video_processing_status = 'pending'`, а такой файл уже
+ * отсекает `statusMatch`.
  */
 export function legacyHlsBackfillCandidateWhereClause(
   tableAlias: string,
@@ -41,10 +53,6 @@ export function legacyHlsBackfillCandidateWhereClause(
       ${m}.video_processing_status = 'ready'
       AND ${m}.hls_master_playlist_s3_key IS NOT NULL
       AND trim(${m}.hls_master_playlist_s3_key) <> ''
-    )
-    AND NOT EXISTS (
-      SELECT 1 FROM media_transcode_jobs j
-      WHERE j.media_id = ${m}.id AND j.status IN ('pending', 'processing')
     )
     AND ${statusMatch}
   `

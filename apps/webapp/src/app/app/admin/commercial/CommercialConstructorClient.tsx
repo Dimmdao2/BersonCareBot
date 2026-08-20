@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
+import type { CommercialMutationResult } from '@/app/app/admin/commercial/commercialOrganizationLabels';
 import {
   ACCESS_NOTIFICATION_CONDITIONS,
   MECHANIC_REGISTRY,
@@ -65,8 +67,10 @@ type CommercialState = {
   paidPeriodPolicy: PaidPeriodPolicy | null;
 };
 
-type CommercialMutationResult = { created?: boolean; endsAt?: string } | null;
-type CommercialMutationResponse = { error?: string; result?: CommercialMutationResult };
+type CommercialMutationResponse = {
+  error?: string;
+  result?: CommercialMutationResult;
+};
 
 const COMMERCIAL_LIFECYCLE_LABELS: Record<
   PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
@@ -277,8 +281,9 @@ const ACCESS_TERMINAL_STATE_LABELS: Record<AccessTerminalState, string> = {
 
 /**
  * §5a item 2.6a — `warnable` says whether this mechanic has an early-warning threshold at all.
- * The owner named exactly two (patients and file volume); branches have none, so the field is not
- * rendered rather than rendered and ignored.
+ * The owner named patients and file volume; Т12 (19.08) took the client count away entirely, so
+ * file volume is the only one left. Branches have none, so the field is not rendered rather than
+ * rendered and ignored.
  *
  * Owner 18.08 (L-1): «ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ ВЫКЛЮЧЕН — ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА для
  * всех таких механик с лимитом». Inside a TARIFF the picker therefore offers exactly two choices
@@ -307,11 +312,12 @@ function NumericLimitEditor({
       return;
     }
     const limit = kind === 'numeric' ? (quota?.limit ?? 0) : null;
-    onChange(
-      warnable
-        ? { kind, limit, unit, warningAtPercent: quota?.warningAtPercent ?? null }
-        : ({ kind, limit, unit } as TariffQuota),
-    );
+    onChange({
+      kind,
+      limit,
+      unit,
+      ...(warnable ? { warningAtPercent: quota?.warningAtPercent ?? null } : {}),
+    } as TariffQuota);
   }
 
   return (
@@ -616,6 +622,9 @@ function DowngradePolicyEditor({
 }
 
 export function CommercialConstructorClient() {
+  const searchParams = useSearchParams();
+  const organizationIdFromUrl = searchParams.get('organizationId')?.trim() ?? '';
+  const [activeTab, setActiveTab] = useState('tariffs');
   const [state, setState] = useState<CommercialState>({
     tariffs: [],
     organizations: [],
@@ -668,6 +677,12 @@ export function CommercialConstructorClient() {
       paidPeriodPolicy: payload.paidPeriodPolicy ?? null,
     });
   }, []);
+
+  useEffect(() => {
+    if (!organizationIdFromUrl) return;
+    setActiveTab('organizations');
+    setOrganizationId(organizationIdFromUrl);
+  }, [organizationIdFromUrl]);
 
   useEffect(() => {
     setLoading(true);
@@ -861,7 +876,7 @@ export function CommercialConstructorClient() {
   }
 
   return (
-    <Tabs defaultValue="tariffs" className="space-y-3">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
       <TabsList>
         <TabsTrigger value="tariffs">Тарифы</TabsTrigger>
         <TabsTrigger value="organizations">Организации</TabsTrigger>
@@ -1025,28 +1040,28 @@ export function CommercialConstructorClient() {
                   }}
                 />
               </div>
-              {(['patient_count', 'branches'] as const).map((mechanic) => (
-                <div
-                  key={mechanic}
-                  className="space-y-2 rounded-xl border border-border/70 p-3"
-                >
-                  <Label>{MECHANIC_REGISTRY[mechanic].label}</Label>
-                  <NumericLimitEditor
-                    label={MECHANIC_REGISTRY[mechanic].label}
-                    unit="items"
-                    warnable={quotaMechanicSupportsWarning(mechanic)}
-                    unsettable={false}
-                    quota={tariff.quotas[mechanic] ?? null}
-                    onChange={(nextQuota) => {
-                      if (nextQuota && nextQuota.unit !== 'items') return;
-                      setTariff((current) => ({
-                        ...current,
-                        quotas: { ...current.quotas, [mechanic]: nextQuota ?? undefined },
-                      }));
-                    }}
-                  />
-                </div>
-              ))}
+              {/*
+                Т12 (владелец 19.08, дословно): «лимит клиентов - убрать». Число пациентов ушло с
+                экрана целиком — не в «бесконечность», а из конструктора: клинике продаются
+                рабочие места, а не люди в её базе. Филиалы остаются единственным штучным числом.
+              */}
+              <div className="space-y-2 rounded-xl border border-border/70 p-3">
+                <Label>{MECHANIC_REGISTRY.branches.label}</Label>
+                <NumericLimitEditor
+                  label={MECHANIC_REGISTRY.branches.label}
+                  unit="items"
+                  warnable={quotaMechanicSupportsWarning('branches')}
+                  unsettable={false}
+                  quota={tariff.quotas.branches ?? null}
+                  onChange={(nextQuota) => {
+                    if (nextQuota && nextQuota.unit !== 'items') return;
+                    setTariff((current) => ({
+                      ...current,
+                      quotas: { ...current.quotas, branches: nextQuota ?? undefined },
+                    }));
+                  }}
+                />
+              </div>
             </div>
             <AccessPolicyEditor
               title="Доступ к системе"

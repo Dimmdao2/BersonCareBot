@@ -132,6 +132,24 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'media.transcode.enqueue', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
   },
+  // Разбор той же очереди: три двери одного оборота воркера. До 0050 он ходил отношением и
+  // отбивался `42501 accepted organization context required` на каждом обороте — диспетчер
+  // межарендный, `organization_id` у него нет, а политика роли на таблице требует именно его.
+  'app.claim_media_transcode_job(text,integer)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.claim', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
+  'app.read_media_transcode_job_media(uuid,uuid,text)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.job-media.read', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
+  'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.outcome.record', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
   'app.resolve_staff_workspace_memberships(uuid)': {
     port: 'webapp', argCount: 1, descriptorCount: 2,
     descriptors: [
@@ -324,6 +342,21 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'booking.public-phone-otp.consume', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPublicBookingOtp.ts',
+  },
+  'app.resolve_public_booking_client_by_phone(text,text,boolean)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-client.resolve', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
+  'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.public-client.enroll', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
+  'app.revoke_public_booking_enrollment(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.public-client.revoke', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
   },
   'app.read_public_runtime_setting(text,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
@@ -1157,11 +1190,14 @@ function collectNamedRootCallsites() {
 
 function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites()) {
   const callsites = discovered.filter((row) => row.kind === 'literal');
-  const dynamicWrappers = discovered.filter((row) => row.kind === 'dynamic');
-  assert.equal(dynamicWrappers.length, 1, 'one generic named-root readiness wrapper must exist');
-  assert.equal(dynamicWrappers[0].port, 'integrator', 'generic named-root wrapper belongs to integrator');
-  assert.equal(dynamicWrappers[0].path, 'apps/integrator/src/infra/db/operationalPoolReadiness.ts',
-    'generic named-root wrapper moved from the reviewed production source');
+  // Обёртка с ДИНАМИЧЕСКИМ именем корня — единственное место, где вызов не сверяется с каталогом
+  // по литералу. Вторая такая обёртка означает второй непроверяемый путь к именованному корню.
+  // Счёт «1» краснел числом 2 и не говорил, ГДЕ появился этот путь; список печатает файл.
+  assert.deepEqual(
+    discovered.filter((row) => row.kind === 'dynamic').map((row) => `${row.port} ${row.path}`),
+    ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
+    'exactly one reviewed generic named-root readiness wrapper may exist',
+  );
   assert.equal(new Set(callsites.map((row) => row.identity)).size, callsites.length,
     'each production named root must have one exact callsite');
 
@@ -1294,6 +1330,13 @@ test('production discovery is path-independent and excludes tests/generated outp
   assert.ok(files.length > 10);
   assert.equal(files.some((path) => TEST_FILE_RE.test(path) || path.includes('/generated/')), false);
   const discovered = collectNamedRootCallsites();
-  assert.equal(discovered.filter((row) => row.kind === 'literal').length, EXPECTED_ROOTS.size);
-  assert.equal(discovered.filter((row) => row.kind === 'dynamic').length, 1);
+  assert.deepEqual(
+    [...new Set(discovered.filter((row) => row.kind === 'literal').map((row) => row.identity))].sort(),
+    [...EXPECTED_ROOTS.keys()].sort(),
+    'discovered production callsites must be exactly the catalogued named roots',
+  );
+  assert.deepEqual(
+    discovered.filter((row) => row.kind === 'dynamic').map((row) => `${row.port} ${row.path}`),
+    ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
+  );
 });

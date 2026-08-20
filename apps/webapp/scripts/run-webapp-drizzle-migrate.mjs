@@ -19,12 +19,14 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 import {
-  collectExpectedObjects,
-  describeObject,
+  collectMigrationProofs,
+  describeProof,
+  findUnprovedMigrations,
+  interpretProofAnswers,
   readLegacyJournalEntries,
   readMigrationFolder,
   renderLedgerBootstrapSql,
-  renderObjectPresenceSql,
+  renderProofSql,
   selectPendingMigrations,
   splitStatements,
 } from '../../../deploy/postgres/privileges/migration-order.mjs';
@@ -43,7 +45,8 @@ const SCHEMA_MISMATCH_SQLSTATES = new Set(['3F000', '42703', '42883', '42P01']);
  */
 export function selectMigrationPhase(migrations, beforeTag) {
   if (!beforeTag) return { migrations, bounded: false };
-  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag)) {
+  // Историческая схема NNNN[suffix]_ и канон YYYYMMDDTHHMMSS_ (владелец, 20.08) — обе законны.
+  if (!/^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$/.test(beforeTag) && !/^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$/.test(beforeTag)) {
     throw new Error(`WEBAPP_MIGRATIONS_BEFORE_TAG invalid tag=${beforeTag}`);
   }
   const at = migrations.findIndex((migration) => migration.tag === beforeTag);
@@ -226,7 +229,57 @@ if (process.argv.includes('--self-test')) {
       if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
     }
   }
+  // Rule 3: an answer is matched by the `at` it carries, never by arrival order, and a short answer
+  // set is a refusal.  Read positionally, a `UNION ALL` that returns its rows in another order
+  // reports an absent object as present — which is the whole failure this gate exists to stop.
+  const proofFixture = [
+    { kind: 'verify', tag: '0001_first', probe: 'SELECT true' },
+    { kind: 'verify', tag: '0002_second', probe: 'SELECT true' },
+    { kind: 'verify', tag: '0003_third', probe: 'SELECT true' },
+  ];
+  const shuffled = [
+    { at: 2, present: true },
+    { at: 0, present: false },
+    { at: 1, present: true },
+  ];
+  const unmet = interpretProofAnswers(proofFixture, shuffled);
+  if (unmet.length !== 1 || unmet[0].tag !== '0001_first') {
+    throw new Error('migration proof self-test read an out-of-order answer by position');
+  }
+  try {
+    interpretProofAnswers(proofFixture, [{ at: 0, present: true }, { at: 1, present: true }]);
+    throw new Error('migration proof self-test accepted a short answer set');
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('self-test accepted')) throw error;
+  }
   console.log('run-webapp-drizzle-migrate diagnostic self-test: OK');
+  process.exit(0);
+}
+
+/**
+ * The lint-time half of rule 3, plus the journal freeze.
+ *
+ * Reading the folder is what checks the freeze pin: `readLegacyJournalEntries` refuses a historical
+ * map that does not digest to `meta/_journal.frozen`.  Then every migration has to owe a proof, so a
+ * new one that creates no nameable object cannot land without saying how it can be checked.
+ */
+if (process.argv.includes('--check-migration-proofs')) {
+  try {
+    readLegacyJournalEntries(migrationsFolder);
+    const unproved = findUnprovedMigrations(readMigrationFolder(migrationsFolder));
+    if (unproved.length > 0) {
+      console.error(
+        `check-migration-proofs: ${unproved.join(', ')} leave no object this checkout can probe and carry no`
+          + ' `-- BCB-MIGRATION-VERIFY: SELECT …` header, so a ledger row written by hand for them is'
+          + ' indistinguishable from one a runner wrote after executing them.',
+      );
+      process.exit(1);
+    }
+  } catch (error) {
+    console.error(`check-migration-proofs: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  }
+  console.log('run-webapp-drizzle-migrate migration proof check: OK');
   process.exit(0);
 }
 
@@ -247,8 +300,25 @@ if (!url) {
 
 assertNoTransactionForbiddenConcurrentIndexes(readCurrentMigrationSources());
 
+// The frozen historical map is read before anything else, so a hand-extended one refuses here and
+// not three steps later with a stack trace.
+try {
+  readLegacyJournalEntries(migrationsFolder);
+} catch (error) {
+  console.error(`[migrate] ${error instanceof Error ? error.message : String(error)}`);
+  process.exit(1);
+}
+
 const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
-const phase = selectMigrationPhase(readMigrationFolder(migrationsFolder), beforeTag);
+const allMigrations = readMigrationFolder(migrationsFolder);
+// Same refusal the lint gate makes, in front of the database: a migration that owes no proof turns
+// "applied" into a claim nobody can check.
+const unproved = findUnprovedMigrations(allMigrations);
+if (unproved.length > 0) {
+  console.error(`[migrate] migrations_without_a_proof ${unproved.join(', ')}`);
+  process.exit(1);
+}
+const phase = selectMigrationPhase(allMigrations, beforeTag);
 const pool = new pg.Pool({ connectionString: url, max: 1 });
 let exitCode = 0;
 let running = null;
@@ -259,15 +329,18 @@ try {
   const pendingTags = new Set(pending.map((migration) => migration.tag));
   const applied = phase.migrations.filter((migration) => !pendingTags.has(migration.tag));
 
-  // A ledger row is a claim. Before adding to it, make it answer for the schema it describes.
-  const expected = collectExpectedObjects(applied);
-  const presenceSql = renderObjectPresenceSql(expected);
+  // A ledger row is a claim. Before adding to it, make it answer for what it describes: the objects
+  // the applied migrations still hold, and the explicit VERIFY probe of the ones that hold none.
+  // The answers are matched by the `at` each row carries — `UNION ALL` promises no order, and a row
+  // read by position turns a missing answer into a silent "present".
+  const expected = collectMigrationProofs(applied);
+  const presenceSql = renderProofSql(expected);
   if (presenceSql) {
-    const present = (await pool.query(presenceSql)).rows;
-    const missing = expected.filter((_, index) => present[index]?.present === false);
+    const answers = (await pool.query(presenceSql)).rows;
+    const missing = interpretProofAnswers(expected, answers);
     if (missing.length > 0) {
       throw new Error(
-        `migration_ledger_answers_for_absent_objects ${missing.map(describeObject).join('; ')}`,
+        `migration_ledger_answers_for_absent_objects ${missing.map(describeProof).join('; ')}`,
       );
     }
   }
@@ -294,7 +367,7 @@ try {
   running = null;
   console.log(
     `[migrate] Drizzle migrations complete total=${phase.migrations.length} applied-now=${pending.length}`
-      + ` verified-objects=${expected.length}${phase.bounded ? ` bounded-before=${beforeTag}` : ''}`,
+      + ` verified-proofs=${expected.length}${phase.bounded ? ` bounded-before=${beforeTag}` : ''}`,
   );
 } catch (error) {
   exitCode = 1;

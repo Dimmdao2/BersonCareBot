@@ -69,8 +69,6 @@ function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
     assertQuota(key, value);
     if (key === 'files' && value.unit === 'bytes') {
       normalized.files = { ...value, warningAtPercent: value.warningAtPercent ?? null };
-    } else if (key === 'patient_count' && value.unit === 'items') {
-      normalized.patient_count = { ...value, warningAtPercent: value.warningAtPercent ?? null };
     } else if (key === 'branches' && value.unit === 'items') {
       // `assertQuota` already refused a threshold here; drop the key rather than persist it.
       normalized.branches = { kind: value.kind, limit: value.limit, unit: 'items' };
@@ -697,7 +695,7 @@ export async function resolveOwnTariffTransition(
           usage,
           currentTariff,
           targetTariff,
-          blockableMechanics: ['clinic_team', 'branches', 'patient_count'],
+          blockableMechanics: ['clinic_team', 'branches'],
         })
       : { blocks: [], appliesNextPeriod: false }),
     ...(priceAppliesNextPeriod ? { priceAppliesNextPeriod: true as const } : {}),

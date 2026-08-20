@@ -154,6 +154,8 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
     },
     async setOrganizationActive(organizationId, isActive) {
       if (!organizationTariffs.has(organizationId)) throw new Error('organization_not_found');
+      const before = organizationIsActive.get(organizationId) ?? true;
+      if (before === isActive) return { isActive, changed: false };
       organizationIsActive.set(organizationId, isActive);
       return { isActive, changed: true };
     },

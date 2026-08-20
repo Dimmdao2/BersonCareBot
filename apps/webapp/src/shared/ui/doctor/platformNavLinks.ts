@@ -69,6 +69,12 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
     accessTier: 'global_admin',
   },
   {
+    id: 'admin-notification-templates',
+    label: 'Шаблоны',
+    href: '/app/admin/notification-templates',
+    accessTier: 'global_admin',
+  },
+  {
     id: 'admin-integrations',
     label: 'Интеграции',
     href: '/app/admin/integrations',

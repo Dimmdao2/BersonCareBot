@@ -45,7 +45,6 @@ type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 type EnforcedQuotaUsageRow = {
   clinic_team_used: number | string;
-  patient_count_used: number | string;
   files_used: number | string;
 };
 
@@ -446,7 +445,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       assertPlatformOperationsPrincipal();
       const [enforcedUsage, [branchesRow]] = await Promise.all([
         runWebappPgText<EnforcedQuotaUsageRow>(
-          `SELECT clinic_team_used, patient_count_used, files_used
+          `SELECT clinic_team_used, files_used
            FROM app.read_org_enforced_quota_usage($1::uuid)`,
           [organizationId],
         ),
@@ -458,7 +457,6 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       const usage = enforcedUsage.rows[0];
       return {
         clinic_team: numericUsage(usage?.clinic_team_used, 'clinic_team'),
-        patient_count: numericUsage(usage?.patient_count_used, 'patient_count'),
         branches: numericUsage(branchesRow?.used, 'branches'),
         files: numericUsage(usage?.files_used, 'files'),
       };

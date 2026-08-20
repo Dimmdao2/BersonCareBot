@@ -100,7 +100,7 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
       sql`INSERT INTO public.saas_tariffs (id, name, mechanics, quotas, billing_period, included_seats)
           VALUES (
             ${TARIFF}::uuid, 'Ч2.12 proof tariff', '{"courses": true}'::jsonb,
-            '{"patient_count": {"kind": "numeric", "limit": 10}}'::jsonb, 'month', 5
+            '{"branches": {"kind": "numeric", "limit": 10, "unit": "items"}}'::jsonb, 'month', 5
           )`,
     );
     // Seeding trigger on organization insert hits RLS under its own SECURITY DEFINER path even for
@@ -153,21 +153,21 @@ describe.skipIf(!enabled)('§2.12 tariff paid-period snapshot (real DB, opt-in)'
   it('§2.12 round 2 — shrinking the LIVE tariff quota mid-period does not reach the frozen limit', async () => {
     // Frozen snapshot still says limit 10 — 9 used + 1 more fits.
     await expect(
-      transactionQuotaPort.withinLock(db, { organizationId: ORG, mechanic: 'patient_count' }, (quota) =>
+      transactionQuotaPort.withinLock(db, { organizationId: ORG, mechanic: 'branches' }, (quota) =>
         quota.assertStockAvailable(async () => 9),
       ),
     ).resolves.toBeUndefined();
 
     await db.execute(
       sql`UPDATE public.saas_tariffs
-          SET quotas = '{"patient_count": {"kind": "numeric", "limit": 3}}'::jsonb
+          SET quotas = '{"branches": {"kind": "numeric", "limit": 3, "unit": "items"}}'::jsonb
           WHERE id = ${TARIFF}::uuid`,
     );
 
     // Before the round-2 fix this read the LIVE tariff (limit 3) and threw here; the frozen
     // snapshot still says 10, so 9 used + 1 more still fits for the rest of the paid period.
     await expect(
-      transactionQuotaPort.withinLock(db, { organizationId: ORG, mechanic: 'patient_count' }, (quota) =>
+      transactionQuotaPort.withinLock(db, { organizationId: ORG, mechanic: 'branches' }, (quota) =>
         quota.assertStockAvailable(async () => 9),
       ),
     ).resolves.toBeUndefined();

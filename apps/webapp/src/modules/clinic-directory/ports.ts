@@ -54,16 +54,48 @@ export type ClaimOrganizationSlugInput = {
 export type RenameOrganizationSlugInput = {
   organizationId: string;
   reservedSlug: string;
+  /**
+   * Кто инициирует смену. Решение по единственной пожизненной самостоятельной смене принимается
+   * ВНУТРИ этой операции, в той же транзакции, где пишется событие: отдельная предварительная
+   * проверка снаружи всегда читала бы состояние до чужого коммита и пропускала две смены сразу.
+   */
+  initiatedBy: OrganizationSlugRenameInitiator;
 };
+
+/**
+ * `clinic` тратит единственное самостоятельное переименование; `platform_admin` — обращение в
+ * поддержку, лимитом не ограничено (владелец 19.08).
+ */
+export type OrganizationSlugRenameInitiator = 'clinic' | 'platform_admin';
 
 export type OrganizationSlugManagementState = {
   currentSlug: string | null;
+  /**
+   * Сколько смен адреса клиника сделала САМА. Считается по событиям
+   * `organization_slug_rename_events`, проштампованным `initiated_by = 'clinic'`; отдельного
+   * поля-счётчика на организации нет намеренно (производное поле разошлось бы с событийной таблицей).
+   */
+  selfRenamesUsed: number;
+  /**
+   * Осталась ли у клиники её единственная самостоятельная смена (владелец 19.08: «Клинике дается ОДНА
+   * смена слаг самостоятельно (за весь период жизни)»). Смена, инициированная админом платформы по
+   * обращению в поддержку, лимит не тратит — её событие проштамповано `platform_admin`.
+   *
+   * Это ПОКАЗАНИЕ для экрана, а не разрешение: отказать или пропустить решает сама операция смены в
+   * своей транзакции. Прочитанное здесь значение к моменту записи уже может устареть.
+   */
+  selfRenameAllowed: boolean;
 };
 
 export type SetOrganizationSlugInput = {
   organizationId: string;
   slug: string;
   irreversibleRenameConfirmed: boolean;
+  /**
+   * Кто инициировал смену. Никогда не приходит из тела запроса: маршрут проставляет его из своего
+   * гейта, иначе клиника объявила бы себя админом и обошла единственную смену.
+   */
+  initiatedBy: OrganizationSlugRenameInitiator;
 };
 
 export type OrganizationSlugMutationErrorCode =
@@ -78,7 +110,8 @@ export type OrganizationSlugMutationErrorCode =
   | 'slug_too_long'
   | 'slug_unchanged'
   | 'reserved_slug'
-  | 'rename_confirmation_required';
+  | 'rename_confirmation_required'
+  | 'self_rename_allowance_spent';
 
 export type OrganizationSlugMutationResult =
   | { ok: true; slug: string }

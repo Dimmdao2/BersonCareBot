@@ -242,6 +242,7 @@ export function createSaasBillingService(dependencies: {
       providerIdempotencyKey: input.providerIdempotencyKey,
       providerId: provider.providerId,
       expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
+      asOf: now().toISOString(),
     });
     if (!created && invoice.providerCheckoutUrl) return invoice;
     let checkoutInvoice = invoice;
@@ -897,7 +898,12 @@ export function createSaasBillingService(dependencies: {
     createManualSaasBillingInvoice,
     purchaseSeatOverage,
 
-    /** К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port doc. */
+    /**
+     * К4 — only a `draft`/`pending` invoice can be cancelled; see `cancelSaasBillingInvoice` port
+     * doc. Автоматический счёт за место отказывается отменяться (Р-17): срок счёта один — конец
+     * периода, после которого долг переносится в счёт следующего периода (Р-18), перевыставления
+     * нет (Р-19).
+     */
     cancelSaasBillingInvoice(input: {
       saasBillingInvoiceId: string;
       actorId: string | null;
@@ -994,6 +1000,7 @@ export function createSaasBillingService(dependencies: {
               servicePeriodStartsAt,
               servicePeriodEndsAt,
               expiresAt: saasBillingInvoiceExpiresAt(now(), provider.invoiceValidityDays),
+              asOf,
             });
           if (!wasCreated) {
             alreadyInvoiced += 1;

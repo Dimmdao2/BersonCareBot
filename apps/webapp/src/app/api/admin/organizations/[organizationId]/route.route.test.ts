@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextResponse } from 'next/server';
 
 const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
@@ -29,6 +29,7 @@ beforeEach(() => {
 });
 
 describe('PATCH /api/admin/organizations/[organizationId]', () => {
+  // Поломка: без platform.operations чужой сессии удаётся выключить клинику.
   it('refuses when the platform gate rejects', async () => {
     fakes.requirePlatformOperationsApiContext.mockResolvedValue({
       ok: false,

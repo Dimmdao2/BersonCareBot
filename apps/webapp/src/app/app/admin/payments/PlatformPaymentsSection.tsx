@@ -11,6 +11,7 @@ import type {
 } from '@/modules/saas-billing/ports';
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
 import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
+import { saasBillingInvoiceCancelVerdict } from '@/modules/saas-billing/invoiceOperations';
 import {
   Card,
   CardAction,
@@ -59,6 +60,16 @@ function statusBadgeVariant(
   if (status === 'paid') return 'secondary';
   if (status === 'failed' || status === 'void') return 'destructive';
   return 'outline';
+}
+
+/**
+ * «Аннулирован» и «перевыставлен» — два разных утверждения: первое значит «счёта не было», второе —
+ * «сумма на другом счёте». Отличает их наличие преемника, а не статус: в базе оба `void`. Читать
+ * журнал, где перевыставленный счёт подписан «Аннулирован», значит верить, что долг исчез.
+ */
+function invoiceStatusLabel(row: SaasBillingPlatformInvoiceRow): string {
+  if (row.status === 'void' && row.supersededByInvoiceId) return 'Перевыставлен';
+  return INVOICE_STATUS_LABELS[row.status];
 }
 
 /**
@@ -120,6 +131,8 @@ function manualInvoiceErrorLabel(code: string): string {
 const CANCEL_ERROR_LABELS: Record<string, string> = {
   invoice_not_found: 'Счёт не найден.',
   invoice_not_cancellable: 'Счёт уже оплачен или уже отменён — отменить нельзя.',
+  seat_invoice_not_cancellable:
+    'Счёт за место не отменяют: место продано. Неоплаченный долг перейдёт в счёт следующего периода.',
   forbidden: 'Нет прав на отмену.',
   unauthorized: 'Сессия истекла — войдите заново.',
 };
@@ -1145,10 +1158,16 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                         </td>
                         <td className="px-3 py-2 align-top font-medium">
                           {formatAmount(row.amountMinor, row.currency)}
+                          {row.carriedDebtMinor > 0 && (
+                            <span className="block text-xs font-normal text-muted-foreground">
+                              в том числе долг за места:{' '}
+                              {formatAmount(row.carriedDebtMinor, row.currency)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-top">
                           <Badge variant={statusBadgeVariant(row.status)}>
-                            {INVOICE_STATUS_LABELS[row.status]}
+                            {invoiceStatusLabel(row)}
                           </Badge>
                           {isInvoiceOverdue(row) && (
                             <Badge variant="destructive" className="ml-1">
@@ -1162,8 +1181,13 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                         <td className="px-3 py-2 align-top">
                           <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
                         </td>
+                        {/* Какое действие применимо к счёту, решает не статус на экране, а общий
+                            вердикт `invoiceOperations.ts` — тот же, которым маршрут отказывает
+                            прямому запросу. Автоматический счёт за место не отменяют (Р-17):
+                            место продано, а неоплаченный долг переносится в счёт следующего
+                            периода (Р-18), перевыставления нет (Р-19). */}
                         <td className="px-3 py-2 align-top">
-                          {(row.status === 'draft' || row.status === 'pending') && (
+                          {saasBillingInvoiceCancelVerdict(row).allowed && (
                             <Button
                               type="button"
                               variant="outline"

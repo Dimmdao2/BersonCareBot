@@ -100,16 +100,49 @@ export function billableAdditionalSeats(input: {
 /**
  * ОДИН счёт на следующий период — тариф плюс места по полной цене, никогда два счёта.
  * Mid-period proration belongs to the seat purchase alone; a full period is billed in full.
+ *
+ * `carriedDebtMinor` — долг за место, не закрытый к концу предыдущего периода (решение владельца
+ * 19.08: «Если до конца периода счет не оплачен — делать его просроченным и включать долг в
+ * стоимость следующего периода»). Поле ОБЯЗАТЕЛЬНОЕ намеренно: счёт следующего периода выставляют
+ * две двери (клиника сама и фоновый тик), и новая дверь, забывшая про долг, обязана не собираться,
+ * а не тихо выставлять сумму без него.
  */
 export function saasBillingPeriodAmountMinor(input: {
   tariffPriceMinor: number;
   additionalSeatPriceMinor: number | null;
   additionalSeatQuantity: number;
+  carriedDebtMinor: number;
 }): number {
   if (input.additionalSeatQuantity > 0 && input.additionalSeatPriceMinor === null) {
     throw new Error('saas_billing_additional_seat_price_missing');
   }
+  if (!Number.isInteger(input.carriedDebtMinor) || input.carriedDebtMinor < 0) {
+    throw new Error('saas_billing_carried_debt_invalid');
+  }
   return (
-    input.tariffPriceMinor + input.additionalSeatQuantity * (input.additionalSeatPriceMinor ?? 0)
+    input.tariffPriceMinor +
+    input.additionalSeatQuantity * (input.additionalSeatPriceMinor ?? 0) +
+    input.carriedDebtMinor
   );
+}
+
+/**
+ * Сумма долга за места, переезжающая в счёт следующего периода.
+ *
+ * Складывать разрешено только одинаковую валюту: сумма счёта — одно число в одной валюте, и молча
+ * сложенные рубли с чем-то ещё дадут правдоподобное неверное число. Расхождение — громкий отказ,
+ * а не тихий пропуск строки: пропущенная строка означает прощённый долг.
+ */
+export function carriedSeatDebtMinor(input: {
+  periodCurrency: string;
+  debts: ReadonlyArray<{ amountMinor: number; currency: string }>;
+}): number {
+  let total = 0;
+  for (const debt of input.debts) {
+    if (debt.currency !== input.periodCurrency) {
+      throw new Error('saas_billing_carried_debt_currency_mismatch');
+    }
+    total += debt.amountMinor;
+  }
+  return total;
 }
