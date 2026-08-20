@@ -212,7 +212,7 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
     );
   }
   const ledgerLines = appliedTags.map(
-    (tag, index) => `${'a'.repeat(64)}\t${1800000000100 + index * 100}\t${tag}`,
+    (tag, index) => `${index + 1}\t${'a'.repeat(64)}\t${1800000000100 + index * 100}\t${tag}`,
   );
   // A row this checkout cannot name, carrying the exact content hash of a pending file: the
   // scenario a rename of an already-applied migration produces. `hash` overrides `matchesTag`'s
@@ -220,7 +220,7 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
   if (foreignRow) {
     const hash = foreignRow.hash
       ?? createHash('sha256').update(readFileSync(join(migrations, `${foreignRow.matchesTag}.sql`), 'utf8')).digest('hex');
-    ledgerLines.push(`${hash}\t${foreignRow.createdAt}\t${foreignRow.tag}`);
+    ledgerLines.push(`${foreignRow.id ?? 598}\t${hash}\t${foreignRow.createdAt}\t${foreignRow.tag ?? ''}`);
   }
   const ledger = ledgerLines.join('\n');
   // The catalog probe asks one row per expected object, positional. The fake answers `t` for every
@@ -529,14 +529,66 @@ test('drop-foreign refuses a tag that is not a foreign ledger row', () => {
   assert.equal(existsSync(runtime.capture), false);
 });
 
-test('relabel and drop-foreign are refused without --drizzle-folder', () => {
+test('drop-foreign-hash deletes one tagless foreign row by its observed hash', () => {
+  const hash = 'c13927102c549a4d9bfa74f6c600471d1583ee55534217905071fb110acf5124';
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0001_late_arrival', '0002_third'],
+    foreignRow: { tag: null, hash, createdAt: 1800000070000, id: 598 },
+  });
+
+  const result = runLedgerMigrator(runtime, ['--drop-foreign-hash', hash]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(
+    transaction,
+    /DELETE FROM drizzle\.__drizzle_migrations WHERE id = 598 AND tag IS NULL AND hash = 'c13927102c549a4d9bfa74f6c600471d1583ee55534217905071fb110acf5124';/u,
+  );
+  assert.match(result.stdout, /dropped-foreign-by-hash=1/u);
+});
+
+test('drop-foreign-hash refuses a tagless row whose hash a file in this folder still claims', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['0000_first', '0002_third'],
+    foreignRow: { tag: null, matchesTag: '0001_late_arrival', createdAt: 1800000000350 },
+  });
+  const hash = createHash('sha256')
+    .update(readFileSync(join(runtime.migrations, '0001_late_arrival.sql'), 'utf8'))
+    .digest('hex');
+
+  const result = runLedgerMigrator(runtime, ['--drop-foreign-hash', hash]);
+
+  assert.notEqual(result.status, 0, 'a row a file still claims by hash must not be dropped');
+  assert.match(result.stderr, /this is a rename, not a dead row/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('drop-foreign-hash refuses a hash that names no tagless foreign row', () => {
+  const runtime = createLedgerRuntime({ appliedTags: ['0000_first', '0001_late_arrival', '0002_third'] });
+
+  const result = runLedgerMigrator(runtime, ['--drop-foreign-hash', 'c13927102c549a4d']);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /is not exactly one tagless foreign ledger row/u);
+  assert.equal(existsSync(runtime.capture), false);
+});
+
+test('relabel, drop-foreign and drop-foreign-hash are refused without --drizzle-folder', () => {
   const result = spawnSync(
     process.execPath,
     [migratorPath, '--db', 'bcb_webapp_dev', '--migrator', 'bcb_dev_migrator', '--relabel', 'a:b'],
     { encoding: 'utf8' },
   );
   assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /--relabel and --drop-foreign are supported only with --drizzle-folder/u);
+  assert.match(result.stderr, /--relabel, --drop-foreign and --drop-foreign-hash are supported only with --drizzle-folder/u);
+
+  const hashResult = spawnSync(
+    process.execPath,
+    [migratorPath, '--db', 'bcb_webapp_dev', '--migrator', 'bcb_dev_migrator', '--drop-foreign-hash', 'c13927102c549a4d9bfa74f6c600471d1583ee55534217905071fb110acf5124'],
+    { encoding: 'utf8' },
+  );
+  assert.notEqual(hashResult.status, 0);
+  assert.match(hashResult.stderr, /--relabel, --drop-foreign and --drop-foreign-hash are supported only with --drizzle-folder/u);
 });
 
 test('unapply is refused without --drizzle-folder', () => {
