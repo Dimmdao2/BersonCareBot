@@ -12,10 +12,18 @@ import type { DoctorPatientCardShellMeta, DoctorPatientCardTabBootstrap } from '
 vi.mock('./tabs/PatientTabKarta', () => ({
   PatientTabKarta: () => <div data-testid="panel-karta">karta panel</div>,
 }));
-vi.mock('./tabs/PatientTabOverview', () => ({ PatientTabOverview: () => null }));
+vi.mock('./tabs/PatientTabOverview', () => ({
+  PatientTabOverview: ({ onTabSwitch }: { onTabSwitch?: (tabId: string) => void }) => (
+    <button type="button" onClick={() => onTabSwitch?.('comms')}>
+      вся переписка
+    </button>
+  ),
+}));
 vi.mock('./tabs/PatientTabRecords', () => ({ PatientTabRecords: () => null }));
 vi.mock('./tabs/PatientTabFinances', () => ({ PatientTabFinances: () => null }));
-vi.mock('./tabs/PatientTabComms', () => ({ PatientTabComms: () => null }));
+vi.mock('./tabs/PatientTabComms', () => ({
+  PatientTabComms: () => <div data-testid="card-communications">communications</div>,
+}));
 vi.mock('./tabs/PatientTabProgram', () => ({
   PatientTabProgram: () => <div data-testid="panel-program">program panel</div>,
 }));
@@ -187,5 +195,25 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     const kartaPanel = await screen.findByTestId('panel-karta');
     expect(kartaPanel.closest('.hidden')).toBeNull();
     expect(screen.queryByTestId('panel-program')).not.toBeInTheDocument();
+  });
+
+  it('keeps the consolidated card visible when its communications shortcut is used', async () => {
+    render(
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={fulfilledThenable(tabBootstrap)}
+        initialTab="karta"
+        patientListHref={patientListHref}
+      />,
+    );
+
+    const communications = await screen.findByTestId('card-communications');
+    expect(communications.closest('.hidden')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'вся переписка' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('card-communications').closest('.hidden')).toBeNull();
+    });
   });
 });

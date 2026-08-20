@@ -1,5 +1,6 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { PatientTabRecords } from './PatientTabRecords';
 
 const patientId = '22222222-2222-4222-8222-222222222222';
@@ -65,5 +66,31 @@ describe('patient records tab — a refused load is not a visit history', () => 
 
     expect(await screen.findByText(/Записей пока нет/)).toBeInTheDocument();
     expect(screen.queryByText(/Не удалось загрузить записи/)).not.toBeInTheDocument();
+  });
+
+  it('opens notes for an appointment that already has a visit record', async () => {
+    const openVisit = vi.fn();
+    const preparedAppointment = {
+      id: 'appointment-with-visit',
+      internalId: 'appointment-with-visit',
+      dateTime: '2026-08-19T10:00:00.000Z',
+      status: 'completed',
+      serviceName: 'Консультация',
+      location: 'Клиника',
+      durationMin: 60,
+      hasVisitRecord: true,
+    } satisfies PatientAppointmentItem & { hasVisitRecord: boolean };
+
+    render(
+      <PatientTabRecords
+        userId={patientId}
+        initialAppointments={[preparedAppointment]}
+        onCreateVisitFromAppointment={openVisit}
+      />,
+    );
+
+    expect(await screen.findByRole('button', { name: 'Открыть заметки' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Оформить визит' })).not.toBeInTheDocument();
+    expect(openVisit).not.toHaveBeenCalled();
   });
 });

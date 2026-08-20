@@ -63,6 +63,27 @@ const clientIdentity: ClientIdentity = {
   channelBindingDates: {},
 };
 
+function webappConversation(organizationId: string | null) {
+  return {
+    id: 'conv-1',
+    organizationId,
+    integratorConversationId: 'int-conv-1',
+    platformUserId: PATIENT_ID,
+    integratorUserId: null,
+    source: 'webapp' as const,
+    adminScope: 'org',
+    status: 'open' as const,
+    openedAt: '2026-08-05T11:00:00.000Z',
+    lastMessageAt: '2026-08-05T12:00:00.000Z',
+    closedAt: null,
+    closeReason: null,
+    channelCode: null,
+    channelExternalId: null,
+    createdAt: '2026-08-05T11:00:00.000Z',
+    updatedAt: '2026-08-05T12:00:00.000Z',
+  };
+}
+
 describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -116,26 +137,7 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
   });
 
   it('returns existing messages without ensure when a webapp conversation is present', async () => {
-    fakes.listConversationsByUser.mockResolvedValue([
-      {
-        id: 'conv-1',
-        organizationId: ORGANIZATION_ID,
-        integratorConversationId: 'int-conv-1',
-        platformUserId: PATIENT_ID,
-        integratorUserId: null,
-        source: 'webapp',
-        adminScope: 'org',
-        status: 'open',
-        openedAt: '2026-08-05T11:00:00.000Z',
-        lastMessageAt: '2026-08-05T12:00:00.000Z',
-        closedAt: null,
-        closeReason: null,
-        channelCode: null,
-        channelExternalId: null,
-        createdAt: '2026-08-05T11:00:00.000Z',
-        updatedAt: '2026-08-05T12:00:00.000Z',
-      },
-    ]);
+    fakes.listConversationsByUser.mockResolvedValue([webappConversation(ORGANIZATION_ID)]);
     fakes.listMessagesSince.mockResolvedValue([
       {
         id: 'msg-1',
@@ -168,5 +170,25 @@ describe('GET /api/doctor/patients/[userId]/messages-snapshot', () => {
     expect(json.unreadFromUserCount).toBe(1);
     expect(json.messages).toHaveLength(1);
     expect(fakes.ensureConversation).not.toHaveBeenCalled();
+  });
+
+  it('does not expose a legacy conversation without exact organization ownership', async () => {
+    fakes.listConversationsByUser.mockResolvedValue([webappConversation(null)]);
+    fakes.listMessagesSince.mockResolvedValue([]);
+    fakes.countUnreadUserMessagesForAdminByConversation.mockResolvedValue(0);
+
+    const response = await GET(new Request('http://test/messages-snapshot'), {
+      params: Promise.resolve({ userId: PATIENT_ID }),
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      conversationId: undefined,
+      messages: [],
+      unreadFromUserCount: 0,
+    });
+    expect(fakes.listMessagesSince).not.toHaveBeenCalled();
+    expect(fakes.countUnreadUserMessagesForAdminByConversation).not.toHaveBeenCalled();
   });
 });
