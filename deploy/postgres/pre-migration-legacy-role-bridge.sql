@@ -1,4 +1,5 @@
 -- One-time fresh-PROD migration bridge.
+-- RETIRED FROM DEPLOY PATH: it would recreate the legacy app_owner elevated contract, contrary to its retired-role state.
 --
 -- The historical Drizzle chain still contains executable GRANT/REVOKE/OWNER statements for these
 -- three retired roles. The revision-10 declaration intentionally excludes them from the target
