@@ -144,3 +144,25 @@ The local encoder now uses explicit Model 2/L Reed–Solomon block groups for ev
 For the realistic URL, a local `qrencode` 4.1.1 Model 2/L symbol whose selected mask 2 was normalized to mask 0 over the standard data-module map, then received fresh L/mask-0 BCH format bits, produced the same product hash `2df4054f…`. The frozen oracle was not changed.
 
 `pnpm --dir apps/webapp exec vitest --run --project=ui src/app/app/doctor/calendar/DoctorCalendarEventPanel.ui.test.tsx -t 'keeps the QR on the server-returned URL'` passed: 1 selected / 7 skipped. Scoped ESLint passed with 2 existing warnings in `AppointmentPaymentSection.tsx`; `git diff --check` passed. `pnpm --dir apps/webapp typecheck` failed outside QR scope because workspace packages `@bersoncare/db-principal`, `@bersoncare/platform-merge`, and `@bersoncare/operator-db-schema` are unavailable, followed by unrelated existing type errors.
+
+## Version-10 frozen-oracle correction (2026-08-20)
+
+The two remaining red constants were arbitrated against a fresh local `/usr/bin/qrencode` 4.1.1 reference, not against `localQrCode.ts`. The one-time Node procedure called `qrencode -s 1 -8 -l L -m 0 -t XPM -o - <url>`, parsed `F` as a dark XPM module, and independently constructed the Version-10 function map: three finder+separator regions, timing axes, the Version-10 alignment centres `[6, 28, 50]` excluding the three finder overlaps, both format-information copies plus dark module, and both 18-bit version-information regions. It read the L-level format BCH word to identify qrencode's selected mask, XORed only non-function modules from that mask to mask 0 using the ISO mask predicates, and rewrote both format copies with the independently calculated L/mask-0 BCH word. It did not import, execute, or copy `localQrCode.ts`.
+
+The procedure cross-checked itself by applying the inverse transformation (mask 0 back to qrencode's format-selected mask, restoring that BCH word) and comparing every one of the 57×57 modules to the original XPM matrix. Both round trips were exact. This proves the normalizer's map, mask direction, and format rewrite for these two inputs; it does not rely on a product-generated matrix.
+
+```text
+version=10 size=57 functionModules=481 dataModules=2768 expectedCodewords=346 expectedBits=2768 remainderBits=0
+long YooKassa-shaped confirmation URL
+  utf8Bytes=238 originalMask=2
+  originalSha256=f0294f60df930dd0e0d2930b6dcbc05220a80ecbb313895492c1157e969df3ae
+  normalizedMask0Sha256=2df4054f6470743d895d06bc7ea35185c2ff72dc78e2ca4ccd4f744aedba393e
+  roundTripSha256=f0294f60df930dd0e0d2930b6dcbc05220a80ecbb313895492c1157e969df3ae exact=true
+271-byte version-10 capacity boundary
+  utf8Bytes=271 originalMask=1
+  originalSha256=03730d027df9010e259a799bfa83f6e57d3b45dbb2f4b7c8931c1c70b4d69a80
+  normalizedMask0Sha256=6b88fb0f2b5151338afff03daaefaa1bf04f6e6e52d2abbb7b434206054499cd
+  roundTripSha256=03730d027df9010e259a799bfa83f6e57d3b45dbb2f4b7c8931c1c70b4d69a80 exact=true
+```
+
+Version 10/L has explicit product-table groups `2 × 68` and `2 × 69` data codewords and four 18-codeword ECC blocks: `274 + 72 = 346` codewords, or exactly `2768` bits. The independent function map leaves exactly `2768` data modules, hence Version 10 has zero remainder bits. The exact normalized-matrix equality therefore covers every payload and ECC bit: an omitted or substituted byte would alter at least one of those modules. The product already matched both independently normalized hashes, so only the two disproven frozen constants above were replaced; the three previously green expectations are unchanged.

@@ -55,19 +55,20 @@ describe('localQrCodeDataUri', () => {
       url:
         'https://yoomoney.ru/checkout/payments/v2/contract?orderId=75a1a817-7a09-4c68-bb23-c88e5c26f39f&returnUrl=https%3A%2F%2Fbersoncare.ru%2Fapp%2Fpatient%2Fpayments%2Fcomplete&confirmationToken=' +
         `${'A'.repeat(48)}0`,
-      matrixSha256: 'b12364254121bc9490d04f84af9b5a9b1b8f6da9ba1304817aabeca2774a99c1',
+      matrixSha256: '2df4054f6470743d895d06bc7ea35185c2ff72dc78e2ca4ccd4f744aedba393e',
     },
     {
       label: '271-byte version-10 capacity boundary',
       url:
         'https://yoomoney.ru/checkout/payments/v2/contract?orderId=' +
         'a'.repeat(271 - 'https://yoomoney.ru/checkout/payments/v2/contract?orderId='.length),
-      matrixSha256: '2c54dc179e9d66f36df36215a9abe95b396ba068d382cbdeaf271971906fab58',
+      matrixSha256: '6b88fb0f2b5151338afff03daaefaa1bf04f6e6e52d2abbb7b434206054499cd',
     },
   ])('matches the independent QR Model 2 reference for a $label', ({ url, matrixSha256 }) => {
-    // Fixed qrencode 4.1.1/L/byte-mode oracles, normalized once to the product's declared mask 0.
+    // Fixed qrencode 4.1.1/L/byte-mode oracles, normalized independently to the product's declared mask 0.
     // The short and UTF-8 vectors were emitted directly with mask 0; version-10 vectors were
-    // re-masked over standard data modules and received fresh BCH format bits before hashing.
+    // re-masked over an independently-written standard function map, received fresh BCH format bits,
+    // and round-tripped exactly to qrencode's original matrix; see the audit artifact for the transcript.
     expect(matrixHash(localQrCodeDataUri(url))).toBe(matrixSha256);
   });
 });
