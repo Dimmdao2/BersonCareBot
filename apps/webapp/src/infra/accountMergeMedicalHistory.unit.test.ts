@@ -47,9 +47,9 @@ function clientWithMedicalHistory(): PlatformMergeDbClient & { query: ReturnType
           ],
         };
       }
-      if (query.includes('AS has_medical_history')) {
-        // An appointment is one of the owner-defined history rows; the port reports it as present.
-        return { rows: [{ has_medical_history: true }] };
+      if (query.includes('AS target_has')) {
+        // An appointment is one of the owner-defined history rows on BOTH sides — a real conflict.
+        return { rows: [{ target_has: true, duplicate_has: true }] };
       }
       return { rows: [] };
     }),
@@ -93,7 +93,7 @@ function manualResolution(target: string, duplicate: string): ManualMergeResolut
 
 function clientWithMedicalHistoryOnTargetOnly(): PlatformMergeDbClient {
   return {
-    query: vi.fn(async (query: string, values?: unknown[]) => {
+    query: vi.fn(async (query: string) => {
       if (query.includes('FROM platform_users') && query.includes('FOR UPDATE')) {
         return {
           rows: [
@@ -102,8 +102,27 @@ function clientWithMedicalHistoryOnTargetOnly(): PlatformMergeDbClient {
           ],
         };
       }
-      if (query.includes('AS has_medical_history')) {
-        return { rows: [{ has_medical_history: (values ?? []).includes(targetId) }] };
+      if (query.includes('AS target_has')) {
+        return { rows: [{ target_has: true, duplicate_has: false }] };
+      }
+      return { rows: [] };
+    }),
+  } as unknown as PlatformMergeDbClient;
+}
+
+function clientWithMedicalHistoryOnDuplicateOnly(): PlatformMergeDbClient {
+  return {
+    query: vi.fn(async (query: string) => {
+      if (query.includes('FROM platform_users') && query.includes('FOR UPDATE')) {
+        return {
+          rows: [
+            platformUserRow(targetId, 'New account without history'),
+            platformUserRow(duplicateId, 'Old account with history'),
+          ],
+        };
+      }
+      if (query.includes('AS target_has')) {
+        return { rows: [{ target_has: false, duplicate_has: true }] };
       }
       return { rows: [] };
     }),
@@ -111,7 +130,7 @@ function clientWithMedicalHistoryOnTargetOnly(): PlatformMergeDbClient {
 }
 
 describe('automatic account merge medical-history gate', () => {
-  it('rejects an automatic merge when the old account has an appointment/history', async () => {
+  it('rejects an automatic merge when BOTH sides have qualifying history — a real conflict', async () => {
     const db = clientWithMedicalHistory();
 
     await expect(
@@ -121,7 +140,7 @@ describe('automatic account merge medical-history gate', () => {
     expect(db.query).toHaveBeenCalledTimes(3);
   });
 
-  it('rejects when target selection puts the old account with history on the target side', async () => {
+  it('does not reject when only the target side has qualifying history — owner 20.08 (final): block only on conflict (both sides), single-side history is the normal returning-patient case', async () => {
     await expect(
       mergePlatformUsersInTransaction(
         clientWithMedicalHistoryOnTargetOnly(),
@@ -129,7 +148,18 @@ describe('automatic account merge medical-history gate', () => {
         duplicateId,
         'phone_bind',
       ),
-    ).rejects.toThrow('medical_history: automatic merge requires support');
+    ).resolves.not.toThrow();
+  });
+
+  it('does not reject when only the duplicate side has qualifying history — same rule, other side', async () => {
+    await expect(
+      mergePlatformUsersInTransaction(
+        clientWithMedicalHistoryOnDuplicateOnly(),
+        targetId,
+        duplicateId,
+        'phone_bind',
+      ),
+    ).resolves.not.toThrow();
   });
 });
 

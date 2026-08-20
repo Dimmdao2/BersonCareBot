@@ -122,18 +122,16 @@ const MEDICAL_HISTORY_RECORDS: readonly MedicalHistoryRecord[] = [
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM support_conversation_messages message
-          INNER JOIN support_conversations conversation ON conversation.id = message.conversation_id
-          WHERE conversation.platform_user_id = ANY(${ids}::uuid[]) AND message.sender_role = 'user'`,
+    // Переписка — НЕ конфликтная категория (владелец 20.08, дословно: «я бы сводил… смержить сообщения —
+    // это не должно конфликтовать, а вот смержить программы и журналы выполнения — это конфликт»).
+    // automaticProbe намеренно отсутствует: гейт эту таблицу не проверяет, сообщения переносятся
+    // transfer'ом безусловно при любом merge (auto и manual) — см. transferMedicalHistoryForMerge ниже.
     transfer: (targetId, duplicateId) => [
       sql`UPDATE support_conversations SET platform_user_id = ${targetId}::uuid WHERE platform_user_id = ${duplicateId}::uuid`,
     ],
   },
   {
-    automaticProbe: (ids) =>
-      sql`SELECT 1 FROM program_item_discussion_messages
-          WHERE patient_user_id = ANY(${ids}::uuid[]) AND sender_role = 'patient'`,
+    // Та же логика: обсуждение программы — переписка, не конфликтная категория, гейт её не проверяет.
     transfer: (targetId, duplicateId) => [
       sql`DELETE FROM program_item_discussion_reads duplicate
           WHERE duplicate.patient_user_id = ${duplicateId}::uuid
@@ -168,18 +166,27 @@ async function assertAutomaticMergeHasNoMedicalHistory(
   targetId: string,
   duplicateId: string,
 ): Promise<void> {
-  const accountIds = [targetId, duplicateId];
-  const probes = MEDICAL_HISTORY_RECORDS.flatMap((record) =>
-    record.automaticProbe ? [record.automaticProbe(accountIds)] : [],
-  );
-  const history = await runMergeSql<{ has_medical_history: boolean }>(
+  // D26 §5.2/§5.4 (владелец 20.08, финальная формулировка после серии уточнений): блок только при
+  // РЕАЛЬНОМ КОНФЛИКТЕ — когда квалифицирующие медицинские данные (визиты, записи/приёмы, мед.карточки,
+  // назначенные врачом программы — записи ниже с automaticProbe) есть У ОБЕИХ сторон пары одновременно.
+  // Если данные есть только у одной стороны (не важно, у target или у duplicate) — блокировать нечего:
+  // «зачем блокировать мерж, если только один аккаунт с данными и оба контакта подтверждены» — это
+  // штатный сценарий (вернувшийся пациент добавляет новый канал), и transferMedicalHistoryForMerge ниже
+  // спокойно переносит историю duplicate→target, как при любом merge. Переписка (чат/обсуждения) в этот
+  // список не входит вообще — у её записей automaticProbe нет, гейт её не касается.
+  const probesFor = (id: string) =>
+    MEDICAL_HISTORY_RECORDS.flatMap((record) => (record.automaticProbe ? [record.automaticProbe([id])] : []));
+  const result = await runMergeSql<{ target_has: boolean; duplicate_has: boolean }>(
     client,
-    sql`SELECT EXISTS (${sql.join(probes, sql` UNION ALL `)}) AS has_medical_history`,
+    sql`SELECT
+          EXISTS (${sql.join(probesFor(targetId), sql` UNION ALL `)}) AS target_has,
+          EXISTS (${sql.join(probesFor(duplicateId), sql` UNION ALL `)}) AS duplicate_has`,
   );
-  if (history.rows[0]?.has_medical_history) {
+  const row = result.rows[0];
+  if (row?.target_has && row?.duplicate_has) {
     throw new MergeDependentConflictError(
-      'medical_history: automatic merge requires support',
-      accountIds,
+      'medical_history: automatic merge requires support (conflict on both sides)',
+      [targetId, duplicateId],
     );
   }
 }
