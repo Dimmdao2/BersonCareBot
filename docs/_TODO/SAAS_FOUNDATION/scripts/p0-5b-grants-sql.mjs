@@ -81,7 +81,11 @@ const migrationOnlyTables = new Set([
 //   app_platform_settings DML and explicit REVOKE FROM app_staff; P0.5b must not re-grant them.
 // - public.booking_calendar_map is the canonical Google Calendar mapping behind exact named roots;
 //   the generated rev10 declaration owns its function-only grants, not ambient app_staff.
+// - integrator.direct_public_write_retries is a request/worker-only queue whose declaration grants
+//   INSERT to app_integrator_request and claim/update access to app_operational_delivery_worker;
+//   its payload can contain patient data, so ambient app_staff remains explicitly revoked.
 const overlayManagedAppStaffTables = new Set([
+  'integrator.direct_public_write_retries',
   'public.booking_calendar_map',
   'public.organization_member_invites',
   'public.patient_invites',
