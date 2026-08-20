@@ -54,3 +54,12 @@ dc4ca2a4e3fcff04c75c0cda4682903f53b30a46:AGENTS.md:generic-api-key:517
 f7db88013ad8e342e192959ef50cabe679c0acff:packages/db-principal/test/webapp-locked-infra-cron.test.mjs:generic-api-key:48
 35fba2479d52143eb7f15daa3f7a5dbe905b825f:apps/webapp/src/infra/repos/reminderCallbackCapabilities.postgres.integration.test.ts:generic-api-key:110
 928fe9ceeb6e307f20e83e8efbd3518a71ec6502:apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:generic-api-key:26
+
+# 2026-08-20 A→B cutover: значение флага pg_dump --restrict-key, не секрет. Флаг задаёт строку,
+# которой psql обрамляет вывод (\restrict/\unrestrict); без неё pg_dump берёт случайную на каждый
+# прогон и байт-сверка --check не совпала бы никогда. В HEAD литералов больше нет — ключ выводится
+# из имени артефакта (5dd2fde90), но gitleaks сканирует историю и держится за d14daf8ad.
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:39
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:48
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:54
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:72
