@@ -229,15 +229,12 @@ test('a bare number, a missing slug or an out-of-range clock field is not a time
   }
 });
 
-// This is the fact the naming change rests on: legacy '0001'.. sorts before every timestamp name,
-// because '0' < '2' — checked here against the sort the runners actually use, on the real folder,
-// not assumed from reading the regex.
-test('every real legacy migration name sorts before a 2026 timestamp name, by the sort runners use', () => {
-  const legacy = readMigrationFolder(REAL_MIGRATIONS_FOLDER).map((entry) => entry.tag);
-  assert.ok(legacy.length > 0, 'the real migrations folder must not be empty for this to prove anything');
-  const sorted = [...legacy, '20260820T014233_after_everything_legacy'].sort();
-  assert.deepEqual(sorted.slice(-1), ['20260820T014233_after_everything_legacy']);
-  assert.deepEqual(sorted.slice(0, legacy.length), [...legacy].sort());
+// The historical files and their allowlist are retired. The real folder therefore has no
+// grandfathered names: every active file must satisfy the timestamp rule on its own.
+test('every real migration has a timestamp name without a legacy allowlist', () => {
+  const migrations = readMigrationFolder(REAL_MIGRATIONS_FOLDER);
+  assert.ok(migrations.length > 0, 'the real migrations folder must not be empty for this to prove anything');
+  assert.deepEqual(findMigrationNameViolations(migrations, []), []);
 });
 
 test('a pending file byte-identical to a foreign ledger row is a rename of an applied migration', () => {
