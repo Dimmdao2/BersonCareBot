@@ -22,7 +22,6 @@ const CAPABILITIES: Record<string, IntegratorPortCapabilityDescriptor> = {
       'telegram-webhook:record-outcome',
       'worker:job-queue-drain',
       'worker:outgoing-delivery-tick',
-      'worker:projection-outbox-tick',
     ],
   },
 };

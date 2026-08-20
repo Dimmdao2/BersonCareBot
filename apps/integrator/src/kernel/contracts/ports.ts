@@ -318,15 +318,6 @@ export type GatewayResult =
 /** Совместимый алиас прежнего имени dispatch-контракта. */
 export type OutgoingDispatcher = DispatchPort;
 
-/** Payload for POST /api/integrator/events (webapp contract). */
-export type WebappEventBody = {
-  eventType: string;
-  eventId?: string;
-  occurredAt?: string;
-  idempotencyKey?: string;
-  payload?: Record<string, unknown>;
-};
-
 export type SupportQuestionCanonicalWrite = {
   organizationId: string;
   questionId: string;
@@ -340,7 +331,6 @@ export type SupportDeliveryCanonicalWrite = {
 
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
-  emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
   wakeOperatorHealthDigest?(input: {
     wakeId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;

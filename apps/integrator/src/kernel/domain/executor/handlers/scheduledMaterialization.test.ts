@@ -28,7 +28,7 @@ describe('scheduled patient reminder materialization', () => {
   it('does only one signed webapp wake', async () => {
     const wake = vi.fn(async () => ({ ok: true, status: 200 }));
     const result = await handleScheduledMaterialization(action, ctx, {
-      webappEventsPort: { emit: vi.fn(), wakePatientReminderMaterialization: wake },
+      webappEventsPort: { wakePatientReminderMaterialization: wake },
     });
     expect(result.status).toBe('success');
     expect(wake).toHaveBeenCalledWith({
@@ -39,7 +39,7 @@ describe('scheduled patient reminder materialization', () => {
 
   it('fails closed when the wake is unavailable', async () => {
     const result = await handleScheduledMaterialization(action, ctx, {
-      webappEventsPort: { emit: vi.fn() },
+      webappEventsPort: {},
     });
     expect(result.status).toBe('failed');
   });

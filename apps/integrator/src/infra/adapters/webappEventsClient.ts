@@ -3,9 +3,7 @@
  */
 import { createHash, createHmac } from 'node:crypto';
 import { integratorWebhookSecret } from '../../config/env.js';
-import type { WebappEventBody, WebappEventsPort } from '../../kernel/contracts/index.js';
-import { logger } from '../observability/logger.js';
-import { buildIntegratorEventsHttpBody } from './jsonStableStringify.js';
+import type { WebappEventsPort } from '../../kernel/contracts/index.js';
 
 type ParsedCanonicalWrite = {
   organizationId: string;
@@ -152,87 +150,6 @@ export function createWebappEventsPort(deps: {
         body: JSON.stringify(input),
         idempotencyKey: `patient-reminder-materialize:${input.organizationId}:${input.wakeId}`,
       });
-    },
-
-    async emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }> {
-      const baseUrl = await deps.getAppBaseUrl();
-      if (!baseUrl || !secret) {
-        return { ok: false, status: 0, error: 'APP_BASE_URL or webhook secret not set' };
-      }
-      const url = `${baseUrl.replace(/\/$/, '')}/api/integrator/events`;
-      const fallbackBody = buildIntegratorEventsHttpBody(event);
-      const rawIdempotencyKey =
-        event.idempotencyKey ??
-        `evt-fallback:${event.eventType}:${createHash('sha256').update(fallbackBody).digest('hex').slice(0, 24)}`;
-      const idempotencyKey = normalizeIdempotencyKeyForHeader(rawIdempotencyKey);
-      const body = buildIntegratorEventsHttpBody({ ...event, idempotencyKey });
-      const timestamp = String(Math.floor(Date.now() / 1000));
-      const signature = sign(timestamp, body, secret);
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'X-Bersoncare-Timestamp': timestamp,
-        'X-Bersoncare-Signature': signature,
-        'X-Bersoncare-Idempotency-Key': idempotencyKey,
-      };
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers,
-          body,
-        });
-        const text = await res.text().catch(() => '');
-        let parsed: { ok?: boolean; error?: string } = {};
-        let jsonParsed = false;
-        if (text) {
-          try {
-            parsed = JSON.parse(text) as { ok?: boolean; error?: string };
-            jsonParsed = true;
-          } catch {
-            logger.warn(
-              {
-                metric: 'integrator_emit_body_reject',
-                eventType: event.eventType,
-                httpStatus: res.status,
-                bodySnippet: text.slice(0, 500),
-              },
-              'webapp events emit: response body is not valid JSON',
-            );
-          }
-        }
-        const ok = (res.status === 200 || res.status === 202) && parsed.ok === true;
-        if (!ok && (res.status === 200 || res.status === 202)) {
-          if (jsonParsed) {
-            logger.warn(
-              {
-                metric: 'integrator_emit_body_reject',
-                eventType: event.eventType,
-                httpStatus: res.status,
-                ...(typeof parsed.error === 'string' ? { error: parsed.error } : {}),
-              },
-              'webapp events emit: response ok is not true',
-            );
-          } else if (!text) {
-            logger.warn(
-              {
-                metric: 'integrator_emit_body_reject',
-                eventType: event.eventType,
-                httpStatus: res.status,
-              },
-              'webapp events emit: empty response body',
-            );
-          }
-        }
-        return {
-          ok,
-          status: res.status,
-          ...(ok
-            ? {}
-            : { error: typeof parsed.error === 'string' ? parsed.error : text || res.statusText }),
-        };
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        return { ok: false, status: 0, error: message };
-      }
     },
 
     async setSupportStatus(input: { body: string; idempotencyKey: string }): Promise<{

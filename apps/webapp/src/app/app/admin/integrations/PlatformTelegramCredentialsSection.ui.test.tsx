@@ -19,6 +19,7 @@ describe('PlatformTelegramCredentialsSection', () => {
               key: 'telegram_webhook_secret',
               valueJson: { value: { configured: true } },
             },
+            { key: 'telegram_mode', valueJson: { value: 'long_polling' } },
           ],
         }),
         { status: 200, headers: { 'content-type': 'application/json' } },
@@ -32,10 +33,12 @@ describe('PlatformTelegramCredentialsSection', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows the configured indicator returned for both write-only credentials', async () => {
+  it('shows credentials, the selected mode, and the restart notice', async () => {
     const { container } = render(<PlatformTelegramCredentialsSection />);
 
     expect(container.querySelectorAll('input[type="password"]')).toHaveLength(2);
     await waitFor(() => expect(screen.getAllByText('Задано')).toHaveLength(2));
+    expect(screen.getByLabelText('Режим приёма сообщений')).toHaveTextContent('Long polling');
+    expect(screen.getByText('Изменение вступит в силу после перезапуска интегратора.')).toBeVisible();
   });
 });
