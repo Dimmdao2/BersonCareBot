@@ -81,7 +81,12 @@ export async function GET() {
     deps.notifTemplates.getManagedTemplates({ organizationId: null }),
     deps.notifTemplates.getManagedPresentation({ organizationId: null }),
   ]);
-  return NextResponse.json({ ok: true, templates, presentation });
+  return NextResponse.json({
+    ok: true,
+    templates,
+    presentation,
+    brandingMutationAvailable: true,
+  });
 }
 
 export async function PUT(request: Request) {
