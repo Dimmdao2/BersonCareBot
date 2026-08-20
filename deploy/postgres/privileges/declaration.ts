@@ -348,13 +348,11 @@ export const PORTS: Record<Port, PortSpec> = {
 };
 
 /* ============================================================================================
- * SECTION 1 — РОЛИ КЛАСТЕРА (SCHEME §A.1/§A.2)
- *   Атрибуты — evidence/13 §1.2. BYPASSRLS объявлен ровно у ТРЁХ (postgres, app_owner,
- *   saas_system_health_owner), каждый обоснован. Две роли НОВЫЕ (`isNew`) и приходят из решений
- *   владельца: `app_integrator_resolver` (D5) и `app_operational_maintenance` (D8).
+ * LEGACY CENSUS — pre-revision-10 inventory retained only as input for the object census below.
+ * This is not the executable cluster role graph; REV10_ROLES is the only exported target.
  * ========================================================================================== */
 
-const roles: Record<string, RoleDecl> = {
+const legacyCensusRoles: Record<string, RoleDecl> = {
   // ── терминальные рантайм-роли ──
   app_staff: {
     kind: 'terminal', scope: 'ORG', // evidence/13 §4: своя организация
@@ -449,15 +447,7 @@ const roles: Record<string, RoleDecl> = {
       + 'ROLE — И3/К6). Четырёхстороннее членство НЕ объявлено (C3/C4).',
   },
 
-  // ── роли-владельцы (NOLOGIN, владеют definer-швом; §C) ──
-  app_owner: {
-    kind: 'owner', scope: 'NONE',
-    login: false, superuser: false,
-    bypassrls: true, // 1 из ровно-3; деплой ЖЁСТКО ассертит rolbypassrls (deploy-test-saas.sh:907, deploy-test.sh:174)
-    inherit: true, createrole: false, rolconfig: null,
-    members: [], // ноль членов вне окна миграции (SCHEME §C)
-    why: 'владелец definer-шва. Оставить-и-объявить — SCHEME §I Р5.',
-  },
+  // ── роли-владельцы старой переписи; выведенная app_owner сюда намеренно не входит ──
   saas_system_health_owner: {
     kind: 'owner', scope: 'NONE',
     login: false, superuser: false,
@@ -681,7 +671,7 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
 };
 
 // Retained legacy census input; revision 10 below is the executable exported role/login graph.
-void roles;
+void legacyCensusRoles;
 void envMapping;
 
 /* ============================================================================================

@@ -97,7 +97,6 @@ runtime_overlay_apply_post_migration_chain() {
     deploy/postgres/c5a-platform-operations-runtime.sql
   )
   local -a protected_overlays=(
-    deploy/postgres/runtime-overlay-app-owner-handoff.sql
     deploy/postgres/reference-catalog-rls.sql
     deploy/postgres/patient-visible-catalog-rls.sql
     deploy/postgres/patient-web-push-vapid-public-key-accessor.sql
