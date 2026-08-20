@@ -12,7 +12,7 @@
  *   2. The real "integrator" principal (org set, patient NULL) WITHOUT the fix's org-principal re-wrap
  *      is ALSO denied (this is the regression the audit found).
  *   3. The SAME "integrator" principal WITH the fix's org-principal re-wrap (mirrors
- *      `runDirectPublicWriteWithOrgPrincipal` in writePort.ts) SUCCEEDS, with the full field set and a
+ *      `writeDirectPublic` in directPublic/writePort.ts) SUCCEEDS, with the full field set and a
  *      non-NULL organization_id.
  * Verification/cleanup reads also go through `createDbPort()` under an explicit org principal (the
  * `bcb_test_integrator_login` role cannot SELECT a FORCE-RLS public table at all without one — same
@@ -35,18 +35,11 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { createDbPort } from '../client.js';
 import { upsertReminderRuleDirect } from './writeReminderRulesDirect.js';
+import { writeDirectPublic } from './writePort.js';
 import {
   runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
-  getCurrentOrganizationPrincipalId,
 } from '../../principal/organizationPrincipal.js';
-
-/** Mirrors `runDirectPublicWriteWithOrgPrincipal` in writePort.ts (kept intentionally in sync, not
- * imported, so this test still catches a regression if that helper is ever removed/inlined there). */
-function runDirectPublicWriteWithOrgPrincipal<T>(fn: () => Promise<T>): Promise<T> {
-  const organizationId = getCurrentOrganizationPrincipalId();
-  return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
-}
 
 const enabled =
   process.env.RUN_REMINDER_RULES_RLS_TEST === '1' &&
@@ -140,7 +133,7 @@ describe.skipIf(!enabled)(
           source: 'rls-integration-test',
         },
         () =>
-          runDirectPublicWriteWithOrgPrincipal(() =>
+          writeDirectPublic('reminder-rule-upsert', () =>
             upsertReminderRuleDirect(createDbPort(), {
               ...ruleInput(id),
               linkedObjectType: 'lfk_complex',
