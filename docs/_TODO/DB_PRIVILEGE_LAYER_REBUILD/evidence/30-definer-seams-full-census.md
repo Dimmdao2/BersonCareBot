@@ -78,7 +78,7 @@ DEV их не имеет. [R1]
 | `read_current_patient_organization_entitlements` | TEST удалил post-paid policy branch | шов 21; `saas_paid_period_policy` DEV-only, не давать после принятия TEST body |
 | `read_org_enforced_quota_usage` | только эквивалентный cast `integer`/`int` | шов 20; ACL не меняется |
 | `read_webapp_server_runtime_setting` | TEST убрал key `auth_2fa_enabled` | шов 19; allowlist должен соответствовать принятому body |
-| `record_operator_delivery_attempt` | TEST пишет широкую notification projection; DEV — узкий operator log | шов 31; это реальная смена relation/columns, не объединять поверхности |
+| `record_operator_delivery_attempt` | ⚠️ **ПРОТУХЛО, проверено 20.08:** расхождения больше нет — `md5(prosrc)` на `bcb_webapp_dev` и `bersoncarebot_test` совпадает (`63c7f67e…`), обе версии пишут `public.notification_delivery_attempts`. Прежний текст: «TEST пишет широкую notification projection; DEV — узкий operator log» | шов 31; поверхности уже сведены, объединять нечего |
 | `start_provisioned_organization_trial` | TEST использует registration tariff и discount window, DEV — trial tariff/grace | шов 10; точные columns берутся из принятой версии |
 
 ## 2. Целевая раскладка: 244 функции → 42 шва

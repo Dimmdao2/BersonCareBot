@@ -50,7 +50,6 @@ function basePayload() {
 
 function fakeWebappEventsPort(): WebappEventsPort {
   return {
-    emit: vi.fn(async () => ({ ok: true, status: 200 })),
     notifyPatientWebPush: vi.fn(async () => undefined),
     materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
   } as unknown as WebappEventsPort;

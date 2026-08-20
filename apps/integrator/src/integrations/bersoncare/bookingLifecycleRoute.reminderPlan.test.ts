@@ -23,7 +23,6 @@ const materialize = vi.fn<NonNullable<WebappEventsPort['materializeAppointmentRe
   async () => ({ ok: true, status: 200, current: true, inserted: 2 }),
 );
 const webappEventsPort: WebappEventsPort = {
-  emit: vi.fn(async () => ({ ok: true, status: 200 })),
   materializeAppointmentReminders: materialize,
 };
 

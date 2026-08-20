@@ -42,6 +42,7 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'platform_integration_availability',
   'telegram_bot_token',
   'telegram_webhook_secret',
+  'telegram_mode',
   'booking_location_default_palette',
 ] as const satisfies readonly SystemSettingKey[];
 
@@ -95,6 +96,11 @@ function normalizePlatformValue(
   if (isPlatformSecretSettingKey(key)) {
     if (typeof normalized.value !== 'string' || normalized.value.trim().length === 0) return null;
     return { value: normalized.value.trim() };
+  }
+  if (key === 'telegram_mode') {
+    return normalized.value === 'webhook' || normalized.value === 'long_polling'
+      ? { value: normalized.value }
+      : null;
   }
   return typeof normalized.value === 'boolean' ? { value: normalized.value } : null;
 }

@@ -8,7 +8,6 @@ import {
   type IntegratorPortCapabilityName,
 } from './portContextRuntime.js';
 import { runIntegratorNamedRoot } from './runIntegratorSql.js';
-import { getProjectionHealth } from './repos/projectionHealth.js';
 
 async function probeReadOnly(
   source: string,
@@ -40,14 +39,9 @@ async function probeNamedRoot(
   );
 }
 
-export function assertIntegratorDiagnosticPoolReady(): Promise<void> {
-  return getProjectionHealth(createDbPort(db)).then(() => undefined);
-}
-
 export async function assertDeliveryWorkerPoolReady(): Promise<void> {
   const probeId = '00000000-0000-4000-8000-000000000000';
-  await probeReadOnly('worker:projection-outbox-tick', 'delivery', [
-    'SELECT 1 FROM integrator.projection_outbox WHERE false',
+  await probeReadOnly('worker:outgoing-delivery-tick', 'delivery', [
     "SELECT 1 / has_function_privilege(current_user, 'app.record_operator_delivery_attempt(text,text,text,integer,text)', 'EXECUTE')::int",
     // revalidate_specialist_task_reminder_materialization and apply_specialist_task_reminder_success_outcome
     // both take `SELECT ... FOR UPDATE` inside, which cannot run in this probe's READ ONLY transaction on
@@ -57,13 +51,13 @@ export async function assertDeliveryWorkerPoolReady(): Promise<void> {
     "SELECT 1 / has_function_privilege(current_user, 'app.apply_specialist_task_reminder_success_outcome(uuid)', 'EXECUTE')::int",
   ]);
   await probeNamedRoot(
-    'worker:projection-outbox-tick',
+    'worker:outgoing-delivery-tick',
     'app.resolve_outgoing_delivery_scope(uuid)',
     [probeId],
     sql`SELECT resolution FROM app.resolve_outgoing_delivery_scope(${probeId}::uuid)`,
   );
   await probeNamedRoot(
-    'worker:projection-outbox-tick',
+    'worker:outgoing-delivery-tick',
     'app.operator_incident_alert_already_sent(uuid)',
     [probeId],
     sql`SELECT app.operator_incident_alert_already_sent(${probeId}::uuid)`,

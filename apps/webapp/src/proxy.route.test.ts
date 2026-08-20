@@ -82,13 +82,6 @@ describe('HTTP CSRF origin boundary', () => {
     expect(response.status).not.toBe(403);
   });
 
-  it('keeps the integrator exemption exact instead of exempting path prefixes', () => {
-    const exemptResponse = proxy(unsafeRequest('/api/integrator/events'));
-    const nearMatchResponse = proxy(unsafeRequest('/api/integrator/events/extra'));
-
-    expect(exemptResponse.status).not.toBe(403);
-    expect(nearMatchResponse.status).toBe(403);
-  });
 });
 
 describe('role-specific protected app doors', () => {

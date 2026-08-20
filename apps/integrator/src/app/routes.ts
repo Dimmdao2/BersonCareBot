@@ -17,7 +17,7 @@ import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicat
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
-import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
+import type { AppDeps } from './di.js';
 import {
   OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
   type OutboundProviderErrorClass,
@@ -29,16 +29,13 @@ import {
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { getSmscRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
   ok: true;
   db: 'up' | 'down';
 };
-
-/** Response shape for projection health (release gate). */
-export type ProjectionHealthResponse = ProjectionHealthSnapshot;
 
 function createResolveOrganizationIdForMessengerIdentity(): (
   externalId: string,
@@ -134,25 +131,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     return body;
   });
 
-  app.get<{ Reply: ProjectionHealthResponse }>('/health/projection', async (_request, reply) => {
-    try {
-      const snapshot = await deps.getProjectionHealth();
-      return reply.code(200).send(snapshot);
-    } catch (error) {
-      reportIntegratorIsolationFailure(error);
-      return reply.code(503).send({
-        pendingCount: 0,
-        deadCount: 0,
-        cancelledCount: 0,
-        oldestPendingAt: null,
-        processingCount: 0,
-        retryDistribution: {},
-        lastSuccessAt: null,
-        retriesOverThreshold: 0,
-      });
-    }
-  });
-
   await registerBersoncareSendSmsRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
@@ -227,7 +205,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     resolveMessengerStaffAdmin,
     resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
   };
-  if (env.TELEGRAM_MODE === 'long_polling') {
+  const telegramRuntimeConfig = await getTelegramRuntimeConfig();
+  if (telegramRuntimeConfig.mode === 'long_polling') {
     // RU-isolated host: Telegram cannot reach us inbound — pull updates via
     // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
     startTelegramLongPolling(telegramWebhookDeps);

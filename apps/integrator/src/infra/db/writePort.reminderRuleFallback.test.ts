@@ -182,7 +182,6 @@ describe('D20 canonical support handoff failures', () => {
 
   function webappEventsPort(): WebappEventsPort {
     return {
-      emit: vi.fn(),
       syncSupportDeliveryAttempt: fakes.syncSupportDeliveryAttempt,
     };
   }

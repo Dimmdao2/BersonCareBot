@@ -140,6 +140,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   max_api_base_url: restricted('admin', 'global', 'url', 'absent'),
   telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
   telegram_send_menu_on_button_press: restricted('admin', 'global', 'boolean', 'false'),
   vk_web_login_url: runtime('admin', 'global', 'public', 'url', ''),
   app_display_timezone: runtime('admin', 'global', 'public', 'string', 'Europe/Moscow'),
@@ -373,13 +374,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'server',
     'structured',
     '{"max":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"telegram":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"google_calendar":{"enabled":true,"intervalMs":600000,"timeoutMs":5000,"consecutiveFailures":2},"email":{"intervalMs":900000,"timeoutMs":60000,"roundTripDeadlineMs":300000,"retentionMs":604800000,"cleanupIntervalMs":86400000},"quietWindowMaxDurationMs":86400000,"quietUntil":null}',
-  ),
-  operator_health_projection_thresholds: runtime(
-    'admin',
-    'global',
-    'server',
-    'structured',
-    'absent',
   ),
   'notif_template:created:patient': runtime(
     'admin',
