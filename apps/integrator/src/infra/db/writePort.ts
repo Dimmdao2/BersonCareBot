@@ -33,16 +33,7 @@ import {
   rescheduleReminderOccurrencePlanned,
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
-import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
-import {
-  REMINDER_RULE_UPSERTED,
-  REMINDER_OCCURRENCE_FINALIZED,
-  REMINDER_DELIVERY_LOGGED,
-  CONTENT_ACCESS_GRANTED,
-} from '../../kernel/contracts/index.js';
-import type { ProjectionFanoutInput } from './repos/projectionFanout.js';
-import { tryEmitWebappProjectionThenEnqueue } from './repos/projectionFanout.js';
 import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
@@ -58,7 +49,16 @@ import {
 } from './directPublic/mergeCandidatesDirect.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
-import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
+import { collectPlatformUserCandidates } from './directPublic/writeIdentityAndPreferencesDirect.js';
+import {
+  appendReminderDeliveryEventDirect,
+  recordReminderOccurrenceFinalizedDirect,
+  upsertContentAccessGrantDirect,
+  type ContentAccessGrantDirectInput,
+  type ReminderDeliveryLoggedDirectInput,
+  type ReminderOccurrenceFinalizedDirectInput,
+} from './directPublic/writeReminderProjectionDirect.js';
+import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 import {
   runWithIntegratorPrincipal,
@@ -187,10 +187,30 @@ export function createDbWritePort(
     'message.retry.enqueue',
   ]);
 
-  async function fanoutProjectionsAfterTx(pending: ProjectionFanoutInput[]): Promise<void> {
-    for (const ev of pending) {
-      await tryEmitWebappProjectionThenEnqueue(db, webappEventsPort, ev);
-    }
+  async function queueDirectPublicRetry(
+    operation:
+      | 'reminder_occurrence_sent_record'
+      | 'reminder_occurrence_failed_record'
+      | 'reminder_occurrence_expired_record'
+      | 'reminder_delivery_log_append'
+      | 'content_access_grant_upsert',
+    organizationId: string,
+    stableId: string,
+    payload:
+      | ReminderOccurrenceFinalizedDirectInput
+      | ReminderDeliveryLoggedDirectInput
+      | ContentAccessGrantDirectInput,
+  ): Promise<void> {
+    await enqueueDirectPublicWriteRetry(db, {
+      operation,
+      organizationId,
+      idempotencyKey: projectionIdempotencyKey(
+        `direct-public-write.${operation}`,
+        stableId,
+        hashPayload(payload),
+      ),
+      payload,
+    });
   }
 
   function createTxBoundWritePort(txDb: DbPort): DbWritePort {
@@ -283,9 +303,7 @@ export function createDbWritePort(
           const resource = readResource(mutation.params);
           const channelUserId = readChannelUserId(mutation.params);
           const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
-          const preferredPlatformUserId = asNonEmptyString(
-            mutation.params.preferredPlatformUserId,
-          );
+          const preferredPlatformUserId = asNonEmptyString(mutation.params.preferredPlatformUserId);
           const bindLogBase = {
             event: 'messenger_phone_bind_tx' as const,
             bindOutcome: 'bind_tx_fail' as const,
@@ -484,19 +502,15 @@ export function createDbWritePort(
           const notificationTopicCodeRaw = notificationTopicCodeProvided
             ? asNullableString(mutation.params.notificationTopicCode)
             : undefined;
-          const resolvedPlatformUserId = asNonEmptyString(
-            mutation.params.resolvedPlatformUserId,
-          );
-          const resolvedOrganizationId = asNonEmptyString(
-            mutation.params.resolvedOrganizationId,
-          );
+          const resolvedPlatformUserId = asNonEmptyString(mutation.params.resolvedPlatformUserId);
+          const resolvedOrganizationId = asNonEmptyString(mutation.params.resolvedOrganizationId);
           const canonicalUserId = userId;
-          // D5 canonical write: the scheduler reads this same public row. The direct repository writes
-          // the replacement and cancels pending occurrences in one transaction; on failure the old
-          // schedule remains intact until the durable projection is consumed.
-          const fallbackKeyPayload = buildReminderRuleUpsertKeyPayload({
-            integratorRuleId: id,
+          // D5 canonical write: the scheduler reads this same public row. A failed write retains its
+          // complete direct-write input in the durable retry queue, so a later retry does not regress
+          // to the retired narrow HTTP projection payload.
+          const directInput = {
             integratorUserId: canonicalUserId,
+            integratorRuleId: id,
             category,
             isEnabled,
             scheduleType,
@@ -506,36 +520,23 @@ export function createDbWritePort(
             windowEndMinute,
             daysMask,
             contentMode,
-          });
+            linkedObjectType,
+            linkedObjectId,
+            customTitle,
+            customText,
+            scheduleData: mutation.params.scheduleData,
+            reminderIntent,
+            quietHoursStartMinute,
+            quietHoursEndMinute,
+            notificationTopicCode: notificationTopicCodeRaw,
+            resolvedPlatformUserId,
+            resolvedOrganizationId,
+          };
           try {
             await runDirectPublicWriteWithOrgPrincipal(() =>
-              upsertReminderRuleDirect(db, {
-                integratorUserId: canonicalUserId,
-                integratorRuleId: id,
-                category,
-                isEnabled,
-                scheduleType,
-                timezone,
-                intervalMinutes,
-                windowStartMinute,
-                windowEndMinute,
-                daysMask,
-                contentMode,
-                linkedObjectType,
-                linkedObjectId,
-                customTitle,
-                customText,
-                scheduleData: mutation.params.scheduleData,
-                reminderIntent,
-                quietHoursStartMinute,
-                quietHoursEndMinute,
-                notificationTopicCode: notificationTopicCodeRaw,
-                resolvedPlatformUserId,
-                resolvedOrganizationId,
-              }),
+              upsertReminderRuleDirect(db, directInput),
             );
           } catch (err) {
-            const fallbackUpdatedAt = new Date().toISOString();
             const fallbackOrganizationId =
               resolvedOrganizationId ?? getCurrentDbPrincipalOrganizationId();
             if (!fallbackOrganizationId) throw err;
@@ -543,23 +544,23 @@ export function createDbWritePort(
               {
                 organizationId: fallbackOrganizationId,
                 integratorUserId: canonicalUserId,
-                source: 'reminder-rule-outbox-fallback',
+                source: 'reminder-rule-direct-write-retry',
               },
               () =>
-                enqueueProjectionEvent(db, {
-                  eventType: REMINDER_RULE_UPSERTED,
+                enqueueDirectPublicWriteRetry(db, {
+                  operation: 'reminder_rule_upsert',
+                  organizationId: fallbackOrganizationId,
                   idempotencyKey: projectionIdempotencyKey(
-                    REMINDER_RULE_UPSERTED,
+                    'direct-public-write.reminder-rule-upsert',
                     id,
-                    hashPayload(fallbackKeyPayload),
+                    hashPayload(directInput),
                   ),
-                  occurredAt: fallbackUpdatedAt,
-                  payload: { ...fallbackKeyPayload, updatedAt: fallbackUpdatedAt },
+                  payload: { ...directInput, organizationId: fallbackOrganizationId },
                 }),
             );
             logger.warn(
               { err, mutationType: mutation.type, id, userId: canonicalUserId },
-              'reminders.rule.upsert: direct public write failed, fell back to durable outbox',
+              'reminders.rule.upsert: direct public write failed, queued durable direct retry',
             );
             await recordOperatorFailureIncident({
               direction: 'db_write',
@@ -579,89 +580,104 @@ export function createDbWritePort(
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           if (!occurrenceId || !channel) return;
-          const pendingOccSent: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            await markReminderOccurrenceSent(txDb, occurrenceId, channel);
-            const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-            if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
-              const canonicalUserId = ctx.userId;
-              const payload = {
-                integratorOccurrenceId: occurrenceId,
-                integratorRuleId: ctx.ruleId,
-                integratorUserId: canonicalUserId,
-                platformUserId: ctx.platformUserId,
-                organizationId: ctx.organizationId,
-                category: ctx.category,
-                status: ctx.status as 'sent' | 'failed',
-                deliveryChannel: ctx.deliveryChannel,
-                errorCode: ctx.errorCode,
-                occurredAt: ctx.occurredAt,
-              };
-              pendingOccSent.push({
-                eventType: REMINDER_OCCURRENCE_FINALIZED,
-                idempotencyKey: projectionIdempotencyKey(
-                  REMINDER_OCCURRENCE_FINALIZED,
-                  occurrenceId,
-                  hashPayload(payload),
-                ),
-                occurredAt: ctx.occurredAt,
-                payload,
-              });
-            }
-          });
-          await fanoutProjectionsAfterTx(pendingOccSent);
+          const directInput = await db.tx(
+            async (txDb): Promise<ReminderOccurrenceFinalizedDirectInput | null> => {
+              await markReminderOccurrenceSent(txDb, occurrenceId, channel);
+              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
+              if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
+                const canonicalUserId = ctx.userId;
+                return {
+                  integratorOccurrenceId: occurrenceId,
+                  integratorRuleId: ctx.ruleId,
+                  integratorUserId: canonicalUserId,
+                  platformUserId: ctx.platformUserId,
+                  organizationId: ctx.organizationId,
+                  category: ctx.category,
+                  status: ctx.status as 'sent' | 'failed',
+                  deliveryChannel: ctx.deliveryChannel,
+                  errorCode: ctx.errorCode,
+                  occurredAt: ctx.occurredAt,
+                };
+              }
+              return null;
+            },
+          );
+          if (!directInput) return;
+          try {
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              recordReminderOccurrenceFinalizedDirect(db, directInput!),
+            );
+          } catch (err) {
+            await queueDirectPublicRetry(
+              'reminder_occurrence_sent_record',
+              directInput.organizationId,
+              occurrenceId,
+              directInput,
+            );
+            logger.warn(
+              { err, occurrenceId },
+              'reminder occurrence sent direct write failed, queued retry',
+            );
+          }
           return;
         }
         case 'reminders.occurrence.markFailed': {
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           if (!occurrenceId || !channel) return;
-          const pendingOccFail: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            await markReminderOccurrenceFailed(
-              txDb,
-              occurrenceId,
-              channel,
-              asNullableString(mutation.params.errorCode),
+          const directInput = await db.tx(
+            async (txDb): Promise<ReminderOccurrenceFinalizedDirectInput | null> => {
+              await markReminderOccurrenceFailed(
+                txDb,
+                occurrenceId,
+                channel,
+                asNullableString(mutation.params.errorCode),
+              );
+              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
+              if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
+                const canonicalUserId = ctx.userId;
+                return {
+                  integratorOccurrenceId: occurrenceId,
+                  integratorRuleId: ctx.ruleId,
+                  integratorUserId: canonicalUserId,
+                  platformUserId: ctx.platformUserId,
+                  organizationId: ctx.organizationId,
+                  category: ctx.category,
+                  status: ctx.status as 'sent' | 'failed',
+                  deliveryChannel: ctx.deliveryChannel,
+                  errorCode: ctx.errorCode,
+                  occurredAt: ctx.occurredAt,
+                };
+              }
+              return null;
+            },
+          );
+          if (!directInput) return;
+          try {
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              recordReminderOccurrenceFinalizedDirect(db, directInput!),
             );
-            const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-            if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
-              const canonicalUserId = ctx.userId;
-              const payload = {
-                integratorOccurrenceId: occurrenceId,
-                integratorRuleId: ctx.ruleId,
-                integratorUserId: canonicalUserId,
-                platformUserId: ctx.platformUserId,
-                organizationId: ctx.organizationId,
-                category: ctx.category,
-                status: ctx.status as 'sent' | 'failed',
-                deliveryChannel: ctx.deliveryChannel,
-                errorCode: ctx.errorCode,
-                occurredAt: ctx.occurredAt,
-              };
-              pendingOccFail.push({
-                eventType: REMINDER_OCCURRENCE_FINALIZED,
-                idempotencyKey: projectionIdempotencyKey(
-                  REMINDER_OCCURRENCE_FINALIZED,
-                  occurrenceId,
-                  hashPayload(payload),
-                ),
-                occurredAt: ctx.occurredAt,
-                payload,
-              });
-            }
-          });
-          await fanoutProjectionsAfterTx(pendingOccFail);
+          } catch (err) {
+            await queueDirectPublicRetry(
+              'reminder_occurrence_failed_record',
+              directInput.organizationId,
+              occurrenceId,
+              directInput,
+            );
+            logger.warn(
+              { err, occurrenceId },
+              'reminder occurrence failure direct write failed, queued retry',
+            );
+          }
           return;
         }
         case 'reminders.occurrence.expireOrphanedPending': {
           const nowIso = asNonEmptyString(mutation.params.nowIso);
           if (!nowIso) return;
           const expired = await expireOrphanedReminderOccurrences(db, nowIso);
-          const pendingExpired: ProjectionFanoutInput[] = [];
           for (const context of expired) {
             const canonicalUserId = context.userId;
-            const payload = {
+            const directInput: ReminderOccurrenceFinalizedDirectInput = {
               integratorOccurrenceId: context.occurrenceId,
               integratorRuleId: context.ruleId,
               integratorUserId: canonicalUserId,
@@ -673,18 +689,23 @@ export function createDbWritePort(
               errorCode: context.errorCode,
               occurredAt: context.occurredAt,
             };
-            pendingExpired.push({
-              eventType: REMINDER_OCCURRENCE_FINALIZED,
-              idempotencyKey: projectionIdempotencyKey(
-                REMINDER_OCCURRENCE_FINALIZED,
+            try {
+              await runDirectPublicWriteWithOrgPrincipal(() =>
+                recordReminderOccurrenceFinalizedDirect(db, directInput),
+              );
+            } catch (err) {
+              await queueDirectPublicRetry(
+                'reminder_occurrence_expired_record',
+                directInput.organizationId,
                 context.occurrenceId,
-                hashPayload(payload),
-              ),
-              occurredAt: context.occurredAt,
-              payload,
-            });
+                directInput,
+              );
+              logger.warn(
+                { err, occurrenceId: context.occurrenceId },
+                'expired reminder occurrence direct write failed, queued retry',
+              );
+            }
           }
-          await fanoutProjectionsAfterTx(pendingExpired);
           return;
         }
         case 'reminders.occurrence.reschedulePlanned': {
@@ -711,43 +732,49 @@ export function createDbWritePort(
             typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
               ? (mutation.params.payloadJson as Record<string, unknown>)
               : {};
-          const pendingDelLog: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            const createdAt = await insertReminderDeliveryLog(txDb, {
-              id,
-              occurrenceId,
-              channel,
-              status,
-              errorCode: asNullableString(mutation.params.errorCode),
-              payloadJson,
-            });
-            const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-            if (ctx) {
-              const canonicalUserId = ctx.userId;
-              const payload = {
-                integratorDeliveryLogId: id,
-                integratorOccurrenceId: occurrenceId,
-                integratorRuleId: ctx.ruleId,
-                integratorUserId: canonicalUserId,
+          const directInput = await db.tx(
+            async (txDb): Promise<ReminderDeliveryLoggedDirectInput | null> => {
+              const createdAt = await insertReminderDeliveryLog(txDb, {
+                id,
+                occurrenceId,
                 channel,
                 status,
                 errorCode: asNullableString(mutation.params.errorCode),
                 payloadJson,
-                createdAt,
-              };
-              pendingDelLog.push({
-                eventType: REMINDER_DELIVERY_LOGGED,
-                idempotencyKey: projectionIdempotencyKey(
-                  REMINDER_DELIVERY_LOGGED,
-                  id,
-                  hashPayload(payload),
-                ),
-                occurredAt: createdAt,
-                payload,
               });
-            }
-          });
-          await fanoutProjectionsAfterTx(pendingDelLog);
+              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
+              if (ctx) {
+                const canonicalUserId = ctx.userId;
+                return {
+                  organizationId: ctx.organizationId,
+                  integratorDeliveryLogId: id,
+                  integratorOccurrenceId: occurrenceId,
+                  integratorRuleId: ctx.ruleId,
+                  integratorUserId: canonicalUserId,
+                  channel,
+                  status,
+                  errorCode: asNullableString(mutation.params.errorCode),
+                  payloadJson,
+                  createdAt,
+                };
+              }
+              return null;
+            },
+          );
+          if (!directInput) return;
+          try {
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              appendReminderDeliveryEventDirect(db, directInput!),
+            );
+          } catch (err) {
+            await queueDirectPublicRetry(
+              'reminder_delivery_log_append',
+              directInput.organizationId,
+              id,
+              directInput,
+            );
+            logger.warn({ err, id }, 'reminder delivery log direct write failed, queued retry');
+          }
           return;
         }
         case 'content.access.grant.create': {
@@ -761,41 +788,54 @@ export function createDbWritePort(
             typeof mutation.params.metaJson === 'object' && mutation.params.metaJson !== null
               ? (mutation.params.metaJson as Record<string, unknown>)
               : {};
-          const pendingContent: ProjectionFanoutInput[] = [];
-          await db.tx(async (txDb) => {
-            const canonicalUserId = userId;
-            const createdAt = await createContentAccessGrant(txDb, {
-              id,
-              userId: canonicalUserId,
-              contentId,
-              purpose,
-              tokenHash: asNullableString(mutation.params.tokenHash),
-              expiresAt,
-              metaJson,
-            });
-            const payload = {
-              integratorGrantId: id,
-              integratorUserId: canonicalUserId,
-              contentId,
-              purpose,
-              tokenHash: asNullableString(mutation.params.tokenHash),
-              expiresAt,
-              revokedAt: null as string | null,
-              metaJson,
-              createdAt,
-            };
-            pendingContent.push({
-              eventType: CONTENT_ACCESS_GRANTED,
-              idempotencyKey: projectionIdempotencyKey(
-                CONTENT_ACCESS_GRANTED,
+          const directInput = await db.tx(
+            async (txDb): Promise<ContentAccessGrantDirectInput | null> => {
+              const canonicalUserId = userId;
+              const created = await createContentAccessGrant(txDb, {
                 id,
-                hashPayload(payload),
-              ),
-              occurredAt: createdAt,
-              payload,
-            });
-          });
-          await fanoutProjectionsAfterTx(pendingContent);
+                userId: canonicalUserId,
+                contentId,
+                purpose,
+                tokenHash: asNullableString(mutation.params.tokenHash),
+                expiresAt,
+                metaJson,
+              });
+              if (!created.organizationId) return null;
+              const candidates = await collectPlatformUserCandidates(txDb, {
+                integratorUserId: canonicalUserId,
+                phoneNormalized: null,
+                channelCode: '',
+                externalId: '',
+              });
+              return {
+                organizationId: created.organizationId,
+                integratorGrantId: id,
+                integratorUserId: canonicalUserId,
+                platformUserId: candidates[0] ?? null,
+                contentId,
+                purpose,
+                tokenHash: asNullableString(mutation.params.tokenHash),
+                expiresAt,
+                revokedAt: null,
+                metaJson,
+                createdAt: created.createdAt,
+              };
+            },
+          );
+          if (!directInput) return;
+          try {
+            await runDirectPublicWriteWithOrgPrincipal(() =>
+              upsertContentAccessGrantDirect(db, directInput!),
+            );
+          } catch (err) {
+            await queueDirectPublicRetry(
+              'content_access_grant_upsert',
+              directInput.organizationId,
+              id,
+              directInput,
+            );
+            logger.warn({ err, id }, 'content access grant direct write failed, queued retry');
+          }
           return;
         }
         case 'delivery.attempt.log': {
@@ -852,8 +892,8 @@ export function createDbWritePort(
           // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,
           // no incident) — the retired webapp consumer ALSO rejected this case non-retryably
           // (`support.delivery.attempt.logged: organizationId required`, `retryable: false`), so skipping
-          // both the direct write and the outbox enqueue changes nothing about the eventual outcome.
-          // Anything else (row not written for an unexpected reason) falls back to the durable outbox.
+          // both the direct write and retry enqueue changes nothing about the eventual outcome.
+          // Anything else (row not written for an unexpected reason) enters the durable direct retry queue.
           const deliveryFallbackPayload: Record<string, unknown> = {
             intentEventId: intentEventId ?? null,
             correlationId: correlationId ?? null,
@@ -873,6 +913,18 @@ export function createDbWritePort(
           }
           const deliveryAttemptId =
             intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
+          const directInput = {
+            organizationId,
+            conversationMessageId: null,
+            integratorIntentEventId: intentEventId,
+            correlationId,
+            channelCode: channel ?? 'unknown',
+            status: status ?? 'failed',
+            attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
+            reason,
+            payloadJson,
+            occurredAt,
+          };
           await executeCanonicalWriteOrLegacy({
             sync: webappEventsPort?.syncSupportDeliveryAttempt
               ? () =>
@@ -900,33 +952,22 @@ export function createDbWritePort(
                 // directly rather than relying on the ambient principal (this mutation can also be reached
                 // from delivery/retry paths without an ambient organization principal at all).
                 await runWithOrganizationPrincipal(organizationId, () =>
-                  appendSupportDeliveryEventDirect(db, {
-                    organizationId,
-                    conversationMessageId: null,
-                    integratorIntentEventId: intentEventId,
-                    correlationId,
-                    channelCode: channel ?? 'unknown',
-                    status: status ?? 'failed',
-                    attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-                    reason,
-                    payloadJson,
-                    occurredAt,
-                  }),
+                  appendSupportDeliveryEventDirect(db, directInput),
                 );
               } catch (err) {
-                await enqueueProjectionEvent(db, {
-                  eventType: 'support.delivery.attempt.logged',
+                await enqueueDirectPublicWriteRetry(db, {
+                  operation: 'support_delivery_attempt_append',
+                  organizationId,
                   idempotencyKey: projectionIdempotencyKey(
-                    'support.delivery.attempt.logged',
+                    'direct-public-write.support-delivery-attempt-append',
                     String(deliveryAttemptId),
-                    hashPayload(deliveryFallbackPayload),
+                    hashPayload(directInput),
                   ),
-                  occurredAt,
-                  payload: deliveryFallbackPayload,
+                  payload: directInput,
                 });
                 logger.warn(
                   { err, mutationType: mutation.type, intentEventId, correlationId, channel },
-                  'delivery.attempt.log: direct public write failed, fell back to durable outbox',
+                  'delivery.attempt.log: direct public write failed, queued durable direct retry',
                 );
                 await recordOperatorFailureIncident({
                   direction: 'db_write',
