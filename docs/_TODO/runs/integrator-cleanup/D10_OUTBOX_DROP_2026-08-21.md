@@ -188,3 +188,21 @@ deploy/postgres/dev-c7-operational-delivery-worker-schema-table-grants.sql`:
   меняет (`git diff --quiet -- scripts/check-s4-entitlement-coverage.ts` -> exit 0).
 - Baseline-красные privilege TypeScript/callsite-oracle проверки, не входившие в обязательный список брифа,
   не исправлялись вне D10 scope.
+
+## Независимый аудит commit `5c24a29e4` — 2026-08-21
+**Вердикт: PASS. Findings: 0.** Branch patch после merge побайтно соответствует product commit по stable patch-id.
+- PASS — один последний timestamp-forward удаляет retired health root и `integrator.projection_outbox`; owner/verify markers есть, ACL/role/policy statements отсутствуют.
+- PASS — обе Drizzle-декларации и active caller/producer/consumer/maintenance/deploy references удалены; exact active-surface search пуст.
+- PASS — сохранены idempotency, `outgoing_delivery_queue`, direct-write retries, delivery logs, `app.record_operator_delivery_attempt` и посторонние HTTP/service paths.
+- PASS — C4/P0/DEV-C7 GRANT/REVOKE просмотрены statement-by-statement: удалены только outbox entries; declaration-derived artifacts byte-consistent.
+- PASS — `git diff --name-status feat/doctor-ui-rebuild...HEAD | wc -l` → exit 0, `22`; все paths проверены, immutable `generated/prod-to-target/**` не менялся, history не считалась runtime callers.
+- `git diff feat/doctor-ui-rebuild...HEAD | wc -l` → exit 0, `7195`; `git diff --check feat/doctor-ui-rebuild...HEAD` → exit 0.
+- `node deploy/postgres/privileges/generate-cli.mjs --check` → 0; `... --all --port-context-only --check` → 0; `node docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-d3-4-bootstrap-base-login-grants.mjs` → 0.
+- `node scripts/check-c4-migration-owned-function-bodies.mjs` → 0; `node --test deploy/postgres/privileges/function-census.test.mjs` → 0 (19/19).
+- Integrator: `pnpm --dir apps/integrator exec tsc --noEmit -p tsconfig.json` → 0; targeted ESLint/queue-boundary/no-legacy-producer gates → 0/0/0.
+- `pnpm --dir apps/integrator run lint` → 1 только на нетронутом `legacyAppointmentProjectionTransport.contract.test.ts`; exact file/config diff proof → 0.
+- Webapp: `pnpm --dir apps/webapp run lint` → 0; changed-TS ESLint → 0; `pnpm --dir apps/webapp exec tsc --noEmit -p tsconfig.json` → 1 только на нетронутом `check-s4-entitlement-coverage.ts`; exact file/config diff proof → 0.
+- `rg -n --hidden --glob '!.git/**' --glob '!node_modules/**' --glob '!dist/**' --glob '!docs/**' --glob '!.cursor/plans/archive/**' --glob '!apps/webapp/db/drizzle-migrations/**' --glob '!deploy/postgres/generated/prod-to-target/**' 'projection_outbox|projectionOutbox|read_integrator_projection_health' .` → 1 (0 matches).
+- Fault injection `forward_drop_ignored`: test exit 1, затем restore-diff 0 и test exit 0; **killed 1, missed 0**.
+### NOT DONE
+- Full CI не запускался; миграция не применялась; DEV/TEST/PROD не менялись; deploy/merge/push не выполнялись.
