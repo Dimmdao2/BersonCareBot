@@ -1,17 +1,26 @@
 \set ON_ERROR_STOP on
+\set VERBOSITY verbose
+
+\echo '=== CUTOVER STEP CARRY-01/01: carry unresolved legacy appointment records ==='
 
 -- Schema-A data stage for appointment_records rows that never received a canonical appointment
 -- mapping. This is part of the normal PROD-dump -> target cutover and is deliberately rerunnable:
 -- the stable deduplication key is appointment_records.id, namespaced into a deterministic UUID.
 -- The legacy row is then linked through the native be:<uuid> reference, so no Rubitime mapping is
 -- created and the retired external bridge is not needed after the cutover.
+\if :{?cutover_parent_transaction}
+\else
 BEGIN;
+\endif
 SET LOCAL lock_timeout = '10s';
 SET LOCAL statement_timeout = '0';
 
-SELECT set_config('bcb.cutover.expected_database', :'cutover_database', true);
-SELECT set_config('bcb.cutover.canonical_organization_id', :'canonical_organization_id', true);
-SELECT set_config('bcb.cutover.canonical_specialist_id', :'canonical_specialist_id', true);
+SELECT set_config('bcb.cutover.expected_database', :'cutover_database', true) AS ignored
+\gset
+SELECT set_config('bcb.cutover.canonical_organization_id', :'canonical_organization_id', true) AS ignored
+\gset
+SELECT set_config('bcb.cutover.canonical_specialist_id', :'canonical_specialist_id', true) AS ignored
+\gset
 
 DO $preflight$
 DECLARE
@@ -217,7 +226,8 @@ WITH inserted AS (
   ON CONFLICT (id) DO NOTHING
   RETURNING id
 )
-SELECT count(*) AS legacy_appointments_inserted FROM inserted;
+SELECT count(*) AS rows_written FROM inserted
+\gset cutover_legacy_appointment_carry_
 
 UPDATE public.appointment_records legacy
 SET integrator_record_id = 'be:' || candidate.canonical_id::text,
@@ -243,6 +253,7 @@ WHERE booking.rubitime_id::text = candidate.legacy_integrator_record_id
 
 SELECT json_build_object(
   'status', 'pass',
+  'rowsWritten', :cutover_legacy_appointment_carry_rows_written,
   'deduplicationKey', 'md5(legacy-appointment-record:<appointment_records.id>)',
   'legacyCandidates', (SELECT count(*) FROM cutover_legacy_appointment_candidates),
   'legacyDirectLinks', (
@@ -263,6 +274,11 @@ SELECT json_build_object(
       ON candidate.legacy_integrator_record_id = booking.rubitime_id::text
     WHERE booking.canonical_appointment_id = candidate.canonical_id
   )
-) AS legacy_appointment_carry;
+)::text AS result
+\gset cutover_legacy_appointment_carry_
+SELECT :'cutover_legacy_appointment_carry_result'::json AS legacy_appointment_carry;
 
+\if :{?cutover_parent_transaction}
+\else
 COMMIT;
+\endif
