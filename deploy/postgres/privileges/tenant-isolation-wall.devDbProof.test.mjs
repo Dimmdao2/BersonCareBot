@@ -25,10 +25,11 @@
  * НЕ ПРОВЕРЕННОЙ с причиной. Если так вышло со ВСЕМИ таблицами — проверка ПАДАЕТ со словами
  * «доказывать нечего», а не зеленеет.
  *
- * ПРЕДМЕТЫ берутся из декларации (`declaration.ts`), а не из списка в этом файле: таблицы, которые
- * несут организационный предикат — `org === true` и стена клиники (`clinic`, `clinic+patient`,
- * `reference-org-copy`, `platform-role+clinic`). Таблица, добавленная в декларацию завтра, попадает
- * под проверку сама, без правки этого файла.
+ * ПРЕДМЕТЫ берутся из декларации (`declaration.ts`), а не из списка в этом файле: таблицы, чья стена —
+ * `clinic`, `clinic+patient`, `reference-org-copy` или `platform-role+clinic`. Таблица, добавленная в
+ * декларацию завтра, попадает под проверку сама, без правки этого файла. (До 2026-08-20 предмет ещё и
+ * требовал `org === true` — поле переписи «нашли колонку `organization_id`», а не признак стены — и это
+ * держало вне проверки 50 стенованных таблиц, которых перепись просто не касалась; см. `subjectsFromDeclaration`.)
  *
  * Как ходит проба. Личность порта здесь настоящая: `SET LOCAL SESSION AUTHORIZATION <логин порта>`
  * делает `session_user` тем самым логином, поэтому используется НАСТОЯЩАЯ capability-строка порта и
@@ -64,12 +65,21 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
  *  роли не открыты вовсе и предметом этой проверки не являются. */
 const TENANT_WALLS = new Set(['clinic', 'clinic+patient', 'reference-org-copy', 'platform-role+clinic']);
 
-/** Предметы — из декларации, не из списка здесь. */
+/**
+ * Предметы — из декларации, не из списка здесь. Раньше предмет ещё и требовал `table.org === true`;
+ * это поле в декларации значит «перепись ИЗМЕРИЛА и таблица несёт organization_id», а не «у таблицы
+ * есть стена клиники» (types.ts: «Опущено там, где перепись не мерила»). Требовать его тут держало
+ * вне проверки 50 таблиц под стеной клиники (`be_payments`, `support_conversations`, `system_settings`,
+ * `saas_billing_*` и другие) — не потому что стены нет, а потому что перепись поля `org` их не
+ * коснулась (blind-audit F1, 2026-08-19/20). Стену определяет ИСКЛЮЧИТЕЛЬНО `wall`; наличие самой
+ * колонки `organization_id` на каждый предмет всё равно перепроверяет `census()` ниже на живой базе —
+ * таблица без колонки уходит в «не проверено» с причиной, а не молча выпадает из предметов.
+ */
 function subjectsFromDeclaration(database) {
   const declared = declaration.databases[database];
   if (!declared) throw new Error(`декларация не знает базы '${database}'`);
   return Object.entries(declared.tables)
-    .filter(([, table]) => table.org === true && TENANT_WALLS.has(table.wall) && table.disposition === 'ACTIVE')
+    .filter(([, table]) => TENANT_WALLS.has(table.wall) && table.disposition === 'ACTIVE')
     .map(([name]) => name)
     .sort();
 }
@@ -87,6 +97,11 @@ function checkedUuid(value, what) {
   return value;
 }
 
+// Ни один звонок к базе не смеет висеть бесконечно: зависший запрос вешал бы всю выкатку (blind-audit
+// F2, вторая часть). Бюджет переопределим для проверки самого таймаута (см. запуск руками в шапке
+// файла) — в обычном прогоне 30с с большим запасом хватает и на самый длинный census-запрос.
+const PSQL_TIMEOUT_MS = Number(process.env.TENANT_ISOLATION_PROOF_PSQL_TIMEOUT_MS ?? 30_000);
+
 function psql(lines, { expectFailure = false, tolerant = false } = {}) {
   const preamble = tolerant
     ? ['\\set VERBOSITY verbose', '\\set ON_ERROR_STOP 0', '\\set ON_ERROR_ROLLBACK on']
@@ -96,7 +111,12 @@ function psql(lines, { expectFailure = false, tolerant = false } = {}) {
     '-h', '/var/run/postgresql', '-p', '5432', '-d', DATABASE, '-f', '-'];
   const run = spawnSync('sudo', args, {
     input: `${script.join('\n')}\n`, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
+    timeout: PSQL_TIMEOUT_MS, killSignal: 'SIGKILL',
   });
+  if (run.error?.code === 'ETIMEDOUT' || run.signal) {
+    throw new Error(`psql проба зависла дольше ${PSQL_TIMEOUT_MS}мс на базе ${DATABASE} и была убита `
+      + `сигналом ${run.signal ?? 'SIGKILL'} — база не отвечает или запрос завис`);
+  }
   if (run.error) throw run.error;
   const stderr = String(run.stderr ?? '');
   const outcome = {
@@ -282,12 +302,9 @@ test('клиника видит только свои строки', { skip: !EN
     .filter(({ subject }) => !answered.has(subject.name));
   const proven = exercised.filter((subject) => answered.has(subject.name));
 
-  // ЛОВУШКА ПУСТОТЫ, часть вторая: если ответила ноль таблиц, отсутствие утечек ничего не значит.
-  assert.notEqual(proven.length, 0,
-    `доказывать нечего: ни одна из ${exercised.length} наполненных таблиц не читается по staff-пути `
-    + `на базе ${DATABASE}`);
-
-  // Честный перечень непроверенного дороже раздутого зелёного.
+  // Честный перечень непроверенного дороже раздутого зелёного — печатается ДО assert ниже: если
+  // проверять нечем и следующий assert упадёт, отчёт обязан уже назвать, что именно не покрыто, а не
+  // оборваться молча (blind-audit F3, 2026-08-19/20).
   for (const gap of skipped) console.log(`не проверено · ${gap.name} · ${gap.reason}`);
   for (const { subject, failure } of refused) {
     console.log(`не проверено · ${subject.name} · staff-путь чтения отказал: `
@@ -295,6 +312,11 @@ test('клиника видит только свои строки', { skip: !EN
   }
   console.log(`доказано на ${proven.length} таблицах из ${subjects.length} объявленных под стеной клиники; `
     + `клиника ${actor.organization}, актор ${actor.actorRef}, база ${DATABASE}`);
+
+  // ЛОВУШКА ПУСТОТЫ, часть вторая: если ответила ноль таблиц, отсутствие утечек ничего не значит.
+  assert.notEqual(proven.length, 0,
+    `доказывать нечего: ни одна из ${exercised.length} наполненных таблиц не читается по staff-пути `
+    + `на базе ${DATABASE}`);
 
   const leaks = proven
     .map((subject) => [subject.name, answered.get(subject.name)])
