@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
+import type { CommercialMutationResult } from '@/app/app/admin/commercial/commercialOrganizationLabels';
 import {
   ACCESS_NOTIFICATION_CONDITIONS,
   MECHANIC_REGISTRY,
@@ -65,8 +67,10 @@ type CommercialState = {
   paidPeriodPolicy: PaidPeriodPolicy | null;
 };
 
-type CommercialMutationResult = { created?: boolean; endsAt?: string } | null;
-type CommercialMutationResponse = { error?: string; result?: CommercialMutationResult };
+type CommercialMutationResponse = {
+  error?: string;
+  result?: CommercialMutationResult;
+};
 
 const COMMERCIAL_LIFECYCLE_LABELS: Record<
   PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
@@ -618,6 +622,9 @@ function DowngradePolicyEditor({
 }
 
 export function CommercialConstructorClient() {
+  const searchParams = useSearchParams();
+  const organizationIdFromUrl = searchParams.get('organizationId')?.trim() ?? '';
+  const [activeTab, setActiveTab] = useState('tariffs');
   const [state, setState] = useState<CommercialState>({
     tariffs: [],
     organizations: [],
@@ -670,6 +677,12 @@ export function CommercialConstructorClient() {
       paidPeriodPolicy: payload.paidPeriodPolicy ?? null,
     });
   }, []);
+
+  useEffect(() => {
+    if (!organizationIdFromUrl) return;
+    setActiveTab('organizations');
+    setOrganizationId(organizationIdFromUrl);
+  }, [organizationIdFromUrl]);
 
   useEffect(() => {
     setLoading(true);
@@ -863,7 +876,7 @@ export function CommercialConstructorClient() {
   }
 
   return (
-    <Tabs defaultValue="tariffs" className="space-y-3">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-3">
       <TabsList>
         <TabsTrigger value="tariffs">Тарифы</TabsTrigger>
         <TabsTrigger value="organizations">Организации</TabsTrigger>
