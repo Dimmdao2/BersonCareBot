@@ -3,7 +3,7 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { and, desc, eq, isNotNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import {
   getCurrentDbPrincipalOrganizationId,
@@ -124,7 +124,7 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
               patientPayment.appointmentId,
               patientPayment.idempotencyKey,
             ],
-            targetWhere: isNotNull(patientPayment.idempotencyKey),
+            where: isNotNull(patientPayment.idempotencyKey),
           })
           .returning();
         if (inserted[0]) return inserted[0];
@@ -135,7 +135,9 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
           .where(
             and(
               eq(patientPayment.organizationId, input.organizationId),
-              eq(patientPayment.appointmentId, input.appointmentId ?? null),
+              input.appointmentId
+                ? eq(patientPayment.appointmentId, input.appointmentId)
+                : isNull(patientPayment.appointmentId),
               eq(patientPayment.idempotencyKey, idempotencyKey),
             ),
           );

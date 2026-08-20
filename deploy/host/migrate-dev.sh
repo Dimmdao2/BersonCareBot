@@ -101,6 +101,13 @@ postgres_scalar() {
     -v ON_ERROR_STOP=1 -Atqc "$1"
 }
 
+seed_relation_wall_registry() {
+  run_tracked bash -o pipefail -c '
+    node --experimental-strip-types "$1" --db "$2" --relation-wall-registry-seed-only |
+      sudo -n -u postgres psql -X -1 -h "$3" -p "$4" -d "$2" -v ON_ERROR_STOP=1
+  ' bash "$PRIVILEGE_GENERATOR" "$TARGET_DB" "$ADMIN_SOCKET" "$ADMIN_PORT"
+}
+
 MODE="${1:-}"
 if [[ $# -lt 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; then
   usage
@@ -203,6 +210,7 @@ owner_state="$(postgres_scalar \
   fatal "$OBJECT_OWNER_ROLE must be a stationary NOLOGIN/NOBYPASSRLS/NOINHERIT owner"
 
 if [[ "$MODE" == "--preflight" ]]; then
+  seed_relation_wall_registry
   run_tracked node "$OWNER_MIGRATOR" \
     --db "$TARGET_DB" \
     --migrator "$MIGRATOR_ROLE" \
@@ -226,6 +234,11 @@ run_tracked bash -c '
   node --experimental-strip-types "$1" --shared-role-verify |
     sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
 ' bash "$PRIVILEGE_GENERATOR"
+
+# The event trigger checks this declaration-derived registry while CREATE TABLE is executing.
+# Seed it before the first migration; owner reconciliation stays in the mandatory final reconcile,
+# where all declared relations exist.
+seed_relation_wall_registry
 
 # Preserve the repository's cross-app dependency order without using any runtime login.
 run_tracked node "$INTEGRATOR_MIGRATOR" \

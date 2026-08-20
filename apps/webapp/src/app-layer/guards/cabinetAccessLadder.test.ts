@@ -13,6 +13,10 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const fakes = vi.hoisted(() => ({
+  loggerError: vi.fn(),
+}));
+
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
 vi.mock('@/modules/auth/service', () => ({
   getCurrentSession: vi.fn(),
@@ -27,6 +31,9 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _source: string, fn: () => T): T => fn()),
+}));
+vi.mock('@/app-layer/logging/logger', () => ({
+  logger: { error: fakes.loggerError },
 }));
 
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -190,12 +197,22 @@ describe('§5a/2.1a: cabinet entry walks its own three rungs', () => {
   // Арбитр: заменить `catch { return true }` в `cabinetEntryIsBlocked` на `return false` — тест
   // краснеет. Недоступный резолвер не имеет права открывать коммерческую границу.
   it('недоступный резолвер закрывает дверь, а не открывает её', async () => {
-    withCabinet(new Error('resolver_unavailable'));
+    const resolverFailure = Object.assign(new Error('resolver_unavailable'), { code: '42501' });
+    withCabinet(resolverFailure);
 
     const response = await listCourses(coursesRequest());
 
     expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ ok: false, error: 'cabinet_blocked' });
     expect(listCoursesForDoctor).not.toHaveBeenCalled();
+    expect(fakes.loggerError).toHaveBeenCalledWith(
+      {
+        err: resolverFailure,
+        organizationId: ORG_ID,
+        classification: 'cabinet_access_resolver_failed',
+      },
+      'cabinet_access_resolver_failed',
+    );
   });
 });
 
