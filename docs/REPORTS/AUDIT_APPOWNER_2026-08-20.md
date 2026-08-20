@@ -247,3 +247,40 @@ sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bersoncarebot_test
 равен `NULL`, поэтому `CONNECT` приходит от `PUBLIC` по default ACL; на DEV заполненный `datacl`
 его закрывает. Это остаток прерванного третьего прогона. Свежий полный TEST reset пересоздаёт базу
 и штатно закрывает ACL; запуск reset в этой работе намеренно не выполнялся.
+
+## 7. F-1: retired handoff removed from runtime-overlay closure — 2026-08-20
+
+`runtime-overlay-rehydrate-lib.sh` no longer puts
+`deploy/postgres/runtime-overlay-app-owner-handoff.sql` in `protected_overlays`, therefore
+`deploy-test-saas.sh` no longer executes it after sourcing the library. The SQL artifacts remain in
+the tree for historical plan/report links, with a one-line header that says why each is retired:
+the handoff would restore the retired `app_owner` contract, and the legacy bridge would recreate it
+with elevated access attributes.
+
+The required executable-code search after the removal is:
+
+```bash
+grep -rn "runtime-overlay-app-owner-handoff\|pre-migration-legacy-role-bridge" \
+  --include='*.sh' --include='*.mjs' .
+```
+
+It returns no matches.
+
+### Remaining closure blockers — not fixed in this scoped change
+
+The full `runtime-overlay-rehydrate-lib.sh` chain still contains overlays that require or assign the
+retired `app_owner`; with its required retired-role state, the first reachable one is
+`deploy/postgres/organization-member-invites-rls.sql` (its preflight requires the former legacy
+contract). Other direct dependents are `patient-invites-rls.sql`,
+`specialist-signup-public-bootstrap-rls.sql`, `specialist-owner-provisioning-rls.sql`,
+`c5a-platform-operations-runtime.sql`, `patient-web-push-vapid-public-key-accessor.sql`,
+`public-booking-bootstrap-resolver.sql`, `public-clinic-slug-bootstrap-resolver.sql`, and the final
+`e1-webapp-runtime-config.sql`. `reference-catalog-rls.sql` is also an indirect dependent: it takes
+its `provisioning_owner` from the specialist provisioning seam, which is currently assigned to
+`app_owner`. These are F-1 closure blockers; no role, ACL, ownership, migration, or SQL behavior
+was changed here to hide them.
+
+Fault injection was performed by temporarily restoring the removed handoff path and running the
+existing `node --test deploy/host/*.test.mjs` suite. No current test names or catches this entry;
+the suite remains green, so this regression has no automated detector. No text-presence test was
+added: removal from a one-time deploy list is verified by the exact search above.
