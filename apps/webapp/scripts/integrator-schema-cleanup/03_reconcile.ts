@@ -46,12 +46,6 @@ const CANDIDATES: Candidate[] = [
     owner: 'integrator support transport',
     patterns: ['conversations', 'conversation_messages', 'message_drafts'],
   },
-  {
-    table: 'integrator.projection_outbox',
-    decision: 'blocked',
-    owner: 'projection retry queue',
-    patterns: ['projection_outbox', 'projectionOutbox'],
-  },
 ];
 
 const SCAN_ROOTS = [

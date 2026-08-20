@@ -160,7 +160,7 @@ WHERE defaults.defaclobjtype IN ('r', 'S', 'f', 'T')
 REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role";
-REVOKE ALL ON TABLE integrator.projection_outbox, integrator.idempotency_keys,
+REVOKE ALL ON TABLE integrator.idempotency_keys,
   integrator.user_reminder_occurrences,
   public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents,
   public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
@@ -420,7 +420,7 @@ GRANT app_operational_diagnostic TO :"c4_diagnostic_login_role" WITH INHERIT FAL
 GRANT app_operational_delivery_worker TO :"c4_delivery_worker_login_role" WITH INHERIT FALSE, SET TRUE;
 GRANT app_operational_scheduler TO :"c4_scheduler_login_role" WITH INHERIT FALSE, SET TRUE;
 
-REVOKE ALL ON TABLE integrator.projection_outbox, integrator.idempotency_keys,
+REVOKE ALL ON TABLE integrator.idempotency_keys,
   integrator.user_reminder_occurrences, public.reminder_rules,
   public.outgoing_delivery_queue,
   public.broadcast_audit, public.operator_incidents, public.media_transcode_jobs,
@@ -446,9 +446,6 @@ GRANT USAGE ON SCHEMA public TO
   app_operational_media_worker,
   app_operational_scheduler;
 
-REVOKE ALL ON TABLE integrator.projection_outbox FROM
-  app_operational_diagnostic, app_operational_delivery_worker,
-  app_operational_scheduler, app_operational_media_worker;
 REVOKE ALL ON TABLE integrator.idempotency_keys FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
@@ -463,8 +460,6 @@ REVOKE ALL ON TABLE integrator.user_reminder_occurrences, public.reminder_rules,
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 
-GRANT SELECT ON TABLE integrator.projection_outbox TO app_operational_diagnostic;
-GRANT SELECT, UPDATE ON TABLE integrator.projection_outbox TO app_operational_delivery_worker;
 GRANT SELECT, UPDATE ON TABLE public.outgoing_delivery_queue TO app_operational_delivery_worker;
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.idempotency_keys TO app_operational_scheduler;
 GRANT SELECT ON TABLE public.reminder_rules TO app_operational_scheduler;
@@ -1005,7 +1000,7 @@ SELECT 1 / (
     SELECT 1 FROM expected
     JOIN pg_roles login ON login.rolname = expected.login_name
     CROSS JOIN LATERAL (VALUES
-      ('integrator.projection_outbox'), ('integrator.idempotency_keys'),
+      ('integrator.idempotency_keys'),
       ('integrator.user_reminder_occurrences'),
       ('public.reminder_rules'), ('public.outgoing_delivery_queue'),
       ('public.broadcast_audit'), ('public.operator_incidents'),
@@ -1284,13 +1279,10 @@ WITH managed(role_name) AS (VALUES
   ('function','app.release_principal_context()','EXECUTE',:'c4_scheduler_login_role',false),
   ('schema','app','USAGE','app_operational_diagnostic',false),
   ('schema','integrator','USAGE','app_operational_diagnostic',false),
-  ('table','integrator.projection_outbox','SELECT','app_operational_diagnostic',false),
   ('function','app.release_principal_context()','EXECUTE','app_operational_diagnostic',false),
   ('schema','app','USAGE','app_operational_delivery_worker',false),
   ('schema','integrator','USAGE','app_operational_delivery_worker',false),
   ('schema','public','USAGE','app_operational_delivery_worker',false),
-  ('table','integrator.projection_outbox','SELECT','app_operational_delivery_worker',false),
-  ('table','integrator.projection_outbox','UPDATE','app_operational_delivery_worker',false),
   ('table','public.outgoing_delivery_queue','SELECT','app_operational_delivery_worker',false),
   ('table','public.outgoing_delivery_queue','UPDATE','app_operational_delivery_worker',false),
   ('function','app.release_principal_context()','EXECUTE','app_operational_delivery_worker',false),

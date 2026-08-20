@@ -213,6 +213,13 @@ test('return-shape parser covers TABLE, SETOF, OUT, dollar tags, defaults and co
     { returns: 'record', returnsSet: false, form: 'OUT' });
   assert.deepEqual(parseReturnShape('', ' RETURNS numeric(12, 4) LANGUAGE sql '),
     { returns: 'numeric', returnsSet: false, form: 'SCALAR' });
+  assert.deepEqual(
+    [...latestFunctionReturnShapes([
+      { source: 'snapshot.sql', text: 'CREATE FUNCTION app.retired(integer) RETURNS integer AS $$ SELECT 1 $$ LANGUAGE sql;' },
+      { source: 'forward.sql', text: 'DROP FUNCTION IF EXISTS app.retired(integer);' },
+    ]).keys()],
+    [],
+  );
   assert.deepEqual(parseReturnShape('', ' RETURNS TABLE(label character varying(63)) LANGUAGE sql '),
     { returns: 'character varying', returnsSet: true, form: 'TABLE' });
   const rows = extractFunctionReturnShapes('probe.sql', `
@@ -608,7 +615,6 @@ test('full-body overdeclaration corrections preserve only executable operations'
   for (const relation of [
     'public.outgoing_delivery_queue',
     'public.integrator_push_outbox',
-    'integrator.projection_outbox',
   ]) {
     assert.deepEqual(archive.relationSurfaces.find((surface) => surface.relation === relation).operations,
       ['SELECT', 'DELETE'], relation);
