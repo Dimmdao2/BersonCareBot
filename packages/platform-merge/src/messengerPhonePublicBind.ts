@@ -204,6 +204,7 @@ async function mergePairIfDistinct(
   db: MessengerPhoneBindDb,
   idA: string,
   idB: string,
+  channelCode: string,
 ): Promise<void> {
   if (idA === idB) return;
   const mergeClient = db as PlatformMergeDbClient;
@@ -216,7 +217,9 @@ async function mergePairIfDistinct(
   }
   const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(mergeClient, a, b);
   const { target, duplicate } = pickMergeTargetId(ea, eb);
-  await mergePlatformUsersInTransaction(mergeClient, target, duplicate, 'phone_bind');
+  await mergePlatformUsersInTransaction(mergeClient, target, duplicate, 'phone_bind', {
+    mergeContext: { channel: channelCode },
+  });
 }
 
 /**
@@ -262,7 +265,7 @@ export async function applyMessengerPhonePublicBind(
       });
     }
     try {
-      await mergePairIfDistinct(db, platformUserId, preferredCanonicalId);
+      await mergePairIfDistinct(db, platformUserId, preferredCanonicalId, channelCode);
     } catch (err) {
       if (err instanceof MessengerPhoneLinkError) throw err;
       throw mapMergeFailure(err, [platformUserId, preferredCanonicalId]);
@@ -294,7 +297,7 @@ export async function applyMessengerPhonePublicBind(
       const otherId: string | undefined = canonPu.rows[0]?.id;
       if (otherId && otherId !== platformUserId) {
         try {
-          await mergePairIfDistinct(db, platformUserId, otherId);
+          await mergePairIfDistinct(db, platformUserId, otherId, channelCode);
         } catch (err) {
           if (err instanceof MessengerPhoneLinkError) throw err;
           throw mapMergeFailure(err, [platformUserId, otherId]);
@@ -344,7 +347,7 @@ export async function applyMessengerPhonePublicBind(
     );
     if (otherPhone) {
       try {
-        await mergePairIfDistinct(db, platformUserId, otherPhone);
+        await mergePairIfDistinct(db, platformUserId, otherPhone, channelCode);
       } catch (err) {
         if (err instanceof MessengerPhoneLinkError) throw err;
         throw mapMergeFailure(err, [platformUserId, otherPhone]);
@@ -361,7 +364,7 @@ export async function applyMessengerPhonePublicBind(
       );
       if (otherInt) {
         try {
-          await mergePairIfDistinct(db, platformUserId, otherInt);
+          await mergePairIfDistinct(db, platformUserId, otherInt, channelCode);
         } catch (err) {
           if (err instanceof MessengerPhoneLinkError) throw err;
           throw mapMergeFailure(err, [platformUserId, otherInt]);
@@ -401,7 +404,7 @@ export async function applyMessengerPhonePublicBind(
           });
         }
         try {
-          await mergePairIfDistinct(db, platformUserId, otherPhone);
+          await mergePairIfDistinct(db, platformUserId, otherPhone, channelCode);
         } catch (mergeErr) {
           if (mergeErr instanceof MessengerPhoneLinkError) throw mergeErr;
           throw mapMergeFailure(mergeErr, [platformUserId, otherPhone]);

@@ -3,6 +3,8 @@
  */
 export type {
   ManualMergeResolution,
+  MergePlatformUsersContext,
+  MergePlatformUsersOptions,
   MergePlatformUsersReason,
   PickMergeTargetCandidate,
   VerifiedDistinctIntegratorUserIds,

@@ -147,6 +147,7 @@ async function mergeMessengerBindPair(
   params: {
     targetId: string;
     duplicateId: string;
+    channelCode: PhoneMessengerBindChannel;
   },
 ): Promise<{ ok: true } | PhoneMessengerBindPreOtpFailure> {
   const targetId = params.targetId.trim();
@@ -158,6 +159,7 @@ async function mergeMessengerBindPair(
       targetId,
       duplicateId,
       'phone_bind',
+      { mergeContext: { channel: params.channelCode } },
     );
     return { ok: true };
   } catch (err) {
@@ -210,6 +212,7 @@ async function applyMessengerContactPreOtpImpl(
         const merged = await mergeMessengerBindPair(client, {
           targetId: canonicalSession,
           duplicateId: phoneOwnerCanonical,
+          channelCode,
         });
         if (!merged.ok) return merged;
         canonicalSession =
@@ -301,6 +304,7 @@ async function applyMessengerContactPreOtpImpl(
       const merged = await mergeMessengerBindPair(client, {
         targetId: phoneCanonical,
         duplicateId: ownerCanonical,
+        channelCode,
       });
       if (!merged.ok) return merged;
       await upsertBroadcastDefaultsAfterChannelBind(clientDb, phoneCanonical, channelCode);
@@ -360,6 +364,7 @@ async function applyMessengerContactPreOtpImpl(
         const merged = await mergeMessengerBindPair(client, {
           targetId: userCanonical,
           duplicateId: ownerCanonical,
+          channelCode,
         });
         if (!merged.ok) return merged;
         userId = userCanonical;

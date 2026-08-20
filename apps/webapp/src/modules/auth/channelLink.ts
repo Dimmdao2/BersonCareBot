@@ -186,6 +186,7 @@ export async function completeChannelLinkFromIntegrator(params: {
           tokenUserId: r.userId,
           existingUserId: boundUserId,
           secretRowId: r.id,
+          channelCode: params.channelCode,
         });
         if (merged.ok) {
           logger.info({

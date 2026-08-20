@@ -35,6 +35,19 @@ export type VerifiedDistinctIntegratorUserIds = {
   duplicateIntegratorUserId: string;
 };
 
+export type MergePlatformUsersContext = {
+  channel?: string;
+  source?: string;
+  actorId?: string | null;
+};
+
+export type MergePlatformUsersOptions = {
+  resolution?: ManualMergeResolution;
+  allowDistinctIntegratorUserIds?: boolean;
+  verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
+  mergeContext?: MergePlatformUsersContext;
+};
+
 /**
  * Owner rule D26 §5.2: automatic merge is only safe for an account with no
  * clinical history.  Manual support merge is intentionally excluded: support
@@ -333,11 +346,7 @@ export async function mergePlatformUsersInTransaction(
   targetId: string,
   duplicateId: string,
   reason: MergePlatformUsersReason,
-  options?: {
-    resolution?: ManualMergeResolution;
-    allowDistinctIntegratorUserIds?: boolean;
-    verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
-  },
+  options?: MergePlatformUsersOptions,
 ): Promise<{ targetId: string; duplicateId: string; mergeContactsSaved: MergeContactsSaved[] }> {
   if (targetId === duplicateId) {
     throw new MergeConflictError('merge: target and duplicate are the same id', [targetId]);
@@ -802,7 +811,7 @@ export async function mergePlatformUsersInTransaction(
   );
 
   logger.info(
-    { targetId, duplicateId, reason, mergeContactsSaved },
+    { targetId, duplicateId, reason, mergeContactsSaved, mergeContext: options?.mergeContext },
     '[merge] merged duplicate into target',
   );
   trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.PlatformUserMerge);
