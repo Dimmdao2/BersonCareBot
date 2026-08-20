@@ -72,6 +72,8 @@ const APPOINTMENT_ID = '30000000-0000-4000-8000-000000000001';
 const ORGANIZATION_ID = '20000000-0000-4000-8000-000000000001';
 const OWN_ID = '10000000-0000-4000-8000-000000000001';
 const OTHER_ID = '10000000-0000-4000-8000-000000000002';
+const BRANCH_ID = '50000000-0000-4000-8000-000000000001';
+const SERVICE_ID = '60000000-0000-4000-8000-000000000001';
 
 function appointment(specialistId: string): BeAppointment {
   return {
@@ -254,6 +256,8 @@ describe('doctor appointment mutation scope', () => {
 
     const response = await createAppointment(
       request('/api/doctor/booking-engine/appointments/manual', {
+        branchId: BRANCH_ID,
+        serviceId: SERVICE_ID,
         specialistId: OTHER_ID,
         startAt: '2026-07-30T10:00:00.000Z',
         endAt: '2026-07-30T10:30:00.000Z',
@@ -263,7 +267,11 @@ describe('doctor appointment mutation scope', () => {
 
     expect(response.status).toBe(200);
     expect(mocks.createAppointment).toHaveBeenCalledWith(
-      expect.objectContaining({ specialistId: OWN_ID }),
+      expect.objectContaining({
+        branchId: BRANCH_ID,
+        serviceId: SERVICE_ID,
+        specialistId: OWN_ID,
+      }),
     );
   });
 });

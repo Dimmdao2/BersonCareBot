@@ -1,4 +1,4 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientContentRatingFeedback } from '../../../db/schema/patientContentRatingFeedback';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
@@ -8,6 +8,7 @@ import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
   type MaterialRatingFeedbackReasonCode,
 } from '@/modules/material-rating-feedback/reasonCodes';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 function emptyReasonCounts(): Record<MaterialRatingFeedbackReasonCode, number> {
   return MATERIAL_RATING_FEEDBACK_REASON_CODES.reduce(
@@ -22,19 +23,22 @@ function emptyReasonCounts(): Record<MaterialRatingFeedbackReasonCode, number> {
 export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort {
   return {
     async insertFeedback(input) {
-      const db = getDrizzle();
-      const [row] = await db
-        .insert(patientContentRatingFeedback)
-        .values({
-          organizationId: input.organizationId,
-          userId: input.userId,
-          contentPageId: input.contentPageId,
-          ratingValue: input.ratingValue,
-          reasonCodes: input.reasonCodes,
-          comment: input.comment,
-        })
-        .returning({ id: patientContentRatingFeedback.id });
+      const result = await runWebappNamedRoot<{ id: string | null }>(
+        getWebappSqlDb(),
+        'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)',
+        [input.contentPageId, input.ratingValue, JSON.stringify(input.reasonCodes), input.comment],
+        sql`SELECT app.record_current_patient_content_rating_feedback(
+          ${input.contentPageId}::uuid,
+          ${input.ratingValue}::integer,
+          ${JSON.stringify(input.reasonCodes)}::text,
+          ${input.comment}::text
+        ) AS id`,
+      );
+      const row = result.rows[0];
       if (!row) throw new Error('patient_content_rating_feedback insert returned no row');
+      if (!row.id) throw new Error('patient_content_rating_feedback rejected');
+      void input.organizationId;
+      void input.userId;
       return { id: row.id };
     },
 

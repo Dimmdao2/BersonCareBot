@@ -2,11 +2,15 @@
  * OTP в мессенджер (Telegram / Max) от вебаппа.
  * Подпись и заголовки — как Flow 4 send-sms / relay-outbound.
  */
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { maxUserRecipient } from '../../integrations/max/maxRecipient.js';
-import type { DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DispatchPort,
+  IdempotencyPort,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 
 const WINDOW_SECONDS = 300;
@@ -16,6 +20,7 @@ const bodySchema = z
     channel: z.enum(['telegram', 'max']),
     recipientId: z.string().min(1),
     code: z.string().min(4).max(8),
+    idempotencyKey: z.string().min(1),
   })
   .superRefine((value, ctx) => {
     if (value.channel === 'max' && !/^[1-9]\d*$/u.test(value.recipientId.trim())) {
@@ -54,13 +59,14 @@ export type BersoncareSendOtpDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
   isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
+  idempotencyPort: IdempotencyPort;
 };
 
 export async function registerBersoncareSendOtpRoute(
   app: FastifyInstance,
   deps: BersoncareSendOtpDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, isAuthChannelEnabled } = deps;
+  const { dispatchPort, sharedSecret, isAuthChannelEnabled, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -96,12 +102,15 @@ export async function registerBersoncareSendOtpRoute(
       return reply.code(400).send({ ok: false, error: 'invalid_payload' });
     }
 
-    const { channel, recipientId, code } = parsed.data;
+    const { channel, recipientId, code, idempotencyKey } = parsed.data;
     if (!(await isAuthChannelEnabled(channel))) {
       return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
     }
+    if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
+      return reply.code(200).send({ ok: true, status: 'duplicate' });
+    }
     const text = `Код для входа в BersonCare: ${code}`;
-    const eventId = `otp:${channel}:${randomUUID()}`;
+    const eventId = idempotencyKey;
     const recipient = channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
     const intent: OutgoingIntent = {
       type: 'message.send' as const,
@@ -125,6 +134,7 @@ export async function registerBersoncareSendOtpRoute(
       await dispatchPort.dispatchOutgoing(intent);
       return reply.code(200).send({ ok: true });
     } catch (err) {
+      await idempotencyPort.release?.(idempotencyKey);
       const codeErr = (err as { code?: number }).code ?? 0;
       const isClientError = codeErr >= 400 && codeErr < 500;
       logger.error({ err, channel }, 'bersoncare send-otp: dispatch failed');

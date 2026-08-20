@@ -18,7 +18,10 @@ import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/orga
 import { recordNotificationDeliveryAttemptBestEffort } from '../../infra/db/repos/notificationDeliveryAttempts.js';
 import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
 import { recordOperatorFailureIncident } from '../../infra/operatorIncident/reportOperatorFailure.js';
-import { classifyOutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  classifyOutboundProviderErrorClass,
+} from '@bersoncare/operator-db-schema';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -34,6 +37,15 @@ const relayPayloadSchema = z
     text: z.string().min(1),
     /** Опц. HTML-тело письма (email-канал) — мапится в payload.html для email-адаптера. */
     html: z.string().optional(),
+    /**
+     * Опц. base64-тело .ics-вложения (email-канал) — мапится в payload.icsContent,
+     * email-адаптер декодирует его и прикрепляет как `text/calendar`.
+     * Незадекларированное поле zod вырезает молча: письмо-подтверждение записи обещало
+     * вложение, которого не было, потому что эти два поля здесь отсутствовали.
+     */
+    icsContent: z.string().min(1).optional(),
+    /** Опц. имя .ics-вложения (email-канал) — мапится в payload.icsFilename. */
+    icsFilename: z.string().min(1).optional(),
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
     senderScope: z.literal('clinic_required').optional(),
@@ -79,15 +91,16 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
   // The signed relay is a trusted producer. Its public body cannot nominate a policy marker:
   // normal product notices are essential, whereas an explicitly clinic-required send is a
   // clinic-owned broadcast and must fail closed at the sender boundary.
-  const outboundPolicy = parsed.senderScope === 'clinic_required'
-    ? {
-        outboundMessageClass: 'broadcast_event' as const,
-        outboundCapability: 'clinic_delivery' as const,
-      }
-    : {
-        outboundMessageClass: 'routine_product' as const,
-        outboundCapability: 'essential_delivery' as const,
-      };
+  const outboundPolicy =
+    parsed.senderScope === 'clinic_required'
+      ? {
+          outboundMessageClass: 'broadcast_event' as const,
+          outboundCapability: 'clinic_delivery' as const,
+        }
+      : {
+          outboundMessageClass: 'routine_product' as const,
+          outboundCapability: 'essential_delivery' as const,
+        };
   const meta = {
     eventId: parsed.messageId,
     occurredAt: new Date().toISOString(),
@@ -153,6 +166,8 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         subject,
         message: { text: parsed.text },
         ...(parsed.html ? { html: parsed.html } : {}),
+        ...(parsed.icsContent ? { icsContent: parsed.icsContent } : {}),
+        ...(parsed.icsFilename ? { icsFilename: parsed.icsFilename } : {}),
         delivery: {
           channels: ['email'],
           ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
@@ -210,7 +225,7 @@ async function recordRelayProviderFailureSafely(
 
   try {
     await recordOperatorFailureIncident({
-      direction: 'outbound_delivery_provider',
+      direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
       integration: channel === 'email' ? 'email' : 'smsc',
       errorClass,
       errorDetail: null,

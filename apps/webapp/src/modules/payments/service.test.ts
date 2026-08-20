@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPaymentsService } from './service';
 import type { PaymentsPort } from './ports';
-import type { BookingPaymentSettings, PaymentIntentRecord } from './types';
+import type { BookingPaymentSettings, PaymentIntentRecord, PaymentRecord } from './types';
+import type { BeAppointment } from '@/modules/booking-engine/types';
 
 const providerAdapter = vi.hoisted(() => ({
   createIntent: vi.fn(),
@@ -103,6 +104,7 @@ describe('B1.3 — prepayment provider availability', () => {
     const availability = await buildService({
       enabled: true,
       defaultProviderId: 'yookassa',
+      fiscalVatCode: '1',
       providers: [
         {
           id: 'yookassa',
@@ -148,6 +150,7 @@ describe('payments tariff mechanic', () => {
         getBookingPaymentSettings: async () => ({
           enabled: true,
           defaultProviderId: 'yookassa',
+          fiscalVatCode: '1',
           providers: [
             {
               id: 'yookassa',
@@ -190,6 +193,7 @@ describe('payments tariff mechanic', () => {
         getBookingPaymentSettings: async () => ({
           enabled: true,
           defaultProviderId: 'yookassa',
+          fiscalVatCode: '1',
           providers: [
             {
               id: 'yookassa',
@@ -232,6 +236,7 @@ describe('payments tariff mechanic', () => {
         getBookingPaymentSettings: async () => ({
           enabled: true,
           defaultProviderId: 'yookassa',
+          fiscalVatCode: '1',
           providers: [
             {
               id: 'yookassa',
@@ -282,6 +287,7 @@ describe('payments tariff mechanic', () => {
         getBookingPaymentSettings: async () => ({
           enabled: true,
           defaultProviderId: 'yookassa',
+          fiscalVatCode: '1',
           providers: [
             {
               id: 'yookassa',
@@ -299,6 +305,7 @@ describe('payments tariff mechanic', () => {
       },
       bookingEngine: null,
       canCreatePaymentIntent: async () => true,
+      resolvePayerEmail: async () => 'patient@example.test',
     });
 
     await expect(
@@ -312,12 +319,73 @@ describe('payments tariff mechanic', () => {
         returnUrl: 'https://app.example.test/return',
       }),
     ).resolves.toBe(intent);
-    expect(providerAdapter.createIntent).toHaveBeenCalledOnce();
+    expect(providerAdapter.createIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        receipt: expect.objectContaining({
+          customer: { email: 'patient@example.test' },
+          items: [expect.objectContaining({ amountMinor: 10_000, vatCode: '1' })],
+        }),
+      }),
+    );
     expect(createPaymentIntent).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId: 'org-1',
         providerIntentRef: createdIntent.providerIntentRef,
       }),
     );
+  });
+});
+
+describe('appointment-bound payment summary', () => {
+  it('attributes only this appointment share of one captured multi-appointment payment', async () => {
+    const appointment = {
+      id: 'appointment-1',
+      organizationId: 'org-1',
+      serviceId: null,
+      status: 'confirmed',
+      paymentRef: 'payment-shared',
+    } as unknown as BeAppointment;
+    const sharedPayment: PaymentRecord = {
+      id: 'payment-shared',
+      organizationId: 'org-1',
+      paymentIntentId: 'intent-shared',
+      appointmentId: null,
+      amountMinor: 20_000,
+      currency: 'RUB',
+      status: 'succeeded',
+      providerId: 'yookassa',
+      purpose: 'appointment_prepayment',
+    };
+    const port = {
+      findPaymentById: vi.fn(async () => sharedPayment),
+      countAppointmentsByPaymentRef: vi.fn(async () => 2),
+      findIntentById: vi.fn(async () => null),
+      findLatestIntentByAppointment: vi.fn(async () => null),
+      listHistoryForAppointment: vi.fn(async () => []),
+    } as unknown as PaymentsPort;
+    const payments = createPaymentsService({
+      port,
+      config: {
+        getBookingPaymentSettings: async () => ({
+          enabled: true,
+          defaultProviderId: 'yookassa',
+          providers: [],
+        }),
+      },
+      captureUnitOfWork: {
+        run: async (_organizationId, fn) => fn(),
+        runSerializedPostCommit: async (_organizationId, _key, fn) => fn(),
+      },
+      bookingEngine: {
+        getAppointment: vi.fn(async () => appointment),
+        listAppointmentsByChainId: vi.fn(async () => []),
+        transitionAppointmentStatus: vi.fn(),
+      },
+    });
+
+    const summary = await payments.getAppointmentPaymentSummary('appointment-1', 'org-1');
+
+    expect(summary?.payment?.amountMinor).toBe(10_000);
+    expect(port.countAppointmentsByPaymentRef).toHaveBeenCalledWith('payment-shared', 'org-1');
   });
 });

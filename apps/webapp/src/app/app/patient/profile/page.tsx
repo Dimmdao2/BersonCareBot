@@ -12,9 +12,8 @@ import {
 } from '@/shared/ui/patient/patientVisual';
 import { getSupportContactUrl } from '@/modules/system-settings/supportContactUrl';
 import { LogoutSection } from './LogoutSection';
-import { PatientCalendarTimezoneSection } from './PatientCalendarTimezoneSection';
 import { PatientProfileHero } from './PatientProfileHero';
-import { formatPatientGreetingName, type StructuredFio } from '@/shared/lib/fio';
+import { formatDoctorFio } from '@/shared/lib/fio';
 import { getAuthChannelPolicy, getClientVisibleAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 import { PasskeySection } from './PasskeySection';
@@ -33,11 +32,12 @@ const AUTH_OTP_CHANNEL_LABEL: Record<OtpUiChannel, string> = {
 export default async function PatientProfilePage() {
   const session = await requirePatientAccess(routePaths.profile);
   const deps = buildAppDeps();
-  const [supportContactHref, emailFields, authChannelPolicy, passkeyEnabled] = await Promise.all([
+  const [supportContactHref, emailFields, authChannelPolicy, passkeyEnabled, patientFio] = await Promise.all([
     getSupportContactUrl(),
     deps.userProjection.getProfileEmailFields(session.user.userId),
     getAuthChannelPolicy(),
     isIndependentAuthMethodEnabled('passkey'),
+    deps.userProjection.getCurrentPatientFio(),
   ]);
   const emailVerified = Boolean(emailFields.emailVerifiedAt);
   const channelCards = await deps.channelPreferences.getChannelCards(
@@ -72,14 +72,12 @@ export default async function PatientProfilePage() {
     >
       <div className={patientInnerPageStackClass}>
         <PatientProfileHero
-          displayName={formatPatientGreetingName(
-            {
-              lastName: session.user.lastName ?? null,
-              firstName: session.user.firstName ?? null,
-              patronymic: session.user.patronymic ?? null,
-            } satisfies StructuredFio,
-            session.user.displayName ?? '',
-          )}
+          initialFio={{
+            lastName: patientFio?.lastName ?? session.user.lastName ?? null,
+            firstName: patientFio?.firstName ?? session.user.firstName ?? null,
+            patronymic: patientFio?.patronymic ?? session.user.patronymic ?? null,
+          }}
+          displayName={formatDoctorFio(patientFio, patientFio?.displayName ?? session.user.displayName ?? '')}
           phone={session.user.phone ?? null}
           supportContactHref={supportContactHref}
           fallbackDisplayName={fallbackDisplayName}
@@ -139,10 +137,6 @@ export default async function PatientProfilePage() {
               Расписание
             </Link>
           </div>
-        </section>
-
-        <section className={patientSectionSurfaceClass}>
-          <PatientCalendarTimezoneSection />
         </section>
 
         {passkeyEnabled ? (

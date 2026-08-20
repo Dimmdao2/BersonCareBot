@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { MaterialRatingBlock } from '@/shared/ui/patient/material-rating/MaterialRatingBlock';
 import { PatientWarmupRatingFeedbackDialog } from './PatientWarmupRatingFeedbackDialog';
+import { usePatientRuntimeFeatures } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
 
 export function PatientContentMaterialRating(props: {
   contentPageId: string;
@@ -11,6 +12,7 @@ export function PatientContentMaterialRating(props: {
   isDailyWarmup?: boolean;
   className?: string;
 }) {
+  const { materialRatingsEnabled } = usePatientRuntimeFeatures();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [feedbackStars, setFeedbackStars] = useState(0);
 
@@ -24,6 +26,8 @@ export function PatientContentMaterialRating(props: {
     },
     [showFeedback],
   );
+
+  if (!materialRatingsEnabled) return null;
 
   return (
     <>

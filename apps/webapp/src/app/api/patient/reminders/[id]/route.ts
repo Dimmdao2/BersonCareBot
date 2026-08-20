@@ -123,7 +123,9 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
     'изменить напоминание о разминке',
   );
   if (!warmupEntitlement.ok) return warmupEntitlement.response;
-  const res = await deps.reminders.updateRule(session.user.userId, ruleId, patch);
+  const res = await warmupEntitlement.runMutation(() =>
+    deps.reminders.updateRule(session.user.userId, ruleId, patch),
+  );
   if (!res.ok) {
     const status = res.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: res.error }, { status });
@@ -158,7 +160,9 @@ export async function DELETE(_req: Request, context: { params: Promise<{ id: str
     'удалить напоминание о разминке',
   );
   if (!warmupEntitlement.ok) return warmupEntitlement.response;
-  const res = await deps.reminders.deleteReminder(session.user.userId, ruleId);
+  const res = await warmupEntitlement.runMutation(() =>
+    deps.reminders.deleteReminder(session.user.userId, ruleId),
+  );
   if (!res.ok) {
     return NextResponse.json({ ok: false, error: res.error }, { status: 404 });
   }

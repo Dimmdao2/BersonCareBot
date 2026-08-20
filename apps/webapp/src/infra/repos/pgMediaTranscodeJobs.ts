@@ -41,32 +41,34 @@ function parseEnqueueResult(value: unknown): EnqueueTranscodeResult {
   throw new Error('invalid_media_transcode_enqueue_result');
 }
 
-async function enqueueThroughNamedRoot(
-  mediaId: string,
-  identity:
-    | 'app.enqueue_media_transcode_job_for_staff(uuid)'
-    | 'app.enqueue_media_transcode_job_for_service(uuid)',
+async function parseNamedRootResult(
+  result: { rows: Array<{ result: unknown }> },
 ): Promise<EnqueueTranscodeResult> {
-  const functionName = identity.endsWith('_for_staff(uuid)')
-    ? 'app.enqueue_media_transcode_job_for_staff'
-    : 'app.enqueue_media_transcode_job_for_service';
-  const result = await runWebappNamedRoot<{ result: unknown }>(
-    getWebappSqlDb(),
-    identity,
-    [mediaId],
-    sql`SELECT ${sql.raw(functionName)}(${mediaId}::uuid) AS result`,
-  );
   return parseEnqueueResult(result.rows[0]?.result);
 }
 
 /** Staff upload producer. The runtime role gets EXECUTE only, never queue DML. */
-export function enqueueMediaTranscodeJob(mediaId: string): Promise<EnqueueTranscodeResult> {
-  return enqueueThroughNamedRoot(mediaId, 'app.enqueue_media_transcode_job_for_staff(uuid)');
+export async function enqueueMediaTranscodeJob(
+  mediaId: string,
+): Promise<EnqueueTranscodeResult> {
+  const result = await runWebappNamedRoot<{ result: unknown }>(
+    getWebappSqlDb(),
+    'app.enqueue_media_transcode_job_for_staff(uuid)',
+    [mediaId],
+    sql`SELECT app.enqueue_media_transcode_job_for_staff(${mediaId}::uuid) AS result`,
+  );
+  return parseNamedRootResult(result);
 }
 
 /** Internal media-control producer under the operational media service context. */
-export function enqueueMediaTranscodeJobForService(
+export async function enqueueMediaTranscodeJobForService(
   mediaId: string,
 ): Promise<EnqueueTranscodeResult> {
-  return enqueueThroughNamedRoot(mediaId, 'app.enqueue_media_transcode_job_for_service(uuid)');
+  const result = await runWebappNamedRoot<{ result: unknown }>(
+    getWebappSqlDb(),
+    'app.enqueue_media_transcode_job_for_service(uuid)',
+    [mediaId],
+    sql`SELECT app.enqueue_media_transcode_job_for_service(${mediaId}::uuid) AS result`,
+  );
+  return parseNamedRootResult(result);
 }

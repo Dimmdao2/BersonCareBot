@@ -1,4 +1,5 @@
 -- Exact owner handoff for protected runtime overlays after a --no-owner restore.
+-- RETIRED FROM DEPLOY PATH: the dedicated app_seam_* owners now own these functions, so app_owner handoff would resurrect the retired contract.
 --
 -- pg_restore attributes existing functions to the target database owner. Three reviewed
 -- overlays subsequently CREATE OR REPLACE their SECURITY DEFINER functions under SET ROLE
@@ -32,7 +33,7 @@ WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
     ('app.email_otp_public_consume_latest_challenge(text,text)'),
-    ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
+    ('app.resolve_public_booking_organization(uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)'),
     ('app.resolve_payment_webhook_organization(text,text,text)')
 ), database_owner AS (
@@ -62,7 +63,7 @@ WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
     ('app.email_otp_public_consume_latest_challenge(text,text)'),
-    ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
+    ('app.resolve_public_booking_organization(uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)'),
     ('app.resolve_payment_webhook_organization(text,text,text)')
 )
@@ -76,7 +77,7 @@ WITH exact_targets(signature) AS (
   VALUES
     ('app.get_web_push_vapid_public_key()'),
     ('app.email_otp_public_consume_latest_challenge(text,text)'),
-    ('app.resolve_public_booking_organization(uuid,uuid,uuid)'),
+    ('app.resolve_public_booking_organization(uuid,uuid)'),
     ('app.resolve_public_organization_by_slug(text)'),
     ('app.resolve_payment_webhook_organization(text,text,text)')
 )

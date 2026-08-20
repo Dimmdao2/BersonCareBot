@@ -38,7 +38,6 @@ export default defineConfig({
             'src/**/*.unit.test.ts',
             'src/**/*.route.test.ts',
             'src/**/*.ui.test.tsx',
-            'src/**/*.postgres.integration.test.ts',
             'src/**/*.devDb.integration.test.ts',
           ],
           testTimeout: 20_000,

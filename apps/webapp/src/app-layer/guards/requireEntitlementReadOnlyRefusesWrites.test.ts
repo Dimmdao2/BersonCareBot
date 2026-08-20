@@ -40,11 +40,19 @@ import { PATCH as updateCourse } from '@/app/api/doctor/courses/[id]/route';
 import { DELETE as revokeClinicInvite } from '@/app/api/clinic/invites/[id]/route';
 import { POST as createClinicInvite } from '@/app/api/clinic/invites/route';
 import { POST as createBranch } from '@/app/api/admin/booking-engine/branches/route';
-import { POST as createDoctorClientRoute } from '@/app/api/doctor/clients/route';
 import { POST as startExternalCalendar } from '@/app/api/admin/google-calendar/start/route';
 import { togglePatientHomeBlockVisibility } from '@/app/app/settings/patient-home/actions';
 import type { OrgEntitlementsPort } from '@/modules/org-entitlements/ports';
 import type { MechanicAccessState, OrgMechanic } from '@/modules/org-entitlements/types';
+
+/**
+ * The product sentence a tariff-blocked action already shows everywhere else in the cabinet
+ * (`tariffMechanicsRefusals.ui.test.tsx` pins the same wording for the Server Action refusals).
+ * Spelled out here on purpose: the oracle must not be the implementation under test.
+ */
+const TARIFF_REFUSAL_SENTENCE =
+  'Невозможно выполнить действие: этот раздел не входит в ваш тариф. ' +
+  'Чтобы выполнить действие, включите этот раздел в тарифе клиники.';
 
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -203,26 +211,46 @@ describe('read-only access state refuses writes across mechanics (§5a 3.1a/3.1b
     expect(createPhysicalBranch).not.toHaveBeenCalled();
   });
 
-  it('refuses creating a patient card and never calls the write port', async () => {
-    const createManualOrganizationClient = vi.fn();
+  /**
+   * Owner live pass 18.08, L-1 («не создаётся локация», `POST …/branches` → 403). The clinic-owner
+   * role sits on a tariff whose «Филиалы» quota is not configured, so the mechanic resolves to
+   * `disabled`. The refusal itself is intended; what reached the screen was the bare machine code
+   * `entitlement_required`, because this adapter — unlike the read adapter and the Server Action
+   * refusals — shipped no `message`, and `apiJson` shows `body.message ?? body.error`.
+   */
+  it('explains a tariff-disabled branch write instead of answering with a machine code', async () => {
+    const createPhysicalBranch = vi.fn();
+    vi.mocked(requireClinicManagementBookingEngine).mockResolvedValue({
+      ok: true,
+      ctx: {
+        organizationId: ORG_ID,
+        service: { catalog: { createPhysicalBranch } },
+      },
+    } as never);
     vi.mocked(buildAppDeps).mockReturnValue({
-      orgEntitlements: readOnlyOrgEntitlementsPort('read_only'),
-      patientOrganization: { createManualOrganizationClient },
-      emailSetupAccess: { requestContactEmailSetup: vi.fn() },
+      orgEntitlements: readOnlyOrgEntitlementsPort('disabled'),
     } as unknown as ReturnType<typeof buildAppDeps>);
 
-    const response = await createDoctorClientRoute(
-      request('https://app.example.test/api/doctor/clients', {
-        requestId: '33333333-3333-4333-8333-333333333333',
-        lastName: 'Иванов',
-        firstName: 'Иван',
+    const response = await createBranch(
+      request('https://app.example.test/api/admin/booking-engine/branches', {
+        title: 'Кабинет на Невском',
+        cityCode: 'spb',
       }),
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'commercial_read_only' });
-    expect(createManualOrganizationClient).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'entitlement_required',
+      mechanic: 'branches',
+      message: TARIFF_REFUSAL_SENTENCE,
+    });
+    expect(createPhysicalBranch).not.toHaveBeenCalled();
   });
+
+  // ⚠ СНЯТО Т12 (владелец 19.08, «лимит клиентов - убрать»). У создания карточки клиента больше нет
+  // тарифной механики, а значит и лестницы доступа: `read_only` его теперь НЕ останавливает.
+  // Разбор последствия и открытый вопрос ведущему —
+  // `docs/REPORTS/PATIENT_COUNT_LIMIT_REMOVAL_2026-08-19.md`, раздел «НЕ СДЕЛАНО».
 
   it('refuses connecting an external calendar and never reaches the OAuth config', async () => {
     vi.mocked(buildAppDeps).mockReturnValue({

@@ -12,6 +12,8 @@ import type {
 
 export type PatientPaymentsServiceDeps = {
   patientPaymentsPort: PatientPaymentsPort;
+  /** Physical mechanic door installed by the composition root for every payment write. */
+  assertWriteClearance?: (mechanic: 'payments') => void;
 };
 
 /**
@@ -21,6 +23,8 @@ export type PatientPaymentsServiceDeps = {
 export type AcquiringWebhookEvent = {
   /** Provider-level event type string (e.g. "payment.succeeded", "payment.canceled"). */
   eventType: string;
+  /** Verified route provider; together with providerPaymentId it identifies one lifecycle row. */
+  providerId: string;
   /**
    * Provider's payment reference — used to look up the patient_payment row.
    * Corresponds to providerPaymentId stored at charge initiation.
@@ -28,7 +32,10 @@ export type AcquiringWebhookEvent = {
   providerPaymentId: string;
 };
 
-export function createPatientPaymentsService({ patientPaymentsPort }: PatientPaymentsServiceDeps) {
+export function createPatientPaymentsService({
+  patientPaymentsPort,
+  assertWriteClearance,
+}: PatientPaymentsServiceDeps) {
   return {
     async listPayments(patientUserId: string): Promise<PatientPayment[]> {
       return patientPaymentsPort.listPayments(patientUserId);
@@ -48,7 +55,12 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
       return { payments, totalPaidMinor };
     },
 
+    async listAppointmentPayments(appointmentId: string, patientUserId: string) {
+      return patientPaymentsPort.listAppointmentPayments(appointmentId, patientUserId);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
+      assertWriteClearance?.('payments');
       if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
         throw new Error('payment_amount_must_be_positive_integer');
       }
@@ -66,7 +78,10 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
     async handleAcquiringWebhookEvent(
       event: AcquiringWebhookEvent,
     ): Promise<{ ok: true; alreadyProcessed?: boolean } | { ok: false; reason: string }> {
-      const payment = await patientPaymentsPort.findByProviderPaymentId(event.providerPaymentId);
+      const payment = await patientPaymentsPort.findByProviderPaymentReference(
+        event.providerId,
+        event.providerPaymentId,
+      );
       if (!payment) {
         return { ok: false, reason: 'payment_not_found' };
       }
@@ -102,11 +117,22 @@ export function createPatientPaymentsService({ patientPaymentsPort }: PatientPay
       return { ok: true };
     },
 
-    async resolveOrganizationIdByProviderPaymentId(
+    /**
+     * Resolve only the server-owned clinic for a webhook's untrusted provider reference.
+     * The reference is not an authority: the DB bootstrap seam selects one exact lifecycle row
+     * and returns only its organization before the clinic principal is installed.
+     */
+    async resolveAcquiringWebhookOrganization(
       providerPaymentId: string,
+      providerId: string,
     ): Promise<string | null> {
-      const payment = await patientPaymentsPort.findByProviderPaymentId(providerPaymentId);
-      return payment?.organizationId ?? null;
+      const exactProviderId = providerId.trim();
+      const exactProviderPaymentId = providerPaymentId.trim();
+      if (!exactProviderId || !exactProviderPaymentId) return null;
+      return patientPaymentsPort.resolveAcquiringWebhookOrganization(
+        exactProviderId,
+        exactProviderPaymentId,
+      );
     },
 
     /**

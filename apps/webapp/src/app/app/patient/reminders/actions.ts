@@ -80,12 +80,14 @@ export async function updateReminderRule(
           : 'Не удалось определить клинику пациента',
     };
   }
-  const result = await deps.reminders.updateRule(session.user.userId, parsed.data.ruleId, {
-    intervalMinutes: parsed.data.intervalMinutes,
-    windowStartMinute: parsed.data.windowStartMinute,
-    windowEndMinute: parsed.data.windowEndMinute,
-    daysMask: parsed.data.daysMask,
-  });
+  const result = await warmupEntitlement.runMutation(() =>
+    deps.reminders.updateRule(session.user.userId, parsed.data.ruleId, {
+      intervalMinutes: parsed.data.intervalMinutes,
+      windowStartMinute: parsed.data.windowStartMinute,
+      windowEndMinute: parsed.data.windowEndMinute,
+      daysMask: parsed.data.daysMask,
+    }),
+  );
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(routePaths.patientReminders);
@@ -118,9 +120,11 @@ export async function patchPatientReminderScheduleBundle(input: {
           : 'Не удалось определить клинику пациента',
     };
   }
-  const result = await deps.reminders.updateRule(session.user.userId, input.ruleId, {
-    schedule: input.schedule,
-  });
+  const result = await warmupEntitlement.runMutation(() =>
+    deps.reminders.updateRule(session.user.userId, input.ruleId, {
+      schedule: input.schedule,
+    }),
+  );
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(routePaths.patientReminders);

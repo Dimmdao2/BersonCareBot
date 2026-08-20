@@ -32,9 +32,9 @@ import { isDoctorMenuLinkVisible } from '@/shared/ui/doctor/doctorNavLinks';
  */
 const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
   {
-    id: 'account-security',
-    label: 'Безопасность',
-    href: '/app/account?tab=security',
+    id: 'account',
+    label: 'Аккаунт',
+    href: '/app/account',
     accessTier: 'global_admin',
   },
   {
@@ -69,9 +69,21 @@ const RAW_PLATFORM_MENU_ITEMS: DoctorMenuLinkItem[] = [
     accessTier: 'global_admin',
   },
   {
+    id: 'admin-notification-templates',
+    label: 'Шаблоны',
+    href: '/app/admin/notification-templates',
+    accessTier: 'global_admin',
+  },
+  {
     id: 'admin-integrations',
     label: 'Интеграции',
     href: '/app/admin/integrations',
+    accessTier: 'global_admin',
+  },
+  {
+    id: 'admin-notifications',
+    label: 'Уведомления',
+    href: '/app/admin/notifications',
     accessTier: 'global_admin',
   },
   {

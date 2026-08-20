@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageOff } from 'lucide-react';
+import { ImageOff, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { MediaThumbPhase } from './mediaThumbState';
 import { getMediaThumbPhase } from './mediaThumbState';
@@ -31,11 +31,13 @@ export function MediaThumb({
     kind: media.kind,
     previewStatus: media.previewStatus,
     previewSmUrl: media.previewSmUrl,
+    standardRendition: media.standardRendition,
   });
   const smUrl = media.previewSmUrl;
   const mdUrl = media.previewMdUrl;
   const skippedLabel = labels?.skipped ?? 'Превью не создаётся';
   const failedLabel = labels?.failed ?? 'Превью недоступно';
+  const pendingLabel = media.kind === 'video' ? 'Видео готовится' : 'Изображение готовится';
 
   if (phase === 'non_visual') {
     return null;
@@ -59,8 +61,21 @@ export function MediaThumb({
     );
   }
 
-  if (phase === 'pending') {
-    return <div className={cn('animate-pulse bg-muted/50', className)} aria-hidden />;
+  /**
+   * Thumbnail not ready yet, but the stored object is our own re-encode (bounded WebP), so the
+   * file itself is shown instead of a placeholder. Never reached for a raw upload.
+   */
+  if (phase === 'source' && media.url.trim()) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={media.url.trim()}
+        alt={alt}
+        className={cn(imgClassName, className)}
+        loading={lazy ? 'lazy' : 'eager'}
+        decoding="async"
+      />
+    );
   }
 
   if (phase === 'failed' || phase === 'skipped') {
@@ -77,6 +92,22 @@ export function MediaThumb({
     );
   }
 
-  /* phase === "ready" but missing smUrl — skeleton */
-  return <div className={cn('animate-pulse bg-muted/50', className)} aria-hidden />;
+  /**
+   * Nothing may be shown yet: the row carries no standard rendition, so the only bytes on hand are
+   * the user's own upload (SECURITY_CANON §5). This is a wait, not a breakage, and it says so —
+   * a grey box reads as a torn picture. Driven by the row alone; an `<img>` that fails to load is a
+   * different condition and keeps its own wording above.
+   */
+  return (
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-1 bg-muted/30 text-xs text-muted-foreground',
+        className,
+      )}
+      role="status"
+    >
+      <Loader2 className="h-8 w-8 animate-spin opacity-60" aria-hidden />
+      <span className="px-1 text-center">{pendingLabel}</span>
+    </div>
+  );
 }

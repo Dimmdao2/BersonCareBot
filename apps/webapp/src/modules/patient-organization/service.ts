@@ -49,14 +49,7 @@ function toOrganizationSummaries(
   return [...byId.values()];
 }
 
-export function createPatientOrganizationService(deps: {
-  port: PatientOrganizationPort;
-  /**
-   * 3.2: physically refuses a write unless a passing `patient_count` mutation decision already ran in
-   * this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
-   */
-  assertWriteClearance?: (mechanic: 'patient_count') => void;
-}) {
+export function createPatientOrganizationService(deps: { port: PatientOrganizationPort }) {
   async function resolveActiveOrganizationForPatient(
     platformUserId: string,
     options: ResolvePatientOrganizationOptions = {},
@@ -134,7 +127,8 @@ export function createPatientOrganizationService(deps: {
     async createManualOrganizationClient(
       input: Parameters<PatientOrganizationPort['createManualOrganizationClient']>[0],
     ) {
-      deps.assertWriteClearance?.('patient_count');
+      // Т12 (owner 19.08, «лимит клиентов - убрать»): no tariff mechanic stands in front of a
+      // client card any more, so there is no mutation decision to clear this write against.
       return deps.port.createManualOrganizationClient(input);
     },
     resolveActiveOrganizationForPatient,
@@ -150,6 +144,9 @@ export function createPatientOrganizationService(deps: {
       return resolveActiveOrganizationForPatient(platformUserId, {
         verifiedTargetOrganizationId: targetOrganizationId,
       });
+    },
+    async getTreatmentProgramDescriptionForPatient(platformUserId: string, instanceId: string) {
+      return deps.port.findTreatmentProgramDescriptionForPatient(platformUserId, instanceId);
     },
   };
 }

@@ -25,6 +25,7 @@ import { Label } from '@/shared/ui/doctor/primitives/label';
 import { cn } from '@/lib/utils';
 import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
 import type { PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import { acquiringErrorMessage } from '@/modules/patient-payments/acquiringErrorMessage';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -325,7 +326,8 @@ export function PatientTabFinances({
         }),
       });
       if (res.status === 503) {
-        setAcqError('Провайдер не настроен');
+        const json: { reason?: string } = await res.json().catch(() => ({}));
+        setAcqError(acquiringErrorMessage(json.reason));
         return;
       }
       if (!res.ok) {

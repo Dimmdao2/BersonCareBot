@@ -158,10 +158,6 @@ export function createBookingSchedulingService(
       return port.nearestFreeWindow(input);
     },
 
-    resolveLegacyBranchServiceId(input) {
-      return port.resolveLegacyBranchServiceId(input);
-    },
-
     async getInPersonSlots({ organizationId, branchId, serviceId, date, slotCount = 1 }) {
       const ctx = await port.resolveCanonicalInPersonContext({
         organizationId,
@@ -410,41 +406,23 @@ export function buildSlotsForContext(
   return computeSlotsInternal(port, context);
 }
 
-async function computeSlotsInternal(
-  port: BookingSchedulingPort,
+export type BookingSlotComputationData = {
+  workingHours: { weekday: number; startMinute: number; endMinute: number }[];
+  workingDays: Awaited<ReturnType<BookingSchedulingPort['listWorkingDays']>>;
+  busy: Awaited<ReturnType<BookingSchedulingPort['listBusyIntervals']>>;
+  bufferMinutes: number;
+  minNoticeHours: number;
+};
+
+export function computeSlotsFromData(
   context: Parameters<BookingSchedulingPort['getSlots']>[0],
-): Promise<import('@/modules/patient-booking/types').BookingSlotsByDate[]> {
-  const working = pickWorkingHours(
-    await port.listWorkingHours({
-      organizationId: context.organizationId,
-      specialistId: context.specialistId,
-      branchId: context.branchId,
-      roomId: context.roomId,
-    }),
-  );
-  const bufferMinutes = await port.getBufferMinutes(context.organizationId, context.specialistId);
-  const minNoticeHours = await port.getMinNoticeHours(context.organizationId);
-  const minSlotStartMs = Date.now() + minNoticeHours * 3_600_000;
-  const rangeStart = `${context.dateFrom}T00:00:00.000Z`;
-  const rangeEnd = `${context.dateTo}T23:59:59.999Z`;
-
-  // Load per-date overrides; absence → undefined → weekday fallback (backward-compatible)
-  const perDayRows = await port.listWorkingDays({
-    organizationId: context.organizationId,
-    specialistId: context.specialistId,
-    dateFrom: context.dateFrom,
-    dateTo: context.dateTo,
-  });
-  const perDayMap = new Map(perDayRows.map((r) => [r.workDate, r]));
-
-  const busy = await port.listBusyIntervals({
-    organizationId: context.organizationId,
-    specialistId: context.specialistId,
-    roomId: context.roomId,
-    rangeStart,
-    rangeEnd,
-  });
-  const busyMs = busyFromRecords(busy);
+  data: BookingSlotComputationData,
+  nowMs = Date.now(),
+): import('@/modules/patient-booking/types').BookingSlotsByDate[] {
+  const working = pickWorkingHours(data.workingHours);
+  const minSlotStartMs = nowMs + data.minNoticeHours * 3_600_000;
+  const perDayMap = new Map(data.workingDays.map((row) => [row.workDate, row]));
+  const busyMs = busyFromRecords(data.busy);
   const slotCount = context.slotCount ?? 1;
   const slotDuration = context.durationMinutes * slotCount;
   const requiredDuration = slotDuration + (context.bufferAfterMinutes ?? 0);
@@ -453,9 +431,6 @@ async function computeSlotsInternal(
   let day = context.dateFrom;
   while (day <= context.dateTo) {
     const perDayRow = perDayMap.get(day);
-    // Per-date override is scoped to the location assigned that day (model: one branch per day).
-    // If the assigned branch differs from the queried branch, the specialist is committed elsewhere
-    // that day → no availability for this branch (mirrors branch-scoping of weekday be_working_hours).
     const effectivePerDayRow =
       perDayRow &&
       perDayRow.branchId != null &&
@@ -467,7 +442,7 @@ async function computeSlotsInternal(
       day,
       context.branchTimezone,
       working,
-      bufferMinutes,
+      data.bufferMinutes,
       effectivePerDayRow,
     );
     const free = subtractBusy(workingIntervals, busyMs);
@@ -479,7 +454,10 @@ async function computeSlotsInternal(
     );
     for (const slot of daySlots) {
       if (new Date(slot.startAt).getTime() < minSlotStartMs) continue;
-      if (slotCount > 1 && !isChainFree(slot.startAt, slotCount, context.durationMinutes, busy)) {
+      if (
+        slotCount > 1 &&
+        !isChainFree(slot.startAt, slotCount, context.durationMinutes, data.busy)
+      ) {
         continue;
       }
       allSlots.push(slot);
@@ -488,4 +466,42 @@ async function computeSlotsInternal(
   }
 
   return groupSlotsByLocalDate(allSlots, context.branchTimezone);
+}
+
+async function computeSlotsInternal(
+  port: BookingSchedulingPort,
+  context: Parameters<BookingSchedulingPort['getSlots']>[0],
+): Promise<import('@/modules/patient-booking/types').BookingSlotsByDate[]> {
+  const rangeStart = `${context.dateFrom}T00:00:00.000Z`;
+  const rangeEnd = `${context.dateTo}T23:59:59.999Z`;
+  const [workingHours, bufferMinutes, minNoticeHours, workingDays, busy] = await Promise.all([
+    port.listWorkingHours({
+      organizationId: context.organizationId,
+      specialistId: context.specialistId,
+      branchId: context.branchId,
+      roomId: context.roomId,
+    }),
+    port.getBufferMinutes(context.organizationId, context.specialistId),
+    port.getMinNoticeHours(context.organizationId),
+    port.listWorkingDays({
+      organizationId: context.organizationId,
+      specialistId: context.specialistId,
+      dateFrom: context.dateFrom,
+      dateTo: context.dateTo,
+    }),
+    port.listBusyIntervals({
+      organizationId: context.organizationId,
+      specialistId: context.specialistId,
+      roomId: context.roomId,
+      rangeStart,
+      rangeEnd,
+    }),
+  ]);
+  return computeSlotsFromData(context, {
+    workingHours,
+    workingDays,
+    busy,
+    bufferMinutes,
+    minNoticeHours,
+  });
 }

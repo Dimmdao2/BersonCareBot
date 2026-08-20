@@ -29,7 +29,7 @@ describe('BookingPaymentsSection tariff access', () => {
     fireEvent.click(providerEnabledSwitch);
     expect(paymentEnabledSwitch).toHaveAttribute('aria-checked', 'true');
     expect(providerEnabledSwitch).toHaveAttribute('aria-checked', 'true');
-    fireEvent.click(screen.getByRole('combobox'));
+    for (const combobox of screen.getAllByRole('combobox')) fireEvent.click(combobox);
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Сохранить' })).toBeDisabled();
   });

@@ -1,6 +1,6 @@
 'use client';
 
-import { ImageOff } from 'lucide-react';
+import { ImageOff, Loader2 } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { NoContextMenuVideo } from '@/shared/ui/doctor/media/NoContextMenuVideo';
 import { Dialog, DialogContent, DialogTitle } from '@/shared/ui/doctor/primitives/dialog';
@@ -20,6 +20,8 @@ type MediaItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
+  /** `media_files.standard_rendition_at IS NOT NULL` — the stored object is our own re-encode. */
+  standardRendition?: boolean;
 };
 
 type Props = {
@@ -32,10 +34,24 @@ type Props = {
 
 export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Props) {
   const title = item ? item.displayName?.trim() || item.filename : 'Просмотр файла';
-  const imagePreviewSrc =
-    item?.kind === 'image' && item.previewStatus === 'ready' && canRenderInlineImage(item.mimeType)
+  const isInlineImage = item?.kind === 'image' && canRenderInlineImage(item.mimeType);
+  const generatedPreviewSrc =
+    isInlineImage && item?.previewStatus === 'ready'
       ? item.previewMdUrl?.trim() || item.previewSmUrl?.trim() || null
       : null;
+  /**
+   * No generated preview yet. The stored file may stand in for it only after the standard
+   * rendition (owner ruling 19.08) — a raw upload is never shown at full size. `failed`/`skipped`
+   * mean the rendition did not happen, so they keep the unavailable state below.
+   */
+  const imagePreviewSrc =
+    generatedPreviewSrc ??
+    (isInlineImage &&
+    item?.standardRendition === true &&
+    item.previewStatus !== 'failed' &&
+    item.previewStatus !== 'skipped'
+      ? item.url.trim() || null
+      : null);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] w-[95vw] max-w-5xl overflow-auto">
@@ -64,10 +80,19 @@ export function MediaLightbox({ open, item, onOpenChange, onPrev, onNext }: Prop
                   </span>
                 </div>
               ) : (
+                /**
+                 * Not converted yet: the file itself may not be shown (SECURITY_CANON §5). The
+                 * screen names the wait instead of leaving a grey rectangle that reads as broken.
+                 */
                 <div
-                  className="h-[50vh] max-h-[70vh] w-full animate-pulse rounded-md bg-muted/50"
-                  aria-hidden
-                />
+                  className={cn(
+                    'flex h-[50vh] max-h-[70vh] w-full flex-col items-center justify-center gap-2 rounded-md bg-muted/30 p-4 text-sm text-muted-foreground',
+                  )}
+                  role="status"
+                >
+                  <Loader2 className="h-12 w-12 animate-spin opacity-60" aria-hidden />
+                  <span>Изображение готовится</span>
+                </div>
               )
             ) : item.kind === 'video' ? (
               <div className="flex w-full min-w-0 justify-center rounded-md bg-muted/40">

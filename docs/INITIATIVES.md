@@ -36,7 +36,7 @@
 | ------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Round-3 doctor-UI fix wave**        | `/home/dev/orch/round3/QUEUE.md` + `REBUILD_PLAN/ACCEPTANCE_ROUND3.md` | Все actionable items ✅ DONE (самоштамп лупа — нужна независимая приёмка качества). BLOCKED-OWNER: ANL-10/11/13, Q-F5.                                                               |
 | **Финансы (BIG-07) полный эквайринг** | `docs/ACQUIRING_INTEGRATION/`                                          | Q-F1..F4 ✅ MERGED (provider settings, webhook, timeline API+UI, pay-link). Q-F5 ⛔ BLOCKED-OWNER (убрать старую PaymentsPanel — после проверки владельцем новой вкладки «Финансы»). |
-| **Аналитика**                         | `docs/PRODUCT_ANALYTICS_INITIATIVE/` (+ ANL-\*)                        | ANL-04/05/07/09/12/14 ✅. ANL-10/11/13 ⛔ BLOCKED-OWNER (карточки первич./повторн.; monthly bars; branch cards).                                                                     |
+| **Аналитика**                         | `docs/archive/2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/` (+ ANL-\*) | Исторический снимок 2026-06-17. Папка закрыта и перенесена в архив 2026-08-19.                                                                                                   |
 
 ### Бывший ⏳ QUEUED
 
@@ -66,6 +66,7 @@ _Пусто — всё либо выполнено, либо в ACTIVE (забл
 | **Страница пациента: SSR + табы load-once**                  | 2026-06-17 (луп) | Q-C5/PAT-01..05 merged (самоштамп — приёмка).                                                                                                                                                                                                                                                                                                                                          |
 | **Напоминания о записи (Q-R)**                               | 2026-06-17 (луп) | Настройки специалиста (переключатель + оффсеты). Клиентский шаг — defer.                                                                                                                                                                                                                                                                                                               |
 | **Folder-архив 11 завершённых инициатив → `docs/archive/legacy-underscore/`** | 2026-06-17       | own_booking_engine · operator_health_alerting · login_register_new_logic · pwa · doctor_patient_pwa_split · doctor_patient_card_treatment_program · bot_fixes · patient_daily_warmup_ux · reminders_settings_drizzle_only · doctor_schedule_section · doctor_ui_visual_style_pass. + 3 cursor-плана (schedule_section, schedule_v26, warmup_rotation). Ссылки в индекс-доках починены. |
+| **Закрытые/отложенные `docs/*_INITIATIVE/` → `docs/archive/2026-08-initiatives/`** | 2026-08-19 | product_analytics · product_platform · communications_md_v2 · online_consult_rehab_nutrition_booking. |
 
 ## 📂 ТРИАЖ папок `docs/*_INITIATIVE/` — ВЫПОЛНЕН (2026-06-17)
 
@@ -74,7 +75,8 @@ _Пусто — всё либо выполнено, либо в ACTIVE (забл
 - **BOOKING_REWORK_INITIATIVE** — binding-правило (`doctor-ui-shared-primitives`) + AGENTS ссылаются как на владельца кода.
 - **INTEGRATOR_DRIZZLE_MIGRATION** — доказательная база (ADR постоянных pg-зон + RAW_SQL_INVENTORY) для инициативы DB-chokepoint.
 - **TREATMENT_PROGRAM_INITIATIVE** — живой `EXECUTION_RULES.md` (ссылается `.cursor/rules`).
-- В работе/отложено/отменено: **APP_RESTRUCTURE** (частично), **PRODUCT_ANALYTICS** (v1 done, дорабатывается лупом), **PRODUCT_PLATFORM** (deferred), **COMMUNICATIONS_MD_V2** (ТЗ done), **COURSES** (strawman), **ONLINE_CONSULT_REHAB_NUTRITION_BOOKING** (отменена).
+- В работе/отложено: **APP_RESTRUCTURE** (хвосты/справочник), **COURSES** (strawman).
+- В архив 2026-08-19: **PRODUCT_ANALYTICS**, **PRODUCT_PLATFORM** (deferred), **COMMUNICATIONS_MD_V2**, **ONLINE_CONSULT_REHAB_NUTRITION_BOOKING** — [`archive/2026-08-initiatives/`](archive/2026-08-initiatives/README.md).
 
 ## 📥 INBOX
 

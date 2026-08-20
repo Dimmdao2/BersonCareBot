@@ -1,5 +1,7 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import { useMemo } from 'react';
 import {
   Bar,
@@ -8,7 +10,6 @@ import {
   Legend,
   Line,
   LineChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -100,7 +101,7 @@ export function PushOpensAnalyticsCard({
           />
         </div>
         <div className="w-full min-w-0" style={{ height: CHART_H }}>
-          <ResponsiveContainer width="100%" height="100%">
+          <PositiveSizeResponsiveContainer width="100%" height="100%">
             <BarChart data={pushDailyChartData} margin={{ top: 4, right: 4, left: 0, bottom: 40 }}>
               <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
               <XAxis
@@ -117,11 +118,11 @@ export function PushOpensAnalyticsCard({
               <Bar dataKey="sent" name="Отправлено" fill={FILL_PUSH_SENT} />
               <Bar dataKey="opened" name="Открыто" fill={FILL_PUSH_OPEN} />
             </BarChart>
-          </ResponsiveContainer>
+          </PositiveSizeResponsiveContainer>
         </div>
         {showHourlyLine ? (
           <div className="w-full min-w-0" style={{ height: CHART_H }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <PositiveSizeResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={pushHourlyChartData}
                 margin={{ top: 4, right: 8, left: 0, bottom: 4 }}
@@ -153,7 +154,7 @@ export function PushOpensAnalyticsCard({
                   strokeWidth={2}
                 />
               </LineChart>
-            </ResponsiveContainer>
+            </PositiveSizeResponsiveContainer>
           </div>
         ) : null}
       </CardContent>

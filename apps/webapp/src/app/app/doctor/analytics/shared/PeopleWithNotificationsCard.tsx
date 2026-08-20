@@ -1,5 +1,7 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import { useMemo } from 'react';
 import {
   Bar,
@@ -8,7 +10,6 @@ import {
   Cell,
   Pie,
   PieChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -66,7 +67,7 @@ export function PeopleWithNotificationsCard({
               <p className="text-xs text-muted-foreground">Нет данных за период.</p>
             ) : (
               <div className="w-full min-w-0" style={{ height: CHART_H }}>
-                <ResponsiveContainer width="100%" height="100%">
+                <PositiveSizeResponsiveContainer width="100%" height="100%">
                   <BarChart data={dailyChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                     <CartesianGrid
                       stroke="hsl(var(--border))"
@@ -89,7 +90,7 @@ export function PeopleWithNotificationsCard({
                       radius={[3, 3, 0, 0]}
                     />
                   </BarChart>
-                </ResponsiveContainer>
+                </PositiveSizeResponsiveContainer>
               </div>
             )}
           </div>
@@ -102,7 +103,7 @@ export function PeopleWithNotificationsCard({
             ) : (
               <div className="flex items-center gap-3">
                 <div className="h-[88px] w-[88px] shrink-0">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <PositiveSizeResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
                         data={pieSlices}
@@ -127,7 +128,7 @@ export function PeopleWithNotificationsCard({
                         }}
                       />
                     </PieChart>
-                  </ResponsiveContainer>
+                  </PositiveSizeResponsiveContainer>
                 </div>
                 <ul className="space-y-1 text-xs">
                   {pieSlices.map((s) => (

@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { routePaths } from '@/app-layer/routes/paths';
 import {
   InPersonBookingResolveError,
-  resolveInPersonBookingContext,
+  resolveCurrentPatientInPersonBookingContext,
 } from '@/modules/patient-booking/inPersonBookingResolve';
 
 export async function GET(request: Request) {
@@ -13,19 +12,16 @@ export async function GET(request: Request) {
   if (!gate.ok) return gate.response;
 
   const deps = buildAppDeps();
-  if (!deps.bookingEngine || !deps.bookingForm) {
+  if (!deps.bookingForm) {
     return NextResponse.json({ ok: false, error: 'booking_form_unavailable' }, { status: 503 });
   }
   const params = new URL(request.url).searchParams;
   try {
-    const ctx = await resolveInPersonBookingContext(deps, {
+    const ctx = await resolveCurrentPatientInPersonBookingContext(deps, {
       branchId: params.get('branchId'),
       serviceId: params.get('serviceId'),
     });
-    const fields = await withExplicitOrganizationPrincipal(
-      { organizationId: ctx.organizationId, source: 'api/booking/form-fields:GET' },
-      () => deps.bookingForm!.listPatientFields(ctx.organizationId),
-    );
+    const fields = await deps.bookingForm.listPatientFields(ctx.organizationId);
     return NextResponse.json({ ok: true, fields });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'ambiguous_booking_tenant';

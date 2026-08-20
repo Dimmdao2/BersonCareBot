@@ -1,13 +1,10 @@
 import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getDoctorAccountTimezone } from '@/app-layer/doctor/accountTimezone';
 import { DoctorAccountEmailSection } from '@/app/app/settings/DoctorAccountEmailSection';
-import { DoctorNotificationChannelsSection } from '@/app/app/settings/DoctorNotificationChannelsSection';
 import { DoctorScreensToggleSection } from '@/app/app/settings/DoctorScreensToggleSection';
-import { DoctorTimezoneSection } from '@/app/app/settings/DoctorTimezoneSection';
 import { SettingsForm } from '@/app/app/settings/SettingsForm';
-import { buildDoctorNotificationTopicModels } from '@/modules/doctor-notifications/doctorProfileTopicChannelsModel';
-import { parseSpecialistTaskReminderChannels } from '@/modules/specialist-tasks/reminderChannels';
+import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificationsSection';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { StaffPwaInstallSection } from '@/shared/ui/doctor/pwa/StaffPwaInstallSection';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
@@ -23,6 +20,7 @@ import { StaffPasskeySection } from './StaffPasskeySection';
 import { isRestrictedStaffSecuritySession } from '@/app-layer/guards/requireRole';
 import { runWithStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 
 function valueOf<T>(valueJson: unknown, fallback: T): T {
   return valueJson !== null &&
@@ -39,6 +37,104 @@ function parseTab(raw: string | string[] | undefined): AccountTab {
     : 'profile';
 }
 
+function InstallSection() {
+  return (
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Установка на устройство</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      <StaffPwaInstallSection />
+    </DoctorSection>
+  );
+}
+
+async function loadProfileContent(
+  deps: ReturnType<typeof buildAppDeps>,
+  userId: string,
+  workspaceContext: DoctorWorkspaceContext | null,
+): Promise<ReactNode> {
+  const accountEmail = await deps.userProjection.getProfileEmailFields(userId);
+  const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
+    ? await deps.systemSettings.listSettingsByScope('doctor', {
+        organizationId: workspaceContext.organizationId,
+      })
+    : [];
+  return (
+    <>
+      <DoctorAccountEmailSection
+        initialEmail={accountEmail.email}
+        emailVerified={Boolean(accountEmail.emailVerifiedAt)}
+      />
+      {workspaceContext?.canManageOrganization && workspaceContext.specialistId != null ? (
+        <DoctorScreensToggleSection initialDisabled={workspaceContext.doctorScreensDisabled} />
+      ) : null}
+      {workspaceContext?.canAccessClinicalWorkspace ? (
+        <SettingsForm
+          patientLabel="пациент"
+          smsFallbackEnabled={valueOf(
+            doctorSettings.find(
+              (setting) =>
+                setting.key === 'sms_fallback_enabled' &&
+                setting.organizationId === workspaceContext.organizationId,
+            )?.valueJson,
+            false,
+          )}
+          supportCommentsWithoutSupportDefault={valueOf(
+            doctorSettings.find(
+              (setting) =>
+                setting.key === 'doctor_patient_support_comments_without_support_default_enabled',
+            )?.valueJson,
+            false,
+          )}
+          supportMediaWithoutSupportDefault={valueOf(
+            doctorSettings.find(
+              (setting) =>
+                setting.key === 'doctor_patient_support_media_without_support_default_enabled',
+            )?.valueJson,
+            false,
+          )}
+          showPatientLabel={false}
+        />
+      ) : null}
+    </>
+  );
+}
+
+async function loadSecurityContent(
+  deps: ReturnType<typeof buildAppDeps>,
+  session: Awaited<ReturnType<typeof loadStaffAccountPageContext>>['session'],
+  workspaceContext: DoctorWorkspaceContext | null,
+  recoveryOnly: boolean,
+  isPlatformConsole: boolean,
+): Promise<ReactNode> {
+  const [storedStatus, passkeyEnabled] = await Promise.all([
+    runWithStaffSecuritySelfPrincipal(session.user.userId, 'app/account:security-self', () =>
+      deps.staffSecurity.getStatus(),
+    ),
+    recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
+  ]);
+  const status = storedStatus ?? {
+    enrolled: false,
+    recoveryConfirmed: false,
+    replacementRequired: false,
+    lockedUntil: null,
+    sessionVersion: 0,
+  };
+  return (
+    <>
+      <StaffSecuritySection
+        initialStatus={status}
+        hasProfileName={Boolean(session.user.displayName.trim())}
+        hasOrganization={workspaceContext !== null}
+        hasSpecialistBinding={workspaceContext?.specialistId != null}
+        showSpecialistFirstRun={!isPlatformConsole}
+        recoveryOnly={recoveryOnly}
+      />
+      {passkeyEnabled ? <StaffPasskeySection /> : null}
+    </>
+  );
+}
+
 export default async function AccountPage({
   searchParams,
 }: {
@@ -49,143 +145,39 @@ export default async function AccountPage({
   const { session, workspaceContext } = await loadStaffAccountPageContext();
   const restrictedSecuritySession = isRestrictedStaffSecuritySession(session);
   const isPlatformConsole = session.user.role === 'admin';
+  if (isPlatformConsole && requestedTab === 'notifications') {
+    redirect('/app/admin/notifications');
+  }
   const recoveryOnly =
     session.staffSecurity?.assurance === 'recovery' ||
     session.staffSecurity?.assurance === 'recovery_confirmation';
   const tab = restrictedSecuritySession ? 'security' : requestedTab;
+  const showAllSections = isPlatformConsole && !restrictedSecuritySession && !recoveryOnly;
   const deps = buildAppDeps();
 
-  let content: ReactNode;
-  if (tab === 'install') {
-    content = (
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Установка на устройство</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <StaffPwaInstallSection />
-      </DoctorSection>
-    );
-  } else if (tab === 'security') {
-    const [storedStatus, timezone, passkeyEnabled] = await Promise.all([
-      runWithStaffSecuritySelfPrincipal(
-        session.user.userId,
-        'app/account:security-self',
-        () => deps.staffSecurity.getStatus(),
-      ),
-      recoveryOnly ? Promise.resolve(null) : getDoctorAccountTimezone(session.user.userId),
-      recoveryOnly ? Promise.resolve(false) : isIndependentAuthMethodEnabled('passkey'),
-    ]);
-    const status = storedStatus ?? {
-      enrolled: false,
-      recoveryConfirmed: false,
-      replacementRequired: false,
-      lockedUntil: null,
-      sessionVersion: 0,
-    };
-    content = (
-      <>
-        <StaffSecuritySection
-          initialStatus={status}
-          hasProfileName={Boolean(session.user.displayName.trim())}
-          hasTimezone={Boolean(timezone)}
-          hasOrganization={workspaceContext !== null}
-          hasSpecialistBinding={workspaceContext?.specialistId != null}
-          showSpecialistFirstRun={!isPlatformConsole}
-          recoveryOnly={recoveryOnly}
-        />
-        {passkeyEnabled ? <StaffPasskeySection /> : null}
-      </>
-    );
-  } else if (tab === 'notifications') {
-    const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
-    const hasTelegram = Boolean(session.user.bindings.telegramId?.trim());
-    const hasMax = Boolean(session.user.bindings.maxId?.trim());
-    const [hasWebPushSubscription, channelPrefs, topicPrefs, doctorSettings] = await Promise.all([
-      deps.webPushSubscriptions.hasAnyForUserId(session.user.userId),
-      deps.channelPreferencesPort.getPreferences(session.user.userId),
-      deps.topicChannelPrefs.listByUserId(session.user.userId),
-      workspaceContext?.canAccessClinicalWorkspace
-        ? deps.systemSettings.listSettingsByScope('doctor', {
-            organizationId: workspaceContext.organizationId,
-          })
-        : Promise.resolve([]),
-    ]);
-    const globalWebPushEnabled =
-      channelPrefs.find((preference) => preference.channelCode === 'web_push')
-        ?.isEnabledForNotifications !== false;
-    const taskReminderChannels = parseSpecialistTaskReminderChannels(
-      doctorSettings.find((setting) => setting.key === 'doctor_specialist_task_reminder_channels')
-        ?.valueJson ?? null,
-    );
-    const notificationTopics = buildDoctorNotificationTopicModels(
-      topicPrefs,
-      {
-        hasTelegram,
-        hasMax,
-        emailVerified: Boolean(accountEmail.emailVerifiedAt),
-        hasWebPushSubscription,
-        globalWebPushEnabled,
-      },
-      taskReminderChannels,
-    );
-    content = (
-      <DoctorNotificationChannelsSection
-        initialTopics={notificationTopics}
-        hasWebPushSubscription={hasWebPushSubscription}
-        globalWebPushEnabled={globalWebPushEnabled}
-        hasTelegram={hasTelegram}
-        hasMax={hasMax}
-        emailVerified={Boolean(accountEmail.emailVerifiedAt)}
-      />
-    );
-  } else {
-    const accountEmail = await deps.userProjection.getProfileEmailFields(session.user.userId);
-    const doctorSettings = workspaceContext?.canAccessClinicalWorkspace
-      ? await deps.systemSettings.listSettingsByScope('doctor', {
-          organizationId: workspaceContext.organizationId,
-        })
-      : [];
-    content = (
-      <>
-        <DoctorAccountEmailSection
-          initialEmail={accountEmail.email}
-          emailVerified={Boolean(accountEmail.emailVerifiedAt)}
-        />
-        <DoctorTimezoneSection
-          initialTimezone={await getDoctorAccountTimezone(session.user.userId)}
-        />
-        {workspaceContext?.canManageOrganization && workspaceContext.specialistId != null ? (
-          <DoctorScreensToggleSection
-            initialDisabled={workspaceContext.doctorScreensDisabled}
-          />
-        ) : null}
-        {workspaceContext?.canAccessClinicalWorkspace ? (
-          <SettingsForm
-            patientLabel="пациент"
-            smsFallbackEnabled={valueOf(
-              doctorSettings.find((setting) => setting.key === 'sms_fallback_enabled')?.valueJson,
-              true,
-            )}
-            supportCommentsWithoutSupportDefault={valueOf(
-              doctorSettings.find(
-                (setting) =>
-                  setting.key === 'doctor_patient_support_comments_without_support_default_enabled',
-              )?.valueJson,
-              false,
-            )}
-            supportMediaWithoutSupportDefault={valueOf(
-              doctorSettings.find(
-                (setting) =>
-                  setting.key === 'doctor_patient_support_media_without_support_default_enabled',
-              )?.valueJson,
-              false,
-            )}
-            showPatientLabel={false}
-          />
-        ) : null}
-      </>
-    );
-  }
+  const showProfile = showAllSections || tab === 'profile';
+  const showSecurity = showAllSections || tab === 'security';
+  const showNotifications = !isPlatformConsole && tab === 'notifications';
+  const showInstall = showAllSections || tab === 'install';
+
+  const [profileContent, securityContent, notificationsContent] = await Promise.all([
+    showProfile ? loadProfileContent(deps, session.user.userId, workspaceContext) : null,
+    showSecurity
+      ? loadSecurityContent(deps, session, workspaceContext, recoveryOnly, isPlatformConsole)
+      : null,
+    showNotifications
+      ? loadStaffNotificationsSection(deps, session, workspaceContext)
+      : null,
+  ]);
+
+  const content = (
+    <>
+      {profileContent}
+      {securityContent}
+      {notificationsContent}
+      {showInstall ? <InstallSection /> : null}
+    </>
+  );
 
   if (recoveryOnly) {
     return (
@@ -198,7 +190,10 @@ export default async function AccountPage({
 
   return (
     <DoctorAppShell title="Аккаунт" user={session.user}>
-      <DoctorPageHeader title="Аккаунт" tabs={<AccountTabs activeTab={tab} />} />
+      <DoctorPageHeader
+        title="Аккаунт"
+        tabs={isPlatformConsole ? undefined : <AccountTabs activeTab={tab} />}
+      />
       {content}
     </DoctorAppShell>
   );

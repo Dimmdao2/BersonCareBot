@@ -124,7 +124,7 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
   if (channels.telegram) {
     let telegramIds: string[] = [];
     try {
-      const lists = await loadAdminMessengerIdLists(input.db);
+      const lists = await loadAdminMessengerIdLists();
       telegramIds = lists.telegram;
     } catch (err) {
       logger.warn({ err }, '[admin_incident] integrator: load admin_telegram_ids failed');
@@ -187,7 +187,7 @@ export async function relayMessengerPhoneBindAdminIncident(input: {
   if (channels.max) {
     let maxIds: string[] = [];
     try {
-      const lists = await loadAdminMessengerIdLists(input.db);
+      const lists = await loadAdminMessengerIdLists();
       maxIds = lists.max;
     } catch (err) {
       logger.warn({ err }, '[admin_incident] integrator: load admin_max_ids failed');

@@ -102,7 +102,7 @@ export async function recordMessengerPhoneBindBlocked(input: {
   // D15b/4 (access sweep 2026-08-04): `admin_audit_log` is org-scoped RLS (`saas_org_dormant_p0_8_3`
   // — `organization_id = app.current_org_id()`), and the retired write here never set the column, so
   // a row written under the org principal this function now runs under (caller wraps this whole call
-  // in `runDirectPublicWriteWithOrgPrincipal`) would fail its own WITH CHECK. Read the SAME ambient
+  // in `writeDirectPublic`) would fail its own WITH CHECK. Read the SAME ambient
   // org id the caller's principal switch used — never guessed, never a different resolution.
   const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
 

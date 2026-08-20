@@ -98,10 +98,10 @@ export type {
   ActorResolutionRequest,
   TemplatePort,
   WebappEventsPort,
-  WebappEventBody,
   DeliveryTargetsPort,
   DeliveryTargetsFetchOptions,
   DeliveryTargetsChannelBindings,
+  AdminMessengerTargets,
   RemindersReadsPort,
   RemindersWebappWritesPort,
   ReminderRuleListItem,
@@ -115,13 +115,6 @@ export type {
   VapidCredentials,
 } from './ports.js';
 
-export {
-  REMINDER_RULE_UPSERTED,
-  REMINDER_OCCURRENCE_FINALIZED,
-  REMINDER_DELIVERY_LOGGED,
-  CONTENT_ACCESS_GRANTED,
-} from './projectionEventTypes.js';
-export type { ReminderProjectionEventType } from './projectionEventTypes.js';
 
 export type { MessengerStaffChannel, ResolveMessengerStaffAdmin } from './messengerStaff.js';
 

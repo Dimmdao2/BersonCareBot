@@ -1,7 +1,6 @@
-import { getDrizzle } from '@/app-layer/db/drizzle';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { mediaPlaybackUserVideoFirstResolve } from '../../../db/schema';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -15,23 +14,11 @@ export async function recordPlaybackUserVideoFirstResolve(input: {
   if (!organizationId) return false;
 
   try {
-    const db = getDrizzle();
-    const rows = await db
-      .insert(mediaPlaybackUserVideoFirstResolve)
-      .values({
-        organizationId,
-        userId: input.userId,
-        mediaId: input.mediaId,
-      })
-      .onConflictDoNothing({
-        target: [
-          mediaPlaybackUserVideoFirstResolve.userId,
-          mediaPlaybackUserVideoFirstResolve.mediaId,
-        ],
-      })
-      .returning({ mediaId: mediaPlaybackUserVideoFirstResolve.mediaId });
-
-    return rows.length > 0;
+    return await buildAppDeps().playbackUserVideoFirstResolve.record({
+      organizationId,
+      userId: input.userId,
+      mediaId: input.mediaId,
+    });
   } catch (e) {
     logger.error(
       { err: e, mediaId: input.mediaId },

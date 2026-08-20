@@ -23,9 +23,11 @@ export type TreatmentProgramLibraryPickType = TreatmentProgramItemType | 'lfk_co
 /** Миниатюра первого элемента шаблона в списке врача (когда удалось разрешить медиа на сервере). */
 export type TreatmentProgramTemplateListPreviewMedia = {
   mediaUrl: string;
-  mediaType: 'image' | 'video' | 'gif';
+  mediaType: 'image' | 'video' | 'gif' | 'hosted_video';
   previewSmUrl?: string | null;
   previewStatus?: MediaPreviewStatus | null;
+  /** `media_files.standard_rendition_at IS NOT NULL` — see `RecommendationMediaItem.standardRendition`. */
+  standardRendition?: boolean | null;
 };
 
 export type TreatmentProgramTemplate = {
@@ -675,6 +677,8 @@ export type LfkPostSessionDifficulty = 'easy' | 'medium' | 'hard';
  * Поля `reps`, `weightKg`, `sets`, `difficulty` — null, если не зафиксированы.
  */
 export type ExerciseMetricPoint = {
+  /** Stable action-log identifier used to enrich this exact completion. */
+  completionId: string;
   /** ISO-строка `created_at` из `program_action_log`. */
   at: string;
   reps: number | null;

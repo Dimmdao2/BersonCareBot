@@ -18,6 +18,34 @@ export const PATIENT_HOME_MOOD_STATIC_ICON_URL: Record<1 | 2 | 3 | 4 | 5, string
   5: '/patient/home/icons/mood/5.png',
 };
 
+export type PatientHomeMoodOption = {
+  score: 1 | 2 | 3 | 4 | 5;
+  label: string;
+  imageUrl: string;
+};
+
+const PATIENT_HOME_MOOD_LABEL: Record<1 | 2 | 3 | 4 | 5, string> = {
+  1: 'Очень плохо',
+  2: 'Скорее плохо',
+  3: 'Нейтрально',
+  4: 'Хорошо',
+  5: 'Отлично',
+};
+
+/**
+ * Шкала самочувствия 1–5. Иконки — bundled-ассеты из `public/patient/home/icons/mood/`,
+ * одинаковые для всех клиник; настройки клиники на них не влияют (решение владельца 18.08).
+ */
+export const PATIENT_HOME_MOOD_OPTIONS: readonly PatientHomeMoodOption[] = Object.freeze(
+  ([1, 2, 3, 4, 5] as const).map((score) =>
+    Object.freeze({
+      score,
+      label: PATIENT_HOME_MOOD_LABEL[score],
+      imageUrl: PATIENT_HOME_MOOD_STATIC_ICON_URL[score],
+    }),
+  ),
+);
+
 export function resolvePatientHomeBlockLeadingIconUrl(
   code: PatientHomeBlockCode,
   cmsIconImageUrl: string | null | undefined,

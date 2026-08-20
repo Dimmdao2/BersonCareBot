@@ -38,7 +38,6 @@ export type PatientMessagingServiceOptions = {
     messageText: string;
     patientLabel: string;
   }) => Promise<void>;
-  resolvePatientLabel?: (platformUserId: string) => Promise<string>;
 };
 
 export function createPatientMessagingService(
@@ -99,6 +98,7 @@ export function createPatientMessagingService(
       platformUserId: string,
       conversationId: string,
       text: string,
+      patientLabel: string,
     ): Promise<{ ok: true; message: SerializedSupportMessage } | { ok: false; error: string }> {
       const conv = await port.getConversationIfOwnedByUser(conversationId, platformUserId);
       // Чужое обращение — единый ответ «нет такого» (OWASP ASVS 5.0 V8.2.2 / CWE-639).
@@ -139,9 +139,6 @@ export function createPatientMessagingService(
       if (conv.organizationId && options?.notifyDoctorOfPatientMessage) {
         const organizationId = conv.organizationId;
         void (async () => {
-          const patientLabel = options.resolvePatientLabel
-            ? await options.resolvePatientLabel(platformUserId)
-            : '';
           await options.notifyDoctorOfPatientMessage!({
             organizationId,
             platformUserId,

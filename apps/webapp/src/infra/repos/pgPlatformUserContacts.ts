@@ -1,6 +1,8 @@
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import type { IdentityContactFields } from '@/modules/platform-user-contacts/identityContactMatch';
 import type {
   PlatformUserContactRecord,
   PlatformUserContactsPort,
@@ -10,6 +12,30 @@ import type {
   PlatformUserContactType,
 } from '@/modules/platform-user-contacts/types';
 import { platformUserContacts } from '../../../db/schema/platformUserContacts';
+
+function isPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+/**
+ * Own identity phone and e-mail of the person holding the session — nothing else.
+ *
+ * The booking path used to ask `doctorClientsPort.getClientIdentity` for this, which carries the
+ * staff client projection (FIO, messenger bindings, blocked/archived flags) and is denied to
+ * `app_patient` on `platform_users`. The declared root reads the caller's own two fields and takes
+ * no user id at all: the subject comes from the accepted port context.
+ */
+export async function readCurrentPatientIdentityContacts(): Promise<IdentityContactFields | null> {
+  const result = await runWebappNamedRoot<{ phone: string | null; email: string | null }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_identity_contacts()',
+    [],
+    sql`SELECT o_phone AS "phone", o_email AS "email"
+          FROM app.read_current_patient_identity_contacts()`,
+  );
+  const row = result.rows[0];
+  return row ? { phone: row.phone, email: row.email } : null;
+}
 
 function mapRow(row: typeof platformUserContacts.$inferSelect): PlatformUserContactRecord {
   return {
@@ -52,6 +78,31 @@ export function createPgPlatformUserContactsPort(): PlatformUserContactsPort {
     },
 
     async upsertContact(input) {
+      // `app_patient` holds no privilege at all on `platform_user_contacts`; the patient writes its
+      // own row through the declared root, which fixes the subject and the source itself.
+      if (isPatientPrincipal()) {
+        const result = await runWebappNamedRoot<PlatformUserContactRecord>(
+          getWebappSqlDb(),
+          'app.record_current_patient_booking_contact(text,text,text)',
+          [input.contactType, input.value, input.valueNormalized],
+          sql`SELECT o_id AS "id",
+                     o_platform_user_id AS "platformUserId",
+                     o_contact_type AS "contactType",
+                     o_value AS "value",
+                     o_value_normalized AS "valueNormalized",
+                     o_source AS "source",
+                     o_created_at AS "createdAt",
+                     o_updated_at AS "updatedAt"
+                FROM app.record_current_patient_booking_contact(
+                  ${sql.param(input.contactType)},
+                  ${sql.param(input.value)},
+                  ${sql.param(input.valueNormalized)}
+                )`,
+        );
+        const row = result.rows[0];
+        if (!row) throw new Error('platform_user_contacts upsert: named root returned no row');
+        return row;
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;

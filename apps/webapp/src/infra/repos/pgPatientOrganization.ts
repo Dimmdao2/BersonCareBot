@@ -19,7 +19,6 @@ import {
   OrganizationClientRelationshipDeniedError,
 } from '@/infra/repos/pgPatientOrganizationEnrollment';
 import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
-import { StockQuotaReachedError } from '@/infra/repos/transactionQuotaPort';
 import {
   assertManualPatientCommandReplay,
   findManualPatientCommand,
@@ -247,9 +246,6 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
         if (error instanceof OrganizationClientRelationshipDeniedError) {
           return { ok: false, error: 'inactive_enrollment' };
         }
-        if (error instanceof StockQuotaReachedError && error.mechanic === 'patient_count') {
-          return { ok: false, error: 'patient_count_limit_reached' };
-        }
         if (
           (error instanceof Error && error.message === 'idempotency_conflict') ||
           isManualPatientCommandUniqueViolation(error)
@@ -272,6 +268,16 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
         ),
       );
       return result.rows[0]?.organization_id ?? null;
+    },
+    async findTreatmentProgramDescriptionForPatient(platformUserId, instanceId) {
+      void platformUserId;
+      const result = await runWebappNamedRoot<{ description: string | null }>(
+        getWebappSqlDb(),
+        'app.read_current_patient_treatment_program_description(uuid)',
+        [instanceId],
+        sql`SELECT app.read_current_patient_treatment_program_description(${instanceId}::uuid) AS description`,
+      );
+      return result.rows[0]?.description ?? null;
     },
   };
 }

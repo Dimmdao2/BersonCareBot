@@ -32,8 +32,8 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
   'system-health': '/app/admin/system-health',
   'health-archive': '/app/admin/health-archive',
   'audit-log': '/app/admin/audit-log',
-  'product-analytics': '/app/doctor/analytics?tab=app',
-  'reminder-stats': '/app/doctor/analytics?tab=notifications',
+  'product-analytics': '/app/doctor/analytics',
+  'reminder-stats': '/app/doctor/analytics',
   // PLAT-01…09 slice 4 (2026-07-26) moved admin/* pages to /app/platform/admin/*; owner ruling
   // 2026-07-26 (final home) renamed the whole tree to /app/admin/* and flattened the nested
   // admin/* subtree one level (no /app/admin/admin/*).
@@ -214,6 +214,7 @@ export type AdminDiagnosticsSettings = {
   patientProgramDiscussionUiEnabled: boolean;
   patientProgramDiscussionMediaSubmissionEnabled: boolean;
   patientBookingUrl: string;
+  materialRatingsEnabled: boolean;
   operatorHealthAlertsConfig: OperatorHealthAlertConfig;
   operatorAlertFallbackEmail: string;
   operatorHealthProjectionThresholds: OperatorHealthProjectionThresholds;
@@ -331,7 +332,7 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       return raw === true || raw === 'true';
     })(),
     patientAppMaintenanceMessage: (() => {
-      const raw = getValueJson(
+      const raw = getValueJson<unknown>(
         adminSettingsList.find((x) => x.key === 'patient_app_maintenance_message')?.valueJson,
         '',
       );
@@ -370,6 +371,13 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
       );
       const s = typeof raw === 'string' ? raw.trim() : '';
       return s;
+    })(),
+    materialRatingsEnabled: (() => {
+      const raw = getValueJson<unknown>(
+        adminSettingsList.find((x) => x.key === 'material_ratings_enabled')?.valueJson,
+        false,
+      );
+      return raw === true || raw === 'true';
     })(),
     operatorHealthAlertsConfig: mergeOperatorHealthAlertConfigFromLegacy(
       adminSettingsList.find((x) => x.key === 'operator_health_alert_config')?.valueJson ?? null,

@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # TASK A — Tighten PII bootstrap-hybrid tables (plan + checklist)
 
 > **2026-07-27 — было → стало → почему.** Было: файл показывал 25 открытых боксов, что читалось как «почти

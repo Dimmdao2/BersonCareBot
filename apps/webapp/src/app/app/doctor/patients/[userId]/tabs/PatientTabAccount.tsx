@@ -613,7 +613,7 @@ export function PatientTabAccount({
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+    <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
       {/* ====================================================================
           LEFT COLUMN
       ==================================================================== */}

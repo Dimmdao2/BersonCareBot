@@ -8,6 +8,7 @@ import {
   productAnalyticsWindowStartHour,
 } from '@/modules/product-analytics/buildAdminDashboard';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { pruneRetentionTarget } from '@/infra/db/pruneRetentionTarget';
 import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudience';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { getServerConfigStructuredValue } from '@/modules/system-settings/configAdapter';
@@ -476,40 +477,26 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       });
     },
 
+    // Три таблицы ниже стоят под запертым арендаторским дескриптором: relation-DELETE от роли
+    // обслуживания их стену не проходит никогда — у уборки всех клиник организации нет. Уборка
+    // идёт единственным объявленным корнем с закрытым списком целей.
     async purgeRecentOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
-      const db = getDrizzle();
-      const cutoff = retentionCutoffIso(days);
-      if (options?.dryRun) {
-        const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
-          .from(productAnalyticsEventsRecent)
-          .where(lt(productAnalyticsEventsRecent.occurredAt, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
-      }
-      const deleted = await db
-        .delete(productAnalyticsEventsRecent)
-        .where(lt(productAnalyticsEventsRecent.occurredAt, cutoff))
-        .returning({ id: productAnalyticsEventsRecent.id });
-      return { deleted: deleted.length };
+      const deleted = await pruneRetentionTarget('product_analytics_events_recent', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
     },
 
     async purgeUserHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
-      const db = getDrizzle();
-      const cutoff = retentionCutoffIso(days);
-      if (options?.dryRun) {
-        const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
-          .from(productAnalyticsUserHourly)
-          .where(lt(productAnalyticsUserHourly.bucketHour, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
-      }
-      const deleted = await db
-        .delete(productAnalyticsUserHourly)
-        .where(lt(productAnalyticsUserHourly.bucketHour, cutoff))
-        .returning({ userId: productAnalyticsUserHourly.userId });
-      return { deleted: deleted.length };
+      const deleted = await pruneRetentionTarget('product_analytics_user_hourly', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
     },
 
+    // `product_analytics_hourly` — единственная из четырёх, что НЕ стоит под запертым
+    // дескриптором: у неё обычная деловая политика, и прямой DELETE роли обслуживания её
+    // проходит. Здесь ничего не сломано, поэтому она остаётся на своём гранте.
     async purgeHourlyOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
       const db = getDrizzle();
       const cutoff = retentionCutoffIso(days);
@@ -528,20 +515,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
     },
 
     async purgePushNotificationsOlderThan(days, options?: ProductAnalyticsPurgeOptions) {
-      const db = getDrizzle();
-      const cutoff = retentionCutoffIso(days);
-      if (options?.dryRun) {
-        const row = await db
-          .select({ c: sql<string>`COUNT(*)::text`.as('cnt') })
-          .from(productPushNotifications)
-          .where(lt(productPushNotifications.createdAt, cutoff));
-        return { deleted: Number.parseInt(row[0]?.c ?? '0', 10) || 0 };
-      }
-      const deleted = await db
-        .delete(productPushNotifications)
-        .where(lt(productPushNotifications.createdAt, cutoff))
-        .returning({ id: productPushNotifications.id });
-      return { deleted: deleted.length };
+      const deleted = await pruneRetentionTarget('product_push_notifications', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
     },
 
     async listRegistrationEvents(

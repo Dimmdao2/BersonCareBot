@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   patientListItemClass,
+  patientEmptyStateClass,
   patientMutedTextClass,
   patientSectionSurfaceClass,
   patientSectionTitleClass,
@@ -96,7 +97,16 @@ export function PatientBookingHistorySection({ mode = 'full' }: Props) {
     (showPayments && payments.length > 0) ||
     (showVisits && visits.length > 0) ||
     (showTimeline && timeline.length > 0);
-  if (!hasContent) return null;
+  if (!hasContent) {
+    return (
+      <section className={patientSectionSurfaceClass}>
+        <h2 className={patientSectionTitleClass}>{mode === 'payments' ? 'Оплаты' : 'История'}</h2>
+        <p className={patientEmptyStateClass}>
+          {mode === 'payments' ? 'Оплат пока нет' : 'История пока пуста'}
+        </p>
+      </section>
+    );
+  }
 
   function paymentMeta(p: PaymentRow): string {
     const parts: string[] = [new Date(p.occurredAt).toLocaleString('ru-RU')];

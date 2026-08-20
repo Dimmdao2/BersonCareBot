@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import type { SaasBillingOverview as SaasBillingOverviewData } from '@/modules/saas-billing/ports';
 import {
@@ -29,7 +29,19 @@ import {
 import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { Label } from '@/shared/ui/doctor/primitives/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/shared/ui/doctor/primitives/dialog';
 import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
+import { apiJson } from '@/shared/lib/apiJson';
+import { formatBytesAsMb } from '@/shared/lib/formatStorageMb';
+import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
 
 export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
@@ -60,11 +72,16 @@ const LIFECYCLE_LABELS: Record<
   PlatformOrganizationSummary['effectiveAccess']['lifecycle'],
   string
 > = {
-  active: 'Активна',
+  active: 'Полный доступ',
   grace: 'Льготный период',
   read_only: 'Только чтение',
   blocked: 'Заблокирована',
 };
+
+const ORGANIZATION_ENABLED_LABELS = {
+  true: 'Включена',
+  false: 'Отключена',
+} as const;
 
 const TRIAL_STATUS_LABELS: Record<
   NonNullable<PlatformOrganizationSummary['trial']>['status'],
@@ -106,7 +123,11 @@ function tariffName(
 
 function trialSummary(organization: PlatformOrganizationSummary): string {
   if (!organization.trial) return 'Не запускался';
-  return `${TRIAL_STATUS_LABELS[organization.trial.status]} · до ${formatDate(organization.trial.endsAt)}`;
+  const { status, endsAt } = organization.trial;
+  const date = formatDate(endsAt);
+  const statusLabel = TRIAL_STATUS_LABELS[status];
+  if (status === 'active') return `${statusLabel} · до ${date}`;
+  return `${statusLabel} ${date}`;
 }
 
 function lifecycleBadgeVariant(
@@ -125,11 +146,19 @@ function mechanicLabel(mechanic: string): string {
 
 function quotaLabel(quota: TariffQuota): string {
   if (quota.kind === 'unlimited') return 'без лимита';
+  if (quota.unit === 'bytes') {
+    return `лимит ${formatBytesAsMb(quota.limit ?? 0)}`;
+  }
   const unit =
     quota.unit in QUOTA_UNIT_LABELS
       ? QUOTA_UNIT_LABELS[quota.unit as keyof typeof QUOTA_UNIT_LABELS].toLocaleLowerCase('ru-RU')
       : quota.unit;
   return `лимит ${quota.limit} ${unit}`;
+}
+
+function formatQuotaUsageValue(value: number, unit: OrgQuotaProjection['quota']['unit']): string {
+  if (unit === 'bytes') return formatBytesAsMb(value);
+  return String(value);
 }
 
 function OverridesSection({ organization }: { organization: PlatformOrganizationSummary }) {
@@ -207,18 +236,25 @@ function UsageSection({
           const projection = projectionByMechanic.get(mechanic);
           const value = usage?.[mechanic];
           const thresholdLabel = projection ? QUOTA_THRESHOLD_LABEL[projection.threshold] : null;
+          // Единицу измерения несут только механики класса «объём»; у «возможность»/«никогда»
+          // поля quotaUnit нет вовсе, поэтому сужаем до обращения, а не читаем вслепую.
+          const registryEntry = MECHANIC_REGISTRY[mechanic];
+          const isMeasuredInBytes = 'quotaUnit' in registryEntry && registryEntry.quotaUnit === 'bytes';
           return (
             <div key={mechanic} className={doctorSectionItemClass}>
               <div className="flex items-center justify-between gap-3">
                 <span className="font-medium">{MECHANIC_REGISTRY[mechanic].label}</span>
                 {projection ? (
                   <span className="text-lg font-semibold tabular-nums">
-                    {projection.usage} из {projection.quota.limit}
+                    {formatQuotaUsageValue(projection.usage, projection.quota.unit)} из{' '}
+                    {formatQuotaUsageValue(projection.quota.limit, projection.quota.unit)}
                   </span>
                 ) : value === undefined ? (
                   <span className="text-xs text-muted-foreground">значение не получено</span>
                 ) : (
-                  <span className="text-lg font-semibold tabular-nums">{value}</span>
+                  <span className="text-lg font-semibold tabular-nums">
+                    {isMeasuredInBytes ? formatBytesAsMb(value) : value}
+                  </span>
                 )}
               </div>
               {thresholdLabel ? (
@@ -495,7 +531,7 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
               <div className="hidden grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] gap-3 px-3 text-xs font-medium text-muted-foreground md:grid">
                 <span>Название</span>
                 <span>Тариф</span>
-                <span>Состояние</span>
+                <span>Доступ по тарифу</span>
                 <span>Пробный период</span>
               </div>
               {filteredOrganizations.map((organization) => (
@@ -507,7 +543,7 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
                   <div className="min-w-0">
                     <p className="truncate font-medium">{organization.title}</p>
                     <p className="text-xs text-muted-foreground">
-                      {organization.isActive ? 'Организация активна' : 'Организация отключена'}
+                      {ORGANIZATION_ENABLED_LABELS[organization.isActive ? 'true' : 'false']}
                     </p>
                   </div>
                   <div>
@@ -536,18 +572,131 @@ function ClinicsList({ data }: { data: PlatformClinicsData }) {
   );
 }
 
+function OrganizationAccountPanel({
+  organization,
+  onOrganizationsRefresh,
+}: {
+  organization: PlatformOrganizationSummary;
+  onOrganizationsRefresh: () => Promise<boolean>;
+}) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [reason, setReason] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const targetActive = !organization.isActive;
+
+  const submit = async () => {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await apiJson<{ ok: boolean }>(`/api/admin/organizations/${organization.id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: targetActive, reason }),
+      });
+      setDialogOpen(false);
+      setReason('');
+      const refreshed = await onOrganizationsRefresh();
+      if (!refreshed) setActionError('Сохранено, но список не обновился — обновите страницу.');
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Не удалось сохранить');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <div className={doctorSectionItemClass}>
+        <dt className="text-xs text-muted-foreground">Учётная запись</dt>
+        <dd className="mt-1 space-y-2">
+          <p className="font-medium">
+            {ORGANIZATION_ENABLED_LABELS[organization.isActive ? 'true' : 'false']}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Платформенный выключатель: публичная визитка и вход в кабинет клиники. Не то же самое,
+            что «Заблокирована» по тарифу.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant={organization.isActive ? 'destructive' : 'default'}
+            onClick={() => {
+              setActionError(null);
+              setDialogOpen(true);
+            }}
+          >
+            {organization.isActive ? 'Отключить учётную запись' : 'Включить учётную запись'}
+          </Button>
+        </dd>
+      </div>
+      <Dialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          if (!busy) setDialogOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {organization.isActive ? 'Отключить учётную запись' : 'Включить учётную запись'}
+            </DialogTitle>
+            <DialogDescription>
+              {organization.title}. Изменение записывается в журнал аудита.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="organization-account-reason">Причина (необязательно)</Label>
+            <Input
+              id="organization-account-reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              maxLength={500}
+              placeholder="Зачем меняете состояние"
+            />
+            {actionError ? <p className="text-sm text-destructive">{actionError}</p> : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => setDialogOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant={organization.isActive ? 'destructive' : 'default'}
+              disabled={busy}
+              onClick={() => void submit()}
+            >
+              {busy ? 'Сохраняем…' : organization.isActive ? 'Отключить' : 'Включить'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function ClinicDetail({
   data,
   members,
   organizationId,
   billing,
   billingError,
+  onOrganizationsRefresh,
 }: {
   data: PlatformClinicsData;
   members: PlatformClinicMember[];
   organizationId: string;
   billing: SaasBillingOverviewData | null;
   billingError: boolean;
+  onOrganizationsRefresh: () => Promise<boolean>;
 }) {
   const organization = data.organizations.find((item) => item.id === organizationId);
   const tariffsById = useMemo(
@@ -594,43 +743,25 @@ function ClinicDetail({
             <dd className="mt-1 font-medium">{tariffName(organization, tariffsById)}</dd>
           </div>
           <div className={doctorSectionItemClass}>
-            <dt className="text-xs text-muted-foreground">Состояние</dt>
+            <dt className="text-xs text-muted-foreground">Доступ по тарифу</dt>
             <dd className="mt-1">
               <Badge variant={lifecycleBadgeVariant(organization.effectiveAccess.lifecycle)}>
                 {LIFECYCLE_LABELS[organization.effectiveAccess.lifecycle]}
               </Badge>
             </dd>
           </div>
-          <div className={doctorSectionItemClass}>
-            <dt className="text-xs text-muted-foreground">Организация</dt>
-            <dd className="mt-1 font-medium">{organization.isActive ? 'Активна' : 'Отключена'}</dd>
-          </div>
+          <OrganizationAccountPanel
+            organization={organization}
+            onOrganizationsRefresh={onOrganizationsRefresh}
+          />
         </dl>
       </DoctorSection>
 
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Пробный период</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        {organization.trial ? (
-          <dl className="grid gap-2 sm:grid-cols-3">
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Статус</dt>
-              <dd className="mt-1 font-medium">{TRIAL_STATUS_LABELS[organization.trial.status]}</dd>
-            </div>
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Окончание</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.endsAt)}</dd>
-            </div>
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Скидка на оплату до</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.discountEndsAt)}</dd>
-            </div>
-          </dl>
-        ) : (
-          <DoctorEmptyState size="xs">Пробный период не запускался.</DoctorEmptyState>
-        )}
-      </DoctorSection>
+      <OrganizationCommercialPanel
+        organization={organization}
+        tariffs={data.tariffs}
+        onUpdated={onOrganizationsRefresh}
+      />
 
       <ClinicAccountsSection members={members} />
       <OverridesSection organization={organization} />
@@ -676,6 +807,18 @@ export function ClinicsConsoleClient({
     initialBillingOverview ?? null,
   );
   const [billingError, setBillingError] = useState(false);
+
+  const reloadOrganizations = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/admin/organizations', { cache: 'no-store' });
+      const body = (await response.json().catch(() => null)) as ClinicsApiResponse | null;
+      if (!response.ok || !body?.ok) return false;
+      setData(body);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     if (initialData && (!organizationId || initialMembers)) return;
@@ -788,6 +931,7 @@ export function ClinicsConsoleClient({
       organizationId={organizationId}
       billing={billing}
       billingError={billingError}
+      onOrganizationsRefresh={reloadOrganizations}
     />
   ) : (
     <ClinicsList data={data} />

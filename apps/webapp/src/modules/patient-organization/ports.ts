@@ -39,7 +39,6 @@ export type CreateManualOrganizationClientResult =
         | 'identity_conflict'
         | 'inactive_enrollment'
         | 'idempotency_conflict'
-        | 'patient_count_limit_reached'
         | 'create_failed';
     };
 
@@ -61,6 +60,11 @@ export type PatientOrganizationPort = {
     input: CreateManualOrganizationClientInput,
   ): Promise<CreateManualOrganizationClientResult>;
   findTreatmentProgramOrganizationForPatient(
+    platformUserId: string,
+    instanceId: string,
+  ): Promise<string | null>;
+  /** Narrow patient projection; never returns the staff template aggregate. */
+  findTreatmentProgramDescriptionForPatient(
     platformUserId: string,
     instanceId: string,
   ): Promise<string | null>;

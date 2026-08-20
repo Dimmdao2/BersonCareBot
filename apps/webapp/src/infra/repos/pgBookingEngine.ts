@@ -1,9 +1,19 @@
 import { and, asc, count, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { z } from 'zod';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
+import { isCurrentPublicBookingPrincipal } from '@/app-layer/principal/publicBookingPrincipal';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
 import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
@@ -22,7 +32,6 @@ import {
   beAppointments,
   beBranches,
   beClinicServices,
-  beExternalEntityMappings,
   beOrganizations,
   orgEnrollments,
   bePatientTimelineEvents,
@@ -164,6 +173,194 @@ function mapAppointment(row: typeof beAppointments.$inferSelect): BeAppointment 
     appointmentReminderSelectionSource:
       row.appointmentReminderSelectionSource === 'patient' ? 'patient' : 'specialist_default',
   };
+}
+
+type CurrentPatientAppointmentRow = {
+  id: string;
+  organization_id: string;
+  branch_id: string | null;
+  room_id: string | null;
+  specialist_id: string | null;
+  service_id: string | null;
+  platform_user_id: string | null;
+  start_at: string;
+  end_at: string;
+  duration_minutes: number;
+  chain_id: string | null;
+  chain_position: number | null;
+  source: string;
+  status: string;
+  original_start_at: string | null;
+  reschedule_count: number;
+  payment_ref: string | null;
+  package_usage_ref: string | null;
+  phone_normalized: string | null;
+  attribution_json: Record<string, unknown> | null;
+  appointment_reminder_allowed_preset_ids: string[] | null;
+  appointment_reminder_preset_id: string | null;
+  appointment_reminder_selection_source: string;
+};
+
+function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppointment {
+  const reminderSettings = normalizeAppointmentReminderSettings({
+    allowedPresetIds: row.appointment_reminder_allowed_preset_ids ?? [],
+    defaultPresetId: row.appointment_reminder_preset_id,
+  });
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    branchId: row.branch_id,
+    roomId: row.room_id,
+    specialistId: row.specialist_id,
+    serviceId: row.service_id,
+    platformUserId: row.platform_user_id,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    durationMinutes: row.duration_minutes,
+    chainId: row.chain_id,
+    chainPosition: row.chain_position,
+    source: row.source as BeAppointment['source'],
+    status: row.status as BeAppointment['status'],
+    originalStartAt: row.original_start_at,
+    rescheduleCount: row.reschedule_count,
+    paymentRef: row.payment_ref,
+    packageUsageRef: row.package_usage_ref,
+    phoneNormalized: row.phone_normalized,
+    attributionJson: row.attribution_json ?? {},
+    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
+    appointmentReminderPresetId: reminderSettings.defaultPresetId,
+    appointmentReminderSelectionSource:
+      row.appointment_reminder_selection_source === 'patient'
+        ? 'patient'
+        : 'specialist_default',
+  };
+}
+
+const publicBookingBranchSchema = z.object({
+  id: z.string().uuid(),
+  organizationId: z.string().uuid(),
+  title: z.string(),
+  shortTitle: z.string().nullable(),
+  color: z.string().nullable(),
+  cityCode: z.string(),
+  address: z.string().nullable(),
+  timezone: z.string(),
+  isActive: z.boolean(),
+  sortOrder: z.number().int(),
+});
+
+const publicBookingServiceSchema = z.object({
+  id: z.string().uuid(),
+  organizationId: z.string().uuid(),
+  title: z.string(),
+  description: z.string().nullable(),
+  durationMinutes: z.number().int(),
+  bufferAfterMinutes: z.number().int(),
+  priceMinor: z.number().int(),
+  prepaymentApplicable: z.boolean(),
+  usableInPackages: z.boolean(),
+  onlinePaymentApplicable: z.boolean(),
+  sortOrder: z.number().int(),
+  isActive: z.boolean(),
+});
+
+const publicBookingCatalogSchema = z.object({
+  branches: z.array(publicBookingBranchSchema),
+  branch: publicBookingBranchSchema.nullable(),
+  services: z.array(publicBookingServiceSchema),
+  service: publicBookingServiceSchema.nullable(),
+});
+
+type PublicBookingCatalog = z.infer<typeof publicBookingCatalogSchema>;
+
+const EMPTY_PUBLIC_BOOKING_CATALOG: PublicBookingCatalog = {
+  branches: [],
+  branch: null,
+  services: [],
+  service: null,
+};
+
+/**
+ * Дверь публичного каталога (`app.read_public_booking_catalog`). Организация НЕ является
+ * аргументом — она берётся дверью из принятого контекста, поэтому подставить чужую нечем: чужой
+ * филиал просто не находится. Неопубликованная клиника отдаёт `NULL`, и здесь это превращается в
+ * ПУСТОЙ каталог, а не в исключение: снаружи такой клиники не существует, и различать «нет» и
+ * «нельзя» вызывающему нечем по построению.
+ */
+async function readPublicBookingCatalog(
+  branchId: string | null,
+  serviceId: string | null,
+): Promise<PublicBookingCatalog> {
+  const result = await runWebappNamedRoot<{ catalog: unknown }>(
+    getWebappSqlDb(),
+    'app.read_public_booking_catalog(uuid,uuid)',
+    [branchId, serviceId],
+    sql`SELECT app.read_public_booking_catalog(
+      ${branchId}::uuid,
+      ${serviceId}::uuid
+    ) AS catalog`,
+  );
+  const catalog = result.rows[0]?.catalog;
+  if (catalog == null) return EMPTY_PUBLIC_BOOKING_CATALOG;
+  return publicBookingCatalogSchema.parse(catalog);
+}
+
+/**
+ * Дверь отдаёт ТОЛЬКО публично записываемые услуги — `is_active`, `public_widget_visible`,
+ * `NOT admin_manual_only` и назначенные активному специалисту, — поэтому два последних признака
+ * восстанавливаются здесь как факт двери, а не как догадка: услуга, у которой они иные, из двери
+ * не выходит вовсе.
+ */
+function mapPublicBookingService(
+  row: z.infer<typeof publicBookingServiceSchema>,
+): BeClinicService {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    title: row.title,
+    description: row.description,
+    durationMinutes: row.durationMinutes,
+    bufferAfterMinutes: row.bufferAfterMinutes,
+    priceMinor: row.priceMinor,
+    isActive: row.isActive,
+    prepaymentApplicable: row.prepaymentApplicable,
+    usableInPackages: row.usableInPackages,
+    onlinePaymentApplicable: row.onlinePaymentApplicable,
+    publicWidgetVisible: true,
+    adminManualOnly: false,
+    sortOrder: row.sortOrder,
+  };
+}
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function createCurrentPatientAppointments(
+  inputs: readonly CreateAppointmentInput[],
+): Promise<BeAppointment[]> {
+  const result = await runWebappNamedRoot<{ appointments: CurrentPatientAppointmentRow[] }>(
+    getWebappSqlDb(),
+    'app.create_current_patient_booking_appointments(text)',
+    [JSON.stringify(inputs)],
+    sql`SELECT app.create_current_patient_booking_appointments(
+      ${JSON.stringify(inputs)}::text
+    ) AS appointments`,
+  );
+  return (result.rows[0]?.appointments ?? []).map(mapCurrentPatientAppointment);
+}
+
+export async function readCurrentPatientBookingAppointment(
+  id: string,
+): Promise<BeAppointment | null> {
+  const result = await runWebappNamedRoot<{ appointment: CurrentPatientAppointmentRow | null }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_appointment(uuid)',
+    [id],
+    sql`SELECT app.read_current_patient_booking_appointment(${id}::uuid) AS appointment`,
+  );
+  const appointment = result.rows[0]?.appointment;
+  return appointment ? mapCurrentPatientAppointment(appointment) : null;
 }
 
 async function insertAppointmentInTransaction(
@@ -555,6 +752,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async listBranches(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const catalog = await readPublicBookingCatalog(null, null);
+        return catalog.branches.filter((branch) => branch.organizationId === organizationId);
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -565,6 +766,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getBranch(id) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return (await readPublicBookingCatalog(id, null)).branch;
+      }
       const db = getDrizzle();
       const rows = await db.select().from(beBranches).where(eq(beBranches.id, id)).limit(1);
       return rows[0] ? mapBranch(rows[0]) : null;
@@ -913,6 +1117,10 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getService(id) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const service = (await readPublicBookingCatalog(null, id)).service;
+        return service ? mapPublicBookingService(service) : null;
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -1062,6 +1270,17 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
         isActive: row.isActive,
         sortOrder: row.sortOrder,
       };
+    },
+
+    async listPublicBookableServicesForBranch({ organizationId, branchId }) {
+      if (!isCurrentPublicBookingPrincipal()) {
+        throw new Error('public_booking_principal_required');
+      }
+      const catalog = await readPublicBookingCatalog(branchId, null);
+      if (!catalog.branch || catalog.branch.organizationId !== organizationId) return [];
+      return catalog.services
+        .filter((service) => service.organizationId === organizationId)
+        .map(mapPublicBookingService);
     },
 
     async listSpecialistServiceAvailability(organizationId) {
@@ -1319,6 +1538,18 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async setPatientAppointmentReminderPreset({ appointmentId, presetId }) {
+      if (isCurrentPatientPrincipal()) {
+        const result = await runWebappNamedRoot<{ updated: boolean }>(
+          getWebappSqlDb(),
+          'app.set_current_patient_booking_reminder_preset(uuid,text)',
+          [appointmentId, presetId],
+          sql`SELECT app.set_current_patient_booking_reminder_preset(
+            ${appointmentId}::uuid,
+            ${presetId}::text
+          ) AS updated`,
+        );
+        return result.rows[0]?.updated === true;
+      }
       const db = getDrizzle();
       const allowedPresetPredicate =
         presetId === null
@@ -1342,6 +1573,21 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getPatientAppointmentReminderPreference(appointmentId) {
+      if (isCurrentPatientPrincipal()) {
+        const appointment = await readCurrentPatientBookingAppointment(appointmentId);
+        if (!appointment) return null;
+        const reminderSettings = normalizeAppointmentReminderSettings({
+          allowedPresetIds: appointment.appointmentReminderAllowedPresetIds,
+          defaultPresetId: appointment.appointmentReminderPresetId,
+        });
+        return {
+          organizationId: appointment.organizationId,
+          status: appointment.status,
+          allowedPresetIds: reminderSettings.allowedPresetIds,
+          presetId: reminderSettings.defaultPresetId,
+          selectionSource: appointment.appointmentReminderSelectionSource,
+        };
+      }
       const db = getDrizzle();
       const rows = await db
         .select({
@@ -1370,6 +1616,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async getAppointment(id) {
+      if (isCurrentPatientPrincipal()) {
+        return readCurrentPatientBookingAppointment(id);
+      }
       const db = getDrizzle();
       const rows = await db.select().from(beAppointments).where(eq(beAppointments.id, id)).limit(1);
       return rows[0] ? mapAppointment(rows[0]) : null;
@@ -1415,6 +1664,12 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async createAppointment(input: CreateAppointmentInput) {
+      if (isCurrentPatientPrincipal()) {
+        const appointments = await createCurrentPatientAppointments([input]);
+        const appointment = appointments[0];
+        if (!appointment) throw new Error('appointment_create_failed');
+        return appointment;
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       return db.transaction((tx) => insertAppointmentInTransaction(tx as DrizzleDb, input, now));
@@ -1746,6 +2001,9 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
     },
 
     async createAppointmentChain(inputs) {
+      if (isCurrentPatientPrincipal()) {
+        return createCurrentPatientAppointments(inputs);
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       return db.transaction(async (tx) => {
@@ -1867,15 +2125,6 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               eq(bePatientTimelineEvents.domain, 'appointment'),
               eq(bePatientTimelineEvents.linkedObjectType, 'appointment'),
               eq(bePatientTimelineEvents.linkedObjectId, input.appointmentId),
-            ),
-          );
-        await tx
-          .delete(beExternalEntityMappings)
-          .where(
-            and(
-              eq(beExternalEntityMappings.organizationId, input.organizationId),
-              eq(beExternalEntityMappings.entityType, 'appointment'),
-              eq(beExternalEntityMappings.canonicalId, input.appointmentId),
             ),
           );
         const deleted = await tx

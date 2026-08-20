@@ -1,7 +1,9 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import { useMemo } from 'react';
-import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts';
+import { Cell, Pie, PieChart } from 'recharts';
 import type {
   ClientContactBreakdown,
   ClientContactPieSegment,
@@ -84,7 +86,7 @@ export function ClientContactPieChart({
         className="relative w-full max-w-[200px] shrink-0 overflow-visible"
         style={{ height: CHART_SIZE }}
       >
-        <ResponsiveContainer width="100%" height="100%">
+        <PositiveSizeResponsiveContainer width="100%" height="100%">
           <PieChart margin={PIE_MARGIN}>
             <Pie
               data={slices}
@@ -111,7 +113,7 @@ export function ClientContactPieChart({
             </Pie>
             <DoctorRechartsTooltip content={<ContactPieTooltip />} />
           </PieChart>
-        </ResponsiveContainer>
+        </PositiveSizeResponsiveContainer>
       </div>
       <div className="min-w-0 flex-1">
         <ul className="w-full space-y-1.5 text-xs">

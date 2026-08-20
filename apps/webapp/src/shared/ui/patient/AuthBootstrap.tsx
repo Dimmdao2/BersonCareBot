@@ -1069,6 +1069,12 @@ export function AuthBootstrap({
                 Написать в поддержку
               </SupportContactLink>
             ) : null}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- identity conflict
+                recovery must reload /app from the server (drop client state, re-run auth
+                bootstrap), next/link's client-side navigation would keep the stale identity. The
+                rule also false-positives here: a root-level dynamic segment ([clinicSlug]) makes
+                eslint-plugin-next treat any dot-free path as an internal page (see
+                AppEntryLoginContent.tsx audit 2026-08-19). */}
             <a href="/app" className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}>
               Войти иначе
             </a>
@@ -1107,6 +1113,7 @@ export function AuthBootstrap({
                   Запросить демо
                 </SupportContactLink>
               ) : null}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see comment above */}
               <a href="/app" className={AUTH_LOGIN_FORM_SECONDARY_BUTTON_CLASS}>
                 Войти
               </a>

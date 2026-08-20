@@ -1,7 +1,10 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { and, asc, eq, gte, inArray, isNotNull, lt, sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { getDrizzleOrMutationTx } from '@/infra/db/drizzleMutationTx';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   bePackageHistoryEvents,
   bePackageItems,
@@ -29,6 +32,69 @@ type MembershipsDb = DrizzleDb | DrizzleTx;
 
 const txStorage = new AsyncLocalStorage<DrizzleTx>();
 const getDrizzle = getDrizzleOrMutationTx;
+
+const patientBookingPackageSnapshotSchema = z.array(
+  z.object({
+    id: z.string().uuid(),
+    organizationId: z.string().uuid(),
+    platformUserId: z.string().uuid(),
+    subscriptionPackageId: z.string().uuid().nullable(),
+    status: z.enum(['offered', 'awaiting_payment', 'active', 'expired', 'cancelled']),
+    displayNumber: z.number().int().positive(),
+    title: z.string(),
+    priceMinor: z.number().int().nonnegative(),
+    currency: z.string(),
+    validityDays: z.number().int().nullable(),
+    validFrom: z.string().nullable(),
+    validUntil: z.string().nullable(),
+    deductionMode: z.enum(['auto_on_visit_confirmed', 'manual']),
+    paymentIntentId: z.string().uuid().nullable(),
+    paymentRef: z.string().nullable(),
+    soldAt: z.string().nullable(),
+    paidAmountMinor: z.number().int().nonnegative().nullable(),
+    paidCurrency: z.string().nullable(),
+    createdAt: z.string(),
+    notes: z.string().nullable(),
+    items: z.array(
+      z.object({
+        id: z.string().uuid(),
+        serviceId: z.string().uuid(),
+        quantityInitial: z.number().int().positive(),
+        sortOrder: z.number().int(),
+      }),
+    ),
+    balance: z.object({
+      patientPackageId: z.string().uuid(),
+      status: z.enum(['offered', 'awaiting_payment', 'active', 'expired', 'cancelled']),
+      items: z.array(
+        z.object({
+          patientPackageItemId: z.string().uuid(),
+          serviceId: z.string().uuid(),
+          serviceTitle: z.string().nullable(),
+          quantityInitial: z.number().int().positive(),
+          reserved: z.number().int(),
+          consumed: z.number().int(),
+          released: z.number().int(),
+          penalty: z.number().int(),
+          refunded: z.number().int(),
+          remaining: z.number().int().nonnegative(),
+          displayRemaining: z.number().int().nonnegative(),
+        }),
+      ),
+    }),
+  }),
+);
+
+const patientBookingPackageUsageSchema = z.object({
+  id: z.string().uuid(),
+  patient_package_id: z.string().uuid(),
+  patient_package_item_id: z.string().uuid(),
+  appointment_id: z.string().uuid().nullable(),
+  usage_kind: z.enum(['reserve', 'consume', 'release', 'penalty', 'manual_adjust', 'refund']),
+  quantity: z.number().int().positive(),
+  comment: z.string().nullable(),
+  occurred_at: z.string(),
+});
 
 function getMembershipsDb(): MembershipsDb {
   return txStorage.getStore() ?? getDrizzleOrMutationTx();
@@ -157,6 +223,45 @@ async function loadCanonicalAppointmentStatuses(
 
 export function createPgMembershipsPort(): MembershipsPort {
   return {
+    async listCurrentPatientBookingPackages(organizationId, serviceId) {
+      if (getCurrentDbPrincipal()?.kind !== 'patient') {
+        throw new Error('patient_principal_required');
+      }
+      const result = await runWebappNamedRoot<{ packages: unknown }>(
+        getWebappSqlDb(),
+        'app.read_current_patient_booking_packages(uuid)',
+        [serviceId],
+        sql`SELECT app.read_current_patient_booking_packages(${serviceId}::uuid) AS packages`,
+      );
+      const packages = patientBookingPackageSnapshotSchema.parse(result.rows[0]?.packages ?? []);
+      if (packages.some((item) => item.organizationId !== organizationId)) {
+        throw new Error('ambiguous_booking_tenant');
+      }
+      return packages;
+    },
+    async reserveCurrentPatientBookingPackage(input) {
+      if (getCurrentDbPrincipal()?.kind !== 'patient') {
+        throw new Error('patient_principal_required');
+      }
+      const inputJson = JSON.stringify(input);
+      const result = await runWebappNamedRoot<{ usage: unknown }>(
+        getWebappSqlDb(),
+        'app.reserve_current_patient_booking_package(text)',
+        [inputJson],
+        sql`SELECT app.reserve_current_patient_booking_package(${inputJson}::text) AS usage`,
+      );
+      const usage = patientBookingPackageUsageSchema.parse(result.rows[0]?.usage);
+      return {
+        id: usage.id,
+        patientPackageId: usage.patient_package_id,
+        patientPackageItemId: usage.patient_package_item_id,
+        appointmentId: usage.appointment_id,
+        usageKind: usage.usage_kind,
+        quantity: usage.quantity,
+        comment: usage.comment,
+        occurredAt: usage.occurred_at,
+      };
+    },
     async listCatalogPackages(organizationId, activeOnly = true) {
       const db = getMembershipsDb();
       const pkgs = await db

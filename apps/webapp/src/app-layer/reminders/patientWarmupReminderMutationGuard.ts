@@ -7,6 +7,7 @@ import {
 import { isContentPageInDailyWarmupBlock } from '@/modules/patient-home/todayConfig';
 import { DEFAULT_WARMUPS_SECTION_SLUG } from '@/modules/patient-home/warmupsSection';
 import type { ContentPagesPort } from '@/infra/repos/pgContentPages';
+import { runWithMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 
 type Deps = {
   patientOrganization: Parameters<typeof resolvePatientEnrollmentOrganizationId>[0]['patientOrganization'];
@@ -29,6 +30,16 @@ type Deps = {
 type ReminderTarget = {
   linkedObjectType: string | null;
   linkedObjectId: string | null;
+};
+
+type MutationRunner = {
+  ok: true;
+  runMutation: <T>(mutation: () => T) => T;
+};
+
+const passthroughMutationRunner: MutationRunner = {
+  ok: true,
+  runMutation: <T>(mutation: () => T) => mutation(),
 };
 
 async function isWarmupReminderTarget(
@@ -71,7 +82,7 @@ export async function requirePatientWarmupReminderMutation(
         )
       : targetOrRule;
   if (!target || !(await isWarmupReminderTarget(deps, target, tenant.organizationId))) {
-    return { ok: true as const };
+    return passthroughMutationRunner;
   }
 
   const entitlement = await requireEntitlementForMutation(
@@ -79,7 +90,11 @@ export async function requirePatientWarmupReminderMutation(
     'warmups',
   );
   return entitlement.ok
-    ? { ok: true as const }
+    ? {
+        ok: true as const,
+        runMutation: <T>(mutation: () => T) =>
+          runWithMechanicWriteClearance('warmups', mutation),
+      }
     : {
         ok: false as const,
         message: entitlementMutationRefusalMessage(action),

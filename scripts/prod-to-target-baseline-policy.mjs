@@ -3,11 +3,17 @@ import { createHash } from 'node:crypto';
 const REVIEWED_TARGET_TARIFFS = new Map([
   ['d1156dc6-e71e-4225-ad94-93c9d423c9e1', {
     price: 0, currency: 'RUB', seats: 1000, period: 'year',
-    mechanicsSha256: 'f59472c37a6835c63a94d423479e389bce1f5d3eb9b65b7b2e29c7a275b15caf',
+    mechanicsSha256: 'f4adbfecd531c443240e9d763fb3e3ebcb39850aee1a7576a4c7de39e9764652',
   }],
+  // «СТАРТ». Состав механик пересохранён на DEV 17.08 после расширения реестра (у него появились
+  // clinic_sms / clinic_smtp / clinic_max_bot / clinic_telegram_bot, которых нет у соседних тарифов).
+  // Хеш обновлён 20.08 по решению владельца «пусть сейчас и тарифы и остальное едет как и ехало»:
+  // это осознанное «как есть» ради репетиции на TEST, а НЕ проверка каталога владельцем. Разбор,
+  // что из этого лишнее, стоит перед выкаткой прода — docs/OWNER_DECISIONS.md, раздел «Что A→B
+  // имеет право нести в целевую базу». Цена, валюта, число мест и период не менялись.
   ['e07db366-f471-40a5-bc9b-499908636acd', {
     price: 80000, currency: 'RUB', seats: 1, period: 'month',
-    mechanicsSha256: '5a16494eb9edfa28328952787e511aaf33b8126e6e3ece91743b2ac909bbb567',
+    mechanicsSha256: '6e5deadf0bb16d48578ddf3fd6b68db789a63c05607d2ccf48faad767a4df7d5',
   }],
   ['59fbb0c9-371d-4fcc-8602-78e174c81062', {
     price: 280000, currency: 'RUB', seats: 3, period: 'month',
@@ -153,16 +159,66 @@ export function removeRetiredRuntimeSettings(sql) {
     .replace(/'integrator_linked_phone_source',\s*/gu, '');
 }
 
+/**
+ * Единственная организация, которая приезжает в целевую базу, — каноническая клиника из прод-дампа
+ * (`ORG_ID` в `deploy/host/deploy-test-saas.sh`). На DEV рядом с ней живут фикстуры «DEV Demo Clinic»
+ * и «DEV Isolated Clinic»; снимок настроек снимается с DEV и тащил их строки за собой, а организаций
+ * этих в целевой базе нет — раскатка падала на `app_runtime_settings_organization_id_fkey`.
+ * Правило положительное, а не список запрещённых фикстур: новая фикстура на DEV не потребует правки.
+ */
+const CANONICAL_TARGET_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
+
+export function removeForeignOrganizationSettings(sql) {
+  const prefix = 'INSERT INTO public.app_runtime_settings ';
+  return sql
+    .split('\n')
+    .filter((line) => {
+      if (!line.startsWith(prefix)) return true;
+      const values = splitValues(line, 7, 'app_runtime_settings');
+      const organizationId = decodeSqlLiteral(values[2]);
+      return organizationId === null || organizationId === CANONICAL_TARGET_ORGANIZATION_ID;
+    })
+    .join('\n');
+}
+
 export function sanitizeRuntimeSettingsForCutover(sql) {
   const prefix = 'INSERT INTO public.app_runtime_settings '
     + '(key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES (';
-  return removeRetiredRuntimeSettings(sql)
+  return removeForeignOrganizationSettings(removeRetiredRuntimeSettings(sql))
     .split('\n')
     .map((line) => {
       if (!line.startsWith(prefix)) return line;
       const values = splitValues(line, 7, 'app_runtime_settings');
       values[6] = 'NULL';
       return `${prefix}${values.join(', ')});`;
+    })
+    .join('\n');
+}
+
+const SINGLETON_POLICY_AUDIT_FIELDS = new Map([
+  ['saas_paid_period_policy', { values: 7, updatedBy: 4, createdAt: 5, updatedAt: 6 }],
+  ['saas_registration_tariff_policy', { values: 5, updatedBy: 2, createdAt: 3, updatedAt: 4 }],
+  ['saas_trial_policy', { values: 10, updatedBy: 6, createdAt: 7, updatedAt: 8 }],
+]);
+
+/**
+ * These singleton rows are target seed policy, not a copy of DEV's operator audit trail. UI smoke
+ * cycles legitimately advance updated_by/updated_at even after restoring the exact policy value;
+ * carrying that volatile DEV metadata would make the reviewed A -> B artifact drift after every
+ * rehearsal. Keep the stable creation timestamp and semantic fields, but seed without an actor.
+ */
+export function sanitizeSingletonPolicyAuditMetadata(sql) {
+  return sql
+    .split('\n')
+    .map((line) => {
+      const match = line.match(/^INSERT INTO public\.(saas_[a-z_]+) /u);
+      const policy = match ? SINGLETON_POLICY_AUDIT_FIELDS.get(match[1]) : undefined;
+      if (!policy) return line;
+      const values = splitValues(line, policy.values, match[1]);
+      values[policy.updatedBy] = 'NULL';
+      values[policy.updatedAt] = values[policy.createdAt];
+      const valuesAt = line.indexOf(' VALUES (');
+      return `${line.slice(0, valuesAt + ' VALUES ('.length)}${values.join(', ')});`;
     })
     .join('\n');
 }

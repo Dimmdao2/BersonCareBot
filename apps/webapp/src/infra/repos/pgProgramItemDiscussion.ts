@@ -1,6 +1,10 @@
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import {
   programItemDiscussionMessages,
@@ -117,9 +121,15 @@ async function queryDoctorExerciseComments(
     ? sql`${treatmentProgramInstances.assignedBy} = ${assignedByUserId}::uuid`
     : inArray(treatmentProgramInstances.patientUserId, patientUserIds);
 
-  // CTE: latest PATIENT TEXT message per exercise stage-item (DISTINCT ON = one row per item).
-  // senderRole='patient' + mediaFileId IS NULL are now INSIDE the CTE WHERE so:
-  //   - The CTE always yields the latest patient text comment per stageItem.
+  // CTE: latest PATIENT message (text or media) per exercise stage-item (DISTINCT ON = one row
+  // per item). senderRole='patient' is INSIDE the CTE WHERE so:
+  //   - The CTE always yields the latest patient message per stageItem, whether it carries body
+  //     text, an attached media file, or both. A media-only comment (body IS NULL) is the same
+  //     "patient marked this exercise" event as a text one and must surface the same way —
+  //     excluding it here silently hid every media-only submission from the doctor's cross-patient
+  //     triage lists (found 19.08: a patient's media-only comment never appeared in
+  //     listUnreadExerciseCommentsForDoctor/listExerciseCommentsForDoctor even though the message
+  //     existed and was visible inside the item's own thread).
   //   - Answered threads (doctor replied after) still surface: we look at the latest
   //     patient message, not the latest overall. No outer senderRole check needed.
   //   - unreadOnly uses createdAt > lastReadAt on the latest patient comment.
@@ -176,9 +186,9 @@ async function queryDoctorExerciseComments(
           sql`${treatmentProgramInstances.assignmentSource} = ANY(ARRAY['doctor','course']::text[])`,
           eq(treatmentProgramInstanceStageItems.itemType, 'exercise'),
           eq(treatmentProgramInstanceStageItems.status, 'active'),
-          // Only patient text messages inside CTE — so DISTINCT ON picks latest patient comment.
+          // Only patient messages inside CTE — so DISTINCT ON picks the latest patient comment,
+          // text or media-only alike (see rationale above the CTE).
           eq(programItemDiscussionMessages.senderRole, 'patient'),
-          sql`${programItemDiscussionMessages.mediaFileId} IS NULL`,
         ),
       )
       .orderBy(
@@ -224,6 +234,43 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
     async insertMessage(
       input: ProgramItemDiscussionMessageInsert,
     ): Promise<ProgramItemDiscussionMessage> {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{
+          message: {
+            id: string;
+            instance_stage_item_id: string;
+            patient_user_id: string;
+            sender_role: string;
+            origin: string;
+            body: string | null;
+            media_file_id: string | null;
+            support_message_id: string | null;
+            created_at: string;
+          };
+        }>(
+          getWebappSqlDb(),
+          'app.append_current_patient_program_discussion(uuid,text,uuid)',
+          [input.instanceStageItemId, input.body ?? null, input.mediaFileId ?? null],
+          sql`SELECT app.append_current_patient_program_discussion(
+            ${input.instanceStageItemId}::uuid,
+            ${input.body ?? null}::text,
+            ${input.mediaFileId ?? null}::uuid
+          ) AS message`,
+        );
+        const row = result.rows[0]?.message;
+        if (!row) throw new Error('program_item_discussion_insert_failed');
+        return {
+          id: row.id,
+          instanceStageItemId: row.instance_stage_item_id,
+          patientUserId: row.patient_user_id,
+          senderRole: row.sender_role as ProgramItemDiscussionSenderRole,
+          origin: row.origin as ProgramItemDiscussionOrigin,
+          body: row.body,
+          mediaFileId: row.media_file_id,
+          supportMessageId: row.support_message_id,
+          createdAt: row.created_at,
+        };
+      }
       try {
         return await runDrizzleMutationTransaction(async (tx) => {
           const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
@@ -519,6 +566,20 @@ export function createPgProgramItemDiscussionPort(): ProgramItemDiscussionPort {
       lastReadAt?: string;
     }): Promise<void> {
       const lastReadAt = params.lastReadAt ?? new Date().toISOString();
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{ updated: boolean }>(
+          getWebappSqlDb(),
+          'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)',
+          [params.stageItemId, lastReadAt],
+          sql`SELECT app.mark_current_patient_program_discussion_read(
+            ${params.stageItemId}::uuid, ${lastReadAt}::timestamptz
+          ) AS updated`,
+        );
+        if (result.rows[0]?.updated !== true) {
+          throw new Error('program_item_discussion_read_rejected');
+        }
+        return;
+      }
       await runDrizzleMutationTransaction(async (tx) => {
         const stageItem = await tx.query.treatmentProgramInstanceStageItems.findFirst({
           where: eq(treatmentProgramInstanceStageItems.id, params.stageItemId),

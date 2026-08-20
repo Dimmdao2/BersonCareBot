@@ -70,6 +70,10 @@ function fakeAppointment() {
 function buildService(input: {
   events: Array<Record<string, unknown>>;
   getAppDisplayTimeZone?: () => Promise<string>;
+  getBookingLifecycleNotificationSettings?: Parameters<
+    typeof createPatientBookingService
+  >[0]['getBookingLifecycleNotificationSettings'];
+  memberships?: Parameters<typeof createPatientBookingService>[0]['memberships'];
 }) {
   const record = fakeRecord();
   const bookingsPort = {
@@ -115,6 +119,9 @@ function buildService(input: {
   };
 
   const service = createPatientBookingService({
+    // Постановка письма в очередь: в этих тестах доставка не проверяется, но порт обязателен —
+    // запись без пути доставки подтверждения неполна, поэтому он не необязательный.
+    outboundMessageQueue: { enqueue: async () => true },
     bookingsPort: bookingsPort as unknown as Parameters<typeof createPatientBookingService>[0]['bookingsPort'],
     syncPort: {
       emitBookingEvent: async (evt: unknown) => {
@@ -125,6 +132,10 @@ function buildService(input: {
     bookingScheduling: bookingScheduling as unknown as Parameters<typeof createPatientBookingService>[0]['bookingScheduling'],
     appointmentLifecycle: appointmentLifecycle as unknown as Parameters<typeof createPatientBookingService>[0]['appointmentLifecycle'],
     ...(input.getAppDisplayTimeZone ? { getAppDisplayTimeZone: input.getAppDisplayTimeZone } : {}),
+    ...(input.getBookingLifecycleNotificationSettings
+      ? { getBookingLifecycleNotificationSettings: input.getBookingLifecycleNotificationSettings }
+      : {}),
+    ...(input.memberships ? { memberships: input.memberships } : {}),
   });
   return service;
 }
@@ -205,5 +216,58 @@ describe('D14, часть 5: пациентская отмена/перенос 
     expect(typeof events[0]!.doctorMessageText).toBe('string');
     expect(events[0]!.calendarAction).toBe('updated');
     expect(events[0]!.calendarTitleMarker).toBe('none');
+  });
+});
+
+describe('пациентский lifecycle не ломается на post-commit эффектах', () => {
+  it('отмена без пакета не вызывает package outcome', async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const applyCancelPackageOutcome = vi.fn(async () => ({ ok: true as const }));
+    const service = buildService({
+      events,
+      memberships: { applyCancelPackageOutcome } as unknown as Parameters<
+        typeof createPatientBookingService
+      >[0]['memberships'],
+    });
+
+    const result = await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
+
+    expect(result.ok).toBe(true);
+    expect(applyCancelPackageOutcome).not.toHaveBeenCalled();
+  });
+
+  it('ошибка чтения настроек не превращает выполненную отмену в API-ошибку', async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const service = buildService({
+      events,
+      getBookingLifecycleNotificationSettings: async () => {
+        throw new Error('settings_unavailable');
+      },
+    });
+
+    const result = await service.cancelBooking({ userId: 'user-1', bookingId: 'booking-1' });
+
+    expect(result.ok).toBe(true);
+    expect(events).toHaveLength(1);
+  });
+
+  it('ошибка чтения настроек не превращает выполненный перенос в API-ошибку', async () => {
+    const events: Array<Record<string, unknown>> = [];
+    const service = buildService({
+      events,
+      getBookingLifecycleNotificationSettings: async () => {
+        throw new Error('settings_unavailable');
+      },
+    });
+
+    const result = await service.rescheduleBooking({
+      userId: 'user-1',
+      bookingId: 'booking-1',
+      slotStart: '2027-03-11T09:00:00.000Z',
+      slotEnd: '2027-03-11T09:30:00.000Z',
+    });
+
+    expect(result.ok).toBe(true);
+    expect(events).toHaveLength(1);
   });
 });

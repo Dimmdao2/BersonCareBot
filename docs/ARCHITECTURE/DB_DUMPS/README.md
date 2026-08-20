@@ -1,21 +1,25 @@
-# Schema dumps (dev, unified Postgres)
+# Database schema B bootstrap
 
-Снимки **только DDL** (`pg_dump --schema-only`) с dev-базы **`bcb_webapp_dev`** после `pnpm run migrate`.
+Owner decision 20.08.2026: историческая webapp migration-цепочка и её `0000_b0_baseline.sql` выведены из
+активного контура. Schema B для A→B cutover приезжает generated snapshot:
+
+- `deploy/postgres/generated/prod-to-target/schema-pre.sql`;
+- `deploy/postgres/generated/prod-to-target/schema-post.sql`;
+- `deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql` — начальный ledger;
+- `apps/integrator/src/infra/db/migrations/core/20260816_0000_b0_baseline.sql`;
+- последующие webapp forward-миграции `YYYYMMDDTHHMMSS_slug.sql`, без исключений старого формата.
+
+Именованные `bcb_webapp_dev` и `bersoncarebot_test` — единственные тестовые базы. A0/A1/greenfield,
+scratch/rehearsal/ephemeral базы, приватные PostgreSQL-кластеры и replay старой цепочки не являются
+поддерживаемым способом bootstrap или проверки.
+
+Ниже лежат два старых schema-only снимка DEV. Это неисполняемая историческая справка: их нельзя
+восстанавливать, обновлять или использовать вместо generated schema B.
 
 | Файл                                                                             | Схема        | Обновлено  |
 | -------------------------------------------------------------------------------- | ------------ | ---------- |
 | [`integrator_bcb_webapp_dev_schema.sql`](./integrator_bcb_webapp_dev_schema.sql) | `integrator` | 2026-06-10 |
 | [`public_bcb_webapp_dev_schema.sql`](./public_bcb_webapp_dev_schema.sql)         | `public`     | 2026-06-10 |
-
-Переснять на хосте разработки:
-
-```bash
-set -a && source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev && set +a
-pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges -n integrator \
-  -f docs/ARCHITECTURE/DB_DUMPS/integrator_bcb_webapp_dev_schema.sql
-pg_dump "$DATABASE_URL" --schema-only --no-owner --no-privileges -n public \
-  -f docs/ARCHITECTURE/DB_DUMPS/public_bcb_webapp_dev_schema.sql
-```
 
 Логическая карта и группировка таблиц — [`../DB_STRUCTURE.md`](../DB_STRUCTURE.md).
 
@@ -32,30 +36,18 @@ bash deploy/host/migrate-dev.sh --execute
 ```
 
 Wrapper проверяет точные локальные `bcb_webapp_dev`/`bcb_webapp_dev_user` и не выполняет dump, restore, reset,
-role/ACL repair или RLS acceptance. Fresh-copy доказательства выполняются только в отдельной disposable-БД по
-[`HARD_MIGRATION_PROTOCOL.md`](../../_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md).
+role/ACL repair или RLS acceptance.
 
 ---
 
-## PII-free greenfield baseline для ephemeral CI
+## Где теперь проверяется поведение
 
-Полный CI-only структурный baseline хранится отдельно в
-[`a0-greenfield/`](./a0-greenfield/README.md). Он не заменяет два исторических DEV schema dumps выше и не является
-runbook для DEV/TEST/PROD restore. Пакет содержит полный текущий DDL всех пяти application schemas, repo-derived
-manifest integrator+Drizzle ledgers и минимальный синтетический `.test` seed.
-
-A0 проверяет только DDL/migration reproducibility. Следующий A1 отдельно создаёт canonical ACL/runtime roles и
-memberships/context, включает locked/FORCE режим и проверяет RLS от имени non-owner principals. Bootstrap-owner
-`bcb_a0_owner` для RLS-conformance не используется.
-
-Проверка и disposable restore выполняются командами:
-
-```bash
-pnpm run check:saas-a0-greenfield-baseline
-pnpm run verify:saas-a0-greenfield-baseline
-```
-
-Refresh выполняется только как отдельная осознанная schema-stage по инструкции пакета. Обычный deploy кода,
-incremental migration или запуск тестов baseline автоматически не переснимают.
+- целостность generated schema B и active forwards — `node scripts/check-b0-migration-baseline.mjs`;
+- SQL/role/catalog contracts — статические и unit-тесты декларации/генератора;
+- реальные роли, RLS, конкурентные записи, настройки, квоты, платежи, приглашения и patient/doctor flows —
+  только живой проход именованного DEV, затем именованного TEST по
+  [`LOCAL_DEV_AND_AGENT_TESTING.md`](../LOCAL_DEV_AND_AGENT_TESTING.md);
+- destructive schema/bootstrap proofs не перенаправляются на DEV: их прежняя disposable-only
+  исполняемая поверхность удалена.
 
 **Удалены устаревшие артефакты** (отдельные legacy dev-базы, март–апрель 2026): `integrator_bersoncarebot_dev_schema.sql`, `webapp_bcb_webapp_dev_schema.sql`.

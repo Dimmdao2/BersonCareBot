@@ -1,5 +1,7 @@
 'use client';
 
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bar,
@@ -8,7 +10,6 @@ import {
   Cell,
   Pie,
   PieChart,
-  ResponsiveContainer,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -77,7 +78,7 @@ function TopPagesHorizontalBarChart({
   const height = chartHeightForRows(data.length);
   return (
     <div className="w-full min-w-0" style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <BarChart layout="vertical" data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -90,7 +91,7 @@ function TopPagesHorizontalBarChart({
           <DoctorRechartsTooltip />
           <Bar dataKey="count" name={barName} fill={fill} radius={[0, 4, 4, 0]} />
         </BarChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }
@@ -109,7 +110,7 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
   return (
     <div className="flex items-center gap-4">
       <div className="h-[88px] w-[88px] shrink-0">
-        <ResponsiveContainer width="100%" height="100%">
+        <PositiveSizeResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={slices}
@@ -129,7 +130,7 @@ function VideoDeliveryPie({ hls, mp4, file }: { hls: number; mp4: number; file: 
             </Pie>
             <DoctorRechartsTooltip formatter={(v) => [String(v), '']} />
           </PieChart>
-        </ResponsiveContainer>
+        </PositiveSizeResponsiveContainer>
       </div>
       <ul className="space-y-1 text-xs">
         {slices.map((s) => (

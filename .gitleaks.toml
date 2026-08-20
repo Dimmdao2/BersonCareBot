@@ -2,8 +2,8 @@
 #
 # Purpose: secret scanning in CI. Full-history scan on push to `main` and on every PR.
 # This config extends the bundled gitleaks default ruleset and adds a NARROW, documented
-# baseline/allowlist so the job is GREEN on the existing history (which contains one known
-# historical incident) while any NEW secret still turns the build RED.
+# baseline/allowlist for exact reviewed findings while any non-ignored secret turns the build
+# RED. One historical Telegram bot token deliberately remains non-ignored pending rotation proof.
 
 title = "BersonCareBot gitleaks config"
 
@@ -11,6 +11,15 @@ title = "BersonCareBot gitleaks config"
 # Keep the full upstream default ruleset; the allowlist below only carves out documented,
 # accepted exceptions. Do NOT disable default rules wholesale.
 useDefault = true
+
+[[rules]]
+id = "telegram-bot-token-assignment"
+description = "Telegram Bot API token assigned to a proven repository setting name"
+# The bundled v8.30.1 rule requires a nearby `telegr` keyword, so it misses the historical
+# `botToken: "<canonical token>"` spelling. Keep this rule deliberately structural: only the
+# three setting names present in this repository and Telegram's exact Bot API token shape.
+regex = '''\b(?:botToken|telegram_bot_token|TELEGRAM_BOT_TOKEN)\b["'`]?[ \t]*[:=][ \t]*["'`]([0-9]{8,10}:[A-Za-z0-9_-]{35})["'`]'''
+secretGroup = 1
 
 [allowlist]
 description = "BersonCareBot baseline allowlist — narrowly scoped and documented per SEC-01."

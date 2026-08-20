@@ -19,6 +19,8 @@ const tariffChange = {
   currentTariffId: null,
   pendingTariffId: null,
   pendingEffectiveAt: null,
+  awaitingFirstPayment: false,
+  payable: true,
 };
 
 describe('§5a stage 6.1 — clinic sees "used out of included" per number', () => {
@@ -39,6 +41,8 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          awaitingFirstPayment: false,
+          payable: true,
         }}
       />,
     );
@@ -66,6 +70,8 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
           currentTariffId: 'current',
           pendingTariffId: 'small',
           pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          awaitingFirstPayment: false,
+          payable: true,
         }}
       />,
     );
@@ -79,7 +85,7 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
       json: async () => ({
         ok: false,
         error: 'saas_billing_tariff_downgrade_blocked',
-        blocks: [{ mechanic: 'clinic_team' }, { mechanic: 'patient_count' }],
+        blocks: [{ mechanic: 'clinic_team' }, { mechanic: 'branches' }],
       }),
     });
     vi.stubGlobal('fetch', fetch);
@@ -93,13 +99,78 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         tariffChange={{
           choices: [{ id: 'current', name: 'Стандарт' }, { id: 'small', name: 'Базовый' }],
           currentTariffId: 'current', pendingTariffId: 'small', pendingEffectiveAt: '2026-09-01T00:00:00.000Z',
+          awaitingFirstPayment: false,
+          payable: true,
         }}
       />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Перейти на тариф' }));
 
-    expect(await screen.findByText('Понижение недоступно: освободите места специалистов, пациенты.')).toBeInTheDocument();
+    expect(await screen.findByText('Понижение недоступно: освободите места специалистов, филиалы.')).toBeInTheDocument();
+  });
+
+  /**
+   * L-11 (владелец 18.08): «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ ПОЛУЧАЕТ ДОСТУП».
+   * Поломка: клиника выбрала тариф, доступа нет — и экран показывает «Тариф не назначен» с советом
+   * идти в админку платформы, без имени выбранного тарифа и без кнопки оплаты. Человек заперт:
+   * кабинет закрыт (`unconfigured` уводит сюда), а заплатить отсюда нечем. Отказ дорогой (клиника
+   * не может купить) и молчаливый (экран выглядит исправным).
+   */
+  it('выбранный, но не оплаченный тариф: клиника видит свой выбор и кнопку оплаты', () => {
+    render(
+      <BillingSection
+        // Снимок прав пуст — действующего тарифа нет, доступа нет.
+        tariffName={null}
+        commercialStateLabel="Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={{ ...emptyBilling, billingEmail: 'clinic@example.test' }}
+        tariffChange={{
+          choices: [{ id: 'chosen', name: 'Базовый' }, { id: 'other', name: 'Стандарт' }],
+          currentTariffId: 'chosen',
+          pendingTariffId: null,
+          pendingEffectiveAt: null,
+          awaitingFirstPayment: true,
+          payable: true,
+        }}
+      />,
+    );
+
+    expect(screen.getAllByText('Базовый').length).toBeGreaterThan(0);
+    expect(
+      screen.getByText('Тариф выбран, но не оплачен — доступ откроется после оплаты.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Выберите тариф в админке/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Оплатить тариф' })).toBeInTheDocument();
+  });
+
+  // L-11 (владелец 18.08): до первого выбора клиника сама выбирает платный тариф, идёт оплачивать
+  // и только затем получает доступ. Поломка: экран отправляет её в админку платформы вместо выбора
+  // ниже, поэтому запертая клиника не находит собственный путь к оплате.
+  it('без выбранного тарифа направляет клинику к выбору ниже и оплате, не в админку', () => {
+    render(
+      <BillingSection
+        tariffName={null}
+        commercialStateLabel="Тариф не назначен — доступа нет. Выберите тариф в админке, чтобы вернуть работу кабинета."
+        mechanics={[]}
+        quotaUsage={[]}
+        billing={emptyBilling}
+        tariffChange={{
+          choices: [{ id: 'first', name: 'Базовый' }],
+          currentTariffId: null,
+          pendingTariffId: null,
+          pendingEffectiveAt: null,
+          awaitingFirstPayment: false,
+          payable: true,
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText('Выберите тариф ниже и оплатите его — доступ откроется после оплаты.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Выберите тариф в админке/)).not.toBeInTheDocument();
   });
 
   it('renders each configured number with its usage and limit, and hides the section when there are none', () => {
@@ -109,14 +180,6 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
         commercialStateLabel="Тариф активен."
         mechanics={[]}
         quotaUsage={[
-          {
-            mechanic: 'patient_count',
-            label: 'Пациенты',
-            quota: { limit: 25, unit: 'items' },
-            usage: 25,
-            threshold: 'reached',
-            enforcement: 'application_transaction_snapshot',
-          },
           {
             mechanic: 'branches',
             label: 'Филиалы',
@@ -148,8 +211,6 @@ describe('§5a stage 6.1 — clinic sees "used out of included" per number', () 
     );
 
     expect(screen.getByText('Использовано из включённого')).toBeInTheDocument();
-    expect(screen.getByText('25 из 25')).toBeInTheDocument();
-    expect(screen.getByText('Предел достигнут')).toBeInTheDocument();
     expect(screen.getByText('1 из 4')).toBeInTheDocument();
     expect(screen.getByText('8.0 МБ из 10.0 МБ')).toBeInTheDocument();
     expect(screen.getByText('2 из 5')).toBeInTheDocument();

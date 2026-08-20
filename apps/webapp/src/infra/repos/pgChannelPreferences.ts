@@ -1,8 +1,15 @@
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `setPreferredAuthChannel`.
  */
+import { sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type { BroadcastNotificationPrefsFlags } from '@/modules/doctor-broadcasts/ports';
 import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
@@ -71,6 +78,33 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async upsertPreference(params) {
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      const args = [
+        params.channelCode,
+        params.isEnabledForMessages,
+        params.isEnabledForNotifications,
+      ] as const;
+      const result = await runWebappNamedRoot<{
+        preference: {
+          channel_code: string;
+          is_enabled_for_messages: boolean;
+          is_enabled_for_notifications: boolean;
+          is_preferred_for_auth: boolean;
+        };
+      }>(
+        getWebappSqlDb(),
+        'app.save_current_patient_channel_preference(text,boolean,boolean)',
+        args,
+        sql`SELECT app.save_current_patient_channel_preference(
+          ${params.channelCode}::text,
+          ${params.isEnabledForMessages}::boolean,
+          ${params.isEnabledForNotifications}::boolean
+        ) AS preference`,
+      );
+      const row = result.rows[0]?.preference;
+      if (!row) throw new Error('current_patient_channel_preference_rejected');
+      return rowToPreference(row);
+    }
     const now = new Date();
     await runWebappPgText(
       `INSERT INTO user_channel_preferences (
@@ -149,6 +183,20 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
 
   async setPreferredAuthChannel(userId, channelCode) {
     assertChannelAllowedForPreferredAuth(channelCode);
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      const result = await runWebappNamedRoot<{ updated: boolean }>(
+        getWebappSqlDb(),
+        'app.set_current_patient_preferred_auth_channel(text)',
+        [channelCode],
+        sql`SELECT app.set_current_patient_preferred_auth_channel(
+          ${channelCode}::text
+        ) AS updated`,
+      );
+      if (result.rows[0]?.updated !== true) {
+        throw new Error('current_patient_preferred_auth_channel_rejected');
+      }
+      return;
+    }
     const pool = getPool();
     const now = new Date();
     await withPoolTransaction(pool, async (client) => {

@@ -31,6 +31,7 @@ BOOTSTRAP|public.user_web_push_subscriptions
 INFRA|drizzle.__drizzle_migrations
 INFRA|public.booking_calendar_map
 INFRA|integrator.delivery_attempt_logs
+INFRA|integrator.direct_public_write_retries
 INFRA|integrator.idempotency_keys
 INFRA|integrator.integration_data_quality_incidents
 INFRA|integrator.projection_outbox
@@ -54,7 +55,6 @@ INFRA|public.saas_billing_periods
 INFRA|public.saas_trial_policy
 INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy
-INFRA|public.webapp_schema_migrations
 LEGACY|public.booking_cities
 LEGACY|public.patient_bookings
 SCOPED|integrator.user_reminder_delivery_logs
@@ -72,7 +72,6 @@ SCOPED|public.be_booking_form_submissions
 SCOPED|public.be_branches
 SCOPED|public.be_cancellation_policies
 SCOPED|public.be_clinic_services
-SCOPED|public.be_external_entity_mappings
 SCOPED|public.be_organizations
 SCOPED|public.be_package_history_events
 SCOPED|public.be_package_items

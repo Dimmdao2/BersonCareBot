@@ -6,9 +6,9 @@
  * UnifiedOutgoingMessage and dispatches via dispatchPort (redirect-covered; smsc adapter delivers).
  * OTP redaction is preserved via the `otp:`-prefixed eventId (dispatchPort.ts::isOtpIntent).
  */
-import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import type { DispatchPort } from '../../kernel/contracts/index.js';
+import type { DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
 import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
 import { logger } from '../../infra/observability/logger.js';
@@ -47,6 +47,7 @@ export type BersoncareSendSmsDeps = {
   sharedSecret: string;
   isAuthChannelEnabled: (channel: 'sms') => Promise<boolean>;
   recordProviderFailure: (reason: 'provider_send_failed') => Promise<void>;
+  idempotencyPort: IdempotencyPort;
 };
 
 async function recordProviderFailureSafely(
@@ -66,7 +67,13 @@ export async function registerBersoncareSendSmsRoute(
   app: FastifyInstance,
   deps: BersoncareSendSmsDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, isAuthChannelEnabled, recordProviderFailure } = deps;
+  const {
+    dispatchPort,
+    sharedSecret,
+    isAuthChannelEnabled,
+    recordProviderFailure,
+    idempotencyPort,
+  } = deps;
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const raw: string = typeof body === 'string' ? body : (body as Buffer).toString('utf8');
@@ -100,12 +107,17 @@ export async function registerBersoncareSendSmsRoute(
 
     const phone = typeof request.body?.phone === 'string' ? request.body.phone.trim() : '';
     const code = typeof request.body?.code === 'string' ? request.body.code.trim() : '';
-    if (!phone || !code) {
-      return reply.code(400).send({ ok: false, error: 'phone and code required' });
+    const idempotencyKey =
+      typeof request.body?.idempotencyKey === 'string' ? request.body.idempotencyKey.trim() : '';
+    if (!phone || !code || !idempotencyKey) {
+      return reply.code(400).send({ ok: false, error: 'phone, code and idempotencyKey required' });
     }
 
     if (!(await isAuthChannelEnabled('sms'))) {
       return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
+    }
+    if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
+      return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
 
     // Build smsc-channel UnifiedOutgoingMessage and dispatch via the single chokepoint.
@@ -118,7 +130,7 @@ export async function registerBersoncareSendSmsRoute(
       content: { text: `Ваш код BersonCare: ${code}` },
       meta: {
         // Delivery attempt logs retain eventId, so do not derive it from phone or code.
-        eventId: `otp:sms:${randomUUID()}`,
+        eventId: idempotencyKey,
         occurredAt: new Date().toISOString(),
         source: 'smsc',
         outboundMessageClass: 'auth_code',
@@ -135,6 +147,7 @@ export async function registerBersoncareSendSmsRoute(
       if (errorClass === 'provider_send_failed') {
         await recordProviderFailureSafely(recordProviderFailure);
       }
+      await idempotencyPort.release?.(idempotencyKey);
       logger.warn({ channel: 'smsc', errorClass }, 'bersoncare send-sms: dispatch failed');
       return reply.code(502).send({ ok: false, error: 'sms_failed' });
     }

@@ -61,7 +61,6 @@ import { PatientHomeSosCard } from './PatientHomeSosCard';
 import { hrefForPatientHomeDrilldown, stripApiMediaForAnonymousGuest } from './patientHomeGuestNav';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { DateTime } from 'luxon';
-import { parsePatientHomeMoodIcons } from '@/modules/patient-home/patientHomeMoodIcons';
 import { resolvePatientHomeBlockLeadingIconUrl } from '@/modules/patient-home/patientHomeStaticIcons';
 import type { ChecklistTodaySnapshot } from '@/modules/treatment-program/patient-program-actions';
 import {
@@ -194,9 +193,8 @@ async function renderPatientHomeToday({
 
   let appTz = await getAppDisplayTimeZone();
 
-  const [homeBlocks, moodSetting, warmupRepeatSetting] = await Promise.all([
+  const [homeBlocks, warmupRepeatSetting] = await Promise.all([
     deps.patientHomeBlocks.listBlocksWithItems(),
-    deps.systemSettings.getSetting('patient_home_mood_icons', 'admin'),
     deps.systemSettings.getSetting('patient_home_daily_warmup_repeat_cooldown_minutes', 'admin'),
   ]);
 
@@ -227,7 +225,6 @@ async function renderPatientHomeToday({
     warmupPick,
     presentationSyncDeps,
   );
-  const moodIconOptions = parsePatientHomeMoodIcons(moodSetting?.valueJson ?? null);
 
   const resolverDeps = {
     contentSections: deps.contentSections,
@@ -488,7 +485,6 @@ async function renderPatientHomeToday({
       case 'mood_checkin':
         return (
           <PatientHomeMoodCheckin
-            moodOptions={moodIconOptions}
             personalTierOk={personalTierOk}
             anonymousGuest={anonymousGuest}
             initialMood={initialMoodCheckin?.mood ?? null}

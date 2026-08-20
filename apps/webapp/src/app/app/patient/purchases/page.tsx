@@ -43,7 +43,9 @@ export default async function PurchasesPage() {
       backHref="/app/patient"
       backLabel="Меню"
     >
-      <PatientBookingHistorySection mode="payments" />
+      <div id="patient-purchases-history">
+        <PatientBookingHistorySection mode="payments" />
+      </div>
     </PatientAppShell>
   );
 }

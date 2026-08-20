@@ -15,9 +15,14 @@ async function attachImageLibraryMedia(
   if (!loadMediaById || !item.imageUrl?.trim()) return item;
   const id = parseMediaFileIdFromAppUrl(item.imageUrl);
   if (!id) return item;
-  const row = await loadMediaById(id);
-  if (!row) return item;
-  return { ...item, imageLibraryMedia: row };
+  try {
+    const row = await loadMediaById(id);
+    if (!row) return item;
+    return { ...item, imageLibraryMedia: row };
+  } catch {
+    // Media preview is optional enrichment. The persisted CMS row remains the authority.
+    return item;
+  }
 }
 
 export function createContentCatalogResolver(options: {
@@ -50,7 +55,14 @@ export function createContentCatalogResolver(options: {
               bodyFormat,
               imageUrl: row.imageUrl ?? undefined,
             };
-            if (row.videoUrl && (row.videoType === 'url' || row.videoType === 'youtube')) {
+            /*
+             * Всё, что не файл медиатеки (`api`), — внешняя ссылка. Перечислять здесь хосты
+             * поимённо нельзя: `video_type` теперь называет хост (`youtube`/`rutube`/`vk`/
+             * `vimeo`), а исторические строки несут ещё и `url`. Дверь показа одна и allowlist
+             * держит она — `toHostedVideoEmbedSrc`; ссылка, которую та не признала, просто не
+             * превратится в iframe.
+             */
+            if (row.videoUrl && row.videoType !== 'api') {
               item.videoSource = { type: 'url', url: row.videoUrl };
             } else if (row.videoUrl && row.videoType === 'api') {
               item.videoSource = { type: 'api', mediaId: row.videoUrl };

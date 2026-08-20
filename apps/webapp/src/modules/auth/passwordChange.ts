@@ -80,13 +80,13 @@ export function createPasswordChangeService(deps: PasswordChangeDeps) {
       const passwordHash = await deps.hashPassword(input.newPassword);
       const security = await deps.staffSecurity.getStatus();
 
-      // OWASP ASVS session management and NIST SP 800-63B treat a password change as a
-      // compromise-remediation event: revoke every previously issued session. Reuse the repository's
-      // one revocation mechanism (`platform_users.session_epoch`), then re-read the caller so the
-      // replacement cookie can carry the new epoch and remain alive.
+      // Replace the verified self credential first. Revoking before this write meant a transient
+      // credential-store failure signed the caller out everywhere while leaving the old password
+      // valid. Once replacement succeeds, rotate both staff-factor challenges (when enrolled) and
+      // the canonical session epoch, then re-read the caller for the one replacement cookie.
+      await deps.credentials.updatePasswordHash(input.userId, emailNormalized, passwordHash);
       if (security) await deps.staffSecurity.revokeSessions();
       await deps.users.invalidateSessionsForSelf();
-      await deps.credentials.updatePasswordHash(input.userId, emailNormalized, passwordHash);
 
       const user = await deps.users.findByUserId(input.userId);
       if (!user) {

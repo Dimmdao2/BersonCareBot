@@ -8,6 +8,7 @@ import {
   type EmptyAudienceEvent,
 } from '@/modules/operator-alerts/emptyAudience';
 import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 /**
  * Единственная точка, куда обязан приходить КАЖДЫЙ случай пустой аудитории (design D-b).
@@ -122,40 +123,42 @@ export function createEmptyAudienceReporter(dependencies: EmptyAudienceReporterD
 export async function reportEmptyNotificationAudience(
   event: EmptyAudienceEvent,
 ): Promise<ReportEmptyAudienceResult> {
-  const appDeps = buildAppDeps();
-  const report = createEmptyAudienceReporter({
-    readCounterMeta: async () => {
-      const existing = await appDeps.operatorHealthRead.getOperatorJobStatus(
-        EMPTY_AUDIENCE_JOB_FAMILY,
-        EMPTY_AUDIENCE_JOB_KEY,
-      );
-      return existing?.metaJson;
-    },
-    recordCounterFailure: async ({ event: failedEvent, nowIso, metaJson }) => {
-      await appDeps.operatorHealthWrite.recordOperatorJobTickFailure({
-        jobFamily: EMPTY_AUDIENCE_JOB_FAMILY,
-        jobKey: EMPTY_AUDIENCE_JOB_KEY,
-        startedAtIso: nowIso,
-        durationMs: 0,
-        error: `empty_audience:${failedEvent.topic}`,
-        metaJson,
-      });
-    },
-    readFallbackEmail: async () => {
-      const setting = await appDeps.systemSettings.getSetting(
-        'operator_alert_fallback_email',
-        'admin',
-        { organizationId: null },
-      );
-      return parseOperatorAlertFallbackEmailSetting(setting?.valueJson);
-    },
-    sendFallbackEmail: async (input) => {
-      const { sendOperatorFallbackEmail } = await import('./sendOperatorFallbackEmail');
-      return sendOperatorFallbackEmail(input);
-    },
-    now: () => new Date(),
+  return runWithDbInfraPrincipal({ source: 'operator-cron-job-status:write' }, async () => {
+    const appDeps = buildAppDeps();
+    const report = createEmptyAudienceReporter({
+      readCounterMeta: async () => {
+        const existing = await appDeps.operatorHealthRead.getOperatorJobStatus(
+          EMPTY_AUDIENCE_JOB_FAMILY,
+          EMPTY_AUDIENCE_JOB_KEY,
+        );
+        return existing?.metaJson;
+      },
+      recordCounterFailure: async ({ event: failedEvent, nowIso, metaJson }) => {
+        await appDeps.operatorHealthWrite.recordOperatorJobTickFailure({
+          jobFamily: EMPTY_AUDIENCE_JOB_FAMILY,
+          jobKey: EMPTY_AUDIENCE_JOB_KEY,
+          startedAtIso: nowIso,
+          durationMs: 0,
+          error: `empty_audience:${failedEvent.topic}`,
+          metaJson,
+        });
+      },
+      readFallbackEmail: async () => {
+        const setting = await appDeps.systemSettings.getSetting(
+          'operator_alert_fallback_email',
+          'admin',
+          { organizationId: null },
+        );
+        return parseOperatorAlertFallbackEmailSetting(setting?.valueJson);
+      },
+      sendFallbackEmail: async (input) => {
+        const { sendOperatorFallbackEmail } = await import('./sendOperatorFallbackEmail');
+        return sendOperatorFallbackEmail(input);
+      },
+      now: () => new Date(),
+    });
+    return report(event);
   });
-  return report(event);
 }
 
 /** Регистрируется в `buildAppDeps` как реализация доменного seam. */

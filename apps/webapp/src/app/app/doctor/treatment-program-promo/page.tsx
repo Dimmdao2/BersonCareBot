@@ -32,7 +32,10 @@ export default async function DoctorTreatmentProgramPromoPage() {
 
   return (
     <DoctorAppShell title="Промо-программа" user={session.user} backHref="/app/doctor">
-      <DoctorPageHeader title="Промо-программа по умолчанию" />
+      <DoctorPageHeader
+        id="doctor-treatment-program-promo-header"
+        title="Промо-программа по умолчанию"
+      />
       <DefaultPromoProgramClient
         initialTemplateId={currentId ?? ''}
         templates={templates.map((t) => ({ id: t.id, title: t.title.trim() || t.id }))}

@@ -5,7 +5,6 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { createDoctorClient } from '@/app-layer/doctor/createDoctorClient';
-import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import {
@@ -39,10 +38,10 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Т12 (owner 19.08, дословно): «лимит клиентов - убрать». Creating a client card is gated by the
+  // doctor-workspace role and nothing else — no tariff mechanic stands in front of it.
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
-  const entitlement = await requireEntitlementForMutation(gate.ctx, 'patient_count');
-  if (!entitlement.ok) return entitlement.response;
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -88,13 +87,7 @@ export async function POST(request: Request) {
 
   if (!result.ok) {
     const status =
-      result.error === 'email_conflict'
-        ? 409
-        : result.error === 'patient_count_limit_reached'
-          ? 403
-          : result.error.startsWith('invalid_')
-            ? 400
-            : 409;
+      result.error === 'email_conflict' ? 409 : result.error.startsWith('invalid_') ? 400 : 409;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
 

@@ -20,7 +20,7 @@ export async function recordDataQualityIncidentAndMaybeTelegram(input: {
   const dispatchPort = input.dispatchPort;
   if (!dispatchPort) return;
 
-  const recipients = await loadAdminMessengerIdLists(input.db);
+  const recipients = await loadAdminMessengerIdLists();
   const text = input.alertLines.join('\n');
   const eventId = `data-quality:${input.incident.integration}:${input.incident.entity}:${input.incident.externalId}`.slice(0, 240);
   for (const chatId of recipients.telegram) {

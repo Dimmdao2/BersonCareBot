@@ -5,9 +5,14 @@
  * Wave 3 phase 14A — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
  */
 
+import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { withPoolTransaction } from '@/infra/db/withClient';
@@ -713,6 +718,23 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
 
     async ensureWebappConversationForUser(platformUserId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{ conversation: Record<string, unknown> }>(
+          getWebappSqlDb(),
+          'app.ensure_current_patient_support_conversation()',
+          [],
+          sql`SELECT app.ensure_current_patient_support_conversation() AS conversation`,
+        );
+        const row = result.rows[0]?.conversation;
+        if (!row || typeof row.id !== 'string') {
+          throw new Error('patient_support_conversation_rejected');
+        }
+        return {
+          id: row.id,
+          organizationId:
+            typeof row.organization_id === 'string' ? row.organization_id : null,
+        };
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const principalOrganizationId = currentWriteOrganizationId();
         const integratorConversationId = principalOrganizationId
@@ -771,6 +793,34 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async appendWebappMessage(params) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const args = [
+          params.conversationId,
+          params.integratorMessageId,
+          params.text,
+          params.source,
+          params.createdAt,
+          params.mediaUrl ?? null,
+          params.mediaType ?? null,
+        ] as const;
+        const result = await runWebappNamedRoot<{ message: Record<string, unknown> }>(
+          getWebappSqlDb(),
+          'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)',
+          args,
+          sql`SELECT app.append_current_patient_support_message(
+            ${params.conversationId}::uuid,
+            ${params.integratorMessageId}::text,
+            ${params.text}::text,
+            ${params.source}::text,
+            ${params.createdAt}::timestamptz,
+            ${params.mediaUrl ?? null}::text,
+            ${params.mediaType ?? null}::text
+          ) AS message`,
+        );
+        const row = result.rows[0]?.message;
+        if (!row || typeof row.id !== 'string') throw new Error('patient_support_message_rejected');
+        return { id: row.id, created: true };
+      }
       return runDrizzleMutationTransaction(async (tx) => {
         const patientWrite = getCurrentDbPrincipal()?.kind === 'patient';
         const conversation = await runWebappPgText<{
@@ -947,6 +997,17 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
      * (`countUnreadNotificationsForUser`) and their own mark-read.
      */
     async markInboundReadForUser(conversationId, platformUserId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await runWebappNamedRoot(
+          getWebappSqlDb(),
+          'app.mark_current_patient_support_conversation_read(uuid)',
+          [conversationId],
+          sql`SELECT app.mark_current_patient_support_conversation_read(
+            ${conversationId}::uuid
+          ) AS affected`,
+        );
+        return;
+      }
       await runWebappPgText(
         `UPDATE support_conversation_messages m
          SET read_at = COALESCE(m.read_at, now())
@@ -964,6 +1025,17 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     async markInboundMessagesReadForUser(platformUserId, messageIds) {
       const ids = [...new Set(messageIds.map((id) => String(id).trim()).filter(Boolean))];
       if (ids.length === 0) return;
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await runWebappNamedRoot(
+          getWebappSqlDb(),
+          'app.mark_current_patient_support_messages_read(text)',
+          [JSON.stringify(ids)],
+          sql`SELECT app.mark_current_patient_support_messages_read(
+            ${JSON.stringify(ids)}::text
+          ) AS affected`,
+        );
+        return;
+      }
       await runWebappPgText(
         `UPDATE support_conversation_messages m
          SET read_at = COALESCE(m.read_at, now())
@@ -979,6 +1051,15 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
     },
 
     async markNotificationMessagesReadForUser(platformUserId) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        await runWebappNamedRoot(
+          getWebappSqlDb(),
+          'app.mark_current_patient_support_notifications_read()',
+          [],
+          sql`SELECT app.mark_current_patient_support_notifications_read() AS affected`,
+        );
+        return;
+      }
       await runWebappPgText(
         `UPDATE support_conversation_messages m
          SET read_at = COALESCE(m.read_at, now())
@@ -1006,18 +1087,25 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           requestedOrganizationId ?? conversation.rows[0]?.organization_id,
         );
         if (!organizationId) return;
-        await runWebappPgText(
-          `UPDATE support_conversations
-           SET updated_at = now()
-           WHERE id = $1::uuid AND organization_id = $2::uuid`,
-          [conversationId, organizationId],
-          tx,
-        );
-        await runWebappPgText(
+        // Mark first, then touch the parent only if something was actually marked. These two ran in
+        // the opposite order, and the conversation touch carried no guard at all while its sibling
+        // correctly carried `AND read_at IS NULL` — so every open of a doctor chat rewrote the
+        // conversation row even when there was nothing unread in it. The doctor panel calls this on
+        // mount, after each full message reload, and again whenever the parent re-renders, which made
+        // a read-only action a steady stream of no-change row versions.
+        const marked = await runWebappPgText(
           `UPDATE support_conversation_messages
            SET read_at = COALESCE(read_at, now())
            WHERE conversation_id = $1::uuid AND organization_id = $2::uuid
              AND sender_role = 'user' AND read_at IS NULL`,
+          [conversationId, organizationId],
+          tx,
+        );
+        if ((marked.rowCount ?? 0) === 0) return;
+        await runWebappPgText(
+          `UPDATE support_conversations
+           SET updated_at = now()
+           WHERE id = $1::uuid AND organization_id = $2::uuid`,
           [conversationId, organizationId],
           tx,
         );

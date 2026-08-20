@@ -70,6 +70,7 @@ export async function POST(
       instanceId,
       stageItemId: itemId,
       note: body.note,
+      patientLabel: gate.session.user.displayName,
     });
     revalidatePatientTreatmentProgramUi();
     return NextResponse.json({ ok: true });

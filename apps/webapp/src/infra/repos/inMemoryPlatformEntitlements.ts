@@ -16,6 +16,7 @@ const DEFAULT_BILLING_PERIODS: BillingPeriodOption[] = [
 export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPort {
   const tariffs = new Map<string, Tariff>();
   const organizationTariffs = new Map<string, string | null>();
+  const organizationIsActive = new Map<string, boolean>();
   const trials = new Map<
     string,
     { tariffId: string; endsAt: string; status: 'active' | 'ended' }
@@ -38,7 +39,7 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
           tariffId,
           manualTariffId: trial?.status === 'active' ? null : tariffId,
           scheduledTariff: null,
-          isActive: true,
+          isActive: organizationIsActive.get(id) ?? true,
           effectiveAccess: {
             lifecycle: 'active' as const,
             tariffId,
@@ -150,6 +151,13 @@ export function createInMemoryPlatformEntitlementsPort(): PlatformEntitlementsPo
       const endsAt = new Date(Date.now() + policy.durationDays * 86_400_000).toISOString();
       trials.set(organizationId, { tariffId: currentTariffId, endsAt, status: 'active' });
       return { created: true, endsAt };
+    },
+    async setOrganizationActive(organizationId, isActive) {
+      if (!organizationTariffs.has(organizationId)) throw new Error('organization_not_found');
+      const before = organizationIsActive.get(organizationId) ?? true;
+      if (before === isActive) return { isActive, changed: false };
+      organizationIsActive.set(organizationId, isActive);
+      return { isActive, changed: true };
     },
   };
 }

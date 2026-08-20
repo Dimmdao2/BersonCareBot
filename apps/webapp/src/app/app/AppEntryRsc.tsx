@@ -114,6 +114,7 @@ export async function AppEntryRsc({
         <PatientUnsupportedClientFallback
           client={clientEnvironment}
           entrySurface={watchdogEntrySurface}
+          failureTimeoutEnabled={env.NODE_ENV === 'production'}
           supportContactHref={routePaths.loginContactSupport}
         />
       ) : null}

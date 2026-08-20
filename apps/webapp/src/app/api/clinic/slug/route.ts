@@ -12,7 +12,20 @@ const bodySchema = z
   .strict();
 
 function statusForError(code: OrganizationSlugMutationErrorCode): number {
-  return code === 'slug_unavailable' || code === 'slug_unchanged' ? 409 : 400;
+  // `self_rename_allowance_spent` — конфликт состояния, а не негодный ввод: тело запроса правильное,
+  // исчерпано право. Отдаётся отдельным кодом, чтобы человек НЕ увидел «имя занято» (владелец 19.08).
+  return code === 'slug_unavailable' ||
+    code === 'slug_unchanged' ||
+    code === 'self_rename_allowance_spent'
+    ? 409
+    : 400;
+}
+
+function pgCode(error: unknown): string {
+  if (typeof error !== 'object' || error === null) return '';
+  const value = error as { code?: unknown; cause?: { code?: unknown } };
+  if (typeof value.code === 'string') return value.code;
+  return typeof value.cause?.code === 'string' ? value.cause.code : '';
 }
 
 /** POST /api/clinic/slug — claim or rename the organization's durable public slug. */
@@ -30,17 +43,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'directory_unavailable' }, { status: 503 });
   }
 
-  const result = await service.setOrganizationSlug({
-    organizationId: gate.ctx.organizationId,
-    slug: parsed.data.slug,
-    irreversibleRenameConfirmed: parsed.data.irreversibleRenameConfirmed,
-  });
-  if (!result.ok) {
+  try {
+    const result = await service.setOrganizationSlug({
+      organizationId: gate.ctx.organizationId,
+      slug: parsed.data.slug,
+      irreversibleRenameConfirmed: parsed.data.irreversibleRenameConfirmed,
+      // Гейт маршрута — кабинет клиники, значит смена всегда самостоятельная. Из тела запроса это
+      // никогда не приходит: иначе клиника объявила бы себя админом и обошла единственную смену.
+      initiatedBy: 'clinic',
+    });
+    if (!result.ok) {
+      return NextResponse.json(
+        { ok: false, error: result.code },
+        { status: statusForError(result.code) },
+      );
+    }
+    const state = await service.getSlugManagementState(gate.ctx.organizationId);
+    return NextResponse.json({ ok: true, slug: result.slug, state });
+  } catch (error) {
+    const code = pgCode(error);
+    console.error('[clinic-slug] mutation failed', {
+      category: code === '42501' ? 'capability_denied' : 'repository_unavailable',
+      errorClass: error instanceof Error ? error.name : 'unknown',
+      code: code || 'unknown',
+    });
     return NextResponse.json(
-      { ok: false, error: result.code },
-      { status: statusForError(result.code) },
+      {
+        ok: false,
+        error: code === '42501' ? 'directory_capability_unavailable' : 'directory_unavailable',
+      },
+      { status: 503 },
     );
   }
-  const state = await service.getSlugManagementState(gate.ctx.organizationId);
-  return NextResponse.json({ ok: true, slug: result.slug, state });
 }

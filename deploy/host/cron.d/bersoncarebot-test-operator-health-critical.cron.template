@@ -1,0 +1,7 @@
+# Критические сигналы здоровья оператора, каждые 5 минут.
+# Вариант шаблона deploy/host/cron.d/bersoncarebot-operator-health-critical.cron.template под TEST:
+# webapp.test и loopback 127.0.0.1:6300 — так же, как сделано для превью медиа.
+# Заведено 19.08.2026: замер показал, что тик не запускался 3 суток 5 часов (last_success 16.08 05:00),
+# потому что на TEST этот шаблон никогда не устанавливали. Права починены миграциями 0038/0039,
+# оставалось только его будить.
+*/5 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.test && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6300/api/internal/operator-health-critical/tick" >/dev/null'

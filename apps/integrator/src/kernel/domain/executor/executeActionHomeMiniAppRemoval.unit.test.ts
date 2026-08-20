@@ -145,7 +145,6 @@ describe('main menu mini-app retirement', () => {
       },
     };
     const webappEventsPort: WebappEventsPort = {
-      emit: async () => ({ ok: true, status: 200 }),
       completePhoneMessengerBind: async () => ({
         ok: true,
         purpose: 'profile_bind' as const,
@@ -236,7 +235,6 @@ describe('main menu mini-app retirement', () => {
       context('telegram'),
       {
         webappEventsPort: {
-          emit: async () => ({ ok: true, status: 200 }),
           completePhoneMessengerBind: async () => {
             completionCalls += 1;
             if (completionCalls === 1) {

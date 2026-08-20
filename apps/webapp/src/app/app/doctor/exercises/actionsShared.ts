@@ -10,7 +10,7 @@ import {
   isUsageConfirmationRequiredError,
 } from '@/modules/lfk-exercises/errors';
 import type { MediaExerciseUsageEntry } from '@/modules/media/types';
-import type { ExerciseUsageSnapshot } from '@/modules/lfk-exercises/types';
+import type { ExerciseMediaType, ExerciseUsageSnapshot } from '@/modules/lfk-exercises/types';
 import {
   EXERCISE_LOAD_TYPE_CATEGORY_CODE,
   exerciseLoadTypeWriteAllowSet,
@@ -18,6 +18,10 @@ import {
 } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { API_MEDIA_URL_RE, isLegacyAbsoluteUrl } from '@/shared/lib/mediaUrlPolicy';
+import {
+  hostedVideoLinkRejectionRu,
+  parseHostedVideoLink,
+} from '@/shared/lib/hostingEmbedUrls';
 import { z } from 'zod';
 
 import { EXERCISES_PATH } from './exercisesPaths';
@@ -73,20 +77,53 @@ function parseTags(raw: FormDataEntryValue | null): string[] | null {
   return parts.length ? parts : null;
 }
 
-function validateExerciseMedia(
+/**
+ * Приводит медиа упражнения к тому, что можно записать, либо отказывает с причиной.
+ *
+ * Два разных вида, и проверяются они по-разному: `image|video|gif` — файл нашей медиатеки,
+ * `hosted_video` — ссылка на внешний хостинг, которая ещё и канонизируется здесь (из вставленного
+ * URL выбрасываются utm-хвосты, плейлисты и тайм-коды). В базу уходит именно `mediaUrl` из
+ * результата, а не то, что прислала форма.
+ */
+function normalizeExerciseMedia(
   mediaUrl: string | null,
-  mediaType: 'image' | 'video' | 'gif' | null,
-): string | null {
+  mediaType: ExerciseMediaType | null,
+): { ok: true; mediaUrl: string | null; mediaType: ExerciseMediaType | null } | { ok: false; error: string } {
   if (mediaType && !mediaUrl) {
-    return 'Некорректные данные медиа: очистите медиа и выберите файл снова.';
+    return { ok: false, error: 'Некорректные данные медиа: очистите медиа и выберите файл снова.' };
   }
   if (mediaUrl && !mediaType) {
-    return 'Выберите файл из библиотеки — не указан тип медиа.';
+    return { ok: false, error: 'Выберите файл из библиотеки — не указан тип медиа.' };
   }
-  if (mediaUrl && !(API_MEDIA_URL_RE.test(mediaUrl) || isLegacyAbsoluteUrl(mediaUrl))) {
-    return 'Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).';
+  if (!mediaUrl || !mediaType) return { ok: true, mediaUrl: null, mediaType: null };
+
+  if (mediaType === 'hosted_video') {
+    const link = parseHostedVideoLink(mediaUrl);
+    if (!link) {
+      return { ok: false, error: hostedVideoLinkRejectionRu(mediaUrl) ?? 'Ссылка не принята.' };
+    }
+    return { ok: true, mediaUrl: link.canonicalUrl, mediaType };
   }
-  return null;
+
+  if (!(API_MEDIA_URL_RE.test(mediaUrl) || isLegacyAbsoluteUrl(mediaUrl))) {
+    return {
+      ok: false,
+      error:
+        'Медиа должно быть из библиотеки файлов (/api/media/…) или допустимый legacy URL (https://…).',
+    };
+  }
+  /*
+   * Обход вокруг новой двери: `isLegacyAbsoluteUrl` пропускает ЛЮБОЙ https-адрес, поэтому ссылку
+   * на хостинг можно было сохранить под видом файла — и тогда пациенту вместо ролика показывался
+   * отказ «видео без привязки к медиатеке». Такой URL здесь называется своим именем.
+   */
+  if (parseHostedVideoLink(mediaUrl)) {
+    return {
+      ok: false,
+      error: 'Это ссылка на видеохостинг — вставьте её в поле «Ссылка на видео», а не как файл.',
+    };
+  }
+  return { ok: true, mediaUrl, mediaType };
 }
 
 export const bulkCreateExerciseMediaItemSchema = z.object({
@@ -174,7 +211,8 @@ export async function bulkCreateExercisesFromMediaCore(
       failed += 1;
       continue;
     }
-    const mediaErr = validateExerciseMedia(row.mediaUrl, row.mediaType);
+    const normalizedBulk = normalizeExerciseMedia(row.mediaUrl, row.mediaType);
+    const mediaErr = normalizedBulk.ok ? null : normalizedBulk.error;
     if (mediaErr) {
       failed += 1;
       continue;
@@ -275,17 +313,21 @@ export async function saveDoctorExerciseCore(formData: FormData): Promise<SaveEx
   const tags = parseTags(formData.get('tags'));
 
   const mediaUrlRaw = (formData.get('mediaUrl') as string)?.trim() || '';
-  const mediaUrl = mediaUrlRaw.length ? mediaUrlRaw : null;
   const mediaTypeRaw = formData.get('mediaType');
-  const mediaType =
-    mediaTypeRaw === 'image' || mediaTypeRaw === 'video' || mediaTypeRaw === 'gif'
+  const mediaTypeParsed: ExerciseMediaType | null =
+    mediaTypeRaw === 'image' ||
+    mediaTypeRaw === 'video' ||
+    mediaTypeRaw === 'gif' ||
+    mediaTypeRaw === 'hosted_video'
       ? mediaTypeRaw
       : null;
 
-  const mediaError = validateExerciseMedia(mediaUrl, mediaType);
-  if (mediaError) {
-    return { ok: false, error: mediaError };
+  const normalized = normalizeExerciseMedia(mediaUrlRaw.length ? mediaUrlRaw : null, mediaTypeParsed);
+  if (!normalized.ok) {
+    return { ok: false, error: normalized.error };
   }
+  const mediaUrl = normalized.mediaUrl;
+  const mediaType = normalized.mediaType;
 
   if (id) {
     const current = await deps.lfkExercises.getExercise(id);

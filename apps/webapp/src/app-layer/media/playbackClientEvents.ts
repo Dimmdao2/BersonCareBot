@@ -1,9 +1,10 @@
 import { and, desc, eq, gte, sql } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { drizzleExcludeUserIdColumn } from '@/modules/analytics/analyticsAudience';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { logger } from '@/app-layer/logging/logger';
 import { mediaPlaybackClientEvents } from '../../../db/schema';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export type PlaybackClientEventClass =
   | 'hls_fatal'
@@ -50,6 +51,27 @@ export async function recordPlaybackClientEvent(input: {
   userAgent?: string | null;
 }): Promise<void> {
   try {
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      await runWebappNamedRoot(
+        getWebappSqlDb(),
+        'app.record_current_patient_playback_client_event(uuid,text,text,text,text)',
+        [
+          input.mediaId,
+          input.eventClass,
+          input.delivery ?? null,
+          trimTo(input.errorDetail, 500),
+          trimTo(input.userAgent, 400),
+        ],
+        sql`SELECT app.record_current_patient_playback_client_event(
+          ${input.mediaId}::uuid,
+          ${input.eventClass}::text,
+          ${input.delivery ?? null}::text,
+          ${trimTo(input.errorDetail, 500)}::text,
+          ${trimTo(input.userAgent, 400)}::text
+        )`,
+      );
+      return;
+    }
     const organizationId = getCurrentDbPrincipalOrganizationId();
     if (!organizationId) return;
     const db = getDrizzle();

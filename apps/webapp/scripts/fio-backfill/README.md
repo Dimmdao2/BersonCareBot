@@ -28,6 +28,31 @@ Downloaded files live under:
 `.tmp/` is gitignored. This is intentional: the dataset is an operations input
 for a backfill script, not a runtime application dependency.
 
+### Durable copy of the reviewed decisions (19.08.2026)
+
+`.tmp/` is not only gitignored — it is a scratch directory that any cleanup removes. On 19.08 it was
+removed, and the owner-reviewed FIO decisions in it would have been lost: they are hand-made and cannot
+be re-derived from the data. They now live under
+
+```text
+/opt/backups/bersoncarebot-owner-artifacts/fio-backfill/
+```
+
+alongside the other retained data-mutation records already kept in `/opt/backups`
+(`bersoncarebot-user-delete-audit-*`, `bersoncarebot-user-cleanup-check-*`), owner `dev`, group
+`deploy`, mode 0750/0640. **They are NOT in git and must not be: they contain the full names of real
+people.**
+
+Before running the reviewed-manifest apply, copy them back into the path this tooling expects:
+
+```bash
+mkdir -p .tmp/fio-backfill
+cp -a /opt/backups/bersoncarebot-owner-artifacts/fio-backfill/. .tmp/fio-backfill/
+```
+
+The `russiannames` dataset was deliberately NOT preserved — it is 51 MB of public data and
+`download-russiannames-dataset.mjs` fetches it again.
+
 ## Download
 
 From the repository root:
@@ -124,23 +149,23 @@ after history normalization and before fixtures/service restart:
 ```bash
 # One-time no-DB sealing of the exact owner-decision payload. Output is created as 0600 and never overwritten.
 pnpm --dir apps/webapp run fio:owner-reviewed-test:seal -- \
-  --manifest /secure/fio-owner-manifest.payload.json \
-  --output /secure/fio-owner-manifest.json
+  --manifest /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.payload.json \
+  --output /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json
 
 # No-DB verification used by the full-reset preflight before writers stop or TEST is restored.
 pnpm --dir apps/webapp run fio:owner-reviewed-test:verify -- \
-  --manifest /secure/fio-owner-manifest.json \
+  --manifest /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json \
   --confirm-manifest-sha256 <manifest-payload-sha256> \
   --confirm-review-source-sha256 <owner-review-source-sha256>
 
 # Read-only preview.
 pnpm --dir apps/webapp run fio:owner-reviewed-test:preview -- \
-  --test --manifest /secure/fio-owner-manifest.json
+  --test --manifest /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json
 
 # TEST apply. Values are approved hashes; stdout is aggregate-only.
 pnpm --dir apps/webapp run fio:owner-reviewed-test:apply -- \
   --test \
-  --manifest /secure/fio-owner-manifest.json \
+  --manifest /opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json \
   --confirm-manifest-sha256 <manifest-payload-sha256> \
   --confirm-review-source-sha256 <owner-review-source-sha256> \
   --rollback-dir /absolute/private/rollback-directory
@@ -152,10 +177,13 @@ pnpm --dir apps/webapp run fio:owner-reviewed-test:rollback -- \
   --confirm-artifact-sha256 <artifact-sha256>
 ```
 
-The protected manifest used by the host full-reset wrapper is installed outside both checkouts as a regular
-`deploy`-owned mode `0600` file. Its raw file SHA-256, canonical manifest SHA-256, and original owner-review source
-SHA-256 are separate inputs. Rollback filenames are unique per apply attempt; earlier artifacts are never overwritten
-or deleted.
+The protected manifest used by the host full-reset wrapper lives at
+`/opt/env/bersoncarebot/protected-inputs/fio-owner-reviewed-test.manifest.json`; its source payload is the adjacent
+`fio-owner-reviewed-test.payload.json`. The adjacent `fio-owner-reviewed-test.sha256` sidecar holds the raw file,
+canonical manifest-payload, and owner-review source SHA-256 values. All are regular `deploy`-owned mode `0600`
+files. The full-reset wrapper uses that manifest and sidecar by default, so the four `--fio-manifest*` arguments are
+needed only to override individual defaults. Rollback filenames are unique per apply attempt; earlier artifacts are
+never overwritten or deleted.
 
 ## Source audit
 

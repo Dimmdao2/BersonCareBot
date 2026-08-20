@@ -5,7 +5,7 @@
  */
 
 import { cache } from 'react';
-import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
+import { getCurrentDbPrincipal, runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
@@ -62,6 +62,7 @@ import { createDoctorAppointmentsService } from '@/modules/doctor-appointments/s
 import { createDoctorMessagingService } from '@/modules/doctor-messaging/service';
 import { createDoctorStatsService } from '@/modules/doctor-stats/service';
 import { createAdminPlatformUserStatsService } from '@/modules/admin-platform-stats/service';
+import { createPlatformAnalyticsService } from '@/modules/platform-analytics/service';
 import { createProductAnalyticsService } from '@/modules/product-analytics/service';
 import { createPgProductAnalyticsPort } from '@/infra/repos/pgProductAnalytics';
 import { createInMemoryProductAnalyticsPort } from '@/infra/repos/inMemoryProductAnalytics';
@@ -102,6 +103,8 @@ import { createPgMessageLogPort } from '@/infra/repos/pgMessageLog';
 import { createPgDoctorClientsPort } from '@/infra/repos/pgDoctorClients';
 import { createPgAdminPlatformUserStatsPort } from '@/infra/repos/pgAdminPlatformUserStats';
 import { createInMemoryAdminPlatformUserStatsPort } from '@/infra/repos/inMemoryAdminPlatformUserStats';
+import { createPgPlatformAnalyticsPort } from '@/infra/repos/pgPlatformAnalytics';
+import { createInMemoryPlatformAnalyticsPort } from '@/infra/repos/inMemoryPlatformAnalytics';
 import { createPgDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/pgDoctorAnalyticsMetricAccounts';
 import { inMemoryDoctorAnalyticsMetricAccountsPort } from '@/infra/repos/inMemoryDoctorAnalyticsMetricAccounts';
 import { createPgDoctorCanonicalAppointmentsPort } from '@/infra/repos/pgDoctorCanonicalAppointments';
@@ -115,8 +118,7 @@ import { appointmentRowLabel } from '@/modules/appointments/appointmentLabels';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   getPatientCalendarTimezoneIana,
-  setPatientCalendarTimezoneIana,
-  trySetInitialCalendarTimezoneIfEmpty,
+  syncCalendarTimezoneFromDevice,
 } from '@/infra/repos/pgPatientCalendarTimezone';
 import {
   formatAppointmentDateNumericRu,
@@ -127,12 +129,14 @@ import { SCHEDULE_RECORD_PROVENANCE_PREFIX } from '@/shared/lib/scheduleRecordPr
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { selectPersonalChatSenderDisplayName } from '@/modules/messaging/notifyPatientDoctorReply';
 import { createMediaService } from '@/modules/media/service';
+import type { PlaybackUserVideoFirstResolvePort } from '@/modules/media/ports';
 import { createSymptomDiaryService } from '@/modules/diaries/symptom-service';
 import { createLfkDiaryService } from '@/modules/diaries/lfk-service';
 import { createChannelPreferencesService } from '@/modules/channel-preferences/service';
 import { createContentCatalogResolver } from '@/modules/content-catalog/service';
 import { mockMediaStoragePort } from '@/infra/repos/mockMediaStorage';
 import { createS3MediaStoragePort, listMediaDeleteErrors } from '@/infra/repos/s3MediaStorage';
+import { createPgPlaybackUserVideoFirstResolvePort } from '@/infra/repos/pgPlaybackUserVideoFirstResolve';
 import { inMemorySymptomDiaryPort } from '@/infra/repos/symptomDiary';
 import { inMemoryLfkDiaryPort } from '@/infra/repos/lfkDiary';
 import { pgSymptomDiaryPort } from '@/infra/repos/pgSymptomDiary';
@@ -152,6 +156,7 @@ import { inMemoryChannelPreferencesPort } from '@/infra/repos/inMemoryChannelPre
 import { inMemoryWebPushSubscriptionsPort } from '@/infra/repos/inMemoryWebPushSubscriptions';
 import { pgChannelPreferencesPort } from '@/infra/repos/pgChannelPreferences';
 import { createPgWebPushSubscriptionsPort } from '@/infra/repos/pgWebPushSubscriptions';
+import { createPgIntegratorWebPushDeliveryPort } from '@/infra/repos/pgIntegratorWebPushDelivery';
 import {
   createPgPatientNotificationTopicsPort,
   inMemoryPatientNotificationTopicsPort,
@@ -161,6 +166,7 @@ import {
   inMemoryTopicChannelPrefsPort,
 } from '@/infra/repos/pgTopicChannelPrefs';
 import { createPgStaffUsersPort, inMemoryStaffUsersPort } from '@/infra/repos/pgStaffUsers';
+import { createPgPatientStaffNotificationProfilesPort } from '@/infra/repos/pgPatientStaffNotificationProfiles';
 import { pgUserProjectionPort, inMemoryUserProjectionPort } from '@/infra/repos/pgUserProjection';
 import {
   createPgUserPasswordCredentialsPort,
@@ -342,7 +348,12 @@ import {
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { getDeliveryTargetsForIntegrator } from '@/modules/integrator/deliveryTargetsApi';
+import { getDeliveryTargetsForUser } from '@/modules/channel-preferences/deliveryTargets';
+import { createPgIntegratorDeliveryTargetsPort } from '@/infra/repos/pgIntegratorDeliveryTargets';
+import { inMemoryIntegratorDeliveryTargetsPort } from '@/infra/repos/inMemoryIntegratorDeliveryTargets';
 import { createPatientBookingService } from '@/modules/patient-booking/service';
+import { createPgOutboundMessageQueue } from '@/infra/repos/pgOutboundMessageQueue';
+import { createBookingCreatedEffects } from '@/app-layer/booking/bookingCreatedEffects';
 import { createBookingSyncPort } from '@/modules/integrator/bookingM2mApi';
 import { createAppointmentPaymentConfirmedHandler } from '@/app-layer/booking/appointmentPaymentConfirmedHandler';
 import { loadBookingLifecycleNotificationsFromSystemSettings } from '@/modules/booking-notifications/settings';
@@ -355,18 +366,22 @@ import { createPatientBookingCatalogService } from '@/modules/patient-booking/pa
 import { createPgPatientBookingCatalogPort } from '@/infra/repos/pgPatientBookingCatalog';
 import { inMemoryPatientBookingCatalogPort } from '@/infra/repos/inMemoryPatientBookingCatalog';
 import { createPgClinicDirectoryPort } from '@/infra/repos/pgClinicDirectory';
+import { createClinicPublicCardService } from '@/modules/clinic-public-card/service';
+import { createPgClinicPublicCardPort } from '@/infra/repos/pgClinicPublicCard';
 import { createClinicDirectoryService } from '@/modules/clinic-directory/service';
 import { createPgOrganizationMembershipPort } from '@/infra/repos/pgOrganizationMembership';
 import { createInMemoryOrganizationMembershipPort } from '@/infra/repos/inMemoryOrganizationMembership';
 import { createOrganizationMembershipService } from '@/modules/organization-membership/service';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { assertMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import { withRequestLocalMechanicAccess } from '@/app-layer/entitlements/requestLocalMechanicAccess';
 import { wrapSystemSettingsServiceWithTariffMechanicWriteClearance } from '@/app-layer/entitlements/mechanicSettingsWriteClearance';
 import {
   wrapContentPagesPortWithWriteClearance,
   wrapContentSectionsPortWithWriteClearance,
 } from '@/app-layer/content/contentWriteClearancePorts';
 import { wrapSystemSettingsServiceWithPatientHomeWriteClearance } from '@/app-layer/patient-home/patientHomeSettingsWriteClearance';
+import { wrapSystemSettingsServiceWithRequestLocalScopeReads } from '@/app-layer/system-settings/requestLocalSettingsByScope';
 import { createInMemoryOrgEntitlementsPort } from '@/infra/repos/inMemoryOrgEntitlements';
 import { createPgPlatformEntitlementsPort } from '@/infra/repos/pgPlatformEntitlements';
 import { createInMemoryPlatformEntitlementsPort } from '@/infra/repos/inMemoryPlatformEntitlements';
@@ -408,7 +423,10 @@ import { createPgBookingFormPort } from '@/infra/repos/pgBookingForm';
 import { createBookingFormService } from '@/modules/booking-form/service';
 import { createPgPatientMergeCandidatePort } from '@/infra/repos/pgPatientMergeCandidate';
 import { createPatientMergeCandidateService } from '@/modules/patient-merge-candidate/service';
-import { createPgPlatformUserContactsPort } from '@/infra/repos/pgPlatformUserContacts';
+import {
+  createPgPlatformUserContactsPort,
+  readCurrentPatientIdentityContacts,
+} from '@/infra/repos/pgPlatformUserContacts';
 import { createInMemoryPlatformUserContactsPort } from '@/infra/repos/inMemoryPlatformUserContacts';
 import { createPlatformUserContactsService } from '@/modules/platform-user-contacts/service';
 import { toDoctorSupplementaryContacts } from '@/modules/platform-user-contacts/bookingContactUpsert';
@@ -459,6 +477,11 @@ const productAnalyticsPort = !inMemoryRepos
   : createInMemoryProductAnalyticsPort();
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
 
+const platformAnalyticsPort = !inMemoryRepos
+  ? createPgPlatformAnalyticsPort()
+  : createInMemoryPlatformAnalyticsPort();
+const platformAnalytics = createPlatformAnalyticsService(platformAnalyticsPort);
+
 const operatorHealthReadPort = !inMemoryRepos
   ? pgOperatorHealthReadPort
   : inMemoryOperatorHealthReadPort;
@@ -488,6 +511,7 @@ const channelPreferencesPort = !inMemoryRepos
 const webPushSubscriptionsPort = !inMemoryRepos
   ? createPgWebPushSubscriptionsPort()
   : inMemoryWebPushSubscriptionsPort;
+const integratorWebPushDeliveryPort = createPgIntegratorWebPushDeliveryPort();
 const reminderTransactionalEmailCooldownPort = !inMemoryRepos
   ? createPgReminderTransactionalEmailCooldownPort()
   : createNoOpReminderTransactionalEmailCooldownPort();
@@ -495,6 +519,9 @@ const topicChannelPrefsPort = !inMemoryRepos
   ? createPgTopicChannelPrefsPort()
   : inMemoryTopicChannelPrefsPort;
 const staffUsersPort = !inMemoryRepos ? createPgStaffUsersPort() : inMemoryStaffUsersPort;
+const patientStaffNotificationProfilesPort = !inMemoryRepos
+  ? createPgPatientStaffNotificationProfilesPort()
+  : undefined;
 const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMemoryRepos
   ? createPgGlobalAdminWebPushRecipientsPort()
   : emptyGlobalAdminWebPushRecipientsPort;
@@ -584,9 +611,12 @@ const organizationMembershipPort = !inMemoryRepos
 const organizationMembershipService = createOrganizationMembershipService({
   membershipPort: organizationMembershipPort,
 });
-const orgEntitlementsPort = !inMemoryRepos
-  ? createPgOrgEntitlementsPort()
-  : createInMemoryOrgEntitlementsPort();
+// Одно разрешение механики на запрос: память живёт в самом порту, поэтому её получают и гейты
+// `requireEntitlement*`, и потребители внутри этого файла. Обоснование и границы — в
+// `requestLocalMechanicAccess.ts`.
+const orgEntitlementsPort = withRequestLocalMechanicAccess(
+  !inMemoryRepos ? createPgOrgEntitlementsPort() : createInMemoryOrgEntitlementsPort(),
+);
 /**
  * UX-05 B1: organization brand publication. Paid additions resolve through the SAME entitlement
  * resolver as every other mechanic; core organization context is never gated by it.
@@ -598,10 +628,7 @@ const orgBrandingService = createOrgBrandingService({
     resolveMechanicAccess(orgEntitlementsPort, organizationId, 'branding'),
 });
 const patientOrganizationService = !inMemoryRepos
-  ? createPatientOrganizationService({
-      port: createPgPatientOrganizationPort(),
-      assertWriteClearance: assertMechanicWriteClearance,
-    })
+  ? createPatientOrganizationService({ port: createPgPatientOrganizationPort() })
   : null;
 const organizationProvisioningPort = !inMemoryRepos
   ? createPgOrganizationProvisioningPort()
@@ -654,6 +681,9 @@ const clinicSeatsService = createClinicSeatsService({
 });
 const clinicDirectoryService = !inMemoryRepos
   ? createClinicDirectoryService(createPgClinicDirectoryPort())
+  : null;
+const clinicPublicCardService = !inMemoryRepos
+  ? createClinicPublicCardService(createPgClinicPublicCardPort())
   : null;
 const bookingEngineCorePort = !inMemoryRepos ? createPgBookingEnginePort() : null;
 const doctorAppointmentsCanonicalPort =
@@ -759,6 +789,17 @@ const remindersService = createRemindersService(reminderRulesPort, {
 });
 const mediaStoragePort =
   !inMemoryRepos && isS3MediaEnabled(env) ? createS3MediaStoragePort() : mockMediaStoragePort;
+const inMemoryPlaybackUserVideoFirstResolveKeys = new Set<string>();
+const playbackUserVideoFirstResolvePort: PlaybackUserVideoFirstResolvePort = !inMemoryRepos
+  ? createPgPlaybackUserVideoFirstResolvePort()
+  : {
+      async record(input) {
+        const key = `${input.userId}:${input.mediaId}`;
+        const inserted = !inMemoryPlaybackUserVideoFirstResolveKeys.has(key);
+        inMemoryPlaybackUserVideoFirstResolveKeys.add(key);
+        return inserted;
+      },
+    };
 const referencesPort = !inMemoryRepos ? pgReferencesPort : inMemoryReferencesPort;
 const doctorNotesPort = !inMemoryRepos ? createPgDoctorNotesPort() : inMemoryDoctorNotesPort;
 const doctorNotesService = createDoctorNotesService(doctorNotesPort);
@@ -780,7 +821,10 @@ const patientComorbiditiesService = createPatientComorbiditiesService({ patientC
 const patientPaymentsPort = !inMemoryRepos
   ? createPgPatientPaymentsPort()
   : inMemoryPatientPaymentsPort;
-const patientPaymentsService = createPatientPaymentsService({ patientPaymentsPort });
+const patientPaymentsService = createPatientPaymentsService({
+  patientPaymentsPort,
+  assertWriteClearance: assertMechanicWriteClearance,
+});
 // acquiringGateway is initialized below, after systemSettingsService + paymentsConfigReader are set up.
 
 const systemSettingsPort = !inMemoryRepos
@@ -792,13 +836,18 @@ const appRuntimeSettingsPort = !inMemoryRepos
 const systemSettingsServiceBase = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
+  shouldCompareRuntimeWithLegacy: () => getCurrentDbPrincipal()?.kind !== 'patient',
 });
-const systemSettingsService = wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
-  wrapSystemSettingsServiceWithPatientHomeWriteClearance(
-    systemSettingsServiceBase,
+// Один список настроек области на запрос: память живёт в самом сервисе, поэтому её получают все
+// спрашивающие сразу. Обоснование и границы — в `requestLocalSettingsByScope.ts`.
+const systemSettingsService = wrapSystemSettingsServiceWithRequestLocalScopeReads(
+  wrapSystemSettingsServiceWithTariffMechanicWriteClearance(
+    wrapSystemSettingsServiceWithPatientHomeWriteClearance(
+      systemSettingsServiceBase,
+      assertMechanicWriteClearance,
+    ),
     assertMechanicWriteClearance,
   ),
-  assertMechanicWriteClearance,
 );
 const specialistTasksPort = !inMemoryRepos
   ? createPgSpecialistTasksPort((task) =>
@@ -915,6 +964,10 @@ const paymentsService =
           );
           return access.state === 'full_access' || access.state === 'grace';
         },
+        resolvePayerEmail: async (platformUserId) => {
+          const identity = await doctorClientsPort.getClientIdentity(platformUserId);
+          return identity?.email?.trim() || null;
+        },
         onPackagePaymentCaptured: membershipsService
           ? async ({ patientPackageId, paymentId, organizationId }) => {
               await membershipsService.activatePatientPackage(
@@ -955,14 +1008,14 @@ const paymentsService =
 // Falls back to noopAcquiringGateway when repos are in-memory (test mode).
 const acquiringGateway = !inMemoryRepos
   ? createRegistryAcquiringGateway({
-      getConfig: () =>
+      getConfig: (organizationId) =>
         createPaymentsConfigReader((key, organizationId) =>
           systemSettingsService.getSetting(
             key,
             'admin',
             organizationId ? { organizationId } : undefined,
           ),
-        ).getBookingPaymentSettings(),
+        ).getBookingPaymentSettings(organizationId),
     })
   : noopAcquiringGateway;
 
@@ -1050,12 +1103,9 @@ const patientDiarySnapshotsPort = !inMemoryRepos
 const patientCalendarTimezoneGet = inMemoryRepos
   ? async (_userId: string) => null as string | null
   : getPatientCalendarTimezoneIana;
-const patientCalendarTimezoneSet = inMemoryRepos
-  ? async (_userId: string, _value: string | null) => true
-  : setPatientCalendarTimezoneIana;
-const patientCalendarTimezoneTryInitial = inMemoryRepos
-  ? async (_userId: string, _raw: string | null) => {}
-  : trySetInitialCalendarTimezoneIfEmpty;
+const patientCalendarTimezoneSync = inMemoryRepos
+  ? async (_userId: string, _raw: string | null) => false
+  : syncCalendarTimezoneFromDevice;
 const doctorPatientMessageStaffDeps = {
   staffUsers: staffUsersPort,
   topicChannelPrefs: topicChannelPrefsPort,
@@ -1063,6 +1113,7 @@ const doctorPatientMessageStaffDeps = {
   webPushSubscriptions: webPushSubscriptionsPort,
   systemSettings: systemSettingsService,
   getChannelBindings: loadPlatformUserChannelBindings,
+  patientStaffNotificationProfiles: patientStaffNotificationProfilesPort,
 };
 registerAdminIncidentStaffPushDeps({
   staffUsers: staffUsersPort,
@@ -1222,7 +1273,27 @@ const coursesService = createCoursesService({
     treatmentProgramInstanceService.assignTemplateToPatient(input),
 });
 
+// Аудитория доставки интегратора — один объявленный корень; здесь он же обслуживает пациентское
+// уведомление о созданной записи, которое вебапп теперь ставит в очередь сам.
+const integratorDeliveryTargetsPort = inMemoryRepos
+  ? inMemoryIntegratorDeliveryTargetsPort
+  : createPgIntegratorDeliveryTargetsPort();
+
+const bookingCreatedEffectsPort = createBookingCreatedEffects({
+  outboundMessageQueue: createPgOutboundMessageQueue(),
+  deliveryTargets: {
+    getTargets: (params) =>
+      getDeliveryTargetsForIntegrator(params, {
+        integratorDeliveryTargets: integratorDeliveryTargetsPort,
+      }),
+  },
+});
+
 patientBookingService = createPatientBookingService({
+  bookingCreatedEffects: bookingCreatedEffectsPort,
+  // Один объявленный корень постановки исходящего сообщения — письмо-подтверждение записи
+  // больше не ждёт SMTP внутри запроса (решение владельца 19.08).
+  outboundMessageQueue: createPgOutboundMessageQueue(),
   bookingsPort: patientBookingsPort,
   syncPort: createBookingSyncPort(),
   bookingEngine: bookingEngineService,
@@ -1245,7 +1316,13 @@ patientBookingService = createPatientBookingService({
   memberships: membershipsServiceResolved,
   clientHistory: clientHistoryService,
   platformUserContacts: platformUserContactsService,
+  // A patient booking its own visit reads its own two contact fields through the declared patient
+  // root. The staff client projection behind `getClientIdentity` is denied to `app_patient` on
+  // `platform_users` — and it was never what this caller needed.
   getPlatformUserIdentityContacts: async (userId) => {
+    if (getCurrentDbPrincipal()?.kind === 'patient') {
+      return readCurrentPatientIdentityContacts();
+    }
     const identity = await doctorClientsPort.getClientIdentity(userId);
     if (!identity) return null;
     return { phone: identity.phone, email: identity.email ?? null };
@@ -1344,7 +1421,6 @@ const patientMessagingService = createPatientMessagingService(supportCommunicati
   notifyDoctorOfPatientMessage: async (input) => {
     await notifyDoctorOfPatientMessageImpl({ ...input, source: 'webapp' });
   },
-  resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
 const patientNotificationInboxService =
   createPatientNotificationInboxService(supportCommunicationPort);
@@ -1510,20 +1586,11 @@ function _buildAppDeps() {
       }),
     getDoctorSupportDefault: (key, context) => runtimeConfig.getBoolean(key, context),
   });
+  // Аудитория доставки интегратора — один объявленный корень, а не сборка из сырых чтений.
+  // Стена участия, сверка integratorUserId, привязки, предпочтения и готовность каналов живут
+  // внутри `app.read_integrator_delivery_target_snapshot(...)`.
   const integratorDeliveryTargetsDeps = {
-    userByPhonePort,
-    identityResolutionPort,
-    preferencesPort: channelPreferencesPort,
-    topicChannelPrefsPort,
-    readReminderNotifyGate: readReminderWebappNotifyGate,
-    getProfileEmailFields: userProjectionPort.getProfileEmailFields,
-    webPushSubscriptions: webPushSubscriptionsPort,
-    systemSettings: systemSettingsService,
-    hasActivePatientEnrollment: (platformUserId: string, organizationId: string) =>
-      patientOrganizationService?.hasActiveEnrollment(platformUserId, organizationId) ??
-      Promise.resolve(false),
-    findPlatformUserByIntegratorId: userProjectionPort.findByIntegratorId,
-    getChannelBindings: loadPlatformUserChannelBindings,
+    integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
   return {
     auth: {
@@ -1626,8 +1693,25 @@ function _buildAppDeps() {
         const p = await doctorClients.getClientProfile(userId);
         return p?.identity ?? null;
       },
-      getDeliveryTargets: (params) =>
-        getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
+      // Кабинет врача работает под штатным принципалом и своей организации, поэтому идёт не через
+      // интеграторский корень (он требует организацию в аргументе и стену участия пациента), а
+      // ровно теми двумя чтениями, которые ему и нужны: личность по привязке канала и глобальное
+      // предпочтение уведомлений.
+      getDeliveryTargets: async (params) => {
+        const user = params.telegramId?.trim()
+          ? await identityResolutionPort.findByChannelBinding({
+              channelCode: 'telegram',
+              externalId: params.telegramId.trim(),
+            })
+          : params.maxId?.trim()
+            ? await identityResolutionPort.findByChannelBinding({
+                channelCode: 'max',
+                externalId: params.maxId.trim(),
+              })
+            : null;
+        if (!user) return null;
+        return getDeliveryTargetsForUser(user.userId, user.bindings, channelPreferencesPort);
+      },
       messageLogPort,
     }),
     doctorAppointments: createDoctorAppointmentsService({
@@ -1645,6 +1729,7 @@ function _buildAppDeps() {
     }),
     doctorAnalyticsMetricAccounts: doctorAnalyticsMetricAccountsPort,
     adminPlatformUserStats,
+    platformAnalytics,
     productAnalytics,
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,
@@ -1816,6 +1901,7 @@ function _buildAppDeps() {
     healthFailureArchive,
     notificationDelivery,
     media: mediaService,
+    playbackUserVideoFirstResolve: playbackUserVideoFirstResolvePort,
     mediaDeleteErrors: {
       list: listMediaDeleteErrors,
     },
@@ -1823,6 +1909,7 @@ function _buildAppDeps() {
     channelPreferences: channelPreferencesService,
     channelPreferencesPort,
     webPushSubscriptions: webPushSubscriptionsPort,
+    integratorWebPushDelivery: integratorWebPushDeliveryPort,
     readReminderNotifyGate: readReminderWebappNotifyGate,
     loadPlatformUserChannelBindings,
     reminderTransactionalEmailCooldown: reminderTransactionalEmailCooldownPort,
@@ -1838,6 +1925,13 @@ function _buildAppDeps() {
         integratorUserId?: string;
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
+    adminNotificationTargets: {
+      // Читает маршрут `/api/integrator/admin-notification-targets`, который принципалом не входит
+      // и попадает в `pre_session`; тик дайджеста читает то же тело под инфра-принципалом.
+      loadTargets: !inMemoryRepos
+        ? () => loadAdminNotificationTargetsFromDb('pre_session')
+        : async () => ({ telegram: [], max: [], sms: [], email: [] }),
+    },
     appointmentReminderMaterialization,
     appDisplayTimeZone: getAppDisplayTimeZone,
     topicChannelPrefs: topicChannelPrefsPort,
@@ -1852,6 +1946,8 @@ function _buildAppDeps() {
       upsertNotificationTopics: userProjectionPort.upsertNotificationTopics,
       updateRole: userProjectionPort.updateRole,
       getProfileEmailFields: userProjectionPort.getProfileEmailFields,
+      getCurrentPatientFio: userProjectionPort.getCurrentPatientFio,
+      updateCurrentPatientFio: userProjectionPort.updateCurrentPatientFio,
       clearStaffAccountEmail: userProjectionPort.clearStaffAccountEmail,
       patchAdminClientProfile: userProjectionPort.patchAdminClientProfile,
       findPlatformUserIdWithEmailConflict: userProjectionPort.findPlatformUserIdWithEmailConflict,
@@ -1942,13 +2038,13 @@ function _buildAppDeps() {
     patientDiarySnapshots: patientDiarySnapshotsPort,
     patientCalendarTimezone: {
       getIanaForUser: patientCalendarTimezoneGet,
-      setIanaForPatient: patientCalendarTimezoneSet,
-      trySetInitialIfEmpty: patientCalendarTimezoneTryInitial,
+      syncFromDevice: patientCalendarTimezoneSync,
     },
     lfkTemplates: lfkTemplatesService,
     lfkAssignments: lfkAssignmentsService,
     /** `/book/{publicSlug}` bootstrap resolver (owner canon OWNER_RULINGS_2026-07-17.md §1). */
     clinicDirectory: clinicDirectoryService,
+    clinicPublicCard: clinicPublicCardService,
     bookingEngine: bookingEngineService,
     bookingSync: bookingSyncPortForPayments,
     /** Raw PG port for admin booking-engine API (null only in Vitest without DB). */

@@ -22,10 +22,14 @@ import { PatientBindPhoneClient } from './PatientBindPhoneClient';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 
-type Props = { searchParams: Promise<{ next?: string; reason?: string }> };
+type Props = { searchParams: Promise<{ next?: string; reason?: string; mode?: string }> };
 
 export default async function BindPhonePage({ searchParams }: Props) {
   const session = await requirePatientAccess();
+  const { next, reason, mode } = await searchParams;
+  const nextTrimmed = next?.trim() ?? '';
+  const backFromProfile =
+    nextTrimmed === routePaths.profile || nextTrimmed.startsWith(`${routePaths.profile}/`);
 
   const snapshotHasPhone = patientSessionSnapshotHasPhone(session);
   let phoneTrustedForPatient: boolean | undefined;
@@ -47,9 +51,8 @@ export default async function BindPhonePage({ searchParams }: Props) {
     phoneTrustedForPatient,
     platformContextFailed,
     sessionSnapshotHasPhone: snapshotHasPhone,
+    explicitReplacement: mode === 'replace' && backFromProfile,
   });
-
-  const { next, reason } = await searchParams;
 
   if (skipBindSurface) {
     const target = next?.trim();
@@ -68,10 +71,6 @@ export default async function BindPhonePage({ searchParams }: Props) {
     reason === 'oauth_phone_required'
       ? 'Номер необходим для записи на приём. Для входа в кабинет он не обязателен.'
       : undefined;
-
-  const nextTrimmed = next?.trim() ?? '';
-  const backFromProfile =
-    nextTrimmed === routePaths.profile || nextTrimmed.startsWith(`${routePaths.profile}/`);
 
   return (
     <PatientAppShell

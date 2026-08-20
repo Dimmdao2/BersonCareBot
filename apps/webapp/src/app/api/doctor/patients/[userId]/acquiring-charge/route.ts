@@ -35,6 +35,10 @@ const postBodySchema = z.object({
   description: z.string().max(1000).optional(),
 });
 
+function isExactProviderId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ userId: string }> }) {
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
@@ -73,19 +77,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   if (!entitlement.ok) return entitlement.response;
 
   const idempotencyHeader = request.headers.get('idempotency-key');
-  const idempotencyKey =
-    idempotencyHeader === null ? randomUUID() : idempotencyHeader.trim();
+  const idempotencyKey = idempotencyHeader === null ? randomUUID() : idempotencyHeader.trim();
   if (!idempotencyKey || idempotencyKey.length > 64) {
-    return NextResponse.json(
-      { ok: false, error: 'invalid_idempotency_key' },
-      { status: 400 },
-    );
+    return NextResponse.json({ ok: false, error: 'invalid_idempotency_key' }, { status: 400 });
   }
 
   // Initiate the charge via the acquiring gateway. This link is handed to the patient (copied or
   // shown as a QR at the counter), so it returns to their own purchases screen, not the doctor's.
   const chargeResult = await deps.acquiringGateway.createCharge({
+    organizationId: gate.ctx.organizationId,
     patientUserId: identity.userId,
+    customerEmail: identity.email ?? null,
     amountMinor,
     currency,
     idempotencyKey,
@@ -96,17 +98,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   if (!chargeResult.ok) {
     return NextResponse.json({ ok: false, reason: chargeResult.reason }, { status: 503 });
   }
-
-  // Determine which provider was used: the default provider from settings.
-  // The registryAcquiringGateway always uses defaultProviderId unless overridden via metadata.
-  let providerId = 'unknown';
-  try {
-    if (deps.payments) {
-      const settings = await deps.payments.getSettings();
-      providerId = settings.defaultProviderId;
-    }
-  } catch {
-    // Non-fatal: record with "unknown" provider; webhook will still match by providerPaymentId.
+  if (!isExactProviderId(chargeResult.providerId)) {
+    return NextResponse.json({ ok: false, reason: 'invalid_provider_result' }, { status: 503 });
   }
 
   // Record the pending payment in the patient ledger.
@@ -120,7 +113,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
         amountMinor,
         currency,
         description: description ?? null,
-        provider: providerId,
+        provider: chargeResult.providerId,
         providerPaymentId: chargeResult.providerPaymentId,
         createdBy: gate.ctx.session.user.userId,
       }),

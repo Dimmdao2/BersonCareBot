@@ -97,6 +97,10 @@ export async function POST(req: Request) {
   }
 
   const enabled = typeof body.enabled === 'boolean' ? body.enabled : true;
+  const idempotencyKey = req.headers.get('idempotency-key')?.trim() || null;
+  if (idempotencyKey && !/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)) {
+    return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
+  }
 
   const deps = buildAppDeps();
   const userId = session.user.userId;
@@ -161,14 +165,17 @@ export async function POST(req: Request) {
   );
   if (!warmupEntitlement.ok) return warmupEntitlement.response;
 
-  const res = await deps.reminders.createObjectReminder(userId, {
-    linkedObjectType: linkedObjectType as Exclude<ReminderLinkedObjectType, 'custom'>,
-    linkedObjectId,
-    schedule: sched,
-    enabled,
-    scheduleType,
-    scheduleData: scheduleType === 'slots_v1' ? scheduleData : null,
-  });
+  const res = await warmupEntitlement.runMutation(() =>
+    deps.reminders.createObjectReminder(userId, {
+      linkedObjectType: linkedObjectType as Exclude<ReminderLinkedObjectType, 'custom'>,
+      linkedObjectId,
+      schedule: sched,
+      enabled,
+      scheduleType,
+      scheduleData: scheduleType === 'slots_v1' ? scheduleData : null,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    }),
+  );
   if (!res.ok) {
     const status = res.error === 'not_found' ? 404 : 400;
     return NextResponse.json({ ok: false, error: res.error }, { status });

@@ -4,6 +4,7 @@ import {
   check,
   foreignKey,
   index,
+  jsonb,
   pgTable,
   text,
   timestamp,
@@ -33,6 +34,26 @@ export const clinicPublicDirectoryEntries = pgTable(
     displayName: text('display_name').notNull(),
     isPublished: boolean('is_published').default(false).notNull(),
     publishedAt: timestamp('published_at', { withTimezone: true, mode: 'string' }),
+    /**
+     * Public clinic card (`/{clinic}`), owner ruling 19.08 «сделать публичную страницу для клиник
+     * ... просто их визитку с описанием». Everything an anonymous visitor sees lives in THIS row:
+     * the page reads exactly one row of exactly one table and never touches a tenant table
+     * (`SAAS_S6_CLINIC_DIRECTORY_AND_ORG_BOUNDARY.md` §5).
+     */
+    description: text(),
+    publicContactPhone: text('public_contact_phone'),
+    publicContactEmail: text('public_contact_email'),
+    publicWebsiteUrl: text('public_website_url'),
+    /**
+     * Snapshot of the clinic's own active branches taken at save time: `title`, `cityCode`,
+     * `address` only. Internal ids, timezone, colour and sort order stay out of the projection —
+     * the address is what the clinic already hangs on its door, the rest is tenant internals.
+     */
+    locationsJson: jsonb('locations_json').default([]).notNull(),
+    /** Media ids are stored; readiness and delivery facts are resolved at read time. */
+    logoMediaId: uuid('logo_media_id'),
+    photoMediaIds: uuid('photo_media_ids').array().default([]).notNull(),
+    cardIsPublished: boolean('card_is_published').default(false).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -61,6 +82,17 @@ export const clinicPublicDirectoryEntries = pgTable(
     check(
       'clinic_public_directory_entries_slug_not_blank_check',
       sql`length(btrim(${table.slug})) > 0`,
+    ),
+    check(
+      'clinic_public_directory_entries_card_text_limits_check',
+      sql`(${table.description} IS NULL OR length(${table.description}) <= 4000)
+        AND (${table.publicContactPhone} IS NULL OR length(${table.publicContactPhone}) <= 64)
+        AND (${table.publicContactEmail} IS NULL OR length(${table.publicContactEmail}) <= 320)
+        AND (${table.publicWebsiteUrl} IS NULL OR length(${table.publicWebsiteUrl}) <= 512)`,
+    ),
+    check(
+      'clinic_public_directory_entries_photo_media_ids_bound_check',
+      sql`array_length(${table.photoMediaIds}, 1) IS NULL OR array_length(${table.photoMediaIds}, 1) <= 12`,
     ),
   ],
 );
@@ -130,6 +162,10 @@ export const organizationSlugClaims = pgTable(
   ],
 );
 
+export const ORGANIZATION_SLUG_RENAME_INITIATORS = ['clinic', 'platform_admin'] as const;
+export type OrganizationSlugRenameInitiator =
+  (typeof ORGANIZATION_SLUG_RENAME_INITIATORS)[number];
+
 /** Append-only proof of every owner-directed slug rename. */
 export const organizationSlugRenameEvents = pgTable(
   'organization_slug_rename_events',
@@ -137,6 +173,13 @@ export const organizationSlugRenameEvents = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid('organization_id').notNull(),
     actorPlatformUserId: uuid('actor_platform_user_id'),
+    /**
+     * Кто инициировал смену — ШТАМП на самом событии, поставленный в момент записи. Раньше этот факт
+     * выводился соединением с текущим членством, а членство каскадно удаляется вместе с аккаунтом:
+     * удаление сотрудника возвращало клинике израсходованную пожизненную смену. Штамп ни от чего
+     * внешнего не зависит. DEFAULT ограничительный: забытое значение тратит право, а не выдаёт его.
+     */
+    initiatedBy: text('initiated_by').default('clinic').notNull(),
     previousSlug: text('previous_slug').notNull(),
     nextSlug: text('next_slug').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -166,6 +209,10 @@ export const organizationSlugRenameEvents = pgTable(
     check(
       'organization_slug_rename_events_slugs_lower_check',
       sql`${table.previousSlug} = lower(${table.previousSlug}) AND ${table.nextSlug} = lower(${table.nextSlug})`,
+    ),
+    check(
+      'organization_slug_rename_events_initiated_by_check',
+      sql`${table.initiatedBy} = ANY (ARRAY['clinic'::text, 'platform_admin'::text])`,
     ),
   ],
 );

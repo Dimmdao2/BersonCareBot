@@ -9,7 +9,6 @@ import { getAppRoot } from '../config/appRoot.js';
 import { appSettings } from '../config/appSettings.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { createDbPort, healthCheckDb } from '../infra/db/client.js';
-import { getProjectionHealth } from '../infra/db/repos/projectionHealth.js';
 import { createDbReadPort } from '../infra/db/readPort.js';
 import { createDbWritePort } from '../infra/db/writePort.js';
 import { createContentPort } from '../infra/adapters/contentPort.js';
@@ -118,14 +117,9 @@ export type BuildDepsInput = {
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
 };
 
-/** Projection health snapshot for release gate. */
-export type ProjectionHealthSnapshot =
-  import('../infra/db/repos/projectionHealth.js').ProjectionHealthSnapshot;
-
 /** Зависимости app-слоя, используемые routes/server. */
 export type AppDeps = {
   healthCheckDb: () => Promise<boolean>;
-  getProjectionHealth: () => Promise<ProjectionHealthSnapshot>;
   smsClient: SmsClient;
   dbWritePort: DbWritePort;
   dispatchPort: DispatchPort;
@@ -294,7 +288,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   return {
     healthCheckDb,
-    getProjectionHealth: () => getProjectionHealth(dbPort),
     smsClient,
     dbWritePort,
     dispatchPort,

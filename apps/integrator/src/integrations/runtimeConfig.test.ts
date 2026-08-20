@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { DbPort, DeliveryAdapter, OutgoingIntent } from '../kernel/contracts/index.js';
 import { createDefaultDispatchPort } from '../infra/adapters/dispatchPort.js';
-import { readMaxRuntimeConfig, readSmscRuntimeConfig, readTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import {
+  readMaxRuntimeConfig,
+  readSmscRuntimeConfig,
+  readTelegramRuntimeConfig,
+} from '../infra/adapters/integrationRuntimeConfig.js';
 
 type SettingValues = Record<string, unknown>;
 
@@ -74,6 +78,38 @@ const cases = [
 ] as const;
 
 describe('DB-backed messenger and SMS runtime configuration', () => {
+  describe('Telegram transport requirements', () => {
+    it('enables long polling with a bot token and no webhook secret', async () => {
+      await expect(
+        readTelegramRuntimeConfig(dbFor({ telegram_mode: 'long_polling', telegram_bot_token: 'bot-token' })),
+      ).resolves.toMatchObject({ mode: 'long_polling', enabled: true });
+    });
+
+    it('keeps webhook disabled with a bot token and no webhook secret', async () => {
+      await expect(
+        readTelegramRuntimeConfig(dbFor({ telegram_mode: 'webhook', telegram_bot_token: 'bot-token' })),
+      ).resolves.toMatchObject({ enabled: false });
+    });
+
+    it('enables webhook with both bot token and webhook secret', async () => {
+      await expect(
+        readTelegramRuntimeConfig(
+          dbFor({
+            telegram_mode: 'webhook',
+            telegram_bot_token: 'bot-token',
+            telegram_webhook_secret: 'webhook-secret',
+          }),
+        ),
+      ).resolves.toMatchObject({ enabled: true });
+    });
+
+    it.each(['webhook', 'long_polling'] as const)('disables %s without a bot token', async (mode) => {
+      await expect(
+        readTelegramRuntimeConfig(dbFor({ telegram_mode: mode, telegram_webhook_secret: 'webhook-secret' })),
+      ).resolves.toMatchObject({ enabled: false });
+    });
+  });
+
   for (const scenario of cases) {
     it(`${scenario.name}: enables only complete canonical configuration`, async () => {
       await expect(scenario.read(dbFor(scenario.values))).resolves.toMatchObject({ enabled: true });
@@ -83,9 +119,15 @@ describe('DB-backed messenger and SMS runtime configuration', () => {
       const malformed = { ...scenario.values } as Record<string, unknown>;
       if (scenario.channel === 'max') malformed.max_api_base_url = 'not-a-url';
       if (scenario.channel === 'smsc') malformed.smsc_base_url = 'not-a-url';
-      if (scenario.channel === 'telegram') malformed.telegram_webhook_secret = '';
+      if (scenario.channel === 'telegram') {
+        malformed.telegram_mode = 'webhook';
+        malformed.telegram_webhook_secret = '';
+      }
       const disabled = { ...scenario.values } as Record<string, unknown>;
-      if (scenario.channel === 'telegram') disabled.telegram_webhook_secret = '';
+      if (scenario.channel === 'telegram') {
+        disabled.telegram_mode = 'webhook';
+        disabled.telegram_webhook_secret = '';
+      }
       if (scenario.channel === 'max') disabled.max_webhook_secret = '';
       if (scenario.channel === 'smsc') disabled.smsc_enabled = false;
       const configurations = [

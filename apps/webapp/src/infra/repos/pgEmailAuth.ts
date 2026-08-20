@@ -262,6 +262,7 @@ export async function claimVerifiedEmail(
           userId,
           owner.id,
           'email_bind',
+          { mergeContext: { source: 'email_confirmation' } },
         );
         await runWebappPgText(
           'SELECT app.email_auth_verify_user_email($1::uuid, $2)',

@@ -7,7 +7,25 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
-const scanRoots = ['apps/integrator/src', 'apps/media-worker/src', 'apps/webapp/src'];
+
+// `packages/*/src` used to be outside `scanRoots` entirely: the gate's own "production debt: 0"
+// verdict was a statement about three app trees, never about the whole repository, while
+// `packages/platform-merge/src` executed text SQL through `db.query(text, params)` unseen. Every
+// workspace package with a `src/` directory is scanned now, discovered from disk so a new package
+// cannot silently opt back out of the gate the way the hand-written three-entry list did.
+const packageScanRoots = readdirSync(join(fileURLToPath(new URL('..', import.meta.url)), 'packages'), {
+  withFileTypes: true,
+})
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => `packages/${entry.name}/src`)
+  .filter((root) => statSync(join(repoRoot, root), { throwIfNoEntry: false })?.isDirectory());
+
+const scanRoots = [
+  'apps/integrator/src',
+  'apps/media-worker/src',
+  'apps/webapp/src',
+  ...packageScanRoots,
+];
 
 // Named low-level DB boundaries. These are the only production locations permitted to execute
 // driver queries: pool/client checkout, transaction control, Drizzle bridges, and the migrator.
@@ -36,6 +54,19 @@ const portFiles = new Set([
   'apps/webapp/src/infra/db/saasIsolationTelemetryPoolProvider.ts',
   'apps/webapp/src/infra/db/webappPoolProvider.ts',
   'apps/webapp/src/infra/db/withClient.ts',
+  // `@bersoncare/db-principal` is the shared low-level DB-principal boundary (SET ROLE /
+  // RESET ROLE / principal-context open-close) used by webapp, integrator and media-worker
+  // alike — the package-level equivalent of the app-local `withClient.ts`/`pgAdvisoryLock.ts`
+  // entries above, not a repository.
+  'packages/db-principal/src/index.ts',
+  'packages/db-principal/src/portContext.ts',
+  // `@bersoncare/platform-merge`'s own Drizzle-to-driver bridge: it compiles a Drizzle `SQL`
+  // fragment (built by callers via `sql\`...\`` / `sql.param`) to `$n` text+params via
+  // `PgDialect.sqlToQuery` and hands it to the underlying client's `.query`. Same role as
+  // `apps/webapp/src/infra/db/drizzleSqlDebugText.ts` above, one level down in the package
+  // graph because the package is shared with the integrator and cannot depend on the
+  // webapp's own Drizzle port directly.
+  'packages/platform-merge/src/mergeSql.ts',
 ]);
 
 function isInsidePort(fileName) {
@@ -475,11 +506,14 @@ if (process.argv.includes('--self-test')) {
 const fileSources = new Map();
 const appOfFile = new Map();
 for (const root of scanRoots) {
-  const app = root.includes('/integrator/')
-    ? 'integrator'
-    : root.includes('/media-worker/')
-      ? 'media-worker'
-      : 'webapp';
+  const packageMatch = root.match(/^packages\/([^/]+)\/src$/);
+  const app = packageMatch
+    ? `package:${packageMatch[1]}`
+    : root.includes('/integrator/')
+      ? 'integrator'
+      : root.includes('/media-worker/')
+        ? 'media-worker'
+        : 'webapp';
   for (const abs of listSourceFiles(join(repoRoot, root))) {
     const rel = relative(repoRoot, abs).replaceAll('\\', '/');
     fileSources.set(rel, readFileSync(abs, 'utf8'));

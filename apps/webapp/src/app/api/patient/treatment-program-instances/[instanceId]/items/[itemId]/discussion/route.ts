@@ -274,6 +274,7 @@ export async function POST(
         instanceId,
         stageItemId: itemId,
         note: parsed.data.body,
+        patientLabel: gate.session.user.displayName,
       });
     return NextResponse.json({ ok: true, message });
   } catch (e) {

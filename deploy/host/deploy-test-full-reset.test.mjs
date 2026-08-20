@@ -13,6 +13,10 @@ function fixture(pnpmExit = 0) {
   mkdirSync(dirname(wrapper), { recursive: true });
   cpSync(source, wrapper);
   chmodSync(wrapper, 0o755);
+  // The wrapper only checks that the shared reset engine exists before exec'ing it; the real
+  // 3770-line engine is not part of this fixture, only a stand-in so the existence guard passes.
+  writeFileSync(resolve(root, 'deploy/host/deploy-test-saas.sh'), '#!/bin/bash\nexit 0\n');
+  chmodSync(resolve(root, 'deploy/host/deploy-test-saas.sh'), 0o755);
   const bin = resolve(root, 'bin');
   mkdirSync(bin);
   const log = resolve(root, 'calls.log');
@@ -57,5 +61,17 @@ test('missing owner confirmation fails before preflight', () => {
   const entry = fixture();
   const result = run(entry, []);
   assert.equal(result.status, 2);
+  assert.throws(() => readFileSync(entry.log, 'utf8'));
+});
+
+test('missing shared reset engine fails by name before any preflight or exec', () => {
+  const entry = fixture();
+  // Same fixture, but without the shared-engine stand-in: this is what a checkout that has not
+  // restored deploy-test-saas.sh looks like today.
+  writeFileSync(resolve(entry.root, 'deploy/host/deploy-test-saas.sh'), '');
+  spawnSync('rm', [resolve(entry.root, 'deploy/host/deploy-test-saas.sh')]);
+  const result = run(entry, ['--confirm-full-reset']);
+  assert.equal(result.status, 3);
+  assert.match(result.stderr, /deploy-test-saas\.sh, which is not present/);
   assert.throws(() => readFileSync(entry.log, 'utf8'));
 });

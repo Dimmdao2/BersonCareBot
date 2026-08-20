@@ -1,4 +1,5 @@
 import type { BookingSlotsByDate } from '@/modules/patient-booking/types';
+import type { AppointmentReminderPresetId } from '@/modules/booking-notifications/appointmentReminderPresets';
 
 export type SchedulingContext = {
   organizationId: string;
@@ -24,6 +25,26 @@ export type CanonicalBookingContext = {
   durationMinutes: number;
   bufferAfterMinutes: number;
   branchTimezone: string;
+  /** Public catalog fields proven by the current-patient named root. */
+  patientCatalogSnapshot?: {
+    branchTitle: string;
+    branchShortTitle: string | null;
+    branchColor: string | null;
+    branchCityCode: string;
+    branchAddress: string | null;
+    branchSortOrder: number;
+    serviceTitle: string;
+    serviceDescription: string | null;
+    servicePriceMinor: number;
+    servicePrepaymentApplicable: boolean;
+    serviceUsableInPackages: boolean;
+    serviceOnlinePaymentApplicable: boolean;
+    servicePublicWidgetVisible: boolean;
+    serviceAdminManualOnly: boolean;
+    serviceSortOrder: number;
+    specialistReminderAllowedPresetIds: AppointmentReminderPresetId[];
+    specialistReminderDefaultPresetId: AppointmentReminderPresetId | null;
+  };
 };
 
 // ── Per-date working days ────────────────────────────────────────────────────
@@ -121,13 +142,6 @@ export type BookingSchedulingPort = {
     branchId: string;
     serviceId: string;
   }): Promise<CanonicalBookingContext | null>;
-  /** Returns the mapped legacy id when present; otherwise the preferred canonical SSA id. */
-  resolveLegacyBranchServiceId(input: {
-    organizationId: string;
-    branchId: string;
-    serviceId: string;
-    specialistId?: string | null;
-  }): Promise<string | null>;
   listServicesByCityCode(
     organizationId: string,
     cityCode: string,
@@ -266,13 +280,6 @@ export type BookingSchedulingService = {
     branchId: string;
     serviceId: string;
   }): Promise<CanonicalBookingContext | null>;
-  /** Returns legacy id when mapped, otherwise canonical SSA id. */
-  resolveLegacyBranchServiceId(input: {
-    organizationId: string;
-    branchId: string;
-    serviceId: string;
-    specialistId?: string | null;
-  }): Promise<string | null>;
   getInPersonSlots(input: {
     organizationId?: string | null;
     branchId: string;

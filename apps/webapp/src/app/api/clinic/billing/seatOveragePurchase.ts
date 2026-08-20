@@ -2,11 +2,14 @@ import { NextResponse } from 'next/server';
 import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 import type { SaasBillingService } from '@/modules/saas-billing/service';
+import {
+  seatOverageQuoteBody,
+  verifySeatOverageQuote,
+} from '@/modules/saas-billing/seatOverageQuote';
 
 export type SeatOveragePurchase = {
-  requestKey: string;
-  amountMinor: number;
-  currency: string;
+  /** Котировка, выписанная сервером. Единственное поле покупки — денег в запросе нет. */
+  quote: string;
 };
 
 type PurchaseSeatOverage = SaasBillingService['purchaseSeatOverage'];
@@ -24,11 +27,23 @@ export async function handleSeatOveragePurchase(
   const entitlement = await requireEntitlementForMutation(ctx, 'clinic_team');
   if (!entitlement.ok) return entitlement.response;
 
+  const quote = verifySeatOverageQuote(purchase.quote, {
+    organizationId: ctx.organizationId,
+  });
+  // Просрочена, подделана или выписана другой клинике — все три неотличимы для покупателя и
+  // одинаково означают «этой цены больше нет». Отдельный код, а не `price_changed`: новой цены у
+  // этой двери нет, её выдаёт дверь приглашения, и экран идёт туда за свежей котировкой.
+  // Молчаливый перевыпуск здесь означал бы списание по цене, которой человек не видел.
+  if (!quote) {
+    return NextResponse.json(
+      { ok: false, error: 'seat_overage_quote_expired' },
+      { status: 402 },
+    );
+  }
+
   const result = await purchaseSeatOverage({
     organizationId: ctx.organizationId,
-    requestKey: purchase.requestKey,
-    confirmedAmountMinor: purchase.amountMinor,
-    confirmedCurrency: purchase.currency,
+    quote,
   });
   if (result.outcome === 'seat_available') {
     return NextResponse.json({ ok: true, outcome: 'seat_available' });
@@ -37,9 +52,12 @@ export async function handleSeatOveragePurchase(
     return NextResponse.json(
       {
         ok: false,
-        error: 'seat_overage_confirmation_required',
-        priceMinor: result.priceMinor,
-        currency: result.currency,
+        ...seatOverageQuoteBody({
+          organizationId: ctx.organizationId,
+          priceMinor: result.priceMinor,
+          currency: result.currency,
+          priceStableUntil: result.priceStableUntil,
+        }),
       },
       { status: 402 },
     );
@@ -50,16 +68,27 @@ export async function handleSeatOveragePurchase(
       { status: 409 },
     );
   }
-  // outcome === 'checkout'
-  if (!result.invoice.providerCheckoutUrl) {
+  // Р-15: пока клиника думала, оплаченный период кончился. Остатка нет — продавать не во что,
+  // и место открывается только после оплаты продления, а не этого счёта.
+  if (result.outcome === 'paid_period_over') {
     return NextResponse.json(
-      { ok: false, error: 'saas_billing_checkout_unavailable' },
-      { status: 502 },
+      { ok: false, error: 'seat_overage_paid_period_over' },
+      { status: 409 },
     );
   }
+  // outcome === 'seat_opened'. Р-15 в действующей редакции: место уже открыто, счёт выставлен и
+  // ждёт оплаты. Отсутствие ссылки на оплату здесь больше НЕ ошибка запроса: доступ она не решает,
+  // клиника оплатит счёт из раздела оплаты. Поэтому 200 со ссылкой, если она есть, и без неё, если
+  // провайдер её не вернул, — вместо прежнего 502, который отменял бы уже открытое место.
   return NextResponse.json({
     ok: true,
-    checkoutUrl: result.invoice.providerCheckoutUrl,
+    outcome: 'seat_opened',
     invoiceId: result.invoice.id,
+    amountMinor: result.invoice.amountMinor,
+    currency: result.invoice.currency,
+    invoiceExpiresAt: result.invoice.expiresAt,
+    ...(result.invoice.providerCheckoutUrl
+      ? { checkoutUrl: result.invoice.providerCheckoutUrl }
+      : {}),
   });
 }

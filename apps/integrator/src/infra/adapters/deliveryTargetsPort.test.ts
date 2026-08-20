@@ -19,6 +19,7 @@
  * ответ. У каждого `it` — свой арбитр, прогнан руками; вывод — в отчёте.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createHmac } from 'node:crypto';
 
 const { integratorWebhookSecretMock } = vi.hoisted(() => ({
   integratorWebhookSecretMock: vi.fn<() => string>(() => 'test-shared-secret'),
@@ -33,11 +34,18 @@ import { createDeliveryTargetsPort } from './deliveryTargetsPort.js';
 import { channelBindingsToTargets, unwrapDeliveryTargets } from './deliveryTargets.js';
 import type { ResolvedNotificationChannelsPayload } from '../../kernel/contracts/notificationChannels.js';
 
+const ORGANIZATION_ID = '10000000-0000-4000-8000-000000000001';
+
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
-function resolution(overrides: Partial<ResolvedNotificationChannelsPayload> = {}): ResolvedNotificationChannelsPayload {
+function resolution(
+  overrides: Partial<ResolvedNotificationChannelsPayload> = {},
+): ResolvedNotificationChannelsPayload {
   return {
     userId: 'user-1',
     topicCode: 'appointment_reminders',
@@ -60,11 +68,55 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     // — 403 провалится в `!res.ok` (403 не ok) и вернёт `null`, тест покраснеет: сигнал
     // межарендаторной утечки станет неотличим от «вебапп недоступен».
     vi.mocked(fetch).mockResolvedValue(jsonResponse(403, { ok: false }));
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('+79180000001');
+    const result = await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+    });
 
     expect(result).toEqual({ channelBindings: {}, tenantDenied: true });
+  });
+
+  it('includes the exact organization identity in phone lookup URL and HMAC canonical input', async () => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(200, { ok: true, channelBindings: {} }));
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+    });
+
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toContain(
+      'phone=%2B79180000001&organizationId=10000000-0000-4000-8000-000000000001',
+    );
+    expect((init?.headers as Record<string, string>)['X-Bersoncare-Signature']).toMatch(/^[\w-]+$/);
+  });
+
+  it('does not issue a tenant-scoped phone lookup when the exact organization identity is absent', async () => {
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await expect(
+      Reflect.apply(port.getTargetsByPhone, port, ['+79180000001', {}]),
+    ).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('does not issue a tenant-scoped phone lookup for a blank organization identity', async () => {
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await expect(
+      port.getTargetsByPhone('+79180000001', { organizationId: '   ' }),
+    ).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('дано: вебапп ответил 500 → когда резолв → тогда null (МЫ НЕ СМОГЛИ спросить), а не тихое «каналов нет»', async () => {
@@ -73,9 +125,13 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     // регрессия) пройдёт как успех; здесь конкретно: 500 без ok в теле всё равно должен дать null,
     // тест это уже покрывает базовым случаем — важна сама проверка res.ok.
     vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('+79180000001');
+    const result = await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+    });
 
     expect(result).toBeNull();
   });
@@ -84,9 +140,13 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     // АРБИТР: заменить `data.ok !== true` на всегда `false` (никогда не считать не-ok) —
     // содержательный отказ вебаппа будет прочитан как «каналов нет», тест покраснеет.
     vi.mocked(fetch).mockResolvedValue(jsonResponse(200, { ok: false, error: 'internal' }));
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('+79180000001');
+    const result = await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+    });
 
     expect(result).toBeNull();
   });
@@ -95,18 +155,26 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     // АРБИТР: убрать `try { ... } catch { return null; }` вокруг fetch — вызов начнёт
     // реджектиться, `.resolves` в тесте упадёт.
     vi.mocked(fetch).mockRejectedValue(new Error('ECONNREFUSED'));
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    await expect(port.getTargetsByPhone('+79180000001')).resolves.toBeNull();
+    await expect(
+      port.getTargetsByPhone('+79180000001', { organizationId: ORGANIZATION_ID }),
+    ).resolves.toBeNull();
   });
 
   it('дано: секрет подписи не настроен → когда резолв → тогда null И fetch НЕ вызывается (не уходим в сеть неподписанным запросом)', async () => {
     // АРБИТР: убрать `if (!baseUrl || !secret) return null;` — уйдёт неподписанный (пустая подпись)
     // запрос в вебапп, `fetch` будет вызван, тест покраснеет.
     integratorWebhookSecretMock.mockReturnValue('');
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('+79180000001');
+    const result = await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+    });
 
     expect(result).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
@@ -120,11 +188,20 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     // порта, тест покраснеет.
     const payloadResolution = resolution();
     vi.mocked(fetch).mockResolvedValue(
-      jsonResponse(200, { ok: true, channelBindings: { telegramId: '42' }, resolution: payloadResolution }),
+      jsonResponse(200, {
+        ok: true,
+        channelBindings: { telegramId: '42' },
+        resolution: payloadResolution,
+      }),
     );
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('+79180000001', { topic: 'appointment_reminders' });
+    const result = await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+      topic: 'appointment_reminders',
+    });
 
     expect(result?.resolution?.skippedChannels).toEqual([
       { channel: 'max', reason: 'disabled_by_user_topic_channel' },
@@ -134,9 +211,13 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
 
   it('дано: ни одной цели у человека вообще (вебапп ответил честно) → когда резолв → тогда явный пустой результат {channelBindings:{}}, отличимый от null', async () => {
     vi.mocked(fetch).mockResolvedValue(jsonResponse(200, { ok: true, channelBindings: {} }));
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('+79180000001');
+    const result = await port.getTargetsByPhone('+79180000001', {
+      organizationId: ORGANIZATION_ID,
+    });
 
     expect(result).not.toBeNull();
     expect(result?.channelBindings).toEqual({});
@@ -145,9 +226,11 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
   it('дано: телефон пустой/пробельный → когда getTargetsByPhone → тогда null И fetch не вызывается вовсе', async () => {
     // АРБИТР: убрать `if (!phoneNormalized || !phoneNormalized.trim()) return null;` — уйдёт
     // запрос с пустым `phone=` в query, fetch будет вызван, тест покраснеет.
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
-    const result = await port.getTargetsByPhone('   ');
+    const result = await port.getTargetsByPhone('   ', { organizationId: ORGANIZATION_ID });
 
     expect(result).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
@@ -156,7 +239,9 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
   it('дано: ни telegramId, ни maxId не заданы → когда getTargetsByChannelBinding → тогда null и fetch не вызывается (не резолвим «просто так»)', async () => {
     // АРБИТР: убрать финальный `return null;` (заменить на пустой fetch-запрос) — уйдёт нескопленный
     // запрос без единого идентификатора, тест покраснеет.
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
     const result = await port.getTargetsByChannelBinding({});
 
@@ -168,13 +253,124 @@ describe('createDeliveryTargetsPort — три разных «нет резул�
     // АРБИТР: поменять порядок проверок местами (сначала maxId) — URL уйдёт с `maxId=`, тест
     // покраснеет на составе запрошенного query.
     vi.mocked(fetch).mockResolvedValue(jsonResponse(200, { ok: true, channelBindings: {} }));
-    const port = createDeliveryTargetsPort({ getAppBaseUrl: async () => 'https://webapp.internal' });
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
 
     await port.getTargetsByChannelBinding({ telegramId: '111', maxId: '222' });
 
     const calledUrl = String(vi.mocked(fetch).mock.calls[0]![0]);
     expect(calledUrl).toContain('telegramId=111');
     expect(calledUrl).not.toContain('maxId=');
+  });
+});
+
+describe('createDeliveryTargetsPort — global admin targets M2M boundary', () => {
+  beforeEach(() => {
+    integratorWebhookSecretMock.mockReturnValue('test-shared-secret');
+    vi.stubGlobal('fetch', vi.fn());
+    vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
+  });
+
+  it('uses the dedicated global-admin route and signs its exact identity', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: [' 101 '], maxUserIds: ['202'] },
+      }),
+    );
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal/',
+    });
+
+    const targets = await port.getAdminMessengerTargets();
+
+    expect(targets).toEqual({ telegram: ['101'], max: ['202'] });
+    const [url, init] = vi.mocked(fetch).mock.calls[0]!;
+    expect(String(url)).toBe('https://webapp.internal/api/integrator/admin-notification-targets');
+    const timestamp = '1700000000';
+    const expectedSignature = createHmac('sha256', 'test-shared-secret')
+      .update(`${timestamp}.GET /api/integrator/admin-notification-targets`)
+      .digest('base64url');
+    expect(init).toMatchObject({
+      method: 'GET',
+      headers: {
+        'X-Bersoncare-Timestamp': timestamp,
+        'X-Bersoncare-Signature': expectedSignature,
+      },
+    });
+  });
+
+  it('returns an explicit empty global audience from a successful response', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      jsonResponse(200, {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: [], maxUserIds: [] },
+      }),
+    );
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await expect(port.getAdminMessengerTargets()).resolves.toEqual({ telegram: [], max: [] });
+  });
+
+  it.each([
+    ['missing payload', { ok: true }],
+    ['missing telegram array', { ok: true, adminMessengerTargets: { maxUserIds: [] } }],
+    ['missing max array', { ok: true, adminMessengerTargets: { telegramUserIds: [] } }],
+    [
+      'non-array telegram field',
+      {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: 'invalid', maxUserIds: [] },
+      },
+    ],
+    [
+      'non-array max field',
+      {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: [], maxUserIds: { id: '202' } },
+      },
+    ],
+    [
+      'invalid telegram element',
+      {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: ['101', 102], maxUserIds: [] },
+      },
+    ],
+    [
+      'invalid max element',
+      {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: [], maxUserIds: ['202', null] },
+      },
+    ],
+    [
+      'blank messenger id',
+      {
+        ok: true,
+        adminMessengerTargets: { telegramUserIds: ['   '], maxUserIds: [] },
+      },
+    ],
+  ] as const)('classifies %s as unavailable', async (_label, body) => {
+    vi.mocked(fetch).mockResolvedValue(jsonResponse(200, body));
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await expect(port.getAdminMessengerTargets()).resolves.toBeNull();
+  });
+
+  it('does not issue an unsigned global-audience request', async () => {
+    integratorWebhookSecretMock.mockReturnValue('');
+    const port = createDeliveryTargetsPort({
+      getAppBaseUrl: async () => 'https://webapp.internal',
+    });
+
+    await expect(port.getAdminMessengerTargets()).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 
@@ -231,6 +427,8 @@ describe('channelBindingsToTargets / unwrapDeliveryTargets — извлечен�
   });
 
   it('дано: fetched содержит bindings → когда unwrapDeliveryTargets → тогда именно они, без потерь', () => {
-    expect(unwrapDeliveryTargets({ channelBindings: { telegramId: '9' } })).toEqual({ telegramId: '9' });
+    expect(unwrapDeliveryTargets({ channelBindings: { telegramId: '9' } })).toEqual({
+      telegramId: '9',
+    });
   });
 });

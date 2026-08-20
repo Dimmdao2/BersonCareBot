@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Регистрация клиники не теряет настроенный тариф
 
 Роль: worker. Единственный канон правил — `AGENTS.md`; прочитать §1, §4a, §5, §9–§10 и §24. Authority —

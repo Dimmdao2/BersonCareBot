@@ -18,6 +18,7 @@ vi.mock('@/infra/integrations/sms/integratorSmsDelivery', () => ({
   deliverSmsCodeViaIntegrator: fakes.deliverSms,
   logPhoneOtpDeliveryEvent: vi.fn(),
   maskPhoneForOpsLog: vi.fn().mockReturnValue('+7***4567'),
+  otpDeliveryIdempotencyKey: vi.fn().mockReturnValue('otp:telegram:test'),
   signIntegratorPayload: vi.fn().mockReturnValue('signature'),
 }));
 vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({

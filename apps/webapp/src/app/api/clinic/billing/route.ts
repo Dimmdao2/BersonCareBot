@@ -4,7 +4,19 @@ import { runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import { SaasBillingTariffDowngradeBlockedError } from '@/modules/saas-billing/service';
+import { PaymentProviderRequestRefusedError } from '@/modules/payments/providerPort';
+import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableTariff';
 import { handleSeatOveragePurchase } from './seatOveragePurchase';
+
+type BillingOperation = 'overview' | 'tariff-change' | 'renewal';
+
+function logBillingFailure(operation: BillingOperation, error: unknown, category: string) {
+  console.error('[clinic-billing] operation failed', {
+    operation,
+    category,
+    errorClass: error instanceof Error ? error.name : 'unknown',
+  });
+}
 
 export async function GET() {
   const gate = await requireClinicManagementApiContext({ allowCabinetRecovery: true });
@@ -30,8 +42,9 @@ export async function GET() {
       () => buildAppDeps().saasBilling.getOwnTariffChangeState(gate.ctx.organizationId),
     );
     return NextResponse.json({ ok: true, billing, tariffChange });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'saas_billing_unavailable' }, { status: 500 });
+  } catch (error) {
+    logBillingFailure('overview', error, 'repository_unavailable');
+    return NextResponse.json({ ok: false, error: 'saas_billing_unavailable' }, { status: 503 });
   }
 }
 
@@ -64,6 +77,7 @@ function tariffChangeError(error: unknown) {
   }
   const message = error instanceof Error ? error.message : '';
   if (
+    message === SAAS_BILLING_TARIFF_NOT_PAYABLE ||
     message === 'saas_billing_tariff_upgrade_proration_unavailable' ||
     message === 'saas_billing_tariff_upgrade_not_more_expensive' ||
     message === 'saas_billing_upgrade_no_remaining_period' ||
@@ -72,9 +86,27 @@ function tariffChangeError(error: unknown) {
   ) {
     return NextResponse.json({ ok: false, error: message }, { status: 409 });
   }
+  if (
+    message === 'saas_billing_tariff_change_unavailable' ||
+    message.startsWith('saas_billing_period_unknown:')
+  ) {
+    logBillingFailure('tariff-change', error, 'configuration_unavailable');
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_tariff_change_unavailable' },
+      { status: 503 },
+    );
+  }
+  if (error instanceof PaymentProviderRequestRefusedError) {
+    logBillingFailure('tariff-change', error, 'provider_refused');
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_provider_refused' },
+      { status: 502 },
+    );
+  }
+  logBillingFailure('tariff-change', error, 'unexpected');
   return NextResponse.json(
-    { ok: false, error: 'saas_billing_tariff_change_failed' },
-    { status: 500 },
+    { ok: false, error: 'saas_billing_tariff_change_unavailable' },
+    { status: 503 },
   );
 }
 
@@ -164,9 +196,9 @@ export async function DELETE() {
  */
 const purchaseSchema = z.object({
   purchase: z.literal('seat_overage'),
-  requestKey: z.string().min(1).max(200),
-  amountMinor: z.number().int().nonnegative(),
-  currency: z.string().regex(/^[A-Z]{3}$/),
+  // Единственное, что приходит от браузера, — котировка, выписанная этим же сервером. Ни суммы, ни
+  // валюты, ни ключа запроса: цену и личность покупки сервер берёт из собственной подписи.
+  quote: z.string().min(1).max(2000),
 });
 
 export async function POST(request: Request) {
@@ -216,6 +248,14 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
+    // Owner ruling 18.08.2026 — a free tariff is not payable. Nothing broke and nothing is
+    // temporarily unavailable, so this is a plain refusal with its own reason, never a 503.
+    if (message === SAAS_BILLING_TARIFF_NOT_PAYABLE) {
+      return NextResponse.json(
+        { ok: false, error: SAAS_BILLING_TARIFF_NOT_PAYABLE },
+        { status: 409 },
+      );
+    }
     // Honest refusal when the platform store has no usable keys yet — same shape as the patient path,
     // never a blank screen (plan §К0 item 4).
     if (
@@ -233,6 +273,37 @@ export async function POST(request: Request) {
     ) {
       return NextResponse.json({ ok: false, error: message }, { status: 409 });
     }
-    return NextResponse.json({ ok: false, error: 'saas_billing_invoice_failed' }, { status: 500 });
+    if (
+      message.startsWith('saas_billing_provider_invoices_unsupported:') ||
+      message.startsWith('payment_provider_receipt_unsupported:')
+    ) {
+      logBillingFailure('renewal', error, 'provider_capability_unsupported');
+      return NextResponse.json(
+        { ok: false, error: 'saas_billing_provider_capability_unsupported' },
+        { status: 501 },
+      );
+    }
+    if (error instanceof PaymentProviderRequestRefusedError) {
+      logBillingFailure('renewal', error, 'provider_refused');
+      return NextResponse.json(
+        { ok: false, error: 'saas_billing_provider_refused' },
+        { status: 502 },
+      );
+    }
+    if (message === 'saas_billing_checkout_unavailable') {
+      return NextResponse.json(
+        { ok: false, error: 'saas_billing_checkout_unavailable' },
+        { status: 502 },
+      );
+    }
+    logBillingFailure(
+      'renewal',
+      error,
+      message.startsWith('saas_billing_period_unknown:') ? 'billing_period_unavailable' : 'unexpected',
+    );
+    return NextResponse.json(
+      { ok: false, error: 'saas_billing_invoice_unavailable' },
+      { status: 503 },
+    );
   }
 }

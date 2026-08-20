@@ -1,12 +1,18 @@
 /**
  * Запись и обновление operator health таблиц через Drizzle (без сырого SQL в приложении).
  */
-import { and, eq, isNull, like, sql } from 'drizzle-orm';
-import { operatorIncidents, operatorJobStatus } from '@bersoncare/operator-db-schema';
+import { and, eq, inArray, isNull, like, sql } from 'drizzle-orm';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
+  operatorIncidents,
+  operatorJobStatus,
+} from '@bersoncare/operator-db-schema';
 import { createDbPort } from '../client.js';
 import { getIntegratorDrizzle } from '../drizzle.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import { getCurrentIntegratorTechnicalRuntimeRole } from '../withClient.js';
+import { runWithDeliveryWorkerPrincipal } from '../../principal/organizationPrincipal.js';
 
 const ERROR_DETAIL_MAX = 900;
 
@@ -35,6 +41,17 @@ function truncateDetail(detail: string | null | undefined): string | null {
  * Goes through the narrow `app.open_or_touch_operator_incident` SECURITY DEFINER capability
  * instead of direct table INSERT/UPDATE: the integrator API login and the delivery worker
  * receive EXECUTE on this function only, never ambient DML on `public.operator_incidents`.
+ *
+ * The runtime role is selected HERE, by the capability wrapper, and not by whoever happens to be
+ * reporting the failure. EXECUTE on this root is held by `app_operational_delivery_worker` alone,
+ * while an operator incident is opened from every contour there is: a booking-lifecycle step under
+ * an organization principal (`app_tenant_service`), a relay/SMS/email provider failure on a bare
+ * HTTP handler that carries no principal at all, a write-port fallback, the delivery tick. Before
+ * this scope, every one of those paths lost its incident to a swallowed 42501 — the failure was
+ * named in the journal and reached no operator. Same shape and same reason as
+ * `readAvailabilityValueJson` (`../platformIntegrationAvailability.ts`) and
+ * `runWithDeliveryWorkerPrincipal`'s own note about
+ * `app.revalidate_patient_reminder_delivery_materialization`.
  */
 export async function openOrTouchOperatorIncident(
   input: OpenOperatorIncidentInput,
@@ -43,19 +60,27 @@ export async function openOrTouchOperatorIncident(
   // app.open_or_touch_operator_incident stays delivery-worker-only (C4 asserts the scheduler does
   // NOT hold it), so the probe contour goes through its own narrower door, which pins
   // direction/integration/error_class to the three outbound probes it owns.
-  const viaProbeCapability = getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler';
-  const result = await runIntegratorSql<{ id: string; occurrence_count: number }>(
-    createDbPort(),
-    viaProbeCapability
-      ? sql`SELECT id, occurrence_count
-            FROM app.open_or_touch_operator_probe_incident(
-              ${input.integration}, ${input.errorClass}, ${errorDetail}
-            )`
-      : sql`SELECT id, occurrence_count
-            FROM app.open_or_touch_operator_incident(
-              ${input.dedupKey}, ${input.direction}, ${input.integration}, ${input.errorClass}, ${errorDetail}
-            )`,
-  );
+  const viaProbeCapability =
+    getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler';
+  const runProbeRoot = () =>
+    runIntegratorSql<{ id: string; occurrence_count: number }>(
+      createDbPort(),
+      sql`SELECT id, occurrence_count
+          FROM app.open_or_touch_operator_probe_incident(
+            ${input.integration}, ${input.errorClass}, ${errorDetail}
+          )`,
+    );
+  const runIncidentRoot = () =>
+    runIntegratorSql<{ id: string; occurrence_count: number }>(
+      createDbPort(),
+      sql`SELECT id, occurrence_count
+          FROM app.open_or_touch_operator_incident(
+            ${input.dedupKey}, ${input.direction}, ${input.integration}, ${input.errorClass}, ${errorDetail}
+          )`,
+    );
+  const result = viaProbeCapability
+    ? await runProbeRoot()
+    : await runWithDeliveryWorkerPrincipal(runIncidentRoot);
   const row = result.rows[0];
   if (!row) {
     throw new Error('openOrTouchOperatorIncident: empty returning');
@@ -249,8 +274,35 @@ export async function getOperatorOutboundProbeLastRunAt(): Promise<Record<string
   );
 }
 
+/**
+ * Проба выздоровела — закрыть то, что открыла она сама.
+ *
+ * Ключей два, потому что у пробы два класса отказа. Обычный промах (таймаут, сеть) живёт под
+ * `outbound:<интеграция>:` и ждёт порога подряд идущих промахов. Отказ по учётным данным, квоте
+ * или ненастроенности пейджится с первого раза и потому лежит там же, где такой же отказ
+ * настоящей отправки, — под `outbound_delivery_provider:<интеграция>:`.
+ *
+ * Во втором пространстве закрываются ТОЛЬКО классы «пейджить с первого раза». Успешный `getMe`
+ * доказывает, что учётные данные и квота в порядке, — и ничего не говорит про `provider_send_failed`
+ * конкретного сообщения. Закрыть там чужую строку значило бы потушить живой отказ отправки
+ * успехом соседней проверки.
+ */
+export async function resolveOpenOperatorOutboundProbeIncidents(
+  integration: 'max' | 'telegram' | 'google_calendar',
+): Promise<number> {
+  const probeResolved = await resolveOpenOperatorIncidentsByDedupKeyPrefix(
+    `outbound:${integration}:`,
+  );
+  const providerResolved = await resolveOpenOperatorIncidentsByDedupKeyPrefix(
+    `${OUTBOUND_PROVIDER_INCIDENT_DIRECTION}:${integration}:`,
+    PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
+  );
+  return probeResolved + providerResolved;
+}
+
 export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(
   prefix: string,
+  onlyErrorClasses?: readonly string[],
 ): Promise<number> {
   // The scheduler has no DML on public.operator_incidents; its capability writes resolved_at only
   // and rejects any prefix outside the three outbound probes.
@@ -267,7 +319,13 @@ export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(
   const rows = await db
     .update(operatorIncidents)
     .set({ resolvedAt: finishedAt })
-    .where(and(isNull(operatorIncidents.resolvedAt), like(operatorIncidents.dedupKey, pattern)))
+    .where(
+      and(
+        isNull(operatorIncidents.resolvedAt),
+        like(operatorIncidents.dedupKey, pattern),
+        ...(onlyErrorClasses ? [inArray(operatorIncidents.errorClass, [...onlyErrorClasses])] : []),
+      ),
+    )
     .returning({ id: operatorIncidents.id });
   return rows.length;
 }

@@ -1,6 +1,12 @@
 import { and, asc, desc, eq } from 'drizzle-orm';
 import { sql as drizzleSql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+} from '@/infra/db/runWebappSql';
+import { readCurrentPatientBookingAppointment } from '@/infra/repos/pgBookingEngine';
 import { assertValidAppointmentStatusTransition } from '@/modules/booking-engine/appointmentStatusFsm';
 import type { BeAppointment } from '@/modules/booking-engine/types';
 import { normalizeAppointmentReminderSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
@@ -118,9 +124,138 @@ function mapNoShow(row: typeof beAppointmentNoShows.$inferSelect): AppointmentNo
   };
 }
 
+type CurrentPatientAppointmentRow = {
+  id: string;
+  organization_id: string;
+  branch_id: string | null;
+  room_id: string | null;
+  specialist_id: string | null;
+  service_id: string | null;
+  platform_user_id: string | null;
+  start_at: string;
+  end_at: string;
+  duration_minutes: number;
+  source: string;
+  status: string;
+  original_start_at: string | null;
+  reschedule_count: number;
+  payment_ref: string | null;
+  package_usage_ref: string | null;
+  phone_normalized: string | null;
+  attribution_json: Record<string, unknown> | null;
+  appointment_reminder_allowed_preset_ids: string[] | null;
+  appointment_reminder_preset_id: string | null;
+  appointment_reminder_selection_source: string;
+};
+
+type CurrentPatientRescheduleRow = {
+  id: string;
+  organization_id: string;
+  appointment_id: string;
+  from_start_at: string;
+  from_end_at: string;
+  to_start_at: string;
+  to_end_at: string;
+  actor_type: string;
+  actor_id: string | null;
+  was_in_free_reschedule_window: boolean;
+  free_cancellation_available_at_reschedule: boolean;
+  free_cancellation_available_after: boolean;
+  applied_policy_id: string | null;
+  applied_policy_snapshot: Record<string, unknown> | null;
+  reason: string | null;
+  staff_comment: string | null;
+  notifications_sent: Record<string, unknown> | null;
+  manual_override: boolean;
+  created_at: string;
+};
+
+function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppointment {
+  const reminderSettings = normalizeAppointmentReminderSettings({
+    allowedPresetIds: row.appointment_reminder_allowed_preset_ids ?? [],
+    defaultPresetId: row.appointment_reminder_preset_id,
+  });
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    branchId: row.branch_id,
+    roomId: row.room_id,
+    specialistId: row.specialist_id,
+    serviceId: row.service_id,
+    platformUserId: row.platform_user_id,
+    startAt: row.start_at,
+    endAt: row.end_at,
+    durationMinutes: row.duration_minutes,
+    source: row.source as BeAppointment['source'],
+    status: row.status as BeAppointment['status'],
+    originalStartAt: row.original_start_at,
+    rescheduleCount: row.reschedule_count,
+    paymentRef: row.payment_ref,
+    packageUsageRef: row.package_usage_ref,
+    phoneNormalized: row.phone_normalized,
+    attributionJson: row.attribution_json ?? {},
+    appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
+    appointmentReminderPresetId: reminderSettings.defaultPresetId,
+    appointmentReminderSelectionSource:
+      row.appointment_reminder_selection_source === 'patient'
+        ? 'patient'
+        : 'specialist_default',
+  };
+}
+
+function mapCurrentPatientReschedule(
+  row: CurrentPatientRescheduleRow,
+): AppointmentRescheduleRecord {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    appointmentId: row.appointment_id,
+    fromStartAt: row.from_start_at,
+    fromEndAt: row.from_end_at,
+    toStartAt: row.to_start_at,
+    toEndAt: row.to_end_at,
+    actorType: row.actor_type as AppointmentRescheduleRecord['actorType'],
+    actorId: row.actor_id,
+    wasInFreeRescheduleWindow: row.was_in_free_reschedule_window,
+    freeCancellationAvailableAtReschedule: row.free_cancellation_available_at_reschedule,
+    freeCancellationAvailableAfter: row.free_cancellation_available_after,
+    appliedPolicyId: row.applied_policy_id,
+    appliedPolicySnapshot: row.applied_policy_snapshot ?? {},
+    reason: row.reason,
+    staffComment: row.staff_comment,
+    notificationsSent: row.notifications_sent ?? {},
+    manualOverride: row.manual_override,
+    createdAt: row.created_at,
+  };
+}
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function patchCurrentPatientNotifications(
+  appointmentId: string,
+  kind: 'reschedule' | 'cancellation',
+  notificationsSent: Record<string, unknown>,
+): Promise<void> {
+  const notificationsJson = JSON.stringify(notificationsSent);
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.patch_current_patient_booking_notifications(uuid,text,text)',
+    [appointmentId, kind, notificationsJson],
+    drizzleSql`SELECT app.patch_current_patient_booking_notifications(
+      ${appointmentId}::uuid, ${kind}::text, ${notificationsJson}::text
+    )`,
+  );
+}
+
 export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecyclePort {
   return {
     async getAppointment(appointmentId, organizationId) {
+      if (isCurrentPatientPrincipal()) {
+        const appointment = await readCurrentPatientBookingAppointment(appointmentId);
+        return appointment?.organizationId === organizationId ? appointment : null;
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -136,6 +271,18 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
     },
 
     async listReschedules(appointmentId, organizationId) {
+      if (isCurrentPatientPrincipal()) {
+        const result = await runWebappNamedRoot<{ reschedules: CurrentPatientRescheduleRow[] }>(
+          getWebappSqlDb(),
+          'app.read_current_patient_booking_reschedules(uuid)',
+          [appointmentId],
+          drizzleSql`SELECT app.read_current_patient_booking_reschedules(
+            ${appointmentId}::uuid
+          ) AS reschedules`,
+        );
+        const rows = (result.rows[0]?.reschedules ?? []).map(mapCurrentPatientReschedule);
+        return rows.filter((row) => row.organizationId === organizationId);
+      }
       const db = getDrizzle();
       const rows = await db
         .select()
@@ -166,6 +313,22 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
     },
 
     async applyReschedule(input) {
+      if (isCurrentPatientPrincipal()) {
+        const inputJson = JSON.stringify(input);
+        const result = await runWebappNamedRoot<{
+          appointment: CurrentPatientAppointmentRow | null;
+        }>(
+          getWebappSqlDb(),
+          'app.apply_current_patient_booking_reschedule(text)',
+          [inputJson],
+          drizzleSql`SELECT app.apply_current_patient_booking_reschedule(
+            ${inputJson}::text
+          ) AS appointment`,
+        );
+        const appointment = result.rows[0]?.appointment;
+        if (!appointment) throw new Error('appointment_not_found');
+        return mapCurrentPatientAppointment(appointment);
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       return db.transaction(async (tx) => {
@@ -280,6 +443,22 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
     },
 
     async applyCancellation(input) {
+      if (isCurrentPatientPrincipal()) {
+        const inputJson = JSON.stringify(input);
+        const result = await runWebappNamedRoot<{
+          appointment: CurrentPatientAppointmentRow | null;
+        }>(
+          getWebappSqlDb(),
+          'app.apply_current_patient_booking_cancellation(text)',
+          [inputJson],
+          drizzleSql`SELECT app.apply_current_patient_booking_cancellation(
+            ${inputJson}::text
+          ) AS appointment`,
+        );
+        const appointment = result.rows[0]?.appointment;
+        if (!appointment) throw new Error('appointment_not_found');
+        return mapCurrentPatientAppointment(appointment);
+      }
       const db = getDrizzle();
       const now = new Date().toISOString();
       return db.transaction(async (tx) => {
@@ -382,6 +561,12 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
     },
 
     async patchLatestRescheduleNotifications(appointmentId, organizationId, notificationsSent) {
+      if (isCurrentPatientPrincipal()) {
+        const appointment = await readCurrentPatientBookingAppointment(appointmentId);
+        if (!appointment || appointment.organizationId !== organizationId) return;
+        await patchCurrentPatientNotifications(appointmentId, 'reschedule', notificationsSent);
+        return;
+      }
       const db = getDrizzle();
       const rows = await db
         .select({ id: beAppointmentReschedules.id })
@@ -403,6 +588,12 @@ export function createPgBookingAppointmentLifecyclePort(): AppointmentLifecycleP
     },
 
     async patchLatestCancellationNotifications(appointmentId, organizationId, notificationsSent) {
+      if (isCurrentPatientPrincipal()) {
+        const appointment = await readCurrentPatientBookingAppointment(appointmentId);
+        if (!appointment || appointment.organizationId !== organizationId) return;
+        await patchCurrentPatientNotifications(appointmentId, 'cancellation', notificationsSent);
+        return;
+      }
       const db = getDrizzle();
       const rows = await db
         .select({ id: beAppointmentCancellations.id })

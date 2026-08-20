@@ -28,8 +28,6 @@ const transitionAllowlist = new Set([
   'apps/integrator/src/infra/db/migrations/core/20260710_0001_r2_integrator_scoped_org_not_null.sql',
   'apps/integrator/src/infra/db/migrations/core/20260808_0008_drop_legacy_contacts.sql',
   'deploy/postgres/integrator-login-public-identity-grants.sql',
-  'deploy/postgres/prod-to-target-cutover-data.sql',
-  'deploy/postgres/prod-to-target-cutover-finish.sql',
 ]);
 
 function filesUnder(path) {

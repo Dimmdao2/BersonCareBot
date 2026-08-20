@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # evidence/20 — ГЕНЕРАТОР ПРАВ: доказательство исполнением (Ф2.3, SCHEME §B)
 
 **Дата:** 2026-08-09. **Что доказывается:** генератор `declaration.ts → SQL` из SCHEME §B существует,

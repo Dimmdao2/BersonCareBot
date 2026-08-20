@@ -15,6 +15,7 @@ import { reminderRules } from '../schema/integratorPublicProduct.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   getCurrentOrganizationPrincipalId,
+  runWithDeliveryWorkerPrincipal,
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
 
@@ -256,13 +257,15 @@ export async function isReminderTransactionalEmailRateLimited(
   db: DbPort,
   platformUserId: string,
 ): Promise<boolean> {
-  const result = await runIntegratorSql<{ rate_limited: boolean }>(
-    db,
-    sql`SELECT COALESCE(
+  const result = await runWithDeliveryWorkerPrincipal(() =>
+    runIntegratorSql<{ rate_limited: boolean }>(
+      db,
+      sql`SELECT COALESCE(
           app.read_reminder_transactional_email_cooldown(${platformUserId}::uuid)
             > statement_timestamp() - interval '45 seconds',
           false
         ) AS rate_limited`,
+    ),
   );
   return result.rows[0]?.rate_limited === true;
 }
@@ -271,9 +274,11 @@ export async function recordReminderTransactionalEmailSent(
   db: DbPort,
   platformUserId: string,
 ): Promise<void> {
-  await runIntegratorSql(
-    db,
-    sql`SELECT app.record_reminder_transactional_email_cooldown(${platformUserId}::uuid)`,
+  await runWithDeliveryWorkerPrincipal(() =>
+    runIntegratorSql(
+      db,
+      sql`SELECT app.record_reminder_transactional_email_cooldown(${platformUserId}::uuid)`,
+    ),
   );
 }
 
@@ -516,7 +521,7 @@ export async function createContentAccessGrant(
     expiresAt: string;
     metaJson?: Record<string, unknown>;
   },
-): Promise<string> {
+): Promise<{ createdAt: string; organizationId: string | null }> {
   const d = getIntegratorDrizzleSession(db);
   const organizationIdExpression = organizationIdForIntegratorUserSql(input.userId);
   const rows = await d
@@ -532,8 +537,15 @@ export async function createContentAccessGrant(
       organizationId: organizationIdExpression,
       createdAt: sql`now()`,
     })
-    .returning({ created_at: contentAccessGrants.createdAt });
-  return rows[0]?.created_at ?? new Date().toISOString();
+    .returning({
+      created_at: contentAccessGrants.createdAt,
+      organization_id: contentAccessGrants.organizationId,
+    });
+  const row = rows[0];
+  return {
+    createdAt: row?.created_at ?? new Date().toISOString(),
+    organizationId: row?.organization_id ?? null,
+  };
 }
 
 /** Integrator `users.id` (text) owning the occurrence's rule, or null if missing. */

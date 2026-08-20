@@ -63,6 +63,17 @@ export function enterWithMechanicWriteClearance(mechanic: OrgMechanic): void {
   clearanceStorage.enterWith(new Set([mechanic]));
 }
 
+/**
+ * Runs the physical write inside an explicit, bounded capability scope. Use this when the
+ * entitlement decision itself is separated from the write by helper-level awaits: relying on an
+ * `enterWith()` mark to escape that helper is not stable under the Next.js request runtime.
+ */
+export function runWithMechanicWriteClearance<T>(mechanic: OrgMechanic, fn: () => T): T {
+  const next = new Set(clearanceStorage.getStore() ?? []);
+  next.add(mechanic);
+  return clearanceStorage.run(next, fn);
+}
+
 export function hasMechanicWriteClearance(mechanic: OrgMechanic): boolean {
   return clearanceStorage.getStore()?.has(mechanic) ?? false;
 }

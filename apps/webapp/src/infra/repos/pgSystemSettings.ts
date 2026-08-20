@@ -94,13 +94,18 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
 ]);
 
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
-  'patient_home_mood_icons',
   'patient_home_daily_warmup_repeat_cooldown_minutes',
   'patient_home_daily_warmup_rotation_enabled',
   'patient_home_daily_warmup_rotation_times',
   'patient_home_daily_practice_target',
   'notifications_topics',
   'patient_default_promo_treatment_program_template_id',
+  'booking_lifecycle_notifications',
+]);
+
+const CURRENT_PATIENT_BOOKING_PAYMENT_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
+  'booking_payment_enabled',
+  'booking_payment_providers',
 ]);
 
 function parseSettingEnvelopeValue(valueJson: unknown): unknown | null {
@@ -439,6 +444,28 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       scope: SystemSettingScope,
       options: SystemSettingsReadOptions = {},
     ): Promise<SystemSetting | null> {
+      if (
+        getCurrentDbPrincipal()?.kind === 'patient'
+        && scope === 'admin'
+        && CURRENT_PATIENT_BOOKING_PAYMENT_SETTING_KEYS.has(key)
+      ) {
+        const result = await runWebappNamedRoot<{ value_json: unknown | null }>(
+          getWebappSqlDb(),
+          'app.read_current_patient_booking_payment_setting(text)',
+          [key],
+          sql`SELECT app.read_current_patient_booking_payment_setting(${key}::text) AS value_json`,
+        );
+        const valueJson = result.rows[0]?.value_json ?? null;
+        if (valueJson === null) return null;
+        return {
+          key,
+          scope,
+          organizationId: options.organizationId?.trim() || null,
+          valueJson,
+          updatedAt: '',
+          updatedBy: null,
+        };
+      }
       if (getCurrentDbPrincipal()?.kind === 'patient' && CURRENT_PATIENT_UI_SETTING_KEYS.has(key)) {
         const result = await runWithWebappDbOperationFamily('patient_ui_config', () =>
           runWebappPgText<SystemSettingRow>(

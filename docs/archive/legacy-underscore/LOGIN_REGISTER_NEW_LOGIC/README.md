@@ -53,7 +53,7 @@
 | Документ                                                                                       | Назначение                                            |
 | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
 | [`LOG.md`](LOG.md) §2026-05-28                                                                 | Журнал исполнения, smoke SQL                          |
-| [`../PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../PRODUCT_ANALYTICS_INITIATIVE/LOG.md) §2026-05-28 | Контекст PA event types                               |
+| [`../2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md`](../2026-08-initiatives/PRODUCT_ANALYTICS_INITIATIVE/LOG.md) §2026-05-28 | Контекст PA event types                               |
 | [`../../apps/webapp/src/modules/auth/auth.md`](../../apps/webapp/src/modules/auth/auth.md)     | Контракт metadata, `attemptId`, маршруты              |
 | [`../../apps/webapp/src/app/api/api.md`](../../apps/webapp/src/app/api/api.md)                 | `GET /api/admin/auth-registration-events`             |
 | UI                                                                                             | `/app/doctor/audit-log` — секция «Ошибки регистрации» |

@@ -46,6 +46,15 @@ export async function POST(
         { ok: false, error: 'invoice_not_cancellable', status: result.status },
         { status: 409 },
       );
+    // Решение владельца 19.08 (Р-17), перевыставление снято целиком 20.08 (Р-19): отмена как
+    // самостоятельное действие оператора над счётом за место не существует — долг переносится в
+    // счёт следующего периода (Р-18). Отказ именно ЗДЕСЬ, а не только в кнопке: кнопку можно не
+    // нажимать, а запрос послать.
+    case 'seat_invoice_not_cancellable':
+      return NextResponse.json(
+        { ok: false, error: 'seat_invoice_not_cancellable' },
+        { status: 409 },
+      );
     case 'cancelled':
       return NextResponse.json({ ok: true, invoice: result.invoice });
   }

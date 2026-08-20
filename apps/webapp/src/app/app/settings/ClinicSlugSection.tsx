@@ -10,6 +10,7 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { publicBookPaths } from '@/shared/publicBook/paths';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Checkbox } from '@/shared/ui/doctor/primitives/checkbox';
@@ -55,6 +56,8 @@ export function clinicSlugErrorMessage(error: SlugApiErrorCode) {
       return 'Введите адрес, отличный от текущего.';
     case 'rename_confirmation_required':
       return 'Подтвердите переименование.';
+    case 'self_rename_allowance_spent':
+      return 'Адрес можно сменить самостоятельно один раз, и он уже сменён. Дальнейшую смену делает поддержка — напишите ей.';
     default:
       return 'Не удалось сохранить адрес. Повторите попытку.';
   }
@@ -73,7 +76,7 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
   const publicUrl = useMemo(
     () =>
       state.currentSlug
-        ? `${appBaseUrl.replace(/\/$/, '')}/book/${encodeURIComponent(state.currentSlug)}`
+        ? `${appBaseUrl.replace(/\/$/, '')}${publicBookPaths.forSlug(state.currentSlug)}`
         : null,
     [appBaseUrl, state.currentSlug],
   );
@@ -166,6 +169,7 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
             </p>
           ) : null}
 
+          {state.selfRenameAllowed ? (
           <Dialog
             open={renameOpen}
             onOpenChange={(open) => {
@@ -184,7 +188,9 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
                 <DialogTitle>Изменить адрес публичной записи</DialogTitle>
                 <DialogDescription>
                   Старый адрес продолжит работать и навсегда останется за вашей клиникой — другой
-                  клинике он не достанется никогда. При желании вы сможете вернуть его себе.
+                  клинике он не достанется никогда. Самостоятельно адрес меняют один раз за всё
+                  время работы клиники: после этой смены любую следующую, включая возврат на
+                  прежний адрес, делает поддержка.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-col gap-3">
@@ -198,7 +204,8 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
                     className="mt-0.5"
                   />
                   <span>
-                    Я понимаю: старый адрес останется за моей клиникой и другим не достанется.
+                    Я понимаю: старый адрес останется за моей клиникой, а самостоятельная смена
+                    у клиники одна.
                   </span>
                 </label>
                 {error ? (
@@ -219,6 +226,13 @@ export function ClinicSlugSection({ initialState, appBaseUrl }: ClinicSlugSectio
               </div>
             </DialogContent>
           </Dialog>
+          ) : (
+            // Владелец 19.08: «уведомлять об этом специально нигде не надо» — поэтому здесь ровно
+            // одна строка на месте кнопки, без баннера, письма и записи в журнале кабинета.
+            <p className="text-sm text-muted-foreground">
+              Самостоятельная смена адреса уже использована. Дальнейшую смену делает поддержка.
+            </p>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

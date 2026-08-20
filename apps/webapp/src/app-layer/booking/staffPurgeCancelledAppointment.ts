@@ -39,6 +39,7 @@ export async function staffPurgeCancelledAppointment(input: {
   try {
     await emitBookingDeletedEvent({
       deps: input.deps,
+      organizationId: input.organizationId,
       integratorRecordId,
       idempotencySuffix: input.appointmentId,
       slotIsoFallback: appointment.startAt,

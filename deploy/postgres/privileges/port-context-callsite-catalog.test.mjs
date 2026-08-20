@@ -13,7 +13,41 @@ const PRODUCTION_SOURCE_ROOTS = [
 const EXCLUDED_DIRECTORIES = new Set(['.next', 'coverage', 'dist', 'generated', '__generated__', 'node_modules']);
 const TEST_FILE_RE = /(?:^|\.)(?:test|spec|unit|integration|e2e)\.[cm]?[jt]sx?$/;
 
+const patientRoot = (purpose, argCount, source) => ({
+  port: 'webapp', targetRole: 'app_patient', contextClass: 'patient', purpose, argCount, source,
+});
+
 const EXPECTED_ROOTS = new Map(Object.entries({
+  'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.materialization.snapshot.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
+  },
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.materialization.targets.read', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
+  },
+  'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.materialization.commit', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts',
+  },
+  'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.delivery-targets.read', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorDeliveryTargets.ts',
+  },
+  'app.read_admin_notification_targets(text)': {
+    port: 'webapp', argCount: 1, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'notifications.admin-targets.read' },
+      { targetRole: 'app_worker', contextClass: 'service',
+        purpose: 'notifications.admin-targets.read' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgAdminNotificationTargets.ts',
+  },
   'app.password_login_acquire(text,text,uuid,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'auth.password.acquire', argCount: 4,
@@ -33,6 +67,88 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
     purpose: 'patient.material-rating.snapshot.read', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgMaterialRating.ts',
+  },
+  'app.read_current_patient_treatment_program_description(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.program.description.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPatientOrganization.ts',
+  },
+  'app.create_patient_program_submission_media(uuid,text,text,text,bigint)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.media.program-submission.create', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/s3MediaStorage.ts',
+  },
+  'app.confirm_patient_program_submission_media(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.media.program-submission.confirm', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/s3MediaStorage.ts',
+  },
+  'app.abort_patient_program_submission_media(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'patient.media.program-submission.abort', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/s3MediaStorage.ts',
+  },
+  'app.enqueue_media_transcode_job_for_staff(uuid)': {
+    port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
+    purpose: 'media.transcode.enqueue', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
+  },
+  // Один корень на все исходящие сообщения. Два дескриптора — потому что классов контекста два
+  // (пациент и staff), а дверь одна: вид сообщения — это `purpose` в аргументах, а не своя функция.
+  // Шестой аргумент — `text`, не `jsonb` (миграция 0036): jsonb в сигнатуре порт-аргумента
+  // невоспроизводим байт в байт клиентом и ронял КАЖДЫЙ вызов раньше похода в базу.
+  'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)': {
+    port: 'webapp', argCount: 7, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_patient', contextClass: 'patient',
+        purpose: 'outbound.message.enqueue' },
+      { targetRole: 'app_staff', contextClass: 'staff',
+        purpose: 'outbound.message.enqueue' },
+    ],
+    source: 'apps/webapp/src/infra/repos/pgOutboundMessageQueue.ts',
+  },
+  // Единственный корень замены поколения напоминаний о записи (миграция 0034). До него вебапп писал
+  // очередь напрямую, а INSERT на неё не выдан ни одной рабочей роли — строк не появлялось вовсе.
+  'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'reminder.appointment-generation.replace', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgAppointmentReminderMaterialization.ts',
+  },
+  // Два корня контактов формы записи (миграция 0037). До них вебапп под пациентом звал ВРАЧЕБНЫЙ
+  // порт к `platform_users`, получал 42501 на каждой записи, и пустой перехват съедал отказ —
+  // телефон и почта из формы не сохранялись ни у кого.
+  'app.read_current_patient_identity_contacts()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-identity-contacts.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgPlatformUserContacts.ts',
+  },
+  'app.record_current_patient_booking_contact(text,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-contact.record', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPlatformUserContacts.ts',
+  },
+  'app.enqueue_media_transcode_job_for_service(uuid)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.enqueue', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMediaTranscodeJobs.ts',
+  },
+  // Разбор той же очереди: три двери одного оборота воркера. До 0050 он ходил отношением и
+  // отбивался `42501 accepted organization context required` на каждом обороте — диспетчер
+  // межарендный, `organization_id` у него нет, а политика роли на таблице требует именно его.
+  'app.claim_media_transcode_job(text,integer)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.claim', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
+  'app.read_media_transcode_job_media(uuid,uuid,text)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.job-media.read', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
+  },
+  'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)': {
+    port: 'webapp', targetRole: 'app_operational_media_worker', contextClass: 'service',
+    purpose: 'media.transcode.outcome.record', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
   },
   'app.resolve_staff_workspace_memberships(uuid)': {
     port: 'webapp', argCount: 1, descriptorCount: 2,
@@ -169,6 +285,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.phone-messenger-bind.completion-state', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPhoneMessengerBind.ts',
   },
+  // Замер 19.08 живым запросом под сессией глобального админа: страница отдавала HTTP 500, а в
+  // журнале Postgres 42501 на СЕМНАДЦАТИ из девятнадцати читаемых таблиц. Тридцать операторов
+  // отношением сведены в один снимок за одной дверью (миграция 0043).
+  'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'analytics.platform-dashboard.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgPlatformAnalytics.ts',
+  },
   'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': {
     port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
     purpose: 'analytics.registration-events.read', argCount: 7,
@@ -218,6 +342,21 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'booking.public-phone-otp.consume', argCount: 4,
     source: 'apps/webapp/src/infra/repos/pgPublicBookingOtp.ts',
+  },
+  'app.resolve_public_booking_client_by_phone(text,text,boolean)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-client.resolve', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
+  'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.public-client.enroll', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
+  },
+  'app.revoke_public_booking_enrollment(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.public-client.revoke', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPublicBookingUserResolve.ts',
   },
   'app.read_public_runtime_setting(text,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
@@ -294,10 +433,47 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'config.preauth-provider.read', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
   },
+  // Публичная визитка клиники `/{clinic}` (владелец 19.08): чтение под bootstrap-ролью, запись
+  // владельцем клиники. Миграция 0049.
+  'app.read_public_clinic_card(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'clinic.public-card.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgClinicPublicCard.ts',
+  },
+  'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': {
+    port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
+    purpose: 'clinic.public-card.save', argCount: 8,
+    source: 'apps/webapp/src/infra/repos/pgClinicPublicCard.ts',
+  },
   'app.resolve_public_organization_by_slug(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'booking.public-organization.resolve', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgClinicDirectory.ts',
+  },
+  // Замер 19.08: `GET /book/<слаг>` неделю отвечал «Каталог недоступен» (и 503 на шагах слотов и
+  // формы) в КАЖДОЙ опубликованной клинике. Организационный принципал вебаппа проецируется на класс
+  // `tenant_service`, а обычное реляционное чтение берёт возможность с `purpose: 'relation'` — у
+  // порта `webapp` такой у арендаторского класса нет и по SCHEME §3 быть не должно. Дверей у
+  // публичной записи не было ни одной: это не деградация части, а ноль. Четыре корня — миграция 0043.
+  'app.resolve_public_booking_organization(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'booking.public-tenant.resolve', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_public_booking_catalog(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-catalog.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-slot-snapshot.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.list_public_booking_form_fields()': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'booking.public-form-fields.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
   },
   'app.resolve_public_organization_slug(text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
@@ -318,6 +494,29 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'billing.webhook.refund.resolve', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  'app.list_saas_billing_period_catalog()': {
+    port: 'webapp', targetRole: 'app_clinic_billing', contextClass: 'staff',
+    purpose: 'billing.clinic.period-catalog.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  'app.list_saas_billing_period_catalog_platform()': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'billing.platform.period-catalog.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  // Переключатель «организация включена/выключена» в карточке клиники. Читать и писать
+  // be_organizations платформенному админу напрямую нельзя — решение живёт за DEFINER-швом
+  // app_seam_org_directory_owner, миграция 20260820T010127.
+  'app.set_platform_organization_is_active(uuid,boolean)': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'platform.organization.set-is-active', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+  },
+  'app.resolve_patient_acquiring_webhook_organization(text,text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'patient-payment.webhook.resolve', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientPayments.ts',
   },
   'app.read_saas_billing_payment_provider_preauth()': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
@@ -343,6 +542,65 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
     purpose: 'health.webhook-errors.prune', argCount: 1,
     source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
+  // Замер 19.08: тик суточной сводки читал `public.outgoing_delivery_queue` отношением под
+  // `app_staff`, получал 42501 на первом же шаге и падал целиком — сводка не уходила ни разу
+  // (миграция 0038).
+  'app.read_operator_health_digest_last_sent_at()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.digest.last-sent.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
+  },
+  // Замер 19.08: снимок здоровья очереди шёл двенадцатью запросами отношением под `app_staff` и
+  // ронял ВЕСЬ пятиминутный критический тик (голый `Promise.all`), а не одну панель (миграция 0039).
+  'app.read_operator_delivery_queue_health()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.delivery-queue.aggregate', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts',
+  },
+  // Замер 19.08: строк `kind='operator_health_digest'` в очереди НОЛЬ за всю историю — постановка
+  // шла прямым INSERT под `app_staff`, у которого на очереди нет ни одной привилегии (0039).
+  'app.enqueue_operator_health_digest_delivery(text,text,text,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.digest.enqueue', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthDigestDeliveries.ts',
+  },
+  // Замер 19.08: аудитория staff-веб-пуша операторского алерта читалась отношением под
+  // `app_worker` и отбивалась `42501 permission denied for table be_organization_members`; отказ
+  // гасился `.catch` диспетчера, а тик писал `success` (миграция 0040).
+  'app.list_operator_alert_staff_push_recipients()': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'notifications.staff-push-audience.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgStaffUsers.ts',
+  },
+  // Замер 19.08: часовой тик продления заявлял класс `platform` с выдуманным нулевым UUID вместо
+  // администратора и падал на установке контекста — строки `billing.saas_renewal.tick` не было
+  // ни разу. Межарендное перечисление получило свою дверь (миграция 0040).
+  'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'billing.saas-renewal.due-list', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+  },
+  // Замер 19.08 на TEST: сторож читал инциденты и не мог открыть ни одного — прямой INSERT под
+  // `app_worker` отбивался `42501 permission denied for table operator_incidents` каждые пять
+  // минут, и тик падал целиком именно тогда, когда что-то заметил (миграция 0041).
+  'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.critical-incident.open-or-touch', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts',
+  },
+  'app.prune_operator_health_failure_archive(integer)': {
+    port: 'webapp', targetRole: 'app_worker', contextClass: 'service',
+    purpose: 'health.failure-archive.prune', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts',
+  },
+  // Один корень уборки по сроку хранения на четыре запертые арендаторские таблицы; цель
+  // приходит меткой из закрытого списка, а не именем таблицы. Один callsite на все тики —
+  // тики сохраняют свою личность, общая у них только эта дверь.
+  'app.prune_retention_target(text,integer,boolean)': {
+    port: 'webapp', targetRole: 'app_operational_maintenance', contextClass: 'service',
+    purpose: 'retention.locked-tenant-table.sweep', argCount: 3,
+    source: 'apps/webapp/src/infra/db/pruneRetentionTarget.ts',
   },
   'app.resolve_outgoing_delivery_scope(uuid)': {
     port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
@@ -455,8 +713,13 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     source: 'apps/integrator/src/infra/db/repos/idempotencyKeys.ts',
   },
   'app.append_platform_audit_event(text,text,text)': {
-    port: 'webapp', targetRole: 'app_platform_admin', contextClass: 'platform',
-    purpose: 'platform.audit-event.append', argCount: 3,
+    port: 'webapp', argCount: 3, descriptorCount: 2,
+    descriptors: [
+      { targetRole: 'app_platform_admin', contextClass: 'platform',
+        purpose: 'platform.audit-event.append' },
+      { targetRole: 'app_pre_session', contextClass: 'pre_session',
+        purpose: 'platform.audit-event.append' },
+    ],
     source: 'apps/webapp/src/infra/adminAuditLog.ts',
   },
   'app.resolve_platform_audit_conflict(uuid)': {
@@ -495,9 +758,19 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     source: 'apps/webapp/src/infra/idempotency/pgStore.ts',
   },
   'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)': {
-    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-    purpose: 'integrator.reminder-occurrence-finalized.record', argCount: 10,
-    source: 'apps/webapp/src/infra/repos/pgReminderProjection.ts',
+    argCount: 10, descriptorCount: 3,
+    callsites: [
+      { port: 'integrator', source: 'apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts' },
+      { port: 'webapp', source: 'apps/webapp/src/infra/repos/pgReminderProjection.ts' },
+    ],
+    descriptors: [
+      { port: 'integrator', targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+        purpose: 'integrator.reminder-occurrence-finalized.record' },
+      { port: 'integrator', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+        purpose: 'integrator.reminder-occurrence-finalized.record' },
+      { port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+        purpose: 'integrator.reminder-occurrence-finalized.record' },
+    ],
   },
   'app.read_patient_telegram_display_handle(uuid)': {
     port: 'webapp', targetRole: 'app_staff', contextClass: 'staff',
@@ -549,6 +822,231 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'booking.self.allowed', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgClientHistory.ts',
   },
+  'app.read_current_patient_booking_runtime_integer(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-runtime-integer.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-creation-snapshot.read', argCount: 4,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_current_patient_booking_payment_setting(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-payment-config.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgSystemSettings.ts',
+  },
+  'app.read_current_patient_booking_prepayment_policy(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-prepayment-policy.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPayments.ts',
+  },
+  'app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-busy-intervals.read', argCount: 5,
+    source: 'apps/webapp/src/infra/repos/pgBookingScheduling.ts',
+  },
+  'app.read_current_patient_booking_form_fields()': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-form-fields.read', argCount: 0,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
+  },
+  'app.save_current_patient_booking_form_answers(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-form-answers.save', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingForm.ts',
+  },
+  'app.read_current_patient_booking_packages(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-packages.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMemberships.ts',
+  },
+  'app.create_current_patient_booking_pending(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-pending.create', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgPatientBookings.ts',
+  },
+  'app.mutate_current_patient_booking(uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-row.mutate', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgPatientBookings.ts',
+  },
+  'app.create_current_patient_booking_appointments(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-appointments.create', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.read_current_patient_booking_appointment(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-appointment.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.set_current_patient_booking_reminder_preset(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-reminder-preset.set', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgBookingEngine.ts',
+  },
+  'app.current_patient_lfk_sessions(text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'diary.patient-lfk-sessions', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgLfkDiary.ts',
+  },
+  'app.read_current_patient_staff_notification_profiles(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'notification.current-patient-staff-profiles', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientStaffNotificationProfiles.ts',
+  },
+  'app.read_integrator_web_push_subscriptions(uuid,uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.web-push-subscriptions.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorWebPushDelivery.ts',
+  },
+  'app.read_integrator_web_push_delivery_settings(uuid)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.web-push-delivery-settings.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorWebPushDelivery.ts',
+  },
+  'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': {
+    port: 'webapp', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+    purpose: 'integrator.support-delivery-attempt.record', argCount: 9,
+    source: 'apps/webapp/src/infra/repos/pgIntegratorSupportQuestionOwnership.ts',
+  },
+  'app.read_current_patient_booking_row(uuid,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-row.read', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPatientBookings.ts',
+  },
+  'app.read_current_patient_booking_policies(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-policies.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingPolicies.ts',
+  },
+  'app.read_current_patient_booking_reschedules(uuid)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-reschedules.read', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.apply_current_patient_booking_reschedule(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-reschedule.apply', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.apply_current_patient_booking_cancellation(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-cancellation.apply', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.patch_current_patient_booking_notifications(uuid,text,text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-notifications.patch', argCount: 3,
+    source: 'apps/webapp/src/infra/repos/pgBookingAppointmentLifecycle.ts',
+  },
+  'app.reserve_current_patient_booking_package(text)': {
+    port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
+    purpose: 'booking.patient-package.reserve', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgMemberships.ts',
+  },
+  'app.record_current_patient_practice_completion(uuid,text,integer)': patientRoot(
+    'patient.practice-completion.record', 3, 'apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts'),
+  'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)': patientRoot(
+    'patient.material-rating.upsert', 5, 'apps/webapp/src/infra/repos/pgMaterialRating.ts'),
+  'app.update_current_patient_practice_completion_feeling(uuid,integer)': patientRoot(
+    'patient.practice-completion.feeling.update', 2, 'apps/webapp/src/infra/repos/pgPatientPracticeCompletions.ts'),
+  'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)': patientRoot(
+    'patient.daily-warmup.presentation.save', 3, 'apps/webapp/src/infra/repos/pgPatientDailyWarmupPresentation.ts'),
+  'app.record_current_patient_daily_warmup_video_view(uuid)': patientRoot(
+    'patient.daily-warmup.video-view.record', 1, 'apps/webapp/src/infra/repos/pgPatientDailyWarmupVideoView.ts'),
+  'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)': patientRoot(
+    'patient.material-rating.feedback.record', 4, 'apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts'),
+  'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': patientRoot(
+    'patient.media.playback-client-event.record', 5, 'apps/webapp/src/app-layer/media/playbackClientEvents.ts'),
+  'app.record_current_patient_playback_first_resolve(uuid)': patientRoot(
+    'patient.media.playback-first-resolve.record', 1, 'apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts'),
+  'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': patientRoot(
+    'patient.diary-day.snapshot.capture', 8, 'apps/webapp/src/infra/repos/pgPatientDiarySnapshots.ts'),
+  'app.set_current_patient_notification_topic(text,boolean)': patientRoot(
+    'patient.notification-topic.set', 2, 'apps/webapp/src/infra/repos/pgPatientNotificationTopics.ts'),
+  'app.set_current_patient_notification_topic_channel(text,text,boolean)': patientRoot(
+    'patient.notification-topic-channel.set', 3, 'apps/webapp/src/infra/repos/pgTopicChannelPrefs.ts'),
+  'app.read_current_patient_fio()': patientRoot(
+    'patient.identity.self.read', 0, 'apps/webapp/src/infra/repos/pgUserProjection.ts'),
+  'app.update_current_patient_fio(text,text,text)': patientRoot(
+    'patient.identity.self.update', 3, 'apps/webapp/src/infra/repos/pgUserProjection.ts'),
+  'app.create_current_patient_reminder_rule(text,text)': patientRoot(
+    'patient.reminder-rule.create', 2, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.update_current_patient_reminder_rule(text,text)': patientRoot(
+    'patient.reminder-rule.update', 2, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.delete_current_patient_reminder_rule(text)': patientRoot(
+    'patient.reminder-rule.delete', 1, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientRoot(
+    'patient.reminder-journal.record', 5, 'apps/webapp/src/infra/repos/pgReminderJournal.ts'),
+  'app.mark_current_patient_reminder_history_seen(text)': patientRoot(
+    'patient.reminder-history.seen', 1, 'apps/webapp/src/infra/repos/pgReminderProjection.ts'),
+  'app.mark_all_current_patient_reminder_history_seen()': patientRoot(
+    'patient.reminder-history.seen-all', 0, 'apps/webapp/src/infra/repos/pgReminderProjection.ts'),
+  'app.set_current_patient_reminder_muted_until(timestamp with time zone)': patientRoot(
+    'patient.reminder.mute', 1, 'apps/webapp/src/infra/repos/pgReminderRules.ts'),
+  'app.ensure_current_patient_support_conversation()': patientRoot(
+    'patient.support-conversation.ensure', 0, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)': patientRoot(
+    'patient.support-message.append', 7, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.mark_current_patient_support_conversation_read(uuid)': patientRoot(
+    'patient.support-conversation.read', 1, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.mark_current_patient_support_messages_read(text)': patientRoot(
+    'patient.support-messages.read', 1, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.mark_current_patient_support_notifications_read()': patientRoot(
+    'patient.support-notifications.read', 0, 'apps/webapp/src/infra/repos/pgSupportCommunication.ts'),
+  'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)': patientRoot(
+    'patient.symptom-system-tracking.ensure', 3, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientRoot(
+    'patient.symptom-entry.record', 5, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientRoot(
+    'patient.symptom-entry.update', 5, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.delete_current_patient_symptom_entry(uuid)': patientRoot(
+    'patient.symptom-entry.delete', 1, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)': patientRoot(
+    'patient.symptom-tracking.configure', 3, 'apps/webapp/src/infra/repos/pgSymptomDiary.ts'),
+  'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)': patientRoot(
+    'patient.warmup-feeling.apply', 6, 'apps/webapp/src/infra/repos/pgWarmupFeelingCompletion.ts'),
+  'app.save_current_patient_channel_preference(text,boolean,boolean)': patientRoot(
+    'patient.channel-preference.save', 3, 'apps/webapp/src/infra/repos/pgChannelPreferences.ts'),
+  'app.set_current_patient_preferred_auth_channel(text)': patientRoot(
+    'patient.preferred-auth-channel.set', 1, 'apps/webapp/src/infra/repos/pgChannelPreferences.ts'),
+  'app.save_current_patient_web_push_subscription(text,text,text,text)': patientRoot(
+    'patient.web-push-subscription.save', 4, 'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts'),
+  'app.remove_current_patient_web_push_subscription(text)': patientRoot(
+    'patient.web-push-subscription.remove', 1, 'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts'),
+  'app.remove_all_current_patient_web_push_subscriptions()': patientRoot(
+    'patient.web-push-subscriptions.remove-all', 0, 'apps/webapp/src/infra/repos/pgWebPushSubscriptions.ts'),
+  'app.touch_current_patient_plan_last_opened(uuid)': patientRoot(
+    'patient.program.touch', 1, 'apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'),
+  'app.touch_current_patient_program_item(uuid,uuid)': patientRoot(
+    'patient.program-item.touch', 2, 'apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'),
+  'app.complete_current_patient_program_item(uuid,uuid,integer,text)': patientRoot(
+    'patient.program-item.complete', 4, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)': patientRoot(
+    'patient.program-completion.enrich', 4, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)': patientRoot(
+    'patient.program-action.record', 6, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)': patientRoot(
+    'patient.program-actions.delete-window', 5, 'apps/webapp/src/infra/repos/pgProgramActionLog.ts'),
+  'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)': patientRoot(
+    'patient.program-event.append', 6, 'apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts'),
+  'app.mark_current_patient_program_item_viewed(uuid,uuid)': patientRoot(
+    'patient.program-item.viewed', 2, 'apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'),
+  'app.append_current_patient_program_discussion(uuid,text,uuid)': patientRoot(
+    'patient.program-discussion.append', 3, 'apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'),
+  'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)': patientRoot(
+    'patient.program-discussion.read', 2, 'apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'),
+  'app.ensure_current_patient_test_attempt(uuid)': patientRoot(
+    'patient.test-attempt.ensure', 1, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
+  'app.start_current_patient_test_attempt(uuid,uuid)': patientRoot(
+    'patient.test-attempt.start', 2, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
+  'app.save_current_patient_test_result(uuid,uuid,text,text)': patientRoot(
+    'patient.test-result.save', 4, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
+  'app.submit_current_patient_test_attempt(uuid)': patientRoot(
+    'patient.test-attempt.submit', 1, 'apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'),
   'app.pre_session_resolve_identity(uuid)': {
     port: 'webapp', contextClass: 'pre_session',
     purpose: 'identity.variant-a.resolve', argCount: 1, descriptorCount: 3,
@@ -567,6 +1065,7 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'delivery-handler',
     'max-webhook:record-outcome',
     'telegram-webhook:record-outcome',
+    'worker:direct-public-write-retry-tick',
     'worker:job-queue-drain',
     'worker:outgoing-delivery-tick',
     'worker:projection-outbox-tick',
@@ -588,27 +1087,67 @@ const EXPECTED_RUNTIME_SOURCES = new Map(Object.entries({
     'api/internal/operator-health-digest/tick:POST',
     'api/internal/operator-health-critical/tick:POST',
     'api/internal/system-health-guard/tick:POST',
-    'api/internal/product-analytics/retention:POST',
+    // 19.08: часовой тик продления подписок переехал сюда с платформенного класса, который
+    // требовал живого администратора и поэтому не работал ни разу.
+    'api/internal/saas-billing/renewal/tick:POST',
     'api/internal/specialist-task-reminders/tick:POST',
     'api/internal/heartbeat/pipeline_delivery:POST',
     'api/internal/heartbeat/pipeline_delivery:GET',
     'api/internal/heartbeat/digest:POST',
     'api/internal/heartbeat/digest:GET',
+    'operator-cron-job-status:write',
     'webapp-health-check',
     'api/health:GET',
   ],
   'webapp:media_worker': [
     'api/internal/media-worker/control:POST',
-    'api/internal/media-hls-proxy-errors/retention:POST',
-    'api/internal/media-playback-stats/retention:POST',
     'api/internal/media-pending-delete/purge:POST',
     'api/internal/media-multipart/cleanup:POST',
     'api/internal/media-preview/process:POST',
     'api/internal/media-transcode/enqueue:POST',
     'api/internal/media-transcode/reconcile:POST',
   ],
+  'webapp:maintenance': [
+    'api/internal/media-hls-proxy-errors/retention:POST',
+    'api/internal/media-playback-stats/retention:POST',
+    'api/internal/product-analytics/retention:POST',
+  ],
   'webapp:telemetry': ['webapp-saas-isolation-telemetry'],
 }));
+
+function unwrapArrayLiteral(node) {
+  let current = node;
+  while (ts.isAsExpression(current)
+    || ts.isSatisfiesExpression(current)
+    || ts.isTypeAssertionExpression(current)
+    || ts.isParenthesizedExpression(current)) {
+    current = current.expression;
+  }
+  return ts.isArrayLiteralExpression(current) ? current : null;
+}
+
+function resolveExactArgumentTuple(node, callsite) {
+  const direct = unwrapArrayLiteral(node);
+  if (direct) return direct;
+  assert.ok(ts.isIdentifier(node), 'literal named root arguments must be an exact const tuple');
+
+  for (let scope = callsite.parent; scope; scope = scope.parent) {
+    if (!ts.isBlock(scope) && !ts.isSourceFile(scope)) continue;
+    for (const statement of scope.statements) {
+      if (!ts.isVariableStatement(statement)
+        || !(statement.declarationList.flags & ts.NodeFlags.Const)) continue;
+      for (const declaration of statement.declarationList.declarations) {
+        if (!ts.isIdentifier(declaration.name)
+          || declaration.name.text !== node.text
+          || !declaration.initializer) continue;
+        const tuple = unwrapArrayLiteral(declaration.initializer);
+        assert.ok(tuple, `${node.text} must be initialized as an exact const tuple`);
+        return tuple;
+      }
+    }
+  }
+  assert.fail(`${node.text} must resolve to an exact const tuple in the callsite scope`);
+}
 
 function productionSourceFiles(root) {
   const files = [];
@@ -649,10 +1188,9 @@ function collectNamedRootCallsites() {
           assert.ok(identity, `${path}:${line}: named root identity is required`);
           assert.ok(typedArgs, `${path}:${line}: typed arguments are required`);
           if (ts.isStringLiteralLike(identity)) {
-            assert.ok(ts.isArrayLiteralExpression(typedArgs),
-              `${path}:${line}: literal named root arguments must be an array literal`);
+            const exactArgs = resolveExactArgumentTuple(typedArgs, node);
             result.push({ kind: 'literal', port, path, line, identity: identity.text,
-              argCount: typedArgs.elements.length });
+              argCount: exactArgs.elements.length });
           } else {
             assert.ok(ts.isIdentifier(identity) && identity.text === 'functionIdentity',
               `${path}:${line}: unexpected dynamic named-root identity`);
@@ -671,44 +1209,64 @@ function collectNamedRootCallsites() {
 
 function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites()) {
   const callsites = discovered.filter((row) => row.kind === 'literal');
-  const dynamicWrappers = discovered.filter((row) => row.kind === 'dynamic');
-  assert.equal(dynamicWrappers.length, 1, 'one generic named-root readiness wrapper must exist');
-  assert.equal(dynamicWrappers[0].port, 'integrator', 'generic named-root wrapper belongs to integrator');
-  assert.equal(dynamicWrappers[0].path, 'apps/integrator/src/infra/db/operationalPoolReadiness.ts',
-    'generic named-root wrapper moved from the reviewed production source');
-  assert.equal(new Set(callsites.map((row) => row.identity)).size, callsites.length,
-    'each production named root must have one exact callsite');
-
+  // Обёртка с ДИНАМИЧЕСКИМ именем корня — единственное место, где вызов не сверяется с каталогом
+  // по литералу. Вторая такая обёртка означает второй непроверяемый путь к именованному корню.
+  // Счёт «1» краснел числом 2 и не говорил, ГДЕ появился этот путь; список печатает файл.
+  assert.deepEqual(
+    discovered.filter((row) => row.kind === 'dynamic').map((row) => `${row.port} ${row.path}`),
+    ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
+    'exactly one reviewed generic named-root readiness wrapper may exist',
+  );
   const roots = Object.values(candidate.portContext.capabilities)
     .filter((descriptor) => descriptor.functionIdentity);
   const expectedDescriptorCount = [...EXPECTED_ROOTS.values()]
     .reduce((count, descriptor) => count + (descriptor.descriptorCount ?? 1), 0);
   const byIdentity = Map.groupBy(roots, (descriptor) => descriptor.functionIdentity);
+  const callsitesByIdentity = Map.groupBy(callsites, (callsite) => callsite.identity);
 
   for (const callsite of callsites) {
-    const expected = EXPECTED_ROOTS.get(callsite.identity);
-    assert.ok(expected, `${callsite.path}:${callsite.line}: undeclared named-root callsite`);
-    assert.equal(callsite.path, expected.source,
-      `${callsite.path}:${callsite.line}: named root moved from the reviewed production source`);
-    assert.equal(callsite.port, expected.port,
-      `${callsite.path}:${callsite.line}: named root moved to the wrong port`);
-    assert.equal(callsite.argCount, expected.argCount,
-      `${callsite.path}:${callsite.line}: typed argument count does not match function identity`);
-    const descriptors = byIdentity.get(callsite.identity);
+    assert.ok(EXPECTED_ROOTS.has(callsite.identity),
+      `${callsite.path}:${callsite.line}: undeclared named-root callsite`);
+  }
+  for (const [identity, expected] of EXPECTED_ROOTS) {
+    const expectedCallsites = expected.callsites ?? [
+      { port: expected.port, source: expected.source },
+    ];
+    const actualCallsites = callsitesByIdentity.get(identity) ?? [];
+    assert.deepEqual(
+      actualCallsites.map((callsite) => ({
+        port: callsite.port,
+        source: callsite.path,
+        argCount: callsite.argCount,
+      })).sort((left, right) => `${left.port}:${left.source}`.localeCompare(`${right.port}:${right.source}`)),
+      expectedCallsites.map((callsite) => ({
+        port: callsite.port,
+        source: callsite.source,
+        argCount: expected.argCount,
+      })).sort((left, right) => `${left.port}:${left.source}`.localeCompare(`${right.port}:${right.source}`)),
+      `${identity}: named-root production callsites changed`,
+    );
+    const descriptors = byIdentity.get(identity);
     assert.equal(
       descriptors?.length,
       expected.descriptorCount ?? 1,
-      `${callsite.path}:${callsite.line}: wrong catalog descriptor count`,
+      `${identity}: wrong catalog descriptor count`,
     );
     if (expected.descriptors) {
       assert.deepEqual(
         descriptors.map((descriptor) => ({
+          port: descriptor.port,
           targetRole: descriptor.targetRole,
           contextClass: descriptor.contextClass,
           purpose: descriptor.purpose,
-        })).sort((left, right) => left.targetRole.localeCompare(right.targetRole)),
-        [...expected.descriptors].sort((left, right) => left.targetRole.localeCompare(right.targetRole)),
-        `${callsite.path}:${callsite.line}: wrong catalog descriptor partition`,
+        })).sort((left, right) => `${left.port}:${left.targetRole}`.localeCompare(`${right.port}:${right.targetRole}`)),
+        expected.descriptors.map((descriptor) => ({
+          port: descriptor.port ?? expected.port,
+          targetRole: descriptor.targetRole,
+          contextClass: descriptor.contextClass,
+          purpose: descriptor.purpose,
+        })).sort((left, right) => `${left.port}:${left.targetRole}`.localeCompare(`${right.port}:${right.targetRole}`)),
+        `${identity}: wrong catalog descriptor partition`,
       );
       continue;
     }
@@ -725,17 +1283,19 @@ function assertCallsiteCatalog(candidate, discovered = collectNamedRootCallsites
         targetRole: expectedTargetRole,
         contextClass: expected.contextClass,
         purpose: expected.purpose,
-      }, `${callsite.path}:${callsite.line}: wrong catalog descriptor`);
+      }, `${identity}: wrong catalog descriptor`);
     }
     if (expected.sessionRoles) {
       assert.deepEqual(
         descriptors.map((descriptor) => descriptor.sessionRole).sort(),
         [...expected.sessionRoles].sort(),
-        `${callsite.path}:${callsite.line}: wrong physical-login role partition`,
+        `${identity}: wrong physical-login role partition`,
       );
     }
   }
-  assert.equal(callsites.length, EXPECTED_ROOTS.size, 'named-root callsite census changed');
+  const expectedCallsiteCount = [...EXPECTED_ROOTS.values()]
+    .reduce((count, expected) => count + (expected.callsites?.length ?? 1), 0);
+  assert.equal(callsites.length, expectedCallsiteCount, 'named-root callsite census changed');
   assert.equal(roots.length, expectedDescriptorCount, 'function-bound catalog size changed');
   assert.deepEqual([...byIdentity.keys()].sort(), [...EXPECTED_ROOTS.keys()].sort(),
     'catalog contains a function-bound root without a production callsite');
@@ -808,6 +1368,13 @@ test('production discovery is path-independent and excludes tests/generated outp
   assert.ok(files.length > 10);
   assert.equal(files.some((path) => TEST_FILE_RE.test(path) || path.includes('/generated/')), false);
   const discovered = collectNamedRootCallsites();
-  assert.equal(discovered.filter((row) => row.kind === 'literal').length, EXPECTED_ROOTS.size);
-  assert.equal(discovered.filter((row) => row.kind === 'dynamic').length, 1);
+  assert.deepEqual(
+    [...new Set(discovered.filter((row) => row.kind === 'literal').map((row) => row.identity))].sort(),
+    [...EXPECTED_ROOTS.keys()].sort(),
+    'discovered production callsites must be exactly the catalogued named roots',
+  );
+  assert.deepEqual(
+    discovered.filter((row) => row.kind === 'dynamic').map((row) => `${row.port} ${row.path}`),
+    ['integrator apps/integrator/src/infra/db/operationalPoolReadiness.ts'],
+  );
 });

@@ -5,6 +5,18 @@
 -- Required psql variables: app_staff_login, app_patient_login,
 -- app_global_admin_login, integrator_login.
 
+-- Этот файл — авторитет стены рождения отношений: ниже он объявляет и её функцию, и её event
+-- trigger, и её реестр `app_control.relation_wall_registry`.  Собственные DDL этого файла судить
+-- ПРЕЖНЕЙ стеной нельзя.  На свежей базе стена приезжает из снимка схемы B
+-- (`generated/prod-to-target/schema-post.sql` несёт event trigger), а реестр приезжает ПУСТЫМ:
+-- pg_dump схемы не несёт строк.  Reconcile применяет этот файл ДО посева реестра
+-- (`generate-cli.mjs --relation-wall-registry` в `privileges/reconcile-access.mjs`), и тогда
+-- `ALTER TABLE app_ext.port_context_capabilities …` ниже отвергается стеной с 42501 «rejected
+-- undeclared table»: на пустом реестре объявлено ноль таблиц.  На DEV это не всплывало — там
+-- реестр заполнен прошлыми прогонами и переживает reconcile.  Снимаем стену на время СВОЕГО
+-- прохода и ставим обратно ниже, в той же транзакции: снаружи ни один DDL без неё не проходит.
+DROP EVENT TRIGGER IF EXISTS bcb_relation_birth_wall;
+
 CREATE SCHEMA IF NOT EXISTS app;
 CREATE SCHEMA IF NOT EXISTS app_ext;
 -- Declaration-owned wall metadata is a closed admin surface; the generated
@@ -141,6 +153,50 @@ REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM PUBLIC, :"app_staff_login", :"ap
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM app_pre_session, app_staff, app_patient, app_platform_settings,
   app_integrator_request, app_integrator_resolver, app_tenant_service, app_service, app_seam_password_auth_owner;
 
+-- An accepted context is addressable only by the transaction that installed it: every gate below
+-- matches `transaction_id = pg_current_xact_id()`, and `xid8` is never reused.  A row that outlives
+-- its own transaction is therefore unreadable garbage, and until 18.08 the seam kept that garbage on
+-- purpose: `install`/`clear` marked rows `cleared_at` and swept them 24 hours later with
+-- `DELETE ... WHERE cleared_at < clock_timestamp() - interval '24 hours'`.  Two consequences, both
+-- measured on `bersoncarebot_test`: the table held every context of the last 24 hours (120 616 rows /
+-- 71 MB after 110 minutes of traffic), and each of the three sweeps a single port transaction runs
+-- (clear on BEGIN, install, clear before COMMIT) was a full sequential scan of all of it — 21-24 ms
+-- of CPU each, ~889 scans and 105 million rows read for ONE load of `/app/doctor`.  No index fixes
+-- that sweep: `clock_timestamp()` is VOLATILE, so PostgreSQL 16 can only use it as a Filter, never as
+-- an Index Cond (proved on `idx_admin_audit_log_created` with `enable_seqscan=off`).
+--
+-- The row is removed instead of retained, and by construction rather than by a later sweep: this
+-- DEFERRABLE INITIALLY DEFERRED constraint trigger fires at COMMIT, inside the still-open
+-- transaction, so a committed `accepted_port_contexts` row cannot exist.  Nothing accumulates, so
+-- nothing has to be swept.  `clear_port_context` deliberately keeps writing `cleared_at` instead of
+-- deleting: the surviving row is what makes the primary key reject a second `install_port_context`
+-- in the same transaction ("port context already installed for transaction"), and that one-context-
+-- per-transaction rule is part of the wall.
+--
+-- SECURITY DEFINER is mandatory, not decoration: at COMMIT the effective role is whatever the
+-- session left behind — normally the bare login role, which holds no USAGE on `app_ext` at all.  The
+-- body must run as the table owner to reach the row.  A session that runs `SET CONSTRAINTS ALL
+-- IMMEDIATE` only deletes its own context early and loses every gate for the rest of the
+-- transaction: fail-closed, no way to keep a context alive past COMMIT.
+CREATE OR REPLACE FUNCTION app_ext.expire_accepted_port_context()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app_ext, pg_temp
+AS $$
+BEGIN
+  DELETE FROM app_ext.accepted_port_contexts
+   WHERE database_oid = NEW.database_oid
+     AND backend_pid = NEW.backend_pid
+     AND transaction_id = NEW.transaction_id;
+  RETURN NULL;
+END $$;
+ALTER FUNCTION app_ext.expire_accepted_port_context() OWNER TO app_seam_context_owner;
+DROP TRIGGER IF EXISTS accepted_port_contexts_expire_at_commit ON app_ext.accepted_port_contexts;
+CREATE CONSTRAINT TRIGGER accepted_port_contexts_expire_at_commit
+  AFTER INSERT ON app_ext.accepted_port_contexts
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION app_ext.expire_accepted_port_context();
+
 CREATE OR REPLACE FUNCTION app_control.enforce_relation_birth_wall()
 RETURNS event_trigger
 LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
@@ -266,6 +322,14 @@ BEGIN
             cap.purpose = 'patient.organization.resolve'
             AND cap.function_identity = pg_catalog.to_regprocedure('app.read_current_patient_active_organizations()')
           )
+          -- Первая публичная запись: посетитель ещё НЕ клиент этой клиники, поэтому заявить её он
+          -- не может — эту строку `org_enrollments` создаёт как раз этот корень. Требовать здесь
+          -- организацию значило бы замкнуть круг. Личность при этом обязательна (`actor_ref`,
+          -- `subject_ref` выше), и сам корень берёт человека из контекста, а не из аргумента.
+          OR (
+            cap.purpose = 'booking.public-client.enroll'
+            AND cap.function_identity = pg_catalog.to_regprocedure('app.enroll_current_patient_in_public_booking_clinic(uuid,text)')
+          )
         )
       ))
     ))
@@ -293,15 +357,15 @@ BEGIN
   END IF;
   -- Context capabilities carry only Variant-A opaque references.  The context
   -- seam deliberately does not read the physical map: the identity seam owns
-  -- that lookup and is the sole place Variant I will replace.
-  IF p_claims.actor_ref IS NOT NULL THEN
-    PERFORM app_ext.resolve_variant_a_physical(p_claims.actor_ref);
-  END IF;
-  IF p_claims.subject_ref IS NOT NULL THEN
-    PERFORM app_ext.resolve_variant_a_physical(p_claims.subject_ref);
-  END IF;
+  -- that lookup and is the sole place Variant I will replace.  That same seam
+  -- now also answers the question this function used to skip entirely — whether
+  -- the claimed tenant belongs to the claimed identity.  Nothing physical comes
+  -- back across the boundary: either it returns, or it raises 42501 and no
+  -- context is ever inserted.  Once per transaction, not per row.
+  PERFORM app_ext.assert_port_context_claim(
+    p_claims.context_class::text, p_claims.target_role, p_claims.actor_ref,
+    p_claims.subject_ref, p_claims.organization_id, p_claims.integrator_user_id);
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
-  DELETE FROM app_ext.accepted_port_contexts WHERE cleared_at < clock_timestamp() - interval '24 hours';
   INSERT INTO app_ext.accepted_port_contexts (database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role, context_class, purpose, function_identity, typed_args_hash, actor_ref, subject_ref, organization_id, integrator_user_id, request_id)
   VALUES (database_id, pg_backend_pid(), pg_current_xact_id(), cap.capability_id, session_user, cap.port, p_claims.target_role, p_claims.context_class, p_claims.purpose, p_claims.function_identity, p_claims.typed_args_hash, p_claims.actor_ref, p_claims.subject_ref, p_claims.organization_id, p_claims.integrator_user_id, p_claims.request_id);
 EXCEPTION WHEN unique_violation THEN RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'port context already installed for transaction';
@@ -314,14 +378,54 @@ BEGIN
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
   UPDATE app_ext.accepted_port_contexts SET cleared_at = clock_timestamp()
     WHERE database_oid = database_id AND backend_pid = pg_backend_pid() AND transaction_id = pg_current_xact_id() AND cleared_at IS NULL;
-  DELETE FROM app_ext.accepted_port_contexts WHERE cleared_at < clock_timestamp() - interval '24 hours';
+END $$;
+
+-- Одна поездка в базу вместо четырёх на установку контекста.  Обёртка НЕ меняет контракт:
+-- те же операторы, в том же порядке, в той же транзакции — `clear`, `install`, затем переход в
+-- целевую роль.  Экономится только сеть: девять round-trip'ов на один полезный запрос
+-- (`BEGIN · RESET ROLE · clear · install · SET LOCAL ROLE · <запрос> · RESET ROLE · clear · COMMIT`)
+-- превращаются в четыре.
+--
+-- SECURITY INVOKER здесь ОБЯЗАТЕЛЕН и является всей причиной, по которой обёртка отдельная, а
+-- `SET LOCAL ROLE` не внесён внутрь `app.install_port_context`: PostgreSQL 16 запрещает менять
+-- параметр `role` внутри SECURITY DEFINER-функции («cannot set parameter "role" within
+-- security-definer function»).  В SECURITY INVOKER-теле смена роли разрешена, выполняется правами
+-- вызывающего логина — ровно та же проверка членства, что и у прежнего `SET LOCAL ROLE` из порта, —
+-- и, будучи LOCAL, переживает возврат из функции и живёт до конца транзакции (проверено живым
+-- опытом на `bcb_webapp_dev`: после вызова `current_user` = целевая роль, RLS-политики применяются).
+--
+-- Роль берётся из `p_claims.target_role`, а `install_port_context` строкой выше уже отверг claims,
+-- чей `target_role` расходится с capability.  Поэтому принять можно только ту роль, которую
+-- capability разрешает, а `format('%I')` не даёт собрать из имени роли второй оператор.
+CREATE OR REPLACE FUNCTION app.begin_port_context(p_capability_id uuid, p_claims app.port_context_claims)
+RETURNS void LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, pg_temp AS $$
+BEGIN
+  PERFORM app.clear_port_context();
+  PERFORM app.install_port_context(p_capability_id, p_claims);
+  EXECUTE pg_catalog.format('SET LOCAL ROLE %I', p_claims.target_role);
 END $$;
 
 -- p_effective_role is the querying runtime role in RLS, or the exact definer
 -- owner in a root.  target_role stays the installed runtime target: they are
 -- intentionally different on a SECURITY DEFINER path.
+--
+-- This gate deliberately does NOT re-validate the SHAPE of p_purpose.  The
+-- value never arrives here from a request: every one of the ~1100 call sites
+-- passes a literal written into the policy or definer body at DDL time (the
+-- single exception picks between two such literals with CASE).  The value that
+-- *does* enter from outside is `claims.purpose` at install time, and it is
+-- checked exactly where it enters, twice: `app.install_port_context` rejects
+-- `p_claims.purpose !~ '^[a-z][a-z0-9._:-]{0,127}$'`, and
+-- `app_ext.port_context_capabilities.purpose` carries the same regex as a CHECK
+-- constraint, so a row with a malformed purpose cannot exist to be matched.
+-- Re-running the regex here therefore validated a constant on every gate
+-- evaluation, and it cost ~5-7 us of the call's ~22 us on `bcb_webapp_dev` --
+-- a quarter of the most expensive thing on the RLS read path.  Removing it does
+-- not open a door: a caller that hands this function a malformed purpose simply
+-- finds no matching accepted row below and still gets 42501, and a NULL purpose
+-- likewise fails the equality and still gets 42501.  Fail-closed either way.
 CREATE OR REPLACE FUNCTION app.require_accepted_context(p_effective_role name, p_target_role name, p_context_class app.port_context_class, p_purpose text, p_typed_args_hash bytea, p_function_identity regprocedure)
-RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE database_id oid;
 BEGIN
   IF p_effective_role IS NULL OR p_target_role IS NULL
@@ -333,7 +437,7 @@ BEGIN
            AND pg_catalog.pg_get_userbyid(p.proowner) = p_effective_role
       ))
     )
-    OR p_purpose !~ '^[a-z][a-z0-9._:-]{0,127}$' OR octet_length(p_typed_args_hash) <> 32 THEN
+    OR octet_length(p_typed_args_hash) <> 32 THEN
     RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'accepted port context required';
   END IF;
   SELECT oid INTO database_id FROM pg_database WHERE datname = current_database();
@@ -401,7 +505,7 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION app.current_org_id()
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER STABLE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE value uuid;
 BEGIN
   SELECT organization_id INTO value FROM app_ext.accepted_port_contexts
@@ -437,23 +541,50 @@ BEGIN SELECT integrator_user_id INTO value FROM app_ext.accepted_port_contexts W
 
 -- The identity owner alone holds physical→opaque state.  No port context row
 -- contains a physical platform_users id.
+--
+-- Read first, insert only when the row is genuinely missing.  The previous shape
+-- was a bare upsert ending in `ON CONFLICT (physical_user_id) DO UPDATE SET
+-- physical_user_id = EXCLUDED.physical_user_id` -- an assignment of a column to
+-- its own value, written only to make RETURNING produce a row on the conflict
+-- path.  PostgreSQL has no no-op UPDATE: it writes a new row version and its WAL
+-- and leaves the old version as garbage, so every identity resolution of an
+-- ALREADY-KNOWN user dirtied the table.  Measured on `bcb_webapp_dev`: 142 778
+-- updates and 589 autovacuum cycles over a table holding 13 live rows.
+--
+-- The map is append-only and `opaque_ref` is a pure function of
+-- `physical_user_id`, so an existing row never needs rewriting and the common
+-- path is a single primary-key lookup with no write at all.  The insert keeps
+-- `ON CONFLICT DO NOTHING` for the concurrent-first-resolution race; because
+-- DO NOTHING returns no row, the losing session re-reads.  That re-read can miss
+-- a row the winner has inserted but not yet committed, which is why the read is
+-- a bounded retry rather than a single attempt -- the winner's commit makes the
+-- row visible and the next pass finds it.  The return value is unchanged.
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-DECLARE opaque uuid;
+DECLARE opaque uuid; attempt integer;
 BEGIN
   -- The exact public identity root has already checked function/purpose/args;
   -- this private resolver remains executable only by its identity owner.
-  INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
-  VALUES (p_platform_user_id, (
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),9,4) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),13,4) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
-    substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
-  )::uuid)
-  ON CONFLICT (physical_user_id) DO UPDATE SET physical_user_id = EXCLUDED.physical_user_id
-  RETURNING opaque_ref INTO opaque;
-  RETURN opaque;
+  FOR attempt IN 1..5 LOOP
+    SELECT opaque_ref INTO opaque
+      FROM app_ext.variant_a_identity_refs
+     WHERE physical_user_id = p_platform_user_id;
+    IF opaque IS NOT NULL THEN RETURN opaque; END IF;
+
+    INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
+    VALUES (p_platform_user_id, (
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),9,4) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),13,4) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
+      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
+    )::uuid)
+    ON CONFLICT (physical_user_id) DO NOTHING
+    RETURNING opaque_ref INTO opaque;
+    IF opaque IS NOT NULL THEN RETURN opaque; END IF;
+  END LOOP;
+  RAISE EXCEPTION USING ERRCODE = '40001',
+    MESSAGE = 'variant-a identity reference could not be resolved';
 END $$;
 
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
@@ -463,6 +594,172 @@ BEGIN
   SELECT physical_user_id INTO physical_id FROM app_ext.variant_a_identity_refs WHERE opaque_ref = p_opaque_ref;
   IF physical_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted opaque identity context required'; END IF;
   RETURN physical_id;
+END $$;
+
+-- Заявку на арендатора проверяет БАЗА, а не приложение.  До 19.08 `install_port_context` разбирал
+-- кортеж возможностей досконально, а про организацию спрашивал лишь `organization_id IS NOT NULL`:
+-- кто угодно, кто мог выполнить SQL под рабочим логином, называл себе любую клинику и получал её
+-- (замер на dev: чужая организация — установка принята, `current_org_id()` вернула чужую, строки
+-- видны).  Вся конструкция строилась ровно против этого, поэтому проверка стоит ВНУТРИ установки:
+-- отказ 42501 до того, как контекст появился, а не тихий ноль строк потом.
+--
+-- ПОЧЕМУ ВЛАДЕЛЕЦ ИМЕННО `app_seam_identity_lookup_owner`, А НЕ `app_seam_context_owner`.
+-- Порядок: контекст ЕЩЁ НЕ УСТАНОВЛЕН, поэтому читать членство под политиками, которым нужен
+-- контекст, невозможно по построению.  У этого шва такой зависимости нет:
+--   * `be_organization_members`, `org_enrollments`, `platform_users` принадлежат `app_object_owner`
+--     и стоят под FORCE RLS, поэтому политики применяются и к владельцу функции;
+--   * PERMISSIVE `rev10_seam_business_*` перечисляет `app_seam_identity_lookup_owner` поимённо —
+--     строки видны все;
+--   * RESTRICTIVE `rev10_named_root_owner_gate_*` тоже перечисляет его, и его условие — чистая
+--     проверка `CURRENT_USER`, без обращения к контексту;
+--   * RESTRICTIVE `rev10_context_gate_*` — единственная политика, которой нужен принятый контекст, —
+--     навешена на роли {app_staff, app_patient, app_platform_settings, app_tenant_service} и к
+--     швам-владельцам НЕ применяется.
+-- Значит чтение идёт правами владельца функции и НЕ требует того контекста, который мы только
+-- собираемся установить.  Никаких новых прав при этом не выдаётся: ровно эти три колонки обеих
+-- таблиц членства и `platform_users(id, role, merged_into_id)` у этого владельца уже есть под
+-- другие его функции — поэтому проверка помещена сюда, а не в новую роль со своими грантами.
+--
+-- Разрешение opaque→physical живёт здесь же, а не в шве контекста: шов контекста намеренно не
+-- читает физическую карту личностей.  Раньше `install_port_context` дважды звал
+-- `resolve_variant_a_physical` вхолостую (PERFORM ради проверки существования) — теперь тот же
+-- вызов делается один раз и его результат сразу используется для проверки заявки.
+-- Класс приходит `text`, а не `app.port_context_class`, сознательно: тип принадлежит шву контекста
+-- и выдан ему одному, а протаскивать сюда ещё и грант на тип ради имени класса — лишнее расширение
+-- поверхности.  Вызывающий приводит значение явно.
+CREATE OR REPLACE FUNCTION app_ext.assert_port_context_claim(
+  p_context_class text,
+  p_target_role name,
+  p_actor_ref uuid,
+  p_subject_ref uuid,
+  p_organization_id uuid,
+  p_integrator_user_id bigint
+)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
+SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+DECLARE actor_id uuid; subject_id uuid;
+BEGIN
+  IF p_actor_ref IS NOT NULL THEN actor_id := app_ext.resolve_variant_a_physical(p_actor_ref); END IF;
+  IF p_subject_ref IS NOT NULL THEN subject_id := app_ext.resolve_variant_a_physical(p_subject_ref); END IF;
+
+  -- staff (app_staff, app_clinic_billing): актор обязан иметь ДЕЙСТВУЮЩЕЕ членство именно в
+  -- заявленной организации.  `status='active'` — не украшение: на dev тот же человек числится
+  -- `disabled` в соседней клинике, и до проверки это его туда пускало.
+  IF p_context_class = 'staff' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.be_organization_members member
+       WHERE member.platform_user_id = actor_id
+         AND member.organization_id = p_organization_id
+         AND member.status = 'active'
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not an active membership of the actor';
+    END IF;
+
+  -- patient: стена пациента — ТОЛЬКО свои данные, поэтому, во-первых, актор и субъект обязаны быть
+  -- одним человеком (иначе «свои данные» определяет заявка, а не личность), во-вторых, заявленная
+  -- организация обязана быть той, чьим КЛИЕНТОМ он числится.
+  --
+  -- Определение клиента — владельца, дословно (19.08): «ДЕЙСТВУЮЩАЯ ЗАПИСЬ — НЕ ОПРЕДЕЛЯЕТ ЧТО ЭТО
+  -- КЛИЕНТ. КЛИЕНТ — ТОТ У КОГО ЕСТЬ ВИЗИТ ИЛИ НАЗНАЧЕНА ПРОГРАММА ИЛИ ЕСТЬ ПРИГЛАШЕНИЕ ИЛИ
+  -- ПЕРЕПИСКА ИЛИ ЗАПИСЬ — короче есть аккаунт и какой-то контекст от этой клиники/специалиста.
+  -- Даже просто созданный доктором клиент — уже клиент. Без записей и чатов и визитов.»
+  --
+  -- Прежняя редакция требовала `status='active'` и этим ОТРЕЗАЛА настоящих клиентов: карточка,
+  -- заведённая врачом, и человек, которому врач поставил запись, получают зачисление в статусе
+  -- `invited` (`ensureInvitedOrganizationClientRelationship`,
+  -- apps/webapp/src/infra/repos/pgPatientOrganizationEnrollment.ts:66) — `active` ставится только
+  -- после активации портала по приглашению.  Замерено на dev до правки: карточка, заведённая
+  -- врачом, получала 42501 на своей же клинике.
+  --
+  -- Проверяется СУЩЕСТВОВАНИЕ строки `org_enrollments`, без фильтра по статусу.  Эта строка и есть
+  -- единственный канонический список клиентов клиники: каждый путь, которым человек становится
+  -- клиентом, заводит её (карточка врача, запись, визит, приглашение — все через один и тот же
+  -- `ensureInvitedOrganizationClientRelationship`), и у приложения «это наш клиент» тоже выражено
+  -- строкой, а не её статусом (`hasSchedulableClientRelationship`).  Статус — стадия жизни
+  -- отношения, и её место — в политиках RLS, которые и дальше требуют `active`; здесь же вопрос
+  -- ровно один: «есть ли у этого человека вообще отношение с этой клиникой».  Поэтому ни выдуманная
+  -- организация, ни чужая клиника мимо не проходят.
+  --
+  -- Организации может не быть вовсе: `relation` в спящем режиме и `patient.organization.resolve`
+  -- работают до того, как организация выбрана, и матрица классов выше это уже разрешила точечно.
+  -- Проверять там нечего — зачисления ещё нет; личность при этом всё равно разрешена выше.
+  ELSIF p_context_class = 'patient' THEN
+    IF actor_id IS DISTINCT FROM subject_id THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'patient port context actor and subject must be the same identity';
+    END IF;
+    IF p_organization_id IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.org_enrollments enrollment
+       WHERE enrollment.platform_user_id = subject_id
+         AND enrollment.organization_id = p_organization_id
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not a client relationship of the patient';
+    END IF;
+
+  -- platform: организации у класса нет по построению (матрица выше требует NULL), поэтому
+  -- проверять надо не арендатора, а саму заявку на класс: актор обязан быть НАСТОЯЩИМ
+  -- администратором платформы.  Источник роли — `platform_users.role='admin'`, ровно тот, который
+  -- ставит закреплённая личность владельца (deploy/postgres/platform-owner-identity-pin.sql);
+  -- слитая учётка исключается.  `is_archived` намеренно НЕ читается: этой колонки у шва нет, а
+  -- добавлять грант ради неё — расширение прав; `role`+`merged_into_id` достаточно.
+  ELSIF p_context_class = 'platform' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.platform_users platform_user
+       WHERE platform_user.id = actor_id
+         AND platform_user.role = 'admin'
+         AND platform_user.merged_into_id IS NULL
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'platform port context actor is not a platform administrator';
+    END IF;
+
+  -- integrator: у `app_integrator_request` личность — числовой `integrator_user_id`, и связка
+  -- «этот пользователь ↔ эта организация» уже описана в базе — в
+  -- `app.resolve_active_organization_for_integrator_user_id`, которым порт и выбирает организацию.
+  -- Здесь повторяется ЕГО предикат (действующее зачисление ИЛИ действующее членство), чтобы
+  -- принять можно было только то, что резолвер и мог вернуть.  У `app_integrator_resolver`
+  -- личности нет вовсе: это и есть тот вызов, который личность ещё только разрешает; матрица
+  -- классов выше уже требует у него пустые actor/subject/organization/integrator_user_id, так что
+  -- заявки на арендатора он не несёт и подделать ею нечего.
+  ELSIF p_context_class = 'integrator' AND p_target_role = 'app_integrator_request' THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.platform_users platform_user
+       WHERE platform_user.integrator_user_id = p_integrator_user_id
+         AND (EXISTS (
+               SELECT 1 FROM public.org_enrollments enrollment
+                WHERE enrollment.platform_user_id = platform_user.id
+                  AND enrollment.organization_id = p_organization_id
+                  AND enrollment.status = 'active')
+           OR EXISTS (
+               SELECT 1 FROM public.be_organization_members member
+                WHERE member.platform_user_id = platform_user.id
+                  AND member.organization_id = p_organization_id
+                  AND member.status = 'active'))
+    ) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not active for the integrator user';
+    END IF;
+
+  -- tenant_service и service: актора нет НИ ОДНОГО — это классы доверенного сервера (фоновые
+  -- рассылки, планировщик, обслуживание очереди), и связать заявку не с кем.  Что здесь всё-таки
+  -- проверяемо — что названная организация СУЩЕСТВУЕТ: выдуманный uuid отвергается, а не даёт
+  -- тихий ноль.  Существование берётся по графу арендатора (есть хоть один участник или хоть одно
+  -- зачисление), потому что `be_organizations` этому шву не выдана и выдавать её ради проверки —
+  -- расширение прав.  Честная граница: подмена ОДНОЙ РЕАЛЬНОЙ организации на ДРУГУЮ РЕАЛЬНУЮ этими
+  -- двумя классами базой не ловится и пойматься не может, пока класс не несёт личности.
+  ELSIF p_context_class IN ('tenant_service', 'service') AND p_organization_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM public.be_organization_members member
+                    WHERE member.organization_id = p_organization_id)
+      AND NOT EXISTS (SELECT 1 FROM public.org_enrollments enrollment
+                       WHERE enrollment.organization_id = p_organization_id) THEN
+      RAISE EXCEPTION USING ERRCODE = '42501',
+        MESSAGE = 'port context organization claim is not a known organization';
+    END IF;
+  END IF;
+  -- pre_session: матрица классов выше уже требует пустые actor/subject/organization — заявки на
+  -- арендатора у класса нет, проверять нечего.
 END $$;
 
 -- Exact physical-to-opaque handoff used by each authenticated human pool.
@@ -485,6 +782,7 @@ END $$;
 
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.clear_port_context() OWNER TO app_seam_context_owner;
+ALTER FUNCTION app.begin_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_attested_context_for_roles(name,name[]) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.require_platform_principal() OWNER TO app_seam_context_owner;
@@ -494,13 +792,15 @@ ALTER FUNCTION app.current_patient_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_integrator_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid,app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
-GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner;
-GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner, app_seam_phone_binding_owner;
+GRANT EXECUTE ON FUNCTION app.begin_port_context(uuid,app.port_context_claims) TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
+GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_payment_webhook_owner;
+GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner, app_seam_phone_binding_owner, app_seam_payment_webhook_owner;
 REVOKE ALL ON FUNCTION app.require_attested_context_for_roles(name,name[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.require_attested_context_for_roles(name,name[]) TO app_seam_context_owner;
 GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_platform_settings;
@@ -511,4 +811,6 @@ GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_req
 GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid) TO app_pre_session, app_platform_admin;
 REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid) FROM app_pre_session, app_seam_password_auth_owner;
 GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid) TO app_seam_context_owner;
+REVOKE ALL ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) TO app_seam_context_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA app FROM PUBLIC, :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";

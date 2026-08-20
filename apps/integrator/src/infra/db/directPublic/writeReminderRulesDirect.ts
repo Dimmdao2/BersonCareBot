@@ -1,10 +1,8 @@
 /**
  * Track D — D5: reminder rules direct-public write.
  *
- * ONE bounded integrator transaction writes directly to `public.reminder_rules`, replacing the
- * `reminder.rule.upserted` HTTP projection fanout (`writePort.ts`'s `reminders.rule.upsert` case →
- * `tryEmitWebappProjectionThenEnqueue` → webapp `handleIntegratorEvent` →
- * `reminderProjection.upsertRuleFromProjection`, `apps/webapp/src/infra/repos/pgReminderProjection.ts`).
+ * ONE bounded integrator transaction writes directly to `public.reminder_rules`, replacing the retired
+ * `reminder.rule.upserted` HTTP projection path.
  *
  * TWO gaps found and fixed while consolidating (same "found + fixed a latent bug in the retired path"
  * pattern as the neighboring direct-public writers):
@@ -30,16 +28,14 @@
  * Introducing a NEW hard "no write" case here would be a behavioural REGRESSION, not a hardening. So this
  * module has NO
  * fail-closed-no-write branch of its own: platform-user-unresolved, ambiguous-platform-user, and
- * org-unresolved/ambiguous ALL throw and are treated by the caller (`writePort.ts`) as "fall back to the
- * durable outbox" (`enqueueProjectionEvent` with the SAME narrow-field `reminder.rule.upserted` payload
- * shape the retired path used — still accepted by the still-present webapp consumer, teardown is D10),
- * not as a silent drop. This keeps the write at-least-once in every case, same as before D5, while the
- * HAPPY path gets full field parity + a correct organization_id.
+ * org-unresolved/ambiguous ALL throw and are treated by the caller (`writePort.ts`) as a durable direct-write
+ * retry, not as a silent drop. This keeps the write at-least-once in every case, same as before D5, while
+ * the HAPPY path gets full field parity + a correct organization_id.
  *
- * PLATFORM-USER RESOLUTION: integrator_user_id-only (no channel/phone args), matching the CURRENTLY-LIVE
- * projection's own resolution (`resolvePlatformUserId` → `findCanonicalUserIdByIntegratorId`, integrator-
- * space id only) — `collectPlatformUserCandidates` is called with `channelCode: ''`, `externalId: ''`;
- * the channel-binding branch is a no-op on empty args.
+ * PLATFORM-USER RESOLUTION: integrator_user_id-only (no channel/phone args), matching the retired path's
+ * resolution (`resolvePlatformUserId` → `findCanonicalUserIdByIntegratorId`, integrator-space id only) —
+ * `collectPlatformUserCandidates` is called with `channelCode: ''`, `externalId: ''`; the channel-binding
+ * branch is a no-op on empty args.
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).
@@ -144,7 +140,7 @@ export async function upsertReminderRuleDirect(
         });
       }
       // Fail-closed via the exact-org resolver on 0/2+ active enrollments. The caller
-      // treats this as a durable-outbox fallback when no pre-routing result was available.
+      // treats this as a durable direct-write retry when no pre-routing result was available.
       organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
     }
     const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;

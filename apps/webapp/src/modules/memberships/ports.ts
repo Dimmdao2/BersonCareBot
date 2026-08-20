@@ -42,6 +42,18 @@ export type CreateManualPatientPackageInput = {
 };
 
 export type MembershipsPort = {
+  /** Exact current-patient confirmation snapshot; absent on staff/in-memory ports. */
+  listCurrentPatientBookingPackages?(
+    organizationId: string,
+    serviceId: string,
+  ): Promise<PatientPackageListItem[]>;
+  reserveCurrentPatientBookingPackage?(input: {
+    organizationId: string;
+    patientPackageId: string;
+    serviceId: string;
+    appointmentId: string;
+    platformUserId: string;
+  }): Promise<PackageUsageRecord>;
   listCatalogPackages(
     organizationId: string,
     activeOnly?: boolean,

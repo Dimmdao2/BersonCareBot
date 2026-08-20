@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback, Suspense, use, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
@@ -19,7 +20,11 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
+  doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { cn } from '@/lib/utils';
 import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -103,6 +108,8 @@ type Props = {
   embeddedProgramContent?: ReactNode;
   /** Whether the viewer is an admin — gates the «Администрирование» section in PatientTabAccount. */
   isAdmin?: boolean;
+  /** Sanitized return href to the clients list — «К клиентам» link in the page header. */
+  patientListHref: string;
 };
 
 type TabPanelsProps = Props & {
@@ -140,6 +147,53 @@ const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
   { id: 'account', label: 'Учётка' },
 ];
 
+/**
+ * Вкладки карточки пациента в слоте `tabs` `DoctorPageHeader` — тот же паттерн, что
+ * Расписание/Аналитика/Коммуникации (`doctorSectionTabClass`). Заменяет прежнюю внутреннюю
+ * полосу вкладок внутри identity-карточки (owner correction 2026-08-20).
+ */
+function PatientCardTabsNav({
+  activeTab,
+  onTabClick,
+}: {
+  activeTab: TabId;
+  onTabClick: (tab: TabId) => void;
+}) {
+  return (
+    <nav
+      id="doctor-patient-card-tabs"
+      aria-label="Разделы карточки пациента"
+      className="flex gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {PATIENT_TABS.map((tab) => {
+        const active = tab.id === activeTab;
+        return (
+          <Button
+            key={tab.id}
+            type="button"
+            variant="ghost"
+            aria-current={active ? 'page' : undefined}
+            onClick={() => onTabClick(tab.id)}
+            className={doctorSectionTabClass(active)}
+          >
+            {tab.label}
+            {tab.badge != null && (
+              <span
+                className={cn(
+                  'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
+                  active ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground',
+                )}
+              >
+                {tab.badge}
+              </span>
+            )}
+          </Button>
+        );
+      })}
+    </nav>
+  );
+}
+
 /** Format ISO date yyyy-mm-dd → DD.MM.YYYY */
 function fmtBirthDate(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -169,6 +223,7 @@ export function PatientCardClient({
   visitDate,
   embeddedProgramContent,
   isAdmin = false,
+  patientListHref,
 }: Props) {
   const header = shellMeta.cardHeader;
   const resolvedInitialTab: TabId =
@@ -235,9 +290,28 @@ export function PatientCardClient({
 
   if (!header) {
     return (
-      <div className={doctorSectionCardClass}>
-        <p className="text-sm text-muted-foreground">Пациент не найден.</p>
-      </div>
+      <>
+        <DoctorPageHeader
+          id="doctor-patient-card-header"
+          title="Карточка пациента"
+          tabs={
+            <Link
+              href={patientListHref}
+              className={cn(
+                buttonVariants({ size: 'sm', variant: 'outline' }),
+                'h-8 rounded-[var(--doctor-control-radius,24px)] px-3',
+              )}
+            >
+              К клиентам
+            </Link>
+          }
+        />
+        <section className={doctorPageStackClass}>
+          <div className={doctorSectionCardClass}>
+            <p className="text-sm text-muted-foreground">Пациент не найден.</p>
+          </div>
+        </section>
+      </>
     );
   }
 
@@ -314,16 +388,36 @@ export function PatientCardClient({
   const chatButtonHighlighted = hasTelegram || hasMax || hasConversationSignal;
 
   return (
-    <div className="flex flex-col gap-3">
+    <>
+      <DoctorPageHeader
+        id="doctor-patient-card-header"
+        title="Карточка пациента"
+        tabs={
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href={patientListHref}
+              className={cn(
+                buttonVariants({ size: 'sm', variant: 'outline' }),
+                'h-8 shrink-0 rounded-[var(--doctor-control-radius,24px)] px-3',
+              )}
+            >
+              К клиентам
+            </Link>
+            <PatientCardTabsNav activeTab={activeTab} onTabClick={selectTab} />
+          </div>
+        }
+      />
+      <section className={cn(doctorPageStackClass, 'flex flex-col gap-3')}>
       {/* ================================================================
           IDENTITY HEADER CARD — READ ONLY
           Displaying patient identity; all edits live in «Учётка» tab.
+          Tab navigation lives in DoctorPageHeader's tabs slot above.
       ================================================================ */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">
         {/* Main header body */}
         <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
           {/* LEFT: identity */}
-          <div className="flex-1 min-w-[280px] flex flex-col gap-0">
+          <div className="flex-1 min-w-0 flex flex-col gap-0">
             {/* FIO (primary) + edit button + support chip */}
             <div className="flex items-start gap-2 flex-wrap">
               <div className="flex flex-col gap-0.5 flex-1 min-w-0">
@@ -551,43 +645,6 @@ export function PatientCardClient({
             />
           </div>
         </div>
-
-        {/* ================================================================
-            TAB STRIP (.ptabs equivalent)
-            6 tabs: Обзор · Карта · Программа · Записи · Файлы · Учётка
-            Client-side switching via useState (no server re-fetch)
-        ================================================================ */}
-        <div className="px-4 py-2 border-t border-border/60 bg-muted/20">
-          <div className="flex gap-0.5 flex-wrap">
-            {PATIENT_TABS.map((tab) => (
-              <Button
-                key={tab.id}
-                variant="ghost"
-                onClick={() => selectTab(tab.id)}
-                className={cn(
-                  'h-auto gap-1 rounded-md px-3 py-1 text-sm font-medium',
-                  activeTab === tab.id
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
-                )}
-              >
-                {tab.label}
-                {tab.badge != null && (
-                  <span
-                    className={cn(
-                      'inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold tabular-nums',
-                      activeTab === tab.id
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {tab.badge}
-                  </span>
-                )}
-              </Button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* TAB PANELS — mount on first visit; tab data streams in via Suspense. */}
@@ -600,6 +657,7 @@ export function PatientCardClient({
           visitDate={visitDate}
           embeddedProgramContent={embeddedProgramContent}
           isAdmin={isAdmin}
+          patientListHref={patientListHref}
           activeTab={activeTab}
           visitedTabs={visitedTabs}
           selectTab={selectTab}
@@ -625,7 +683,8 @@ export function PatientCardClient({
           header={header}
         />
       </Suspense>
-    </div>
+      </section>
+    </>
   );
 }
 

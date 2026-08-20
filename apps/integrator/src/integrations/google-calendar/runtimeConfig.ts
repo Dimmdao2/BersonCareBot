@@ -12,6 +12,7 @@ import {
   listGoogleCalendarProbeOrganizationIdsViaCapability,
 } from '../../infra/db/publicSystemSettings.js';
 import { isPlatformIntegrationAvailable } from '../../infra/db/platformIntegrationAvailability.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 
 /**
  * Platform-wide Google OAuth identity. Goes through the calendar capability, not a settings-table
@@ -31,38 +32,60 @@ async function readGlobalGoogleSetting(
 /**
  * Clinic-owned connection values are exact organization rows. The platform OAuth identity
  * is global, but every value remains canonical DB state; unavailable authority fails closed.
+ *
+ * The whole read runs in THIS clinic's context. `app.read_integrator_google_calendar_setting`
+ * is a tenant capability — the clinic's calendar id and refresh token are the clinic's, and the
+ * root matches `organization_id` exactly. The operator probe reaches this same door once per
+ * candidate clinic and used to arrive under the platform-wide scheduler role, where the root is
+ * not executable; the `catch` below then reported every clinic as "not configured". Selecting the
+ * organization context here, at the single door to the capability, is the same rule the delivery
+ * capability follows in `../../infra/db/platformIntegrationAvailability.ts`.
  */
 async function readConfigFromDb(organizationId: string): Promise<GoogleCalendarConfig> {
   try {
     const db = createDbPort();
-    const [
-      enabledRaw,
-      clientId,
-      clientSecret,
-      redirectUri,
-      calendarId,
-      refreshToken,
-      platformAvailable,
-    ] = await Promise.all([
-      fetchIntegratorGoogleCalendarOrganizationSettingString(db, 'google_calendar_enabled', organizationId),
-      readGlobalGoogleSetting('google_client_id'),
-      readGlobalGoogleSetting('google_client_secret'),
-      readGlobalGoogleSetting('google_redirect_uri'),
-      fetchIntegratorGoogleCalendarOrganizationSettingString(db, 'google_calendar_id', organizationId),
-      fetchIntegratorGoogleCalendarOrganizationSettingString(db, 'google_refresh_token', organizationId),
-      isPlatformIntegrationAvailable(db, 'google_calendar'),
-    ]);
-    return {
-      enabled:
-        platformAvailable &&
-        (enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : false),
-      clientId: clientId ?? '',
-      clientSecret: clientSecret ?? '',
-      redirectUri: redirectUri ?? '',
-      // A clinic connection must never inherit either value from another clinic.
-      calendarId: calendarId ?? '',
-      refreshToken: refreshToken ?? '',
-    };
+    return await runWithOrganizationPrincipal(organizationId, async () => {
+      const [
+        enabledRaw,
+        clientId,
+        clientSecret,
+        redirectUri,
+        calendarId,
+        refreshToken,
+        platformAvailable,
+      ] = await Promise.all([
+        fetchIntegratorGoogleCalendarOrganizationSettingString(
+          db,
+          'google_calendar_enabled',
+          organizationId,
+        ),
+        readGlobalGoogleSetting('google_client_id'),
+        readGlobalGoogleSetting('google_client_secret'),
+        readGlobalGoogleSetting('google_redirect_uri'),
+        fetchIntegratorGoogleCalendarOrganizationSettingString(
+          db,
+          'google_calendar_id',
+          organizationId,
+        ),
+        fetchIntegratorGoogleCalendarOrganizationSettingString(
+          db,
+          'google_refresh_token',
+          organizationId,
+        ),
+        isPlatformIntegrationAvailable(db, 'google_calendar'),
+      ]);
+      return {
+        enabled:
+          platformAvailable &&
+          (enabledRaw !== null ? enabledRaw === 'true' || enabledRaw === '1' : false),
+        clientId: clientId ?? '',
+        clientSecret: clientSecret ?? '',
+        redirectUri: redirectUri ?? '',
+        // A clinic connection must never inherit either value from another clinic.
+        calendarId: calendarId ?? '',
+        refreshToken: refreshToken ?? '',
+      };
+    });
   } catch (err) {
     logger.warn({ err }, '[google-calendar] failed to read clinic config from DB');
     return {

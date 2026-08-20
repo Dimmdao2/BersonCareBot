@@ -70,10 +70,20 @@ material="$repo_root/deploy/host/provision-dev-test-postgres-mtls-material.sh"
 bootstrap="$repo_root/deploy/host/bootstrap-c4-test-env.mjs"
 apply_hba="$repo_root/deploy/host/apply-postgres-mtls.sh"
 probe_source="$repo_root/deploy/host/probe-dev-test-postgres-mtls.mjs"
-cutover="$repo_root/deploy/postgres/privileges/initial-cutover.mjs"
+# 2026-08-20 restore: privileges/initial-cutover.mjs (this script's original target-install primitive)
+# was deleted by 9ebea6963 alongside its own dependencies (post-zero-roots.sql, generated/zero-state.*.sql,
+# and the --zero-state*/--target-login-cleanup generate-cli.mjs flags it called) — none of that exists in
+# today's tree, and restoring it verbatim would not run (unknown flags) even if the file came back. The
+# database is already at zero access by construction before this point: restore-test-db-from-dump.sh does
+# dropdb+createdb+`pg_restore --no-acl`, so there is no privilege state left to wipe. What today's tree
+# actually uses to take an already-zeroed target from "roles exist, nothing granted" to "declaration-owned
+# access installed" is deploy-test.sh's own live sequence (deploy/host/deploy-test.sh:226-229,278-287):
+# generate-cli.mjs --shared-role-baseline, then reconcile-access.mjs. Reused here instead of reinventing it.
+generator="$repo_root/deploy/postgres/privileges/generate-cli.mjs"
+reconcile="$repo_root/deploy/postgres/privileges/reconcile-access.mjs"
 sequence="$repo_root/deploy/host/port-context-cutover-sequence.sh"
 journal=/var/log/postgresql/postgresql-16-main.log
-for path in "$material" "$bootstrap" "$apply_hba" "$probe_source" "$cutover" "$sequence" "$api_env" "$webapp_env"; do
+for path in "$material" "$bootstrap" "$apply_hba" "$probe_source" "$generator" "$reconcile" "$sequence" "$api_env" "$webapp_env"; do
   [[ -f "$path" && ! -L "$path" ]] || die "missing regular artifact $path"
 done
 [[ -f "$journal" && -r "$journal" ]] || die "unreadable PostgreSQL journal $journal"
@@ -163,10 +173,19 @@ port_context_cutover_close_target() {
      WHERE datname='$database' AND pid<>pg_backend_pid();" >/dev/null
 }
 port_context_cutover_install_target() {
-  node --experimental-strip-types "$cutover" \
-    --env "$environment" --db "$database" \
-    --admin-socket /var/run/postgresql --admin-port 5432 \
-    --backup-file "$backup_file"
+  # Verified pre-install backup of the target (same shape initial-cutover.mjs's own
+  # createVerifiedBackup() used: dump, then prove the archive is readable before trusting it).
+  runuser -u postgres -- pg_dump -Fc -h /var/run/postgresql -p 5432 -U postgres -d "$database" \
+      -f "$backup_file" &&
+    chmod 0600 "$backup_file" &&
+    runuser -u postgres -- pg_restore --list "$backup_file" >/dev/null &&
+    [[ "$(head -c5 -- "$backup_file")" == PGDMP ]] &&
+    node --experimental-strip-types "$generator" --shared-role-baseline |
+      runuser -u postgres -- psql -X -1 -h /var/run/postgresql -p 5432 -U postgres -d postgres \
+        -v ON_ERROR_STOP=1 &&
+    node --experimental-strip-types "$reconcile" \
+      --env "$environment" --db "$database" \
+      --admin-socket /var/run/postgresql --admin-port 5432
 }
 port_context_cutover_apply_hba() {
   bash "$apply_hba" --apply "${hba_args[@]}"

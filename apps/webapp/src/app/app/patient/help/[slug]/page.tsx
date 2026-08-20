@@ -11,7 +11,7 @@ import { resolvePatientCanViewContent } from '@/app-layer/platform-access';
 import { isHelpSectionSlug } from '@/modules/content-sections/types';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { PatientLoadingPatternBody } from '@/shared/ui/patient/patientVisual';
-import { toYoutubeOrRutubeEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
+import { toHostedVideoEmbedSrc } from '@/shared/lib/hostingEmbedUrls';
 import {
   parseApiMediaIdFromHref,
   parseApiMediaIdFromPlayableUrl,
@@ -74,7 +74,7 @@ export default async function PatientHelpArticlePage({ params }: Props) {
           : `/api/media/${item.videoSource.mediaId}`
         : undefined;
   const hostedVideoIframeSrc = videoPlayableUrl
-    ? toYoutubeOrRutubeEmbedSrc(videoPlayableUrl)
+    ? toHostedVideoEmbedSrc(videoPlayableUrl)
     : null;
 
   let appTrustedOrigin: string | null = null;

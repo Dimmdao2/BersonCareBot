@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommercialConstructorClient } from './CommercialConstructorClient';
 
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
+
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
@@ -509,6 +513,44 @@ describe('commercial constructor access ladder', () => {
     expect(
       screen.getByText(/Отдельная настройка от стартового тарифа выше/),
     ).toBeInTheDocument();
+  });
+
+  /**
+   * Owner live pass 18.08, L-1 (дословно): «ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ ВЫКЛЮЧЕН — ЛИБО
+   * ЛИМИТ ЛИБО БЕЗ ЛИМИТА для всех таких механик с лимитом». Breakage this pins: the empty third
+   * state returns to the tariff card, so an admin can again save a tariff whose «Филиалы» reads as
+   * «механика выключена» — the state that left a clinic unable to create its first location.
+   */
+  it('offers a tariff limit only as «Число» or «Без ограничения», never as an off state', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          tariffs: [],
+          organizations: [],
+          trialPolicy: null,
+          registrationTariffPolicy: { tariffId: null },
+        }),
+      })),
+    );
+
+    render(<CommercialConstructorClient />);
+    await screen.findByRole('button', { name: 'Создать' });
+
+    // A tariff that named no number reads as «без лимита» — there is no third value to show.
+    const branchesLimit = screen.getByRole('combobox', { name: 'Филиалы: лимит' });
+    expect(branchesLimit).toHaveTextContent('Без ограничения');
+
+    fireEvent.click(branchesLimit);
+    const openSelect = document.querySelector<HTMLElement>(
+      '[data-slot="select-content"][data-open]',
+    );
+    expect(openSelect).not.toBeNull();
+    expect(within(openSelect!).queryByRole('option', { name: 'Не настроено' })).not.toBeInTheDocument();
+    expect(within(openSelect!).getByRole('option', { name: 'Число' })).toBeInTheDocument();
+    expect(within(openSelect!).getByRole('option', { name: 'Без ограничения' })).toBeInTheDocument();
   });
 
   it('loads when the API omits billingPeriods and paidPeriodPolicy', async () => {

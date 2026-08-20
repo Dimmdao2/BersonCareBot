@@ -164,7 +164,7 @@ The settings page has 6 tabs, but most admin content was migrated to separate pa
 ### 2.5 Patient app — home screen & content
 
 **Location:** `/app/doctor/patient-home`
-**Components:** `PatientHomePracticeTargetPanel`, `PatientHomeDailyWarmupRotationPanel`, `PatientHomeMorningPingPanel`, `PatientHomeRepeatCooldownPanel`, `PatientHomeMoodIconsPanel`, `PatientHomeBlocksSettingsPageClient`
+**Components:** `PatientHomePracticeTargetPanel`, `PatientHomeDailyWarmupRotationPanel`, `PatientHomeMorningPingPanel`, `PatientHomeRepeatCooldownPanel`, `PatientHomeBlocksSettingsPageClient` (`PatientHomeMoodIconsPanel` удалён 2026-08-18)
 
 | Setting key                                                | UI Label                     | Type                             | Who configures | Description                                                                                        |
 | ---------------------------------------------------------- | ---------------------------- | -------------------------------- | -------------- | -------------------------------------------------------------------------------------------------- |
@@ -175,7 +175,7 @@ The settings page has 6 tabs, but most admin content was migrated to separate pa
 | `patient_home_daily_warmup_rotation_times`                 | Время автосмены (1–3)        | array of HH:MM                   | Admin only     | Times to auto-rotate warmup                                                                        |
 | `patient_home_daily_warmup_repeat_cooldown_minutes`        | Пауза повтора разминки       | int (5–180), default 60          | Admin only     | Minimum minutes before patient can re-mark the same warmup                                         |
 | `patient_treatment_plan_item_done_repeat_cooldown_minutes` | Пауза повтора пункта плана   | int (5–180), default 60          | Admin only     | Minimum minutes before patient can re-mark a plan item done                                        |
-| `patient_home_mood_icons`                                  | Иконки настроения            | array of 5 mood rows             | Doctor         | Score 1-5 mood check-in icons with label + image URL                                               |
+| ~~`patient_home_mood_icons`~~                              | _(удалён 2026-08-18)_        | —                                | —              | **УСТАРЕЛО/ЗАМЕНЕНО →** настройка удалена целиком (решение владельца 18.08); иконки — bundled-ассеты |
 | `patient_home_warmup_skip_to_next_available_enabled`       | _(deprecated)_               | bool                             | Admin          | Legacy: warmup skip to next — no longer read by picker                                             |
 | _(patient home blocks)_                                    | Блоки главной                | DB `patient_home_blocks` + items | Doctor         | Content blocks displayed on patient home: pages, content sections, course links; order, visibility |
 | `patient_default_promo_treatment_program_template_id`      | Промо-программа по умолчанию | UUID                             | Admin          | Published program template shown to patients without an active plan                                |
@@ -455,7 +455,7 @@ patient_booking_url
 patient_home_daily_warmup_repeat_cooldown_minutes
 patient_treatment_plan_item_done_repeat_cooldown_minutes
 patient_home_warmup_skip_to_next_available_enabled  # deprecated
-patient_home_mood_icons
+# patient_home_mood_icons  # УДАЛЁН 2026-08-18 (решение владельца): иконки — bundled-ассеты, настройки нет
 
 # Booking engine
 booking_default_organization_id
@@ -722,4 +722,4 @@ The `notifications_topics` key (configured by admin in app-settings) defines wha
 
 ### 6.10 `patient_home_mood_icons` is saved by doctor (not just admin)
 
-The `savePatientHomeMoodIconsAction` calls `requireDoctorOrThrow()`, meaning any doctor can change the global mood icons. This shares the same pattern as `practice_target` — low-risk content settings open to doctors, high-risk operational settings admin-only.
+**УСТАРЕЛО/ЗАМЕНЕНО → 2026-08-18.** Решением владельца настройка удалена целиком: ключ убран из реестра, панель врача и `savePatientHomeMoodIconsAction` удалены, строка в БД снесена. Шкала самочувствия читает bundled-иконки из `apps/webapp/public/patient/home/icons/mood/`. Настраивать иконки нельзя ни врачу, ни админу.

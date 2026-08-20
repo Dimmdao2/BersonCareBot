@@ -4,6 +4,13 @@
 # separately. Review/remove fingerprints when repository history is intentionally rewritten.
 
 # Retired integration/config history.
+# The line-12 entry below is the token the `telegram-bot-token-assignment` rule was written for
+# (rule added 17.08 in 484f1ceda because the bundled v8.30.1 rule misses the `botToken: '…'`
+# spelling). Same commit and file as the line-14 entry, caught by a second rule. That credential was
+# ROTATED by the owner on 17.08.2026 and the file does not exist in HEAD; what remains is history.
+# Purging it would mean rewriting 7456 commits and force-pushing both remotes — an owner decision,
+# not a CI workaround. Reopen this line if the history is ever rewritten.
+03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/telegram/config.ts:telegram-bot-token-assignment:12
 03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/rubitime/config.ts:generic-api-key:10
 03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/rubitime/config.ts:generic-api-key:11
 03eca9c8bb0254b03df95bf311099bc4c0fbf7fd:src/integrations/telegram/config.ts:generic-api-key:14
@@ -23,6 +30,10 @@ eb12a87b1b4f6891aefe7d8ba52852a6a6cdb210:apps/webapp/src/modules/staff-security/
 eb12a87b1b4f6891aefe7d8ba52852a6a6cdb210:apps/webapp/src/modules/staff-security/totp.test.ts:generic-api-key:14
 
 # Historical migration/deploy fixtures and protocol examples.
+55a955a2efe7a4265f2903aacdc1b2fea2730d4a:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:19
+55a955a2efe7a4265f2903aacdc1b2fea2730d4a:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:28
+55a955a2efe7a4265f2903aacdc1b2fea2730d4a:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:33
+55a955a2efe7a4265f2903aacdc1b2fea2730d4a:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:48
 02a88c540d98c4eb6e4e7e6b625b05f64386037d:deploy/postgres/test-postgres-backup.sh:generic-api-key:28
 2880e4c62bc797b2af601d57acca17065408cec7:docs/_TODO/SAAS_FOUNDATION/CORRECTED_PLAN.md:generic-api-key:157
 2880e4c62bc797b2af601d57acca17065408cec7:docs/_TODO/SAAS_FOUNDATION/LOG.md:generic-api-key:8
@@ -43,3 +54,12 @@ dc4ca2a4e3fcff04c75c0cda4682903f53b30a46:AGENTS.md:generic-api-key:517
 f7db88013ad8e342e192959ef50cabe679c0acff:packages/db-principal/test/webapp-locked-infra-cron.test.mjs:generic-api-key:48
 35fba2479d52143eb7f15daa3f7a5dbe905b825f:apps/webapp/src/infra/repos/reminderCallbackCapabilities.postgres.integration.test.ts:generic-api-key:110
 928fe9ceeb6e307f20e83e8efbd3518a71ec6502:apps/webapp/src/infra/payments/paymentProviderIdentity.unit.test.ts:generic-api-key:26
+
+# 2026-08-20 A→B cutover: значение флага pg_dump --restrict-key, не секрет. Флаг задаёт строку,
+# которой psql обрамляет вывод (\restrict/\unrestrict); без неё pg_dump берёт случайную на каждый
+# прогон и байт-сверка --check не совпала бы никогда. В HEAD литералов больше нет — ключ выводится
+# из имени артефакта (5dd2fde90), но gitleaks сканирует историю и держится за d14daf8ad.
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:39
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:48
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:54
+d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.mjs:generic-api-key:72

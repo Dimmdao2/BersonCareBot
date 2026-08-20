@@ -1,6 +1,8 @@
 'use client';
 
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
+
+import { Bar, BarChart, CartesianGrid, Legend, XAxis, YAxis } from 'recharts';
 import type { ProductAnalyticsTopPageRow } from '@/modules/product-analytics/types';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 
@@ -25,7 +27,7 @@ export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalytics
   const height = chartHeightForRows(data.length);
   return (
     <div className="w-full min-w-0" style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
+      <PositiveSizeResponsiveContainer width="100%" height="100%">
         <BarChart layout="vertical" data={data} margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
           <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" />
           <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10 }} />
@@ -40,7 +42,7 @@ export function ProductAnalyticsTopPagesChart({ rows }: { rows: ProductAnalytics
           <Bar dataKey="views" name="Просмотры" fill={FILL_VIEWS} radius={[0, 4, 4, 0]} />
           <Bar dataKey="uniqueUsers" name="Клиенты" fill={FILL_UNIQUE} radius={[0, 4, 4, 0]} />
         </BarChart>
-      </ResponsiveContainer>
+      </PositiveSizeResponsiveContainer>
     </div>
   );
 }

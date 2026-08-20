@@ -6,8 +6,9 @@ umask 077
 # Apply ordinary pending migrations to the existing post-cutover DEV database.
 # This entrypoint never restores, drops, recreates or copies a database.  It uses only the local
 # PostgreSQL administrator channel: integrator DDL runs as app_object_owner, while webapp Drizzle
-# statements run through the declaration-owner-aware NOLOGIN bcb_dev_migrator.  The declaration
-# reconcile is the final mandatory step, so newly-created objects cannot retain migration access.
+# statements run through the declaration-owner-aware NOLOGIN bcb_dev_migrator. Preflight compiles
+# pending webapp DDL in one transaction and rolls it back. The declaration reconcile is the final
+# mandatory execute step, so newly-created objects cannot retain migration access.
 
 TARGET_DB="bcb_webapp_dev"
 MIGRATOR_ROLE="bcb_dev_migrator"
@@ -18,25 +19,34 @@ REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
 API_ENV="$REPO_ROOT/.env"
 WEBAPP_ENV="$REPO_ROOT/apps/webapp/.env.dev"
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
-CANONICAL_SQL_READER="$REPO_ROOT/deploy/host/stream-canonical-sql.mjs"
 OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
 RECONCILER="$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs"
 PRIVILEGE_GENERATOR="$REPO_ROOT/deploy/postgres/privileges/generate-cli.mjs"
 PORT_CONTEXT_ENV_UPDATER="$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs"
 DRIZZLE_FOLDER="$REPO_ROOT/apps/webapp/db/drizzle-migrations"
-D30_ONLINE_INDEX="$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql"
 CREDENTIAL_DIR=""
 ACTIVE_CHILD_PID=""
 
 usage() {
   cat <<'EOF'
 Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
+         [--apply-out-of-order <tag>]... [--reapply <tag>]...
 
-Validates the exact existing local bcb_webapp_dev target. --execute applies pending
-integrator migrations through the local app_object_owner identity, pending webapp
-Drizzle statements through the NOLOGIN bcb_dev_migrator and their declared owners,
-then atomically reconciles and audits the declaration-owned access state.
+Validates the exact existing local bcb_webapp_dev target. --preflight executes pending
+webapp Drizzle DDL through the NOLOGIN bcb_dev_migrator and its declared owners in a
+single transaction ending in ROLLBACK. --execute applies pending integrator and webapp
+migrations, then atomically reconciles and audits the declaration-owned access state.
+
+The two recovery options are forwarded verbatim to the owner-ordered migrator, which is the
+only thing that accepts them; they exist so a ledger that has drifted from the journal
+(--apply-out-of-order) or from the catalog (--reapply) can be repaired through this whole
+route -- preflight, reconcile and port-context env included -- instead of beside it.
+
+--reapply names a migration the ledger claims but the database does not answer for, and
+sends it through the wrapper again. It is only available with --execute, because the
+declaration reconcile that follows is what gives a rebuilt definer function back its
+attestation seam and its EXECUTE grant.
 EOF
 }
 
@@ -91,11 +101,55 @@ postgres_scalar() {
     -v ON_ERROR_STOP=1 -Atqc "$1"
 }
 
+seed_relation_wall_registry() {
+  run_tracked bash -o pipefail -c '
+    node --experimental-strip-types "$1" --db "$2" --relation-wall-registry-seed-only |
+      sudo -n -u postgres psql -X -1 -h "$3" -p "$4" -d "$2" -v ON_ERROR_STOP=1
+  ' bash "$PRIVILEGE_GENERATOR" "$TARGET_DB" "$ADMIN_SOCKET" "$ADMIN_PORT"
+}
+
 MODE="${1:-}"
-if [[ $# -ne 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; then
+if [[ $# -lt 1 || ( "$MODE" != "--preflight" && "$MODE" != "--execute" ) ]]; then
   usage
   exit 2
 fi
+shift
+# Nothing but the two named recovery options may ride along, and each one must name its tag: the
+# migrator refuses a tag it has not itself reported as stranded or drifted, so a stale flag left in
+# a command line cannot quietly re-run anything.
+#
+# --reapply lives here and not on the wrapper because rebuilding an object from its migration file
+# rebuilds only what the file says. A declaration-owned definer function is more than that: the
+# attestation wrapper in its body and the EXECUTE grant for the role that calls it arrive with the
+# privilege declaration. Reapplied by the bare wrapper, the function comes back without either -- the
+# recovery leaves the object weaker than the hole it repaired. This entrypoint always reconciles the
+# declaration as its last execute step, which is what makes the recovery whole.
+#
+# The tag pattern accepts both naming schemes on purpose: a recovery names a tag that is ALREADY in
+# the ledger, and the ledger still carries the frozen historical NNNN_ names alongside the current
+# timestamp scheme. This is the one place old names stay legal; new migrations are never named that way.
+RECOVERY_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --apply-out-of-order|--reapply)
+      [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
+      [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ || "$2" =~ ^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$ ]] \
+        || fatal "$1 tag is not a migration name: $2"
+      RECOVERY_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+done
+if [[ "$MODE" == "--preflight" && ${#RECOVERY_ARGS[@]} -gt 0 ]]; then
+  fatal 'a recovery option is not a validation: run it with --execute so the declaration reconcile follows'
+fi
+# The wrapper refuses a recovery option without this marker, so a bare `node migrate-local.mjs
+# --reapply` can no longer strip a definer function of its seam and its EXECUTE grant and call it a repair.
+export BCB_MIGRATION_ENTRYPOINT=migrate-dev.sh
 
 [[ "$EUID" -ne 0 ]] || fatal "run this wrapper as the non-root repository owner"
 [[ -d "$ADMIN_SOCKET" && ! -L "$ADMIN_SOCKET" ]] || fatal "local PostgreSQL socket guard failed"
@@ -103,13 +157,11 @@ fi
 assert_canonical_file "$API_ENV" "$REPO_ROOT/.env" "DEV API env"
 assert_canonical_file "$WEBAPP_ENV" "$REPO_ROOT/apps/webapp/.env.dev" "DEV webapp env"
 assert_canonical_file "$DEV_ENV_PARSER" "$REPO_ROOT/deploy/host/parse-dev-database-url.mjs" "DEV env parser"
-assert_canonical_file "$CANONICAL_SQL_READER" "$REPO_ROOT/deploy/host/stream-canonical-sql.mjs" "canonical SQL reader"
 assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
 assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"
 assert_canonical_file "$RECONCILER" "$REPO_ROOT/deploy/postgres/privileges/reconcile-access.mjs" "access reconciler"
 assert_canonical_file "$PRIVILEGE_GENERATOR" "$REPO_ROOT/deploy/postgres/privileges/generate-cli.mjs" "privilege generator"
 assert_canonical_file "$PORT_CONTEXT_ENV_UPDATER" "$REPO_ROOT/deploy/host/update-dev-port-context-env.mjs" "DEV port-context env updater"
-assert_canonical_file "$D30_ONLINE_INDEX" "$REPO_ROOT/deploy/postgres/d30-outgoing-delivery-queue-organization-status-due-online-index.sql" "D30 online index artifact"
 [[ ! -L "$DRIZZLE_FOLDER" && -d "$DRIZZLE_FOLDER" ]] || fatal "Drizzle migrations path guard failed"
 
 for command in flock mktemp node psql realpath setsid sudo; do
@@ -158,7 +210,15 @@ owner_state="$(postgres_scalar \
   fatal "$OBJECT_OWNER_ROLE must be a stationary NOLOGIN/NOBYPASSRLS/NOINHERIT owner"
 
 if [[ "$MODE" == "--preflight" ]]; then
-  echo "migrate-dev preflight: PASS (post-cutover DEV; no changes made)"
+  seed_relation_wall_registry
+  run_tracked node "$OWNER_MIGRATOR" \
+    --db "$TARGET_DB" \
+    --migrator "$MIGRATOR_ROLE" \
+    --drizzle-folder "$DRIZZLE_FOLDER" \
+    --sudo-postgres \
+    --rollback-only \
+    ${RECOVERY_ARGS[@]+"${RECOVERY_ARGS[@]}"}
+  echo "migrate-dev preflight: PASS (post-cutover DEV; rollback-only webapp DDL validation complete)"
   exit 0
 fi
 
@@ -175,6 +235,11 @@ run_tracked bash -c '
     sudo -n -u postgres psql -X -1 -d postgres -v ON_ERROR_STOP=1
 ' bash "$PRIVILEGE_GENERATOR"
 
+# The event trigger checks this declaration-derived registry while CREATE TABLE is executing.
+# Seed it before the first migration; owner reconciliation stays in the mandatory final reconcile,
+# where all declared relations exist.
+seed_relation_wall_registry
+
 # Preserve the repository's cross-app dependency order without using any runtime login.
 run_tracked node "$INTEGRATOR_MIGRATOR" \
   --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
@@ -183,20 +248,11 @@ run_tracked node "$OWNER_MIGRATOR" \
   --db "$TARGET_DB" \
   --migrator "$MIGRATOR_ROLE" \
   --drizzle-folder "$DRIZZLE_FOLDER" \
-  --sudo-postgres
+  --sudo-postgres \
+  ${RECOVERY_ARGS[@]+"${RECOVERY_ARGS[@]}"}
 run_tracked node "$INTEGRATOR_MIGRATOR" \
   --db "$TARGET_DB" --migrator "$MIGRATOR_ROLE" --owner "$OBJECT_OWNER_ROLE" \
   --root "$REPO_ROOT/apps/integrator" --sudo-postgres
-
-# 0328 commits first; this hot-table index is an idempotent separate autocommit operation. The
-# repository owner opens the guarded file and streams it because the postgres OS identity cannot
-# read the private repository tree.
-run_tracked bash -c '
-  set -Eeuo pipefail
-  node "$1" "$2" "$3" | sudo -n -u postgres env PGOPTIONS="-c role=$4" \
-    psql -X -h "$5" -p "$6" -d "$7" -v ON_ERROR_STOP=1
-' bash "$CANONICAL_SQL_READER" "$D30_ONLINE_INDEX" "$(dirname "$D30_ONLINE_INDEX")" \
-  "$OBJECT_OWNER_ROLE" "$ADMIN_SOCKET" "$ADMIN_PORT" "$TARGET_DB"
 
 # Reconcile loads only the four already-configured runtime passwords.  It reapplies the exact
 # declaration and runs its environment/catalog closure verifiers in the same transaction.

@@ -29,6 +29,7 @@ function serviceWithEnrollments(rows: PatientOrganizationEnrollment[]) {
     hasSchedulableClientRelationship: unused,
     createManualOrganizationClient: unused,
     findTreatmentProgramOrganizationForPatient: unused,
+    findTreatmentProgramDescriptionForPatient: unused,
   };
 
   return createPatientOrganizationService({ port });

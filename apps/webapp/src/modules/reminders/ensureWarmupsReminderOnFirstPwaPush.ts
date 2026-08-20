@@ -84,19 +84,21 @@ export async function ensureWarmupsReminderOnFirstPwaPush(params: {
     return { created: false, reason: 'entitlement_denied' };
   }
 
-  const createRes = await params.deps.reminders.createObjectReminder(params.userId, {
-    linkedObjectType: 'content_section',
-    linkedObjectId: warmupsSectionSlug,
-    schedule: {
-      intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
-      windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
-      windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
-      daysMask: DEFAULT_REMINDER_FORM_DAYS_MASK,
-    },
-    enabled: true,
-    scheduleType: 'slots_v1',
-    scheduleData: DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS,
-  });
+  const createRes = await entitlement.runMutation(() =>
+    params.deps.reminders.createObjectReminder(params.userId, {
+      linkedObjectType: 'content_section',
+      linkedObjectId: warmupsSectionSlug,
+      schedule: {
+        intervalMinutes: SLOTS_V1_DB_PLACEHOLDER.intervalMinutes,
+        windowStartMinute: SLOTS_V1_DB_PLACEHOLDER.windowStartMinute,
+        windowEndMinute: SLOTS_V1_DB_PLACEHOLDER.windowEndMinute,
+        daysMask: DEFAULT_REMINDER_FORM_DAYS_MASK,
+      },
+      enabled: true,
+      scheduleType: 'slots_v1',
+      scheduleData: DEFAULT_WARMUP_PWA_PUSH_ONBOARDING_SLOTS,
+    }),
+  );
 
   if (!createRes.ok) {
     return { created: false, reason: 'create_failed' };

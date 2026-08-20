@@ -25,6 +25,8 @@ import {
 import { canAccessProgramSubmissionMedia } from '@/modules/media/programSubmissionPlaybackAccess';
 import type { AppSession } from '@/shared/types/session';
 import { isTrustedHlsArtifactS3Key, isTrustedPosterS3Key } from '@/shared/lib/hlsStorageLayout';
+import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
+import type { MediaPreviewStatus } from '@/modules/media/types';
 import {
   databaseNameFromUrl,
   isSaasTestLocalMediaAllowed,
@@ -90,6 +92,24 @@ export async function resolveMediaPlaybackPayload(input: {
     input.session.user.role === 'client' && row.usage_purpose !== 'program_item_submission';
   const mimeType = row.mime_type ?? '';
   const isVideo = mimeType.toLowerCase().startsWith('video/');
+  const previewStatus: MediaPreviewStatus =
+    row.preview_status === 'ready' ||
+    row.preview_status === 'failed' ||
+    row.preview_status === 'skipped'
+      ? row.preview_status
+      : 'pending';
+  const preview = {
+    status: previewStatus,
+    smUrl:
+      previewStatus === 'ready' && row.preview_sm_key?.trim()
+        ? mediaPreviewUrlById(id, 'sm')
+        : null,
+    mdUrl:
+      previewStatus === 'ready' && row.preview_md_key?.trim()
+        ? mediaPreviewUrlById(id, 'md')
+        : null,
+    standardRendition: row.standard_rendition_at != null,
+  };
 
   const videoProcessingStatus = parseVideoProcessingStatus(row.video_processing_status);
   const perFileOverride = parseVideoDeliveryOverride(row.video_delivery_override);
@@ -132,6 +152,7 @@ export async function resolveMediaPlaybackPayload(input: {
         mimeType,
         durationSeconds: row.video_duration_seconds,
         posterUrl: null,
+        preview,
         hls: null,
         mp4: { url: progressivePath },
         fallbackUsed: false,
@@ -213,6 +234,7 @@ export async function resolveMediaPlaybackPayload(input: {
       mimeType,
       durationSeconds: row.video_duration_seconds,
       posterUrl,
+      preview,
       hls: masterUrl ? { masterUrl, qualities: qualities ?? undefined } : null,
       mp4: { url: progressivePath },
       fallbackUsed,

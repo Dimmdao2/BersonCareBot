@@ -1,6 +1,6 @@
 'use client';
 
-import type { PatientHomeMoodIconOption } from '@/modules/patient-home/patientHomeMoodIcons';
+import { PATIENT_HOME_MOOD_OPTIONS } from '@/modules/patient-home/patientHomeStaticIcons';
 import { patientHomeMoodOptionButtonClass } from './patientHomeCardStyles';
 import { PatientHomeSafeImage } from './PatientHomeSafeImage';
 import {
@@ -13,8 +13,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/patient/primitives/button';
 
 type Props = {
-  moodOptions: readonly PatientHomeMoodIconOption[];
-  /** Гость / без tier: без картинок из настроек, кнопки неактивны (как блок «Как ваше сегодня?» на главной). */
+  /** Гость / без tier: без картинок, кнопки неактивны (как блок «Как ваше сегодня?» на главной). */
   frozenDisabled: boolean;
   /** Выбранный балл — кольцо/фон `ACTIVE`, как на главной. */
   selectedScore: number | null;
@@ -28,9 +27,9 @@ type Props = {
 /**
  * Единая сетка 1–5 для самочувствия: главная, модалка после практики, модалка разминки.
  * Визуально совпадает с блоком «Как ваше сегодня?» (`PatientHomeMoodCheckin`).
+ * Иконки — bundled-ассеты, одни и те же для всех клиник (решение владельца 18.08).
  */
 export function PatientHomeMoodScoreRow({
-  moodOptions,
   frozenDisabled,
   selectedScore,
   busy,
@@ -46,7 +45,7 @@ export function PatientHomeMoodScoreRow({
       role="group"
       aria-label="Оценка самочувствия"
     >
-      {moodOptions.map((option) => {
+      {PATIENT_HOME_MOOD_OPTIONS.map((option) => {
         const active = selectedScore === option.score;
         const MoodIcon = PATIENT_HOME_MOOD_SCORE_ICONS[option.score];
         return (

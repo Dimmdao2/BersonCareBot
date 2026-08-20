@@ -44,6 +44,10 @@ export type BookingPaymentSettings = {
   enabled: boolean;
   defaultProviderId: string;
   providers: PaymentProviderConfig[];
+  /** YooKassa/FNS VAT code for receipts issued by this clinic's acquiring account. */
+  fiscalVatCode?: string | null;
+  /** Optional tax system code for cash-register configurations that require it. */
+  fiscalTaxSystemCode?: string | null;
 };
 
 export type PaymentIntentRecord = {

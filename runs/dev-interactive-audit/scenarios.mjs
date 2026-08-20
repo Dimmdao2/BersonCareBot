@@ -1,0 +1,305 @@
+export const ROLE_SCENARIOS = Object.freeze({
+  global_admin: {
+    syntheticToken: 'admin',
+    emailEnv: 'DEV_AUDIT_ADMIN_EMAIL',
+    defaultEmail: 'dimmdao@gmail.com',
+    identity: { role: 'admin', contactKind: 'email', contactValue: 'dimmdao@gmail.com' },
+    elevateAdminMode: false,
+    routes: [
+      '/app/admin/system-health',
+      '/app/account?tab=security',
+      '/app/doctor/analytics',
+      '/app/admin/clinics',
+      '/app/admin/commercial',
+      '/app/admin/payments',
+      '/app/admin/app-settings',
+      '/app/admin/auth',
+      '/app/admin/booking',
+      '/app/admin/integrations',
+      '/app/admin/technical',
+      '/app/admin/health-archive',
+      '/app/admin/audit-log',
+    ],
+    requiredTabs: {
+      '/app/admin/commercial': ['Тарифы', 'Организации', 'Триал', 'Уведомления', 'Рассылки'],
+    },
+    // Semantic anchors intentionally avoid translated/editorial headings.
+    routeEvidence: {
+      '/app/admin/system-health': ['#system-health-root'],
+      '/app/account?tab=security': ['#account-current-password'],
+      // `/app/doctor/analytics` resolves to the platform stub
+      // `app/app/(global-admin)/doctor/analytics/page.tsx` (requirePlatformOperationsPage), which
+      // is deliberately aggregate-only and currently renders header + empty state — the clinical
+      // `DoctorAnalyticsShell` (`#doctor-analytics-tabs`) must never be composed under it. The
+      // platform menu still points here (platformNavLinks.ts, slices 5-7 will move the href), so
+      // the route stays in the gate; the anchor pins "the platform page shell rendered", while the
+      // final-URL / error-boundary / console checks catch the guard redirect and render failures.
+      '/app/doctor/analytics': ['[data-doctor-page-header]'],
+      '/app/admin/clinics': ['#clinics-filter-q'],
+      '/app/admin/commercial': ['[role="tab"][aria-selected="true"]'],
+      '/app/admin/payments': ['#platform-payments'],
+      '/app/admin/app-settings': ['#app-support-contact'],
+      '/app/admin/auth': ['#auth-telegram-bot'],
+      '/app/admin/audit-log': ['#admin-audit-log'],
+      '/app/admin/booking': ['#booking-online-default-color'],
+      '/app/admin/integrations': ['#platform-integration-availability'],
+      '/app/admin/technical': ['#test-account-emails'],
+      '/app/admin/health-archive': ['#health-failure-archive'],
+    },
+  },
+  doctor: {
+    syntheticToken: 'clinic-admin',
+    emailEnv: 'DEV_AUDIT_DOCTOR_EMAIL',
+    defaultEmail: 'dimmdao@yandex.ru',
+    identity: { role: 'doctor', contactKind: 'email', contactValue: 'dimmdao@yandex.ru' },
+    routes: [
+      '/app/doctor',
+      '/app/doctor/patient-home',
+      '/app/doctor/patients',
+      '/app/doctor/schedule?tab=cal',
+      '/app/doctor/schedule?tab=work',
+      '/app/doctor/schedule?tab=setup&section=calendar',
+      '/app/doctor/schedule?tab=setup&section=locations',
+      '/app/doctor/schedule?tab=setup&section=services',
+      '/app/doctor/schedule?tab=setup&section=specialists',
+      '/app/doctor/schedule?tab=setup&section=form',
+      '/app/doctor/schedule?tab=setup&section=payments',
+      '/app/doctor/schedule?tab=setup&section=rules',
+      '/app/doctor/schedule?tab=setup&section=notifications',
+      '/app/doctor/schedule?tab=setup&section=packages',
+      '/app/doctor/communications',
+      '/app/doctor/exercises',
+      '/app/doctor/lfk-templates',
+      '/app/doctor/clinical-tests',
+      '/app/doctor/test-sets',
+      '/app/doctor/recommendations',
+      '/app/doctor/treatment-program-templates',
+      '/app/doctor/treatment-program-promo',
+      '/app/doctor/references',
+      '/app/doctor/content',
+      '/app/doctor/content/library',
+      '/app/doctor/courses',
+      '/app/settings?tab=organization',
+      '/app/settings?tab=team',
+      '/app/settings?tab=billing',
+      '/app/account',
+    ],
+    routeEvidence: {
+      '/app/doctor': ['#doctor-today-dashboard'],
+      '/app/doctor/patient-home': ['#patient-home-mood-icons-heading'],
+      '/app/doctor/patients': ['#doctor-patients-header'],
+      '/app/doctor/schedule?tab=cal': ['[data-testid="cal-toolbar"]'],
+      '/app/doctor/schedule?tab=work': ['[data-testid="schedule-work-tab"]'],
+      '/app/doctor/schedule?tab=setup&section=calendar': [
+        '[data-testid="setup-section-calendar"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=locations': [
+        '[data-testid="setup-section-locations"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=services': [
+        '[data-testid="setup-section-services"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=specialists': [
+        '[data-testid="setup-section-specialists"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=form': [
+        '[data-testid="setup-section-form"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=payments': [
+        '[data-testid="setup-section-payments"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=rules': [
+        '[data-testid="setup-section-rules"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=notifications': [
+        '[data-testid="setup-section-notifications"]',
+      ],
+      '/app/doctor/schedule?tab=setup&section=packages': [
+        '[data-testid="setup-section-packages"]',
+      ],
+      '/app/doctor/communications': ['#doctor-communications-tabs'],
+      '/app/doctor/exercises': ['#doctor-exercises-create-link-desktop'],
+      '/app/doctor/lfk-templates': ['#doctor-lfk-templates-new-link'],
+      '/app/doctor/clinical-tests': ['#doctor-clinical-tests-create'],
+      '/app/doctor/test-sets': ['#doctor-test-sets-header'],
+      '/app/doctor/recommendations': ['#doctor-recommendations-create'],
+      '/app/doctor/treatment-program-templates': [
+        '#doctor-treatment-program-templates-new',
+      ],
+      '/app/doctor/treatment-program-promo': ['#doctor-treatment-program-promo-header'],
+      '/app/doctor/content': ['#doctor-content-header'],
+      '/app/doctor/content/library': ['#doctor-content-library-section'],
+      '/app/doctor/references': ['[aria-label="Поиск по названию или коду"]'],
+      '/app/doctor/courses': ['#doctor-courses-header'],
+      '/app/settings?tab=organization': ['#patient-label-select'],
+      '/app/settings?tab=team': ['[aria-label="Участники команды"]'],
+      '/app/settings?tab=billing': ['[aria-label="Механики тарифа"]'],
+      '/app/account': ['[aria-label="Разделы аккаунта"]'],
+      '/app/doctor/content/sections/edit/warmups': ['main form input[name="title"]'],
+      '/app/doctor/content/:slug': ['#doctor-content-header'],
+      '/app/doctor/courses/new': ['#course-title'],
+      '/app/doctor/courses/:uuid': ['#edit-course-title'],
+      '/app/doctor/treatment-program-templates/:uuid': ['#tpl-prog-title'],
+    },
+    allowedFinalTemplates: {
+      '/app/doctor/references': ['/app/doctor/references/clinical_test_measure_kind'],
+    },
+  },
+  patient: {
+    syntheticToken: 'client',
+    sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',
+    emailEnv: 'DEV_AUDIT_PATIENT_EMAIL',
+    defaultEmail: 'kinesiospace@gmail.com',
+    identity: { role: 'client', contactKind: 'phone', contactValue: '+79189000782' },
+    routes: [
+      '/app/patient',
+      '/app/patient/treatment',
+      '/app/patient/diary',
+      '/app/patient/booking',
+      '/app/patient/messages',
+      '/app/patient/profile',
+      '/app/patient/organizations',
+      '/app/patient/notifications',
+      '/app/patient/notifications/settings',
+      '/app/patient/reminders',
+      '/app/patient/purchases',
+      '/app/patient/courses',
+      '/app/patient/about',
+      '/app/patient/address',
+      '/app/patient/help',
+      '/app/patient/support',
+      '/app/patient/install',
+    ],
+    routeEvidence: {
+      '/app/patient': ['#patient-home-today-layout'],
+      '/app/patient/treatment': [
+        '#patient-treatment-program-detail',
+        '#patient-tp-list-hero-title',
+      ],
+      '/app/patient/diary': ['#patient-diary-wellbeing-week-section'],
+      '/app/patient/booking': ['#patient-booking-format-options'],
+      '/app/patient/messages': ['[data-testid="patient-messages-readonly-notice"]', 'textarea'],
+      '/app/patient/profile': ['#patient-profile-auth-otp', '#patient-profile-auth-otp-empty'],
+      '/app/patient/organizations': ['#patient-organizations-list'],
+      '/app/patient/notifications': ['#patient-notifications-inbox'],
+      '/app/patient/notifications/settings': ['#patient-notification-topics'],
+      '/app/patient/reminders': ['#patient-reminders-rehab'],
+      '/app/patient/purchases': ['#patient-purchases-history'],
+      '/app/patient/courses': ['#patient-courses-catalog'],
+      '/app/patient/about': ['#patient-about-specialist'],
+      '/app/patient/address': ['#patient-address-details'],
+      '/app/patient/help': ['#patient-help-directory'],
+      '/app/patient/support': ['#patient-support-form'],
+      '/app/patient/install': ['#patient-install-guide'],
+      '/app/patient/content/:slug': ['article[id^="patient-content-article-"]'],
+    },
+    allowedFinalTemplates: {
+      '/app/patient/treatment': ['/app/patient/treatment/:uuid'],
+    },
+  },
+});
+
+export const DOCTOR_PATIENT_CARD_TABS = Object.freeze([
+  ['overview', 'Обзор'],
+  ['karta', 'Карточка'],
+  ['program', 'Программа'],
+  ['records', 'Визиты'],
+  ['files', 'Файлы'],
+  ['comms', 'Коммуникации'],
+  ['finances', 'Финансы'],
+  ['account', 'Учётка'],
+]);
+
+export const CONTROL_ADAPTER_MATRIX = Object.freeze([
+  {
+    id: 'admin.registration-tariff-policy',
+    role: 'global_admin',
+    route: '/app/admin/commercial',
+    contract:
+      'UI select alternate tariff/null -> save/reload -> GET exact -> UI restore/reload -> GET exact',
+  },
+  {
+    id: 'admin.trial-policy',
+    role: 'global_admin',
+    route: '/app/admin/commercial',
+    contract: 'UI duration +/- 1 day -> save/reload -> GET exact -> UI restore/reload -> GET exact',
+  },
+  {
+    id: 'admin.paid-period-policy',
+    role: 'global_admin',
+    route: '/app/admin/commercial',
+    contract: 'UI toggle isActive -> save/reload -> GET exact -> UI restore/reload -> GET exact',
+  },
+  {
+    id: 'doctor.working-schedule',
+    role: 'doctor',
+    route: '/app/doctor/schedule?tab=work',
+    contract:
+      'UI select weekday -> alternate 15-minute start -> POST replace=true -> GET exact -> UI restore -> GET exact',
+  },
+  {
+    id: 'doctor.service-location-availability',
+    role: 'doctor',
+    route: '/app/doctor/schedule?tab=setup&section=locations',
+    contract:
+      'UI invert one service/location switch -> full-matrix GET exact -> UI restore -> lossless full-matrix GET exact',
+  },
+  {
+    id: 'doctor.comments-patient-list',
+    role: 'doctor',
+    route: '/app/doctor/communications?tab=comments',
+    contract:
+      'open rendered Comments tab -> require exact Dmitry patient in the loaded patient list',
+  },
+  {
+    id: 'doctor.payment-link-control',
+    role: 'doctor',
+    route: '/app/doctor/patients/:uuid?tab=finances',
+    contract: 'fill and submit rendered payment-link form -> require successful link readback',
+  },
+  {
+    id: 'patient.program-reminder-enabled',
+    role: 'patient',
+    route: '/app/patient/reminders',
+    contract: 'exact program switch -> inverse -> reload/read -> click restore -> reload/read',
+  },
+  {
+    id: 'patient.program-reminder-time',
+    role: 'patient',
+    route: '/app/patient/reminders',
+    contract:
+      'open schedule -> read time -> +/- 1 minute -> save/reopen/read -> restore/save/reopen/read',
+  },
+  {
+    id: 'patient.warmup-reminder-enabled',
+    role: 'patient',
+    route: '/app/patient/reminders',
+    contract: 'exact warmup switch -> inverse -> reload/read -> click restore -> reload/read',
+  },
+  {
+    id: 'patient.warmup-reminder-time',
+    role: 'patient',
+    route: '/app/patient/reminders',
+    contract:
+      'open warmup schedule -> read time -> +/- 1 minute -> save/reopen/read -> restore/save/reopen/read',
+  },
+  {
+    id: 'patient.phone-change-flow',
+    role: 'patient',
+    route: '/app/patient/profile',
+    contract: 'open bind-phone flow only; not mutated because it changes identity/contact',
+  },
+  {
+    id: 'patient.daily-warmup-home-cta',
+    role: 'patient',
+    route: '/app/patient',
+    contract: 'click rendered home CTA -> require a substantive daily-warmup content page',
+  },
+  {
+    id: 'patient.chat-send',
+    role: 'patient',
+    route: '/app/patient/messages',
+    contract:
+      'send one labelled DEV audit message through the rendered composer -> require visible readback; retained because chat is append-only',
+  },
+]);

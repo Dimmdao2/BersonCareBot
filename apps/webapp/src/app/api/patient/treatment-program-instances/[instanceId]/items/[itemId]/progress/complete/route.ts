@@ -45,16 +45,28 @@ export async function POST(
 
   const deps = buildAppDeps();
   try {
-    const item = await deps.treatmentProgramProgress.patientCompleteSimpleItem({
+    const detail = await deps.treatmentProgramInstance.getInstanceForPatient(
+      gate.session.user.userId,
+      instanceId,
+    );
+    if (!detail?.organizationId) {
+      return NextResponse.json({ ok: false, error: 'Программа не найдена' }, { status: 404 });
+    }
+    const repeatCooldownMinutes = await deps.runtimeConfig.getInteger(
+      'patient_treatment_plan_item_done_repeat_cooldown_minutes',
+      { patientUserId: gate.session.user.userId, organizationId: detail.organizationId },
+    );
+    const result = await deps.treatmentProgramProgress.patientCompleteSimpleItem({
       patientUserId: gate.session.user.userId,
       instanceId,
       stageItemId: itemId,
       completion: Object.keys(parsedBody).length > 0 ? parsedBody : undefined,
+      repeatCooldownMinutes,
     });
-    return NextResponse.json({ ok: true, item });
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'error';
-    const status = msg.includes('не найден') ? 404 : 400;
+    const status = msg === 'completion_cooldown_active' ? 409 : msg.includes('не найден') ? 404 : 400;
     return NextResponse.json({ ok: false, error: msg }, { status });
   }
 }

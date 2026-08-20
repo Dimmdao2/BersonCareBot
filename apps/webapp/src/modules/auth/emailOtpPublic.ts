@@ -15,23 +15,34 @@ import { OTP_RESEND_COOLDOWN_SEC } from './otpConstants';
 import type { EmailOtpPublicDbPort } from './emailOtpPublicPort';
 import { normalizeFioPart } from '@/shared/lib/fio';
 
+export type PublicEmailOtpStartSuppression =
+  | 'email_otp_unknown_address'
+  | 'email_otp_cooldown_suppressed'
+  | 'email_otp_locked'
+  | 'email_delivery_failed';
+
 export type StartPublicEmailOtpResult =
   | {
       ok: true;
       challengeId: string;
       retryAfterSeconds?: number;
-      /** Server-only delivery evidence; the public route must not expose it. */
-      deliveryFailed?: true;
+      /** Server-only evidence; the public route must not expose it. */
+      suppressedOutcome?: PublicEmailOtpStartSuppression;
     }
   | {
       ok: false;
       code: 'invalid_email' | 'rate_limited';
       retryAfterSeconds?: number;
+      /** The route turns this per-email cooldown into a neutral success. */
+      suppressedOutcome?: 'email_otp_cooldown_suppressed';
     };
 
 export type StartPublicEmailOtpRegistrationResult =
   | StartPublicEmailOtpResult
-  | { ok: false; code: 'duplicate_email' | 'invalid_fio' | 'email_send_failed' | 'too_many_attempts' };
+  | {
+      ok: false;
+      code: 'duplicate_email' | 'invalid_fio' | 'email_send_failed' | 'too_many_attempts';
+    };
 
 export type ConfirmPublicEmailOtpResult =
   /** No redirectTo here on purpose: the route loads the DB base role, then may apply the fresh session-only email-admin policy. */
@@ -51,7 +62,7 @@ export type ConfirmPublicEmailOtpResult =
  *     response shape without an identity or delivered challenge.
  *  4. Delegate to startEmailChallenge (existing infra: code gen, hash, DB insert, send).
  *     Delivery and per-user lock failures become the same neutral success-shaped result as an
- *     unknown address; `deliveryFailed` is server-only observability evidence.
+ *     unknown address; `suppressedOutcome` is server-only observability evidence.
  */
 export async function startPublicEmailOtpChallenge(
   emailRaw: string,
@@ -71,13 +82,19 @@ export async function startPublicEmailOtpChallenge(
         ok: false,
         code: 'rate_limited',
         retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC - deltaSec,
+        suppressedOutcome: 'email_otp_cooldown_suppressed',
       };
     }
   }
 
   const user = await publicDb.findPublicEmailUser(email);
   if (!user) {
-    return { ok: true, challengeId: randomUUID(), retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
+    return {
+      ok: true,
+      challengeId: randomUUID(),
+      retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
+      suppressedOutcome: 'email_otp_unknown_address',
+    };
   }
 
   // Delegate to existing startEmailChallenge (handles code gen, hash, DB insert, send, per-user cooldown).
@@ -87,9 +104,8 @@ export async function startPublicEmailOtpChallenge(
     return {
       ok: false,
       code: 'rate_limited',
-      ...(result.retryAfterSeconds == null
-        ? {}
-        : { retryAfterSeconds: result.retryAfterSeconds }),
+      ...(result.retryAfterSeconds == null ? {} : { retryAfterSeconds: result.retryAfterSeconds }),
+      suppressedOutcome: 'email_otp_cooldown_suppressed',
     };
   }
 
@@ -100,7 +116,8 @@ export async function startPublicEmailOtpChallenge(
     ok: true,
     challengeId: randomUUID(),
     retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC,
-    ...(result.code === 'email_send_failed' ? { deliveryFailed: true as const } : {}),
+    suppressedOutcome:
+      result.code === 'email_send_failed' ? 'email_delivery_failed' : 'email_otp_locked',
   };
 }
 

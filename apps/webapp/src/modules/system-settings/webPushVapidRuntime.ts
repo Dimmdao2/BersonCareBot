@@ -16,7 +16,12 @@ export async function getWebPushVapidKeyPair(
   systemSettings: Pick<SystemSettingsService, 'getSetting'>,
 ): Promise<WebPushVapidKeyPair | null> {
   const row = await systemSettings.getSetting('web_push_vapid', 'admin');
-  const vj = row?.valueJson;
+  return webPushVapidKeyPairFromValueJson(row?.valueJson);
+}
+
+export function webPushVapidKeyPairFromValueJson(
+  vj: unknown,
+): WebPushVapidKeyPair | null {
   if (vj === null || typeof vj !== 'object' || !('value' in (vj as Record<string, unknown>)))
     return null;
   const inner = (vj as Record<string, unknown>).value;

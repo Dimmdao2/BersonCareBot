@@ -153,58 +153,6 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       };
     },
 
-    async resolveSchedulingForSlots(input) {
-      const db = getDrizzle();
-      const [ssaRows, serviceRows, branchRows] = await Promise.all([
-        db
-          .select({
-            roomId: beSpecialistServiceAvailability.roomId,
-          })
-          .from(beSpecialistServiceAvailability)
-          .where(
-            and(
-              eq(beSpecialistServiceAvailability.organizationId, input.organizationId),
-              eq(beSpecialistServiceAvailability.specialistId, input.specialistId),
-              eq(beSpecialistServiceAvailability.serviceId, input.serviceId),
-              eq(beSpecialistServiceAvailability.branchId, input.branchId),
-              eq(beSpecialistServiceAvailability.isActive, true),
-            ),
-          )
-          .limit(1),
-        db
-          .select({ durationMinutes: beClinicServices.durationMinutes })
-          .from(beClinicServices)
-          .where(
-            and(
-              eq(beClinicServices.id, input.serviceId),
-              eq(beClinicServices.organizationId, input.organizationId),
-              eq(beClinicServices.isActive, true),
-            ),
-          )
-          .limit(1),
-        db
-          .select({ timezone: beBranches.timezone })
-          .from(beBranches)
-          .where(
-            and(
-              eq(beBranches.id, input.branchId),
-              eq(beBranches.organizationId, input.organizationId),
-              eq(beBranches.isActive, true),
-            ),
-          )
-          .limit(1),
-      ]);
-      const service = serviceRows[0];
-      const branch = branchRows[0];
-      if (!service || !branch) return null;
-      const ssa = ssaRows[0];
-      return {
-        durationMinutes: service.durationMinutes,
-        roomId: ssa?.roomId ?? null,
-        branchTimezone: branch.timezone,
-      };
-    },
-
     async listAppointmentsInRange(filters: CalendarFilters): Promise<CalendarAppointmentEvent[]> {
       const db = getDrizzle();
       const conds = [

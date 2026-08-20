@@ -53,10 +53,7 @@ function tableNameFromSql(match) {
 
 function readMigrationOrgColumns() {
   const orgTables = new Set();
-  const files = [
-    ...listSqlFiles(sourceDirs.webappLegacyMigrations),
-    ...listSqlFiles(sourceDirs.webappMigrations),
-  ];
+  const files = listSqlFiles(sourceDirs.webappMigrations);
 
   for (const file of files) {
     const source = stripSqlLineComments(readFileSync(file, 'utf8'));

@@ -21,11 +21,27 @@ type SpecialistSignupIntentDbRow = {
   provisioned_membership_id: string | null;
 };
 
+// Единственный арбитр владения адресом — уникальный индекс по имени. Так же считает и сама
+// функция БД (deploy/postgres/specialist-owner-provisioning-rls.sql:265): она сверяет имя
+// ограничения и всё остальное поднимает дальше, а не выдаёт за занятое имя.
+//
+// До 19.08 здесь стоял голый `code === '23505'`, и на шаге создания заявки достижимы совсем
+// другие уникальные ограничения — `uq_specialist_signup_intents_user_id` и
+// `specialist_signup_intents_challenge_id_key`, оба про повторную заявку, а не про имя. Человек,
+// вернувшийся в регистрацию со своей же заявкой, слышал «это имя занято» и уходил придумывать
+// новое, хотя имя было свободно. Ошибка обязана называть тот шаг, который действительно упал.
+const SLUG_OWNERSHIP_INDEX = 'uq_organization_slug_claims_slug';
+
 function isSlugUnavailableDbError(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false;
-  const value = error as { code?: unknown; message?: unknown; cause?: unknown };
+  const value = error as {
+    code?: unknown;
+    constraint?: unknown;
+    message?: unknown;
+    cause?: unknown;
+  };
   return (
-    value.code === '23505' ||
+    (value.code === '23505' && value.constraint === SLUG_OWNERSHIP_INDEX) ||
     (typeof value.message === 'string' && value.message.includes('slug_unavailable')) ||
     isSlugUnavailableDbError(value.cause)
   );

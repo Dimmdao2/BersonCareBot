@@ -1,7 +1,8 @@
 import { and, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
-import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
+import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   SaasBillingInvoice,
   SaasBillingInvoiceReadRow,
@@ -11,9 +12,25 @@ import type {
   SaasBillingPlatformSummaryFilter,
   SaasBillingRefund,
   SaasBillingRepositoryPort,
+  SaasBillingSubscriptionDueForRenewal,
   SaasBillingSubscriptionReadRow,
 } from '@/modules/saas-billing/ports';
-import { proratedTariffUpgradeAmountMinor } from '@/modules/saas-billing/proration';
+import { purchasedTariffId } from '@/modules/saas-billing/payableTariff';
+import {
+  carriedSeatDebtMinor,
+  proratedRemainingPeriodAmountMinor,
+  saasBillingPeriodAmountMinor,
+} from '@/modules/saas-billing/proration';
+import {
+  reissueWithSuccessor,
+  saasBillingInvoiceCancelVerdict,
+  captureSaasBillingPaidInvoice,
+} from '@/modules/saas-billing/invoiceOperations';
+import { saasBillingInvoiceExpiresAt } from '@/modules/saas-billing/invoiceValidity';
+import {
+  isSaasBillingSeatDebtForPeriod,
+  saasBillingSeatDebtCandidateBound,
+} from '@/modules/saas-billing/seatDebt';
 import { SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION } from '@/modules/saas-billing/ports';
 import { sanitizeSaasBillingProviderEventEnvelope } from '@/modules/saas-billing/providerEventEnvelope';
 import { withReceiptSnapshot } from '@/modules/saas-billing/fiscalReceipt';
@@ -26,11 +43,57 @@ import {
   saasBillingRefunds,
   saasBillingSubscriptions,
 } from '../../../db/schema/saasBilling';
-import { saasBillingPeriods, saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
+import { saasOrganizationTrials, saasTariffs, saasTrialPolicy } from '../../../db/schema/saasEntitlements';
 import { adminAuditLog } from '../../../db/schema/schema';
 
 type Db = ReturnType<typeof getDrizzle>;
 type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
+
+/**
+ * Разбор ответа `app.list_saas_billing_subscriptions_due_for_renewal(...)`. Строка, у которой нет
+ * обязательного поля, ОТБРАСЫВАЕТСЯ, а не достраивается умолчанием: продление считает деньги, и
+ * подписка без покупаемого тарифа или без конца оплаченного периода не подлежит выставлению счёта.
+ */
+function parseSaasBillingSubscriptionsDueForRenewal(
+  payload: unknown,
+): SaasBillingSubscriptionDueForRenewal[] {
+  if (!Array.isArray(payload)) throw new Error('saas_billing_renewal_due_list_invalid');
+  return payload.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const row = entry as Record<string, unknown>;
+    const text = (value: unknown): string | null =>
+      typeof value === 'string' && value.trim().length > 0 ? value : null;
+    const saasBillingSubscriptionId = text(row.saasBillingSubscriptionId);
+    const organizationId = text(row.organizationId);
+    const tariffId = text(row.tariffId);
+    const billingPeriod = text(row.billingPeriod);
+    const currentPeriodEndsAt = nullableToIsoStringSafe(
+      typeof row.currentPeriodEndsAt === 'string' ? row.currentPeriodEndsAt : null,
+    );
+    if (
+      !saasBillingSubscriptionId ||
+      !organizationId ||
+      !tariffId ||
+      !billingPeriod ||
+      !currentPeriodEndsAt
+    ) {
+      return [];
+    }
+    return [
+      {
+        saasBillingSubscriptionId,
+        organizationId,
+        tariffId,
+        pendingTariffId: text(row.pendingTariffId),
+        billingPeriod,
+        currentPeriodEndsAt,
+        savedPaymentMethodId: text(row.savedPaymentMethodId),
+        autopayConsentedAt: nullableToIsoStringSafe(text(row.autopayConsentedAt)),
+        autopayRevokedAt: nullableToIsoStringSafe(text(row.autopayRevokedAt)),
+      },
+    ];
+  });
+}
 
 function toSaasBillingInvoice(row: typeof saasBillingInvoices.$inferSelect): SaasBillingInvoice {
   return {
@@ -75,6 +138,121 @@ async function insertSaasBillingInvoiceIdempotent(
     .limit(1);
   if (!existing) throw new Error('saas_billing_invoice_conflict_not_found');
   return { invoice: toSaasBillingInvoice(existing), created: false };
+}
+
+/**
+ * Долг за место, переезжающий в счёт периода, который начинается в `periodStartsAt` — ЕДИНСТВЕННОЕ
+ * место, где решается «что считается долгом».
+ *
+ * Решение владельца 19.08, дословно: «Если до конца периода счет не оплачен — делать его
+ * просроченным и включать долг в стоимость следующего периода: он либо автооплатится, либо весь
+ * доступ закрыт по правилам тарифов (как настроил глоб-админ)».
+ *
+ * Долг — это неоплаченный счёт за место, чей отрезок услуги ЗАКОНЧИЛСЯ не позже начала нового
+ * периода. Место за уже прошедший период при этом не отбирается: услуга оказана, и счётчик
+ * `paid_additional_seats` здесь не трогается ни на единицу — отбор задним числом не делает ни один
+ * из изученных биллингов (`SEAT_UNPAID_PRACTICE_2026-08-19.md` §1.1).
+ *
+ * Строки берутся `FOR UPDATE`: между чтением суммы и гашением долга никто не должен успеть его
+ * оплатить или перевыставить.
+ */
+async function readSeatDebtForPeriod(
+  tx: Transaction,
+  input: {
+    organizationId: string;
+    saasBillingSubscriptionId: string;
+    periodStartsAt: string;
+    /** «Сейчас» выставления. Оба условия обязательны, и второе — не перестраховка: клиника вправе
+     *  оплатить следующий период ДОСРОЧНО, посреди текущего, и тогда счёт за место ещё не просрочен
+     *  — владелец сказал «если ДО КОНЦА ПЕРИОДА счёт не оплачен», а конец периода ещё не наступил.
+     *  Без этого условия досрочная оплата отбирала бы у клиники возможность закрыть место отдельно. */
+    asOf: string;
+    periodCurrency: string;
+  },
+): Promise<{ rows: Array<typeof saasBillingInvoices.$inferSelect>; totalMinor: number }> {
+  const scope = {
+    organizationId: input.organizationId,
+    saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+    periodStartsAt: input.periodStartsAt,
+    asOf: input.asOf,
+  };
+  // SQL сужает НАДМНОЖЕСТВО и берёт его под замок — ровно то, что покрывает частичный индекс
+  // `idx_saas_billing_invoices_seat_debt`. Кто из этих строк долг, решает общее правило модуля, а
+  // не второе, отдельно написанное здесь условие: две копии одного правила расходятся молча.
+  const candidates = await tx
+    .select()
+    .from(saasBillingInvoices)
+    .where(
+      and(
+        eq(saasBillingInvoices.organizationId, input.organizationId),
+        eq(saasBillingInvoices.saasBillingSubscriptionId, input.saasBillingSubscriptionId),
+        eq(saasBillingInvoices.invoiceKind, 'seat_overage'),
+        inArray(saasBillingInvoices.status, ['draft', 'pending']),
+        lte(saasBillingInvoices.servicePeriodEndsAt, saasBillingSeatDebtCandidateBound(scope)),
+      ),
+    )
+    .for('update');
+  const rows = candidates.filter((row) => isSaasBillingSeatDebtForPeriod(row, scope));
+  return {
+    rows,
+    totalMinor: carriedSeatDebtMinor({ periodCurrency: input.periodCurrency, debts: rows }),
+  };
+}
+
+/**
+ * Гашение долга ПОСЛЕ того, как появился счёт-преемник, куда он переехал суммой.
+ *
+ * Старый счёт уходит в `void` со ссылкой на преемника — это не «долга не было», а «сумма на том
+ * счёте»; отличить одно от другого по статусу невозможно, поэтому преемник хранится строкой
+ * (ограничение `saas_billing_invoices_superseded_is_void_check` не даёт связать преемника, оставив
+ * старый счёт оплачиваемым). Без гашения одна и та же услуга осталась бы оплачиваемой дважды.
+ */
+async function carrySeatDebtInto(
+  tx: Transaction,
+  debtRows: ReadonlyArray<typeof saasBillingInvoices.$inferSelect>,
+  successorInvoiceId: string,
+): Promise<void> {
+  if (debtRows.length === 0) return;
+  await tx
+    .update(saasBillingInvoices)
+    .set({
+      status: 'void',
+      supersededByInvoiceId: successorInvoiceId,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(
+      inArray(
+        saasBillingInvoices.id,
+        debtRows.map((row) => row.id),
+      ),
+    );
+}
+
+/**
+ * ЕДИНСТВЕННОЕ место, где двигается `paid_additional_seats` — счётчик, который в действующей
+ * редакции Р-15 И ЕСТЬ доступ к дополнительному месту: место открывает не платёж, а инкремент
+ * здесь. Пишущих сейчас два (выставление счёта, успешный возврат — отмена счёта за место не
+ * существует как самостоятельное действие, Р-17), и пока каждый двигал счётчик своим `update`,
+ * забыть подвинуть его было нормальным состоянием кода — так место и оставалось открытым после
+ * возврата. Одна точка делает пропуск видимым: закрыть место, минуя её, нечем (AGENTS.md §5).
+ *
+ * Замок организации она НЕ берёт сама: оба вызывающих уже держат его (или строку подписки
+ * `FOR UPDATE`) с момента, когда прочитали счётчик, — взять его здесь заново значило бы решать под
+ * замком то, что решили до него.
+ */
+async function moveSeatOverageAllowance(
+  tx: Transaction,
+  saasBillingSubscriptionId: string,
+  delta: number,
+): Promise<void> {
+  await tx
+    .update(saasBillingSubscriptions)
+    .set({
+      // `greatest(…, 0)`: счётчик мест не уходит в минус ни при каком порядке выставлений и возвратов.
+      paidAdditionalSeats: sql`greatest(${saasBillingSubscriptions.paidAdditionalSeats} + ${delta}, 0)`,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(saasBillingSubscriptions.id, saasBillingSubscriptionId));
 }
 
 /** Refunds that count against an invoice's remaining refundable amount — a `failed` attempt does not. */
@@ -126,6 +304,52 @@ async function applyPaidSaasBillingTariff(
   if (!row?.applied) throw new Error('saas_billing_tariff_apply_failed');
 }
 
+// L-10 (0023): refreshing an unclaimed period draft rewrites `amount_minor` — the one column a
+// tenant role must never be able to write, because the worst a coerced `app_clinic_billing` call
+// site could then do is change what a clinic owes instead of merely failing. The role therefore
+// holds no UPDATE on it; the narrow accessor below re-derives the amount from the subscription's own
+// tariff row and never takes it from the caller. `tariffId` is not «how much» but «which of this
+// subscription's two tariffs» — the seam refuses anything that is neither the current nor the
+// pending one, and refuses (returns false) exactly where this repository refuses: a draft the
+// provider already holds an order for is never rewritten.
+async function refreshSaasBillingInvoicePurchasedTariff(
+  tx: Transaction,
+  saasBillingInvoiceId: string,
+  organizationId: string,
+  tariffId: string,
+): Promise<boolean> {
+  const result = await tx.execute(
+    sql`SELECT app.refresh_saas_billing_invoice_purchased_tariff(${saasBillingInvoiceId}::uuid, ${organizationId}::uuid, ${tariffId}::uuid) AS refreshed`,
+  );
+  const row = result.rows[0] as { refreshed: boolean } | undefined;
+  return row?.refreshed === true;
+}
+
+/**
+ * Снять с счёта-преемника долг, который эта оплата закрыла на самом деле.
+ *
+ * Сумму шов выводит из строки погашенного счёта сам и от вызывающего её не принимает — иначе
+ * денежная стена (`amount_minor` арендной роли не писабельна) обходилась бы простым аргументом.
+ * Ответ — слово, а не число: `released` — долг снят и счёт можно гасить как оплаченный;
+ * `already_billed` — снимать не с чего, преемник уже оплачен; `not_superseded` — счёт вообще не
+ * погашен преемником.
+ */
+async function releaseCarriedSeatDebt(
+  tx: Transaction,
+  saasBillingInvoiceId: string,
+  organizationId: string,
+): Promise<'released' | 'already_billed' | 'not_superseded'> {
+  const result = await tx.execute(
+    sql`SELECT app.release_carried_seat_debt(${saasBillingInvoiceId}::uuid, ${organizationId}::uuid) AS outcome`,
+  );
+  const row = result.rows[0] as { outcome: string } | undefined;
+  return row?.outcome === 'released'
+    ? 'released'
+    : row?.outcome === 'not_superseded'
+      ? 'not_superseded'
+      : 'already_billed';
+}
+
 async function upsertSaasBillingAccount(
   tx: Transaction,
   organizationId: string,
@@ -163,10 +387,18 @@ async function promotePaidInvoice(
       invoice.tariffId !== (subscription.pendingTariffId ?? subscription.tariffId))
   ) return false;
   const tariffSnapshot = invoice.tariffSnapshot ?? await readTariffSnapshotForPeriod(tx, invoice.tariffId);
+  // Решение владельца 18.08: «Удалили/отключили сотрудника — со следующего периода стоимость
+  // меньше». The new period starts owing exactly the seats its own invoice billed, so the
+  // allowance and the money agree by construction and the counter can go DOWN, not only up.
+  // Only a renewal period invoice carries that quantity: a manual invoice always has a
+  // description, and mid-period seat/upgrade invoices never reach this boundary promotion.
+  const isRenewalPeriodInvoice =
+    invoice.invoiceKind === 'tariff_period' && invoice.description === null;
   await tx.update(saasBillingSubscriptions).set({
     tariffId: invoice.tariffId, pendingTariffId: null, status: 'active', lifecycleState: 'active',
     cancelledAt: null, currentPeriodStartsAt: invoice.servicePeriodStartsAt,
     currentPeriodEndsAt: invoice.servicePeriodEndsAt, tariffSnapshot, updatedAt: new Date().toISOString(),
+    ...(isRenewalPeriodInvoice ? { paidAdditionalSeats: invoice.additionalSeatQuantity } : {}),
   }).where(eq(saasBillingSubscriptions.id, subscription.id));
   await applyPaidSaasBillingTariff(tx, invoice.id, organizationId);
   if (subscription.pendingTariffId !== null) {
@@ -229,16 +461,33 @@ function paidPeriodSnapshotAdditionalSeatPrice(snapshot: Record<string, unknown>
 export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
   return {
     async listBillingPeriods() {
-      const rows = await getDrizzle()
-        .select()
-        .from(saasBillingPeriods)
-        .orderBy(saasBillingPeriods.sortOrder, saasBillingPeriods.code);
-      return rows.map((row) => ({
+      const platformRead = getCurrentDbPrincipal()?.kind === 'platform';
+      type BillingPeriodCatalogRow = {
+        code: string;
+        label: string;
+        months: number;
+        is_selectable: boolean;
+        sort_order: number;
+      };
+      const result = platformRead
+        ? await runWebappNamedRoot<BillingPeriodCatalogRow>(
+            getWebappSqlDb(),
+            'app.list_saas_billing_period_catalog_platform()',
+            [],
+            sql`SELECT * FROM app.list_saas_billing_period_catalog_platform()`,
+          )
+        : await runWebappNamedRoot<BillingPeriodCatalogRow>(
+            getWebappSqlDb(),
+            'app.list_saas_billing_period_catalog()',
+            [],
+            sql`SELECT * FROM app.list_saas_billing_period_catalog()`,
+          );
+      return result.rows.map((row) => ({
         code: row.code,
         label: row.label,
         months: row.months,
-        isSelectable: row.isSelectable,
-        sortOrder: row.sortOrder,
+        isSelectable: row.is_selectable,
+        sortOrder: row.sort_order,
       }));
     },
     async getSaasBillingAccountBillingEmail(organizationId) {
@@ -342,7 +591,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
 
     async listActiveTariffChoices() {
       return getDrizzle()
-        .select({ id: saasTariffs.id, name: saasTariffs.name })
+        .select({ id: saasTariffs.id, name: saasTariffs.name, priceMinor: saasTariffs.priceMinor })
         .from(saasTariffs)
         .where(eq(saasTariffs.isActive, true))
         .orderBy(saasTariffs.name);
@@ -353,6 +602,18 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       const conds = [];
       if (filter.periodFrom) conds.push(gte(saasBillingInvoices.createdAt, filter.periodFrom));
       if (filter.periodTo) conds.push(lte(saasBillingInvoices.createdAt, filter.periodTo));
+      if (filter.paidFrom) conds.push(gte(saasBillingInvoices.paidAt, filter.paidFrom));
+      if (filter.paidTo) conds.push(lte(saasBillingInvoices.paidAt, filter.paidTo));
+      if (filter.providerInvoiceRefs) {
+        // An empty request matches nothing. `inArray` with an empty list is not a safe way to say
+        // that, so the impossible predicate is written out — otherwise "look up these zero refs"
+        // would silently mean "give me the whole journal".
+        conds.push(
+          filter.providerInvoiceRefs.length
+            ? inArray(saasBillingInvoices.providerInvoiceRef, filter.providerInvoiceRefs)
+            : sql`false`,
+        );
+      }
       if (filter.status) conds.push(eq(saasBillingInvoices.status, filter.status));
       const payerSearch = filter.payerSearch?.trim();
       if (payerSearch) conds.push(ilike(beOrganizations.title, `%${payerSearch}%`));
@@ -763,7 +1024,10 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         // #1057 — K0 originally derived the provider key from a short clock bucket. A historical
         // empty renewal draft can therefore have a different key even though it is the same
         // subscription period. The period is authoritative for this renewal path; manual invoices
-        // (description + expiry) and seat overage invoices do not participate in this lookup.
+        // (they always carry a description) and seat overage invoices (different kind) do not
+        // participate in this lookup. The expiry is NOT a discriminator any more — every invoice
+        // now gets one from the настройка, so matching on `expires_at IS NULL` would miss the
+        // renewal draft this lookup exists to find and raise a duplicate.
         const [existingRenewal] = await tx
           .select()
           .from(saasBillingInvoices)
@@ -774,26 +1038,23 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
               eq(saasBillingInvoices.servicePeriodEndsAt, input.servicePeriodEndsAt),
               eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
               isNull(saasBillingInvoices.description),
-              isNull(saasBillingInvoices.expiresAt),
             ),
           )
           .limit(1);
-        if (existingRenewal) return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
 
-        const [authority] = await tx
+        // Owner ruling 18.08.2026 — price, billing period and snapshot all come from the ONE tariff
+        // this period is sold under (`purchasedTariffId`), never from a mix of the current and the
+        // scheduled one. The tariff is picked here, in JS, by the same rule every other billing
+        // path uses, instead of a join that silently decided it a second way.
+        const [subscription] = await tx
           .select({
             organizationId: saasBillingSubscriptions.organizationId,
             saasBillingAccountId: saasBillingSubscriptions.saasBillingAccountId,
-            tariffId: saasTariffs.id,
-            tariffName: saasTariffs.name,
-            amountMinor: saasTariffs.priceMinor,
-            additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
-            currency: saasTariffs.currency,
-            tariffBillingPeriod: saasTariffs.billingPeriod,
+            tariffId: saasBillingSubscriptions.tariffId,
+            pendingTariffId: saasBillingSubscriptions.pendingTariffId,
             paidAdditionalSeats: saasBillingSubscriptions.paidAdditionalSeats,
           })
           .from(saasBillingSubscriptions)
-          .innerJoin(saasTariffs, eq(saasTariffs.id, saasBillingSubscriptions.tariffId))
           .where(
             and(
               eq(saasBillingSubscriptions.id, input.saasBillingSubscriptionId),
@@ -801,33 +1062,133 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
             ),
           )
           .limit(1);
-        if (!authority) throw new Error('saas_billing_subscription_not_found');
-        if (authority.amountMinor === null || authority.currency === null) {
+        if (!subscription) throw new Error('saas_billing_subscription_not_found');
+        const [tariff] = await tx
+          .select({
+            tariffId: saasTariffs.id,
+            tariffName: saasTariffs.name,
+            amountMinor: saasTariffs.priceMinor,
+            additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
+            currency: saasTariffs.currency,
+            tariffBillingPeriod: saasTariffs.billingPeriod,
+          })
+          .from(saasTariffs)
+          .where(eq(saasTariffs.id, purchasedTariffId(subscription)))
+          .limit(1);
+        if (!tariff) throw new Error('saas_billing_subscription_not_found');
+        if (tariff.amountMinor === null || tariff.currency === null) {
           throw new Error('saas_billing_tariff_not_billable');
         }
-        if (authority.paidAdditionalSeats > 0 && authority.additionalSeatPriceMinor === null) {
-          throw new Error('saas_billing_additional_seat_price_missing');
+        // Валюта периода — своя переменная, а не поле объекта: сужение типа по проверке выше внутри
+        // колбэка ниже не живёт, а «валюта может быть null» здесь уже неправда.
+        const periodCurrency = tariff.currency;
+        // Решение владельца 18.08: «Удалили/отключили сотрудника — со следующего периода стоимость
+        // меньше». The seats this period bills are recounted from live membership under the same
+        // clinic-team lock the seat purchase door uses, capped by what was actually paid for.
+        const additionalSeatQuantity = await transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'clinic_team' },
+          (quota) => quota.resolveBillableAdditionalSeats(subscription.paidAdditionalSeats),
+        );
+        // Долг за место с прошлого периода едет сюда строкой — та же дверь, что у фонового тика.
+        const seatDebt = await readSeatDebtForPeriod(tx, {
+          organizationId: input.organizationId,
+          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+          periodStartsAt: input.servicePeriodStartsAt,
+          asOf: input.asOf,
+          periodCurrency,
+        });
+        const amountMinor = saasBillingPeriodAmountMinor({
+          tariffPriceMinor: tariff.amountMinor,
+          additionalSeatPriceMinor: tariff.additionalSeatPriceMinor,
+          additionalSeatQuantity,
+          carriedDebtMinor: seatDebt.totalMinor,
+        });
+
+        if (existingRenewal) {
+          // Same rule, one step further: the draft raised earlier for THIS period describes the
+          // tariff that was being purchased then. If the clinic has since scheduled (or cancelled)
+          // a change, that draft now names the wrong tariff — and `saas_billing_invoices_period_uidx`
+          // forbids a second row for the period, so it is refreshed in place rather than left to
+          // send the clinic to a checkout for a tariff it will not get. Only while it is still an
+          // unclaimed draft: once the provider holds an order (`providerInvoiceRef`) or the invoice
+          // left `draft`, the order is real and rewriting our copy of it would lie about it.
+          // Weighed against the seat count THIS draft was raised with, not today's: a draft
+          // already standing for the period is only refreshed when the TARIFF changed under it.
+          // Seat churn while an invoice for the period is open does not re-price it — the next
+          // period's own invoice is where a changed seat count lands.
+          // Долг сюда приходит ТЕМ ЖЕ правилом: сверяется тот, что уже вписан в этот черновик, а не
+          // сегодняшний. Долг, появившийся после того как черновик выставлен, не переоценивает его —
+          // он поедет в счёт следующего периода, ровно как поступает счётчик мест строкой выше.
+          if (
+            existingRenewal.tariffId === tariff.tariffId &&
+            existingRenewal.amountMinor ===
+              saasBillingPeriodAmountMinor({
+                tariffPriceMinor: tariff.amountMinor,
+                additionalSeatPriceMinor: tariff.additionalSeatPriceMinor,
+                additionalSeatQuantity: existingRenewal.additionalSeatQuantity,
+                carriedDebtMinor: existingRenewal.carriedDebtMinor,
+              })
+          ) {
+            return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+          }
+          if (existingRenewal.status !== 'draft' || existingRenewal.providerInvoiceRef !== null) {
+            return { invoice: toSaasBillingInvoice(existingRenewal), created: false };
+          }
+          // The amount is NOT passed in: the seam derives it from this subscription's tariff row, so
+          // the money column stays outside the tenant role's reach. A fresh tariff snapshot also
+          // drops the fiscal receipt snapshot stored inside it (`withReceiptSnapshot`): a receipt for
+          // the old amount must not survive the refresh.
+          const applied = await refreshSaasBillingInvoicePurchasedTariff(
+            tx,
+            existingRenewal.id,
+            input.organizationId,
+            tariff.tariffId,
+          );
+          // Same failure as the previous direct UPDATE returning no row: the draft was claimed (or
+          // removed) between the read and the write, so nothing was refreshed.
+          if (!applied) throw new Error('saas_billing_invoice_refresh_failed');
+          const [refreshed] = await tx
+            .select()
+            .from(saasBillingInvoices)
+            .where(eq(saasBillingInvoices.id, existingRenewal.id))
+            .limit(1);
+          if (!refreshed) throw new Error('saas_billing_invoice_refresh_failed');
+          return { invoice: toSaasBillingInvoice(refreshed), created: false };
         }
 
-        const tariffSnapshot = await readTariffSnapshotForPeriod(tx, authority.tariffId);
-        return insertSaasBillingInvoiceIdempotent(tx, {
-          organizationId: authority.organizationId,
-          saasBillingAccountId: authority.saasBillingAccountId,
-          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-          tariffId: authority.tariffId,
-          tariffName: authority.tariffName,
-          invoiceKind: 'tariff_period',
-          additionalSeatQuantity: authority.paidAdditionalSeats,
-          amountMinor: authority.amountMinor + authority.paidAdditionalSeats * (authority.additionalSeatPriceMinor ?? 0),
-          currency: authority.currency,
-          tariffBillingPeriod: authority.tariffBillingPeriod,
-          tariffSnapshot,
-          servicePeriodStartsAt: input.servicePeriodStartsAt,
-          servicePeriodEndsAt: input.servicePeriodEndsAt,
-          status: 'draft',
-          providerId: input.providerId,
-          providerIdempotencyKey: input.providerIdempotencyKey,
+        const tariffSnapshot = await readTariffSnapshotForPeriod(tx, tariff.tariffId);
+        // Счёт-преемник появляется ПЕРВЫМ, долг гасится только им — тот же порядок и та же причина,
+        // что при перевыставлении: между двумя шагами долг не должен переставать существовать.
+        const { successor } = await reissueWithSuccessor({
+          issueSuccessor: () =>
+            insertSaasBillingInvoiceIdempotent(tx, {
+              organizationId: subscription.organizationId,
+              saasBillingAccountId: subscription.saasBillingAccountId,
+              saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+              tariffId: tariff.tariffId,
+              tariffName: tariff.tariffName,
+              invoiceKind: 'tariff_period',
+              additionalSeatQuantity,
+              amountMinor,
+              carriedDebtMinor: seatDebt.totalMinor,
+              currency: periodCurrency,
+              tariffBillingPeriod: tariff.tariffBillingPeriod,
+              tariffSnapshot,
+              servicePeriodStartsAt: input.servicePeriodStartsAt,
+              servicePeriodEndsAt: input.servicePeriodEndsAt,
+              expiresAt: input.expiresAt,
+              status: 'draft',
+              providerId: input.providerId,
+              providerIdempotencyKey: input.providerIdempotencyKey,
+            }),
+          // Долг переезжает только в СВЕЖЕ выставленный счёт. Повторный вызов, отдавший уже
+          // существующую строку, ничего не гасит: сумма в ней уже посчитана своим прогоном.
+          retireSuperseded: async ({ invoice, created }) => {
+            if (created) await carrySeatDebtInto(tx, seatDebt.rows, invoice.id);
+          },
         });
+        return successor;
       });
     },
 
@@ -899,7 +1260,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           throw new Error('saas_billing_tariff_upgrade_proration_unavailable');
         }
         if (targetTariff.priceMinor <= currentTariff.priceMinor) return { outcome: 'scheduled' };
-        const currentPeriodAdjustmentMinor = proratedTariffUpgradeAmountMinor({
+        const currentPeriodAdjustmentMinor = proratedRemainingPeriodAmountMinor({
           currentPriceMinor: currentTariff.priceMinor,
           targetPriceMinor: targetTariff.priceMinor,
           periodStartsAt: subscription.currentPeriodStartsAt,
@@ -964,6 +1325,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           },
           servicePeriodStartsAt: input.asOf,
           servicePeriodEndsAt: subscription.currentPeriodEndsAt,
+          expiresAt: input.expiresAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
@@ -1084,77 +1446,116 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         const [invoice] = await tx.select().from(saasBillingInvoices).where(and(
           eq(saasBillingInvoices.id, invoiceIdentity.id), eq(saasBillingInvoices.organizationId, input.organizationId),
         )).limit(1).for('update');
-        if (!invoice || invoice.status === 'void' || invoice.status === 'failed') {
-          return { captured: false, duplicate: true };
-        }
-        const wasPaid = invoice.status === 'paid';
-        if (!wasPaid) {
-          await tx.update(saasBillingInvoices).set({ status: 'paid', paidAt: input.paidAt, updatedAt: new Date().toISOString() })
-            .where(eq(saasBillingInvoices.id, invoice.id));
-        }
-        // The subscription lock serializes separately delivered seat captures before allowance
-        // changes, including replays that carry a different provider event id.
-        if (input.savedPaymentMethodId && invoice.invoiceKind === 'tariff_period') {
-          await tx.update(saasBillingSubscriptions).set({ savedPaymentMethodId: input.savedPaymentMethodId, updatedAt: new Date().toISOString() })
-            .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
-        }
-        if (invoice.invoiceKind === 'seat_overage') {
-          if (!wasPaid) {
-            await tx.update(saasBillingSubscriptions).set({
-              paidAdditionalSeats: sql`${saasBillingSubscriptions.paidAdditionalSeats} + ${invoice.additionalSeatQuantity}`,
-              updatedAt: new Date().toISOString(),
-            }).where(eq(saasBillingSubscriptions.id, subscription.id));
-          }
-        } else if (
-          invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
-          !wasPaid &&
-          invoice.servicePeriodEndsAt === subscription.currentPeriodEndsAt
-        ) {
-          const tariffSnapshot =
-            invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
-          const targetTariff = paidPeriodSnapshotPrice(tariffSnapshot);
-          const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
-          if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
-            throw new Error('saas_billing_additional_seat_price_missing');
-          }
-          await tx
-            .update(saasBillingInvoices)
-            .set({
-              tariffId: invoice.tariffId,
-              tariffName: invoice.tariffName,
-              currency: targetTariff.currency,
-              tariffBillingPeriod: targetTariff.billingPeriod,
-              tariffSnapshot,
-              updatedAt: new Date().toISOString(),
-            })
-            .where(
-              and(
-                eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
-                eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
-                isNull(saasBillingInvoices.description),
-                eq(saasBillingInvoices.status, 'paid'),
-                eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
-              ),
-            );
-          await tx
-            .update(saasBillingSubscriptions)
-            .set({
-              tariffId: invoice.tariffId,
-              pendingTariffId: null,
-              tariffSnapshot,
-              status: 'active',
-              lifecycleState: 'active',
-              updatedAt: new Date().toISOString(),
-            })
-            .where(eq(saasBillingSubscriptions.id, subscription.id));
-          await applyPaidSaasBillingTariff(tx, invoice.id, input.organizationId);
-        } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
-          await promotePaidInvoice(tx, invoice, input.organizationId);
-        }
-        await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
-          eq(saasBillingProviderEvents.providerId, event.providerId), eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
-        ));
-        return { captured: !wasPaid, duplicate: wasPaid };
+        if (!invoice) return { captured: false, duplicate: true };
+        return captureSaasBillingPaidInvoice(invoice, {
+          // Деньги пришли по счёту, чей долг уже переехал в счёт-преемник. Молчать здесь нельзя:
+          // списание у провайдера состоялось, а та же сумма стоит строкой внутри преемника.
+          settleSuperseded: async () =>
+            (await releaseCarriedSeatDebt(tx, invoice.id, input.organizationId)) === 'released'
+              ? 'released'
+              : 'blocked',
+          // Снять долг не с чего: преемник уже оплачен. Услуга оплачена дважды по-настоящему, и
+          // арифметикой это не чинится — это возврат, работа оператора. Счёт НЕ переводится в
+          // `paid`, но и оплата не выбрасывается: она попадает туда, где оператор её видит.
+          refuse: async (reason) => {
+            if (reason === 'closed') return { captured: false, duplicate: true };
+            await tx.insert(adminAuditLog).values({
+              organizationId: input.organizationId,
+              actorId: null,
+              action: 'saas_billing_superseded_invoice_paid_refund_due',
+              targetId: invoice.id,
+              details: {
+                amountMinor: invoice.amountMinor,
+                currency: invoice.currency,
+                supersededByInvoiceId: invoice.supersededByInvoiceId,
+                providerId: event.providerId,
+                providerEventId: event.providerEventId,
+              },
+              status: 'error',
+            });
+            await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
+              eq(saasBillingProviderEvents.providerId, event.providerId),
+              eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+            ));
+            return { captured: false, duplicate: false };
+          },
+          markPaid: async (cameFromSupersededPath) => {
+            const wasPaid = invoice.status === 'paid';
+            if (!wasPaid) {
+              // Ссылка на преемника снимается ТЕМ ЖЕ оператором, что ставит `paid`: два ограничения
+              // таблицы (`…_superseded_is_void_check` и `…_seat_void_has_successor_check`) не оставляют
+              // между ними ни одного разрешённого промежуточного состояния — и не должны.
+              await tx.update(saasBillingInvoices).set({
+                status: 'paid',
+                paidAt: input.paidAt,
+                updatedAt: new Date().toISOString(),
+                ...(cameFromSupersededPath ? { supersededByInvoiceId: null } : {}),
+              }).where(eq(saasBillingInvoices.id, invoice.id));
+            }
+            // The subscription lock serializes separately delivered seat captures before allowance
+            // changes, including replays that carry a different provider event id.
+            if (input.savedPaymentMethodId && invoice.invoiceKind === 'tariff_period') {
+              await tx.update(saasBillingSubscriptions).set({ savedPaymentMethodId: input.savedPaymentMethodId, updatedAt: new Date().toISOString() })
+                .where(and(eq(saasBillingSubscriptions.id, invoice.saasBillingSubscriptionId), eq(saasBillingSubscriptions.organizationId, input.organizationId)));
+            }
+            if (invoice.invoiceKind === 'seat_overage') {
+              // Место уже открыто в момент выставления этого счёта (Р-15, действующая редакция:
+              // `moveSeatOverageAllowance` вызывается там же, где вставляется строка счёта), и
+              // здесь оно НЕ открывается второй раз: приём денег только закрывает счёт. Ветка
+              // оставлена явной, потому что молчаливое падение в `else if` ниже отправило бы счёт
+              // за место в `promotePaidInvoice`, то есть в продление тарифного периода.
+            } else if (
+              invoice.description === SAAS_BILLING_TARIFF_UPGRADE_DESCRIPTION &&
+              !wasPaid &&
+              invoice.servicePeriodEndsAt === subscription.currentPeriodEndsAt
+            ) {
+              const tariffSnapshot =
+                invoice.tariffSnapshot ?? (await readTariffSnapshotForPeriod(tx, invoice.tariffId));
+              const targetTariff = paidPeriodSnapshotPrice(tariffSnapshot);
+              const additionalSeatPriceMinor = paidPeriodSnapshotAdditionalSeatPrice(tariffSnapshot);
+              if (subscription.paidAdditionalSeats > 0 && additionalSeatPriceMinor === null) {
+                throw new Error('saas_billing_additional_seat_price_missing');
+              }
+              await tx
+                .update(saasBillingInvoices)
+                .set({
+                  tariffId: invoice.tariffId,
+                  tariffName: invoice.tariffName,
+                  currency: targetTariff.currency,
+                  tariffBillingPeriod: targetTariff.billingPeriod,
+                  tariffSnapshot,
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(
+                  and(
+                    eq(saasBillingInvoices.saasBillingSubscriptionId, subscription.id),
+                    eq(saasBillingInvoices.invoiceKind, 'tariff_period'),
+                    isNull(saasBillingInvoices.description),
+                    eq(saasBillingInvoices.status, 'paid'),
+                    eq(saasBillingInvoices.servicePeriodStartsAt, subscription.currentPeriodEndsAt),
+                  ),
+                );
+              await tx
+                .update(saasBillingSubscriptions)
+                .set({
+                  tariffId: invoice.tariffId,
+                  pendingTariffId: null,
+                  tariffSnapshot,
+                  status: 'active',
+                  lifecycleState: 'active',
+                  updatedAt: new Date().toISOString(),
+                })
+                .where(eq(saasBillingSubscriptions.id, subscription.id));
+              await applyPaidSaasBillingTariff(tx, invoice.id, input.organizationId);
+            } else if (invoice.servicePeriodStartsAt <= input.paidAt) {
+              await promotePaidInvoice(tx, invoice, input.organizationId);
+            }
+            await tx.update(saasBillingProviderEvents).set({ processedAt: new Date().toISOString() }).where(and(
+              eq(saasBillingProviderEvents.providerId, event.providerId), eq(saasBillingProviderEvents.providerEventId, event.providerEventId),
+            ));
+            return { captured: !wasPaid, duplicate: wasPaid };
+          },
+        });
       });
     },
 
@@ -1263,10 +1664,14 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           )
           .limit(1)
           .for('update');
-        const decision = await quota.resolveClinicTeamAvailability();
-        if (decision.allowed) return { outcome: 'seat_available' as const };
-        if (decision.code === 'seat_limit_reached') {
+        const offer = await quota.resolveClinicTeamAvailability();
+        if (offer.outcome === 'seat_available') return { outcome: 'seat_available' as const };
+        if (offer.outcome === 'seat_not_sold') {
           return { outcome: 'seat_overage_unavailable' as const };
+        }
+        // Р-15: остатка оплаченного периода нет — продавать не во что, счёт не выписывается.
+        if (offer.outcome === 'paid_period_over') {
+          return { outcome: 'paid_period_over' as const };
         }
 
         const effectiveTariffResult = await tx.execute(sql`
@@ -1296,14 +1701,19 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           | undefined;
         if (!tariff) return { outcome: 'seat_overage_unavailable' as const };
 
+        // Котировка сервера сверяется со свежим расчётом под той же блокировкой. Расхождение
+        // возможно, пока котировка жива: тариф отредактировали, период сдвинулся. На счёт всегда
+        // идёт `offer.priceMinor` — то, что посчитала единственная дверь здесь и сейчас, — а не
+        // число из запроса; равенство лишь доказывает, что человеку показали именно его.
         if (
-          input.confirmedAmountMinor !== decision.priceMinor ||
-          input.confirmedCurrency !== decision.currency
+          input.quotePriceMinor !== offer.priceMinor ||
+          input.quoteCurrency !== offer.currency
         ) {
           return {
             outcome: 'price_changed' as const,
-            priceMinor: decision.priceMinor,
-            currency: decision.currency,
+            priceMinor: offer.priceMinor,
+            currency: offer.currency,
+            priceStableUntil: offer.priceStableUntil,
           };
         }
         if (existing) {
@@ -1323,17 +1733,29 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           invoiceKind: 'seat_overage',
           additionalSeatQuantity: 1,
           description: 'Дополнительное место специалиста сверх тарифа',
-          amountMinor: decision.priceMinor,
-          currency: decision.currency,
+          amountMinor: offer.priceMinor,
+          currency: offer.currency,
           tariffBillingPeriod: tariff.billing_period,
           tariffSnapshot: tariff.tariff_snapshot,
-          servicePeriodStartsAt: input.servicePeriodStartsAt,
-          servicePeriodEndsAt: input.servicePeriodEndsAt,
-          expiresAt: input.servicePeriodEndsAt,
+          // Сумма, отрезок услуги и срок оплаты — из ОДНОГО предложения. Собранные по отдельности,
+          // они и разъезжались: полный тариф за ноль дней и услуга, кончавшаяся раньше начала.
+          servicePeriodStartsAt: offer.servicePeriodStartsAt,
+          servicePeriodEndsAt: offer.servicePeriodEndsAt,
+          // Р-19: срок у счёта за место один — конец периода, той же услуги, что он продаёт;
+          // отдельного срока «от выставления» и перевыставления по нему больше нет.
+          expiresAt: offer.servicePeriodEndsAt,
           status: 'draft',
           providerId: input.providerId,
           providerIdempotencyKey: input.providerIdempotencyKey,
         });
+        // Р-15 в действующей редакции: «Место открывается СРАЗУ, пропорциональная доплата уходит в
+        // следующий счёт». Счётчик растёт здесь, в одной транзакции с выставлением счёта и под тем
+        // же замком организации, — а НЕ в приёме платежа: платёж перестал быть условием доступа.
+        // Прежний порядок (открыть по оплате) и был механизмом находки F1 слепого аудита 19.08:
+        // приём денег место открывал, а срока счёта не проверял никто.
+        if (inserted.created) {
+          await moveSeatOverageAllowance(tx, subscription.id, +1);
+        }
         return { outcome: 'invoice' as const, ...inserted };
           },
         ),
@@ -1351,8 +1773,16 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .for('update');
         if (!invoiceRow) return { outcome: 'invoice_not_found' as const };
         const invoice = toSaasBillingInvoice(invoiceRow);
-        if (invoice.status !== 'draft' && invoice.status !== 'pending') {
-          return { outcome: 'invoice_not_cancellable' as const, status: invoice.status };
+        // Кнопки на экране может не быть, а запрос прийти. Вердикт тот же самый, что читает экран
+        // (`invoiceOperations.ts`), и стоит он ЗДЕСЬ — в единственном месте, где строка счёта уже
+        // заблокирована и решение нельзя обойти другим входом. Счёт за место сюда доходит с
+        // вердиктом `seat_invoice_not_cancellable` (Р-17): отмена как отдельное действие
+        // оператора над этим счётом не существует, и место она поэтому не закрывает.
+        const verdict = saasBillingInvoiceCancelVerdict(invoice);
+        if (!verdict.allowed) {
+          return verdict.refusal === 'seat_invoice_not_cancellable'
+            ? { outcome: 'seat_invoice_not_cancellable' as const }
+            : { outcome: 'invoice_not_cancellable' as const, status: invoice.status };
         }
 
         const [updated] = await tx
@@ -1387,12 +1817,29 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .where(eq(beOrganizations.id, organizationId))
           .limit(1);
         if (!organization) throw new Error('organization_not_found');
-        if (!organization.tariffId) throw new Error('saas_billing_no_tariff_assigned');
+
+        // Решение владельца 18.08 (L-11): «она выбирает платный тариф — ИДЕТ ОПЛАЧИВАТЬ И ПОТОМ
+        // ПОЛУЧАЕТ ДОСТУП». Поэтому первый выбор больше НЕ пишет `be_organizations.tariff_id`
+        // (миграция 0024) — там теперь только действующий тариф. Выбранный, но ещё не оплаченный,
+        // живёт в собственной строке подписки `pending_payment`, и счёт выставляется по нему:
+        // иначе клиника выбрала бы тариф и осталась без пути к оплате.
+        const [chosen] = await tx
+          .select({ tariffId: saasBillingSubscriptions.tariffId })
+          .from(saasBillingSubscriptions)
+          .where(
+            and(
+              eq(saasBillingSubscriptions.organizationId, organizationId),
+              eq(saasBillingSubscriptions.source, 'paid_subscription'),
+            ),
+          )
+          .limit(1);
+        const subscriptionTariffId = organization.tariffId ?? chosen?.tariffId ?? null;
+        if (!subscriptionTariffId) throw new Error('saas_billing_no_tariff_assigned');
 
         const [tariff] = await tx
           .select({ id: saasTariffs.id, billingPeriod: saasTariffs.billingPeriod, additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor, currency: saasTariffs.currency })
           .from(saasTariffs)
-          .where(and(eq(saasTariffs.id, organization.tariffId), eq(saasTariffs.isActive, true)))
+          .where(and(eq(saasTariffs.id, subscriptionTariffId), eq(saasTariffs.isActive, true)))
           .limit(1);
         if (!tariff) throw new Error('saas_billing_tariff_not_billable');
 
@@ -1422,8 +1869,13 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           });
         if (!row) throw new Error('saas_billing_subscription_upsert_failed');
 
-        const targetTariffId = row.pendingTariffId ?? row.tariffId;
+        // Owner ruling 18.08.2026 — one tariff pays for one period: `purchasedTariffId` decides it
+        // once, and price, billing period, currency and seat price are all read off THAT row. The
+        // amount `createSaasBillingInvoice` writes comes from the same rule, so the free-tariff
+        // refusal below weighs exactly the price the clinic would be charged.
+        const targetTariffId = purchasedTariffId(row);
         const [targetTariff] = await tx.select({
+          priceMinor: saasTariffs.priceMinor,
           billingPeriod: saasTariffs.billingPeriod,
           additionalSeatPriceMinor: saasTariffs.additionalSeatPriceMinor,
           currency: saasTariffs.currency,
@@ -1433,6 +1885,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         return {
           saasBillingSubscriptionId: row.id,
           currentTariffId: row.tariffId,
+          purchasedTariffPriceMinor: targetTariff.priceMinor,
           tariffId: targetTariffId,
           billingPeriod: targetTariff.billingPeriod,
           savedPaymentMethodId: row.savedPaymentMethodId,
@@ -1444,37 +1897,26 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
       });
     },
 
+    /**
+     * Межарендное перечисление «у кого кончился оплаченный период». Читается объявленным корнем,
+     * а не отношением: `app_worker`, под которым идёт машинный тик, видит по RLS только подписки
+     * `app.current_org_id()`, а платформенная роль требует живого администратора-человека,
+     * которого у тика нет (замер 19.08 на TEST: `42501 platform port context actor is not a
+     * platform administrator`, строки `billing.saas_renewal.tick` не было ни разу).
+     *
+     * Правило «за какой тариф платят» (`payableTariff.ts`) остаётся одно: корень применяет его же
+     * (`pending_tariff_id ?? tariff_id`), потому что из покупаемого тарифа берётся длина периода.
+     */
     async listSaasBillingSubscriptionsDueForRenewal({ asOf, limit }) {
-      const rows = await getDrizzle()
-        .select({
-          saasBillingSubscriptionId: saasBillingSubscriptions.id,
-          organizationId: saasBillingSubscriptions.organizationId,
-          tariffId: saasTariffs.id,
-          pendingTariffId: saasBillingSubscriptions.pendingTariffId,
-          billingPeriod: saasTariffs.billingPeriod,
-          currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
-          savedPaymentMethodId: saasBillingSubscriptions.savedPaymentMethodId,
-          autopayConsentedAt: saasBillingSubscriptions.autopayConsentedAt,
-          autopayRevokedAt: saasBillingSubscriptions.autopayRevokedAt,
-        })
-        .from(saasBillingSubscriptions)
-        .innerJoin(saasTariffs, eq(saasTariffs.id, sql`coalesce(${saasBillingSubscriptions.pendingTariffId}, ${saasBillingSubscriptions.tariffId})`))
-        .where(
-          and(
-            eq(saasBillingSubscriptions.source, 'paid_subscription'),
-            eq(saasBillingSubscriptions.status, 'active'),
-            isNotNull(saasBillingSubscriptions.currentPeriodEndsAt),
-            lte(saasBillingSubscriptions.currentPeriodEndsAt, asOf),
-          ),
-        )
-        .orderBy(saasBillingSubscriptions.currentPeriodEndsAt)
-        .limit(limit);
-      return rows.map((row) => ({
-        ...row,
-        billingPeriod: row.billingPeriod,
-        // `IS NOT NULL` filtered above; the column type stays nullable at the schema level.
-        currentPeriodEndsAt: row.currentPeriodEndsAt as string,
-      }));
+      const result = await runWebappNamedRoot<{ due: unknown }>(
+        getWebappSqlDb(),
+        'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)',
+        [asOf, limit],
+        sql`SELECT app.list_saas_billing_subscriptions_due_for_renewal(
+          ${asOf}::timestamptz, ${limit}::integer
+        ) AS due`,
+      );
+      return parseSaasBillingSubscriptionsDueForRenewal(result.rows[0]?.due);
     },
 
     async createSaasBillingRenewalInvoiceIfAbsent(input) {
@@ -1495,7 +1937,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           )
           .limit(1);
         if (!subscription) throw new Error('saas_billing_subscription_not_found');
-        const invoiceTariffId = subscription.pendingTariffId ?? subscription.tariffId;
+        const invoiceTariffId = purchasedTariffId(subscription);
         const [authority] = await tx
           .select({
             tariffId: saasTariffs.id,
@@ -1512,42 +1954,73 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
         if (authority.amountMinor === null || authority.currency === null) {
           throw new Error('saas_billing_tariff_not_billable');
         }
-        if (subscription.paidAdditionalSeats > 0 && authority.additionalSeatPriceMinor === null) {
-          throw new Error('saas_billing_additional_seat_price_missing');
-        }
-        const additionalSeatQuantity = subscription.paidAdditionalSeats;
-        const amountMinor = authority.amountMinor + additionalSeatQuantity * (authority.additionalSeatPriceMinor ?? 0);
+        const periodCurrency = authority.currency;
+        // Same recount as the clinic-initiated renewal above, through the same lock: one rule for
+        // "how many seats does the next period bill", whoever raises the invoice.
+        const additionalSeatQuantity = await transactionQuotaPort.withinLock(
+          tx,
+          { organizationId: input.organizationId, mechanic: 'clinic_team' },
+          (quota) => quota.resolveBillableAdditionalSeats(subscription.paidAdditionalSeats),
+        );
+        // Тот же долг за место и та же дверь, что у клиентского пути выше: конец оплаченного
+        // периода — момент, когда неоплаченный счёт за место перестаёт стоять сам по себе и
+        // становится строкой следующего счёта.
+        const seatDebt = await readSeatDebtForPeriod(tx, {
+          organizationId: input.organizationId,
+          saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+          periodStartsAt: input.servicePeriodStartsAt,
+          asOf: input.asOf,
+          periodCurrency,
+        });
+        const amountMinor = saasBillingPeriodAmountMinor({
+          tariffPriceMinor: authority.amountMinor,
+          additionalSeatPriceMinor: authority.additionalSeatPriceMinor,
+          additionalSeatQuantity,
+          carriedDebtMinor: seatDebt.totalMinor,
+        });
 
         const tariffSnapshot = await readTariffSnapshotForPeriod(tx, authority.tariffId);
-        const [inserted] = await tx
-          .insert(saasBillingInvoices)
-          .values({
-            organizationId: input.organizationId,
-            saasBillingAccountId: subscription.saasBillingAccountId,
-            saasBillingSubscriptionId: input.saasBillingSubscriptionId,
-            tariffId: authority.tariffId,
-            tariffName: authority.tariffName,
-            invoiceKind: 'tariff_period',
-            additionalSeatQuantity,
-            amountMinor,
-            currency: authority.currency,
-            tariffBillingPeriod: authority.tariffBillingPeriod,
-            tariffSnapshot,
-            servicePeriodStartsAt: input.servicePeriodStartsAt,
-            servicePeriodEndsAt: input.servicePeriodEndsAt,
-            status: 'draft',
-            providerId: input.providerId,
-            providerIdempotencyKey: input.providerIdempotencyKey,
-          })
-          .onConflictDoNothing({
-            target: [
-              saasBillingInvoices.saasBillingSubscriptionId,
-              saasBillingInvoices.servicePeriodStartsAt,
-              saasBillingInvoices.servicePeriodEndsAt,
-            ],
-            where: sql`${saasBillingInvoices.invoiceKind} = 'tariff_period'`,
-          })
-          .returning();
+        const { successor: inserted } = await reissueWithSuccessor({
+          issueSuccessor: async () => {
+            const [row] = await tx
+              .insert(saasBillingInvoices)
+              .values({
+                organizationId: input.organizationId,
+                saasBillingAccountId: subscription.saasBillingAccountId,
+                saasBillingSubscriptionId: input.saasBillingSubscriptionId,
+                tariffId: authority.tariffId,
+                tariffName: authority.tariffName,
+                invoiceKind: 'tariff_period',
+                additionalSeatQuantity,
+                amountMinor,
+                carriedDebtMinor: seatDebt.totalMinor,
+                currency: periodCurrency,
+                tariffBillingPeriod: authority.tariffBillingPeriod,
+                tariffSnapshot,
+                servicePeriodStartsAt: input.servicePeriodStartsAt,
+                servicePeriodEndsAt: input.servicePeriodEndsAt,
+                expiresAt: input.expiresAt,
+                status: 'draft',
+                providerId: input.providerId,
+                providerIdempotencyKey: input.providerIdempotencyKey,
+              })
+              .onConflictDoNothing({
+                target: [
+                  saasBillingInvoices.saasBillingSubscriptionId,
+                  saasBillingInvoices.servicePeriodStartsAt,
+                  saasBillingInvoices.servicePeriodEndsAt,
+                ],
+                where: sql`${saasBillingInvoices.invoiceKind} = 'tariff_period'`,
+              })
+              .returning();
+            return row ?? null;
+          },
+          // Повторный тик по уже выставленному периоду сюда попадает с `null` и долг не трогает:
+          // он уже уехал в тот счёт, который выставил первый тик.
+          retireSuperseded: async (row) => {
+            if (row) await carrySeatDebtInto(tx, seatDebt.rows, row.id);
+          },
+        });
         if (inserted) {
           return { invoice: toSaasBillingInvoice(inserted), created: true };
         }
@@ -1760,10 +2233,7 @@ export function createPgSaasBillingRepository(): SaasBillingRepositoryPort {
           .where(and(eq(saasBillingRefunds.id, refund.id), eq(saasBillingRefunds.status, 'pending'))).returning();
         if (!row) return toSaasBillingRefund(refund);
         if (status === 'succeeded' && invoice.invoiceKind === 'seat_overage') {
-          await tx.update(saasBillingSubscriptions).set({
-            paidAdditionalSeats: sql`greatest(${saasBillingSubscriptions.paidAdditionalSeats} - ${invoice.additionalSeatQuantity}, 0)`,
-            updatedAt: new Date().toISOString(),
-          }).where(eq(saasBillingSubscriptions.id, subscription.id));
+          await moveSeatOverageAllowance(tx, subscription.id, -invoice.additionalSeatQuantity);
         }
         return toSaasBillingRefund(row);
       });

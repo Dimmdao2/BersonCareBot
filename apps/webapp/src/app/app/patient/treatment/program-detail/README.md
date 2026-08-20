@@ -32,8 +32,8 @@
 
 ## Вкладка «Программа»: обсуждение с плитки
 
-- В **`PatientTreatmentProgramStagePageProgramSection`** (только `assignment_source === doctor` и `patient_program_discussion_ui_enabled`) — кнопки «Комментарии» (badge/dot из batch summary) и «Отметить выполнение» (через **`ProgramItemCompleteDialog`** → **`POST .../progress/complete`** с payload). **Камеры на плитке нет.** Диалог комментариев — **`ProgramItemDiscussionDialog`** → **`POST .../discussion`** (dual-write в `program_action_log`). Для **promo** и при выключенном feature-flag controls скрыты.
-- На странице пункта **`PatientProgramStageItemPageClient`**: «Отметить выполнение» через **`ProgramItemCompleteDialog`**; при **`patient_program_discussion_media_submission_enabled`** (и UI-флаге) — кнопка «Камера» → **`ProgramItemSubmissionSourceDialog`** (Записать / Галерея / Файлы) → upload pipeline → **`POST .../discussion/media`**. Строка «Выполнялось» + «В прошлый раз…» — под ней, вне блока комментариев. Превью медиа в списках/thread — только статичное изображение (P24).
+- В **`PatientTreatmentProgramStagePageProgramSection`** (только `assignment_source === doctor` и `patient_program_discussion_ui_enabled`) — кнопки «Комментарии» (badge/dot из batch summary) и «Отметить выполнение». Кнопка сразу выполняет **`POST .../progress/complete`** без обязательных метрик; только успешный ответ с `completionId` открывает опциональные поля. **Камеры на плитке нет.** Диалог комментариев — **`ProgramItemDiscussionDialog`** → **`POST .../discussion`** (dual-write в `program_action_log`). Для **promo** и при выключенном feature-flag controls скрыты.
+- На странице пункта **`PatientProgramStageItemPageClient`** действует тот же порядок. «Записать» вызывает **`PATCH .../progress/complete/{completionId}/metrics`** и обогащает exact созданную строку, не добавляя второе выполнение. При **`patient_program_discussion_media_submission_enabled`** (и UI-флаге) кнопка «Камера» открывает **`ProgramItemSubmissionSourceDialog`**. Строка «Выполнялось» + «В прошлый раз…» — под ней, вне блока комментариев. Превью медиа в списках/thread — только статичное изображение (P24).
 - Врач: **`GET …/discussion`** (instance merged + filter) и **`GET …/discussion/summary`**; toolbar → **`DoctorProgramInstanceDiscussionDialog`**; deep link **`?discussionItem=`** → **`DoctorProgramItemDiscussionDialog`**; журнал программы — per-item «Обсуждение»; ответ — модалка «Ответить».
 
 ## Feature flags (rollout)
@@ -46,7 +46,7 @@
 
 ## Инварианты после декомпозиции
 
-- Пауза повторного «Выполнено» для **простых** пунктов плана (не ЛФК-форма): длительность из `system_settings` **`patient_treatment_plan_item_done_repeat_cooldown_minutes`** (`scope=admin`, минуты 5–180, default 60); RSC передаёт число в клиент как `planItemDoneRepeatCooldownMinutes`, на клиенте `planItemDoneRepeatCooldownMsFromMinutes` + `itemDoneCooldown.ts` (`apps/webapp/src/modules/treatment-program/itemDoneCooldown.ts`).
+- Пауза повторного «Выполнено» для **простых** пунктов плана (не ЛФК-форма): длительность из `system_settings` **`patient_treatment_plan_item_done_repeat_cooldown_minutes`** (`scope=admin`, минуты 5–180, default 60). Управление: `/app/doctor/patient-home`, `PatientHomeRepeatCooldownPanel`. Клиентский таймер — только UX; POST повторно проверяет последний persisted `done` exact item внутри транзакции под row lock.
 - Один клиентский корень состояния на странице детали; без нового сегмента `layout.tsx` только ради разбиения.
 - Вкладки «Программа» и «Рекомендации» остаются на `React.lazy` + prefetch в оркестраторе.
 - Публичные импорты для [`PatientTreatmentProgramStagePageClient`](../PatientTreatmentProgramStagePageClient.tsx) не меняются (баррель выше).

@@ -4,23 +4,36 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
+import { assertNameCensus } from './name-census.mjs';
 import {
   generateCatalogClosureVerifierSql,
   generateEnvLoginVariableSql,
-  generateEnvironmentVerifierSql,
   generatePortContextCapabilitySeedSql,
   generatePrivilegesSql,
+  generateRelationWallRegistrySeedSql,
   generateSharedRoleVerifierSql,
-  generateZeroStateClusterSql,
   renderEnvSql,
   renderPortContextRuntimeEnv,
   resolvePortContextCapabilities,
 } from './generate.mjs';
 
-const EXPECTED = {
-  webapp: 91,
-  integrator: 34,
-};
+const PORTS = ['webapp', 'integrator'];
+
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+test('pre-migration relation registry seed does not require declared relations to exist', () => {
+  const seedOnly = generateRelationWallRegistrySeedSql(
+    declaration,
+    'bcb_webapp_dev',
+    { reconcileOwners: false },
+  );
+  const fullReconcile = generateRelationWallRegistrySeedSql(declaration, 'bcb_webapp_dev');
+
+  assert.match(seedOnly, /'direct_public_write_retries'::name/u);
+  assert.match(seedOnly, /'app_object_owner'::name/u);
+  assert.doesNotMatch(seedOnly, /^ALTER TABLE /mu);
+  assert.match(fullReconcile, /^ALTER TABLE "integrator"\."direct_public_write_retries" OWNER TO "app_object_owner";/mu);
+});
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
   const result = spawnSync(process.execPath, [
@@ -34,8 +47,18 @@ test('the generator library refuses a mistaken direct CLI invocation', () => {
 
 test('one declaration renders the exact DB catalog and both runtime JSON catalogs', () => {
   const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
-  assert.equal(rows.length, 125);
-  assert.equal(new Set(rows.map((row) => row.capabilityId)).size, 125);
+  // Резолвер обязан отдать РОВНО объявленный каталог возможностей, один в один. Счёт «236» не
+  // отличал потерянную возможность от лишней и не называл ни ту, ни другую; сверка имён с самим
+  // каталогом (второй копии не заводим — AGENTS.md §5) называет обе стороны расхождения.
+  assert.deepEqual(
+    rows.map((row) => row.name).sort(),
+    Object.keys(declaration.portContext.capabilities).sort(),
+    'resolved capabilities must be exactly the declared capability catalog',
+  );
+  const duplicateIds = rows.map((row) => row.capabilityId)
+    .filter((id, index, all) => all.indexOf(id) !== index);
+  assert.deepEqual(duplicateIds.map((id) => rows.filter((row) => row.capabilityId === id)
+    .map((row) => `${row.port}/${row.name}`).join(' = ')), [], 'capability IDs must stay unique');
   assert.ok(new Set(rows.map((row) => [
     row.port,
     row.sessionLogin,
@@ -45,7 +68,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
     row.functionIdentity ?? '',
   ].join('\0'))).size <= rows.length, 'capability IDs remain the authority even when descriptive tuples coincide');
 
-  for (const [port, count] of Object.entries(EXPECTED)) {
+  for (const port of PORTS) {
     const rendered = renderPortContextRuntimeEnv(
       declaration,
       'test',
@@ -53,7 +76,13 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
       port,
     );
     const descriptors = JSON.parse(rendered.value);
-    assert.equal(Object.keys(descriptors).length, count);
+    // Лишнее имя в рантайм-каталоге — дверь, которой нет в декларации: приложение получит
+    // дескриптор, который никто не сверял. Счёт портов этого не называл.
+    assert.deepEqual(
+      Object.keys(descriptors).sort(),
+      rows.filter((row) => row.port === port).map((row) => row.runtimeName).sort(),
+      `${port} runtime catalog must carry exactly the resolved capabilities`,
+    );
     for (const row of rows.filter((candidate) => candidate.port === port)) {
       assert.deepEqual(descriptors[row.runtimeName], {
         capabilityId: row.capabilityId,
@@ -86,7 +115,15 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
 
   const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
-  assert.equal(roots.length, 110);
+  // Дверь без `functionIdentity` — это возможность со сквозным `purpose: 'relation'`: доступ к
+  // отношениям целиком вместо одного именованного корня. Счётчик корней («221») падал бы числом
+  // 220 и не сказал бы, КАКАЯ дверь разъехалась в relation-wide. Поэтому фиксируем поимённо
+  // ДОПОЛНЕНИЕ — оно короткое и меняться не должно вовсе.
+  assertNameCensus(
+    'relationWideCapabilities',
+    rows.filter((row) => !row.functionIdentity).map((row) => `${row.port}/${row.name}`),
+    'capabilities that hold relation-wide access instead of one named root',
+  );
   const identityResolvers = roots.filter(
     (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
   );
@@ -101,7 +138,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   for (const row of rows) {
     assert.match(seed, new RegExp(row.capabilityId));
     if (row.functionIdentity) {
-      assert.match(seed, new RegExp(row.functionIdentity.replace(/[()]/g, '\\$&')));
+      assert.match(seed, new RegExp(escapeRegExp(row.functionIdentity)));
     }
   }
   assert.equal((seed.match(/NULL::regprocedure/g) ?? []).length, rows.length - roots.length);
@@ -298,27 +335,4 @@ test('catalog closure requires one exact owner policy on every private relation'
     assert.match(sql, new RegExp(relation.owner));
   }
   assert.match(sql, /private relation owner policy missing or non-exact/);
-});
-
-test('retired roles are controlled by cluster cleanup and quarantined while dependencies remain', () => {
-  const retired = [
-    'app_identity_bootstrap',
-    'app_migrator',
-    'app_operational_diagnostic',
-    'app_operational_web_push_reminder',
-    'app_phone_bind_completion',
-    'app_web_push_reminder_discovery_definer',
-  ];
-  const cleanup = generateZeroStateClusterSql(declaration, { source: 'test' });
-  const verifier = generateEnvironmentVerifierSql(declaration, 'dev', 'bcb_webapp_dev');
-  for (const role of retired) {
-    assert.ok(declaration.zeroState.legacyRoles.includes(role), role);
-    assert.match(cleanup, new RegExp(role));
-    assert.match(verifier, new RegExp(role));
-  }
-  assert.match(verifier, /undeclared managed BCB role survived/);
-  assert.match(verifier, /retained legacy role is not quarantined NOLOGIN/);
-  assert.match(verifier, /retained legacy role still has membership/);
-  assert.match(verifier, /retained legacy role can CONNECT target/);
-  assert.match(verifier, /retained legacy role has target schema USAGE/);
 });

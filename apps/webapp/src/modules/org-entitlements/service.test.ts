@@ -50,9 +50,17 @@ const PLATFORM_BILLING_PORT_STUBS = {
   }),
   getPaidPeriodPolicy: async () => null,
   setPaidPeriodPolicy: async () => {},
+  setOrganizationActive: async (_organizationId: string, isActive: boolean) => ({
+    isActive,
+    changed: true,
+  }),
 } satisfies Pick<
   PlatformEntitlementsPort,
-  'listBillingPeriods' | 'upsertBillingPeriod' | 'getPaidPeriodPolicy' | 'setPaidPeriodPolicy'
+  | 'listBillingPeriods'
+  | 'upsertBillingPeriod'
+  | 'getPaidPeriodPolicy'
+  | 'setPaidPeriodPolicy'
+  | 'setOrganizationActive'
 >;
 
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: vi.fn() }));
@@ -68,6 +76,10 @@ const activeAccess = {
   source: 'assignment' as const,
 };
 
+const TEST_BRANCH_QUOTA = {
+  branches: { kind: 'unlimited', limit: null, unit: 'items' },
+} satisfies TariffQuotaMap;
+
 describe('registration tariff policy archive wall', () => {
   const tariffInput: Omit<Tariff, 'id' | 'createdAt' | 'updatedAt'> = {
     name: 'Registration tariff',
@@ -76,7 +88,7 @@ describe('registration tariff policy archive wall', () => {
     currency: null,
     billingPeriod: 'month',
     mechanics: {},
-    quotas: {},
+    quotas: TEST_BRANCH_QUOTA,
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
@@ -296,6 +308,7 @@ describe('org entitlement mechanic classes', () => {
         billingPeriod: 'month',
         mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
         quotas: {
+          ...TEST_BRANCH_QUOTA,
           files: {
             kind: 'numeric',
             limit: 1024,
@@ -371,53 +384,13 @@ describe('org entitlement mechanic classes', () => {
     );
   });
 
-  it('refuses file growth for an assigned tariff that never configured a file limit', async () => {
-    const snapshot = {
-      tariff: { mechanics: {}, quotas: {}, includedSeats: null, ...unconfiguredPolicies },
-      overrides: [],
-      access: activeAccess,
-    };
-    const port: OrgEntitlementsPort = {
-      ...openCabinet,
-      ...lifecycleNotificationStub,
-      resolveMechanicAccess: async (_organizationId, mechanic) => ({
-        mechanic,
-        state: 'disabled',
-        policySource: 'unconfigured',
-        warning: null,
-      }),
-      resolveCabinetAccess: async () => ({
-        state: 'full_access' as const,
-        policySource: 'system' as const,
-        warning: null,
-      }),
-      getSnapshot: async () => snapshot,
-      getTariffForOrg: async () => snapshot.tariff,
-      getActiveTariffById: async () => null,
-      listOverrides: async () => [],
-      getEffectiveCommercialAccess: async () => activeAccess,
-      getEnforcedQuotaUsage: async () => ({ files: 0 }),
-      getOwnQuotaUsage: async () => ({ files: 0 }),
-    };
-
-    expect(entitlementsFromSnapshot(snapshot).files).toBe(false);
-    expect(fileStorageLimitFromSnapshot(snapshot)).toBeUndefined();
-    vi.mocked(buildAppDeps).mockReturnValue({ orgEntitlements: port } as ReturnType<
-      typeof buildAppDeps
-    >);
-    const result = await requireEntitlementForMutation({ organizationId: 'org' }, 'files');
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.response.status).toBe(403);
-      await expect(result.response.json()).resolves.toMatchObject({
-        error: 'entitlement_required',
-        mechanic: 'files',
-      });
-    }
-  });
-
-  it('refuses patient and branch growth for an assigned tariff without their configured limits', () => {
+  /**
+   * Owner 18.08 (L-1): «ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ ВЫКЛЮЧЕН — ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА
+   * для всех таких механик с лимитом». Breakage this pins: an unfilled number goes back to meaning
+   * «механика выключена», and a clinic on СТАРТ/ПРОФИ/КЛИНИКА (quotas = {}) is refused its first
+   * location, patient and file — the live 403 of 18.08.
+   */
+  it('treats a tariff that named no number as «без лимита», not as a missing mechanic', () => {
     const snapshot = {
       tariff: { mechanics: {}, quotas: {}, includedSeats: null, ...unconfiguredPolicies },
       overrides: [],
@@ -426,8 +399,27 @@ describe('org entitlement mechanic classes', () => {
 
     const entitlements = entitlementsFromSnapshot(snapshot);
 
-    expect(entitlements.patient_count).toBe(false);
-    expect(entitlements.branches).toBe(false);
+    expect(entitlements.branches).toBe(true);
+    expect(entitlements.files).toBe(true);
+    expect(fileStorageLimitFromSnapshot(snapshot)).toBeNull();
+  });
+
+  // The other half of the same rule: a number the owner DID set stays a ceiling.
+  it('keeps the owner number as the file ceiling when the tariff set one', () => {
+    const snapshot = {
+      tariff: {
+        mechanics: {},
+        quotas: {
+          files: { kind: 'numeric' as const, limit: 1024, unit: 'bytes' as const, warningAtPercent: null },
+        },
+        includedSeats: null,
+        ...unconfiguredPolicies,
+      },
+      overrides: [],
+      access: activeAccess,
+    };
+
+    expect(fileStorageLimitFromSnapshot(snapshot)).toBe(1024);
   });
 
   it('accepts owner numbers for stock mechanics without opening numbers for possibility mechanics', async () => {
@@ -470,10 +462,10 @@ describe('org entitlement mechanic classes', () => {
         billingPeriod: 'month',
         mechanics: {},
         quotas: {
-          patient_count: {
+          files: {
             kind: 'numeric',
             limit: 25,
-            unit: 'items',
+            unit: 'bytes',
             warningAtPercent: null,
           },
           branches: {
@@ -494,7 +486,7 @@ describe('org entitlement mechanic classes', () => {
       { actorId: 'admin', reason: '' },
     );
 
-    expect(tariff.quotas.patient_count?.limit).toBe(25);
+    expect(tariff.quotas.files?.limit).toBe(25);
     expect(tariff.quotas.branches?.limit).toBe(2);
     const forbidden: TariffQuotaMap = {
       // @ts-expect-error Possibility mechanics cannot receive a number in TariffQuotaMap.
@@ -503,13 +495,12 @@ describe('org entitlement mechanic classes', () => {
     void forbidden;
   });
 
-  it('§5a stage 6.1/6.2 — projects "used out of included" for patients, files and branches, from either usage source', async () => {
+  it('§5a stage 6.1/6.2 — projects "used out of included" for files and branches, from either usage source', async () => {
     const snapshot = {
       tariff: {
         mechanics: {},
         quotas: {
           files: { kind: 'numeric', limit: 1000, unit: 'bytes', warningAtPercent: null },
-          patient_count: { kind: 'numeric', limit: 25, unit: 'items', warningAtPercent: null },
           branches: { kind: 'numeric', limit: 2, unit: 'items' },
         } as TariffQuotaMap,
         includedSeats: null,
@@ -537,20 +528,18 @@ describe('org entitlement mechanic classes', () => {
       getActiveTariffById: async () => null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
-      getEnforcedQuotaUsage: async () => ({ files: 1000, patient_count: 25, branches: 1 }),
-      getOwnQuotaUsage: async () => ({ files: 1000, patient_count: 25, branches: 2 }),
+      getEnforcedQuotaUsage: async () => ({ files: 1000, branches: 1 }),
+      getOwnQuotaUsage: async () => ({ files: 1000, branches: 2 }),
     };
 
     await expect(resolveOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
       expect.objectContaining({ mechanic: 'files', usage: 1000, threshold: 'reached' }),
-      expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
       // §5a item 2.6a — branches have no early warning at all: below the limit is below_warning
       // and nothing else, whatever percentage anyone tries to store for them.
       expect.objectContaining({ mechanic: 'branches', usage: 1, threshold: 'below_warning' }),
     ]);
     await expect(resolveOwnOrgQuotaProjections(platformPort, 'org')).resolves.toEqual([
       expect.objectContaining({ mechanic: 'files', usage: 1000, threshold: 'reached' }),
-      expect.objectContaining({ mechanic: 'patient_count', usage: 25, threshold: 'reached' }),
       expect.objectContaining({ mechanic: 'branches', usage: 2, threshold: 'reached' }),
     ]);
   });
@@ -766,18 +755,24 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
   }
 
   // Main proof for 4b.4: ONE function (`evaluateTariffDowngrade`), same numeric-mechanic shape,
-  // two different mechanics (`patient_count`, `branches`) and two different knob values each —
-  // behaviour differs by the VALUE stored on the tariff, never by which mechanic it is.
+  // two different mechanics (`files`, `branches`) and two different knob values each — behaviour
+  // differs by the VALUE stored on the tariff, never by which mechanic it is. (`patient_count`
+  // stood here until Т12, 19.08: «лимит клиентов - убрать».)
   it.each([
-    ['patient_count', 'block', 12, true],
-    ['patient_count', 'freeze_growth', 12, false],
+    ['files', 'block', 12, true],
+    ['files', 'freeze_growth', 12, false],
     ['branches', 'block', 5, true],
     ['branches', 'freeze_growth', 5, false],
   ] as const)(
     'numeric mechanic %s with downgrade policy %s and usage %d over the new limit -> blocked=%s',
     (mechanic, policy, usage, expectBlocked) => {
       const targetTariff = baseTariff({
-        quotas: { [mechanic]: { kind: 'numeric', limit: 3, unit: 'items', warningAtPercent: null } },
+        quotas: {
+          [mechanic]:
+            mechanic === 'files'
+              ? { kind: 'numeric', limit: 3, unit: 'bytes', warningAtPercent: null }
+              : { kind: 'numeric', limit: 3, unit: 'items' },
+        },
         downgradePolicies: { [mechanic]: policy },
       });
       const blocks = evaluateTariffDowngrade({
@@ -825,41 +820,40 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
   it('never blocks re-assigning a tariff the org already fits (upgrade, or same tariff again)', () => {
     const currentTariff = baseTariff({
       mechanics: { branding: true },
-      quotas: { patient_count: { kind: 'numeric', limit: 10, unit: 'items', warningAtPercent: null } },
+      quotas: { branches: { kind: 'numeric', limit: 10, unit: 'items' } },
     });
     const targetTariff = baseTariff({
       mechanics: { branding: true },
-      quotas: { patient_count: { kind: 'numeric', limit: 100, unit: 'items', warningAtPercent: null } },
-      downgradePolicies: { patient_count: 'block', branding: 'block' },
+      quotas: { branches: { kind: 'numeric', limit: 100, unit: 'items' } },
+      downgradePolicies: { branches: 'block', branding: 'block' },
     });
     expect(
-      evaluateTariffDowngrade({ usage: { patient_count: 40 }, currentTariff, targetTariff }),
+      evaluateTariffDowngrade({ usage: { branches: 40 }, currentTariff, targetTariff }),
     ).toEqual([]);
   });
 
   it('classifies unlimited to finite as next-period even when usage does not block it', () => {
     const transition = evaluateTariffTransition({
-      usage: { patient_count: 1 },
-      currentTariff: baseTariff({ quotas: { patient_count: { kind: 'unlimited', limit: null, unit: 'items', warningAtPercent: null } } }),
+      usage: { branches: 1 },
+      currentTariff: baseTariff({ quotas: { branches: { kind: 'unlimited', limit: null, unit: 'items' } } }),
       targetTariff: baseTariff({
-        quotas: { patient_count: { kind: 'numeric', limit: 10, unit: 'items', warningAtPercent: null } },
-        downgradePolicies: { patient_count: 'freeze_growth' },
+        quotas: { branches: { kind: 'numeric', limit: 10, unit: 'items' } },
+        downgradePolicies: { branches: 'freeze_growth' },
       }),
     });
     expect(transition).toMatchObject({ blocks: [], appliesNextPeriod: true });
   });
 
-  it('self-service downgrade counts seats, branches and patients, but never blocks on stored file volume', async () => {
+  it('self-service downgrade counts seats and branches, but never blocks on stored file volume', async () => {
     const currentTariff = baseTariff({ id: 'big', includedSeats: 5 });
     const targetTariff = baseTariff({
       id: 'small',
       includedSeats: 1,
       quotas: {
         branches: { kind: 'numeric', limit: 1, unit: 'items' },
-        patient_count: { kind: 'numeric', limit: 2, unit: 'items', warningAtPercent: null },
         files: { kind: 'numeric', limit: 100, unit: 'bytes', warningAtPercent: null },
       },
-      downgradePolicies: { branches: 'block', patient_count: 'block', files: 'block' },
+      downgradePolicies: { branches: 'block', files: 'block' },
     });
     const port: OrgEntitlementsPort = {
       ...lifecycleNotificationStub,
@@ -876,7 +870,7 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
       getEnforcedQuotaUsage: async () => ({}),
-      getOwnQuotaUsage: async () => ({ clinic_team: 2, branches: 3, patient_count: 4, files: 999 }),
+      getOwnQuotaUsage: async () => ({ clinic_team: 2, branches: 3, files: 999 }),
     };
 
     await expect(resolveOwnTariffTransition(port, 'org', targetTariff.id)).resolves.toEqual({
@@ -885,7 +879,6 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
       appliesNextPeriod: true,
       blocks: [
         { mechanic: 'clinic_team', reason: 'quota_exceeded' },
-        { mechanic: 'patient_count', reason: 'quota_exceeded' },
         { mechanic: 'branches', reason: 'quota_exceeded' },
       ],
     });
@@ -967,14 +960,14 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     const currentTariff = baseTariff({ id: 'big' });
     const targetTariff = baseTariff({
       id: 'small',
-      quotas: { patient_count: { kind: 'numeric', limit: 3, unit: 'items', warningAtPercent: null } },
-      downgradePolicies: { patient_count: 'block' },
+      quotas: { branches: { kind: 'numeric', limit: 3, unit: 'items' } },
+      downgradePolicies: { branches: 'block' },
     });
     const { port, assignCalls } = platformPortWithUsage({
       organizationId: 'org',
       currentTariff,
       targetTariff,
-      usage: { patient_count: 10 },
+      usage: { branches: 10 },
     });
     const service = createPlatformEntitlementsService(port);
 
@@ -989,14 +982,14 @@ describe('tariff downgrade guard (§5a stage 4b.3/4b.4 — "ручка 2")', () 
     const currentTariff = baseTariff({ id: 'big' });
     const targetTariff = baseTariff({
       id: 'small',
-      quotas: { patient_count: { kind: 'numeric', limit: 3, unit: 'items', warningAtPercent: null } },
-      downgradePolicies: { patient_count: 'freeze_growth' },
+      quotas: { branches: { kind: 'numeric', limit: 3, unit: 'items' } },
+      downgradePolicies: { branches: 'freeze_growth' },
     });
     const { port, assignCalls } = platformPortWithUsage({
       organizationId: 'org',
       currentTariff,
       targetTariff,
-      usage: { patient_count: 10 },
+      usage: { branches: 10 },
     });
     const service = createPlatformEntitlementsService(port);
 
@@ -1075,7 +1068,7 @@ describe('access ladder terminal state (§5a stage 4b.2 — exactly two values)'
           currency: null,
           billingPeriod: 'month',
           mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-          quotas: {},
+          quotas: TEST_BRANCH_QUOTA,
           // @ts-expect-error `full_access` was removed from AccessTerminalState — this must be a type error too.
           systemAccessPolicy: { graceDays: 1, readOnlyDays: 1, notifications: [], terminalState: 'full_access' },
           mechanicAccessPolicies: {},
@@ -1107,7 +1100,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
       currency: null,
       billingPeriod: 'month',
       mechanics: Object.fromEntries(MECHANICS.map((mechanic) => [mechanic, false])),
-      quotas: {},
+      quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
@@ -1175,6 +1168,7 @@ describe('§5a stage 6.4 — critical mechanics carry neither a ladder nor a num
     const service = createPlatformEntitlementsService(servicePort());
     for (const mechanic of criticalMechanics()) {
       const quotas = {
+        ...TEST_BRANCH_QUOTA,
         [mechanic]: { kind: 'numeric', limit: 1, unit: 'items', warningAtPercent: null },
       } as never;
       expect(() =>
@@ -1321,7 +1315,7 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
     const candidateTariff = {
       mechanics: {},
       quotas: {
-        patient_count: { kind: 'numeric', limit: 10, unit: 'items', warningAtPercent: null },
+        files: { kind: 'numeric', limit: 10, unit: 'bytes', warningAtPercent: null },
       } as TariffQuotaMap,
       includedSeats: null,
       ...unconfiguredPolicies,
@@ -1359,30 +1353,30 @@ describe('§5a stage 6.3 — enabling one mechanic follows the owner\'s sequence
       getActiveTariffById: async () => null,
       listOverrides: async () => [],
       getEffectiveCommercialAccess: async () => activeAccess,
-      getEnforcedQuotaUsage: async () => ({ patient_count: usage }),
-      getOwnQuotaUsage: async () => ({ patient_count: usage }),
+      getEnforcedQuotaUsage: async () => ({ files: usage }),
+      getOwnQuotaUsage: async () => ({ files: usage }),
     });
 
-    // 1) показать числа — 2) найти превысивших: this clinic already has 12 patients, the
-    // candidate tariff's limit is 10.
+    // 1) показать числа — 2) найти превысивших: this clinic already stores 12 bytes of files,
+    // the candidate tariff's limit is 10.
     const before = await resolveOrgQuotaProjections(orgPort(12, null), 'org-over-limit');
     expect(before).toEqual([
-      expect.objectContaining({ mechanic: 'patient_count', usage: 12, threshold: 'reached' }),
+      expect.objectContaining({ mechanic: 'files', usage: 12, threshold: 'reached' }),
     ]);
 
     // 3) выдать исключение: an unlimited override for this one organization.
     await service.upsertOverride(
       {
         organizationId: 'org-over-limit',
-        mechanic: 'patient_count',
+        mechanic: 'files',
         enabled: true,
-        quota: { kind: 'unlimited', limit: null, warningAtPercent: null, unit: 'items' },
+        quota: { kind: 'unlimited', limit: null, warningAtPercent: null, unit: 'bytes' },
         expiresAt: null,
       },
-      { actorId: 'owner', reason: 'exceeds new patient_count limit' },
+      { actorId: 'owner', reason: 'exceeds new files limit' },
     );
     expect(overrides).toEqual([
-      expect.objectContaining({ organizationId: 'org-over-limit', mechanic: 'patient_count' }),
+      expect.objectContaining({ organizationId: 'org-over-limit', mechanic: 'files' }),
     ]);
 
     // 4) включить: with the exception in place, the mechanic is enabled and no longer flagged as
@@ -1407,7 +1401,7 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
       currency: null,
       billingPeriod: 'month',
       mechanics: {},
-      quotas: {},
+      quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},
@@ -1470,10 +1464,23 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
     expect(created.includedSeats).toBe(0);
   });
 
+  // Owner 18.08 (L-1): the number is a ceiling, not a switch, so a tariff that names none is a
+  // legal «без лимита» state. Breakage this pins: the save refusal comes back and the constructor
+  // can no longer express «без лимита» by leaving the number out.
+  it('saves an active tariff that names no branch number', async () => {
+    const created = await service().createTariff(tariffInput({ quotas: {} }), {
+      actorId: null,
+      reason: '',
+    });
+
+    expect(created.quotas.branches).toBeUndefined();
+  });
+
   // Owner 31.07: «процент для предупреждения надо считать только от количества доступных клиентов
-  // и объёма файлов». Breakage: a threshold reappears on branches — either accepted and silently
-  // ignored, or accepted and acted upon, both of which are the agent deciding.
-  it('refuses an early-warning threshold on branches and keeps it for patients and files', async () => {
+  // и объёма файлов»; Т12 (19.08) убрал само число клиентов, так что остаётся объём файлов.
+  // Breakage: a threshold reappears on branches — either accepted and silently ignored, or
+  // accepted and acted upon, both of which are the agent deciding.
+  it('refuses an early-warning threshold on branches and keeps it for file volume', async () => {
     expect(() =>
       service().createTariff(
         tariffInput({
@@ -1488,14 +1495,12 @@ describe('§5a item 2.6a — the owner sets the value, the code only refuses wha
     const created = await service().createTariff(
       tariffInput({
         quotas: {
-          patient_count: { kind: 'numeric', limit: 100, unit: 'items', warningAtPercent: 80 },
           files: { kind: 'numeric', limit: 1024, unit: 'bytes', warningAtPercent: 90 },
           branches: { kind: 'numeric', limit: 2, unit: 'items' },
         },
       }),
       { actorId: null, reason: '' },
     );
-    expect(created.quotas.patient_count?.warningAtPercent).toBe(80);
     expect(created.quotas.files?.warningAtPercent).toBe(90);
     expect(created.quotas.branches).toEqual({ kind: 'numeric', limit: 2, unit: 'items' });
   });
@@ -1772,7 +1777,7 @@ describe('§5a #1069 Т5 (owner 03.08) — the trial is one-time per organizatio
     currency: 'RUB',
     billingPeriod: 'month',
     mechanics: {},
-    quotas: {},
+    quotas: TEST_BRANCH_QUOTA,
     systemAccessPolicy: null,
     mechanicAccessPolicies: {},
     downgradePolicies: {},
@@ -1842,7 +1847,7 @@ describe('#1069 T9 — billing period catalog rejects retired day for new tariff
           currency: 'RUB',
           billingPeriod: 'day',
           mechanics: {},
-          quotas: {},
+          quotas: TEST_BRANCH_QUOTA,
           systemAccessPolicy: null,
           mechanicAccessPolicies: {},
           downgradePolicies: {},
@@ -1947,7 +1952,7 @@ describe('§5a #1069 Т8 (owner 03.08) — discounted price is explicit per tari
       currency: 'RUB',
       billingPeriod: 'month',
       mechanics: {},
-      quotas: {},
+      quotas: TEST_BRANCH_QUOTA,
       systemAccessPolicy: null,
       mechanicAccessPolicies: {},
       downgradePolicies: {},

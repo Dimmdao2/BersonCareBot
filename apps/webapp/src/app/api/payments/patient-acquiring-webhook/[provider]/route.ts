@@ -6,8 +6,8 @@
  *
  * Flow:
  * 1. Read raw body (required for signature verification).
- * 2. Load payment provider config to retrieve the webhook secret.
- * 3. Verify signature via PaymentProviderPort adapter.
+ * 2. Inspect only the untrusted provider reference, then resolve its server-owned pending ledger row.
+ * 3. Under that clinic principal, load its payment provider config and verify the signature.
  * 4. Delegate status-update business logic to PatientPaymentsService.handleAcquiringWebhookEvent.
  * 5. Return 200 { ok: true } on success; 401 on invalid signature; 404 if payment not found.
  *
@@ -37,58 +37,24 @@ export async function POST(request: Request, context: RouteContext) {
   const { provider: providerId } = await context.params;
   const deps = buildAppDeps();
 
-  // Load payment settings to get the webhook secret for this provider.
   if (!deps.payments) {
     return jsonError('payments_unavailable', {}, { status: 503 });
   }
 
   const bodyText = await request.text();
 
-  let settings;
+  let adapter;
+  let inspected;
   try {
-    settings = await deps.payments.getSettings();
+    adapter = getPaymentProviderAdapter(providerId);
+    inspected = adapter.inspectWebhook({ headers: request.headers, bodyText });
   } catch {
-    return jsonError('settings_unavailable', {}, { status: 503 });
+    return jsonError('webhook_verification_failed', {}, { status: 400 });
   }
 
-  const providerCfg = settings.providers.find(
-    (p: PaymentProviderConfig) => p.id === providerId && p.enabled,
-  );
-  if (!providerCfg) {
-    return jsonError('payment_provider_unavailable', {}, { status: 400 });
-  }
-
-  const secret = providerCfg.webhookSecret?.trim();
-  if (!secret) {
-    return jsonError('webhook_secret_missing', {}, { status: 503 });
-  }
-
-  // Verify the webhook signature using the provider adapter.
-  let verified;
-  try {
-    const adapter = getPaymentProviderAdapter(providerId);
-    verified = await adapter.verifyWebhook({
-      headers: request.headers,
-      bodyText,
-      webhookSecret: secret,
-      providerConfig: providerCfg,
-    });
-  } catch (error) {
-    const mapped = mapApiError(error, ACQUIRING_WEBHOOK_ERROR_RULES, {
-      status: 400,
-      code: 'webhook_verification_failed',
-    });
-    return jsonError(mapped.code, mapped.publicFields ?? {}, {
-      status: mapped.status,
-      headers: mapped.headers,
-    });
-  }
-
-  // Extract the provider payment reference from the verified event.
-  // intentRef is set by the adapter; fall back to payload.intentRef for adapters that embed it there.
   const providerPaymentId =
-    verified.intentRef ??
-    (typeof verified.payload.intentRef === 'string' ? verified.payload.intentRef : null);
+    inspected.intentRef ??
+    (typeof inspected.payload.intentRef === 'string' ? inspected.payload.intentRef : null);
 
   if (!providerPaymentId) {
     // Webhook does not carry a payment reference we can look up — ack and ignore.
@@ -96,19 +62,79 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const organizationId =
-    await deps.patientPayments.resolveOrganizationIdByProviderPaymentId(providerPaymentId);
+    await deps.patientPayments.resolveAcquiringWebhookOrganization(providerPaymentId, providerId);
   if (!organizationId) {
     return jsonOk({ ignored: true });
   }
 
-  const result = await runWithDbOrganizationPrincipal(organizationId, () =>
-    deps.patientPayments.handleAcquiringWebhookEvent({
+  const result = await runWithDbOrganizationPrincipal(organizationId, async () => {
+    let settings;
+    try {
+      settings = await deps.payments!.getSettings(organizationId);
+    } catch (error) {
+      // The acquirer has already taken the patient's money; this callback is the only notice we get
+      // that it happened. Answering 4xx retires the webhook permanently, so a settings read that was
+      // refused (42501) or that could not run at all used to end with the payment charged and never
+      // reconciled, with nothing written down anywhere. 5xx keeps the provider retrying, which is the
+      // behaviour that recovers on its own once the read works again.
+      //
+      // Nothing legitimate is being reclassified here: `getSettings` either returns a settings object
+      // or throws. "This clinic has no such provider enabled" is the separate `providerCfg` branch
+      // just below and still answers `payment_provider_unavailable`.
+      const code =
+        typeof (error as { code?: unknown } | null)?.code === 'string'
+          ? (error as { code: string }).code
+          : 'unknown';
+      console.error('[patient-acquiring-webhook] payment settings read failed', {
+        category: code === '42501' ? 'capability_denied' : 'repository_unavailable',
+        errorClass: error instanceof Error ? error.name : 'unknown',
+        code,
+        providerId,
+        organizationId,
+      });
+      return { ok: false as const, reason: 'settings_unavailable', status: 503 };
+    }
+
+    const providerCfg = settings.providers.find(
+      (p: PaymentProviderConfig) => p.id === providerId && p.enabled,
+    );
+    if (!providerCfg) return { ok: false as const, reason: 'payment_provider_unavailable' };
+
+    const secret = providerCfg.webhookSecret?.trim();
+    if (!secret) return { ok: false as const, reason: 'webhook_secret_missing' };
+
+    let verified;
+    try {
+      verified = await adapter.verifyWebhook({
+        headers: request.headers,
+        bodyText,
+        webhookSecret: secret,
+        providerConfig: providerCfg,
+      });
+    } catch (error) {
+      const mapped = mapApiError(error, ACQUIRING_WEBHOOK_ERROR_RULES, {
+        status: 400,
+        code: 'webhook_verification_failed',
+      });
+      return { ok: false as const, reason: mapped.code, status: mapped.status };
+    }
+
+    const verifiedProviderPaymentId =
+      verified.intentRef ??
+      (typeof verified.payload.intentRef === 'string' ? verified.payload.intentRef : null);
+    if (verifiedProviderPaymentId !== providerPaymentId) {
+      return { ok: false as const, reason: 'webhook_verification_failed', status: 400 };
+    }
+
+    return deps.patientPayments.handleAcquiringWebhookEvent({
       eventType: verified.eventType,
+      providerId,
       providerPaymentId,
-    }),
-  );
+    });
+  });
 
   if (!result.ok) {
+    if ('status' in result) return jsonError(result.reason, {}, { status: result.status });
     if (result.reason === 'payment_not_found') {
       // Payment not found in patient ledger — may be a booking payment; ack to avoid retries.
       return jsonOk({ ignored: true });

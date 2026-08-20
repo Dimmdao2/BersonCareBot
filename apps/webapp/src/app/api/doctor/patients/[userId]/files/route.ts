@@ -80,7 +80,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ user
       let previewUrl: string | null = null;
       if (s3Available) {
         try {
-          previewUrl = await presignGetUrl(f.s3Key, FILE_PRESIGN_GET_TTL);
+          // The type and name we validated at upload time travel with the URL, so the storage host cannot
+          // decide for itself how the browser treats a patient's file.
+          previewUrl = await presignGetUrl(f.s3Key, FILE_PRESIGN_GET_TTL, {
+            mimeType: f.mimeType,
+            filename: f.fileName,
+          });
         } catch {
           // Non-fatal: file may not exist in S3 yet.
         }
@@ -148,7 +153,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
     deps.orgEntitlements,
     gate.ctx.organizationId,
   );
-  // A concurrent tariff edit cannot turn an omitted configuration into an unlimited upload.
+  // `undefined` now means one thing only: the organization has no tariff at all (#1069 §2.13), and
+  // that still refuses. An assigned tariff that simply named no file number resolves to `null` —
+  // «без лимита» (owner 18.08, L-1) — and passes the ceiling check below untouched.
   if (storageLimitBytes === undefined) {
     return NextResponse.json(
       { ok: false, error: 'file_storage_limit_not_configured' },

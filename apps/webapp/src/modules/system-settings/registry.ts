@@ -77,11 +77,11 @@ export const SYSTEM_SETTING_REGISTRY = {
   error_tracking_dsn: runtime('admin', 'global', 'server', 'url', ''),
   platform_user_merge_v2_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   /** Platform-wide product switch, deliberately not a per-tariff mechanic. */
-  material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
+  material_ratings_enabled: runtime('admin', 'global', 'server', 'boolean', 'true'),
   patient_label: runtime('doctor', 'per_org', 'authenticated_client', 'string', 'Пациенты'),
   sms_fallback_enabled: restricted(
     'doctor',
-    'global',
+    'per_org',
     'boolean',
     'false',
     'derived',
@@ -140,6 +140,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   max_api_base_url: restricted('admin', 'global', 'url', 'absent'),
   telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
+  telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
   telegram_send_menu_on_button_press: restricted('admin', 'global', 'boolean', 'false'),
   vk_web_login_url: runtime('admin', 'global', 'public', 'url', ''),
   app_display_timezone: runtime('admin', 'global', 'public', 'string', 'Europe/Moscow'),
@@ -340,7 +341,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'boolean',
     'false',
   ),
-  patient_home_mood_icons: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
   notifications_topics: runtime('admin', 'per_org', 'authenticated_client', 'structured', '[]'),
   smtp_outbound: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
   /** Clinic-owned SMTP is used first for essential delivery and exclusively for clinic mailings. */

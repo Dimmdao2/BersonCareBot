@@ -1,8 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
-import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
 
 export type SchedulableClientEnrollmentStatus = 'invited' | 'active';
 
@@ -41,27 +39,9 @@ export async function ensureInvitedOrganizationClientRelationship(
     throw new OrganizationClientRelationshipDeniedError();
   }
 
-  // §5a stage 5.2: the atomic patient_count check runs only for a genuinely new relationship —
-  // an existing (invited/active) card above never re-enters here, so editing a patient's card is
-  // never blocked by this quota. Archiving/discharging a patient removes its row from this count
-  // (see `SchedulableClientEnrollmentStatus`), freeing the slot for a new one.
-  await transactionQuotaPort.withinLock(
-    tx,
-    { organizationId, mechanic: 'patient_count' },
-    (quota) =>
-      quota.assertStockAvailable(async () => {
-        const usage = await runWebappPgText<{ used_value: number }>(
-          `SELECT count(*)::int AS used_value
-           FROM org_enrollments
-           WHERE organization_id = $1
-             AND status IN ('invited', 'active')`,
-          [organizationId],
-          tx,
-        );
-        return usage.rows[0]?.used_value ?? 0;
-      }),
-  );
-
+  // Т12 (owner 19.08, дословно): «лимит клиентов - убрать». A new relationship used to pass an
+  // atomic `patient_count` ceiling here first; the clinic is billed for seats, not for people in
+  // its base, so a new card now goes straight in with no counting and no quota lock at all.
   await tx
     .insert(orgEnrollments)
     .values({ organizationId, platformUserId, status: 'invited' })

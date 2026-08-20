@@ -3,14 +3,19 @@
  * Uses Drizzle ORM. listPayments returns newest-first.
  */
 
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
 import {
   getCurrentDbPrincipalOrganizationId,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
-import { getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+} from '@/infra/db/runWebappSql';
 import { withTransaction } from '@/infra/db/withClient';
+import { sql } from 'drizzle-orm';
 import type {
   AddCashPaymentInput,
   InsertAcquiringPendingInput,
@@ -32,6 +37,8 @@ function rowToPayment(row: typeof patientPayment.$inferSelect): PatientPayment {
     comment: row.comment ?? null,
     service: row.service ?? null,
     visitId: row.visitId ?? null,
+    appointmentId: row.appointmentId ?? null,
+    idempotencyKey: row.idempotencyKey ?? null,
     provider: row.provider ?? null,
     providerPaymentId: row.providerPaymentId ?? null,
     createdBy: row.createdBy,
@@ -74,9 +81,26 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
       return rows.map(rowToPayment);
     },
 
+    async listAppointmentPayments(appointmentId, patientUserId): Promise<PatientPayment[]> {
+      const organizationId = requiredPrincipalOrganizationId();
+      const rows = await getDrizzle()
+        .select()
+        .from(patientPayment)
+        .where(
+          and(
+            eq(patientPayment.appointmentId, appointmentId),
+            eq(patientPayment.patientUserId, patientUserId),
+            eq(patientPayment.organizationId, organizationId),
+          ),
+        )
+        .orderBy(desc(patientPayment.createdAt));
+      return rows.map(rowToPayment);
+    },
+
     async addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment> {
-      const [row] = await runPatientPaymentMutation(input.organizationId, (tx) =>
-        tx
+      const idempotencyKey = input.idempotencyKey?.trim() || null;
+      const row = await runPatientPaymentMutation(input.organizationId, async (tx) => {
+        const inserted = await tx
           .insert(patientPayment)
           .values({
             organizationId: input.organizationId,
@@ -88,23 +112,70 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             comment: input.comment ?? null,
             service: input.service ?? null,
             visitId: input.visitId ?? null,
+            appointmentId: input.appointmentId ?? null,
+            idempotencyKey,
             provider: null,
             providerPaymentId: null,
             createdBy: input.createdBy,
           })
-          .returning(),
-      );
+          .onConflictDoNothing({
+            target: [
+              patientPayment.organizationId,
+              patientPayment.appointmentId,
+              patientPayment.idempotencyKey,
+            ],
+            where: isNotNull(patientPayment.idempotencyKey),
+          })
+          .returning();
+        if (inserted[0]) return inserted[0];
+        if (!idempotencyKey) throw new Error('patient_payment_insert_failed');
+        const existing = await tx
+          .select()
+          .from(patientPayment)
+          .where(
+            and(
+              eq(patientPayment.organizationId, input.organizationId),
+              input.appointmentId
+                ? eq(patientPayment.appointmentId, input.appointmentId)
+                : isNull(patientPayment.appointmentId),
+              eq(patientPayment.idempotencyKey, idempotencyKey),
+            ),
+          );
+        if (existing.length !== 1) throw new Error('cash_payment_idempotency_lookup_failed');
+        return existing[0];
+      });
       return rowToPayment(row);
     },
 
-    async findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null> {
+    async findByProviderPaymentReference(
+      providerId: string,
+      providerPaymentId: string,
+    ): Promise<PatientPayment | null> {
       const db = getDrizzle();
       const rows = await db
         .select()
         .from(patientPayment)
-        .where(eq(patientPayment.providerPaymentId, providerPaymentId))
-        .limit(1);
-      return rows.length > 0 ? rowToPayment(rows[0]) : null;
+        .where(
+          and(
+            eq(patientPayment.kind, 'acquiring'),
+            eq(patientPayment.provider, providerId),
+            eq(patientPayment.providerPaymentId, providerPaymentId),
+          ),
+        );
+      return rows.length === 1 ? rowToPayment(rows[0]) : null;
+    },
+
+    async resolveAcquiringWebhookOrganization(providerId, providerPaymentId) {
+      const result = await runWebappNamedRoot<{ organization_id: string | null }>(
+        getWebappSqlDb(),
+        'app.resolve_patient_acquiring_webhook_organization(text,text)',
+        [providerId, providerPaymentId],
+        sql`SELECT app.resolve_patient_acquiring_webhook_organization(
+          ${providerId}::text,
+          ${providerPaymentId}::text
+        )::text AS organization_id`,
+      );
+      return result.rows[0]?.organization_id ?? null;
     },
 
     async updatePatientPaymentStatus(
@@ -138,6 +209,8 @@ export function createPgPatientPaymentsPort(): PatientPaymentsPort {
             comment: input.description ?? null,
             service: null,
             visitId: null,
+            appointmentId: input.appointmentId ?? null,
+            idempotencyKey: null,
             provider: input.provider,
             providerPaymentId: input.providerPaymentId,
             createdBy: input.createdBy,

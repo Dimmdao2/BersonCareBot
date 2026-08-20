@@ -2,6 +2,9 @@ import type { PaymentProviderConfig } from '@/modules/payments/types';
 import {
   assertReceiptMatchesOperation,
   PaymentProviderRequestRefusedError,
+  PaymentProviderTransportError,
+  type PaymentProviderTransportCode,
+  type PaymentProviderListedPayment,
   type PaymentProviderPort,
   type PaymentReceipt,
 } from '@/modules/payments/providerPort';
@@ -40,6 +43,36 @@ function toYookassaReceipt(receipt: PaymentReceipt, currency: string) {
 }
 
 const YOOKASSA_IDEMPOTENCE_KEY_MAX_LENGTH = 64;
+
+const TRUSTED_TRANSPORT_CODES = new Set<PaymentProviderTransportCode>([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+]);
+
+function transportCodeFromNetworkFailure(error: unknown): PaymentProviderTransportCode | null {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === 'string' && TRUSTED_TRANSPORT_CODES.has(code as PaymentProviderTransportCode)) {
+      return code as PaymentProviderTransportCode;
+    }
+  }
+  return null;
+}
+
+async function fetchYookassaInvoiceTransport(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  try {
+    return await globalThis.fetch(input, init);
+  } catch (error) {
+    throw new PaymentProviderTransportError(transportCodeFromNetworkFailure(error), {
+      cause: error,
+    });
+  }
+}
 
 /** YooKassa limits the outgoing Idempotence-Key header to 64 characters. */
 function toYookassaIdempotenceKey(idempotencyKey: string): string {
@@ -163,12 +196,27 @@ function inspectYookassaWebhook(bodyText: string) {
 
 type YookassaListResponse = {
   type?: string;
-  items?: Array<{ id?: string; status?: string; amount?: { value?: string; currency?: string } }>;
+  /**
+   * The list returns the same payment objects `GET /v3/payments/{id}` does, so it carries the same
+   * fields the webhook path already reads — declaring only `id`/`status`/`amount` is what made
+   * `listPayments` throw the rest away. `invoice_details` in particular is what the journal's
+   * `provider_invoice_ref` was written from (see `verifyWebhook`).
+   */
+  items?: Array<{
+    id?: string;
+    status?: string;
+    amount?: { value?: string; currency?: string };
+    metadata?: Record<string, unknown>;
+    invoice_details?: { id?: string };
+    refunded_amount?: { value?: string; currency?: string };
+  }>;
   next_cursor?: string;
 };
 
 /** ЮKassa's own page size ceiling for `GET /v3/payments`. */
 const YOOKASSA_LIST_PAGE_LIMIT = 100;
+/** The only payment status that means money arrived; see the query builder below. */
+const YOOKASSA_RECONCILABLE_PAYMENT_STATUS = 'succeeded';
 /** Backstop against an unbounded reconciliation call — 100 pages is 10 000 payments per period. */
 const YOOKASSA_LIST_MAX_PAGES = 100;
 
@@ -177,7 +225,12 @@ async function fetchYookassaPaymentsPage(
   secretKey: string,
   params: { periodFromIso: string; periodToIso: string; cursor?: string },
 ): Promise<YookassaListResponse> {
+  // Only money that actually arrived is comparable with our journal. Without this filter the page
+  // also carries every `pending` checkout the payer abandoned and every `canceled` attempt, and the
+  // reconciliation reports each of them as a discrepancy — a scheduled sweep on that list is a
+  // false-alarm generator, not a check.
   const query = new URLSearchParams({
+    status: YOOKASSA_RECONCILABLE_PAYMENT_STATUS,
     'created_at.gte': params.periodFromIso,
     'created_at.lte': params.periodToIso,
     limit: String(YOOKASSA_LIST_PAGE_LIMIT),
@@ -248,11 +301,18 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
               metadata: paymentMetadata,
             }),
           },
-          { timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS },
+          {
+            timeoutMs: PAYMENT_PROVIDER_FETCH_TIMEOUT_MS,
+            fetchImpl: fetchYookassaInvoiceTransport,
+          },
           async (res) => {
             if (!res.ok) {
               const text = await res.text().catch(() => '');
-              throw new Error(`yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`);
+              const message = `yookassa_create_invoice_failed:${res.status}:${text.slice(0, 500)}`;
+              if (res.status >= 400 && res.status < 500) {
+                throw new PaymentProviderRequestRefusedError(message);
+              }
+              throw new Error(message);
             }
             return (await res.json()) as {
               id?: string;
@@ -428,12 +488,7 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
 
     async listPayments({ periodFromIso, periodToIso, providerConfig }) {
       const { shopId, secretKey } = requireYookassaCredentials(providerConfig);
-      const items: {
-        providerPaymentRef: string;
-        status: string;
-        amountMinor: number;
-        currency: string;
-      }[] = [];
+      const items: PaymentProviderListedPayment[] = [];
       let cursor: string | undefined;
       let truncated = false;
       for (let page = 0; page < YOOKASSA_LIST_MAX_PAGES; page += 1) {
@@ -443,15 +498,23 @@ export function createYookassaPaymentProvider(): PaymentProviderPort {
           cursor,
         });
         for (const item of response.items ?? []) {
-          if (!item.id) continue;
+          // Same derivation as `verifyWebhook` above, for the same reason: an invoice-paid payment
+          // carries the invoice's id here, and that is the id our journal stored.
+          const providerPaymentRef = item.invoice_details?.id ?? item.id;
+          if (!providerPaymentRef) continue;
           items.push({
-            providerPaymentRef: item.id,
+            providerPaymentRef,
             status: item.status ?? 'unknown',
             amountMinor:
               item.amount?.value != null
                 ? Math.round(Number.parseFloat(String(item.amount.value)) * 100)
                 : 0,
             currency: item.amount?.currency ?? '',
+            metadata: item.metadata,
+            refundedAmountMinor:
+              item.refunded_amount?.value != null
+                ? Math.round(Number.parseFloat(String(item.refunded_amount.value)) * 100)
+                : 0,
           });
         }
         if (!response.next_cursor) break;

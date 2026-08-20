@@ -2,7 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import { and, asc, eq, lte, notExists, sql, type SQL } from 'drizzle-orm';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  getCurrentDbPrincipalOrganizationId,
+} from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -185,6 +188,37 @@ export function createS3MediaStoragePort(): MediaStoragePort {
 
     async getById(id: string) {
       const organizationId = currentPrincipalOrganizationId();
+      const patientRead = getCurrentDbPrincipal()?.kind === 'patient';
+      const query = patientRead
+        ? sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+            NULL::text AS uploaded_by_name,
+            m.created_at,
+            m.preview_status, m.preview_sm_key, m.preview_md_key, m.standard_rendition_at,
+            m.source_width, m.source_height,
+            m.video_processing_status, m.video_processing_error,
+            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+         FROM media_files m
+         WHERE m.id = ${id}::uuid
+           AND m.organization_id = ${organizationId}::uuid
+           AND ${mediaReadableStatusPredicateM}`
+        : sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
+            COALESCE(
+              NULLIF(TRIM(CONCAT_WS(' ', COALESCE(ui.first_name, pu.first_name), COALESCE(ui.last_name, pu.last_name))), ''),
+              NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
+            ) AS uploaded_by_name,
+            m.created_at,
+            m.preview_status, m.preview_sm_key, m.preview_md_key, m.standard_rendition_at,
+            m.source_width, m.source_height,
+            m.video_processing_status, m.video_processing_error,
+            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
+            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
+         FROM media_files m
+         LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
+         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
+         WHERE m.id = ${id}::uuid
+           AND m.organization_id = ${organizationId}::uuid
+           AND ${mediaReadableStatusPredicateM}`;
       const res = await runWebappSql<{
         id: string;
         original_name: string;
@@ -197,6 +231,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         preview_status: string | null;
         preview_sm_key: string | null;
         preview_md_key: string | null;
+        standard_rendition_at: string | Date | null;
         source_width: number | null;
         source_height: number | null;
         video_processing_status: string | null;
@@ -209,23 +244,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         video_delivery_override: string | null;
       }>(
         getWebappSqlDb(),
-        sql`SELECT m.id, m.original_name, m.display_name, m.mime_type, m.size_bytes, m.uploaded_by,
-            COALESCE(
-              NULLIF(TRIM(CONCAT_WS(' ', COALESCE(ui.first_name, pu.first_name), COALESCE(ui.last_name, pu.last_name))), ''),
-              NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
-            ) AS uploaded_by_name,
-            m.created_at,
-            m.preview_status, m.preview_sm_key, m.preview_md_key,
-            m.source_width, m.source_height,
-            m.video_processing_status, m.video_processing_error,
-            m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
-            m.video_duration_seconds, m.available_qualities_json, m.video_delivery_override
-         FROM media_files m
-         LEFT JOIN platform_users pu ON pu.id = m.uploaded_by
-         LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
-         WHERE m.id = ${id}::uuid
-           AND m.organization_id = ${organizationId}::uuid
-           AND ${mediaReadableStatusPredicateM}`,
+        query,
       );
       const row = res.rows[0];
       if (!row) return null;
@@ -243,6 +262,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         previewStatus,
         previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, 'sm') : null,
         previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, 'md') : null,
+        standardRendition: row.standard_rendition_at != null,
         sourceWidth: row.source_width ?? null,
         sourceHeight: row.source_height ?? null,
         ...mapVideoHlsColumns(row),
@@ -348,6 +368,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
         preview_status: string | null;
         preview_sm_key: string | null;
         preview_md_key: string | null;
+        standard_rendition_at: string | Date | null;
         source_width: number | null;
         source_height: number | null;
         video_processing_status: string | null;
@@ -367,7 +388,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
               NULLIF(TRIM(COALESCE(ui.display_name, pu.display_name)), '')
             ) AS uploaded_by_name,
             m.created_at, m.s3_key, m.folder_id,
-            m.preview_status, m.preview_sm_key, m.preview_md_key,
+            m.preview_status, m.preview_sm_key, m.preview_md_key, m.standard_rendition_at,
             m.source_width, m.source_height,
             m.video_processing_status, m.video_processing_error,
             m.hls_master_playlist_s3_key, m.hls_artifact_prefix, m.poster_s3_key,
@@ -399,6 +420,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
           previewStatus,
           previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(row.id, 'sm') : null,
           previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(row.id, 'md') : null,
+          standardRendition: row.standard_rendition_at != null,
           sourceWidth: row.source_width ?? null,
           sourceHeight: row.source_height ?? null,
           ...mapVideoHlsColumns(row),
@@ -1025,6 +1047,11 @@ export type MediaPlaybackRow = {
   video_processing_status: string | null;
   hls_master_playlist_s3_key: string | null;
   poster_s3_key: string | null;
+  preview_sm_key: string | null;
+  preview_md_key: string | null;
+  preview_status: string | null;
+  /** NULL = the object at `s3_key` is still the raw upload; never inferred from key or mime. */
+  standard_rendition_at: string | Date | null;
   video_duration_seconds: number | null;
   available_qualities_json: unknown;
   video_delivery_override: string | null;
@@ -1044,6 +1071,7 @@ export async function getMediaRowForPlayback(
     getWebappSqlDb(),
     sql`SELECT id::text, mime_type, s3_key, stored_path,
             video_processing_status, hls_master_playlist_s3_key, poster_s3_key,
+            preview_sm_key, preview_md_key, preview_status, standard_rendition_at,
             video_duration_seconds, available_qualities_json, video_delivery_override,
             usage_purpose, uploaded_by::text
      FROM media_files
@@ -1068,6 +1096,11 @@ export async function getMediaRowForPlayback(
     video_processing_status: platformRow.video_processing_status,
     hls_master_playlist_s3_key: platformRow.hls_master_playlist_s3_key,
     poster_s3_key: platformRow.poster_s3_key,
+    preview_sm_key: platformRow.preview_sm_key,
+    preview_md_key: platformRow.preview_md_key,
+    preview_status: platformRow.preview_status,
+    /* `app.read_platform_media_row` has no such column; unknown stays "not converted". */
+    standard_rendition_at: null,
     video_duration_seconds: platformRow.video_duration_seconds,
     available_qualities_json: platformRow.available_qualities_json,
     video_delivery_override: platformRow.video_delivery_override,

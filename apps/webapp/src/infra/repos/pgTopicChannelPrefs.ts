@@ -6,6 +6,8 @@ import type {
 } from '@/modules/patient-notifications/topicChannelPrefsPort';
 import { isPatientTopicChannelCode } from '@/modules/patient-notifications/topicChannelRules';
 import { userNotificationTopicChannels } from '../../../db/schema/schema';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 
 function mapRow(
   row: typeof userNotificationTopicChannels.$inferSelect,
@@ -30,6 +32,20 @@ export function createPgTopicChannelPrefsPort(): TopicChannelPrefsPort {
       return rows.map(mapRow).filter((r): r is TopicChannelPrefRow => r != null);
     },
     async upsert(userId, topicCode, channelCode, isEnabled) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const result = await runWebappNamedRoot<{ saved: boolean }>(
+          getWebappSqlDb(),
+          'app.set_current_patient_notification_topic_channel(text,text,boolean)',
+          [topicCode.trim(), channelCode, isEnabled],
+          sql`SELECT app.set_current_patient_notification_topic_channel(
+            ${topicCode.trim()}::text,
+            ${channelCode}::text,
+            ${isEnabled}::boolean
+          ) AS saved`,
+        );
+        if (result.rows[0]?.saved !== true) throw new Error('notification_topic_channel_rejected');
+        return;
+      }
       const db = getDrizzle();
       await db
         .insert(userNotificationTopicChannels)
@@ -46,10 +62,7 @@ export function createPgTopicChannelPrefsPort(): TopicChannelPrefsPort {
             userNotificationTopicChannels.topicCode,
             userNotificationTopicChannels.channelCode,
           ],
-          set: {
-            isEnabled,
-            updatedAt: sql`now()` as unknown as string,
-          },
+          set: { isEnabled, updatedAt: sql`now()` as unknown as string },
         });
     },
   };

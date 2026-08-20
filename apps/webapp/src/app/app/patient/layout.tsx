@@ -67,6 +67,9 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   const authChannelPolicy = await getAuthChannelPolicy();
+  const materialRatingsEnabled = await deps.runtimeConfig.getServerBoolean(
+    'material_ratings_enabled',
+  );
 
   const returnTo = (pathname.trim() ? pathname : routePaths.patient) + search;
 
@@ -89,13 +92,19 @@ export default async function PatientLayout({ children }: { children: ReactNode 
     if (!patientContext.ok) {
       if (patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
         return (
-          <PatientClientLayout authChannelPolicy={authChannelPolicy}>
+          <PatientClientLayout
+            authChannelPolicy={authChannelPolicy}
+            materialRatingsEnabled={materialRatingsEnabled}
+          >
             {children}
           </PatientClientLayout>
         );
       }
       return (
-        <PatientClientLayout authChannelPolicy={authChannelPolicy}>
+        <PatientClientLayout
+          authChannelPolicy={authChannelPolicy}
+          materialRatingsEnabled={materialRatingsEnabled}
+        >
           <PatientOrganizationRecoveryScreen
             organizations={
               patientContext.reason === 'organization_selection_required'
@@ -188,6 +197,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         <PatientClientLayout
           organizationContext={patientBrandingContext}
           authChannelPolicy={authChannelPolicy}
+          materialRatingsEnabled={materialRatingsEnabled}
         >
           <PatientMaintenanceScreen
             user={session.user}
@@ -204,6 +214,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
         organizationContext={patientBrandingContext}
         rememberOrganizationOnMount={patientContext.selectedBy === 'only_active'}
         authChannelPolicy={authChannelPolicy}
+        materialRatingsEnabled={materialRatingsEnabled}
       >
         {children}
       </PatientClientLayout>
@@ -211,6 +222,11 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   }
 
   return (
-    <PatientClientLayout authChannelPolicy={authChannelPolicy}>{children}</PatientClientLayout>
+    <PatientClientLayout
+      authChannelPolicy={authChannelPolicy}
+      materialRatingsEnabled={materialRatingsEnabled}
+    >
+      {children}
+    </PatientClientLayout>
   );
 }

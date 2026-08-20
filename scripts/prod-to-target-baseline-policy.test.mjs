@@ -8,6 +8,7 @@ import {
   removeRetiredRuntimeSettings,
   REVIEWED_TARGET_TARIFF_IDS,
   sanitizeRuntimeSettingsForCutover,
+  sanitizeSingletonPolicyAuditMetadata,
 } from './prod-to-target-baseline-policy.mjs';
 
 const baselinePath = resolve(
@@ -34,6 +35,14 @@ test('runtime settings do not carry DEV-only updated_by identities into cutover'
   assert.equal(
     rendered,
     "INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES ('auth_sms_enabled', 'admin', NULL, 'public', '{\"value\": true}', '2026-08-11 21:47:06+03', NULL);\n",
+  );
+});
+
+test('singleton policy seed ignores volatile DEV operator metadata', () => {
+  const source = "INSERT INTO public.saas_registration_tariff_policy (key, tariff_id, updated_by, created_at, updated_at) VALUES ('global', NULL, '9c40e322-5823-4dba-ba98-84b1e9b3aeba', '2026-08-01 15:21:48+03', '2026-08-16 13:54:12+03');\n";
+  assert.equal(
+    sanitizeSingletonPolicyAuditMetadata(source),
+    "INSERT INTO public.saas_registration_tariff_policy (key, tariff_id, updated_by, created_at, updated_at) VALUES ('global', NULL, NULL, '2026-08-01 15:21:48+03', '2026-08-01 15:21:48+03');\n",
   );
 });
 
@@ -69,4 +78,24 @@ test('a complete-looking price drift still requires review', () => {
     () => filterAndValidateTargetTariffCatalog(drifted),
     /differs from its reviewed price\/mechanics contract/u,
   );
+});
+
+test('runtime settings scoped to a DEV-only organization never ride to the target', () => {
+  const prefix = 'INSERT INTO public.app_runtime_settings '
+    + '(key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES (';
+  const canonical = 'a0000000-0000-4000-8000-000000000001';
+  const devFixture = 'd0000000-0000-4000-8000-000000000004';
+  const sql = [
+    `${prefix}'patient_label', 'doctor', '${canonical}', 'doctor', '{}', '2026-01-01', 'x');`,
+    `${prefix}'patient_label', 'doctor', '${devFixture}', 'doctor', '{}', '2026-01-01', 'x');`,
+    `${prefix}'global_key', 'global', NULL, 'admin', '{}', '2026-01-01', 'x');`,
+  ].join('\n');
+
+  const rendered = sanitizeRuntimeSettingsForCutover(sql);
+
+  // Организаций в целевой базе ровно одна — каноническая из прод-дампа. Строка, привязанная к
+  // DEV-фикстуре, валила раскатку на app_runtime_settings_organization_id_fkey.
+  assert.equal(rendered.includes(devFixture), false);
+  assert.equal(rendered.includes(canonical), true);
+  assert.equal(rendered.includes("'global_key'"), true);
 });

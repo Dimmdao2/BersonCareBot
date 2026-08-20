@@ -16,6 +16,7 @@ import {
   pickMergeTargetId,
   enrichPickMergeCandidatesWithBookingCounts,
   type MergePlatformUsersReason,
+  type MergePlatformUsersContext,
   type PickMergeTargetCandidate,
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
@@ -93,6 +94,7 @@ export async function collapseIdentityProjectionCandidates(
   db: PlatformMergeDbClient,
   candidateIds: string[],
   reason: MergePlatformUsersReason,
+  mergeContext?: MergePlatformUsersContext,
 ): Promise<string> {
   const uniq = [
     ...new Set(candidateIds.filter((id): id is string => typeof id === 'string' && id.length > 0)),
@@ -111,7 +113,7 @@ export async function collapseIdentityProjectionCandidates(
     }
     const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(db, a, b);
     const { target, duplicate } = pickMergeTargetId(ea, eb);
-    await mergePlatformUsersInTransaction(db, target, duplicate, reason);
+    await mergePlatformUsersInTransaction(db, target, duplicate, reason, { mergeContext });
     ids = ids.filter((x) => x !== duplicate);
   }
   return ids[0]!;
@@ -429,7 +431,9 @@ export async function upsertIdentityProjection(
     platformUserId =
       candidates.length === 1
         ? candidates[0]!
-        : await collapseIdentityProjectionCandidates(db, candidates, options.mergeReason);
+        : await collapseIdentityProjectionCandidates(db, candidates, options.mergeReason, {
+            channel: channelCode ?? undefined,
+          });
     await enrichIdentityProjection(db, platformUserId, {
       integratorUserId: input.integratorUserId,
       phoneNormalized,

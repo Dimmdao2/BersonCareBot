@@ -291,7 +291,12 @@ export interface FunctionRelationSurface {
   /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
   evidence:
     | 'pg16-function-body-lexical-upper-bound'
-    | 'exact INSERT ON CONFLICT(event_id) in migration 0410';
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0410'
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0033, retyped in migration 0036'
+    | 'exact currency EXISTS in migration 0034'
+    | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034'
+    | 'exact INSERT ON CONFLICT(event_id) in migration 0039'
+    | 'exact INSERT ON CONFLICT(dedup_key) in migration 0041';
 }
 
 export interface DeclaredFunction {
@@ -299,6 +304,8 @@ export interface DeclaredFunction {
   security: 'DEFINER' | 'INVOKER';
   /** Exact SQL result type, compared against pg_proc.prorettype. */
   returns: string;
+  /** Exact set-returning flag, compared independently against pg_proc.proretset. */
+  returnsSet: boolean;
   /** Exact pg_proc attributes; omission is a declaration gap, never a generator default. */
   volatility: 'IMMUTABLE' | 'STABLE' | 'VOLATILE';
   parallel: 'SAFE' | 'RESTRICTED' | 'UNSAFE';
@@ -311,6 +318,8 @@ export interface DeclaredFunction {
   /** Omitted means both declared databases; otherwise this is the exact per-DB presence set. */
   databases?: readonly string[];
   relationSurfaces?: readonly FunctionRelationSurface[];
+  /** Relation access is verified by the named non-ACL contract, not by ordinary owner grants. */
+  bodyRelationSurfaceContract?: 'port-context' | 'relation-birth-wall';
   /** Exact same-seam/context roots used when this wrapper has no direct relation access. */
   delegatesTo?: readonly string[];
   invocation?: 'runtime' | 'trigger' | 'internal';

@@ -22,13 +22,17 @@ function buildWrappedService() {
 }
 
 describe('patient home settings write clearance — 3.2 physical door', () => {
-  it('refuses patient_home_mood_icons write without patient_home_today clearance', async () => {
+  it('refuses patient_home_daily_practice_target write without patient_home_today clearance', async () => {
     const { wrapped, updateSetting } = buildWrappedService();
     await runWithoutMechanicWriteClearance(async () => {
       await expect(
-        wrapped.updateSetting('patient_home_mood_icons', 'admin', { value: [] }, 'user-1', {
-          organizationId: 'org-1',
-        }),
+        wrapped.updateSetting(
+          'patient_home_daily_practice_target',
+          'admin',
+          { value: 3 },
+          'user-1',
+          { organizationId: 'org-1' },
+        ),
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
     });
     expect(updateSetting).not.toHaveBeenCalled();

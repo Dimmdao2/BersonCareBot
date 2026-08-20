@@ -57,6 +57,18 @@ vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
 vi.mock('@/app-layer/media/clientMediaFolders', () => ({
   pgEnsureClientPatientFolder: vi.fn(),
 }));
+// Загрузка файла доходит до S3 только когда хранилище настроено, а presign реально подписывает
+// ключ. И то и другое — обстоятельства запуска (есть ли на машине `.env.dev` с `S3_*`), а не
+// поведение тарифа, поэтому граница хранилища здесь подменена: тест обязан отвечать одинаково
+// на боксе разработчика и в CI.
+vi.mock('@/config/env', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/config/env')>()),
+  isS3MediaEnabled: () => true,
+}));
+vi.mock('@/app-layer/media/mediaUploadAdapter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app-layer/media/mediaUploadAdapter')>()),
+  presignPreparedUpload: vi.fn().mockResolvedValue('https://s3.example.test/put'),
+}));
 vi.mock('@/app/api/booking/bookingTenant', () => ({
   resolvePatientEnrollmentOrganizationId: vi.fn(),
 }));
@@ -138,6 +150,7 @@ import { persistLfkTemplateDraft } from '@/app/app/doctor/lfk-templates/actions'
 const ORG_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 const TARGET_ID = '33333333-3333-4333-8333-333333333333';
+const FOLDER_ID = '44444444-4444-4444-8444-444444444444';
 
 const workspace = { organizationId: ORG_ID, session: { user: { userId: USER_ID } } };
 const denied = { ok: false as const, response: NextResponse.json({ ok: false }, { status: 403 }) };
@@ -887,18 +900,23 @@ describe('tariff and platform mutation gates', () => {
       'admin',
       { value: true },
       USER_ID,
-      { organizationId: null },
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
     );
   });
 
-  it('refuses file metadata creation visibly when the assigned tariff has no file limit', async () => {
-    const createFile = vi.fn();
+  // РЕШЕНИЕ ВЛАДЕЛЬЦА 18.08 (L-1): «ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА» — у механики с лимитом состояния
+  // «выключено» нет. Тариф, не назвавший число файлов, объявляет отсутствие ПОТОЛКА, а не
+  // отсутствие доступа. До 18.08 этот же вход отказывал, и тест закреплял прежнее правило.
+  it('accepts file metadata creation when the assigned tariff names no file number', async () => {
+    const createFile = vi.fn().mockResolvedValue({ id: USER_ID, fileName: 'result.pdf' });
+    const getStorageUsedBytes = vi.fn().mockResolvedValue(0);
+    vi.mocked(pgEnsureClientPatientFolder).mockResolvedValue({ id: FOLDER_ID } as never);
     vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
     vi.mocked(buildAppDeps).mockReturnValue({
       doctorClientsPort: {
         getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
       },
-      patientFiles: { createFile },
+      patientFiles: { createFile, getStorageUsedBytes },
       orgEntitlements: {
         getSnapshot: vi.fn().mockResolvedValue({
           tariff: { mechanics: {}, quotas: {}, includedSeats: null },
@@ -918,11 +936,53 @@ describe('tariff and platform mutation gates', () => {
       { params: Promise.resolve({ userId: TARGET_ID }) },
     );
 
+    expect(response.status).toBe(201);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      uploadUrl: 'https://s3.example.test/put',
+    });
+    expect(createFile).toHaveBeenCalledWith(
+      expect.objectContaining({ patientUserId: TARGET_ID, folderId: FOLDER_ID }),
+    );
+    // Потолка нет — считать занятое место незачем; запрос расхода выдал бы обратное прочтение.
+    expect(getStorageUsedBytes).not.toHaveBeenCalled();
+  });
+
+  // Вторая половина того же правила: «без лимита» получает тариф, а не клиника без тарифа.
+  // #1069 §2.13 (владелец 01.08) — «нет активного тарифа → доступа нет».
+  it('refuses file metadata creation visibly when the clinic has no tariff at all', async () => {
+    const createFile = vi.fn();
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    vi.mocked(buildAppDeps).mockReturnValue({
+      doctorClientsPort: {
+        getClientIdentityForOrganization: vi.fn().mockResolvedValue({ userId: TARGET_ID }),
+      },
+      patientFiles: { createFile },
+      orgEntitlements: {
+        getSnapshot: vi.fn().mockResolvedValue({
+          tariff: null,
+          overrides: [],
+          access: { lifecycle: 'active', tariffId: null, source: 'none' },
+        }),
+      },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await createPatientFile(
+      request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files', {
+        category: 'анализ',
+        fileName: 'result.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 1,
+      }),
+      { params: Promise.resolve({ userId: TARGET_ID }) },
+    );
+
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({
       error: 'file_storage_limit_not_configured',
     });
     expect(createFile).not.toHaveBeenCalled();
+    expect(pgEnsureClientPatientFolder).not.toHaveBeenCalled();
   });
 
   it('allows an authorized clinic to delete its patient file and release storage even when file mutations are otherwise denied', async () => {
@@ -1135,7 +1195,7 @@ describe('tariff and platform mutation gates', () => {
   it.each([
     [
       'file_storage_limit_not_configured',
-      'Невозможно загрузить файл: в тарифе клиники не настроен объём файлов. Настройте объём файлов в тарифе клиники, чтобы разрешить загрузку.',
+      'Невозможно загрузить файл: у клиники нет действующего тарифа. Назначьте клинике тариф, чтобы загружать файлы.',
     ],
     [
       'file_storage_limit_reached',

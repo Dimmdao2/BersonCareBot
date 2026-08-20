@@ -21,6 +21,9 @@ import type { PatientPlanTab } from '@/app/app/patient/treatment/patientPlanTab'
 import { resolvePatientProgramItemPage } from '@/app/app/patient/treatment/patientProgramItemPageResolve';
 import { MarkdownContent } from '@/shared/ui/patient/markdown/MarkdownContent';
 import { PatientMediaPlaybackVideo } from '@/shared/ui/patient/media/PatientMediaPlaybackVideo';
+import { HostedVideoEmbed } from '@/shared/ui/patient/media/HostedVideoEmbed';
+import { MediaThumb } from '@/shared/ui/patient/media/MediaThumb';
+import { recommendationMediaItemToPreviewUi } from '@/shared/ui/patient/media/mediaPreviewUiModel';
 import { parseApiMediaIdFromPlayableUrl } from '@/shared/lib/parseApiMediaIdFromPlayableUrl';
 import {
   mergeLastActivityDisplayedIso,
@@ -70,12 +73,13 @@ import {
   CompletionMetricsPanel,
   DEFAULT_COMPLETION_METRICS_DRAFT,
   draftToPayload,
-  metricNumberToInput,
-  type CompletionDifficulty,
   type CompletionMetricsDraft,
 } from '@/app/app/patient/treatment/PatientTreatmentProgramStagePageProgramSection';
 import { PatientProgramItemExecutionRow } from '@/app/app/patient/treatment/PatientProgramItemExecutionRow';
-import { postProgramItemComplete } from '@/app/app/patient/treatment/postProgramItemComplete';
+import {
+  patchProgramItemCompletionMetrics,
+  postProgramItemComplete,
+} from '@/app/app/patient/treatment/postProgramItemComplete';
 import type { ProgramItemDiscussionMessage } from '@/modules/program-item-discussion/types';
 
 const EMPTY_ORDERED_ITEM_IDS: string[] = [];
@@ -171,6 +175,22 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
   const { media, title } = props;
   if (!media) return null;
 
+  /*
+   * Внешнее видео занимает тот же слот, что и файловый плеер: у нас нет ни файла, ни HLS —
+   * ролик показывает сам хост в `<iframe>` (решение владельца 19.08). Проверка стоит до
+   * файловой ветки: та ищет id медиатеки в URL и на ссылку хостинга ответила бы отказом
+   * «видео без привязки к медиатеке».
+   */
+  if (media.mediaType === 'hosted_video') {
+    return (
+      <HostedVideoEmbed
+        url={media.mediaUrl}
+        title={title}
+        className="shrink-0 rounded-none"
+      />
+    );
+  }
+
   if (media.mediaType === 'video') {
     const mediaId = parseApiMediaIdFromPlayableUrl(media.mediaUrl);
     if (!mediaId) {
@@ -194,11 +214,24 @@ function ModalMediaBlock(props: { media: RecommendationMediaItem | null; title: 
     );
   }
 
-  const imgSrc = media.previewMdUrl ?? media.previewSmUrl ?? media.mediaUrl;
+  /**
+   * Through the door, not around it (owner ruling 19.08,
+   * `docs/_TODO/GET_IMAGE_ACCESSOR_2026-08-19.md`): `MediaThumb` decides thumbnail vs. stored
+   * re-encode vs. «готовится» vs. error from `media`'s true rendition state. The previous
+   * `media.previewMdUrl ?? media.previewSmUrl ?? media.mediaUrl` fallback always rendered an
+   * `<img>`, including for a file that was never converted — exactly the raw upload the standard
+   * rendition exists to keep off the wire.
+   */
   return (
     <div className="relative aspect-video w-full shrink-0 overflow-hidden bg-muted/20">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imgSrc} alt={title} className="h-full w-full object-contain" loading="eager" />
+      <MediaThumb
+        media={recommendationMediaItemToPreviewUi(media)}
+        className="h-full w-full"
+        imgClassName="h-full w-full object-contain"
+        alt={title}
+        lazy={false}
+        sizes="100vw"
+      />
     </div>
   );
 }
@@ -324,6 +357,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     DEFAULT_COMPLETION_METRICS_DRAFT,
   );
   const [metricsPanelOpen, setMetricsPanelOpen] = useState(false);
+  const [metricsCompletionId, setMetricsCompletionId] = useState<string | null>(null);
   const [discussionPreview, setDiscussionPreview] = useState<ItemDiscussionPreview>({
     totalCount: 0,
     unreadCount: 0,
@@ -466,9 +500,7 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
   const itemInteraction = resolved?.itemInteraction ?? 'readOnly';
   const readOnly = itemInteraction === 'readOnly';
 
-  const lastIsoForSimpleComplete = item
-    ? mergeLastActivityDisplayedIso(lastDoneAtIsoByItemId[item.id], item.completedAt)
-    : null;
+  const lastIsoForSimpleComplete = item ? (lastDoneAtIsoByItemId[item.id] ?? null) : null;
   const simpleCompleteDoneFrozen = isItemDoneCooldownActive(
     lastIsoForSimpleComplete,
     planItemDoneRepeatCooldownMs,
@@ -568,78 +600,58 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
     void loadDiscussionPreview();
   }, [loadDiscussionPreview]);
 
-  const loadLatestMetrics = useCallback(async (): Promise<CompletionMetricsDraft> => {
-    if (!item || !canUseInteractiveProgramActions) return DEFAULT_COMPLETION_METRICS_DRAFT;
-    try {
-      const res = await fetch(`${base}/${encodeURIComponent(item.id)}/progress/complete/metrics`);
-      const data = (await res.json().catch(() => null)) as {
-        ok?: boolean;
-        metrics?: {
-          perceivedDifficulty?: CompletionDifficulty | null;
-          difficulty?: CompletionDifficulty | null;
-          reps?: number | null;
-          sets?: number | null;
-          weightKg?: number | null;
-        } | null;
-      } | null;
-      const m = res.ok && data?.ok ? data.metrics : null;
-      return {
-        ...DEFAULT_COMPLETION_METRICS_DRAFT,
-        perceivedDifficulty: m?.difficulty ?? m?.perceivedDifficulty ?? 'medium',
-        repsRaw: metricNumberToInput(m?.reps),
-        setsRaw: metricNumberToInput(m?.sets),
-        weightRaw: metricNumberToInput(m?.weightKg, true),
-      };
-    } catch {
-      return DEFAULT_COMPLETION_METRICS_DRAFT;
-    }
-  }, [base, canUseInteractiveProgramActions, item]);
-
   useEffect(() => {
     setMetricsPanelOpen(false);
+    setMetricsCompletionId(null);
     setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
   }, [itemId]);
 
   const handleComplete = async () => {
     if (!item || !canUseInteractiveProgramActions || simpleCompleteDoneFrozen) return;
-    setMetricsPanelOpen(true);
-    setMetricsDraft({ ...DEFAULT_COMPLETION_METRICS_DRAFT, loading: true });
     setBusy(item.id);
     reportError(null);
     try {
-      const previousDraft = await loadLatestMetrics();
-      setMetricsDraft(previousDraft);
+      const result = await postProgramItemComplete({ base, itemId: item.id });
+      if (!result.ok) {
+        reportError(result.error);
+        return;
+      }
+      setMetricsCompletionId(result.completion.id);
+      setMetricsDraft(DEFAULT_COMPLETION_METRICS_DRAFT);
+      setMetricsPanelOpen(true);
+      if (result.item) setDetail(result.item);
+      setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
+      setLastDoneAtIsoByItemId((prev) => ({
+        ...prev,
+        [item.id]: result.completion.createdAt,
+      }));
+      setDoneTodayCountByItemId((prev) => ({
+        ...prev,
+        [item.id]: (prev[item.id] ?? 0) + 1,
+      }));
     } finally {
       setBusy(null);
     }
   };
 
   const saveCompletionMetrics = async () => {
-    if (!item || !canUseInteractiveProgramActions) return;
+    if (!item || !canUseInteractiveProgramActions || !metricsCompletionId) return;
     setMetricsDraft((prev) => ({ ...prev, saving: true }));
     reportError(null);
     try {
       const payload = draftToPayload(metricsDraft);
-      const result = await postProgramItemComplete({
+      const result = await patchProgramItemCompletionMetrics({
         base,
         itemId: item.id,
+        completionId: metricsCompletionId,
         payload,
       });
       if (!result.ok) {
         reportError(result.error);
         return;
       }
-      if (result.item) {
-        setDetail(result.item);
-        const updatedItem =
-          result.item.stages.flatMap((stage) => stage.items).find((entry) => entry.id === item.id) ??
-          null;
-        const completedAt = updatedItem?.completedAt ?? new Date().toISOString();
-        setDoneItemIds((prev) => (prev.includes(item.id) ? prev : [...prev, item.id]));
-        setLastDoneAtIsoByItemId((prev) => ({ ...prev, [item.id]: completedAt }));
-        setDoneTodayCountByItemId((prev) => ({ ...prev, [item.id]: (prev[item.id] ?? 0) + 1 }));
-      }
       setMetricsPanelOpen(false);
+      setMetricsCompletionId(null);
       await refresh();
       await loadDiscussionPreview();
     } finally {

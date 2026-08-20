@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { cache } from 'react';
 import { sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { PoolClient, PoolConfig } from 'pg';
@@ -34,7 +35,47 @@ export type WebappPortOperation = {
 };
 
 const operationStorage = new AsyncLocalStorage<WebappPortOperation>();
-const requestOpaqueIdentityRefs = new WeakMap<DbPrincipal, Promise<string>>();
+/**
+ * Одна поездка за непрозрачной ссылкой личности на запрос и пул вместо одной на КАЖДЫЙ принципал.
+ *
+ * Зачем. `app.pre_session_resolve_identity` — чистое отображение физического `platform_users.id`
+ * в непрозрачную ссылку; ответ на один и тот же id не меняется в пределах запроса. Память жила в
+ * `WeakMap`, ключом которой был ОБЪЕКТ принципала, а каждый `enterWithDbStaffPrincipal` создаёт
+ * новый объект — поэтому один рендер `/app/doctor/schedule` спрашивал одно и то же пять раз, и
+ * каждый вопрос был отдельной port-транзакцией с установкой и снятием контекста.
+ *
+ * Почему ключ (пул, физический id), а не только id. Разрешение выполняется под pre_session-
+ * capability СВОЕГО пула (`staff_identity_resolve` / `patient_identity_resolve` / …), то есть под
+ * своими правами. Пул в ключе не даёт ответу, полученному правами одного пула, перейти в другой;
+ * физический id разделяет людей. Ключ строго не грубее входов самой функции, поэтому чужой ответ
+ * получить нельзя.
+ *
+ * Почему НЕ кэш между запросами. Отображение переживает запрос, но контейнер памяти — нет:
+ * `react.cache` создаёт его заново на каждый серверный запрос, как в
+ * `app-layer/entitlements/requestLocalMechanicAccess.ts`. Обычная `Map` на уровне модуля была бы
+ * процессным кэшем навсегда и пережила бы, например, перевыпуск личности.
+ *
+ * Отказ не запоминается: неудачное разрешение удаляется из контейнера, и следующий спрашивающий
+ * идёт в базу заново — ровно то поведение, что было у прежней `WeakMap`.
+ *
+ * Вне серверного запроса (`react.cache` без области) контейнер создаётся заново на каждый вызов —
+ * память просто не срабатывает, ответ при этом всегда свежий. Это не задевает никого: физический
+ * id есть только у человеческих принципалов (staff/clinicBilling/patient/platform), а они
+ * существуют только внутри HTTP-запроса; infra- и bootstrap-принципалы сюда не доходят вовсе.
+ */
+const requestOpaqueIdentityRefs = cache(() => new Map<string, Promise<string>>());
+
+/**
+ * Ключ памяти. Экспортирован ради теста: сама поштучная память принадлежит `react.cache`, а вот
+ * РАЗДЕЛЁННОСТЬ ключа — это то, что здесь написано, и именно она не даёт ссылке, полученной
+ * правами одного пула или для одного человека, перейти к другому.
+ */
+export function opaqueIdentityRefMemoKey(
+  pool: 'staff' | 'patient' | 'globalAdmin',
+  physicalIdentityId: string,
+): string {
+  return `${pool} ${physicalIdentityId}`;
+}
 
 export function runWithWebappPortOperation<T>(operation: WebappPortOperation, fn: () => T): T {
   return operationStorage.run(operation, fn);
@@ -201,6 +242,25 @@ export function createWebappPortContextRuntimeConfig(
   };
 }
 
+/**
+ * Patient roots that necessarily run BEFORE the session can claim a tenant, and therefore may be
+ * called with an identity-only patient principal.
+ *
+ * Both are about the relationship itself rather than about data inside one clinic: the first asks
+ * which clinics this person belongs to, the second makes them belong to one. Requiring an
+ * organisation on the principal here would be circular — the tenant-claim gate
+ * (`app.install_port_context`) only accepts an organisation the person already has an
+ * `org_enrollments` row for.
+ *
+ * The patient wall is unaffected: it is "own data only" and checks identity, never organisation
+ * (owner correction 2026-07-12), and both roots read their subject from
+ * `app.current_patient_user_id()` rather than from an argument.
+ */
+const PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM = new Set<string>([
+  'app.read_current_patient_active_organizations()',
+  'app.enroll_current_patient_in_public_booking_clinic(uuid,text)',
+]);
+
 function capabilityFor(
   capabilities: Record<string, PortCapabilityDescriptor>,
   name: string,
@@ -285,7 +345,7 @@ export function webappPortContextPrincipal(
         principal.kind !== 'patient' ||
         (!principal.organizationId &&
           descriptor.purpose !== 'relation' &&
-          descriptor.functionIdentity !== 'app.read_current_patient_active_organizations()')
+          !PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM.has(descriptor.functionIdentity ?? ''))
       )
         throw new Error('Patient port context requires an organization-scoped patient principal');
       return {
@@ -406,10 +466,12 @@ async function resolveOpaqueIdentityRef(
 ): Promise<string | undefined> {
   const physicalId = physicalIdentityId(principal);
   if (!physicalId) return undefined;
-  const existing = requestOpaqueIdentityRefs.get(principal);
+  const pool = poolForPrincipal(principal);
+  const memo = requestOpaqueIdentityRefs();
+  const memoKey = opaqueIdentityRefMemoKey(pool, physicalId);
+  const existing = memo.get(memoKey);
   if (existing) return existing;
 
-  const pool = poolForPrincipal(principal);
   const descriptorName = `${pool}_identity_resolve`;
   const descriptor = capabilities[descriptorName];
   if (
@@ -434,11 +496,11 @@ async function resolveOpaqueIdentityRef(
         ),
       ),
   );
-  requestOpaqueIdentityRefs.set(principal, resolution);
+  memo.set(memoKey, resolution);
   try {
     return await resolution;
   } catch (error) {
-    requestOpaqueIdentityRefs.delete(principal);
+    memo.delete(memoKey);
     throw error;
   }
 }

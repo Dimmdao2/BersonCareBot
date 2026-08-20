@@ -45,7 +45,7 @@ isProject: false
 **Deferred / on hold.** Guest mode **отменён**. Этапы 1–10 **не реализовывать** в ближайших волнах.
 
 - Карточка: [`docs/TODO_NOT_NOW/product-platform-mass-patient.md`](../../docs/TODO_NOT_NOW/product-platform-mass-patient.md)
-- Инициатива: [`docs/PRODUCT_PLATFORM_INITIATIVE/README.md`](../../docs/PRODUCT_PLATFORM_INITIATIVE/README.md)
+- Инициатива: [`docs/archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/README.md`](../../docs/archive/2026-08-initiatives/PRODUCT_PLATFORM_INITIATIVE/README.md)
 - **DOCTOR_PATIENT_PWA_SPLIT:** **done** 2026-06-07 — [`doctor_patient_pwa_split_wave2.plan.md`](doctor_patient_pwa_split_wave2.plan.md) · [`docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md`](../../docs/DOCTOR_PATIENT_PWA_SPLIT_INITIATIVE/README.md)
 
 ---

@@ -37,17 +37,15 @@ export async function GET(request: Request) {
     );
   }
 
-  const { organizationMembership, patientOrganization, webPushSubscriptions } = buildAppDeps();
-  const [isPatient, isStaff] = await Promise.all([
-    patientOrganization?.hasActiveEnrollment(userId, organizationId) ?? false,
-    organizationMembership?.hasActiveMembership(userId, organizationId) ?? false,
-  ]);
-  if (!isPatient && !isStaff) {
+  const subscriptions = await buildAppDeps().integratorWebPushDelivery.listAuthorizedSubscriptions(
+    organizationId,
+    userId,
+  );
+  if (subscriptions === null) {
     return NextResponse.json(
       { ok: false, error: 'notification target is outside organization' },
       { status: 403 },
     );
   }
-  const subscriptions = await webPushSubscriptions.listActiveByUserId(userId);
   return NextResponse.json({ ok: true, subscriptions }, { status: 200 });
 }

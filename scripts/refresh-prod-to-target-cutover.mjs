@@ -6,12 +6,15 @@
  * creates, drops or migrates a database; migrate-dev.sh --execute is the only preceding writer.
  */
 import { execFileSync } from 'node:child_process';
-import { chmodSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { readMigrationFolder, selectPendingMigrations } from '../deploy/postgres/privileges/migration-order.mjs';
 import {
   filterAndValidateTargetTariffCatalog,
   removeRetiredRuntimeSettings,
   sanitizeRuntimeSettingsForCutover,
+  sanitizeSingletonPolicyAuditMetadata,
 } from './prod-to-target-baseline-policy.mjs';
 
 const repoRoot = resolve(import.meta.dirname, '..');
@@ -31,10 +34,21 @@ function canonicalizePolicyRoleOrder(sql) {
   );
 }
 
+/**
+ * `pg_dump --restrict-key` задаёт строку, которой psql обрамляет вывод (`\restrict`/`\unrestrict`).
+ * Без неё pg_dump берёт случайную строку на каждый прогон, и `--check` не совпал бы никогда, поэтому
+ * ключ обязан быть стабильным. Раньше здесь лежали четыре высокоэнтропийные константы — секретами они
+ * не были, но gitleaks справедливо не умеет отличить их от ключа API и валил Security-проверку.
+ * Выводим ключ из имени артефакта: та же стабильность, тот же вид на выходе, но в исходнике не лежит
+ * ничего, что похоже на секрет, и глушить сканер не нужно.
+ */
+function restrictKeyFor(file) {
+  return createHash('sha256').update(`prod-to-target-cutover:${file}`).digest('hex').slice(0, 63);
+}
+
 const artifacts = [
   {
     file: 'schema-pre.sql',
-    restrictKey: 'nWtjyBeP1kaN7rDBMHL6kRFv5HeZBf2ix1LExAsn9NhYTKcFdAMQbKcXvISeUTn',
     args: ['--schema-only', '--section=pre-data'],
     transform: (sql) => removeRetiredRuntimeSettings(sql.replace(
       /^CREATE SCHEMA (app|app_control|app_ext|drizzle|integrator);$/gmu,
@@ -43,13 +57,11 @@ const artifacts = [
   },
   {
     file: 'schema-post.sql',
-    restrictKey: 'VDILCdWDLrtgsAi05DRibKYGuJsuS0NQ9kSaFgv4afgfloUq45O3UwSg2t8hlKI',
     args: ['--schema-only', '--section=post-data'],
     transform: canonicalizePolicyRoleOrder,
   },
   {
     file: 'ledgers-and-baseline.sql',
-    restrictKey: '6xzycw3O74f0f9FxN40D7hBJa1BUoZPri2X8OgBphy4ZCgHYN04UzAxR2bLbMUg',
     args: [
       '--data-only',
       '--column-inserts',
@@ -61,11 +73,12 @@ const artifacts = [
       '--table=public.saas_registration_tariff_policy',
       '--table=public.saas_trial_policy',
     ],
-    transform: filterAndValidateTargetTariffCatalog,
+    transform: (sql) => sanitizeSingletonPolicyAuditMetadata(
+      filterAndValidateTargetTariffCatalog(sql),
+    ),
   },
   {
     file: 'runtime-settings.sql',
-    restrictKey: 'zuW9L5uzqzBzeUZ4w0j4VjwaxfagL7ZbzDDIja2kue9OpChHcJnzVk9ak4FJIHp',
     args: ['--data-only', '--column-inserts', '--table=public.app_runtime_settings'],
     transform: sanitizeRuntimeSettingsForCutover,
   },
@@ -95,7 +108,7 @@ function dump(artifact) {
   const raw = postgres('pg_dump', [
     '-h', '/var/run/postgresql', '-p', '5432', '-d', database,
     '--no-owner', '--no-privileges', '--no-comments',
-    `--restrict-key=${artifact.restrictKey}`,
+    `--restrict-key=${restrictKeyFor(artifact.file)}`,
     ...artifact.args,
   ]);
   const transformed = artifact.transform ? artifact.transform(raw) : raw;
@@ -121,14 +134,20 @@ const identity = scalar(
 );
 if (identity !== `${database}|postgres`) fail(`unexpected source identity ${identity}`);
 
-const journal = JSON.parse(readFileSync(
-  resolve(repoRoot, 'apps/webapp/db/drizzle-migrations/meta/_journal.json'),
-  'utf8',
-));
-const latestWhen = String(journal.entries.at(-1)?.when ?? '');
-const databaseLatestWhen = scalar('SELECT max(created_at)::text FROM drizzle.__drizzle_migrations;');
-if (!latestWhen || databaseLatestWhen !== latestWhen) {
-  fail(`DEV migration ledger is not current: repo=${latestWhen || 'missing'} db=${databaseLatestWhen || 'missing'}`);
+// The DEV migration ledger's identity column is `tag`, not the frozen, no-longer-appended
+// `meta/_journal.json` `when` map (AGENTS.md "Миграции после baseline B0"): pending is whatever
+// filename the ledger cannot name, order is the filename, same as migration-order.mjs enforces for
+// every runner. A `when`-based staleness check would never notice a new post-B0 migration, because
+// post-B0 migrations do not append to the frozen journal.
+const migrations = readMigrationFolder(resolve(repoRoot, 'apps/webapp/db/drizzle-migrations'));
+const ledgerTagsRaw = postgres('psql', [
+  '-X', '-h', '/var/run/postgresql', '-p', '5432', '-d', database,
+  '-v', 'ON_ERROR_STOP=1', '-qAt', '-c', "SELECT coalesce(tag, '') FROM drizzle.__drizzle_migrations ORDER BY id;",
+]);
+const ledgerRows = ledgerTagsRaw.split('\n').filter((line) => line.length > 0).map((tag) => ({ tag }));
+const pending = selectPendingMigrations(migrations, ledgerRows);
+if (pending.length > 0) {
+  fail(`DEV migration ledger is not current: pending=${pending.map((migration) => migration.tag).join(',')}`);
 }
 
 const deliveryBodyState = scalar(
@@ -138,6 +157,8 @@ const deliveryBodyState = scalar(
   + "WHERE n.nspname='app' AND p.proname='record_operator_delivery_attempt';",
 );
 if (deliveryBodyState !== 'true|false') fail(`delivery audit root is stale: ${deliveryBodyState}`);
+
+if (mode === '--confirm-local-dev-target-refresh') mkdirSync(outputRoot, { recursive: true });
 
 let differences = 0;
 for (const artifact of artifacts) {

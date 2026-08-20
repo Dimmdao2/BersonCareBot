@@ -20,14 +20,19 @@
 import { getPaymentProviderAdapter } from './paymentProviderRegistry';
 import type { AcquiringGatewayPort } from '@/modules/patient-payments/ports';
 import type { BookingPaymentSettings } from '@/modules/payments/types';
+import { buildBookingPaymentReceipt } from '@/modules/payments/fiscalReceipt';
 
 export type AcquiringGatewayConfig = {
   /**
    * Async getter for the active payment settings.
    * Typically delegates to createPaymentsConfigReader().getBookingPaymentSettings().
    */
-  getConfig: () => Promise<BookingPaymentSettings>;
+  getConfig: (organizationId: string) => Promise<BookingPaymentSettings>;
 };
+
+function isExactProviderId(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.trim() === value;
+}
 
 /**
  * Create a registry-backed AcquiringGatewayPort that delegates to the same
@@ -39,14 +44,15 @@ export type AcquiringGatewayConfig = {
 export function createRegistryAcquiringGateway(
   config: AcquiringGatewayConfig,
 ): AcquiringGatewayPort {
-  async function resolveProvider(explicitProviderId?: string) {
-    const settings = await config.getConfig();
+  async function resolveProvider(organizationId: string, explicitProviderId?: string) {
+    const settings = await config.getConfig(organizationId);
     if (!settings.enabled) throw new Error('payments_disabled');
-    const id = (explicitProviderId ?? settings.defaultProviderId).trim();
+    const id = explicitProviderId ?? settings.defaultProviderId;
+    if (!isExactProviderId(id)) throw new Error('payment_provider_unavailable');
     const providerCfg = settings.providers.find((p) => p.id === id && p.enabled);
     if (!providerCfg) throw new Error(`payment_provider_unavailable:${id}`);
     const adapter = getPaymentProviderAdapter(id);
-    return { adapter, providerCfg };
+    return { adapter, providerCfg, providerId: id, settings };
   }
 
   return {
@@ -55,8 +61,13 @@ export function createRegistryAcquiringGateway(
         typeof input.metadata?.providerId === 'string' ? input.metadata.providerId : undefined;
       let adapter;
       let providerCfg;
+      let providerId;
+      let settings;
       try {
-        ({ adapter, providerCfg } = await resolveProvider(explicitProvider));
+        ({ adapter, providerCfg, providerId, settings } = await resolveProvider(
+          input.organizationId,
+          explicitProvider,
+        ));
       } catch (err) {
         return {
           ok: false,
@@ -73,6 +84,13 @@ export function createRegistryAcquiringGateway(
           purpose: 'patient_acquiring_charge',
           subjectRef: input.idempotencyKey,
           returnUrl: input.returnUrl,
+          receipt: buildBookingPaymentReceipt({
+            settings,
+            providerId,
+            customerEmail: input.customerEmail,
+            description: input.description,
+            amountMinor: input.amountMinor,
+          }),
           metadata: {
             patientUserId: input.patientUserId,
             description: input.description,
@@ -80,8 +98,12 @@ export function createRegistryAcquiringGateway(
           },
           providerConfig: providerCfg,
         });
+        if (!isExactProviderId(providerId)) {
+          return { ok: false, reason: 'payment_provider_unavailable' };
+        }
         return {
           ok: true,
+          providerId,
           providerPaymentId: result.providerIntentRef,
           redirectUrl: result.checkoutUrl,
         };
@@ -97,7 +119,7 @@ export function createRegistryAcquiringGateway(
       let adapter;
       let providerCfg;
       try {
-        ({ adapter, providerCfg } = await resolveProvider());
+        ({ adapter, providerCfg } = await resolveProvider(input.organizationId, input.providerId));
       } catch (err) {
         return {
           ok: false,

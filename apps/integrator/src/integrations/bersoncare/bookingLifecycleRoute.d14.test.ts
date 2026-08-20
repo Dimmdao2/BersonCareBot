@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+const { getTargetsByPhoneMock } = vi.hoisted(() => ({
+  getTargetsByPhoneMock: vi.fn(async () => ({ channelBindings: { telegramId: '123' } })),
+}));
+
 vi.mock('../../infra/db/client.js', () => ({ createDbPort: vi.fn(() => ({})) }));
 vi.mock('../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js', () => ({
   loadAdminMessengerIdLists: vi.fn(async () => ({ telegram: ['777'], max: [] })),
 }));
 vi.mock('../../infra/adapters/deliveryTargetsPort.js', () => ({
   createDeliveryTargetsPort: vi.fn(() => ({
-    getTargetsByPhone: vi.fn(async () => ({ channelBindings: { telegramId: '123' } })),
+    getTargetsByPhone: getTargetsByPhoneMock,
   })),
 }));
 vi.mock('../max/maxRecipient.js', () => ({ maxUserRecipient: vi.fn((id: string) => ({ id })) }));
@@ -50,7 +54,6 @@ function fakeWebappEventsPort(): WebappEventsPort & {
   materializeAppointmentReminders: ReturnType<typeof vi.fn>;
 } {
   return {
-    emit: vi.fn(async () => ({ ok: true, status: 200 })),
     notifyPatientWebPush: vi.fn(async () => undefined),
     materializeAppointmentReminders: vi.fn(async () => ({ ok: true, status: 200 })),
   } as unknown as WebappEventsPort & {
@@ -58,6 +61,26 @@ function fakeWebappEventsPort(): WebappEventsPort & {
     materializeAppointmentReminders: ReturnType<typeof vi.fn>;
   };
 }
+
+describe('booking lifecycle tenant identity propagation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes the payload organizationId to the linked-channel M2M lookup', async () => {
+    const payload = basePayload();
+
+    await handleBookingLifecycleEvent(
+      { eventType: 'booking.created', payload, idempotencyKey: 'org-propagation' },
+      fakeDispatchPort(),
+      { idempotencyPort: createInMemoryIdempotencyPort() },
+    );
+
+    expect(getTargetsByPhoneMock).toHaveBeenCalledWith(payload.contactPhone, {
+      organizationId: payload.organizationId,
+    });
+  });
+});
 
 describe('D14(1): webapp decides whether to cancel pending reminders', () => {
   beforeEach(() => {

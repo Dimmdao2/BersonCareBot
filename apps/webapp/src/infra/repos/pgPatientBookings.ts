@@ -1,7 +1,15 @@
 /** Wave 3 phase 13B — domain SQL via `runWebappPgText`. */
 import { randomUUID } from 'node:crypto';
+import { and, eq, sql } from 'drizzle-orm';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { patientBookings as patientBookingsTable } from '../../../db/schema/schema';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+} from '@/infra/db/runWebappSql';
 import type {
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
@@ -19,10 +27,10 @@ type Row = {
   booking_type: string;
   city: string | null;
   category: string;
-  slot_start: Date;
-  slot_end: Date;
+  slot_start: Date | string;
+  slot_end: Date | string;
   status: string;
-  cancelled_at: Date | null;
+  cancelled_at: Date | string | null;
   cancel_reason: string | null;
   gcal_event_id: string | null;
   contact_phone: string;
@@ -30,8 +38,8 @@ type Row = {
   contact_name: string;
   reminder_24h_sent: boolean;
   reminder_2h_sent: boolean;
-  created_at: Date;
-  updated_at: Date;
+  created_at: Date | string;
+  updated_at: Date | string;
   branch_id?: string | null;
   service_id?: string | null;
   branch_service_id?: string | null;
@@ -45,6 +53,91 @@ type Row = {
   canonical_appointment_id?: string | null;
   canonical_in_person_context?: CanonicalInPersonBookingContext | null;
 };
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function mutateCurrentPatientBooking(
+  bookingId: string,
+  action: string,
+  payload: Record<string, unknown> = {},
+): Promise<PatientBookingRecord | null> {
+  const result = await runWebappNamedRoot<{ booking: Row | null }>(
+    getWebappSqlDb(),
+    'app.mutate_current_patient_booking(uuid,text,text)',
+    [bookingId, action, JSON.stringify(payload)],
+    sql`SELECT app.mutate_current_patient_booking(
+      ${bookingId}::uuid,
+      ${action}::text,
+      ${JSON.stringify(payload)}::text
+    ) AS booking`,
+  );
+  const row = result.rows[0]?.booking;
+  return row ? mapRow(row) : null;
+}
+
+async function readCurrentPatientBookingRow(
+  id: string,
+  kind: 'booking' | 'appointment',
+): Promise<PatientBookingRecord | null> {
+  const result = await runWebappNamedRoot<{ booking: Row | null }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_row(uuid,text)',
+    [id, kind],
+    sql`SELECT app.read_current_patient_booking_row(${id}::uuid, ${kind}::text) AS booking`,
+  );
+  const row = result.rows[0]?.booking;
+  return row ? mapRow(row) : null;
+}
+
+/**
+ * Schema-derived row shape for direct reads of the `patient_bookings` table (Drizzle query
+ * builder, not `SELECT *`): renaming/dropping a column here is a compile error, not a silent
+ * `undefined` at runtime — see census finding 0.2 in
+ * `docs/_TODO/TEXT_SQL_TO_BUILDER_PLAN_2026-08-19.md`. `canonicalInPersonContext` is
+ * deliberately absent: it is never a real column (see the doc comment on
+ * `listCurrentPatientBookingRows` below), only a field the RPC capability's jsonb payload adds —
+ * `mapRow` below leaves it `null` for table rows, exactly as the hand-written `Row` type already
+ * did for the same three call sites.
+ */
+type PatientBookingsTableRow = typeof patientBookingsTable.$inferSelect;
+
+function mapTableRow(row: PatientBookingsTableRow): PatientBookingRecord {
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    userId: row.platformUserId ?? null,
+    bookingType: row.bookingType as PatientBookingRecord['bookingType'],
+    city: row.city,
+    category: row.category as PatientBookingRecord['category'],
+    slotStart: toIsoStringSafe(row.slotStart),
+    slotEnd: toIsoStringSafe(row.slotEnd),
+    status: row.status as PatientBookingRecord['status'],
+    cancelledAt: nullableToIsoStringSafe(row.cancelledAt),
+    cancelReason: row.cancelReason,
+    gcalEventId: row.gcalEventId,
+    contactPhone: row.contactPhone,
+    contactEmail: row.contactEmail,
+    contactName: row.contactName,
+    reminder24hSent: row.reminder24HSent,
+    reminder2hSent: row.reminder2HSent,
+    createdAt: toIsoStringSafe(row.createdAt),
+    updatedAt: toIsoStringSafe(row.updatedAt),
+    branchServiceId: row.branchServiceId ?? null,
+    branchId: row.branchId ?? null,
+    serviceId: row.serviceId ?? null,
+    cityCodeSnapshot: row.cityCodeSnapshot ?? null,
+    branchTitleSnapshot: row.branchTitleSnapshot ?? null,
+    serviceTitleSnapshot: row.serviceTitleSnapshot ?? null,
+    durationMinutesSnapshot: row.durationMinutesSnapshot ?? null,
+    priceMinorSnapshot: row.priceMinorSnapshot ?? null,
+    canonicalAppointmentId: row.canonicalAppointmentId ?? null,
+    canonicalInPersonContext: null,
+    provenanceCreatedBy: row.provenanceCreatedBy ?? null,
+    provenanceUpdatedBy: row.provenanceUpdatedBy ?? null,
+  };
+}
 
 function mapRow(row: Row): PatientBookingRecord {
   return {
@@ -119,6 +212,20 @@ async function listCurrentPatientBookingRows(
 export const pgPatientBookingsPort: PatientBookingsPort = {
   async createPending(input: CreatePendingPatientBookingInput) {
     const id = randomUUID();
+    if (isCurrentPatientPrincipal()) {
+      const payload = { id, ...input };
+      const result = await runWebappNamedRoot<{ booking: Row | null }>(
+        getWebappSqlDb(),
+        'app.create_current_patient_booking_pending(text)',
+        [JSON.stringify(payload)],
+        sql`SELECT app.create_current_patient_booking_pending(
+          ${JSON.stringify(payload)}::text
+        ) AS booking`,
+      );
+      const row = result.rows[0]?.booking;
+      if (!row) throw new Error('create_pending_failed');
+      return mapRow(row);
+    }
     // Abandoned placeholders without a canonical link must not block retries or other patients.
     await runWebappPgText(
       `UPDATE patient_bookings
@@ -210,6 +317,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markAwaitingPayment(bookingId, canonicalAppointmentId) {
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(bookingId, 'await_payment', { canonicalAppointmentId });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'awaiting_payment',
@@ -239,6 +349,11 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async markConfirmed(bookingId, options) {
     const canonicalId = options?.canonicalAppointmentId?.trim() || null;
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(bookingId, 'confirm', {
+        canonicalAppointmentId: canonicalId,
+      });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'confirmed',
@@ -253,6 +368,10 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markFailedSync(bookingId) {
+    if (isCurrentPatientPrincipal()) {
+      await mutateCurrentPatientBooking(bookingId, 'failed_sync');
+      return;
+    }
     await runWebappPgText(
       `UPDATE patient_bookings
        SET status = 'failed_sync', updated_at = now()
@@ -262,6 +381,9 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async markCancelling(bookingId) {
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(bookingId, 'cancelling');
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = 'cancelling', updated_at = now()
@@ -275,6 +397,12 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async markCancelled(input) {
     const status = input.status ?? 'cancelled';
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(input.bookingId, 'cancel', {
+        status,
+        reason: input.reason ?? null,
+      });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET status = $2,
@@ -291,6 +419,13 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
 
   async updateSlotsAfterReschedule(input) {
     const status = input.status ?? 'confirmed';
+    if (isCurrentPatientPrincipal()) {
+      return mutateCurrentPatientBooking(input.bookingId, 'reschedule', {
+        slotStart: input.slotStart,
+        slotEnd: input.slotEnd,
+        status,
+      });
+    }
     const result = await runWebappPgText<Row>(
       `UPDATE patient_bookings
        SET slot_start = $2::timestamptz,
@@ -306,29 +441,45 @@ export const pgPatientBookingsPort: PatientBookingsPort = {
   },
 
   async getByIdForUser(bookingId, userId) {
-    const result = await runWebappPgText<Row>(
-      `SELECT * FROM patient_bookings WHERE id = $1 AND platform_user_id = $2 LIMIT 1`,
-      [bookingId, userId],
-    );
-    const row = result.rows[0];
-    return row ? mapRow(row) : null;
+    if (isCurrentPatientPrincipal()) {
+      void userId;
+      return readCurrentPatientBookingRow(bookingId, 'booking');
+    }
+    const [row] = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(
+        and(
+          eq(patientBookingsTable.id, bookingId),
+          eq(patientBookingsTable.platformUserId, userId),
+        ),
+      )
+      .limit(1);
+    return row ? mapTableRow(row) : null;
   },
 
   async getById(bookingId) {
-    const result = await runWebappPgText<Row>(`SELECT * FROM patient_bookings WHERE id = $1`, [
-      bookingId,
-    ]);
-    const row = result.rows[0];
-    return row ? mapRow(row) : null;
+    if (isCurrentPatientPrincipal()) {
+      return readCurrentPatientBookingRow(bookingId, 'booking');
+    }
+    const [row] = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(eq(patientBookingsTable.id, bookingId))
+      .limit(1);
+    return row ? mapTableRow(row) : null;
   },
 
   async getByCanonicalAppointmentId(canonicalAppointmentId) {
-    const result = await runWebappPgText<Row>(
-      `SELECT * FROM patient_bookings WHERE canonical_appointment_id = $1::uuid LIMIT 1`,
-      [canonicalAppointmentId],
-    );
-    const row = result.rows[0];
-    return row ? mapRow(row) : null;
+    if (isCurrentPatientPrincipal()) {
+      return readCurrentPatientBookingRow(canonicalAppointmentId, 'appointment');
+    }
+    const [row] = await getDrizzle()
+      .select()
+      .from(patientBookingsTable)
+      .where(eq(patientBookingsTable.canonicalAppointmentId, canonicalAppointmentId))
+      .limit(1);
+    return row ? mapTableRow(row) : null;
   },
 
   async listUpcomingByUser(userId, nowIso) {

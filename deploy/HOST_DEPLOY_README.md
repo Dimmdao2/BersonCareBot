@@ -229,8 +229,8 @@ retirement перед запуском media-worker. Скрипт до любы�
 в argv/SQL text/temp/output; он передаётся bind-параметром в фиксированную временную server-side функцию, где
 идентификатор и значение цитируются через `format(%I, %L)`. До secret-bearing bind сессия отключает statement,
 duration, parameter, error-context и optional pgAudit logging, а driver/server diagnostics закрыты общей ошибкой без секрета.
-PTY/non-TTY, повторная ротация и отсутствие утечки проверяются disposable-скриптом
-`deploy/host/smoke-set-postgres-role-password.sh`. Затем provision применяет
+PTY/non-TTY, повторная ротация и отсутствие утечки проверяются статическими/unit-гейтами helper-а и
+живым named-environment readiness. Затем provision применяет
 `deploy/postgres/c4-operational-runtime.sql` локально через системного `postgres`
 и запускает readiness трёх различных DB login и authenticated media HTTP control. Обычный
 `deploy-prod.sh` роли не создаёт и новых sudo-прав для `deploy` не требует — он только fail-closed проверяет готовый C4
@@ -273,6 +273,30 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 ---
 
+## PROD → schema-B TEST reset: protected inputs
+
+Полный owner-authorized reset запускается на TEST/DEV-хосте через
+`bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset [branch]`. Это отдельный destructive rehearsal,
+не обычный `deploy-test.sh`.
+
+**Канонический каталог:** `/opt/env/bersoncarebot/protected-inputs/` (`deploy:deploy`, `0700`). Файлы в нём —
+regular non-symlink, `deploy:deploy`, `0600`:
+
+1. `fio-owner-reviewed-test.manifest.json` — текущий запечатанный owner-reviewed FIO manifest; `runId` и
+   `createdAt` находятся внутри JSON, версия не кодируется в имени.
+2. `fio-owner-reviewed-test.payload.json` — исходный payload этого манифеста.
+3. `fio-owner-reviewed-test.sha256` — greppable sidecar: raw SHA-256 файла манифеста, canonical SHA-256 payload и
+   SHA-256 owner-review source, по одному именованному значению на строку.
+4. `fio-owner-reviewed-test.previous.manifest.json` и `rubitime-records.csv` — сохранённые предыдущие входы; reset
+   их автоматически не выбирает.
+
+Этот путь и sidecar — defaults `deploy-test-saas.sh`: `--fio-manifest`, `--fio-manifest-file-sha256`,
+`--fio-manifest-sha256` и `--fio-review-source-sha256` не нужны для штатного запуска. Явно переданный аргумент
+переопределяет только соответствующий default. Отсутствующий файл, неверный owner/mode, symlink или несовпадение
+любого хеша останавливают reset до работы с TEST.
+
+---
+
 ## Operator health probes (MVP)
 
 Интегратор: **`POST /internal/operator-health-probe`** (синтетические пробы активных интеграций). Доступ **только** с подписью `x-bersoncare-timestamp` / `x-bersoncare-signature` (тот же секрет, что M2M webapp→integrator: **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** в `api.prod`).
@@ -309,10 +333,8 @@ bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
 
 **Post-migrate schema guardrail (production):** после успешного migrate каждый из deploy-скриптов вызывает **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же файл в обоих путях). **`deploy-prod.sh`** — после **`pnpm migrate`** (integrator + webapp Drizzle); **`deploy-webapp-prod.sh`** — после **`pnpm --dir apps/webapp run migrate`** (только webapp Drizzle, без integrator). Проверяется набор критичных колонок в `public` (список в комментарии в начале скрипта: treatment-program guardrails, media pipeline, integrator outbox, `system_settings`, `platform_users.calendar_timezone`). При отсутствии любой колонки процесс завершается с ошибкой **до** `systemctl restart` — чтобы не поднять сервисы на рассинхронизированной схеме.
 
-Оба production deploy-пути после Drizzle migration и до schema guardrail обязательно применяют
-`deploy/postgres/patient-invites-rls.sql`. Это code-only strict runtime overlay: он включает FORCE RLS, закрывает
-прямой доступ `app_patient`, назначает узкие invite-функции существующему `app_owner` и не выполняет backfill,
-restore/reset или отправку приглашений.
+Production deploy не исполняет отдельные SQL overlays. Схема и capability-функции доставляются только
+B0-forward миграциями; schema guardrail остаётся read-only проверкой перед restart.
 
 **Webapp Drizzle и порядок относительно билда:** канонический прогон — `pnpm --dir apps/webapp run migrate` с `DATABASE_URL` из `webapp.prod`. Для ручного прогона integrator + webapp на host достаточно **`pnpm migrate`**: скрипт `scripts/migrate-all.sh` автоматически подгружает `api.prod` и `webapp.prod` (если файлы существуют). Если новый билд webapp расширяет `SELECT` по `media_files` новыми колонками (например VIDEO_HLS_DELIVERY, миграция `0018_media_files_hls_foundation`), **применить миграции до или в одном окне с первым запуском этого билда**, иначе возможна ошибка PostgreSQL `column does not exist`.
 
@@ -422,7 +444,7 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **Multipart upload (очистка незавершённых сессий):** отдельный воркер — `POST /api/internal/media-multipart/cleanup` с тем же Bearer. Назначение: истёкшие строки `media_upload_sessions` → `AbortMultipartUpload` в S3 и удаление orphan `pending` в `media_files`. Рекомендуется cron на loopback (например раз в 5–15 минут или чаще), тот же `INTERNAL_JOB_SECRET` и тот же nginx `allow 127.0.0.1` для `/api/internal/`. На стороне MinIO дополнительно задайте lifecycle rule **`AbortIncompleteMultipartUpload`** (например 1–2 суток) для private-бакета как вторую линию защиты от «зависших» multipart.
 
-**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` логика — `processMediaPreviewBatch` (см. `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`): JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…`) и обновление `media_files.preview_*`. **Рекомендуемый способ на prod** — отдельный процесс **`pnpm run media-preview:tick`** из каталога webapp после `source webapp.prod` (тот же env, что у `next start`, без нагрузки на Next standalone и без `INTERNAL_JOB_SECRET`). Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`). **Альтернатива (совместимость):** `POST /api/internal/media-preview/process` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` на loopback — см. пример ниже в блоке cron.
+**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` логика — `processMediaPreviewBatch` (см. `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`): JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…`) и обновление `media_files.preview_*`. **Рекомендуемый способ на prod** — отдельный процесс **`pnpm run media-preview:tick`** из каталога webapp после `source webapp.prod` (тот же env, что у `next start`, без нагрузки на Next standalone и без `INTERNAL_JOB_SECRET`). Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`). **Альтернатива (совместимость):** `POST /api/internal/media-preview/process` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` на loopback — шаблон `deploy/host/cron.d/bersoncarebot-media-preview.cron.template`, см. также пример ниже в блоке cron. Только этот HTTP-вызов пишет тик в `public.operator_job_status` (`job_family=media`, ключ `media_preview.process`); `media-preview:tick` тика не пишет, поэтому при нём «Превью медиа» в «Здоровье системы» остаётся без данных.
 
 **Почасовая статистика playback (HOUSEKEEPING):** после миграции с таблицей **`media_playback_stats_hourly`** — `POST /api/internal/media-playback-stats/retention` с тем же Bearer: удаление старых `bucket_hour` (параметр **`?days=`**, по умолчанию **90**; **`?dryRun=1`** — только число затронутых строк). Таблица дедупа **`media_playback_user_video_first_resolve`** не затрагивается. На хосте достаточно редкого cron на loopback (например раз в неделю).
 
@@ -689,7 +711,7 @@ journalctl -u bersoncarebot-api-prod.service -p err --since "14 days ago" --no-p
   получает LOGIN, пароль, BYPASSRLS или постоянное membership; runtime URL нужны только как защищённый источник
   уже действующих четырёх паролей для повторного reconcile.
 - TEST→DEV refresh и DEV runtime-rehydrate удалены решением владельца 2026-07-30. DEV не копирует TEST и не
-  пересоздаётся для обычной разработки; RLS/security acceptance выполняется отдельно в disposable PostgreSQL и TEST.
+  пересоздаётся для обычной разработки; RLS/security acceptance выполняется на именованных DEV и TEST.
 
 Wrapper не останавливает и не запускает процессы. Перед `migrate-dev.sh --execute` оператор должен отдельно
 скоординировать единственный DEV writer/server; нельзя поднимать второй Next server.
@@ -720,207 +742,9 @@ bash deploy/host/deploy-prod.sh
 
 ### Тест-деплой на `151.x` (feat → test)
 
-**Важно — модель отличается от прода:** ветки `test` и авто-деплоя **НЕТ**. `ci.yml` выполняет проверки и
-ничего не деплоит; production запускается только ручным `deploy-prod.yml`. Тест-сервер (`151.x`) держит
-**зеркало** текущей dev-ветки и обновляется **вручную одной командой**.
+> **OWNER-CORRECTION 17.08.2026.** До полного green runtime-прохода именованного DEV TEST не запускать.
 
-```bash
-# от пользователя dev (скрипт сам делает sudo для deploy/systemctl):
-bash deploy/host/deploy-test.sh            # ветка по умолчанию feat/doctor-ui-rebuild
-bash deploy/host/deploy-test.sh <ветка>    # или явная ветка
-```
-
-`deploy-test.sh` — **code-only/no-fresh-restore** путь (build + controlled migrate текущей TEST-БД) и не является
-способом fresh restore. Для ещё не переведённой TEST он выполняет однобазовый переход без разрыва порядка
-миграций: bounded legacy-integrator phase от локального OS `postgres` без возврата полномочий retired-роли → `zero/proof` старых owners/grants → provisional canonical
-port-context base contract с четырьмя принудительно `NOLOGIN` target shells → оставшиеся schema/data ledgers через
-local PostgreSQL administrator → повторный `zero/proof → exact declaration install → live`. Первый zero сохраняет
-данные и объекты, но даёт FK/system triggers нейтрального владельца вместо уже закрытой legacy-роли. Provisional contract нужен потому, что миграции начиная с 0391
-используют port-context types/tables, а итоговый capability catalog, наоборот, ссылается на функции, создаваемые
-этими миграциями. Встроенный в base contract relation birth wall в этом коротком окне снимается: его полный registry
-и expected owners появляются только с итоговой generated declaration. Окно существует только при остановленных
-writers и локальном OS `postgres`; финальный cutover до запуска сервисов повторно делает zero, ставит полный registry
-и восстанавливает wall. Любая ошибка после provisional install автоматически возвращает эту БД в проверенный zero;
-ошибка уже начатого access cutover дополнительно оставляет `CONNECTION LIMIT 0`. Повторный запуск этой же публичной
-TEST-команды распознаёт такое fail-closed состояние и передаёт явный обычный лимит `-1`; он восстанавливается только
-после успешных install/HBA/readiness proof, а любой повторный отказ снова оставляет лимит 0. После принудительного
-закрытия backend может исчезать из `pg_stat_activity` не мгновенно: cutover ждёт это не более 5 секунд и затем
-останавливается, если хотя бы одна сессия действительно сохранилась. Поскольку env projection записывается до
-access install, сочетание `port-context` в обоих env и `CONNECTION LIMIT 0` считается незавершённым первым cutover:
-wrapper повторяет идемпотентный stopped-writer bridge и финальную установку, а не входит в stationary migration path.
-Финальный cluster zero может удалить retired legacy owner раньше, чем сработает EXIT-cleanup старого migration
-wrapper. Для cleanup отсутствие роли является успешным более сильным состоянием; если роль ещё существует, wrapper
-по-прежнему требует `NOBYPASSRLS` и отсутствие временных memberships.
-Старые `app.context_nonce_ledger` и `app.principal_context` сохраняются как закрытые технические
-таблицы точной DEV-схемы без runtime-surface: новый transaction-bound контекст их не использует. Отдельная
-`app.context_signing_secrets` пока остаётся не как часть DB-principal протокола, а как узкое хранилище HMAC для
-трёх живых patient-invite email definer roots. Cutover создаёт/обновляет ровно одну её строку тем же защищённым
-secret fallback, которым webapp подписывает start/verify/claim; значение проходит только через root-owned
-временный secret file/process env, не печатается и не попадает в generated SQL.
-DEV в цепочке не меняется. После cutover обычный запуск применяет integrator/webapp migrations через
-NOLOGIN `bcb_test_migrator` и exact declared owners, затем declaration reconcile + catalog audit и обновление
-runtime projection. Если более поздняя webapp-миграция уже удалила объект, на который смотрит отложенная ранняя
-integrator-миграция, integrator ledger принимает только явный forward reconciliation marker: более новая миграция
-обязана проверить/довести актуальное конечное состояние, а неизвестный, обратный или двойной marker останавливает
-прогон. Удалённые legacy-таблицы для прохождения истории не восстанавливаются. Постоянный owner-login/BYPASS путь
-в port-context режиме не используется.
-Отдельный split-ledger случай для Google Calendar закрывает
-`20260814_0002_reconcile_booking_calendar_map_location.sql`: каноническая таблица создаётся в `public`, пустая или
-уже канонически ключованная legacy-копия из `integrator` переносится и удаляется. Непереводимые Rubitime keys или
-конфликтующие event mappings останавливают migration без потери данных.
-`0419_organization_invite_named_roots_local.sql` переносит две живые organization-invite функции из старого
-repeatable overlay в штатный webapp migration ledger. Миграция оставляет их закрытыми для `PUBLIC`; финальная
-declaration добавляет transaction-context gate и назначает exact seam owner/EXECUTE ACL.
-Его общая settings-closure передаёт overlay явный режим `code-only`: уже настроенный глобальный DB-backed
-`smtp_outbound` в `public.system_settings` сохраняется; JSON `null` вставляется только если строки ещё нет.
-Fresh-reset wrapper до остановки writers требует настроенный TEST `smtp_outbound`, снимает его в защищённый
-`postgres:postgres 0600` временный snapshot без вывода значения, после reset-overlay восстанавливает и удаляет
-snapshot через общий cleanup trap. До snapshot и перед restore статический validator требует непустые
-host/user/password/from, email-shaped from, явный boolean `secure` и port 1–65535, не печатая секреты. Поэтому
-повторный fresh reset не переносит PROD SMTP из дампа; отсутствие или неверная форма TEST SMTP останавливает
-прогон до разрушительного restore. Это не доказывает provider acceptance или доставку. Сам reset-mode
-по-прежнему обнуляет значение между restore и защищённым восстановлением. Отсутствующий или неизвестный режим
-останавливает SQL до снятия TEST lock triggers. `smtp_outbound` не входит в TEST lock arrays, поэтому штатная
-Settings-запись через `updateSetting` может менять его; остальные safety-critical ключи остаются залочены.
-Снимок TEST SMTP перед restore поддерживает оба допустимых стартовых состояния: целевую схему B и оставшуюся
-после прерванного full-reset исходную схему A, в которой у `system_settings` ещё нет `organization_id`.
-Снятие lock triggers, settings overlay и пересоздание locks выполняются одной транзакцией: любая ошибка
-`ON_ERROR_STOP` откатывает весь блок и сохраняет ранее установленные locks.
-
-Первичная настройка SMTP для TEST выполняется штатным Settings / `updateSetting` и сохраняется в
-`public.system_settings`; после неё full-reset сохраняет это TEST-значение автоматически. Обычный deploy и
-fresh-reset не читают SMTP из PROD/env и не печатают секрет. Реальная доставка остаётся отдельной opt-in
-приёмкой: authenticated global-admin вызывает `POST /api/admin/smtp-test` только на allowlisted TEST mailbox,
-сохраняет возвращённый `probeRef=smtp-test:<uuid>` и подтверждает тот же reference в существующем delivery-attempt
-пути и по provider/mailbox receipt. Wrapper этот вызов не делает и не объявляет email/Telegram/MAX/SMS/webpush
-доставку проверенной.
-Fresh PROD-снимок также предшествует обязательному реестру `platform_integration_availability`. Поэтому
-`prod-to-target-cutover-finish.sql` создаёт отсутствующий реестр с целевыми безопасными defaults, синхронизирует
-его зарегистрированную `app_runtime_settings`-проекцию и включает отсутствие строки в финальный shape-gate.
-Без этого delivery worker fail-closed отклоняет все каналы как unreadable configuration.
-**ЗАМЕНЕНО 15.08.2026:** bilateral TEST+DEV route and six-login install remain forbidden. The owner authorized
-the single-target TEST rehearsal now: the wrapper changes only `bersoncarebot_test`, then installs the exact
-four-login port-context target. This is not permission for routine TEST resets.
-После принятого cutover ordinary deploy выполняет только birth-closed migrations → declaration reconcile →
-bidirectional catalog audit → smoke. Откат к owner-login/BYPASS запрещён.
-Состояние `awg-quick@awg0` не является TEST deploy-гейтом: это отдельный PROD-relay dependency на том же хосте,
-который TEST deploy не запускает, не останавливает и не использует как критерий готовности TEST.
-Для SaaS fresh-dump rehearsal канон — только отдельный разрушительный entrypoint. Это единичная полная
-миграционная репетиция, запускаемая только по прямой команде владельца; она не является вариантом регулярного
-TEST-деплоя или проверки и fail-closed без явного подтверждения и hash-bound owner inputs:
-
-```bash
-bash deploy/host/deploy-test-full-reset.sh \
-  --confirm-full-reset \
-  --fio-manifest=/secure/fio-owner-manifest.json \
-  --fio-manifest-file-sha256=<approved-file-sha256> \
-  --fio-manifest-sha256=<approved-sha256> \
-  --fio-review-source-sha256=<approved-review-sha256> \
-  --rubitime-csv=/secure/records.csv \
-  --rubitime-csv-sha256=<approved-csv-sha256> \
-  feat/doctor-ui-rebuild
-```
-
-Обычные UI/code обновления всегда идут через `deploy-test.sh`; повторное создание БД для них запрещено и не нужно.
-Hard wrapper останавливает writers, восстанавливает dump, первым выполняет owner identity consolidation и
-identity data-fix, затем применяет hash-bound reviewed FIO и legacy-appointment transition, который требует
-нулевой остаток живых непринятых legacy-записей. После подготовки данных он одним вызовом запускает
-`deploy/postgres/prod-to-target-cutover.sql`: одна транзакция заменяет PROD-схему A точной текущей DEV-схемой B,
-переносит подготовленные данные, записывает целевые webapp/integrator ledgers и удаляет legacy-схемы.
-
-Перед новой репетицией целевая схема B фиксируется только из уже доведённой DEV-базы, в таком порядке:
-
-```bash
-bash deploy/host/migrate-dev.sh --execute
-pnpm run refresh:prod-to-target-cutover
-pnpm run check:prod-to-target-cutover
-```
-
-Первая команда применяет штатные integrator/webapp migrations и завершает declaration reconcile. Вторая
-атомарно пересобирает четыре файла `deploy/postgres/generated/prod-to-target/` из точной локальной
-`bcb_webapp_dev`; она не создаёт, не удаляет и не восстанавливает БД. Третья побайтно доказывает, что снимок не
-отстал от DEV. Внутренние `migrate-local.mjs` и `migrate-integrator-local.mjs` отдельно оператором не запускаются:
-они не выполняют всю завершающую closure. После commit/push свежий PROD dump проходит уже показанный выше один
-owner-gated `deploy-test-full-reset.sh`; этот же process из своего checkout выполняет
-`pnpm run check:prod-to-target-cutover` до первого stop/drop/restore и передаёт его non-zero exit. Ручная проверка
-из другого checkout и ручное наложение исторической цепочки поверх дампа не являются этим путём.
-
-Целевой снимок задаёт реестр и audience строк `app_runtime_settings`, но значения уже существующих одноимённых
-зарегистрированных настроек перед удалением source-схемы обязательно пересобираются из канонического
-`system_settings` свежего PROD-дампа. Поэтому DEV-снимок не может стереть рабочий PROD URL/feature value;
-незарегистрированные секретные ключи в runtime-проекцию не копируются. После этого TEST-overlay меняет только
-явно перечисленные TEST-ключи.
-Исторические webapp/integrator migration runners, их промежуточные bridge-роли и отдельные online-index шаги в
-fresh-reset больше не запускаются. Сбой любого сегмента откатывает весь A → B переход.
-Точные логины и права остаются финальным port-context cutover, а bridge-роли удаляет его target zero. В том же stopped-writers окне сохраняется durable FIO rollback,
-затем общей closure применяет строгие helper policies + безопасные invite/course/app_worker overlays + FORCE с
-точной проверкой 163 таблиц и до рестарта идемпотентно восстанавливает две синтетические walkthrough-клиники:
-A с управляющим, двумя специалистами и пятью пациентами; B с solo owner/specialist и тремя пациентами. Он
-fail-closed до restore, если защищённый TEST-only data fixture packet не готов.
-После миграций, установки protected-principal helpers и базового FORCE finalizer общая closure сама вызывает канонический C4 TEST-bootstrap:
-после read-only source preflight атомарно заменяет каждый затронутый env-файл, добавляет/сохраняет три отдельных
-local-only DB URL (`127.0.0.1:5432/bersoncarebot_test`) и control-only media env, создаёт base/capability/
-discovery-definer роли, применяет C4 overlay, а затем повторяет overlay + readiness после FORCE и locked DB matrix.
-Любой сбой оставляет writers остановленными; root-owned env и идемпотентные роли
-сохраняются для безопасного повторного запуска. `DONE` означает только `DB/schema/runtime ready; external delivery
-unverified` и допустим после FIO reconciliation; отсутствие
-защищённого manifest или несовпадение SHA-256 останавливает прогон до restore.
-Безопасная локальная репетиция точного C4-сегмента wrapper (не читает и не меняет host env, БД, systemd или cron):
-`bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`.
-Readiness выполняет разрешённые операции и cross-contour negative probes для трёх DB operational capability,
-затем authenticated media control probe; каждый DB base login остаётся отделён от соседних scheduler, delivery и
-diagnostic surfaces, а media-worker не получает DB login или credential.
-Legacy product-smoke fixture `/run/bersoncarebot/saas-smoke.fixture` и сохранённые сессии/refs выведены из deploy
-решением владельца 30.07.2026. **ЗАМЕНЕНО 15.08.2026:** текущая owner-команда требует после каждого fresh reset
-детерминированный доступ к трём аккаунтам Дмитрия Берсона. Full-reset поэтому читает только защищённый packet
-`/opt/env/bersoncarebot/saas-smoke-login.env`, привязывает отсутствующий TEST-only email к точному пациенту
-`+79189000782`, проверяет роли/активность/doctor-owner membership и атомарно сводит Argon2id-хэши doctor,
-global-admin и patient. Значения не печатаются и не попадают в repo; любое несовпадение identity останавливает
-прогон. Это не возвращает fixture/session mint и не меняет PROD.
-
-Packet создаётся один раз уполномоченным оператором **из root-сессии** (не от `deploy`), без значений в shell
-history. Значения вводятся интерактивным редактором; в repo и docs остаются только имена ключей:
-
-```bash
-test ! -e /opt/env/bersoncarebot/saas-test-fixture.env && \
-  install -o root -g deploy -m 0640 /dev/null /opt/env/bersoncarebot/saas-test-fixture.env
-editor /opt/env/bersoncarebot/saas-test-fixture.env
-```
-
-```dotenv
-SAAS_TEST_FIXTURE_ENABLED="1"
-SAAS_TEST_FIXTURE_CLINIC_A_EMAIL="<secret .test email>"
-SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD="<secret>"
-SAAS_TEST_FIXTURE_CLINIC_B_EMAIL="<secret .test email>"
-SAAS_TEST_FIXTURE_CLINIC_B_PASSWORD="<secret>"
-```
-
-Packet обязан быть обычным файлом `root:deploy 0640`; symlink, другой owner/group/mode, неизвестный или
-повторный ключ, shell-конструкция, malformed/unquoted line и неполный набор ключей запрещены. Значения — только
-JSON-quoted strings как в шаблоне: файл никогда не shell-source-ится. Email/password нельзя печатать, передавать
-аргументами команды, коммитить или помещать в `api.test`/`webapp.test`: это persistent TEST operator packet, не
-runtime integration config. Оба email обязаны использовать зарезервированный недоставляемый TLD `.test`; реальные
-адреса seeder отклоняет. Seeder дополнительно проверяет через PostgreSQL, что текущая БД — ровно
-`bersoncarebot_test`, и не имеет delivery/notification/S3/HTTP write-path. Для записи под locked/FORCE wrapper
-открывает отдельное узкое TEST-only owner+BYPASSRLS reconciliation window и немедленно отзывает
-membership/BYPASS через обязательный cleanup; application runtime эти привилегии не получает.
-
-- **Merge или force?** → **force.** `test` — одноразовое зеркало dev-ветки, хранить на нём нечего; checkout делается `git checkout -f -B <branch> FETCH_HEAD` (`reset --hard`-семантика). Никаких merge/rebase, расхождение веток не разрешаем — просто перетираем.
-- **Как переносится код (а не `git pull` как на проде):** деплой-репо `/opt/projects/bersoncarebot-test` под `deploy`, а `deploy` **не читает** `/home/dev` (0750) → remote `localrepo` под ним не работает; push в GitHub гейтован. Поэтому ветка переносится **git-bundle через `/tmp`** (world-readable) — полная история, без push, без проблем с правами.
-- **Что делает code-only скрипт:** bundle ветки из dev-репо → force-align тест-checkout → build → stop 5 writers. Для первого legacy/locked запуска bounded legacy ledger и оставшиеся provisional migrations выполняет локальный OS `postgres`, не возвращая полномочия retired application-роли; затем выполняет однобазовый access cutover и cluster legacy-role finalizer. Для уже переведённой TEST он запускает owner-aware migrations через NOLOGIN-мигратор, declaration reconcile и catalog audit без application owner/BYPASS. В обоих режимах конец — restart пяти units и health gates. Скрипт не получает dump и не выполняет fresh restore; не использовать его после ручного восстановления БД.
-- **🔴 Ограничение отправок — ЖЁСТКО в env, не в коде:** `/opt/env/bersoncarebot/api.test` содержит `DEV_DELIVERY_REDIRECT=1`, `MAX_ENABLED=false`, `SMSC_ENABLED=false` и `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}`. То есть **какой бы код/ветка ни задеплоилась** — integrator на чокпоинте `applyPreForkDevRedirect` режет/редиректит все отправки реальным клиентам (passthrough только для двух тест-аккаунтов). Деплой нового кода это **не ослабляет**. Подробности топологии/доступов — `docs/ARCHITECTURE/SERVER CONVENTIONS.md` → «Топология серверов» / «Доступы / VPN».
-- **Тест-юниты / порты / env:** `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`; API `:3300`, webapp `:6300`; env `/opt/env/bersoncarebot/{api,webapp}.test`; деплой-репо `/opt/projects/bersoncarebot-test` (владелец `deploy`); источник — dev-репо `/home/dev/dev-projects/BersonCareBot`.
-- **Fresh restore TEST-БД:** ручной/plain restore **не поддерживается и запрещён**. Единственный публичный
-  разрушительный entrypoint — `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`; он владеет fresh dump, restore,
-  подготовку данных, одну A → B migration, overlays/settings, fixture reconciliation, cleanup, restart и health gates. Не запускать
-  `restore-test-db-from-dump.sh`, settings SQL или `deploy-test.sh` как отдельную fresh-restore цепочку. Restore
-  primitive является внутренней частью owner-gated wrapper и напрямую не запускается.
-  Backfill и миграции в этом окне идут локально через OS `postgres` с `SET ROLE bersoncarebot_test`; общий
-  `DATABASE_URL` в runtime env для этого не нужен и не создаётся. Runtime остаётся на четырёх контурных URL:
-  `INTEGRATOR_DB_URL` и `DATABASE_URL_{STAFF,PATIENT,GLOBAL_ADMIN}`.
-  `deploy-test-saas.sh` — внутренний shared closure engine; напрямую его не запускают, прямой destructive-вызов
-  заблокирован.
-
+`deploy-test.sh` — единственный будущий entrypoint обновления существующей именованной TEST: он берёт lock до создания collision-safe transcript, собирает committed branch и применяет только B0-forward изменения. Он не создаёт базу, не восстанавливает dump и не исполняет historical, disposable, A0/A1 или PROD A→B0 machinery.
 ### Отдельный webapp deploy
 
 ```bash
@@ -935,41 +759,14 @@ bash deploy/host/deploy-webapp-prod.sh
 - `pnpm install --frozen-lockfile`
 - `pnpm --dir apps/webapp build`
 - перед миграциями: вызов backup (`BACKUP_SCRIPT` pre-migrations). Требуется наличие скрипта и sudo-прав (см. Sudoers). Скрипт backup должен быть тем же, что в full prod deploy (`/opt/backups/scripts/postgres-backup.sh`), или эквивалентным; контракт аргумента и каталога см. в разделе «Backup contract (pre-migrations)» ниже.
-- `pnpm --dir apps/webapp run migrate` (канонически: **только** Drizzle из `apps/webapp/db/drizzle-migrations`). **Обычный production deploy не выполняет legacy-SQL.** Каталог `apps/webapp/migrations/*.sql` применяется вручную только вне цикла `deploy-prod.sh` / `deploy-webapp-prod.sh`: `WEBAPP_LEGACY_MIGRATIONS_MODE=bootstrap|emergency pnpm --dir apps/webapp run migrate:legacy` — **аварийный / исторический / bootstrap** путь (новая БД без baseline, восстановление после частично применённого DDL, локальная отладка). См. `docs/archive/2026-05-initiatives/WEBAPP_MIGRATIONS_DRIZZLE_UNIFICATION_INITIATIVE/LOG.md` (Stage D).
+- `pnpm --dir apps/webapp run migrate` применяет только B0-forward Drizzle из `apps/webapp/db/drizzle-migrations`. Historical/legacy/bootstrap replay не является активным операторским путём.
 - после migrate: **`deploy/host/webapp-post-migrate-schema-check.sh`** (тот же вызов, что и в full prod — расширенный список колонок в комментарии скрипта); при отсутствии колонок деплой падает **до** `systemctl restart` webapp
 - restart webapp
 - health check `http://127.0.0.1:6200/api/health`
 
-### Перенос данных при первом деплое / cutover
+### Исторический cutover
 
-Для first cutover есть отдельный скрипт:
-
-```bash
-cd /opt/projects/bersoncarebot
-bash deploy/host/run-stage13-cutover.sh
-```
-
-Режим без записей (только проверки и dry-run):
-
-```bash
-bash deploy/host/run-stage13-cutover.sh --dry-run-only
-```
-
-Также cutover можно включить автоматически в full deploy через флаг:
-
-```bash
-RUN_STAGE13_CUTOVER=1 bash deploy/host/deploy-prod.sh
-```
-
-Только dry-run в рамках full deploy:
-
-```bash
-RUN_STAGE13_CUTOVER=1 RUN_STAGE13_CUTOVER_DRY_RUN_ONLY=1 bash deploy/host/deploy-prod.sh
-```
-
-По умолчанию full deploy не запускает cutover-скрипт (чтобы не делать тяжёлый backfill на каждом релизе). Для порядка и проверки целостности ориентир:
-
-- **[DATA_MIGRATION_CHECKLIST.md](DATA_MIGRATION_CHECKLIST.md)** — порядок backfill (person, communication, reminders, appointments, subscription_mailing), reconcile и stage13-gate.
+**УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026:** Stage13, disposable и PROD A→B0 execution paths удалены. Текущий deploy принимает только уже подготовленную B0-базу и B0-forward миграции.
 
 ### Bootstrap systemd
 

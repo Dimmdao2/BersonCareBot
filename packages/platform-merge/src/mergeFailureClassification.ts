@@ -14,6 +14,7 @@ export type MergeFailureClassificationCode =
   | 'merge_blocked_open_test_attempt_conflict'
   | 'merge_blocked_ambiguous_candidates'
   | 'merge_blocked_integrator_conflict'
+  | 'merge_blocked_medical_history_support_required'
   | 'db_transient_failure';
 
 export type MergeFailureClassification = {
@@ -35,6 +36,9 @@ export function classifyMergeFailure(
 
   if (err instanceof MergeDependentConflictError) {
     const msg = err.message;
+    if (msg.includes('medical_history:')) {
+      return { code: 'merge_blocked_medical_history_support_required', candidateIds: idsFromErr };
+    }
     if (msg.includes('patient_bookings: overlapping')) {
       return { code: 'merge_blocked_booking_overlap', candidateIds: idsFromErr };
     }

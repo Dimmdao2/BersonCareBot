@@ -32,6 +32,7 @@ import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/cal
 import {
   resolveCalendarCreateFieldMode,
   resolveCalendarCreateFieldValue,
+  resolveCalendarCreateSubmission,
 } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import type {
   AppointmentCancellationRecord,
@@ -54,6 +55,7 @@ import { DoctorCalendarCreateFormField } from './DoctorCalendarCreateFormField';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { canUseOwnSpecialistAppointmentActions } from '@/modules/doctor-schedule/scope';
+import { AppointmentPaymentSection } from './AppointmentPaymentSection';
 
 // R21: причины отмены, отправляемые как reason в API.
 const CANCEL_REASONS = [
@@ -401,6 +403,17 @@ function DoctorCalendarEventPanelInner({
               setCreateStart(value);
               markCreateDirty();
             }}
+            onSpecialistChange={(value) => {
+              setCreateSpecialistId(value);
+              if (
+                !listCreateServicesForSelection(filterMeta.services, value, createBranchId).some(
+                  (service) => service.id === createServiceId,
+                )
+              ) {
+                setCreateServiceId(null);
+              }
+              markCreateDirty();
+            }}
             onBranchChange={(value) => {
               setCreateBranchId(value);
               if (
@@ -429,20 +442,23 @@ function DoctorCalendarEventPanelInner({
             // §3.6: если открыто через startInCreate — отмена закрывает панель
             onCancel={() => (startInCreate ? onClose() : setMode('view'))}
             onSubmit={() => {
-              if (
-                !createStart ||
-                !createDurationMinutes ||
-                !createBranchId ||
-                !createServiceId ||
-                !createSpecialistId ||
-                !createServiceOptions.some((service) => service.id === createServiceId)
-              ) {
-                setMessage('Заполните филиал, услугу и специалиста.');
+              const submission = resolveCalendarCreateSubmission({
+                start: createStart,
+                durationMinutes: createDurationMinutes,
+                specialistId: createSpecialistId,
+                branchId: createBranchId,
+                serviceId: createServiceId,
+                serviceIsOffered: createServiceOptions.some(
+                  (service) => service.id === createServiceId,
+                ),
+              });
+              if (!submission.ok) {
+                setMessage(submission.message);
                 return;
               }
-              const startAt = new Date(createStart).toISOString();
+              const startAt = new Date(submission.start).toISOString();
               const endAt = new Date(
-                new Date(createStart).getTime() + createDurationMinutes * 60_000,
+                new Date(submission.start).getTime() + submission.durationMinutes * 60_000,
               ).toISOString();
               if (
                 createPatient?.isNew === true &&
@@ -656,6 +672,9 @@ function DoctorCalendarEventPanelInner({
           ) : null}
         </dl>
         {selected.prepaymentPending ? <Badge variant="secondary">Ожидает предоплаты</Badge> : null}
+        {selected.platformUserId ? (
+          <AppointmentPaymentSection apiBase={apiBase} appointmentId={selected.id} />
+        ) : null}
         {selected.platformUserId ? (
           <div className="flex justify-center py-1">
             <Link
@@ -951,6 +970,7 @@ type CreateFormProps = {
   pending: boolean;
   message: string | null;
   onStartChange: (v: string) => void;
+  onSpecialistChange: (v: string | null) => void;
   onBranchChange: (v: string | null) => void;
   onServiceChange: (v: string | null) => void;
   onPatientChange: (v: CalendarPatientOption | null) => void;
@@ -966,6 +986,10 @@ function CreateForm(props: CreateFormProps) {
   const branchMode = resolveCalendarCreateFieldMode(
     props.filterMeta.branches,
     props.activeFilters.branchId,
+  );
+  const specialistMode = resolveCalendarCreateFieldMode(
+    props.filterMeta.specialists,
+    props.activeFilters.specialistId,
   );
   const serviceMode = resolveCalendarCreateFieldMode(
     props.serviceOptions,
@@ -988,11 +1012,21 @@ function CreateForm(props: CreateFormProps) {
         disabled={props.pending}
       />
       <DoctorCalendarCreateFormField
+        fieldLabel="Специалист"
+        mode={specialistMode}
+        options={props.filterMeta.specialists}
+        value={props.createSpecialistId}
+        noneLabel="Специалист"
+        emptyLabel="Нет доступных специалистов."
+        onChange={props.onSpecialistChange}
+      />
+      <DoctorCalendarCreateFormField
         fieldLabel="Филиал"
         mode={branchMode}
         options={props.filterMeta.branches}
         value={props.createBranchId}
         noneLabel="Филиал"
+        emptyLabel="Нет доступных филиалов."
         onChange={props.onBranchChange}
       />
       <DoctorCalendarCreateFormField
@@ -1001,6 +1035,11 @@ function CreateForm(props: CreateFormProps) {
         options={props.serviceOptions}
         value={props.createServiceId}
         noneLabel="Услуга"
+        emptyLabel={
+          props.createSpecialistId && props.createBranchId
+            ? 'Нет доступных услуг для выбранных специалиста и филиала.'
+            : 'Сначала выберите специалиста и филиал.'
+        }
         onChange={props.onServiceChange}
       />
       <Label>Длительность</Label>

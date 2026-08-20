@@ -15,6 +15,12 @@ export type MediaPreviewUiModel = {
   previewStatus?: MediaPreviewStatus | null;
   previewSmUrl: string | null;
   previewMdUrl?: string | null;
+  /**
+   * `media_files.standard_rendition_at IS NOT NULL`: the object behind `url` is our encoder's
+   * bounded output. Set only by surfaces that read that column; absent everywhere else, so a
+   * surface that does not plumb it keeps the placeholder.
+   */
+  standardRendition?: boolean | null;
   sourceWidth?: number | null;
   sourceHeight?: number | null;
 };
@@ -41,15 +47,24 @@ export function libraryMediaRowToPreviewUi(item: {
   };
 }
 
+/**
+ * Внешняя ссылка на хостинг — тоже видео, но конвертировать у неё нечего: файла в `media_files`
+ * нет, миниатюры нашего воркера не будет никогда. По лестнице
+ * (`getMediaThumbPhase`) это ровно `skipped` — «превью не создаётся», а не `pending`
+ * («готовится», то есть ждём конвертацию, которой не будет) и не `failed` (ошибка обработки,
+ * которой не было). Поэтому статус проставляется здесь, а не берётся из строки.
+ */
 export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
+  const hosted = m.mediaType === 'hosted_video';
+  const kind: MediaPreviewUiModel['kind'] =
+    m.mediaType === 'video' || hosted ? 'video' : 'image';
   return {
     id: m.id,
     kind,
     url: m.mediaUrl,
-    previewStatus: m.previewStatus ?? null,
-    previewSmUrl: m.previewSmUrl ?? null,
-    previewMdUrl: m.previewMdUrl ?? null,
+    previewStatus: hosted ? 'skipped' : (m.previewStatus ?? null),
+    previewSmUrl: hosted ? null : (m.previewSmUrl ?? null),
+    previewMdUrl: hosted ? null : (m.previewMdUrl ?? null),
     sourceWidth: null,
     sourceHeight: null,
   };
@@ -70,52 +85,54 @@ export function clinicalTestMediaItemToPreviewUi(m: ClinicalTestMediaItem): Medi
   };
 }
 
-/** Превью медиа рекомендации (GIF — как изображение). Для image/gif — исходный URL; для video — превью воркера из снимка, если есть. */
+/**
+ * Превью медиа рекомендации (GIF — как изображение).
+ *
+ * Passes the row's true rendition state through unchanged (owner ruling 19.08,
+ * `docs/_TODO/GET_IMAGE_ACCESSOR_2026-08-19.md`): the caller does not decide readiness here —
+ * {@link MediaThumb} + `getMediaThumbPhase` do, from `previewStatus`/`previewSmUrl`/
+ * `standardRendition`. Forcing `previewStatus: 'ready'` and substituting the primary URL for
+ * image/gif (the previous behaviour) bypassed conversion and showed a raw upload, which
+ * `media_files.standard_rendition_at` exists precisely to prevent.
+ */
 export function recommendationMediaItemToPreviewUi(
   m: RecommendationMediaItem,
 ): MediaPreviewUiModel {
-  const kind: MediaPreviewUiModel['kind'] = m.mediaType === 'video' ? 'video' : 'image';
-  const useSourceUrlForThumb = m.mediaType === 'image' || m.mediaType === 'gif';
-  const rowSm = m.previewSmUrl?.trim() || null;
-  const rowMd = m.previewMdUrl?.trim() || null;
-  const rowStatus = m.previewStatus ?? null;
-  const useWorkerThumb = !useSourceUrlForThumb && Boolean(rowSm);
+  const hosted = m.mediaType === 'hosted_video';
+  const kind: MediaPreviewUiModel['kind'] =
+    m.mediaType === 'video' || hosted ? 'video' : 'image';
   return {
     id: m.mediaUrl,
     kind,
     url: m.mediaUrl,
-    previewStatus: useSourceUrlForThumb
-      ? 'ready'
-      : useWorkerThumb
-        ? (rowStatus ?? 'ready')
-        : rowStatus,
-    previewSmUrl: useSourceUrlForThumb ? m.mediaUrl : rowSm,
-    previewMdUrl: useSourceUrlForThumb ? null : rowMd,
+    /* Ссылка на хостинг: конвертировать нечего — `skipped`, см. exerciseMediaToPreviewUi. */
+    previewStatus: hosted ? 'skipped' : (m.previewStatus ?? null),
+    previewSmUrl: hosted ? null : m.previewSmUrl?.trim() || null,
+    previewMdUrl: hosted ? null : m.previewMdUrl?.trim() || null,
+    standardRendition: hosted ? null : (m.standardRendition ?? null),
     sourceWidth: null,
     sourceHeight: null,
   };
 }
 
-/** Превью первого элемента шаблона программы в master-list врача. */
+/**
+ * Превью первого элемента шаблона программы в master-list врача.
+ *
+ * Same rule as {@link recommendationMediaItemToPreviewUi}: pass the row's rendition state
+ * through, do not force readiness for image/gif.
+ */
 export function templateListPreviewToPreviewUi(
   preview: TreatmentProgramTemplateListPreviewMedia,
 ): MediaPreviewUiModel {
   const kind: MediaPreviewUiModel['kind'] = preview.mediaType === 'video' ? 'video' : 'image';
-  const useSourceUrlForThumb = preview.mediaType === 'image' || preview.mediaType === 'gif';
-  const rowSm = preview.previewSmUrl?.trim() || null;
-  const rowStatus = preview.previewStatus ?? null;
-  const useWorkerThumb = !useSourceUrlForThumb && Boolean(rowSm);
   return {
     id: preview.mediaUrl,
     kind,
     url: preview.mediaUrl,
-    previewStatus: useSourceUrlForThumb
-      ? 'ready'
-      : useWorkerThumb
-        ? (rowStatus ?? 'ready')
-        : rowStatus,
-    previewSmUrl: useSourceUrlForThumb ? preview.mediaUrl : rowSm,
+    previewStatus: preview.previewStatus ?? null,
+    previewSmUrl: preview.previewSmUrl?.trim() || null,
     previewMdUrl: null,
+    standardRendition: preview.standardRendition ?? null,
     sourceWidth: null,
     sourceHeight: null,
   };

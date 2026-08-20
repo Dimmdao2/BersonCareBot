@@ -115,7 +115,7 @@ export function HealthFailureArchiveSection({
   }, [loadPage]);
 
   return (
-    <Card>
+    <Card id="health-failure-archive">
       <CardHeader>
         <CardTitle className="text-base">Архив сбоев очередей</CardTitle>
         <CardDescription>

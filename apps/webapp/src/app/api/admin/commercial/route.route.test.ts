@@ -157,7 +157,9 @@ describe('/api/admin/commercial tariff persistence', () => {
             currency: 'rub',
             billingPeriod: 'month',
             mechanics: { payments: true, branding: true },
-            quotas: {},
+            quotas: {
+              branches: { kind: 'unlimited', limit: null, unit: 'items' },
+            },
             systemAccessPolicy: null,
             mechanicAccessPolicies: {
               payments: paymentPolicy,
@@ -199,7 +201,9 @@ describe('/api/admin/commercial tariff persistence', () => {
             currency: null,
             billingPeriod: 'month',
             mechanics: { branding: true, clinical_tests: false },
-            quotas: {},
+            quotas: {
+              branches: { kind: 'unlimited', limit: null, unit: 'items' },
+            },
             systemAccessPolicy: null,
             mechanicAccessPolicies: { clinical_tests: brandingPolicy },
             downgradePolicies: { clinical_tests: 'block' },

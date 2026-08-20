@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { readActualBaseTables } from './actual-schema-tables.mjs';
 import { postPhase4StrictPolicyExceptions } from './post-phase4-strict-policy-exceptions.mjs';
 import {
@@ -303,7 +305,68 @@ function expectFailure(label, facts, mutate, pattern) {
   fail(`P0.10.1 self-test ${label} unexpectedly passed`);
 }
 
+function assertQualifiedWebappMigrationSchemaWins() {
+  const repoRoot = mkdtempSync(join(tmpdir(), 'bcb-p0-10-qualified-schema-'));
+  const migrationDir = join(repoRoot, 'apps/webapp/db/drizzle-migrations');
+  const accessContractDir = join(repoRoot, 'deploy/postgres/generated');
+  const syntheticTable = 'synthetic_webapp_qualified_table';
+  const droppedTable = 'synthetic_webapp_qualified_drop';
+  const renamedFromTable = 'synthetic_webapp_qualified_rename_from';
+  const renamedToTable = 'synthetic_webapp_qualified_rename_to';
+
+  try {
+    mkdirSync(migrationDir, { recursive: true });
+    mkdirSync(accessContractDir, { recursive: true });
+    writeFileSync(join(accessContractDir, 'privileges.bcb_webapp_dev.sql'), '');
+    writeFileSync(
+      join(migrationDir, '20260820T000000_qualified_schema_self_test.sql'),
+      [
+        `CREATE TABLE integrator.${syntheticTable} (id bigint PRIMARY KEY);`,
+        `CREATE TABLE integrator.${droppedTable} (id bigint PRIMARY KEY);`,
+        `CREATE TABLE integrator.${renamedFromTable} (id bigint PRIMARY KEY);`,
+        '',
+      ].join('\n'),
+    );
+    writeFileSync(
+      join(migrationDir, '20260820T000001_qualified_schema_lifecycle_self_test.sql'),
+      [
+        `DROP TABLE integrator.${droppedTable};`,
+        `ALTER TABLE integrator.${renamedFromTable} RENAME TO ${renamedToTable};`,
+        '',
+      ].join('\n'),
+    );
+
+    const derivedTables = readActualBaseTables({ repoRoot });
+    const matchesName = (tableName) =>
+      derivedTables.filter((table) => table.endsWith(`.${tableName}`));
+    assertSameSet({
+      actual: new Set(matchesName(syntheticTable)),
+      expected: new Set([`integrator.${syntheticTable}`]),
+      label: 'qualified webapp CREATE TABLE schema',
+    });
+    assertSameSet({
+      actual: new Set(matchesName(droppedTable)),
+      expected: new Set(),
+      label: 'qualified webapp DROP TABLE schema',
+    });
+    assertSameSet({
+      actual: new Set(matchesName(renamedFromTable)),
+      expected: new Set(),
+      label: 'qualified webapp ALTER TABLE RENAME source schema',
+    });
+    assertSameSet({
+      actual: new Set(matchesName(renamedToTable)),
+      expected: new Set([`integrator.${renamedToTable}`]),
+      label: 'qualified webapp ALTER TABLE RENAME target schema',
+    });
+  } finally {
+    rmSync(repoRoot, { recursive: true, force: true });
+  }
+}
+
 function runSelfTest() {
+  assertQualifiedWebappMigrationSchemaWins();
+
   expectFailure(
     'duplicate tier row',
     groundedFacts(),

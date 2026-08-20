@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
-const { enqueueMessageRetryJob, cancelPendingBookingReminderJobsByBookingId } = vi.hoisted(() => ({
+const {
+  enqueueMessageRetryJob,
+  cancelPendingBookingReminderJobsByBookingId,
+  loadAdminMessengerIdLists,
+} = vi.hoisted(() => ({
   enqueueMessageRetryJob: vi.fn(async () => undefined),
   cancelPendingBookingReminderJobsByBookingId: vi.fn(async () => undefined),
+  loadAdminMessengerIdLists: vi.fn(async () => ({ telegram: ['777'], max: [] })),
 }));
 
 vi.mock('../../infra/db/client.js', () => ({ createDbPort: vi.fn(() => ({})) }));
 vi.mock('../../infra/operatorIncident/operatorHealthAlertConfigIntegrator.js', () => ({
-  loadAdminMessengerIdLists: vi.fn(async () => ({ telegram: ['777'], max: [] })),
+  loadAdminMessengerIdLists,
 }));
 vi.mock('../../infra/db/repos/jobQueue.js', () => ({
   cancelPendingBookingReminderJobsByBookingId,
@@ -34,7 +40,8 @@ import type { DispatchPort, IdempotencyPort } from '../../kernel/contracts/index
 
 function payload(): BookingLifecyclePayloadValidated {
   return {
-    bookingId: '11111111-1111-1111-1111-111111111111',
+    organizationId: '10000000-0000-4000-8000-000000000001',
+    bookingId: '11111111-1111-4111-8111-111111111111',
     userId: 'user-1',
     bookingType: 'in_person',
     category: 'general',
@@ -79,6 +86,7 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    loadAdminMessengerIdLists.mockResolvedValue({ telegram: ['777'], max: [] });
   });
 
   it('with a persistent idempotency port (the actual di.ts wiring since 2026-07-14), a duplicate event is dropped even after a process restart', async () => {
@@ -96,5 +104,65 @@ describe('D20 item 16: booking-lifecycle event dedup — persistent idempotency 
     const send2 = fakeDispatchPort();
     await second.handleBookingLifecycleEvent(event(), send2, { idempotencyPort: persistentPort });
     expect(send2.dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
+  it('releases the durable dedup key when global admin targets are unavailable so the event retries', async () => {
+    const persistentPort = fakePersistentIdempotencyPort();
+    const route = await import('./bookingLifecycleRoute.js');
+    loadAdminMessengerIdLists
+      .mockRejectedValueOnce(new Error('admin_notification_targets_unavailable'))
+      .mockResolvedValueOnce({ telegram: ['777'], max: [] });
+
+    await expect(
+      route.handleBookingLifecycleEvent(event(), fakeDispatchPort(), {
+        idempotencyPort: persistentPort,
+      }),
+    ).rejects.toThrow('admin_notification_targets_unavailable');
+
+    const retryDispatch = fakeDispatchPort();
+    await route.handleBookingLifecycleEvent(event(), retryDispatch, {
+      idempotencyPort: persistentPort,
+    });
+    expect(loadAdminMessengerIdLists).toHaveBeenCalledTimes(2);
+    expect(retryDispatch.dispatchOutgoing).toHaveBeenCalled();
+  });
+
+  it('returns a retryable HTTP failure before marking the lifecycle event complete', async () => {
+    const persistentPort = fakePersistentIdempotencyPort();
+    const route = await import('./bookingLifecycleRoute.js');
+    loadAdminMessengerIdLists.mockRejectedValueOnce(
+      new Error('admin_notification_targets_unavailable'),
+    );
+    const firstSend = vi.fn();
+    const firstCode = vi.fn(() => ({ send: firstSend }));
+
+    await route.handleBookingEventRequest(
+      { body: event() } as unknown as FastifyRequest,
+      { code: firstCode } as unknown as FastifyReply,
+      'booking lifecycle-event',
+      () => ({ ok: true, rawBody: '{}' }),
+      fakeDispatchPort(),
+      { idempotencyPort: persistentPort },
+    );
+
+    expect(firstCode).toHaveBeenCalledWith(502);
+    // 19.08: отказ называет УПАВШИЙ ШАГ. Раньше 502 нёс голое сообщение первой попавшейся ошибки, и
+    // по нему нельзя было понять, что именно не доехало до человека.
+    expect(firstSend).toHaveBeenCalledWith({
+      ok: false,
+      error: 'doctor_message: admin_notification_targets_unavailable',
+    });
+
+    const retrySend = vi.fn();
+    const retryCode = vi.fn(() => ({ send: retrySend }));
+    await route.handleBookingEventRequest(
+      { body: event() } as unknown as FastifyRequest,
+      { code: retryCode } as unknown as FastifyReply,
+      'booking lifecycle-event',
+      () => ({ ok: true, rawBody: '{}' }),
+      fakeDispatchPort(),
+      { idempotencyPort: persistentPort },
+    );
+    expect(retryCode).toHaveBeenCalledWith(200);
   });
 });

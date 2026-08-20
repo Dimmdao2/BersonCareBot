@@ -17,8 +17,9 @@ Replace ambiguous patient naming with structured identity fields:
 - `patronymic` — optional middle/patronymic name;
 - `display_name` — legacy/derived compatibility field, not the source of truth.
 
-Doctor surfaces should display full FIO when available. Patient surfaces should
-address the patient by `first_name` only.
+Doctor surfaces should display full FIO when available. Patient greetings address the patient by
+`first_name` only. The patient's own `/app/patient/profile` identity field is the explicit exception:
+it displays and edits canonical structured ФИО (`last_name`, `first_name`, optional `patronymic`).
 
 ## Execution Principle
 

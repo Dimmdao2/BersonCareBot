@@ -1,7 +1,12 @@
 import { createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DbPort, DispatchPort, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type {
+  DbPort,
+  DispatchPort,
+  IdempotencyPort,
+  OutgoingIntent,
+} from '../../kernel/contracts/index.js';
 import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
 
 const SHARED_SECRET = 'send-email-route-test-secret';
@@ -35,9 +40,7 @@ function protocolHeaders(
   const timestamp = options.timestamp ?? String(Math.floor(Date.now() / 1000));
   const signature =
     options.signature ??
-    createHmac('sha256', SHARED_SECRET)
-      .update(`${timestamp}.${rawBody}`)
-      .digest('base64url');
+    createHmac('sha256', SHARED_SECRET).update(`${timestamp}.${rawBody}`).digest('base64url');
   return {
     'content-type': 'application/json',
     'x-bersoncare-timestamp': timestamp,
@@ -50,6 +53,15 @@ async function buildApp(deps: {
   isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
   db?: DbPort;
 }): Promise<FastifyInstance> {
+  const keys = new Set<string>();
+  const idempotencyPort: IdempotencyPort = {
+    tryAcquire: async (key) => {
+      if (keys.has(key)) return false;
+      keys.add(key);
+      return true;
+    },
+    release: async (key) => void keys.delete(key),
+  };
   const app = Fastify({ logger: false });
   apps.push(app);
   await registerBersoncareSendEmailRoute(app, {
@@ -58,6 +70,7 @@ async function buildApp(deps: {
     dispatchPort: { dispatchOutgoing: deps.dispatchOutgoing },
     isAuthChannelEnabled: deps.isAuthChannelEnabled,
     recordProviderFailure: async () => {},
+    idempotencyPort,
   });
   return app;
 }
@@ -87,6 +100,7 @@ describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
     const response = await injectSigned(app, {
       to: 'patient@example.test',
       code: '123456',
+      idempotencyKey: 'otp:email:disabled',
     });
 
     expect(response.statusCode).toBe(403);
@@ -104,9 +118,23 @@ describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
     const response = await injectSigned(app, {
       to: 'patient@example.test',
       code: '123456',
+      idempotencyKey: 'otp:email:one',
     });
 
     expect(response.statusCode).toBe(200);
     expect(dispatchOutgoing).toHaveBeenCalledOnce();
+  });
+
+  it('same email OTP request is a no-op, while a new resend key sends another code', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp({ dispatchOutgoing, isAuthChannelEnabled: async () => true });
+    const first = { to: 'patient@example.test', code: '123456', idempotencyKey: 'otp:email:1' };
+
+    expect((await injectSigned(app, first)).json()).toEqual({ ok: true });
+    expect((await injectSigned(app, first)).json()).toEqual({ ok: true, status: 'duplicate' });
+    expect(
+      (await injectSigned(app, { ...first, code: '654321', idempotencyKey: 'otp:email:2' })).json(),
+    ).toEqual({ ok: true });
+    expect(dispatchOutgoing).toHaveBeenCalledTimes(2);
   });
 });

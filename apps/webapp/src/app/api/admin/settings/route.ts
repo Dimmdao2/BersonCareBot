@@ -131,6 +131,7 @@ const ADMIN_SCOPE_KEYS = [
   'patient_booking_url',
   'booking_default_organization_id',
   'booking_calendar_show_working_hours',
+  'booking_allow_doctor_unlink_past_package_sessions',
   'booking_min_notice_hours',
   'booking_payment_enabled',
   'booking_payment_providers',
@@ -143,7 +144,6 @@ const ADMIN_SCOPE_KEYS = [
   'patient_home_daily_warmup_repeat_cooldown_minutes',
   'patient_treatment_plan_item_done_repeat_cooldown_minutes',
   'patient_home_warmup_skip_to_next_available_enabled',
-  'patient_home_mood_icons',
   'notifications_topics',
   'smtp_outbound',
   'clinic_smtp_outbound',
@@ -303,7 +303,6 @@ const PATIENT_HOME_TODAY_ENTITLEMENT_SETTING_KEYS = new Set([
   'patient_home_daily_warmup_repeat_cooldown_minutes',
   'patient_treatment_plan_item_done_repeat_cooldown_minutes',
   'patient_home_warmup_skip_to_next_available_enabled',
-  'patient_home_mood_icons',
 ]);
 
 const WARMUPS_ENTITLEMENT_SETTING_KEYS = new Set([
@@ -515,6 +514,7 @@ export async function PATCH(request: Request) {
         const settings = redactAdminSettingsForClient(
           await deps.systemSettings.persistAdminModesBatch(norm.rows, session.user.userId, {
             organizationId,
+            ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
           }),
         );
         return NextResponse.json({ ok: true, settings });
@@ -791,54 +791,6 @@ export async function PATCH(request: Request) {
     normalizedValue = { value: parsePatientHomeDailyWarmupRotationTimes({ value: sorted }) };
   }
 
-  if (parsed.data.key === 'patient_home_mood_icons') {
-    const inner = normalizedValue.value;
-    if (!Array.isArray(inner) || inner.length !== 5) {
-      return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-    }
-    const scores = new Set<number>();
-    const cleaned: { score: number; label: string; imageUrl: string | null }[] = [];
-    for (const row of inner) {
-      if (row === null || typeof row !== 'object') {
-        return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-      }
-      const o = row as Record<string, unknown>;
-      const score =
-        typeof o.score === 'number' && Number.isInteger(o.score) && o.score >= 1 && o.score <= 5
-          ? o.score
-          : null;
-      if (score === null) {
-        return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-      }
-      if (scores.has(score)) {
-        return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-      }
-      scores.add(score);
-      const label = typeof o.label === 'string' ? o.label.trim() : '';
-      if (!label || label.length > 200) {
-        return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-      }
-      let imageUrl: string | null = null;
-      if (o.imageUrl === null || o.imageUrl === undefined) {
-        imageUrl = null;
-      } else if (typeof o.imageUrl === 'string' && o.imageUrl.trim() === '') {
-        imageUrl = null;
-      } else if (typeof o.imageUrl === 'string' && o.imageUrl.startsWith('/api/media/')) {
-        imageUrl = o.imageUrl.trim();
-      } else {
-        return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-      }
-      cleaned.push({ score, label, imageUrl });
-    }
-    for (const s of [1, 2, 3, 4, 5]) {
-      if (!scores.has(s)) {
-        return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
-      }
-    }
-    cleaned.sort((a, b) => a.score - b.score);
-    normalizedValue = { value: cleaned };
-  }
-
   if (parsed.data.key === 'patient_default_promo_treatment_program_template_id') {
     const checked = await normalizePatientDefaultPromoTreatmentProgramTemplatePatch(
       (id) => deps.treatmentProgram.getTemplate(id),
@@ -956,7 +908,10 @@ export async function PATCH(request: Request) {
       settingScope,
       normalizedValue,
       session.user.userId,
-      { organizationId },
+      {
+        organizationId,
+        ...(allowGlobalSettings ? { allowPlatformGlobalFallbackWrite: true as const } : {}),
+      },
     );
   } catch (error) {
     const errResponse = systemSettingsOrgContextErrorResponse(error);

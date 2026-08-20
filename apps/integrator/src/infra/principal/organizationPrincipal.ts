@@ -48,3 +48,21 @@ export function runWithOptionalOrganizationPrincipal<T>(
 ): T {
   return organizationId ? runWithOrganizationPrincipal(organizationId, fn) : fn();
 }
+
+/**
+ * Selects the delivery-worker runtime role for a DB capability whose EXECUTE is held only by
+ * `app_operational_delivery_worker`.
+ *
+ * Outgoing-delivery rows are processed under the row's organization principal, which in
+ * port-context mode installs `SET LOCAL ROLE app_tenant_service`; the integrator login role is
+ * NOINHERIT, so neither it nor `app_tenant_service` can reach these capabilities. The scope
+ * therefore belongs at the capability wrapper — the repository function that fronts the exact
+ * SECURITY DEFINER root — and never at each caller, which is how
+ * `app.revalidate_patient_reminder_delivery_materialization` came to fail on TEST.
+ */
+export function runWithDeliveryWorkerPrincipal<T>(fn: () => T): T {
+  return runWithInfraPrincipal(
+    { source: 'worker:outgoing-delivery-tick', portCapability: 'delivery' },
+    fn,
+  );
+}

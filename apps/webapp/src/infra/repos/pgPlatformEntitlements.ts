@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
 import {
   resolveCommercialAccess,
   type CommercialAccessPaidPeriodInput,
@@ -45,7 +45,6 @@ type Transaction = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 type EnforcedQuotaUsageRow = {
   clinic_team_used: number | string;
-  patient_count_used: number | string;
   files_used: number | string;
 };
 
@@ -446,7 +445,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       assertPlatformOperationsPrincipal();
       const [enforcedUsage, [branchesRow]] = await Promise.all([
         runWebappPgText<EnforcedQuotaUsageRow>(
-          `SELECT clinic_team_used, patient_count_used, files_used
+          `SELECT clinic_team_used, files_used
            FROM app.read_org_enforced_quota_usage($1::uuid)`,
           [organizationId],
         ),
@@ -458,7 +457,6 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
       const usage = enforcedUsage.rows[0];
       return {
         clinic_team: numericUsage(usage?.clinic_team_used, 'clinic_team'),
-        patient_count: numericUsage(usage?.patient_count_used, 'patient_count'),
         branches: numericUsage(branchesRow?.used, 'branches'),
         files: numericUsage(usage?.files_used, 'files'),
       };
@@ -672,6 +670,12 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           expiresAt: input.expiresAt,
           updatedAt: new Date().toISOString(),
         };
+        const mutableValues = {
+          enabled: values.enabled,
+          quota: values.quota,
+          expiresAt: values.expiresAt,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasOrgEntitlementOverrides)
           .values(values)
@@ -680,7 +684,7 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
               saasOrgEntitlementOverrides.organizationId,
               saasOrgEntitlementOverrides.mechanic,
             ],
-            set: values,
+            set: mutableValues,
           })
           .returning();
         await appendAudit(tx, {
@@ -732,10 +736,15 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           updatedBy: audit.actorId,
           updatedAt: new Date().toISOString(),
         };
+        const updateValues = {
+          ...policy,
+          updatedBy: audit.actorId,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasTrialPolicy)
           .values(values)
-          .onConflictDoUpdate({ target: saasTrialPolicy.key, set: values })
+          .onConflictDoUpdate({ target: saasTrialPolicy.key, set: updateValues })
           .returning();
         await appendAudit(tx, {
           audit,
@@ -767,10 +776,17 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           updatedBy: audit.actorId,
           updatedAt: new Date().toISOString(),
         };
+        const updateValues = {
+          postPaidPeriodBehavior: policy.postPaidPeriodBehavior,
+          postPaidPeriodTariffId: policy.postPaidPeriodTariffId,
+          isActive: policy.isActive,
+          updatedBy: audit.actorId,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasPaidPeriodPolicy)
           .values(values)
-          .onConflictDoUpdate({ target: saasPaidPeriodPolicy.key, set: values })
+          .onConflictDoUpdate({ target: saasPaidPeriodPolicy.key, set: updateValues })
           .returning();
         await appendAudit(tx, {
           audit,
@@ -798,10 +814,15 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
           updatedBy: audit.actorId,
           updatedAt: new Date().toISOString(),
         };
+        const updateValues = {
+          tariffId: policy.tariffId,
+          updatedBy: audit.actorId,
+          updatedAt: values.updatedAt,
+        };
         const [after] = await tx
           .insert(saasRegistrationTariffPolicy)
           .values(values)
-          .onConflictDoUpdate({ target: saasRegistrationTariffPolicy.key, set: values })
+          .onConflictDoUpdate({ target: saasRegistrationTariffPolicy.key, set: updateValues })
           .returning();
         await appendAudit(tx, {
           audit,
@@ -817,6 +838,45 @@ export function createPgPlatformEntitlementsPort(dependencies?: {
     async startTrial(organizationId, audit) {
       assertPlatformOperationsPrincipal();
       return startTrialForOrganization(organizationId, audit);
+    },
+
+    async setOrganizationActive(organizationId, isActive, audit) {
+      assertPlatformOperationsPrincipal();
+      const db = getDrizzle();
+      const [before] = await db
+        .select({ id: beOrganizations.id, isActive: beOrganizations.isActive })
+        .from(beOrganizations)
+        .where(eq(beOrganizations.id, organizationId))
+        .limit(1);
+      if (!before) throw new Error('organization_not_found');
+
+      const result = await runWebappNamedRoot<{
+        organization_id: string;
+        is_active: boolean;
+        changed: boolean;
+      }>(
+        db,
+        'app.set_platform_organization_is_active(uuid,boolean)',
+        [organizationId, isActive],
+        sql`SELECT * FROM app.set_platform_organization_is_active(${organizationId}::uuid, ${isActive})`,
+      );
+      const row = result.rows[0];
+      if (!row) throw new Error('organization_active_update_failed');
+
+      if (row.changed) {
+        await db.transaction(async (tx) => {
+          await appendAudit(tx, {
+            audit,
+            action: 'organization_set_is_active',
+            targetId: organizationId,
+            organizationId,
+            before: { isActive: before.isActive },
+            after: { isActive: row.is_active },
+          });
+        });
+      }
+
+      return { isActive: row.is_active, changed: row.changed };
     },
   };
 }

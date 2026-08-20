@@ -1,41 +1,85 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { postProgramItemComplete } from './postProgramItemComplete';
+import {
+  patchProgramItemCompletionMetrics,
+  postProgramItemComplete,
+} from './postProgramItemComplete';
 
 describe('postProgramItemComplete', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('records completion metrics in the same append-only completion request', async () => {
+  it('records completion immediately without waiting for optional metrics', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ ok: true, item: null }), {
+      new Response(
+        JSON.stringify({
+          ok: true,
+          item: null,
+          completion: { id: 'completion-id', createdAt: '2026-08-17T10:00:00.000Z' },
+        }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-      }),
+        },
+      ),
     );
     vi.stubGlobal('fetch', fetchMock);
 
-    const payload = {
-      perceivedDifficulty: 'medium' as const,
-      reps: 10,
-      sets: 3,
-      weightKg: 7.5,
-    };
     const result = await postProgramItemComplete({
       base: '/api/patient/treatment-program-instances/instance/items',
       itemId: 'item-id',
-      payload,
     });
 
-    expect(result).toEqual({ ok: true, item: null });
+    expect(result).toEqual({
+      ok: true,
+      item: null,
+      completion: { id: 'completion-id', createdAt: '2026-08-17T10:00:00.000Z' },
+    });
     expect(fetchMock).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/patient/treatment-program-instances/instance/items/item-id/progress/complete',
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
       },
     );
+  });
+
+  it('enriches the exact returned completion with PATCH and never posts another done event', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const payload = { perceivedDifficulty: 'medium' as const, reps: 10, sets: 3, weightKg: 7.5 };
+    expect(
+      await patchProgramItemCompletionMetrics({
+        base: '/api/patient/treatment-program-instances/instance/items',
+        itemId: 'item-id',
+        completionId: 'completion-id',
+        payload,
+      }),
+    ).toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/patient/treatment-program-instances/instance/items/item-id/progress/complete/completion-id/metrics',
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    );
+  });
+
+  it('returns a visible failure and no completion when the complete request rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
+
+    await expect(postProgramItemComplete({ base: '/items', itemId: 'item-id' })).resolves.toEqual({
+      ok: false,
+      error: 'Не удалось отметить выполнение',
+    });
+  });
+
+  it('returns a visible failure when the exact completion metrics PATCH rejects', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network')));
+
+    await expect(patchProgramItemCompletionMetrics({
+      base: '/items', itemId: 'item-id', completionId: 'completion-id', payload: {},
+    })).resolves.toEqual({ ok: false, error: 'Не удалось сохранить параметры' });
   });
 });

@@ -20,6 +20,8 @@ vi.mock('./organizationMechanicLifecycleDoor.js', () => ({
 }));
 
 import { createClinicDeliveryCredentialResolver } from './clinicDeliveryCredentials.js';
+import { createDefaultDispatchPort } from '../adapters/dispatchPort.js';
+import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 
 const ORG_A = '11111111-1111-4111-8111-111111111111';
 
@@ -79,5 +81,30 @@ describe('exact-organization clinic delivery credential resolution', () => {
       runWithOrganizationPrincipal(ORG_A, () => resolve('telegram')),
     ).resolves.toBeNull();
     expect(mocks.readCredential).not.toHaveBeenCalled();
+  });
+
+  it('passes the resolved exact-org credential to a clinic-required dispatch instead of platform fallback', async () => {
+    const resolve = createClinicDeliveryCredentialResolver({} as never);
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const dispatch = createDefaultDispatchPort({
+      adapters: [adapter],
+      resolveClinicDeliveryCredential: resolve,
+    });
+
+    await runWithOrganizationPrincipal(ORG_A, () => dispatch.dispatchOutgoing({
+      type: 'message.send',
+      payload: { recipient: { chatId: 42 }, message: { text: 'hello' }, delivery: {
+        channels: ['telegram'], senderScope: 'clinic_required',
+      } },
+      meta: {
+        eventId: 'clinic-credential-test', occurredAt: '2026-08-16T00:00:00.000Z', source: 'telegram',
+        outboundMessageClass: 'broadcast_event', outboundCapability: 'clinic_delivery',
+      },
+    }));
+
+    expect(send).toHaveBeenCalledTimes(1);
+    expect((send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery)
+      .toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic_telegram_bot_token:secret' } });
   });
 });

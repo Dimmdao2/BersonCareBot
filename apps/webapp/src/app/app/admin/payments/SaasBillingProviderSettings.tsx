@@ -69,6 +69,12 @@ export function SaasBillingProviderSettings() {
   const [newApiKey, setNewApiKey] = useState('');
   const [newWebhookSecret, setNewWebhookSecret] = useState('');
   const [vatCode, setVatCode] = useState(EMPTY_VALUE);
+  /**
+   * Владелец, 18.08: срок жизни счёта — ОДНА настройка на все счета (и ручные, и автоматические при
+   * продлении), а не поле в форме выставления. Редактируется здесь, живёт в
+   * `lifecyclePolicy.invoiceValidityDays`, читается всеми путями выставления через `settings.ts`.
+   */
+  const [invoiceValidityDays, setInvoiceValidityDays] = useState('');
   const [taxSystemCode, setTaxSystemCode] = useState(EMPTY_VALUE);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -94,6 +100,7 @@ export function SaasBillingProviderSettings() {
     setNewWebhookSecret('');
     setVatCode(parsed.payeeRequisites.vatCode ?? EMPTY_VALUE);
     setTaxSystemCode(parsed.payeeRequisites.taxSystemCode ?? EMPTY_VALUE);
+    setInvoiceValidityDays(String(parsed.lifecyclePolicy.invoiceValidityDays));
   }, []);
 
   const load = useCallback(async () => {
@@ -118,8 +125,12 @@ export function SaasBillingProviderSettings() {
     void load();
   }, [load]);
 
+  const validityDaysNumber = Number(invoiceValidityDays);
+  const validityDaysValid =
+    Number.isInteger(validityDaysNumber) && validityDaysNumber > 0 && invoiceValidityDays !== '';
+
   const save = async () => {
-    if (!settings) return;
+    if (!settings || !validityDaysValid) return;
     setSaving(true);
     setSaved(false);
     setError(null);
@@ -152,6 +163,10 @@ export function SaasBillingProviderSettings() {
                 vatCode: vatCode === EMPTY_VALUE ? null : vatCode,
                 taxSystemCode: taxSystemCode === EMPTY_VALUE ? null : taxSystemCode,
               },
+              lifecyclePolicy: {
+                ...settings.lifecyclePolicy,
+                invoiceValidityDays: validityDaysNumber,
+              },
             },
           },
         }),
@@ -169,7 +184,9 @@ export function SaasBillingProviderSettings() {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">Магазин ЮKassa</CardTitle>
-        <CardDescription>Реквизиты магазина и налоговые параметры чека.</CardDescription>
+        <CardDescription>
+          Реквизиты магазина, налоговые параметры чека и срок оплаты счёта.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {loading ? (
@@ -249,9 +266,28 @@ export function SaasBillingProviderSettings() {
                   </SelectContent>
                 </Select>
               </DoctorField>
+              <DoctorField
+                label="Срок оплаты счёта, дней"
+                htmlFor="saas-invoice-validity-days"
+                hint="Действует на все счета — и выставленные вручную, и автоматические при продлении."
+              >
+                <Input
+                  id="saas-invoice-validity-days"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={invoiceValidityDays}
+                  onChange={(event) => setInvoiceValidityDays(event.target.value)}
+                  aria-invalid={!validityDaysValid}
+                />
+              </DoctorField>
             </div>
             <div className="flex items-center gap-3">
-              <Button type="button" onClick={() => void save()} disabled={saving || !settings}>
+              <Button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving || !settings || !validityDaysValid}
+              >
                 {saving ? 'Сохраняем…' : 'Сохранить'}
               </Button>
               {saved && <span className="text-sm text-muted-foreground">Сохранено</span>}

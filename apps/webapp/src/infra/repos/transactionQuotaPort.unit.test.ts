@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  decideClinicTeamQuota,
-  decideStockQuota,
-} from './transactionQuotaPort';
+import { decideStockQuota } from './transactionQuotaPort';
 
 describe('transaction quota decisions', () => {
   it('applies the same numeric decision to a serialized next stock write', () => {
@@ -13,35 +10,33 @@ describe('transaction quota decisions', () => {
     expect(decideStockQuota({ quota, used: 1, increment: 1 })).toBe('reached');
   });
 
-  it('requires paid-seat confirmation until capture increases the shared allowance', () => {
-    const atBaseLimit = {
-      includedSeats: 1,
-      paidAdditionalSeats: 0,
-      used: 1,
-      additionalSeatPriceMinor: 1_500,
-      currency: 'RUB',
-    };
-
-    expect(decideClinicTeamQuota(atBaseLimit)).toEqual({
-      allowed: false,
-      code: 'seat_overage_confirmation_required',
-      priceMinor: 1_500,
-      currency: 'RUB',
-    });
+  /**
+   * Owner 18.08 (L-1): «ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА». A tariff that named no number for a
+   * limit-bearing mechanic states «без лимита», so the write door lets growth through. Breakage
+   * this pins: an absent number goes back to refusing the first location, patient and file on
+   * СТАРТ/ПРОФИ/КЛИНИКА, whose `quotas` is `{}`.
+   */
+  it('allows stock growth when the tariff named no number for the mechanic', () => {
+    expect(decideStockQuota({ quota: undefined, used: 0, increment: 1 })).toBe('allowed');
+    expect(decideStockQuota({ quota: undefined, used: 40, increment: 1 })).toBe('allowed');
     expect(
-      decideClinicTeamQuota({ ...atBaseLimit, paidAdditionalSeats: 1 }),
-    ).toEqual({ allowed: true });
+      decideStockQuota({ quota: { kind: 'unlimited', limit: null }, used: 40, increment: 1 }),
+    ).toBe('allowed');
   });
 
-  it('refuses seat growth when the legacy tariff has no configured included-seat baseline', () => {
-    expect(
-      decideClinicTeamQuota({
-        includedSeats: null,
-        paidAdditionalSeats: 0,
-        used: 0,
-        additionalSeatPriceMinor: 1_500,
-        currency: 'RUB',
-      }),
-    ).toEqual({ allowed: false, code: 'seat_limit_reached' });
+  /**
+   * The enforcement half of the same rule: a number the owner DID set still bounds growth, and an
+   * explicit zero permits nothing — that is how a tariff excludes a limit-bearing mechanic now.
+   */
+  it('still refuses growth past a number the tariff set, including zero', () => {
+    expect(decideStockQuota({ quota: { kind: 'numeric', limit: 3 }, used: 2, increment: 1 })).toBe(
+      'allowed',
+    );
+    expect(decideStockQuota({ quota: { kind: 'numeric', limit: 3 }, used: 3, increment: 1 })).toBe(
+      'reached',
+    );
+    expect(decideStockQuota({ quota: { kind: 'numeric', limit: 0 }, used: 0, increment: 1 })).toBe(
+      'reached',
+    );
   });
 });

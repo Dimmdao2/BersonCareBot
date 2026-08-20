@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { enterWithDbPlatformPrincipal } from '@bersoncare/db-principal';
+import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
@@ -18,19 +18,13 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 }
 
 /**
- * К5 — not a real `platform_users` row: `saas_billing_*` tables are FORCE RLS to
- * `app_platform_settings` only (migration `0259_saas_billing_foundation.sql`), and the "platform"
- * DB principal never uses `platformUserId` for row-scoping (see `db-principal` — only `SET ROLE
- * app_platform_settings`, no per-user predicate) — it exists purely to satisfy the UUID-shaped type.
- * Same nil-UUID-as-sentinel convention already used by `pgBookingScheduling.ts`.
- */
-const SAAS_BILLING_RENEWAL_TICK_SYSTEM_PLATFORM_USER_ID = '00000000-0000-0000-0000-000000000000';
-
-/**
  * POST — К5: raises the renewal invoice for every `paid_subscription` whose paid period has ended.
+ * A seat-overage invoice unpaid by period end is not reissued (Р-19 removed reissue entirely) — its
+ * debt carries into that same renewal invoice as `carriedDebtMinor` (Р-18), inside
+ * `runDueSaasBillingRenewals` itself.
  * Secured with `Authorization: Bearer <INTERNAL_JOB_SECRET>`, called only by cron — never by a user
  * request or a screen open. Filtering ("which organizations are due") happens inside
- * `runDueSaasBillingRenewals`'s one enumeration query, under this platform principal; nothing here
+ * `runDueSaasBillingRenewals`'s one declared enumeration root; nothing here
  * or downstream re-queries "all subscriptions" on its own. A repeat tick for an already-invoiced
  * period is a no-op by construction (`saas_billing_invoices_period_uidx`), not a pre-check.
  */
@@ -45,10 +39,14 @@ export async function POST(request: Request) {
   if (!token || !bearerMatchesSecret(token, secret)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
   }
-  enterWithDbPlatformPrincipal({
-    platformUserId: SAAS_BILLING_RENEWAL_TICK_SYSTEM_PLATFORM_USER_ID,
-    source: 'api/internal/saas-billing/renewal/tick:POST',
-  });
+  // Машинный тик — машинный принципал (класс `service`, роль `app_worker`), как у КАЖДОГО
+  // остального внутреннего тика вебаппа. Прежде маршрут входил ПЛАТФОРМЕННЫМ принципалом и
+  // подставлял актором нулевой UUID; класс `platform` по построению требует живого администратора
+  // платформы (`app_ext.assert_port_context_claim`), поэтому запрос падал на установке контекста —
+  // строки `billing.saas_renewal.tick` в `operator_job_status` не появилось ни разу. Проверка
+  // администратора не ослаблена: тик перестал её заявлять, а межарендное перечисление получило
+  // свою дверь — `app.list_saas_billing_subscriptions_due_for_renewal(...)` (миграция 0040).
+  enterWithDbInfraPrincipal({ source: 'api/internal/saas-billing/renewal/tick:POST' });
 
   const url = new URL(request.url);
   const limit = Math.min(
@@ -60,7 +58,9 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const result = await buildAppDeps().saasBilling.runDueSaasBillingRenewals({ limit });
+    const saasBilling = buildAppDeps().saasBilling;
+    const renewals = await saasBilling.runDueSaasBillingRenewals({ limit });
+    const result = { ...renewals };
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_SAAS_BILLING_JOB_FAMILY,
       jobKey: OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,

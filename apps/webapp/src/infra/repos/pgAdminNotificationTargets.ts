@@ -1,8 +1,5 @@
-import { runWebappPgText } from '@/infra/db/runWebappSql';
-import {
-  CONTACTS,
-  USER_CONTACTS_PRIMARY_LATERALS,
-} from '@/infra/repos/userContactsSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
 export type AdminNotificationTargets = {
   telegram: string[];
@@ -11,12 +8,8 @@ export type AdminNotificationTargets = {
   email: string[];
 };
 
-type AdminNotificationTargetRow = {
-  phone_normalized: string | null;
-  email_normalized: string | null;
-  channel_code: string | null;
-  external_id: string | null;
-};
+/** Классы контекста, из которых этот список читается. Значение проверяется гейтом в теле функции. */
+export type AdminNotificationTargetsContextClass = 'pre_session' | 'service';
 
 /**
  * C-4 (2026-07-26, docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): operator-alert recipients are resolved
@@ -25,41 +18,38 @@ type AdminNotificationTargetRow = {
  * audience. Cutting the grant half without moving this half would have silently killed alert
  * delivery too (the class of outage the July SMTP-quota gap already was — unnoticed for a day).
  *
- * No RLS/new grant needed: `platform_users` and `user_channel_bindings` are both already fully
- * readable by every DB role a background/system job in this app runs as (app_staff has unrestricted
- * CRUD on `platform_users`; both app_staff and app_patient already hold table-level SELECT on
- * `user_channel_bindings` — deploy/postgres/p0-5b-grants.sql).
+ * 19.08: чтение переведено с сырого relation-SELECT на объявленный именованный корень
+ * `app.read_admin_notification_targets(text)`. Прежний комментарий здесь утверждал «No RLS/new grant
+ * needed: `platform_users` и `user_channel_bindings` и так читает любая роль» — с введением режима
+ * port-контекста это перестало быть правдой: маршрут `/api/integrator/admin-notification-targets`
+ * не входит принципалом вовсе, попадает в `pre_session`, у которого relation-возможности нет, и
+ * чтение падало ДО базы (502 → три ретрая вебаппа с backoff → 3.1 с чужого времени на запись).
+ * Класс контекста передаётся аргументом (форма `app.passkey_issue_challenge`) потому, что то же
+ * тело читает тик операторского дайджеста под инфра-принципалом (`service`), а второго тела для
+ * той же работы заводить нельзя.
  */
-export async function loadAdminNotificationTargetsFromDb(): Promise<AdminNotificationTargets> {
-  const result = await runWebappPgText<AdminNotificationTargetRow>(
-    `SELECT ${CONTACTS.phoneNormalized} AS phone_normalized,
-            ${CONTACTS.emailNormalized} AS email_normalized,
-            ucb.channel_code, ucb.external_id
-       FROM platform_users pu
-       ${USER_CONTACTS_PRIMARY_LATERALS}
-       LEFT JOIN user_channel_bindings ucb
-         ON ucb.user_id = pu.id AND ucb.channel_code IN ('telegram', 'max')
-      WHERE pu.role = 'admin'
-        AND pu.merged_into_id IS NULL
-        AND pu.is_archived = FALSE`,
+export async function loadAdminNotificationTargetsFromDb(
+  contextClass: AdminNotificationTargetsContextClass = 'service',
+): Promise<AdminNotificationTargets> {
+  const result = await runWebappNamedRoot<{ result: unknown }>(
+    getWebappSqlDb(),
+    'app.read_admin_notification_targets(text)',
+    [contextClass],
+    sql`SELECT app.read_admin_notification_targets(${contextClass}::text) AS result`,
   );
-
-  const telegram = new Set<string>();
-  const max = new Set<string>();
-  const sms = new Set<string>();
-  const email = new Set<string>();
-
-  for (const row of result.rows) {
-    const externalId = row.external_id?.trim();
-    if (externalId) {
-      if (row.channel_code === 'telegram') telegram.add(externalId);
-      if (row.channel_code === 'max') max.add(externalId);
-    }
-    const phone = row.phone_normalized?.trim();
-    if (phone) sms.add(phone);
-    const emailAddress = row.email_normalized?.trim();
-    if (emailAddress) email.add(emailAddress);
+  const payload = result.rows[0]?.result;
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('admin_notification_targets_invalid');
   }
-
-  return { telegram: [...telegram], max: [...max], sms: [...sms], email: [...email] };
+  const row = payload as Record<string, unknown>;
+  const list = (value: unknown): string[] =>
+    Array.isArray(value)
+      ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      : [];
+  return {
+    telegram: list(row.telegram),
+    max: list(row.max),
+    sms: list(row.sms),
+    email: list(row.email),
+  };
 }

@@ -69,8 +69,6 @@ function normalizeQuotaMap(quotas: TariffQuotaMap): TariffQuotaMap {
     assertQuota(key, value);
     if (key === 'files' && value.unit === 'bytes') {
       normalized.files = { ...value, warningAtPercent: value.warningAtPercent ?? null };
-    } else if (key === 'patient_count' && value.unit === 'items') {
-      normalized.patient_count = { ...value, warningAtPercent: value.warningAtPercent ?? null };
     } else if (key === 'branches' && value.unit === 'items') {
       // `assertQuota` already refused a threshold here; drop the key rather than persist it.
       normalized.branches = { kind: value.kind, limit: value.limit, unit: 'items' };
@@ -206,6 +204,9 @@ function normalizeTariffInput(input: Omit<Tariff, 'id' | 'createdAt' | 'updatedA
   if (!Number.isSafeInteger(input.includedSeats) || input.includedSeats < 0) {
     throw new Error('tariff_seat_limit_invalid');
   }
+  // Owner 18.08 (L-1): a saved tariff with no branch number is a legal commercial state — it means
+  // «без лимита». The former refusal here encoded the opposite reading (omission = no access) and
+  // is removed rather than softened; the constructor now offers only «число» or «без ограничения».
   // §5a item 5.1 — null keeps seats hard-blocked at includedSeats (§5.2); a configured price
   // requires a currency to bill it in, same requirement priceMinor already has above.
   if (input.additionalSeatPriceMinor !== null) {
@@ -294,9 +295,9 @@ function isOverrideActive(expiresAt: string | null | undefined): boolean {
 }
 
 /**
- * A numeric quota is commercial configuration, not a capability flag.  `undefined` means the
- * tariff never configured a limit; `unlimited` is an explicit stored choice, distinct from an
- * omitted key.  This deliberately covers future `запас` mechanics as well as today's `объём`.
+ * A numeric quota is commercial configuration, not a capability flag. `undefined` means the tariff
+ * named no number, which is a CEILING statement («без лимита»), never a presence statement — see
+ * {@link isMechanicIncludedFromSnapshot}.
  */
 function numericQuotaFromSnapshot(
   snapshot: Pick<OrgEntitlementSnapshot, 'tariff' | 'overrides'>,
@@ -311,7 +312,19 @@ function numericQuotaFromSnapshot(
   );
 }
 
-function requiresExplicitNumericQuota(mechanicClass: MechanicClass): boolean {
+/**
+ * Owner 18.08 (L-1, verbatim): «Механика выключена если не включена ее галочка. ЕСЛИ ГАЛОЧКА
+ * ВКЛЮЧЕНА — НАХУЯ ЕЕ ВЫКЛЮЧАТЬ ТУТ ЖЕ СОСЕДНИМ ФЛАГОМ???? ТАМ НЕ НАДО ВООБЩЕ СТАВИТЬ ВАРИАНТ
+ * ВЫКЛЮЧЕН — ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА для всех таких механик с лимитом».
+ *
+ * A limit-bearing mechanic (`запас`/`объём`) therefore has no OFF state at all: its quota answers
+ * «сколько», never «есть ли». Inclusion stops depending on the quota entirely instead of gaining a
+ * second presence flag beside it — the tariff's `mechanics` map holds only `возможность` keys and a
+ * new flag there would be exactly the neighbouring switch the owner refuses, plus a backfill for
+ * every existing tariff row. «Нет доступа» stays expressible where it belongs: a per-organization
+ * override (`enabled: false`) or a numeric ceiling of 0.
+ */
+function mechanicIsLimitBearing(mechanicClass: MechanicClass): boolean {
   return mechanicClass === 'объём' || mechanicClass === 'запас';
 }
 
@@ -329,15 +342,15 @@ function isMechanicIncludedFromSnapshot(
   // carve-out survives for a tariff-less organization.
   if (!snapshot.tariff) return false;
   if (mechanicClass === 'места') return snapshot.tariff.includedSeats !== null;
-  if (requiresExplicitNumericQuota(mechanicClass)) {
-    return numericQuotaFromSnapshot(snapshot, mechanic) !== undefined;
-  }
+  if (mechanicIsLimitBearing(mechanicClass)) return true;
   return snapshot.tariff.mechanics[mechanic] === true;
 }
 
 /**
- * `null` is an explicit unlimited file plan; `undefined` means the limit is not configured and
- * growth must be refused.
+ * `null` is «без лимита»; `undefined` means there is no tariff at all and growth must be refused.
+ *
+ * Owner 18.08 (L-1): a tariff that named no file number states a missing CEILING, not a missing
+ * mechanic, so it reads as unlimited exactly like a stored `unlimited` quota.
  *
  * §5a item 2.6a (owner 31.07) / #1069 §2.13 (owner 01.08) — «клиники без тарифа быть просто не
  * может… нет доступа и нет никаких механик вне тарифа», «нет активного тарифа и нет триала →
@@ -348,7 +361,7 @@ export function fileStorageLimitFromSnapshot(
 ): number | null | undefined {
   if (!snapshot.tariff) return undefined;
   const quota = numericQuotaFromSnapshot(snapshot, 'files');
-  if (!quota) return undefined;
+  if (!quota) return null;
   return quota.kind === 'numeric' ? quota.limit : null;
 }
 
@@ -682,7 +695,7 @@ export async function resolveOwnTariffTransition(
           usage,
           currentTariff,
           targetTariff,
-          blockableMechanics: ['clinic_team', 'branches', 'patient_count'],
+          blockableMechanics: ['clinic_team', 'branches'],
         })
       : { blocks: [], appliesNextPeriod: false }),
     ...(priceAppliesNextPeriod ? { priceAppliesNextPeriod: true as const } : {}),
@@ -828,6 +841,11 @@ export function createPlatformEntitlementsService(port: PlatformEntitlementsPort
     startTrial: (organizationId: string, audit: PlatformMutationAudit) => {
       return port.startTrial(organizationId, audit);
     },
+    setOrganizationActive: (
+      organizationId: string,
+      isActive: boolean,
+      audit: PlatformMutationAudit,
+    ) => port.setOrganizationActive(organizationId, isActive, audit),
   };
 }
 

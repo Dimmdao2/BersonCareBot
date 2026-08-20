@@ -6,10 +6,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+# The shared closure/full-reset engine this wrapper delegates to. Fail by name here instead of
+# letting `exec` hit a missing file: a checkout that is missing this engine must say so, not print
+# a bare "No such file or directory" for an unnamed target.
+SHARED_RESET_ENGINE="$SCRIPT_DIR/deploy-test-saas.sh"
+[ -e "$SHARED_RESET_ENGINE" ] || {
+  echo "FATAL: deploy-test-full-reset requires $SHARED_RESET_ENGINE, which is not present in this checkout" >&2
+  exit 3
+}
+
 case "${1:-}" in
   --help|-h)
     export BCB_TEST_FULL_RESET_ENTRYPOINT=deploy-test-full-reset-v1
-    exec bash "$SCRIPT_DIR/deploy-test-saas.sh" "$@"
+    exec bash "$SHARED_RESET_ENGINE" "$@"
     ;;
 esac
 
@@ -29,4 +38,4 @@ echo "== [deploy-test-full-reset] same-checkout cutover snapshot preflight =="
 )
 
 export BCB_TEST_FULL_RESET_ENTRYPOINT=deploy-test-full-reset-v1
-exec bash "$SCRIPT_DIR/deploy-test-saas.sh" "$@"
+exec bash "$SHARED_RESET_ENGINE" "$@"

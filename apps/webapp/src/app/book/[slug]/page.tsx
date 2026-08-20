@@ -1,10 +1,6 @@
 import { notFound, permanentRedirect } from 'next/navigation';
-import { PublicFormatStepClient } from '../PublicFormatStepClient';
-import { PublicBookingShell } from '../PublicBookingShell';
-import {
-  loadPublicOrganizationCitiesRsc,
-  resolvePublicOrganizationBySlugRsc,
-} from '../publicOrganizationBooking';
+import { publicBookPaths } from '@/shared/publicBook/paths';
+import { resolvePublicOrganizationBySlugRsc } from '../publicOrganizationBooking';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,36 +9,21 @@ type Props = {
 };
 
 /**
- * Canonical per-clinic public booking link `/book/{publicSlug}`
- * (owner canon: docs/_TODO/SAAS_FOUNDATION/OWNER_RULINGS_2026-07-17.md §1).
+ * Прежний канонический адрес записи `/book/{slug}` — теперь ВЕЧНЫЙ РЕДИРЕКТ на `/{slug}/booking`
+ * (решение владельца 19.08: «должно быть не domain/booking/clinic, а domain/clinic/booking»).
  *
- * The server resolves the slug to an organization through a single chokepoint
- * (`resolvePublicOrganizationBySlugRsc`) BEFORE any catalog read. An unknown, unpublished, or
- * inactive slug renders a uniform 404 — never a distinguishing error, never enumerates other
- * clinics. The generic `/book` entry (this file's sibling `../page.tsx`) is untouched and stays
- * fail-closed as before.
+ * Маршрут не удаляется и не удалится: этот адрес уже разослан в письмах подтверждения записи, и
+ * ссылка, отправленная полгода назад, обязана открыться. Резолв идёт тем же чокпоинтом, что и
+ * раньше, поэтому алиас клиники разрешается здесь же и за ОДИН прыжок: строка `alias` не хранит
+ * целевой slug, резолвер джойнит единственную `current`-строку организации.
+ *
+ * Глубокие шаги мастера (`/book/service`, `/book/slot`, …) остаются общими и на этом этапе не
+ * переезжают (план §9 вопрос 3): статический сегмент выигрывает у `[slug]`, поэтому этот
+ * редирект их не перехватывает.
  */
-export default async function PublicBookOrganizationPage({ params }: Props) {
+export default async function PublicBookOrganizationRedirect({ params }: Props) {
   const { slug } = await params;
   const resolved = await resolvePublicOrganizationBySlugRsc(slug);
   if (!resolved) notFound();
-  if (resolved.disposition === 'redirect') {
-    permanentRedirect(`/book/${encodeURIComponent(resolved.canonicalSlug)}`);
-  }
-
-  const citiesResult = await loadPublicOrganizationCitiesRsc(resolved.organizationId);
-  const cities = citiesResult.ok ? citiesResult.cities : [];
-  const onlineLocation = citiesResult.ok ? citiesResult.onlineLocation : null;
-  const catalogError = citiesResult.ok ? null : 'Каталог недоступен.';
-
-  return (
-    <PublicBookingShell title="Запись" step={1} totalSteps={4} backHref={null}>
-      <PublicFormatStepClient
-        cities={cities}
-        onlineLocation={onlineLocation}
-        catalogError={catalogError}
-        orgSlug={resolved.canonicalSlug}
-      />
-    </PublicBookingShell>
-  );
+  permanentRedirect(publicBookPaths.forSlug(resolved.canonicalSlug));
 }

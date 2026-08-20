@@ -1,4 +1,9 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # P0.8 Code Facts — RLS Descriptor/Policy Execution
+
+> OWNER-SUPERSEDED 16.08.2026: this is a historical code-facts record. Scratch/disposable commands are not an
+> active route; current execution is B0 plus forwards and named-DEV application-port verification.
 
 Status: implementation support for P0.8.3+ execution briefs plus the P0.8.3/P0.8.4/P0.8.5/P0.8.6 real policy migrations.
 Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
@@ -10,7 +15,7 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 - Full CI is reserved for deploy, merge/integration checkpoint, repo-level/global changes, or explicit owner request.
 - Task state must be updated through `node /home/dev/brain/tools/taskdb.mjs`, never by direct SQL.
 - No dev/prod DB writes, no `/opt/env/*`, no runtime role flip, no real deliveries.
-- Scratch DB commands must never target `bcb_webapp_dev`, `bcb_webapp_prod`, production services, or host env files.
+- Scratch DB commands are retired and must not be reconstructed.
 
 ## Existing P0.8 Code Artifacts
 
@@ -22,7 +27,7 @@ Facts gathered from code on `codex/saas-roadmap-foundation` on 2026-07-08.
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-sql-renderer.mjs`                 | Pure predicate tests for dormant permissive and enforce modes. No DB access.                                                                                                                                                                                                                                       |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs`                   | Lists/exports the strict 103-table P0.8.3 public direct-org target set and renders deterministic policy DDL from descriptors.                                                                                                                                                                                      |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-3-policy-generator.mjs`           | DB-free checker for exact 103-target coverage, parent-copy exclusions, and deterministic ENABLE/FORCE/DROP/CREATE policy statements.                                                                                                                                                                               |
-| `docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs`        | Scratch-only psql smoke runner. Uses `SCRATCH_DATABASE_URL`, refuses non-scratch DB names, creates synthetic public tables/roles, applies generated P0.8.3 policies, proves dormant unset/empty permit and org A/B isolation, then rolls back.                                                                     |
+| Retired pre-B0 scratch smoke (Git history only)                                  | OWNER-SUPERSEDED 16.08.2026. Not an active command or readiness proof. Runtime policy consequences belong to the serialized named-DEV application-port matrix.                                                                                  |
 | `apps/webapp/db/drizzle-migrations/0160_p0_8_3_public_direct_org_rls.sql`        | Real Drizzle SQL migration generated from the P0.8.3 renderer after scratch smoke passed. Applies ENABLE/FORCE RLS and dormant permissive direct-org policy `saas_org_dormant_p0_8_3` to the strict 103 public direct-org target tables.                                                                           |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-4-policy-targets.mjs`                   | Lists/exports the strict 37-table P0.8.4 public FK/denorm path target set, keeps `public.comments` blocked behind P0.12.1, and renders deterministic policy DDL from descriptors.                                                                                                                                  |
 | `docs/_TODO/SAAS_FOUNDATION/scripts/check-p0-8-4-policy-generator.mjs`           | DB-free checker for exact 37-target coverage, FK/denorm split, `public.comments` exclusion, and deterministic ENABLE/FORCE/DROP/CREATE policy statements.                                                                                                                                                          |
@@ -261,27 +266,10 @@ node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs --targets
 node docs/_TODO/SAAS_FOUNDATION/scripts/p0-8-3-policy-targets.mjs --sql
 ```
 
-Scratch smoke with a scratch URL accessible to the current shell user:
-
-```bash
-SCRATCH_DATABASE_URL="postgresql:///bcb_saas_p0_8_3_scratch" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs
-```
-
-Local peer-auth workaround used on the dev host when only the OS `postgres` role can create/connect to
-scratch DBs:
-
-```bash
-scratch_db="bcb_saas_p0_8_3_scratch_$(date +%s)_$$"
-sudo -n -u postgres createdb "$scratch_db"
-SCRATCH_DATABASE_URL="postgresql:///$scratch_db" \
-  node docs/_TODO/SAAS_FOUNDATION/scripts/smoke-p0-8-3-direct-org-policies.mjs --print-sql \
-  > /tmp/p0-8-3-smoke.sql
-chmod 0644 /tmp/p0-8-3-smoke.sql
-sudo -n -u postgres psql -q "postgresql:///$scratch_db" -f /tmp/p0-8-3-smoke.sql
-sudo -n -u postgres dropdb --if-exists "$scratch_db"
-rm -f /tmp/p0-8-3-smoke.sql
-```
+OWNER-SUPERSEDED 16.08.2026: the scratch command and peer-auth workaround were removed. They must not be
+reconstructed. DB-free renderer checks remain above; live consequences are covered by
+`docs/_TODO/runs/testsuite-v2/B0_NAMED_DEV_DB_BEHAVIOR_MATRIX_2026-08-17.md` through the named DEV application
+port, without a new database, schema, role, or SQL replay.
 
 ## P0.8.4 Tooling Commands
 

@@ -31,7 +31,38 @@ export type ResolvedInPersonBookingContext = {
   branchId: string;
   serviceId: string;
   organizationId: string;
+  cityCode?: string;
 };
+
+/** Patient-only resolver: the scheduling port proves enrollment and catalog scope in its named DB root. */
+export async function resolveCurrentPatientInPersonBookingContext(
+  deps: Pick<InPersonBookingResolveDeps, 'bookingScheduling'>,
+  input: { branchId?: string | null; serviceId?: string | null },
+): Promise<ResolvedInPersonBookingContext> {
+  const branchId = input.branchId?.trim();
+  const serviceId = input.serviceId?.trim();
+  if (!branchId || !serviceId) {
+    throw new InPersonBookingResolveError('invalid_in_person_keys');
+  }
+  if (!deps.bookingScheduling) {
+    throw new InPersonBookingResolveError('booking_scheduling_unavailable');
+  }
+  const context = await deps.bookingScheduling.resolveCanonicalInPersonContext({
+    branchId,
+    serviceId,
+  });
+  if (!context) {
+    throw new InPersonBookingResolveError('branch_service_mapping_missing');
+  }
+  return {
+    branchId: context.branchId,
+    serviceId: context.serviceId,
+    organizationId: context.organizationId,
+    ...(context.patientCatalogSnapshot
+      ? { cityCode: context.patientCatalogSnapshot.branchCityCode }
+      : {}),
+  };
+}
 
 export type PublicInPersonBookingKeys = { branchId: string; serviceId: string };
 

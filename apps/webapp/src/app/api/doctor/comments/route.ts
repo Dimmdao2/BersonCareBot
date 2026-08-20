@@ -32,12 +32,15 @@ async function ensureDoctorCommentTargetInWorkspace(
 ): Promise<boolean> {
   if (!isSupportedDoctorCommentTarget(targetType)) return false;
 
-  try {
-    const instance = await deps.treatmentProgramInstance.getInstanceById(targetId);
-    return instance.organizationId === organizationId;
-  } catch {
-    return false;
-  }
+  // `getInstanceById` resolves to `null` for a target that does not exist — that is the real 404 and
+  // it is now checked for explicitly. The `try/catch` this replaces was standing in as the null guard
+  // (reading `.organizationId` off `null` threw a TypeError, which the same catch turned into
+  // `false`), and it swallowed every database failure into the identical answer. So a refused or
+  // broken read told the doctor "такой программы не существует" about a program that does exist, and
+  // left no trace. A failure now propagates and the route answers 500 instead of a confident 404.
+  const instance = await deps.treatmentProgramInstance.getInstanceById(targetId);
+  if (!instance) return false;
+  return instance.organizationId === organizationId;
 }
 
 export async function GET(request: Request) {

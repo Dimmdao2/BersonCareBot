@@ -1,5 +1,12 @@
 # SaaS PROD deploy — single consolidated process (scripts + instructions)
 
+> **УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026 → `docs/OWNER_DECISIONS.md`, B0 migration baseline.**
+> Этот документ сохраняется только как историческая запись будущего PROD-переезда. Его TEST reset,
+> fresh-dump, zero/install, initial-cutover, Stage13 и disposable команды не являются активными
+> entrypoint и не исполняются. Текущий порядок: полностью зелёный named DEV → один разрешённый
+> B0-forward переход named TEST → полностью зелёный TEST; только затем отдельно проектируется одна
+> цельная PROD `A → B0` миграция по новой owner-команде.
+
 > 🟢 **РАМКА ВСЕГО ЭТОГО ДОКУМЕНТА — решение владельца 27.07.** Здесь описан переезд на **НОВЫЙ** сервер, а
 > не обновление работающего. Дословно: «мы не будем обновлять тот прод что работает сейчас — мы создадим
 > новый и обновим БД, которую возьмём из нынешнего прода в момент переезда». Канонная формулировка 15.07
@@ -496,9 +503,10 @@ FIO → hash-bound legacy appointment transition → declaration-derived NOLOGIN
 zero/install/catalog closure → runtime gates. The CSV belongs only to the one-time transition; no archived
 Rubitime command, historical migration runner, manual grant/finalizer chain or runtime integration returns.
 
-Fresh-PROD correction: `0143_seed_staff_organization_members` now seeds the canonical specialist retained by
-the preceding owner consolidation instead of the deleted duplicate. `0420_reconcile_canonical_owner_membership_local`
-repairs already-migrated databases and carries the repository's migration-hash reconciliation marker for `0143`.
+Fresh-PROD correction: the atomic A → B cutover carries the canonical specialist membership retained by
+the preceding owner consolidation. Historical migration `0143_seed_staff_organization_members` remains
+byte-for-byte immutable; `0420_reconcile_canonical_owner_membership_local` repairs databases that had already
+run the historical chain before the atomic cutover replaced that deployment path.
 
 ## 8. SUPERSEDED HISTORICAL — pre-A → B blocker inventory
 

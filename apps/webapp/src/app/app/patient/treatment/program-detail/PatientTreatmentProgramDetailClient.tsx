@@ -308,7 +308,7 @@ export function PatientTreatmentProgramDetailClient(props: {
   if (detail.status === 'completed') {
     const passedStages = countPatientCompletedPipelineStages(detail.stages);
     return (
-      <div className={patientInnerPageStackClass}>
+      <div id="patient-treatment-program-detail" className={patientInnerPageStackClass}>
         <PatientPlanHeroCompleted
           detail={detail}
           appDisplayTimeZone={appDisplayTimeZone}
@@ -320,7 +320,7 @@ export function PatientTreatmentProgramDetailClient(props: {
   }
 
   return (
-    <div className={patientInnerPageStackClass}>
+    <div id="patient-treatment-program-detail" className={patientInnerPageStackClass}>
       <div className="flex flex-col gap-2">
         {detail.status === 'active' && planReminderStrip ? (
           <PatientPlanTodayRemindersCard

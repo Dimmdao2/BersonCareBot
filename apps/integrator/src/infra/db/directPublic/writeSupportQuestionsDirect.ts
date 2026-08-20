@@ -50,18 +50,15 @@
  *   2. EVERYTHING ELSE, including `SupportQuestionsDirectWriteError('conversation_not_found' |
  *      'question_not_found')` (parent row not yet visible — e.g. its own direct write is still pending
  *      in ITS OWN fallback) and any unexpected/transient DB error: falls back to the durable outbox
- *      (`enqueueProjectionEvent` — the same one the retired HTTP projection used) for the equivalent
- *      event, so the still-present webapp consumer reconciles it via the outbox worker's at-least-once
- *      retry. Both the direct-write statements here (`ON CONFLICT` by natural key) and the webapp
- *      consumer they fall back to are idempotent on the same natural keys, so replay converges, never
+ *      durable direct-write retry queue. Both the direct-write statements here (`ON CONFLICT` by natural
+ *      key) and the retry worker are idempotent on the same natural keys, so replay converges, never
  *      duplicates.
  *
  * NOT MIRRORED (deliberate simplification, same reasoning as D3): `appendQuestionMessageFromProjection`'s
  * retired stub-insert-a-question-if-missing fallback (which never set `organization_id`, recreating the
  * same NULL-org gap this module fixes) is NOT reproduced here. `appendSupportQuestionMessageDirect`
- * throws `question_not_found` instead, which `writePort.ts` routes to the durable outbox — the fallback
- * path can still reach that legacy stub-creation logic (degraded-but-safe for the rare fallback case),
- * this module's PRIMARY path never re-creates an orgless row.
+ * throws `question_not_found` instead, which `writePort.ts` routes to durable direct-write retry; this
+ * module's PRIMARY path never re-creates an orgless row.
  *
  * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
  * allowed here (src/infra/db repo).

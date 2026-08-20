@@ -25,6 +25,8 @@ export type PatientPayment = {
   comment: string | null;
   service: string | null;
   visitId: string | null;
+  appointmentId: string | null;
+  idempotencyKey: string | null;
   /** Заполняется провайдером при acquiring. Null для cash. */
   provider: string | null;
   providerPaymentId: string | null;
@@ -44,6 +46,9 @@ export type AddCashPaymentInput = {
   comment?: string | null;
   service?: string | null;
   visitId?: string | null;
+  appointmentId?: string | null;
+  /** Stable identity for an idempotent cash write; required by appointment settlement. */
+  idempotencyKey?: string | null;
   createdBy: string;
 };
 
@@ -61,6 +66,7 @@ export type InsertAcquiringPendingInput = {
   provider: string;
   providerPaymentId: string;
   createdBy: string;
+  appointmentId?: string | null;
 };
 
 // -- Основной порт платежей ---------------------------------------------------
@@ -68,10 +74,26 @@ export type InsertAcquiringPendingInput = {
 export interface PatientPaymentsPort {
   /** Список платежей пациента, новые первыми. */
   listPayments(patientUserId: string): Promise<PatientPayment[]>;
+  /** Paid/pending ledger rows for one exact appointment inside the installed tenant principal. */
+  listAppointmentPayments(appointmentId: string, patientUserId: string): Promise<PatientPayment[]>;
   /** Записать ручной платёж наличными (kind='cash', status='paid'). */
   addCashPayment(input: AddCashPaymentInput): Promise<PatientPayment>;
-  /** Найти запись оплаты по внешнему ID провайдера (для webhook). */
-  findByProviderPaymentId(providerPaymentId: string): Promise<PatientPayment | null>;
+  /**
+   * Find exactly one acquiring ledger row by the provider-owned composite reference.
+   * Returns null for no match and for duplicate same-provider references.
+   */
+  findByProviderPaymentReference(
+    providerId: string,
+    providerPaymentId: string,
+  ): Promise<PatientPayment | null>;
+  /**
+   * Bootstrap-only webhook resolver. Returns only the owning organization for one exact
+   * acquiring lifecycle row; it must not read or return the payment payload.
+   */
+  resolveAcquiringWebhookOrganization(
+    providerId: string,
+    providerPaymentId: string,
+  ): Promise<string | null>;
   /** Обновить статус acquiring-платежа по его ID. */
   updatePatientPaymentStatus(
     id: string,
@@ -90,7 +112,11 @@ export interface PatientPaymentsPort {
  * Расширяется при подключении конкретного провайдера (ЮКасса/ЮМани/etc.).
  */
 export type AcquiringChargeInput = {
+  /** Server-derived clinic that owns both the patient ledger and provider settings. */
+  organizationId: string;
   patientUserId: string;
+  /** Server-derived payer email used only for the fiscal receipt. */
+  customerEmail?: string | null;
   amountMinor: number;
   currency: string;
   /** Stable caller-owned key forwarded unchanged to the payment provider. */
@@ -108,7 +134,7 @@ export type AcquiringChargeInput = {
  * ok=true — платёж создан; ok=false — ошибка (в том числе 'not_implemented').
  */
 export type AcquiringChargeResult =
-  | { ok: true; providerPaymentId: string; redirectUrl?: string }
+  | { ok: true; providerId: string; providerPaymentId: string; redirectUrl?: string }
   | { ok: false; reason: 'not_implemented' | 'provider_error' | string };
 
 /**
@@ -127,16 +153,19 @@ export type AcquiringChargeResult =
 export interface AcquiringGatewayPort {
   /**
    * Инициировать платёж через шлюз.
-   * Returns ok=true with providerPaymentId + redirectUrl on success,
+   * Returns ok=true with the exact selected providerId, providerPaymentId + redirectUrl on success,
    * or ok=false with reason on failure.
    */
   createCharge(input: AcquiringChargeInput): Promise<AcquiringChargeResult>;
 
   /**
    * Вернуть платёж (refund).
-   * providerPaymentId — ref returned by createCharge.
+   * providerId and providerPaymentId are server-derived from the original acquiring row.
+   * Refunds must never reselect the clinic's current default provider.
    */
   refund(input: {
+    organizationId: string;
+    providerId: string;
     providerPaymentId: string;
     amountMinor: number;
     currency: string;

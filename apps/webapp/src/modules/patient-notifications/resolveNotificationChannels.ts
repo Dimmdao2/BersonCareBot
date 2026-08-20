@@ -69,6 +69,12 @@ export function resolvePatientNotificationChannels(params: {
     }
     return { selectedChannels, skippedChannels, availableChannels, enabledChannels };
   }
+  if (gate?.topicMasterEnabled === false) {
+    for (const code of allowed) {
+      skippedChannels.push({ channel: code, reason: 'topic_disabled' });
+    }
+    return { selectedChannels, skippedChannels, availableChannels, enabledChannels };
+  }
 
   const { availability: a, channelPrefs, topicChannelRows } = params;
 

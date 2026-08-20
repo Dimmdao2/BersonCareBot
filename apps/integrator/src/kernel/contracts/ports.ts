@@ -162,8 +162,13 @@ export type JobQueuePort = {
 
 /** Порт запроса дополнительного контекста для оркестратора. */
 export type ContextQuery =
-  | { type: 'channel.lookupByPhone'; phoneNormalized: string; resource?: string }
-  | { type: 'subscriptions.forUser'; userId: string }
+  | {
+      type: 'channel.lookupByPhone';
+      phoneNormalized: string;
+      organizationId: string;
+      resource?: string;
+    }
+  | { type: 'subscriptions.forUser'; userId: string; organizationId: string }
   | { type: 'user.identityLinks'; userId: string }
   | { type: 'bookings.forUser'; userId: string }
   | { type: 'booking.recordByExternalId'; recordId: string }
@@ -313,15 +318,6 @@ export type GatewayResult =
 /** Совместимый алиас прежнего имени dispatch-контракта. */
 export type OutgoingDispatcher = DispatchPort;
 
-/** Payload for POST /api/integrator/events (webapp contract). */
-export type WebappEventBody = {
-  eventType: string;
-  eventId?: string;
-  occurredAt?: string;
-  idempotencyKey?: string;
-  payload?: Record<string, unknown>;
-};
-
 export type SupportQuestionCanonicalWrite = {
   organizationId: string;
   questionId: string;
@@ -335,7 +331,6 @@ export type SupportDeliveryCanonicalWrite = {
 
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
-  emit(event: WebappEventBody): Promise<{ ok: boolean; status: number; error?: string }>;
   wakeOperatorHealthDigest?(input: {
     wakeId: string;
   }): Promise<{ ok: boolean; status: number; error?: string }>;
@@ -433,18 +428,22 @@ export type DeliveryTargetsChannelBindings = Record<string, string>;
 
 export type { DeliveryTargetsFetchResult } from './notificationChannels.js';
 
-/** Optional query for webapp `GET /api/integrator/delivery-targets` (per-topic prefs). */
+/** Tenant-scoped query for webapp `GET /api/integrator/delivery-targets` (per-topic prefs). */
 export type DeliveryTargetsFetchOptions = {
+  organizationId: string;
   topic?: string;
   integratorUserId?: string;
 };
+
+export type AdminMessengerTargets = { telegram: string[]; max: string[] };
 
 /** Port to resolve delivery targets (linked channels) for a user by phone or channel binding. Used for reminder/booking fan-out. */
 export type DeliveryTargetsPort = {
   getTargetsByPhone(
     phoneNormalized: string,
-    options?: DeliveryTargetsFetchOptions,
+    options: DeliveryTargetsFetchOptions,
   ): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
+  getAdminMessengerTargets(): Promise<AdminMessengerTargets | null>;
   getTargetsByChannelBinding(params: {
     telegramId?: string;
     maxId?: string;

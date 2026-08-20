@@ -80,6 +80,8 @@ type MediaItem = {
   previewSmUrl?: string | null;
   previewMdUrl?: string | null;
   previewStatus?: MediaPreviewStatus;
+  /** `media_files.standard_rendition_at IS NOT NULL` — the stored object is our own re-encode. */
+  standardRendition?: boolean;
   sourceWidth?: number | null;
   sourceHeight?: number | null;
 };

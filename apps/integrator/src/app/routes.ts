@@ -10,17 +10,18 @@ import { registerOperatorHealthProbeRoute } from '../integrations/bersoncare/ope
 import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersoncare/bookingLifecycleRoute.js';
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
-import {
-  resolveActiveTenantForIntegratorUserId,
-} from '../infra/db/repos/channelUsers.js';
+import { resolveActiveTenantForIntegratorUserId } from '../infra/db/repos/channelUsers.js';
 import type { ResolvedIntegratorUserTenant } from '../infra/db/repos/channelUsers.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
 import { env, integratorWebhookSecret } from '../config/env.js';
 import { startTelegramLongPolling } from '../integrations/telegram/longPolling.js';
-import type { AppDeps, ProjectionHealthSnapshot } from './di.js';
-import type { OutboundProviderErrorClass } from '@bersoncare/operator-db-schema';
+import type { AppDeps } from './di.js';
+import {
+  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
+  type OutboundProviderErrorClass,
+} from '@bersoncare/operator-db-schema';
 import {
   runWithBootstrapPrincipal,
   runWithOrganizationPrincipal,
@@ -28,16 +29,13 @@ import {
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
-import { getSmscRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
+import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 
 /** Public response shape for the health endpoint. */
 export type HealthResponse = {
   ok: true;
   db: 'up' | 'down';
 };
-
-/** Response shape for projection health (release gate). */
-export type ProjectionHealthResponse = ProjectionHealthSnapshot;
 
 function createResolveOrganizationIdForMessengerIdentity(): (
   externalId: string,
@@ -120,7 +118,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     errorClass: OutboundProviderErrorClass,
   ): Promise<void> => {
     await recordOperatorFailureIncident({
-      direction: 'outbound_delivery_provider',
+      direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
       integration,
       errorClass,
       errorDetail: null,
@@ -133,30 +131,12 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     return body;
   });
 
-  app.get<{ Reply: ProjectionHealthResponse }>('/health/projection', async (_request, reply) => {
-    try {
-      const snapshot = await deps.getProjectionHealth();
-      return reply.code(200).send(snapshot);
-    } catch (error) {
-      reportIntegratorIsolationFailure(error);
-      return reply.code(503).send({
-        pendingCount: 0,
-        deadCount: 0,
-        cancelledCount: 0,
-        oldestPendingAt: null,
-        processingCount: 0,
-        retryDistribution: {},
-        lastSuccessAt: null,
-        retriesOverThreshold: 0,
-      });
-    }
-  });
-
   await registerBersoncareSendSmsRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,
     recordProviderFailure: (reason) => recordOutboundProviderFailure('smsc', reason),
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareSendEmailRoute(app, {
@@ -165,6 +145,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     isAuthChannelEnabled: authChannelPolicy,
     recordProviderFailure: (reason) => recordOutboundProviderFailure('email', reason),
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareRelayOutboundRoute(app, {
@@ -191,12 +172,14 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerBersoncareReminderRulesRoute(app, {
     writePort: deps.dbWritePort,
     sharedSecret: integratorWebhookSecret(),
     resolveTenantForIntegratorUserId,
+    idempotencyPort: deps.idempotencyPort,
   });
 
   await registerOperatorHealthProbeRoute(app, {
@@ -222,7 +205,8 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     resolveMessengerStaffAdmin,
     resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
   };
-  if (env.TELEGRAM_MODE === 'long_polling') {
+  const telegramRuntimeConfig = await getTelegramRuntimeConfig();
+  if (telegramRuntimeConfig.mode === 'long_polling') {
     // RU-isolated host: Telegram cannot reach us inbound — pull updates via
     // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
     startTelegramLongPolling(telegramWebhookDeps);

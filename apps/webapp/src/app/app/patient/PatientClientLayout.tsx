@@ -11,6 +11,7 @@ import { PatientAnalyticsReporter } from '@/shared/ui/patient/PatientAnalyticsRe
 import type { PatientOrganizationSummary } from '@/modules/patient-organization/service';
 import { PatientOrganizationContextProvider } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
+import { PatientRuntimeFeaturesProvider } from '@/shared/ui/patient/PatientRuntimeFeaturesContext';
 
 /** Клиентская обёртка пациентского раздела (гейт Mini App). Серверный редирект по телефону — в `layout.tsx`. */
 export function PatientClientLayout({
@@ -18,6 +19,7 @@ export function PatientClientLayout({
   organizationContext,
   rememberOrganizationOnMount = false,
   authChannelPolicy,
+  materialRatingsEnabled,
 }: {
   children: ReactNode;
   organizationContext?: {
@@ -26,6 +28,7 @@ export function PatientClientLayout({
   } | null;
   rememberOrganizationOnMount?: boolean;
   authChannelPolicy: AuthChannelUiPolicy;
+  materialRatingsEnabled: boolean;
 }) {
   const content = organizationContext ? (
     <PatientOrganizationContextProvider
@@ -42,12 +45,14 @@ export function PatientClientLayout({
     <PatientPhonePromptChromeProvider>
       <MiniAppShareContactGate channelPolicy={authChannelPolicy}>
         <PatientWebPushProvider>
-          <Suspense fallback={null}>
-            <PatientCalendarTimezoneBootstrap />
-            <PatientWebPushBootstrap />
-            <PatientAnalyticsReporter />
-            {content}
-          </Suspense>
+          <PatientRuntimeFeaturesProvider materialRatingsEnabled={materialRatingsEnabled}>
+            <Suspense fallback={null}>
+              <PatientCalendarTimezoneBootstrap />
+              <PatientWebPushBootstrap />
+              <PatientAnalyticsReporter />
+              {content}
+            </Suspense>
+          </PatientRuntimeFeaturesProvider>
         </PatientWebPushProvider>
       </MiniAppShareContactGate>
     </PatientPhonePromptChromeProvider>

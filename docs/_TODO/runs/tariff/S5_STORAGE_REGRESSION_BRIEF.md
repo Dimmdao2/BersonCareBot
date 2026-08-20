@@ -1,3 +1,5 @@
+> **Retired-path notice.** Any command or path below that targets a pre-B0 retired database executor is preserved only as historical evidence; it is not runnable or current guidance. Other content in this document is unchanged. See [the current B0 retirement rule](/docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md).
+
 # Регресс от этапа 5 (объём файлов) — папка создаётся до проверки предела (run: worker-tariff-storage-fix)
 
 **План (authority):** `docs/_TODO/SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md`, §5a, этап 5, пункт 5.4.

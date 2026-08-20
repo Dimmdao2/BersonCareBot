@@ -1,8 +1,19 @@
 import { and, asc, eq, gte, inArray, lte, ne, or, sql, isNull } from 'drizzle-orm';
+import { z } from 'zod';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import type { BreakInterval } from '@/modules/booking-scheduling/ports';
 import { getDrizzle, type DrizzleDb } from '@/app-layer/db/drizzle';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import { getServerRuntimeInteger } from '@/modules/system-settings/configAdapter';
+import {
+  currentPublicBookingRuntimeSettings,
+  isCurrentPublicBookingPrincipal,
+  rememberPublicBookingRuntimeSettings,
+} from '@/app-layer/principal/publicBookingPrincipal';
 import {
   beAppointments,
   beBranches,
@@ -18,7 +29,7 @@ import {
   beWorkingDays as beWd,
   beScheduleTemplates as beStmpl,
 } from '../../../db/schema/bookingScheduling';
-import { buildSlotsForContext } from '@/modules/booking-scheduling/service';
+import { buildSlotsForContext, computeSlotsFromData } from '@/modules/booking-scheduling/service';
 import {
   computeNearestFreeWindowFromData,
   localDateKey,
@@ -48,6 +59,153 @@ const ACTIVE_APPOINTMENT_STATUSES = [
   'rescheduled',
   'manual_review_required',
 ];
+
+const bookingSnapshotContextSchema = z.object({
+  organizationId: z.string().uuid(),
+  branchId: z.string().uuid(),
+  specialistId: z.string().uuid(),
+  serviceId: z.string().uuid(),
+  roomId: z.string().uuid().nullable(),
+  durationMinutes: z.number().int().positive(),
+  bufferAfterMinutes: z.number().int().nonnegative(),
+  branchTimezone: z.string().min(1),
+  patientCatalogSnapshot: z.object({
+    branchTitle: z.string().min(1),
+    branchShortTitle: z.string().nullable(),
+    branchColor: z.string().nullable(),
+    branchCityCode: z.string().min(1),
+    branchAddress: z.string().nullable(),
+    branchSortOrder: z.number().int(),
+    serviceTitle: z.string().min(1),
+    serviceDescription: z.string().nullable(),
+    servicePriceMinor: z.number().int().nonnegative(),
+    servicePrepaymentApplicable: z.boolean(),
+    serviceUsableInPackages: z.boolean(),
+    serviceOnlinePaymentApplicable: z.boolean(),
+    servicePublicWidgetVisible: z.boolean(),
+    serviceAdminManualOnly: z.boolean(),
+    serviceSortOrder: z.number().int(),
+    specialistReminderAllowedPresetIds: z.array(
+      z.enum(['day_and_two_hours', 'day_before', 'two_hours_before']),
+    ),
+    specialistReminderDefaultPresetId: z
+      .enum(['day_and_two_hours', 'day_before', 'two_hours_before'])
+      .nullable(),
+  }).optional(),
+});
+
+/**
+ * Одна форма снимка на обе двери шага выбора времени: пациентскую
+ * (`app.read_current_patient_booking_creation_snapshot`) и публичную
+ * (`app.read_public_booking_slot_snapshot`). Публичная не отдаёт `patientCatalogSnapshot` —
+ * поле необязательное именно поэтому, а не «на всякий случай».
+ */
+const bookingSlotSnapshotSchema = z.object({
+  context: bookingSnapshotContextSchema,
+  workingHours: z.array(
+    z.object({
+      weekday: z.number().int(),
+      startMinute: z.number().int(),
+      endMinute: z.number().int(),
+    }),
+  ),
+  workingDays: z.array(
+    z.object({
+      id: z.string().uuid(),
+      organizationId: z.string().uuid(),
+      specialistId: z.string().uuid().nullable(),
+      branchId: z.string().uuid().nullable(),
+      roomId: z.string().uuid().nullable(),
+      workDate: z.string(),
+      startMinute: z.number().int().nullable(),
+      endMinute: z.number().int().nullable(),
+      breaks: z.array(z.object({ startMinute: z.number().int(), endMinute: z.number().int() })),
+      isClosed: z.boolean(),
+    }),
+  ),
+  busy: z.array(z.object({ startAt: z.string(), endAt: z.string() })),
+  bufferMinutes: z.number().int().nonnegative(),
+  minNoticeHours: z.number().int().min(0).max(168),
+  maxConsecutiveSlotHours: z.number().int().min(1).max(24),
+});
+
+function isCurrentPatientPrincipal(): boolean {
+  return getCurrentDbPrincipal()?.kind === 'patient';
+}
+
+async function readCurrentPatientBookingSlotSnapshot(input: {
+  branchId: string;
+  serviceId: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)',
+    [input.branchId, input.serviceId, input.dateFrom, input.dateTo],
+    sql`SELECT app.read_current_patient_booking_creation_snapshot(
+      ${input.branchId}::uuid,
+      ${input.serviceId}::uuid,
+      ${input.dateFrom}::text,
+      ${input.dateTo}::text
+    ) AS snapshot`,
+  );
+  const snapshot = result.rows[0]?.snapshot;
+  return snapshot == null ? null : bookingSlotSnapshotSchema.parse(snapshot);
+}
+
+async function readCurrentPatientBookingRuntimeInteger(
+  key: 'booking_min_notice_hours' | 'booking_max_consecutive_slot_hours',
+): Promise<number> {
+  const result = await runWebappNamedRoot<{ value: number | null }>(
+    getWebappSqlDb(),
+    'app.read_current_patient_booking_runtime_integer(text)',
+    [key],
+    sql`SELECT app.read_current_patient_booking_runtime_integer(${key}) AS value`,
+  );
+  const value = result.rows[0]?.value;
+  if (value == null) throw new Error('catalog_unavailable');
+  return value;
+}
+
+/**
+ * Публичная дверь шага выбора времени. Возвращает `null` на неопубликованной клинике, на чужом
+ * филиале и на услуге, которую снаружи записывать нельзя, — вызывающий обязан трактовать `null`
+ * как «нет такого», а не как «читаем как раньше»: реляционного пути у класса `tenant_service` нет.
+ */
+async function readPublicBookingSlotSnapshot(input: {
+  branchId: string;
+  serviceId: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+    getWebappSqlDb(),
+    'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)',
+    [input.branchId, input.serviceId, input.dateFrom, input.dateTo],
+    sql`SELECT app.read_public_booking_slot_snapshot(
+      ${input.branchId}::uuid,
+      ${input.serviceId}::uuid,
+      ${input.dateFrom}::text,
+      ${input.dateTo}::text
+    ) AS snapshot`,
+  );
+  const snapshot = result.rows[0]?.snapshot;
+  if (snapshot == null) return null;
+  const parsed = bookingSlotSnapshotSchema.parse(snapshot);
+  rememberPublicBookingRuntimeSettings({
+    minNoticeHours: parsed.minNoticeHours,
+    maxConsecutiveSlotHours: parsed.maxConsecutiveSlotHours,
+  });
+  return parsed;
+}
+
+/** Обе настройки записи приезжают внутри снимка; отдельного чтения настроек публичной двери нет. */
+function requirePublicBookingRuntimeSettings() {
+  const settings = currentPublicBookingRuntimeSettings();
+  if (!settings) throw new Error('catalog_unavailable');
+  return settings;
+}
 
 export type BookingBusyIntervalsInput = {
   organizationId: string;
@@ -176,18 +334,52 @@ export function createPgBookingSchedulingPort(
 ): BookingSchedulingPort {
   return {
     async resolvePublicBookingOrganization({ branchId, serviceId }) {
-      const result = await runWebappPgText<{ organization_id: string | null }>(
-        `SELECT app.resolve_public_booking_organization(
-           $1::uuid,
-           $2::uuid,
-           $3::uuid
-         )::text AS organization_id`,
-        [branchId?.trim() || null, serviceId?.trim() || null, null],
+      // Именованный корень, а не свободный текст: способность порта выбирается по ТОЧНОЙ
+      // идентичности функции и хешу типизированных аргументов. `runWebappPgText` не устанавливает
+      // операцию вовсе, поэтому вызов отвергался до отправки statement'а.
+      const normalizedBranchId = branchId?.trim() || null;
+      const normalizedServiceId = serviceId?.trim() || null;
+      const result = await runWebappNamedRoot<{ organization_id: string | null }>(
+        getWebappSqlDb(),
+        'app.resolve_public_booking_organization(uuid,uuid)',
+        [normalizedBranchId, normalizedServiceId],
+        sql`SELECT app.resolve_public_booking_organization(
+          ${normalizedBranchId}::uuid,
+          ${normalizedServiceId}::uuid
+        )::text AS organization_id`,
       );
       return result.rows[0]?.organization_id ?? null;
     },
 
     async resolveCanonicalInPersonContext({ organizationId, branchId, serviceId }) {
+      if (isCurrentPublicBookingPrincipal()) {
+        const today = new Date().toISOString().slice(0, 10);
+        const snapshot = await readPublicBookingSlotSnapshot({
+          branchId,
+          serviceId,
+          dateFrom: today,
+          dateTo: today,
+        });
+        if (!snapshot) return null;
+        if (organizationId && snapshot.context.organizationId !== organizationId) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return snapshot.context;
+      }
+      if (isCurrentPatientPrincipal()) {
+        const today = new Date().toISOString().slice(0, 10);
+        const snapshot = await readCurrentPatientBookingSlotSnapshot({
+          branchId,
+          serviceId,
+          dateFrom: today,
+          dateTo: today,
+        });
+        if (!snapshot) return null;
+        if (organizationId && snapshot.context.organizationId !== organizationId) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return snapshot.context;
+      }
       const db = getDrizzle();
       const conditions = [
         eq(beSpecialistServiceAvailability.branchId, branchId),
@@ -223,40 +415,6 @@ export function createPgBookingSchedulingPort(
       return resolveCanonicalAvailabilityContext(availabilityId);
     },
 
-    async resolveLegacyBranchServiceId({ organizationId, branchId, serviceId, specialistId }) {
-      const db = getDrizzle();
-      const ssaConds = [
-        eq(beSpecialistServiceAvailability.organizationId, organizationId),
-        eq(beSpecialistServiceAvailability.branchId, branchId),
-        eq(beSpecialistServiceAvailability.serviceId, serviceId),
-        eq(beSpecialistServiceAvailability.isActive, true),
-      ];
-      if (specialistId) {
-        ssaConds.push(eq(beSpecialistServiceAvailability.specialistId, specialistId));
-      }
-      const ssaRows = await db
-        .select({
-          id: beSpecialistServiceAvailability.id,
-          createdAt: beSpecialistServiceAvailability.createdAt,
-        })
-        .from(beSpecialistServiceAvailability)
-        .innerJoin(
-          beSpecialists,
-          and(
-            eq(beSpecialists.id, beSpecialistServiceAvailability.specialistId),
-            eq(beSpecialists.organizationId, organizationId),
-            eq(beSpecialists.isActive, true),
-          ),
-        )
-        .where(and(...ssaConds));
-      if (ssaRows.length === 0) return null;
-
-      const pickedId = pickPreferredSsaId(
-        ssaRows.map((r) => ({ id: r.id, createdAt: r.createdAt, isActive: true })),
-      );
-      return pickedId;
-    },
-
     async listServicesByCityCode(organizationId, cityCode) {
       const db = getDrizzle();
       const rows = await db
@@ -278,6 +436,56 @@ export function createPgBookingSchedulingPort(
     },
 
     async getSlots(context) {
+      if (isCurrentPublicBookingPrincipal()) {
+        if (!context.branchId || !context.serviceId) {
+          throw new Error('branch_service_not_found');
+        }
+        const snapshot = await readPublicBookingSlotSnapshot({
+          branchId: context.branchId,
+          serviceId: context.serviceId,
+          dateFrom: context.dateFrom,
+          dateTo: context.dateTo,
+        });
+        if (!snapshot) throw new Error('branch_service_not_found');
+        if (
+          snapshot.context.organizationId !== context.organizationId ||
+          snapshot.context.specialistId !== context.specialistId
+        ) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return computeSlotsFromData(context, {
+          workingHours: snapshot.workingHours,
+          workingDays: snapshot.workingDays,
+          busy: snapshot.busy,
+          bufferMinutes: snapshot.bufferMinutes,
+          minNoticeHours: snapshot.minNoticeHours,
+        });
+      }
+      if (isCurrentPatientPrincipal()) {
+        if (!context.branchId || !context.serviceId) {
+          throw new Error('branch_service_not_found');
+        }
+        const snapshot = await readCurrentPatientBookingSlotSnapshot({
+          branchId: context.branchId,
+          serviceId: context.serviceId,
+          dateFrom: context.dateFrom,
+          dateTo: context.dateTo,
+        });
+        if (!snapshot) throw new Error('branch_service_not_found');
+        if (
+          snapshot.context.organizationId !== context.organizationId ||
+          snapshot.context.specialistId !== context.specialistId
+        ) {
+          throw new Error('ambiguous_booking_tenant');
+        }
+        return computeSlotsFromData(context, {
+          workingHours: snapshot.workingHours,
+          workingDays: snapshot.workingDays,
+          busy: snapshot.busy,
+          bufferMinutes: snapshot.bufferMinutes,
+          minNoticeHours: snapshot.minNoticeHours,
+        });
+      }
       return buildSlotsForContext(this, context);
     },
 
@@ -289,6 +497,23 @@ export function createPgBookingSchedulingPort(
       rangeEnd,
       excludeAppointmentId,
     }) {
+      if (isCurrentPatientPrincipal()) {
+        if (!specialistId) return [];
+        const result = await runWebappNamedRoot<{ start_at: string; end_at: string }>(
+          getWebappSqlDb(),
+          'app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)',
+          [specialistId, roomId, rangeStart, rangeEnd, excludeAppointmentId ?? null],
+          sql`SELECT start_at, end_at
+              FROM app.read_current_patient_booking_busy_intervals(
+                ${specialistId}::uuid,
+                ${roomId}::uuid,
+                ${rangeStart}::timestamptz,
+                ${rangeEnd}::timestamptz,
+                ${excludeAppointmentId ?? null}::uuid
+              )`,
+        );
+        return result.rows.map((row) => ({ startAt: row.start_at, endAt: row.end_at }));
+      }
       const db = getDrizzle();
       return listBookingBusyIntervals(db, {
         organizationId,
@@ -421,10 +646,22 @@ export function createPgBookingSchedulingPort(
     },
 
     async getMinNoticeHours(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return requirePublicBookingRuntimeSettings().minNoticeHours;
+      }
+      if (isCurrentPatientPrincipal()) {
+        return readCurrentPatientBookingRuntimeInteger('booking_min_notice_hours');
+      }
       return getServerRuntimeInteger('booking_min_notice_hours', organizationId);
     },
 
     async getMaxConsecutiveSlotHours(organizationId) {
+      if (isCurrentPublicBookingPrincipal()) {
+        return requirePublicBookingRuntimeSettings().maxConsecutiveSlotHours;
+      }
+      if (isCurrentPatientPrincipal()) {
+        return readCurrentPatientBookingRuntimeInteger('booking_max_consecutive_slot_hours');
+      }
       return getServerRuntimeInteger('booking_max_consecutive_slot_hours', organizationId);
     },
 

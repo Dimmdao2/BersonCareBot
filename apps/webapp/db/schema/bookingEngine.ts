@@ -11,7 +11,6 @@ import {
   foreignKey,
   check,
   unique,
-  uniqueIndex,
 } from 'drizzle-orm/pg-core';
 import { platformUsers } from './schema';
 
@@ -312,7 +311,7 @@ export const orgEnrollments = pgTable(
     ),
     check(
       'org_enrollments_portal_activation_check',
-      sql`(${table.portalActivatedAt} IS NULL AND ${table.portalActivatedVia} IS NULL) OR (${table.portalActivatedAt} IS NOT NULL AND ${table.portalActivatedVia} = 'patient_invite_email_otp')`,
+      sql`(${table.portalActivatedAt} IS NULL AND ${table.portalActivatedVia} IS NULL) OR (${table.portalActivatedAt} IS NOT NULL AND ${table.portalActivatedVia} IN ('patient_invite_email_otp', 'public_booking_phone_otp', 'public_booking_verified_email', 'public_booking_session'))`,
     ),
   ],
 );
@@ -616,7 +615,7 @@ export const beAppointments = pgTable(
       'be_appointments_source_check',
       sql`source = ANY (ARRAY[
       'native'::text,
-      'rubitime_projection'::text,
+      'imported'::text,
       'admin_manual'::text,
       'public_widget'::text
     ])`,
@@ -713,56 +712,5 @@ export const beAppointmentHistoryEvents = pgTable(
       foreignColumns: [platformUsers.id],
       name: 'be_appointment_history_events_actor_id_fkey',
     }).onDelete('set null'),
-  ],
-);
-
-export const beExternalEntityMappings = pgTable(
-  'be_external_entity_mappings',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
-    entityType: text('entity_type').notNull(),
-    canonicalId: uuid('canonical_id').notNull(),
-    externalSystem: text('external_system').notNull(),
-    externalId: text('external_id').notNull(),
-    metadata: jsonb()
-      .$type<Record<string, unknown>>()
-      .notNull()
-      .default(sql`'{}'::jsonb`),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    uniqueIndex('idx_be_external_mapping_unique').using(
-      'btree',
-      table.externalSystem.asc().nullsLast().op('text_ops'),
-      table.entityType.asc().nullsLast().op('text_ops'),
-      table.externalId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_be_external_mapping_canonical').using(
-      'btree',
-      table.entityType.asc().nullsLast().op('text_ops'),
-      table.canonicalId.asc().nullsLast().op('uuid_ops'),
-    ),
-    foreignKey({
-      columns: [table.organizationId],
-      foreignColumns: [beOrganizations.id],
-      name: 'be_external_entity_mappings_organization_id_fkey',
-    }).onDelete('cascade'),
-    check(
-      'be_external_entity_type_check',
-      sql`entity_type = ANY (ARRAY[
-        'branch'::text,
-        'specialist'::text,
-        'service'::text,
-        'appointment'::text,
-        'availability'::text
-      ])`,
-    ),
-    check('be_external_system_check', sql`external_system = ANY (ARRAY['rubitime'::text])`),
   ],
 );

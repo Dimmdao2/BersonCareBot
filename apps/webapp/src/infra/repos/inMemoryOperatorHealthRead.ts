@@ -25,6 +25,8 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
     return {
       dueBacklog: 0,
       deadTotal: 0,
+      deadRecent: 0,
+      lastOperatorDeadAt: null,
       blockedRecipientTotal: 0,
       oldestDueAgeSeconds: null,
       dueByChannel: {},

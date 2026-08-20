@@ -4,8 +4,13 @@ import { beOrganizationMembers, beOrganizations } from '../../../db/schema/booki
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { saasBillingSubscriptions } from '../../../db/schema/saasBilling';
 import { saasOrgEntitlementOverrides } from '../../../db/schema/saasEntitlements';
+import { billableAdditionalSeats } from '@/modules/saas-billing/proration';
+import {
+  decideSeatOverage,
+  type SeatOverageOffer,
+} from '@/modules/saas-billing/seatOverage';
 
-export type StockQuotaMechanic = 'patient_count' | 'branches' | 'files';
+export type StockQuotaMechanic = 'branches' | 'files';
 export type TransactionQuotaMechanic = StockQuotaMechanic | 'clinic_team';
 
 export class StockQuotaReachedError extends Error {
@@ -28,16 +33,6 @@ type EffectiveTariffRow = {
 
 export type StockQuotaDecision = 'allowed' | 'reached';
 
-export type ClinicTeamQuotaDecision =
-  | { allowed: true }
-  | { allowed: false; code: 'seat_limit_reached' }
-  | {
-      allowed: false;
-      code: 'seat_overage_confirmation_required';
-      priceMinor: number;
-      currency: string;
-    };
-
 function parseStockQuota(value: unknown): StockQuota | null {
   if (!value || typeof value !== 'object') return null;
   const quota = value as Record<string, unknown>;
@@ -45,41 +40,23 @@ function parseStockQuota(value: unknown): StockQuota | null {
   return { kind: quota.kind, limit: typeof quota.limit === 'number' ? quota.limit : null };
 }
 
-/** Pure decision shared by every numeric stock write after its transaction-scoped recount. */
+/**
+ * Pure decision shared by every numeric stock write after its transaction-scoped recount.
+ *
+ * Owner 18.08 (L-1): «ЛИБО ЛИМИТ ЛИБО БЕЗ ЛИМИТА для всех таких механик с лимитом». A ceiling
+ * exists only where the tariff named a number; everything else — no quota key at all, an explicit
+ * `unlimited`, or a row carrying no number — is «без лимита» and allows the write. Only a real
+ * number refuses, and it refuses at exactly that number (so `limit: 0` permits nothing).
+ */
 export function decideStockQuota(input: {
   quota: unknown;
   used: number;
   increment: number;
 }): StockQuotaDecision {
   const quota = parseStockQuota(input.quota);
-  if (!quota) return 'reached';
-  if (quota.kind === 'unlimited') return 'allowed';
-  if (quota.limit === null) return 'reached';
-  return input.used + input.increment > quota.limit ? 'reached' : 'allowed';
-}
-
-/** Pure decision shared by the transaction-scoped clinic-team seat recount. */
-export function decideClinicTeamQuota(input: {
-  includedSeats: number | null;
-  paidAdditionalSeats: number;
-  used: number;
-  additionalSeatPriceMinor: number | null;
-  currency: string | null;
-}): ClinicTeamQuotaDecision {
-  if (input.includedSeats === null) {
-    return { allowed: false, code: 'seat_limit_reached' };
-  }
-  const limit = input.includedSeats + input.paidAdditionalSeats;
-  if (input.used < limit) return { allowed: true };
-  if (input.additionalSeatPriceMinor === null || input.currency === null) {
-    return { allowed: false, code: 'seat_limit_reached' };
-  }
-  return {
-    allowed: false,
-    code: 'seat_overage_confirmation_required',
-    priceMinor: input.additionalSeatPriceMinor,
-    currency: input.currency,
-  };
+  const limit = quota?.kind === 'numeric' ? quota.limit : null;
+  if (limit === null) return 'allowed';
+  return input.used + input.increment > limit ? 'reached' : 'allowed';
 }
 
 async function readEffectiveTariff(
@@ -144,7 +121,11 @@ async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: stri
     )
     .limit(1);
   const [subscription] = await tx
-    .select({ value: saasBillingSubscriptions.paidAdditionalSeats })
+    .select({
+      value: saasBillingSubscriptions.paidAdditionalSeats,
+      currentPeriodStartsAt: saasBillingSubscriptions.currentPeriodStartsAt,
+      currentPeriodEndsAt: saasBillingSubscriptions.currentPeriodEndsAt,
+    })
     .from(saasBillingSubscriptions)
     .where(
       and(
@@ -158,6 +139,8 @@ async function readClinicTeamContext(tx: WebappSqlExecutor, organizationId: stri
     paidAdditionalSeats: subscription?.value ?? 0,
     additionalSeatPriceMinor: tariff?.additional_seat_price_minor ?? null,
     currency: tariff?.currency ?? null,
+    currentPeriodStartsAt: subscription?.currentPeriodStartsAt ?? null,
+    currentPeriodEndsAt: subscription?.currentPeriodEndsAt ?? null,
   };
 }
 
@@ -225,7 +208,8 @@ export function createTransactionQuotaPort() {
         ): Promise<void>;
         resolveClinicTeamAvailability(input?: {
           excludedPendingEmail?: string;
-        }): Promise<ClinicTeamQuotaDecision>;
+        }): Promise<SeatOverageOffer>;
+        resolveBillableAdditionalSeats(paidAdditionalSeats: number): Promise<number>;
       }) => Promise<T>,
     ): Promise<T> {
       const lockKey = input.mechanic === 'clinic_team'
@@ -249,11 +233,36 @@ export function createTransactionQuotaPort() {
             throw new StockQuotaReachedError(input.mechanic as StockQuotaMechanic);
           }
         },
+        /**
+         * ЕДИНСТВЕННЫЙ вход к решению «можно ли продать место и почём» — и дверь приглашения, и
+         * дверь покупки идут сюда, под тем же замком организации. Само решение живёт в
+         * `modules/saas-billing/seatOverage.ts`; здесь только сбор входных данных.
+         *
+         * Настроенного срока счёта здесь больше нет: Р-19 отменил «счёт живёт длительность от
+         * выставления» вместе с перевыставлением целиком — у счёта за место остался один срок,
+         * конец периода, а дальше работает перенос долга (Р-18). Часового пояса здесь тоже нет:
+         * в действующей редакции Р-15 суток в расчёте нет, все моменты абсолютные.
+         */
         async resolveClinicTeamAvailability(options = {}) {
           const context = await readClinicTeamContext(tx, input.organizationId);
-          return decideClinicTeamQuota({
+          return decideSeatOverage({
             ...context,
             used: await countClinicTeamUsage(tx, input.organizationId, options.excludedPendingEmail),
+            asOf: new Date().toISOString(),
+          });
+        },
+        /**
+         * How many paid seats the NEXT period actually bills. Same lock and same usage count as
+         * the purchase door above, so a seat bought and a seat billed can never be counted by two
+         * different rules. `paidAdditionalSeats` is passed in by the caller, which already holds
+         * the subscription row `FOR UPDATE`.
+         */
+        async resolveBillableAdditionalSeats(paidAdditionalSeats) {
+          const context = await readClinicTeamContext(tx, input.organizationId);
+          return billableAdditionalSeats({
+            includedSeats: context.includedSeats,
+            paidAdditionalSeats,
+            activeSeatsUsed: await countClinicTeamUsage(tx, input.organizationId, undefined),
           });
         },
       });

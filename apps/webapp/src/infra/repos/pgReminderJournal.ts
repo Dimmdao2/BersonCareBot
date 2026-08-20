@@ -2,7 +2,13 @@
  * Журнал действий по напоминаниям + запись snooze/skip в reminder_occurrence_history.
  */
 import { sql } from 'drizzle-orm';
-import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappSql,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import type {
   ReminderJournalAction,
   ReminderJournalEntry,
@@ -33,6 +39,29 @@ function mapJournalRow(row: {
 export function createPgReminderJournalPort(): ReminderJournalPort {
   return {
     async logAction(params) {
+      if (getCurrentDbPrincipal()?.kind === 'patient') {
+        const args = [
+          params.ruleIntegratorId,
+          params.occurrenceId ?? null,
+          params.action,
+          params.snoozeUntil ?? null,
+          params.skipReason ?? null,
+        ] as const;
+        const result = await runWebappNamedRoot<{ id: string | null }>(
+          getWebappSqlDb(),
+          'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)',
+          args,
+          sql`SELECT app.record_current_patient_reminder_journal_action(
+            ${params.ruleIntegratorId}::text,
+            ${params.occurrenceId ?? null}::text,
+            ${params.action}::text,
+            ${params.snoozeUntil ?? null}::timestamptz,
+            ${params.skipReason ?? null}::text
+          ) AS id`,
+        );
+        if (!result.rows[0]?.id) throw new Error('reminder_journal.logAction: rejected');
+        return;
+      }
       const r = await runWebappSql<{ id: string }>(
         getWebappSqlDb(),
         sql`INSERT INTO reminder_journal (rule_id, occurrence_id, action, snooze_until, skip_reason)

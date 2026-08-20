@@ -16,7 +16,6 @@ import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
 import { PWA_APP_ROOT_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
-import { TelegramMiniAppScript } from '@/shared/ui/TelegramMiniAppScript';
 
 export const metadata: Metadata = {
   title: 'BersonCare Webapp',
@@ -62,7 +61,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div id="app-root" className={PWA_APP_ROOT_CLASS}>
           <TooltipProvider>
             <ClientToaster />
-            <TelegramMiniAppScript />
             <PlatformProvider serverHint={platformEntry}>
               <BuildVersionWatcher />
               <HorizontalOverflowProbe />

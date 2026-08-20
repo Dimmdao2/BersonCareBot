@@ -9,9 +9,18 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
+import { SAAS_BILLING_TARIFF_NOT_PAYABLE } from '@/modules/saas-billing/payableTariff';
+
+/**
+ * Решение владельца 18.08.2026: «Считать бесплатный тариф неоплачиваемым». Одна фраза и на экране
+ * вместо кнопки, и на отказ маршрута — правило одно (`modules/saas-billing/payableTariff.ts`).
+ */
+const FREE_TARIFF_LABEL = 'Тариф бесплатный — платить нечего.';
 
 const ERROR_LABELS: Record<string, string> = {
+  [SAAS_BILLING_TARIFF_NOT_PAYABLE]: FREE_TARIFF_LABEL,
   saas_billing_no_tariff_assigned: 'Тариф ещё не назначен — обратитесь к администратору платформы.',
   saas_billing_payment_provider_unavailable:
     'Оплата тарифа временно недоступна: платёжный магазин платформы не настроен.',
@@ -35,7 +44,6 @@ function formatError(code: string | undefined): string {
 const DOWNGRADE_BLOCK_LABELS: Record<string, string> = {
   clinic_team: 'места специалистов',
   branches: 'филиалы',
-  patient_count: 'пациенты',
 };
 
 function formatTariffChangeError(body: { error?: string; blocks?: Array<{ mechanic?: string }> } | null): string {
@@ -54,6 +62,13 @@ export type ClinicTariffChangeState = {
   currentTariffId: string | null;
   pendingTariffId: string | null;
   pendingEffectiveAt: string | null;
+  /**
+   * Решение владельца 18.08 (L-11): тариф выбран, но ещё не оплачен — значит ещё не действует.
+   * Сервер решает это один раз (`getOwnTariffChangeState`), экран только подчиняется.
+   */
+  awaitingFirstPayment: boolean;
+  /** `false` for a tariff priced at zero — the server decides this, the screen only obeys it. */
+  payable: boolean;
 };
 
 export function PayTariffButton({
@@ -185,10 +200,9 @@ export function PayTariffButton({
         </Button>
       </div>
       <Select value={selectedTariffId} onValueChange={(value) => setSelectedTariffId(value ?? '')}>
-        <SelectTrigger
-          className="w-full"
-          displayLabel={tariffChange.choices.find((choice) => choice.id === selectedTariffId)?.name}
-        />
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder="Выберите тариф" />
+        </SelectTrigger>
         <SelectContent>
           {tariffChange.choices.map((choice) => (
             <SelectItem key={choice.id} value={choice.id} label={choice.name}>
@@ -198,7 +212,9 @@ export function PayTariffButton({
         </SelectContent>
       </Select>
       <Button size="sm" variant="outline" onClick={changeTariff} disabled={pending || !selectedTariffId}>
-        {selectedTariffId === tariffChange.currentTariffId
+        {/* Пока первый выбор не оплачен, менять нечего и отменять нечего: тариф ещё не действует,
+            и та же кнопка ведёт к оплате выбранного (владелец 18.08, L-11). */}
+        {selectedTariffId === tariffChange.currentTariffId && !tariffChange.awaitingFirstPayment
           ? 'Отменить запланированную смену'
           : 'Перейти на тариф'}
       </Button>
@@ -208,17 +224,24 @@ export function PayTariffButton({
           <Button size="sm" variant="ghost" onClick={cancelChange} disabled={pending}>Отменить</Button>
         </div>
       ) : null}
-      <Button
-        size="sm"
-        onClick={handlePay}
-        disabled={
-          pending ||
-          !savedBillingEmail ||
-          billingEmail.trim().toLowerCase() !== savedBillingEmail
-        }
-      >
-        {pending ? 'Готовим ссылку на оплату…' : 'Оплатить тариф'}
-      </Button>
+      {/* Ничего ещё не выбрано — платить нечего, и «бесплатный тариф» тут ни при чём: сначала
+          выбор выше, потом оплата. Про «выбрано, но не оплачено» говорит строка состояния доступа
+          в `BillingSection` — второй раз здесь она была бы тем же текстом двумя абзацами (§21). */}
+      {tariffChange.currentTariffId === null ? null : tariffChange.payable ? (
+        <Button
+          size="sm"
+          onClick={handlePay}
+          disabled={
+            pending ||
+            !savedBillingEmail ||
+            billingEmail.trim().toLowerCase() !== savedBillingEmail
+          }
+        >
+          {pending ? 'Готовим ссылку на оплату…' : 'Оплатить тариф'}
+        </Button>
+      ) : (
+        <p className="text-sm text-muted-foreground">{FREE_TARIFF_LABEL}</p>
+      )}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );

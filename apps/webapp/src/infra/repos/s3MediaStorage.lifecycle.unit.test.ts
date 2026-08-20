@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { validateReceivedUpload, validateUploadIntent } from '@/modules/media/uploadValidation';
 
 const fakes = vi.hoisted(() => ({
@@ -13,9 +14,11 @@ const fakes = vi.hoisted(() => ({
   runMutation: vi.fn(),
   s3DeleteObject: vi.fn(),
   s3PutObjectBody: vi.fn(),
+  principalKind: 'staff' as 'staff' | 'patient',
 }));
 
 vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipal: () => ({ kind: fakes.principalKind }),
   getCurrentDbPrincipalOrganizationId: () => '44444444-4444-4444-8444-444444444444',
   getCurrentObservabilityContext: () => ({}),
 }));
@@ -89,6 +92,7 @@ function receivedJpeg() {
 describe('proxy S3-to-DB lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.principalKind = 'staff';
     fakes.insertValues.mockResolvedValue(undefined);
     fakes.s3PutObjectBody.mockResolvedValue(undefined);
     fakes.readyReturning.mockResolvedValue([]);
@@ -98,6 +102,21 @@ describe('proxy S3-to-DB lifecycle', () => {
     fakes.runMutation.mockImplementation((fn: (tx: typeof lifecycleTx) => unknown) =>
       Promise.resolve(fn(lifecycleTx)),
     );
+  });
+
+  it('reads patient media without joining staff identity tables', async () => {
+    fakes.principalKind = 'patient';
+    fakes.runSql.mockResolvedValueOnce({ rows: [] });
+    const port = createS3MediaStoragePort();
+
+    await expect(port.getById('55555555-5555-4555-8555-555555555555')).resolves.toBeNull();
+
+    const query = fakes.runSql.mock.calls[0]?.[1];
+    if (!query) throw new Error('patient_media_query_not_issued');
+    const rendered = new PgDialect().sqlToQuery(query).sql;
+    expect(rendered).toContain('FROM media_files m');
+    expect(rendered).not.toContain('platform_users');
+    expect(rendered).not.toContain('user_identity');
   });
 
   it('records pending before PUT and leaves it durable when the ready CAS fails', async () => {
@@ -140,6 +159,7 @@ describe('proxy S3-to-DB lifecycle', () => {
 describe('pending upload abort lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.principalKind = 'staff';
     fakes.abortReturning.mockResolvedValue([]);
     fakes.deleteWhere.mockResolvedValue(undefined);
     fakes.staleCandidates.mockResolvedValue([]);

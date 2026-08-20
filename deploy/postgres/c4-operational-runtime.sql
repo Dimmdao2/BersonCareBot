@@ -812,7 +812,17 @@ GRANT EXECUTE ON FUNCTION app.record_operator_outbound_probe_run(text, timestamp
   TO app_operational_scheduler;
 
 -- Closing probe incidents after a probe recovers. The prefix allow-list is fixed here so the
--- capability can never resolve an incident outside the three outbound probes it owns.
+-- capability can never resolve an incident outside the six keys the three outbound probes own.
+--
+-- Two namespaces, because a probe has two kinds of failure. An ordinary miss (timeout, network)
+-- lives under `outbound:<integration>:` and waits for the configured consecutive-failure gate.
+-- A credentials/quota/not-configured failure pages from the first occurrence and therefore lives
+-- where the same failure of a real send lives: `outbound_delivery_provider:<integration>:`.
+--
+-- In the second namespace only the page-on-first classes may be closed. A successful `getMe`
+-- proves credentials and quota are fine; it says nothing about `provider_send_failed` of one
+-- message. Without that condition a neighbouring successful check would silence a live send
+-- failure.
 CREATE OR REPLACE FUNCTION app.resolve_operator_probe_incidents(p_dedup_key_prefix text)
 RETURNS integer
 LANGUAGE plpgsql
@@ -821,21 +831,34 @@ SET search_path = pg_catalog
 AS $function$
 DECLARE
   v_resolved integer;
+  v_page_on_first_only boolean;
 BEGIN
   IF p_dedup_key_prefix IS NULL
     OR p_dedup_key_prefix NOT IN (
-      'outbound:max:', 'outbound:telegram:', 'outbound:google_calendar:'
+      'outbound:max:', 'outbound:telegram:', 'outbound:google_calendar:',
+      'outbound_delivery_provider:max:',
+      'outbound_delivery_provider:telegram:',
+      'outbound_delivery_provider:google_calendar:'
     )
   THEN
     RAISE EXCEPTION 'invalid operator probe incident prefix'
       USING ERRCODE = '23514';
   END IF;
 
+  v_page_on_first_only := p_dedup_key_prefix LIKE 'outbound_delivery_provider:%';
+
   WITH resolved AS (
     UPDATE public.operator_incidents AS incident
     SET resolved_at = now()
     WHERE incident.resolved_at IS NULL
       AND incident.dedup_key LIKE p_dedup_key_prefix || '%'
+      AND (
+        NOT v_page_on_first_only
+        OR incident.error_class IN (
+          'provider_quota_exhausted', 'provider_credit_exhausted',
+          'provider_auth_rejected', 'provider_not_configured'
+        )
+      )
     RETURNING incident.id
   )
   SELECT count(*)::integer INTO v_resolved FROM resolved;

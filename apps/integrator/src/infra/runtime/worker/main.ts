@@ -1,11 +1,9 @@
 import '../../../config/loadEnv.js';
 import { appSettings } from '../../../config/appSettings.js';
-import { env } from '../../../config/env.js';
-import { createWebappEventsPort } from '../../adapters/webappEventsClient.js';
 import { createDbPort } from '../../db/client.js';
 import { logger } from '../../observability/logger.js';
 import { createDbWritePort } from '../../db/writePort.js';
-import { runProjectionWorkerTick } from './projectionWorker.js';
+import { runDirectPublicWriteRetryWorkerTick } from './directPublicWriteRetryWorker.js';
 import { runOutgoingDeliveryWorkerTick } from './outgoingDeliveryWorker.js';
 import {
   assertWorkerIsolationTelemetryWriterReady,
@@ -31,7 +29,7 @@ async function startWorker(): Promise<void> {
   await initIntegratorErrorTracking(runtimeDb, 'worker');
   await assertWorkerIsolationTelemetryWriterReady();
   await assertDeliveryWorkerPoolReady();
-  const projectionDb = createDbPort();
+  const directPublicWriteRetryDb = createDbPort();
   const deliveryDb = createDbPort();
   const deliveryTenantWritePort = createDbWritePort({ db: deliveryDb });
   const deliveryWritePort = createOperatorAwareDeliveryAttemptWritePort({
@@ -42,27 +40,23 @@ async function startWorker(): Promise<void> {
   const deps = buildDeps({
     dispatchAttemptWritePort: deliveryWritePort,
   });
-  const webappEvents = createWebappEventsPort({
-    getAppBaseUrl: async () => env.APP_BASE_URL,
-  });
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));
 
   logger.info('Runtime worker started');
 
   const pollIntervalMs = appSettings.runtime.worker.pollIntervalMs;
 
-  // Projection and outgoing delivery have separate loops. All delivery rows are claimed only by
-  // the latter from public.outgoing_delivery_queue; keeping a second compatibility consumer here
-  // would let two loops race the same durable rows.
+  // Direct-write retries and outgoing delivery have separate queues. All delivery rows are
+  // claimed only by the outgoing-delivery loop.
   await Promise.all([
-    (async function projectionOutboxLoop(): Promise<void> {
+    (async function directPublicWriteRetryLoop(): Promise<void> {
       while (true) {
         try {
-          await runProjectionWorkerTick(projectionDb, webappEvents);
+          await runDirectPublicWriteRetryWorkerTick(directPublicWriteRetryDb, batchSize);
         } catch (err) {
           captureWorkerLoopError(err);
           reportWorkerProjectionIsolationFailure(err);
-          logger.error({ err }, 'Projection worker tick failed');
+          logger.error({ err }, 'Direct public write retry worker tick failed');
         }
         await sleep(pollIntervalMs);
       }

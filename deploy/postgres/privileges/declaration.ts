@@ -68,7 +68,7 @@ import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../..
 import type {
   AcceptanceInvariant, CodeChange, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection, GrantDecl, LoginRecord,
   OwnerDecision, OwnerGate, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
-  NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
+  FunctionRelationSurface, NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
 } from './types.ts';
 
 /* ============================================================================================
@@ -348,13 +348,11 @@ export const PORTS: Record<Port, PortSpec> = {
 };
 
 /* ============================================================================================
- * SECTION 1 — РОЛИ КЛАСТЕРА (SCHEME §A.1/§A.2)
- *   Атрибуты — evidence/13 §1.2. BYPASSRLS объявлен ровно у ТРЁХ (postgres, app_owner,
- *   saas_system_health_owner), каждый обоснован. Две роли НОВЫЕ (`isNew`) и приходят из решений
- *   владельца: `app_integrator_resolver` (D5) и `app_operational_maintenance` (D8).
+ * LEGACY CENSUS — pre-revision-10 inventory retained only as input for the object census below.
+ * This is not the executable cluster role graph; REV10_ROLES is the only exported target.
  * ========================================================================================== */
 
-const roles: Record<string, RoleDecl> = {
+const legacyCensusRoles: Record<string, RoleDecl> = {
   // ── терминальные рантайм-роли ──
   app_staff: {
     kind: 'terminal', scope: 'ORG', // evidence/13 §4: своя организация
@@ -449,15 +447,7 @@ const roles: Record<string, RoleDecl> = {
       + 'ROLE — И3/К6). Четырёхстороннее членство НЕ объявлено (C3/C4).',
   },
 
-  // ── роли-владельцы (NOLOGIN, владеют definer-швом; §C) ──
-  app_owner: {
-    kind: 'owner', scope: 'NONE',
-    login: false, superuser: false,
-    bypassrls: true, // 1 из ровно-3; деплой ЖЁСТКО ассертит rolbypassrls (deploy-test-saas.sh:907, deploy-test.sh:174)
-    inherit: true, createrole: false, rolconfig: null,
-    members: [], // ноль членов вне окна миграции (SCHEME §C)
-    why: 'владелец definer-шва. Оставить-и-объявить — SCHEME §I Р5.',
-  },
+  // ── роли-владельцы старой переписи; выведенная app_owner сюда намеренно не входит ──
   saas_system_health_owner: {
     kind: 'owner', scope: 'NONE',
     login: false, superuser: false,
@@ -681,7 +671,7 @@ const envMapping: Record<string, Record<string, LoginRecord>> = {
 };
 
 // Retained legacy census input; revision 10 below is the executable exported role/login graph.
-void roles;
+void legacyCensusRoles;
 void envMapping;
 
 /* ============================================================================================
@@ -869,6 +859,11 @@ const TABLE_ROWS: TableRow[] = [
       + 'не даёт app_staff прямого чтения, доступ остаётся только у узкой операционной capability' },
     pol: 'ЕДИНСТВЕННАЯ таблица схемы integrator, где стена реально нужна (evidence/15 §14).',
     defect: ['D14-integrator-no-wall', 'I16-integrator-queues'] },
+  { t: 'integrator.direct_public_write_retries', cls: 'S', org: false, why: 'durable retry прямой записи в public — '
+    + 'временный отказ RLS/сети не должен потерять правило напоминания или журнал доставки',
+    revoke: { app_staff: 'D10: очередь исполняется только integrator request и worker; payload содержит пациентские данные.' },
+    pol: 'не projection transport: повторяет тот же direct-public writer под явным org-принципалом.',
+    defect: ['D10-direct-write-durability'] },
   { t: 'integrator.idempotency_keys', cls: 'S', org: false, why: 'ключи идемпотентности API — повтор вебхука '
     + 'начинает дублировать записи и отправки',
     revoke: { app_staff: 'D14: очередь дедупа вебхуков — не место арендной роли.' },
@@ -950,8 +945,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'по правилам клиники' },
   { t: 'public.be_clinic_services', cls: 'C', org: true, why: 'услуги клиники — не на что записываться и нечего '
     + 'считать в прайсе' },
-  { t: 'public.be_external_entity_mappings', cls: 'C', org: true, why: 'сопоставление «наш id ↔ id внешней системы» '
-    + '— рвётся связь с Rubitime/внешними системами, начинаются дубли' },
   { t: 'public.be_organization_members', cls: 'C', org: true, why: 'членство человека в клинике — никто не '
     + 'определяется как врач/админ клиники — падает вся авторизация кабинета',
     revoke: { app_platform_settings: 'SCHEME §I Р4 + D1: платформенное чтение членств — через definer-исключение, а '
@@ -1071,9 +1064,10 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.clinical_visit', cls: 'P', org: true, why: 'Клинический визит — приём как таковой: осмотр, '
     + 'манипуляции, рекомендации' },
   { t: 'public.comments', cls: 'P', org: true, why: 'Комментарии к сущностям — диалог врач↔пациент вокруг '
-    + 'упражнений, тестов, программ', pol: 'D10: дизъюнкт target_type = '
-    + 'ANY(exercise,test,test_set,recommendation,lesson) стоит БЕЗ условия и в USING, и в WITH CHECK — сотрудник '
-    + 'клиники A правит комментарии клиники B', defect: ['D10-comments'] },
+    + 'упражнений, тестов, программ', pol: 'D10 ЗАКРЫТ 19.08: дизъюнкт target_type = '
+    + 'ANY(exercise,test,test_set,recommendation,lesson) стоял БЕЗ условия и в USING, и в WITH CHECK — сотрудник '
+    + 'клиники A правил комментарии клиники B. Каталожный вырез теперь несёт свою организацию '
+    + '(rls-sql-renderer.mjs sharedScopeSql): «общая» строка общая ВНУТРИ своей клиники' },
   { t: 'public.content_access_grants_webapp', cls: 'P', org: true, why: 'Выданные пациенту доступы к контенту — '
     + 'пациент теряет доступ к выданным ему материалам' },
   { t: 'public.content_pages', cls: 'C', org: true, wall: 'clinic+patient',
@@ -1157,9 +1151,11 @@ const TABLE_ROWS: TableRow[] = [
     + 'логотипы, файлы пациента', pol: 'D9: в пациентской ветке saas_org_dormant_p0_8_3 нет проверки organization_id '
     + '— пациент клиники A читает s3_key любого файла клиники B', defect: ['D9-media-files'] },
   { t: 'public.media_folders', cls: 'P', org: true, why: 'Папки медиатеки, в т.ч. личные папки пациентов — файлы '
-    + 'клиента и библиотека клиники раскладываются по папкам', pol: 'D11: дизъюнкт без условий (patient_user_id IS '
-    + 'NULL) пропускает всю библиотеку клиники любой сессии с грантом — и в USING, и в WITH CHECK',
-    defect: ['D11-media-folders'] },
+    + 'клиента и библиотека клиники раскладываются по папкам', pol: 'D11 ЗАКРЫТ 19.08: дизъюнкт без условий '
+    + '(patient_user_id IS NULL) пропускал всю библиотеку клиники любой сессии с грантом — и в USING, и в WITH '
+    + 'CHECK. Замер на bcb_webapp_dev: сотрудник клиники d0000000-…-0004 видел 11 строк клиники a0000000-…-0001, '
+    + 'после правки — 0, своя библиотека по-прежнему 11. Вырез «строка без владельца» теперь несёт организацию '
+    + '(rls-sql-renderer.mjs sharedScopeSql)' },
   { t: 'public.media_hls_proxy_error_events', cls: 'T', org: true, wall: 'platform-role', why: 'Отказы HLS-прокси — '
     + 'диагностика «видео не играет» у конкретного пациента', wallWhy: W_PLATFORM_TELEMETRY, pol: 'I7: у app_staff '
     + 'есть awd, но нет r, при этом код строит SELECT-агрегаты (playbackClientEvents.ts:113-127) — несогласованный '
@@ -1513,8 +1509,9 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.user_web_push_subscriptions', cls: 'P', why: 'push-подписки браузера — без неё нет web-push',
     pol: 'D20: у app_patient полный arwd (в том числе DELETE) при инертной политике — пациент удаляет чужие '
     + 'push-подписки', defect: ['D20-notification-tables'] },
-  { t: 'public.webapp_schema_migrations', cls: 'T', rls: 'off', why: 'журнал миграций webapp (89 строк) — миграции '
-    + 'применяются повторно или не применяются', rlsWhy: RLS_OFF_MIGRATOR_LEDGER },
+  { t: 'public.webapp_schema_migrations', cls: 'T', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
+    why: 'УДАЛЕНО B0: аварийный исторический ledger больше не участвует в применении миграций',
+    wallWhy: 'Физически удалённый legacy-ledger остаётся именованным только для двусторонней проверки каталога' },
 ];
 
 const APP_TABLES: Record<string, TableDecl> = expandTables(TABLE_ROWS);
@@ -1816,6 +1813,14 @@ const REV10_SEAM_OWNERS = [
   'app_seam_telemetry_exclusion_owner', 'saas_telemetry_owner', 'saas_system_health_owner',
   'app_seam_login_token_owner', 'app_seam_oauth_owner', 'app_seam_phone_otp_owner',
   'app_seam_staff_security_owner', 'app_seam_patient_lfk_media_owner',
+  'app_seam_retention_sweep_owner', 'app_seam_platform_analytics_owner',
+  // Снятие этой роли 19.08 (`cfa4e45df`) было выполнено только в декларации: в кластере TEST
+  // роль осталась, её DROP держат 54 зависимости, и любая выкатка из дерева с тем коммитом
+  // валилась на reconcile и останавливала службы теста. Карантин `legacyRoles` тоже не
+  // подходит — карантинная роль обязана не иметь USAGE на `app`, а эта его держит. Роль
+  // возвращена живой до тех пор, пока снятие не будет сделано целиком: перевод 54 объектов
+  // на `app_seam_public_slug_owner` и DROP в том же приземлении.
+  'app_seam_public_clinic_card_owner',
 ] as const;
 
 function revision10Role(kind: RoleDecl['kind'], scope: RoleDecl['scope'], why: string): RoleDecl {
@@ -1884,10 +1889,328 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
 
 const rev10Function = <T extends DeclaredFunction>(entry: T): T => entry;
 
+function retainFunctionSurfaceOperationsWithTableRequirements(
+  identity: string,
+  requiredByRelation: Readonly<Record<string, readonly Privilege[]>>,
+): readonly FunctionRelationSurface[] {
+  return (BUSINESS_SEAM_FUNCTIONS[identity]?.relationSurfaces ?? []).map((surface) => {
+    const required = requiredByRelation[surface.relation] ?? [];
+    for (const operation of required) {
+      if (!surface.operations.includes(operation)) {
+        throw new Error(`${identity}:${surface.relation} table operation ${operation} is absent from the canonical function surface`);
+      }
+    }
+    return { ...surface, ...(required.length > 0 ? { tableOperations: required } : {}) };
+  });
+}
+
+const patientSelfCapability = (purpose: string, functionIdentity: string) => ({
+  port: 'webapp' as const,
+  sessionRole: 'app_patient',
+  targetRole: 'app_patient',
+  contextClass: 'patient' as const,
+  purpose,
+  functionIdentity,
+});
+
+const patientSelfFunction = (
+  returns: string,
+  returnsSet: boolean,
+  typedArgs: readonly string[],
+  purpose: string,
+  relationSurfaces: readonly FunctionRelationSurface[],
+): DeclaredFunction => rev10Function({
+  owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns, returnsSet,
+  execute: ['app_patient'], purpose, typedArgs, volatility: 'VOLATILE', parallel: 'UNSAFE',
+  proconfig: ['search_path=pg_catalog'], relationSurfaces,
+});
+
+const patientSurface = (
+  relation: string,
+  columns: readonly string[],
+  operations: readonly Privilege[],
+): FunctionRelationSurface => ({
+  relation, columns, operations, evidence: 'pg16-function-body-lexical-upper-bound',
+});
+
+const exactPatientSurfaces = (
+  available: readonly FunctionRelationSurface[],
+  operationsByRelation: Readonly<Record<string, readonly Privilege[]>>,
+): readonly FunctionRelationSurface[] => Object.entries(operationsByRelation).map(([relation, operations]) => {
+  const surface = available.find((candidate) => candidate.relation === relation);
+  if (!surface) throw new Error(`exact patient relation surface is unavailable: ${relation}`);
+  return { ...surface, operations,
+    ...(surface.operationColumns?.SELECT && !operations.includes('SELECT') ? { operationColumns: undefined } : {}) };
+});
+
+const PATIENT_ORG_ENROLLMENT_SURFACE = patientSurface('public.org_enrollments', [
+  'organization_id', 'platform_user_id', 'status',
+], ['SELECT']);
+
+const PATIENT_REMINDER_CORE_SURFACES = [
+  patientSurface('public.reminder_rules', [
+    'id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category',
+    'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute',
+    'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type',
+    'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title',
+    'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.reminder_journal', [
+    'id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at',
+  ], ['INSERT']),
+  patientSurface('public.reminder_occurrence_history', [
+    'integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.platform_users', [
+    'id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at',
+  ], ['UPDATE']),
+] as const;
+
+const PATIENT_SUPPORT_CORE_SURFACES = [
+  patientSurface('public.support_conversations', [
+    'id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source',
+    'admin_scope', 'status', 'opened_at', 'last_message_at', 'closed_at', 'close_reason', 'channel_code',
+    'channel_external_id', 'pending_message_drafts', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.support_conversation_messages', [
+    'id', 'organization_id', 'integrator_message_id', 'conversation_id', 'sender_role', 'message_type', 'text',
+    'source', 'external_chat_id', 'external_message_id', 'delivery_status', 'created_at', 'media_url',
+    'media_type', 'read_at', 'delivered_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+] as const;
+
+const PATIENT_SYMPTOM_CORE_SURFACES = [
+  patientSurface('public.reference_categories', ['id', 'code'], ['SELECT']),
+  patientSurface('public.reference_items', ['id', 'category_id', 'organization_id', 'is_active'], ['SELECT']),
+  patientSurface('public.symptom_trackings', [
+    'id', 'organization_id', 'user_id', 'platform_user_id', 'symptom_key', 'symptom_title', 'is_active',
+    'created_at', 'updated_at', 'symptom_type_ref_id', 'region_ref_id', 'side', 'diagnosis_text',
+    'diagnosis_ref_id', 'stage_ref_id', 'deleted_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.symptom_entries', [
+    'id', 'organization_id', 'user_id', 'platform_user_id', 'tracking_id', 'value_0_10', 'entry_type',
+    'recorded_at', 'source', 'notes', 'created_at', 'patient_practice_completion_id',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.patient_practice_completions', [
+    'id', 'organization_id', 'user_id', 'source', 'completed_at', 'feeling',
+  ], ['SELECT', 'UPDATE']),
+] as const;
+
+const PATIENT_CHANNEL_CORE_SURFACES = [
+  patientSurface('public.user_channel_preferences', [
+    'id', 'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
+    'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.user_channel_bindings', ['user_id', 'channel_code'], ['SELECT']),
+  patientSurface('public.platform_users', ['id', 'email_verified_at'], ['SELECT']),
+  patientSurface('public.user_phone_history', ['platform_user_id', 'valid_to'], ['SELECT']),
+  patientSurface('public.user_web_push_subscriptions', [
+    'id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+] as const;
+
+const PATIENT_PROGRAM_CORE_SURFACES = [
+  patientSurface('public.treatment_program_instances', [
+    'id', 'organization_id', 'patient_user_id', 'status', 'assignment_source', 'updated_at',
+    'patient_plan_last_opened_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.treatment_program_instance_stages', [
+    'id', 'organization_id', 'instance_id', 'sort_order', 'status', 'started_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.treatment_program_instance_stage_items', [
+    'id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status', 'is_actionable', 'snapshot',
+    'completed_at', 'last_viewed_at',
+  ], ['SELECT', 'UPDATE']),
+  patientSurface('public.treatment_program_events', [
+    'id', 'organization_id', 'instance_id', 'actor_id', 'event_type', 'target_type', 'target_id', 'payload',
+    'reason', 'created_at',
+  ], ['INSERT']),
+  patientSurface('public.program_action_log', [
+    'id', 'organization_id', 'instance_id', 'instance_stage_item_id', 'patient_user_id', 'session_id',
+    'action_type', 'payload', 'note', 'created_at',
+  ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
+  patientSurface('public.media_files', [
+    'id', 'organization_id', 'uploaded_by', 'usage_purpose',
+  ], ['SELECT']),
+  patientSurface('public.program_item_discussion_messages', [
+    'id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'sender_role', 'origin', 'body',
+    'media_file_id', 'support_message_id', 'created_at',
+  ], ['INSERT']),
+  patientSurface('public.program_item_discussion_reads', [
+    'organization_id', 'patient_user_id', 'instance_stage_item_id', 'last_read_at',
+  ], ['INSERT', 'UPDATE']),
+  patientSurface('public.test_attempts', [
+    'id', 'organization_id', 'instance_stage_item_id', 'patient_user_id', 'started_at', 'submitted_at',
+    'accepted_at', 'accepted_by',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+  patientSurface('public.test_results', [
+    'id', 'organization_id', 'attempt_id', 'test_id', 'raw_value', 'normalized_decision', 'decided_by',
+    'created_at',
+  ], ['SELECT', 'INSERT', 'UPDATE']),
+] as const;
+
+const PATIENT_ROOT_OPERATIONS = {
+  create_current_patient_reminder_rule: {
+    'public.org_enrollments': ['SELECT'], 'public.platform_users': ['SELECT'],
+    'public.reminder_rules': ['SELECT', 'INSERT'],
+  },
+  update_current_patient_reminder_rule: { 'public.reminder_rules': ['SELECT', 'UPDATE'] },
+  delete_current_patient_reminder_rule: {
+    'public.reminder_occurrence_history': ['SELECT', 'DELETE'],
+    'public.reminder_rules': ['SELECT', 'DELETE'],
+  },
+  record_current_patient_reminder_journal_action: {
+    'public.reminder_journal': ['SELECT', 'INSERT'], 'public.reminder_rules': ['SELECT'],
+  },
+  mark_current_patient_reminder_history_seen: {
+    'public.reminder_occurrence_history': ['SELECT', 'UPDATE'],
+  },
+  mark_all_current_patient_reminder_history_seen: {
+    'public.reminder_occurrence_history': ['SELECT', 'UPDATE'],
+  },
+  set_current_patient_reminder_muted_until: { 'public.platform_users': ['SELECT', 'UPDATE'] },
+  ensure_current_patient_support_conversation: {
+    'public.org_enrollments': ['SELECT'], 'public.support_conversations': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  append_current_patient_support_message: {
+    'public.support_conversation_messages': ['SELECT', 'INSERT'],
+    'public.support_conversations': ['SELECT', 'UPDATE'],
+  },
+  mark_current_patient_support_conversation_read: {
+    'public.support_conversation_messages': ['SELECT', 'UPDATE'],
+    'public.support_conversations': ['SELECT'],
+  },
+  mark_current_patient_support_messages_read: {
+    'public.support_conversation_messages': ['SELECT', 'UPDATE'],
+    'public.support_conversations': ['SELECT'],
+  },
+  mark_current_patient_support_notifications_read: {
+    'public.support_conversation_messages': ['SELECT', 'UPDATE'],
+    'public.support_conversations': ['SELECT'],
+  },
+  ensure_current_patient_system_symptom_tracking: {
+    'public.reference_categories': ['SELECT'], 'public.reference_items': ['SELECT'],
+    'public.symptom_trackings': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  record_current_patient_symptom_entry: {
+    'public.symptom_entries': ['SELECT', 'INSERT'], 'public.symptom_trackings': ['SELECT'],
+  },
+  update_current_patient_symptom_entry: {
+    'public.symptom_entries': ['SELECT', 'UPDATE'], 'public.symptom_trackings': ['SELECT'],
+  },
+  delete_current_patient_symptom_entry: {
+    'public.symptom_entries': ['SELECT', 'DELETE'], 'public.symptom_trackings': ['SELECT'],
+  },
+  configure_current_patient_assigned_symptom_tracking: {
+    'public.symptom_trackings': ['SELECT', 'UPDATE'],
+  },
+  apply_current_patient_warmup_feeling: {
+    'public.patient_practice_completions': ['SELECT', 'UPDATE'],
+    'public.reference_categories': ['SELECT'], 'public.reference_items': ['SELECT'],
+    'public.symptom_entries': ['SELECT', 'INSERT'],
+    'public.symptom_trackings': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  save_current_patient_channel_preference: {
+    'public.user_channel_preferences': ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  set_current_patient_preferred_auth_channel: {
+    'public.platform_users': ['SELECT'], 'public.user_channel_bindings': ['SELECT'],
+    'public.user_channel_preferences': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.user_phone_history': ['SELECT'],
+  },
+  save_current_patient_web_push_subscription: {
+    'public.user_web_push_subscriptions': ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
+  },
+  remove_current_patient_web_push_subscription: {
+    'public.user_web_push_subscriptions': ['SELECT', 'DELETE'],
+  },
+  remove_all_current_patient_web_push_subscriptions: {
+    'public.user_web_push_subscriptions': ['SELECT', 'DELETE'],
+  },
+  touch_current_patient_program_item: {
+    'public.treatment_program_events': ['INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  complete_current_patient_program_item: {
+    'public.program_action_log': ['SELECT', 'INSERT'], 'public.treatment_program_events': ['INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instances': ['SELECT', 'UPDATE'],
+  },
+  enrich_current_patient_program_completion: {
+    'public.program_action_log': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  record_current_patient_program_action: {
+    'public.media_files': ['SELECT'], 'public.program_action_log': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  delete_current_patient_program_actions_in_window: {
+    'public.program_action_log': ['SELECT', 'DELETE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  append_current_patient_program_event: {
+    'public.treatment_program_events': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  mark_current_patient_program_item_viewed: {
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  append_current_patient_program_discussion: {
+    'public.media_files': ['SELECT'], 'public.program_item_discussion_messages': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  mark_current_patient_program_discussion_read: {
+    'public.program_item_discussion_reads': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  ensure_current_patient_test_attempt: {
+    'public.test_attempts': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  start_current_patient_test_attempt: {
+    'public.test_attempts': ['SELECT', 'INSERT'],
+    'public.treatment_program_instance_stage_items': ['SELECT', 'UPDATE'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  save_current_patient_test_result: {
+    'public.test_attempts': ['SELECT'], 'public.test_results': ['SELECT', 'INSERT', 'UPDATE'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+  submit_current_patient_test_attempt: {
+    'public.test_attempts': ['SELECT', 'UPDATE'], 'public.test_results': ['SELECT'],
+    'public.treatment_program_instance_stage_items': ['SELECT'],
+    'public.treatment_program_instance_stages': ['SELECT'],
+    'public.treatment_program_instances': ['SELECT'],
+  },
+} as const satisfies Readonly<Record<string, Readonly<Record<string, readonly Privilege[]>>>>;
+
 const INTEGRATOR_DELIVERY_SOURCES = [
   'delivery-handler',
   'max-webhook:record-outcome',
   'telegram-webhook:record-outcome',
+  'worker:direct-public-write-retry-tick',
   'worker:job-queue-drain',
   'worker:outgoing-delivery-tick',
   'worker:projection-outbox-tick',
@@ -1913,7 +2236,6 @@ const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/product-analytics/retention:POST',
-  'operator-health-failure-archive:prune',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -1925,6 +2247,9 @@ const WEBAPP_WORKER_SOURCES = [
   'api/internal/operator-health-digest/tick:POST',
   'api/internal/operator-health-critical/tick:POST',
   'api/internal/system-health-guard/tick:POST',
+  // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
+  // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
+  'api/internal/saas-billing/renewal/tick:POST',
   'api/internal/specialist-task-reminders/tick:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
@@ -1994,6 +2319,16 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
+    integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
+      runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
+    integrator_delivery_reminder_occurrence_finalized_record: { port: 'integrator',
+      runtimeName: 'delivery_reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+      purpose: 'integrator.reminder-occurrence-finalized.record',
+      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     integrator_inbound_reply_enqueue: { port: 'integrator', runtimeName: 'inbound_reply_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.inbound-reply.enqueue',
@@ -2056,6 +2391,17 @@ const REV10_CONTEXT = {
       runtimeName: 'read_canonical_appointment_by_external_id', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'booking.integrator-record.read',
       functionIdentity: 'app.read_canonical_appointment_by_external_id(text)' },
+    // Дашборд глобального админа читал девятнадцать таблиц ОТНОШЕНИЕМ под `app_platform_settings`.
+    // Замер 19.08: 42501 на СЕМНАДЦАТИ из них, весь дашборд отдавал 500, админ не видел ни одной
+    // цифры. Грант не годится дважды: `deploy-test-saas.sh` ассертит точный набор прав роли, и
+    // решение владельца D1 (08.08) — «глобал админ не лезет в медицину», а среди семнадцати
+    // `clinical_visit`, `symptom_entries`, `program_action_log`. Дверь отдаёт СЧЁТ, не строки:
+    // цифры появляются, медицинские данные роли по-прежнему не видны (миграция 0043).
+    webapp_platform_analytics_dashboard: { port: 'webapp',
+      runtimeName: 'platform_analytics_dashboard', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.platform-dashboard.read',
+      functionIdentity: 'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)' },
     list_platform_registration_analytics_events: { port: 'webapp',
       runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -2097,6 +2443,136 @@ const REV10_CONTEXT = {
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.material-rating.snapshot.read',
       functionIdentity: 'app.read_current_patient_material_rating_snapshot(text,uuid)' },
+    patient_practice_completion_record: { port: 'webapp', runtimeName: 'patient_practice_completion_record',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.practice-completion.record',
+      functionIdentity: 'app.record_current_patient_practice_completion(uuid,text,integer)' },
+    patient_material_rating_upsert: { port: 'webapp', runtimeName: 'patient_material_rating_upsert',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.material-rating.upsert',
+      functionIdentity: 'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)' },
+    patient_practice_completion_feeling_update: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.practice-completion.feeling.update',
+      functionIdentity: 'app.update_current_patient_practice_completion_feeling(uuid,integer)' },
+    patient_daily_warmup_presentation_save: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.daily-warmup.presentation.save',
+      functionIdentity: 'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)' },
+    patient_daily_warmup_video_view_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.daily-warmup.video-view.record',
+      functionIdentity: 'app.record_current_patient_daily_warmup_video_view(uuid)' },
+    patient_content_rating_feedback_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.material-rating.feedback.record',
+      functionIdentity: 'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)' },
+    patient_playback_client_event_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.media.playback-client-event.record',
+      functionIdentity: 'app.record_current_patient_playback_client_event(uuid,text,text,text,text)' },
+    patient_playback_first_resolve_record: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.media.playback-first-resolve.record',
+      functionIdentity: 'app.record_current_patient_playback_first_resolve(uuid)' },
+    patient_diary_day_snapshot_capture: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.diary-day.snapshot.capture',
+      functionIdentity: 'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)' },
+    patient_notification_topic_set: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.notification-topic.set',
+      functionIdentity: 'app.set_current_patient_notification_topic(text,boolean)' },
+    patient_notification_topic_channel_set: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.notification-topic-channel.set',
+      functionIdentity: 'app.set_current_patient_notification_topic_channel(text,text,boolean)' },
+    patient_reminder_rule_create: patientSelfCapability('patient.reminder-rule.create',
+      'app.create_current_patient_reminder_rule(text,text)'),
+    patient_reminder_rule_update: patientSelfCapability('patient.reminder-rule.update',
+      'app.update_current_patient_reminder_rule(text,text)'),
+    patient_reminder_rule_delete: patientSelfCapability('patient.reminder-rule.delete',
+      'app.delete_current_patient_reminder_rule(text)'),
+    patient_reminder_journal_record: patientSelfCapability('patient.reminder-journal.record',
+      'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)'),
+    patient_reminder_history_seen: patientSelfCapability('patient.reminder-history.seen',
+      'app.mark_current_patient_reminder_history_seen(text)'),
+    patient_reminder_history_seen_all: patientSelfCapability('patient.reminder-history.seen-all',
+      'app.mark_all_current_patient_reminder_history_seen()'),
+    patient_reminder_mute: patientSelfCapability('patient.reminder.mute',
+      'app.set_current_patient_reminder_muted_until(timestamp with time zone)'),
+    patient_support_conversation_ensure: patientSelfCapability('patient.support-conversation.ensure',
+      'app.ensure_current_patient_support_conversation()'),
+    patient_support_message_append: patientSelfCapability('patient.support-message.append',
+      'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)'),
+    patient_support_conversation_read: patientSelfCapability('patient.support-conversation.read',
+      'app.mark_current_patient_support_conversation_read(uuid)'),
+    patient_support_messages_read: patientSelfCapability('patient.support-messages.read',
+      'app.mark_current_patient_support_messages_read(text)'),
+    patient_support_notifications_read: patientSelfCapability('patient.support-notifications.read',
+      'app.mark_current_patient_support_notifications_read()'),
+    patient_symptom_system_tracking_ensure: patientSelfCapability('patient.symptom-system-tracking.ensure',
+      'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)'),
+    patient_symptom_entry_record: patientSelfCapability('patient.symptom-entry.record',
+      'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'),
+    patient_symptom_entry_update: patientSelfCapability('patient.symptom-entry.update',
+      'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)'),
+    patient_symptom_entry_delete: patientSelfCapability('patient.symptom-entry.delete',
+      'app.delete_current_patient_symptom_entry(uuid)'),
+    patient_symptom_tracking_configure: patientSelfCapability('patient.symptom-tracking.configure',
+      'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)'),
+    patient_warmup_feeling_apply: patientSelfCapability('patient.warmup-feeling.apply',
+      'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)'),
+    patient_channel_preference_save: patientSelfCapability('patient.channel-preference.save',
+      'app.save_current_patient_channel_preference(text,boolean,boolean)'),
+    patient_preferred_auth_channel_set: patientSelfCapability('patient.preferred-auth-channel.set',
+      'app.set_current_patient_preferred_auth_channel(text)'),
+    patient_web_push_subscription_save: patientSelfCapability('patient.web-push-subscription.save',
+      'app.save_current_patient_web_push_subscription(text,text,text,text)'),
+    patient_web_push_subscription_remove: patientSelfCapability('patient.web-push-subscription.remove',
+      'app.remove_current_patient_web_push_subscription(text)'),
+    patient_web_push_subscriptions_remove_all: patientSelfCapability('patient.web-push-subscriptions.remove-all',
+      'app.remove_all_current_patient_web_push_subscriptions()'),
+    patient_plan_touch: patientSelfCapability('patient.program.touch',
+      'app.touch_current_patient_plan_last_opened(uuid)'),
+    patient_program_item_touch: patientSelfCapability('patient.program-item.touch',
+      'app.touch_current_patient_program_item(uuid,uuid)'),
+    patient_program_item_complete: patientSelfCapability('patient.program-item.complete',
+      'app.complete_current_patient_program_item(uuid,uuid,integer,text)'),
+    patient_program_completion_enrich: patientSelfCapability('patient.program-completion.enrich',
+      'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)'),
+    patient_program_action_record: patientSelfCapability('patient.program-action.record',
+      'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)'),
+    patient_program_actions_delete_window: patientSelfCapability('patient.program-actions.delete-window',
+      'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)'),
+    patient_program_event_append: patientSelfCapability('patient.program-event.append',
+      'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)'),
+    patient_program_item_viewed: patientSelfCapability('patient.program-item.viewed',
+      'app.mark_current_patient_program_item_viewed(uuid,uuid)'),
+    patient_program_discussion_append: patientSelfCapability('patient.program-discussion.append',
+      'app.append_current_patient_program_discussion(uuid,text,uuid)'),
+    patient_program_discussion_read: patientSelfCapability('patient.program-discussion.read',
+      'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)'),
+    patient_test_attempt_ensure: patientSelfCapability('patient.test-attempt.ensure',
+      'app.ensure_current_patient_test_attempt(uuid)'),
+    patient_test_attempt_start: patientSelfCapability('patient.test-attempt.start',
+      'app.start_current_patient_test_attempt(uuid,uuid)'),
+    patient_test_result_save: patientSelfCapability('patient.test-result.save',
+      'app.save_current_patient_test_result(uuid,uuid,text,text)'),
+    patient_test_attempt_submit: patientSelfCapability('patient.test-attempt.submit',
+      'app.submit_current_patient_test_attempt(uuid)'),
+    patient_self_fio_read: { port: 'webapp', runtimeName: 'patient_self_fio_read',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.identity.self.read',
+      functionIdentity: 'app.read_current_patient_fio()' },
+    patient_self_fio_update: { port: 'webapp', runtimeName: 'patient_self_fio_update',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.identity.self.update',
+      functionIdentity: 'app.update_current_patient_fio(text,text,text)' },
+    patient_program_description_read: { port: 'webapp', runtimeName: 'patient_program_description_read',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.program.description.read',
+      functionIdentity: 'app.read_current_patient_treatment_program_description(uuid)' },
     patient_program_submission_media_create: { port: 'webapp',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.media.program-submission.create',
@@ -2117,6 +2593,31 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
       purpose: 'media.transcode.enqueue',
       functionIdentity: 'app.enqueue_media_transcode_job_for_service(uuid)' },
+    // Разбор той же очереди. До 0050 он шёл отношением и отбивался `42501 accepted organization
+    // context required` на КАЖДОМ обороте петли: диспетчер межарендный, `organization_id` у него
+    // нет, а политика роли на `public.media_transcode_jobs` требует именно его.
+    media_transcode_claim: { port: 'webapp', runtimeName: 'media_transcode_claim',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.claim',
+      functionIdentity: 'app.claim_media_transcode_job(text,integer)' },
+    media_transcode_job_media_read: { port: 'webapp', runtimeName: 'media_transcode_job_media_read',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.job-media.read',
+      functionIdentity: 'app.read_media_transcode_job_media(uuid,uuid,text)' },
+    media_transcode_outcome_record: { port: 'webapp', runtimeName: 'media_transcode_outcome_record',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.transcode.outcome.record',
+      functionIdentity: 'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)' },
+    // Both context classes reach the SAME root: the message context, not the caller class, decides
+    // what gets sent. A patient booking and a staff-initiated notice are one mechanism.
+    patient_outbound_message_enqueue: { port: 'webapp',
+      sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'outbound.message.enqueue',
+      functionIdentity: 'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)' },
+    staff_outbound_message_enqueue: { port: 'webapp',
+      sessionRole: 'app_staff', targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'outbound.message.enqueue',
+      functionIdentity: 'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)' },
     webapp_clinic_billing_relation: { port: 'webapp', runtimeName: 'clinicBilling', sessionRole: 'app_staff',
       targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'relation' },
     webapp_platform_relation: { port: 'webapp', runtimeName: 'platform', sessionRole: 'app_platform_settings',
@@ -2130,6 +2631,9 @@ const REV10_CONTEXT = {
     webapp_platform_audit_event_append: { port: 'webapp', runtimeName: 'platform_audit_event_append',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
+    webapp_pre_session_audit_event_append: { port: 'webapp', runtimeName: 'pre_session_audit_event_append',
+      sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
     webapp_platform_incidents_acknowledge: { port: 'webapp', runtimeName: 'platform_incidents_acknowledge',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.operator-incidents.acknowledge',
@@ -2137,6 +2641,11 @@ const REV10_CONTEXT = {
     webapp_platform_incidents_resolve: { port: 'webapp', runtimeName: 'platform_incidents_resolve',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.operator-incidents.resolve', functionIdentity: 'app.resolve_all_open_operator_incidents()' },
+    webapp_platform_organization_set_active: { port: 'webapp',
+      runtimeName: 'platform_organization_set_active', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'platform.organization.set-is-active',
+      functionIdentity: 'app.set_platform_organization_is_active(uuid,boolean)' },
     webapp_platform_health_archive_list: { port: 'webapp', runtimeName: 'platform_health_archive_list',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.health-archive.list',
@@ -2156,6 +2665,61 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.webhook-errors.prune',
       functionIdentity: 'app.prune_integration_webhook_error_events(integer)' },
+    webapp_health_archive_prune: { port: 'webapp', runtimeName: 'health_archive_prune',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.failure-archive.prune',
+      functionIdentity: 'app.prune_operator_health_failure_archive(integer)' },
+    // Начало окна суточной сводки здоровья — время ПОДТВЕРЖДЁННОЙ отправки прошлой сводки. До
+    // миграции 0038 вебапп читал `public.outgoing_delivery_queue` отношением под `app_staff`, у
+    // которого на очереди нет ни одной привилегии и по решению не должно быть; тик сводки падал
+    // 42501 на первом же шаге и сводка не уходила ни разу. Дверь — та же, что у соседних
+    // операторских чтений: шов телеметрии, рабочая роль `app_worker`, только EXECUTE.
+    webapp_health_digest_last_sent_read: { port: 'webapp', runtimeName: 'health_digest_last_sent_read',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.digest.last-sent.read',
+      functionIdentity: 'app.read_operator_health_digest_last_sent_at()' },
+    // Двенадцать запросов отношением под `app_staff` (`getOutgoingDeliveryQueueHealth`) стояли в
+    // ГОЛОМ `Promise.all` критического тика — падал весь пятиминутный тик и баннер врача, а не
+    // одна панель. Одна дверь вместо двенадцати запросов, тот же шов операторской телеметрии.
+    webapp_delivery_queue_health_read: { port: 'webapp', runtimeName: 'delivery_queue_health_read',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.delivery-queue.aggregate',
+      functionIdentity: 'app.read_operator_delivery_queue_health()' },
+    // Постановка суточной сводки в очередь: INSERT на очередь не выдан ни одной рабочей роли,
+    // поэтому строк `operator_health_digest` не появлялось вовсе. Свой корень, а не универсальный
+    // корень исходящего: у сводки собственный вид строки и собственный операторский класс.
+    webapp_health_digest_enqueue: { port: 'webapp', runtimeName: 'health_digest_enqueue',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.digest.enqueue',
+      functionIdentity: 'app.enqueue_operator_health_digest_delivery(text,text,text,integer)' },
+    // Аудитория staff-веб-пуша операторского алерта: до 0040 читалась отношением под `app_worker`
+    // и отбивалась 42501 на `be_organization_members` — канал не работал, а тик писал успех.
+    webapp_operator_alert_staff_push_audience_read: { port: 'webapp',
+      runtimeName: 'operator_alert_staff_push_audience_read', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'notifications.staff-push-audience.read',
+      functionIdentity: 'app.list_operator_alert_staff_push_recipients()' },
+    // Открытие критического инцидента: до 0041 писалось отношением под `app_worker` и отбивалось
+    // 42501 на `operator_incidents` — сторож замечал сбой и не мог записать ни строки.
+    webapp_critical_incident_open: { port: 'webapp',
+      runtimeName: 'critical_incident_open', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.critical-incident.open-or-touch',
+      functionIdentity: 'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)' },
+    // Часовой тик продления подписок: межарендное перечисление «у кого кончился оплаченный период».
+    // До 0040 тик входил платформенным принципалом с выдуманным нулевым UUID вместо актора и падал
+    // ещё на установке контекста — строки `billing.saas_renewal.tick` не появилось ни разу.
+    webapp_saas_renewal_due_list: { port: 'webapp', runtimeName: 'saas_renewal_due_list',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'billing.saas-renewal.due-list',
+      functionIdentity: 'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)' },
+    // Одна уборка по сроку хранения на все запертые арендаторские таблицы: цель выбирается
+    // параметром из ЗАКРЫТОГО списка внутри тела, окно приходит константой вызывающего тика.
+    // Каждый тик сохраняет свою личность — общей у них только эта дверь.
+    webapp_retention_sweep: { port: 'webapp', runtimeName: 'retention_sweep',
+      sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
+      purpose: 'retention.locked-tenant-table.sweep',
+      functionIdentity: 'app.prune_retention_target(text,integer,boolean)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -2173,12 +2737,21 @@ const REV10_CONTEXT = {
       runtimeName: 'saas_billing_refund_webhook_resolve', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service', purpose: 'billing.webhook.refund.resolve',
       functionIdentity: 'app.resolve_saas_billing_refund_for_webhook(text,text)' },
+    patient_acquiring_webhook_resolve: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'patient-payment.webhook.resolve',
+      functionIdentity: 'app.resolve_patient_acquiring_webhook_organization(text,text)' },
     saas_billing_provider_preauth_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'billing.webhook.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_preauth()' },
     saas_billing_provider_clinic_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'billing.clinic.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_clinic()' },
+    saas_billing_period_catalog_clinic_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_clinic_billing', contextClass: 'staff', purpose: 'billing.clinic.period-catalog.read',
+      functionIdentity: 'app.list_saas_billing_period_catalog()' },
+    saas_billing_period_catalog_platform_read: { port: 'webapp', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'billing.platform.period-catalog.read',
+      functionIdentity: 'app.list_saas_billing_period_catalog_platform()' },
     saas_billing_provider_platform_read: { port: 'webapp', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform', purpose: 'billing.platform.provider.read',
       functionIdentity: 'app.read_saas_billing_payment_provider_platform()' },
@@ -2244,6 +2817,47 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.reminder-occurrence-finalized.record',
       functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
+    patient_reminder_materialization_snapshot_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.snapshot.read',
+      functionIdentity: 'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)' },
+    patient_reminder_materialization_targets_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.targets.read',
+      functionIdentity: 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)' },
+    patient_reminder_materialization_commit: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.materialization.commit',
+      functionIdentity: 'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)' },
+    appointment_reminder_generation_replace: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'reminder.appointment-generation.replace',
+      functionIdentity: 'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)' },
+    integrator_delivery_targets_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.delivery-targets.read',
+      functionIdentity: 'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)' },
+    webapp_pre_session_admin_notification_targets_read: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'notifications.admin-targets.read',
+      functionIdentity: 'app.read_admin_notification_targets(text)' },
+    webapp_admin_notification_targets_read: { port: 'webapp',
+      runtimeName: 'admin_notification_targets_read', sessionRole: 'app_staff',
+      targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'notifications.admin-targets.read',
+      functionIdentity: 'app.read_admin_notification_targets(text)' },
+    integrator_web_push_subscriptions_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.web-push-subscriptions.read',
+      functionIdentity: 'app.read_integrator_web_push_subscriptions(uuid,uuid)' },
+    integrator_web_push_delivery_settings_read: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.web-push-delivery-settings.read',
+      functionIdentity: 'app.read_integrator_web_push_delivery_settings(uuid)' },
+    integrator_support_delivery_attempt_record: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.support-delivery-attempt.record',
+      functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     auth_oauth_find_user: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.find-binding',
       functionIdentity: 'app.auth_oauth_find_user(text,text)' },
@@ -2356,6 +2970,50 @@ const REV10_CONTEXT = {
     resolve_public_organization_slug: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-slug.resolve',
       functionIdentity: 'app.resolve_public_organization_slug(text)' },
+    // Четыре двери публичной записи (миграция 0043). Арендаторский класс `tenant_service` у порта
+    // `webapp` ходит ИМЕНОВАННЫМИ КОРНЯМИ от `app_seam_public_booking_owner`, а не сквозным
+    // `purpose: 'relation'`: сквозной двери этому классу не выдают (SCHEME §3). Резолвер арендатора
+    // стоит ДО выбора арендатора, поэтому он один в классе `pre_session`.
+    resolve_public_booking_organization: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-tenant.resolve',
+      functionIdentity: 'app.resolve_public_booking_organization(uuid,uuid)' },
+    // Две двери ЗАПИСИ (миграция 0048). Личность резолвится до выбора арендатора, поэтому её
+    // класс — `pre_session`; отношение с клиникой заводится уже под ПАЦИЕНТСКИМ принципалом, чтобы
+    // человек мог записать в клиенты только себя.
+    resolve_public_booking_client_by_phone: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'booking.public-client.resolve',
+      functionIdentity: 'app.resolve_public_booking_client_by_phone(text,text,boolean)' },
+    enroll_current_patient_in_public_booking_clinic: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.enroll',
+      functionIdentity: 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)' },
+    // Компенсация неудавшейся записи (миграция 0052). Зачисление коммитится раньше приёма и вместе
+    // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
+    revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid)' },
+    read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking.public-catalog.read',
+      functionIdentity: 'app.read_public_booking_catalog(uuid,uuid)' },
+    read_public_booking_slot_snapshot: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking.public-slot-snapshot.read',
+      functionIdentity: 'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)' },
+    list_public_booking_form_fields: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'booking.public-form-fields.read',
+      functionIdentity: 'app.list_public_booking_form_fields()' },
+    // Публичная визитка клиники `/{clinic}` (владелец 19.08). Анонимный посетитель читает ОДНУ
+    // строку публичной проекции через дверь: прямой SELECT ему отозван целиком (42501).
+    read_public_clinic_card: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'clinic.public-card.read',
+      functionIdentity: 'app.read_public_clinic_card(text)' },
+    // Настройка визитки в кабинете админа клиники. У `app_staff` на проекции поколоночный
+    // UPDATE ровно на `slug, updated_at` — выдать ему новые колонки значило бы расширить гранты
+    // рабочей роли, поэтому запись идёт объявленным корнем.
+    save_public_clinic_card: { port: 'webapp', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff', purpose: 'clinic.public-card.save',
+      functionIdentity: 'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)' },
     get_web_push_vapid_public_key: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'patient.web-push.vapid-public-key.read',
       functionIdentity: 'app.get_web_push_vapid_public_key()' },
@@ -2399,25 +3057,258 @@ const REV10_CONTEXT = {
     is_current_patient_self_booking_allowed: { port: 'webapp', runtimeName: 'is_current_patient_self_booking_allowed',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'booking.self.allowed', functionIdentity: 'app.is_current_patient_self_booking_allowed()' },
+    read_current_patient_booking_runtime_integer: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_runtime_integer', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-runtime-integer.read',
+      functionIdentity: 'app.read_current_patient_booking_runtime_integer(text)' },
+    read_current_patient_booking_creation_snapshot: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_creation_snapshot', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-creation-snapshot.read',
+      functionIdentity: 'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)' },
+    read_current_patient_booking_payment_setting: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_payment_setting', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-payment-config.read',
+      functionIdentity: 'app.read_current_patient_booking_payment_setting(text)' },
+    read_current_patient_booking_prepayment_policy: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_prepayment_policy', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-prepayment-policy.read',
+      functionIdentity: 'app.read_current_patient_booking_prepayment_policy(uuid,text)' },
+    read_current_patient_booking_busy_intervals: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_busy_intervals', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-busy-intervals.read',
+      functionIdentity: 'app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)' },
+    read_current_patient_booking_form_fields: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_form_fields', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-form-fields.read',
+      functionIdentity: 'app.read_current_patient_booking_form_fields()' },
+    save_current_patient_booking_form_answers: { port: 'webapp',
+      runtimeName: 'save_current_patient_booking_form_answers', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-form-answers.save',
+      functionIdentity: 'app.save_current_patient_booking_form_answers(uuid,text)' },
+    read_current_patient_identity_contacts: { port: 'webapp',
+      runtimeName: 'read_current_patient_identity_contacts', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'booking.patient-identity-contacts.read',
+      functionIdentity: 'app.read_current_patient_identity_contacts()' },
+    record_current_patient_booking_contact: { port: 'webapp',
+      runtimeName: 'record_current_patient_booking_contact', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'booking.patient-contact.record',
+      functionIdentity: 'app.record_current_patient_booking_contact(text,text,text)' },
+    read_current_patient_booking_packages: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_packages', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-packages.read',
+      functionIdentity: 'app.read_current_patient_booking_packages(uuid)' },
+    create_current_patient_booking_pending: { port: 'webapp',
+      runtimeName: 'create_current_patient_booking_pending', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-pending.create',
+      functionIdentity: 'app.create_current_patient_booking_pending(text)' },
+    mutate_current_patient_booking: { port: 'webapp',
+      runtimeName: 'mutate_current_patient_booking', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-row.mutate',
+      functionIdentity: 'app.mutate_current_patient_booking(uuid,text,text)' },
+    create_current_patient_booking_appointments: { port: 'webapp',
+      runtimeName: 'create_current_patient_booking_appointments', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-appointments.create',
+      functionIdentity: 'app.create_current_patient_booking_appointments(text)' },
+    read_current_patient_booking_appointment: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_appointment', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-appointment.read',
+      functionIdentity: 'app.read_current_patient_booking_appointment(uuid)' },
+    set_current_patient_booking_reminder_preset: { port: 'webapp',
+      runtimeName: 'set_current_patient_booking_reminder_preset', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-reminder-preset.set',
+      functionIdentity: 'app.set_current_patient_booking_reminder_preset(uuid,text)' },
+    current_patient_lfk_sessions: { port: 'webapp',
+      runtimeName: 'current_patient_lfk_sessions', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'diary.patient-lfk-sessions',
+      functionIdentity: 'app.current_patient_lfk_sessions(text,text)' },
+    read_current_patient_staff_notification_profiles: { port: 'webapp',
+      runtimeName: 'read_current_patient_staff_notification_profiles', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'notification.current-patient-staff-profiles',
+      functionIdentity: 'app.read_current_patient_staff_notification_profiles(uuid,text)' },
+    read_current_patient_booking_row: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_row', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-row.read',
+      functionIdentity: 'app.read_current_patient_booking_row(uuid,text)' },
+    read_current_patient_booking_policies: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_policies', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-policies.read',
+      functionIdentity: 'app.read_current_patient_booking_policies(text)' },
+    read_current_patient_booking_reschedules: { port: 'webapp',
+      runtimeName: 'read_current_patient_booking_reschedules', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-reschedules.read',
+      functionIdentity: 'app.read_current_patient_booking_reschedules(uuid)' },
+    apply_current_patient_booking_reschedule: { port: 'webapp',
+      runtimeName: 'apply_current_patient_booking_reschedule', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-reschedule.apply',
+      functionIdentity: 'app.apply_current_patient_booking_reschedule(text)' },
+    apply_current_patient_booking_cancellation: { port: 'webapp',
+      runtimeName: 'apply_current_patient_booking_cancellation', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-cancellation.apply',
+      functionIdentity: 'app.apply_current_patient_booking_cancellation(text)' },
+    patch_current_patient_booking_notifications: { port: 'webapp',
+      runtimeName: 'patch_current_patient_booking_notifications', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-notifications.patch',
+      functionIdentity: 'app.patch_current_patient_booking_notifications(uuid,text,text)' },
+    reserve_current_patient_booking_package: { port: 'webapp',
+      runtimeName: 'reserve_current_patient_booking_package', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-package.reserve',
+      functionIdentity: 'app.reserve_current_patient_booking_package(text)' },
   },
   functions: {
     ...BUSINESS_SEAM_FUNCTIONS,
+    'app.patient_cancel_pending_reminder_occurrences(text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'],
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'].relationSurfaces ?? []),
+        { relation: 'public.reminder_rules',
+          columns: ['integrator_rule_id', 'organization_id', 'platform_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    },
+    'app.read_current_patient_organization_entitlements()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_current_patient_organization_entitlements()'],
+      relationSurfaces: [
+        ...(BUSINESS_SEAM_FUNCTIONS['app.read_current_patient_organization_entitlements()'].relationSurfaces ?? []),
+        { relation: 'public.saas_paid_period_policy',
+          columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    },
+    'app.email_auth_find_email_owner_conflict(uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.email_auth_find_email_owner_conflict(uuid,text)'],
+      relationSurfaces: [],
+      delegatesTo: ['app.find_platform_user_ids_by_any_confirmed_email(text)'],
+    },
+    'app.password_login_acquire(text,text,uuid,text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_acquire(text,text,uuid,text)'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_acquire_impl(text,text,uuid,text)'],
+    },
+    'app.password_login_complete(uuid,boolean)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_complete(uuid,boolean)'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_complete_impl(uuid,boolean)'],
+    },
+    'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)': {
+      ...BUSINESS_SEAM_FUNCTIONS[
+        'app.password_login_issue_altcha_challenge(text,uuid,text,timestamp with time zone)'
+      ],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)'],
+    },
+    'app.password_login_read_altcha_secret()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.password_login_read_altcha_secret()'],
+      relationSurfaces: [],
+      delegatesTo: ['app.password_login_read_altcha_secret_impl()'],
+    },
+    'app.require_attested_target_role(name,name[])': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'name', returnsSet: false,
+      execute: ['app_seam_reminder_patient_owner'],
+      purpose: 'return the exact active patient or staff role to the reminder seam',
+      typedArgs: ['name', 'name[]'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], invocation: 'internal' as const,
+      relationSurfaces: [
+        { relation: 'app_ext.accepted_port_contexts', columns: [
+          'database_oid', 'backend_pid', 'transaction_id', 'capability_id', 'session_login', 'port',
+          'target_role', 'context_class', 'purpose', 'function_identity', 'cleared_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'app_ext.port_context_capabilities', columns: [
+          'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose',
+          'function_identity', 'active_from', 'active_until',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.enqueue_current_reminder_rule_push(text)': rev10Function({
+      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient', 'app_staff'], purpose: 'enqueue only the current patient or staff-org reminder retry',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.reminder_rules', columns: [
+          'integrator_rule_id', 'organization_id', 'platform_user_id', 'integrator_user_id', 'category',
+          'is_enabled', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask',
+          'timezone', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'schedule_type',
+          'schedule_data', 'reminder_intent', 'display_title', 'display_description', 'quiet_hours_start_minute',
+          'quiet_hours_end_minute', 'notification_topic_code', 'updated_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.integrator_push_outbox', columns: [
+          'kind', 'idempotency_key', 'payload', 'status', 'attempts_done', 'next_try_at', 'last_error', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app_ext.digest(text,text)': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false,
       execute: ['app_seam_dedicated_bot_owner', 'app_seam_password_auth_owner'],
       purpose: 'private pgcrypto digest dependency of the dedicated-bot and password-auth seams',
       typedArgs: ['text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
       invocation: 'internal' as const,
     }),
     'app_ext.hmac(text,text,text)': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea',
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false,
       execute: ['app_seam_patient_invite_owner'],
       purpose: 'private pgcrypto HMAC dependency of the patient-invite seam',
       typedArgs: ['text', 'text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
       invocation: 'internal' as const,
     }),
+    // Единственная дверь платформенного дашборда: девятнадцать отношений сведены в ОДИН снимок.
+    // Собственный владелец шва — занять соседнего нельзя, ни один существующий не достаёт дальше
+    // своей заботы: аналитика, клиника, упражнения, медиа и телеметрия воспроизведения лежат у
+    // четырёх РАЗНЫХ владельцев, и растянуть любого из них на остальные три значило бы расширить
+    // его шов ровно так, как именованные корни и существуют, чтобы не расширять.
+    // Роль страницы получает EXECUTE и ничего больше: ни одного прямого гранта на эти таблицы
+    // `app_platform_settings` не получает (миграция 0043).
+    'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': rev10Function({
+      owner: 'app_seam_platform_analytics_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_platform_settings'],
+      purpose: 'return only the aggregated platform analytics dashboard snapshot',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['created_at', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['created_at', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'role', 'phone_normalized', 'merged_into_id', 'is_archived', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_user_hourly', columns: ['bucket_hour', 'user_id', 'entry_channel', 'page_key', 'page_views'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: ['created_at', 'updated_at', 'status', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: ['id', 'created_at', 'status', 'patient_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinical_visit', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: ['created_at', 'deleted_at', 'section', 'video_url'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_sections', columns: ['slug', 'system_parent_code'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_exercises', columns: ['id', 'created_at', 'owner_kind', 'catalog_scope', 'created_by'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_exercise_media', columns: ['exercise_id', 'media_url', 'media_type'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files', columns: ['id', 'size_bytes', 'video_duration_seconds'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_action_log', columns: ['created_at', 'action_type', 'payload', 'patient_user_id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.symptom_entries', columns: ['recorded_at', 'tracking_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.symptom_trackings', columns: ['id', 'symptom_key'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_resolution_events', columns: ['resolved_at', 'user_id', 'media_id', 'delivery'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_client_events', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_hls_proxy_error_events', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)': rev10Function({
-      owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_telemetry_exclusion_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_settings'], purpose: 'return only sanitized registration-funnel events to platform operations',
       typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text', 'text',
         'integer', 'integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
@@ -2434,7 +3325,7 @@ const REV10_CONTEXT = {
       ],
     },
     'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_operational_delivery_worker'], purpose: 'enqueue one failed accepted-event messenger reply',
       typedArgs: ['text', 'text', 'text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -2443,6 +3334,61 @@ const REV10_CONTEXT = {
           'next_retry_at', 'organization_id'], operations: ['SELECT' as const, 'INSERT' as const],
         evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0410' as const }],
     }),
+    // The single declared enqueue root for outbound messages (owner ruling 19.08: one universal
+    // mechanism taking a context, not one function per message kind). Runtime roles get EXECUTE
+    // only -- no table grant on public.outgoing_delivery_queue is added for app_patient/app_staff.
+    // p_content is text, not jsonb (migration 0036): the typed-argument transcript is reproduced
+    // byte for byte by the caller, and jsonb_send's canonical form makes that impossible -- the
+    // original jsonb declaration in migration 0033 made every call throw before reaching the
+    // database. Same fix shape as the neighbouring app.replace_appointment_reminder_generation.
+    'app.enqueue_outbound_message(uuid,text,text,text,text,text,integer)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient', 'app_staff'], purpose: 'outbound.message.enqueue',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
+        columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+          'attempt_count', 'max_attempts', 'next_retry_at', 'priority'],
+        operations: ['SELECT' as const, 'INSERT' as const],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0033, retyped in migration 0036' as const }],
+    }),
+    // The single declared root that replaces one appointment's reminder generation. Before it the
+    // webapp wrote public.outgoing_delivery_queue directly, and no runtime role holds INSERT there,
+    // so appointment_reminder rows never appeared at all. app_tenant_service gains EXECUTE only.
+    // p_deliveries is text, not jsonb: the typed-argument transcript is reproduced byte for byte by
+    // the caller, which jsonb_send's canonical form makes impossible.
+    'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)': rev10Function({
+      owner: 'app_seam_reminder_materialization_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_tenant_service'],
+      purpose: 'reminder.appointment-generation.replace',
+      typedArgs: ['uuid', 'uuid', 'timestamp with time zone', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'start_at', 'status', 'deleted_at'],
+          operations: ['SELECT' as const],
+          evidence: 'exact currency EXISTS in migration 0034' as const },
+        { relation: 'public.outgoing_delivery_queue',
+          columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+            'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority',
+            'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034' as const },
+      ],
+    }),
+    // Google-календарь клиники читается ТОЛЬКО под арендной ролью. До 19.08 EXECUTE держал
+    // `app_integrator_request` — принципала этого класса на пути календаря не бывает вовсе: и шаг
+    // записи (`bookingLifecycleRoute` → `sync.ts`), и проба оператора приходят сюда с
+    // организацией в руках. Корень был недостижим для КАЖДОГО живого вызывающего, и пустой
+    // `catch` в `readConfigFromDb` превращал 42501 в «календарь у клиники не подключён».
+    // Форма — как у близнеца `app.read_integrator_clinic_delivery_credential(text,uuid)`: тот же
+    // точный org-скоуп в теле, тот же `app_tenant_service`. Прав на таблицу никому не добавлено.
+    'app.read_integrator_google_calendar_setting(text,uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_google_calendar_setting(text,uuid)'],
+      execute: ['app_tenant_service'],
+    },
     'app.saas_billing_effective_tariff(uuid,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'],
       execute: [
@@ -2456,6 +3402,84 @@ const REV10_CONTEXT = {
         ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'].execute,
         'app_clinic_billing',
       ],
+    },
+    // L-10 (миграция 0023). `amount_minor` — колонка, которую арендная роль не переписывает никогда,
+    // поэтому у `app_clinic_billing` нет и не появляется UPDATE на неё: сумму счёта выводит этот шов,
+    // из строки тарифа ЭТОЙ подписки, и не принимает от вызывающего. Аргумент `p_tariff_id` выбирает
+    // только между текущим и запланированным тарифом той же подписки — всё прочее шов отклоняет.
+    'app.refresh_saas_billing_invoice_purchased_tariff(uuid,uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'refresh one unclaimed period draft onto the purchased tariff with a derived amount',
+      typedArgs: ['uuid', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
+            'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor', 'tariff_id', 'tariff_name',
+            'amount_minor', 'currency', 'tariff_billing_period', 'additional_seat_quantity', 'tariff_snapshot',
+            'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            // `carried_debt_minor` ЧИТАЕТСЯ (миграция 0050): пересчитанная сумма периода складывается
+            // из цены тарифа, мест и уже переехавшего долга. Без этого чтения смена тарифа под
+            // черновиком тихо прощала бы долг прошлого периода. Писать эту колонку шов не вправе:
+            // долг назначает только та дверь, которая гасит счёт-предшественник.
+            SELECT: ['id', 'organization_id', 'saas_billing_subscription_id', 'invoice_kind', 'description',
+              'expires_at', 'status', 'provider_invoice_ref', 'carried_debt_minor'],
+            UPDATE: ['tariff_id', 'tariff_name', 'amount_minor', 'currency', 'tariff_billing_period',
+              'additional_seat_quantity', 'tariff_snapshot', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_billing_subscriptions',
+          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'paid_additional_seats'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // `SELECT *` — снимок тарифа в счёте есть копия живой строки целиком (`to_jsonb`), поэтому
+        // верхняя граница чтения здесь вся таблица; ровно её этот владелец шва уже читает сегодня.
+        { relation: 'public.saas_tariffs',
+          columns: ['additional_seat_price_minor', 'billing_period', 'created_at', 'currency', 'description',
+            'discounted_price_minor', 'downgrade_policies', 'id', 'included_seats', 'is_active',
+            'mailing_templates', 'mechanic_access_policies', 'mechanics', 'name', 'price_minor', 'quotas',
+            'system_access_policy', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Миграция 0050. Снять переехавший долг со счёта-преемника, когда оплата за место всё-таки
+    // пришла по старой живой ссылке провайдера. Сумму шов НЕ принимает — выводит её из строки
+    // погашенного счёта, а организацию сверяет на каждой строке цепочки. Писать `amount_minor` и
+    // `carried_debt_minor` арендной роли по-прежнему нельзя: денежная стена ровно за тем и стоит,
+    // чтобы сумму счёта менял один узкий шов, а не любой путь под ролью клиники.
+    'app.release_carried_seat_debt(uuid,uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_clinic_billing'],
+      purpose: 'release a carried seat debt from its successor invoice when the superseded invoice is paid after all',
+      typedArgs: ['uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_invoices',
+          columns: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+            'carried_debt_minor', 'superseded_by_invoice_id', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: {
+            SELECT: ['id', 'organization_id', 'invoice_kind', 'status', 'currency', 'amount_minor',
+              'carried_debt_minor', 'superseded_by_invoice_id'],
+            // Обе денежные колонки меняются ОДНИМ вычитанием и только вниз: снимается ровно та
+            // сумма, что переехала. `carried_debt_minor <= amount_minor` держит ограничение таблицы.
+            UPDATE: ['amount_minor', 'carried_debt_minor', 'updated_at'],
+          },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.touch_current_patient_support_conversation_activity(uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.touch_current_patient_support_conversation_activity(uuid)'],
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
+        'app.touch_current_patient_support_conversation_activity(uuid)'
+      ].relationSurfaces?.map((surface) => ({
+        ...surface,
+        ...(surface.relation === 'public.support_conversation_messages'
+          ? { tableOperations: ['SELECT' as const] }
+          : {}),
+      })) ?? [],
     },
     'app.read_curated_playback_health_pre_0196()': {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_curated_playback_health_pre_0196()'],
@@ -2500,6 +3524,10 @@ const REV10_CONTEXT = {
     'app.provision_specialist_owner(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'],
       delegatesTo: ['app.require_staff_security_self_user_id()'],
+      relationSurfaces: BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'].relationSurfaces
+        ?.map((surface) => surface.relation === 'public.be_organizations'
+          ? { ...surface, operations: ['INSERT' as const] }
+          : surface) ?? [],
     },
     'app.replace_pending_specialist_signup_challenge(uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.replace_pending_specialist_signup_challenge(uuid,text)'],
@@ -2519,7 +3547,7 @@ const REV10_CONTEXT = {
       ],
     },
     'app.email_password_find_reset_candidate(text)': rev10Function({
-      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid',
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_pre_session'], purpose: 'auth.password.reset-candidate', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -2530,7 +3558,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.challenge.start',
       typedArgs: ['uuid', 'text', 'text', 'bigint', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
@@ -2551,7 +3579,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.email_otp_public_find_or_create_user(text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.user.find-or-create', typedArgs: ['text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.platform_users', columns: [
@@ -2559,7 +3587,7 @@ const REV10_CONTEXT = {
       ], operations: ['SELECT', 'INSERT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.email_otp_public_find_user_by_email(text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'uuid',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'uuid', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.user.find', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.platform_users',
@@ -2567,7 +3595,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.email_otp_public_register_patient(text,text,text,text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.registration.create',
       typedArgs: ['text', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
@@ -2580,7 +3608,7 @@ const REV10_CONTEXT = {
       ], operations: ['SELECT', 'INSERT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.email_otp_public_consume_latest_challenge(text,text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.challenge.consume', typedArgs: ['text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -2599,7 +3627,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.email_otp_public_find_email_send_cooldown_by_email(text)': rev10Function({
-      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'timestamp with time zone',
+      owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'timestamp with time zone', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.email-otp.cooldown.read', typedArgs: ['text'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.email_send_cooldowns',
@@ -2639,62 +3667,91 @@ const REV10_CONTEXT = {
       purpose: 'private implementation behind exact-gated app.password_login_read_altcha_secret',
     },
     'app_control.enforce_relation_birth_wall()': rev10Function({
-      owner: 'postgres', security: 'DEFINER', returns: 'event_trigger', execute: [],
+      owner: 'postgres', security: 'DEFINER', returns: 'event_trigger', returnsSet: false, execute: [],
       purpose: 'reject unknown managed table DDL and force a closed RLS baseline before commit',
       typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app_control, pg_temp'],
       invocation: 'trigger' as const,
+      bodyRelationSurfaceContract: 'relation-birth-wall' as const,
     }),
+    // Both slug guards are CONSTRAINT TRIGGERs declared DEFERRABLE INITIALLY DEFERRED, so their
+    // bodies execute at COMMIT — after withPortContextTransaction has already run RESET ROLE and
+    // app.clear_port_context(). As SECURITY INVOKER they therefore ran as the bare login role
+    // (bcb_dev_webapp_staff), which holds no USAGE on schema public, and every clinic slug rename
+    // died with 42501 "permission denied for schema public". Owning them by the existing public-slug
+    // seam makes the deferred check independent of whichever role is in effect at COMMIT; the
+    // surfaces below are exactly the columns the two bodies read and nothing else.
     'app.assert_organization_slug_alias_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [],
       purpose: 'deferred organization slug alias completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims',
+          columns: ['kind', 'organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.organization_slug_rename_events',
+          columns: ['next_slug', 'organization_id', 'previous_slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.assert_organization_slug_rename_complete()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_seam_public_slug_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [],
       purpose: 'deferred organization slug rename completeness constraint trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims',
+          columns: ['kind', 'organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.organization_slug_rename_events',
+          columns: ['next_slug', 'organization_id', 'previous_slug'], operations: ['SELECT'],
+          evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.enforce_lfk_child_owner()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'LFK child ownership integrity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_clinic_directory_current_slug()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'clinic directory current-slug integrity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_org_brand_revision()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'organization brand revision monotonicity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_organization_slug_claim_mutation()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'organization slug claim mutation guard trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.guard_organization_slug_rename_event_mutation()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'organization slug rename audit mutation guard trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'app.reject_staff_commercial_organization_update()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'staff commercial-organization update rejection trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
     'public.audit_app_runtime_settings_change()': rev10Function({
-      owner: 'app_object_owner', security: 'DEFINER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'application runtime-settings audit trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, public, pg_temp'], invocation: 'trigger' as const,
@@ -2703,22 +3760,22 @@ const REV10_CONTEXT = {
           'updated_by'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'public.media_folders_enforce_depth()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder maximum-depth integrity trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.media_folders_prevent_cycle()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder cycle prevention trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.sync_registered_app_runtime_setting()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'registered runtime-setting projection trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.system_settings_test_lock_guard()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', execute: [],
+      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'system-setting protected-key lock trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
@@ -2753,7 +3810,7 @@ const REV10_CONTEXT = {
       parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
     'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.secret',
       typedArgs: ['text', 'text', 'uuid', 'text', 'text', 'text', 'uuid', 'text', 'text',
         'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE',
@@ -2765,7 +3822,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.phone_messenger_bind_completion_state(text,text,text,text)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.completion-state',
       typedArgs: ['text', 'text', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -2801,12 +3858,10 @@ const REV10_CONTEXT = {
       typedArgs: ['text', 'text', 'integer', 'integer', 'text', 'integer', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
-      relationSurfaces: BUSINESS_SEAM_FUNCTIONS[
-        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)'
-      ].relationSurfaces?.map((surface) => ({
-        ...surface,
-        tableOperations: ['SELECT' as const],
-      })) ?? [],
+      relationSurfaces: retainFunctionSurfaceOperationsWithTableRequirements(
+        'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)',
+        { 'public.auth_rate_limit_events': ['SELECT', 'DELETE'] },
+      ),
     }),
     'app.read_public_runtime_setting(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_public_runtime_setting(text,text)'],
@@ -2902,6 +3957,253 @@ const REV10_CONTEXT = {
       purpose: 'booking.public-slug.resolve', typedArgs: ['text'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
+    // ── Четыре двери публичной записи (миграция 0043). Владелец шва — уже существующий
+    // `app_seam_public_booking_owner`; ни одной новой роли и ни одного расширения табличных грантов
+    // рантайм-ролям. Арендаторский класс `tenant_service` порта `webapp` ходит только этими
+    // ИМЕНОВАННЫМИ КОРНЯМИ: сквозной `purpose: 'relation'` этому классу не выдают (SCHEME §3).
+    //
+    // Резолвер арендатора существовал с миграции 0042, но не был объявлен НИ ОДНОЙ возможностью,
+    // поэтому вызов падал ещё до statement'а, а его рукописный гейт
+    // `app.require_attested_context_for_roles` не сверял ни класс контекста, ни аргументы, ни
+    // идентичность корня. 0043 переводит его на общий `app.require_accepted_context` в классе
+    // `pre_session` (он стоит ДО выбора арендатора) и добавляет проверку публикации клиники —
+    // отсюда две новые поверхности: каталог публикации и активность специалиста.
+    'app.resolve_public_booking_organization(uuid,uuid)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_public_booking_organization(uuid,uuid)'],
+      owner: 'app_seam_public_booking_owner', execute: ['app_pre_session'],
+      purpose: 'booking.public-tenant.resolve', typedArgs: ['uuid', 'uuid'], volatility: 'STABLE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: ['id', 'organization_id', 'is_active',
+          'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'branch_id',
+          'service_id', 'specialist_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Одна дверь на четыре формы одного вопроса «что из каталога ЭТОЙ опубликованной клиники видно
+    // снаружи»: организация берётся не из аргумента, а из принятого контекста.
+    'app.read_public_booking_catalog(uuid,uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return only the publicly bookable catalog of the published accepted organization',
+      typedArgs: ['uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'title', 'short_title', 'color',
+          'city_code', 'address', 'timezone', 'is_active', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: ['id', 'organization_id', 'title', 'description',
+          'duration_minutes', 'buffer_after_minutes', 'price_minor', 'prepayment_applicable',
+          'usable_in_packages', 'online_payment_applicable', 'sort_order', 'is_active',
+          'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: ['organization_id', 'service_id',
+          'branch_id', 'specialist_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Публичный близнец `app.read_current_patient_booking_slot_snapshot(...)`: тот же ОДИН снимок
+    // шага выбора времени, но «активная запись пациента» заменена на «клиника опубликована».
+    'app.read_public_booking_slot_snapshot(uuid,uuid,text,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return one anonymous slot snapshot of the published accepted organization',
+      typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.app_runtime_settings', columns: ['key', 'scope', 'audience', 'organization_id',
+          'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: ['organization_id', 'specialist_id', 'service_id',
+          'status', 'start_at', 'end_at', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_availability_rules', columns: ['organization_id', 'specialist_id', 'rule_type',
+          'config', 'is_active', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'timezone', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services', columns: ['id', 'organization_id', 'duration_minutes',
+          'buffer_after_minutes', 'is_active', 'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_schedule_blocks', columns: ['organization_id', 'specialist_id', 'start_at',
+          'end_at'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability', columns: ['id', 'organization_id',
+          'branch_id', 'specialist_id', 'service_id', 'room_id', 'is_active', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_working_days', columns: ['id', 'organization_id', 'specialist_id', 'branch_id',
+          'room_id', 'work_date', 'start_minute', 'end_minute', 'breaks', 'is_closed'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_working_hours', columns: ['organization_id', 'specialist_id', 'branch_id',
+          'room_id', 'weekday', 'start_minute', 'end_minute', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Публичный близнец `app.read_current_patient_booking_form_fields()`: только поля, помеченные
+    // видимыми пациенту, потому что заполняет их посетитель, а не персонал.
+    'app.list_public_booking_form_fields()': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return only patient-visible booking form fields of the published accepted organization',
+      typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_booking_form_fields', columns: ['id', 'organization_id', 'field_key',
+          'field_type', 'label', 'placeholder', 'is_required', 'visible_to_patient', 'visible_to_staff',
+          'sort_order', 'is_active'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Личность посетителя. Организации в аргументах нет: телефон принадлежит человеку, а не клинике,
+    // и класс `pre_session` стоит до выбора арендатора.
+    'app.resolve_public_booking_client_by_phone(text,text,boolean)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve or create the canonical person for a proven public-booking phone',
+      typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'phone_normalized', 'display_name', 'role',
+          'patient_phone_trust_at', 'merged_into_id', 'first_name', 'last_name', 'patronymic', 'birth_date'],
+          operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized',
+          'is_primary', 'confirmed_at', 'source_origin', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'first_name', 'last_name',
+          'patronymic', 'display_name', 'birth_date', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Отношение с клиникой. Человек берётся из принятого пациентского контекста, а не из аргумента,
+    // поэтому записать в клиенты можно только себя. Канал подтверждения — АРГУМЕНТ (миграция 0052):
+    // почта такой же полноправный канал, что и телефон (`AUTH_AND_IDENTITY_CANON.md` §15), а состав
+    // обязательных полей публичной формы задаёт клиника (`OWNER_PRODUCT_RULES.md` §33).
+    //
+    // Оплаченное число клиентов эта дверь НЕ проверяет и не расходует (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2: «запись на приём сама по себе лимита не расходует»). 0052 звала
+    // сюда `app.assert_org_patient_count_quota_available` делегированием — 0053 убрала вызов, поэтому
+    // делегирования здесь больше нет.
+    'app.enroll_current_patient_in_public_booking_clinic(uuid,text)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'make the identified public-booking visitor a client of a published clinic',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.clinic_public_directory_entries', columns: ['organization_id', 'is_published'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
+    // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
+    // возраст в окне одной попытки и отсутствие живого приёма.
+    'app.revoke_public_booking_enrollment(uuid)': rev10Function({
+      owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'undo a public-booking client relationship whose booking failed',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
+          'created_at', 'portal_activated_at', 'portal_activated_via'],
+          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          // Возраст строки дверь только ЧИТАЕТ — он и есть признак «эту строку завела воронка».
+          operationColumns: { UPDATE: ['status', 'portal_activated_at', 'portal_activated_via'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // ЕДИНСТВЕННЫЙ потолок оплаченного числа клиентов. Владелец — коммерческий шов: ровно у него уже
+    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники: её писатель карточек
+    // зовёт функцию из своей реляционной транзакции. Публичная дверь (миграция 0053, владелец 19.08,
+    // `OWNER_PRODUCT_RULES.md` §33.2) больше НЕ вызывающий — запись на приём не тратит оплаченное
+    // место, и у этой функции снова ровно один вызывающий, как до 0052.
+    'app.assert_org_patient_count_quota_available(uuid)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_staff'],
+      purpose: 'the only patient_count ceiling, spent by the staff card writer alone',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
+      relationSurfaces: [
+        { relation: 'public.be_organizations', columns: ['id', 'tariff_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_org_entitlement_overrides',
+          columns: ['organization_id', 'mechanic', 'expires_at', 'quota'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Две двери визитки клиники (миграция 0049). Перевод обеих на `app_seam_public_slug_owner`
+    // (`cfa4e45df`, по OWNER_PRODUCT_RULES §33.3/§33.5) откачен: он снимал роль из декларации,
+    // не снимая её из кластера, и ронял выкатку TEST. Возврат к снятию — вместе с переводом
+    // оставшихся в TEST 54 объектов, одним приземлением.
+    'app.read_public_clinic_card(text)': rev10Function({
+      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_pre_session'],
+      purpose: 'return one published clinic card, media ids included, or nothing',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.organization_slug_claims', columns: ['organization_id', 'kind', 'slug'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'is_published', 'card_is_published', 'display_name',
+            'description', 'public_contact_phone', 'public_contact_email', 'public_website_url',
+            'locations_json', 'logo_media_id', 'photo_media_ids'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organizations', columns: ['id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'owner_kind', 'organization_id', 'status', 'mime_type', 's3_key',
+            'stored_path'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
+    'app.save_public_clinic_card(uuid,text,text,text,text,uuid,text,boolean)': rev10Function({
+      owner: 'app_seam_public_clinic_card_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_staff'],
+      purpose: 'write the clinic card of the principal organization and snapshot its branches',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'uuid', 'text', 'boolean'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_files', columns: ['id', 'owner_kind', 'organization_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches',
+          columns: ['organization_id', 'is_active', 'title', 'city_code', 'address', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.clinic_public_directory_entries',
+          columns: ['organization_id', 'description', 'public_contact_phone',
+            'public_contact_email', 'public_website_url', 'logo_media_id', 'photo_media_ids',
+            'locations_json', 'card_is_published', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+      databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
+    }),
     'app.get_web_push_vapid_public_key()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.get_web_push_vapid_public_key()'],
       owner: 'app_seam_settings_preauth_owner', execute: ['app_patient'],
@@ -2920,6 +4222,12 @@ const REV10_CONTEXT = {
       purpose: 'billing.webhook.refund.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
+    'app.resolve_patient_acquiring_webhook_organization(text,text)': rev10Function({
+      ...BUSINESS_SEAM_FUNCTIONS['app.resolve_patient_acquiring_webhook_organization(text,text)'],
+      owner: 'app_seam_payment_webhook_owner', execute: ['app_pre_session'],
+      purpose: 'patient-payment.webhook.resolve', typedArgs: ['text', 'text'], volatility: 'STABLE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+    }),
     'app.read_saas_billing_payment_provider_preauth()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_preauth()'],
       owner: 'app_seam_payment_webhook_owner', execute: ['app_pre_session'],
@@ -2932,6 +4240,24 @@ const REV10_CONTEXT = {
       purpose: 'billing.clinic.provider.read', typedArgs: [], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
+    'app.list_saas_billing_period_catalog()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_clinic_billing'], purpose: 'return the fixed billing-period arithmetic catalog',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.saas_billing_periods',
+        columns: ['code', 'label', 'months', 'is_selectable', 'sort_order'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.list_saas_billing_period_catalog_platform()': rev10Function({
+      owner: 'app_seam_payment_webhook_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_platform_settings'], purpose: 'return the fixed billing-period arithmetic catalog',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.saas_billing_periods',
+        columns: ['code', 'label', 'months', 'is_selectable', 'sort_order'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
     'app.read_saas_billing_payment_provider_platform()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_saas_billing_payment_provider_platform()'],
       owner: 'app_seam_payment_webhook_owner', execute: ['app_platform_settings'],
@@ -2939,14 +4265,14 @@ const REV10_CONTEXT = {
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
     'app.read_integrator_migration_ledger()': rev10Function({
-      owner: 'app_seam_catalog_admin_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
+      owner: 'app_seam_catalog_admin_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_service'],
       purpose: 'read the exact integrator startup migration ledger without relation ACL', typedArgs: [],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.schema_migrations', columns: ['version', 'applied_at'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_integrator_projection_health(integer)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'record', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_service'],
       purpose: 'return only aggregate projection-delivery health without exposing event payloads',
       typedArgs: ['integer'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
@@ -2955,7 +4281,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.list_integration_webhook_burst_signals(integer,integer)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
       purpose: 'return only aggregated webhook error bursts for operator health', typedArgs: ['integer', 'integer'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.integration_webhook_error_events',
@@ -2963,12 +4289,176 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.prune_integration_webhook_error_events(integer)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', execute: ['app_worker'],
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_worker'],
       purpose: 'delete only webhook error events older than the attested retention window', typedArgs: ['integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.integration_webhook_error_events', columns: ['occurred_at'],
         operations: ['SELECT' as const, 'DELETE' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.prune_operator_health_failure_archive(integer)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_worker'],
+      purpose: 'delete only archived health failures older than the attested retention window', typedArgs: ['integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_health_failure_archive', columns: ['archived_at'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Единственное чтение очереди доставки, разрешённое порту webapp: время последней
+    // ПОДТВЕРЖДЁННОЙ отправки суточной сводки здоровья, из которого тик берёт начало окна.
+    // Рабочая роль получает EXECUTE и ничего больше — прямого гранта на очередь у `app_staff`
+    // и `app_worker` нет и не появляется (миграция 0038).
+    'app.read_operator_health_digest_last_sent_at()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'timestamp with time zone',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'return only the last confirmed operator health digest send time', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue', columns: ['kind', 'sent_at'],
+        operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Единственное АГРЕГАТНОЕ чтение очереди, разрешённое порту webapp: снимок здоровья очереди
+    // для критического тика и суточной сводки. Двенадцать запросов отношением сведены в один
+    // корень. Рабочая роль получает EXECUTE и ничего больше; шву добавляются ровно две колонки,
+    // которых у него не было — `next_retry_at` и `updated_at` (миграция 0039).
+    'app.read_operator_delivery_queue_health()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'return only the aggregated operator delivery-queue health snapshot', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
+        columns: ['status', 'next_retry_at', 'failure_class', 'created_at', 'channel', 'kind',
+          'sent_at', 'updated_at'],
+        operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Единственная дверь постановки суточной сводки здоровья. До неё вебапп писал очередь прямым
+    // INSERT под `app_staff`, у которого на ней нет ни одной привилегии, — сводка не уходила ни
+    // разу. `app_worker` получает EXECUTE; все десять колонок вставки у шва уже были (0039).
+    'app.enqueue_operator_health_digest_delivery(text,text,text,integer)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean',
+      returnsSet: false, execute: ['app_worker'],
+      purpose: 'enqueue only one operator health digest delivery row',
+      typedArgs: ['text', 'text', 'text', 'integer'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.outgoing_delivery_queue',
+        columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+          'attempt_count', 'max_attempts', 'next_retry_at', 'priority'],
+        operations: ['SELECT' as const, 'INSERT' as const],
+        evidence: 'exact INSERT ON CONFLICT(event_id) in migration 0039' as const }],
+    }),
+    // Аудитория staff-веб-пуша операторского алерта. Соседний канал того же диспетчера
+    // (`telegram`/`max`/`sms`/`email`) переехал на объявленный корень ещё миграцией 0030
+    // (`app.read_admin_notification_targets(text)`), а веб-пуш остался сырым чтением отношения:
+    // `pgStaffUsers.listActiveStaffOrganizationRecipients` под `app_worker` получал
+    // `42501 permission denied for table be_organization_members`, отказ глотался `.catch`
+    // диспетчера, и критический тик рапортовал успех поверх канала, который не отработал.
+    // Тот же владелец шва, что у соседа; `app_worker` получает EXECUTE и ничего больше
+    // (миграция 0040).
+    'app.list_operator_alert_staff_push_recipients()': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'return only the tenant-paired staff audience of an operator alert web push',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Перечисление подписок, у которых оплаченный период кончился, — работа МЕЖАРЕНДНАЯ: одна
+    // строка на клинику, и заранее неизвестно, на какую. Арендная дверь для неё не годится
+    // (`app_worker` видит по RLS только `current_org_id()`), а платформенная требует живого
+    // администратора-человека, которого у машинного тика нет. Отсюда собственный корень у шва
+    // коммерции — того же, что уже читает подписку и тариф в
+    // `app.refresh_saas_billing_invoice_purchased_tariff` (миграция 0040).
+    'app.list_saas_billing_subscriptions_due_for_renewal(timestamp with time zone,integer)': rev10Function({
+      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'return only the bounded set of paid subscriptions whose paid period has ended',
+      typedArgs: ['timestamp with time zone', 'integer'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.saas_billing_subscriptions',
+          columns: ['id', 'organization_id', 'tariff_id', 'pending_tariff_id', 'source', 'status',
+            'current_period_ends_at', 'saved_payment_method_id', 'autopay_consented_at',
+            'autopay_revoked_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.saas_tariffs', columns: ['id', 'billing_period'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'resolve one integrator delivery audience by phone or channel id without exposing relations',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'uuid', 'bigint', 'text', 'timestamp with time zone'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id', 'integrator_user_id', 'email',
+          'email_verified_at', 'is_blocked', 'is_archived', 'reminder_muted_until'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'bot_blocked_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_preferences', columns: ['platform_user_id', 'channel_code',
+          'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topics', columns: ['user_id', 'topic_code', 'is_enabled'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_web_push_subscriptions', columns: ['user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_admin_notification_targets(text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_pre_session', 'app_worker'],
+      purpose: 'return only the messenger and contact audience of live platform admins',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id', 'is_archived'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized', 'is_primary'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // ОДИН корень уборки по сроку хранения на четыре запертые арендаторские таблицы. Цель —
+    // не имя таблицы: это метка из ЗАКРЫТОГО списка, развёрнутого ветками внутри тела, где
+    // каждая ветка — статический DELETE по одной названной таблице. Динамического SQL в теле
+    // нет и быть не может: definer с подстановкой идентификатора от вызывающего был бы
+    // отмычкой ко всей базе. Незнакомая метка не выполняется, а отказывает (22023).
+    // Владелец 19.08: «уборка — это одинаковое действие, и не хочется плодить дубли»,
+    // «закрытый список — супер».
+    'app.prune_retention_target(text,integer,boolean)': rev10Function({
+      owner: 'app_seam_retention_sweep_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
+      execute: ['app_operational_maintenance'],
+      purpose: 'delete only rows of one closed-list retention target older than the attested window',
+      typedArgs: ['text', 'integer', 'boolean'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_hls_proxy_error_events', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_events_recent', columns: ['occurred_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_user_hourly', columns: ['bucket_hour'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_push_notifications', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.read_integrator_provider_runtime_setting(text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_provider_runtime_setting(text)'],
@@ -2987,7 +4477,7 @@ const REV10_CONTEXT = {
       execute: ['app_service'], purpose: 'return only the global SMTP envelope to the integrator service',
     }),
     'app.try_acquire_integrator_idempotency(text,integer)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_service'],
       purpose: 'atomically acquire exactly one attested integrator idempotency key', typedArgs: ['text', 'integer'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.idempotency_keys',
@@ -2996,14 +4486,14 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.release_integrator_idempotency(text)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_service'],
       purpose: 'release exactly one attested integrator idempotency key', typedArgs: ['text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
       relationSurfaces: [{ relation: 'integrator.idempotency_keys', columns: ['key'],
         operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.upsert_integration_data_quality_incident(text,text,text,text,text,text,text)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'integer', execute: ['app_service'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'integer', returnsSet: false, execute: ['app_service'],
       purpose: 'upsert only the exact attested data-quality incident tuple',
       typedArgs: ['text', 'text', 'text', 'text', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, integrator, pg_temp'],
@@ -3014,7 +4504,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_patient_telegram_display_handle(uuid)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'text', execute: ['app_staff'],
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_staff'],
       purpose: 'return one Telegram display handle only for an active patient of the current organization',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3028,14 +4518,11 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_canonical_appointment_by_external_id(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
       purpose: 'return one canonical appointment for an HMAC-authenticated integrator external id',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
-        { relation: 'public.be_external_entity_mappings',
-          columns: ['entity_type', 'external_system', 'external_id', 'canonical_id'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments',
           columns: ['id', 'organization_id', 'phone_normalized', 'start_at', 'status', 'attribution_json',
             'branch_id', 'created_at', 'updated_at', 'deleted_at'], operations: ['SELECT' as const],
@@ -3043,7 +4530,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.list_active_canonical_appointments_by_phone(text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_worker'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_worker'],
       purpose: 'return only active canonical appointments for an HMAC-authenticated integrator phone lookup',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3053,7 +4540,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.count_active_canonical_appointments()': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'bigint', execute: ['app_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: ['app_service'],
       purpose: 'return only the global active appointment count for the integrator admin dashboard',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3062,7 +4549,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.get_google_calendar_event_id(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'read one Google event id after proving appointment organization', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3071,7 +4558,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.upsert_google_calendar_event_id(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'atomically upsert calendar mapping and patient-booking mirror after organization proof', typedArgs: ['uuid', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3081,7 +4568,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.delete_google_calendar_event_id(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'atomically delete calendar mapping and clear patient-booking mirror after organization proof', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3091,7 +4578,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_booking_calendar_patient_profile(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_tenant_service'],
       purpose: 'calendar enrichment returns only the problem flag and note for the appointment patient', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3100,7 +4587,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_booking_calendar_latest_staff_comment(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_tenant_service'],
       purpose: 'calendar enrichment returns only the latest staff comment body for one appointment', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -3109,15 +4596,556 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.is_current_patient_self_booking_allowed()': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', execute: ['app_patient'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only whether the current patient may self-book, never sensitive profile fields', typedArgs: [],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.be_patient_booking_profiles',
         columns: ['organization_id', 'platform_user_id', 'booking_blocked'], operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    'app.read_current_patient_booking_runtime_integer(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'integer', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return one allowlisted booking integer for the current enrolled patient organization',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments',
+          columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings',
+          columns: ['key', 'scope', 'organization_id', 'audience', 'value_json'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_slot_snapshot(uuid,uuid,text,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_seam_patient_booking_owner'],
+      purpose: 'return only the current enrolled patient booking context, schedule and busy intervals',
+      typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'], invocation: 'internal' as const,
+      relationSurfaces: [
+        { relation: 'public.org_enrollments',
+          columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability',
+          columns: ['id', 'organization_id', 'branch_id', 'specialist_id', 'service_id', 'room_id',
+            'is_active', 'created_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'is_active', 'timezone'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services',
+          columns: ['id', 'organization_id', 'duration_minutes', 'buffer_after_minutes', 'is_active',
+            'public_widget_visible', 'admin_manual_only'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_working_hours',
+          columns: ['organization_id', 'specialist_id', 'branch_id', 'room_id', 'weekday', 'start_minute',
+            'end_minute', 'is_active'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_working_days',
+          columns: ['id', 'organization_id', 'specialist_id', 'branch_id', 'room_id', 'work_date',
+            'start_minute', 'end_minute', 'breaks', 'is_closed'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments',
+          columns: ['organization_id', 'specialist_id', 'service_id', 'start_at', 'end_at', 'status',
+            'deleted_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_schedule_blocks', columns: ['organization_id', 'specialist_id', 'start_at', 'end_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_availability_rules',
+          columns: ['organization_id', 'specialist_id', 'rule_type', 'config', 'is_active', 'updated_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings',
+          columns: ['key', 'scope', 'organization_id', 'audience', 'value_json'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return the patient slot snapshot with the exact public catalog fields needed for creation',
+      typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app.read_current_patient_booking_slot_snapshot(uuid,uuid,text,text)'],
+      relationSurfaces: [
+        { relation: 'public.be_branches',
+          columns: ['id', 'organization_id', 'title', 'short_title', 'color', 'city_code', 'address',
+            'sort_order', 'is_active'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services',
+          columns: ['id', 'organization_id', 'title', 'description', 'price_minor',
+            'prepayment_applicable', 'usable_in_packages', 'online_payment_applicable',
+            'public_widget_visible', 'admin_manual_only', 'sort_order', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists',
+          columns: ['id', 'organization_id', 'is_active', 'appointment_reminder_allowed_preset_ids',
+            'appointment_reminder_default_preset_id'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_payment_setting(text)': rev10Function({
+      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return only booking payment config for a current enrolled patient server command',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_prepayment_policy(uuid,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
+      purpose: 'return one prepayment policy for a current enrolled patient booking selection',
+      typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_prepayment_policies',
+          columns: ['id', 'organization_id', 'service_id', 'online_category', 'mode', 'amount_minor',
+            'percent_bps', 'currency', 'is_active'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_busy_intervals(uuid,uuid,timestamp with time zone,timestamp with time zone,uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
+      purpose: 'return only busy intervals for the current enrolled patient organization',
+      typedArgs: ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'uuid'],
+      volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'specialist_id', 'service_id', 'start_at', 'end_at', 'status',
+            'deleted_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services',
+          columns: ['id', 'organization_id', 'buffer_after_minutes'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_schedule_blocks',
+          columns: ['organization_id', 'specialist_id', 'room_id', 'start_at', 'end_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_identity_contacts()': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'return only the caller own identity phone and e-mail, never the staff client projection',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'email', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts',
+          columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_booking_contact(text,text,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'store the phone or e-mail the caller typed into the booking form on the caller own row',
+      typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_user_contacts',
+          columns: ['id', 'platform_user_id', 'organization_id', 'contact_type', 'value',
+            'value_normalized', 'source', 'created_at', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_form_fields()': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
+      purpose: 'return only active patient-visible booking form fields for the current enrolled organization',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_booking_form_fields',
+          columns: ['id', 'organization_id', 'field_key', 'field_type', 'label', 'placeholder', 'is_required',
+            'visible_to_patient', 'visible_to_staff', 'sort_order', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.save_current_patient_booking_form_answers(uuid,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_patient'],
+      purpose: 'upsert only patient-visible form answers on the current patient own appointment',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'platform_user_id', 'deleted_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_booking_form_fields',
+          columns: ['id', 'organization_id', 'field_key', 'is_active', 'visible_to_patient'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_booking_form_submissions',
+          columns: ['organization_id', 'appointment_id', 'field_id', 'value_text'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_packages(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return active current-patient packages with a remaining balance for the selected service',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services',
+          columns: ['id', 'organization_id', 'title', 'is_active'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_packages', columns: [
+          'id', 'organization_id', 'platform_user_id', 'subscription_package_id', 'status', 'display_number',
+          'title', 'price_minor', 'currency', 'validity_days', 'valid_from', 'valid_until', 'deduction_mode',
+          'payment_intent_id', 'payment_ref', 'sold_at', 'paid_amount_minor', 'paid_currency', 'created_at', 'notes',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_package_items',
+          columns: ['id', 'patient_package_id', 'service_id', 'quantity_initial', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_package_usages',
+          columns: ['organization_id', 'patient_package_id', 'patient_package_item_id', 'usage_kind', 'quantity'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.create_current_patient_booking_pending(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'create only an enrolled current patient own in-person booking projection placeholder',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: [
+          'id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end',
+          'status', 'canonical_appointment_id', 'contact_phone', 'contact_email', 'contact_name', 'branch_id',
+          'service_id', 'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot',
+          'service_title_snapshot', 'duration_minutes_snapshot', 'price_minor_snapshot', 'cancelled_at',
+          'created_at', 'updated_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.mutate_current_patient_booking(uuid,text,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'apply the bounded lifecycle mutation to the current patient own booking projection',
+      typedArgs: ['uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: [
+          'id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end',
+          'status', 'cancelled_at', 'cancel_reason', 'gcal_event_id', 'contact_phone', 'contact_email', 'contact_name',
+          'reminder_24h_sent', 'reminder_2h_sent', 'created_at', 'updated_at', 'branch_id', 'service_id',
+          'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot',
+          'duration_minutes_snapshot', 'price_minor_snapshot', 'provenance_created_by', 'provenance_updated_by',
+          'canonical_appointment_id',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.create_current_patient_booking_appointments(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'atomically create one validated current-patient appointment or consecutive chain with audit rows',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialist_service_availability',
+          columns: ['organization_id', 'branch_id', 'specialist_id', 'service_id', 'room_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_specialists', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_branches', columns: ['id', 'organization_id', 'is_active'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_clinic_services',
+          columns: ['id', 'organization_id', 'is_active', 'public_widget_visible', 'admin_manual_only'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_specialist_links',
+          columns: ['organization_id', 'patient_user_id', 'specialist_id', 'status', 'created_via'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events', columns: [
+          'organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+          'linked_object_id', 'payload', 'occurred_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_appointment(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return only the current patient own non-deleted canonical appointment',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.set_current_patient_booking_reminder_preset(uuid,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: ['app_patient'],
+      purpose: 'update only the current patient own active appointment reminder preset to an allowed value',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'platform_user_id', 'status', 'deleted_at',
+          'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'updated_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.current_patient_lfk_sessions(text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'], purpose: 'read and mutate only the current enrolled patient own LFK diary sessions',
+      typedArgs: ['text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_complexes', columns: [
+          'id', 'organization_id', 'user_id', 'platform_user_id', 'title', 'is_active',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_sessions', columns: [
+          'id', 'organization_id', 'user_id', 'complex_id', 'completed_at', 'source', 'created_at',
+          'recorded_at', 'duration_minutes', 'difficulty_0_10', 'pain_0_10', 'comment',
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_staff_notification_profiles(uuid,text)': rev10Function({
+      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_patient'], purpose: 'resolve delivery profiles only for active staff in the current enrolled patient organization',
+      typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_preferences', columns: [
+          'user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
+          'is_enabled_for_notifications', 'is_preferred_for_auth',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_web_push_subscriptions', columns: ['user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_integrator_web_push_subscriptions(uuid,uuid)': rev10Function({
+      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return web-push subscriptions only for a user active in the attested organization',
+      typedArgs: ['uuid', 'uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_web_push_subscriptions', columns: [
+          'user_id', 'endpoint', 'p256dh', 'auth', 'updated_at', 'created_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_integrator_web_push_delivery_settings(uuid)': rev10Function({
+      owner: 'app_seam_settings_integrator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'return global VAPID plus a derived public contact only; SMTP credentials never cross this seam',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_tenant_service'],
+      purpose: 'idempotently record one delivery result inside the attested organization',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'integer', 'text', 'text', 'timestamp with time zone'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.support_delivery_events', columns: [
+          'id', 'organization_id', 'conversation_message_id', 'integrator_intent_event_id',
+          'correlation_id', 'channel_code', 'status', 'attempt', 'reason', 'payload_json', 'occurred_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_row(uuid,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return only the current patient own booking projection by booking or canonical appointment id',
+      typedArgs: ['uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_bookings', columns: [
+          'id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end',
+          'status', 'cancelled_at', 'cancel_reason', 'gcal_event_id', 'contact_phone', 'contact_email', 'contact_name',
+          'reminder_24h_sent', 'reminder_2h_sent', 'created_at', 'updated_at', 'branch_id', 'service_id',
+          'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot',
+          'duration_minutes_snapshot', 'price_minor_snapshot', 'provenance_created_by', 'provenance_updated_by',
+          'canonical_appointment_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_policies(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return current-organization booking policies needed to evaluate patient lifecycle actions',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_cancellation_policies', columns: [
+          'id', 'organization_id', 'scope_level', 'scope_entity_id', 'title', 'is_active',
+          'free_cancel_hours_before', 'cancellation_allowed', 'late_cancellation_behavior',
+          'refund_prepayment_on_late', 'charge_package_session_on_late', 'requires_staff_confirmation',
+          'notify_patient', 'notify_staff', 'sort_order', 'created_at', 'updated_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_reschedule_policies', columns: [
+          'id', 'organization_id', 'scope_level', 'scope_entity_id', 'title', 'is_active',
+          'self_reschedule_hours_before', 'max_self_reschedules', 'allow_different_branch',
+          'allow_different_city', 'allow_different_specialist', 'allow_different_service',
+          'limit_exceeded_behavior', 'requires_staff_confirmation', 'notify_patient', 'notify_staff',
+          'sort_order', 'created_at', 'updated_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_booking_reschedules(uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'return only lifecycle reschedules for the current patient own appointment',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'platform_user_id', 'deleted_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_reschedules', columns: [
+          'id', 'organization_id', 'appointment_id', 'from_start_at', 'from_end_at', 'to_start_at', 'to_end_at',
+          'actor_type', 'actor_id', 'was_in_free_reschedule_window',
+          'free_cancellation_available_at_reschedule', 'free_cancellation_available_after',
+          'applied_policy_id', 'applied_policy_snapshot', 'reason', 'staff_comment', 'notifications_sent',
+          'manual_override', 'created_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.apply_current_patient_booking_reschedule(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'apply an already policy-evaluated same-catalog reschedule to the current patient own appointment',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_reschedules', columns: [
+          'organization_id', 'appointment_id', 'from_start_at', 'from_end_at', 'to_start_at', 'to_end_at',
+          'actor_type', 'actor_id', 'was_in_free_reschedule_window',
+          'free_cancellation_available_at_reschedule', 'free_cancellation_available_after',
+          'applied_policy_id', 'applied_policy_snapshot', 'reason', 'staff_comment', 'notifications_sent',
+          'manual_override', 'created_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events', columns: [
+          'organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+          'linked_object_id', 'payload', 'occurred_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.apply_current_patient_booking_cancellation(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'apply an already policy-evaluated cancellation to the current patient own appointment',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'branch_id', 'room_id', 'specialist_id', 'service_id', 'platform_user_id',
+          'start_at', 'end_at', 'duration_minutes', 'chain_id', 'chain_position', 'source', 'status',
+          'original_start_at', 'reschedule_count', 'payment_ref', 'package_usage_ref', 'phone_normalized',
+          'attribution_json', 'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+          'appointment_reminder_selection_source', 'created_at', 'updated_at', 'deleted_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_cancellations', columns: [
+          'organization_id', 'appointment_id', 'actor_type', 'actor_id', 'cancellation_type', 'reason',
+          'was_free', 'was_penalized', 'package_session_charged', 'prepayment_retained',
+          'prepayment_refunded', 'staff_comment', 'notifications_sent', 'manual_override',
+          'applied_policy_id', 'applied_policy_snapshot', 'created_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_history_events',
+          columns: ['organization_id', 'appointment_id', 'event_type', 'actor_id', 'payload', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_timeline_events', columns: [
+          'organization_id', 'platform_user_id', 'domain', 'event_type', 'linked_object_type',
+          'linked_object_id', 'payload', 'occurred_at',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.patch_current_patient_booking_notifications(uuid,text,text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_patient'],
+      purpose: 'patch the latest lifecycle notification outcome for the current patient own appointment',
+      typedArgs: ['uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.be_appointments',
+          columns: ['id', 'organization_id', 'platform_user_id', 'deleted_at'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_reschedules',
+          columns: ['id', 'organization_id', 'appointment_id', 'created_at', 'notifications_sent'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointment_cancellations',
+          columns: ['id', 'organization_id', 'appointment_id', 'created_at', 'notifications_sent'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.reserve_current_patient_booking_package(text)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
+      purpose: 'reserve one available service unit from the current patient own active package',
+      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.be_patient_packages', columns: [
+          'id', 'organization_id', 'platform_user_id', 'status', 'valid_from', 'valid_until',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_appointments', columns: [
+          'id', 'organization_id', 'platform_user_id', 'service_id', 'deleted_at', 'package_usage_ref', 'updated_at',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_patient_package_items',
+          columns: ['id', 'patient_package_id', 'service_id', 'quantity_initial', 'sort_order'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_package_usages', columns: [
+          'id', 'organization_id', 'patient_package_id', 'patient_package_item_id', 'appointment_id',
+          'usage_kind', 'quantity', 'comment', 'created_by_platform_user_id', 'occurred_at', 'created_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_package_history_events',
+          columns: ['organization_id', 'patient_package_id', 'event_type', 'payload_json', 'occurred_at'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.read_current_patient_material_rating_snapshot(text,uuid)': rev10Function({
-      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_patient'], purpose: 'patient.material-rating.snapshot.read', typedArgs: ['text', 'uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3125,9 +5153,408 @@ const REV10_CONTEXT = {
         columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    'app.record_current_patient_practice_completion(uuid,text,integer)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'uuid', returnsSet: true,
+      execute: ['app_patient'], purpose: 'record one completion only for the current enrolled patient',
+      typedArgs: ['uuid', 'text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_practice_completions', columns: [
+          'id', 'organization_id', 'user_id', 'content_page_id', 'source', 'feeling', 'notes',
+        ], operations: ['SELECT' as const, 'INSERT' as const], operationColumns: { SELECT: ['id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: true,
+      execute: ['app_patient'], purpose: 'upsert one material rating only for the current enrolled patient',
+      typedArgs: ['text', 'uuid', 'integer', 'uuid', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: [
+          'id', 'organization_id', 'patient_user_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: [
+          'id', 'organization_id', 'instance_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: [
+          'id', 'organization_id', 'stage_id', 'item_type', 'item_ref_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.material_ratings', columns: [
+          'organization_id', 'user_id', 'target_kind', 'target_id', 'stars', 'updated_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_current_patient_fio()': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_patient'], purpose: 'read canonical structured FIO for the current patient only',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.platform_users',
+          columns: ['id', 'role', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity',
+          columns: ['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.update_current_patient_fio(text,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_patient'], purpose: 'update canonical FIO, compatibility mirror and audit for the current patient only',
+      typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.platform_users',
+          columns: ['id', 'role', 'merged_into_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['id', 'role', 'merged_into_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity',
+          columns: ['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.admin_audit_log',
+          columns: ['organization_id', 'actor_id', 'action', 'target_id', 'details'],
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.update_current_patient_practice_completion_feeling(uuid,integer)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'update only the current patient own warmup completion feeling',
+      typedArgs: ['uuid', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.patient_practice_completions', columns: [
+          'id', 'organization_id', 'user_id', 'feeling',
+        ], operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['id', 'organization_id', 'user_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.save_current_patient_daily_warmup_presentation(uuid,timestamp with time zone,boolean)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'save only a visible daily-warmup presentation for the current patient',
+      typedArgs: ['uuid', 'timestamp with time zone', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_daily_warmup_presentations', columns: [
+          'organization_id', 'user_id', 'content_page_id', 'last_rotation_at',
+          'skip_next_scheduled_rotation', 'updated_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_daily_warmup_video_view(uuid)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'record a view only for the current patient presented daily warmup',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.patient_daily_warmup_presentations', columns: [
+          'organization_id', 'user_id', 'content_page_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_daily_warmup_video_views', columns: [
+          'organization_id', 'user_id', 'content_page_id',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_content_rating_feedback(uuid,integer,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_patient'], purpose: 'record rating feedback for one visible current-clinic page as current patient',
+      typedArgs: ['uuid', 'integer', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'id', 'organization_id', 'is_published', 'archived_at', 'deleted_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_blocks', columns: ['code', 'organization_id', 'is_visible'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_home_block_items', columns: [
+          'block_code', 'organization_id', 'is_visible', 'target_type', 'target_ref',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_content_rating_feedback', columns: [
+          'id', 'organization_id', 'user_id', 'content_page_id', 'rating_value', 'reason_codes', 'comment',
+        ], operations: ['SELECT' as const, 'INSERT' as const], operationColumns: { SELECT: ['id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_playback_client_event(uuid,text,text,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'record bounded playback diagnostics for media visible to the current patient',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.media_files', columns: [
+          'id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'organization_id', 'is_published', 'archived_at', 'deleted_at', 'video_url', 'image_url',
+          'body_md', 'body_html',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: [
+          'id', 'organization_id', 'patient_user_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: ['id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: [
+          'id', 'stage_id', 'status', 'snapshot',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_item_discussion_messages', columns: [
+          'instance_stage_item_id', 'media_file_id', 'organization_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_client_events', columns: [
+          'organization_id', 'media_id', 'user_id', 'event_class', 'delivery', 'error_detail', 'user_agent',
+        ], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.record_current_patient_playback_first_resolve(uuid)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'record one first-resolve marker for media visible to the current patient',
+      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_files', columns: [
+          'id', 'organization_id', 'owner_kind', 'usage_purpose', 'uploaded_by',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.content_pages', columns: [
+          'organization_id', 'is_published', 'archived_at', 'deleted_at', 'video_url', 'image_url',
+          'body_md', 'body_html',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: [
+          'id', 'organization_id', 'patient_user_id', 'status',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: ['id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: [
+          'id', 'stage_id', 'status', 'snapshot',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_item_discussion_messages', columns: [
+          'instance_stage_item_id', 'media_file_id', 'organization_id',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_playback_user_video_first_resolve', columns: [
+          'organization_id', 'user_id', 'media_id',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          operationColumns: { SELECT: ['user_id', 'media_id'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'capture one verified past diary-day snapshot for the current patient',
+      typedArgs: ['text', 'text', 'integer', 'integer', 'boolean', 'uuid', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'calendar_timezone'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instances', columns: ['id', 'organization_id', 'patient_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stages', columns: ['id', 'instance_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items', columns: ['id', 'organization_id', 'stage_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.program_action_log', columns: [
+          'organization_id', 'patient_user_id', 'instance_id', 'instance_stage_item_id', 'action_type', 'created_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_practice_completions', columns: [
+          'organization_id', 'user_id', 'source', 'completed_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_diary_day_snapshots', columns: [
+          'organization_id', 'platform_user_id', 'local_date', 'iana', 'warmup_slot_limit', 'warmup_done_count',
+          'warmup_all_done', 'plan_instance_id', 'plan_item_ids', 'plan_done_mask',
+        ], operations: ['SELECT' as const, 'INSERT' as const],
+          operationColumns: { SELECT: ['platform_user_id', 'local_date'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.set_current_patient_notification_topic(text,boolean)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'set one supported notification topic for the current patient',
+      typedArgs: ['text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topics', columns: [
+          'user_id', 'topic_code', 'is_enabled', 'updated_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.set_current_patient_notification_topic_channel(text,text,boolean)': rev10Function({
+      owner: 'app_seam_patient_self_actions_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_patient'], purpose: 'set one supported notification topic channel for the current patient',
+      typedArgs: ['text', 'text', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.app_runtime_settings', columns: [
+          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_notification_topic_channels', columns: [
+          'user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at',
+        ], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.create_current_patient_reminder_rule(text,text)': patientSelfFunction(
+      'jsonb', false, ['text', 'text'], 'patient.reminder-rule.create', exactPatientSurfaces(
+        [...PATIENT_REMINDER_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
+        PATIENT_ROOT_OPERATIONS.create_current_patient_reminder_rule)),
+    'app.update_current_patient_reminder_rule(text,text)': patientSelfFunction(
+      'jsonb', false, ['text', 'text'], 'patient.reminder-rule.update', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_reminder_rule)),
+    'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
+      'boolean', false, ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
+    'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientSelfFunction(
+      'uuid', false, ['text', 'text', 'text', 'timestamp with time zone', 'text'],
+      'patient.reminder-journal.record', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_reminder_journal_action)),
+    'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
+      'integer', false, ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_reminder_history_seen)),
+    'app.mark_all_current_patient_reminder_history_seen()': patientSelfFunction(
+      'integer', false, [], 'patient.reminder-history.seen-all', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_all_current_patient_reminder_history_seen)),
+    'app.set_current_patient_reminder_muted_until(timestamp with time zone)': patientSelfFunction(
+      'boolean', false, ['timestamp with time zone'], 'patient.reminder.mute', exactPatientSurfaces(
+        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.set_current_patient_reminder_muted_until)),
+    'app.ensure_current_patient_support_conversation()': patientSelfFunction(
+      'jsonb', false, [], 'patient.support-conversation.ensure', exactPatientSurfaces(
+        [...PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
+        PATIENT_ROOT_OPERATIONS.ensure_current_patient_support_conversation)),
+    'app.append_current_patient_support_message(uuid,text,text,text,timestamp with time zone,text,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'text', 'text', 'text', 'timestamp with time zone', 'text', 'text'],
+      'patient.support-message.append', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.append_current_patient_support_message)),
+    'app.mark_current_patient_support_conversation_read(uuid)': patientSelfFunction(
+      'integer', false, ['uuid'], 'patient.support-conversation.read', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_conversation_read)),
+    'app.mark_current_patient_support_messages_read(text)': patientSelfFunction(
+      'integer', false, ['text'], 'patient.support-messages.read', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_messages_read)),
+    'app.mark_current_patient_support_notifications_read()': patientSelfFunction(
+      'integer', false, [], 'patient.support-notifications.read', exactPatientSurfaces(
+        PATIENT_SUPPORT_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_support_notifications_read)),
+    'app.ensure_current_patient_system_symptom_tracking(text,text,uuid)': patientSelfFunction(
+      'jsonb', false, ['text', 'text', 'uuid'], 'patient.symptom-system-tracking.ensure', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.ensure_current_patient_system_symptom_tracking)),
+    'app.record_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
+      'patient.symptom-entry.record', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_symptom_entry)),
+    'app.update_current_patient_symptom_entry(uuid,integer,text,timestamp with time zone,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'integer', 'text', 'timestamp with time zone', 'text'],
+      'patient.symptom-entry.update', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_symptom_entry)),
+    'app.delete_current_patient_symptom_entry(uuid)': patientSelfFunction(
+      'boolean', false, ['uuid'], 'patient.symptom-entry.delete', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_symptom_entry)),
+    'app.configure_current_patient_assigned_symptom_tracking(uuid,text,boolean)': patientSelfFunction(
+      'boolean', false, ['uuid', 'text', 'boolean'], 'patient.symptom-tracking.configure', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.configure_current_patient_assigned_symptom_tracking)),
+    'app.apply_current_patient_warmup_feeling(uuid,integer,uuid,text,uuid,text)': patientSelfFunction(
+      'boolean', false, ['uuid', 'integer', 'uuid', 'text', 'uuid', 'text'],
+      'patient.warmup-feeling.apply', exactPatientSurfaces(
+        PATIENT_SYMPTOM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.apply_current_patient_warmup_feeling)),
+    'app.save_current_patient_channel_preference(text,boolean,boolean)': patientSelfFunction(
+      'jsonb', false, ['text', 'boolean', 'boolean'], 'patient.channel-preference.save', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_channel_preference)),
+    'app.set_current_patient_preferred_auth_channel(text)': patientSelfFunction(
+      'boolean', false, ['text'], 'patient.preferred-auth-channel.set', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.set_current_patient_preferred_auth_channel)),
+    'app.save_current_patient_web_push_subscription(text,text,text,text)': patientSelfFunction(
+      'boolean', false, ['text', 'text', 'text', 'text'], 'patient.web-push-subscription.save', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_web_push_subscription)),
+    'app.remove_current_patient_web_push_subscription(text)': patientSelfFunction(
+      'boolean', false, ['text'], 'patient.web-push-subscription.remove', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.remove_current_patient_web_push_subscription)),
+    'app.remove_all_current_patient_web_push_subscriptions()': patientSelfFunction(
+      'integer', false, [], 'patient.web-push-subscriptions.remove-all', exactPatientSurfaces(
+        PATIENT_CHANNEL_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.remove_all_current_patient_web_push_subscriptions)),
+    'app.touch_current_patient_program_item(uuid,uuid)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'uuid'], 'patient.program-item.touch', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.touch_current_patient_program_item)),
+    'app.complete_current_patient_program_item(uuid,uuid,integer,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'uuid', 'integer', 'text'], 'patient.program-item.complete', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.complete_current_patient_program_item)),
+    'app.enrich_current_patient_program_completion(uuid,uuid,uuid,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'uuid', 'uuid', 'text'], 'patient.program-completion.enrich', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.enrich_current_patient_program_completion)),
+    'app.record_current_patient_program_action(uuid,uuid,text,uuid,text,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'uuid', 'text', 'uuid', 'text', 'text'], 'patient.program-action.record',
+      exactPatientSurfaces(PATIENT_PROGRAM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.record_current_patient_program_action)),
+    'app.delete_current_patient_program_actions_in_window(uuid,uuid,timestamp with time zone,timestamp with time zone,boolean)': patientSelfFunction(
+      'integer', false, ['uuid', 'uuid', 'timestamp with time zone', 'timestamp with time zone', 'boolean'],
+      'patient.program-actions.delete-window', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.delete_current_patient_program_actions_in_window)),
+    'app.append_current_patient_program_event(uuid,text,text,uuid,text,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'text', 'text', 'uuid', 'text', 'text'], 'patient.program-event.append',
+      exactPatientSurfaces(PATIENT_PROGRAM_CORE_SURFACES,
+        PATIENT_ROOT_OPERATIONS.append_current_patient_program_event)),
+    'app.mark_current_patient_program_item_viewed(uuid,uuid)': patientSelfFunction(
+      'boolean', false, ['uuid', 'uuid'], 'patient.program-item.viewed', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_program_item_viewed)),
+    'app.append_current_patient_program_discussion(uuid,text,uuid)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'text', 'uuid'], 'patient.program-discussion.append', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.append_current_patient_program_discussion)),
+    'app.mark_current_patient_program_discussion_read(uuid,timestamp with time zone)': patientSelfFunction(
+      'boolean', false, ['uuid', 'timestamp with time zone'], 'patient.program-discussion.read', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_program_discussion_read)),
+    'app.ensure_current_patient_test_attempt(uuid)': patientSelfFunction(
+      'jsonb', false, ['uuid'], 'patient.test-attempt.ensure', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.ensure_current_patient_test_attempt)),
+    'app.start_current_patient_test_attempt(uuid,uuid)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'uuid'], 'patient.test-attempt.start', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.start_current_patient_test_attempt)),
+    'app.save_current_patient_test_result(uuid,uuid,text,text)': patientSelfFunction(
+      'jsonb', false, ['uuid', 'uuid', 'text', 'text'], 'patient.test-result.save', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.save_current_patient_test_result)),
+    'app.submit_current_patient_test_attempt(uuid)': patientSelfFunction(
+      'boolean', false, ['uuid'], 'patient.test-attempt.submit', exactPatientSurfaces(
+        PATIENT_PROGRAM_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.submit_current_patient_test_attempt)),
     'app.enqueue_media_transcode_job_core(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
-      execute: ['app_seam_patient_lfk_media_owner'],
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      // Ядро зовут только `_for_staff`/`_for_service` — оба SECURITY DEFINER ТОГО ЖЕ владельца,
+      // то есть внутри них `current_user` уже владелец ядра и EXECUTE у него подразумеваемый.
+      // Явный грант владельцу самому себе ничего не добавлял, а внутренний делегированный шов по
+      // канону обязан быть caller-free (как все `*_impl`); проверка увидела это, когда
+      // `public.media_transcode_jobs` осталась без прямых ролей (миграция 0050).
+      execute: [],
       purpose: 'private idempotent media transcode producer shared by exact patient/staff/service roots',
       typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'], invocation: 'internal' as const,
@@ -3136,70 +5563,144 @@ const REV10_CONTEXT = {
           columns: ['id', 'organization_id', 'mime_type', 's3_key', 'status',
             'hls_master_playlist_s3_key', 'video_processing_status', 'video_processing_error'],
           operations: ['SELECT' as const, 'UPDATE' as const],
-          evidence: 'exact transcode producer core in migration 0440' as const },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_transcode_jobs',
           columns: ['id', 'media_id', 'organization_id', 'status', 'attempts', 'created_at', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const],
-          evidence: 'exact transcode producer core in migration 0440' as const },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.create_patient_program_submission_media(uuid,text,text,text,bigint)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'patient.media.program-submission.create',
       typedArgs: ['uuid', 'text', 'text', 'text', 'bigint'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
         { relation: 'public.org_enrollments',
           columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT' as const],
-          evidence: 'exact current-patient enrollment gate in migration 0440' as const },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_folders',
           columns: ['id', 'organization_id', 'parent_id', 'name', 'kind', 'patient_user_id'],
           operations: ['SELECT' as const, 'INSERT' as const],
-          evidence: 'exact current-patient folder ensure in migration 0440' as const },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_identity',
           columns: ['platform_user_id', 'first_name', 'last_name', 'patronymic', 'display_name'],
-          operations: ['SELECT' as const], evidence: 'patient folder display label in migration 0440' as const },
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_files',
           columns: ['id', 'owner_kind', 'organization_id', 'original_name', 'stored_path', 'mime_type',
             'size_bytes', 'uploaded_by', 's3_key', 'status', 'folder_id', 'usage_purpose',
             'video_delivery_override'],
-          operations: ['INSERT' as const], evidence: 'exact patient media insert in migration 0440' as const },
+          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.confirm_patient_program_submission_media(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'patient.media.program-submission.confirm', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.media_files',
         columns: ['id', 'organization_id', 'uploaded_by', 'usage_purpose', 'status', 'mime_type'],
         operations: ['SELECT' as const, 'UPDATE' as const],
-        evidence: 'exact own pending submission transition in migration 0440' as const }],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.abort_patient_program_submission_media(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient'], purpose: 'patient.media.program-submission.abort', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.media_files',
         columns: ['id', 'organization_id', 'uploaded_by', 'usage_purpose', 'status'],
         operations: ['SELECT' as const, 'UPDATE' as const],
-        evidence: 'exact own pending submission abort in migration 0440' as const }],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.enqueue_media_transcode_job_for_staff(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_staff'], purpose: 'media.transcode.enqueue', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.media_files', columns: ['id'], operations: ['SELECT' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+      delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
     }),
     'app.enqueue_media_transcode_job_for_service(uuid)': rev10Function({
-      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_operational_media_worker'], purpose: 'media.transcode.enqueue', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [], delegatesTo: ['app.enqueue_media_transcode_job_core(uuid)'],
+    }),
+    // Три двери разбора очереди пересборки видео (миграция 0050). Постановка в очередь уже стояла
+    // за корнем этого же шва (`app.enqueue_media_transcode_job_for_staff/_for_service`), а разбор
+    // ходил отношением под `app_operational_media_worker` — и не мог взять НИ ОДНОЙ работы:
+    // единственная разрешающая политика этой роли на `public.media_transcode_jobs` состоит из
+    // арендаторских веток, обе зовут `app.current_org_id()` подзапросом-InitPlan'ом, а та на роли
+    // воркера не возвращает NULL, а поднимает `42501 accepted organization context required`.
+    // Отказ приходит ровно тогда, когда узлу есть что фильтровать, поэтому ПУСТАЯ очередь молчала,
+    // а первая же поставленная работа начинала петлю падения. Замер на TEST 19.08: воркер падал
+    // раз в 5 секунд с 18.08 19:26, видео не пересобиралось больше суток; воспроизведено на живой
+    // bcb_webapp_dev тем же боевым маршрутом при возвращённых старых правах.
+    // Диспетчер очереди межарендный по построению — своего `organization_id` у него нет и быть не
+    // может, поэтому дверь у него собственная, а стена «организация работы = организация файла»
+    // стоит в теле каждого корня.
+    'app.claim_media_transcode_job(text,integer)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.claim',
+      typedArgs: ['text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'attempts', 'created_at',
+            'updated_at', 'locked_at', 'locked_by', 'last_error', 'next_attempt_at',
+            'processing_started_at', 'finished_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files', columns: ['id', 'organization_id'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.read_media_transcode_job_media(uuid,uuid,text)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.job-media.read',
+      typedArgs: ['uuid', 'uuid', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'locked_by'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'mime_type', 's3_key', 'hls_master_playlist_s3_key',
+            'video_processing_status', 'video_duration_seconds', 'usage_purpose'],
+          operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Один исход — одна дверь. Ветка выбирается параметром из ЗАКРЫТОГО списка внутри тела, как у
+    // соседа `app.prune_retention_target(text,integer,boolean)`: каждый исход сохраняет своё
+    // поведение, общей у них только эта дверь.
+    'app.record_media_transcode_job_outcome(uuid,uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_operational_media_worker'], purpose: 'media.transcode.outcome.record',
+      typedArgs: ['uuid', 'uuid', 'text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_transcode_jobs',
+          columns: ['id', 'media_id', 'organization_id', 'status', 'locked_by', 'locked_at',
+            'last_error', 'next_attempt_at', 'processing_started_at', 'finished_at', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'mime_type', 's3_key', 'video_processing_status',
+            'video_processing_error', 'video_delivery_override', 'available_qualities_json',
+            'hls_master_playlist_s3_key', 'hls_artifact_prefix', 'poster_s3_key',
+            'video_duration_seconds'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.user-organization.resolve',
       typedArgs: ['bigint'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3213,7 +5714,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.integrator_upsert_channel_identity(text,text,text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.channel-identity.upsert',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3238,7 +5739,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.bootstrap-phone-bind',
       typedArgs: ['text', 'text', 'text', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3276,18 +5777,34 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
+    'app.install_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', returnsSet: false, loginExecute: true as const,
       execute: [], purpose: 'install', typedArgs: ['uuid', 'app.port_context_claims'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.clear_port_context()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', loginExecute: true as const,
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.clear_port_context()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'void', returnsSet: false, loginExecute: true as const,
       execute: [], purpose: 'clear', typedArgs: [],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      bodyRelationSurfaceContract: 'port-context' as const }),
+    // Сетевая обёртка установки контекста: SECURITY INVOKER, собственных прав на отношения не
+    // имеет и иметь не должна — она только зовёт два корня шва и переходит в целевую роль правами
+    // вызывающего логина. DEFINER здесь невозможен: PostgreSQL запрещает `SET ROLE` внутри
+    // security-definer тела.
+    'app.begin_port_context(uuid,app.port_context_claims)': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'void', returnsSet: false, loginExecute: true as const,
+      execute: [], purpose: 'install a port context and assume its declared target role in one round trip',
+      typedArgs: ['uuid', 'app.port_context_claims'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, pg_temp'],
+      relationSurfaces: [],
+      delegatesTo: [
+        'app.clear_port_context()',
+        'app.install_port_context(uuid,app.port_context_claims)',
+      ] }),
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      bodyRelationSurfaceContract: 'port-context' as const }),
     'app.require_attested_context_for_roles(name,name[])': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', execute: [...REV10_SEAM_OWNERS],
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_SEAM_OWNERS],
       purpose: 'verify one current transaction-bound port context before an ordinary definer body',
       typedArgs: ['name', 'name[]'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], invocation: 'internal' as const,
@@ -3302,11 +5819,11 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean',
+    'app.require_platform_principal()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_platform_settings', 'saas_telemetry_operator', ...REV10_SEAM_OWNERS], purpose: 'platform', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
     'app.resolve_platform_audit_conflict(uuid)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'text',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'resolve one whitelisted platform audit conflict', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.admin_audit_log',
@@ -3314,8 +5831,9 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.append_platform_audit_event(text,text,text)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid',
-      execute: ['app_platform_admin'], purpose: 'append one whitelisted platform operator audit event',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_platform_admin', 'app_pre_session'],
+      purpose: 'append one whitelisted platform operator or pre-session auth audit event',
       typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'public.admin_audit_log',
@@ -3323,15 +5841,36 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.acknowledge_open_outbound_provider_incidents()': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'acknowledge all open outbound-provider incidents', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.operator_incidents',
         columns: ['resolved_at', 'acknowledged_at', 'direction', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at'],
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    // Единственная дверь ОТКРЫТИЯ критического инцидента. До неё пятиминутный сторож писал строку
+    // прямым drizzle-INSERT под `app_worker`, который перечисляет ВСЕ колонки таблицы: семь
+    // выданных поколоночно и десять невыданных с `default`, — и получал
+    // `42501 permission denied for table operator_incidents` каждый прогон (замер 19.08 на TEST).
+    // Сторож читал инциденты и не мог открыть ни одного. Владелец шва тот же, что стоит в гейте
+    // интеграторского `app.open_or_touch_operator_incident(...)`; отдельная дверь, а не
+    // переиспользование, потому что набор исполнителей той закрыт утверждением
+    // `NOT has_function_privilege('app_worker', ...)` в `integrator-server-runtime-config.sql`,
+    // и её контракт не отдаёт `opened_at`, по которому каденция считает T0 -> +1ч.
+    'app.open_or_touch_operator_critical_incident(text,text,text,timestamp with time zone,text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'open or touch only one critical-cadence operator incident',
+      typedArgs: ['text', 'text', 'text', 'timestamp with time zone', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_incidents',
+        columns: ['id', 'dedup_key', 'direction', 'integration', 'error_class', 'error_detail',
+          'opened_at', 'last_seen_at', 'occurrence_count', 'resolved_at'],
+        operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+        evidence: 'exact INSERT ON CONFLICT(dedup_key) in migration 0041' as const }],
+    }),
     'app.resolve_all_open_operator_incidents()': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_platform_admin'], purpose: 'resolve all open platform operator incidents', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [{ relation: 'public.operator_incidents',
@@ -3339,7 +5878,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.read_tenant_isolation_canary()': rev10Function({
-      owner: 'saas_system_health_owner', security: 'DEFINER', returns: 'jsonb',
+      owner: 'saas_system_health_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['saas_telemetry_operator'],
       purpose: 'return a bounded organization/member-count snapshot for the critical isolation canary',
       typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
@@ -3351,7 +5890,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.list_platform_health_failure_archive(text,integer,timestamp with time zone,uuid)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_admin'], purpose: 'list only sanitized platform health archive fields',
       typedArgs: ['text', 'integer', 'timestamp with time zone', 'uuid'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
@@ -3361,14 +5900,14 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.archive_operator_health_failures(text,integer,uuid)': rev10Function({
-      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_platform_admin'], purpose: 'archive and remove one sanitized non-clinical dead queue batch',
       typedArgs: ['text', 'integer', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.outgoing_delivery_queue', columns: ['id', 'organization_id', 'status', 'failure_class',
           'kind', 'channel', 'payload_json', 'last_error', 'created_at'],
-          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.broadcast_audit', columns: ['id', 'organization_id', 'actor_id', 'message_title'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -3376,11 +5915,11 @@ const REV10_CONTEXT = {
           'phone_normalized'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.integrator_push_outbox', columns: ['id', 'kind', 'status', 'last_error',
-          'created_at'], operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'integrator.projection_outbox', columns: ['id', 'event_type', 'idempotency_key',
           'status', 'attempts_done', 'last_error', 'created_at'],
-          operations: ['SELECT' as const, 'UPDATE' as const, 'DELETE' as const],
+          operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.operator_health_failure_archive', columns: ['organization_id', 'archived_by_user_id',
           'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json',
@@ -3389,27 +5928,64 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'] }),
-    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
-    'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
-    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+    'app.current_org_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-org', typedArgs: [], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
+    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      // UPDATE dropped 19.08 with the no-op upsert: the map is append-only, so the resolver only
+      // ever reads an existing reference or inserts a missing one. It never rewrites a row.
+      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+    // Deferred constraint trigger on app_ext.accepted_port_contexts: the accepted context is deleted
+    // at COMMIT of the very transaction that installed it, so a committed context row cannot exist
+    // and no periodic sweep is needed. DEFINER on the table owner because the effective role at
+    // COMMIT is the bare login, which holds no USAGE on app_ext.
+    'app_ext.expire_accepted_port_context()': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false,
+      execute: [], purpose: 'delete the accepted port context at COMMIT of its own transaction',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app_ext, pg_temp'], invocation: 'trigger' as const,
+      relationSurfaces: [{
+        relation: 'app_ext.accepted_port_contexts',
+        columns: ['database_oid', 'backend_pid', 'transaction_id'],
+        operations: ['SELECT' as const, 'DELETE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const,
+      }],
+    }),
     'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_seam_context_owner'],
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
       purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
+    // Проверка заявки на арендатора при установке контекста (19.08).  Живёт у шва личностей, а не
+    // у шва контекста: контекст ещё не установлен, а этому владельцу RLS-политики членства открыты
+    // без контекста, и ровно эти колонки у него уже есть под другие его функции — новых прав
+    // проверка не требует.  Подробности и разбор порядка — в теле функции.
+    'app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_seam_context_owner'],
+      purpose: 'refuse a port context whose organization claim is not backed by the actor own membership, enrollment or platform role',
+      typedArgs: ['text', 'name', 'uuid', 'uuid', 'uuid', 'bigint'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id', 'integrator_user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.pre_session_resolve_identity(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', execute: ['app_pre_session', 'app_platform_admin'],
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_pre_session', 'app_platform_admin'],
       purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
     }),
     'app.auth_channel_binding_session(text,text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session'], purpose: 'resolve one verified messenger binding into session-only identity data',
       typedArgs: ['text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3426,7 +6002,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.resolve_staff_workspace_memberships(uuid)': rev10Function({
-      owner: 'app_seam_org_directory_owner', security: 'DEFINER', returns: 'record',
+      owner: 'app_seam_org_directory_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_pre_session', 'app_staff'], purpose: 'resolve active organization memberships before staff routing and revalidate self after routing',
       typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
@@ -3434,6 +6010,17 @@ const REV10_CONTEXT = {
         columns: ['id', 'organization_id', 'platform_user_id', 'role', 'specialist_id', 'status',
           'doctor_screens_disabled', 'created_at', 'updated_at'],
         operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.set_platform_organization_is_active(uuid,boolean)': rev10Function({
+      owner: 'app_seam_org_directory_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_platform_settings'],
+      purpose: 'set whether a platform organization account is enabled',
+      typedArgs: ['uuid', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.be_organizations',
+        columns: ['id', 'is_active', 'updated_at'],
+        operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'exact UPDATE in migration 0050' as const }],
     }),
   },
 } as const;
@@ -3446,13 +6033,42 @@ const REV10_LOCKED_POLICIES = new Map<string, LockedPolicyTarget>(
 
 type DirectAccessSeed = Omit<Extract<RelationAccess, { kind: 'direct' }>, 'seams'>;
 
+const REV10_PATIENT_NAMED_WRITE_OPERATIONS: Readonly<Record<string, readonly Privilege[]>> = {
+  'public.material_ratings': ['INSERT', 'UPDATE'],
+  'public.media_playback_client_events': ['INSERT'],
+  'public.media_playback_user_video_first_resolve': ['INSERT'],
+  'public.patient_content_rating_feedback': ['INSERT'],
+  'public.patient_daily_warmup_presentations': ['INSERT', 'UPDATE'],
+  'public.patient_daily_warmup_video_views': ['INSERT'],
+  'public.patient_diary_day_snapshots': ['INSERT'],
+  'public.patient_practice_completions': ['INSERT', 'UPDATE'],
+  'public.user_notification_topic_channels': ['INSERT', 'UPDATE'],
+  'public.user_notification_topics': ['INSERT', 'UPDATE'],
+};
+
+function withoutConvertedPatientWrites(
+  tableKey: string,
+  grants: readonly Extract<RelationAccess, { kind: 'direct' }>['grants'][number][],
+): Extract<RelationAccess, { kind: 'direct' }>['grants'] {
+  const converted = new Set(REV10_PATIENT_NAMED_WRITE_OPERATIONS[tableKey] ?? []);
+  if (converted.size === 0) return [...grants];
+  return grants.flatMap((grant) => {
+    if (grant.role !== 'app_patient') return [grant];
+    const operations = grant.operations.filter((operation) => !converted.has(operation));
+    return operations.length > 0 ? [{ ...grant, operations }] : [];
+  });
+}
+
 const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.admin_audit_log': {
-    kind: 'direct', purpose: 'platform operations reads and appends the non-clinical administrative event journal',
+    kind: 'direct',
+    purpose: 'platform operations reads and appends the non-clinical administrative event journal; '
+      + 'the clinic billing role appends only its own organization row when the clinic owner changes tariff',
     codePaths: [
       'apps/webapp/src/infra/adminAuditLog.ts#listAdminAuditLog',
       'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts#appendAudit',
       'apps/webapp/src/infra/repos/pgSaasBilling.ts',
+      'apps/webapp/src/infra/repos/pgSaasBilling.ts#appendManualAssignmentAudit',
     ],
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: [
@@ -3460,6 +6076,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         'last_seen_at', 'resolved_at', 'created_at',
       ] },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
+        'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
+        'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
+      ] },
+      // Стена `platform-role+clinic` уже объявляет: org-строки живут под стеной клиники. Владелец
+      // клиники меняет тариф под ролью app_clinic_billing, и тот же путь обязан записать «кто что
+      // сделал». Даём ТОЛЬКО INSERT: читать журнал арендатор по-прежнему не может, править и удалять
+      // записи — тоже. Колонки перечислены все, потому что drizzle именует в INSERT каждую колонку
+      // таблицы (включая DEFAULT-ные), а PostgreSQL проверяет привилегию на каждую названную.
+      { role: 'app_clinic_billing', operations: ['INSERT'], columns: [
         'id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status',
         'repeat_count', 'last_seen_at', 'resolved_at', 'created_at',
       ] },
@@ -3492,10 +6117,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
-        'enabled', 'expires_at', 'mechanic', 'organization_id', 'quota', 'seat_limit_override', 'updated_at',
+        'created_at', 'enabled', 'expires_at', 'id', 'mechanic', 'organization_id', 'quota',
+        'seat_limit_override', 'updated_at',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
-        'enabled', 'expires_at', 'mechanic', 'organization_id', 'quota', 'seat_limit_override', 'updated_at',
+        'enabled', 'expires_at', 'quota', 'seat_limit_override', 'updated_at',
       ] },
       { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
     ],
@@ -3526,7 +6152,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
         'discount_window_days', 'duration_days', 'is_active', 'key', 'post_trial_behavior',
-        'post_trial_tariff_id', 'start_event', 'updated_at', 'updated_by',
+        'post_trial_tariff_id', 'start_event', 'created_at', 'updated_at', 'updated_by',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
         'discount_window_days', 'duration_days', 'is_active', 'post_trial_behavior',
@@ -3540,7 +6166,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'], columns: [
-        'key', 'tariff_id', 'updated_at', 'updated_by',
+        'key', 'tariff_id', 'created_at', 'updated_at', 'updated_by',
       ] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: [
         'tariff_id', 'updated_at', 'updated_by',
@@ -3578,9 +6204,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_patient', operations: ['SELECT'],
         columns: ['organization_id', 'stars', 'target_id', 'target_kind', 'user_id'] },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['id', 'organization_id', 'stars', 'target_id', 'target_kind', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['stars', 'updated_at'] },
     ],
   },
   'public.patient_content_rating_feedback': {
@@ -3588,9 +6211,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgMaterialRatingFeedback.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: ['id'] },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['comment', 'content_page_id', 'created_at', 'id', 'organization_id', 'rating_value',
-          'reason_codes', 'user_id'] },
     ],
   },
   'public.patient_home_block_items': {
@@ -3608,21 +6228,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgReminderRules.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'category', 'content_mode', 'custom_text', 'custom_title', 'days_mask', 'display_description',
-        'display_title', 'integrator_rule_id', 'integrator_user_id', 'interval_minutes', 'is_enabled',
-        'linked_object_id', 'linked_object_type', 'notification_topic_code', 'organization_id',
-        'platform_user_id', 'quiet_hours_end_minute', 'quiet_hours_start_minute', 'reminder_intent',
-        'schedule_data', 'schedule_type', 'timezone', 'updated_at', 'window_end_minute', 'window_start_minute',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: [
-        'category', 'content_mode', 'custom_text', 'custom_title', 'days_mask', 'display_description',
-        'display_title', 'integrator_user_id', 'interval_minutes', 'is_enabled', 'linked_object_id',
-        'linked_object_type', 'notification_topic_code', 'organization_id', 'platform_user_id',
-        'quiet_hours_end_minute', 'quiet_hours_start_minute', 'reminder_intent', 'schedule_data',
-        'schedule_type', 'timezone', 'updated_at', 'window_end_minute', 'window_start_minute',
-      ] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.reminder_journal': {
@@ -3630,8 +6235,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgReminderJournal.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['action', 'occurrence_id', 'rule_id', 'skip_reason', 'snooze_until'] },
     ],
   },
   'public.reminder_occurrence_history': {
@@ -3640,7 +6243,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgReminderProjection.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['seen_at'] },
     ],
   },
   'public.support_conversation_messages': {
@@ -3648,12 +6250,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSupportCommunication.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'conversation_id', 'created_at', 'delivered_at', 'delivery_status', 'external_chat_id',
-        'external_message_id', 'integrator_message_id', 'media_type', 'media_url', 'message_type',
-        'organization_id', 'sender_role', 'source', 'text',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['read_at'] },
     ],
   },
   'public.support_conversations': {
@@ -3661,11 +6257,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSupportCommunication.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'admin_scope', 'integrator_conversation_id', 'integrator_user_id', 'last_message_at', 'opened_at',
-        'organization_id', 'platform_user_id', 'source', 'status',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['organization_id', 'platform_user_id', 'updated_at'] },
     ],
   },
   'public.symptom_entries': {
@@ -3673,13 +6264,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSymptomDiary.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'entry_type', 'notes', 'patient_practice_completion_id', 'platform_user_id', 'recorded_at',
-        'source', 'tracking_id', 'user_id', 'value_0_10',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['entry_type', 'notes', 'recorded_at', 'value_0_10'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.symptom_trackings': {
@@ -3687,16 +6271,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgSymptomDiary.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'diagnosis_ref_id', 'diagnosis_text', 'is_active', 'organization_id', 'platform_user_id',
-        'region_ref_id', 'side', 'stage_ref_id', 'symptom_key', 'symptom_title', 'symptom_type_ref_id',
-        'updated_at', 'user_id',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: [
-        'deleted_at', 'diagnosis_ref_id', 'diagnosis_text', 'is_active', 'region_ref_id', 'side',
-        'stage_ref_id', 'symptom_title', 'symptom_type_ref_id', 'updated_at',
-      ] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.treatment_program_instances': {
@@ -3704,7 +6278,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['updated_at'] },
     ],
   },
   'public.treatment_program_instance_stages': {
@@ -3712,7 +6285,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['skip_reason', 'started_at', 'status'] },
     ],
   },
   'public.treatment_program_instance_stage_items': {
@@ -3720,7 +6292,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['completed_at', 'last_viewed_at'] },
     ],
   },
   'public.treatment_program_instance_stage_groups': {
@@ -3733,10 +6304,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramEvents.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'actor_id', 'created_at', 'event_type', 'id', 'instance_id', 'organization_id', 'payload', 'reason',
-        'target_id', 'target_type',
-      ] },
     ],
   },
   'public.program_action_log': {
@@ -3744,11 +6311,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgProgramActionLog.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'action_type', 'created_at', 'id', 'instance_id', 'instance_stage_item_id', 'note', 'organization_id',
-        'patient_user_id', 'payload', 'session_id',
-      ] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.test_attempts': {
@@ -3756,11 +6318,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'accepted_at', 'accepted_by', 'id', 'instance_stage_item_id', 'organization_id', 'patient_user_id',
-        'started_at', 'submitted_at',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['submitted_at'] },
     ],
   },
   'public.test_results': {
@@ -3768,11 +6325,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTreatmentProgramTestAttempts.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'attempt_id', 'created_at', 'decided_by', 'id', 'normalized_decision', 'organization_id', 'raw_value',
-        'test_id',
-      ] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['decided_by', 'normalized_decision', 'raw_value'] },
     ],
   },
   'public.program_item_discussion_messages': {
@@ -3780,10 +6332,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'body', 'created_at', 'id', 'instance_stage_item_id', 'media_file_id', 'organization_id', 'origin',
-        'patient_user_id', 'sender_role', 'support_message_id',
-      ] },
     ],
   },
   'public.program_item_discussion_reads': {
@@ -3791,9 +6339,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgProgramItemDiscussion.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['instance_stage_item_id', 'last_read_at', 'organization_id', 'patient_user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['last_read_at'] },
     ],
   },
   'public.reference_categories': {
@@ -3860,16 +6405,16 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'apps/webapp/src/infra/repos/pgUserByPhone.ts#loadSessionIdentityUser',
       'apps/webapp/src/infra/repos/pgPlatformUserCalendarTimezone.ts',
       'apps/webapp/src/infra/repos/pgReminderRules.ts#setReminderMutedUntil',
+      'apps/webapp/src/infra/repos/pgDoctorClients.ts#isClientMessagingBlocked',
       'apps/webapp/src/app/app/account/page.tsx',
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
           'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
+          'is_blocked',
           'patient_phone_trust_at',
           'reminder_muted_until'] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['calendar_timezone', 'reminder_muted_until', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['SELECT'],
         columns: ['id', 'email', 'email_verified_at', 'calendar_timezone'] },
       { role: 'app_platform_settings', operations: ['UPDATE'], columns: ['calendar_timezone', 'updated_at'] },
@@ -3894,11 +6439,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['auth', 'endpoint', 'p256dh', 'updated_at', 'user_agent', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['auth', 'p256dh', 'updated_at', 'user_agent', 'user_id'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.user_channel_preferences': {
@@ -3907,13 +6447,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgChannelPreferences.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications',
-          'is_preferred_for_auth', 'platform_user_id', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'],
-        columns: ['is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth',
-          'platform_user_id', 'updated_at'] },
-      { role: 'app_patient', operations: ['DELETE'], columns: 'table' },
     ],
   },
   'public.user_notification_topics': {
@@ -3922,9 +6455,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgPatientNotificationTopics.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['is_enabled', 'topic_code', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
     ],
   },
   'public.user_notification_topic_channels': {
@@ -3933,9 +6463,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgTopicChannelPrefs.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['channel_code', 'is_enabled', 'topic_code', 'updated_at', 'user_id'] },
-      { role: 'app_patient', operations: ['UPDATE'], columns: ['is_enabled', 'updated_at'] },
     ],
   },
   'public.user_phone_history': {
@@ -3960,9 +6487,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: [
-        'available_qualities_json', 'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id',
-        'original_name', 'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key',
-        'preview_status', 's3_key', 'size_bytes', 'status', 'stored_path', 'uploaded_by',
+        'available_qualities_json', 'created_at', 'display_name', 'hls_artifact_prefix',
+        'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id', 'original_name',
+        'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status', 's3_key',
+        'size_bytes', 'source_height', 'source_width', 'standard_rendition_at', 'status',
+        'stored_path', 'uploaded_by',
         'usage_purpose', 'video_delivery_override', 'video_duration_seconds',
         'video_processing_error', 'video_processing_status',
       ] },
@@ -3988,11 +6517,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.media_hls_proxy_error_events': {
     kind: 'direct',
-    purpose: 'the accepted media housekeeping worker deletes expired HLS proxy diagnostics',
+    purpose: 'expired HLS proxy diagnostics are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/app-layer/media/hlsProxyErrorEvents.ts'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.org_brand_revisions': {
     kind: 'direct', purpose: 'patient reads only the published brand revision of its active clinic',
@@ -4000,35 +6531,25 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
   },
   'public.media_playback_client_events': {
-    kind: 'direct', purpose: 'patient appends only its own current-clinic browser playback failures',
+    kind: 'direct', purpose: 'patient appends playback failures only through the exact visibility-checked root',
     codePaths: ['apps/webapp/src/app-layer/media/playbackClientEvents.ts#recordPlaybackClientEvent'],
-    grants: [{ role: 'app_patient', operations: ['INSERT'], columns: [
-      'created_at', 'delivery', 'error_detail', 'event_class', 'id', 'media_id', 'organization_id',
-      'user_agent', 'user_id',
-    ] }],
+    grants: [],
   },
   'public.media_playback_user_video_first_resolve': {
-    kind: 'direct', purpose: 'patient records and returns only its own current-clinic first-view marker',
-    codePaths: ['apps/webapp/src/app-layer/media/playbackUserVideoFirstResolve.ts'],
+    kind: 'direct', purpose: 'patient reads its own marker and records it only through the exact visibility-checked root',
+    codePaths: ['apps/webapp/src/infra/repos/pgPlaybackUserVideoFirstResolve.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: ['media_id', 'user_id'] },
-      { role: 'app_patient', operations: ['INSERT'], columns: [
-        'first_resolved_at', 'media_id', 'organization_id', 'user_id',
-      ] },
     ],
   },
-  'public.media_transcode_jobs': {
-    kind: 'direct',
-    purpose: 'the accepted operational media worker claims and completes cross-tenant transcode jobs',
-    codePaths: ['apps/webapp/src/infra/repos/pgMediaWorkerControl.ts'],
-    grants: [
-      { role: 'app_operational_media_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_media_worker', operations: ['UPDATE'], columns: [
-        'attempts', 'finished_at', 'last_error', 'locked_at', 'locked_by', 'next_attempt_at',
-        'processing_started_at', 'status', 'updated_at',
-      ] },
-    ],
-  },
+  // `public.media_transcode_jobs` прямой поверхности БОЛЬШЕ НЕ ИМЕЕТ. Гранты
+  // `app_operational_media_worker` стояли здесь с формулировкой «диспетчер забирает и завершает
+  // межарендные работы», но были мертвы: единственная разрешающая политика этой роли на таблице
+  // (`rev10_saas_org_dormant_p0_8_4`) собрана из арендаторских веток, обе зовут
+  // `app.current_org_id()`, а та роль воркера не принимает и поднимает 42501 — то есть ни один
+  // оператор под этой ролью не доходил до строки очереди. Убраны в миграции 0050 вместе с переводом диспетчера на
+  // три корня шва `app_seam_patient_lfk_media_owner`; без прямых ролей генератор больше не рисует
+  // на таблицу и саму неудовлетворимую политику. Доступ теперь целиком `named-seams`.
   'public.operator_job_status': {
     kind: 'direct',
     purpose: 'the accepted webapp worker records and reads scheduler health ticks',
@@ -4055,9 +6576,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgOperatorHealthWrite.ts', 'apps/webapp/src/infra/repos/pgOperatorHealthRead.ts'],
     grants: [
       { role: 'app_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_worker', operations: ['INSERT'], columns: [
-        'dedup_key', 'direction', 'integration', 'error_class', 'error_detail', 'opened_at', 'last_seen_at',
-      ] },
+      // Поколоночного INSERT у рабочей роли больше нет: drizzle перечислял в INSERT ВСЕ колонки
+      // таблицы и упирался в те десять, которых роли не выдавали (замер 19.08 на TEST:
+      // `42501 permission denied for table operator_incidents`, повтор каждые пять минут).
+      // Открытие инцидента переехало на объявленный корень
+      // `app.open_or_touch_operator_critical_incident(...)` — второго пути к той же записи не
+      // оставлено. UPDATE-путь каденции (claim/complete/release/resolve) остаётся реляционным:
+      // он трогает только выданные колонки уже открытой строки.
       { role: 'app_worker', operations: ['UPDATE'], columns: [
         'last_seen_at', 'occurrence_count', 'error_detail', 'alert_sent_at', 'resolved_at',
         'initial_alert_sent_at', 'one_hour_alert_sent_at', 'alert_claim_phase', 'alert_claim_token',
@@ -4067,19 +6592,23 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.product_analytics_events_recent': {
     kind: 'direct',
-    purpose: 'the accepted housekeeping worker deletes expired recent product events',
+    purpose: 'expired recent product events are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeRecentOlderThan'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.product_analytics_user_hourly': {
     kind: 'direct',
-    purpose: 'the accepted housekeeping worker deletes expired per-user analytics aggregates',
+    purpose: 'expired per-user analytics aggregates are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgeUserHourlyOlderThan'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.product_analytics_hourly': {
     kind: 'direct',
@@ -4091,11 +6620,13 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   },
   'public.product_push_notifications': {
     kind: 'direct',
-    purpose: 'the accepted housekeeping worker deletes expired push analytics correlation rows',
+    purpose: 'expired push analytics correlation rows are swept only through the closed-list retention root',
     codePaths: ['apps/webapp/src/infra/repos/pgProductAnalytics.ts#purgePushNotificationsOlderThan'],
-    grants: [
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
-    ],
+      // Прямой DELETE арендной роли обслуживания здесь мёртв с рождения: единственная разрешающая
+      // runtime-политика этой таблицы требует `app_staff` И принятую организацию, а у уборки всех
+      // клиник организации нет и быть не должно. Уборка ходит корнем
+      // `app.prune_retention_target(text,integer,boolean)`.
+      grants: [],
   },
   'public.outgoing_delivery_queue': {
     kind: 'direct',
@@ -4118,6 +6649,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       'apps/webapp/src/app-layer/health/runOperatorHealthDigestTick.ts',
       'apps/webapp/src/app-layer/health/collectOperatorHealthDigestInput.ts',
       'apps/webapp/src/app-layer/health/deliveryHeartbeatObserver.ts',
+      'apps/webapp/src/app-layer/operator-alerts/reportEmptyNotificationAudience.ts',
     ],
     grants: [
       { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
@@ -4132,15 +6664,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
         columns: ['value_json', 'updated_at', 'updated_by'] },
       { role: 'app_platform_settings', operations: ['DELETE'], columns: 'table' },
       { role: 'app_worker', operations: ['SELECT'],
-        columns: ['key', 'scope', 'organization_id', 'value_json'] },
+        columns: ['key', 'scope', 'organization_id', 'value_json', 'updated_at', 'updated_by'] },
     ],
   },
   'public.operator_health_failure_archive': {
-    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; the maintenance worker prunes expired rows; platform access is sanitized through named seams',
+    kind: 'direct', purpose: 'clinic staff handles only its own archive rows; retention and platform access are sanitized through named seams',
     codePaths: ['apps/webapp/src/app/api/doctor/health-failure-archive/route.ts', 'apps/webapp/src/infra/repos/pgHealthFailureArchive.ts'],
     grants: [
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
-      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
   },
   'integrator.projection_outbox': {
@@ -4152,6 +6683,17 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
       { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
         columns: ['status', 'updated_at', 'attempts_done', 'next_try_at', 'last_error'] },
+    ],
+  },
+  'integrator.direct_public_write_retries': {
+    kind: 'direct', purpose: 'persist and replay failed direct-public writes without returning to HTTP projection transport',
+    codePaths: ['apps/integrator/src/infra/db/repos/directPublicWriteRetry.ts', 'apps/integrator/src/infra/runtime/worker/directPublicWriteRetryWorker.ts'],
+    grants: [
+      { role: 'app_integrator_request', operations: ['INSERT'],
+        columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
+      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
+        columns: ['status', 'updated_at', 'attempt_count', 'next_try_at', 'last_error'] },
     ],
   },
   'public.saas_billing_periods': {
@@ -4177,7 +6719,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
       { role: 'app_platform_settings', operations: ['INSERT'],
         columns: ['key', 'post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
-          'updated_by', 'updated_at'] },
+          'updated_by', 'created_at', 'updated_at'] },
       { role: 'app_platform_settings', operations: ['UPDATE'],
         columns: ['post_paid_period_behavior', 'post_paid_period_tariff_id', 'is_active',
           'updated_by', 'updated_at'] },
@@ -4238,16 +6780,22 @@ function revision10RelationAccess(tableKey: string, dbName: string): RelationAcc
   const seams = revision10RelationSeams(tableKey, dbName);
   const clinical = REV10_CLINICAL_ACCESS[tableKey];
   const systemDirect = REV10_SYSTEM_DIRECT_ACCESS[tableKey];
-  if (clinical?.kind === 'direct' && systemDirect) return {
-    kind: 'direct',
-    purpose: `${clinical.purpose}; ${systemDirect.purpose}`,
+  const finalizeDirect = (seed: DirectAccessSeed): RelationAccess => {
+    const grants = withoutConvertedPatientWrites(tableKey, seed.grants);
+    if (grants.length > 0) return { ...seed, grants, seams };
+    if (seams.length > 0) return {
+      kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}`,
+    };
+    return { kind: 'unresolved', reason: 'converted direct writes lack an exact named seam', codePaths: seed.codePaths };
+  };
+  if (clinical?.kind === 'direct' && systemDirect) return finalizeDirect({
+    kind: 'direct', purpose: `${clinical.purpose}; ${systemDirect.purpose}`,
     codePaths: [...new Set([...clinical.codePaths, ...systemDirect.codePaths])],
     grants: [...clinical.grants, ...systemDirect.grants],
-    seams,
-  };
-  if (clinical?.kind === 'direct') return { ...clinical, seams };
+  });
+  if (clinical?.kind === 'direct') return finalizeDirect(clinical);
   if (clinical?.kind === 'no-runtime-surface') return clinical;
-  if (systemDirect) return { ...systemDirect, seams };
+  if (systemDirect) return finalizeDirect(systemDirect);
   const noRuntime = REV10_NO_RUNTIME_ACCESS[tableKey];
   if (noRuntime) return noRuntime;
   if (seams.length > 0) return { kind: 'named-seams', seams, purpose: `exact declared function surfaces for ${tableKey}` };
@@ -4294,7 +6842,7 @@ const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3
 
 function revision10ContextGates(table: string, index: number, access: RelationAccess): PolicyDecl[] {
   const directRoles = access.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
-  const ordinaryPredicate = `app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure)`;
+  const ordinaryPredicate = `(SELECT app.require_accepted_context(current_user::name, current_user::name, ${REV10_CONTEXT_ROLE_CLASS}, 'relation', ${REV10_EMPTY_TYPED_ARGS_HASH}, NULL::regprocedure))`;
   const ordinaryDirectRoles = directRoles;
   const seams = access.kind === 'direct' || access.kind === 'named-seams' ? access.seams : [];
   const seamOwners = [...new Set(seams.map((seam) => seam.owner))].sort();
@@ -4448,10 +6996,10 @@ function revision10TenantMemberPredicate(tableKey: string, ref: TenantMembership
     ? `tenant_patient.platform_user_id = ${outerColumn}`
     : `tenant_patient.platform_user_id::text = ${outerColumn}`;
   return `(EXISTS (SELECT 1 FROM public.be_organization_members tenant_staff`
-    + ` WHERE ${staffMatch} AND tenant_staff.organization_id = app.current_org_id()`
+    + ` WHERE ${staffMatch} AND tenant_staff.organization_id = (SELECT app.current_org_id())`
     + ` AND tenant_staff.status = 'active')`
     + ` OR EXISTS (SELECT 1 FROM public.org_enrollments tenant_patient`
-    + ` WHERE ${patientMatch} AND tenant_patient.organization_id = app.current_org_id()`
+    + ` WHERE ${patientMatch} AND tenant_patient.organization_id = (SELECT app.current_org_id())`
     + ` AND tenant_patient.status = 'active'))`;
 }
 
@@ -4469,18 +7017,18 @@ function revision10TenantMembershipPredicate(
 function revision10TenantBasePredicate(tableKey: string): string {
   if (REV10_TENANT_DIRECT_ORG.has(tableKey)) {
     return tableKey === 'public.be_organizations'
-      ? '(id = app.current_org_id())'
-      : '(organization_id = app.current_org_id())';
+      ? '(id = (SELECT app.current_org_id()))'
+      : '(organization_id = (SELECT app.current_org_id()))';
   }
   const membership = REV10_TENANT_MEMBERSHIP_BASE[tableKey];
   if (membership) return revision10TenantMembershipPredicate(tableKey, membership, true);
   if (tableKey === 'public.be_patient_package_items') {
     return `(EXISTS (SELECT 1 FROM public.be_patient_packages tenant_package`
       + ` WHERE tenant_package.id = be_patient_package_items.patient_package_id`
-      + ` AND tenant_package.organization_id = app.current_org_id())`
+      + ` AND tenant_package.organization_id = (SELECT app.current_org_id()))`
       + ` AND EXISTS (SELECT 1 FROM public.be_clinic_services tenant_service`
       + ` WHERE tenant_service.id = be_patient_package_items.service_id`
-      + ` AND tenant_service.organization_id = app.current_org_id()))`;
+      + ` AND tenant_service.organization_id = (SELECT app.current_org_id())))`;
   }
   throw new Error(`missing tenant D/M/P base predicate for ${tableKey}`);
 }
@@ -4491,29 +7039,29 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
   if (tableKey === 'public.support_conversation_messages') {
     return `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
       + ` WHERE tenant_conversation.id = support_conversation_messages.conversation_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`;
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.support_delivery_events' && operation === 'INSERT') {
     return nullableParent('conversation_message_id', `EXISTS (SELECT 1 FROM public.support_conversation_messages tenant_message`
       + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_message.conversation_id`
       + ` WHERE tenant_message.id = support_delivery_events.conversation_message_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`);
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`);
   }
   if (tableKey === 'public.support_question_messages' && operation === 'INSERT') {
     return `EXISTS (SELECT 1 FROM public.support_questions tenant_question`
       + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_question.conversation_id`
       + ` WHERE tenant_question.id = support_question_messages.question_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`;
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.support_questions') {
     return nullableParent('conversation_id', `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
       + ` WHERE tenant_conversation.id = support_questions.conversation_id`
-      + ` AND tenant_conversation.organization_id = app.current_org_id())`);
+      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`);
   }
   if (tableKey === 'public.treatment_program_events' && operation === 'INSERT') {
     return `EXISTS (SELECT 1 FROM public.treatment_program_instances tenant_instance`
       + ` WHERE tenant_instance.id = treatment_program_events.instance_id`
-      + ` AND tenant_instance.organization_id = app.current_org_id())`;
+      + ` AND tenant_instance.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.program_action_log' && operation === 'UPDATE') {
     return `EXISTS (SELECT 1 FROM public.treatment_program_instances tenant_instance`
@@ -4521,12 +7069,12 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
       + ` JOIN public.treatment_program_instance_stage_items tenant_item ON tenant_item.stage_id = tenant_stage.id`
       + ` WHERE tenant_instance.id = program_action_log.instance_id`
       + ` AND tenant_item.id = program_action_log.instance_stage_item_id`
-      + ` AND tenant_instance.organization_id = app.current_org_id())`;
+      + ` AND tenant_instance.organization_id = (SELECT app.current_org_id()))`;
   }
   if (tableKey === 'public.symptom_entries' && operation === 'UPDATE') {
     return `EXISTS (SELECT 1 FROM public.symptom_trackings tenant_tracking`
       + ` WHERE tenant_tracking.id = symptom_entries.tracking_id`
-      + ` AND tenant_tracking.organization_id = app.current_org_id())`;
+      + ` AND tenant_tracking.organization_id = (SELECT app.current_org_id()))`;
   }
   return undefined;
 }
@@ -4580,22 +7128,22 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   const rolePredicate = ordinaryRoles.length > 0
     ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
     : 'false';
-  if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
-    + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = app.current_org_id())'
-    + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = app.current_org_id()))';
-  if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = app.current_org_id()`
-    + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = app.current_org_id()))';
-  if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
-  if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND is_visible = true ELSE false END)";
-  if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.doctor_patient_support') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN organization_id = app.current_org_id() AND patient_user_id = app.current_patient_user_id() ELSE false END)";
-  if (tableKey === 'public.reference_categories' || tableKey === 'public.reference_items') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = app.current_org_id())";
-  if (tableKey === 'public.reminder_occurrence_history') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() ELSE false END)";
-  if (tableKey === 'public.support_conversations') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() AND (organization_id IS NULL OR organization_id = app.current_org_id()) ELSE false END)";
-  if (tableKey === 'public.be_organizations') return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name) THEN id = app.current_org_id() ELSE false END)";
-  if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = app.current_org_id()) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
-  if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  if (tableKey === 'public.clinical_test_regions') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
+    + ' AND EXISTS (SELECT 1 FROM public.tests parent_test WHERE parent_test.id = clinical_test_id AND parent_test.organization_id = (SELECT app.current_org_id()))'
+    + ' AND EXISTS (SELECT 1 FROM public.reference_items parent_region WHERE parent_region.id = body_region_id AND parent_region.organization_id = (SELECT app.current_org_id())))';
+  if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
+    + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = (SELECT app.current_org_id())))';
+  if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id()))";
+  if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
+  if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND is_visible = true ELSE false END)";
+  if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = (SELECT app.current_org_id()))";
+  if (tableKey === 'public.doctor_patient_support') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND patient_user_id = app.current_patient_user_id() ELSE false END)";
+  if (tableKey === 'public.reference_categories' || tableKey === 'public.reference_items') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = (SELECT app.current_org_id()))";
+  if (tableKey === 'public.reminder_occurrence_history') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() ELSE false END)";
+  if (tableKey === 'public.support_conversations') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN platform_user_id = app.current_patient_user_id() AND (organization_id IS NULL OR organization_id = (SELECT app.current_org_id())) ELSE false END)";
+  if (tableKey === 'public.be_organizations') return "(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN current_user IN ('app_staff'::name, 'app_clinic_billing'::name) THEN id = (SELECT app.current_org_id()) ELSE false END)";
+  if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
+  if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   if (
     REV10_EXPLICIT_ORG_COLUMN.has(tableKey)
     && PLATFORM_ROLE_SCOPE.mayTouch.includes(tableKey)
@@ -4605,21 +7153,63 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
     const organizationBoundPredicate = organizationBoundRoles.length > 0
       ? `current_user IN (${organizationBoundRoles.map((role) => `'${role}'::name`).join(', ')})`
       : 'false';
-    return `(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN ${organizationBoundPredicate} THEN organization_id = app.current_org_id() ELSE false END)`;
+    return `(CASE WHEN current_user = 'app_platform_settings'::name THEN true WHEN ${organizationBoundPredicate} THEN organization_id = (SELECT app.current_org_id()) ELSE false END)`;
   }
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
-    + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = app.current_org_id() AND access_member.status = 'active'))`;
-  if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = app.current_org_id())`;
+    + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = (SELECT app.current_org_id()) AND access_member.status = 'active'))`;
+  if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
   return `(${rolePredicate})`;
 }
 
+function revision10DeliveryReplayPolicies(tableKey: string, index: number): PolicyDecl[] | undefined {
+  const deliveryRole = 'app_operational_delivery_worker';
+  const staffRole = 'app_staff';
+  if (tableKey === 'public.content_access_grants_webapp') {
+    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
+      + ` WHERE claimed_retry.status = 'processing'`
+      + ` AND claimed_retry.operation = 'content_access_grant_upsert'`
+      + ' AND claimed_retry.organization_id = content_access_grants_webapp.organization_id'
+      + ` AND claimed_retry.payload ->> 'organizationId' = content_access_grants_webapp.organization_id::text`
+      + ` AND claimed_retry.payload ->> 'integratorGrantId' = content_access_grants_webapp.integrator_grant_id))`;
+    const staffWall = "(organization_id = (SELECT app.current_org_id()))";
+    return [
+      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [deliveryRole], using: workerWall, withCheck: workerWall,
+        note: 'delivery replay may reach only the organization and grant named by a claimed retry' },
+      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [staffRole], using: staffWall, withCheck: staffWall,
+        note: 'staff reaches content grants only inside its accepted organization context' },
+    ];
+  }
+  if (tableKey === 'public.reminder_delivery_events') {
+    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
+      + ` WHERE claimed_retry.status = 'processing'`
+      + ` AND claimed_retry.operation = 'reminder_delivery_log_append'`
+      + ' AND claimed_retry.organization_id = reminder_delivery_events.organization_id'
+      + ` AND claimed_retry.payload ->> 'organizationId' = reminder_delivery_events.organization_id::text`
+      + ` AND claimed_retry.payload ->> 'integratorDeliveryLogId' = reminder_delivery_events.integrator_delivery_log_id))`;
+    const staffWall = '(organization_id = (SELECT app.current_org_id())'
+      + ' OR (app.current_integrator_user_id() IS NOT NULL'
+      + ' AND integrator_user_id = app.current_integrator_user_id()))';
+    return [
+      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [deliveryRole], using: workerWall, withCheck: workerWall,
+        note: 'delivery replay may append only the organization and event named by a claimed retry' },
+      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
+        to: [staffRole], using: staffWall, withCheck: staffWall,
+        note: 'staff reaches delivery events only inside its accepted organization context' },
+    ];
+  }
+  return undefined;
+}
+
 function revision10CoursesPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientAssignment = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientAssignment = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND app.current_patient_user_id() IS NOT NULL'
     + ' AND EXISTS (SELECT 1 FROM public.treatment_program_instances assigned_instance'
-    + ' WHERE assigned_instance.organization_id = app.current_org_id()'
+    + ' WHERE assigned_instance.organization_id = (SELECT app.current_org_id())'
     + ' AND assigned_instance.patient_user_id = app.current_patient_user_id()'
     + ' AND assigned_instance.template_id = courses.program_template_id)';
   return [
@@ -4633,8 +7223,8 @@ function revision10CoursesPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10OrgBrandRevisionPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientPublished = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientPublished = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + " AND status = 'published' AND app.current_patient_has_active_org_enrollment(organization_id)";
   return [
     { name: `rev10_org_brand_revision_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -4647,16 +7237,34 @@ function revision10OrgBrandRevisionPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10MediaFilesPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientMedia = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientMedia = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + " AND owner_kind = 'organization'"
     + " AND (usage_purpose IS DISTINCT FROM 'program_item_submission'"
     + ' OR uploaded_by = app.current_patient_user_id())';
   const worker = "current_user = 'app_operational_media_worker'::name";
+  // Drizzle names EVERY column of the table in an INSERT, including the ones it sends as `default`,
+  // and PostgreSQL checks the privilege on each named column — so the staff INSERT grant has to
+  // cover the whole table or no staff upload can start at all. Seven of those columns are worker
+  // output (`owner_kind` is the patient read discriminator); staff writes none of them anywhere in
+  // the app. The grant is plumbing, this policy is the wall: a staff INSERT is accepted only while
+  // those seven still carry their column default.
+  // `standard_rendition_at` is on that list because the UI trusts it: it is the row's only fact
+  // that the stored object is our encoder's output, and a raw upload is shown to nobody. If an
+  // uploader could set it, the fact would be forgeable by the upload that it is meant to describe.
+  const staffInsertDefaults = "current_user <> 'app_staff'::name"
+    + " OR (owner_kind = 'organization'"
+    + ' AND hls_master_playlist_s3_key IS NULL AND hls_artifact_prefix IS NULL'
+    + ' AND poster_s3_key IS NULL AND video_duration_seconds IS NULL'
+    + ' AND available_qualities_json IS NULL'
+    + ' AND standard_rendition_at IS NULL)';
   return [
     { name: `rev10_media_files_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: `(${staffOrg})`, withCheck: `(${staffOrg})`,
       note: 'clinic staff manages media only inside the current clinic' },
+    { name: `rev10_media_files_staff_worker_columns_${index + 1}`, as: 'RESTRICTIVE', cmd: 'INSERT',
+      to: ['app_staff'], withCheck: `(${staffInsertDefaults})`,
+      note: 'staff creates media rows but never authors transcode output or the patient read discriminator' },
     { name: `rev10_media_files_patient_read_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_patient'], using: `(${patientMedia})`,
       note: 'patient reads current-clinic presentation media and only submissions uploaded by itself' },
@@ -4670,7 +7278,7 @@ function revision10PatientPlaybackTelemetryPolicies(
   tableKey: 'public.media_playback_client_events' | 'public.media_playback_user_video_first_resolve',
   index: number,
 ): PolicyDecl[] {
-  const patientOwn = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const patientOwn = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND user_id = app.current_patient_user_id()';
   if (tableKey === 'public.media_playback_client_events') {
     return [{
@@ -4679,7 +7287,7 @@ function revision10PatientPlaybackTelemetryPolicies(
       note: 'patient appends browser playback errors only for itself in the current clinic',
     }];
   }
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   return [{
     name: `rev10_playback_first_resolve_self_${index + 1}`,
     as: 'PERMISSIVE', cmd: 'ALL', to: ['app_staff', 'app_patient'],
@@ -4689,8 +7297,8 @@ function revision10PatientPlaybackTelemetryPolicies(
 }
 
 function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientOrg = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()";
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientOrg = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())";
   const patientOwn = `${patientOrg} AND user_id = app.current_patient_user_id()`;
   return [
     { name: `rev10_material_ratings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -4709,8 +7317,8 @@ function revision10MaterialRatingsPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10PatientRatingFeedbackPolicies(index: number): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
-  const patientOwn = "current_user = 'app_patient'::name AND organization_id = app.current_org_id()"
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
+  const patientOwn = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND user_id = app.current_patient_user_id()';
   return [
     { name: `rev10_patient_rating_feedback_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -4726,12 +7334,12 @@ function revision10PatientHomeCatalogPolicies(
   tableKey: 'public.patient_home_blocks' | 'public.patient_home_block_items',
   index: number,
 ): PolicyDecl[] {
-  const staffOrg = "current_user = 'app_staff'::name AND organization_id = app.current_org_id()";
+  const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   const patientVisible = tableKey === 'public.patient_home_blocks'
-    ? "current_user = 'app_patient'::name AND organization_id = app.current_org_id() AND is_visible = true"
-    : "current_user = 'app_patient'::name AND organization_id = app.current_org_id() AND is_visible = true"
+    ? "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id()) AND is_visible = true"
+    : "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id()) AND is_visible = true"
       + ' AND EXISTS (SELECT 1 FROM public.patient_home_blocks parent_block'
-      + ' WHERE parent_block.code = block_code AND parent_block.organization_id = app.current_org_id()'
+      + ' WHERE parent_block.code = block_code AND parent_block.organization_id = (SELECT app.current_org_id())'
       + ' AND parent_block.is_visible = true)';
   return [{
     name: `rev10_patient_home_catalog_${index + 1}`,
@@ -4743,8 +7351,8 @@ function revision10PatientHomeCatalogPolicies(
 }
 
 function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = app.current_org_id()) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_health_projection_thresholds', 'operator_heartbeat_config') ELSE false END)";
-  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const readWall = "(CASE WHEN current_user = 'app_staff'::name THEN ((organization_id = (SELECT app.current_org_id())) OR (organization_id IS NULL AND scope = 'doctor')) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL WHEN current_user = 'app_worker'::name THEN organization_id IS NULL AND scope = 'admin' AND key IN ('operator_health_alert_config', 'admin_incident_alert_config', 'operator_health_projection_thresholds', 'operator_heartbeat_config') ELSE false END)";
+  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   return [
     { name: `rev10_system_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff', 'app_platform_settings', 'app_worker'], using: readWall,
@@ -4763,8 +7371,8 @@ function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN audience IN ('public','authenticated_client') AND CASE WHEN organization_id IS NULL THEN true ELSE organization_id = app.current_org_id() END WHEN current_user = 'app_staff'::name THEN CASE WHEN organization_id IS NULL THEN true ELSE organization_id = app.current_org_id() END WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
-  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = app.current_org_id() WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN audience IN ('public','authenticated_client') AND CASE WHEN organization_id IS NULL THEN true ELSE organization_id = (SELECT app.current_org_id()) END WHEN current_user = 'app_staff'::name THEN CASE WHEN organization_id IS NULL THEN true ELSE organization_id = (SELECT app.current_org_id()) END WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
+  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   return [
     { name: `rev10_app_runtime_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_patient', 'app_staff', 'app_platform_settings'], using: readWall,
@@ -4787,11 +7395,11 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       to: ['app_staff'],
       using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
         + ' WHERE access_member.platform_user_id = platform_users.id'
-        + ' AND access_member.organization_id = app.current_org_id()'
+        + ' AND access_member.organization_id = (SELECT app.current_org_id())'
         + " AND access_member.status = 'active'))"
         + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
         + ' WHERE access_patient.platform_user_id = platform_users.id'
-        + ' AND access_patient.organization_id = app.current_org_id()'
+        + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
         + " AND access_patient.status IN ('invited', 'active'))))",
       note: 'staff may read explicitly granted profile columns of current-clinic members and enrolled patients' },
     { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
@@ -4817,6 +7425,14 @@ function revision10AdminAuditLogPolicies(index: number): PolicyDecl[] {
       as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_platform_settings'], withCheck: platformWall,
       note: 'platform commercial transactions append their audit rows directly in the same transaction',
     },
+    {
+      name: `rev10_admin_audit_clinic_insert_${index + 1}`,
+      as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_clinic_billing'],
+      withCheck: "(current_user = 'app_clinic_billing'::name"
+        + ' AND organization_id = (SELECT app.current_org_id()))',
+      note: 'clinic billing appends only its own organization row; the NULL-organization platform '
+        + 'branch stays unreachable for the tenant, and no SELECT/UPDATE/DELETE policy is added',
+    },
   ];
 }
 
@@ -4838,11 +7454,11 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   const patientWall = `(${userColumn} = app.current_patient_user_id())`;
   const staffWall = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
     + ` WHERE access_member.platform_user_id = ${relationName}.${userColumn}`
-    + ' AND access_member.organization_id = app.current_org_id()'
+    + ' AND access_member.organization_id = (SELECT app.current_org_id())'
     + " AND access_member.status = 'active'))"
     + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
     + ` WHERE access_patient.platform_user_id = ${relationName}.${userColumn}`
-    + ' AND access_patient.organization_id = app.current_org_id()'
+    + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
     + " AND access_patient.status IN ('invited', 'active'))))";
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
@@ -4879,12 +7495,18 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const ordinaryDirectRoles = directRoles.filter((role) =>
       !['app_tenant_service'].includes(role));
     const classSafe = (predicate: string, policyRoles: string[] = ordinaryDirectRoles) => {
-      let result = predicate.replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
+      // Каждый вызов организационного аксессора в квале политики оборачивается в собственный
+      // скалярный под-запрос: планировщик считает его один раз (InitPlan), а не на каждую строку.
+      // Обёртка остаётся РОВНО на месте вызова — вынос её выше своей ветки CASE дал бы 42501 на
+      // каждом чтении тем ролям, у которых организации нет.
+      let result = predicate
+        .replace(/(?<!\(SELECT )app\.current_org_id\(\)/gu, '(SELECT app.current_org_id())')
+        .replaceAll('app.is_staff()', "current_user = 'app_staff'::name");
       if (table.org === true) result = result.replaceAll(
         '(app.current_patient_user_id() IS NOT NULL AND ',
-        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = app.current_org_id() AND ');
+        '(app.current_patient_user_id() IS NOT NULL AND "organization_id" = (SELECT app.current_org_id()) AND ');
       result = result.replaceAll('"b4f_appt"."platform_user_id" = app.current_patient_user_id()',
-        '"b4f_appt"."organization_id" = app.current_org_id() AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
+        '"b4f_appt"."organization_id" = (SELECT app.current_org_id()) AND "b4f_appt"."platform_user_id" = app.current_patient_user_id()');
       const hasPatientAccessor = result.includes('app.current_patient_user_id()');
       const hasSafeClassBranch = /CASE\s+WHEN\s+current_user/u.test(result);
       const staffPolicy = policyRoles.includes('app_staff');
@@ -4899,16 +7521,21 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       ? `(current_user = 'app_platform_settings'::name OR (${predicate}))`
       : predicate;
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
-      'public.be_patient_booking_profiles', 'public.content_pages', 'public.content_sections',
+      'public.be_patient_booking_profiles', 'public.content_access_grants_webapp', 'public.content_pages',
+      'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
-      'public.reminder_occurrence_history',
+      'public.reminder_delivery_events', 'public.reminder_occurrence_history',
       'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
-    const directBusiness: PolicyDecl[] = access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
-      name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
-      using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
-      note: `exact direct role business wall for ${key}`,
-    }] : [];
+    const deliveryReplayPolicies = access?.kind === 'direct'
+      ? revision10DeliveryReplayPolicies(key, index)
+      : undefined;
+    const directBusiness: PolicyDecl[] = deliveryReplayPolicies
+      ?? (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
+        name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
+        using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
+        note: `exact direct role business wall for ${key}`,
+      }] : []);
     const runtimeBusinessBaseRaw: PolicyDecl[] = !active ? []
       : key === 'public.system_settings' && access?.kind === 'direct'
         ? revision10SystemSettingsPolicies(index)
@@ -4995,7 +7622,15 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     creators: ['postgres', 'app_object_owner', ...REV10_SEAM_OWNERS],
     orgTableAllowlist: { derivedFrom: 'tables[*].org === true', named: Object.keys(tables).filter((key) => tables[key].org === true).sort(),
       fullCountLive: Object.keys(tables).filter((key) => tables[key].org === true).length, todo: '' },
-    dbSettings: { datdba: 'postgres', perRoleInDatabase: {} },
+    dbSettings: {
+      datdba: 'postgres',
+      perRoleInDatabase: {},
+      // DEV-only: successful UPDATE/DELETE on the migration ledger were previously invisible
+      // (`log_statement=none`), so the mutation that MIGRATION_LEDGER_REAUDIT_2026-08-20.md finding 2
+      // asked to close had no trail to read. 'mod' logs INSERT/UPDATE/DELETE/TRUNCATE, not every
+      // SELECT. TEST and PROD are untouched — this branch fires only for `bcb_webapp_dev`.
+      ...(name === 'bcb_webapp_dev' ? { databaseLevel: { bcb_webapp_dev: ["log_statement='mod'"] } } : {}),
+    },
   } as DatabaseDecl;
 }
 

@@ -1842,7 +1842,7 @@ export const lfkExerciseMedia = pgTable(
     }).onDelete('cascade'),
     check(
       'lfk_exercise_media_media_type_check',
-      sql`media_type = ANY (ARRAY['image'::text, 'video'::text, 'gif'::text])`,
+      sql`media_type = ANY (ARRAY['image'::text, 'video'::text, 'gif'::text, 'hosted_video'::text])`,
     ),
     check(
       'lfk_exercise_media_owner_check',
@@ -2046,6 +2046,14 @@ export const mediaFiles = pgTable(
     }),
     sourceWidth: integer('source_width'),
     sourceHeight: integer('source_height'),
+    /**
+     * Момент замены объекта по `s3_key` выводом нашего энкодера (SECURITY_CANON §5).
+     * NULL = файл не перекодирован, показывать его пользователю нельзя.
+     */
+    standardRenditionAt: timestamp('standard_rendition_at', {
+      withTimezone: true,
+      mode: 'string',
+    }),
     /** VIDEO_HLS_DELIVERY: transcode pipeline status; NULL = legacy / not yet tracked (MP4-only). */
     videoProcessingStatus: text('video_processing_status'),
     videoProcessingError: text('video_processing_error'),

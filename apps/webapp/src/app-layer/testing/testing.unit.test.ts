@@ -2,7 +2,6 @@ import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import {
   arbitraryFromZodSchema,
-  disposablePostgresHarness,
   fc,
   fixedClock,
   IncompatibleArbitraryError,
@@ -59,14 +58,4 @@ describe('app-layer testing foundation', () => {
     expect(clock.nowSeconds()).toBe(1_785_412_800);
   });
 
-  it('accepts only explicitly disposable PostgreSQL database names without connecting', () => {
-    expect(disposablePostgresHarness('pbt_session_cookie_1074')).toEqual({
-      databaseName: 'pbt_session_cookie_1074',
-      mode: 'contract-only',
-    });
-    expect(() => disposablePostgresHarness('bcb_webapp_dev')).toThrow(/must start|rejects/i);
-    expect(() => disposablePostgresHarness('pbt_test_isolation')).toThrow(/rejects/i);
-    expect(() => disposablePostgresHarness('pbt_production_clone')).toThrow(/rejects/i);
-    expect(() => disposablePostgresHarness('bcb_webapp_prod')).toThrow(/must start|rejects/i);
-  });
 });

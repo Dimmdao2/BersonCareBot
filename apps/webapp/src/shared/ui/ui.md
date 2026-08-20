@@ -26,6 +26,10 @@ Product-specific UI lives in isolated trees — **не** в корне `shared/u
 
 - **tailwind-engine.css** — Tailwind + shadcn tokens (`app/layout.tsx`).
 - **`components/ui/`** — источник для копирования в primitives; **не** импортировать из product routes.
-- Инфра в корне `shared/ui/`: `PlatformProvider`, `BuildVersionWatcher`, `TelegramMiniAppScript` (root layout).
+- Инфра в корне `shared/ui/`: `PlatformProvider`, `BuildVersionWatcher` (root layout). Загрузку
+  `telegram-web-app.js` убрал владелец 18.08: боты больше не открывают мини-приложение (проверки
+  `executeAction*MiniAppRemoval` в интеграторе), поэтому SDK грузился впустую и шумел в консоли
+  обычного браузера. Код, умеющий работать внутри мини-приложения, оставлен спящим — решение
+  владельца «мини-апп если и будет, то отдельно».
 
 См. `AGENTS.md` §17 «Patient / Doctor UI Isolation».

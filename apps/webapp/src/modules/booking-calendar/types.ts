@@ -21,7 +21,6 @@ export type CalendarFilters = {
   branchId?: string | null;
   roomId?: string | null;
   serviceId?: string | null;
-  includeFreeSlots?: boolean;
 };
 
 export type CalendarFilterOption = {

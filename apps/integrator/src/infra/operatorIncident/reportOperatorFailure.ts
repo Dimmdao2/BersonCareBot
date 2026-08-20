@@ -102,7 +102,7 @@ export async function reportOperatorFailure(input: ReportOperatorFailureInput): 
 
   let lists: { telegram: string[]; max: string[] };
   try {
-    lists = await loadAdminMessengerIdLists(db);
+    lists = await loadAdminMessengerIdLists();
   } catch (err) {
     logger.warn({ err }, '[operator_incident] load admin messenger id lists failed');
     return;

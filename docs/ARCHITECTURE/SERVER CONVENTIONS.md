@@ -68,6 +68,31 @@ whitelist». До закрытия `SEC-02` нельзя опираться на
 | **OLD / DEV / RELAY / TEST** | `151.241.228.122` (исходный хост = dev-box)                 | (1) **AmneziaWG egress-релей** Telegram для прод-бота — `awg-quick@awg0`, UDP `51822`, **НЕ ТРОГАТЬ** (прод-бот зависит); (2) dev-окружение (Next `:5200`); (3) старый прод **остановлен и замаскирован** (`bersoncarebot-*-prod.service` → `/dev/null`, снятые unit-файлы в root-only архиве `/var/backups/bersoncarebot-disabled-prod-units-20260729/`, cron.d в `/root/bcb-cron-disabled-*`); (4) **боевой ТЕСТ** `test.bersoncare.ru` (2026-06) | `test.bersoncare.ru` → `151.241.228.122`; почта (`mail/smtp/pop/ftp`) — на reg.ru (`31.31.197.72`), не на наших серверах |
 | ~~`161.104.34.216`~~         | **DECOMMISSIONED**                                          | Первый целевой прод-VDS — оказался **заблокирован из РФ** (РКН/ТСПУ, мёртв весь IP), удалён. Прод пересобран клоном на `135.x`. **Урок: новый IP всегда проверять `nc -vz <ip> 443` с РФ-бытового интернета ДО переезда.**                                                                              | —                                                                                                                        |
 
+### Сетевой периметр (владелец, 19.08 — целевая политика прода)
+
+**PROD, политика по умолчанию DROP.** Входящее пропускается только:
+
+| Что | Кто слушает | Где |
+| --- | --- | --- |
+| tcp 22 | `sshd` | наружу |
+| tcp 80, 443 | nginx | наружу |
+| icmp (ping/MTU), петля `lo`, ответы на уже установленные соединения | — | — |
+| 53 | `systemd-resolved` | только `127.0.0.53/54` |
+| 323 | `chronyd` | только `127.0.0.1` |
+
+Всё остальное входящее молча отбрасывается. Слушающие сокеты совпадают с правилами — лишнего наружу нет.
+**Postgres на TCP не слушает вообще, только unix-сокет** — это отдельная проверка в приёмке хоста.
+
+**TEST/DEV (`151.x`) — другая картина, замерено:** `ufw` inactive, `iptables -L INPUT -n` — политика
+`ACCEPT` и ноль правил; ограничение доступа к `test.bersoncare.ru` живёт ВНУТРИ конфигурации одного
+сайта (`allow/deny` в server-блоке), а не на уровне сети.
+
+**Что из этого следует для нового входящего пути** (прежде всего для подключения собственного домена
+клиники, где чужое имя наводится на наш адрес): 80 и 443 на проде УЖЕ открыты миру, поэтому правки
+файрвола такая работа не требует. Ограничением остаётся не сеть, а **поведение nginx на незнакомый
+`Host`** и то, чем выдаётся сертификат. Замер открытости, сделанный на `151.x`, на прод не переносится
+ни в какую сторону: probe прода запрещён, источник фактов о проде — только владелец и этот файл.
+
 ### Telegram-туннель (прод ↔ релей `151.x`)
 
 Telegram заблокирован из РФ на гос-уровне; прод-сервер `135.x` (Selectel) Telegram **напрямую не достаёт**. Прод-бот ходит в Telegram через **AmneziaWG split-tunnel** на старый сервер `151.x` (он Telegram достаёт), тот форвардит наружу. Поэтому `awg-quick@awg0` на `151.x` **критичен** — его остановка убивает прод-бота.
@@ -133,7 +158,7 @@ UDP/TCP-запросы на порт `53` в этот split resolver. `awg0`, wg
 - **🔴 Изоляция отправок (данные настоящие!):** Layer-1 = integrator `applyPreForkDevRedirect` (`DEV_DELIVERY_REDIRECT=1`) переписывает **ВСЕ** исходящие на тест-юзера, по каналам (Telegram/MAX/SMS/email/web-push). **NEW (2026-06-25, commit `17729059`, пока UNPUSHED): passthrough-allowlist** — env `DEV_REDIRECT_PASSTHROUGH_{TELEGRAM,PHONES,MAX,EMAILS,WEB_PUSH}` в `api.test`: получатели-**тест-аккаунты** (админ tg`364943522`/`+79643805480`, юзер tg`7924656602`/`+79189000782`) доставляются на **свои** адреса (чтобы тестить переписку админ↔юзер вживую), все прочие — режутся/редиректятся. Пусто по умолчанию = безопасно (opt-in). Плюс webapp-guard (`dev_mode` + `test_account_identifiers`), **maintenance forced ON**, ключевые настройки залочены DB-триггером.
 - **Входящие Telegram на тесте НЕ настроены:** приём только вебхуком `POST /webhook/telegram` (long-polling в коде нет), а вебхук не задан + IP-allowlist режет IP Telegram → `/start`/меню/кнопки не работают. **Только исходящие** (OTP/уведомления/чат) — этого достаточно для проверки send-safety. Web-push на тест-домен требует **свежей** PWA-подписки (восстановленная из дампа привязана к prod-origin/VAPID).
 - Тест-БД `bersoncarebot_test` на том же PG16 (`:5432`); порты **`:3300`** (integrator) / **`:6300`** (webapp, чтобы не пересечься с dev `:5200` и прод-портами); **ТЕСТ-токен** бота (не прод); доступ к `test.bersoncare.ru` залочен по IP (см. «Доступы / VPN»).
-- **Деплой (факт):** деплой-репо `/opt/projects/bersoncarebot-test` (ветка `feat/doctor-ui-rebuild`, владелец `deploy`), env `/opt/env/bersoncarebot/{api,webapp}.test`, юниты `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`. **Ветки `test` и автодеплоя TEST нет.** Production также не деплоится из `ci.yml`: только отдельный ручной `deploy-prod.yml` с approval и exact target `135.106.162.170`. `bash deploy/host/deploy-test.sh` — только code-only/no-fresh-restore обновление существующей TEST-БД: git-bundle → force-align → build → controlled migration/cutover → restart; он никогда не скачивает dump и не пересоздаёт БД. Первый `locked → port-context` переход после bounded legacy-фазы делает database-local `zero/proof` старых owners/grants, использует provisional canonical base contract для port-context миграций, временно снимает его relation birth wall только при остановленных writers и локальном OS `postgres`, затем повторно обнуляет временное состояние и ставит exact generated declaration вместе с полным registry и wall; при ошибке после provisional install БД возвращается в verified zero. Любой fresh prod-dump restore поддерживается **только** через отдельный owner-gated `bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset ...`, который владеет restore, reviewed data-stage, одной transactional A → B migration `deploy/postgres/prod-to-target-cutover.sql`, overlays/settings, C4 bootstrap/provision всех четырёх local-only DB-контуров, repo-managed S3 A/B fixture и cleanup/health gates. Историческая migration chain поверх PROD-dump не запускается. Это единичная полная миграционная репетиция, которую запускают только по прямой команде владельца; она не является регулярным TEST-деплоем или проверкой. Внутренний `deploy-test-saas.sh` не является публичной destructive-командой и напрямую не запускается: прямой full-reset через него заблокирован; code-only deploy использует из него только безопасные closure submodes. Ручная цепочка `restore-test-db.sh` + SQL + `deploy-test.sh` запрещена. Fixture packet: только обычный файл `/opt/env/bersoncarebot/saas-test-fixture.env`, exact `root:deploy 0640`, строгие data-only JSON-quoted values; symlink/unknown/duplicate/malformed/shell lines запрещены, файл никогда не shell-source-ится. Полная инструкция: `deploy/HOST_DEPLOY_README.md` → «Тест-деплой на 151.x».
+- **Деплой (факт):** TEST остаётся нетронутым до полного green runtime-прохода именованного DEV. После owner gate `bash deploy/host/deploy-test.sh` сможет обновлять только существующую TEST БД B0-forward changes; fresh dump/restore, disposable/A0/A1 и PROD A→B0 tooling отсутствуют из active checkout.
 
 ### Источник истины по топологии
 
@@ -558,7 +583,7 @@ integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DA
 
 **Текущий runtime:** одна БД; `DATABASE_URL` в `api.prod` и `webapp.prod` **одинаковый**. Для SQL в webapp-таблицах используйте схему **`public`**, для integrator — **`integrator`** (или `search_path`, заданный роли).
 
-Файл **`cutover.prod`** и переменные `INTEGRATOR_DATABASE_URL` / `SOURCE_DATABASE_URL` остаются для **legacy** cutover/backfill-скриптов и dev-симметрии; на проде после unification они могут указывать на **ту же** строку, что и `DATABASE_URL` (или быть не нужны — см. конкретный скрипт).
+**УСТАРЕЛО/ЗАМЕНЕНО 16.08.2026:** active checkout не содержит PROD A→B0, historical replay или disposable execution path. `cutover.prod`, `INTEGRATOR_DATABASE_URL` и `SOURCE_DATABASE_URL` могут встречаться только в исторических описаниях и не являются входом текущего deploy.
 
 ### Миграции: webapp Drizzle (`public`) vs integrator
 

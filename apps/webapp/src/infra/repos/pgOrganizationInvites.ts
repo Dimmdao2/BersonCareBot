@@ -145,18 +145,24 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           // `i.invited_email <> $2` excludes this email's own prior pending reservation: a
           // same-email replacement at the limit does not add a reservation, so it must not be
           // counted against itself.
-          const decision = await quota.resolveClinicTeamAvailability({
+          const offer = await quota.resolveClinicTeamAvailability({
             excludedPendingEmail: input.invitedEmail,
           });
-          if (!decision.allowed) {
-            if (decision.code === 'seat_limit_reached') {
-              return { ok: false, code: 'seat_limit_reached' };
-            }
+          if (offer.outcome === 'seat_not_sold') {
+            return { ok: false, code: 'seat_limit_reached' };
+          }
+          // Р-15: оплаченный период кончился — отдельного счёта на место в нём быть не может,
+          // остатка нет. Клиника сначала оплачивает продление, и только потом покупает место.
+          if (offer.outcome === 'paid_period_over') {
+            return { ok: false, code: 'seat_overage_paid_period_over' };
+          }
+          if (offer.outcome === 'purchasable') {
             return {
               ok: false,
               code: 'seat_overage_confirmation_required',
-              priceMinor: decision.priceMinor,
-              currency: decision.currency,
+              priceMinor: offer.priceMinor,
+              currency: offer.currency,
+              priceStableUntil: offer.priceStableUntil,
             };
           }
         }

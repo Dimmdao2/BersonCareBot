@@ -66,6 +66,11 @@ export function AppEntryLoginContent({
               сбросит сессию.
             </p>
             <div id="app-entry-dev-bypass-actions" className="flex flex-wrap gap-3">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- dev-bypass sets the
+                  session cookie server-side; a full page reload is required, next/link's client-side
+                  navigation would not pick up the new cookie. The rule also false-positives here: a
+                  root-level dynamic segment ([clinicSlug]) makes eslint-plugin-next treat any
+                  dot-free path as an internal page (see AppEntryLoginContent.tsx audit 2026-08-19). */}
               <a
                 id="app-entry-dev-public-registration"
                 href="/api/auth/dev-public?view=clinic-registration"
@@ -73,6 +78,7 @@ export function AppEntryLoginContent({
               >
                 Регистрация специалиста / клиники
               </a>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see comment above */}
               <a
                 id="app-entry-dev-login-patient"
                 href="/api/auth/dev-bypass?token=dev%3Aclient"
@@ -80,6 +86,7 @@ export function AppEntryLoginContent({
               >
                 Как пациент
               </a>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see comment above */}
               <a
                 id="app-entry-dev-login-doctor"
                 href="/api/auth/dev-bypass?token=dev%3Aclinic-admin"
@@ -87,6 +94,7 @@ export function AppEntryLoginContent({
               >
                 Как владелец и специалист демо-клиники
               </a>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see comment above */}
               <a
                 id="app-entry-dev-login-doctor-role"
                 href="/api/auth/dev-bypass?token=dev%3Adoctor"
@@ -94,6 +102,7 @@ export function AppEntryLoginContent({
               >
                 Как демо-специалист
               </a>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- see comment above */}
               <a
                 id="app-entry-dev-login-global-admin"
                 href="/api/auth/dev-bypass?token=dev%3Aadmin"

@@ -230,6 +230,13 @@ export const saasBillingInvoices = pgTable(
      *  by comparing this to now at read time, never a stored status (plan К4: "просрочка считается
      *  от срока действия, а не выставляется вручную"). */
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }),
+    /** Решение владельца 19.08 — долг за место, не закрытый к концу прошлого периода, входит
+     *  строкой в стоимость следующего. Хранится отдельно от `amount_minor`, частью которого он
+     *  является, чтобы счёт мог сказать плательщику, откуда в нём эта сумма. */
+    carriedDebtMinor: integer('carried_debt_minor').default(0).notNull(),
+    /** Преемник при перевыставлении: счёт, на который переехала сумма этого счёта. Отличает
+     *  «аннулирован, потому что выставлен ошибочно» от «аннулирован, потому что перевыставлен». */
+    supersededByInvoiceId: uuid('superseded_by_invoice_id'),
     status: text().$type<SaasBillingInvoiceStatus>().default('draft').notNull(),
     providerId: text('provider_id').notNull(),
     providerInvoiceRef: text('provider_invoice_ref'),
@@ -257,11 +264,23 @@ export const saasBillingInvoices = pgTable(
       .where(sql`${table.providerInvoiceRef} IS NOT NULL`),
     index('idx_saas_billing_invoices_org_created').on(table.organizationId, table.createdAt),
     index('idx_saas_billing_invoices_status_created').on(table.status, table.createdAt),
+    /** Долг за место ищет КАЖДОЕ выставление счёта следующего периода: подписка + конец отрезка
+     *  услуги, только неоплаченные счета за место. Без него это seq scan журнала на каждом тике. */
+    index('idx_saas_billing_invoices_seat_debt')
+      .on(table.saasBillingSubscriptionId, table.servicePeriodEndsAt)
+      .where(
+        sql`${table.invoiceKind} = 'seat_overage' AND ${table.status} IN ('draft', 'pending')`,
+      ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
       name: 'saas_billing_invoices_organization_id_fkey',
     }).onDelete('cascade'),
+    foreignKey({
+      columns: [table.supersededByInvoiceId, table.organizationId],
+      foreignColumns: [table.id, table.organizationId],
+      name: 'saas_billing_invoices_superseded_by_org_fkey',
+    }).onDelete('restrict'),
     foreignKey({
       columns: [table.saasBillingAccountId, table.organizationId],
       foreignColumns: [saasBillingAccounts.id, saasBillingAccounts.organizationId],
@@ -278,6 +297,16 @@ export const saasBillingInvoices = pgTable(
       name: 'saas_billing_invoices_tariff_id_fkey',
     }).onDelete('restrict'),
     check('saas_billing_invoices_amount_check', sql`${table.amountMinor} >= 0`),
+    check(
+      'saas_billing_invoices_carried_debt_check',
+      sql`${table.carriedDebtMinor} >= 0 AND ${table.carriedDebtMinor} <= ${table.amountMinor}`,
+    ),
+    /** Счёт, у которого есть преемник, обязан быть погашен: иначе одна услуга остаётся оплачиваемой
+     *  дважды — по старому счёту и внутри нового. Правило стоит в строке, а не в дисциплине кода. */
+    check(
+      'saas_billing_invoices_superseded_is_void_check',
+      sql`${table.supersededByInvoiceId} IS NULL OR ${table.status} = 'void'`,
+    ),
     check('saas_billing_invoices_kind_check', sql`${table.invoiceKind} = ANY (ARRAY['tariff_period'::text, 'seat_overage'::text])`),
     check('saas_billing_invoices_additional_seat_quantity_check', sql`${table.additionalSeatQuantity} >= 0 AND (${table.invoiceKind} <> 'seat_overage' OR ${table.additionalSeatQuantity} > 0)`),
     check('saas_billing_invoices_currency_check', sql`${table.currency} ~ '^[A-Z]{3}$'`),

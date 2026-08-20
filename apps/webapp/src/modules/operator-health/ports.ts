@@ -39,9 +39,25 @@ export type OperatorJobStatusTickRow = OperatorBackupJobStatusRow & {
   metaJson: Record<string, unknown>;
 };
 
+/** Окно «дохлые строки появляются прямо сейчас»; то же, что у `confirmedSentLast24h`. */
+export const OUTGOING_DELIVERY_DEAD_WINDOW_HOURS = 24;
+
 export type OutgoingDeliveryQueueHealthSnapshot = {
   dueBacklog: number;
+  /**
+   * Все операторские `dead` за историю. ИСТОРИЯ, а не авария: строка `dead` терминальна и
+   * никогда не уходит сама, поэтому по этому числу нельзя ни алертить, ни красить баннер —
+   * иначе один отказ в июне держит систему красной навсегда. Число остаётся на странице
+   * здоровья: стирать историю нельзя, она и есть доказательство.
+   */
   deadTotal: number;
+  /**
+   * Операторские `dead`, появившиеся за последние {@link OUTGOING_DELIVERY_DEAD_WINDOW_HOURS} часов.
+   * ЭТО и есть «механизм отказывает прямо сейчас» — сигнал, который умеет погаснуть сам.
+   */
+  deadRecent: number;
+  /** Момент последней операторской смерти строки; для текста алерта, не для порога. */
+  lastOperatorDeadAt: string | null;
   /** Dead rows with `failure_class = recipient_blocked_bot` (info-only, not operator degradation). */
   blockedRecipientTotal: number;
   oldestDueAgeSeconds: number | null;
@@ -193,6 +209,8 @@ export type OperatorHealthWritePort = {
   openOrTouchCriticalAlertIncident(input: {
     dedupKey: string;
     direction: string;
+    /** Which cadence owns this row — see {@link OperatorIncidentCadenceIntegration}. */
+    integration: OperatorIncidentCadenceIntegration;
     nowIso: string;
     errorDetail?: string | null;
   }): Promise<{ id: string; openedAt: string }>;
@@ -204,12 +222,20 @@ export type OperatorHealthWritePort = {
     claimToken: string;
   }): Promise<OutboundProviderAlertClaim | null>;
   /**
-   * Resolve every open generic critical-alert incident (see `openOrTouchCriticalAlertIncident`)
-   * whose dedup key is NOT among this tick's active critical candidates — the fault cleared,
-   * so a LATER recurrence of the same dedup key opens a fresh row and starts a new T0
-   * escalation instead of staying silent forever behind an incident that never resolved.
+   * Resolve every open critical-alert incident OF THIS CADENCE (see
+   * `openOrTouchCriticalAlertIncident`) whose dedup key is NOT among this tick's active critical
+   * candidates — the fault cleared, so a LATER recurrence of the same dedup key opens a fresh row
+   * and starts a new T0 escalation instead of staying silent forever behind an incident that never
+   * resolved.
+   *
+   * `integration` is required and NOT optional on purpose: this sweep resolves by absence, so a
+   * caller that omitted its own namespace would close every OTHER cadence's open rows. The
+   * five-minute health tick knows nothing about the reconciliation's dedup keys and vice versa;
+   * without the split each tick would close the other's incident and the next run would reopen it,
+   * paging the owner hourly for one unchanged fault — exactly what he forbade.
    */
   resolveStaleCriticalAlertIncidents(input: {
+    integration: OperatorIncidentCadenceIntegration;
     activeDedupKeys: string[];
   }): Promise<{ resolved: number }>;
 };
@@ -221,3 +247,18 @@ export type OperatorHealthWritePort = {
  * outbound-provider failure detector can never step on each other's rows.
  */
 export const CRITICAL_ALERT_CADENCE_INTEGRATION = 'critical_alert_cadence';
+
+/**
+ * Reserved `operator_incidents.integration` marker for rows opened by the SaaS billing
+ * reconciliation sweep. Separate from {@link CRITICAL_ALERT_CADENCE_INTEGRATION} because the two
+ * cadences run on different clocks over different candidate sets and each resolves its stale rows
+ * by absence — sharing one marker makes them close each other's incidents.
+ */
+export const SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION = 'saas_billing_reconcile_cadence';
+
+/**
+ * The closed set of cadence namespaces over `operator_incidents`. Adding a cadence means adding a
+ * member here, which is what makes the open/resolve pair name its own namespace or fail the build.
+ */
+export type OperatorIncidentCadenceIntegration =
+  typeof CRITICAL_ALERT_CADENCE_INTEGRATION | typeof SAAS_BILLING_RECONCILE_CADENCE_INTEGRATION;

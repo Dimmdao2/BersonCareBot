@@ -18,6 +18,7 @@ export const MODES_FORM_KEYS = [
   'patient_program_discussion_ui_enabled',
   'patient_program_discussion_media_submission_enabled',
   'patient_booking_url',
+  'material_ratings_enabled',
 ] as const;
 
 export type ModesFormKey = (typeof MODES_FORM_KEYS)[number];

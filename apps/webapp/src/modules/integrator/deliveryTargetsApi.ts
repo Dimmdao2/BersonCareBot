@@ -1,24 +1,27 @@
 /**
  * Resolves delivery targets for the integrator (reminders, booking notifications).
  * Used by GET /api/integrator/delivery-targets so the bot can fan out to all linked channels.
+ *
+ * Аудитория доставки собирается ОДНИМ объявленным корнем
+ * `app.read_integrator_delivery_target_snapshot(...)` — соседом по форме
+ * `app.read_patient_reminder_delivery_target_snapshot(...)`. Раньше та же работа была собрана
+ * здесь заново из девяти сырых чтений отношений (`userByPhonePort.findByPhone`,
+ * `identityResolutionPort`, prefs, topic prefs, gate, email, web-push, VAPID, SMTP), и под
+ * организационным принципалом (`tenant_service`) она падала ещё ДО базы: relation-возможности у
+ * этого класса на порту вебаппа нет и по замыслу не будет. База отдаёт ФАКТЫ, каналы выбирает тот
+ * же `resolvePatientNotificationChannels`, что и путь напоминаний.
  */
 
 import type { ChannelBindings } from '@/shared/types/session';
-import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
-import type { IdentityResolutionPort } from '@/modules/auth/identityResolutionPort';
+import type {
+  IntegratorDeliveryTargetSnapshot,
+  IntegratorDeliveryTargetsPort,
+} from '@/modules/integrator/integratorDeliveryTargetsPort';
 import {
-  getDeliveryTargetsForUser,
-  resolveDeliveryTargetsForTopic,
-  type DeliveryTargets,
-} from '@/modules/channel-preferences/deliveryTargets';
-import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
-import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
-import type { ResolvedNotificationChannels } from '@/modules/patient-notifications/notificationChannelContract';
-import type { NotificationTopicGate } from '@/modules/patient-notifications/resolveNotificationChannels';
-import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topicChannelPrefsPort';
-import { getWebPushVapidKeyPair } from '@/modules/system-settings/webPushVapidRuntime';
-import type { SystemSettingsService } from '@/modules/system-settings/service';
-import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
+  attachResolutionIdentity,
+  type ResolvedNotificationChannels,
+} from '@/modules/patient-notifications/notificationChannelContract';
+import { resolvePatientNotificationChannels } from '@/modules/patient-notifications/resolveNotificationChannels';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
 
 export type DeliveryTargetsApiParams = {
@@ -46,133 +49,99 @@ export class DeliveryTargetsTenantDeniedError extends Error {
 }
 
 export type DeliveryTargetsApiDeps = {
-  userByPhonePort: UserByPhonePort;
-  identityResolutionPort: IdentityResolutionPort;
-  preferencesPort: ChannelPreferencesPort;
-  topicChannelPrefsPort: TopicChannelPrefsPort;
-  readReminderNotifyGate: (
-    platformUserId: string,
-    topicCode: string,
-  ) => Promise<NotificationTopicGate>;
-  getProfileEmailFields: (
-    platformUserId: string,
-  ) => Promise<{ email: string | null; emailVerifiedAt: string | null }>;
-  webPushSubscriptions: Pick<WebPushSubscriptionsPort, 'hasAnyForUserId'>;
-  systemSettings: Pick<SystemSettingsService, 'getSetting'>;
-  hasActivePatientEnrollment: (platformUserId: string, organizationId: string) => Promise<boolean>;
-  findPlatformUserByIntegratorId: (
-    integratorUserId: string,
-  ) => Promise<{ platformUserId: string } | null>;
-  getChannelBindings: (platformUserId: string) => Promise<ChannelBindings>;
+  integratorDeliveryTargets: IntegratorDeliveryTargetsPort;
 };
 
-async function resolveUser(
-  params: DeliveryTargetsApiParams,
-  deps: DeliveryTargetsApiDeps,
-): Promise<{ userId: string; bindings: ChannelBindings } | null> {
-  const { userByPhonePort, identityResolutionPort } = deps;
+type ResolvedSnapshot = Extract<IntegratorDeliveryTargetSnapshot, { ok: true }>;
 
-  if (params.platformUserId?.trim()) {
-    const userId = params.platformUserId.trim();
-    return { userId, bindings: await deps.getChannelBindings(userId) };
-  }
+/** Коды, которые означают «адресат есть, но он не наш» — маршрут отвечает на них 403, не 404. */
+const TENANT_DENIED_CODES = new Set([
+  'delivery_target_outside_organization',
+  'delivery_target_identity_mismatch',
+]);
 
-  if (params.phone && params.phone.trim().length > 0) {
-    const normalized = normalizeRuPhoneE164(params.phone.trim());
-    const user = await userByPhonePort.findByPhone(normalized);
-    if (!user) return null;
-    return { userId: user.userId, bindings: user.bindings };
+/** Путь без темы: только глобальный `isEnabledForNotifications` на привязанных telegram/max. */
+function legacyBindings(snapshot: ResolvedSnapshot): ChannelBindings {
+  const byCode = new Map(snapshot.channelPreferences.map((p) => [p.channelCode, p]));
+  const out: ChannelBindings = {};
+  if (snapshot.telegramId && byCode.get('telegram')?.isEnabledForNotifications !== false) {
+    out.telegramId = snapshot.telegramId;
   }
-  if (params.telegramId && params.telegramId.trim().length > 0) {
-    const user = await identityResolutionPort.findByChannelBinding({
-      channelCode: 'telegram',
-      externalId: params.telegramId.trim(),
-    });
-    if (!user) return null;
-    return { userId: user.userId, bindings: user.bindings };
+  if (snapshot.maxId && byCode.get('max')?.isEnabledForNotifications !== false) {
+    out.maxId = snapshot.maxId;
   }
-  if (params.maxId && params.maxId.trim().length > 0) {
-    const user = await identityResolutionPort.findByChannelBinding({
-      channelCode: 'max',
-      externalId: params.maxId.trim(),
-    });
-    if (!user) return null;
-    return { userId: user.userId, bindings: user.bindings };
-  }
-  return null;
+  return out;
 }
 
-async function buildAvailability(
-  userId: string,
-  bindings: ChannelBindings,
-  deps: DeliveryTargetsApiDeps,
-): Promise<Parameters<typeof resolveDeliveryTargetsForTopic>[0]['availability']> {
-  const emailFields = await deps.getProfileEmailFields(userId);
-  const hasWebPush = await deps.webPushSubscriptions.hasAnyForUserId(userId);
-  const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
-  const smtp = await deps.systemSettings.getSetting('smtp_outbound', 'admin');
-  const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-
-  return {
-    hasTelegram: Boolean(bindings.telegramId?.trim()),
-    hasMax: Boolean(bindings.maxId?.trim()),
-    hasEmail: Boolean(emailFields.email?.trim()),
-    emailVerified: Boolean(emailFields.emailVerifiedAt),
-    hasWebPushSubscription: hasWebPush,
-    vapidConfigured: Boolean(vapidKeys),
-    smtpConfigured: smtpParsed?.success === true,
-  };
+function bindingsFromResolution(
+  snapshot: ResolvedSnapshot,
+  selectedChannels: ResolvedNotificationChannels['selectedChannels'],
+): ChannelBindings {
+  const out: ChannelBindings = {};
+  if (selectedChannels.includes('telegram') && snapshot.telegramId) {
+    out.telegramId = snapshot.telegramId;
+  }
+  if (selectedChannels.includes('max') && snapshot.maxId) {
+    out.maxId = snapshot.maxId;
+  }
+  return out;
 }
 
 /**
- * Returns channelBindings for the user identified by phone, telegramId, or maxId.
+ * Returns channelBindings for the user identified by phone, telegramId, maxId or platformUserId.
  * With `topic`, applies the same matrix as webapp M2M notify-channels.
  */
 export async function getDeliveryTargetsForIntegrator(
   params: DeliveryTargetsApiParams,
   deps: DeliveryTargetsApiDeps,
 ): Promise<DeliveryTargetsApiResult | null> {
-  const user = await resolveUser(params, deps);
-  if (!user) return null;
-  if (
-    params.organizationId &&
-    !(await deps.hasActivePatientEnrollment(user.userId, params.organizationId))
-  )
-    throw new DeliveryTargetsTenantDeniedError();
-  if (params.integratorUserId) {
-    const projectedUser = await deps.findPlatformUserByIntegratorId(params.integratorUserId);
-    if (!projectedUser || projectedUser.platformUserId !== user.userId) {
-      throw new DeliveryTargetsTenantDeniedError();
-    }
+  const organizationId = params.organizationId?.trim();
+  if (!organizationId) return null;
+  const phone = params.phone?.trim();
+  const topicCode = params.topic?.trim();
+
+  const snapshot = await deps.integratorDeliveryTargets.readSnapshot({
+    organizationId,
+    ...(phone ? { phoneNormalized: normalizeRuPhoneE164(phone) } : {}),
+    ...(params.telegramId?.trim() ? { telegramId: params.telegramId.trim() } : {}),
+    ...(params.maxId?.trim() ? { maxId: params.maxId.trim() } : {}),
+    ...(params.platformUserId?.trim() ? { platformUserId: params.platformUserId.trim() } : {}),
+    ...(params.integratorUserId?.trim() ? { integratorUserId: params.integratorUserId.trim() } : {}),
+    ...(topicCode ? { topicCode } : {}),
+  });
+
+  if (!snapshot.ok) {
+    if (TENANT_DENIED_CODES.has(snapshot.code)) throw new DeliveryTargetsTenantDeniedError();
+    return null;
   }
 
-  const topicTrimmed = params.topic?.trim();
-  if (topicTrimmed && topicTrimmed.length > 0) {
-    const gate = await deps.readReminderNotifyGate(user.userId, topicTrimmed);
-    const availability = await buildAvailability(user.userId, user.bindings, deps);
-    const result: DeliveryTargets = await resolveDeliveryTargetsForTopic({
-      userId: user.userId,
-      bindings: user.bindings,
-      preferencesPort: deps.preferencesPort,
-      topicCode: topicTrimmed,
-      topicChannelPrefsPort: deps.topicChannelPrefsPort,
-      gate,
-      availability,
-      integratorUserId: params.integratorUserId,
-    });
-    const resolution = result.resolution;
-    return {
-      channelBindings: result.channelBindings,
-      ...(resolution ? { resolution } : {}),
-      ...(resolution?.selectedChannels.includes('email')
-        ? {
-            emailRecipient:
-              (await deps.getProfileEmailFields(user.userId)).email?.trim() || undefined,
-          }
-        : {}),
-    };
-  }
+  if (!topicCode) return { channelBindings: legacyBindings(snapshot) };
 
-  const legacy = await getDeliveryTargetsForUser(user.userId, user.bindings, deps.preferencesPort);
-  return { channelBindings: legacy.channelBindings };
+  const core = resolvePatientNotificationChannels({
+    topicCode,
+    availability: {
+      hasTelegram: Boolean(snapshot.telegramId),
+      hasMax: Boolean(snapshot.maxId),
+      hasEmail: Boolean(snapshot.emailRecipient),
+      emailVerified: snapshot.emailVerified,
+      hasWebPushSubscription: snapshot.hasWebPushSubscription,
+      vapidConfigured: snapshot.vapidConfigured,
+      smtpConfigured: snapshot.smtpConfigured,
+    },
+    channelPrefs: snapshot.channelPreferences,
+    topicChannelRows: snapshot.topicChannelRows,
+    gate: { muted: snapshot.muted, topicMasterEnabled: snapshot.topicMasterEnabled },
+  });
+  const resolution = attachResolutionIdentity(core, {
+    userId: snapshot.platformUserId,
+    topicCode,
+    ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
+  });
+  return {
+    channelBindings: bindingsFromResolution(snapshot, resolution.selectedChannels),
+    resolution,
+    ...(resolution.selectedChannels.includes('email') && snapshot.emailRecipient
+      ? { emailRecipient: snapshot.emailRecipient }
+      : {}),
+  };
 }

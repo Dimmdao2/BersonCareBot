@@ -10,6 +10,8 @@ import type {
   SaasBillingRefund,
 } from '@/modules/saas-billing/ports';
 import { formatBillingPeriodLabelRu } from '@/modules/saas-billing/billingPeriodCatalog';
+import { isSaasBillingInvoicePayable } from '@/modules/saas-billing/invoiceValidity';
+import { saasBillingInvoiceCancelVerdict } from '@/modules/saas-billing/invoiceOperations';
 import {
   Card,
   CardAction,
@@ -61,14 +63,25 @@ function statusBadgeVariant(
 }
 
 /**
- * К4 — "просрочен" is never a stored status: derived here from `expiresAt` vs now, only for a row
- * still awaiting payment. See PAYMENTS_CABINET_PLAN.md К4 item 3.
+ * «Аннулирован» и «перевыставлен» — два разных утверждения: первое значит «счёта не было», второе —
+ * «сумма на другом счёте». Отличает их наличие преемника, а не статус: в базе оба `void`. Читать
+ * журнал, где перевыставленный счёт подписан «Аннулирован», значит верить, что долг исчез.
+ */
+function invoiceStatusLabel(row: SaasBillingPlatformInvoiceRow): string {
+  if (row.status === 'void' && row.supersededByInvoiceId) return 'Перевыставлен';
+  return INVOICE_STATUS_LABELS[row.status];
+}
+
+/**
+ * К4 — "просрочен" is never a stored status: derived from `expiresAt` vs now, only for a row still
+ * awaiting payment. See PAYMENTS_CABINET_PLAN.md К4 item 3. Этап 1, пункт 1.3 — the "is this
+ * invoice still alive" rule itself lives in `modules/saas-billing/invoiceValidity.ts` and is read
+ * from there, never re-derived on the screen.
  */
 function isInvoiceOverdue(row: SaasBillingPlatformInvoiceRow): boolean {
   return (
     (row.status === 'draft' || row.status === 'pending') &&
-    row.expiresAt !== null &&
-    new Date(row.expiresAt).getTime() < Date.now()
+    !isSaasBillingInvoicePayable(row, new Date())
   );
 }
 
@@ -102,7 +115,6 @@ const MANUAL_INVOICE_ERROR_LABELS: Record<string, string> = {
   saas_billing_no_tariff_assigned: 'У клиники нет назначенного тарифа — сначала назначьте его.',
   saas_billing_manual_invoice_amount_must_be_positive_integer: 'Сумма должна быть больше нуля.',
   saas_billing_manual_invoice_description_required: 'Укажите, за что счёт.',
-  saas_billing_manual_invoice_expiry_invalid: 'Срок действия должен быть в будущем.',
   saas_billing_payment_provider_unavailable: 'У провайдера нет рабочих ключей для платформенного магазина.',
   saas_billing_provider_invoices_unsupported: 'Выбранный провайдер не поддерживает выставление счетов.',
   saas_billing_provider_rejected_invoice: 'Провайдер отклонил выставление счёта.',
@@ -119,6 +131,8 @@ function manualInvoiceErrorLabel(code: string): string {
 const CANCEL_ERROR_LABELS: Record<string, string> = {
   invoice_not_found: 'Счёт не найден.',
   invoice_not_cancellable: 'Счёт уже оплачен или уже отменён — отменить нельзя.',
+  seat_invoice_not_cancellable:
+    'Счёт за место не отменяют: место продано. Неоплаченный долг перейдёт в счёт следующего периода.',
   forbidden: 'Нет прав на отмену.',
   unauthorized: 'Сессия истекла — войдите заново.',
 };
@@ -640,12 +654,6 @@ type TariffOption = {
 };
 
 /** `datetime-local` input value, three days out — a visible, editable default, not a hidden one. */
-function defaultExpiresAtLocal(): string {
-  const d = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 type ManualInvoiceApiResponse =
   | { ok: true; invoice: SaasBillingPlatformInvoiceRow }
   | { ok: false; error?: string };
@@ -665,7 +673,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [amountRub, setAmountRub] = useState('');
   const [currency, setCurrency] = useState('RUB');
   const [description, setDescription] = useState('');
-  const [expiresAtLocal, setExpiresAtLocal] = useState(defaultExpiresAtLocal);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
@@ -727,11 +734,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
       setError('Укажите, за что счёт.');
       return;
     }
-    const expiresAtDate = new Date(expiresAtLocal);
-    if (Number.isNaN(expiresAtDate.getTime()) || expiresAtDate.getTime() <= Date.now()) {
-      setError('Срок действия должен быть в будущем.');
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
@@ -744,7 +746,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
           amountMinor,
           currency,
           description: description.trim(),
-          expiresAt: expiresAtDate.toISOString(),
         }),
       });
       if (json.ok) {
@@ -756,7 +757,7 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
     } finally {
       setSubmitting(false);
     }
-  }, [amountRub, currency, description, expiresAtLocal, organizationId, onCreated]);
+  }, [amountRub, currency, description, organizationId, onCreated]);
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
@@ -764,7 +765,8 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
         <DialogHeader>
           <DialogTitle>Выставить счёт</DialogTitle>
           <DialogDescription>
-            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике.
+            Счёт уходит провайдеру и получает ссылку на оплату — передайте её клинике. Срок оплаты
+            — общий для всех счетов, он задаётся ниже, в настройках магазина.
           </DialogDescription>
         </DialogHeader>
 
@@ -846,15 +848,6 @@ function ManualInvoiceDialog({ onClose, onCreated }: { onClose: () => void; onCr
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="manual-invoice-expires">Срок действия (до)</Label>
-              <Input
-                id="manual-invoice-expires"
-                type="datetime-local"
-                value={expiresAtLocal}
-                onChange={(e) => setExpiresAtLocal(e.target.value)}
               />
             </div>
             {error && (
@@ -1165,10 +1158,16 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                         </td>
                         <td className="px-3 py-2 align-top font-medium">
                           {formatAmount(row.amountMinor, row.currency)}
+                          {row.carriedDebtMinor > 0 && (
+                            <span className="block text-xs font-normal text-muted-foreground">
+                              в том числе долг за места:{' '}
+                              {formatAmount(row.carriedDebtMinor, row.currency)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 align-top">
                           <Badge variant={statusBadgeVariant(row.status)}>
-                            {INVOICE_STATUS_LABELS[row.status]}
+                            {invoiceStatusLabel(row)}
                           </Badge>
                           {isInvoiceOverdue(row) && (
                             <Badge variant="destructive" className="ml-1">
@@ -1182,8 +1181,13 @@ export function PlatformPaymentsSection({ displayTimeZone }: { displayTimeZone: 
                         <td className="px-3 py-2 align-top">
                           <RefundCell row={row} onOpenRefund={() => setRefundRow(row)} />
                         </td>
+                        {/* Какое действие применимо к счёту, решает не статус на экране, а общий
+                            вердикт `invoiceOperations.ts` — тот же, которым маршрут отказывает
+                            прямому запросу. Автоматический счёт за место не отменяют (Р-17):
+                            место продано, а неоплаченный долг переносится в счёт следующего
+                            периода (Р-18), перевыставления нет (Р-19). */}
                         <td className="px-3 py-2 align-top">
-                          {(row.status === 'draft' || row.status === 'pending') && (
+                          {saasBillingInvoiceCancelVerdict(row).allowed && (
                             <Button
                               type="button"
                               variant="outline"
