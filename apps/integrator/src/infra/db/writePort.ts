@@ -33,10 +33,8 @@ import {
   rescheduleReminderOccurrencePlanned,
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
-import { buildReminderRuleUpsertKeyPayload } from './repos/projectionOutboxMergePolicy.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
 import {
-  REMINDER_RULE_UPSERTED,
   REMINDER_OCCURRENCE_FINALIZED,
   REMINDER_DELIVERY_LOGGED,
   CONTENT_ACCESS_GRANTED,
@@ -58,7 +56,7 @@ import {
 } from './directPublic/mergeCandidatesDirect.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
-import { enqueueProjectionEvent } from './repos/projectionOutbox.js';
+import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js';
 import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 import {
   runWithIntegratorPrincipal,
@@ -491,12 +489,12 @@ export function createDbWritePort(
             mutation.params.resolvedOrganizationId,
           );
           const canonicalUserId = userId;
-          // D5 canonical write: the scheduler reads this same public row. The direct repository writes
-          // the replacement and cancels pending occurrences in one transaction; on failure the old
-          // schedule remains intact until the durable projection is consumed.
-          const fallbackKeyPayload = buildReminderRuleUpsertKeyPayload({
-            integratorRuleId: id,
+          // D5 canonical write: the scheduler reads this same public row. A failed write retains its
+          // complete direct-write input in the durable retry queue, so a later retry does not regress
+          // to the retired narrow HTTP projection payload.
+          const directInput = {
             integratorUserId: canonicalUserId,
+            integratorRuleId: id,
             category,
             isEnabled,
             scheduleType,
@@ -506,36 +504,21 @@ export function createDbWritePort(
             windowEndMinute,
             daysMask,
             contentMode,
-          });
+            linkedObjectType,
+            linkedObjectId,
+            customTitle,
+            customText,
+            scheduleData: mutation.params.scheduleData,
+            reminderIntent,
+            quietHoursStartMinute,
+            quietHoursEndMinute,
+            notificationTopicCode: notificationTopicCodeRaw,
+            resolvedPlatformUserId,
+            resolvedOrganizationId,
+          };
           try {
-            await runDirectPublicWriteWithOrgPrincipal(() =>
-              upsertReminderRuleDirect(db, {
-                integratorUserId: canonicalUserId,
-                integratorRuleId: id,
-                category,
-                isEnabled,
-                scheduleType,
-                timezone,
-                intervalMinutes,
-                windowStartMinute,
-                windowEndMinute,
-                daysMask,
-                contentMode,
-                linkedObjectType,
-                linkedObjectId,
-                customTitle,
-                customText,
-                scheduleData: mutation.params.scheduleData,
-                reminderIntent,
-                quietHoursStartMinute,
-                quietHoursEndMinute,
-                notificationTopicCode: notificationTopicCodeRaw,
-                resolvedPlatformUserId,
-                resolvedOrganizationId,
-              }),
-            );
+            await runDirectPublicWriteWithOrgPrincipal(() => upsertReminderRuleDirect(db, directInput));
           } catch (err) {
-            const fallbackUpdatedAt = new Date().toISOString();
             const fallbackOrganizationId =
               resolvedOrganizationId ?? getCurrentDbPrincipalOrganizationId();
             if (!fallbackOrganizationId) throw err;
@@ -543,23 +526,23 @@ export function createDbWritePort(
               {
                 organizationId: fallbackOrganizationId,
                 integratorUserId: canonicalUserId,
-                source: 'reminder-rule-outbox-fallback',
+                source: 'reminder-rule-direct-write-retry',
               },
               () =>
-                enqueueProjectionEvent(db, {
-                  eventType: REMINDER_RULE_UPSERTED,
+                enqueueDirectPublicWriteRetry(db, {
+                  operation: 'reminder_rule_upsert',
+                  organizationId: fallbackOrganizationId,
                   idempotencyKey: projectionIdempotencyKey(
-                    REMINDER_RULE_UPSERTED,
+                    'direct-public-write.reminder-rule-upsert',
                     id,
-                    hashPayload(fallbackKeyPayload),
+                    hashPayload(directInput),
                   ),
-                  occurredAt: fallbackUpdatedAt,
-                  payload: { ...fallbackKeyPayload, updatedAt: fallbackUpdatedAt },
+                  payload: directInput,
                 }),
             );
             logger.warn(
               { err, mutationType: mutation.type, id, userId: canonicalUserId },
-              'reminders.rule.upsert: direct public write failed, fell back to durable outbox',
+              'reminders.rule.upsert: direct public write failed, queued durable direct retry',
             );
             await recordOperatorFailureIncident({
               direction: 'db_write',
@@ -852,8 +835,8 @@ export function createDbWritePort(
           // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,
           // no incident) — the retired webapp consumer ALSO rejected this case non-retryably
           // (`support.delivery.attempt.logged: organizationId required`, `retryable: false`), so skipping
-          // both the direct write and the outbox enqueue changes nothing about the eventual outcome.
-          // Anything else (row not written for an unexpected reason) falls back to the durable outbox.
+          // both the direct write and retry enqueue changes nothing about the eventual outcome.
+          // Anything else (row not written for an unexpected reason) enters the durable direct retry queue.
           const deliveryFallbackPayload: Record<string, unknown> = {
             intentEventId: intentEventId ?? null,
             correlationId: correlationId ?? null,
@@ -873,6 +856,18 @@ export function createDbWritePort(
           }
           const deliveryAttemptId =
             intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
+          const directInput = {
+            organizationId,
+            conversationMessageId: null,
+            integratorIntentEventId: intentEventId,
+            correlationId,
+            channelCode: channel ?? 'unknown',
+            status: status ?? 'failed',
+            attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
+            reason,
+            payloadJson,
+            occurredAt,
+          };
           await executeCanonicalWriteOrLegacy({
             sync: webappEventsPort?.syncSupportDeliveryAttempt
               ? () =>
@@ -900,33 +895,22 @@ export function createDbWritePort(
                 // directly rather than relying on the ambient principal (this mutation can also be reached
                 // from delivery/retry paths without an ambient organization principal at all).
                 await runWithOrganizationPrincipal(organizationId, () =>
-                  appendSupportDeliveryEventDirect(db, {
-                    organizationId,
-                    conversationMessageId: null,
-                    integratorIntentEventId: intentEventId,
-                    correlationId,
-                    channelCode: channel ?? 'unknown',
-                    status: status ?? 'failed',
-                    attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-                    reason,
-                    payloadJson,
-                    occurredAt,
-                  }),
+                  appendSupportDeliveryEventDirect(db, directInput),
                 );
               } catch (err) {
-                await enqueueProjectionEvent(db, {
-                  eventType: 'support.delivery.attempt.logged',
+                await enqueueDirectPublicWriteRetry(db, {
+                  operation: 'support_delivery_attempt_append',
+                  organizationId,
                   idempotencyKey: projectionIdempotencyKey(
-                    'support.delivery.attempt.logged',
+                    'direct-public-write.support-delivery-attempt-append',
                     String(deliveryAttemptId),
-                    hashPayload(deliveryFallbackPayload),
+                    hashPayload(directInput),
                   ),
-                  occurredAt,
-                  payload: deliveryFallbackPayload,
+                  payload: directInput,
                 });
                 logger.warn(
                   { err, mutationType: mutation.type, intentEventId, correlationId, channel },
-                  'delivery.attempt.log: direct public write failed, fell back to durable outbox',
+                  'delivery.attempt.log: direct public write failed, queued durable direct retry',
                 );
                 await recordOperatorFailureIncident({
                   direction: 'db_write',

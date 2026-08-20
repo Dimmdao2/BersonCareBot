@@ -869,6 +869,11 @@ const TABLE_ROWS: TableRow[] = [
       + 'не даёт app_staff прямого чтения, доступ остаётся только у узкой операционной capability' },
     pol: 'ЕДИНСТВЕННАЯ таблица схемы integrator, где стена реально нужна (evidence/15 §14).',
     defect: ['D14-integrator-no-wall', 'I16-integrator-queues'] },
+  { t: 'integrator.direct_public_write_retries', cls: 'S', org: false, why: 'durable retry прямой записи в public — '
+    + 'временный отказ RLS/сети не должен потерять правило напоминания или журнал доставки',
+    revoke: { app_staff: 'D10: очередь исполняется только integrator request и worker; payload содержит пациентские данные.' },
+    pol: 'не projection transport: повторяет тот же direct-public writer под явным org-принципалом.',
+    defect: ['D10-direct-write-durability'] },
   { t: 'integrator.idempotency_keys', cls: 'S', org: false, why: 'ключи идемпотентности API — повтор вебхука '
     + 'начинает дублировать записи и отправки',
     revoke: { app_staff: 'D14: очередь дедупа вебхуков — не место арендной роли.' },
@@ -6677,6 +6682,17 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
       { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
         columns: ['status', 'updated_at', 'attempts_done', 'next_try_at', 'last_error'] },
+    ],
+  },
+  'integrator.direct_public_write_retries': {
+    kind: 'direct', purpose: 'persist and replay failed direct-public writes without returning to HTTP projection transport',
+    codePaths: ['apps/integrator/src/infra/db/repos/directPublicWriteRetry.ts', 'apps/integrator/src/infra/runtime/worker/directPublicWriteRetryWorker.ts'],
+    grants: [
+      { role: 'app_integrator_request', operations: ['INSERT'],
+        columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
+      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
+        columns: ['status', 'updated_at', 'attempt_count', 'next_try_at', 'last_error'] },
     ],
   },
   'public.saas_billing_periods': {
