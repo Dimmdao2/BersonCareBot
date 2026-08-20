@@ -1,6 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DoctorPatientCardShellMeta, DoctorPatientCardTabBootstrap } from '../loadDoctorPatientCardPageBootstrap';
+import type { ReactNode } from 'react';
+import type {
+  DoctorPatientCardShellMeta,
+  DoctorPatientCardTabBootstrap,
+} from '../loadDoctorPatientCardPageBootstrap';
 
 /**
  * Owner correction 2026-08-20: patient-card tabs move from an internal strip inside the identity
@@ -9,17 +13,55 @@ import type { DoctorPatientCardShellMeta, DoctorPatientCardTabBootstrap } from '
  * replaced with a trivial stub that renders its own id — the test cares only about which panel is
  * mounted/visible and where the tab controls live, not the panels' own content.
  */
-vi.mock('./tabs/PatientTabOverview', () => ({
-  PatientTabOverview: () => <div data-testid="panel-overview">overview panel</div>,
-}));
 vi.mock('./tabs/PatientTabKarta', () => ({
-  PatientTabKarta: () => <div data-testid="panel-karta">karta panel</div>,
+  PatientTabKarta: ({
+    composition,
+  }: {
+    composition?: {
+      leftContent: ReactNode;
+      rightContent: ReactNode;
+      selectedAppointmentId: string | null;
+    };
+  }) => (
+    <div data-testid="panel-karta">
+      karta panel
+      {composition?.leftContent}
+      {composition?.selectedAppointmentId ? (
+        <div data-testid="selected-visit-detail">{composition.selectedAppointmentId}</div>
+      ) : (
+        composition?.rightContent
+      )}
+    </div>
+  ),
 }));
-vi.mock('./tabs/PatientTabProgram', () => ({
-  PatientTabProgram: () => <div data-testid="panel-program">program panel</div>,
+vi.mock('./tabs/PatientTabOverview', () => ({
+  PatientTabOverview: ({ onTabSwitch }: { onTabSwitch?: (tabId: string) => void }) => (
+    <button type="button" onClick={() => onTabSwitch?.('comms')}>
+      вся переписка
+    </button>
+  ),
 }));
 vi.mock('./tabs/PatientTabRecords', () => ({
-  PatientTabRecords: () => <div data-testid="panel-records">records panel</div>,
+  PatientTabRecords: ({
+    onOpenVisitNotes,
+    onOpenMembershipConfiguration,
+  }: {
+    onOpenVisitNotes?: (appointmentId: string) => void;
+    onOpenMembershipConfiguration?: () => void;
+  }) => (
+    <div data-testid="card-master-pane">
+      <button type="button" onClick={() => onOpenVisitNotes?.('appointment-1')}>
+        Открыть заметки
+      </button>
+      <button type="button" onClick={onOpenMembershipConfiguration}>
+        Добавить абонемент
+      </button>
+    </div>
+  ),
+}));
+vi.mock('./tabs/PatientTabFinances', () => ({ PatientTabFinances: () => null }));
+vi.mock('./tabs/PatientTabProgram', () => ({
+  PatientTabProgram: () => <div data-testid="panel-program">program panel</div>,
 }));
 vi.mock('./tabs/PatientTabFiles', () => ({
   PatientTabFiles: () => <div data-testid="panel-files">files panel</div>,
@@ -27,11 +69,8 @@ vi.mock('./tabs/PatientTabFiles', () => ({
 vi.mock('./tabs/PatientTabAccount', () => ({
   PatientTabAccount: () => <div data-testid="panel-account">account panel</div>,
 }));
-vi.mock('./tabs/PatientTabComms', () => ({
-  PatientTabComms: () => <div data-testid="panel-comms">comms panel</div>,
-}));
-vi.mock('./tabs/PatientTabFinances', () => ({
-  PatientTabFinances: () => <div data-testid="panel-finances">finances panel</div>,
+vi.mock('@/app/app/doctor/clients/DoctorClientMembershipsPanel', () => ({
+  DoctorClientMembershipsPanel: () => <div data-testid="membership-configuration">config</div>,
 }));
 
 const { PatientCardClient } = await import('./PatientCardClient');
@@ -53,7 +92,7 @@ const patientId = '11111111-1111-4111-8111-111111111111';
 const patientListHref = '/app/doctor/patients?segment=on_support';
 
 const shellMeta: DoctorPatientCardShellMeta = {
-  activeTab: 'overview',
+  activeTab: 'karta',
   membershipMutationAllowed: true,
   membershipsVisible: true,
   specialistTasksAvailable: true,
@@ -116,24 +155,22 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('patient card — tabs live in DoctorPageHeader, not a second internal strip', () => {
-  it('renders exactly one tab control per section, inside the page header', async () => {
+describe('patient card — final tabs live in DoctorPageHeader', () => {
+  it('renders exactly four product tabs inside the page header', async () => {
     render(
       <PatientCardClient
         shellMeta={shellMeta}
         tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="overview"
+        initialTab="karta"
         patientListHref={patientListHref}
       />,
     );
 
-    await screen.findByTestId('panel-overview');
+    await screen.findByTestId('panel-karta');
 
     const header = document.querySelector('[data-doctor-page-header]');
     expect(header).toBeInTheDocument();
 
-    // The tabs slot is inside DoctorPageHeader — a doubled strip would put a second "Учётка"
-    // button somewhere outside it.
     const tabsSlot = header!.querySelector('[data-doctor-page-header-tabs]');
     expect(tabsSlot).toBeInTheDocument();
     expect(tabsSlot!.querySelector('nav#doctor-patient-card-tabs')).toBeInTheDocument();
@@ -141,6 +178,11 @@ describe('patient card — tabs live in DoctorPageHeader, not a second internal 
     const accountButtons = screen.getAllByRole('button', { name: 'Учётка' });
     expect(accountButtons).toHaveLength(1);
     expect(tabsSlot!.contains(accountButtons[0]!)).toBe(true);
+    expect(tabsSlot!.querySelectorAll('#doctor-patient-card-tabs button')).toHaveLength(4);
+    expect(screen.queryByRole('button', { name: 'Обзор' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Визиты' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Коммуникации' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Финансы' })).not.toBeInTheDocument();
 
     // The «К клиентам» back link lives in the same header, not floating elsewhere.
     const backLink = screen.getByRole('link', { name: 'К клиентам' });
@@ -158,28 +200,28 @@ describe('patient card — tabs live in DoctorPageHeader, not a second internal 
       />,
     );
 
-    await screen.findByTestId('panel-overview');
-    expect(screen.queryByTestId('panel-karta')).not.toBeInTheDocument();
+    await screen.findByTestId('panel-karta');
+    expect(screen.queryByTestId('panel-program')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Программа' }));
+
+    const programPanel = await screen.findByTestId('panel-program');
+    expect(programPanel.closest('[hidden], .hidden')).toBeNull();
+    // Card stays mounted (hidden), matching the load-once/keepMounted contract — switching
+    // tabs must not drop state a doctor already entered on a previously visited tab.
+    const kartaPanel = screen.getByTestId('panel-karta');
+    expect(kartaPanel.closest('.hidden')).not.toBeNull();
 
     fireEvent.click(screen.getByRole('button', { name: 'Карточка' }));
 
-    const kartaPanel = await screen.findByTestId('panel-karta');
-    expect(kartaPanel.closest('[hidden], .hidden')).toBeNull();
-    // Overview stays mounted (hidden), matching the load-once/keepMounted contract — switching
-    // tabs must not drop state a doctor already entered on a previously visited tab.
-    const overviewPanel = screen.getByTestId('panel-overview');
-    expect(overviewPanel.closest('.hidden')).not.toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Обзор' }));
-
     await waitFor(() => {
-      expect(screen.getByTestId('panel-overview').closest('.hidden')).toBeNull();
+      expect(screen.getByTestId('panel-karta').closest('.hidden')).toBeNull();
     });
-    // Karta is still in the DOM, just hidden — its internal state was not thrown away.
-    expect(screen.getByTestId('panel-karta').closest('.hidden')).not.toBeNull();
+    // Program is still in the DOM, just hidden — its internal state was not thrown away.
+    expect(screen.getByTestId('panel-program').closest('.hidden')).not.toBeNull();
   });
 
-  it('opens directly on a deep-linked tab (?tab=records) via initialTab', async () => {
+  it('opens legacy direct links in the consolidated card tab', async () => {
     render(
       <PatientCardClient
         shellMeta={shellMeta}
@@ -189,8 +231,49 @@ describe('patient card — tabs live in DoctorPageHeader, not a second internal 
       />,
     );
 
-    const recordsPanel = await screen.findByTestId('panel-records');
-    expect(recordsPanel.closest('.hidden')).toBeNull();
-    expect(screen.queryByTestId('panel-overview')).not.toBeInTheDocument();
+    const kartaPanel = await screen.findByTestId('panel-karta');
+    expect(kartaPanel.closest('.hidden')).toBeNull();
+    expect(screen.queryByTestId('panel-program')).not.toBeInTheDocument();
+  });
+
+  it('keeps the consolidated card visible when its communications shortcut is used', async () => {
+    render(
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={fulfilledThenable(tabBootstrap)}
+        initialTab="karta"
+        patientListHref={patientListHref}
+      />,
+    );
+
+    const karta = await screen.findByTestId('panel-karta');
+    expect(karta.closest('.hidden')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'вся переписка' }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('panel-karta').closest('.hidden')).toBeNull();
+    });
+  });
+
+  it('keeps selected visit detail hidden until selection and opens membership configuration in the detail pane', async () => {
+    render(
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={fulfilledThenable(tabBootstrap)}
+        initialTab="karta"
+        patientListHref={patientListHref}
+      />,
+    );
+
+    await screen.findByTestId('card-master-pane');
+    expect(screen.queryByTestId('selected-visit-detail')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
+    expect(await screen.findByTestId('selected-visit-detail')).toHaveTextContent('appointment-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
+    expect(await screen.findByTestId('membership-configuration')).toBeInTheDocument();
+    expect(screen.queryByTestId('selected-visit-detail')).not.toBeInTheDocument();
   });
 });

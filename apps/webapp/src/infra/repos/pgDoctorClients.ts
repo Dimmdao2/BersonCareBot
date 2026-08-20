@@ -720,6 +720,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         patient_package_id: string | null;
         package_title: string | null;
         package_display_number: number | null;
+        has_visit_record: boolean;
       }>(
         `SELECT
            bea.id::text AS internal_id,
@@ -732,7 +733,14 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            (bea.package_usage_ref IS NOT NULL)::boolean AS is_package,
            u.patient_package_id::text AS patient_package_id,
            pp.title AS package_title,
-           pp.display_number AS package_display_number
+           pp.display_number AS package_display_number,
+           EXISTS (
+             SELECT 1
+             FROM clinical_visit cv
+             WHERE cv.canonical_appointment_id = bea.id
+               AND cv.patient_user_id = bea.platform_user_id
+               AND cv.organization_id = bea.organization_id
+           ) AS has_visit_record
          FROM be_appointments bea
          LEFT JOIN be_branches br ON br.id = bea.branch_id
          LEFT JOIN be_clinic_services svc ON svc.id = bea.service_id
@@ -789,6 +797,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           patientPackageId: row.patient_package_id ?? null,
           packageTitle: row.package_title ?? null,
           packageDisplayNumber: row.package_display_number ?? null,
+          hasVisitRecord: row.has_visit_record,
         };
       });
     },
@@ -1052,7 +1061,11 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       );
 
       const visitedParams: unknown[] = [];
-      const visitedOrgPredicate = canonicalAppointmentOrgPredicate('bea', organizationId, visitedParams);
+      const visitedOrgPredicate = canonicalAppointmentOrgPredicate(
+        'bea',
+        organizationId,
+        visitedParams,
+      );
       const visitedBase = `SELECT COUNT(DISTINCT pu.id)::text AS c
            FROM platform_users pu
            INNER JOIN be_appointments bea ON bea.platform_user_id = pu.id
@@ -1095,8 +1108,16 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       // UI-4b event and membership metrics are loaded through Drizzle below.
       // Один агрегирующий запрос на платформных клиентов
       const aggParams: unknown[] = [];
-      const aggPastOrgPredicate = canonicalAppointmentOrgPredicate('bea', organizationId, aggParams);
-      const aggFutureOrgPredicate = canonicalAppointmentOrgPredicate('bea', organizationId, aggParams);
+      const aggPastOrgPredicate = canonicalAppointmentOrgPredicate(
+        'bea',
+        organizationId,
+        aggParams,
+      );
+      const aggFutureOrgPredicate = canonicalAppointmentOrgPredicate(
+        'bea',
+        organizationId,
+        aggParams,
+      );
       const aggBase = `SELECT
            pu.id,
            COUNT(DISTINCT bea.id) FILTER (
