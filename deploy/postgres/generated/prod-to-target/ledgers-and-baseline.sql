@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict 6xzycw3O74f0f9FxN40D7hBJa1BUoZPri2X8OgBphy4ZCgHYN04UzAxR2bLbMUg
+\restrict 0e3eaa0510279075d7a98a0c39483f5c73b06e0724043adca0d1963182a26f3
 
 -- Dumped from database version 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1)
 -- Dumped by pg_dump version 16.14 (Ubuntu 16.14-0ubuntu0.24.04.1)
@@ -79,7 +79,6 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (624
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (619, '7f78a9b99869994799081d8cd17282adc0e7850d818509201353a57b85bf1091', 1800000071000, '20260819T204355_a_seat_invoice_is_not_cancelled_it_is_reissued');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (620, '66db5bf7824af292e1a0ec2fc5bac40c76c602a03cf248098f19d1f5b93369dc', 1800000072000, '20260819T205420_the_transcode_queue_dispatcher_had_no_door');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (621, 'd6b739a9e3c12bb5a796c9b1ac9298bb82f634ea3fed17866e02e566711292cd', 1800000073000, '20260819T210005_a_clinic_is_billed_for_seats_not_for_people');
-INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (598, 'c13927102c549a4d9bfa74f6c600471d1583ee55534217905071fb110acf5124', 1800000070000, NULL);
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (477, '1a9c925f2f5b411bca309187d06cdaaec198602fd51e85e6d9554943d9ba7963', 1800000000000, '0000_b0_baseline');
 
 
@@ -151,4 +150,4 @@ SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 624, true);
 -- PostgreSQL database dump complete
 --
 
-\unrestrict 6xzycw3O74f0f9FxN40D7hBJa1BUoZPri2X8OgBphy4ZCgHYN04UzAxR2bLbMUg
+\unrestrict 0e3eaa0510279075d7a98a0c39483f5c73b06e0724043adca0d1963182a26f3

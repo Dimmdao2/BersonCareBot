@@ -6,6 +6,7 @@
  * creates, drops or migrates a database; migrate-dev.sh --execute is the only preceding writer.
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { readMigrationFolder, selectPendingMigrations } from '../deploy/postgres/privileges/migration-order.mjs';
@@ -33,10 +34,21 @@ function canonicalizePolicyRoleOrder(sql) {
   );
 }
 
+/**
+ * `pg_dump --restrict-key` задаёт строку, которой psql обрамляет вывод (`\restrict`/`\unrestrict`).
+ * Без неё pg_dump берёт случайную строку на каждый прогон, и `--check` не совпал бы никогда, поэтому
+ * ключ обязан быть стабильным. Раньше здесь лежали четыре высокоэнтропийные константы — секретами они
+ * не были, но gitleaks справедливо не умеет отличить их от ключа API и валил Security-проверку.
+ * Выводим ключ из имени артефакта: та же стабильность, тот же вид на выходе, но в исходнике не лежит
+ * ничего, что похоже на секрет, и глушить сканер не нужно.
+ */
+function restrictKeyFor(file) {
+  return createHash('sha256').update(`prod-to-target-cutover:${file}`).digest('hex').slice(0, 63);
+}
+
 const artifacts = [
   {
     file: 'schema-pre.sql',
-    restrictKey: 'nWtjyBeP1kaN7rDBMHL6kRFv5HeZBf2ix1LExAsn9NhYTKcFdAMQbKcXvISeUTn',
     args: ['--schema-only', '--section=pre-data'],
     transform: (sql) => removeRetiredRuntimeSettings(sql.replace(
       /^CREATE SCHEMA (app|app_control|app_ext|drizzle|integrator);$/gmu,
@@ -45,13 +57,11 @@ const artifacts = [
   },
   {
     file: 'schema-post.sql',
-    restrictKey: 'VDILCdWDLrtgsAi05DRibKYGuJsuS0NQ9kSaFgv4afgfloUq45O3UwSg2t8hlKI',
     args: ['--schema-only', '--section=post-data'],
     transform: canonicalizePolicyRoleOrder,
   },
   {
     file: 'ledgers-and-baseline.sql',
-    restrictKey: '6xzycw3O74f0f9FxN40D7hBJa1BUoZPri2X8OgBphy4ZCgHYN04UzAxR2bLbMUg',
     args: [
       '--data-only',
       '--column-inserts',
@@ -69,7 +79,6 @@ const artifacts = [
   },
   {
     file: 'runtime-settings.sql',
-    restrictKey: 'zuW9L5uzqzBzeUZ4w0j4VjwaxfagL7ZbzDDIja2kue9OpChHcJnzVk9ak4FJIHp',
     args: ['--data-only', '--column-inserts', '--table=public.app_runtime_settings'],
     transform: sanitizeRuntimeSettingsForCutover,
   },
@@ -99,7 +108,7 @@ function dump(artifact) {
   const raw = postgres('pg_dump', [
     '-h', '/var/run/postgresql', '-p', '5432', '-d', database,
     '--no-owner', '--no-privileges', '--no-comments',
-    `--restrict-key=${artifact.restrictKey}`,
+    `--restrict-key=${restrictKeyFor(artifact.file)}`,
     ...artifact.args,
   ]);
   const transformed = artifact.transform ? artifact.transform(raw) : raw;
