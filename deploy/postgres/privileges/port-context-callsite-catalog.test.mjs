@@ -505,6 +505,14 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'billing.platform.period-catalog.read', argCount: 0,
     source: 'apps/webapp/src/infra/repos/pgSaasBilling.ts',
   },
+  // Переключатель «организация включена/выключена» в карточке клиники. Читать и писать
+  // be_organizations платформенному админу напрямую нельзя — решение живёт за DEFINER-швом
+  // app_seam_org_directory_owner, миграция 20260820T010127.
+  'app.set_platform_organization_is_active(uuid,boolean)': {
+    port: 'webapp', targetRole: 'app_platform_settings', contextClass: 'platform',
+    purpose: 'platform.organization.set-is-active', argCount: 2,
+    source: 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts',
+  },
   'app.resolve_patient_acquiring_webhook_organization(text,text)': {
     port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
     purpose: 'patient-payment.webhook.resolve', argCount: 2,

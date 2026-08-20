@@ -118,6 +118,7 @@
     "app.set_current_patient_notification_topic_channel",
     "app.set_current_patient_preferred_auth_channel",
     "app.set_current_patient_reminder_muted_until",
+    "app.set_platform_organization_is_active",
     "app.start_current_patient_test_attempt",
     "app.submit_current_patient_test_attempt",
     "app.touch_current_patient_program_item",
