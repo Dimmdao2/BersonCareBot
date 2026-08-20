@@ -2,6 +2,12 @@
 /**
  * Отказ запускать полный CI, пока дерево ещё дописывается.
  *
+ * Условий два, и они РАЗНЫЕ. «Никто не пишет» ловится по живым агентам порта. «Сведение закончено»
+ * по ним не ловится вовсе: между двумя ветками писателей может не быть ни одного, а впереди ещё
+ * пять слияний. Первую редакцию этого файла лид написал только под первое условие — то есть
+ * закрыл ровно тот способ, которым уже обжёгся, и оставил открытым второй, названный владельцем в
+ * тот же день первым словом: «Ты опять гоняешь CI ДО СВЕДЕНИЯ ВСЕХ ВЕТОК».
+ *
  * Что предотвращает. Полный прогон измеряет ОДНО состояние репозитория. Если в этот момент ветки ещё
  * сводятся или агенты ещё пишут, измеренного состояния к концу работы не будет: зелёный результат
  * относится к дереву, которого не станет, красный может принадлежать половине слияния. Плюс прогон
@@ -40,18 +46,61 @@ function livePortAgents() {
     });
 }
 
+/**
+ * Ветки `wt/*`, у которых есть коммиты сверх головы сведения. Пока такая есть хоть одна, состояние
+ * дерева ещё дописывается: прогон измерит то, чего через час не будет.
+ */
+function unlandedBranches() {
+  const target = process.env.BCB_CI_INTEGRATION_BRANCH ?? 'feat/doctor-ui-rebuild';
+  let refs = '';
+  try {
+    refs = execFileSync('git', ['for-each-ref', '--format=%(refname:short)', 'refs/heads/wt'], {
+      encoding: 'utf8',
+    });
+  } catch {
+    return []; // не git-дерево или нет веток wt/* — второе условие неприменимо
+  }
+  const pending = [];
+  for (const branch of refs.split('\n').map((l) => l.trim()).filter(Boolean)) {
+    let count = '0';
+    try {
+      count = execFileSync('git', ['rev-list', '--count', `${target}..${branch}`], {
+        encoding: 'utf8',
+      }).trim();
+    } catch {
+      continue; // ветка сведения не существует — сравнивать не с чем
+    }
+    if (count !== '0') pending.push({ branch, count });
+  }
+  return pending;
+}
+
 const agents = livePortAgents();
 const writers = agents.filter((a) => !a.readOnly);
+const pending = unlandedBranches();
 
-if (writers.length === 0) {
+if (writers.length === 0 && pending.length === 0) {
   process.exit(0);
 }
 
 const allowed = process.env[ESCAPE] === '1';
 const lines = [
-  `ci-preflight: полный CI не запускается — в работе ${writers.length} агент(ов), пишущих в дерево:`,
-  ...writers.map((w) => `  pid ${w.pid}${w.runId ? ` (${w.runId})` : ''}`),
+  'ci-preflight: полный CI не запускается.',
   '',
+  ...(writers.length
+    ? [
+        `Условие «никто не пишет» НЕ выполнено — ${writers.length} агент(ов) пишут в дерево:`,
+        ...writers.map((w) => `  pid ${w.pid}${w.runId ? ` (${w.runId})` : ''}`),
+        '',
+      ]
+    : ['Условие «никто не пишет» выполнено: живых писателей нет.', '']),
+  ...(pending.length
+    ? [
+        `Условие «сведение закончено» НЕ выполнено — ${pending.length} ветк(и) не влиты:`,
+        ...pending.map((p) => `  ${p.branch} — ${p.count} коммит(ов) сверх ветки сведения`),
+        '',
+      ]
+    : ['Условие «сведение закончено» выполнено: невлитых веток wt/* нет.', '']),
   'Полный CI гоняется ОДИН раз, когда сведение ЗАКОНЧЕНО: все ветки влиты, писателей нет.',
   'Правки по ходу проверяют аудитор и целевые тесты по масштабу правки — это их работа.',
   'Норматив: AGENTS.md §9 «Full CI gate», docs/ORCHESTRATION_BINDINGS.md «Полный CI гоняется В ЭТОМ дереве».',
@@ -60,7 +109,10 @@ const lines = [
 ];
 
 if (allowed) {
-  console.warn(`ci-preflight: ПРОПУЩЕНО по ${ESCAPE}=1 при ${writers.length} живых писателях.`);
+  console.warn(
+    `ci-preflight: ПРОПУЩЕНО по ${ESCAPE}=1 — живых писателей ${writers.length}, ` +
+      `невлитых веток ${pending.length}.`,
+  );
   process.exit(0);
 }
 
