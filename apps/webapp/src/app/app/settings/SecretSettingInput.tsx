@@ -27,9 +27,15 @@ export function SecretSettingInput<T extends string>({
   webhookPath,
 }: SecretSettingInputProps<T>) {
   const [value, setValue] = useState('');
+  const [previousConfigured, setPreviousConfigured] = useState(configured);
   const [saved, setSaved] = useState(configured);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  if (configured !== previousConfigured) {
+    setPreviousConfigured(configured);
+    setSaved(configured);
+  }
 
   return (
     <section className="flex flex-col gap-2">
