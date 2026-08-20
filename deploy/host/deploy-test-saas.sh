@@ -3356,7 +3356,6 @@ sudo -u deploy test -f "$SAAS_SMOKE_LOGIN_ENV" && sudo -u deploy test ! -L "$SAA
 [ -r "$SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_MEDIA_CONTROL_CUTOVER"; exit 1; }
 [ -x "$SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_MEDIA_LOGIN_RETIREMENT"; exit 1; }
 [ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SETTER"; exit 1; }
-[ -x "$SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE" ] || { echo "FATAL: missing executable repo file: $SRC_REPO/$C4_OPERATIONAL_PASSWORD_SMOKE"; exit 1; }
 [ -r "$SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PORT_CONTEXT_CAPABILITY_SEED"; exit 1; }
 [ -r "$SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$MEDIA_WORKER_TEST_UNIT_ASSERTION"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_OPERATOR_PROVISIONER"; exit 1; }
