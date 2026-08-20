@@ -3,15 +3,10 @@
  * Pattern: requireDoctorAccess → tab-aware server bootstrap → PatientCardClient.
  */
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
-import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
-import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
-import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
-import { cn } from '@/lib/utils';
 import { PatientCardClient } from './PatientCardClient';
 import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 import {
@@ -66,31 +61,15 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
 
   return (
     <DoctorAppShell title="Карточка пациента" user={session.user} backHref={patientListHref}>
-      <DoctorPageHeader
-        id="doctor-patient-card-header"
-        title="Карточка пациента"
-        tabs={
-          <Link
-            href={patientListHref}
-            className={cn(
-              buttonVariants({ size: 'sm', variant: 'outline' }),
-              'h-8 rounded-[var(--doctor-control-radius,24px)] px-3',
-            )}
-          >
-            К клиентам
-          </Link>
-        }
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={tabPromise}
+        initialTab={activeTab}
+        createVisitFrom={createVisitFrom}
+        visitDate={visitDate}
+        isAdmin={session.user.role === 'admin'}
+        patientListHref={patientListHref}
       />
-      <section className={doctorPageStackClass}>
-        <PatientCardClient
-          shellMeta={shellMeta}
-          tabPromise={tabPromise}
-          initialTab={activeTab}
-          createVisitFrom={createVisitFrom}
-          visitDate={visitDate}
-          isAdmin={session.user.role === 'admin'}
-        />
-      </section>
     </DoctorAppShell>
   );
 }

@@ -13,7 +13,6 @@ import {
 } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
-import { doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { buildTreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers';
@@ -159,14 +158,13 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       user={session.user}
       backHref={routePaths.doctorPatients}
     >
-      <section className={doctorPageStackClass}>
-        <PatientCardClient
-          shellMeta={shellMeta}
-          tabPromise={tabPromise}
-          initialTab="program"
-          embeddedProgramContent={embeddedEditor}
-        />
-      </section>
+      <PatientCardClient
+        shellMeta={shellMeta}
+        tabPromise={tabPromise}
+        initialTab="program"
+        embeddedProgramContent={embeddedEditor}
+        patientListHref={routePaths.doctorPatients}
+      />
     </DoctorAppShell>
   );
 }
