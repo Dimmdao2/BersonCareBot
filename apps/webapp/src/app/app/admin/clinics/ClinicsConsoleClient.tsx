@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { PlatformOrganizationSummary } from '@/modules/org-entitlements/ports';
 import type { SaasBillingOverview as SaasBillingOverviewData } from '@/modules/saas-billing/ports';
 import {
@@ -30,6 +30,7 @@ import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { SaasBillingOverview } from '@/shared/ui/doctor/SaasBillingOverview';
+import { OrganizationCommercialPanel } from './OrganizationCommercialPanel';
 
 export type PlatformClinicsData = {
   organizations: PlatformOrganizationSummary[];
@@ -542,12 +543,14 @@ function ClinicDetail({
   organizationId,
   billing,
   billingError,
+  onOrganizationsRefresh,
 }: {
   data: PlatformClinicsData;
   members: PlatformClinicMember[];
   organizationId: string;
   billing: SaasBillingOverviewData | null;
   billingError: boolean;
+  onOrganizationsRefresh: () => Promise<boolean>;
 }) {
   const organization = data.organizations.find((item) => item.id === organizationId);
   const tariffsById = useMemo(
@@ -608,29 +611,11 @@ function ClinicDetail({
         </dl>
       </DoctorSection>
 
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Пробный период</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        {organization.trial ? (
-          <dl className="grid gap-2 sm:grid-cols-3">
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Статус</dt>
-              <dd className="mt-1 font-medium">{TRIAL_STATUS_LABELS[organization.trial.status]}</dd>
-            </div>
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Окончание</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.endsAt)}</dd>
-            </div>
-            <div className={doctorSectionItemClass}>
-              <dt className="text-xs text-muted-foreground">Скидка на оплату до</dt>
-              <dd className="mt-1 font-medium">{formatDate(organization.trial.discountEndsAt)}</dd>
-            </div>
-          </dl>
-        ) : (
-          <DoctorEmptyState size="xs">Пробный период не запускался.</DoctorEmptyState>
-        )}
-      </DoctorSection>
+      <OrganizationCommercialPanel
+        organization={organization}
+        tariffs={data.tariffs}
+        onUpdated={onOrganizationsRefresh}
+      />
 
       <ClinicAccountsSection members={members} />
       <OverridesSection organization={organization} />
@@ -676,6 +661,18 @@ export function ClinicsConsoleClient({
     initialBillingOverview ?? null,
   );
   const [billingError, setBillingError] = useState(false);
+
+  const reloadOrganizations = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/admin/organizations', { cache: 'no-store' });
+      const body = (await response.json().catch(() => null)) as ClinicsApiResponse | null;
+      if (!response.ok || !body?.ok) return false;
+      setData(body);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     if (initialData && (!organizationId || initialMembers)) return;
@@ -788,6 +785,7 @@ export function ClinicsConsoleClient({
       organizationId={organizationId}
       billing={billing}
       billingError={billingError}
+      onOrganizationsRefresh={reloadOrganizations}
     />
   ) : (
     <ClinicsList data={data} />
