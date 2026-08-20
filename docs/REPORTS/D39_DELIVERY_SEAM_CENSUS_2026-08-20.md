@@ -28,7 +28,19 @@
 Находки: 2.
 
 1. Transactional email: у вызова нет стабильного идентификатора операции. Дедуп одинакового тела заглушит сознательную повторную отправку; нужен owner-contract ключа операции.
-2. Manual integrator merge: нет ключа и в текущем `apps/integrator/src` не найден receiver endpoint; повтор отвергается HTTP.
+2. Manual integrator merge: **находка закрыта 20.08 — это не шов, а мёртвый код.** Точный поиск показал у
+   `callIntegratorUserMerge` НОЛЬ вызовов (только собственное определение и ре-экспорт из app-layer), а
+   маршрут `/api/integrator/users/merge` отсутствует и у отправителя (`apps/webapp/src/app/api/doctor/clients/`
+   не содержит `integrator-merge`), и у приёмника (`apps/integrator/src`). Ключ идемпотентности нужен шву, по
+   которому что-то ходит; здесь ходить нечему. Удалены `callIntegratorUserMerge`, тип `IntegratorMergeResponse`
+   и граница app-layer `apps/webapp/src/app-layer/integrations/integratorUserMergeM2mClient.ts`; из
+   `apps/webapp/src/app/api/api.md` убрана строка про `doctor/clients/integrator-merge`, описывавшая
+   несуществующий маршрут. Живой `checkIntegratorCanonicalPair` (его зовут `platformUserMergePreview.ts:872`
+   и `manualMergeIntegratorGate.ts:55`) НЕ тронут. Что перестал получать живой человек: ничего — вызвать
+   удалённое было неоткуда, а попытка дошла бы до 404.
+
+Остаётся открытым ОДИН вопрос владельцу — transactional email (пункт 1): нужен ли ключ операции, и если да,
+кто его назначает. Это развилка контракта, а не работа кода.
 
 ## D39 verification — 2026-08-20
 
