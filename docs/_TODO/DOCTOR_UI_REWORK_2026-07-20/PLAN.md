@@ -241,8 +241,9 @@ counts/metadata или потерю standalone deep-link compatibility.
 
 **Readiness reconciliation 2026-08-20:** прежний блокер `#971 → #796` снят. Canonical U5A principal defect закрыт,
 а record-class contract `#928` завершён; оставшиеся A↔B/revoked live seals отложены владельцем до реального этапа
-клиентского экрана и должны проверяться вместе с UI-5b, а не блокировать его временным TEST-harness. Реализация
-UI-5b остаётся фактически открытой в `#971` и начинается с current-code/data-gap census по полному checklist ниже.
+клиентского экрана и должны проверяться вместе с UI-5b, а не блокировать его временным TEST-harness. Эта запись
+фиксирует состояние до implementation candidate 2026-08-20; фактический candidate и его live-проверка описаны
+ниже, интеграция в `feat` и owner acceptance остаются отдельными шагами.
 
 **Owner correction 2026-08-20 (`#971`), bounded stage landed:** «Добавить поиск клиента прямо внутри открытой
 карточки — не надо пока, давай лучше вкладки сделаем табами в строке заголовка, как в остальных страницах.»
@@ -274,6 +275,10 @@ UI-5b остаётся фактически открытой в `#971` и нач
 | `loadDoctorPatientMessagesSnapshot` + messaging actor-aware list | Read-only card widget snapshot                          | Direct patient lookup admitted null-org/non-authorized conversations; exact organization, specialist identity and actor-authorized conversation are now required before content/count. |
 
 No second patient-card route/tree, schema, migration, search UI or UI-7 scheduler was introduced.
+Live-проверка candidate на отдельном разрешённом clone-порту закрыла mobile master/detail и desktop 50/50 на
+реальном аккаунте врача и заполненной карточке пациента. Найденный там `42P01` исправлен заменой ошибочного
+`clinical_visits` на каноническую relation `clinical_visit`; repository-level поведенческий тест воспроизводит
+тот же relation-catalog failure и зелёный путь.
 
 ### UI-6 — Сегодня
 
@@ -401,7 +406,7 @@ candidate июля остаётся evidence только для того дер
 | UI-2                 | `DONE repository / public live gated`           | Built-in Online и public split доказаны в repository; published-slug live proof остаётся U6B `#926`. Expanded online chain `#215` не входит.          |
 | UI-3                 | `DONE repository / owner pending`               | Presentation, broadcast IA и shared composer закрыты; scheduled send вынесен в отдельный UI-7a.                                                       |
 | UI-4                 | `DONE repository / owner pending`               | Right-pane preview удалён по owner ruling 2026-07-23; обычный режим = list + filters, строка открывает full card.                                     |
-| UI-5                 | `UI-5a DONE / UI-5b candidate implemented #971` | Four-tab composition and focused gates are repository-ready in the isolated worktree; live mobile/owner acceptance and integration remain separate.   |
+| UI-5                 | `UI-5a DONE / UI-5b candidate live-verified #971` | Four-tab composition, focused gates and real-data mobile/desktop live verification are complete in the isolated worktree; owner acceptance and integration remain separate. |
 | UI-6                 | `DONE current contract / product residual`      | Текущие signals/list switch реализованы; «Самые активные», новые counters и hiding остаются без exact owner contract в `#963`.                        |
 | UI-7                 | `OPEN #964 / minimal scope 2026-08-17`          | Нужны дата/время, planner dispatch, creator-visible pending и cancel. Расширенный старый UI исключён.                                                 |
 | UI-8                 | `DONE current contract`                         | S4/C5 organization-only commercial contour и reminder defaults закрыты; существующие назначения не изменены.                                          |
@@ -670,8 +675,9 @@ brief или заменять одним общим пунктом.
 - [x] Клик по названию открывает существующую программу.
       (✓ title button delegates to existing `selectTab('program')` / `PatientTabProgram`.)
 - [x] Оформленный визит предлагает «Открыть заметки», а не повторное создание визита.
-      (✓ `PatientAppointmentItem.hasVisitRecord` comes from exact-org `clinical_visits` existence; both legacy and
-      composed render paths covered by `PatientTabRecords.ui.test.tsx`.)
+      (✓ `PatientAppointmentItem.hasVisitRecord` comes from exact-org `clinical_visit` existence; repository
+      execution is covered by `pgDoctorClients.listPatientAppointments.unit.test.ts`, both legacy and composed
+      render paths by `PatientTabRecords.ui.test.tsx`.)
 - [x] Membership list и history перенесены из «Финансы» в левую часть card flow.
       (✓ composed `MembershipPanel` classifies active/history and is reachable from left KPI.)
 - [x] `Списать` доступно только активному абонементу; `Пересчитать` сохранено.
@@ -816,7 +822,7 @@ Targeted checks presentation workers могут идти независимо; l
 | UI-3 communications                      | historical C1 / `#852`; residual `#961` + `#962`              | `#961` gradient+broadcast IA; `#962` shared composer; закрытую 45/55 часть не повторять                                                             |
 | UI-4/UI-6 presentation                   | historical C1 / `#850`; UI-5a `#958`; UI-6b `#963`            | UI-4 = list + filters без preview; closed presentation не повторять; UI-6 product residual ждёт exact owner contract                                |
 | UI-5a existing-card full-workspace reuse | `#958`; layout-only predecessor U5B                           | selected card заменяет весь content container; возврат восстанавливает list state; после route/guard census, без data/API/visibility/schema changes |
-| UI-5b organization card/history policy   | `#971`; U5B contract `#928`                                   | dependency-ready: current census → полный atomic implementation; A↔B/revoked live seals проверяются в этом stage, не временным harness              |
+| UI-5b organization card/history policy   | `#971`; U5B contract `#928`                                   | candidate live-verified in isolated worktree; owner acceptance and integration remain; A↔B/revoked live seals stay owner-deferred to the client-screen stage |
 | UI-8 mechanics/reminders                 | C4D/C5 + `#191`, foundation `#888` accepted                   | только organization/clinic axis; не форкать entitlement/commercial систему                                                                          |
 | UI-9 individual exercises                | `#564`, design `#565`                                         | owner-approved; запуск после C4D exact-org isolation                                                                                                |
 | Patient Today mood residual              | `#924`                                                        | repository stage завершён; live owner acceptance не подменять audit seal                                                                            |
