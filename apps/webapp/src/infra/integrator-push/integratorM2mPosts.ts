@@ -42,7 +42,7 @@ export async function postReminderRuleUpsertToIntegrator(
   if (!rule.integratorUserId) return;
   const { baseUrl, secret } = await requireM2m();
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const idempotencyKey = existingIdempotencyKey ?? `rule_${rule.id}_${timestamp}`;
+  const idempotencyKey = existingIdempotencyKey ?? `reminder_rule:${rule.id}`;
   const customTitleForIntegrator =
     rule.customTitle?.trim() ||
     (rule.linkedObjectType === 'rehab_program' ? rule.displayTitle?.trim() || null : null) ||
