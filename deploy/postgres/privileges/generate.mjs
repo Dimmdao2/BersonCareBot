@@ -1207,6 +1207,43 @@ function revokeList(names) {
 
 /* ─────────────────────────── точка ноль ─────────────────────────── */
 
+/** Attribute-only quarantine for retained legacy roles. Missing roles stay missing:
+ * this primitive never creates a role, changes memberships or grants privileges. */
+export function generateLegacyRoleQuarantineSql(declaration, options = {}) {
+  const managed = new Set(managedRoleNames(declaration));
+  const declaredLegacy = [...new Set(declaration.zeroState?.legacyRoles ?? [])].sort();
+  const requested = options.only ? [...new Set(options.only)].sort() : declaredLegacy;
+  const undeclared = requested.filter((roleName) => !declaredLegacy.includes(roleName));
+  if (undeclared.length > 0) {
+    throw new DeclarationGapError(undeclared.map((roleName) => ({
+      site: `zeroState.legacyRoles.${roleName}`,
+      reason: 'role is not declared legacy and cannot use the quarantine primitive',
+    })));
+  }
+  const collisions = declaredLegacy.filter((roleName) => managed.has(roleName));
+  if (collisions.length > 0) {
+    throw new DeclarationGapError(collisions.map((roleName) => ({
+      site: `zeroState.legacyRoles.${roleName}`,
+      reason: 'role is simultaneously declared managed and legacy',
+    })));
+  }
+  const out = [
+    '-- Idempotent attribute-only quarantine for retained legacy roles; no CREATE ROLE, membership or ACL mutation.',
+  ];
+  for (const roleName of requested) {
+    out.push(
+      'DO $bcb$', 'BEGIN',
+      `  IF EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname=${lit(roleName)}) THEN`,
+      `    ALTER ROLE ${q(roleName)} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS NOINHERIT;`,
+      `    ALTER ROLE ${q(roleName)} RESET ALL;`,
+      '  END IF;',
+      'END', '$bcb$;',
+    );
+  }
+  out.push("DO $bcb$ BEGIN RAISE NOTICE 'BCB_LEGACY_ROLE_QUARANTINE_RECONCILED'; END $bcb$;", '');
+  return out.join('\n');
+}
+
 export function generateSharedRoleBaselineSql(declaration) {
   const managed = managedRoleNames(declaration);
   const expectedMemberships = [];
@@ -1264,6 +1301,7 @@ export function generateSharedRoleBaselineSql(declaration) {
     "    EXECUTE pg_catalog.format('GRANT %I TO %I WITH ADMIN %s, INHERIT %s, SET %s',edge.role_name,edge.member_name,CASE WHEN edge.admin_option THEN 'TRUE' ELSE 'FALSE' END,CASE WHEN edge.inherit_option THEN 'TRUE' ELSE 'FALSE' END,CASE WHEN edge.set_option THEN 'TRUE' ELSE 'FALSE' END);",
     '  END LOOP;',
     'END $bcb$;',
+    generateLegacyRoleQuarantineSql(declaration),
     "DO $bcb$ BEGIN RAISE NOTICE 'BCB_SHARED_ROLE_BASELINE_RECONCILED'; END $bcb$;",
     '',
   );
