@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Отказ на ручной `git merge` в feat мимо порта `tools/orch-launch.sh land`.
+#
+# Зачем: порядок владельца 20.08 — «Каждая ветка через порт land, с независимым аудитом и строкой
+# вердикта в очереди. Мимо порта руками не сливать». Гейт вердикта живёт ВНУТРИ land; обычный
+# `git merge wt/…` его просто обходит, причём fast-forward не оставляет даже мерж-коммита, по
+# которому обход было бы видно. 20.08 так в feat приехали три коммита без единой строки в очереди.
+#
+# Как: git выставляет GIT_REFLOG_ACTION="merge …"/"pull …" на время слияния, и hook его наследует.
+# Обычный `git commit` ведущего (action "commit") не трогается — он и не должен.
+set -euo pipefail
+[ "${1:-}" = prepared ] || exit 0
+[ "${ORCH_LAND:-}" != 1 ] || exit 0
+
+PROTECTED=refs/heads/feat/doctor-ui-rebuild
+action=${GIT_REFLOG_ACTION:-}
+case "$action" in merge*|pull*) ;; *) exit 0 ;; esac
+
+while read -r _old _new ref; do
+  [ "$ref" = "$PROTECTED" ] || continue
+  cat >&2 <<MSG
+ОТКАЗ: слияние в ${PROTECTED#refs/heads/} мимо порта ($action).
+  Ветки приземляются только через: tools/orch-launch.sh land <клон> <ветка>
+  Порт требует независимый аудит и строку вердикта на КАЖДЫЙ коммит ветки в
+  docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md; ручной merge этот гейт обходит.
+  Если слияние делает сам порт — он выставляет ORCH_LAND=1.
+MSG
+  exit 1
+done
+exit 0

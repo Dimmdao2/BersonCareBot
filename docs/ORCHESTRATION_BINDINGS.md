@@ -71,3 +71,25 @@ curl -s -c /tmp/r3.cookies -L \
 файле репозитория — поэтому его не видел ни один другой агент и не проверял ни один гейт. 20.08 лид повторил
 тот же провал: пять воркеров с `workspace-write`, идущее сведение одиннадцати веток, прогон запущен по признаку
 «дерево чистое». Правило, живущее только в памяти, не работает.
+
+## Ручной `git merge` в feat отказывает — механикой, не обещанием
+
+Порядок владельца 20.08: «Каждая — через порт `land`, с независимым аудитом и строкой вердикта в
+очереди. Мимо порта руками не сливать». Гейт вердикта жил ТОЛЬКО внутри `tools/orch-launch.sh land`,
+поэтому обычный `git merge wt/…` его просто обходил — и 20.08 три коммита приехали в feat
+fast-forward'ом, ни на один из них строки в очереди не было. Fast-forward не оставляет даже
+мерж-коммита, так что обход не виден и постфактум.
+
+Механика: hook `tools/git-hooks/reference-transaction` отказывает на любом обновлении
+`refs/heads/feat/doctor-ui-rebuild`, сделанном под `GIT_REFLOG_ACTION=merge…/pull…`, если не выставлен
+`ORCH_LAND=1`. Ключ выставляет только сам порт, уже ПОСЛЕ проверки строк вердикта. Обычный `git commit`
+ведущего в feat не затронут — action у него `commit`.
+
+Установка в главном дереве (hook-и не версионируются, поэтому шим ставится руками один раз):
+
+```bash
+printf '#!/usr/bin/env bash\nexec /home/dev/dev-projects/BersonCareBot/tools/git-hooks/reference-transaction "$@"\n' > .git/hooks/reference-transaction && chmod +x .git/hooks/reference-transaction
+```
+
+Проверено инъекцией 20.08: `git merge --no-ff <новый коммит>` → EXIT=128, «ref updates aborted by
+hook», голова feat не сдвинулась; тот же мерж с `ORCH_LAND=1` → EXIT=0; `git commit` → EXIT=0.
