@@ -10,7 +10,11 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
-import { startPublicEmailOtpChallenge, type StartPublicEmailOtpResult } from '@/modules/auth/emailOtpPublic';
+import {
+  startPublicEmailOtpChallenge,
+  type PublicEmailOtpStartSuppression,
+  type StartPublicEmailOtpResult,
+} from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
 
@@ -89,15 +93,11 @@ export async function POST(request: Request) {
     if (outcome.kind === 'pending') {
       void pending.then(
         (settledResult) => {
-          if (settledResult.ok && settledResult.deliveryFailed) {
-            logger.warn(
-              { route: 'auth/email-otp/start', outcome: 'email_delivery_failed' },
-              'auth/email-otp/start delivery failed',
-            );
-          }
+          if (settledResult.suppressedOutcome)
+            logSuppressedPublicEmailOtpStart(settledResult.suppressedOutcome);
         },
         () => {
-          logger.warn(
+          logger.error(
             { route: 'auth/email-otp/start', outcome: 'email_delivery_exception' },
             'auth/email-otp/start delivery failed',
           );
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     } else {
       // Do not log the thrown error: provider messages may include email or OTP data. This fixed
       // event is enough for operators and keeps the public outcome indistinguishable.
-      logger.warn(
+      logger.error(
         { route: 'auth/email-otp/start', outcome: 'email_delivery_exception' },
         'auth/email-otp/start delivery failed',
       );
@@ -115,6 +115,7 @@ export async function POST(request: Request) {
   }
 
   const result = outcome.result;
+  if (result.suppressedOutcome) logSuppressedPublicEmailOtpStart(result.suppressedOutcome);
   if (!result.ok) {
     switch (result.code) {
       case 'invalid_email':
@@ -137,16 +138,16 @@ export async function POST(request: Request) {
     }
   }
 
-  if (result.deliveryFailed) {
-    // Do not log raw email, OTP, or provider payload: this fixed event is sufficient operator
-    // evidence while preserving the public neutral response.
-    logger.warn(
-      { route: 'auth/email-otp/start', outcome: 'email_delivery_failed' },
-      'auth/email-otp/start delivery failed',
-    );
-  }
-
   return publicEmailOtpStartAccepted(startedAt, result.challengeId, result.retryAfterSeconds ?? 60);
+}
+
+function logSuppressedPublicEmailOtpStart(outcome: PublicEmailOtpStartSuppression): void {
+  // Do not log raw email, OTP, or provider payload: this fixed classification is sufficient
+  // operator evidence while preserving the public neutral response.
+  logger.error(
+    { route: 'auth/email-otp/start', outcome },
+    'auth/email-otp/start outcome suppressed',
+  );
 }
 
 type StartRaceOutcome =
