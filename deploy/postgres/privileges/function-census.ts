@@ -10000,7 +10000,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.record_operator_delivery_attempt(text,text,text,integer,text)": {
+  "app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",
     "returns": "void",
@@ -10013,13 +10013,18 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     "execute": [
       "app_operational_delivery_worker"
     ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
+    "purpose": "D10a canonical delivery-attempt journal for queue-backed and nonqueue sends",
     "typedArgs": [
       "text",
       "text",
       "text",
+      "uuid",
+      "text",
+      "text",
       "integer",
-      "text"
+      "text",
+      "text",
+      "timestamp with time zone"
     ],
     "databases": [
       "bersoncarebot_test",
@@ -10029,6 +10034,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.notification_delivery_attempts",
         "columns": [
+          "created_at",
           "user_id",
           "integrator_user_id",
           "topic_code",

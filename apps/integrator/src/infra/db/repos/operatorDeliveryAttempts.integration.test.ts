@@ -3,10 +3,9 @@
  *
  * `createOperatorAwareDeliveryAttemptWritePort` routes every `delivery.attempt.log` write made
  * under the `worker:outgoing-delivery-tick` infra principal (or outgoing-delivery worker audit
- * context during per-row dispatch) into `app.record_operator_delivery_attempt` — for every queue
- * kind the worker processes. The function validates provenance against a matching
- * `outgoing_delivery_queue` row and inserts into `public.notification_delivery_attempts`
- * (D10a canonical journal).
+ * context during per-row dispatch) into the single `app.record_operator_delivery_attempt` root.
+ * The root enriches queue-backed attempts from `outgoing_delivery_queue` and accepts the caller's
+ * sanitized context when a send has no queue row (D10a canonical journal).
  */
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -24,7 +23,7 @@ import { runIntegratorSql } from '../runIntegratorSql.js';
 const enabled =
   process.env.RUN_OPERATOR_DELIVERY_ATTEMPT_TEST === '1' &&
   process.env.USE_REAL_DATABASE === '1' &&
-  Boolean((process.env.DATABASE_URL ?? '').trim()) &&
+  Boolean((process.env.INTEGRATOR_DB_URL ?? process.env.DATABASE_URL ?? '').trim()) &&
   Boolean((process.env.DB_PRINCIPAL_SIGNING_SECRET ?? '').trim());
 
 const TEST_FIXTURE_ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
@@ -45,17 +44,33 @@ describe.skipIf(!enabled)(
       return createOperatorAwareDeliveryAttemptWritePort({ db, tenantWritePort });
     }
 
-    async function insertQueueRow(input: { kind: string; channel: string }): Promise<string> {
+    async function insertQueueRow(input: {
+      kind: string;
+      channel: string;
+      organizationId?: string;
+      topicCode?: string;
+      integratorUserId?: string;
+    }): Promise<string> {
       const eventId = `d987-${randomUUID()}`;
       writtenQueueEventIds.push(eventId);
+      const payload = {
+        ...(input.topicCode ? { topicCode: input.topicCode } : {}),
+        intent: {
+          meta: {
+            eventId,
+            ...(input.integratorUserId ? { userId: input.integratorUserId } : {}),
+          },
+        },
+      };
       await harness.withFixtures((db) =>
         runIntegratorSql(
           db,
           sql`INSERT INTO public.outgoing_delivery_queue (
-            event_id, kind, channel, payload_json, status, attempt_count, max_attempts, next_retry_at
+            event_id, organization_id, kind, channel, payload_json,
+            status, attempt_count, max_attempts, next_retry_at
           ) VALUES (
-            ${eventId}, ${input.kind}, ${input.channel},
-            ${JSON.stringify({ intent: { meta: { eventId } } })}::jsonb,
+            ${eventId}, ${input.organizationId ?? null}::uuid, ${input.kind}, ${input.channel},
+            ${JSON.stringify(payload)}::jsonb,
             'sent', 1, 6, now()
           )`,
         ),
@@ -69,12 +84,20 @@ describe.skipIf(!enabled)(
       status: 'success' | 'failed' | 'skipped';
       attempt: number;
       reason?: string;
+      intentType?: string;
+      correlationId?: string | null;
+      organizationId?: string | null;
+      payload?: Record<string, unknown>;
+      occurredAt?: string;
     }): DbWriteMutation {
       writtenLogEventIds.push(input.eventId);
       return {
         type: 'delivery.attempt.log',
         params: {
+          intentType: input.intentType ?? 'message.send',
           intentEventId: input.eventId,
+          correlationId: input.correlationId ?? null,
+          organizationId: input.organizationId ?? null,
           channel: input.channel,
           status: input.status,
           attempt: input.attempt,
@@ -85,6 +108,8 @@ describe.skipIf(!enabled)(
               : input.status === 'skipped'
                 ? 'stale_materialization'
                 : null),
+          payload: input.payload ?? {},
+          occurredAt: input.occurredAt ?? new Date().toISOString(),
         },
       };
     }
@@ -97,6 +122,11 @@ describe.skipIf(!enabled)(
         status: 'success' | 'failed' | 'skipped';
         attempt: number;
         reason?: string;
+        intentType?: string;
+        correlationId?: string | null;
+        organizationId?: string | null;
+        payload?: Record<string, unknown>;
+        occurredAt?: string;
       },
     ): Promise<void> {
       const writePort = createWorkerShapedWritePort(db);
@@ -113,6 +143,65 @@ describe.skipIf(!enabled)(
               FROM public.notification_delivery_attempts
               WHERE event_id = ${eventId}
               ORDER BY (metadata->>'attempt')::int`,
+        ),
+      );
+      return result.rows;
+    }
+
+    async function readQueueBackedContext(eventId: string): Promise<
+      {
+        organizationId: string | null;
+        intentType: string | null;
+        topicCode: string | null;
+        integratorUserId: string | null;
+        queueSource: boolean | null;
+      }[]
+    > {
+      const result = await harness.withFixtures((db) =>
+        runIntegratorSql<{
+          organizationId: string | null;
+          intentType: string | null;
+          topicCode: string | null;
+          integratorUserId: string | null;
+          queueSource: boolean | null;
+        }>(
+          db,
+          sql`SELECT
+                organization_id::text AS "organizationId",
+                intent_type AS "intentType",
+                topic_code AS "topicCode",
+                integrator_user_id AS "integratorUserId",
+                (metadata->>'queueSource')::boolean AS "queueSource"
+              FROM public.notification_delivery_attempts
+              WHERE event_id = ${eventId}`,
+        ),
+      );
+      return result.rows;
+    }
+
+    async function readLoggedAttemptContext(eventId: string): Promise<
+      {
+        organizationId: string | null;
+        intentType: string | null;
+        correlationId: string | null;
+        queueSource: boolean | null;
+      }[]
+    > {
+      const result = await harness.withFixtures((db) =>
+        runIntegratorSql<{
+          organizationId: string | null;
+          intentType: string | null;
+          correlationId: string | null;
+          queueSource: boolean | null;
+        }>(
+          db,
+          sql`SELECT
+                organization_id::text AS "organizationId",
+                intent_type AS "intentType",
+                metadata->>'correlationId' AS "correlationId",
+                (metadata->>'queueSource')::boolean AS "queueSource"
+              FROM public.notification_delivery_attempts
+              WHERE event_id = ${eventId}`,
         ),
       );
       return result.rows;
@@ -140,14 +229,36 @@ describe.skipIf(!enabled)(
     });
 
     it('records a successful reminder_dispatch attempt via worker-shaped writePort', async () => {
-      const eventId = await insertQueueRow({ kind: 'reminder_dispatch', channel: 'telegram' });
+      const eventId = await insertQueueRow({
+        kind: 'reminder_dispatch',
+        channel: 'telegram',
+        organizationId: TEST_FIXTURE_ORGANIZATION_ID,
+        topicCode: 'appointment_reminders',
+        integratorUserId: '42001',
+      });
 
       await harness.withRuntime((db) =>
-        logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
+        logAttemptViaWorkerPort(db, {
+          eventId,
+          channel: 'telegram',
+          status: 'success',
+          attempt: 1,
+          intentType: 'caller.value.must.not.win',
+          organizationId: null,
+        }),
       );
 
       const rows = await readLoggedAttempts(eventId);
       expect(rows).toEqual([{ status: 'success', attempt: 1, kind: 'reminder_dispatch' }]);
+      expect(await readQueueBackedContext(eventId)).toEqual([
+        {
+          organizationId: TEST_FIXTURE_ORGANIZATION_ID,
+          intentType: 'reminder_dispatch',
+          topicCode: 'appointment_reminders',
+          integratorUserId: '42001',
+          queueSource: null,
+        },
+      ]);
     });
 
     it('records a failed doctor_broadcast_intent attempt via worker-shaped writePort', async () => {
@@ -168,7 +279,12 @@ describe.skipIf(!enabled)(
         logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'failed', attempt: 1 }),
       );
       await harness.withRuntime((db) =>
-        logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'success', attempt: 2 }),
+        logAttemptViaWorkerPort(db, {
+          eventId,
+          channel: 'telegram',
+          status: 'success',
+          attempt: 2,
+        }),
       );
 
       const rows = await readLoggedAttempts(eventId);
@@ -192,9 +308,7 @@ describe.skipIf(!enabled)(
       );
 
       const rows = await readLoggedAttempts(eventId);
-      expect(rows).toEqual([
-        { status: 'skipped', attempt: 1, kind: 'reminder_dispatch' },
-      ]);
+      expect(rows).toEqual([{ status: 'skipped', attempt: 1, kind: 'reminder_dispatch' }]);
     });
 
     it('records skipped status for rate_limited pre-dispatch skip', async () => {
@@ -236,13 +350,53 @@ describe.skipIf(!enabled)(
       expect(rows).toEqual([{ status: 'success', attempt: 1, kind: 'reminder_dispatch' }]);
     });
 
-    it('still rejects an attempt with no matching queue row (forged provenance)', async () => {
+    it('records a platform attempt with no matching queue row and no organization', async () => {
       const eventId = `d987-${randomUUID()}`;
-      await expect(
-        harness.withRuntime((db) =>
-          logAttemptViaWorkerPort(db, { eventId, channel: 'telegram', status: 'success', attempt: 1 }),
-        ),
-      ).rejects.toThrow();
+      await harness.withRuntime((db) =>
+        logAttemptViaWorkerPort(db, {
+          eventId,
+          channel: 'email',
+          status: 'success',
+          attempt: 1,
+          intentType: 'operator.alert',
+          correlationId: 'incident:platform',
+          organizationId: null,
+          payload: { alertClass: 'delivery_pipeline_failed' },
+        }),
+      );
+
+      expect(await readLoggedAttemptContext(eventId)).toEqual([
+        {
+          organizationId: null,
+          intentType: 'operator.alert',
+          correlationId: 'incident:platform',
+          queueSource: false,
+        },
+      ]);
+    });
+
+    it('preserves a caller-supplied organization when no queue row exists', async () => {
+      const eventId = `booking.confirmation.ics:${randomUUID()}`;
+      await harness.withRuntime((db) =>
+        logAttemptViaWorkerPort(db, {
+          eventId,
+          channel: 'email',
+          status: 'success',
+          attempt: 1,
+          intentType: 'booking.confirmation',
+          organizationId: TEST_FIXTURE_ORGANIZATION_ID,
+          payload: { source: 'booking_confirmation' },
+        }),
+      );
+
+      expect(await readLoggedAttemptContext(eventId)).toEqual([
+        {
+          organizationId: TEST_FIXTURE_ORGANIZATION_ID,
+          intentType: 'booking.confirmation',
+          correlationId: null,
+          queueSource: false,
+        },
+      ]);
     });
 
     it('delegates non-delivery.attempt.log mutations to tenantWritePort under worker principal', async () => {
@@ -258,7 +412,12 @@ describe.skipIf(!enabled)(
           const writePort = createOperatorAwareDeliveryAttemptWritePort({ db, tenantWritePort });
           await writePort.writeDb({
             type: 'reminders.delivery.log',
-            params: { id: randomUUID(), occurrenceId: randomUUID(), channel: 'telegram', status: 'sent' },
+            params: {
+              id: randomUUID(),
+              occurrenceId: randomUUID(),
+              channel: 'telegram',
+              status: 'sent',
+            },
           });
         }),
       );

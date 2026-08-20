@@ -6691,8 +6691,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_integrator_request', operations: ['INSERT'],
         columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
-      { role: 'app_patient', operations: ['INSERT'],
-        columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
       { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
       { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
         columns: ['status', 'updated_at', 'attempt_count', 'next_try_at', 'last_error'] },

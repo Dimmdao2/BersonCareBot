@@ -34,7 +34,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   }
 
   const snapshot = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    loadDoctorPatientMessagesSnapshot(deps, identity.userId, gate.ctx.organizationId),
+    loadDoctorPatientMessagesSnapshot(deps, identity.userId, gate.ctx.organizationId, gate.ctx),
   );
 
   return NextResponse.json({
