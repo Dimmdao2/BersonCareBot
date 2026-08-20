@@ -1,17 +1,20 @@
-# Database baseline B0
+# Database schema B bootstrap
 
-Единственный активный начальный контракт схемы — baseline `B0`:
+Owner decision 20.08.2026: историческая webapp migration-цепочка и её `0000_b0_baseline.sql` выведены из
+активного контура. Schema B для A→B cutover приезжает generated snapshot:
 
-- `apps/webapp/db/drizzle-migrations/0000_b0_baseline.sql`;
+- `deploy/postgres/generated/prod-to-target/schema-pre.sql`;
+- `deploy/postgres/generated/prod-to-target/schema-post.sql`;
+- `deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql` — начальный ledger;
 - `apps/integrator/src/infra/db/migrations/core/20260816_0000_b0_baseline.sql`;
-- последующие короткие forward-миграции в этих же двух каталогах.
+- последующие webapp forward-миграции `YYYYMMDDTHHMMSS_slug.sql`, без исключений старого формата.
 
 Именованные `bcb_webapp_dev` и `bersoncarebot_test` — единственные тестовые базы. A0/A1/greenfield,
 scratch/rehearsal/ephemeral базы, приватные PostgreSQL-кластеры и replay старой цепочки не являются
 поддерживаемым способом bootstrap или проверки.
 
 Ниже лежат два старых schema-only снимка DEV. Это неисполняемая историческая справка: их нельзя
-восстанавливать, обновлять или использовать вместо B0.
+восстанавливать, обновлять или использовать вместо generated schema B.
 
 | Файл                                                                             | Схема        | Обновлено  |
 | -------------------------------------------------------------------------------- | ------------ | ---------- |
@@ -39,7 +42,7 @@ role/ACL repair или RLS acceptance.
 
 ## Где теперь проверяется поведение
 
-- целостность активных корней `B0 + forwards` — `node scripts/check-b0-migration-baseline.mjs`;
+- целостность generated schema B и active forwards — `node scripts/check-b0-migration-baseline.mjs`;
 - SQL/role/catalog contracts — статические и unit-тесты декларации/генератора;
 - реальные роли, RLS, конкурентные записи, настройки, квоты, платежи, приглашения и patient/doctor flows —
   только живой проход именованного DEV, затем именованного TEST по
