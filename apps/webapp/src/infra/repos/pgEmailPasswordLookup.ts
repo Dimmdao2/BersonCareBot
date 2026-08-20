@@ -116,7 +116,9 @@ async function tryAutoMergeDuplicateEmailUsers(
     await runWebappTransaction(async (tx) => {
       const mergeClient = mergeDbClientFromTx(tx);
       for (const duplicateId of duplicateIds) {
-        await mergePlatformUsersInTransaction(mergeClient, targetId, duplicateId, 'projection');
+        await mergePlatformUsersInTransaction(mergeClient, targetId, duplicateId, 'projection', {
+          mergeContext: { source: 'email_password_lookup' },
+        });
       }
     });
     return true;

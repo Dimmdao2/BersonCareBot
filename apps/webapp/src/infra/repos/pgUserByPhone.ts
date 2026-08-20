@@ -367,6 +367,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
                 canonicalProfileId,
                 canonicalOwnerId,
                 'phone_bind',
+                { mergeContext: { channel: parsedContext.channel, source: 'otp' } },
               );
             }
           } else {
@@ -456,7 +457,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
               const [ea, eb] = await enrichPickMergeCandidatesWithBookingCounts(client, a, b);
               const { target, duplicate } = pickMergeTargetId(ea, eb);
               try {
-                await mergePlatformUsersInTransaction(client, target, duplicate, 'phone_bind');
+                await mergePlatformUsersInTransaction(client, target, duplicate, 'phone_bind', {
+                  mergeContext: { channel: parsedContext.channel, source: 'otp' },
+                });
               } catch (e) {
                 if (e instanceof MergeDependentConflictError || e instanceof MergeConflictError)
                   throw e;

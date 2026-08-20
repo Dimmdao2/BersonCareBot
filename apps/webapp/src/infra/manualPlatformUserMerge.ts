@@ -46,6 +46,7 @@ export async function runManualPlatformUserMerge(
           resolution,
           allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
           verifiedDistinctIntegratorUserIds: options?.verifiedDistinctIntegratorUserIds,
+          mergeContext: { actorId },
         },
       );
       mergeContactsSaved = mergeResult.mergeContactsSaved;

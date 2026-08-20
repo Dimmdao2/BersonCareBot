@@ -11,6 +11,8 @@ export type {
   MergePlatformUsersReason,
   PickMergeTargetCandidate,
   PlatformMergeDbClient,
+  MergePlatformUsersContext,
+  MergePlatformUsersOptions,
   VerifiedDistinctIntegratorUserIds,
   MergeContactsSaved,
 } from './pgPlatformUserMerge.js';

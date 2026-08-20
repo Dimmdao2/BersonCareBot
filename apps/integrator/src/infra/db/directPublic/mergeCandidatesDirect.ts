@@ -1,27 +1,17 @@
 /**
  * A3 — real `mergeCandidateIds` hook for the D1 direct-public writers, wired to
- * `collapseIdentityProjectionCandidates` from `@bersoncare/platform-merge` (D15b/2: the SAME cascade
- * the webapp's `pgUserProjection.mergeCandidates` uses — one shared implementation, not two copies
- * of the same sort-and-merge loop).
+ * Before D26 this adapter invoked the shared merge cascade. The integrator now only reports an
+ * ambiguous identity pair; the webapp's support surface owns every merge decision.
  *
- * Any merge the underlying function rejects as unsafe throws `MergeConflictError` /
- * `MergeDependentConflictError` (from `@bersoncare/platform-merge`) — this function does NOT catch
- * those; callers (writePort.ts) decide how to handle the ambiguity, matching how the webapp's
- * `events.ts` lets the same errors bubble up to `acceptAfterMergeConflict` (log + swallow, no write)
- * instead of silently picking a candidate.
+ * Multiple candidates are deliberately surfaced as ambiguity; callers preserve the existing
+ * no-write conflict path instead of silently picking or merging an account.
  */
-import {
-  collapseIdentityProjectionCandidates,
-  MergeConflictError,
-  MergeDependentConflictError,
-  type PlatformMergeDbClient,
-} from '@bersoncare/platform-merge';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { DirectPublicWriteError } from './writeIdentityAndPreferencesDirect.js';
 
-/** Real merge-candidate collapse for D1 direct writes — pass as `deps.mergeCandidateIds`. */
+/** Integrator ambiguity hook for D1 direct writes — never performs an account merge. */
 export async function mergeCandidateIdsViaPlatformMerge(
-  txDb: DbPort,
+  _txDb: DbPort,
   candidateIds: string[],
 ): Promise<string> {
   const uniq = [
@@ -29,26 +19,9 @@ export async function mergeCandidateIdsViaPlatformMerge(
   ];
   if (uniq.length === 0) throw new DirectPublicWriteError('no_platform_user_candidate');
 
-  try {
-    return await collapseIdentityProjectionCandidates(
-      txDb as PlatformMergeDbClient,
-      uniq,
-      'projection',
-    );
-  } catch (err) {
-    // Pre-merge "row missing" ambiguity (two distinct rows, one vanished between candidate
-    // collection and merge) — preserve the D1 scaffold's own error code for this specific case;
-    // real merge-policy rejections (conflicting phone/bookings/etc.) pass through unchanged.
-    if (
-      err instanceof MergeConflictError &&
-      err.message === 'collapseIdentityProjectionCandidates: row missing'
-    ) {
-      throw new DirectPublicWriteError('ambiguous_platform_user_candidates', {
-        candidateIds: err.candidateIds,
-      });
-    }
-    throw err;
-  }
+  if (uniq.length === 1) return uniq[0]!;
+  // D26: the integrator delivers identity events; it no longer decides or executes account merge.
+  throw new DirectPublicWriteError('ambiguous_platform_user_candidates', { candidateIds: uniq });
 }
 
 /**
@@ -59,7 +32,6 @@ export async function mergeCandidateIdsViaPlatformMerge(
  * rejects before `mergeCandidateIds` is even called).
  */
 export function isIdentityMergeAmbiguityError(err: unknown): boolean {
-  if (err instanceof MergeConflictError || err instanceof MergeDependentConflictError) return true;
   if (err instanceof DirectPublicWriteError) {
     return (
       err.code === 'ambiguous_platform_user_candidates' ||
