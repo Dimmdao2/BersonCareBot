@@ -134,3 +134,13 @@ Full CI, dev server, DB, DEV/TEST, PROD, backend/payment acceptance, dependency 
 ## Final verdict
 
 `FAIL — NOT FOR LAND` for `542c1eb35`. The local-only/privacy correction is present, and stale identity remains protected, but the emitted SVG matrices are not valid QR Model 2 encodings of the payment URLs. Product code was not fixed; the red fixed-oracle acceptance is committed for the worker.
+
+## Fixer appendix (2026-08-20)
+
+The local encoder now uses explicit Model 2/L Reed–Solomon block groups for every supported version, including version 10's `2 × 68` and `2 × 69` data blocks. It reserves only the standard format locations and dark module, and writes all 15 format bits without touching the timing module.
+
+`pnpm --dir apps/webapp exec vitest --run --project=unit src/app/app/doctor/calendar/localQrCode.unit.test.ts` returned `FAIL`: 5 tests, 3 passed / 2 failed. The short and UTF-8 matrices now match. The version-10 product hashes remain `2df4054f6470743d895d06bc7ea35185c2ff72dc78e2ca4ccd4f744aedba393e` and `6b88fb0f2b5151338afff03daaefaa1bf04f6e6e52d2abbb7b434206054499cd`, versus frozen `b1236425…` and `2c54dc17…`.
+
+For the realistic URL, a local `qrencode` 4.1.1 Model 2/L symbol whose selected mask 2 was normalized to mask 0 over the standard data-module map, then received fresh L/mask-0 BCH format bits, produced the same product hash `2df4054f…`. The frozen oracle was not changed.
+
+`pnpm --dir apps/webapp exec vitest --run --project=ui src/app/app/doctor/calendar/DoctorCalendarEventPanel.ui.test.tsx -t 'keeps the QR on the server-returned URL'` passed: 1 selected / 7 skipped. Scoped ESLint passed with 2 existing warnings in `AppointmentPaymentSection.tsx`; `git diff --check` passed. `pnpm --dir apps/webapp typecheck` failed outside QR scope because workspace packages `@bersoncare/db-principal`, `@bersoncare/platform-merge`, and `@bersoncare/operator-db-schema` are unavailable, followed by unrelated existing type errors.

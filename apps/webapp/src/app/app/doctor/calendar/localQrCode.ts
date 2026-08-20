@@ -1,6 +1,37 @@
-const DATA_CODEWORDS_L = [19, 34, 55, 80, 108, 136, 156, 194, 232, 274];
-const ECC_CODEWORDS_PER_BLOCK_L = [7, 10, 15, 20, 26, 18, 16, 24, 30, 18];
-const BLOCKS_L = [1, 1, 1, 1, 1, 2, 2, 2, 2, 4];
+type ReedSolomonGroup = {
+  blocks: number;
+  dataCodewords: number;
+};
+
+type ReedSolomonLayout = {
+  eccCodewords: number;
+  groups: readonly ReedSolomonGroup[];
+};
+
+// QR Code Model 2, error correction level L, versions 1 through 10.
+// Version 10 has two unequal data groups, so its block structure must remain explicit.
+const REED_SOLOMON_LAYOUTS_L: readonly ReedSolomonLayout[] = [
+  { eccCodewords: 7, groups: [{ blocks: 1, dataCodewords: 19 }] },
+  { eccCodewords: 10, groups: [{ blocks: 1, dataCodewords: 34 }] },
+  { eccCodewords: 15, groups: [{ blocks: 1, dataCodewords: 55 }] },
+  { eccCodewords: 20, groups: [{ blocks: 1, dataCodewords: 80 }] },
+  { eccCodewords: 26, groups: [{ blocks: 1, dataCodewords: 108 }] },
+  { eccCodewords: 18, groups: [{ blocks: 2, dataCodewords: 68 }] },
+  { eccCodewords: 16, groups: [{ blocks: 2, dataCodewords: 78 }] },
+  { eccCodewords: 24, groups: [{ blocks: 2, dataCodewords: 97 }] },
+  { eccCodewords: 30, groups: [{ blocks: 2, dataCodewords: 116 }] },
+  {
+    eccCodewords: 18,
+    groups: [
+      { blocks: 2, dataCodewords: 68 },
+      { blocks: 2, dataCodewords: 69 },
+    ],
+  },
+] as const;
+
+const DATA_CODEWORDS_L = REED_SOLOMON_LAYOUTS_L.map((layout) =>
+  layout.groups.reduce((total, group) => total + group.blocks * group.dataCodewords, 0),
+);
 const ALIGNMENT_POSITIONS = [
   [],
   [6, 18],
@@ -83,18 +114,26 @@ function makeDataCodewords(text: string, version: number) {
 }
 
 function interleaveWithEcc(data: readonly number[], version: number) {
-  const blockCount = BLOCKS_L[version - 1]!;
-  const dataPerBlock = data.length / blockCount;
-  const eccPerBlock = ECC_CODEWORDS_PER_BLOCK_L[version - 1]!;
-  const blocks = Array.from({ length: blockCount }, (_, index) =>
-    data.slice(index * dataPerBlock, (index + 1) * dataPerBlock),
-  );
-  const eccBlocks = blocks.map((block) => reedSolomon(block, eccPerBlock));
-  const result: number[] = [];
-  for (let index = 0; index < dataPerBlock; index += 1) {
-    for (const block of blocks) result.push(block[index]!);
+  const layout = REED_SOLOMON_LAYOUTS_L[version - 1]!;
+  const blocks: number[][] = [];
+  let offset = 0;
+  for (const group of layout.groups) {
+    for (let block = 0; block < group.blocks; block += 1) {
+      blocks.push(data.slice(offset, offset + group.dataCodewords));
+      offset += group.dataCodewords;
+    }
   }
-  for (let index = 0; index < eccPerBlock; index += 1) {
+  if (offset !== data.length) throw new Error('QR data codeword layout mismatch.');
+
+  const eccBlocks = blocks.map((block) => reedSolomon(block, layout.eccCodewords));
+  const result: number[] = [];
+  const longestDataBlock = Math.max(...blocks.map((block) => block.length));
+  for (let index = 0; index < longestDataBlock; index += 1) {
+    for (const block of blocks) {
+      if (index < block.length) result.push(block[index]!);
+    }
+  }
+  for (let index = 0; index < layout.eccCodewords; index += 1) {
     for (const block of eccBlocks) result.push(block[index]!);
   }
   return result;
@@ -129,20 +168,34 @@ function makeMatrix(version: number, codewords: readonly number[]) {
     set(index, 6, index % 2 === 0);
     set(6, index, index % 2 === 0);
   }
-  for (const y of ALIGNMENT_POSITIONS[version - 1]!) {
-    for (const x of ALIGNMENT_POSITIONS[version - 1]!) {
-      if (modules[y]![x] !== null) continue;
+  const alignmentPositions = ALIGNMENT_POSITIONS[version - 1]!;
+  const finalAlignmentPosition = alignmentPositions.at(-1);
+  for (const y of alignmentPositions) {
+    for (const x of alignmentPositions) {
+      if (
+        (x === 6 && (y === 6 || y === finalAlignmentPosition)) ||
+        (x === finalAlignmentPosition && y === 6)
+      ) {
+        continue;
+      }
       for (let dy = -2; dy <= 2; dy += 1) {
         for (let dx = -2; dx <= 2; dx += 1) set(x + dx, y + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
       }
     }
   }
-  for (let index = 0; index < 9; index += 1) {
-    if (modules[8]![index] === null) set(index, 8, false);
-    if (modules[index]![8] === null) set(8, index, false);
-    if (modules[8]![size - 1 - index] === null) set(size - 1 - index, 8, false);
-    if (modules[size - 1 - index]![8] === null) set(8, size - 1 - index, false);
+  for (let index = 8; index < size - 8; index += 1) {
+    set(index, 6, index % 2 === 0);
+    set(6, index, index % 2 === 0);
   }
+  for (let index = 0; index < 6; index += 1) {
+    set(8, index, false);
+    set(index, 8, false);
+  }
+  set(8, 7, false);
+  set(8, 8, false);
+  set(7, 8, false);
+  for (let index = 0; index < 8; index += 1) set(size - 1 - index, 8, false);
+  for (let index = 0; index < 7; index += 1) set(8, size - 7 + index, false);
   set(8, size - 8, true);
   if (version >= 7) {
     const versionBits = (version << 12) | bchRemainder(version << 12, 0x1f25);
@@ -171,7 +224,9 @@ function makeMatrix(version: number, codewords: readonly number[]) {
   for (let index = 0; index < 15; index += 1) {
     const bit = ((formatBits >>> index) & 1) === 1;
     set(8, index < 6 ? index : index < 8 ? index + 1 : size - 15 + index, bit);
-    set(index < 8 ? size - index - 1 : 15 - index, 8, bit);
+    if (index < 8) set(size - index - 1, 8, bit);
+    else if (index === 8) set(7, 8, bit);
+    else set(14 - index, 8, bit);
   }
   return modules as boolean[][];
 }
