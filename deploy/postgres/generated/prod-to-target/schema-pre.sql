@@ -16970,7 +16970,33 @@ CREATE FUNCTION app.record_reminder_occurrence_finalized_projection(p_integrator
 DECLARE
   v_row_count integer;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_reminder_patient_owner'::name, 'app_tenant_service'::name, 'tenant_service'::app.port_context_class, 'integrator.reminder-occurrence-finalized.record', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('bigint@1', pg_catalog.int8send($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'::regprocedure);
+  PERFORM app.require_accepted_context(
+    'app_seam_reminder_patient_owner'::name,
+    CASE
+      WHEN pg_catalog.current_setting('role', true) = 'app_operational_delivery_worker'
+        THEN 'app_operational_delivery_worker'::name
+      ELSE 'app_tenant_service'::name
+    END,
+    CASE
+      WHEN pg_catalog.current_setting('role', true) = 'app_operational_delivery_worker'
+        THEN 'service'::app.port_context_class
+      ELSE 'tenant_service'::app.port_context_class
+    END,
+    'integrator.reminder-occurrence-finalized.record',
+    app.hash_port_typed_args(ARRAY[
+      ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg,
+      ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg,
+      ROW('bigint@1', pg_catalog.int8send($3))::app.port_typed_arg,
+      ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg,
+      ROW('uuid@1', pg_catalog.uuid_send($5))::app.port_typed_arg,
+      ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg,
+      ROW('text@1', pg_catalog.textsend($7))::app.port_typed_arg,
+      ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg,
+      ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg,
+      ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg
+    ]),
+    'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'::regprocedure
+  );
 
   IF NOT EXISTS (
     SELECT 1
@@ -22260,6 +22286,52 @@ ALTER SEQUENCE integrator.delivery_attempt_logs_id_seq OWNED BY integrator.deliv
 
 
 --
+-- Name: direct_public_write_retries; Type: TABLE; Schema: integrator; Owner: -
+--
+
+CREATE TABLE integrator.direct_public_write_retries (
+    id bigint NOT NULL,
+    operation text NOT NULL,
+    organization_id uuid NOT NULL,
+    idempotency_key text NOT NULL,
+    payload jsonb NOT NULL,
+    status text DEFAULT 'pending'::text NOT NULL,
+    attempt_count integer DEFAULT 0 NOT NULL,
+    max_attempts integer DEFAULT 5 NOT NULL,
+    next_try_at timestamp with time zone DEFAULT now() NOT NULL,
+    last_error text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT direct_public_write_retries_attempt_count_check CHECK ((attempt_count >= 0)),
+    CONSTRAINT direct_public_write_retries_max_attempts_check CHECK ((max_attempts > 0)),
+    CONSTRAINT direct_public_write_retries_operation_check CHECK ((operation = ANY (ARRAY['reminder_rule_upsert'::text, 'support_delivery_attempt_append'::text, 'reminder_occurrence_sent_record'::text, 'reminder_occurrence_failed_record'::text, 'reminder_occurrence_expired_record'::text, 'reminder_delivery_log_append'::text, 'content_access_grant_upsert'::text]))),
+    CONSTRAINT direct_public_write_retries_payload_org_check CHECK (((status = 'dead'::text) OR ((jsonb_typeof((payload -> 'organizationId'::text)) = 'string'::text) AND ((payload ->> 'organizationId'::text) = (organization_id)::text)))),
+    CONSTRAINT direct_public_write_retries_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'dead'::text])))
+);
+
+ALTER TABLE ONLY integrator.direct_public_write_retries FORCE ROW LEVEL SECURITY;
+
+
+--
+-- Name: direct_public_write_retries_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
+--
+
+CREATE SEQUENCE integrator.direct_public_write_retries_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+--
+-- Name: direct_public_write_retries_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
+--
+
+ALTER SEQUENCE integrator.direct_public_write_retries_id_seq OWNED BY integrator.direct_public_write_retries.id;
+
+
+--
 -- Name: idempotency_keys; Type: TABLE; Schema: integrator; Owner: -
 --
 
@@ -25256,6 +25328,8 @@ CREATE TABLE public.patient_payment (
     created_by uuid NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     organization_id uuid,
+    appointment_id uuid,
+    idempotency_key text,
     CONSTRAINT patient_payment_amount_minor_positive CHECK ((amount_minor > 0)),
     CONSTRAINT patient_payment_kind_check CHECK ((kind = ANY (ARRAY['cash'::text, 'acquiring'::text]))),
     CONSTRAINT patient_payment_status_check CHECK ((status = ANY (ARRAY['paid'::text, 'pending'::text, 'refunded'::text, 'failed'::text])))
@@ -26949,6 +27023,13 @@ ALTER TABLE ONLY drizzle.__drizzle_migrations ALTER COLUMN id SET DEFAULT nextva
 --
 
 ALTER TABLE ONLY integrator.delivery_attempt_logs ALTER COLUMN id SET DEFAULT nextval('integrator.delivery_attempt_logs_id_seq'::regclass);
+
+
+--
+-- Name: direct_public_write_retries id; Type: DEFAULT; Schema: integrator; Owner: -
+--
+
+ALTER TABLE ONLY integrator.direct_public_write_retries ALTER COLUMN id SET DEFAULT nextval('integrator.direct_public_write_retries_id_seq'::regclass);
 
 
 --
