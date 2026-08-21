@@ -7,6 +7,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -243,6 +244,7 @@ test('success runs existing seeder without leaking credentials and removes tempo
   assert.doesNotMatch(calls, /DATABASE_URL=/);
   assert.match(calls, /systemctl stop bersoncarebot-api-test/);
   assert.match(calls, /systemctl start bersoncarebot-media-worker-test/);
+  assert.equal(existsSync(resolve(entry.root, 'deploy.lock')), true, 'normal non-root seed creates the shared deploy lock');
 });
 
 test('injected seeder failure still drops temporary authority and does not leak credentials', (t) => {
@@ -280,18 +282,36 @@ test('cleanup failure is fail-closed and preserves protected recovery state', (t
   assert.match(readFileSync(fixtureState(entry), 'utf8'), /^role=bcb_test_fixture_seed_[a-z0-9]+$/m);
 });
 
-test('root --recover converges when the recorded temporary role is already absent', (t) => {
+test('root --recover read-opens the existing shared lock and converges when the recorded temporary role is already absent', (t) => {
   const entry = fixture();
   cleanupFixture(t, entry);
   const failed = run(entry, { ROLE_VERIFICATION: 'false' });
   assert.equal(failed.status, 70);
   const state = fixtureState(entry);
+  chmodSync(resolve(entry.root, 'deploy.lock'), 0o400);
 
   const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
   assert.equal(recovered.status, 0, recovered.stderr);
   assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
   const calls = readFileSync(entry.log, 'utf8');
   assert.match(calls, /dropped[\s\S]*verified_absent/);
+});
+
+test('root --recover fails closed for a missing, symlinked, or non-regular shared lock', (t) => {
+  for (const kind of ['missing', 'symlink', 'directory']) {
+    const entry = fixture();
+    cleanupFixture(t, entry);
+    const lock = resolve(entry.root, 'deploy.lock');
+    if (kind === 'symlink') {
+      writeFileSync(resolve(entry.root, 'lock-target'), 'lock');
+      symlinkSync(resolve(entry.root, 'lock-target'), lock);
+    }
+    if (kind === 'directory') mkdirSync(lock);
+
+    const result = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
+    assert.notEqual(result.status, 0, kind);
+    assert.match(result.stderr, /shared TEST deploy lock must be an existing regular non-symlink/);
+  }
 });
 
 test('root --recover ignores a broken TEST seeder runtime and restores recorded units', (t) => {

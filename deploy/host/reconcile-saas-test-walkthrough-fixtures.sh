@@ -245,14 +245,25 @@ recover() {
   cleanup
 }
 
+acquire_shared_lock() {
+  if [[ "$MODE" == --recover ]]; then
+    # Root recovery must join the deploy lock already owned by the non-root TEST path. A write-open
+    # here is rejected by fs.protected_regular in sticky /tmp and could create a root-owned replacement.
+    [[ -f "$LOCK" && ! -L "$LOCK" ]] || fail 'shared TEST deploy lock must be an existing regular non-symlink for recovery'
+    exec 9<"$LOCK" || fail 'cannot read existing shared TEST deploy lock for recovery'
+  else
+    exec 9>"$LOCK" || fail 'cannot create or open shared TEST deploy lock'
+  fi
+  flock -n 9 || fail 'another TEST deploy or fixture reconciliation is already running'
+}
+
 MODE="${1:-}"
 [[ "$MODE" == --recover || $# -eq 0 ]] || fail 'usage: bash deploy/host/reconcile-saas-test-walkthrough-fixtures.sh [--recover]'
 require_reviewed_source "$MODE"
 for address in $(hostname -I 2>/dev/null || true); do [[ "$address" == 151.241.228.122 ]] && ON_TEST_HOST=1; done
 [[ "${ON_TEST_HOST:-0}" == 1 ]] || fail 'fixture reconciliation is allowed only on DEV/TEST host 151.241.228.122'
 
-exec 9>"$LOCK"
-flock -n 9 || fail 'another TEST deploy or fixture reconciliation is already running'
+acquire_shared_lock
 
 if [[ "$MODE" == --recover ]]; then
   STATE="$(sudo -n find /tmp -maxdepth 1 -type f -name 'bcb-test-fixture-seed.state.*' -user postgres -perm 0600 -print -quit)"
