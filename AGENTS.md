@@ -1895,7 +1895,7 @@ _Scoped: doctor CMS media pickers._
 ### Известные пересечения правил
 
 - **Patient UI primitives vs isolation (§15 vs §17):** в patient/doctor **routes** импорт `@/components/ui/**` запрещён ESLint — используйте `shared/ui/patient/primitives` или `shared/ui/doctor/primitives`. Канонический shadcn живёт в `components/ui/` как **источник для копирования**, не для прямого импорта в product zones.
-- **`dev_mode` (БД) vs `ALLOW_DEV_AUTH_BYPASS` (env):** разные вещи — см. [§1a](#1a-локальный-dev-и-тестирование-ui).
+- **`dev_mode` (БД) vs `ALLOW_DEV_AUTH_BYPASS` (env):** см. [§1a](#1a-локальный-dev-и-тестирование-ui).
 
 ### Деплой и ops (кратко)
 
