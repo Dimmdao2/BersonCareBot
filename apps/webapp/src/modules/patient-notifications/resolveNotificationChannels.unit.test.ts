@@ -24,6 +24,7 @@ describe('resolvePatientNotificationChannels topic gate', () => {
       skippedChannels: [
         { channel: 'telegram', reason: 'topic_disabled' },
         { channel: 'max', reason: 'topic_disabled' },
+        { channel: 'vk', reason: 'topic_disabled' },
         { channel: 'email', reason: 'topic_disabled' },
         { channel: 'web_push', reason: 'topic_disabled' },
       ],

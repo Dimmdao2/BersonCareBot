@@ -23,6 +23,7 @@ describe('patient reminder delivery master-topic gate', () => {
     expect(result.skippedChannels).toEqual([
       { channel: 'telegram', reason: 'topic_disabled' },
       { channel: 'max', reason: 'topic_disabled' },
+      { channel: 'vk', reason: 'topic_disabled' },
       { channel: 'web_push', reason: 'topic_disabled' },
     ]);
   });
