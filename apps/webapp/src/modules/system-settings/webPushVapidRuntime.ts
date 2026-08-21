@@ -100,7 +100,8 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
       s.key === 'smsc_api_key' ||
       s.key === 'clinic_smsc_api_key' ||
       s.key === 'clinic_telegram_bot_token' ||
-      s.key === 'clinic_max_bot_api_key'
+      s.key === 'clinic_max_bot_api_key' ||
+      s.key === 'clinic_vk_community_access_token'
     ) {
       return { ...s, valueJson: { value: '[REDACTED]' } };
     }

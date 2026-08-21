@@ -149,6 +149,7 @@ const ADMIN_SCOPE_KEYS = [
   'clinic_smsc_api_key',
   'clinic_telegram_bot_token',
   'clinic_max_bot_api_key',
+  'clinic_vk_community_access_token',
   'operator_health_imap',
   'web_push_vapid',
   'smsc_enabled',
@@ -256,7 +257,12 @@ const EXTERNAL_CALENDAR_ENTITLEMENT_SETTING_KEYS = new Set([
 const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
   string,
   {
-    mechanic: 'clinic_smtp' | 'clinic_sms' | 'clinic_telegram_bot' | 'clinic_max_bot';
+    mechanic:
+      | 'clinic_smtp'
+      | 'clinic_sms'
+      | 'clinic_telegram_bot'
+      | 'clinic_max_bot'
+      | 'clinic_vk_community';
     action: string;
   }
 >([
@@ -270,6 +276,10 @@ const CLINIC_DELIVERY_CHANNEL_ENTITLEMENTS = new Map<
     'clinic_max_bot_api_key',
     { mechanic: 'clinic_max_bot', action: 'настроить собственного MAX-бота' },
   ],
+  [
+    'clinic_vk_community_access_token',
+    { mechanic: 'clinic_vk_community', action: 'настроить собственное сообщество VK' },
+  ],
 ]);
 
 const CLINIC_DELIVERY_SETTING_INTEGRATIONS = new Map<string, PlatformIntegrationId>([
@@ -277,6 +287,7 @@ const CLINIC_DELIVERY_SETTING_INTEGRATIONS = new Map<string, PlatformIntegration
   ['clinic_smsc_api_key', 'smsc'],
   ['clinic_telegram_bot_token', 'telegram'],
   ['clinic_max_bot_api_key', 'max'],
+  ['clinic_vk_community_access_token', 'vk'],
 ]);
 
 async function isClinicDeliveryIntegrationEnabled(

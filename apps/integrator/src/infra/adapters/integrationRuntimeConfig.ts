@@ -24,6 +24,12 @@ export type MaxRuntimeConfig = {
   webhookSecret: string;
   baseUrl: string;
 };
+export type VkRuntimeConfig = {
+  enabled: boolean;
+  communityAccessToken: string;
+  callbackSecret: string;
+  confirmationToken: string;
+};
 export type SmscRuntimeConfig = { enabled: boolean; apiKey: string; baseUrl: string };
 
 const value = async (db: DbPort, key: IntegratorProviderRuntimeSettingKey): Promise<string> => {
@@ -94,6 +100,28 @@ export async function readMaxRuntimeConfig(db: DbPort): Promise<MaxRuntimeConfig
 export function getMaxRuntimeConfig(): Promise<MaxRuntimeConfig> {
   return readMaxRuntimeConfig(createDbPort());
 }
+
+export async function readVkRuntimeConfig(db: DbPort): Promise<VkRuntimeConfig> {
+  try {
+    const [communityAccessToken, callbackSecret, confirmationToken] = await runWithBootstrapPrincipal(
+      { source: 'integrator-server-runtime-config' },
+      () => Promise.all([
+        value(db, 'vk_community_access_token'),
+        value(db, 'vk_callback_secret'),
+        value(db, 'vk_callback_confirmation_token'),
+      ]),
+    );
+    return {
+      enabled: Boolean(communityAccessToken && callbackSecret && confirmationToken),
+      communityAccessToken,
+      callbackSecret,
+      confirmationToken,
+    };
+  } catch {
+    return { enabled: false, communityAccessToken: '', callbackSecret: '', confirmationToken: '' };
+  }
+}
+export function getVkRuntimeConfig(): Promise<VkRuntimeConfig> { return readVkRuntimeConfig(createDbPort()); }
 
 export async function readSmscRuntimeConfig(db: DbPort): Promise<SmscRuntimeConfig> {
   try {

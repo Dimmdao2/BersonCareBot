@@ -53,6 +53,8 @@ import type { SmsClient } from '../integrations/smsc/types.js';
 import { createEmailDeliveryAdapter } from '../integrations/email/deliveryAdapter.js';
 import { createMaxDeliveryAdapter } from '../integrations/max/deliveryAdapter.js';
 import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
+import { createVkDeliveryAdapter } from '../integrations/vk/deliveryAdapter.js';
+import { registerVkWebhookRoutes } from '../integrations/vk/webhook.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
 import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
 import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
@@ -104,6 +106,11 @@ export type MaxRoutesRegistrar = (
     eventGateway: EventGateway;
   } & MessengerWebappEntryIdentityDeps,
 ) => Promise<void> | void;
+export type VkRoutesRegistrar = (app: FastifyInstance, deps: {
+  eventGateway: EventGateway;
+  resolveOrganizationIdForMessengerIdentity?: (externalId: string, resource: 'vk') => Promise<string | null>;
+  resolveIntegratorUserIdForMessenger?: (externalId: string, resource: 'vk') => Promise<string | undefined>;
+}) => Promise<void> | void;
 
 /** Опциональные внешние зависимости для buildDeps на период миграции. */
 export type BuildDepsInput = {
@@ -115,6 +122,7 @@ export type BuildDepsInput = {
   idempotencyPort?: IdempotencyPort;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
+  registerVkWebhookRoutes?: VkRoutesRegistrar;
 };
 
 /** Зависимости app-слоя, используемые routes/server. */
@@ -136,6 +144,7 @@ export type AppDeps = {
   eventGateway: EventGateway;
   registerTelegramWebhookRoutes?: TelegramRoutesRegistrar;
   registerMaxWebhookRoutes?: MaxRoutesRegistrar;
+  registerVkWebhookRoutes?: VkRoutesRegistrar;
   webappEventsPort: WebappEventsPort;
   /**
    * Read port for web-push subscriptions + VAPID (PLAN S13 Model β).
@@ -231,6 +240,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
         }),
     }),
     createMaxDeliveryAdapter(),
+    createVkDeliveryAdapter(),
     createEmailDeliveryAdapter({ getDb: () => dbPort }),
     createWebPushDeliveryAdapter({ webPushAccessPort }),
   ];
@@ -285,6 +295,7 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
 
   const telegramRegistrar = input.registerTelegramWebhookRoutes ?? registerTelegramWebhookRoutes;
   const maxRegistrar = input.registerMaxWebhookRoutes ?? registerMaxWebhookRoutes;
+  const vkRegistrar = input.registerVkWebhookRoutes ?? registerVkWebhookRoutes;
 
   return {
     healthCheckDb,
@@ -304,5 +315,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     webPushAccessPort,
     registerTelegramWebhookRoutes: telegramRegistrar,
     registerMaxWebhookRoutes: maxRegistrar,
+    registerVkWebhookRoutes: vkRegistrar,
   };
 }

@@ -120,7 +120,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
   },
   {
     id: 'mailings.execute',
-    mechanic: ['mailings', 'clinic_smtp', 'clinic_sms', 'clinic_telegram_bot', 'clinic_max_bot'],
+    mechanic: ['mailings', 'clinic_smtp', 'clinic_sms', 'clinic_telegram_bot', 'clinic_max_bot', 'clinic_vk_community'],
     file: 'src/app/app/doctor/broadcasts/actions.ts',
     exportName: 'executeBroadcastAction',
     method: 'action',
@@ -663,6 +663,7 @@ export const PROTECTED_ACTION_MAPPINGS = [
       'clinic_sms',
       'clinic_telegram_bot',
       'clinic_max_bot',
+      'clinic_vk_community',
     ],
     file: 'src/app/api/admin/settings/route.ts',
     exportName: 'PATCH',

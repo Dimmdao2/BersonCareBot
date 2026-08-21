@@ -13,7 +13,7 @@ export const CHANNEL_LIST: Array<{
     implemented: true,
   },
   { code: 'max', title: 'MAX', openUrl: 'https://max.ru/id780713840637_1_bot', implemented: true },
-  { code: 'vk', title: 'ВКонтакте', openUrl: 'https://vk.com', implemented: false },
+  { code: 'vk', title: 'ВКонтакте', openUrl: 'https://vk.com', implemented: true },
   { code: 'sms', title: 'SMS', openUrl: '', implemented: true },
   { code: 'email', title: 'Email', openUrl: '', implemented: true },
   { code: 'web_push', title: 'Push', openUrl: '', implemented: true },

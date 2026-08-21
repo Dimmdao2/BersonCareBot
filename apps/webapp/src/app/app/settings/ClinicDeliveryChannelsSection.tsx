@@ -20,6 +20,7 @@ type ClinicDeliveryChannelsSectionProps = {
     smsConfigured: boolean;
     telegramConfigured: boolean;
     maxConfigured: boolean;
+    vkConfigured: boolean;
     telegramWebhookPath: string | null;
     maxWebhookPath: string | null;
   };
@@ -143,6 +144,13 @@ export function ClinicDeliveryChannelsSection({ initial }: ClinicDeliveryChannel
           configured={initial.maxConfigured}
           saveSetting={saveSetting}
           webhookPath={initial.maxWebhookPath}
+        />
+        <SecretSettingInput
+          title="Сообщество VK"
+          description="Токен сообщества для исходящих сообщений от имени клиники. Входящий Callback API остаётся у сообщества платформы."
+          settingKey="clinic_vk_community_access_token"
+          configured={initial.vkConfigured}
+          saveSetting={saveSetting}
         />
       </CardContent>
     </Card>

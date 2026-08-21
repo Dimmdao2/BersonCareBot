@@ -1369,9 +1369,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       `integrations/registry.ts`, упоминание в `platformIntegrationAvailability.ts`; добавлен тест-сторож
       `integrations/registry.test.ts`. Доказательство и три источника недостижимости:
       `docs/_TODO/runs/integrator-cleanup/D33_REPORT.md`.
-- [ ] **D31 (часть 2/2) — VK как настоящий канал.** Та же развилка №4: VK доводится до настоящей доставки по
-      образцу MAX (адаптер доставки, разбор входящих, контент сценариев, деградация канала). Не входило в
-      прогон `worker-d33-dead-code` — отдельная работа.
+- [x] **D31 (часть 2/2) — VK как настоящий канал.** Та же развилка №4: Callback API webhook с confirmation и
+      secret verification, canonical `message_new`/`message_event`, `messages.send` с idempotent `random_id`,
+      common dispatch/retry journal и `recipient_blocked_bot`; DB-backed platform/clinic credentials and
+      availability are wired. Evidence: `docs/_TODO/runs/integrator-cleanup/D31_VK_CHANNEL_REPORT_2026-08-21.md`.
 - [x] **D32 — неподдержанный тип сообщения получает ответ, а не тишину.** Решение — **Р-D32** (§2.3).
       Требуемый ответ уже существовал; `9079fdd62` добавил поведенческое доказательство для Telegram/MAX без
       второй реализации: тип вне белого списка → человеку уходит «пока не поддерживается», пересылки нет.

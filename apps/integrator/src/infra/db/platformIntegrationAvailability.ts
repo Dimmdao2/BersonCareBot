@@ -7,6 +7,7 @@ import { runIntegratorSql } from './runIntegratorSql.js';
 export const PLATFORM_INTEGRATION_IDS = [
   'telegram',
   'max',
+  'vk',
   'email',
   'smsc',
   'web_push',

@@ -39,7 +39,7 @@ export type HealthResponse = {
 
 function createResolveOrganizationIdForMessengerIdentity(): (
   externalId: string,
-  resource: 'telegram' | 'max',
+    resource: 'telegram' | 'max' | 'vk',
 ) => Promise<string | null> {
   return async (externalId, resource) => {
     try {
@@ -224,6 +224,14 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         resolveMessengerStaffAdmin,
         resolveDedicatedClinicBotOrganization: resolveDedicatedMaxBotOrganization,
         resolveDedicatedClinicBotApiKey: createResolveDedicatedClinicMaxApiKey(),
+      });
+    });
+  }
+  if (deps.registerVkWebhookRoutes) {
+    app.register(async (instance) => {
+      await deps.registerVkWebhookRoutes?.(instance, {
+        eventGateway: deps.eventGateway,
+        resolveOrganizationIdForMessengerIdentity,
       });
     });
   }
