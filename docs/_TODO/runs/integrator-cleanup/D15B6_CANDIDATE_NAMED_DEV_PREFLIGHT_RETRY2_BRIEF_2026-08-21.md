@@ -4,6 +4,9 @@
 `wt/d15b6-audit-20260821` до landing. Это повтор того же saved live gate после точной source-origin ordering
 коррекции, не новый audit-cycle, не product-fix и не применение миграции.
 
+Классификация «Тест или взгляд»: взгляд — разовый rollback-only runtime gate точного candidate; новый тест,
+blind kill-set и fault injection не нужны.
+
 Перед действием прочитать карту `AGENTS.md`, затем §1/§1b migration/named DEV, §5/§6, §9–§10 и §24; прочитать
 `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`,
 `deploy/HOST_DEPLOY_README.md`, `deploy/host/migrate-dev.sh`; повторить поиск более поздних owner-решений в
