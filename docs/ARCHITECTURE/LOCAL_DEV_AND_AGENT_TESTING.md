@@ -201,243 +201,35 @@ http://127.0.0.1:5200/api/me` — живой сервер отвечает, а �
 
 ---
 
-## 4. Dev-bypass: вход без Telegram и без ручного OAuth
+## 4. Обычный вход и dev-only clear-session helper
 
-### 4.1 Условия
+На DEV/TEST проверки ролей проходят только штатным email/password, OAuth или messenger-входом уже зарегистрированных owner-учёток и клиник. Не создавайте fixture-учётки, не используйте token/preset-вход и не читайте пароли из env.
 
-В `apps/webapp/.env.dev`:
+`/api/auth/dev-public` сохранён только как dev-only helper для очистки текущей session-cookie и context-cookies перед обычным публичным входом или регистрацией. Он доступен только при `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`; authenticated role или session он не создаёт.
 
-```env
-ALLOW_DEV_AUTH_BYPASS=true
-NODE_ENV=development
-```
-
-- Bypass работает **только** при `NODE_ENV=development` и `ALLOW_DEV_AUTH_BYPASS=true`; `test` и `production` его не принимают.
-- **Не** читайте `.env` ради паролей — для теста используйте готовые токены ниже.
-
-Реализация: `GET /api/auth/dev-bypass`, пресеты в `apps/webapp/src/modules/auth/service.ts`.
-
-### 4.2 Токены (фиксированные, не секреты)
-
-| `token`            | Роль в сессии                               | Admin mode         | Типичное использование                                                              |
-| ------------------ | ------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
-`dev:*` presets больше не имеют выделенного persistent dataset. Для DEV/TEST ролевой вход и ручная проверка
-используют существующие owner-учётки и клиники согласно `AGENTS.md` §1b; dev-bypass не создаёт и не исправляет
-телефоны, пользователей, membership или specialist rows.
-
-### 4.3 Способы входа
-
-**Public / registration без сессии**
-
-Это не authenticated role и не `dev:*` token. Dev-only helper сначала очищает текущую session-cookie:
-
-```text
-# Чистый public/login
-http://127.0.0.1:5200/api/auth/dev-public
-
-# Чистая общая форма: специалист + создаваемая им клиника
-http://127.0.0.1:5200/api/auth/dev-public?view=specialist-registration
-http://127.0.0.1:5200/api/auth/dev-public?view=clinic-registration
-```
-
-Helper доступен только при тех же `NODE_ENV=development` + `ALLOW_DEV_AUTH_BYPASS=true`; он очищает session,
-`bersoncare_platform` и `bersoncare_messenger_surface`, чтобы старый Mini App context не влиял на public screen.
-Первый URL показывает обычный публичный вход; patient email-flow регистрирует нового пациента, если email ещё
-не существует. Оба registration URL ведут в один канонический flow: специалист вводит `Email`, пароль, своё
-имя и название организации; после подтверждения создаются клиника, её owner-membership и профиль специалиста. Отдельной
-«регистрации клиники без специалиста» в продукте нет.
-
-Эти helper-URL работают только в DEV. На TEST/production-like нужно открыть чистый/инкогнито-профиль на `/app`, а затем
-выбрать `Я специалист`. TEST deploy детерминированно включает `specialist_signup_enabled`; production по-прежнему default-off.
-
-**A. Прямой URL (лучший для агента / curl / чистый браузер)**
-
-```
-http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
-```
-
-Параметры:
-
-- `token` — один из пресетов таблицы §4.2 (URL-encode `:` → `%3A`).
-- `next` — путь после входа. **Только для `dev:client`:** безопасные пути внутри `/app/patient/*` (кроме `bind-phone`). Для staff-токенов параметр `next` **игнорируется** — всегда редирект на `/app/doctor`; дальше переходите на нужный маршрут вручную или через browser automation.
-
-Примеры:
-
-```text
-# Админ → /app/doctor (дефолт)
-/api/auth/dev-bypass?token=dev%3Aadmin
-
-# Врач → /app/doctor, затем в браузере /app/doctor/schedule
-/api/auth/dev-bypass?token=dev%3Adoctor
-
-# Администратор клиники → /app/doctor с owner-доступом, но без global admin mode
-/api/auth/dev-bypass?token=dev%3Aclinic-admin
-
-# Пациент → конкретная страница (next работает)
-/api/auth/dev-bypass?token=dev%3Aclient&next=/app/patient/home
-```
-
-**B. Через `/app?t=…`**
-
-```
-http://127.0.0.1:5200/app?t=dev:admin
-```
-
-RSC `AppEntryRsc` перенаправит на `/api/auth/dev-bypass?token=…`.
-
-Алиас query: `token` вместо `t`.
-
-**C. Кнопки на `/app`**
-
-При включённом bypass на странице входа есть отдельные кнопки пациента, специалиста, администратора клиники и глобального администратора.
-
-### 4.4 Проверка сессии без UI
-
-```bash
-# 1) установить cookie
-curl -s -c /tmp/bcb-dev.cookies -b /tmp/bcb-dev.cookies -L \
-  "http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin&next=/app/doctor"
-
-# 2) проверить роль
-curl -s -b /tmp/bcb-dev.cookies "http://127.0.0.1:5200/api/me"
-```
-
-Ожидается JSON с `user.role` (`admin` | `doctor` | `client`).
-
-### 4.5 Выход
-
-```
-http://127.0.0.1:5200/api/auth/logout
-```
-
-или кнопка выхода в shell. Снова зайти — новый dev-bypass URL (не нужен «очищенный кэш Chrome», достаточно logout или инкогнито).
-
-### 4.5.1 Переключение ролей для UX-аудита
-
-- В одном браузерном профиле: откройте нужный dev-bypass URL — новая session заменит старую.
-- Вернуться к public/registration: `/api/auth/dev-public?view=login` или
-  `/api/auth/dev-public?view=clinic-registration` — helper
-  сначала очищает session.
-- Для одновременных сравнений используйте отдельный profile/cookie jar на роль; не пытайтесь держать две роли в
-  одной cookie jar.
-
-### 4.6 Browser / MCP (Cursor)
-
-1. Запустить `pnpm run webapp:dev` (или `dev:turbo`).
-2. `browser_navigate` на dev-bypass URL с нужным `token` и `next`.
-3. Для doctor-страниц **не** ходить на `/app/doctor/...` без предварительной сессии — получите redirect на login.
-
-Навигация кабинета врача: [`DOCTOR_CABINET_NAVIGATION.md`](./DOCTOR_CABINET_NAVIGATION.md).
-
-### 4.7 Headless-скриншоты без браузер-MCP (curl + chromium)
-
-Когда браузер-MCP/расширение недоступны, а нужны **скриншоты авторизованных** doctor-страниц из CLI. Проверено на этой машине (`/usr/bin/chromium-browser`). Двухшаговая схема — иначе сессия не подхватится.
-
-```bash
-# 0) поднять webapp (грузит .env.dev: ALLOW_DEV_AUTH_BYPASS=true + три port-context DATABASE_URL_*)
-( set -a && source apps/webapp/.env.dev && set +a && pnpm --dir apps/webapp dev ) &   # 127.0.0.1:5200
-
-PROF="$PWD/.shots/prof"; B="http://127.0.0.1:5200"   # профиль и скриншоты — в персистентный путь (НЕ /tmp)
-
-# ШАГ A — авторизовать профиль. КРИТИЧНО: БЕЗ --virtual-time-budget,
-#         иначе chromium выходит до флаша cookie на диск и шаг B упрётся в login.
-timeout 50 chromium-browser --headless --no-sandbox --disable-gpu \
-  --user-data-dir="$PROF" --screenshot="$PWD/.shots/_auth.png" \
-  "$B/api/auth/dev-bypass?token=dev%3Aadmin"
-# проверка: в профиле появился session-cookie
-find "$PROF" -name Cookies -exec sh -c 'strings "$1" | grep -c bersoncare_webapp_session' _ {} \;
-
-# ШАГ B — целевая страница тем же профилем. Здесь virtual-time-budget нужен,
-#         чтобы прогрузились клиентские чанки/данные (KPI, фид и т.п.).
-timeout 60 chromium-browser --headless --no-sandbox --disable-gpu --hide-scrollbars \
-  --window-size=1480,1024 --virtual-time-budget=13000 --user-data-dir="$PROF" \
-  --screenshot="$PWD/.shots/page.png" \
-  "$B/app/doctor/schedule?tab=cal"
-```
-
-Грабли (все встречены вживую):
-
-- **`next` для `dev:doctor`/`dev:admin` игнорируется** (§4.3) → на целевой маршрут ведём в шаге B, а не через redirect bypass.
-- **`--virtual-time-budget` на шаге A ломает персист cookie** (резкий выход до флаша) → на auth-шаге его НЕ ставить; повторное использование профиля без cookie = редирект на login.
-- Только **`127.0.0.1`**, не `localhost`. Нужен **`--no-sandbox`**. Скриншоты писать в **персистентный** путь (project dir): файлы в `/tmp` между вызовами могут не сохраняться.
-- Интерактив (клики по дню, drag-n-drop, выбор дней) одним `--screenshot` не снять — для этого нужен реальный браузер-MCP; deep-link-параметры (`?tab=`, `?view=`) частично заменяют клики.
-
-Чистый бэкенд-чек без рендера — через cookie jar (см. §4.4):
-
-```bash
-J=/tmp/bcb.cookies
-curl -s -c $J -b $J -L "$B/api/auth/dev-bypass?token=dev%3Aadmin&next=/app/doctor" >/dev/null
-curl -s -b $J "$B/api/doctor/schedule-kpis?from=2026-06-13T00:00:00&to=2026-06-16T00:00:00"   # → {ok,kpis:{9 полей}}
-```
+- Чистый public/login: `http://127.0.0.1:5200/api/auth/dev-public`.
+- Чистая регистрация специалиста и клиники: `http://127.0.0.1:5200/api/auth/dev-public?view=clinic-registration`.
+- На TEST/production-like открывайте чистый/инкогнито-профиль на `/app`; helper туда не переносится.
 
 ---
 
-## 5. `dev_mode` в БД — не путать с dev-bypass
+## 5. `dev_mode` в БД
 
-|            | `ALLOW_DEV_AUTH_BYPASS`     | `system_settings.dev_mode`                                                                               |
-| ---------- | --------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Где        | env `apps/webapp/.env.dev`  | БД, UI `/app/doctor/admin/app-settings`                                                                  |
-| Зачем      | Вход в UI без мессенджера   | Включает **тестовые аккаунты** в аналитике; ограничивает relay в боты списком `test_account_identifiers` |
-| Для агента | обязателен для bypass-входа | нужен только при проверке метрик с тестовыми пользователями                                              |
-
-`debug_forward_to_admin` — verbose-логи, **не** вход и **не** аналитика.
+`system_settings.dev_mode` включает тестовые аккаунты в аналитике и ограничивает relay в боты списком `test_account_identifiers`; это не способ входа. `debug_forward_to_admin` — verbose-логи, не вход и не аналитика.
 
 ---
 
 ## 5.1 Матрица скриншотов интерфейса по ролям
 
-Для оценки состава экранов создавайте отдельный browser profile/cookie jar на каждую роль и не переиспользуйте
-сессию между строками:
-
-| Срез         | DEV-вход                                        | Что фиксировать минимум                                                                  |
-| ------------ | ----------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Public       | `/api/auth/dev-public`                          | landing и clean login; session отсутствует                                               |
-| Registration | `/api/auth/dev-public?view=clinic-registration` | единая форма создания специалиста + его клиники; session отсутствует                     |
-| Patient      | `dev:client`                                    | home, appointments, treatment/program, profile/settings                                  |
-| Doctor       | `dev:doctor`                                    | Today, patients, schedule, communications, content/LFK; отсутствие clinic/global пунктов |
-| Clinic admin | `dev:clinic-admin`                              | doctor-набор + `Врачи` + `Настройки клиники`; отсутствие global-admin разделов           |
-| Global admin | `dev:admin`                                     | полный doctor-набор + analytics, system-health, audit-log, global settings/integrations  |
-
-Сначала снимайте desktop `1480×1024`, затем ключевые shell/navigation экраны mobile `390×844`. Имя каталога:
-`.claude/screenshots/UX-ROLE-MATRIX/<UTC>/<role>/`; рядом держите короткий `manifest.md` с URL, ролью, размером
-viewport и commit SHA. Не коммитьте runtime screenshots.
-
-Уже собранный актуальный набор находится в
-`.claude/screenshots/SAAS-S3-TEST-WALKTHROUGH/2026-07-15T13-50-53Z/`. В нём есть public и парные экраны
-двух clinic-owner профилей A/B (Today, пациенты, расписание, коммуникации, CMS/LFK, управление клиникой).
-Это **не** полная ролевая матрица: отдельных patient, regular doctor и global-admin срезов там нет.
+Для оценки состава экранов используйте отдельный browser profile/cookie jar на каждую уже зарегистрированную owner-роль и не переиспользуйте сессии. Public/registration можно очистить через `/api/auth/dev-public`; авторизованные срезы проходят штатным входом соответствующей owner-учётки. Не коммитьте runtime screenshots.
 
 ---
 
 ## 6. Типовые сценарии тестирования
 
-### 6.1 Только UI кабинета врача
+### 6.1 UI кабинетов
 
-```bash
-pnpm run webapp:dev
-# 1) вход
-http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
-# 2) переход на страницу, например /app/doctor/clients
-```
-
-Integrator не нужен, если не вызываются внешние интеграции.
-
-### 6.2 Пациентский flow
-
-```bash
-pnpm run webapp:dev
-http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aclient&next=/app/patient/home
-```
-
-### 6.3 Admin settings (БД-конфиг)
-
-Нужен `dev:admin`:
-
-```text
-/app/doctor/admin/app-settings
-/app/doctor/admin/integrations
-/app/doctor/admin/auth
-```
+Запустите нужный dev-режим только по правилам §3b, откройте `/app` и войдите штатным способом уже зарегистрированной owner-учётки. После сессии переходите на нужный кабинет или настройки по обычному URL.
 
 ### 6.4 Напоминания / scheduler / доставка в бот
 
@@ -505,22 +297,19 @@ Opt-in тесты с реальной БД: `USE_REAL_DATABASE=1` + специф
 
 | Симптом                             | Причина                                                  | Решение                                        |
 | ----------------------------------- | -------------------------------------------------------- | ---------------------------------------------- |
-| Редирект на `/app` без сессии       | `ALLOW_DEV_AUTH_BYPASS` не `true` или опечатка в `token` | Проверить `.env.dev`, перезапустить dev-сервер |
-| Bypass «не работает» на prod        | Задумано                                                 | Только dev + non-production                    |
+| Редирект на `/app` без сессии       | Обычный вход не завершён                                 | Завершить штатный email/password, OAuth или messenger flow |
 | Сессия «залипает» / logout странный | Открыли `localhost` вместо `127.0.0.1`                   | Использовать `127.0.0.1:5200`                  |
 | Порт занят                          | Старый `next dev`                                        | `pnpm run dev:stop`, затем снова старт         |
 | 401 на integrator-зависимых фичах   | Запущен только webapp                                    | `pnpm run dev` или отдельно `dev:integrator`   |
-| Admin API 403                       | Вошли как `dev:doctor`                                   | Использовать `dev:admin`                       |
+| Admin API 403                       | У owner-учётки нет global-admin роли                     | Войти зарегистрированной global-admin owner-учёткой |
 
 ---
 
-## 9. Связанные маршруты входа (не bypass)
-
-Для полноты — **не** замена dev-bypass:
+## 9. Связанные маршруты входа
 
 - `/app` — публичный OAuth / email / phone (нужны настроенные провайдеры в `system_settings`).
 - `/app/tg`, `/app/max` — Mini App (нужен реальный initData мессенджера).
-- `?t=<integrator-jwt>` — обмен токена из бота (`exchangeIntegratorToken`), не dev-токены.
+- `?t=<integrator-jwt>` — обмен токена из бота (`exchangeIntegratorToken`).
 
 Подробно: [`auth.md`](../../apps/webapp/src/modules/auth/auth.md).
 

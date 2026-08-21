@@ -1,11 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { decodeBase64Url } from '@/shared/utils/base64url';
-import {
-  env,
-  isProduction,
-  webappRuntimeDatabaseIsConfigured,
-} from '@/config/env';
+import { isProduction, webappRuntimeDatabaseIsConfigured } from '@/config/env';
 import type { AppSession, SessionUser, UserRole } from '@/shared/types/session';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import {
@@ -67,7 +63,6 @@ import {
   ensureCorrelationId,
   ensureDbPrincipalContext,
 } from '@bersoncare/db-principal';
-import { isDevAuthBypassEnabled } from './devBypassPolicy';
 import { requireSessionUserPort } from './sessionUserPort';
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
@@ -100,7 +95,6 @@ export type ExchangeResult = {
   accountOutcome?: AccountOutcome;
   /**
    * Только для `exchangeIntegratorToken`: ставить `bersoncare_platform=bot` на ответе `/api/auth/exchange`.
-   * Для dev bypass (`dev:*`) — всегда false (синтетические bindings не должны включать miniapp-ветку в браузере).
    */
   setMessengerPlatformCookie?: boolean;
 };
@@ -268,95 +262,9 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
   return parsed;
 }
 
-function parseDevBypassToken(token: string): IntegratorTokenPayload | null {
-  const enabled = isDevAuthBypassEnabled({
-    nodeEnv: env.NODE_ENV,
-    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
-  });
-  if (!enabled) return null;
-
-  const presets: Record<string, IntegratorTokenPayload> = {
-    'dev:client': {
-      sub: '00000000-0000-0000-0000-000000000001',
-      role: 'client',
-      displayName: 'Demo Client',
-      phone: '+79990000001',
-      bindings: { telegramId: '111111111' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:doctor': {
-      sub: '00000000-0000-0000-0000-000000000002',
-      role: 'doctor',
-      displayName: 'Demo Doctor',
-      phone: '+79990000002',
-      bindings: { telegramId: '222222222' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:admin': {
-      sub: '00000000-0000-0000-0000-000000000003',
-      role: 'admin',
-      displayName: 'Demo Admin',
-      phone: '+79990000003',
-      bindings: { telegramId: '333333333' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:clinic-admin': {
-      sub: '00000000-0000-0000-0000-000000000004',
-      role: 'doctor',
-      displayName: 'Demo Clinic Owner',
-      phone: '+79990000004',
-      bindings: { telegramId: '999999999999004' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:doctor-isolated': {
-      sub: 'd0000000-0000-4000-8000-000000000005',
-      role: 'doctor',
-      displayName: 'Demo Isolated Doctor',
-      phone: '+79990000005',
-      bindings: { telegramId: '999999999999005' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:client-isolated': {
-      sub: 'd0000000-0000-4000-8000-000000000006',
-      role: 'client',
-      displayName: 'Demo Isolated Patient',
-      phone: '+79990000006',
-      bindings: { telegramId: '999999999999006' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:doctor-colleague': {
-      sub: 'd0000000-0000-4000-8000-000000000007',
-      role: 'doctor',
-      displayName: 'Demo Colleague Doctor',
-      phone: '+79990000007',
-      bindings: { telegramId: '999999999999007' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-    'dev:client-colleague': {
-      sub: 'd0000000-0000-4000-8000-000000000008',
-      role: 'client',
-      displayName: 'Demo Colleague Patient',
-      phone: '+79990000008',
-      bindings: { telegramId: '999999999999008' },
-      purpose: 'webapp-entry',
-      exp: Math.floor(Date.now() / 1000) + 3600,
-    },
-  };
-
-  return presets[token] ?? null;
-}
-
 export async function classifyVerifiedIntegratorTokenChannel(
   token: string,
-): Promise<'dev_bypass' | 'telegram' | 'max' | null> {
-  if (parseDevBypassToken(token)) return 'dev_bypass';
+): Promise<'telegram' | 'max' | null> {
   const parsed = await parseIntegratorToken(token);
   if (!parsed) return null;
   const binding = effectiveMessengerBinding(parsed);
@@ -570,25 +478,12 @@ async function optionalResolutionHintsFromVerifiedWebappEntryToken(
   return messengerResolutionHintsFromToken(parsed);
 }
 
-function devBypassPresetPhoneMatches(user: SessionUser, parsed: IntegratorTokenPayload): boolean {
-  const rawPresetPhone = parsed.phone?.trim();
-  const rawStoredPhone = user.phone?.trim();
-  if (!rawPresetPhone || !rawStoredPhone) return false;
-
-  const presetPhone = normalizePhone(rawPresetPhone);
-  const storedPhone = normalizePhone(rawStoredPhone);
-  return (
-    isValidPhoneE164(presetPhone) && isValidPhoneE164(storedPhone) && presetPhone === storedPhone
-  );
-}
-
 export async function exchangeIntegratorToken(
   token: string,
   identityResolutionPort?: IdentityResolutionPort | null,
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
-  const devParsed = parseDevBypassToken(token);
-  const parsed = devParsed ?? (await parseIntegratorToken(token));
+  const parsed = await parseIntegratorToken(token);
   if (!parsed) {
     if (process.env.NODE_ENV !== 'test') {
       console.info('[auth/exchange] token_parse_failed tokenLen=%d', token.length);
@@ -596,7 +491,7 @@ export async function exchangeIntegratorToken(
     return null;
   }
 
-  if (!devParsed && !(await isAllowedByWhitelist(parsed, identityResolutionPort))) {
+  if (!(await isAllowedByWhitelist(parsed, identityResolutionPort))) {
     if (process.env.NODE_ENV !== 'test') {
       console.info(
         '[auth/exchange] whitelist_rejected sub=%s telegramId=%s',
@@ -612,23 +507,17 @@ export async function exchangeIntegratorToken(
   if (identityResolutionPort) {
     const binding = effectiveMessengerBinding(parsed);
     if (binding) {
-      if (devParsed) {
-        const existing = await identityResolutionPort.findByChannelBinding(binding);
-        if (!existing) return null;
-        user = existing;
-      } else {
-        const resolutionHints = messengerResolutionHintsFromToken(parsed);
-        const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
-          channelCode: binding.channelCode,
-          externalId: binding.externalId,
-          displayName: parsed.displayName,
-          role: parsed.role,
-          ...(resolutionHints ? { resolutionHints } : {}),
-        });
-        user = resolved.user;
-        accountOutcome = resolved.accountOutcome;
-      }
-    } else if (!devParsed) {
+      const resolutionHints = messengerResolutionHintsFromToken(parsed);
+      const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
+        channelCode: binding.channelCode,
+        externalId: binding.externalId,
+        displayName: parsed.displayName,
+        role: parsed.role,
+        ...(resolutionHints ? { resolutionHints } : {}),
+      });
+      user = resolved.user;
+      accountOutcome = resolved.accountOutcome;
+    } else {
       const subTrim = parsed.sub.trim();
       // Phase C: bare platform UUID in `sub` (no messenger binding in token) → load canon from DB.
       if (webappRuntimeDatabaseIsConfigured() && isPlatformUserUuid(subTrim)) {
@@ -644,25 +533,12 @@ export async function exchangeIntegratorToken(
       } else {
         user = tokenToUser(parsed);
       }
-    } else {
-      user = tokenToUser(parsed);
     }
   } else {
     user = tokenToUser(parsed);
   }
 
-  if (devParsed && user.role !== parsed.role) {
-    // Dev bypass tokens must keep explicit preset role (dev:admin/dev:doctor/dev:client),
-    // even when identity resolution returns an existing row with stale role from DB.
-    user = { ...user, role: parsed.role };
-  }
-
-  if (devParsed && webappRuntimeDatabaseIsConfigured()) {
-    if (!devBypassPresetPhoneMatches(user, parsed)) return null;
-  }
-
   if (
-    !devParsed &&
     webappRuntimeDatabaseIsConfigured() &&
     identityResolutionPort &&
     user.role === 'client' &&
@@ -672,40 +548,22 @@ export async function exchangeIntegratorToken(
     console.info('[auth/exchange] client_session_transport=legacy_non_uuid_onboarding_only');
   }
 
-  if (!devParsed) {
-    // C-4: the messenger/phone allowlists never promote anyone anymore (envRole.ts), so this only
-    // ever composes back to `user.role` unchanged — see reconcileDbRoleWithEnvRole's doc comment.
-    // Kept (rather than deleted) so a role source that resolves something other than "client" here
-    // again in the future still cannot demote an existing DB-persisted staff role.
-    const envRole = await resolveRoleAsync({
-      phone: user.phone ?? parsed.phone,
-      telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
-      maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
-    });
-    const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
-    if (user.role !== reconciledRole) {
-      if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
-      user = { ...user, role: reconciledRole };
-    }
+  // C-4: the messenger/phone allowlists never promote anyone anymore (envRole.ts), so this only
+  // ever composes back to `user.role` unchanged — see reconcileDbRoleWithEnvRole's doc comment.
+  // Kept (rather than deleted) so a role source that resolves something other than "client" here
+  // again in the future still cannot demote an existing DB-persisted staff role.
+  const envRole = await resolveRoleAsync({
+    phone: user.phone ?? parsed.phone,
+    telegramId: user.bindings?.telegramId ?? parsed.bindings?.telegramId,
+    maxId: user.bindings?.maxId ?? parsed.bindings?.maxId,
+  });
+  const reconciledRole = reconcileDbRoleWithEnvRole(user.role, envRole);
+  if (user.role !== reconciledRole) {
+    if (updateRoleFn) await updateRoleFn(user.userId, reconciledRole);
+    user = { ...user, role: reconciledRole };
   }
 
-  const built: AppSession = devParsed
-    ? {
-        ...buildSession(user),
-        authSource: 'dev_bypass',
-        // The production platform-admin gate remains factor-only. This explicitly enabled
-        // non-production bypass represents the completed factor so DEV can exercise the
-        // dedicated global-admin DB pool instead of redirecting before any platform query.
-        ...(user.role === 'admin'
-          ? {
-              staffSecurity: {
-                assurance: 'factor_verified' as const,
-                verifiedAt: Math.floor(Date.now() / 1000),
-              },
-            }
-          : {}),
-      }
-    : buildSession(user);
+  const built = buildSession(user);
   const cookieStore = await cookies();
   // The session that is RETURNED is the one that was actually written to the cookie, epoch and all
   // (C-1) — never the pre-stamp draft, so a caller can never hand back a session shape the next
@@ -713,7 +571,7 @@ export async function exchangeIntegratorToken(
   const session = await persistNewAuthSession(cookieStore, built);
 
   const setMessengerPlatformCookie =
-    !devParsed && (Boolean(user.bindings?.maxId) || Boolean(user.bindings?.telegramId));
+    Boolean(user.bindings?.maxId) || Boolean(user.bindings?.telegramId);
 
   return {
     session,
@@ -1074,20 +932,9 @@ async function getCurrentSessionWithPrincipalMode(
   // Normalize doctor session shape without writing cookie here — cookies().set()
   // is only allowed in Server Actions / Route Handlers, not in Server Component render.
   let session: AppSession = { ...decoded, user: resolvedUser };
-  const devBypassEnabled = isDevAuthBypassEnabled({
-    nodeEnv: env.NODE_ENV,
-    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
-  });
-  if (session.authSource === 'dev_bypass' && !devBypassEnabled) return null;
-  const isDevBypassSession = session.authSource === 'dev_bypass';
-  if (isDevBypassSession) {
-    // Keep explicit dev bypass role from the login token even if DB row has client role.
-    session = { ...session, user: { ...session.user, role: decoded.user.role } };
-  }
   if (session.user.role === 'doctor') {
     session = {
       ...buildSession(session.user),
-      ...(isDevBypassSession ? { authSource: 'dev_bypass' as const } : {}),
       postLoginHints: session.postLoginHints,
       reauth: session.reauth,
       staffSecurity: session.staffSecurity,
@@ -1096,9 +943,9 @@ async function getCurrentSessionWithPrincipalMode(
 
   let verifiedEmail: string | undefined;
   // Email elevation is independent from legacy phone/TG/MAX bindings. It is
-  // evaluated fresh on every non-dev session and is never projected into
+  // evaluated fresh on every session and is never projected into
   // platform_users.role.
-  if (!isDevBypassSession && isPlatformUserUuid(session.user.userId)) {
+  if (isPlatformUserUuid(session.user.userId)) {
     try {
       verifiedEmail = await runWithStaffSecuritySelfPrincipal(
         session.user.userId,
@@ -1112,8 +959,6 @@ async function getCurrentSessionWithPrincipalMode(
       verifiedEmail = undefined;
     }
   }
-  if (isDevBypassSession) return finalizeCurrentSession(session, patientOrganizationHint, options);
-
   // C-4 (2026-07-26, ADMIN_ACCESS_MODEL.md): admin/doctor used to be re-derived from the
   // messenger/phone allowlists on every session refresh and PERSISTED over `session.user.role`
   // whenever it differed. That path could only ever demote — `resolveRoleAsync` never promotes

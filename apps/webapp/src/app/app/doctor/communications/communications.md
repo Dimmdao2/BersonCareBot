@@ -222,7 +222,7 @@ read-метод в `apps/webapp/src/modules/program-item-discussion/`** (port + 
 **Процесс.** План — по `plan-authoring-execution-standard`; reuse-first (эталон — экран упражнений,
 см. `DOCTOR_APP_UI_STYLE_GUIDE.md`); коммиты поэтапно по блокам с трейлером
 `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`; **не пушить**; перед закрытием —
-typecheck/lint/тесты затронутых пакетов + живой dev (`dev:doctor`, `127.0.0.1:5200`) + полный CI
+typecheck/lint/тесты затронутых пакетов + живой dev уже зарегистрированной owner-учёткой (`127.0.0.1:5200`) + полный CI
 финальным гейтом. Вести «Журнал» ниже.
 
 ## Журнал
@@ -255,7 +255,7 @@ typecheck/lint/тесты затронутых пакетов + живой dev (
   `loadDoctorCommunicationsBadges` (`chats` = непрочитанные сообщения, `intake` = новые заявки) +
   unit-тесты. Коммит `7d16040e`.
 - **2026-06-11 · TODO#2 Block 2 ✅** — все 4 страницы вкладок передают `badges` в таб-бар;
-  живо проверено (dev:doctor): «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
+живо проверено owner-учёткой: «Чаты 3» виден и на вкладке «Рассылки» (кросс-таб). Коммит `a36306d2`.
 - **2026-06-12 · TODO#3 Block 5** — убран internal-rewrite communications из `doctorRouteRedirects.ts`;
   `/communications` проходит насквозь → рендерится страница-шелл; 308 со старых URL сохранены;
   `schedule` rewrite не тронут. 7 тестов-passthrough добавлены, 7 старых rewrite-тестов заменены.

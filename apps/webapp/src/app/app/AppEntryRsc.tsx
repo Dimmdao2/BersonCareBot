@@ -1,5 +1,5 @@
 /**
- * Общий RSC для `/app`, `/app/tg`, `/app/max`: сессия, dev-bypass, классификация входа, shell + AuthBootstrap.
+ * Общий RSC для `/app`, `/app/tg`, `/app/max`: сессия, классификация входа, shell + AuthBootstrap.
  */
 
 import { redirect } from 'next/navigation';
@@ -8,11 +8,9 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env } from '@/config/env';
 import {
   classifyUnauthenticatedAppEntry,
-  isDevBypassToken,
   shouldAllowStandaloneTokenExchange,
 } from '@/modules/auth/appEntryClassification';
 import { buildPrefetchedPublicAuthConfig } from '@/modules/auth/publicAuthSnapshot';
-import { isDevAuthBypassEnabled } from '@/modules/auth/devBypassPolicy';
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getMessengerSurfaceHint, getPlatformEntry } from '@/shared/lib/platformCookie.server';
@@ -49,20 +47,10 @@ export async function AppEntryRsc({
     );
   }
 
-  const allowDevBypass = isDevAuthBypassEnabled({
-    nodeEnv: env.NODE_ENV,
-    allowDevAuthBypass: env.ALLOW_DEV_AUTH_BYPASS,
-  });
   const allowStandaloneTokenExchange = shouldAllowStandaloneTokenExchange({
     token: rawToken,
     switchParam: switchParam ?? null,
   });
-  if (allowDevBypass && allowStandaloneTokenExchange && rawToken && isDevBypassToken(rawToken)) {
-    const params = new URLSearchParams({ token: rawToken });
-    if (nextParam) params.set('next', nextParam);
-    redirect(`/api/auth/dev-bypass?${params.toString()}`);
-  }
-
   const [prefetchedPublicAuth, platformEntry, messengerSurface, unsupportedClientFallbackEnabled] =
     await Promise.all([
       buildPrefetchedPublicAuthConfig(),
@@ -101,7 +89,6 @@ export async function AppEntryRsc({
       patientHideBottomNav
     >
       <AppEntryLoginContent
-        allowDevBypass={allowDevBypass}
         supportContactHref={routePaths.loginContactSupport}
         prefetchedPublicAuth={prefetchedPublicAuth}
         serverPlatformMessengerCookie={serverPlatformMessengerCookie}

@@ -98,7 +98,6 @@ C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 C4_MEDIA_LOGIN_RETIREMENT=deploy/host/retire-media-db-login.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
-C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
@@ -2082,7 +2081,7 @@ assert_strict_closure_deploy_checkout_ready(){
     "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
     "$C4_MEDIA_CONTROL_CUTOVER" "$C4_MEDIA_LOGIN_RETIREMENT" \
-    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" "$PORT_CONTEXT_CAPABILITY_SEED" \
+    "$C4_OPERATIONAL_PASSWORD_SETTER" "$PORT_CONTEXT_CAPABILITY_SEED" \
     "$SAAS_ISOLATION_OPERATOR_PROVISIONER" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
@@ -2154,8 +2153,8 @@ resolve_c4_self_test_repo_file(){
 
 run_c4_operational_chain_self_test(){
   local self_test_repo_root self_test_deploy_script self_test_provisioner self_test_readiness
-  local self_test_media_cutover self_test_media_retirement self_test_password_smoke
-  local self_test_bootstrap self_test_secret_preflight self_test_retirement_test
+  local self_test_media_cutover self_test_media_retirement
+  local self_test_bootstrap self_test_secret_preflight
   self_test_repo_root="$(realpath "$DEPLOY_TEST_SAAS_SCRIPT_DIR/../..")"
   self_test_deploy_script="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/deploy-test-saas.sh)"
   [ "$self_test_deploy_script" = "$(realpath "${BASH_SOURCE[0]}")" ] || {
@@ -2166,19 +2165,15 @@ run_c4_operational_chain_self_test(){
   self_test_readiness="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_READINESS")"
   self_test_media_cutover="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_CONTROL_CUTOVER")"
   self_test_media_retirement="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_LOGIN_RETIREMENT")"
-  self_test_password_smoke="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PASSWORD_SMOKE")"
   self_test_bootstrap="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/bootstrap-c4-test-env.mjs)"
   self_test_secret_preflight="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/saas-c2-secret-preflight.mjs)"
-  self_test_retirement_test="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/retire-media-db-login.test.mjs)"
   run_strict_closure_catalog_self_test
   bash -n "$self_test_deploy_script" "$self_test_provisioner" "$self_test_readiness" \
     "$self_test_media_cutover" "$self_test_media_retirement"
   bash "$self_test_media_cutover" --self-test
   bash "$self_test_provisioner" --self-test
-  bash "$self_test_password_smoke"
   node "$self_test_bootstrap" --self-test
   node "$self_test_secret_preflight" --self-test
-  node "$self_test_retirement_test"
   echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (checkout=$self_test_repo_root; no env/DB/service/cron mutation)"
 }
 

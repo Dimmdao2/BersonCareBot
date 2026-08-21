@@ -24,7 +24,7 @@ browser-origin protected. Прямые Node/curl callers browser-маршрут�
 Frozen census в `src/middleware/csrfOrigin.test.ts` (если присутствует в дереве) фиксирует route/handler
 surface на момент своего последнего обновления — сверяй с ним при сомнении, этот файл цифры не дублирует.
 Девять stateful GET остаются
-вне изменения семантики этого этапа: Google Calendar callback; dev-bypass; dev-public; logout; legacy Yandex,
+вне изменения семантики этого этапа: Google Calendar callback; dev-public; logout; legacy Yandex,
 Google и Yandex OAuth callbacks; media playback telemetry; patient organization-context open. Они явно
 инвентаризированы тестом и не считаются CSRF-exempt POST.
 

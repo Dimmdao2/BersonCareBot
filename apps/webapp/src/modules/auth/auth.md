@@ -23,7 +23,7 @@
 ### Публичный UI (`/app`, `AppEntryRsc` → `AppEntryLoginContent` → `AuthBootstrap` → `AuthFlowV2`)
 
 - **Оболочка:** `AppShell` с `variant="patient"` (как у кабинета пациента). RSC `AppEntryRsc` (`/app`, `/app/tg`, `/app/max`): при отсутствии сессии — `AppEntryLoginContent` + `AuthBootstrap`.
-- **`AppEntryLoginContent`:** при `ALLOW_DEV_AUTH_BYPASS` — блок dev-входа; иначе только `Suspense` + `AuthBootstrap`. **Отдельной плашки** «войдите или зарегистрируйтесь» нет.
+- **`AppEntryLoginContent`:** только `Suspense` + `AuthBootstrap`; synthetic dev-login panel отсутствует. **Отдельной плашки** «войдите или зарегистрируйтесь» нет.
 - **`AuthFlowV2`:** компактные шаги без дублирующих заголовков «Вход» и без лишних вводных. В браузере: **`oauth_first`** или сразу **`email_password`**, из обоих доступен **`phone_login`**; **`phone`** / `choose_channel` / `code` — для Mini App или редких чужеземных кейсов после `check-phone`; `new_user_foreign` / `foreign_no_otp_channel` при необходимости.
 - **Patient-оформление:** контент шага в **`patientCardClass` + `patientInnerPageStackClass`** (`max-w-sm`, центрирование для OAuth / email форм и Mini App-потока). Кнопки OAuth и формы — **`shared/ui/auth/loginChrome.ts`**. **`InternationalPhoneInput`** и submit в **`OtpCodeForm`** — основная CTA по ширине карточки на шагах **`phone`/`code`**.
 - **`ChannelPicker`:** без вводной строки над кнопкой — сразу основной канал и при необходимости «Другие способы».

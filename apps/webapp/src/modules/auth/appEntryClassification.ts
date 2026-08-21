@@ -9,18 +9,11 @@ export type AppEntryClassification =
 
 export type UnauthenticatedAppEntryClassification = Exclude<AppEntryClassification, 'session_ok'>;
 
-export function isDevBypassToken(token: string | null | undefined): boolean {
-  return (token ?? '').trim().startsWith('dev:');
-}
-
 export function shouldAllowStandaloneTokenExchange(input: {
   token: string | null;
   switchParam?: string | null;
 }): boolean {
-  const token = input.token?.trim() || '';
-  if (!token) return false;
-  if (!isDevBypassToken(token)) return true;
-  return (input.switchParam ?? '').trim() === '1';
+  return Boolean(input.token?.trim());
 }
 
 /**

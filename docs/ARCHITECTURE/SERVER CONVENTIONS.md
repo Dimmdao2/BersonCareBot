@@ -487,7 +487,7 @@ Retired 2026-07-27: `RUBITIME_WEBHOOK_TOKEN` и `RUBITIME_API_KEY` не явля
 
 TEST webapp (`/opt/env/bersoncarebot/webapp.test`) запускается с `NODE_ENV=production`, поэтому обязан иметь
 `ALLOW_DEV_AUTH_BYPASS=false`. Канонический `bootstrap-c4-test-env.mjs --execute`, вызываемый общей TEST closure,
-идемпотентно закрепляет это значение перед рестартом; dev-bypass остаётся только в локальном DEV.
+идемпотентно закрепляет это значение перед рестартом; dev-only clear-session helper остаётся только в локальном DEV.
 
 ### Dev cutover env
 

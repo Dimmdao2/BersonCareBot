@@ -16,7 +16,6 @@
  *
  * This is a **temporary onboarding-only compatibility mode** for:
  * - Vitest / in-memory repos (`inMemoryIdentityResolutionPort` uses `telegram:` / `max:` prefixes),
- * - dev bypass tokens (`dev:client`, …),
  * - any call path that omits `IdentityResolutionPort` (should be rare outside tests).
  *
  * **Not** a second class of “production patient id”: main login flows with DB inject `pgIdentityResolutionPort`

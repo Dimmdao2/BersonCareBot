@@ -127,7 +127,7 @@ grep -n "^## \|^### " AGENTS.md
 | Интеграции, `system_settings`, новые env-переменные для ключей/URL                              | [§2](#2-critical-конфигурация-интеграций-только-в-бд) · [§3](#3-runtime-config-env-vs-database) · [§4](#4-system_settings-одна-таблица-public-зеркала-нет)      |
 | `**/*.test.ts`, `**/*.test.tsx`, `**/*.spec.ts`, `apps/webapp/e2e/**`                           | [§10a](#10a-тест-проверяет-поведение-а-не-текст-исходника-и-не-обстоятельства-запуска) · [§10b](#10b-канон-написания-тестов) · [§11](#11-webapp-тесты-компактность)      |
 | `psql`, `DATABASE_URL`, `deploy/**`, любая server/host/prod-операция                             | [§1](#1-онбординг-и-server-conventions) · [§6](#6-host-postgresql-и-database_url) · [§9](#9-full-ci-gate)                                                       |
-| Локальный dev-запуск, dev-bypass, живое UI-тестирование                                         | [§1a](#1a-локальный-dev-и-тестирование-ui)                                                                                                                      |
+| Локальный dev-запуск, обычный вход, живое UI-тестирование                                      | [§1a](#1a-локальный-dev-и-тестирование-ui)                                                                                                                      |
 | `.cursor/plans/*.plan.md`, ведение многоэтапного плана                                          | [§12](#12-plan-authoring-and-execution-standard)                                                                                                                |
 | `AGENTS.md`, `CLAUDE.md`, `.cursor/rules/**`, agent/runbook/checklist/prompts                    | [§0](#0-как-добавлять-и-исправлять-правила)                                                                                                                     |
 | Команда «коммит» / «пуш»                                                                        | [§7](#7-git-коммит-и-пуш) · [§8](#8-команда-пуш)                                                                                                                |
@@ -475,28 +475,12 @@ _Канон: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECT
 
 Перед UI-тестом: `pnpm run migrate`, env из `.env` + `apps/webapp/.env.dev`.
 
-### Dev-bypass (вход без Telegram)
+### Обычный вход на DEV/TEST
 
-Требуется `ALLOW_DEV_AUTH_BYPASS=true` в `apps/webapp/.env.dev`. Хост — **`http://127.0.0.1:5200`**, не `localhost`.
-
-| `token`            | Роль                                                         |
-| ------------------ | ------------------------------------------------------------ |
-| `dev:admin`        | врач + admin mode (настройки, audit-log)                     |
-| `dev:clinic-admin` | администратор/owner своей dev-клиники, без global admin mode |
-| `dev:doctor`       | только кабинет специалиста                                   |
-| `dev:client`       | пациент                                                      |
-
-```
-http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Aadmin
-# затем /app/doctor/clients или полный URL страницы
-```
-
-Проверка: `curl -s -c /tmp/c.cookies -L "…dev-bypass…"` → `curl -s -b /tmp/c.cookies http://127.0.0.1:5200/api/me`.
+Ролевые проверки проходят штатным email/password, OAuth или messenger-входом уже зарегистрированных owner-учёток и клиник. Persistent fixture-учётки, token/preset-входы и чтение паролей из env запрещены.
 
 Чистый public/login без сессии: `/api/auth/dev-public`; явная регистрация кабинета:
 `/api/auth/dev-public?view=registration`. Это dev-only clear-session helper, не отдельная authenticated role.
-
-**Скриншоты авторизованных страниц без браузер-MCP** (headless chromium, двухшаговая схема с флашем cookie) — канон в [`LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md) §4.7. Главное: `next` для doctor/admin игнорируется; на auth-шаге chromium запускать **без** `--virtual-time-budget` (иначе cookie не сохранится в профиль).
 
 **Не путать:** `system_settings.dev_mode` в БД — тестовые аккаунты в аналитике, не вход.
 
