@@ -1,7 +1,9 @@
 # D15b/6 — rollback-only preflight exact candidate на named DEV
 
-Роль: `auditor-live`. Это pre-landing acceptance кандидата `5e39a82ce15f0e5e2b39b79ac8c6207266aa5ad7`
-из worktree `wt/d15b6-audit-20260821`, не product-fix и не применение миграции.
+Роль: `auditor-live`. Это pre-landing acceptance product-кандидата
+`5e39a82ce15f0e5e2b39b79ac8c6207266aa5ad7` из текущей головы worktree
+`wt/d15b6-audit-20260821`, где поверх product SHA допустимы только audit/brief/queue docs и integration merges;
+это не product-fix и не применение миграции.
 
 Перед действием прочитать карту `AGENTS.md`, затем §1/§1b (migration + named DEV), §5/§6, §9–§10 и §24;
 прочитать `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`,
@@ -15,7 +17,8 @@ owner-aware rollback-only preflight против именованной DEV из
 
 ## Границы
 
-- Сначала доказать `git rev-parse HEAD` = exact SHA выше и чистое tracked tree.
+- Сначала доказать, что product SHA выше является предком текущего `HEAD`, tracked tree чистое и после него нет
+  product-diff миграции: blob exact migration-файла совпадает с blob на `5e39a82ce`.
 - Единственный DB entrypoint: `bash deploy/host/migrate-dev.sh --preflight` из exact candidate worktree.
 - Wrapper сам проверяет target `bcb_webapp_dev`, owner-aware statement markers, выполняет pending webapp statements
   в транзакции с `ROLLBACK` и механически обновляет declaration-derived relation-wall registry перед ней. Это
