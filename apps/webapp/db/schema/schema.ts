@@ -3349,47 +3349,6 @@ export const mediaUploadSessions = pgTable(
   ],
 );
 
-export const deliveryAttemptLogs = pgTable(
-  'delivery_attempt_logs',
-  {
-    id: bigserial({ mode: 'bigint' }).primaryKey().notNull(),
-    intentType: text('intent_type'),
-    intentEventId: text('intent_event_id'),
-    correlationId: text('correlation_id'),
-    channel: text().notNull(),
-    status: text().notNull(),
-    attempt: integer().notNull(),
-    reason: text(),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_delivery_attempt_logs_channel_occurred').using(
-      'btree',
-      table.channel.asc().nullsLast().op('text_ops'),
-      table.occurredAt.desc().nullsFirst().op('text_ops'),
-    ),
-    index('idx_delivery_attempt_logs_correlation').using(
-      'btree',
-      table.correlationId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_delivery_attempt_logs_event').using(
-      'btree',
-      table.intentEventId.asc().nullsLast().op('text_ops'),
-    ),
-    check('delivery_attempt_logs_attempt_check', sql`attempt > 0`),
-    check(
-      'delivery_attempt_logs_status_check',
-      sql`status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])`,
-    ),
-  ],
-);
-
 export const identities = pgTable(
   'identities',
   {

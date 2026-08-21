@@ -10,7 +10,7 @@
  * before dispatch, so callers still receive a 503 synchronously when SMTP is not set up.
  *
  * OTP safety: when a `code` is present the eventId is prefixed with `otp:email:` so that
- * sanitizePayloadForLogs (dispatchPort) redacts the code from delivery_attempt_logs (PLAN S9 DoD).
+ * sanitizePayloadForLogs (dispatchPort) redacts the code from the canonical delivery journal (PLAN S9 DoD).
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -162,7 +162,7 @@ export async function registerBersoncareSendEmailRoute(
     const text = isAuthCode ? `Ваш код BersonCare: ${payload.code}` : (payload.text?.trim() ?? '');
 
     // OTP safety: prefix eventId with 'otp:email:' when a code is present so that
-    // sanitizePayloadForLogs (dispatchPort) redacts it from delivery_attempt_logs.
+    // sanitizePayloadForLogs (dispatchPort) redacts it from the canonical delivery journal.
     const eventId = payload.idempotencyKey;
 
     const msg: UnifiedOutgoingMessage = {
