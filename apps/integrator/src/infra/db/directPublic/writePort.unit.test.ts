@@ -15,8 +15,7 @@ vi.mock('../../principal/organizationPrincipal.js', () => ({
 import { writeDirectPublic, type DirectPublicWriteOperation } from './writePort.js';
 
 const operations: readonly DirectPublicWriteOperation[] = [
-  'identity-upsert',
-  'phone-bind',
+  'admin-audit-write',
   'reminder-rule-upsert',
   'reminder-occurrence-finalize',
   'reminder-delivery-append',
@@ -52,7 +51,7 @@ describe('direct public write port', () => {
     fakes.currentOrganizationId.mockReturnValue(undefined);
     const write = vi.fn().mockResolvedValue('written');
 
-    await expect(writeDirectPublic('identity-upsert', write)).resolves.toBe('written');
+    await expect(writeDirectPublic('admin-audit-write', write)).resolves.toBe('written');
 
     expect(write).toHaveBeenCalledOnce();
     expect(fakes.runWithOrganization).not.toHaveBeenCalled();

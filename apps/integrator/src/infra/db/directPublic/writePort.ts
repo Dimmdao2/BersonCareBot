@@ -8,8 +8,6 @@ import { runWithOrganizationPrincipal } from '../../principal/organizationPrinci
  * decision to re-enter the already-resolved organization principal before that SQL runs.
  */
 export type DirectPublicWriteOperation =
-  | 'identity-upsert'
-  | 'phone-bind'
   | 'admin-audit-write'
   | 'reminder-rule-upsert'
   | 'reminder-occurrence-finalize'
@@ -18,8 +16,6 @@ export type DirectPublicWriteOperation =
   | 'support-delivery-append';
 
 const principalStrategy: Readonly<Record<DirectPublicWriteOperation, 'organization'>> = {
-  'identity-upsert': 'organization',
-  'phone-bind': 'organization',
   'admin-audit-write': 'organization',
   'reminder-rule-upsert': 'organization',
   'reminder-occurrence-finalize': 'organization',
