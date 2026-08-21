@@ -143,9 +143,16 @@ Checkbox закрывается только доказательством, у�
   cross-surface metadata/UI tests.
 - [ ] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
   остаются org-scoped DB settings. Доказательство: config test и settings ownership tests.
-- [ ] `TPB-10` Yandex OAuth работает на Therapysto, standard patient и branded domains с правильной consent
-  identity, без cross-brand fallback. Доказательство: config-selection/state/callback tests и operator smoke каждой
-  зарегистрированной app identity.
+- [ ] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
+  противоречит решению «у специалистов OAuth нет». Требование теперь: на staff surface OAuth отсутствует; на
+  patient surfaces OAuth существует ТОЛЬКО если `OG-4` закрыт как «оставляем», и тогда — с собственной consent
+  identity каждой поверхности, без cross-brand fallback. Доказательство при `OG-4`=оставляем:
+  config-selection/state/callback tests и operator smoke каждой зарегистрированной app identity; при
+  `OG-4`=убираем: тест отсутствия OAuth-пути на всех поверхностях.
+
+  Происхождение прежней редакции: owner-требование брифа №10 звучало как «OAuth доступен, без утечки чужой
+  identity в consent». Формулировки «обязателен и не отключается» владелец не давал — она возникла при
+  синтезе плана. Зафиксировано, чтобы не воспроизвелась.
 - [ ] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
   booking и patient cabinet. Доказательство: branded-host page/navigation tests.
 - [ ] `TPB-12` Branded Telegram/MAX confirmations, codes и notifications идут только через clinic bot; SMS не
