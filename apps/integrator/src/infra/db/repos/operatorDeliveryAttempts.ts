@@ -53,9 +53,6 @@ export async function recordOperatorDeliveryAttempt(
     payloadText,
     occurredAt,
   ] as const;
-  // Идентичность корня стоит ЛИТЕРАЛОМ прямо в вызове, а не в константе выше: иначе
-  // статический анализ не увидит точное имя функции при проверке регистрации capability
-  // в привилегийном каталоге БД, и ошибка останется скрытой до живого отказа на проде.
   await runIntegratorNamedRoot(
     db,
     'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)',
