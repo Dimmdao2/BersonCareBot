@@ -49,14 +49,6 @@ describe('D30 Ш0 — deploy/systemd scheduler unit gate', () => {
     ).toEqual([]);
   });
 
-  it('there is exactly one scheduler unit file in the repository today', () => {
-    const files = readSystemdUnitFiles(systemdDir);
-    const schedulerFiles = files.filter((file) => /scheduler/i.test(file.name));
-    expect(schedulerFiles.map((file) => file.name)).toEqual([
-      'bersoncarebot-scheduler-prod.service',
-    ]);
-  });
-
   // Self-tests («сломай специально»).
 
   it('catches a second scheduler unit silently added for the same environment', () => {

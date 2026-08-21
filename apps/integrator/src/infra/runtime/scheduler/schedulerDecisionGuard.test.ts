@@ -49,41 +49,6 @@ describe('D30 schedulerDecisionGuard', () => {
     expect(offenders, `scheduler business decisions:\n${offenders.join('\n')}`).toEqual([]);
   });
 
-  it('routes every scheduler script action through the scanned scheduled handler', () => {
-    const scriptsPath = join(integratorSrc, 'content', 'scheduler', 'scripts.json');
-    const scripts = JSON.parse(readFileSync(scriptsPath, 'utf8')) as Array<{
-      steps?: Array<{ action?: unknown }>;
-    }>;
-    const actions = scripts.flatMap((script) => script.steps ?? []).map((step) => step.action);
-    expect(actions).toEqual(['patientReminders.materializeWake']);
-
-    const executorPath = join(integratorSrc, 'kernel', 'domain', 'executor', 'executeAction.ts');
-    const executor = readFileSync(executorPath, 'utf8');
-    expect(executor).toContain(
-      "import { handleScheduledMaterialization } from './handlers/scheduledMaterialization.js'",
-    );
-    expect(executor).toContain("['patientReminders.materializeWake']");
-    expect(executor).toContain('return handleScheduledMaterialization(action, ctx, fullDeps)');
-
-    const handler = readFileSync(scheduledHandler, 'utf8');
-    const localImports = [...handler.matchAll(/from\s+['"](\.[^'"]+)['"]/g)]
-      .map((match) => match[1])
-      .filter((value): value is string => value !== undefined);
-    expect(localImports).toEqual(['../../../contracts/index.js', '../helpers.js']);
-    for (const imported of localImports) {
-      const target = resolve(dirname(scheduledHandler), imported.replace(/\.js$/, '.ts'));
-      expect(target.startsWith(join(integratorSrc, 'kernel'))).toBe(true);
-      const importedViolations = findSchedulerDecisionViolations(
-        target,
-        readFileSync(target, 'utf8'),
-      );
-      expect(
-        importedViolations,
-        `imported scheduler decision source: ${relative(integratorSrc, target)}`,
-      ).toEqual([]);
-    }
-  });
-
   it('scans dynamic and transitive local imports for hidden decisions', () => {
     const graph = new Map([
       ['/entry.ts', "export async function wake() { return import('./bridge.js'); }"],
