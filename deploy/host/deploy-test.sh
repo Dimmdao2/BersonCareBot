@@ -29,6 +29,12 @@ LEGACY_WORKER_UNIT_INSTALLED="/etc/systemd/system/$LEGACY_WORKER_SERVICE"
 CREDENTIAL_DIR=""
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
+# Владелец узнал об упавшем деплое (09:04→18:17, 21.08) только на следующий день, потому что отказ
+# только писал строку в собственный транскрипт. Штатный operator_alert не годится: он ходит через
+# webapp+integrator, которые в этот момент как раз остановлены (cleanup() ниже). Хостовый канал не
+# зависит от того, что он же обязан сообщить. Переопределимо для доказательства ветки отказа без
+# реальной отправки владельцу (см. бриф, «Доказательство»).
+NOTIFY_OWNER_SCRIPT=${BCB_TEST_DEPLOY_NOTIFY_OWNER:-/home/dev/brain/host-orch/notify-owner.sh}
 
 fail() {
   printf 'FATAL: %s\n' "$1" >&2
@@ -139,6 +145,15 @@ cleanup() {
   if [[ -n "$CREDENTIAL_DIR" ]]; then rm -rf -- "$CREDENTIAL_DIR"; fi
   if [[ "$status" -ne 0 && "$WRITERS_STOPPED" == 1 && "$SERVICES_RELEASED" != 1 ]]; then
     printf 'TEST writers remain stopped after failed migration/deploy; inspect the transcript before recovery.\n' >&2
+    # Только пути/ветка/head/код — никаких env-значений и содержимого /opt/env/**. Отказ канала не
+    # смеет менять $status: `|| true` глушит и таймаут, и неуспешную доставку, exit ниже — тем же кодом.
+    last_error="$(grep -a '^FATAL: ' -- "$TRANSCRIPT" 2>/dev/null | tail -n1)"
+    head_short="$(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+    notify_text="TEST deploy упал (код $status): писатели ОСТАНОВЛЕНЫ и НЕ поднимутся сами.
+Шаг: ${last_error:-см. транскрипт}
+Ветка: $BRANCH, head: $head_short
+Транскрипт: $TRANSCRIPT"
+    timeout --kill-after=5 15 "$NOTIFY_OWNER_SCRIPT" "$notify_text" || true
   fi
   exit "$status"
 }
