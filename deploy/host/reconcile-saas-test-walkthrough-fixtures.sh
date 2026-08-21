@@ -218,6 +218,13 @@ require_reviewed_source() {
     fail 'canonical reference catalog baseline asset does not match its forward migration'
 }
 
+require_recovery_entrypoint() {
+  [[ "$(id -u)" -eq 0 ]] || fail 'run --recover as root'
+  [[ "$(readlink -f "$SRC_REPO")" == "$SRC_REPO" ]] || fail 'source checkout path guard failed'
+  [[ "$(readlink -f "${BASH_SOURCE[0]}")" == "$SRC_REPO/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh" ]] ||
+    fail 'operator entrypoint must be the exact source checkout path'
+}
+
 require_seed_checkout() {
   local source_head test_head
   [[ "$(id -u)" -ne 0 ]] || fail 'run a normal seed as the non-root repository owner'
@@ -272,7 +279,11 @@ acquire_shared_lock() {
 
 MODE="${1:-}"
 [[ "$MODE" == --recover || $# -eq 0 ]] || fail 'usage: bash deploy/host/reconcile-saas-test-walkthrough-fixtures.sh [--recover]'
-require_reviewed_source "$MODE"
+if [[ "$MODE" == --recover ]]; then
+  require_recovery_entrypoint
+else
+  require_reviewed_source ''
+fi
 for address in $(hostname -I 2>/dev/null || true); do [[ "$address" == 151.241.228.122 ]] && ON_TEST_HOST=1; done
 [[ "${ON_TEST_HOST:-0}" == 1 ]] || fail 'fixture reconciliation is allowed only on DEV/TEST host 151.241.228.122'
 
@@ -358,7 +369,7 @@ pg_run 'reference catalog baseline reconciliation' sudo -n -u deploy env -i PATH
   set -a
   . "$1"
   set +a
-  exec psql -X -v ON_ERROR_STOP=1 -f "$2"
+  exec psql -X --single-transaction -v ON_ERROR_STOP=1 -f "$2"
 ' bash "$SEED_ENV" "$BASELINE_SQL" >/dev/null
 
 # The only child that receives DATABASE_URL sources a 0600 deploy-owned file; its argv contains paths only.

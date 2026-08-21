@@ -140,6 +140,7 @@ if [[ "$args" == *'${root}/baseline.'* && "$args" == *'psql'* && "$args" == *'-f
     printf 'baseline_failed\n' >> "$log"
     exit 24
   fi
+  printf 'baseline_psql_args=%s\n' "$args" >> "$log"
   printf 'baseline_reconciled\n' >> "$log"
   exit 0
 fi
@@ -253,6 +254,15 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /^tsx_use_real_database=1$/m);
   assert.doesNotMatch(calls, /pnpm_invoked|corepack_invoked/);
   assert.doesNotMatch(calls, /node --import tsx/);
+});
+
+test('reconciles both baseline versions through one protected PostgreSQL transaction', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry);
+  assert.equal(result.status, 0, result.stderr);
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /exec psql -X --single-transaction -v ON_ERROR_STOP=1 -f/);
 });
 
 test('does not pass caller environment through the temporary-authority child', (t) => {
