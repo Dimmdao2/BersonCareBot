@@ -163,13 +163,6 @@ export type CompletePhoneMessengerBindResult =
       replay?: boolean;
     }
   | { ok: true; purpose: 'profile_bind'; replay?: boolean }
-  | {
-      ok: true;
-      purpose: PhoneMessengerBindPurpose;
-      status: 'phone_sync_required';
-      syncTargetUserId: string | null;
-      accountCreated: boolean;
-    }
   | { ok: false; code: string };
 
 export async function completePhoneMessengerBindFromIntegrator(
@@ -275,14 +268,49 @@ export async function completePhoneMessengerBindFromIntegrator(
       contactPhoneNormalized: contactPhone,
     });
 
+    // D25: webapp owns phone trust — it no longer asks the integrator to come back with a
+    // `user.phone.link` write and retry. When the canonical binding/phone isn't in place yet,
+    // apply it here, in the SAME request, via the existing `applyMessengerContactPreOtp`
+    // canonical transaction (find/create/bind + phone-history transition), then continue exactly
+    // as if `completionState.ready` had been true.
+    let accountCreated = completionState.accountCreated;
     if (!completionState.ready) {
-      return {
-        ok: true as const,
-        purpose: bindPurpose,
-        status: 'phone_sync_required' as const,
-        syncTargetUserId: completionState.syncTargetUserId,
-        accountCreated: completionState.accountCreated,
-      };
+      const preOtp = await port.withTransaction((client) =>
+        port.applyMessengerContactPreOtp(client, {
+          phoneNormalized: contactPhone,
+          channelCode: params.channelCode,
+          externalId: params.externalId.trim(),
+          purpose: bindPurpose,
+          sessionUserId: row.user_id,
+        }),
+      );
+      if (!preOtp.ok) {
+        await port.updateFailed(row.id, preOtp.code);
+        if (preOtp.candidateIds && preOtp.candidateIds.length > 0 && port.recordMessengerBindBlocked) {
+          await port
+            .withTransaction((client) =>
+              port.recordMessengerBindBlocked!(client, {
+                reason: preOtp.code,
+                candidateIds: preOtp.candidateIds ?? [],
+                channelCode: params.channelCode,
+                externalId: params.externalId.trim(),
+                phoneNormalized: contactPhone,
+                source: 'webapp.phoneMessengerBind.applyPreOtp',
+              }),
+            )
+            .catch(() => {});
+        }
+        logger.warn({
+          event: 'phone_messenger_bind_complete_fail',
+          metric: 'phone_messenger_bind_complete_fail',
+          channelCode: params.channelCode,
+          purpose: bindPurpose,
+          failure_code: preOtp.code,
+          phoneSuffix: phoneSuffixForLog(contactPhone),
+        });
+        return { ok: false, code: preOtp.code };
+      }
+      accountCreated = preOtp.accountCreated;
     }
 
     if (bindPurpose === 'profile_bind') {
@@ -301,7 +329,7 @@ export async function completePhoneMessengerBindFromIntegrator(
 
     const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
       registrationAttemptId: trimmed,
-      isRegistrationIntent: completionState.accountCreated,
+      isRegistrationIntent: accountCreated,
     });
     if (!challenge.ok) {
       await port.updateFailed(row.id, challenge.code);
@@ -324,7 +352,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       channelCode: params.channelCode,
       purpose: bindPurpose,
       replay: false,
-      accountCreated: completionState.accountCreated,
+      accountCreated,
       phoneSuffix: phoneSuffixForLog(contactPhone),
     });
 
@@ -332,7 +360,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       ok: true as const,
       purpose: 'login',
       otpCode: challenge.code,
-      accountCreated: completionState.accountCreated,
+      accountCreated,
       challengeId: challenge.challengeId,
     };
   } catch {

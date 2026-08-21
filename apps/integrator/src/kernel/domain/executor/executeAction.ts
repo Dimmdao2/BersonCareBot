@@ -11,7 +11,6 @@ import type {
   DbWriteMutation,
   DomainContext,
   OutgoingIntent,
-  PhoneLinkFailureReason,
 } from '../../contracts/index.js';
 import {} from '../reminders/policy.js';
 import { handleBooking } from './handlers/booking.js';
@@ -136,37 +135,6 @@ function resolveChannelLinkFailureChatId(
   if (Number.isFinite(n)) return n;
   const t = externalId.trim();
   return t.length > 0 ? t : null;
-}
-
-function phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
-  source: string,
-  reason: PhoneLinkFailureReason | undefined,
-  indeterminate: boolean,
-): string {
-  if (indeterminate || reason === 'db_transient_failure') {
-    return `${source}:phoneAuthFailed`;
-  }
-  if (reason === 'phone_owned_by_other_user' || reason === 'channel_already_bound_to_other_user') {
-    return `${source}:channelLink.completeFailed.conflict`;
-  }
-  if (
-    reason === 'integrator_id_mismatch' ||
-    reason === 'no_integrator_identity' ||
-    reason === 'no_channel_binding'
-  ) {
-    return `${source}:phoneAuthFailed`;
-  }
-  if (
-    reason === 'merge_blocked_booking_overlap' ||
-    reason === 'merge_blocked_distinct_real_users' ||
-    reason === 'merge_blocked_lfk_conflict' ||
-    reason === 'merge_blocked_ambiguous_candidates' ||
-    reason === 'merge_blocked_integrator_conflict' ||
-    reason === 'legacy_contacts_conflict'
-  ) {
-    return `${source}:channelLink.completeFailed.conflict`;
-  }
-  return `${source}:phoneAuthFailed`;
 }
 
 function pushCallbackAnswerFromIncoming(
@@ -376,7 +344,7 @@ export async function executeAction(
         };
       }
       const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
-      let result = await port.completePhoneMessengerBind({
+      const result = await port.completePhoneMessengerBind({
         setupToken,
         channelCode: messengerChannel,
         externalId,
@@ -422,169 +390,10 @@ export async function executeAction(
         };
       }
 
-      if (!fullDeps.writePort) {
-        const failureIntents: OutgoingIntent[] = [];
-        if (source === 'telegram' || source === 'max') {
-          await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
-            source,
-            externalId,
-            menuActionIdSuffix: 'phone-auth-write-port-missing-menu',
-          });
-        }
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: 'webapp.phoneMessengerBind.complete: writePort required for phone link sync',
-          values: { phoneMessengerBind: { ok: false, reason: 'write_port_missing' } },
-          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
-        };
-      }
-
-      const syncWrites: DbWriteMutation[] = [];
-      syncWrites.push({
-        type: 'user.phone.link',
-        params: {
-          resource: messengerChannel,
-          channelUserId: externalId,
-          phoneNormalized,
-          ...(result.syncTargetUserId
-            ? { preferredPlatformUserId: result.syncTargetUserId }
-            : {}),
-          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
-        },
-      });
-
-      const appliedWrites: DbWriteMutation[] = [];
-      let phoneLinkSyncFailure:
-        | { error: string; phoneLinkReason?: PhoneLinkFailureReason; indeterminate?: boolean }
-        | undefined;
-      if (syncWrites.length > 0 && fullDeps.writePort) {
-        for (const write of syncWrites) {
-          const meta = await fullDeps.writePort.writeDb(write);
-          appliedWrites.push(write);
-          if (write.type === 'user.phone.link') {
-            const hasMeta =
-              typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
-            const m = hasMeta ? (meta as DbWriteDbResult) : null;
-            const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
-            const notApplied = hasMeta && m && !m.userPhoneLinkApplied;
-            if (notApplied || indeterminate) {
-              const reason = m?.phoneLinkReason;
-              phoneLinkSyncFailure = {
-                error:
-                  reason !== undefined
-                    ? `phone messenger bind phone sync: ${reason}`
-                    : indeterminate
-                      ? 'phone messenger bind phone sync: indeterminate'
-                      : 'phone messenger bind phone sync: not applied',
-                ...(reason !== undefined ? { phoneLinkReason: reason } : {}),
-                indeterminate,
-              };
-              logger.warn(
-                {
-                  event: 'phone_messenger_bind_phone_sync_failed',
-                  externalId,
-                  channelCode: messengerChannel,
-                  phoneLinkReason: reason,
-                  indeterminate,
-                },
-                '[webapp.phoneMessengerBind.complete] user.phone.link did not apply',
-              );
-              break;
-            }
-          }
-        }
-      }
-
-      if (phoneLinkSyncFailure) {
-        const failureIntents: OutgoingIntent[] = [];
-        if (source === 'telegram' || source === 'max') {
-          await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
-            source,
-            externalId,
-            menuActionIdSuffix: 'phone-auth-sync-failed-menu',
-            ...(tplPort
-              ? {
-                  failureText: {
-                    templateKey: phoneMessengerBindPhoneLinkSyncFailureTemplateKey(
-                      source,
-                      phoneLinkSyncFailure.phoneLinkReason,
-                      phoneLinkSyncFailure.indeterminate === true,
-                    ),
-                    intentIdSuffix: 'phone-auth-phone-sync-failed',
-                  },
-                }
-              : {}),
-          });
-        }
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: phoneLinkSyncFailure.error,
-          values: {
-            phoneMessengerBind: {
-              ok: false,
-              webappComplete: true,
-              phoneLinkSync: { ok: false, reason: phoneLinkSyncFailure.phoneLinkReason },
-            },
-          },
-          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
-          ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
-        };
-      }
-
-      if (result.status === 'phone_sync_required') {
-        result = await port.completePhoneMessengerBind({
-          setupToken,
-          channelCode: messengerChannel,
-          externalId,
-          phoneNormalized,
-        });
-        if (!result.ok || result.status === 'phone_sync_required') {
-          const errMsg = !result.ok
-            ? (result.error ?? 'phone messenger bind finalization failed')
-            : 'phone messenger bind finalization remained pending after phone sync';
-          logger.warn(
-            {
-              event: 'phone_messenger_bind_finalize_failed',
-              error: errMsg,
-              externalId,
-              channelCode: messengerChannel,
-            },
-            '[webapp.phoneMessengerBind.complete] finalization failed',
-          );
-          const failureIntents: OutgoingIntent[] = [];
-          if (source === 'telegram' || source === 'max') {
-            await appendPhoneMessengerBindFailureRecovery(failureIntents, action, ctx, fullDeps, {
-              source,
-              externalId,
-              menuActionIdSuffix: 'phone-auth-finalize-failed-menu',
-              ...(tplPort
-                ? {
-                    failureText: {
-                      templateKey: phoneMessengerBindCompleteFailureTemplateKey(source, errMsg),
-                      intentIdSuffix: 'phone-auth-finalize-failed',
-                    },
-                  }
-                : {}),
-            });
-          }
-          return {
-            actionId: action.id,
-            status: 'failed',
-            error: errMsg,
-            values: {
-              phoneMessengerBind: {
-                ok: false,
-                webappComplete: false,
-                phoneLinkSync: { ok: true },
-              },
-            },
-            ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
-            ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
-          };
-        }
-      }
+      // D25: webapp's phone-messenger-bind/complete now applies the canonical phone/binding
+      // itself (applyMessengerContactPreOtp), in the same request — it never returns
+      // `phone_sync_required` asking the integrator to write `user.phone.link` and call back.
+      // `result.ok === true` here already means the canonical write is done.
 
       const successIntents: OutgoingIntent[] = [];
       const bindPurpose = result.purpose === 'profile_bind' ? 'profile_bind' : 'login';
@@ -652,11 +461,9 @@ export async function executeAction(
             purpose: bindPurpose,
             accountCreated: result.accountCreated === true,
             challengeId: result.challengeId,
-            status: result.status,
             replay: result.replay === true,
           },
         },
-        ...(appliedWrites.length > 0 ? { writes: appliedWrites } : {}),
         ...(successIntents.length > 0 ? { intents: successIntents } : {}),
       };
     }
@@ -810,126 +617,13 @@ export async function executeAction(
         };
       }
       const needsPhone = result.needsPhone === true;
-      const phoneNormalized = asString(result.phoneNormalized);
       const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
 
-      const syncWrites: DbWriteMutation[] = [];
-      if (!needsPhone && phoneNormalized && fullDeps.writePort) {
-        if (messengerChannel === 'telegram') {
-          syncWrites.push({
-            type: 'user.phone.link',
-            params: {
-              resource: 'telegram',
-              channelUserId: externalId,
-              phoneNormalized,
-              ...(ctx.event.meta.correlationId
-                ? { correlationId: ctx.event.meta.correlationId }
-                : {}),
-            },
-          });
-        } else if (messengerChannel === 'max') {
-          syncWrites.push({
-            type: 'user.phone.link',
-            params: {
-              resource: 'max',
-              channelUserId: externalId,
-              phoneNormalized,
-              ...(ctx.event.meta.correlationId
-                ? { correlationId: ctx.event.meta.correlationId }
-                : {}),
-            },
-          });
-        }
-      }
-      const appliedChannelLinkWrites: DbWriteMutation[] = [];
-      let phoneLinkSyncFailure:
-        { error: string; phoneLinkReason?: PhoneLinkFailureReason } | undefined;
-      if (syncWrites.length > 0 && fullDeps.writePort) {
-        for (const write of syncWrites) {
-          const meta = await fullDeps.writePort.writeDb(write);
-          appliedChannelLinkWrites.push(write);
-          if (write.type === 'user.phone.link') {
-            const hasMeta =
-              typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
-            const m = hasMeta ? (meta as DbWriteDbResult) : null;
-            const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
-            const notApplied = hasMeta && m && !m.userPhoneLinkApplied;
-            if (notApplied || indeterminate) {
-              const reason = m?.phoneLinkReason;
-              phoneLinkSyncFailure = {
-                error:
-                  reason !== undefined
-                    ? `channel link phone sync: ${reason}`
-                    : indeterminate
-                      ? 'channel link phone sync: indeterminate'
-                      : 'channel link phone sync: not applied',
-                ...(reason !== undefined ? { phoneLinkReason: reason } : {}),
-              };
-              logger.warn(
-                {
-                  event: 'channel_link_phone_sync_failed',
-                  externalId,
-                  channelCode,
-                  phoneLinkReason: reason,
-                  indeterminate,
-                },
-                '[webapp.channelLink.complete] user.phone.link did not apply',
-              );
-              break;
-            }
-          }
-        }
-      }
-
-      if (phoneLinkSyncFailure) {
-        const failureIntents: OutgoingIntent[] = [];
-        const tplPort = fullDeps.templatePort;
-        const source = ctx.event.meta.source;
-        if (tplPort && (source === 'telegram' || source === 'max')) {
-          const chatId = resolveChannelLinkFailureChatId(ctx, externalId);
-          if (chatId !== null) {
-            const templateKey = channelLinkCompleteFailureTemplateKey(
-              source,
-              phoneLinkSyncFailure.phoneLinkReason ?? phoneLinkSyncFailure.error,
-            );
-            const text = await renderText({
-              templateKey,
-              ctx,
-              templatePort: tplPort,
-            });
-            if (text.trim().length > 0) {
-              const channels = source === 'max' ? ['max'] : ['telegram'];
-              failureIntents.push({
-                type: 'message.send',
-                meta: buildIntentMeta(
-                  { ...action, id: `${action.id}:channel-link-phone-sync-failed` },
-                  ctx,
-                ),
-                payload: {
-                  recipient: { chatId },
-                  message: { text },
-                  delivery: { channels, maxAttempts: 1 },
-                },
-              });
-            }
-          }
-        }
-        return {
-          actionId: action.id,
-          status: 'failed',
-          error: phoneLinkSyncFailure.error,
-          values: {
-            channelLink: {
-              /** Итог шага для планировщика: webapp complete прошёл, синк телефона в БД бота — нет. */
-              ok: false,
-              webappComplete: true,
-              phoneLinkSync: { ok: false, reason: phoneLinkSyncFailure.phoneLinkReason },
-            },
-          },
-          ...(failureIntents.length > 0 ? { intents: failureIntents } : {}),
-          ...(appliedChannelLinkWrites.length > 0 ? { writes: appliedChannelLinkWrites } : {}),
-        };
-      }
+      // D25: `result.phoneNormalized` here is already the canonical webapp phone — it was read
+      // FROM `platform_users`/`user_contacts` by `channel-link/complete` to compute `needsPhone`,
+      // not observed from the provider. Re-writing it back into the integrator's own DB via
+      // `user.phone.link` was always a no-op duplicate of a value already canonical; webapp owns
+      // this decision end-to-end and there is nothing left for the integrator to sync.
 
       if (needsPhone && fullDeps.dispatchPort) {
         if (messengerChannel === 'telegram' && !fullDeps.writePort) {
@@ -1009,7 +703,6 @@ export async function executeAction(
         actionId: action.id,
         status: 'success',
         values: { channelLink: { ok: true, needsPhone, contactPromptSent: needsPhone } },
-        ...(appliedChannelLinkWrites.length > 0 ? { writes: appliedChannelLinkWrites } : {}),
         ...(intents !== undefined && intents.length > 0 ? { intents } : {}),
       };
     }

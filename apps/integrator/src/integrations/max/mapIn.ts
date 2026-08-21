@@ -129,8 +129,11 @@ function verifyContactHash(
 
 /**
  * Parse contact attachment and return normalized phone or null.
- * Logs WARN on hash mismatch (spoofed contact → reject); accepts with WARN when the hash is
- * absent in the payload or when botToken is not configured (telemetry only in both cases).
+ * D25 provider proof: MAX only trusts a contact phone when the HMAC hash verifies against the
+ * configured bot token. A hash mismatch, an absent hash, or a missing bot token are all rejected
+ * (untrusted/absent) — an attacker or a misconfigured deployment must not be able to make an
+ * unverified number look identical to a verified one. Only `status === 'valid'` accepts the phone;
+ * every other status is logged (WARN) and returns null so the trust boundary lives in one place.
  */
 function getContactPhoneFromMaxMessage(
   msg: MaxUpdateValidated['message'],
@@ -166,13 +169,17 @@ function getContactPhoneFromMaxMessage(
       if (check.status === 'hash_missing') {
         logger.warn(
           { vcfPresent: true, hashPresent: false },
-          'max contact hash absent — accepting phone (telemetry only)',
+          'max contact hash absent — rejecting contact phone (no provider proof)',
         );
-      } else if (check.status === 'token_missing') {
+        return null;
+      }
+
+      if (check.status === 'token_missing') {
         logger.warn(
           { vcfPresent: true, hashPresent: true },
-          'max contact token not configured — hash not verified, accepting phone',
+          'max contact token not configured — rejecting contact phone (cannot verify proof)',
         );
+        return null;
       }
 
       const phone = extractPhoneFromVcf(vcf);
