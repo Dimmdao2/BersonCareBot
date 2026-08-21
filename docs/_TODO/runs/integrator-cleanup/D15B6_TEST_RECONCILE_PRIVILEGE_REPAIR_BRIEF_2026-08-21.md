@@ -10,6 +10,8 @@ Landed D15b/6 removed legacy contact columns, including `public.platform_users.e
 
 The current tree still names that removed column in `deploy/postgres/privileges/function-census.ts`, `deploy/postgres/privileges/declaration.ts` and generated privilege SQL. TEST services were not restarted after the failed deploy. The orchestrator explicitly accepted responsibility and the owner ordered: «исправляй».
 
+Источник оракула: `docs/OWNER_DECISIONS.md` — «Миграции описывают только schema/data; декларация — единственный источник доступа.»
+
 ## Required coherent repair
 
 - Start from current clean `feat/doctor-ui-rebuild` in an isolated branch/worktree.

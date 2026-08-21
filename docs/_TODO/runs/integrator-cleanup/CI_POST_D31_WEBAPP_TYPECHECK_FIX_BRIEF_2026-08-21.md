@@ -7,6 +7,8 @@ Role: worker. Read `AGENTS.md` headings first, then §5, §10 and §24. Authorit
 
 This is a bounded fix, not a new Track D design stage. Current owner decisions remain: persistent authenticated DEV/TEST fixture/bypass machinery is removed, and D31 makes VK a real messenger channel.
 
+Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — «D31 (часть 2/2) — VK как настоящий канал.»
+
 ## Scope
 
 - Start from the clean isolated worktree created from current `feat/doctor-ui-rebuild`.
