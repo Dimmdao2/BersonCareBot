@@ -452,7 +452,10 @@ Command (exit 0):
 rg -l "realPostgresIntegrationTestHarness" --glob '!docs/**' .
 ```
 
-Four consumers, each classified by behavior, not by file preservation:
+The shared harness was imported by exactly three consumer test files (items 1–3 below). A fourth test file
+(item 4) was fixture-dependent in the same sense — hard-coded fixture organization/user, independently
+committed transactions, `afterAll` DELETE cleanup — but did not import this shared harness; it built its own
+fixture scaffolding inline. All four are classified by behavior, not by file preservation:
 
 1. `apps/integrator/src/infra/db/runIntegratorSql.integration.test.ts` — used the harness ONLY for a
    database-name/role identity guard (`assertTestDatabases`, a `SELECT current_database()`/`current_user`
@@ -515,7 +518,7 @@ string, not a grant) and is noted here rather than edited.
 
 | Command | Exit | Result |
 |---|---:|---|
-| `rg -l "realPostgresIntegrationTestHarness" --glob '!docs/**' .` (before) | 0 | Exactly the four consumers above. |
+| `rg -l "realPostgresIntegrationTestHarness" --glob '!docs/**' .` (before) | 0 | Exactly the three importing consumers above (items 1–3); item 4 is fixture-dependent but does not import this file, so it is not in this grep's match set. |
 | `rg -n "realPostgresIntegrationTestHarness\|withFixtures\|withAdminSocket\|TEST_FIXTURE_ORGANIZATION_ID" --glob '!docs/**' .` (after) | 0 | One remaining hit: the documentation-only `codePaths` entry in `relation-access.ts` (privilege file, out of this brief's scope, harmless). |
 | `pnpm --dir apps/integrator exec tsc --noEmit -p .` | 0 | Clean. |
 | `pnpm --dir apps/integrator exec vitest run src/infra/db/runIntegratorSql.integration.test.ts src/infra/db/repos/outgoingDeliveryQueue.namedRoot.unit.test.ts src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts src/infra/db/directPublic/writePort.unit.test.ts` | 0 | 3 files / 13 tests passed, 1 file / 1 test skipped (`runIntegratorSql.integration.test.ts`, opt-in env not set — correct skip). |
