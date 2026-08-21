@@ -6,6 +6,11 @@ SYSTEMD_DIR=/etc/systemd/system
 API_SERVICE=bersoncarebot-api-prod.service
 # D30 Ш9: worker and scheduler are one resident process now; SCHEDULER_SERVICE is that unit.
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
+# D30 Ш9: predecessor unit merged into SCHEDULER_SERVICE. Its template is gone from the repo, but an
+# upgrade from a host that still has it installed and active must retire it before the merged scheduler
+# starts, or the old worker keeps dispatching alongside the new one (duplicate delivery).
+LEGACY_WORKER_SERVICE=bersoncarebot-worker-prod.service
+LEGACY_WORKER_UNIT_INSTALLED="${SYSTEMD_DIR}/${LEGACY_WORKER_SERVICE}"
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 API_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${API_SERVICE}"
@@ -91,6 +96,39 @@ bootstrap_systemctl() {
   /bin/systemctl "$@"
 }
 
+bootstrap_legacy_unit_file_exists() {
+  [ -e "${LEGACY_WORKER_UNIT_INSTALLED}" ]
+}
+
+bootstrap_legacy_unit_file_is_safe() {
+  [ -f "${LEGACY_WORKER_UNIT_INSTALLED}" ] && [ ! -L "${LEGACY_WORKER_UNIT_INSTALLED}" ]
+}
+
+bootstrap_remove_legacy_worker_unit_file() {
+  rm -f "${LEGACY_WORKER_UNIT_INSTALLED}"
+}
+
+# Idempotent retirement of the pre-Ш9 worker unit: stop it if running, disable it if enabled, remove
+# exactly its installed unit file if present, then daemon-reload. Absent/already-retired is success,
+# not an error — an ordinary repeated bootstrap run must not fail on a host that already migrated.
+retire_legacy_worker_unit() {
+  if bootstrap_systemctl is-active --quiet "${LEGACY_WORKER_SERVICE}"; then
+    bootstrap_systemctl stop "${LEGACY_WORKER_SERVICE}" ||
+      fail "cannot stop legacy ${LEGACY_WORKER_SERVICE} before starting the merged scheduler"
+  fi
+  if bootstrap_systemctl is-enabled --quiet "${LEGACY_WORKER_SERVICE}" 2>/dev/null; then
+    bootstrap_systemctl disable "${LEGACY_WORKER_SERVICE}" ||
+      fail "cannot disable legacy ${LEGACY_WORKER_SERVICE} before starting the merged scheduler"
+  fi
+  if bootstrap_legacy_unit_file_exists; then
+    bootstrap_legacy_unit_file_is_safe ||
+      fail "refusing to remove non-regular legacy unit target: ${LEGACY_WORKER_UNIT_INSTALLED}"
+    bootstrap_remove_legacy_worker_unit_file ||
+      fail "cannot remove legacy unit file: ${LEGACY_WORKER_UNIT_INSTALLED}"
+    bootstrap_systemctl daemon-reload
+  fi
+}
+
 media_cutover_require_new_webapp_running() {
   [ "${BOOTSTRAP_NEW_WEBAPP_RESTARTED}" = 1 ] ||
     fail "new webapp was not restarted by this bootstrap; media-worker remains stopped"
@@ -114,6 +152,9 @@ media_cutover_restart_worker() {
 
 start_available_prod_services() {
   BOOTSTRAP_NEW_WEBAPP_RESTARTED=0
+  # D30 Ш9: retire the pre-merge worker unit before the merged scheduler can start, so an upgrade never
+  # leaves the old and new delivery loops running at once.
+  retire_legacy_worker_unit
   # A previously running legacy worker must not survive any later bootstrap failure.
   bootstrap_systemctl stop "${MEDIA_WORKER_SERVICE}" || return
 
@@ -144,15 +185,35 @@ start_available_prod_services() {
 
 run_self_test() {
   local events="" webapp_active=0 control_ready=0 retirement_ready=0
-  local expected_prefix="systemctl:stop ${MEDIA_WORKER_SERVICE};systemctl:start ${API_SERVICE} ${SCHEDULER_SERVICE};systemctl:restart ${WEBAPP_SERVICE};systemctl:is-active --quiet ${WEBAPP_SERVICE};"
+  local legacy_active=0 legacy_enabled=0 legacy_file_present=0
+  local legacy_noop_prefix="systemctl:is-active --quiet ${LEGACY_WORKER_SERVICE};systemctl:is-enabled --quiet ${LEGACY_WORKER_SERVICE};"
+  local expected_prefix="${legacy_noop_prefix}systemctl:stop ${MEDIA_WORKER_SERVICE};systemctl:start ${API_SERVICE} ${SCHEDULER_SERVICE};systemctl:restart ${WEBAPP_SERVICE};systemctl:is-active --quiet ${WEBAPP_SERVICE};"
 
   bootstrap_path_is_file() { return 0; }
   bootstrap_path_is_dir() { return 0; }
   bootstrap_systemctl() {
     events+="systemctl:$*;"
-    if [ "$1" = is-active ]; then
-      [ "$webapp_active" = 1 ]
-    fi
+    case "$1" in
+      is-active)
+        case "$3" in
+          "${WEBAPP_SERVICE}") [ "$webapp_active" = 1 ] ;;
+          "${LEGACY_WORKER_SERVICE}") [ "$legacy_active" = 1 ] ;;
+          *) return 0 ;;
+        esac
+        ;;
+      is-enabled)
+        [ "$legacy_enabled" = 1 ]
+        ;;
+      *)
+        return 0
+        ;;
+    esac
+  }
+  bootstrap_legacy_unit_file_exists() { [ "$legacy_file_present" = 1 ]; }
+  bootstrap_legacy_unit_file_is_safe() { events+="legacy-unit-file:safe;"; return 0; }
+  bootstrap_remove_legacy_worker_unit_file() {
+    events+="legacy-unit-file:removed;"
+    legacy_file_present=0
   }
   media_cutover_require_new_webapp_running() {
     [ "${BOOTSTRAP_NEW_WEBAPP_RESTARTED}" = 1 ] || return 1
@@ -191,6 +252,29 @@ run_self_test() {
   start_available_prod_services
   [ "$events" = "${expected_prefix}control;retirement;systemctl:restart ${MEDIA_WORKER_SERVICE};" ] ||
     fail "self-test detected a bootstrap media cutover order change"
+
+  # D30 Ш9: an upgrade that still has the pre-merge worker unit installed, active and enabled must have
+  # it fully retired (stop, disable, remove its unit file, daemon-reload) BEFORE the merged scheduler is
+  # started below — never after, never concurrently.
+  events=""
+  legacy_active=1
+  legacy_enabled=1
+  legacy_file_present=1
+  start_available_prod_services
+  local legacy_retire_sequence="systemctl:is-active --quiet ${LEGACY_WORKER_SERVICE};systemctl:stop ${LEGACY_WORKER_SERVICE};systemctl:is-enabled --quiet ${LEGACY_WORKER_SERVICE};systemctl:disable ${LEGACY_WORKER_SERVICE};legacy-unit-file:safe;legacy-unit-file:removed;systemctl:daemon-reload;"
+  [ "$events" = "${legacy_retire_sequence}systemctl:stop ${MEDIA_WORKER_SERVICE};systemctl:start ${API_SERVICE} ${SCHEDULER_SERVICE};systemctl:restart ${WEBAPP_SERVICE};systemctl:is-active --quiet ${WEBAPP_SERVICE};control;retirement;systemctl:restart ${MEDIA_WORKER_SERVICE};" ] ||
+    fail "self-test did not retire an active+enabled legacy worker unit, in order, before starting the merged scheduler"
+  [ "$legacy_file_present" = 0 ] || fail "self-test did not remove the legacy unit file"
+
+  # Repeated bootstrap on a host that already retired the legacy unit (or never had it) must be an
+  # ordinary, successful re-run — not an error.
+  events=""
+  legacy_active=0
+  legacy_enabled=0
+  start_available_prod_services
+  [ "$events" = "${expected_prefix}control;retirement;systemctl:restart ${MEDIA_WORKER_SERVICE};" ] ||
+    fail "self-test failed an ordinary repeated bootstrap after the legacy worker was already retired"
+
   echo "bootstrap-systemd-prod media cutover self-test: OK"
 }
 

@@ -137,6 +137,14 @@ D30 Ш9: `worker` и `scheduler` — один резидентный проце�
 `public.outgoing_delivery_queue` / direct-public-write retries — оба тика захватываются только пока процесс
 держит leader-замок.
 
+**Upgrade с хоста, где ещё установлен и активен старый `bersoncarebot-worker-prod.service`:** `deploy/host/bootstrap-systemd-prod.sh`
+(root-only) перед стартом резидентного scheduler идемпотентно останавливает legacy unit, отключает его,
+удаляет точный установленный legacy unit-файл (безопасная проверка regular-non-symlink перед `rm`) и делает
+`daemon-reload`; отсутствие/уже неактивное состояние legacy unit — штатный повторный запуск, не ошибка. Обычный
+`deploy-prod.sh` (не root, не трогает root-owned units) перед рестартом scheduler fail-closed проверяет, что
+legacy unit не установлен, не активен и не enabled — если да, требует сначала прогнать root bootstrap на этом
+хосте. Это закрывает окно двойной доставки на upgrade (независимый аудит `D30_CURRENT_RESIDENT_PROCESS_AUDIT_2026-08-21.md`).
+
 **Не путать с HLS `apps/media-worker` (VIDEO_HLS_DELIVERY):** это отдельное приложение с собственным unit
 (`bersoncarebot-media-worker-prod`, ниже). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь
 `public.media_transcode_jobs`.

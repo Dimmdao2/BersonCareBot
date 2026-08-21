@@ -13,6 +13,9 @@ BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 API_SERVICE=bersoncarebot-api-prod.service
 # D30 Ш9: worker and scheduler are one resident process now; SCHEDULER_SERVICE is that unit.
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
+# D30 Ш9: predecessor unit merged into SCHEDULER_SERVICE. Ordinary deploy is not root and must never touch
+# this root-owned unit itself; it only checks it is gone before restarting the merged scheduler.
+LEGACY_WORKER_SERVICE=bersoncarebot-worker-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 
@@ -75,6 +78,23 @@ require_unit_file() {
     fail "Systemd has not loaded the reviewed ${unit}; root must run bootstrap-systemd-prod.sh."
 }
 
+require_legacy_worker_retired() {
+  # Ordinary deploy is not root and must not touch/replace root-owned units (see require_unit_file above).
+  # It only refuses fail-closed to restart the merged scheduler while the pre-Ш9 worker unit is still
+  # installed, active or enabled — starting the scheduler on top of it would run two delivery loops at once.
+  local installed="/etc/systemd/system/${LEGACY_WORKER_SERVICE}"
+  local bootstrap_hint="Root must run deploy/host/bootstrap-systemd-prod.sh on this host to retire it, then rerun deploy."
+  if [ -e "${installed}" ]; then
+    fail "Legacy ${LEGACY_WORKER_SERVICE} unit file is still installed at ${installed}. ${bootstrap_hint}"
+  fi
+  if /bin/systemctl is-active --quiet "${LEGACY_WORKER_SERVICE}" 2>/dev/null; then
+    fail "Legacy ${LEGACY_WORKER_SERVICE} is still active. ${bootstrap_hint}"
+  fi
+  if /bin/systemctl is-enabled --quiet "${LEGACY_WORKER_SERVICE}" 2>/dev/null; then
+    fail "Legacy ${LEGACY_WORKER_SERVICE} is still enabled. ${bootstrap_hint}"
+  fi
+}
+
 require_sudo_rule() {
   local description="$1"
   shift
@@ -109,6 +129,7 @@ require_unit_file "${API_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
 require_unit_file "${WEBAPP_SERVICE}"
 require_unit_file "${MEDIA_WORKER_SERVICE}"
+require_legacy_worker_retired
 
 # shellcheck source=deploy/host/media-control-cutover-sequence.sh
 source "${PROJECT_ROOT}/${C4_MEDIA_CONTROL_CUTOVER}"

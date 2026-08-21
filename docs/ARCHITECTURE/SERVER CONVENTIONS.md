@@ -222,7 +222,11 @@ Orchestration-память, старые чаты и нижние историч
 `bersoncarebot-scheduler-prod.service` (один leader-замок, один top-level цикл; `apps/integrator/src/infra/runtime/scheduler/main.ts`).
 Список выше — последнее подтверждённое состояние ДО этого коммита; PROD продолжает крутить два отдельных
 юнита, пока `deploy/host/deploy-prod.sh`/`bootstrap-systemd-prod.sh` не будут выполнены на `135.106.162.170`
-владельцем/оператором. После следующего PROD deploy обновить этот раздел живым `systemctl status`, а не
+владельцем/оператором. Root `bootstrap-systemd-prod.sh` на этом upgrade идемпотентно останавливает/отключает/удаляет
+именно этот legacy unit (regular-non-symlink проверка перед `rm`, `daemon-reload`) до старта резидентного
+scheduler; ordinary `deploy-prod.sh` (не root) перед рестартом scheduler fail-closed отказывает, если legacy unit
+всё ещё установлен/активен/enabled, и требует сначала root bootstrap — это закрывает окно, где старый и новый
+процессы одновременно обрабатывают доставку. После следующего PROD deploy обновить этот раздел живым `systemctl status`, а не
 предположением.
 
 ### Unit details
