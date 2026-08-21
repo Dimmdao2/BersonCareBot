@@ -1,5 +1,9 @@
 # Fixture retirement: final ordinary owner-login candidate gate
 
+Классификация «Тест или взгляд»: ordinary login/session/`GET /api/me` is repeatable runtime behavior, therefore
+this gate uses the exact live HTTP path; cleanup and absence of product changes are one-off inspection by process,
+tree and filesystem state. No new permanent test or blind audit cycle is required.
+
 Role: `auditor-live`. This is the missing half of the same one-off pre-landing live gate, not a new audit cycle.
 Read the `AGENTS.md` heading map and complete §1/§1a/§1b, §5/§6, §9–§10 and §24 before acting; also read
 `SERVER CONVENTIONS.md`, `LOCAL_DEV_AND_AGENT_TESTING.md`, the auth module doc, owner product rules §11, and search
@@ -39,4 +43,3 @@ Create and commit only
 `docs/_TODO/runs/integrator-cleanup/LIVE_FIXTURE_RETIREMENT_OWNER_LOGIN_FINAL_RETRY_RESULT_2026-08-21.md` with exact
 candidate SHA, safe HTTP classifications, PASS|FAIL|BLOCKED and cleanup evidence. No secret, cookie, response PII,
 product edit, DB mutation, fixture, disposable DB, TEST/PROD, migration, landing, deploy, push or full CI.
-
