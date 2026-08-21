@@ -6313,14 +6313,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "display_name",
-          "email",
-          "email_normalized",
-          "email_verified_at",
           "first_name",
           "last_name",
-          "patient_phone_trust_at",
           "patronymic",
-          "phone_normalized",
           "role"
         ]
       },
@@ -6336,17 +6331,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "blocked_reason",
           "calendar_timezone",
           "display_name",
-          "email",
-          "email_normalized",
-          "email_verified_at",
           "gender",
           "integrator_user_id",
           "is_archived",
           "is_blocked",
           "merged_at",
           "merged_into_id",
-          "patient_phone_trust_at",
-          "phone_normalized",
           "reminder_muted_until",
           "role",
           "updated_at"
@@ -6367,19 +6357,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "id",
           "birth_date",
-          "phone_normalized",
-          "patient_phone_trust_at",
           "integrator_user_id",
           "merged_into_id",
           "display_name",
           "first_name",
           "last_name",
           "patronymic",
-          "email",
-          "email_verified_at",
           "role",
           "created_at",
-          "email_normalized",
           "updated_at"
         ]
       },
@@ -6390,14 +6375,10 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "display_name",
-          "email",
-          "email_verified_at",
           "first_name",
           "id",
           "integrator_user_id",
           "last_name",
-          "patient_phone_trust_at",
-          "phone_normalized",
           "role"
         ]
       },
@@ -6408,15 +6389,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "display_name",
-          "email",
-          "email_normalized",
           "first_name",
           "integrator_user_id",
           "last_name",
           "merged_at",
           "merged_into_id",
-          "patient_phone_trust_at",
-          "phone_normalized",
           "updated_at"
         ]
       }
