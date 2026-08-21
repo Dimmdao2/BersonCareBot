@@ -9,6 +9,9 @@ Authority:
 - `docs/_TODO/runs/integrator-cleanup/D31_VK_MIGRATION_OWNER_METADATA_FIX_BRIEF_2026-08-21.md`;
 - the real pre-landing gate in `deploy/postgres/privileges/migrate-local-parse.test.mjs`.
 
+Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` Р-D31 — «делать API для VK,
+инсту удалять»; executable pre-landing requirement — `AGENTS.md` §1 «Миграции schema B».
+
 The owner-metadata commit `0a91914d5` correctly added the five required capability headers and preserved SQL,
 but the candidate is not land-ready: the parser test rejects three function declarations whose `LANGUAGE
 plpgsql` shares a line with other clauses. The result artifact also contains whitespace errors and its displayed
