@@ -34,6 +34,9 @@ BEGIN
 END
 $d15b6_contact_ownership$;
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+ALTER TABLE public.user_contacts DROP CONSTRAINT user_contacts_source_origin_check;
+--> statement-breakpoint
 -- BCB-MIGRATION-BACKFILL
 INSERT INTO public.user_contacts (
   platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at
@@ -176,14 +179,12 @@ BEGIN
 END
 $d15b6_parity$;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-ALTER TABLE public.user_contacts DROP CONSTRAINT user_contacts_source_origin_check;
---> statement-breakpoint
 -- BCB-MIGRATION-BACKFILL
 UPDATE public.user_contacts
 SET source_origin = CASE WHEN source_origin = 'oauth_binding' THEN 'oauth' ELSE 'direct' END,
     updated_at = now()
 WHERE source_origin NOT IN ('direct', 'oauth');
+--> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 ALTER TABLE public.user_contacts ADD CONSTRAINT user_contacts_source_origin_check
 CHECK (source_origin = ANY (ARRAY['direct'::text, 'oauth'::text]));
