@@ -1,8 +1,18 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlatformTelegramCredentialsSection } from './PlatformTelegramCredentialsSection';
 
 const fetchMock = vi.fn<typeof fetch>();
+
+// Deliberately mixed configured/unconfigured statuses per credential so the assertions below
+// prove each field is wired to its own settings key, not just that "some" fields are configured.
+const CREDENTIAL_FIELDS = [
+  { title: 'Токен бота', key: 'telegram_bot_token', configured: true },
+  { title: 'Секрет вебхука', key: 'telegram_webhook_secret', configured: true },
+  { title: 'Токен сообщества', key: 'vk_community_access_token', configured: false },
+  { title: 'Секрет Callback API', key: 'vk_callback_secret', configured: true },
+  { title: 'Строка подтверждения Callback API', key: 'vk_callback_confirmation_token', configured: false },
+] as const;
 
 describe('PlatformTelegramCredentialsSection', () => {
   beforeEach(() => {
@@ -11,14 +21,10 @@ describe('PlatformTelegramCredentialsSection', () => {
         JSON.stringify({
           ok: true,
           settings: [
-            {
-              key: 'telegram_bot_token',
-              valueJson: { value: { configured: true } },
-            },
-            {
-              key: 'telegram_webhook_secret',
-              valueJson: { value: { configured: true } },
-            },
+            ...CREDENTIAL_FIELDS.map((field) => ({
+              key: field.key,
+              valueJson: { value: { configured: field.configured } },
+            })),
             { key: 'telegram_mode', valueJson: { value: 'long_polling' } },
           ],
         }),
@@ -33,12 +39,25 @@ describe('PlatformTelegramCredentialsSection', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows credentials, the selected mode, and the restart notice', async () => {
-    const { container } = render(<PlatformTelegramCredentialsSection />);
+  it('shows a credential input per Telegram/VK secret with its own configured status', async () => {
+    render(<PlatformTelegramCredentialsSection />);
 
-    expect(container.querySelectorAll('input[type="password"]')).toHaveLength(2);
-    await waitFor(() => expect(screen.getAllByText('Задано')).toHaveLength(2));
-    expect(screen.getByLabelText('Режим приёма сообщений')).toHaveTextContent('Long polling');
+    for (const field of CREDENTIAL_FIELDS) {
+      const title = await screen.findByText(field.title);
+      const section = title.closest('section');
+      if (!section) throw new Error(`no section found for ${field.title}`);
+      const scoped = within(section);
+      expect(section.querySelector('input[type="password"]')).toBeTruthy();
+      await waitFor(() =>
+        expect(scoped.getByText(field.configured ? 'Задано' : 'Не задано')).toBeVisible(),
+      );
+    }
+  });
+
+  it('shows the selected mode and the restart notice', async () => {
+    render(<PlatformTelegramCredentialsSection />);
+
+    expect(await screen.findByLabelText('Режим приёма сообщений')).toHaveTextContent('Long polling');
     expect(screen.getByText('Изменение вступит в силу после перезапуска интегратора.')).toBeVisible();
   });
 });
