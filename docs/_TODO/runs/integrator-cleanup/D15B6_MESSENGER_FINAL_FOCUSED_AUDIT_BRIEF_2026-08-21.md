@@ -19,7 +19,7 @@ Do not edit production code. Do not access any database, server, env file or sec
 permanent one-off proof script. The lead already ran the exact-candidate named-DEV rollback-only preflight at
 `4b4331bee` and got PASS (`pending=3`, `total=25`, `foreign-ledger-rows=0`).
 
-## Audit method and kill-set
+## Тест или взгляд: audit method and kill-set
 
 Before reading existing tests, derive the blind kill-set from the authority above. Classify one-time structure by
 inspection and repeatable behavior by the existing targeted behavioral tests. Reuse the previous kill-set and tests;
