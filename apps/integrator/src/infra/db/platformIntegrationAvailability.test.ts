@@ -23,6 +23,7 @@ const enabledAvailability = {
     integrations: {
       telegram: true,
       max: true,
+      vk: true,
       email: true,
       smsc: true,
       web_push: true,
