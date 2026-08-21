@@ -46,9 +46,16 @@ export const bookingCalendarMap = publicSchema.table(
 /** Narrow `public.platform_users` slice for integrator delivery/lookup repos (D18b). */
 export const platformUsers = publicSchema.table('platform_users', {
   id: uuid().primaryKey().notNull(),
-  phoneNormalized: text('phone_normalized'),
   integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
   mergedIntoId: uuid('merged_into_id'),
+});
+
+export const userContacts = publicSchema.table('user_contacts', {
+  platformUserId: uuid('platform_user_id').notNull(),
+  contactKind: text('contact_kind').notNull(),
+  valueNormalized: text('value_normalized').notNull(),
+  isPrimary: boolean('is_primary').notNull(),
+  confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'string' }),
 });
 
 /** Narrow `public.user_channel_bindings` slice for integrator delivery lookup (D18b). */

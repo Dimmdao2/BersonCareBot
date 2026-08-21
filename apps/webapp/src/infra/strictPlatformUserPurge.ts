@@ -65,8 +65,11 @@ type RunOpts = {
 async function loadUserRow(pool: Pool, id: string): Promise<PurgePlatformUserRow | null> {
   const userRes = await runPgPoolPgText<PurgePlatformUserRow>(
     pool,
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, role
-     FROM platform_users WHERE id = $1`,
+    `SELECT pu.id,
+            (SELECT uc.value_normalized FROM user_contacts uc
+             WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
+            pu.integrator_user_id::text AS integrator_user_id, pu.role
+     FROM platform_users pu WHERE pu.id = $1`,
     [id],
   );
   return userRes.rows[0] ?? null;

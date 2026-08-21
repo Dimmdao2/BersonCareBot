@@ -3,6 +3,7 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientContentRatingFeedback } from '../../../db/schema/patientContentRatingFeedback';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import type { MaterialRatingFeedbackPort } from '@/modules/material-rating-feedback/ports';
 import {
   MATERIAL_RATING_FEEDBACK_REASON_CODES,
@@ -72,7 +73,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
           comment: patientContentRatingFeedback.comment,
           createdAt: patientContentRatingFeedback.createdAt,
           displayName: drizzleFioCols.displayName,
-          phoneNormalized: platformUsers.phoneNormalized,
+          phoneNormalized: drizzlePrimaryPhoneCol,
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))
@@ -138,7 +139,7 @@ export function createPgMaterialRatingFeedbackPort(): MaterialRatingFeedbackPort
           comment: patientContentRatingFeedback.comment,
           createdAt: patientContentRatingFeedback.createdAt,
           displayName: drizzleFioCols.displayName,
-          phoneNormalized: platformUsers.phoneNormalized,
+          phoneNormalized: drizzlePrimaryPhoneCol,
         })
         .from(patientContentRatingFeedback)
         .leftJoin(platformUsers, eq(platformUsers.id, patientContentRatingFeedback.userId))

@@ -230,7 +230,8 @@ async function loadTemplateUsageSummary(templateId: string): Promise<LfkTemplate
               'id', pla.id::text,
               'title', ct.title || ' — ' || COALESCE(
                 NULLIF(btrim(COALESCE(ui.display_name, pu.display_name)), ''),
-                NULLIF(btrim(pu.phone_normalized), ''),
+                NULLIF(btrim((SELECT uc.value_normalized FROM user_contacts uc
+                  WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1)), ''),
                 'пациент'
               ),
               'patientUserId', pla.patient_user_id::text

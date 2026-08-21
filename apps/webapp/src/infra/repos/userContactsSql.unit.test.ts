@@ -1,11 +1,10 @@
 /**
- * D15b/6 (slice 5): `user_contacts` is the SOURCE OF TRUTH for phone/e-mail, not a mirror read
- * behind a fallback — it holds the uniqueness (migration 0380) and, unlike the scalar columns it
- * replaced, several confirmed contacts per person. Messenger links are NOT mirrored here: they
- * live in `user_channel_bindings` (migration 0382 removed the duplicated slice).
+ * D15b/6 physical cutover: `user_contacts` is the only phone/e-mail authority.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { syncUserContactsMirror } from '@bersoncare/platform-merge';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
+import { mutateCanonicalUserContacts } from '@bersoncare/platform-merge';
 import {
   CONTACTS,
   CONTACTS_NO_PHONE,
@@ -32,26 +31,37 @@ describe('userContactsSql — D15b/6 source-of-truth contract', () => {
     expect(CONTACTS_NO_PHONE).not.toMatch(/pu\.phone_normalized IS NULL/);
   });
 
-  it('syncUserContactsMirror rebuilds phone/email from three sources and never mirrors channels', async () => {
-    const query = vi.fn(
-      async (_sql: string, _params?: unknown[]) => ({ rows: [] as never[], rowCount: 1 }),
-    );
+  it('writes only user_contacts and demotes the previous primary before a replacement', async () => {
+    const dialect = new PgDialect();
+    const statements: string[] = [];
+    const executeSql = vi.fn(async (fragment: SQL) => {
+      statements.push(dialect.sqlToQuery(fragment).sql);
+      return { rows: [] as never[], rowCount: 1 };
+    });
     const userId = '00000000-0000-4000-8000-0000000d0c10';
 
-    await syncUserContactsMirror({ query }, userId);
+    await mutateCanonicalUserContacts({ executeSql }, userId, [{
+      action: 'upsert',
+      kind: 'phone',
+      valueNormalized: '+79990000000',
+      isPrimary: true,
+      confirmedAt: '2026-08-21T00:00:00.000Z',
+      sourceOrigin: 'direct',
+    }]);
 
-    expect(query).toHaveBeenCalledTimes(5);
-    expect(query.mock.calls[0]![0]).toContain('DELETE FROM public.user_contacts');
-    const insertSql = query.mock.calls.slice(1).map((c) => c[0] as string).join('\n');
-    expect(insertSql).toContain('public.platform_users');
-    expect(insertSql).toContain('public.user_oauth_bindings');
-    expect(insertSql).toContain('public.user_phone_history');
-    // Messenger links stay in `user_channel_bindings`; mirroring them here duplicated both the
-    // rows and that table's uniqueness (evidence/18-duplication-sweep.md §2а).
-    expect(insertSql).not.toContain('user_channel_bindings');
-    expect(insertSql).not.toContain('channel_code');
-    for (const call of query.mock.calls.slice(1)) {
-      expect(call[1]).toEqual([userId]);
-    }
+    expect(statements).toHaveLength(2);
+    expect(statements[0]).toContain('UPDATE public.user_contacts SET is_primary = false');
+    expect(statements[1]).toContain('INSERT INTO public.user_contacts');
+    expect(statements.join('\n')).not.toMatch(/platform_users|user_phone_history|user_oauth_bindings|user_channel_bindings/);
+  });
+
+  it('fails closed when the same canonical value belongs to another account', async () => {
+    const executeSql = vi.fn(async () => ({ rows: [] as never[], rowCount: 0 }));
+
+    await expect(mutateCanonicalUserContacts({ executeSql },
+      '00000000-0000-4000-8000-0000000d0c10', [{
+        action: 'upsert', kind: 'email', valueNormalized: 'owner@example.test',
+        isPrimary: false, confirmedAt: null, sourceOrigin: 'direct',
+      }])).rejects.toThrow('canonical_email_contact_conflict');
   });
 });

@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import {
   getWebappSqlDb,
@@ -7,7 +7,7 @@ import {
 } from '@/infra/db/runWebappSql';
 import {
   drizzlePrimaryPhoneCol,
-  syncUserContactsMirrorWebapp,
+  mutateCanonicalUserContactsWebapp,
 } from '@/infra/repos/userContactsSql';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
@@ -21,7 +21,7 @@ import type {
   UpsertOAuthBindingInput,
   UpsertOAuthBindingResult,
 } from '@/modules/auth/oauthUserResolvePort';
-import { platformUsers } from '../../../db/schema/schema';
+import { platformUsers, userContacts } from '../../../db/schema/schema';
 
 /**
  * IDENTITY_AND_MERGE_SCHEME.md §2a (owner, 03.08): "убрать перезапись основной почты при входе
@@ -44,38 +44,16 @@ async function applyVerifiedOAuthEmail(
   emailTrusted: boolean,
 ): Promise<void> {
   if (!emailTrusted || !emailRaw?.trim()) return;
-  const email = emailRaw.trim();
+  const email = emailRaw.trim().toLowerCase();
   const db = getWebappSqlDb();
-  await db
-    .update(platformUsers)
-    .set({
-      email,
-      emailNormalized: email.toLowerCase(),
-      emailVerifiedAt: sql`now()`,
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(platformUsers.id, userId),
-        isNull(platformUsers.mergedIntoId),
-        isNull(platformUsers.email),
-      ),
-    );
-  await db
-    .update(platformUsers)
-    .set({
-      emailVerifiedAt: sql`now()`,
-      updatedAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(platformUsers.id, userId),
-        isNull(platformUsers.mergedIntoId),
-        isNull(platformUsers.emailVerifiedAt),
-        sql`lower(btrim(${platformUsers.email})) = lower(btrim(${email}::text))`,
-      ),
-    );
-  await syncUserContactsMirrorWebapp(getWebappSqlDb(), userId);
+  const [primary] = await db.select({ value: userContacts.valueNormalized })
+    .from(userContacts)
+    .where(and(eq(userContacts.platformUserId, userId), eq(userContacts.contactKind, 'email'), eq(userContacts.isPrimary, true)))
+    .limit(1);
+  await mutateCanonicalUserContactsWebapp(getWebappSqlDb(), userId, [{
+    action: 'upsert', kind: 'email', valueNormalized: email, isPrimary: primary == null || primary.value === email,
+    confirmedAt: new Date().toISOString(), sourceOrigin: 'oauth',
+  }]);
 }
 
 async function findUserIdsByAnyConfirmedEmail(emailNorm: string): Promise<string[]> {
@@ -99,10 +77,6 @@ async function getActivePhoneForUser(userId: string): Promise<string | null> {
 
 async function addSparePhoneContact(userId: string, phoneNorm: string): Promise<void> {
   const pool = getPool();
-  await getWebappSqlDb()
-    .update(platformUsers)
-    .set({ phoneNormalized: phoneNorm, updatedAt: sql`now()` })
-    .where(and(eq(platformUsers.id, userId), isNull(platformUsers.mergedIntoId)));
   await applyPlatformUserPhoneHistoryTransition(pool, {
     platformUserId: userId,
     newPhoneNormalized: phoneNorm,
@@ -112,19 +86,15 @@ async function addSparePhoneContact(userId: string, phoneNorm: string): Promise<
 
 async function findUserIdsByVerifiedEmail(emailNorm: string): Promise<string[]> {
   const byEmail = await getWebappSqlDb()
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
+    .select({ id: userContacts.platformUserId })
+    .from(userContacts)
+    .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
     .where(
       and(
         isNull(platformUsers.mergedIntoId),
-        isNotNull(platformUsers.emailVerifiedAt),
-        or(
-          eq(platformUsers.emailNormalized, emailNorm),
-          and(
-            isNull(platformUsers.emailNormalized),
-            sql`lower(trim(COALESCE(${platformUsers.email}, ''))) = ${emailNorm}`,
-          ),
-        ),
+        eq(userContacts.contactKind, 'email'),
+        eq(userContacts.valueNormalized, emailNorm),
+        isNotNull(userContacts.confirmedAt),
       ),
     )
     .limit(4);
@@ -135,18 +105,14 @@ async function findActiveUserIdsByEmail(emailNorm: string): Promise<string[]> {
   // Same as findUserIdsByVerifiedEmail but WITHOUT the email_verified_at filter — mirrors the
   // uq_user_contacts_email uniqueness so we link instead of INSERT-colliding.
   const byEmail = await getWebappSqlDb()
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
+    .select({ id: userContacts.platformUserId })
+    .from(userContacts)
+    .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
     .where(
       and(
         isNull(platformUsers.mergedIntoId),
-        or(
-          eq(platformUsers.emailNormalized, emailNorm),
-          and(
-            isNull(platformUsers.emailNormalized),
-            sql`lower(trim(COALESCE(${platformUsers.email}, ''))) = ${emailNorm}`,
-          ),
-        ),
+        eq(userContacts.contactKind, 'email'),
+        eq(userContacts.valueNormalized, emailNorm),
       ),
     )
     .limit(4);
@@ -154,25 +120,20 @@ async function findActiveUserIdsByEmail(emailNorm: string): Promise<string[]> {
 }
 
 async function createOAuthPlatformUser(input: CreateOAuthPlatformUserInput): Promise<string> {
-  const emailTrimmed = input.emailRaw?.trim() ?? '';
-  const hasVerifiedEmail = input.emailVerifiedAt != null && emailTrimmed !== '';
   const phoneTrimmed = input.phoneNorm?.trim() ?? '';
   const hasPhone = phoneTrimmed !== '';
   const rows = await getWebappSqlDb()
     .insert(platformUsers)
     .values({
-      phoneNormalized: input.phoneNorm,
       displayName: input.display,
-      email: input.emailRaw,
-      emailNormalized: hasVerifiedEmail ? emailTrimmed.toLowerCase() : null,
-      emailVerifiedAt: input.emailVerifiedAt?.toISOString() ?? null,
       role: 'client',
-      patientPhoneTrustAt: hasPhone ? sql`now()` : null,
     })
     .returning({ id: platformUsers.id });
   const userId = rows[0]!.id;
   await syncUserIdentityFioMirrorWebapp(getWebappSqlDb(), userId);
-  await syncUserContactsMirrorWebapp(getWebappSqlDb(), userId);
+  await mutateCanonicalUserContactsWebapp(getWebappSqlDb(), userId, [
+    ...(hasPhone ? [{ action: 'upsert' as const, kind: 'phone' as const, valueNormalized: phoneTrimmed, isPrimary: true, confirmedAt: new Date().toISOString(), sourceOrigin: 'oauth' as const }] : []),
+  ]);
   return userId;
 }
 
@@ -193,7 +154,12 @@ async function upsertOAuthBinding(
   );
   const row = bind.rows[0];
   if (row?.inserted === true) {
-    await syncUserContactsMirrorWebapp(getWebappSqlDb(), input.userId);
+    if (input.emailRaw?.trim()) {
+      await mutateCanonicalUserContactsWebapp(getWebappSqlDb(), input.userId, [{
+        action: 'upsert', kind: 'email', valueNormalized: input.emailRaw.trim().toLowerCase(),
+        isPrimary: false, confirmedAt: new Date().toISOString(), sourceOrigin: 'oauth',
+      }]);
+    }
     return { inserted: true };
   }
   const ownerId = row?.user_id;

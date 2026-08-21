@@ -2,6 +2,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import type { TestAccountIdentifiers } from '@/modules/system-settings/testAccounts';
 import { platformUsers, userChannelBindings } from '../../../db/schema/schema';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 
 /** Единственное определение «служебной учётки» — им пользуются и обычные поверхности, и корень платформенной аналитики. */
 export const STAFF_ANALYTICS_ROLES = ['admin', 'doctor'] as const;
@@ -31,7 +32,7 @@ export async function resolveAnalyticsExcludedUserIds(
   const alwaysExcludedPhoneRows = await db
     .select({ id: platformUsers.id })
     .from(platformUsers)
-    .where(inArray(platformUsers.phoneNormalized, [...ALWAYS_EXCLUDED_ANALYTICS_PHONES]));
+    .where(inArray(drizzlePrimaryPhoneCol, [...ALWAYS_EXCLUDED_ANALYTICS_PHONES]));
   for (const row of alwaysExcludedPhoneRows) excluded.add(row.id);
 
   if (options.includeTestAccounts) {
@@ -46,7 +47,7 @@ export async function resolveAnalyticsExcludedUserIds(
       ? db
           .select({ id: platformUsers.id })
           .from(platformUsers)
-          .where(inArray(platformUsers.phoneNormalized, spec.phones))
+          .where(inArray(drizzlePrimaryPhoneCol, spec.phones))
       : Promise.resolve([] as Array<{ id: string }>);
   const telegramRowsPromise =
     spec.telegramIds.length > 0

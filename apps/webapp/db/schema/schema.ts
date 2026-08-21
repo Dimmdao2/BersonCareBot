@@ -110,7 +110,6 @@ export const platformUsers = pgTable(
   'platform_users',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    phoneNormalized: text('phone_normalized'),
     displayName: text('display_name').default('').notNull(),
     role: text().default('client').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -123,10 +122,6 @@ export const platformUsers = pgTable(
     integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
     firstName: text('first_name'),
     lastName: text('last_name'),
-    email: text(),
-    /** Lowercase trimmed canonical email for uniqueness (`merged_into_id IS NULL`). */
-    emailNormalized: text('email_normalized'),
-    emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true, mode: 'string' }),
     isBlocked: boolean('is_blocked').default(false).notNull(),
     blockedAt: timestamp('blocked_at', { withTimezone: true, mode: 'string' }),
     blockedReason: text('blocked_reason'),
@@ -135,10 +130,6 @@ export const platformUsers = pgTable(
     mergedIntoId: uuid('merged_into_id'),
     /** Момент слияния в канонический аккаунт (`merged_into_id`); для статистики и отличия от прочих `updated_at`. */
     mergedAt: timestamp('merged_at', { withTimezone: true, mode: 'string' }),
-    patientPhoneTrustAt: timestamp('patient_phone_trust_at', {
-      withTimezone: true,
-      mode: 'string',
-    }),
     /** IANA zone for patient-local calendar day (чек-лист программы и т.п.); null → `app_display_timezone`. */
     calendarTimezone: text('calendar_timezone'),
     /** When set, reminder push dispatch is suppressed until this instant (user-level mute). */
@@ -164,9 +155,6 @@ export const platformUsers = pgTable(
     index('idx_platform_users_merged_at')
       .using('btree', table.mergedAt.asc().nullsLast().op('timestamptz_ops'))
       .where(sql`(merged_at IS NOT NULL)`),
-    index('idx_platform_users_phone')
-      .using('btree', table.phoneNormalized.asc().nullsLast().op('text_ops'))
-      .where(sql`(phone_normalized IS NOT NULL)`),
     foreignKey({
       columns: [table.blockedBy],
       foreignColumns: [table.id],
@@ -215,7 +203,7 @@ export const userIdentity = pgTable(
   ],
 );
 
-/** D15b/6: assembled contact index (dual-write phase; four source tables remain during cutover). */
+/** D15b/6: canonical phone/e-mail contacts and login identifiers. */
 export const userContacts = pgTable(
   'user_contacts',
   {
@@ -247,6 +235,12 @@ export const userContacts = pgTable(
     uniqueIndex('uq_user_contacts_email')
       .on(table.valueNormalized)
       .where(sql`(contact_kind = 'email'::text)`),
+    uniqueIndex('uq_user_contacts_primary_phone')
+      .on(table.platformUserId)
+      .where(sql`(contact_kind = 'phone'::text AND is_primary = true)`),
+    uniqueIndex('uq_user_contacts_primary_email')
+      .on(table.platformUserId)
+      .where(sql`(contact_kind = 'email'::text AND is_primary = true)`),
     foreignKey({
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
@@ -258,7 +252,7 @@ export const userContacts = pgTable(
     ),
     check(
       'user_contacts_source_origin_check',
-      sql`source_origin = ANY (ARRAY['platform_users'::text, 'oauth_binding'::text, 'phone_history'::text])`,
+      sql`source_origin = ANY (ARRAY['direct'::text, 'oauth'::text])`,
     ),
   ],
 );

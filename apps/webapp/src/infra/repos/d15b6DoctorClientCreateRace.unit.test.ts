@@ -1,6 +1,6 @@
 /**
  * D15b/6 audit MF-1 (0380): doctor client create must recover from user_contacts phone
- * unique violation during mirror sync, not surface create_failed.
+ * unique violation during canonical contact insert, not surface create_failed.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -11,7 +11,7 @@ vi.mock('@/infra/repos/userContactsSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/repos/userContactsSql')>();
   return {
     ...actual,
-    syncUserContactsMirrorWebapp: syncContactsMirrorMock,
+    mutateCanonicalUserContactsWebapp: syncContactsMirrorMock,
   };
 });
 
@@ -64,7 +64,7 @@ beforeEach(() => {
 });
 
 describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () => {
-  it('mirror 23505 after insert → links existing client instead of create_failed', async () => {
+  it('canonical contact 23505 after insert → links existing client instead of create_failed', async () => {
     let selectPass = 0;
     const selectChain = buildSelectChain([]);
     selectChain.limit = vi.fn(async () => {
@@ -123,11 +123,15 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
       phoneNormalized: PHONE,
       created: false,
     });
-    expect(syncContactsMirrorMock).toHaveBeenCalledWith(savepointTx, NEW_ID);
+    expect(syncContactsMirrorMock).toHaveBeenCalledWith(savepointTx, NEW_ID, [
+      expect.objectContaining({
+        action: 'upsert', kind: 'phone', valueNormalized: PHONE, isPrimary: true,
+      }),
+    ]);
     expect(selectChain.limit).toHaveBeenCalledTimes(2);
   });
 
-  it('mirror 23505 with no concurrent owner rethrows (not create_failed)', async () => {
+  it('canonical contact 23505 with no concurrent owner rethrows (not create_failed)', async () => {
     const selectChain = buildSelectChain([]);
     const insertChain = buildInsertChain([
       {
@@ -171,7 +175,7 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
         patronymic: null,
       },
     ]);
-    const otherError = new Error('mirror failed');
+    const otherError = new Error('canonical write failed');
     syncContactsMirrorMock.mockRejectedValueOnce(otherError);
 
     const savepointTx = { insert: vi.fn(() => insertChain) };
@@ -191,7 +195,7 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
         emailRaw: null,
         emailNormalized: null,
       }),
-    ).rejects.toThrow('mirror failed');
+    ).rejects.toThrow('canonical write failed');
   });
 
   it('identity_conflict when concurrent owner is not a client', async () => {

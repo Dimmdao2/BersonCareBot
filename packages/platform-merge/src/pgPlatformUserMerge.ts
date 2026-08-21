@@ -2,7 +2,7 @@ import type { QueryResultRow } from 'pg';
 import { sql, type SQL } from 'drizzle-orm';
 import { mergeLogger as logger } from './mergeLogger.js';
 import { runMergeSql, runMergePgText } from './mergeSql.js';
-import { syncUserContactsMirror, clearDuplicateUserContactsBeforeTargetMirror } from './userContactsMirrorWrite.js';
+import { mutateCanonicalUserContacts } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 import type { ManualMergeResolution } from './manualMergeResolution.js';
 import { assertManualMergeResolutionIds } from './manualMergeResolution.js';
@@ -256,24 +256,6 @@ export type PickMergeTargetCandidate = {
   patientBookingCount?: number;
 };
 
-function preservedEmailVerifiedAtSql(chosenEmailSql: string): string {
-  return `CASE
-            WHEN trim(COALESCE(${chosenEmailSql}, '')) = '' THEN NULL
-            ELSE COALESCE(
-              CASE
-                WHEN pu.email IS NOT NULL AND lower(trim(pu.email)) = lower(trim(${chosenEmailSql}))
-                THEN pu.email_verified_at
-                ELSE NULL
-              END,
-              CASE
-                WHEN dup.email IS NOT NULL AND lower(trim(dup.email)) = lower(trim(${chosenEmailSql}))
-                THEN dup.email_verified_at
-                ELSE NULL
-              END
-            )
-          END`;
-}
-
 const SINGLETON_SYMPTOM_KEYS = ['general_wellbeing', 'warmup_feeling'] as const;
 
 /**
@@ -380,10 +362,18 @@ export async function mergePlatformUsersInTransaction(
 
   const lockRes = await runMergeSql<PuRow>(
     client,
-    sql`SELECT id, phone_normalized, patient_phone_trust_at, integrator_user_id::text AS integrator_user_id, merged_into_id,
-            display_name, first_name, last_name, patronymic, email, email_verified_at, role, created_at
-     FROM platform_users
-     WHERE id IN (${targetId}::uuid, ${duplicateId}::uuid)
+    sql`SELECT pu.id,
+            phone.value_normalized AS phone_normalized, phone.confirmed_at AS patient_phone_trust_at,
+            pu.integrator_user_id::text AS integrator_user_id, pu.merged_into_id,
+            pu.display_name, pu.first_name, pu.last_name, pu.patronymic,
+            email.value_normalized AS email, email.confirmed_at AS email_verified_at,
+            pu.role, pu.created_at
+     FROM platform_users pu
+     LEFT JOIN user_contacts phone ON phone.platform_user_id = pu.id
+       AND phone.contact_kind = 'phone' AND phone.is_primary = true
+     LEFT JOIN user_contacts email ON email.platform_user_id = pu.id
+       AND email.contact_kind = 'email' AND email.is_primary = true
+     WHERE pu.id IN (${targetId}::uuid, ${duplicateId}::uuid)
      ORDER BY id
      FOR UPDATE`,
   );
@@ -641,51 +631,32 @@ export async function mergePlatformUsersInTransaction(
 
   if (manualResolution) {
     const f = manualResolution.fields;
-    const chosenEmailSql = `CASE WHEN $7::text = 'target' THEN pu.email ELSE dup.email END`;
     await runMergePgText(
       client,
       `UPDATE platform_users AS pu
        SET
-         phone_normalized = CASE WHEN $3::text = 'target' THEN pu.phone_normalized ELSE dup.phone_normalized END,
-         patient_phone_trust_at = CASE WHEN $3::text = 'target' THEN pu.patient_phone_trust_at ELSE dup.patient_phone_trust_at END,
          integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
-         display_name = CASE WHEN $4::text = 'target' THEN pu.display_name ELSE dup.display_name END,
-         first_name = CASE WHEN $5::text = 'target' THEN pu.first_name ELSE dup.first_name END,
-         last_name = CASE WHEN $6::text = 'target' THEN pu.last_name ELSE dup.last_name END,
+         display_name = CASE WHEN $3::text = 'target' THEN pu.display_name ELSE dup.display_name END,
+         first_name = CASE WHEN $4::text = 'target' THEN pu.first_name ELSE dup.first_name END,
+         last_name = CASE WHEN $5::text = 'target' THEN pu.last_name ELSE dup.last_name END,
          patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
-         email = ${chosenEmailSql},
-         email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
          updated_at = now()
        FROM platform_users dup
        WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
       [
         targetId,
         duplicateId,
-        f.phone_normalized,
         f.display_name,
         f.first_name,
         f.last_name,
-        f.email,
       ],
     );
   } else {
-    const chosenEmailSql = `COALESCE(pu.email, dup.email)`;
     await runMergePgText(
       client,
-      `UPDATE platform_users AS pu
+      `UPDATE platform_users AS root
        SET
-         phone_normalized = COALESCE(pu.phone_normalized, dup.phone_normalized),
-         patient_phone_trust_at = CASE
-           WHEN trim(COALESCE(pu.phone_normalized, dup.phone_normalized, '')) = '' THEN NULL
-           WHEN pu.phone_normalized IS NOT NULL
-             AND dup.phone_normalized IS NOT NULL
-             AND pu.phone_normalized IS NOT DISTINCT FROM dup.phone_normalized
-             THEN (SELECT max(v) FROM (VALUES (pu.patient_phone_trust_at), (dup.patient_phone_trust_at)) AS t(v))
-           WHEN pu.phone_normalized IS NOT DISTINCT FROM COALESCE(pu.phone_normalized, dup.phone_normalized)
-             THEN pu.patient_phone_trust_at
-           ELSE dup.patient_phone_trust_at
-         END,
-         integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
+         integrator_user_id = COALESCE(root.integrator_user_id, dup.integrator_user_id),
          display_name = CASE
            WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
             AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
@@ -768,28 +739,36 @@ export async function mergePlatformUsersInTransaction(
            ELSE COALESCE(NULLIF(trim(pu.last_name), ''), NULLIF(trim(dup.last_name), ''))
          END,
          patronymic = COALESCE(NULLIF(trim(pu.patronymic), ''), NULLIF(trim(dup.patronymic), '')),
-         email = ${chosenEmailSql},
-         email_verified_at = ${preservedEmailVerifiedAtSql(chosenEmailSql)},
          updated_at = now()
-       FROM platform_users dup
-       WHERE pu.id = $1::uuid AND dup.id = $2::uuid`,
+       FROM (
+         SELECT pu0.*,
+           (SELECT uc.value_normalized FROM user_contacts uc
+            WHERE uc.platform_user_id = pu0.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized
+         FROM platform_users pu0 WHERE pu0.id = $1::uuid
+       ) pu,
+       (
+         SELECT dup0.*,
+           (SELECT uc.value_normalized FROM user_contacts uc
+            WHERE uc.platform_user_id = dup0.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized
+         FROM platform_users dup0 WHERE dup0.id = $2::uuid
+       ) dup
+       WHERE root.id = $1::uuid`,
       [targetId, duplicateId],
     );
   }
 
-  await clearDuplicateEmailBeforeTargetNormalization(client, duplicateId);
-  await clearDuplicateUserContactsBeforeTargetMirror(client, duplicateId);
+  await mutateCanonicalUserContacts(client, targetId, [{ action: 'merge-from', duplicatePlatformUserId: duplicateId }]);
 
-  await runMergeSql(
-    client,
-    sql`UPDATE platform_users SET email_normalized = CASE
-       WHEN email IS NOT NULL AND btrim(email) <> '' THEN lower(btrim(email))
-       ELSE NULL
-     END WHERE id = ${targetId}::uuid`,
-  );
+  if (manualResolution) {
+    const selectedPhone = manualResolution.fields.phone_normalized === 'target' ? a.phone_normalized : b.phone_normalized;
+    const selectedEmail = manualResolution.fields.email === 'target' ? a.email : b.email;
+    await mutateCanonicalUserContacts(client, targetId, [
+      ...(selectedPhone ? [{ action: 'upsert' as const, kind: 'phone' as const, valueNormalized: selectedPhone, isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }] : []),
+      ...(selectedEmail ? [{ action: 'upsert' as const, kind: 'email' as const, valueNormalized: selectedEmail, isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }] : []),
+    ]);
+  }
 
   await syncUserIdentityFioMirror(client, targetId);
-  await syncUserContactsMirror(client, targetId);
 
   const mergeContactsSaved = await persistMergeLosingContacts(
     client,
@@ -797,12 +776,10 @@ export async function mergePlatformUsersInTransaction(
     collectMergeLosingContacts(a, b, manualResolution),
   );
   await pruneIdentityPlatformUserContactsAfterMerge(client, targetId);
-  await syncUserContactsMirror(client, targetId);
 
   await runMergeSql(
     client,
     sql`UPDATE platform_users SET
-       phone_normalized = NULL,
        integrator_user_id = NULL,
        merged_into_id = ${targetId}::uuid,
        merged_at = now(),
@@ -1379,20 +1356,6 @@ async function assertOpenTestAttemptsSafe(
       [targetId, duplicateId],
     );
   }
-}
-
-/**
- * Clears duplicate email before target `email_normalized` recompute so two canonical rows
- * cannot temporarily share the same confirmed email in `user_contacts`.
- */
-async function clearDuplicateEmailBeforeTargetNormalization(
-  client: PlatformMergeDbClient,
-  duplicateId: string,
-): Promise<void> {
-  await runMergeSql(
-    client,
-    sql`UPDATE platform_users SET email = NULL, email_normalized = NULL, updated_at = now() WHERE id = ${duplicateId}::uuid`,
-  );
 }
 
 /**

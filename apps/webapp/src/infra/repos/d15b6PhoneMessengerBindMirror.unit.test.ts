@@ -1,11 +1,10 @@
 /**
- * D15b/6 audit MF: `user_contacts` mirror after messenger channel bind + canonical phone lookup.
+ * D15b/6: messenger bind changes the canonical phone through the shared contact/history root.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 
 const syncMirrorMock = vi.hoisted(() => vi.fn());
-const syncContactsMirrorMock = vi.hoisted(() => vi.fn());
 const runIdentityClientPgTextMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
 const findCanonicalUserIdByPhoneMock = vi.hoisted(() => vi.fn());
@@ -18,14 +17,6 @@ vi.mock('@/infra/repos/userIdentityFioSql', async (importOriginal) => {
   return {
     ...actual,
     syncUserIdentityFioMirrorWebapp: syncMirrorMock,
-  };
-});
-
-vi.mock('@/infra/repos/userContactsSql', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/infra/repos/userContactsSql')>();
-  return {
-    ...actual,
-    syncUserContactsMirrorWebapp: syncContactsMirrorMock,
   };
 });
 
@@ -85,13 +76,12 @@ function channelBindingInsertIndex(): number {
 beforeEach(() => {
   vi.resetAllMocks();
   syncMirrorMock.mockResolvedValue(undefined);
-  syncContactsMirrorMock.mockResolvedValue(undefined);
   applyPhoneHistoryMock.mockResolvedValue(undefined);
   upsertBroadcastMock.mockResolvedValue(undefined);
   runWebappNamedRootMock.mockResolvedValue({ rows: [] });
 });
 
-describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
+describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
   it('starts the bearer secret through one exact named root instead of relation SQL', async () => {
     const port = createPgPhoneMessengerBindPort(fakePool);
     await port.startSecret({
@@ -158,7 +148,7 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
 
-  it('profile_bind: mirrors user_contacts after channel INSERT (not only via phone-history)', async () => {
+  it('profile_bind: records the confirmed canonical phone before channel binding', async () => {
     resolveCanonicalUserIdMock.mockResolvedValue(SESSION_USER_ID);
     findCanonicalUserIdByPhoneMock.mockResolvedValue(null);
     runIdentityClientPgTextMock
@@ -179,14 +169,18 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
     expect(findCanonicalUserIdByPhoneMock).toHaveBeenCalledWith({}, '+79001234567');
     const bindIdx = channelBindingInsertIndex();
     expect(bindIdx).toBeGreaterThanOrEqual(0);
-    const mirrorAfterBind = syncContactsMirrorMock.mock.invocationCallOrder.some(
-      (mirrorOrder) => mirrorOrder > runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
+    expect(applyPhoneHistoryMock).toHaveBeenCalledWith(fakeClient, {
+      platformUserId: SESSION_USER_ID,
+      newPhoneNormalized: '+79001234567',
+      source: 'messenger',
+      confirmingChannel: 'telegram',
+    });
+    expect(applyPhoneHistoryMock.mock.invocationCallOrder[0]).toBeLessThan(
+      runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
     );
-    expect(mirrorAfterBind).toBe(true);
-    expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, SESSION_USER_ID);
   });
 
-  it('login: mirrors user_contacts after channel INSERT on the login bind path', async () => {
+  it('login: records the confirmed canonical phone for the newly created account', async () => {
     findCanonicalUserIdByPhoneMock.mockResolvedValue(null);
     resolveCanonicalUserIdMock.mockImplementation(async (_db, id: string) => id);
     runIdentityClientPgTextMock.mockImplementation(async (_client, sql: string) => {
@@ -214,10 +208,14 @@ describe('D15b/6 — pgPhoneMessengerBind mirror after channel bind', () => {
     expect(findCanonicalUserIdByPhoneMock).toHaveBeenCalledWith({}, '+79007654321');
     const bindIdx = channelBindingInsertIndex();
     expect(bindIdx).toBeGreaterThanOrEqual(0);
-    const mirrorAfterBind = syncContactsMirrorMock.mock.invocationCallOrder.some(
-      (mirrorOrder) => mirrorOrder > runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
+    expect(applyPhoneHistoryMock).toHaveBeenCalledWith(fakeClient, {
+      platformUserId: NEW_LOGIN_USER_ID,
+      newPhoneNormalized: '+79007654321',
+      source: 'messenger',
+      confirmingChannel: 'telegram',
+    });
+    expect(applyPhoneHistoryMock.mock.invocationCallOrder[0]).toBeLessThan(
+      runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
     );
-    expect(mirrorAfterBind).toBe(true);
-    expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, NEW_LOGIN_USER_ID);
   });
 });

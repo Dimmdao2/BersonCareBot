@@ -40,8 +40,12 @@ async function getUserCountsByIntegration(
       sql`SELECT
             COUNT(DISTINCT binding.user_id)::int AS total,
             COUNT(DISTINCT binding.user_id) FILTER (
-              WHERE user_row.phone_normalized IS NOT NULL
-                AND TRIM(user_row.phone_normalized) != ''
+              WHERE EXISTS (
+                SELECT 1 FROM public.user_contacts contact
+                WHERE contact.platform_user_id = user_row.id
+                  AND contact.contact_kind = 'phone' AND contact.is_primary = true
+                  AND TRIM(contact.value_normalized) != ''
+              )
             )::int AS with_phone
           FROM public.user_channel_bindings binding
           JOIN public.platform_users user_row ON user_row.id = binding.user_id

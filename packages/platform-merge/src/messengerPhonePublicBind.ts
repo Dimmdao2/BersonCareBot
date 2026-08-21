@@ -14,7 +14,7 @@ import {
   type PlatformMergeDbClient,
 } from './pgPlatformUserMerge.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
-import { syncUserContactsPhoneMirror } from './userContactsMirrorWrite.js';
+import { mutateCanonicalUserContacts } from './userContactsMirrorWrite.js';
 
 /** Any client with `.query` compatible with `pg` / integrator `DbPort` inside a transaction. */
 export type MessengerPhoneBindDb = PlatformMergeDbClient;
@@ -64,12 +64,13 @@ async function loadPickCandidate(
     created_at: Date | string;
   }>(
     db,
-    sql`SELECT id::text,
-            phone_normalized,
-            integrator_user_id::text AS integrator_user_id,
-            created_at
-     FROM public.platform_users
-     WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
+    sql`SELECT pu.id::text,
+            (SELECT uc.value_normalized FROM public.user_contacts uc
+             WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
+            pu.integrator_user_id::text AS integrator_user_id,
+            pu.created_at
+     FROM public.platform_users pu
+     WHERE pu.id = ${id}::uuid AND pu.merged_into_id IS NULL`,
   );
   const row = r.rows[0];
   if (!row) return null;
@@ -99,13 +100,7 @@ async function findOtherPlatformUserWithSamePhone(
   );
   if (fromContacts.rows[0]?.id) return fromContacts.rows[0].id;
 
-  const legacy = await runMergeSql<{ id: string }>(
-    db,
-    sql`SELECT id::text FROM public.platform_users
-     WHERE phone_normalized = ${phoneNormalized} AND merged_into_id IS NULL AND id <> ${excludeId}::uuid
-     LIMIT 1`,
-  );
-  return legacy.rows[0]?.id ?? null;
+  return null;
 }
 
 function isUserContactsPhoneUniqueViolation(err: unknown): boolean {
@@ -124,8 +119,6 @@ async function writeConfirmedPhoneAndMirror(
   const upd = await runMergeSql(
     db,
     sql`UPDATE public.platform_users SET
-       phone_normalized = ${phoneNormalized},
-       patient_phone_trust_at = now(),
        integrator_user_id = COALESCE(integrator_user_id, ${canonicalIntegratorUserId}::bigint),
        updated_at = now()
      WHERE id = ${platformUserId}::uuid
@@ -134,7 +127,10 @@ async function writeConfirmedPhoneAndMirror(
   if ((upd.rowCount ?? 0) < 1) {
     throw new MessengerPhoneLinkError('db_transient_failure');
   }
-  await syncUserContactsPhoneMirror(db as PlatformMergeDbClient, platformUserId);
+  await mutateCanonicalUserContacts(db as PlatformMergeDbClient, platformUserId, [{
+    action: 'upsert', kind: 'phone', valueNormalized: phoneNormalized, isPrimary: true,
+    confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
+  }]);
 }
 
 async function findOtherPlatformUserWithSameIntegrator(

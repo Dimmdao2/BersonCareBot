@@ -868,12 +868,13 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
       const fixturePatientPhone = 'phoneNormalized' in person ? person.phoneNormalized : undefined;
       if (email) {
         const collision = await tx
-          .select({ id: schema.platformUsers.id })
-          .from(schema.platformUsers)
+          .select({ id: schema.userContacts.platformUserId })
+          .from(schema.userContacts)
           .where(
             and(
-              eq(schema.platformUsers.emailNormalized, email),
-              notInArray(schema.platformUsers.id, [person.id]),
+              eq(schema.userContacts.contactKind, 'email'),
+              eq(schema.userContacts.valueNormalized, email),
+              notInArray(schema.userContacts.platformUserId, [person.id]),
             ),
           )
           .limit(1);
@@ -889,14 +890,10 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         .insert(schema.platformUsers)
         .values({
           id: person.id,
-          phoneNormalized: fixturePatientPhone ?? null,
           displayName: person.displayName,
           role,
           firstName: 'firstName' in person ? person.firstName : null,
           lastName: 'lastName' in person ? person.lastName : null,
-          email: email ?? null,
-          emailNormalized: email ?? null,
-          emailVerifiedAt: email ? nowIso : null,
           isBlocked: false,
           blockedAt: null,
           blockedReason: null,
@@ -910,12 +907,8 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
           set: {
             displayName: person.displayName,
             role,
-            ...(fixturePatientPhone !== undefined ? { phoneNormalized: fixturePatientPhone } : {}),
             firstName: 'firstName' in person ? person.firstName : null,
             lastName: 'lastName' in person ? person.lastName : null,
-            email: email ?? null,
-            emailNormalized: email ?? null,
-            emailVerifiedAt: email ? nowIso : null,
             isBlocked: false,
             isArchived: false,
             mergedIntoId: null,
@@ -923,6 +916,36 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
             updatedAt: nowIso,
           },
         });
+      await tx
+        .delete(schema.userContacts)
+        .where(eq(schema.userContacts.platformUserId, person.id));
+      const contacts = [
+        ...(fixturePatientPhone
+          ? [{
+              platformUserId: person.id,
+              contactKind: 'phone',
+              valueNormalized: fixturePatientPhone,
+              isPrimary: true,
+              confirmedAt: nowIso,
+              sourceOrigin: 'direct',
+              updatedAt: nowIso,
+            }]
+          : []),
+        ...(email
+          ? [{
+              platformUserId: person.id,
+              contactKind: 'email',
+              valueNormalized: email,
+              isPrimary: true,
+              confirmedAt: nowIso,
+              sourceOrigin: 'direct',
+              updatedAt: nowIso,
+            }]
+          : []),
+      ];
+      if (contacts.length > 0) {
+        await tx.insert(schema.userContacts).values(contacts);
+      }
     }
 
     for (const person of credentialUsers) {
@@ -1888,9 +1911,12 @@ async function reconcileFixtures(db: FixtureDb, config: SaasTestFixtureConfig): 
         (SELECT count(*)::int
           FROM platform_users pu
           JOIN user_password_credentials credential ON credential.user_id = pu.id
+          JOIN user_contacts email_contact ON email_contact.platform_user_id = pu.id
           WHERE pu.id = ${ids.sharedPatient}::uuid
             AND pu.role = 'client'
-            AND pu.email_normalized = ${SAAS_TEST_FIXTURE_OPERATOR_REFS.credentials.sharedPatient.email}
+            AND email_contact.contact_kind = 'email'
+            AND email_contact.value_normalized = ${SAAS_TEST_FIXTURE_OPERATOR_REFS.credentials.sharedPatient.email}
+            AND email_contact.confirmed_at IS NOT NULL
             AND pu.is_blocked = false) AS shared_patient_login_count,
         (SELECT count(*)::int FROM public.system_settings
           WHERE key = 'specialist_signup_enabled'

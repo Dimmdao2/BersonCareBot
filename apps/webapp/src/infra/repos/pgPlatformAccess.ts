@@ -3,7 +3,7 @@ import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
   CONTACTS,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+  USER_CONTACTS_PRIMARY_LATERALS,
 } from '@/infra/repos/userContactsSql';
 import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
 import type { PlatformAccessCanonRow, PlatformAccessPort } from '@/modules/platform-access/ports';
@@ -29,11 +29,11 @@ export const pgPlatformAccessPort: PlatformAccessPort = {
     const r = await runWebappPgText<PlatformAccessCanonRow>(
       `SELECT pu.role,
               ${CONTACTS.phoneNormalized} AS phone_normalized,
-              pu.patient_phone_trust_at,
-              pu.email_verified_at,
+              ${CONTACTS.phoneConfirmedAt} AS patient_phone_trust_at,
+              ${CONTACTS.emailVerifiedAt} AS email_verified_at,
               ${credentialsSql}
        FROM platform_users pu
-       ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+       ${USER_CONTACTS_PRIMARY_LATERALS}
        WHERE pu.id = $1::uuid`,
       [canonicalUserId],
     );

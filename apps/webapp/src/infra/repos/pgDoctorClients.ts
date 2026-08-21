@@ -287,7 +287,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           ? `COALESCE(is_archived, false) = true`
           : `COALESCE(is_archived, false) = false`;
       const listBaseParams: unknown[] = [];
-      let listBase = `SELECT pu.id, ${FIO_SELECT}, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.created_at, pu.email, ${CONTACTS.emailNormalized} AS email_normalized, pu.email_verified_at
+      let listBase = `SELECT pu.id, ${FIO_SELECT}, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.created_at, ${CONTACTS.email} AS email, ${CONTACTS.emailNormalized} AS email_normalized, ${CONTACTS.emailVerifiedAt} AS email_verified_at
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
          ${USER_CONTACTS_PRIMARY_LATERALS}
@@ -823,7 +823,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         birth_date: string | null;
         gender: string | null;
       }>(
-        `SELECT pu.id, ${FIO_SELECT}, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.email, ${CONTACTS.emailNormalized} AS email_normalized, pu.email_verified_at,
+        `SELECT pu.id, ${FIO_SELECT}, ${CONTACTS.phoneNormalized} AS phone_normalized, ${CONTACTS.email} AS email, ${CONTACTS.emailNormalized} AS email_normalized, ${CONTACTS.emailVerifiedAt} AS email_verified_at,
                 COALESCE(pu.is_blocked, false) AS is_blocked,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 pu.role,
@@ -1289,7 +1289,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
       const userRow = await runWebappPgText(
         `SELECT pu.id, ${FIO.displayName} AS display_name, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.created_at,
-                ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, pu.email, pu.email_verified_at,
+                ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, ${CONTACTS.email} AS email, ${CONTACTS.emailVerifiedAt} AS email_verified_at,
                 COALESCE(pu.is_blocked, false) AS is_blocked,
                 pu.blocked_reason,
                 COALESCE(pu.is_archived, false) AS is_archived
@@ -1527,7 +1527,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            ${sqlActiveMaxBinding('pu.id')} AS has_max,
            ${sqlMessengerBotBlocked('pu.id', 'telegram')} AS telegram_bot_blocked,
            ${sqlMessengerBotBlocked('pu.id', 'max')} AS max_bot_blocked,
-           (pu.email_verified_at IS NOT NULL) AS has_verified_email,
+           (${CONTACTS.emailVerifiedAt} IS NOT NULL) AS has_verified_email,
            ${CONTACTS_HAS_PHONE} AS has_phone,
            EXISTS(
              SELECT 1
@@ -1537,7 +1537,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
                ${appointmentOrgFilter}
            ) AS has_appointment
          FROM platform_users pu
-         ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+         ${USER_CONTACTS_PRIMARY_LATERALS}
          WHERE pu.role = 'client'
            AND pu.merged_into_id IS NULL
            AND COALESCE(pu.is_archived, false) = false`;

@@ -249,9 +249,10 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
          FROM user_channel_bindings
          WHERE user_id = $1::uuid AND channel_code IN ('telegram', 'max')
          UNION ALL
-         SELECT 'email' AS code, email_verified_at AS at
-         FROM platform_users
-         WHERE id = $1::uuid AND email_verified_at IS NOT NULL
+         SELECT 'email' AS code, confirmed_at AS at
+         FROM user_contacts
+         WHERE platform_user_id = $1::uuid AND contact_kind = 'email'
+           AND is_primary = true AND confirmed_at IS NOT NULL
        ) first_verified
        ORDER BY at ASC
        LIMIT 1`,

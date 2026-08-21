@@ -57,30 +57,32 @@ import {
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
 import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
-import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
+import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
+import { drizzlePrimaryPhoneCol, drizzlePrimaryPhoneConfirmedAtCol } from '@/infra/repos/userContactsSql';
 import {
   FIO,
   syncUserIdentityFioMirrorWebapp,
   USER_IDENTITY_FIO_JOIN,
 } from '@/infra/repos/userIdentityFioSql';
 
-async function markPatientPhoneTrusted(client: PoolClient, userId: string): Promise<void> {
-  const db = getWebappSqlFromPgClient(client);
-  await db
-    .update(platformUsers)
-    .set({
-      patientPhoneTrustAt: sql`now()`,
-      updatedAt: sql`now()`,
-    })
-    .where(eq(platformUsers.id, userId));
+async function markPatientPhoneTrusted(client: PoolClient, userId: string, phoneNormalized: string): Promise<void> {
+  await mutateCanonicalUserContactsWebapp(client, userId, [{
+    action: 'upsert', kind: 'phone', valueNormalized: phoneNormalized, isPrimary: true,
+    confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
+  }]);
 }
 
 async function loadPuRowForMerge(client: PoolClient, id: string) {
   const r = await runIdentityClientPgText(
     client,
-    `SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, merged_into_id,
-            display_name, first_name, last_name, email, created_at
-     FROM platform_users WHERE id = $1`,
+    `SELECT pu.id,
+            phone.value_normalized AS phone_normalized,
+            pu.integrator_user_id::text AS integrator_user_id, pu.merged_into_id,
+            pu.display_name, pu.first_name, pu.last_name, email.value_normalized AS email, pu.created_at
+     FROM platform_users pu
+     LEFT JOIN user_contacts phone ON phone.platform_user_id = pu.id AND phone.contact_kind = 'phone' AND phone.is_primary = true
+     LEFT JOIN user_contacts email ON email.platform_user_id = pu.id AND email.contact_kind = 'email' AND email.is_primary = true
+     WHERE pu.id = $1`,
     [id],
   );
   return r.rows[0] ? parseIdentityRow(puMergeRowSchema, r.rows[0], 'pu_merge_row') : null;
@@ -181,7 +183,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const pool = getPool();
     const canonical = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
     const res = await runIdentityPoolPgText(
-      'SELECT phone_normalized FROM platform_users WHERE id = $1',
+      `SELECT value_normalized AS phone_normalized FROM user_contacts
+       WHERE platform_user_id = $1::uuid AND contact_kind = 'phone' AND is_primary = true`,
       [canonical],
     );
     const p = res.rows[0]
@@ -194,7 +197,10 @@ export const pgUserByPhonePort: UserByPhonePort = {
     const pool = getPool();
     const canonical = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
     const res = await runIdentityPoolPgText(
-      'SELECT email FROM platform_users WHERE id = $1 AND email_verified_at IS NOT NULL',
+      `SELECT uc.value_normalized AS email
+       FROM user_contacts uc
+       WHERE uc.platform_user_id = $1::uuid AND uc.contact_kind = 'email'
+         AND uc.is_primary = true AND uc.confirmed_at IS NOT NULL`,
       [canonical],
     );
     const e = res.rows[0]
@@ -206,8 +212,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
   async isPhoneTrustedForUser(userId: string): Promise<boolean> {
     const rows = await getDrizzle()
       .select({
-        phoneNormalized: platformUsers.phoneNormalized,
-        patientPhoneTrustAt: platformUsers.patientPhoneTrustAt,
+        phoneNormalized: drizzlePrimaryPhoneCol,
+        patientPhoneTrustAt: drizzlePrimaryPhoneConfirmedAtCol,
       })
       .from(platformUsers)
       .where(eq(platformUsers.id, userId))
@@ -307,18 +313,23 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [displayName, userId],
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await syncUserContactsMirrorWebapp(client, userId);
+          await mutateCanonicalUserContactsWebapp(client, userId, [{
+            action: 'upsert', kind: 'phone', valueNormalized: normalized, isPrimary: true,
+            confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
+            sourceOrigin: 'direct',
+          }]);
           if (options?.phoneNumberProven === true) {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-            await markPatientPhoneTrusted(client, userId);
+            await markPatientPhoneTrusted(client, userId, normalized);
           }
           return { userId, wasCreated: false };
         }
 
         const phoneRow = await runIdentityClientPgText(
           client,
-          `SELECT id, display_name, role FROM platform_users
-         WHERE phone_normalized = $1 AND merged_into_id IS NULL
+          `SELECT pu.id, pu.display_name, pu.role FROM user_contacts uc
+         JOIN platform_users pu ON pu.id = uc.platform_user_id
+         WHERE uc.contact_kind = 'phone' AND uc.value_normalized = $1 AND pu.merged_into_id IS NULL
          FOR UPDATE`,
           [normalized],
         );
@@ -371,13 +382,6 @@ export const pgUserByPhonePort: UserByPhonePort = {
               );
             }
           } else {
-            await runIdentityClientPgText(
-              client,
-              `UPDATE platform_users
-             SET phone_normalized = $1, updated_at = now()
-             WHERE id = $2::uuid`,
-              [normalized, canonicalProfileId],
-            );
             await applyPlatformUserPhoneHistoryTransition(client, {
               platformUserId: canonicalProfileId,
               newPhoneNormalized: normalized,
@@ -404,14 +408,18 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [displayName, userId],
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await syncUserContactsMirrorWebapp(client, userId);
+          await mutateCanonicalUserContactsWebapp(client, userId, [{
+            action: 'upsert', kind: 'phone', valueNormalized: normalized, isPrimary: true,
+            confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
+            sourceOrigin: 'direct',
+          }]);
         } else {
           wasCreated = true;
           const insert = await runIdentityClientPgText(
             client,
-            `INSERT INTO platform_users (phone_normalized, display_name, role)
-           VALUES ($1, $2, 'client') RETURNING id, display_name`,
-            [normalized, parsedContext.displayName ?? normalized],
+            `INSERT INTO platform_users (display_name, role)
+           VALUES ($1, 'client') RETURNING id, display_name`,
+            [parsedContext.displayName ?? normalized],
           );
           const inserted = parseIdentityRow(
             platformUserInsertRowSchema,
@@ -426,7 +434,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
             confirmingChannel: options?.confirmingChannel,
           });
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await syncUserContactsMirrorWebapp(client, userId);
+          await mutateCanonicalUserContactsWebapp(client, userId, [{
+            action: 'upsert', kind: 'phone', valueNormalized: normalized, isPrimary: true,
+            confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
+            sourceOrigin: 'direct',
+          }]);
         }
 
         if (key) {
@@ -472,7 +484,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
         if (options?.phoneNumberProven === true) {
           trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
-          await markPatientPhoneTrusted(client, userId);
+          await markPatientPhoneTrusted(client, userId, normalized);
         }
         return { userId, wasCreated };
       });

@@ -29,7 +29,6 @@ import {
   findCanonicalUserIdByPhone,
   resolveCanonicalUserId,
 } from '@/infra/repos/pgCanonicalPlatformUser';
-import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
 import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { channelToBindingKey } from '@/modules/auth/channelContext';
@@ -219,11 +218,6 @@ async function applyMessengerContactPreOtpImpl(
           (await resolveCanonicalUserId(clientDb, canonicalSession)) ?? canonicalSession;
       }
     }
-    await runIdentityClientPgText(
-      client,
-      `UPDATE platform_users SET phone_normalized = $1, updated_at = now() WHERE id = $2::uuid`,
-      [params.phoneNormalized, canonicalSession],
-    );
     await applyPlatformUserPhoneHistoryTransition(client, {
       platformUserId: canonicalSession,
       newPhoneNormalized: params.phoneNormalized,
@@ -244,7 +238,6 @@ async function applyMessengerContactPreOtpImpl(
     if (boundUserId && boundUserId !== canonicalSession) {
       return { ok: false, code: 'channel_owned_by_other_user' };
     }
-    await syncUserContactsMirrorWebapp(client, canonicalSession);
     await upsertBroadcastDefaultsAfterChannelBind(clientDb, canonicalSession, channelCode);
     return { ok: true, accountCreated: false };
   }
@@ -316,15 +309,6 @@ async function applyMessengerContactPreOtpImpl(
   let accountCreated = false;
   if (bindingOwnerId && !phoneOwnerId) {
     userId = (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
-    await runIdentityClientPgText(
-      client,
-      `UPDATE platform_users
-       SET phone_normalized = $1,
-           patient_phone_trust_at = COALESCE(patient_phone_trust_at, now()),
-           updated_at = now()
-       WHERE id = $2::uuid`,
-      [params.phoneNormalized, userId],
-    );
     await applyPlatformUserPhoneHistoryTransition(client, {
       platformUserId: userId,
       newPhoneNormalized: params.phoneNormalized,
@@ -336,9 +320,9 @@ async function applyMessengerContactPreOtpImpl(
   } else {
     const insert = await runIdentityClientPgText(
       client,
-      `INSERT INTO platform_users (phone_normalized, display_name, role)
-       VALUES ($1, $2, 'client') RETURNING id`,
-      [params.phoneNormalized, params.phoneNormalized],
+      `INSERT INTO platform_users (display_name, role)
+       VALUES ($1, 'client') RETURNING id`,
+      [params.phoneNormalized],
     );
     userId = parseIdentityRow(platformUserIdRowSchema, insert.rows[0], 'insert_phone_user').id;
     accountCreated = true;
@@ -379,7 +363,6 @@ async function applyMessengerContactPreOtpImpl(
      ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
     [userId, channelCode, params.externalId],
   );
-  await syncUserContactsMirrorWebapp(client, userId);
   await upsertBroadcastDefaultsAfterChannelBind(clientDb, userId, channelCode);
   return { ok: true, accountCreated };
 }

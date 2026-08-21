@@ -37,7 +37,6 @@ import {
   runWebappNamedRoot,
 } from '@/infra/db/runWebappSql';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
-import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
 import { loadSessionIdentityUser } from '@/infra/repos/pgUserByPhone';
 
 async function collectMessengerResolutionCandidates(
@@ -140,7 +139,6 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
           ).id;
           insertedNewPlatformUser = true;
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await syncUserContactsMirrorWebapp(client, userId);
         }
         const insBinding = await runIdentityClientPgText(
           client,
@@ -152,7 +150,6 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
         );
         if (insBinding.rows.length > 0) {
           await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, parsed.channelCode);
-          await syncUserContactsMirrorWebapp(client, userId);
           if (insertedNewPlatformUser) {
             accountOutcome = 'created';
           }

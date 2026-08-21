@@ -6,6 +6,7 @@ import {
   orgEnrollments,
   platformUsers,
   userChannelBindings,
+  userContacts,
 } from '../schema/integratorPublicProduct.js';
 
 /** Match webapp canonical merge-chain guard (`pgCanonicalPlatformUser.ts`). */
@@ -81,9 +82,9 @@ export async function getChannelBindingLinkData(
   const d = getIntegratorDrizzleSession(db);
   const [userRows, bindingRows] = await Promise.all([
     d
-      .select({ phoneNormalized: platformUsers.phoneNormalized })
-      .from(platformUsers)
-      .where(eq(platformUsers.id, platformUserId))
+      .select({ phoneNormalized: userContacts.valueNormalized })
+      .from(userContacts)
+      .where(and(eq(userContacts.platformUserId, platformUserId), eq(userContacts.contactKind, 'phone'), eq(userContacts.isPrimary, true)))
       .limit(1),
     d
       .select({ displayHandle: userChannelBindings.displayHandle })
@@ -122,10 +123,11 @@ export async function findChannelBindingByPhone(
     sql`SELECT pu.id::text AS user_id,
                ucb.external_id,
                ucb.display_handle,
-               pu.phone_normalized
+               uc.value_normalized AS phone_normalized
         FROM public.platform_users pu
+        INNER JOIN public.user_contacts uc ON uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary
         INNER JOIN public.user_channel_bindings ucb ON ucb.user_id = pu.id
-        WHERE pu.phone_normalized = ${input.phoneNormalized}
+        WHERE uc.value_normalized = ${input.phoneNormalized}
           AND pu.merged_into_id IS NULL
           AND ucb.channel_code = ${channelCode}
         ORDER BY ucb.external_id

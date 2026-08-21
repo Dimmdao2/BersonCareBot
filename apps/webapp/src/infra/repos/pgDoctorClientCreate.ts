@@ -3,7 +3,8 @@ import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
   drizzlePrimaryPhoneCol,
-  syncUserContactsMirrorWebapp,
+  drizzlePrimaryEmailCol,
+  mutateCanonicalUserContactsWebapp,
 } from '@/infra/repos/userContactsSql';
 import { formatDoctorFio, normalizeFioPart } from '@/shared/lib/fio';
 import { platformUsers, userIdentity, userPhoneHistory } from '../../../db/schema/schema';
@@ -61,15 +62,11 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     const [inserted] = await tx
       .insert(platformUsers)
       .values({
-        phoneNormalized: null,
-        email: null,
-        emailNormalized: null,
         displayName,
         lastName,
         firstName,
         patronymic,
         role: 'client',
-        patientPhoneTrustAt: null,
       })
       .returning({
         id: platformUsers.id,
@@ -80,7 +77,6 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       });
     if (!inserted) throw new DoctorClientIdentityError('create_failed');
     await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
-    await syncUserContactsMirrorWebapp(tx, inserted.id);
     return {
       userId: inserted.id,
       displayName: inserted.displayName,
@@ -124,7 +120,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       .from(platformUsers)
       .where(
         and(
-          eq(platformUsers.emailNormalized, input.emailNormalized),
+          eq(drizzlePrimaryEmailCol, input.emailNormalized),
           isNull(platformUsers.mergedIntoId),
         ),
       )
@@ -158,15 +154,11 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
       const [row] = await savepointTx
         .insert(platformUsers)
         .values({
-          phoneNormalized,
           displayName,
           lastName,
           firstName,
           patronymic,
-          email: input.emailRaw,
-          emailNormalized: input.emailNormalized,
           role: 'client',
-          patientPhoneTrustAt: new Date().toISOString(),
         })
         .returning({
           id: platformUsers.id,
@@ -183,12 +175,22 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
         source: 'admin',
       });
       await syncUserIdentityFioMirrorWebapp(savepointTx, row.id);
-      await syncUserContactsMirrorWebapp(savepointTx, row.id);
+      await mutateCanonicalUserContactsWebapp(savepointTx, row.id, [{
+        action: 'upsert', kind: 'phone', valueNormalized: phoneNormalized, isPrimary: true,
+        confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
+      }, ...(input.emailNormalized ? [{
+        action: 'upsert' as const,
+        kind: 'email' as const,
+        valueNormalized: input.emailNormalized,
+        isPrimary: true,
+        confirmedAt: null,
+        sourceOrigin: 'direct' as const,
+      }] : [])]);
       return row;
     });
   } catch (error) {
-    // After 0380 uniqueness lives on user_contacts (mirror sync), not platform_users.phone_normalized.
-    // The savepoint rolls back insert + mirror attempt; outer TX re-reads the concurrent owner.
+    // Canonical uniqueness lives on user_contacts. The savepoint rolls back the new account and
+    // contact attempt; the outer transaction then re-reads the concurrent owner.
     if (!isPhoneUniqueViolation(error)) throw error;
     const concurrent = await findByPhone();
     if (!concurrent) throw error;

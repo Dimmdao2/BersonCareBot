@@ -144,7 +144,12 @@ async function ensureTestAccountEmail(client, account) {
   const existing = await client.query(
     `SELECT id::text AS user_id
      FROM public.platform_users
-     WHERE email_normalized = $1
+     WHERE EXISTS (
+       SELECT 1 FROM public.user_contacts AS contact
+       WHERE contact.platform_user_id = platform_users.id
+         AND contact.contact_kind = 'email'
+         AND contact.value_normalized = $1
+     )
        AND merged_into_id IS NULL
        AND is_archived IS FALSE`,
     [account.email],
@@ -157,7 +162,12 @@ async function ensureTestAccountEmail(client, account) {
   const fallback = await client.query(
     `SELECT id::text AS user_id, role
      FROM public.platform_users
-     WHERE phone_normalized = $1
+     WHERE EXISTS (
+       SELECT 1 FROM public.user_contacts AS contact
+       WHERE contact.platform_user_id = platform_users.id
+         AND contact.contact_kind = 'phone'
+         AND contact.value_normalized = $1
+     )
        AND merged_into_id IS NULL
        AND is_archived IS FALSE
      FOR UPDATE`,
@@ -176,12 +186,16 @@ async function ensureTestAccountEmail(client, account) {
   if (conflict.rows.some((row) => row.user_id !== userId)) fail('duplicate_actor_email');
 
   await client.query(
-    `UPDATE public.platform_users
-     SET email = $1,
-         email_normalized = $1,
-         email_verified_at = COALESCE(email_verified_at, statement_timestamp()),
+    `INSERT INTO public.user_contacts (
+       platform_user_id, contact_kind, value_normalized, is_primary,
+       confirmed_at, source_origin, updated_at
+     ) VALUES ($2::uuid, 'email', $1, true, statement_timestamp(), 'direct', statement_timestamp())
+     ON CONFLICT (value_normalized) WHERE contact_kind = 'email' DO UPDATE
+     SET is_primary = true,
+         confirmed_at = COALESCE(user_contacts.confirmed_at, EXCLUDED.confirmed_at),
+         source_origin = 'direct',
          updated_at = statement_timestamp()
-     WHERE id = $2::uuid`,
+     WHERE user_contacts.platform_user_id = EXCLUDED.platform_user_id`,
     [account.email, userId],
   );
 }
@@ -192,7 +206,7 @@ async function findAccountFact(client, account) {
     `SELECT
        users.id::text AS user_id,
        users.role,
-       (users.email_verified_at IS NOT NULL) AS email_verified,
+       (email_contact.confirmed_at IS NOT NULL) AS email_verified,
        users.is_blocked,
        count(*) FILTER (
          WHERE memberships.status = 'active'
@@ -209,10 +223,14 @@ async function findAccountFact(client, account) {
      FROM public.platform_users AS users
      LEFT JOIN public.be_organization_members AS memberships
        ON memberships.platform_user_id = users.id
-     WHERE users.email_normalized = $1
+     INNER JOIN public.user_contacts AS email_contact
+       ON email_contact.platform_user_id = users.id
+      AND email_contact.contact_kind = 'email'
+      AND email_contact.value_normalized = $1
+     WHERE true
        AND users.merged_into_id IS NULL
        AND users.is_archived IS FALSE
-     GROUP BY users.id, users.role, users.email_verified_at, users.is_blocked`,
+     GROUP BY users.id, users.role, email_contact.confirmed_at, users.is_blocked`,
     [account.email],
   );
   if (result.rows.length !== 1) fail('account_not_ready');
@@ -238,17 +256,15 @@ async function convergeAccount(client, account) {
        platform_user_id, contact_kind, value_normalized, is_primary,
        confirmed_at, source_origin, updated_at
      )
-     SELECT id, 'email', email_normalized, true,
-            email_verified_at, 'platform_users', statement_timestamp()
-     FROM public.platform_users
-     WHERE id = $1::uuid
+     VALUES ($1::uuid, 'email', $2, true,
+             statement_timestamp(), 'direct', statement_timestamp())
      ON CONFLICT (value_normalized) WHERE contact_kind = 'email' DO UPDATE
-     SET platform_user_id = EXCLUDED.platform_user_id,
-         is_primary = true,
+     SET is_primary = true,
          confirmed_at = EXCLUDED.confirmed_at,
-         source_origin = 'platform_users',
-         updated_at = statement_timestamp()`,
-    [fact.user_id],
+         source_origin = 'direct',
+         updated_at = statement_timestamp()
+     WHERE user_contacts.platform_user_id = EXCLUDED.platform_user_id`,
+    [fact.user_id, account.email],
   );
 
   const credentialResult = await client.query(

@@ -96,26 +96,32 @@ async function seed() {
     await client.query('BEGIN');
 
     for (const u of FAKE_CLIENTS) {
-      // phone_normalized unique constraint is DEFERRABLE so ON CONFLICT DO UPDATE is
-      // not usable; use explicit select + insert/update pattern.
       const existing = await client.query(
-        `SELECT id FROM platform_users WHERE phone_normalized = $1`,
+        `SELECT platform_user_id AS id FROM user_contacts
+         WHERE contact_kind = 'phone' AND value_normalized = $1`,
         [u.phone_normalized],
       );
       if (existing.rows.length > 0) {
         await client.query(
           `UPDATE platform_users
            SET display_name = $1, first_name = $2, last_name = $3, updated_at = now()
-           WHERE phone_normalized = $4`,
-          [u.display_name, u.first_name, u.last_name, u.phone_normalized],
+           WHERE id = $4::uuid`,
+          [u.display_name, u.first_name, u.last_name, existing.rows[0].id],
         );
         console.log(`  ↺  ${u.display_name} (${u.phone_normalized}) → updated`);
       } else {
         await client.query(
           `INSERT INTO platform_users
-             (id, phone_normalized, display_name, first_name, last_name, role)
-           VALUES ($1, $2, $3, $4, $5, 'client')`,
-          [u.id, u.phone_normalized, u.display_name, u.first_name, u.last_name],
+             (id, display_name, first_name, last_name, role)
+           VALUES ($1, $2, $3, $4, 'client')`,
+          [u.id, u.display_name, u.first_name, u.last_name],
+        );
+        await client.query(
+          `INSERT INTO user_contacts (
+             platform_user_id, contact_kind, value_normalized, is_primary,
+             confirmed_at, source_origin, updated_at
+           ) VALUES ($1, 'phone', $2, true, now(), 'direct', now())`,
+          [u.id, u.phone_normalized],
         );
         console.log(`  ✓  ${u.display_name} (${u.phone_normalized}) → ${u.id}`);
       }
@@ -130,25 +136,41 @@ async function seed() {
     );
     if (existingDevBypassUser.rows.length === 0) {
       await client.query(
-        `INSERT INTO platform_users (id, phone_normalized, display_name, role)
-         VALUES ($1, $2, $3, 'client')`,
+        `INSERT INTO platform_users (id, display_name, role)
+         VALUES ($1, $2, 'client')`,
         [
           DEV_BYPASS_CLIENT.id,
-          DEV_BYPASS_CLIENT.phone_normalized,
           DEV_BYPASS_CLIENT.display_name,
         ],
+      );
+      await client.query(
+        `INSERT INTO user_contacts (
+           platform_user_id, contact_kind, value_normalized, is_primary,
+           confirmed_at, source_origin, updated_at
+         ) VALUES ($1, 'phone', $2, true, now(), 'direct', now())`,
+        [DEV_BYPASS_CLIENT.id, DEV_BYPASS_CLIENT.phone_normalized],
       );
       console.log(`  ✓  dev:client (${DEV_BYPASS_CLIENT.phone_normalized}) → created`);
     } else {
       await client.query(
         `UPDATE platform_users
-         SET phone_normalized = $2, display_name = $3, role = 'client', updated_at = now()
+         SET display_name = $2, role = 'client', updated_at = now()
          WHERE id = $1`,
         [
           DEV_BYPASS_CLIENT.id,
-          DEV_BYPASS_CLIENT.phone_normalized,
           DEV_BYPASS_CLIENT.display_name,
         ],
+      );
+      await client.query(
+        `INSERT INTO user_contacts (
+           platform_user_id, contact_kind, value_normalized, is_primary,
+           confirmed_at, source_origin, updated_at
+         ) VALUES ($1, 'phone', $2, true, now(), 'direct', now())
+         ON CONFLICT (value_normalized) WHERE contact_kind = 'phone' DO UPDATE
+         SET is_primary = true, confirmed_at = COALESCE(user_contacts.confirmed_at, EXCLUDED.confirmed_at),
+             source_origin = 'direct', updated_at = now()
+         WHERE user_contacts.platform_user_id = EXCLUDED.platform_user_id`,
+        [DEV_BYPASS_CLIENT.id, DEV_BYPASS_CLIENT.phone_normalized],
       );
       console.log(`  ↺  dev:client (${DEV_BYPASS_CLIENT.phone_normalized}) → updated`);
     }

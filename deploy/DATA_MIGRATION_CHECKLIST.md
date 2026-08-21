@@ -25,7 +25,7 @@
 
 | #   | Скрипт                                                                  | Что переносит                                                                                                            |
 | --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| 1   | `pnpm --dir apps/webapp run backfill-person-domain -- --commit`         | Карточки пользователей, контакты, привязки мессенджеров (channel bindings), настройки уведомлений (notification topics). |
+| 1   | `backfill-person-domain` — завершён и удалён D15b/6                      | Исторический перенос закрыт; canonical phone/e-mail теперь живут только в `user_contacts`. |
 | 2   | `pnpm --dir apps/webapp run backfill-communication-history -- --commit` | История поддержки: треды, сообщения, вопросы.                                                                            |
 | 3   | `pnpm --dir apps/webapp run backfill-reminders-domain -- --commit`      | Правила напоминаний, история срабатываний, доступ к контенту.                                                            |
 | 4   | `pnpm --dir apps/webapp run backfill-appointments-domain -- --commit`   | Записи на приём (appointment records).                                                                                   |
@@ -37,7 +37,6 @@ Subscription/mailing backfill больше не является активны�
 Опции (по необходимости):
 
 - `--limit=N` — ограничить число строк (для теста).
-- `--user-id=ID` — только для backfill-person-domain: перенести одного пользователя.
 
 ### 2. Reconcile (проверка целостности)
 
@@ -73,7 +72,7 @@ Mailing/subscription source and projection tables were retired migration-forward
 
 ## Сохранность данных
 
-- **Карточки и настройки пользователей:** backfill-person-domain переносит users → platform*users, identities/contacts → bindings, telegram_state (notify*_) → user*notification_topics (topic_code). Reconcile-person-domain сравнивает по integrator_user_id, phone, display_name, bindings, topics (с маппингом notify*_ → topic_code).
+- **Карточки и настройки пользователей:** исторический `backfill-person-domain` завершён и удалён; повторный импорт контактов из provider/history источников запрещён D15b/6. `reconcile-person-domain` остаётся только для не-контактных проекций до своего отдельного этапа.
 - **История записей на приём:** historical backfill переносил provider records в `appointment_records` по `integrator_record_id`; внешний источник выведен 2026-07-27.
 
 Оставшиеся активные backfill-скрипты используют upsert/ON CONFLICT; повторный запуск с `--commit` безопасен и не дублирует записи при корректных ключах.

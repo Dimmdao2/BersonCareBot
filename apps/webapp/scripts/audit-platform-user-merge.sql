@@ -12,7 +12,9 @@ WHERE appointment.phone_normalized IS NOT NULL
   AND NOT EXISTS (
     SELECT 1
     FROM platform_users pu
-    WHERE pu.phone_normalized = appointment.phone_normalized
+    JOIN user_contacts contact ON contact.platform_user_id = pu.id
+    WHERE contact.contact_kind = 'phone'
+      AND contact.value_normalized = appointment.phone_normalized
       AND pu.merged_into_id IS NULL
   );
 
@@ -41,12 +43,13 @@ WHERE platform_user_id IS NULL;
 -- 3) duplicate canonical users by strong identifiers
 SELECT
   'duplicate_canonical_phone' AS check_name,
-  phone_normalized AS key,
+  contact.value_normalized AS key,
   COUNT(*)::bigint AS row_count
-FROM platform_users
-WHERE phone_normalized IS NOT NULL
-  AND merged_into_id IS NULL
-GROUP BY phone_normalized
+FROM user_contacts contact
+JOIN platform_users pu ON pu.id = contact.platform_user_id
+WHERE contact.contact_kind = 'phone'
+  AND pu.merged_into_id IS NULL
+GROUP BY contact.value_normalized
 HAVING COUNT(*) > 1
 ORDER BY row_count DESC, key;
 

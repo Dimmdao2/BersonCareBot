@@ -962,7 +962,7 @@ export async function searchMergeCandidates(
       AND (
         pu.id::text ILIKE $${p}
         OR ${CONTACTS.phoneNormalized} ILIKE $${p}
-        OR pu.email ILIKE $${p}
+        OR ${CONTACTS.email} ILIKE $${p}
         OR ${FIO.displayName} ILIKE $${p}
         OR ${FIO.firstName} ILIKE $${p}
         OR ${FIO.lastName} ILIKE $${p}
@@ -977,7 +977,7 @@ export async function searchMergeCandidates(
 
   const sql = `
     WITH anchor AS (
-      SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.email, pu.integrator_user_id
+      SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, ${CONTACTS.email} AS email, pu.integrator_user_id
       FROM platform_users pu
       ${USER_CONTACTS_PRIMARY_LATERALS}
       WHERE pu.id = $1::uuid
@@ -985,7 +985,7 @@ export async function searchMergeCandidates(
     SELECT pu.id,
            ${FIO.displayName} AS display_name,
            ${CONTACTS.phoneNormalized} AS phone_normalized,
-           pu.email,
+           ${CONTACTS.email} AS email,
            pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu, anchor
@@ -997,8 +997,8 @@ export async function searchMergeCandidates(
       AND (
         (anchor.phone_normalized IS NOT NULL AND ${CONTACTS.phoneNormalized} IS NOT DISTINCT FROM anchor.phone_normalized)
         OR (
-          anchor.email IS NOT NULL AND pu.email IS NOT NULL
-          AND lower(trim(pu.email)) = lower(trim(anchor.email))
+          anchor.email IS NOT NULL AND ${CONTACTS.email} IS NOT NULL
+          AND lower(trim(${CONTACTS.email})) = lower(trim(anchor.email))
         )
         OR (
           anchor.integrator_user_id IS NOT NULL
@@ -1041,7 +1041,7 @@ export async function searchMergeUsersForManualMerge(
     SELECT pu.id,
            ${FIO.displayName} AS display_name,
            ${CONTACTS.phoneNormalized} AS phone_normalized,
-           pu.email,
+           ${CONTACTS.email} AS email,
            pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu
@@ -1052,7 +1052,7 @@ export async function searchMergeUsersForManualMerge(
       AND (
         pu.id::text ILIKE $1
         OR ${CONTACTS.phoneNormalized} ILIKE $1
-        OR pu.email ILIKE $1
+        OR ${CONTACTS.email} ILIKE $1
         OR ${FIO.displayName} ILIKE $1
         OR ${FIO.firstName} ILIKE $1
         OR ${FIO.lastName} ILIKE $1

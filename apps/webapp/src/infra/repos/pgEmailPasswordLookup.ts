@@ -83,7 +83,11 @@ async function recordEmailAuthConflict(params: {
 async function loadEmailAuthStateRows(emailNormalized: string): Promise<EmailAuthStateRow[]> {
   const r = await runWebappPgText<EmailAuthStateRow>(
     `SELECT pu.id::text AS id,
-            (pu.email_verified_at IS NOT NULL OR fpu.matched_primary = false) AS email_verified,
+            (EXISTS (
+              SELECT 1 FROM user_contacts uc
+              WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'email'
+                AND uc.is_primary = true AND uc.confirmed_at IS NOT NULL
+            ) OR fpu.matched_primary = false) AS email_verified,
             EXISTS (
               SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id
             ) AS has_password

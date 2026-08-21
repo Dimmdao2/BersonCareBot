@@ -1,6 +1,6 @@
 import type { PoolClient } from 'pg';
 import { sql } from 'drizzle-orm';
-import { syncUserContactsMirror, type MergeSqlExecutor } from '@bersoncare/platform-merge';
+import { mutateCanonicalUserContacts, type CanonicalContactMutation, type MergeSqlExecutor } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
   runWebappSql,
@@ -10,7 +10,7 @@ import { platformUsers, userContacts } from '../../../db/schema/schema';
 
 /** Lateral join for primary phone on `platform_users` aliased as `pu`. */
 export const USER_CONTACTS_PRIMARY_PHONE_LATERAL = `LEFT JOIN LATERAL (
-  SELECT uc.value_normalized
+  SELECT uc.value_normalized, uc.confirmed_at
   FROM user_contacts uc
   WHERE uc.platform_user_id = pu.id
     AND uc.contact_kind = 'phone'
@@ -20,7 +20,7 @@ export const USER_CONTACTS_PRIMARY_PHONE_LATERAL = `LEFT JOIN LATERAL (
 
 /** Lateral join for primary email on `platform_users` aliased as `pu`. */
 export const USER_CONTACTS_PRIMARY_EMAIL_LATERAL = `LEFT JOIN LATERAL (
-  SELECT uc.value_normalized
+  SELECT uc.value_normalized, uc.confirmed_at
   FROM user_contacts uc
   WHERE uc.platform_user_id = pu.id
     AND uc.contact_kind = 'email'
@@ -42,7 +42,10 @@ export const USER_CONTACTS_PRIMARY_LATERALS = `${USER_CONTACTS_PRIMARY_PHONE_LAT
  */
 export const CONTACTS = {
   phoneNormalized: 'uc_pri_phone.value_normalized',
+  phoneConfirmedAt: 'uc_pri_phone.confirmed_at',
+  email: 'uc_pri_email.value_normalized',
   emailNormalized: 'uc_pri_email.value_normalized',
+  emailVerifiedAt: 'uc_pri_email.confirmed_at',
 } as const;
 
 /** Non-empty primary phone (requires phone lateral). */
@@ -69,13 +72,14 @@ function webappMergeSqlExecutor(db: WebappSqlExecutor): MergeSqlExecutor {
   };
 }
 
-/** Rebuild `user_contacts` from four sources after a contact write (D15b/6 dual-write). */
-export async function syncUserContactsMirrorWebapp(
+/** Webapp adapter for the single canonical contact mutation root. */
+export async function mutateCanonicalUserContactsWebapp(
   executor: WebappSqlExecutor | PoolClient,
   platformUserId: string,
+  mutations: readonly CanonicalContactMutation[],
 ): Promise<void> {
   const db = resolveWebappSqlExecutor(executor);
-  await syncUserContactsMirror(webappMergeSqlExecutor(db), platformUserId);
+  await mutateCanonicalUserContacts(webappMergeSqlExecutor(db), platformUserId, mutations);
 }
 
 /** Drizzle primary phone for the user (reads `user_contacts` only). */
@@ -87,10 +91,24 @@ export const drizzlePrimaryPhoneCol = sql<string | null>`(
    LIMIT 1
 )`;
 
+export const drizzlePrimaryPhoneConfirmedAtCol = sql<string | null>`(
+  SELECT ${userContacts.confirmedAt} FROM ${userContacts}
+   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
+     AND ${userContacts.contactKind} = 'phone' AND ${userContacts.isPrimary} = true
+   LIMIT 1
+)`;
+
 export const drizzlePrimaryEmailCol = sql<string | null>`(
   SELECT ${userContacts.valueNormalized} FROM ${userContacts}
    WHERE ${userContacts.platformUserId} = ${platformUsers.id}
      AND ${userContacts.contactKind} = 'email'
      AND ${userContacts.isPrimary} = true
+   LIMIT 1
+)`;
+
+export const drizzlePrimaryEmailConfirmedAtCol = sql<string | null>`(
+  SELECT ${userContacts.confirmedAt} FROM ${userContacts}
+   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
+     AND ${userContacts.contactKind} = 'email' AND ${userContacts.isPrimary} = true
    LIMIT 1
 )`;

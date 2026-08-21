@@ -10,8 +10,8 @@ import { withPoolTransaction } from '@/infra/db/withClient';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import {
   CONTACTS,
-  syncUserContactsMirrorWebapp,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+  mutateCanonicalUserContactsWebapp,
 } from '@/infra/repos/userContactsSql';
 
 export class ChannelLinkClaimRejectedError extends Error {
@@ -264,11 +264,11 @@ export async function claimMessengerChannelBindingInTransaction(
 
   await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), tokenUserId, channelCode);
 
+  await mutateCanonicalUserContactsWebapp(client, stubUserId, [{ action: 'remove-all' }]);
+
   await runWebappPgText(
     `UPDATE platform_users
-     SET phone_normalized = NULL,
-         patient_phone_trust_at = NULL,
-         integrator_user_id = NULL,
+     SET integrator_user_id = NULL,
          merged_into_id = $1::uuid,
          merged_at = now(),
          updated_at = now()
@@ -283,6 +283,4 @@ export async function claimMessengerChannelBindingInTransaction(
     db,
   );
 
-  await syncUserContactsMirrorWebapp(client, tokenUserId);
-  await syncUserContactsMirrorWebapp(client, stubUserId);
 }
