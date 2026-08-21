@@ -1,5 +1,4 @@
--- BCB-MIGRATION-OWNER: app_object_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-BACKFILL
 -- BCB-MIGRATION-VERIFY: SELECT count(*) = 0 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'platform_users' AND column_name IN ('phone_normalized', 'email', 'email_normalized', 'email_verified_at', 'patient_phone_trust_at')
 --
 -- D15b/6: user_contacts is the sole physical phone/e-mail authority.  Function bodies below are
@@ -34,7 +33,7 @@ BEGIN
 END
 $d15b6_contact_ownership$;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 INSERT INTO public.user_contacts (
   platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at
 )
@@ -47,7 +46,7 @@ DO UPDATE SET
   updated_at = now()
 WHERE public.user_contacts.platform_user_id = EXCLUDED.platform_user_id;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 INSERT INTO public.user_contacts (
   platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at
 )
@@ -60,7 +59,7 @@ DO UPDATE SET
   updated_at = now()
 WHERE public.user_contacts.platform_user_id = EXCLUDED.platform_user_id;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 DO $d15b6_preserved_legacy_contacts$
 DECLARE
   v_unpreserved bigint;
@@ -86,7 +85,7 @@ BEGIN
 END
 $d15b6_preserved_legacy_contacts$;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 WITH primary_contacts AS (
   SELECT person.id,
     phone.value_normalized AS phone_normalized,
@@ -128,7 +127,7 @@ WHERE canonical.id = person.id
     OR person.email IS DISTINCT FROM canonical.email_normalized
   );
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 DO $d15b6_parity$
 DECLARE
   v_mismatches bigint;
@@ -179,7 +178,7 @@ $d15b6_parity$;
 -- BCB-MIGRATION-OWNER: app_object_owner
 ALTER TABLE public.user_contacts DROP CONSTRAINT user_contacts_source_origin_check;
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-BACKFILL
 UPDATE public.user_contacts
 SET source_origin = CASE WHEN source_origin = 'oauth_binding' THEN 'oauth' ELSE 'direct' END,
     updated_at = now()
