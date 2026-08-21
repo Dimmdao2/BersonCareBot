@@ -5,6 +5,10 @@
 `wt/d15b6-audit-20260821`, где поверх product SHA допустимы только audit/brief/queue docs и integration merges;
 это не product-fix и не применение миграции.
 
+Классификация «тест или взгляд»: это разовое live-действие. Оракул — терминальный результат штатного
+owner-aware rollback-only wrapper, проверка неизменности migration blob и отсутствие ledger/apply; новый тест и
+blind fault injection не нужны.
+
 Перед действием прочитать карту `AGENTS.md`, затем §1/§1b (migration + named DEV), §5/§6, §9–§10 и §24;
 прочитать `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`,
 `deploy/HOST_DEPLOY_README.md`, `deploy/host/migrate-dev.sh` и снова проверить более поздние owner-решения в
