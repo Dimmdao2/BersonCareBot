@@ -1,4 +1,6 @@
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT app.read_integrator_provider_runtime_setting('vk_callback_secret');
 -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.read_integrator_clinic_delivery_credential(text,uuid)');
 CREATE OR REPLACE FUNCTION app.read_integrator_provider_runtime_setting(p_key text) RETURNS jsonb
@@ -23,6 +25,8 @@ END $_$;
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(p_key text, p_organization_id uuid) RETURNS jsonb
     LANGUAGE plpgsql STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
@@ -54,6 +58,7 @@ $$;
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT app.read_patient_reminder_delivery_target_snapshot('00000000-0000-4000-8000-000000000000'::uuid, '00000000-0000-4000-8000-000000000000'::uuid, 0, 'warmup_reminders', now());
 CREATE OR REPLACE FUNCTION app.read_patient_reminder_delivery_target_snapshot(p_organization_id uuid, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone)
@@ -196,6 +201,7 @@ ALTER TABLE public.user_notification_topic_channels
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.set_current_patient_notification_topic_channel(text,text,boolean)');
 CREATE OR REPLACE FUNCTION app.set_current_patient_notification_topic_channel(p_topic_code text, p_channel_code text, p_is_enabled boolean) RETURNS boolean
@@ -248,6 +254,8 @@ $_$
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT pg_get_functiondef('app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)'::regprocedure) LIKE '%''vk''%';
 DO $bcb_vk_reminder_commit$
 DECLARE

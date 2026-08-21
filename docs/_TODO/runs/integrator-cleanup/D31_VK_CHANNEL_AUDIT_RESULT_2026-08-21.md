@@ -128,3 +128,89 @@ No DEV/TEST/PROD database, live VK endpoint, real secret, disposable database, o
 Official protocol oracle: VK's primary
 [`callback/objects.json`](https://github.com/VKCOM/vk-api-schema/blob/master/callback/objects.json) and
 [`messages/methods.json`](https://github.com/VKCOM/vk-api-schema/blob/master/messages/methods.json).
+
+## Owner-execution metadata correction (2026-08-21, same-branch mechanical worker)
+
+Product SHA `e8009c501` preserved untouched. Added only owner-execution capability metadata
+(`BCB-MIGRATION-SCHEMA-CREATE: app` / `BCB-MIGRATION-LANGUAGE-USAGE: plpgsql`) to five statements in
+`apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql`, ordered OWNER → SCHEMA-CREATE →
+LANGUAGE-USAGE → VERIFY (matching the convention already used across the repo's other migrations, e.g.
+`20260821T001200_parameterize_integrator_outgoing_delivery_enqueue.sql`). No executable SQL, body, order, owner,
+verify statement, or breakpoint was changed.
+
+### Diff
+
+```diff
+diff --git a/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql b/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql
+index b3d379d76..7dfb0c2da 100644
+--- a/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql
++++ b/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql
+@@ -1,4 +1,6 @@
+ -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
++-- BCB-MIGRATION-SCHEMA-CREATE: app
++-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+ -- BCB-MIGRATION-VERIFY: SELECT app.read_integrator_provider_runtime_setting('vk_callback_secret');
+ -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.read_integrator_clinic_delivery_credential(text,uuid)');
+ CREATE OR REPLACE FUNCTION app.read_integrator_provider_runtime_setting(p_key text) RETURNS jsonb
+@@ -23,6 +25,8 @@ END $_$;
+ --> statement-breakpoint
+ 
+ -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
++-- BCB-MIGRATION-SCHEMA-CREATE: app
++-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+ CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(p_key text, p_organization_id uuid) RETURNS jsonb
+     LANGUAGE plpgsql STABLE SECURITY DEFINER
+     SET search_path TO 'pg_catalog'
+@@ -54,6 +58,7 @@ $$;
+ --> statement-breakpoint
+ 
+ -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
++-- BCB-MIGRATION-SCHEMA-CREATE: app
+ -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+ -- BCB-MIGRATION-VERIFY: SELECT app.read_patient_reminder_delivery_target_snapshot('00000000-0000-4000-8000-000000000000'::uuid, '00000000-0000-4000-8000-000000000000'::uuid, 0, 'warmup_reminders', now());
+ CREATE OR REPLACE FUNCTION app.read_patient_reminder_delivery_target_snapshot(p_organization_id uuid, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone)
+@@ -196,6 +201,7 @@ ALTER TABLE public.user_notification_topic_channels
+ --> statement-breakpoint
+ 
+ -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
++-- BCB-MIGRATION-SCHEMA-CREATE: app
+ -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+ -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.set_current_patient_notification_topic_channel(text,text,boolean)');
+ CREATE OR REPLACE FUNCTION app.set_current_patient_notification_topic_channel(p_topic_code text, p_channel_code text, p_is_enabled boolean) RETURNS boolean
+@@ -248,6 +254,8 @@ $_$
+ --> statement-breakpoint
+ 
+ -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
++-- BCB-MIGRATION-SCHEMA-CREATE: app
++-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+ -- BCB-MIGRATION-VERIFY: SELECT pg_get_functiondef('app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)'::regprocedure) LIKE '%''vk''%';
+ DO $bcb_vk_reminder_commit$
+ DECLARE
+```
+
+### Byte-identity proof (executable SQL unchanged)
+
+```
+git show HEAD:apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql \
+  | grep -v '^-- BCB-MIGRATION-SCHEMA-CREATE:\|^-- BCB-MIGRATION-LANGUAGE-USAGE:' > /tmp/old_stripped.sql
+cat apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql \
+  | grep -v '^-- BCB-MIGRATION-SCHEMA-CREATE:\|^-- BCB-MIGRATION-LANGUAGE-USAGE:' > /tmp/new_stripped.sql
+diff /tmp/old_stripped.sql /tmp/new_stripped.sql && echo IDENTICAL
+```
+-> `IDENTICAL` (no output from diff, confirming only the two new metadata comment lines per statement were added).
+
+### Commands and observed results
+
+- `node --test deploy/postgres/privileges/migrate-local-parse.test.mjs` -> 5 pass, 1 pre-existing fail
+  (`every function statement in active migrations declares its exact executable language`, statement 1: the
+  product `LANGUAGE plpgsql STABLE SECURITY DEFINER` clause is on one line instead of `LANGUAGE` alone on its own
+  line). Reproduced identically on `git stash` (pre-edit tree), proving this failure predates and is unaffected by
+  this metadata correction; it is a product SQL formatting matter outside this brief's edit scope (forbidden to
+  touch executable SQL/bodies).
+- `node --test deploy/postgres/privileges/migrate-local.test.mjs` -> 29/29 pass.
+- `node --test deploy/postgres/privileges/migrate-local-objects.test.mjs` -> 6/6 pass.
+- `node --test deploy/postgres/privileges/migration-order.test.mjs` -> 22/22 pass.
+- `git diff --check -- apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql` -> clean.
+
+No DB access, named-DEV preflight, migration execute/reapply, fixtures, disposable DB, historical replay,
+TEST/PROD, landing, deploy, push or full CI were performed.
