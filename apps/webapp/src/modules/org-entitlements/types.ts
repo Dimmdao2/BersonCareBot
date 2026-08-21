@@ -68,6 +68,7 @@ export const MECHANIC_REGISTRY = {
   clinic_sms: { class: 'возможность', label: 'Собственный SMS-канал', quotaEnforcement: 'declared_no_enforcement' },
   clinic_telegram_bot: { class: 'возможность', label: 'Собственный Telegram-бот', quotaEnforcement: 'declared_no_enforcement' },
   clinic_max_bot: { class: 'возможность', label: 'Собственный MAX-бот', quotaEnforcement: 'declared_no_enforcement' },
+  clinic_vk_community: { class: 'возможность', label: 'Собственное сообщество VK', quotaEnforcement: 'declared_no_enforcement' },
   patient_app: { class: 'никогда', label: 'Приложение пациента', quotaEnforcement: 'declared_no_enforcement' },
   patient_app_paid_subscription: { class: 'возможность', label: 'Платная подписка пациента', quotaEnforcement: 'declared_no_enforcement' },
   branding: { class: 'возможность', label: 'Брендирование', quotaEnforcement: 'declared_no_enforcement' },

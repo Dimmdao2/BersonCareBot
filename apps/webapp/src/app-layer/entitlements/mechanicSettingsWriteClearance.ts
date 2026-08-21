@@ -44,6 +44,7 @@ const TARIFF_MECHANIC_SETTING_KEYS: Partial<Record<string, readonly OrgMechanic[
   clinic_smsc_api_key: ['clinic_sms'],
   clinic_telegram_bot_token: ['clinic_telegram_bot'],
   clinic_max_bot_api_key: ['clinic_max_bot'],
+  clinic_vk_community_access_token: ['clinic_vk_community'],
   [ORG_CUSTOM_DOMAIN_HOSTNAME_KEY]: ['custom_domain'],
 };
 

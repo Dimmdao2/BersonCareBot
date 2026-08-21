@@ -27,9 +27,10 @@ export type PatientReminderMaterializationOccurrence = {
 };
 
 export type PatientReminderMaterializationTargets = {
-  selectedChannels: readonly ('telegram' | 'max' | 'email' | 'web_push')[];
+  selectedChannels: readonly ('telegram' | 'max' | 'vk' | 'email' | 'web_push')[];
   telegramId?: string;
   maxId?: string;
+  vkId?: string;
   emailRecipient?: string;
 };
 
@@ -190,6 +191,12 @@ export function materializePatientReminderDeliveries(input: {
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
+        delivery: { channels: [channel], maxAttempts: 1 },
+      });
+    } else if (channel === 'vk' && targets.vkId?.trim()) {
+      append(channel, targets.vkId.trim(), {
+        recipient: { userId: targets.vkId.trim() },
+        message: { text: body },
         delivery: { channels: [channel], maxAttempts: 1 },
       });
     } else if (channel === 'email' && targets.emailRecipient?.trim()) {

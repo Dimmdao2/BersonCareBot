@@ -38,7 +38,13 @@ const session = {
 };
 
 function setting(
-  key: 'telegram_bot_token' | 'telegram_webhook_secret' | 'telegram_mode',
+  key:
+    | 'telegram_bot_token'
+    | 'telegram_webhook_secret'
+    | 'telegram_mode'
+    | 'vk_community_access_token'
+    | 'vk_callback_secret'
+    | 'vk_callback_confirmation_token',
   value: string,
 ) {
   return {
@@ -139,5 +145,78 @@ describe('/api/platform/settings Telegram credentials', () => {
     expect(unknownResponse.status).toBe(400);
     await expect(unknownResponse.json()).resolves.toEqual({ ok: false, error: 'invalid_body' });
     expect(fakes.updateSetting).toHaveBeenCalledTimes(3);
+  });
+
+  it('returns and accepts VK credentials without exposing their values', async () => {
+    const values = {
+      vk_community_access_token: 'vk-community-token-must-not-reach-client',
+      vk_callback_secret: 'vk-callback-secret-must-not-reach-client',
+      vk_callback_confirmation_token: 'vk-confirmation-token-must-not-reach-client',
+    } as const;
+    fakes.listSettingsByScope.mockResolvedValue(
+      Object.entries(values).map(([key, value]) => setting(key as keyof typeof values, value)),
+    );
+
+    const getResponse = await GET();
+    const bodyText = await getResponse.text();
+    for (const value of Object.values(values)) expect(bodyText).not.toContain(value);
+    expect(JSON.parse(bodyText)).toMatchObject({
+      settings: [
+        { key: 'vk_community_access_token', valueJson: { value: { configured: true } } },
+        { key: 'vk_callback_secret', valueJson: { value: { configured: true } } },
+        { key: 'vk_callback_confirmation_token', valueJson: { value: { configured: true } } },
+      ],
+    });
+
+    fakes.updateSetting.mockReset();
+    fakes.updateSetting
+      .mockResolvedValueOnce(setting('vk_community_access_token', values.vk_community_access_token))
+      .mockResolvedValueOnce(setting('vk_callback_secret', values.vk_callback_secret))
+      .mockResolvedValueOnce(setting('vk_callback_confirmation_token', values.vk_callback_confirmation_token));
+    for (const [key, value] of Object.entries(values)) {
+      const response = await patch({ key, value: ` ${value} ` });
+      expect(response.status).toBe(200);
+      expect(await response.text()).not.toContain(value);
+    }
+    expect(fakes.updateSetting).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not report or enable VK availability without usable platform credentials', async () => {
+    const availability = {
+      version: 1,
+      integrations: {
+        telegram: true,
+        max: true,
+        vk: true,
+        email: true,
+        smsc: true,
+        web_push: true,
+        google_calendar: true,
+        yandex_calendar: false,
+      },
+    };
+    fakes.listSettingsByScope.mockResolvedValue([
+      {
+        key: 'platform_integration_availability',
+        scope: 'admin' as const,
+        organizationId: null,
+        valueJson: { value: availability },
+        updatedAt: '2026-08-20T00:00:00.000Z',
+        updatedBy: null,
+      },
+    ]);
+
+    const getBody = await (await GET()).json();
+    expect(getBody).toMatchObject({
+      settings: [{ key: 'platform_integration_availability', valueJson: { value: { integrations: { vk: false } } } }],
+    });
+
+    const patchResponse = await patch({ key: 'platform_integration_availability', value: availability });
+    expect(patchResponse.status).toBe(400);
+    await expect(patchResponse.json()).resolves.toEqual({
+      ok: false,
+      error: 'vk_platform_credentials_required',
+    });
+    expect(fakes.updateSetting).not.toHaveBeenCalled();
   });
 });

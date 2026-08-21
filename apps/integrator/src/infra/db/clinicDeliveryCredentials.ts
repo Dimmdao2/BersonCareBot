@@ -11,12 +11,13 @@ import {
 import { getCurrentOrganizationPrincipalId } from '../principal/organizationPrincipal.js';
 import { resolveOrganizationMechanicLifecycleAccess } from './organizationMechanicLifecycleDoor.js';
 
-export type ClinicDeliveryChannel = 'email' | 'smsc' | 'telegram' | 'max';
+export type ClinicDeliveryChannel = 'email' | 'smsc' | 'telegram' | 'max' | 'vk';
 export type ClinicDeliveryCredential =
   | { channel: 'email'; smtp: ResolvedSmtpOutboundConfig }
   | { channel: 'smsc'; apiKey: string }
   | { channel: 'telegram'; botToken: string }
-  | { channel: 'max'; apiKey: string };
+  | { channel: 'max'; apiKey: string }
+  | { channel: 'vk'; accessToken: string };
 
 const SETTINGS: Record<
   ClinicDeliveryChannel,
@@ -26,6 +27,7 @@ const SETTINGS: Record<
   smsc: { key: 'clinic_smsc_api_key', mechanic: 'clinic_sms' },
   telegram: { key: 'clinic_telegram_bot_token', mechanic: 'clinic_telegram_bot' },
   max: { key: 'clinic_max_bot_api_key', mechanic: 'clinic_max_bot' },
+  vk: { key: 'clinic_vk_community_access_token', mechanic: 'clinic_vk_community' },
 };
 
 function exactCurrentOrganization(): string | null {
@@ -63,6 +65,7 @@ export function createClinicDeliveryCredentialResolver(db: DbPort) {
       if (!value) return null;
       if (channel === 'smsc') return { channel, apiKey: value };
       if (channel === 'telegram') return { channel, botToken: value };
+      if (channel === 'vk') return { channel, accessToken: value };
       return { channel, apiKey: value };
     } catch {
       return null;

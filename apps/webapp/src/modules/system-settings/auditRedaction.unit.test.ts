@@ -9,6 +9,9 @@ describe('integration credential audit redaction', () => {
     'max_webhook_secret',
     'telegram_bot_token',
     'telegram_webhook_secret',
+    'vk_community_access_token',
+    'vk_callback_secret',
+    'vk_callback_confirmation_token',
     'smsc_api_key',
   ])('redacts the complete value for %s', (key) => {
     expect(redactSettingValueForAudit(key, { value: 'credential' })).toBe('[REDACTED]');

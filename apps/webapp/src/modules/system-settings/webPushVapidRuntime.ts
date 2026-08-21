@@ -100,9 +100,24 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
       s.key === 'smsc_api_key' ||
       s.key === 'clinic_smsc_api_key' ||
       s.key === 'clinic_telegram_bot_token' ||
-      s.key === 'clinic_max_bot_api_key'
+      s.key === 'clinic_max_bot_api_key' ||
+      s.key === 'clinic_vk_community_access_token'
     ) {
       return { ...s, valueJson: { value: '[REDACTED]' } };
+    }
+    if (
+      s.key === 'vk_community_access_token' ||
+      s.key === 'vk_callback_secret' ||
+      s.key === 'vk_callback_confirmation_token'
+    ) {
+      const value =
+        s.valueJson !== null && typeof s.valueJson === 'object'
+          ? (s.valueJson as Record<string, unknown>).value
+          : null;
+      return {
+        ...s,
+        valueJson: { value: { configured: typeof value === 'string' && value.trim().length > 0 } },
+      };
     }
     if (s.key === 'clinic_smtp_outbound') {
       const value =

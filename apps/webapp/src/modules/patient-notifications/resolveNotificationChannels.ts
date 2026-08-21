@@ -16,6 +16,7 @@ export type {
 export type PatientNotificationChannelAvailability = {
   hasTelegram: boolean;
   hasMax: boolean;
+  hasVk?: boolean;
   hasEmail: boolean;
   emailVerified: boolean;
   hasWebPushSubscription: boolean;
@@ -97,6 +98,12 @@ export function resolvePatientNotificationChannels(params: {
           return;
         }
         break;
+      case 'vk':
+        if (!a.hasVk) {
+          skippedChannels.push({ channel: code, reason: 'missing_binding' });
+          return;
+        }
+        break;
       case 'email':
         if (!a.hasEmail) {
           skippedChannels.push({ channel: code, reason: 'missing_email' });
@@ -140,7 +147,7 @@ export function resolvePatientNotificationChannels(params: {
     selectedChannels.push(code);
   };
 
-  for (const code of ['web_push', 'telegram', 'max', 'email'] as const) {
+  for (const code of ['web_push', 'telegram', 'max', 'vk', 'email'] as const) {
     consider(code);
   }
 

@@ -32,6 +32,9 @@ const PASSWORD_BEARING_KEYS = new Set<string>([
 const SECRET_VALUE_KEYS = new Set<string>([
   'max_bot_api_key',
   'max_webhook_secret',
+  'vk_community_access_token',
+  'vk_callback_secret',
+  'vk_callback_confirmation_token',
   'telegram_bot_token',
   'telegram_webhook_secret',
   'yandex_oauth_client_secret',
@@ -43,6 +46,7 @@ const SECRET_VALUE_KEYS = new Set<string>([
   'clinic_smsc_api_key',
   'clinic_telegram_bot_token',
   'clinic_max_bot_api_key',
+  'clinic_vk_community_access_token',
   'auth_altcha_hmac_secret',
 ]);
 

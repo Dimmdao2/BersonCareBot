@@ -27,7 +27,7 @@ import type {
 const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
 let deliveryAttemptAuditPersistFailureCount = 0;
 
-export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'email' | 'smsc' | 'web_push';
+export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -57,7 +57,7 @@ function clinicSenderScope(intent: OutgoingIntent): ClinicSenderScope {
 }
 
 function asClinicDeliveryChannel(channel: string): ClinicDeliveryChannel | null {
-  return channel === 'email' || channel === 'smsc' || channel === 'telegram' || channel === 'max'
+  return channel === 'email' || channel === 'smsc' || channel === 'telegram' || channel === 'max' || channel === 'vk'
     ? channel
     : null;
 }
@@ -110,6 +110,7 @@ function platformIntegrationIdForChannel(channel: string): DispatchPlatformInteg
   if (
     channel === 'telegram' ||
     channel === 'max' ||
+    channel === 'vk' ||
     channel === 'email' ||
     channel === 'web_push'
   ) {

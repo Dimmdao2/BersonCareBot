@@ -5,7 +5,7 @@ export const RECIPIENT_BLOCKED_BOT_FAILURE_CLASS = 'recipient_blocked_bot';
 
 export const RECIPIENT_BLOCKED_BOT_REASON = 'recipient_blocked_bot';
 
-export type MessengerBlockChannel = 'telegram' | 'max';
+export type MessengerBlockChannel = 'telegram' | 'max' | 'vk';
 
 export class RecipientBlockedBotError extends Error {
   readonly channel: MessengerBlockChannel;
@@ -92,6 +92,10 @@ export function classifyRecipientBlockedBotError(
   if (err instanceof RecipientBlockedBotError) return err;
   if (channel === 'telegram') return classifyTelegramRecipientBlockedError(err);
   if (channel === 'max') return classifyMaxRecipientBlockedError(err);
+  if (channel === 'vk') {
+    const msg = err instanceof Error ? err.message : String(err);
+    return isRecipientBlockedBotMessage(msg) ? new RecipientBlockedBotError('vk', msg) : null;
+  }
   const msg = err instanceof Error ? err.message : String(err);
   return isRecipientBlockedBotMessage(msg)
     ? new RecipientBlockedBotError(channel as MessengerBlockChannel, msg)

@@ -3,6 +3,7 @@ import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 export const PLATFORM_INTEGRATION_IDS = [
   'telegram',
   'max',
+  'vk',
   'email',
   'smsc',
   'web_push',
@@ -31,8 +32,7 @@ export type PlatformIntegrationCatalogEntry = Readonly<{
 /**
  * The catalog is code-owned shape, not switch state. It lists only operational
  * adapters that are wired in this repository, plus Yandex Calendar requested as
- * a declared future adapter. The placeholder-only VK messenger descriptor is
- * intentionally absent (Instagram's placeholder was removed as dead code, #987 D33).
+ * a declared future adapter.
  */
 export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEntry[] = [
   {
@@ -50,6 +50,14 @@ export const PLATFORM_INTEGRATION_CATALOG: readonly PlatformIntegrationCatalogEn
     clinicConfiguration: 'tariff_gated_sender_credentials',
     clinicHint:
       'Клиника сможет подключить своего бота, когда тариф разрешает брендирование; иначе используется отправитель платформы.',
+  },
+  {
+    id: 'vk',
+    label: 'ВКонтакте',
+    implementation: 'available',
+    clinicConfiguration: 'tariff_gated_sender_credentials',
+    clinicHint:
+      'Клиника сможет подключить сообщество, когда тариф разрешает брендирование; иначе используется сообщество платформы.',
   },
   {
     id: 'email',

@@ -138,6 +138,9 @@ export const SYSTEM_SETTING_REGISTRY = {
   max_bot_api_key: restricted('admin', 'global', 'secret_envelope'),
   max_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
   max_api_base_url: restricted('admin', 'global', 'url', 'absent'),
+  vk_community_access_token: restricted('admin', 'global', 'secret_envelope'),
+  vk_callback_secret: restricted('admin', 'global', 'secret_envelope'),
+  vk_callback_confirmation_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
   telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),
@@ -214,7 +217,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'global',
     'server',
     'structured',
-    '{"version":1,"integrations":{"telegram":true,"max":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}',
+    '{"version":1,"integrations":{"telegram":true,"max":true,"vk":false,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}',
   ),
   patient_program_discussion_doctor_reply_from_log_enabled: runtime(
     'admin',
@@ -356,6 +359,7 @@ export const SYSTEM_SETTING_REGISTRY = {
     'redacted',
   ),
   clinic_max_bot_api_key: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
+  clinic_vk_community_access_token: restricted('admin', 'per_org', 'secret_envelope', 'absent', 'redacted'),
   operator_health_imap: restricted('admin', 'global', 'secret_envelope', 'absent', 'redacted'),
   web_push_vapid: restricted(
     'admin',

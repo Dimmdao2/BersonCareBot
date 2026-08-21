@@ -265,6 +265,7 @@ export default async function SettingsPage({
       smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
       telegramConfigured: clinicAdminSetting('clinic_telegram_bot_token') !== null,
       maxConfigured: clinicAdminSetting('clinic_max_bot_api_key') !== null,
+      vkConfigured: clinicAdminSetting('clinic_vk_community_access_token') !== null,
       telegramWebhookPath: dedicatedBotWebhookPath(
         'telegram',
         clinicAdminSetting('clinic_telegram_bot_token')?.valueJson,

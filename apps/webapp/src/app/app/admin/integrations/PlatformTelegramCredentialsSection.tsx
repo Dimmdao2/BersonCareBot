@@ -16,7 +16,12 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 
-type TelegramCredentialKey = 'telegram_bot_token' | 'telegram_webhook_secret';
+type PlatformCredentialKey =
+  | 'telegram_bot_token'
+  | 'telegram_webhook_secret'
+  | 'vk_community_access_token'
+  | 'vk_callback_secret'
+  | 'vk_callback_confirmation_token';
 type TelegramMode = 'webhook' | 'long_polling';
 
 type PlatformSetting = {
@@ -30,9 +35,12 @@ function isConfigured(setting: PlatformSetting | undefined): boolean {
 }
 
 export function PlatformTelegramCredentialsSection() {
-  const [configured, setConfigured] = useState<Record<TelegramCredentialKey, boolean>>({
+  const [configured, setConfigured] = useState<Record<PlatformCredentialKey, boolean>>({
     telegram_bot_token: false,
     telegram_webhook_secret: false,
+    vk_community_access_token: false,
+    vk_callback_secret: false,
+    vk_callback_confirmation_token: false,
   });
   const [mode, setMode] = useState<TelegramMode>('long_polling');
   const [savingMode, setSavingMode] = useState(false);
@@ -55,6 +63,15 @@ export function PlatformTelegramCredentialsSection() {
           telegram_webhook_secret: isConfigured(
             data.settings.find((setting) => setting.key === 'telegram_webhook_secret'),
           ),
+          vk_community_access_token: isConfigured(
+            data.settings.find((setting) => setting.key === 'vk_community_access_token'),
+          ),
+          vk_callback_secret: isConfigured(
+            data.settings.find((setting) => setting.key === 'vk_callback_secret'),
+          ),
+          vk_callback_confirmation_token: isConfigured(
+            data.settings.find((setting) => setting.key === 'vk_callback_confirmation_token'),
+          ),
         });
         const configuredMode = data.settings.find((setting) => setting.key === 'telegram_mode')?.valueJson
           ?.value;
@@ -70,7 +87,7 @@ export function PlatformTelegramCredentialsSection() {
     };
   }, []);
 
-  async function saveSetting(key: TelegramCredentialKey, value: string): Promise<void> {
+  async function saveSetting(key: PlatformCredentialKey, value: string): Promise<void> {
     const response = await fetch('/api/platform/settings', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
@@ -125,6 +142,38 @@ export function PlatformTelegramCredentialsSection() {
           unconfiguredLabel="Не задано"
           saveSetting={saveSetting}
         />
+        <div className="border-t border-border pt-5">
+          <p className="mb-4 text-sm font-semibold">ВКонтакте</p>
+          <div className="flex flex-col gap-5">
+            <SecretSettingInput
+              title="Токен сообщества"
+              description="Используется для отправки сообщений от имени сообщества платформы."
+              settingKey="vk_community_access_token"
+              configured={configured.vk_community_access_token}
+              configuredLabel="Задано"
+              unconfiguredLabel="Не задано"
+              saveSetting={saveSetting}
+            />
+            <SecretSettingInput
+              title="Секрет Callback API"
+              description="Используется для проверки входящих Callback API запросов VK."
+              settingKey="vk_callback_secret"
+              configured={configured.vk_callback_secret}
+              configuredLabel="Задано"
+              unconfiguredLabel="Не задано"
+              saveSetting={saveSetting}
+            />
+            <SecretSettingInput
+              title="Строка подтверждения Callback API"
+              description="Возвращается VK при подтверждении Callback API."
+              settingKey="vk_callback_confirmation_token"
+              configured={configured.vk_callback_confirmation_token}
+              configuredLabel="Задано"
+              unconfiguredLabel="Не задано"
+              saveSetting={saveSetting}
+            />
+          </div>
+        </div>
         <div className="flex flex-col gap-2">
           <label htmlFor="telegram-mode" className="text-sm font-medium">
             Режим приёма сообщений

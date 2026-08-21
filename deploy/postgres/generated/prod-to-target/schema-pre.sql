@@ -13547,7 +13547,7 @@ BEGIN
   END IF;
   IF p_key NOT IN (
     'clinic_smtp_outbound', 'clinic_smsc_api_key',
-    'clinic_telegram_bot_token', 'clinic_max_bot_api_key'
+    'clinic_telegram_bot_token', 'clinic_max_bot_api_key', 'clinic_vk_community_access_token'
   ) THEN
     RAISE EXCEPTION 'clinic credential key denied' USING ERRCODE = '42501';
   END IF;
@@ -13813,6 +13813,7 @@ BEGIN
   FROM public.system_settings AS setting
   WHERE p_key IN ('telegram_bot_token','telegram_webhook_secret','telegram_send_menu_on_button_press',
                   'max_bot_api_key','max_webhook_secret','max_api_base_url',
+                  'vk_community_access_token','vk_callback_secret','vk_callback_confirmation_token',
                   'smsc_enabled','smsc_api_key','smsc_base_url')
     AND setting.key = p_key AND setting.scope = 'admin' AND setting.organization_id IS NULL
   LIMIT 1;

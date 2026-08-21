@@ -1,7 +1,6 @@
 import type { IntegrationDescriptor } from '../types.js';
-import { createInboundPlaceholder, createOutboundPlaceholder } from '../template.js';
 
-/** VK integration descriptor placeholder for connector registry. */
+/** VK community messenger, backed by Callback API and messages.* methods. */
 export const vkIntegration: IntegrationDescriptor = {
   id: 'vk',
   kind: 'messenger',
@@ -9,12 +8,6 @@ export const vkIntegration: IntegrationDescriptor = {
     supportsIncoming: true,
     supportsOutgoing: true,
   },
-  supportedIncomingTypes: ['message.received'],
-  supportedOutgoingTypes: ['message.send'],
+  supportedIncomingTypes: ['message.received', 'callback.received'],
+  supportedOutgoingTypes: ['message.send', 'callback.answer'],
 };
-
-/** Inbound adapter template for future VK webhook. */
-export const vkInboundAdapter = createInboundPlaceholder(vkIntegration);
-
-/** Outbound adapter template for future VK API. */
-export const vkOutboundAdapter = createOutboundPlaceholder(vkIntegration);

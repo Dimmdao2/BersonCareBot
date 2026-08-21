@@ -21,6 +21,9 @@ export type IntegratorProviderRuntimeSettingKey =
   | 'max_bot_api_key'
   | 'max_webhook_secret'
   | 'max_api_base_url'
+  | 'vk_community_access_token'
+  | 'vk_callback_secret'
+  | 'vk_callback_confirmation_token'
   | 'smsc_enabled'
   | 'smsc_api_key'
   | 'smsc_base_url'
@@ -118,7 +121,8 @@ export type IntegratorClinicDeliveryCredentialKey =
   | 'clinic_smtp_outbound'
   | 'clinic_smsc_api_key'
   | 'clinic_telegram_bot_token'
-  | 'clinic_max_bot_api_key';
+  | 'clinic_max_bot_api_key'
+  | 'clinic_vk_community_access_token';
 
 /**
  * Clinic-owned delivery credential (tariff branding) for the EXACT current organization.

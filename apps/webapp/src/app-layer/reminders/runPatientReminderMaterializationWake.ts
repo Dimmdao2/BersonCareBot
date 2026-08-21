@@ -66,6 +66,7 @@ export async function runPatientReminderMaterializationWake(
             availability: {
               hasTelegram: Boolean(targets.telegramId),
               hasMax: Boolean(targets.maxId),
+              hasVk: Boolean(targets.vkId),
               hasEmail: Boolean(targets.emailRecipient),
               emailVerified: targets.emailVerified,
               hasWebPushSubscription: targets.hasWebPushSubscription,
@@ -88,6 +89,7 @@ export async function runPatientReminderMaterializationWake(
               selectedChannels: resolution.selectedChannels,
               ...(targets.telegramId ? { telegramId: targets.telegramId } : {}),
               ...(targets.maxId ? { maxId: targets.maxId } : {}),
+              ...(targets.vkId ? { vkId: targets.vkId } : {}),
               ...(targets.emailRecipient ? { emailRecipient: targets.emailRecipient } : {}),
             },
           })

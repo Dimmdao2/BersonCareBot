@@ -16,7 +16,7 @@ export type SpecialistTaskReadyOutgoingDelivery = {
   organizationId: string;
   eventId: string;
   kind: 'specialist_task_reminder';
-  channel: 'telegram' | 'max' | 'email' | 'web_push';
+  channel: 'telegram' | 'max' | 'vk' | 'email' | 'web_push';
   intent: OutgoingIntent;
   /** Canonical product receipt applied only after the transport reports success. */
   successOutcome: {

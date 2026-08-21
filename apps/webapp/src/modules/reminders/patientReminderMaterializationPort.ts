@@ -19,6 +19,7 @@ export type DuePatientReminderOccurrence = {
 export type PatientReminderDeliveryTargetSnapshot = {
   telegramId?: string;
   maxId?: string;
+  vkId?: string;
   channelPreferences: ChannelPreference[];
   topicChannelRows: TopicChannelPrefRow[];
   emailRecipient?: string;

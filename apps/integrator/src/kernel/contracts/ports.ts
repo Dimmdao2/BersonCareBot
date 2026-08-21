@@ -120,6 +120,8 @@ export type DeliverySendResult = {
   telegramMessageId?: number;
   /** MAX Platform message id (`body.mid`) для `user_reminder_delivery_logs`. */
   maxMessageId?: string;
+  /** VK API message id для журналов доставки напоминаний. */
+  vkMessageId?: string;
   webPushOutcome?: {
     status: 'success' | 'failed' | 'skipped';
     reason?: string;
