@@ -897,7 +897,7 @@ export async function requirePatientApiBusinessAccess(options?: {
   return { ok: true, session };
 }
 
-/** Как {@link requirePatientApiBusinessAccess}, плюс доверенный телефон (`patient_phone_trust_at`) для native-записи и отмены. */
+/** Как {@link requirePatientApiBusinessAccess}, плюс подтверждённый canonical phone для native-записи и отмены. */
 export async function requirePatientBookingTrustedPhoneAccess(options?: {
   returnPath?: string;
 }): Promise<{ ok: true; session: AppSession } | { ok: false; response: NextResponse }> {

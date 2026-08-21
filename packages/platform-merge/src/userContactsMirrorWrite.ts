@@ -2,130 +2,140 @@ import { sql } from 'drizzle-orm';
 import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
 import { runMergeSql, type MergeSqlExecutor } from './mergeSql.js';
 
-/**
- * D15b/6 dual-write: rebuild `user_contacts` for one user from the four source tables.
- * Called after contact writes while legacy columns/bindings remain authoritative.
- */
-export async function syncUserContactsMirror(
-  db: PlatformMergeDbClient | MergeSqlExecutor,
-  platformUserId: string,
-): Promise<void> {
-  await runMergeSql(
-    db,
-    sql`DELETE FROM public.user_contacts WHERE platform_user_id = ${platformUserId}::uuid`,
-  );
+export type CanonicalContactMutation =
+  | { action: 'upsert'; kind: 'phone' | 'email'; valueNormalized: string; isPrimary: boolean; confirmedAt: string | null; sourceOrigin: 'direct' | 'oauth' }
+  | { action: 'promote'; kind: 'phone' | 'email'; valueNormalized: string }
+  | { action: 'remove'; kind: 'phone' | 'email'; valueNormalized?: string }
+  | { action: 'merge-from'; duplicatePlatformUserId: string }
+  | { action: 'remove-all' };
 
-  await runMergeSql(
-    db,
-    sql`INSERT INTO public.user_contacts (
-       platform_user_id, contact_kind, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT pu.id, 'phone', pu.phone_normalized,
-            true, pu.patient_phone_trust_at, 'platform_users', now()
-     FROM public.platform_users pu
-     WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL AND pu.phone_normalized IS NOT NULL`,
-  );
-
-  await runMergeSql(
-    db,
-    sql`INSERT INTO public.user_contacts (
-       platform_user_id, contact_kind, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT pu.id, 'email', pu.email_normalized,
-            true, pu.email_verified_at, 'platform_users', now()
-     FROM public.platform_users pu
-     WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL AND pu.email_normalized IS NOT NULL`,
-  );
-
-  await runMergeSql(
-    db,
-    sql`INSERT INTO public.user_contacts (
-       platform_user_id, contact_kind, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT ob.user_id, 'email', lower(btrim(ob.email)),
-            false, ob.created_at, 'oauth_binding', now()
-     FROM public.user_oauth_bindings ob
-     INNER JOIN public.platform_users pu ON pu.id = ob.user_id
-     WHERE ob.user_id = ${platformUserId}::uuid
-       AND pu.merged_into_id IS NULL
-       AND ob.email IS NOT NULL
-       AND btrim(ob.email) <> ''`,
-  );
-
-  await runMergeSql(
-    db,
-    sql`INSERT INTO public.user_contacts (
-       platform_user_id, contact_kind, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT uph.platform_user_id, 'phone', uph.phone_normalized,
-            false, uph.valid_from, 'phone_history', now()
-     FROM public.user_phone_history uph
-     INNER JOIN public.platform_users pu ON pu.id = uph.platform_user_id
-     WHERE uph.platform_user_id = ${platformUserId}::uuid
-       AND uph.valid_to IS NULL
-       AND pu.merged_into_id IS NULL`,
-  );
-
-  // No `channel` slice: messenger links live in `public.user_channel_bindings` and are read from
-  // there (migration 0382 removed the mirrored copy — it was 131/131 identical and duplicated that
-  // table's uniqueness, while the integrator hot path never read the mirror in the first place).
+function databaseErrorField(error: unknown, field: string): unknown {
+  return typeof error === 'object' && error !== null ? Reflect.get(error, field) : undefined;
 }
 
-/**
- * Phone-only refresh for the integrator messenger bind boundary.
- * It preserves email mirror rows and therefore never needs direct access to OAuth credentials.
- */
-export async function syncUserContactsPhoneMirror(
-  db: PlatformMergeDbClient | MergeSqlExecutor,
-  platformUserId: string,
-): Promise<void> {
-  await runMergeSql(
-    db,
-    sql`DELETE FROM public.user_contacts
-     WHERE platform_user_id = ${platformUserId}::uuid AND contact_kind = 'phone'`,
-  );
-
-  await runMergeSql(
-    db,
-    sql`INSERT INTO public.user_contacts (
-       platform_user_id, contact_kind, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT pu.id, 'phone', pu.phone_normalized,
-            true, pu.patient_phone_trust_at, 'platform_users', now()
-     FROM public.platform_users pu
-     WHERE pu.id = ${platformUserId}::uuid
-       AND pu.merged_into_id IS NULL
-       AND pu.phone_normalized IS NOT NULL`,
-  );
-
-  await runMergeSql(
-    db,
-    sql`INSERT INTO public.user_contacts (
-       platform_user_id, contact_kind, value_normalized,
-       is_primary, confirmed_at, source_origin, updated_at
-     )
-     SELECT uph.platform_user_id, 'phone', uph.phone_normalized,
-            false, uph.valid_from, 'phone_history', now()
-     FROM public.user_phone_history uph
-     INNER JOIN public.platform_users pu ON pu.id = uph.platform_user_id
-     WHERE uph.platform_user_id = ${platformUserId}::uuid
-       AND uph.valid_to IS NULL
-       AND pu.merged_into_id IS NULL`,
-  );
+function canonicalContactConflict(error: unknown, kind: 'phone' | 'email'): Error | null {
+  if (databaseErrorField(error, 'code') !== '23505') return null;
+  if (databaseErrorField(error, 'constraint') !== `uq_user_contacts_${kind}`) return null;
+  return new Error(`canonical_${kind}_contact_conflict`, { cause: error });
 }
 
-/** Remove duplicate mirror rows before rebuilding target contacts (post-D15b/6 uniqueness on user_contacts). */
-export async function clearDuplicateUserContactsBeforeTargetMirror(
+/** The single physical writer for canonical phone/e-mail contacts. */
+export async function mutateCanonicalUserContacts(
   db: PlatformMergeDbClient | MergeSqlExecutor,
-  duplicateId: string,
+  platformUserId: string,
+  mutations: readonly CanonicalContactMutation[],
 ): Promise<void> {
-  await runMergeSql(
-    db,
-    sql`DELETE FROM public.user_contacts WHERE platform_user_id = ${duplicateId}::uuid`,
-  );
+  for (const mutation of mutations) {
+    if (mutation.action === 'remove-all') {
+      await runMergeSql(db, sql`DELETE FROM public.user_contacts WHERE platform_user_id = ${platformUserId}::uuid`);
+      continue;
+    }
+    if (mutation.action === 'merge-from') {
+      await runMergeSql(db, sql`UPDATE public.user_contacts
+        SET platform_user_id = ${platformUserId}::uuid,
+            is_primary = CASE
+              WHEN EXISTS (
+                SELECT 1 FROM public.user_contacts target_primary
+                WHERE target_primary.platform_user_id = ${platformUserId}::uuid
+                  AND target_primary.contact_kind = public.user_contacts.contact_kind
+                  AND target_primary.is_primary = true
+              ) THEN false
+              ELSE public.user_contacts.is_primary
+            END,
+            updated_at = now()
+        WHERE platform_user_id = ${mutation.duplicatePlatformUserId}::uuid
+          AND NOT EXISTS (
+            SELECT 1 FROM public.user_contacts target
+            WHERE target.platform_user_id = ${platformUserId}::uuid
+              AND target.contact_kind = public.user_contacts.contact_kind
+              AND target.value_normalized = public.user_contacts.value_normalized
+          )`);
+      await runMergeSql(db, sql`DELETE FROM public.user_contacts
+        WHERE platform_user_id = ${mutation.duplicatePlatformUserId}::uuid`);
+      continue;
+    }
+    if (mutation.action === 'remove') {
+      await runMergeSql(db, sql`DELETE FROM public.user_contacts
+        WHERE platform_user_id = ${platformUserId}::uuid AND contact_kind = ${mutation.kind}::text
+          AND (${mutation.valueNormalized ?? null}::text IS NULL OR value_normalized = ${mutation.valueNormalized ?? null}::text)`);
+      continue;
+    }
+    if (mutation.action === 'promote') {
+      const result = await runMergeSql(db, sql`WITH demoted_primary AS (
+          UPDATE public.user_contacts
+          SET is_primary = false, updated_at = now()
+          WHERE platform_user_id = ${platformUserId}::uuid
+            AND contact_kind = ${mutation.kind}::text
+            AND is_primary = true
+            AND value_normalized <> ${mutation.valueNormalized}::text
+          RETURNING id
+        ), promoted_value AS (
+          UPDATE public.user_contacts
+          SET is_primary = true, updated_at = now()
+          WHERE platform_user_id = ${platformUserId}::uuid
+            AND contact_kind = ${mutation.kind}::text
+            AND value_normalized = ${mutation.valueNormalized}::text
+            AND (SELECT count(*) FROM demoted_primary) >= 0
+          RETURNING id
+        )
+        SELECT id FROM promoted_value`);
+      if (result.rowCount === 0) {
+        throw new Error(`canonical_${mutation.kind}_contact_missing`);
+      }
+      continue;
+    }
+    try {
+      const result = await runMergeSql(db, sql`WITH existing_value AS MATERIALIZED (
+          SELECT id, platform_user_id
+          FROM public.user_contacts
+          WHERE contact_kind = ${mutation.kind}::text
+            AND value_normalized = ${mutation.valueNormalized}::text
+          FOR UPDATE
+        ), demoted_primary AS (
+          UPDATE public.user_contacts
+          SET is_primary = false, updated_at = now()
+          WHERE ${mutation.isPrimary}::boolean
+            AND platform_user_id = ${platformUserId}::uuid
+            AND contact_kind = ${mutation.kind}::text
+            AND is_primary = true
+            AND value_normalized <> ${mutation.valueNormalized}::text
+            AND NOT EXISTS (
+              SELECT 1 FROM existing_value WHERE platform_user_id <> ${platformUserId}::uuid
+            )
+          RETURNING id
+        ), updated_value AS (
+          UPDATE public.user_contacts
+          SET is_primary = ${mutation.isPrimary}::boolean,
+              confirmed_at = COALESCE(${mutation.confirmedAt}::timestamptz, confirmed_at),
+              source_origin = ${mutation.sourceOrigin}::text,
+              updated_at = now()
+          WHERE platform_user_id = ${platformUserId}::uuid
+            AND contact_kind = ${mutation.kind}::text
+            AND value_normalized = ${mutation.valueNormalized}::text
+            AND (SELECT count(*) FROM demoted_primary) >= 0
+          RETURNING id
+        ), inserted_value AS (
+          INSERT INTO public.user_contacts (
+            platform_user_id, contact_kind, value_normalized,
+            is_primary, confirmed_at, source_origin, updated_at
+          )
+          SELECT ${platformUserId}::uuid, ${mutation.kind}::text, ${mutation.valueNormalized}::text,
+                 ${mutation.isPrimary}::boolean, ${mutation.confirmedAt}::timestamptz,
+                 ${mutation.sourceOrigin}::text, now()
+          WHERE NOT EXISTS (SELECT 1 FROM existing_value)
+            AND (SELECT count(*) FROM demoted_primary) >= 0
+          RETURNING id
+        )
+        SELECT id FROM updated_value
+        UNION ALL
+        SELECT id FROM inserted_value`);
+      if (result.rowCount === 0) {
+        throw new Error(`canonical_${mutation.kind}_contact_conflict`);
+      }
+    } catch (error: unknown) {
+      const conflict = canonicalContactConflict(error, mutation.kind);
+      if (conflict) throw conflict;
+      throw error;
+    }
+  }
 }

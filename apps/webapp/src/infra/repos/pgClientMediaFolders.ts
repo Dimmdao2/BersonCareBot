@@ -3,6 +3,7 @@ import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { mediaFolders, platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import {
   CLIENT_FILES_ROOT_FOLDER_NAME,
   CLIENT_FILES_ROOT_FOLDER_NAME_LEGACY,
@@ -129,7 +130,7 @@ async function resolvePatientDisplayNameAndPhone(
       lastName: drizzleFioCols.lastName,
       patronymic: drizzleFioCols.patronymic,
       displayName: drizzleFioCols.displayName,
-      phoneNormalized: platformUsers.phoneNormalized,
+      phoneNormalized: drizzlePrimaryPhoneCol,
     })
     .from(platformUsers)
     .leftJoin(userIdentity, drizzleUserIdentityFioJoin)

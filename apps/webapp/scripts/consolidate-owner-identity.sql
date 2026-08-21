@@ -24,9 +24,14 @@ BEGIN;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM platform_users WHERE id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
-                   AND phone_normalized = '+79643805480'
                    AND role IN ('admin', 'doctor')
-                   AND merged_into_id IS NULL) THEN
+                   AND merged_into_id IS NULL
+                   AND EXISTS (
+                     SELECT 1 FROM user_contacts
+                     WHERE platform_user_id = platform_users.id
+                       AND contact_kind = 'phone'
+                       AND value_normalized = '+79643805480'
+                   )) THEN
     RAISE EXCEPTION 'Основная запись b0021a38 не найдена, потеряла телефон владельца, имеет неожиданную роль или сама помечена слитой';
   END IF;
   IF NOT EXISTS (SELECT 1 FROM platform_users WHERE id = 'a754c977-d1cc-46bb-b870-ca499be81884') THEN
@@ -333,9 +338,14 @@ BEGIN
   SELECT count(*) INTO staff_rows
   FROM platform_users
   WHERE id = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
-    AND phone_normalized = '+79643805480'
     AND role IN ('admin', 'doctor')
-    AND merged_into_id IS NULL;
+    AND merged_into_id IS NULL
+    AND EXISTS (
+      SELECT 1 FROM user_contacts
+      WHERE platform_user_id = platform_users.id
+        AND contact_kind = 'phone'
+        AND value_normalized = '+79643805480'
+    );
   SELECT count(*) INTO spec_rows FROM be_specialists WHERE full_name = 'Дмитрий Берсон';
   IF staff_rows <> 1 THEN
     RAISE EXCEPTION 'Ожидали одну staff-запись владельца, осталось %', staff_rows;

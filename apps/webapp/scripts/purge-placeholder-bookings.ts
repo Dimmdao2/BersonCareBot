@@ -55,6 +55,7 @@ import {
   beAppointments,
   patientBookings,
   platformUsers,
+  userContacts,
 } from '../db/schema';
 import { assertAllowedPurgeDatabaseTarget } from './purge-placeholder-bookings-safety';
 
@@ -193,7 +194,12 @@ async function main() {
     const targetPhoneAdminUsers = await db
       .select({ id: platformUsers.id })
       .from(platformUsers)
-      .where(and(inArray(platformUsers.phoneNormalized, PHONES), eq(platformUsers.role, 'admin')));
+      .innerJoin(userContacts, eq(userContacts.platformUserId, platformUsers.id))
+      .where(and(
+        eq(userContacts.contactKind, 'phone'),
+        inArray(userContacts.valueNormalized, PHONES),
+        eq(platformUsers.role, 'admin'),
+      ));
     if (targetPhoneAdminUsers.length > 0) {
       throw new Error('ABORT: target phone belongs to an admin principal');
     }
@@ -203,11 +209,16 @@ async function main() {
       .select({
         id: platformUsers.id,
         displayName: platformUsers.displayName,
-        phoneNormalized: platformUsers.phoneNormalized,
+        phoneNormalized: userContacts.valueNormalized,
         role: platformUsers.role,
       })
       .from(platformUsers)
-      .where(and(inArray(platformUsers.phoneNormalized, PHONES), ne(platformUsers.role, 'admin')));
+      .innerJoin(userContacts, eq(userContacts.platformUserId, platformUsers.id))
+      .where(and(
+        eq(userContacts.contactKind, 'phone'),
+        inArray(userContacts.valueNormalized, PHONES),
+        ne(platformUsers.role, 'admin'),
+      ));
 
     const userIds = users.map((user) => user.id);
     const detailedAudit: DetailedAudit = {
@@ -326,8 +337,12 @@ async function main() {
         const lockedTargetPhoneUsers = await tx
           .select({ role: platformUsers.role })
           .from(platformUsers)
-          .where(inArray(platformUsers.phoneNormalized, PHONES))
-          .for('update');
+          .innerJoin(userContacts, eq(userContacts.platformUserId, platformUsers.id))
+          .where(and(
+            eq(userContacts.contactKind, 'phone'),
+            inArray(userContacts.valueNormalized, PHONES),
+          ))
+          .for('update', { of: platformUsers });
         if (lockedTargetPhoneUsers.some((user) => user.role === 'admin')) {
           throw new Error('ABORT: target phone became an admin principal');
         }
