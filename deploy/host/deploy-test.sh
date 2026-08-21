@@ -19,7 +19,13 @@ OBJECT_OWNER_ROLE=app_object_owner
 BUNDLE=/tmp/bcb-test-deploy.bundle
 TRANSCRIPT_DIR=${BCB_TEST_DEPLOY_TRANSCRIPT_DIR:-/var/log/bersoncarebot/deploy-test}
 TRANSCRIPT=""
-UNITS=(api worker scheduler webapp media-worker)
+UNITS=(api scheduler webapp media-worker)
+# D30 Ш9: worker и scheduler на TEST — один resident-процесс, как и на PROD (см. одноимённые константы
+# и `retire_legacy_worker_unit` в `deploy/host/bootstrap-systemd-prod.sh`). Source-entrypoint воркера
+# после Ш9 удалён; следующий штатный TEST deploy не должен ни оживлять его, ни оставлять старый unit
+# рядом со слитым scheduler — иначе два цикла доставки работают одновременно.
+LEGACY_WORKER_SERVICE=bersoncarebot-worker-test.service
+LEGACY_WORKER_UNIT_INSTALLED="/etc/systemd/system/$LEGACY_WORKER_SERVICE"
 CREDENTIAL_DIR=""
 WRITERS_STOPPED=0
 SERVICES_RELEASED=0
@@ -80,6 +86,40 @@ db_pipeline() {
     fail "$what: не уложился в ${seconds}с — таймаут где-то в конвейере"
   fi
   [[ "$status" -eq 0 ]] || fail "$what: отказал (код $status)"
+}
+
+# Идемпотентный retirement для pre-Ш9 unit'а: stop → disable → удалить ровно этот installed-файл →
+# daemon-reload. Тот же порядок, что `retire_legacy_worker_unit` в `bootstrap-systemd-prod.sh` — тут не
+# заводится отдельная общая абстракция ради одного bounded TEST-вызова, переносится только сам контракт.
+# Отсутствие unit'а (уже отведён, или никогда не ставился) — успех, не ошибка: повторный deploy на уже
+# ушедшем от legacy-воркера хосте обязан пройти молча. Удаление файла — только когда он regular
+# non-symlink И systemd загружает его как ожидаемый FragmentPath без drop-in'ов; любое неожиданное
+# состояние — fail closed, не `rm -f` вслепую.
+retire_legacy_test_worker_unit() {
+  local fragment_path drop_in_paths
+  if sudo systemctl is-active --quiet "$LEGACY_WORKER_SERVICE"; then
+    sudo systemctl stop "$LEGACY_WORKER_SERVICE" ||
+      fail "cannot stop legacy $LEGACY_WORKER_SERVICE before starting the merged scheduler"
+  fi
+  if sudo systemctl is-enabled --quiet "$LEGACY_WORKER_SERVICE" 2>/dev/null; then
+    sudo systemctl disable "$LEGACY_WORKER_SERVICE" ||
+      fail "cannot disable legacy $LEGACY_WORKER_SERVICE before starting the merged scheduler"
+  fi
+  if sudo test -e "$LEGACY_WORKER_UNIT_INSTALLED"; then
+    { sudo test -f "$LEGACY_WORKER_UNIT_INSTALLED" && ! sudo test -L "$LEGACY_WORKER_UNIT_INSTALLED"; } ||
+      fail "refusing to remove non-regular legacy unit target: $LEGACY_WORKER_UNIT_INSTALLED"
+    fragment_path="$(sudo systemctl show --property=FragmentPath --value "$LEGACY_WORKER_SERVICE")" ||
+      fail "cannot inspect loaded fragment for $LEGACY_WORKER_SERVICE"
+    [[ -z "$fragment_path" || "$fragment_path" == "$LEGACY_WORKER_UNIT_INSTALLED" ]] ||
+      fail "systemd loaded $LEGACY_WORKER_SERVICE from unexpected fragment: $fragment_path"
+    drop_in_paths="$(sudo systemctl show --property=DropInPaths --value "$LEGACY_WORKER_SERVICE")" ||
+      fail "cannot inspect drop-ins for $LEGACY_WORKER_SERVICE"
+    [[ -z "$drop_in_paths" ]] ||
+      fail "unexpected drop-ins can override the retired $LEGACY_WORKER_SERVICE: $drop_in_paths"
+    sudo rm -f -- "$LEGACY_WORKER_UNIT_INSTALLED" ||
+      fail "cannot remove legacy unit file: $LEGACY_WORKER_UNIT_INSTALLED"
+    sudo systemctl daemon-reload
+  fi
 }
 
 start_transcript() {
@@ -301,6 +341,9 @@ printf 'deploy-test: доказательство стены арендатор�
 RUN_TENANT_ISOLATION_WALL_DB=1 TENANT_ISOLATION_PROOF_DB="$DB" \
   db_run 'ПОЛНОЕ доказательство стены арендатора (после сверки прав)' "$PROOF_TIMEOUT_S" \
   node --test "$TENANT_ISOLATION_PROOF"
+
+printf 'deploy-test: retiring legacy %s before the merged scheduler can start\n' "$LEGACY_WORKER_SERVICE"
+retire_legacy_test_worker_unit
 
 for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
 for attempt in $(seq 1 30); do
