@@ -316,7 +316,7 @@ RLS+FORCE как backstop. Правильная форма в базе уже е
 | `integrator.telegram_state` | **ПДн**: `username`, `first_name`, `last_name`, состояние диалога, `notify_*` | RLS off/off, pol=0, `app_staff=arwd` | 1, №6 | **ОСТАВИТЬ, урезав 7 колонок** — после удаления `username`/`first_name`/`last_name` и четырёх `notify_*`+`is_active` таблица перестаёт быть носителем ПДн, и вопрос о стене снимается сам |
 | `integrator.telegram_users` | **телефон** + имена; таблица объявлена мёртвой | RLS off/off, pol=0, 2 строки, `app_staff=arwd`; `apps/integrator/src/infra/db/schema.md:41` — «legacy/deprecated storage, активный runtime в неё не пишет» | 1, №7 | **СНОСИТЬ** — единственная таблица, где обе оценки сошлись |
 | `integrator.delivery_attempt_logs` | `payload_json` = тело отправленного сообщения | RLS off/off, pol=0, 6 223 строки (по `evidence/15` — 6 324, свежесть 2026-08-05); редактируется ТОЛЬКО OTP — `dispatchPort.ts:85-93` (`sanitizePayloadForLogs`), `messageLogs.ts:83` | 1, №8 | **ОСТАВИТЬ — 🔴 ЕДИНСТВЕННАЯ, где стена реально нужна** (`evidence/15` §14) |
-| `integrator.message_retry_jobs` | **`phone_normalized` + `message_text`** в открытом виде | RLS off/off, pol=0, `app_staff=arwd`, `app_operational_delivery_worker rw` | 1, №9 | **СНОСИТЬ после 2026-08-29** — заменена `public.outgoing_delivery_queue`, производитель вырезан, остались 10 `pending`; пункт плана D30 Ш7 |
+| `integrator.message_retry_jobs` | **`phone_normalized` + `message_text`** в открытом виде | RLS off/off, pol=0, `app_staff=arwd`, `app_operational_delivery_worker rw` | 1, №9 | **СНЕСЕНА** — на именованной DEV таблицы больше нет (`docs/OWNER_DECISIONS.md` → «Track D — текущий scope», 21.08.2026); заменена `public.outgoing_delivery_queue`, производитель вырезан; D30 Ш7 (перенос/дренаж) отменён владельцем |
 | `integrator.projection_outbox` | `payload` с событиями по конкретным пациентам/записям | RLS off/off, pol=0, 3 768 строк, `app_staff=arwd` | 1, №10 | **ОСТАВИТЬ** — стена по роли осмысленна, но ставить её логично ПОСЛЕ переезда поддержки, когда ясен остаточный состав событий |
 | `integrator.idempotency_keys` | ~~`response_body` — полные тела ответов API, в т.ч. по бронированиям; 221 476 строк~~ **ИСПРАВЛЕНО, см. ниже** | ~~`pgStore.ts:65` пишет тело целиком~~ — атрибуция писателя неверна | 1, №11 | **ОСТАВИТЬ** — ПДн нет; класс стены понижается до «стена роли», приоритет низкий |
 | `integrator.integration_data_quality_incidents` | `raw_value` — исходное значение поля пациента/филиала | RLS off/off, pol=0, 3 строки, `app_staff=arwd`, `organization_id` нет | 1, №12 | **ОСТАВИТЬ** — стена клиники осмысленна, но при 3 строках приоритет низкий |
@@ -357,7 +357,7 @@ API (в т.ч. по бронированиям)», писатель — `apps/we
 роли) сохраняется, но применяется уже НЕ к девяти таблицам, а к четырём остающимся; для пяти остальных
 правильное действие — не стена, а снос/урезание по волнам `evidence/15` §«ЧТО СНОСИТЬ И В КАКОМ ПОРЯДКЕ».
 Порядок важен: `telegram_state` держит FK на `integrator.identities` — дропать `identities` раньше нельзя;
-`message_retry_jobs` сносится не раньше 2026-08-29 17:00 MSK (10 строк `pending`).
+`message_retry_jobs` на именованной DEV уже отсутствует — снос не ждёт даты.
 
 #### Д15. `public.appointment_records` — легаси-проекция записей на приём без обеих стен
 
@@ -733,9 +733,10 @@ SECURITY DEFINER-аксессор.
 
 **И16. `integrator.*` очереди — доводить до арендной модели или до операционной роли?**
 Исходно (ч.1 В-4) вопрос стоял по четырём таблицам: `projection_outbox`, `message_retry_jobs`,
-`delivery_attempt_logs`, `idempotency_keys`. **После `evidence/15` скоуп сузился:** `message_retry_jobs`
-сносится (D30 Ш7, после 2026-08-29), `idempotency_keys` не несёт ПДн (нужна только стена роли, низкий
-приоритет), `projection_outbox` ждёт переезда поддержки. Реально открытым вопрос остаётся по
+`delivery_attempt_logs`, `idempotency_keys`. **После `evidence/15` скоуп сузился:** `message_retry_jobs` уже
+снесена (на именованной DEV отсутствует; D30 Ш7 отменён владельцем 21.08.2026), `idempotency_keys` не несёт
+ПДн (нужна только стена роли, низкий приоритет), `projection_outbox` ждёт переезда поддержки. Реально открытым
+вопрос остаётся по
 **`delivery_attempt_logs`** — единственной таблице схемы, где `payload_json` действительно несёт тела сообщений.
 **Рекомендация:** (б) — не добавлять `organization_id`, а отозвать `app_staff` и ходить операционными ролями
 области NONE. **Основание:** канон «фильтр воркера на ENQUEUE, dispatch — инфра-роль»; на `delivery_attempt_logs`
