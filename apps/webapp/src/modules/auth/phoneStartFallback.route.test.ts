@@ -90,12 +90,33 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 import { POST as startPhone } from '@/app/api/auth/phone/start/route';
 import { POST as confirmPhone } from '@/app/api/auth/phone/confirm/route';
 
+// D15b/6: phone-start no longer calls `getVerifiedEmailForUser`/`isPhoneTrustedForUser` — it
+// derives both facts from `SessionUser.contacts`, which `findByPhone` now returns in the same
+// pre-session door call (see `pgUserByPhone.findByPhone`). The fixture below carries a confirmed
+// primary phone and confirmed primary e-mail so the default fixtures below behave exactly like the
+// old `isPhoneTrusted=true` / `getVerifiedEmail='verified@example.test'` mocks did.
 const user: SessionUser = {
   userId: '00000000-0000-4000-8000-000000001005',
   role: 'client',
   displayName: 'Fallback test user',
   bindings: {},
   sessionEpoch: 0,
+  contacts: [
+    {
+      kind: 'phone',
+      value: '+79991234567',
+      isPrimary: true,
+      confirmedAt: '2026-01-01T00:00:00.000Z',
+      sourceOrigin: 'direct',
+    },
+    {
+      kind: 'email',
+      value: 'verified@example.test',
+      isPrimary: true,
+      confirmedAt: '2026-01-01T00:00:00.000Z',
+      sourceOrigin: 'direct',
+    },
+  ],
 };
 
 function request(body: object): Request {
@@ -320,7 +341,14 @@ describe('phone login automatic delivery fallback', () => {
       max: false,
     });
     fakes.resolveAuthOtpChannel.mockResolvedValue('email');
-    fakes.isPhoneTrusted.mockResolvedValue(false);
+    // Untrusted: the primary phone contact is unconfirmed (no `confirmedAt`), so
+    // `primaryConfirmedContactValue(user, 'phone')` in the route resolves to null.
+    fakes.findByPhone.mockResolvedValue({
+      ...user,
+      contacts: user.contacts?.map((contact) =>
+        contact.kind === 'phone' ? { ...contact, confirmedAt: undefined } : contact,
+      ),
+    });
 
     await finishResponse(
       startPhone(

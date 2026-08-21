@@ -10,6 +10,7 @@ import {
   recordAuthRegistrationSuccess,
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import type { ChannelContext } from '@/modules/auth/channelContext';
+import type { SessionUser } from '@/shared/types/session';
 import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import type { PhoneOtpDelivery, SendCodeResult } from '@/modules/auth/smsPort';
 import { isRuMobile, isValidPhoneE164 } from '@/modules/auth/phoneValidation';
@@ -27,6 +28,24 @@ import {
 
 const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
 const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
+
+/**
+ * D15b/6: `user` here always comes from `deps.userByPhone.findByPhone(normalized)` above, which
+ * (after the D15b/6 repair) already carries the full `contacts` array in one pre-session door
+ * call. `deps.userByPhone.isPhoneTrustedForUser`/`getVerifiedEmailForUser` derive the identical
+ * answer (primary contact of this kind, confirmed) from a SEPARATE relation read keyed by user id
+ * — a door bootstrap/pre-session has no capability for (see `pgUserByPhone.ts`). Reading the same
+ * fact off the payload already fetched needs no second door and preserves the decoy-lookup timing
+ * symmetry (`PUBLIC_LOGIN_DECOY_USER_ID`): a missing `user` was already zero extra DB calls before,
+ * and still is.
+ */
+function primaryConfirmedContactValue(
+  user: SessionUser | null,
+  kind: 'phone' | 'email',
+): string | null {
+  const contact = user?.contacts?.find((c) => c.kind === kind && c.isPrimary);
+  return contact?.confirmedAt ? contact.value : null;
+}
 
 const bodySchema = z.object({
   phone: z.string().min(1),
@@ -132,7 +151,7 @@ export async function POST(request: Request) {
         if (resolved === 'email') {
           // Почта доставляет код по телефонному входу, только если этот номер действительно
           // доверен аккаунту — иначе это была бы утечка «есть почта» через попытку входа чужим номером.
-          const phoneTrusted = await deps.userByPhone.isPhoneTrustedForUser(lookupUserId);
+          const phoneTrusted = primaryConfirmedContactValue(user, 'phone') != null;
           if (!phoneTrusted) automaticChannel = null;
         }
       }
@@ -247,12 +266,7 @@ export async function POST(request: Request) {
         delivery = { channel: 'max', recipientId };
       }
     } else {
-      const email =
-        user || publicLogin
-          ? await deps.userByPhone.getVerifiedEmailForUser(
-              user?.userId ?? PUBLIC_LOGIN_DECOY_USER_ID,
-            )
-          : null;
+      const email = user || publicLogin ? primaryConfirmedContactValue(user, 'email') : null;
       if (!user) {
         if (!publicLogin) {
           return NextResponse.json(

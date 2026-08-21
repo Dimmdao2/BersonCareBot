@@ -21,10 +21,7 @@ import type {
 } from '@/modules/auth/userByPhonePort';
 import { channelToBindingKey } from '@/modules/auth/channelContext';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
-import {
-  findCanonicalUserIdByPhone,
-  resolveCanonicalUserId,
-} from '@/infra/repos/pgCanonicalPlatformUser';
+import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
   mergePlatformUsersInTransaction,
   pickMergeTargetId,
@@ -52,11 +49,14 @@ import {
   platformUserInsertRowSchema,
   platformUserPhoneRoleRowSchema,
   platformUserSessionRowSchema,
+  preSessionMessengerChannelResolveSchema,
+  preSessionPhoneConfirmResolveSchema,
+  preSessionPhoneSessionLookupSchema,
   puMergeRowSchema,
   sessionIdentityContactsFromRows,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
-import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
 import { drizzlePrimaryPhoneCol, drizzlePrimaryPhoneConfirmedAtCol } from '@/infra/repos/userContactsSql';
 import {
@@ -178,6 +178,44 @@ export async function loadSessionIdentityUser(
   };
 }
 
+/**
+ * Assembles a `SessionUser` from the shared jsonb identity shape both pre-session phone roots
+ * return (`app.pre_session_find_session_user_by_phone`'s `found: true` branch and
+ * `app.pre_session_phone_confirm_resolve`'s `outcome: 'resolved'` branch) — one mapper instead of
+ * two copies of the same field-by-field assembly (D15b/6).
+ */
+function sessionUserFromPreSessionIdentityPayload(payload: {
+  id: string;
+  display_name: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  patronymic?: string | null;
+  role: string;
+  session_epoch: number;
+  contacts: unknown[];
+  bindings: unknown[];
+}): SessionUser {
+  const firstName = payload.first_name?.trim() || undefined;
+  const lastName = payload.last_name?.trim() || undefined;
+  const patronymic = payload.patronymic?.trim() || undefined;
+  const contacts = sessionIdentityContactsFromRows(payload.contacts);
+  const phone = contacts.find((contact) => contact.kind === 'phone' && contact.isPrimary)?.value;
+  const email = contacts.find((contact) => contact.kind === 'email' && contact.isPrimary)?.value;
+  return {
+    userId: payload.id,
+    role: parseUserRole(payload.role, 'pre_session_phone.role'),
+    displayName: payload.display_name ?? '',
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(patronymic ? { patronymic } : {}),
+    contacts,
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+    bindings: bindingsFromRows(payload.bindings),
+    sessionEpoch: payload.session_epoch,
+  };
+}
+
 export const pgUserByPhonePort: UserByPhonePort = {
   async getPhoneByUserId(userId: string): Promise<string | null> {
     const pool = getPool();
@@ -260,12 +298,35 @@ export const pgUserByPhonePort: UserByPhonePort = {
     await runIdentityPoolPgText('SELECT app.bump_platform_user_session_epoch_self()');
   },
 
+  /**
+   * D15b/6 repair: the bootstrap principal that runs `POST /api/auth/phone/start` has no unnamed
+   * relation door (`portContextRuntime.ts`, `capabilities['pre_session']` purpose=relation is
+   * intentionally absent) — the previous two-step implementation (`findCanonicalUserIdByPhone` +
+   * `loadSessionIdentityUser`, both plain relation reads) failed with "Missing declared webapp
+   * port capability: pre_session" before OTP delivery was ever attempted. One named SECURITY
+   * DEFINER root now resolves the canonical holder AND assembles the full session-identity
+   * payload — same shape `loadSessionIdentityUser` used to build from two follow-up relation
+   * reads — so no unnamed read remains on this path. Phone lookup is not authentication proof:
+   * this intentionally does not read identity-self staff-security state, exactly like the
+   * relation-based implementation it replaces; only the exact-id post-verification path
+   * (`findByUserId`) may attach it to a session user.
+   */
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
-    const canonicalId = await findCanonicalUserIdByPhone(getWebappSqlDb(), normalizedPhone);
-    if (!canonicalId) return null;
-    // Phone lookup is not authentication proof. Do not read identity-self staff-security
-    // state here; only the exact-id post-verification path may attach it to a session user.
-    return loadSessionIdentityUser(canonicalId);
+    const result = await runWebappNamedRoot<{ result: unknown }>(
+      getWebappSqlDb(),
+      'app.pre_session_find_session_user_by_phone(text)',
+      [normalizedPhone],
+      sql`SELECT app.pre_session_find_session_user_by_phone(${normalizedPhone}::text) AS result`,
+    );
+    const payload = parseIdentityRow(
+      preSessionPhoneSessionLookupSchema,
+      result.rows[0]?.result,
+      'pre_session_find_session_user_by_phone',
+    );
+    if (!payload.found) return null;
+    // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
+    if (payload.is_archived) return null;
+    return sessionUserFromPreSessionIdentityPayload(payload);
   },
 
   async createOrBind(
@@ -275,8 +336,110 @@ export const pgUserByPhonePort: UserByPhonePort = {
   ): Promise<CreateOrBindResult> {
     const parsedContext = parseChannelContext(context);
     const normalized = normalizeRuPhoneE164(phone);
-    const pool = getPool();
     const key = channelToBindingKey(parsedContext.channel);
+    const profileBindOrganizationId = options?.profileBindOrganizationId?.trim();
+
+    if (!key && !profileBindOrganizationId) {
+      // D15b/6 confirm-path correction: `POST /api/auth/phone/confirm` (existing-user login and
+      // new-user registration) reaches this under the bootstrap principal — no channel to bind
+      // (`web`) and no already-authenticated profile-bind session — so it goes through the atomic
+      // `pre_session` root instead of the relation-based transaction below, which the bootstrap
+      // principal has no capability for (see below for the messenger-channel branch, and
+      // `runWithDbOrganizationPrincipal` below for the `profileBindOrganizationId` case — the only
+      // sub-case still using that transaction, under a real, non-bootstrap principal).
+      const result = await runWebappNamedRoot<{ result: unknown }>(
+        getWebappSqlDb(),
+        'app.pre_session_phone_confirm_resolve(text,text,boolean,text)',
+        [
+          normalized,
+          parsedContext.displayName ?? null,
+          options?.phoneNumberProven === true,
+          options?.confirmingChannel ?? null,
+        ],
+        sql`SELECT app.pre_session_phone_confirm_resolve(
+          ${normalized}::text,
+          ${parsedContext.displayName ?? null}::text,
+          ${options?.phoneNumberProven === true}::boolean,
+          ${options?.confirmingChannel ?? null}::text
+        ) AS result`,
+      );
+      const payload = parseIdentityRow(
+        preSessionPhoneConfirmResolveSchema,
+        result.rows[0]?.result,
+        'pre_session_phone_confirm_resolve',
+      );
+      if (payload.outcome === 'conflict') {
+        // Same fail-closed doctrine as `app.resolve_public_booking_client_by_phone`: an ambiguous
+        // live duplicate is not guessed at here — a genuine merge decision belongs to an
+        // authenticated/manual flow, not an anonymous OTP confirm.
+        throw new MergeConflictError('createOrBind: ambiguous live phone holders');
+      }
+      // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
+      if (payload.is_archived) {
+        throw new Error('createOrBind: platform user is archived');
+      }
+      return {
+        user: sessionUserFromPreSessionIdentityPayload(payload),
+        wasCreated: payload.was_created,
+      };
+    }
+
+    if (key && !profileBindOrganizationId) {
+      // D15b/6 messenger confirm-path correction: `POST /api/auth/phone/messenger-bind/finish`'s
+      // `confirmPhoneAuth` reaches this with a messenger channel key under the same bootstrap
+      // principal as the plain-phone branch above — the channel binding was already established
+      // pre-OTP (`applyMessengerContactPreOtpImpl` → `app.pre_session_messenger_channel_resolve`),
+      // so this call re-resolves the SAME channel binding to refresh the now-OTP-proven phone
+      // contact and mint a session, atomically, under the same named root — never the relation-based
+      // transaction below, which the bootstrap principal has no capability for. Keyed by the channel
+      // binding (not just the phone), so it never risks a duplicate identity for an already
+      // channel-bound holder — see the migration header for the channel/phone-owner conflict
+      // doctrine this root fails closed on instead of re-deriving the merge decision.
+      const sessionUserId = options?.profileBindUserId?.trim() || null;
+      const result = await runWebappNamedRoot<{ result: unknown }>(
+        getWebappSqlDb(),
+        'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)',
+        [
+          parsedContext.channel,
+          parsedContext.chatId,
+          normalized,
+          parsedContext.displayName ?? null,
+          options?.confirmingChannel ?? null,
+          sessionUserId,
+        ],
+        sql`SELECT app.pre_session_messenger_channel_resolve(
+          ${parsedContext.channel}::text,
+          ${parsedContext.chatId}::text,
+          ${normalized}::text,
+          ${parsedContext.displayName ?? null}::text,
+          ${options?.confirmingChannel ?? null}::text,
+          ${sessionUserId}::uuid
+        ) AS result`,
+      );
+      const payload = parseIdentityRow(
+        preSessionMessengerChannelResolveSchema,
+        result.rows[0]?.result,
+        'pre_session_messenger_channel_resolve',
+      );
+      if (payload.outcome === 'conflict') {
+        // Same fail-closed doctrine as the plain-phone branch above: a channel-owner/phone-owner
+        // disagreement is a genuine merge decision, not a guess this anonymous OTP confirm makes.
+        throw new MergeConflictError(
+          'createOrBind: ambiguous messenger channel/phone holders',
+          payload.candidate_ids ?? [],
+        );
+      }
+      // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
+      if (payload.is_archived) {
+        throw new Error('createOrBind: platform user is archived');
+      }
+      return {
+        user: sessionUserFromPreSessionIdentityPayload(payload),
+        wasCreated: payload.was_created,
+      };
+    }
+
+    const pool = getPool();
     const channelCode = parsedContext.channel;
 
     const bindInTransaction = () =>
@@ -489,7 +652,6 @@ export const pgUserByPhonePort: UserByPhonePort = {
         return { userId, wasCreated };
       });
 
-    const profileBindOrganizationId = options?.profileBindOrganizationId?.trim();
     const bound = profileBindOrganizationId
       ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
       : await bindInTransaction();

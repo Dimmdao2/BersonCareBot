@@ -275,31 +275,19 @@ export async function completePhoneMessengerBindFromIntegrator(
     // as if `completionState.ready` had been true.
     let accountCreated = completionState.accountCreated;
     if (!completionState.ready) {
-      const preOtp = await port.withTransaction((client) =>
-        port.applyMessengerContactPreOtp(client, {
-          phoneNormalized: contactPhone,
-          channelCode: params.channelCode,
-          externalId: params.externalId.trim(),
-          purpose: bindPurpose,
-          sessionUserId: row.user_id,
-        }),
-      );
+      const preOtp = await port.applyMessengerContactPreOtp({
+        phoneNormalized: contactPhone,
+        channelCode: params.channelCode,
+        externalId: params.externalId.trim(),
+        purpose: bindPurpose,
+        sessionUserId: row.user_id,
+      });
       if (!preOtp.ok) {
         await port.updateFailed(row.id, preOtp.code);
-        if (preOtp.candidateIds && preOtp.candidateIds.length > 0 && port.recordMessengerBindBlocked) {
-          await port
-            .withTransaction((client) =>
-              port.recordMessengerBindBlocked!(client, {
-                reason: preOtp.code,
-                candidateIds: preOtp.candidateIds ?? [],
-                channelCode: params.channelCode,
-                externalId: params.externalId.trim(),
-                phoneNormalized: contactPhone,
-                source: 'webapp.phoneMessengerBind.applyPreOtp',
-              }),
-            )
-            .catch(() => {});
-        }
+        // D15b/6 conflict-audit correction: `applyMessengerContactPreOtp` (`app.pre_session_
+        // messenger_channel_resolve`) already records `messenger_phone_bind_blocked` itself, in the
+        // same atomic operation that decided the conflict — this caller has no relation door of its
+        // own to run a follow-up transaction under (bootstrap principal); see the port doc comment.
         logger.warn({
           event: 'phone_messenger_bind_complete_fail',
           metric: 'phone_messenger_bind_complete_fail',

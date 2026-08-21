@@ -52,7 +52,7 @@ export const channelBindingRowSchema = z.object({
   external_id: z.string(),
 });
 
-const sessionIdentityContactRowSchema = z.object({
+export const sessionIdentityContactRowSchema = z.object({
   contact_kind: z.enum(['phone', 'email']),
   value_normalized: z.string().trim().min(1),
   is_primary: z.coerce.boolean(),
@@ -93,6 +93,58 @@ export const platformUserSessionRowSchema = z.object({
   is_archived: z.coerce.boolean(),
   security_factor_required: z.coerce.boolean().optional().default(false),
 });
+
+/**
+ * `app.pre_session_find_session_user_by_phone(text)` jsonb payload (D15b/6 repair). The `found:
+ * true` branch reuses {@link platformUserSessionRowSchema} for the base identity fields — same
+ * columns `loadSessionIdentityUser`'s first relation read used to produce — plus the two arrays
+ * its follow-up relation reads used to assemble, now returned by the same door call.
+ */
+export const preSessionPhoneSessionLookupSchema = z.discriminatedUnion('found', [
+  z.object({ found: z.literal(false) }),
+  platformUserSessionRowSchema.extend({
+    found: z.literal(true),
+    contacts: z.array(sessionIdentityContactRowSchema),
+    bindings: z.array(channelBindingRowSchema),
+  }),
+]);
+
+/**
+ * `app.pre_session_phone_confirm_resolve(text,text,boolean,text)` jsonb payload (D15b/6 confirm-path
+ * correction). `outcome: 'conflict'` covers both an invalid phone shape and the fail-closed
+ * ambiguous-live-duplicate case — same "не догадка" doctrine as `resolve_public_booking_client_by_phone`
+ * — never a pick to guess at TypeScript's side. `outcome: 'resolved'` reuses
+ * {@link platformUserSessionRowSchema} plus `was_created`, the same shape
+ * {@link preSessionPhoneSessionLookupSchema} already established for the sibling read-only root.
+ */
+export const preSessionPhoneConfirmResolveSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('conflict') }),
+  platformUserSessionRowSchema.extend({
+    outcome: z.literal('resolved'),
+    was_created: z.coerce.boolean(),
+    contacts: z.array(sessionIdentityContactRowSchema),
+    bindings: z.array(channelBindingRowSchema),
+  }),
+]);
+
+/**
+ * `app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)` jsonb payload (D15b/6
+ * messenger confirm-path correction). Same shape as {@link preSessionPhoneConfirmResolveSchema} —
+ * `outcome: 'conflict'` covers an invalid phone/external id AND the fail-closed case where the
+ * channel-binding owner, phone owner and/or session owner disagree (a real merge decision this root
+ * does not attempt — see the migration header). `candidate_ids` is present only for the latter; the
+ * root itself already records the `messenger_phone_bind_blocked` case for the manual-merge review
+ * path (D15b/6 conflict-audit correction — no caller-side write).
+ */
+export const preSessionMessengerChannelResolveSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('conflict'), candidate_ids: z.array(z.string()).optional() }),
+  platformUserSessionRowSchema.extend({
+    outcome: z.literal('resolved'),
+    was_created: z.coerce.boolean(),
+    contacts: z.array(sessionIdentityContactRowSchema),
+    bindings: z.array(channelBindingRowSchema),
+  }),
+]);
 
 export const platformUserProfileRowSchema = z.object({
   display_name: z.string().nullable(),
@@ -167,11 +219,6 @@ export const platformUserInsertRowSchema = z.object({
 export const bindingOwnerRowSchema = z.object({
   user_id: z.string(),
   integrator_user_id: z.string().nullable(),
-});
-
-export const auditLogRepeatRowSchema = z.object({
-  id: z.string(),
-  repeat_count: z.coerce.number(),
 });
 
 const phoneMessengerBindSecretRowSchema = z.object({

@@ -2516,6 +2516,32 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.channel-binding.session',
       functionIdentity: 'app.auth_channel_binding_session(text,text)' },
+    // D15b/6 repair: `findByPhone` used to resolve the canonical id and then assemble the session
+    // identity through plain relation reads, which the bootstrap principal has no door for (§below,
+    // `capabilities['pre_session']` purpose=relation is intentionally absent). Same shape as
+    // `auth_channel_binding_session` — one door, keyed by phone instead of channel binding.
+    pre_session_find_session_user_by_phone: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-login.session-lookup',
+      functionIdentity: 'app.pre_session_find_session_user_by_phone(text)' },
+    // D15b/6 confirm-path correction: after OTP verification `createOrBind` still ran its whole
+    // resolve/create/contact-write transaction under the bootstrap principal, which (like the
+    // `/start` read above) has no unnamed relation door — same failure, on the write that follows a
+    // successful OTP. One door, atomic: resolve-or-create the canonical holder for a proven phone.
+    pre_session_phone_confirm_resolve: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-login.confirm-resolve',
+      functionIdentity: 'app.pre_session_phone_confirm_resolve(text,text,boolean,text)' },
+    // D15b/6 correction (messenger confirm-path): `applyMessengerContactPreOtpImpl` (integrator
+    // webhook, before OTP) and `createOrBind`'s messenger-channel branch (after OTP) both ran full
+    // relation transactions under the bootstrap principal — the same class of gap the two roots
+    // above closed for the web channel only. One door, keyed by the channel binding (not just the
+    // phone, unlike `pre_session_phone_confirm_resolve`) so it never risks a duplicate identity for
+    // an already channel-bound holder.
+    pre_session_messenger_channel_resolve: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.messenger-login.channel-resolve',
+      functionIdentity: 'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)' },
     resolve_staff_workspace_memberships: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.staff-workspace.resolve',
@@ -3333,8 +3359,9 @@ const REV10_CONTEXT = {
     }),
     'app_ext.digest(text,text)': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false,
-      execute: ['app_seam_dedicated_bot_owner', 'app_seam_password_auth_owner'],
-      purpose: 'private pgcrypto digest dependency of the dedicated-bot and password-auth seams',
+      execute: ['app_seam_dedicated_bot_owner', 'app_seam_password_auth_owner', 'app_seam_identity_lookup_owner'],
+      purpose: 'private pgcrypto digest dependency of the dedicated-bot, password-auth and '
+        + 'identity-lookup (D15b/6 messenger conflict-audit conflict_key) seams',
       typedArgs: ['text', 'text'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: [],
       invocation: 'internal' as const,
     }),
@@ -6117,6 +6144,91 @@ const REV10_CONTEXT = {
         { relation: 'public.user_contacts',
           columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.pre_session_find_session_user_by_phone(text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve one canonical phone holder into the full session-identity payload without exposing relations',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_contacts',
+          columns: ['platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at', 'source_origin', 'created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users',
+          columns: ['id', 'role', 'session_epoch', 'is_archived', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity',
+          columns: ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.pre_session_phone_confirm_resolve(text,text,boolean,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve-or-create the canonical holder for a proven phone and return the full session-identity payload',
+      typedArgs: ['text', 'text', 'boolean', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.platform_users',
+          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic', 'merged_into_id', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts',
+          columns: ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at', 'source_origin', 'updated_at', 'created_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity',
+          columns: ['platform_user_id', 'first_name', 'last_name', 'patronymic', 'display_name', 'birth_date', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_phone_history',
+          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'organization_id', 'confirming_channel'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_pre_session'],
+      purpose: 'resolve-or-create the canonical holder for a messenger channel binding and return the full session-identity payload',
+      typedArgs: ['text', 'text', 'text', 'text', 'text', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_channel_bindings',
+          columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users',
+          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic', 'merged_into_id', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts',
+          columns: ['id', 'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at', 'source_origin', 'updated_at', 'created_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity',
+          columns: ['platform_user_id', 'first_name', 'last_name', 'patronymic', 'display_name', 'birth_date', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_phone_history',
+          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source', 'organization_id', 'confirming_channel'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_preferences',
+          columns: ['user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // D15b/6 conflict-audit correction: on a channel/phone/session-owner disagreement this root
+        // records `messenger_phone_bind_blocked` itself (durable/repeat-aware, keyed by conflict_key)
+        // instead of relying on a caller transaction the bootstrap principal has no door to run.
+        { relation: 'public.admin_audit_log',
+          columns: ['id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key', 'details', 'status', 'repeat_count', 'last_seen_at', 'resolved_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.resolve_staff_workspace_memberships(uuid)': rev10Function({
