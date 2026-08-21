@@ -177,13 +177,13 @@ END
 $d15b6_parity$;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
+ALTER TABLE public.user_contacts DROP CONSTRAINT user_contacts_source_origin_check;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
 UPDATE public.user_contacts
 SET source_origin = CASE WHEN source_origin = 'oauth_binding' THEN 'oauth' ELSE 'direct' END,
     updated_at = now()
 WHERE source_origin NOT IN ('direct', 'oauth');
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-ALTER TABLE public.user_contacts DROP CONSTRAINT user_contacts_source_origin_check;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 ALTER TABLE public.user_contacts ADD CONSTRAINT user_contacts_source_origin_check
