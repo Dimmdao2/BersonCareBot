@@ -132,7 +132,7 @@
 | приглашение погашено, портал активирован | `app.redeem_patient_invite_email` / `app.claim_unbound_patient_invite_email` | UPDATE существующей | `invited` → **`active`** | грант `SELECT, UPDATE ON org_enrollments` (`patient-invites-rls.sql:64`); INSERT никому не выдан |
 | бот/интегратор (Telegram, MAX) | `platformUserByChannel.ts:157`, `resolveDirectPublicActor.ts:85` | нет — только ЧИТАЕТ зачисление | — | связь заведена раньше клиникой |
 | пациент сам из портала | — | **невозможно** | — | `app_patient` не имеет INSERT/UPDATE на `org_enrollments` (ассерт `e1-webapp-runtime-config.sql:297`) |
-| фикстуры/сиды на dev и TEST | `seed-saas-test-walkthrough-fixtures.ts:1149`, `dev-c2-dev-bypass-fixture.sql:231` | да | `active` | — |
+| ~~фикстуры/сиды на dev и TEST~~ | ~~`seed-saas-test-walkthrough-fixtures.ts:1149`, `dev-c2-dev-bypass-fixture.sql:231`~~ | — | **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026** | Постоянные live DEV/TEST fixtures удалены; использовать существующие owner-аккаунты (`AGENTS.md` §1b). |
 
 Сверено с фактическими данными dev: по 29 таблицам, где есть и `organization_id`, и ссылка на
 человека (приёмы, визиты, диагнозы, программы, чаты поддержки, дневники, напоминания, файлы,

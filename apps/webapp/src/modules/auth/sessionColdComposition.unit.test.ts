@@ -24,7 +24,6 @@ vi.mock('next/headers', () => ({
   headers: async () => new Headers(),
 }));
 vi.mock('@/config/env', () => ({
-  devBypassDatabaseIdentityIsReadOnly: () => true,
   env: {
     NODE_ENV: 'test',
     ALLOW_DEV_AUTH_BYPASS: false,

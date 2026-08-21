@@ -6,7 +6,7 @@
 --   `DB_PRINCIPAL_CONTEXT_MODE` is `shadow`/`locked` (see `applySignedDbPrincipal` in
 --   packages/db-principal/src/index.ts) — this happens on BOTH apply and cleanup, for every
 --   `pool.query()` issued while a request has not yet established a session (e.g.
---   `GET /api/auth/dev-bypass`, and every other route that calls `stampBootstrapPrincipal`).
+--   every route that calls `stampBootstrapPrincipal`).
 --   That call runs BEFORE any `SET ROLE`, so it executes as the login role itself, not as
 --   `app_staff`/`app_patient`. `apps/webapp/src/infra/db/webappPoolProvider.ts`'s
 --   `choosePoolKindForPrincipal` routes a `bootstrap` principal to the NONSTAFF pool

@@ -20,18 +20,15 @@
 - Deploy repo: `/opt/projects/bersoncarebot-test` (checked out as user `deploy`).
 - Test units: `bersoncarebot-{api,worker,scheduler,webapp,media-worker}-test`.
 
-## Historical A/B sequence (superseded)
-
-The recorded 2026-07-12 rehearsal first left migration 0177 in dormant/NO FORCE state and then planned a separate
-enforce flip. That split is retained only as provenance for disposable compatibility testing. It must not be copied
-or run against TEST.
+## Current TEST outcome
 
 Current TEST has one supported outcome: writers stop, the wrapper performs migrations/data cleanup/roles/grants and
 all reviewed overlays, including the E1 closed telemetry API, then `deploy/postgres/test-strict-rls-finalizer.sql`
 applies base policies → safe invite/course/app_worker overlays → FORCE with exact catalog/semantic assertions.
-Temporary privileges are revoked, fixtures reconcile in a separate short privilege window, and only locked units
-that pass fail-closed health plus mandatory product smoke remain running. A failure is fixed in code/policy; walls
-are not disabled as recovery.
+Temporary privileges are revoked, and only locked units that pass fail-closed health remain running; acceptance is
+an ordinary check against the already-registered owner accounts and clinics (`docs/OWNER_DECISIONS.md:870-871`,
+`AGENTS.md` §1a/§1b) — no fixture reconciliation window and no product-smoke-fixture step. A failure is fixed in
+code/policy; walls are not disabled as recovery.
 
 Use only:
 
@@ -41,7 +38,7 @@ bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owne
 
 For a code-only update of the existing TEST database use `deploy/host/deploy-test.sh`; it now owns the same controlled
 migration privilege window and invokes the same shared post-migration closure (roles/helpers/grants/telemetry,
-strict finalizer, fixture, restart/health/smoke). Manual restore/SQL chains are prohibited.
+strict finalizer, restart/health/smoke). Manual restore/SQL chains are prohibited.
 
 ## PROD mapping (eventual)
 

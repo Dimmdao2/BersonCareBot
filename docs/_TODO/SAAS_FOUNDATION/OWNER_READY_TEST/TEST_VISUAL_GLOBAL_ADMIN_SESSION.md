@@ -1,7 +1,7 @@
 # Short-lived TEST global-admin visual session
 
 This is the canonical handoff for an authorized visual agent that needs `/app/admin/system-health` on TEST.
-It does not read or copy `/run/bersoncarebot/saas-smoke.fixture` and does not use dev-bypass.
+It uses the already registered owner global-admin account and does not use dev-bypass.
 
 ## Security model
 
@@ -89,7 +89,7 @@ must report `absent`. If cleanup is missed, the cookie still cannot slide and ex
   wrapper follows only same-origin redirects for the exact route and emits one classified line containing only the
   fixed origin, normalized path, HTTP status and category. Redirect loops, cross-origin redirects, auth failures and
   non-200 terminal responses fail closed without exposing headers, cookie values, response bodies or page text.
-- It does not modify TEST DB data, services, nginx, fixture rows, passwords, grants, or the main smoke fixture.
+- It does not modify TEST DB data, services, nginx, passwords or grants.
 - Immediate server-side denylisting does not exist for the application's stateless HMAC cookies. `revoke` removes
   the controlled handoff, while the non-renewable signed expiry is the hard upper bound for a copy already taken.
   Keep TTL minimal and revoke/close the isolated profile immediately.

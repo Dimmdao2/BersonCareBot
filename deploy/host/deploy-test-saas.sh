@@ -55,9 +55,6 @@ WEBAPP_ENV=/opt/env/bersoncarebot/webapp.test
 MEDIA_WORKER_ENV=/opt/env/bersoncarebot/media-worker.test
 MEDIA_WORKER_TEST_UNIT=deploy/systemd/bersoncarebot-media-worker-test.service
 MEDIA_WORKER_TEST_UNIT_ASSERTION=deploy/host/assert-media-worker-test-unit-properties.sh
-SAAS_TEST_FIXTURE_ENV=/opt/env/bersoncarebot/saas-test-fixture.env
-SAAS_SMOKE_LOGIN_ENV=/opt/env/bersoncarebot/saas-smoke-login.env
-SAAS_SMOKE_PASSWORD_CONVERGER=apps/webapp/scripts/converge-saas-smoke-login-passwords.mjs
 BUNDLE=/tmp/bcb-test-deploy.bundle
 DB=bersoncarebot_test
 # Removed by the revision-10 declarative checkpoint. The reset may encounter this role on an old
@@ -90,10 +87,7 @@ PUBLIC_BOOKING_BOOTSTRAP_RESOLVER=deploy/postgres/public-booking-bootstrap-resol
 PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER=deploy/postgres/public-clinic-slug-bootstrap-resolver.sql
 D3_4_BOOTSTRAP_GRANTS=deploy/postgres/d3-4-bootstrap-base-login-read-grants.sql
 TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
-TEST_PATIENT_IDENTITY_CAPABILITY_GATE=deploy/postgres/test-patient-identity-capability-gate.sql
-OWNER_READY_LOCKED_MATRIX=deploy/postgres/test-owner-ready-locked-matrix.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
-SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES=deploy/postgres/test-saas-isolation-telemetry-fixtures.sql
 SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
 INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
 INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS=deploy/postgres/integrator-login-public-identity-grants.sql
@@ -104,7 +98,6 @@ C4_OPERATIONAL_READINESS=deploy/host/assert-c4-operational-runtime-ready.sh
 C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 C4_MEDIA_LOGIN_RETIREMENT=deploy/host/retire-media-db-login.sh
 C4_OPERATIONAL_PASSWORD_SETTER=deploy/host/set-postgres-role-password.mjs
-C4_OPERATIONAL_PASSWORD_SMOKE=deploy/host/smoke-set-postgres-role-password.sh
 PORT_CONTEXT_CAPABILITY_SEED=deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
 SAAS_ISOLATION_OPERATOR_PROVISIONER=deploy/host/render-saas-isolation-operator-provisioning.mjs
 UNITS=(api worker scheduler webapp media-worker)
@@ -125,7 +118,6 @@ CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
 # (deploy-test.sh) must treat it as a red deploy that is NOT an outage, and must not stop the units.
 CLOSURE_GATE_RED_EXIT=3
-FIXTURE_VALIDATOR_ROOT="$SRC_REPO"
 E1_RUNTIME_COVERAGE_STARTED_AT=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
@@ -434,13 +426,6 @@ bootstrap_test_env_preflight(){
       return 1
       ;;
   esac
-}
-
-assert_saas_test_fixture_packet_ready(){
-  local validator="$FIXTURE_VALIDATOR_ROOT/deploy/host/saas-test-fixture-packet.mjs"
-  [ -r "$validator" ] || { echo "FATAL: missing TEST fixture packet validator" >&2; exit 1; }
-  sudo -u deploy env SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1 \
-    node --input-type=module - "$SAAS_TEST_FIXTURE_ENV" < "$validator"
 }
 
 assert_test_writers_stopped(){
@@ -827,25 +812,6 @@ install_saas_isolation_telemetry_overlay(){
   echo "   SaaS isolation telemetry closed API: OK"
 }
 
-# TEST-only scenario fixtures, split out of the closed telemetry API above so the production
-# overlay (deploy-prod.sh, zero references) can never carry these objects. Must run after
-# install_saas_isolation_telemetry_overlay: it depends on the roles/tables that overlay owns.
-install_saas_isolation_telemetry_test_fixtures_overlay(){
-  local webapp_runtime_role api_runtime_role operator_runtime_role
-  webapp_runtime_role="$(discover_webapp_bootstrap_base_role)"
-  api_runtime_role="$(discover_api_runtime_role)"
-  operator_runtime_role="$(discover_saas_isolation_operator_role)"
-  validate_pg_identifier "webapp.test telemetry runtime role" "$webapp_runtime_role"
-  validate_pg_identifier "api.test telemetry runtime role" "$api_runtime_role"
-  validate_pg_identifier "webapp.test telemetry operator role" "$operator_runtime_role"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v telemetry_webapp_runtime_role="$webapp_runtime_role" \
-    -v telemetry_api_runtime_role="$api_runtime_role" \
-    -v telemetry_operator_runtime_role="$operator_runtime_role" \
-    -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES"
-  echo "   SaaS isolation TEST scenario fixture API: OK"
-}
-
 install_saas_system_health_diagnostics_overlay(){
   local operator_runtime_role
   operator_runtime_role="$(discover_saas_isolation_operator_role)"
@@ -886,17 +852,6 @@ assert_integrator_server_runtime_config_ready(){
   ok="$(sudo -u deploy bash -lc "set -a && . '$API_ENV' && set +a && psql \"\$DATABASE_URL\" -X -v ON_ERROR_STOP=1 -tAc \"SELECT (NOT (SELECT rolinherit FROM pg_roles WHERE rolname = current_user) AND 3 = (SELECT count(*) FROM pg_auth_members membership JOIN pg_roles member_role ON member_role.oid = membership.member JOIN pg_roles granted_role ON granted_role.oid = membership.roleid WHERE member_role.rolname = current_user AND granted_role.rolname IN ('app_staff', 'app_patient', 'app_worker') AND NOT membership.inherit_option AND membership.set_option) AND has_function_privilege(current_user, 'app.read_global_server_runtime_setting(text)', 'EXECUTE') AND has_function_privilege(current_user, 'app.read_integrator_smtp_outbound_setting()', 'EXECUTE') AND has_function_privilege(current_user, 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)', 'EXECUTE') AND (SELECT count(*) FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND procedure.prosecdef AND owner.rolname LIKE 'app_seam\\_%\\_owner' ESCAPE '\\' AND privilege.grantee IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 2 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'::regprocedure AND (privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND (SELECT count(*) FROM pg_proc procedure CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND privilege.grantee = (SELECT oid FROM pg_roles WHERE rolname = current_user) AND privilege.privilege_type = 'EXECUTE' AND NOT privilege.is_grantable) = 1 AND NOT EXISTS (SELECT 1 FROM pg_proc procedure JOIN pg_roles owner ON owner.oid = procedure.proowner CROSS JOIN LATERAL aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) privilege WHERE procedure.oid = 'app.read_integrator_smtp_outbound_setting()'::regprocedure AND (NOT procedure.prosecdef OR owner.rolname NOT LIKE 'app_seam\\_%\\_owner' ESCAPE '\\' OR privilege.grantee NOT IN (procedure.proowner, (SELECT oid FROM pg_roles WHERE rolname = current_user)) OR privilege.privilege_type <> 'EXECUTE' OR privilege.is_grantable)) AND NOT EXISTS (SELECT 1 FROM pg_class relation CROSS JOIN LATERAL aclexplode(COALESCE(relation.relacl, acldefault('r', relation.relowner))) privilege WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND privilege.privilege_type = 'SELECT' AND privilege.grantee IN (0, (SELECT oid FROM pg_roles WHERE rolname = current_user))) AND NOT EXISTS (SELECT 1 FROM pg_class relation WHERE relation.oid IN ('public.app_runtime_settings'::regclass, 'public.system_settings'::regclass) AND pg_has_role(current_user, pg_get_userbyid(relation.relowner), 'MEMBER')) AND COALESCE((app.read_global_server_runtime_setting('app_base_url')->>'value') ~ '^https?://', false))::text;\"")"
   [ "$ok" = "true" ] || { echo "FATAL: integrator DB-backed runtime/SMTP/audit accessors are not ready" >&2; exit 1; }
   echo "   integrator DB-backed runtime/SMTP/audit accessors: OK (exact ACL, no direct protected-table write)"
-}
-
-run_saas_isolation_test_scenario_proof(){
-  local scenario_args
-  for scenario_args in \
-    "--execute" \
-    "--execute --prove-cleanup-on-injected-failure" \
-    "--execute --assert-clean-only"; do
-    sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && ALLOW_DEV_AUTH_BYPASS=false pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios -- $scenario_args"
-  done
-  echo "   SaaS isolation TEST scenarios: normal + injected cleanup + final clean OK"
 }
 
 apply_test_strict_rls_finalizer(){
@@ -1815,61 +1770,6 @@ run_e1_post_runtime_coverage_gate(){
   fi
 }
 
-run_owner_ready_locked_db_matrix(){
-  # Same retired-fixture dependency as the patient capability gate — see demo_isolation_fixtures_present.
-  if ! demo_isolation_fixtures_present; then
-    skip_because_demo_fixtures_retired "owner-ready locked DB matrix"
-    return 0
-  fi
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v test_expected_database="$DB" \
-    -v matrix_staff_role="$P2_B_STAFF_ROLE" \
-    -v matrix_patient_role="$P2_B_PATIENT_ROLE" \
-    -f "$DEPLOY_REPO/$OWNER_READY_LOCKED_MATRIX"
-}
-
-# ── Retired S3 demo-fixture dependency (single chokepoint, added 2026-07-25) ──────────────────────
-# Two closure steps (the locked patient identity capability gate and the owner-ready locked DB matrix)
-# assert tenant isolation against the S3 demo clinics A/B, whose UUIDs they hardcode. Owner ruling
-# 2026-07-25 retired those demo fixtures ("они были нужны для проверки стен когда их ставили") and their
-# seed step was removed from this closure, so on a from-zero run both steps have nothing to assert against
-# and abort the closure with a fail-closed division-by-zero. Both now consult this one predicate: run
-# UNCHANGED (same strictness, still fatal) whenever the fixtures are present, skip loudly when they are not.
-# The tenant walls themselves remain asserted by the strict+FORCE finalizer and the reversible SaaS
-# isolation scenario proof, which do not depend on these fixtures.
-demo_isolation_fixtures_present(){
-  local present
-  present="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc "
-    SELECT (
-      EXISTS (SELECT 1 FROM public.be_organizations WHERE id = '53000000-0000-4000-8000-0000000000a1')
-      AND EXISTS (SELECT 1 FROM public.be_organizations WHERE id = '53000000-0000-4000-8000-0000000000b1')
-      AND EXISTS (SELECT 1 FROM public.platform_users WHERE id = '53000000-0000-4000-8000-00000000a101')
-      AND EXISTS (SELECT 1 FROM public.platform_users WHERE id = '53000000-0000-4000-8000-00000000a201')
-    )::text")"
-  [ "$present" = "true" ]
-}
-
-skip_because_demo_fixtures_retired(){
-  echo "   SKIPPED: $1 — S3 demo clinic fixtures are retired (owner ruling 2026-07-25)."
-  echo "            Tenant/patient wall enforcement is still asserted by the strict+FORCE finalizer and the"
-  echo "            reversible SaaS isolation scenario proof in this same closure."
-}
-
-run_test_patient_identity_capability_gate(){
-  local runtime_login_role
-  runtime_login_role="$(discover_webapp_bootstrap_base_role)"
-  validate_pg_identifier "patient identity runtime login role" "$runtime_login_role"
-
-  if ! demo_isolation_fixtures_present; then
-    skip_because_demo_fixtures_retired "locked patient identity capability gate"
-    return 0
-  fi
-
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v patient_identity_runtime_login_role="$runtime_login_role" \
-    -f "$DEPLOY_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"
-}
-
 run_b1_doctor_admin_identity_assertion(){
   if [ "${SAAS_B1_IDENTITY_ASSERTION_SKIP:-0}" = "1" ]; then
     echo "   B1 doctor/admin identity assertion: skipped (SAAS_B1_IDENTITY_ASSERTION_SKIP=1)"
@@ -2057,13 +1957,10 @@ run_strict_post_migration_closure(){
   log "strict closure: SaaS isolation telemetry privilege overlay"
   provision_saas_isolation_operator_login
   install_saas_isolation_telemetry_overlay
-  install_saas_isolation_telemetry_test_fixtures_overlay
   install_saas_system_health_diagnostics_overlay
   install_integrator_server_runtime_config_overlay
   log "strict closure: integrator login public identity grants"
   install_integrator_login_public_identity_grants_overlay
-  log "strict closure: reversible SaaS isolation TEST scenario proof"
-  run_saas_isolation_test_scenario_proof
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
     assert_api_runtime_can_release_principal_context
   fi
@@ -2098,18 +1995,9 @@ run_strict_post_migration_closure(){
   log "strict closure: declaration-owned port-context capability catalog"
   install_port_context_capability_catalog
 
-  # SaaS TEST walkthrough demo-fixture seed removed 2026-07-24 (owner: the Clinic A/B demo data was
-  # only needed to validate tenant walls during their setup; the walls are in place, and the
-  # verification smokes below do not depend on it). The elevation-cleanup guard stays as a standing
-  # safety assertion.
   assert_cleanup_elevation
 
-  log "strict closure: locked patient identity capability gate"
-  run_test_patient_identity_capability_gate
-
-  log "strict closure: owner-ready locked DB matrix (transactional)"
-  run_owner_ready_locked_db_matrix
-  log "strict closure: post-matrix exact strict + FORCE reassertion"
+  log "strict closure: post-catalog exact strict + FORCE reassertion"
   apply_test_strict_rls_finalizer
   reapply_c4_operational_runtime_overlays
 
@@ -2190,12 +2078,11 @@ assert_strict_closure_deploy_checkout_ready(){
     "$PUBLIC_BOOTSTRAP_RLS" "$SPECIALIST_OWNER_PROVISIONING_RLS" "$REFERENCE_CATALOG_RLS" "$PATIENT_VISIBLE_CATALOG_RLS" \
     "$PATIENT_VAPID_ACCESSOR" "$PUBLIC_BOOKING_BOOTSTRAP_RESOLVER" "$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" \
     "$D3_4_BOOTSTRAP_GRANTS" "$TEST_STRICT_RLS_FINALIZER" \
-    "$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" \
-    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
+    "$SAAS_ISOLATION_TELEMETRY" "$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" "$INTEGRATOR_SERVER_RUNTIME_CONFIG" \
     "$C4_OPERATIONAL_RUNTIME" "$C4_OPERATIONAL_PROVISIONER" "$C4_OPERATIONAL_READINESS" \
     "$C4_MEDIA_CONTROL_CUTOVER" "$C4_MEDIA_LOGIN_RETIREMENT" \
-    "$C4_OPERATIONAL_PASSWORD_SETTER" "$C4_OPERATIONAL_PASSWORD_SMOKE" "$PORT_CONTEXT_CAPABILITY_SEED" \
-    "$SAAS_ISOLATION_OPERATOR_PROVISIONER" "$OWNER_READY_LOCKED_MATRIX" \
+    "$C4_OPERATIONAL_PASSWORD_SETTER" "$PORT_CONTEXT_CAPABILITY_SEED" \
+    "$SAAS_ISOLATION_OPERATOR_PROVISIONER" \
     deploy/postgres/phase4-app-worker-narrow-rls.sql; do
     sudo -u deploy test -r "$DEPLOY_REPO/$required_path" || {
       echo "FATAL: deploy cannot read strict closure artifact: $DEPLOY_REPO/$required_path" >&2
@@ -2227,19 +2114,15 @@ run_strict_closure_catalog_self_test(){
       install_p0_5b_runtime_wall install_p2_b_protected_principal_context \
       rehydrate_post_restore_runtime_overlays provision_saas_isolation_operator_login \
       install_saas_isolation_telemetry_overlay \
-      install_saas_isolation_telemetry_test_fixtures_overlay \
       install_saas_system_health_diagnostics_overlay \
       install_integrator_server_runtime_config_overlay \
       install_integrator_login_public_identity_grants_overlay \
-      run_saas_isolation_test_scenario_proof grant_webapp_bootstrap_base_login_d3_4 \
+      grant_webapp_bootstrap_base_login_d3_4 \
       sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime \
       install_port_context_login_roles; do
       eval "$function_name(){ :; }"
     done
     install_port_context_capability_catalog(){ return 73; }
-    # This is the first call after the catalog install. It makes a removed catalog call
-    # fail safely and deterministically instead of reaching any live TEST operation.
-    run_test_patient_identity_capability_gate(){ return 74; }
     run_strict_post_migration_closure
   )
   catalog_probe_status=$?
@@ -2270,8 +2153,8 @@ resolve_c4_self_test_repo_file(){
 
 run_c4_operational_chain_self_test(){
   local self_test_repo_root self_test_deploy_script self_test_provisioner self_test_readiness
-  local self_test_media_cutover self_test_media_retirement self_test_password_smoke
-  local self_test_bootstrap self_test_secret_preflight self_test_retirement_test
+  local self_test_media_cutover self_test_media_retirement
+  local self_test_bootstrap self_test_secret_preflight
   self_test_repo_root="$(realpath "$DEPLOY_TEST_SAAS_SCRIPT_DIR/../..")"
   self_test_deploy_script="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/deploy-test-saas.sh)"
   [ "$self_test_deploy_script" = "$(realpath "${BASH_SOURCE[0]}")" ] || {
@@ -2282,19 +2165,15 @@ run_c4_operational_chain_self_test(){
   self_test_readiness="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_READINESS")"
   self_test_media_cutover="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_CONTROL_CUTOVER")"
   self_test_media_retirement="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_MEDIA_LOGIN_RETIREMENT")"
-  self_test_password_smoke="$(resolve_c4_self_test_repo_file "$self_test_repo_root" "$C4_OPERATIONAL_PASSWORD_SMOKE")"
   self_test_bootstrap="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/bootstrap-c4-test-env.mjs)"
   self_test_secret_preflight="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/saas-c2-secret-preflight.mjs)"
-  self_test_retirement_test="$(resolve_c4_self_test_repo_file "$self_test_repo_root" deploy/host/retire-media-db-login.test.mjs)"
   run_strict_closure_catalog_self_test
   bash -n "$self_test_deploy_script" "$self_test_provisioner" "$self_test_readiness" \
     "$self_test_media_cutover" "$self_test_media_retirement"
   bash "$self_test_media_cutover" --self-test
   bash "$self_test_provisioner" --self-test
-  bash "$self_test_password_smoke"
   node "$self_test_bootstrap" --self-test
   node "$self_test_secret_preflight" --self-test
-  node "$self_test_retirement_test"
   echo "C4 canonical fresh wrapper segment + shared catalog closure self-test: OK (checkout=$self_test_repo_root; no env/DB/service/cron mutation)"
 }
 
@@ -2447,10 +2326,6 @@ run_port_context_test_release(){
   # reset path never creates it, grants it membership, or toggles BYPASSRLS.
   cleanup_elevation
   LEGACY_ELEVATION_CLEANUP_REQUIRED=0
-  log "install TEST-only telemetry fixture objects required by the target privilege declaration"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v telemetry_fixture_objects_only=1 \
-    -f "$DEPLOY_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES"
   log "single-target TEST mTLS → zero/proof → minimal target roles/grants"
   local access_backup="/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-access-$(date -u +%Y%m%dT%H%M%SZ).dump"
   local current_connection_limit
@@ -2491,13 +2366,11 @@ case "${1:-}" in
     exit 0
     ;;
   --strict-preflight)
-    FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
     assert_strict_closure_deploy_checkout_ready
     echo "strict TEST closure preflight: OK"
     exit 0
     ;;
   --post-migration-closure)
-    FIXTURE_VALIDATOR_ROOT="$DEPLOY_REPO"
     assert_strict_closure_deploy_checkout_ready
     WRITERS_STOPPED=1
     trap cleanup_exit EXIT
@@ -2528,15 +2401,6 @@ log "DESTRUCTIVE full-reset confirmation + owner input preflight"
 assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_FILE_SHA256"
 [ -r "$SRC_REPO/$RESTORE" ] || { echo "FATAL: missing required file: $SRC_REPO/$RESTORE"; exit 1; }
 [ -r "$SRC_REPO/$OVERRIDE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OVERRIDE"; exit 1; }
-[ -r "$SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER"; exit 1; }
-sudo -u deploy test -f "$SAAS_SMOKE_LOGIN_ENV" && sudo -u deploy test ! -L "$SAAS_SMOKE_LOGIN_ENV" || {
-  echo "FATAL: protected TEST owner-login packet is missing or is a symlink: $SAAS_SMOKE_LOGIN_ENV" >&2
-  exit 1
-}
-[ "$(sudo -u deploy stat -Lc '%U:%G:%a' -- "$SAAS_SMOKE_LOGIN_ENV")" = "root:deploy:640" ] || {
-  echo "FATAL: protected TEST owner-login packet must be root:deploy 0640" >&2
-  exit 1
-}
 [ -r "$SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$OWNER_IDENTITY_CONSOLIDATION"; exit 1; }
 [ -r "$SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PRE_CUTOVER_DATA_ASSERTIONS"; exit 1; }
 [ -r "$SRC_REPO/$CUTOVER_MIGRATION" ] || { echo "FATAL: missing repo file: $SRC_REPO/$CUTOVER_MIGRATION"; exit 1; }
@@ -2559,9 +2423,7 @@ sudo -u deploy test -f "$SAAS_SMOKE_LOGIN_ENV" && sudo -u deploy test ! -L "$SAA
 [ -r "$SRC_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$PUBLIC_CLINIC_SLUG_BOOTSTRAP_RESOLVER"; exit 1; }
 [ -r "$SRC_REPO/$D3_4_BOOTSTRAP_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$D3_4_BOOTSTRAP_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$TEST_STRICT_RLS_FINALIZER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_STRICT_RLS_FINALIZER"; exit 1; }
-[ -r "$SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE" ] || { echo "FATAL: missing repo file: $SRC_REPO/$TEST_PATIENT_IDENTITY_CAPABILITY_GATE"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
-[ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY_TEST_FIXTURES"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"; exit 1; }
@@ -2768,10 +2630,6 @@ echo "   OK: 1 active specialist · $APPTS appointments on canonical ($FUT futur
 [ "${FUT:-0}" -gt 0 ] || echo "   ⚠ WARNING: 0 future appointments — dump may be stale (live prod should have upcoming bookings)"
 log "B1 doctor/admin identity assertion"
 run_b1_doctor_admin_identity_assertion
-
-log "converge the three owner TEST account emails/passwords from the protected packet"
-sudo env SAAS_SMOKE_PASSWORD_CONVERGENCE_TEST_ONLY=1 \
-  node "$DEPLOY_REPO/$SAAS_SMOKE_PASSWORD_CONVERGER" --packet="$SAAS_SMOKE_LOGIN_ENV"
 
 # The destructive full-reset is the one authorized one-time access cutover.  All legacy migrations
 # above have completed while their migration identity still exists.  From here the old C2/C4

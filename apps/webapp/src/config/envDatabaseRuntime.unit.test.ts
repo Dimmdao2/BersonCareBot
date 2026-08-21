@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  devBypassDatabaseIdentityIsReadOnly,
-  webappRuntimeDatabaseIsConfigured,
-} from './env';
+import { webappRuntimeDatabaseIsConfigured } from './env';
 
 describe('webappRuntimeDatabaseIsConfigured', () => {
   it('recognizes port-context without the removed aggregate DATABASE_URL', () => {
@@ -40,20 +37,4 @@ describe('webappRuntimeDatabaseIsConfigured', () => {
       }),
     ).toBe(true);
   });
-});
-
-describe('devBypassDatabaseIdentityIsReadOnly', () => {
-  it.each(['locked', 'port-context'] as const)(
-    'keeps %s dev-bypass identity resolution read-only',
-    (DB_PRINCIPAL_CONTEXT_MODE) => {
-      expect(devBypassDatabaseIdentityIsReadOnly({ DB_PRINCIPAL_CONTEXT_MODE })).toBe(true);
-    },
-  );
-
-  it.each(['legacy-guc', 'shadow'] as const)(
-    'leaves the explicit %s fixture-repair mode write-capable',
-    (DB_PRINCIPAL_CONTEXT_MODE) => {
-      expect(devBypassDatabaseIdentityIsReadOnly({ DB_PRINCIPAL_CONTEXT_MODE })).toBe(false);
-    },
-  );
 });

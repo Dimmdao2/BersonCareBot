@@ -74,8 +74,6 @@ export type AppSession = {
   user: SessionUser;
   issuedAt: number;
   expiresAt: number;
-  /** Internal source hint for non-production dev bypass auth flow. */
-  authSource?: 'dev_bypass';
   /** Root-issued, ordinary TEST login handoff. It is signed like every session and never slides. */
   operatorSession?: {
     purpose: 'test_global_admin_visual';

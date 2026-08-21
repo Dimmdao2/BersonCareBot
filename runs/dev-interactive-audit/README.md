@@ -11,8 +11,8 @@ failures or HTTP 4xx/5xx. Output includes cold/warm navigation and action latenc
 Actual doctor/global-admin/patient login needs `DEV_AUDIT_PASSWORD`; the emails default to the canonical
 owner accounts and may be overridden with `DEV_AUDIT_DOCTOR_EMAIL` / `DEV_AUDIT_ADMIN_EMAIL` /
 `DEV_AUDIT_PATIENT_EMAIL`. A pre-minted DEV-only patient session may still be passed as
-`DEV_AUDIT_PATIENT_SESSION_COOKIE`. Synthetic `dev:*` fixtures are rejected unless
-`DEV_AUDIT_ALLOW_SYNTHETIC=1`, and a synthetic run must never be reported as coverage of real data.
+`DEV_AUDIT_PATIENT_SESSION_COOKIE`. There is no synthetic/token fallback: a role with neither an
+actual session cookie nor `DEV_AUDIT_PASSWORD` fails closed.
 
 Read-only run:
 

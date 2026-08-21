@@ -54,9 +54,7 @@ export async function POST(request: Request) {
   const { token } = parsed.data;
   const verifiedChannel = await classifyVerifiedIntegratorTokenChannel(token);
   if (
-    verifiedChannel !== null &&
-    verifiedChannel !== 'dev_bypass' &&
-    !(await isAuthChannelEnabled(verifiedChannel))
+    verifiedChannel !== null && !(await isAuthChannelEnabled(verifiedChannel))
   ) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
@@ -110,7 +108,7 @@ export async function POST(request: Request) {
   await recordAuthLogin({
     userId: result.session.user.userId,
     entryChannel: entryChannelFromMessengerBindings(result.session.user.bindings),
-    authMethod: result.session.authSource === 'dev_bypass' ? 'dev_bypass' : 'integrator_exchange',
+    authMethod: 'integrator_exchange',
   });
   if (result.accountOutcome === 'created') {
     await recordAuthRegistrationSuccess({
@@ -130,7 +128,7 @@ export async function POST(request: Request) {
     role: result.session.user.role,
     redirectTo: result.redirectTo,
   });
-  /** См. `ExchangeResult.setMessengerPlatformCookie` — не ставить bot-cookie для dev bypass с фиктивными bindings. */
+  /** Ставится только после verified messenger exchange. */
   if (result.setMessengerPlatformCookie === true) {
     const isProd = process.env.NODE_ENV === 'production';
     response.cookies.set({
