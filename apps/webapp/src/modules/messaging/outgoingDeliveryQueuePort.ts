@@ -60,7 +60,7 @@ export type PatientReminderReadyOutgoingDelivery = {
   organizationId: string;
   eventId: string;
   kind: 'reminder_dispatch';
-  channel: 'telegram' | 'max' | 'email' | 'web_push';
+  channel: 'telegram' | 'max' | 'vk' | 'email' | 'web_push';
   intent: OutgoingIntent;
   maxAttempts: number;
   nextRetryAt: string;
