@@ -9,7 +9,7 @@ LOCKED»; worker brief `D30_CURRENT_RESIDENT_PROCESS_FINISH_BRIEF_2026-08-21.md`
 
 Candidate is `7cf580712`; base is `5662a9f57`. Audit only this Ш9 surface. D30 as a whole remains open.
 
-## Audit contract
+## Тест или взгляд
 
 Before any audit action, read the AGENTS.md heading map, §10a/§10b and §24. Before accepting the branch, repeat
 that read. Search later owner decisions before relying on older plan prose.
