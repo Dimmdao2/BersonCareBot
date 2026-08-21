@@ -9890,59 +9890,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)": {
-    "owner": "app_seam_telemetry_operator_owner",
-    "security": "DEFINER",
-    "returns": "void",
-    "returnsSet": false,
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_operational_delivery_worker"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_telemetry_operator_owner",
-    "typedArgs": [
-      "text",
-      "text",
-      "text",
-      "uuid",
-      "text",
-      "text",
-      "integer",
-      "text",
-      "text",
-      "timestamp with time zone"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "integrator.delivery_attempt_logs",
-        "columns": [
-          "intent_type",
-          "intent_event_id",
-          "correlation_id",
-          "organization_id",
-          "channel",
-          "status",
-          "attempt",
-          "reason",
-          "payload_json",
-          "occurred_at"
-        ],
-        "operations": [
-          "INSERT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.record_integrator_webhook_outcome(text,boolean,integer,text,text)": {
     "owner": "app_seam_telemetry_operator_owner",
     "security": "DEFINER",

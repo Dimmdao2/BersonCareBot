@@ -30,7 +30,6 @@ BOOTSTRAP|public.user_phone_history
 BOOTSTRAP|public.user_web_push_subscriptions
 INFRA|drizzle.__drizzle_migrations
 INFRA|public.booking_calendar_map
-INFRA|integrator.delivery_attempt_logs
 INFRA|integrator.direct_public_write_retries
 INFRA|integrator.idempotency_keys
 INFRA|integrator.integration_data_quality_incidents

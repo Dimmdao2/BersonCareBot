@@ -953,6 +953,14 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       она не зависит. Значит ридеры не «редизайнятся», а уходят вместе с legacy-таблицей одним пакетом; до
       этого момента расхождение, которое ловит релиз-гейт (77 строк), — не мусор, а ровно те свежие строки,
       что описаны блокером выше.
+      ✅ **CODE PREPARED 21.08 (#987), НЕ применено к DEV/TEST:**
+      `20260821T003000_cut_over_delivery_attempt_history.sql` переносит legacy rows в
+      `public.notification_delivery_attempts` с deterministic UUID от legacy primary key, `occurred_at` в
+      `created_at` и `attempt`/`correlationId`/`payload`/source-id в `metadata`; перед DROP стоят exact
+      count, provenance, duplicate и field-parity probes. Тем же пакетом удалены оба one-shot reader-а,
+      package registrations и stage6 release gate, обе Drizzle declarations, legacy C4 access surface и
+      declaration entry. Это code/migration-ready состояние, а не заявление о DEV/TEST: миграцию применяет
+      ведущий штатным `migrate-dev.sh --preflight` → `--execute` после landing.
 - [x] **D10b — уборка и возврат зависших в очереди доставки.** ✅ **ЗАКРЫТО 31.07** (`4f203d08d`, `94cb2af4c`):
       возврат по таймауту, «мёртвая полка» при превышении числа возвратов, уборка выполненных. Доказано на
       настоящей `bersoncarebot_test`, проверено поломкой лидом.
@@ -976,6 +984,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       (`worker/main.ts:83-102` → `outgoingDeliveryWorker.ts:1218`). Остальные циклы (`projectionOutboxLoop`,
       `directPublicWriteRetryLoop`, планировщик `scheduler/main.ts`) полят другие таблицы, не эту очередь.
       Остаток D16 = остаток D10a (снос `delivery_attempt_logs`), см. правку выше.
+      ✅ **CODE PREPARED 21.08 (#987), НЕ применено к DEV/TEST:** D10a cutover removes the final legacy
+      table/reader path; source census remains one `outgoing_delivery_queue` consumer cycle
+      (`worker:outgoing-delivery-tick`). Post-landing validation must re-run the exact loop census and
+      sanctioned DEV migration wrapper; this line does not claim either environment has been migrated.
 - [ ] **D18 — вычистить весь остаток сырого SQL в обоих приложениях.** Решение и объём — **Р-D18** (§2.3).
       - [x] **D18a — запрет на НОВЫЙ сырой SQL.** `scripts/check-no-new-raw-sql.mjs`, подключён к root и webapp
             lint. После D18c debt-манифест удалён: gate разрешает только поимённые low-level DB-порты,

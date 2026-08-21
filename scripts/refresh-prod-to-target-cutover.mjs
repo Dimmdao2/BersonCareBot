@@ -158,6 +158,15 @@ const deliveryBodyState = scalar(
 );
 if (deliveryBodyState !== 'true|false') fail(`delivery audit root is stale: ${deliveryBodyState}`);
 
+const retiredDeliveryAttemptHistoryState = scalar(
+  "SELECT (to_regclass('integrator.delivery_attempt_logs') IS NULL)::text || '|' || "
+  + "(to_regclass('integrator.delivery_attempt_logs_id_seq') IS NULL)::text || '|' || "
+  + "(to_regprocedure('app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)') IS NULL)::text;",
+);
+if (retiredDeliveryAttemptHistoryState !== 'true|true|true') {
+  fail('D10a delivery-attempt history retirement is not applied; refresh only after the named DEV migration drops its table, sequence and legacy root');
+}
+
 if (mode === '--confirm-local-dev-target-refresh') mkdirSync(outputRoot, { recursive: true });
 
 let differences = 0;

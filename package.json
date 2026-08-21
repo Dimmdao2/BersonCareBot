@@ -81,7 +81,6 @@
     "s3:check": "pnpm --dir apps/integrator run s3:check",
     "mail:check": "pnpm --dir apps/integrator run mail:check",
     "stage4-gate": "node scripts/stage4-release-gate.mjs",
-    "stage6-gate": "node scripts/stage6-release-gate.mjs",
     "stage7-gate": "node scripts/stage7-release-gate.mjs",
     "stage9-gate": "node scripts/stage9-release-gate.mjs",
     "stage11-gate": "node scripts/stage11-release-gate.mjs",

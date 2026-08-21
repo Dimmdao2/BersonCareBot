@@ -10,7 +10,6 @@ import {
   bigint,
   bigserial,
   boolean,
-  check,
   index,
   integer,
   jsonb,
@@ -42,52 +41,6 @@ export const bookingCalendarMap = publicSchema.table(
       .notNull(),
   },
   (table) => [unique('booking_calendar_map_appointment_key_key').on(table.appointmentKey)],
-);
-
-export const deliveryAttemptLogs = integratorSchema.table(
-  'delivery_attempt_logs',
-  {
-    id: bigserial({ mode: 'number' }).primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    intentType: text('intent_type'),
-    intentEventId: text('intent_event_id'),
-    correlationId: text('correlation_id'),
-    channel: text().notNull(),
-    status: text().notNull(),
-    attempt: integer().notNull(),
-    reason: text(),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_delivery_attempt_logs_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_delivery_attempt_logs_channel_occurred').using(
-      'btree',
-      table.channel.asc().nullsLast().op('text_ops'),
-      table.occurredAt.desc().nullsFirst().op('text_ops'),
-    ),
-    index('idx_delivery_attempt_logs_correlation').using(
-      'btree',
-      table.correlationId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_delivery_attempt_logs_event').using(
-      'btree',
-      table.intentEventId.asc().nullsLast().op('text_ops'),
-    ),
-    check('delivery_attempt_logs_attempt_check', sql`attempt > 0`),
-    check(
-      'delivery_attempt_logs_status_check',
-      sql`status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])`,
-    ),
-  ],
 );
 
 /** Narrow `public.platform_users` slice for integrator delivery/lookup repos (D18b). */

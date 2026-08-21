@@ -231,14 +231,6 @@ BEGIN
     RAISE EXCEPTION 'post-transition message draft row count drift';
   END IF;
 
-  SELECT count(*) INTO violations FROM integrator.delivery_attempt_logs
-  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
-  IF violations <> 0 THEN RAISE EXCEPTION 'post-transition delivery attempt organization drift: %', violations; END IF;
-  IF (SELECT count(*) FROM integrator.delivery_attempt_logs)
-     <> (SELECT expected_count FROM cutover_systemic_expected_counts WHERE class = 'delivery_attempt_logs') THEN
-    RAISE EXCEPTION 'post-transition delivery attempt row count drift';
-  END IF;
-
   SELECT count(*) INTO violations FROM public.media_playback_stats_hourly
   WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
   IF violations <> 0 THEN RAISE EXCEPTION 'post-transition playback hourly organization drift: %', violations; END IF;
@@ -451,7 +443,6 @@ SELECT json_build_object(
       CROSS JOIN LATERAL jsonb_array_elements(conversation.pending_message_drafts) draft_payload
       WHERE draft_payload->>'cutoverSource' = 'integrator.message_drafts'
     ),
-    'attributedDeliveryAttempts', (SELECT count(*) FROM integrator.delivery_attempt_logs),
     'attributedPlaybackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly),
     'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
     'pendingDeliveryQueue', (

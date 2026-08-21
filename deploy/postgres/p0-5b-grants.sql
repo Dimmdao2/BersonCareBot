@@ -55,7 +55,6 @@ CREATE TEMP TABLE p0_5b_staff_grant_tables (
 
 INSERT INTO p0_5b_staff_grant_tables (schema_name, table_name)
 VALUES
-  ('integrator', 'delivery_attempt_logs'),
   ('integrator', 'idempotency_keys'),
   ('integrator', 'integration_data_quality_incidents'),
   ('integrator', 'user_reminder_delivery_logs'),

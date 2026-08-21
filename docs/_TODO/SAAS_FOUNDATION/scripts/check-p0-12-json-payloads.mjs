@@ -42,7 +42,6 @@ const expectedRows = new Map([
   ['integrator.idempotency_keys', 'response_body'],
   ['public.integrator_push_outbox', 'payload,last_error'],
   ['public.outgoing_delivery_queue', 'payload_json,last_error'],
-  ['integrator.delivery_attempt_logs', 'payload_json,reason'],
 ]);
 
 const allowedClassifications = new Set([

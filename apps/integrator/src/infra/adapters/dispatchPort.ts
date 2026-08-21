@@ -85,7 +85,7 @@ function sanitizePayloadForLogs(intent: OutgoingIntent): Record<string, unknown>
   if (!isOtpIntent(intent)) {
     return intent.payload as Record<string, unknown>;
   }
-  // OTP-код не должен попадать в delivery_attempt_logs.
+  // OTP-код не должен попадать в canonical notification delivery metadata.
   return {
     kind: 'otp_redacted',
     channel: readChannel(intent),
