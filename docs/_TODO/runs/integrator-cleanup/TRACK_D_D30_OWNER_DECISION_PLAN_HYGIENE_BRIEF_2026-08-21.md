@@ -9,7 +9,7 @@ Authority по убыванию приоритета:
 2. `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2.3 `Р-D30` и §3.4 Track D.
 3. `AGENTS.md` §«Как решать, что делать», §0, §12 и §24.
 
-Источник оракула: `docs/OWNER_DECISIONS.md` — «ожидания будущих строк до 29.08 нет.»
+Источник оракула: `/home/dev/dev-projects/bcb-wt-trackd-plan-hygiene-20260821/docs/OWNER_DECISIONS.md` — «ожидания будущих строк до 29.08 нет.»
 
 Перед правками прочитать карту `AGENTS.md`, названные разделы authority и повторить поиск более поздних
 owner-решений. Сначала `code-search`, затем точный `rg` по известным строкам. Если найдено более позднее
