@@ -9,6 +9,13 @@ Canonical stage: `docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN
 `docs/_TODO/runs/integrator-cleanup/D30_SPECIALIST_TASK_TEST_LIVE_FAILURE_2026-08-21.md`. Rules: `AGENTS.md`
 §1/§1b/§5/§6/§10a/§10b/§24.
 
+## Тест или взгляд
+
+- Grant diff, generated artifacts and removal/retention of the candidate proof file are one-time state and are
+  accepted by view: code/diff inspection, generator byte-check and catalog introspection.
+- User-visible create/update/complete/delete plus tenant denial are behavior. They are accepted by a one-shot
+  rollback-only named-DEV runtime probe, not by a new permanent test or source/count gate.
+
 ## Candidate and scope
 
 Audit candidate product commit `b254ec1bf` after its merge with current `feat/doctor-ui-rebuild`. Inspect only:
