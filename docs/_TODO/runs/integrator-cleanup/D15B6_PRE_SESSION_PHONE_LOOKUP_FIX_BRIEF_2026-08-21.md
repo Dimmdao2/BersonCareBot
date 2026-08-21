@@ -1,8 +1,7 @@
 # D15b/6 — repair pre-session phone-login lookup after canonical-contact cutover
 
 ## Источник оракула
-
-> `docs/OWNER_DECISIONS.md`, Track D, 21.08.2026: «`public.user_contacts` — единственный источник phone/e-mail. Не переносить дубли: проверить полноту, перевести все чтения/записи на `public.user_contacts` через DB-порты и удалить дублирующие contact-колонки из `platform_users`.»
+> `docs/OWNER_DECISIONS.md`, Track D, 21.08.2026: «Оставшаяся работа — перевести всех писателей/читателей на `public.user_contacts` через DB-порты и удалить дублирующие contact-колонки из `platform_users`.»
 
 > `AGENTS.md` §5 «Доступ к базе — оба приложения, без исключений»: «К базе — только через порт своего приложения на drizzle: у интегратора `apps/integrator/src/infra/db/**`, у вебаппа `infra/repos/*` плюс порты модулей; из доменного, сценарного и роут-кода к базе не ходят. Сырой SQL (`pool.query(...)`, `db.query(...)`, `txDb.query(...)` с текстом запроса) для нового кода запрещён».
 
