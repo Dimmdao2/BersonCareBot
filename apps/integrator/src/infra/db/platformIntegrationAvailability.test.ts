@@ -110,6 +110,67 @@ describe('isPlatformIntegrationAvailable', () => {
     ).rejects.toThrow('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
   });
 
+  it('a channel missing from an otherwise-valid registry denies only that channel, not unrelated ones', async () => {
+    // Reproduces the live TEST defect (integration SHA 92cf34ffa): a pre-D31 registry carries all
+    // seven original keys but lacks `vk`. A requested channel present with a valid boolean must
+    // resolve normally; only a request for the missing/malformed channel itself is denied.
+    const preD31Availability = {
+      value: {
+        version: 1,
+        integrations: {
+          telegram: true,
+          max: true,
+          email: true,
+          smsc: true,
+          web_push: true,
+          google_calendar: true,
+          yandex_calendar: false,
+        },
+      },
+    };
+
+    await expect(
+      isPlatformIntegrationAvailable(availabilityDb(preD31Availability), 'email'),
+    ).resolves.toBe(true);
+    await expect(
+      isPlatformIntegrationAvailable(availabilityDb(preD31Availability), 'vk'),
+    ).rejects.toThrow('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
+  });
+
+  it('rejects an unsupported schema version or a non-object integrations map loudly, for any id', async () => {
+    await expect(
+      isPlatformIntegrationAvailable(
+        availabilityDb({ value: { version: 2, integrations: enabledAvailability.value.integrations } }),
+        'telegram',
+      ),
+    ).rejects.toThrow('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
+    await expect(
+      isPlatformIntegrationAvailable(
+        availabilityDb({ value: { version: 1, integrations: 'nope' } }),
+        'telegram',
+      ),
+    ).rejects.toThrow('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
+  });
+
+  it('preserves an explicit vk switch in either state', async () => {
+    await expect(
+      isPlatformIntegrationAvailable(
+        availabilityDb({
+          value: { version: 1, integrations: { ...enabledAvailability.value.integrations, vk: true } },
+        }),
+        'vk',
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      isPlatformIntegrationAvailable(
+        availabilityDb({
+          value: { version: 1, integrations: { ...enabledAvailability.value.integrations, vk: false } },
+        }),
+        'vk',
+      ),
+    ).resolves.toBe(false);
+  });
+
   it('preserves read and permission denials rather than treating either as an enabled default', async () => {
     const readFailure = new Error('connection refused');
     const permissionDenied = new Error('permission denied for table system_settings');

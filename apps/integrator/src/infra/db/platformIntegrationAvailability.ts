@@ -19,7 +19,10 @@ export type PlatformIntegrationId = (typeof PLATFORM_INTEGRATION_IDS)[number];
 
 type PlatformIntegrationAvailability = {
   version: 1;
-  integrations: Record<PlatformIntegrationId, boolean>;
+  /** Only ids whose persisted value is a valid boolean are present; a missing or malformed id
+   *  is simply absent here rather than invalidating the whole envelope (see
+   *  `isPlatformIntegrationAvailable`, which fails closed per requested id). */
+  integrations: Partial<Record<PlatformIntegrationId, boolean>>;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -33,19 +36,20 @@ export function parsePlatformIntegrationAvailability(
   if (!isRecord(inner) || inner.version !== 1 || !isRecord(inner.integrations)) {
     return null;
   }
-
-  const integrations = {} as Record<PlatformIntegrationId, boolean>;
-  for (const id of PLATFORM_INTEGRATION_IDS) {
-    const enabled = inner.integrations[id];
-    if (typeof enabled !== 'boolean') return null;
-    integrations[id] = enabled;
-  }
   if (
     Object.keys(inner.integrations).some(
       (id) => !PLATFORM_INTEGRATION_IDS.includes(id as PlatformIntegrationId),
     )
   ) {
     return null;
+  }
+
+  const integrations: Partial<Record<PlatformIntegrationId, boolean>> = {};
+  for (const id of PLATFORM_INTEGRATION_IDS) {
+    const enabled = inner.integrations[id];
+    if (typeof enabled === 'boolean') {
+      integrations[id] = enabled;
+    }
   }
 
   return { version: 1, integrations };
@@ -80,9 +84,9 @@ async function readPlatformIntegrationAvailability(
   const valueJson = await readAvailabilityValueJson(db);
   const parsed = parsePlatformIntegrationAvailability(valueJson);
   if (!parsed) {
-    // A missing or unreadable registry row is a real failure (the migration seeds it
-    // unconditionally), not "not configured yet" — it must refuse delivery, not fall back to
-    // a compiled-in default that could contradict a persisted `false`.
+    // A missing envelope or an unsupported version/shape is a real failure (the migration seeds
+    // it unconditionally), not "not configured yet" — it must refuse delivery for every channel,
+    // not fall back to a compiled-in default that could contradict a persisted `false`.
     throw new Error('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
   }
   return parsed;
@@ -93,5 +97,11 @@ export async function isPlatformIntegrationAvailable(
   integrationId: PlatformIntegrationId,
 ): Promise<boolean> {
   const availability = await readPlatformIntegrationAvailability(db);
-  return availability.integrations[integrationId];
+  const enabled = availability.integrations[integrationId];
+  if (typeof enabled !== 'boolean') {
+    // A missing/malformed *unrelated* id must not block this request; only the requested id's
+    // own value being absent or non-boolean fails closed here.
+    throw new Error('PLATFORM_INTEGRATION_AVAILABILITY_UNREADABLE');
+  }
+  return enabled;
 }
