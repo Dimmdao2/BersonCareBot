@@ -2,7 +2,7 @@
  * Wave 3 phase 14B + R0/S3R — projection transactions go through `withPoolTransaction`.
  * Domain SQL — Drizzle CRUD + `runWebappSql` for session/constraint fragments.
  */
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, exists, inArray, isNull, sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { nullableToIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
@@ -11,7 +11,6 @@ import {
   getWebappSqlFromPgClient,
   runWebappSql,
   runWebappNamedRoot,
-  webappSqlFromPgText,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
 import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
@@ -151,37 +150,46 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async updateProfileByPhone(params) {
-    const sets: string[] = ['updated_at = now()'];
-    const vals: unknown[] = [];
-    let idx = 0;
-    if (params.firstName !== undefined) {
-      sets.push(`first_name = $${++idx}`);
-      vals.push(params.firstName);
+    if (
+      params.firstName === undefined &&
+      params.lastName === undefined &&
+      params.email === undefined
+    ) {
+      return;
     }
-    if (params.lastName !== undefined) {
-      sets.push(`last_name = $${++idx}`);
-      vals.push(params.lastName);
-    }
-    if (vals.length === 0 && params.email === undefined) return;
-    vals.push(params.phoneNormalized);
     const pool = getPool();
     await withPoolTransaction(pool, async (client) => {
-      const updated = await txSql<{ id: string }>(
-        client,
-        webappSqlFromPgText(
-          `UPDATE platform_users SET ${sets.join(', ')}
-         WHERE EXISTS (SELECT 1 FROM user_contacts uc WHERE uc.platform_user_id = platform_users.id
-           AND uc.contact_kind = 'phone' AND uc.value_normalized = $${idx + 1})
-           AND merged_into_id IS NULL
-         RETURNING id`,
-          vals,
-        ),
-      );
-      for (const row of updated.rows) {
+      const db = txExecutor(client);
+      const updated = await db
+        .update(platformUsers)
+        .set({
+          updatedAt: sql`now()`,
+          ...(params.firstName !== undefined ? { firstName: params.firstName } : {}),
+          ...(params.lastName !== undefined ? { lastName: params.lastName } : {}),
+        })
+        .where(
+          and(
+            exists(
+              db
+                .select({ one: sql`1` })
+                .from(userContacts)
+                .where(
+                  and(
+                    eq(userContacts.platformUserId, platformUsers.id),
+                    eq(userContacts.contactKind, 'phone'),
+                    eq(userContacts.valueNormalized, params.phoneNormalized),
+                  ),
+                ),
+            ),
+            isNull(platformUsers.mergedIntoId),
+          ),
+        )
+        .returning({ id: platformUsers.id });
+      for (const row of updated) {
         await syncUserIdentityFioMirrorWebapp(client, row.id);
       }
       if (params.email !== undefined) {
-        for (const row of updated.rows) {
+        for (const row of updated) {
           await mutateCanonicalUserContactsWebapp(client, row.id, params.email?.trim()
             ? [{ action: 'upsert', kind: 'email', valueNormalized: params.email.trim().toLowerCase(),
                 isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' }]
@@ -324,54 +332,45 @@ export const pgUserProjectionPort: UserProjectionPort = {
 
   async patchAdminClientProfile({ platformUserId, patch }) {
     const pool = getPool();
-    const sets: string[] = ['updated_at = now()'];
-    const vals: unknown[] = [];
-    let n = 0;
-    let firstNameExpr = 'first_name';
-    let lastNameExpr = 'last_name';
-
-    if (patch.firstName !== undefined) {
-      n += 1;
-      sets.push(`first_name = $${n}`);
-      vals.push(patch.firstName);
-      firstNameExpr = `$${n}::text`;
-    }
-    if (patch.lastName !== undefined) {
-      n += 1;
-      sets.push(`last_name = $${n}`);
-      vals.push(patch.lastName);
-      lastNameExpr = `$${n}::text`;
-    }
-    if (patch.firstName !== undefined || patch.lastName !== undefined) {
-      sets.push(`display_name = COALESCE(NULLIF(concat_ws(' ',
-        ${lastNameExpr},
-        ${firstNameExpr},
-        patronymic
-      ), ''), '')`);
-    }
-    if (patch.phoneNormalized !== undefined) {
-      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.AdminManualProfilePatch);
-    }
 
     if (patch.firstName === undefined && patch.lastName === undefined
       && patch.email === undefined && patch.phoneNormalized === undefined) {
       return { ok: false as const, reason: 'nothing_to_update' as const };
     }
 
-    n += 1;
-    const idPlaceholder = n;
-    vals.push(platformUserId);
+    if (patch.phoneNormalized !== undefined) {
+      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.AdminManualProfilePatch);
+    }
 
     try {
       return await withPoolTransaction(pool, async (client) => {
-        const result = await txSql(
-          client,
-          webappSqlFromPgText(
-            `UPDATE platform_users SET ${sets.join(', ')}
-           WHERE id = $${idPlaceholder}::uuid AND role = 'client' AND merged_into_id IS NULL`,
-            vals,
-          ),
-        );
+        const db = txExecutor(client);
+        // Same-statement SET semantics as the previous raw SQL: display_name is built from the
+        // NEW value when a field is being patched, otherwise the row's CURRENT (pre-update) value —
+        // never the freshly-set one, matching Postgres's single-statement UPDATE evaluation.
+        const nextFirstNameExpr =
+          patch.firstName !== undefined ? sql`${patch.firstName}::text` : platformUsers.firstName;
+        const nextLastNameExpr =
+          patch.lastName !== undefined ? sql`${patch.lastName}::text` : platformUsers.lastName;
+        const result = await db
+          .update(platformUsers)
+          .set({
+            updatedAt: sql`now()`,
+            ...(patch.firstName !== undefined ? { firstName: patch.firstName } : {}),
+            ...(patch.lastName !== undefined ? { lastName: patch.lastName } : {}),
+            ...(patch.firstName !== undefined || patch.lastName !== undefined
+              ? {
+                  displayName: sql`COALESCE(NULLIF(concat_ws(' ', ${nextLastNameExpr}, ${nextFirstNameExpr}, ${platformUsers.patronymic}), ''), '')`,
+                }
+              : {}),
+          })
+          .where(
+            and(
+              eq(platformUsers.id, platformUserId),
+              eq(platformUsers.role, 'client'),
+              isNull(platformUsers.mergedIntoId),
+            ),
+          );
 
         if ((result.rowCount ?? 0) === 0) {
           throw new PatchAdminClientProfileNoRowsError();
