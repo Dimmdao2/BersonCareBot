@@ -200,6 +200,7 @@ ON public.user_contacts (platform_user_id)
 WHERE contact_kind = 'email' AND is_primary = true;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_org_invite_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.accept_org_invite(p_token_hash text, p_platform_user_id uuid, p_expected_email text)
 CREATE OR REPLACE FUNCTION app.accept_org_invite(p_token_hash text, p_platform_user_id uuid, p_expected_email text)
@@ -417,6 +418,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_telemetry_operator_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.archive_operator_health_failures(p_probe text, p_limit integer, p_archived_by_user_id uuid)
 CREATE OR REPLACE FUNCTION app.archive_operator_health_failures(p_probe text, p_limit integer, p_archived_by_user_id uuid)
@@ -630,6 +632,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_invite_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.claim_unbound_patient_invite_email(p_continuation_hash text, p_email_normalized text, p_authorization_nonce text, p_authorization_expires_epoch bigint, p_authorization_signature text)
 CREATE OR REPLACE FUNCTION app.claim_unbound_patient_invite_email(p_continuation_hash text, p_email_normalized text, p_authorization_nonce text, p_authorization_expires_epoch bigint, p_authorization_signature text)
@@ -860,6 +863,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.email_auth_verify_user_email(p_user_id uuid, p_email text)
 CREATE OR REPLACE FUNCTION app.email_auth_verify_user_email(p_user_id uuid, p_email text)
@@ -884,6 +888,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.email_otp_public_consume_latest_challenge(p_email_normalized text, p_code_hash text)
 CREATE OR REPLACE FUNCTION app.email_otp_public_consume_latest_challenge(p_email_normalized text, p_code_hash text)
@@ -1025,6 +1030,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.email_otp_public_delete_unverified_registration(p_user_id uuid)
 CREATE OR REPLACE FUNCTION app.email_otp_public_delete_unverified_registration(p_user_id uuid)
@@ -1045,6 +1051,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.email_otp_public_find_or_create_user(p_email_norm text)
 CREATE OR REPLACE FUNCTION app.email_otp_public_find_or_create_user(p_email_norm text)
@@ -1154,6 +1161,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.email_otp_public_find_user_by_email(p_email_norm text)
 CREATE OR REPLACE FUNCTION app.email_otp_public_find_user_by_email(p_email_norm text)
@@ -1189,6 +1197,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.email_otp_public_register_patient(p_email_norm text, p_last_name text, p_first_name text, p_patronymic text)
 CREATE OR REPLACE FUNCTION app.email_otp_public_register_patient(p_email_norm text, p_last_name text, p_first_name text, p_patronymic text)
@@ -1277,6 +1286,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.email_password_delete_unverified_registration(p_user_id uuid)
 CREATE OR REPLACE FUNCTION app.email_password_delete_unverified_registration(p_user_id uuid)
@@ -1299,6 +1309,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.email_password_find_login_candidate(p_email_norm text)
 CREATE OR REPLACE FUNCTION app.email_password_find_login_candidate(p_email_norm text)
@@ -1322,6 +1333,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.email_password_find_reset_candidate(p_email_norm text)
 CREATE OR REPLACE FUNCTION app.email_password_find_reset_candidate(p_email_norm text)
@@ -1351,6 +1363,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.email_password_register_pending(p_email_norm text, p_password_hash text, p_last_name text, p_first_name text, p_patronymic text, p_role text)
 CREATE OR REPLACE FUNCTION app.email_password_register_pending(p_email_norm text, p_password_hash text, p_last_name text, p_first_name text, p_patronymic text, p_role text)
@@ -1421,6 +1434,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_phone_binding_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.integrator_bind_bootstrap_channel_phone(p_channel_code text, p_external_id text, p_phone_normalized text, p_preferred_platform_user_id uuid)
 CREATE OR REPLACE FUNCTION app.integrator_bind_bootstrap_channel_phone(p_channel_code text, p_external_id text, p_phone_normalized text, p_preferred_platform_user_id uuid)
@@ -1654,6 +1668,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_telemetry_exclusion_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.is_current_patient_test_account()
 CREATE OR REPLACE FUNCTION app.is_current_patient_test_account()
@@ -1731,6 +1746,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_telemetry_exclusion_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.is_platform_registration_analytics_user_excluded(p_user_id uuid)
 CREATE OR REPLACE FUNCTION app.is_platform_registration_analytics_user_excluded(p_user_id uuid)
@@ -1799,6 +1815,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.password_credentials_replace_self(p_email_normalized text, p_password_hash text)
 CREATE OR REPLACE FUNCTION app.password_credentials_replace_self(p_email_normalized text, p_password_hash text)
@@ -1865,6 +1882,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.password_credentials_upsert_self(p_email_normalized text, p_password_hash text)
 CREATE OR REPLACE FUNCTION app.password_credentials_upsert_self(p_email_normalized text, p_password_hash text)
@@ -1945,6 +1963,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.password_login_acquire_impl(p_email_normalized text, p_identifier_key text, p_altcha_challenge_id uuid, p_altcha_challenge_digest text)
 CREATE OR REPLACE FUNCTION app.password_login_acquire_impl(p_email_normalized text, p_identifier_key text, p_altcha_challenge_id uuid DEFAULT NULL::uuid, p_altcha_challenge_digest text DEFAULT NULL::text)
@@ -2187,6 +2206,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.password_login_complete_impl(p_lease_token uuid, p_password_verified boolean)
 CREATE OR REPLACE FUNCTION app.password_login_complete_impl(p_lease_token uuid, p_password_verified boolean)
@@ -2328,6 +2348,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_password_auth_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.password_login_issue_altcha_challenge_impl(p_email_normalized text, p_challenge_id uuid, p_challenge_digest text, p_expires_at timestamp with time zone)
 CREATE OR REPLACE FUNCTION app.password_login_issue_altcha_challenge_impl(p_email_normalized text, p_challenge_id uuid, p_challenge_digest text, p_expires_at timestamp with time zone)
@@ -2423,6 +2444,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.patient_disable_reminder_messenger_topic(p_integrator_occurrence_id text, p_messenger_channel text)
 CREATE OR REPLACE FUNCTION app.patient_disable_reminder_messenger_topic(p_integrator_occurrence_id text, p_messenger_channel text)
@@ -2584,6 +2606,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.patient_reminder_materialization_fingerprint(p_occurrence_id text, p_channel text)
 CREATE OR REPLACE FUNCTION app.patient_reminder_materialization_fingerprint(p_occurrence_id text, p_channel text)
@@ -2674,6 +2697,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_phone_binding_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.phone_messenger_bind_completion_state(p_token_hash text, p_channel_code text, p_external_id text, p_contact_phone text)
 CREATE OR REPLACE FUNCTION app.phone_messenger_bind_completion_state(p_token_hash text, p_channel_code text, p_external_id text, p_contact_phone text)
@@ -2759,6 +2783,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_specialist_provision_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.provision_specialist_owner(p_challenge_id uuid)
 CREATE OR REPLACE FUNCTION app.provision_specialist_owner(p_challenge_id uuid)
@@ -3006,6 +3031,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.read_integrator_delivery_target_snapshot(p_organization_id uuid, p_phone_normalized text, p_telegram_id text, p_max_id text, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone)
 CREATE OR REPLACE FUNCTION app.read_integrator_delivery_target_snapshot(p_organization_id uuid, p_phone_normalized text, p_telegram_id text, p_max_id text, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone)
@@ -3188,6 +3214,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.read_patient_reminder_delivery_target_snapshot(p_organization_id uuid, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone)
 CREATE OR REPLACE FUNCTION app.read_patient_reminder_delivery_target_snapshot(p_organization_id uuid, p_platform_user_id uuid, p_integrator_user_id bigint, p_topic_code text, p_now timestamp with time zone)
@@ -3321,6 +3348,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_platform_analytics_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.read_platform_analytics_dashboard(p_start timestamp with time zone, p_end_exclusive timestamp with time zone, p_iana text, p_audience_json text)
 CREATE OR REPLACE FUNCTION app.read_platform_analytics_dashboard(p_start timestamp with time zone, p_end_exclusive timestamp with time zone, p_iana text, p_audience_json text)
@@ -3689,6 +3717,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_invite_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.redeem_patient_invite_email(p_continuation_hash text)
 CREATE OR REPLACE FUNCTION app.redeem_patient_invite_email(p_continuation_hash text)
@@ -3838,6 +3867,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.resolve_public_booking_client_by_phone(p_phone_normalized text, p_display_name text, p_phone_proven boolean)
 CREATE OR REPLACE FUNCTION app.resolve_public_booking_client_by_phone(p_phone_normalized text, p_display_name text, p_phone_proven boolean)
@@ -3924,6 +3954,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.revalidate_patient_reminder_delivery_materialization(p_queue_id uuid)
 CREATE OR REPLACE FUNCTION app.revalidate_patient_reminder_delivery_materialization(p_queue_id uuid)
@@ -4052,6 +4083,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- D15b/6 root: app.set_current_patient_preferred_auth_channel(p_channel text)
 CREATE OR REPLACE FUNCTION app.set_current_patient_preferred_auth_channel(p_channel text)
@@ -4111,6 +4143,7 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_specialist_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
 -- D15b/6 root: app.specialist_task_reminder_materialization_fingerprint(p_task_id uuid)
 CREATE OR REPLACE FUNCTION app.specialist_task_reminder_materialization_fingerprint(p_task_id uuid)
@@ -4195,6 +4228,7 @@ $function$
 DROP INDEX IF EXISTS public.idx_platform_users_phone;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.read_current_patient_identity_contacts(OUT o_phone text, OUT o_email text)
  RETURNS record
