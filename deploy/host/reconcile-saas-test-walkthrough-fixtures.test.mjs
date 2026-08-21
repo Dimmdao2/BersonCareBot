@@ -38,6 +38,8 @@ set -eu
 printf 'tsx_cwd=%s\\n' "$(pwd -P)" >> '${log}'
 printf 'tsx_argv=%s\\n' "$*" >> '${log}'
 printf 'tsx_home=%s\\n' "$HOME" >> '${log}'
+printf 'tsx_node_env=%s\\n' "$NODE_ENV" >> '${log}'
+printf 'tsx_use_real_database=%s\\n' "$USE_REAL_DATABASE" >> '${log}'
 exit 0
 `);
   chmodSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), 0o755);
@@ -224,9 +226,11 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
   assert.match(calls, /seeder_test_local_tsx/);
-  assert.match(calls, new RegExp(`^tsx_cwd=${entry.testRepo}$`, 'm'));
+  assert.match(calls, new RegExp(`^tsx_cwd=${entry.testRepo}/apps/webapp$`, 'm'));
   assert.match(calls, new RegExp(`^tsx_argv=${entry.testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures\\.ts$`, 'm'));
   assert.match(calls, /tsx_home=\/nonexistent/);
+  assert.match(calls, /^tsx_node_env=test$/m);
+  assert.match(calls, /^tsx_use_real_database=1$/m);
   assert.doesNotMatch(calls, /pnpm_invoked|corepack_invoked/);
   assert.doesNotMatch(calls, /node --import tsx/);
 });
