@@ -109,6 +109,24 @@ export const preSessionPhoneSessionLookupSchema = z.discriminatedUnion('found', 
   }),
 ]);
 
+/**
+ * `app.pre_session_phone_confirm_resolve(text,text,boolean,text)` jsonb payload (D15b/6 confirm-path
+ * correction). `outcome: 'conflict'` covers both an invalid phone shape and the fail-closed
+ * ambiguous-live-duplicate case — same "не догадка" doctrine as `resolve_public_booking_client_by_phone`
+ * — never a pick to guess at TypeScript's side. `outcome: 'resolved'` reuses
+ * {@link platformUserSessionRowSchema} plus `was_created`, the same shape
+ * {@link preSessionPhoneSessionLookupSchema} already established for the sibling read-only root.
+ */
+export const preSessionPhoneConfirmResolveSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('conflict') }),
+  platformUserSessionRowSchema.extend({
+    outcome: z.literal('resolved'),
+    was_created: z.coerce.boolean(),
+    contacts: z.array(sessionIdentityContactRowSchema),
+    bindings: z.array(channelBindingRowSchema),
+  }),
+]);
+
 export const platformUserProfileRowSchema = z.object({
   display_name: z.string().nullable(),
   role: z.string(),

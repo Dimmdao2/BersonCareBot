@@ -49,6 +49,7 @@ import {
   platformUserInsertRowSchema,
   platformUserPhoneRoleRowSchema,
   platformUserSessionRowSchema,
+  preSessionPhoneConfirmResolveSchema,
   preSessionPhoneSessionLookupSchema,
   puMergeRowSchema,
   sessionIdentityContactsFromRows,
@@ -176,6 +177,44 @@ export async function loadSessionIdentityUser(
   };
 }
 
+/**
+ * Assembles a `SessionUser` from the shared jsonb identity shape both pre-session phone roots
+ * return (`app.pre_session_find_session_user_by_phone`'s `found: true` branch and
+ * `app.pre_session_phone_confirm_resolve`'s `outcome: 'resolved'` branch) — one mapper instead of
+ * two copies of the same field-by-field assembly (D15b/6).
+ */
+function sessionUserFromPreSessionIdentityPayload(payload: {
+  id: string;
+  display_name: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  patronymic?: string | null;
+  role: string;
+  session_epoch: number;
+  contacts: unknown[];
+  bindings: unknown[];
+}): SessionUser {
+  const firstName = payload.first_name?.trim() || undefined;
+  const lastName = payload.last_name?.trim() || undefined;
+  const patronymic = payload.patronymic?.trim() || undefined;
+  const contacts = sessionIdentityContactsFromRows(payload.contacts);
+  const phone = contacts.find((contact) => contact.kind === 'phone' && contact.isPrimary)?.value;
+  const email = contacts.find((contact) => contact.kind === 'email' && contact.isPrimary)?.value;
+  return {
+    userId: payload.id,
+    role: parseUserRole(payload.role, 'pre_session_phone.role'),
+    displayName: payload.display_name ?? '',
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(patronymic ? { patronymic } : {}),
+    contacts,
+    ...(phone ? { phone } : {}),
+    ...(email ? { email } : {}),
+    bindings: bindingsFromRows(payload.bindings),
+    sessionEpoch: payload.session_epoch,
+  };
+}
+
 export const pgUserByPhonePort: UserByPhonePort = {
   async getPhoneByUserId(userId: string): Promise<string | null> {
     const pool = getPool();
@@ -286,25 +325,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
     if (!payload.found) return null;
     // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
     if (payload.is_archived) return null;
-    const firstName = payload.first_name?.trim() || undefined;
-    const lastName = payload.last_name?.trim() || undefined;
-    const patronymic = payload.patronymic?.trim() || undefined;
-    const contacts = sessionIdentityContactsFromRows(payload.contacts);
-    const phone = contacts.find((contact) => contact.kind === 'phone' && contact.isPrimary)?.value;
-    const email = contacts.find((contact) => contact.kind === 'email' && contact.isPrimary)?.value;
-    return {
-      userId: payload.id,
-      role: parseUserRole(payload.role, 'pre_session_find_session_user_by_phone.role'),
-      displayName: payload.display_name ?? '',
-      ...(firstName ? { firstName } : {}),
-      ...(lastName ? { lastName } : {}),
-      ...(patronymic ? { patronymic } : {}),
-      contacts,
-      ...(phone ? { phone } : {}),
-      ...(email ? { email } : {}),
-      bindings: bindingsFromRows(payload.bindings),
-      sessionEpoch: payload.session_epoch,
-    };
+    return sessionUserFromPreSessionIdentityPayload(payload);
   },
 
   async createOrBind(
@@ -314,8 +335,54 @@ export const pgUserByPhonePort: UserByPhonePort = {
   ): Promise<CreateOrBindResult> {
     const parsedContext = parseChannelContext(context);
     const normalized = normalizeRuPhoneE164(phone);
-    const pool = getPool();
     const key = channelToBindingKey(parsedContext.channel);
+    const profileBindOrganizationId = options?.profileBindOrganizationId?.trim();
+
+    if (!key && !profileBindOrganizationId) {
+      // D15b/6 confirm-path correction: `POST /api/auth/phone/confirm` (existing-user login and
+      // new-user registration) reaches this under the bootstrap principal — no channel to bind
+      // (`web`) and no already-authenticated profile-bind session — so it goes through the atomic
+      // `pre_session` root instead of the relation-based transaction below, which the bootstrap
+      // principal has no capability for (see the migration's header comment for the two sub-cases —
+      // profile-bind and messenger channel bind — that still need that transaction).
+      const result = await runWebappNamedRoot<{ result: unknown }>(
+        getWebappSqlDb(),
+        'app.pre_session_phone_confirm_resolve(text,text,boolean,text)',
+        [
+          normalized,
+          parsedContext.displayName ?? null,
+          options?.phoneNumberProven === true,
+          options?.confirmingChannel ?? null,
+        ],
+        sql`SELECT app.pre_session_phone_confirm_resolve(
+          ${normalized}::text,
+          ${parsedContext.displayName ?? null}::text,
+          ${options?.phoneNumberProven === true}::boolean,
+          ${options?.confirmingChannel ?? null}::text
+        ) AS result`,
+      );
+      const payload = parseIdentityRow(
+        preSessionPhoneConfirmResolveSchema,
+        result.rows[0]?.result,
+        'pre_session_phone_confirm_resolve',
+      );
+      if (payload.outcome === 'conflict') {
+        // Same fail-closed doctrine as `app.resolve_public_booking_client_by_phone`: an ambiguous
+        // live duplicate is not guessed at here — a genuine merge decision belongs to an
+        // authenticated/manual flow, not an anonymous OTP confirm.
+        throw new MergeConflictError('createOrBind: ambiguous live phone holders');
+      }
+      // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
+      if (payload.is_archived) {
+        throw new Error('createOrBind: platform user is archived');
+      }
+      return {
+        user: sessionUserFromPreSessionIdentityPayload(payload),
+        wasCreated: payload.was_created,
+      };
+    }
+
+    const pool = getPool();
     const channelCode = parsedContext.channel;
 
     const bindInTransaction = () =>
@@ -528,7 +595,6 @@ export const pgUserByPhonePort: UserByPhonePort = {
         return { userId, wasCreated };
       });
 
-    const profileBindOrganizationId = options?.profileBindOrganizationId?.trim();
     const bound = profileBindOrganizationId
       ? await runWithDbOrganizationPrincipal(profileBindOrganizationId, bindInTransaction)
       : await bindInTransaction();
