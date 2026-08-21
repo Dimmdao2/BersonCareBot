@@ -858,7 +858,7 @@ delta. UI-1 и UI-3 могут выполняться параллельно с 
 - `apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.tsx`
 - `apps/webapp/src/app/app/doctor/DoctorTodayLeftKpiRow.test.tsx`
 
-**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor`, `dev:doctor`; `1440×900` и `390×844`. KPI не имеют
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor`, обычный вход owner-учётки врача (`AGENTS.md` §1a); `1440×900` и `390×844`. KPI не имеют
 искусственной пустой высоты; дата и «Открыть календарь» находятся в компактной календарной шапке; день/дата и
 количество записей не дублируются. Никаких новых KPI/сигналов или query changes.
 
@@ -871,7 +871,7 @@ delta. UI-1 и UI-3 могут выполняться параллельно с 
 - `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.tsx`
 - `apps/webapp/src/app/app/doctor/schedule/tabs/ScheduleCalendarTab.test.tsx`
 
-**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/schedule?tab=work` и `?tab=calendar`, `dev:admin`;
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/schedule?tab=work` и `?tab=calendar`, обычный вход owner-учётки admin (`AGENTS.md` §1a);
 `1440×900` и `390×844`. Все template-days залиты existing location color; time + city показаны один раз в weekday
 header, а не повторены в каждой date-cell; действие называется «Установить», используется существующий shared time
 picker, grid lines спокойнее. Фильтр state и SCH-G5 не менять в presentation slice.
@@ -893,7 +893,7 @@ patient id/phone, имеет `DoctorOpenChatButton` и `phoneToTelHref` reuse-к
 - существующий или новый focused test рядом с `AppointmentStaffCommentsSection`, только если blank-draft contract
   нельзя доказать через panel test без тяжёлого mock graph.
 
-**Acceptance:** DEV `/app/doctor/schedule?tab=calendar` и `/app/doctor`, `dev:doctor`; `1440×900` и `390×844`.
+**Acceptance:** DEV `/app/doctor/schedule?tab=calendar` и `/app/doctor`, обычный вход owner-учётки врача (`AGENTS.md` §1a); `1440×900` и `390×844`.
 Проверить modal и embedded context, confirmed + cancelled/rescheduled statuses, solo и clinic context, patient с/без
 phone/canonical id, whitespace comment, unchanged appointment и реально перенесённую запись. Payment panel отсутствует
 до отдельной readiness proof. Focused tests + scoped typecheck/lint; один live pass и один independent presentation
@@ -909,7 +909,7 @@ audit. TEST/deploy/full CI не входят — stage присоединяет�
 - `apps/webapp/src/app/app/doctor/patients/PatientsPageClient.tsx`
 - `apps/webapp/src/app/app/doctor/patients/PatientsPageClient.test.tsx`
 
-**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/patients`, `dev:doctor`; `1440×900` и `390×844`. Обычный режим
+**Acceptance:** DEV `http://127.0.0.1:5200/app/doctor/patients`, обычный вход owner-учётки врача (`AGENTS.md` §1a); `1440×900` и `390×844`. Обычный режим
 сохраняет 50/50 `list + filters/preview`; поиск находится в page header; KPI по три в ряд, имеют единый active state
 и короткие delayed tooltips; терминология берётся из patient label; информационные иконки имеют стабильные слоты.
 Не менять metric queries/semantics. Полная карточка относится к отдельному UI-5 card mode и не рендерится внутри

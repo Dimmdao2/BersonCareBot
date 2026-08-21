@@ -160,7 +160,7 @@
 | `AUTONOMOUS_NIGHTLY_RUNBOOK.md` | замен (уже отмечено `CURRENT_AUTHORITY_MAP.md`) | архив — подтверждено: из 51 историч. пункта только 2 (media-worker test, P0.10.1) реально ещё открыты |
 | `ORCHESTRATOR_BRIEF.md` | дизайн | ?владелец — методология норм, но «текущая работа» заякорена на состояние 15.07, устарела на фоне 28–31.07 |
 | `ORCHESTRATOR_CHECKLIST.md` *(копия внутри `SAAS_FOUNDATION/`)* | живой (прозовый) | оставить — **не путать** с одноимённым `docs/ORCHESTRATOR_CHECKLIST.md` в корне репо (другой файл, другой скоуп) |
-| `SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | дизайн | живой процедурный контракт, оставить |
+| `SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | удалён | файл отсутствует на диске; fixture-based A1/product smoke выведен из deploy решением владельца 30.07.2026 (`HARD_MIGRATION_PROTOCOL.md`) — не живой контракт |
 | `LOG.md` | улика | архив — сквозной журнал инициативы (2 МБ, не читается целиком инструментом Read, проверено `awk`/`grep`) |
 | `README.md` | дизайн (индекс) | оставить — рабочий индекс папки |
 

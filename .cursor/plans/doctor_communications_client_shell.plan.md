@@ -73,7 +73,7 @@ todos:
     content: 'Этап 7.A — синхронная докуа: communications.md (раздел Маршрутизация + TODO#3 ✅ + Журнал), README модуля program-item-discussion, LOG.md'
     status: completed
   - id: e7b-live-verify
-    content: 'Этап 7.B — живой dev (dev:doctor, 127.0.0.1:5200): мгновенное переключение, deep-links id/archive, кросс-таб бейджи, чат-поллинг только активным+видимым окном'
+    content: 'Этап 7.B — живой dev (обычный вход owner-учётки врача, 127.0.0.1:5200): мгновенное переключение, deep-links id/archive, кросс-таб бейджи, чат-поллинг только активным+видимым окном'
     status: in_progress
   - id: e7c-full-ci
     content: 'Этап 7.C — финальный гейт pnpm run ci (один раз). Не пушить.'
@@ -424,7 +424,7 @@ deep-link `archive` → `BroadcastDeliveryArchiveClient`.
 
 ### 7.B Живой dev (`e7b-live-verify`)
 
-**Шаги:** `pnpm dev:doctor`, `127.0.0.1:5200` (dev-doctor login из memory) — мгновенное переключение,
+**Шаги:** `127.0.0.1:5200`, обычный вход owner-учётки врача (`AGENTS.md` §1a) — мгновенное переключение,
 deep-links `id`/`archive`, кросс-таб бейджи, чат-поллинг только активным+видимым окном.
 
 **Checklist:** [ ] переключение мгновенное (без мигания); deep-links работают; бейджи кросс-таб.

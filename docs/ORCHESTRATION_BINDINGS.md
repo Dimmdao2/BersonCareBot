@@ -31,13 +31,9 @@ tools/orch-launch.sh --help
 
 ## Dev-login для живой проверки
 
-```bash
-curl -s -c /tmp/r3.cookies -L \
-  "http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3Adoctor&next=/app/doctor"
-```
-
-Для admin используется `dev%3Aadmin`. Остальные dev/host-факты находятся в
-`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md` и `docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
+Обычный вход зарегистрированных owner-учёток, канон — `AGENTS.md` [§1a](AGENTS.md#1a-локальный-dev-и-тестирование-ui)
+и `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`. Остальные dev/host-факты — там же и в
+`docs/ARCHITECTURE/SERVER CONVENTIONS.md`.
 
 ## Полный CI гоняется В ЭТОМ дереве
 

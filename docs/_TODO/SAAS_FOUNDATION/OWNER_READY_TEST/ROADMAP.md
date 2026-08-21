@@ -19,8 +19,8 @@ Acceptance: `audit/acceptance-ST-01.md`.
 - [x] Code/scratch: оба TEST deploy/migrate-пути останавливают writers.
 - [x] Code/scratch: после migrations/backfills/cleanup/roles/helpers/overlays выполняются strict policies и FORCE.
 - [x] Scratch: exact post-assert подтверждает канонический inventory; временные привилегии отозваны.
-- **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** отдельный TEST seeder и fixture-dependent smoke удалены; deploy не создаёт
-  и не требует persistent fixture-данные (см. `AGENTS.md` §1b).
+- [x] Code/scratch: deploy не создаёт и не требует persistent fixture-данные; smoke использует уже
+      зарегистрированные owner-учётки и клиники (`AGENTS.md` §1b, `docs/OWNER_DECISIONS.md:870-871`).
 - [x] Code/static: OFF/NO FORCE не используется как TEST recovery.
 - [x] Targeted checks, deep audit, fixes и независимый code/scratch re-audit закрыты.
 - [ ] Live TEST closure/health/locked smoke подтверждены.
@@ -87,7 +87,7 @@ Acceptance: `audit/acceptance-ST-04.md`.
 - [ ] ST-01—ST-04 закрыты по своим acceptance.
 - [ ] #770, #797 и #798 синхронизированы с доказательствами и commit refs.
 - [ ] TEST остаётся strict+FORCE и fail-closed.
-- [-] ~~Fixture можно повторно применить после следующих миграций.~~ — **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:**
-      persistent fixture-наборы на live TEST запрещены.
+- [x] Persistent fixture-наборы на live TEST не используются; проверки идут на уже зарегистрированных
+      owner-учётках и клиниках.
 - [ ] System Health показывает SaaS-диагностику.
 - [ ] TEST готов к ручной продуктовой проверке владельцем.

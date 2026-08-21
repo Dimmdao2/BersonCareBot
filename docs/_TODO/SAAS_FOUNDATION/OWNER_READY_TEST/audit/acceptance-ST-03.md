@@ -94,7 +94,8 @@
 
 ## Визуальный сценарий
 
-- Preliminary DEV URL: `http://127.0.0.1:5200/app/doctor/system-health`, `dev:admin` + admin mode.
+- Preliminary DEV URL: `http://127.0.0.1:5200/app/doctor/system-health`, ordinary login of a registered
+  owner admin account (`AGENTS.md` §1a) + admin mode.
 - Final TEST URL: `https://test.bersoncare.ru/app/doctor/system-health`, protected global-admin login + admin mode;
   doctor и clinic-admin получают отказ на страницу/API.
 - Seed: deterministic safe diagnostic aggregates for zero, warning/incomplete и critical/unexplained states.

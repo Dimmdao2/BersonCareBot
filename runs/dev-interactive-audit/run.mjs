@@ -6,7 +6,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from '../clickthrough/lib/browser.mjs';
+import { chromium } from './lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   buildTraversalPlan,
@@ -36,7 +36,6 @@ import { runReversibleCycle } from './reversible-cycle.mjs';
 const baseUrl = process.env.DEV_AUDIT_BASE_URL || 'http://127.0.0.1:5200';
 const outDir = 'runs/dev-interactive-audit/out';
 const password = process.env.DEV_AUDIT_PASSWORD || '';
-const allowSynthetic = process.env.DEV_AUDIT_ALLOW_SYNTHETIC === '1';
 const mutationsEnabled = process.env.DEV_AUDIT_MUTATE === '1';
 const configuredOrganizationId = process.env.DEV_AUDIT_ORGANIZATION_ID || null;
 const patientName = process.env.DEV_AUDIT_PATIENT_NAME || 'Берсон Дмитрий';
@@ -206,14 +205,7 @@ async function authenticate(context, label, scenario) {
     }
     return { kind: 'actual_email_password' };
   }
-  if (!allowSynthetic) throw new Error(`actual_${label}_auth_missing`);
-  const response = await context.request.get(
-    `${baseUrl}/api/auth/dev-bypass?token=dev%3A${scenario.syntheticToken}`,
-    { maxRedirects: 0 },
-  );
-  if (response.status() !== 303)
-    throw new Error(`synthetic_${label}_login_failed:${response.status()}`);
-  return { kind: 'synthetic_dev_bypass' };
+  throw new Error(`actual_${label}_auth_missing`);
 }
 
 async function requestJson(context, evidence, pathname, options = {}) {
