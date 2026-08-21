@@ -915,7 +915,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "сама клиника — без неё нет арендатора вообще",
     "codePaths": [
-      "apps/integrator/src/infra/db/realPostgresIntegrationTestHarness.ts",
       "apps/webapp/src/infra/repos/pgBookingEngine.ts",
       "apps/webapp/src/infra/repos/pgClinicDirectory.ts",
       "apps/webapp/src/infra/repos/pgOperatorHealthRead.ts",
