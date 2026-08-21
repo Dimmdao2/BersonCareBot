@@ -9,6 +9,9 @@
 более поздних owner-решений в `docs/OWNER_DECISIONS.md`, `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` и актуальном
 `WORK_ORDER.md`. Более поздний конфликт — `OWNER QUESTION`, не мягкая трактовка.
 
+Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` Р-D31 и D31 2/2 —
+«делать API для VK, инсту удалять»; VK должен быть настоящим Callback API + common delivery channel.
+
 ## Требуемое поведение
 
 1. **Inbound Callback API.** Принимать официальный `message_new` envelope с сообщением в `object.message`, сохраняя
