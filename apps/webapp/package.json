@@ -24,7 +24,6 @@
     "test:db-behavior:named-dev": "node scripts/named-dev-db-behavior-runner.mjs --run",
     "test:db-behavior:named-dev:self-test": "node --test scripts/named-dev-db-behavior-runner.test.mjs scripts/named-dev-db-behavior-runner.audit.test.mjs && tsx --test scripts/patient-reminder-materialization-named-dev-step.test.ts && node scripts/named-dev-db-behavior-runner.mjs --self-test",
     "migrate": "node scripts/run-webapp-drizzle-migrate.mjs",
-    "backfill-person-domain": "node scripts/backfill-person-domain.mjs",
     "reconcile-person-domain": "node scripts/reconcile-person-domain.mjs",
     "backfill-reminders-domain": "node scripts/backfill-reminders-domain.mjs",
     "reconcile-reminders-domain": "node scripts/reconcile-reminders-domain.mjs",

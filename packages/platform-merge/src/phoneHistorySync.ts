@@ -1,6 +1,6 @@
 /**
  * D28 — «при отвязке номера — он удаляется вместе с подтверждением» (`WORK_ORDER.md` §2.3 Р-D28).
- * `platform_users.phone_normalized` is the account's single current confirmed phone; `user_phone_history`
+ * `user_contacts` is the account's canonical current phone source; `user_phone_history`
  * is the append-only confirmation ledger (`valid_to IS NULL` = the number is currently confirmed for that
  * account). Every writer in this package that sets/replaces a confirmed phone must close the account's
  * previous active spell in the same transaction — otherwise the OLD number keeps an "active" confirmation
@@ -17,9 +17,9 @@ export type PhoneHistorySyncSource = 'messenger' | 'projection';
 /**
  * Close the account's current active `user_phone_history` spell (whatever number it names — self-heals
  * drift from before this fix existed) and open a new one for `newPhoneNormalized`, in lockstep with a
- * caller that is about to set `platform_users.phone_normalized = newPhoneNormalized` for this account.
- * No-op when the account's ALREADY-current phone (read fresh from `platform_users`, not from the history
- * table, since that's the field being replaced) already equals the incoming number — a repeat webhook for
+ * caller that is about to upsert the canonical phone for this account.
+ * No-op when the account's ALREADY-current primary phone (read fresh from `user_contacts`) already equals
+ * the incoming number — a repeat webhook for
  * an unchanged, already-confirmed number must not keep opening/closing history rows.
  */
 export async function syncPlatformUserPhoneHistoryOnConfirm(
@@ -30,7 +30,9 @@ export async function syncPlatformUserPhoneHistoryOnConfirm(
 ): Promise<void> {
   const current = await runMergeSql<{ phone_normalized: string | null }>(
     db,
-    sql`SELECT phone_normalized FROM public.platform_users WHERE id = ${platformUserId}::uuid`,
+    sql`SELECT value_normalized AS phone_normalized FROM public.user_contacts
+        WHERE platform_user_id = ${platformUserId}::uuid
+          AND contact_kind = 'phone' AND is_primary = true LIMIT 1`,
   );
   if (current.rows[0]?.phone_normalized === newPhoneNormalized) return;
 

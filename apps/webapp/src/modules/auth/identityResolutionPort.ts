@@ -14,7 +14,7 @@ export type FindOrCreateByChannelBindingResult = {
 export type MessengerIdentityResolutionHints = {
   /** JWT `sub` when it is a `platform_users.id` UUID (resolved through merge chain). */
   platformUserSub?: string;
-  /** E.164; matched only to a canonical user with `patient_phone_trust_at` set (trusted projection / integrator). */
+  /** E.164; matched only to a canonical phone with `user_contacts.confirmed_at` set. */
   phoneNormalized?: string;
   /** Optional `integratorUserId` from token (`contracts/webapp-entry-token.json`). */
   integratorUserId?: string;

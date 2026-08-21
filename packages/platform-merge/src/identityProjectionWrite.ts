@@ -22,7 +22,7 @@ import {
 } from './pgPlatformUserMerge.js';
 import { runMergeSql } from './mergeSql.js';
 import { syncPlatformUserPhoneHistoryOnConfirm } from './phoneHistorySync.js';
-import { syncUserContactsMirror } from './userContactsMirrorWrite.js';
+import { mutateCanonicalUserContacts } from './userContactsMirrorWrite.js';
 import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 
 /** Channels for which a fresh binding seeds opted-in broadcast defaults. */
@@ -73,8 +73,11 @@ async function loadCandidateForMerge(
 ): Promise<PickMergeTargetCandidate | null> {
   const r = await runMergeSql<IdentityMergeRow>(
     db,
-    sql`SELECT id, phone_normalized, integrator_user_id::text AS integrator_user_id, created_at
-     FROM public.platform_users WHERE id = ${id}::uuid AND merged_into_id IS NULL`,
+    sql`SELECT pu.id,
+       (SELECT uc.value_normalized FROM public.user_contacts uc
+        WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
+       pu.integrator_user_id::text AS integrator_user_id, pu.created_at
+     FROM public.platform_users pu WHERE pu.id = ${id}::uuid AND pu.merged_into_id IS NULL`,
   );
   const row = r.rows[0];
   if (!row) return null;
@@ -163,8 +166,10 @@ export async function collectIdentityProjectionCandidates(
   if (phoneNormalized) {
     const byPhone = await runMergeSql<{ id: string }>(
       db,
-      sql`SELECT id::text AS id FROM public.platform_users
-       WHERE phone_normalized = ${phoneNormalized} AND merged_into_id IS NULL
+      sql`SELECT uc.platform_user_id::text AS id FROM public.user_contacts uc
+       INNER JOIN public.platform_users pu ON pu.id = uc.platform_user_id
+       WHERE uc.contact_kind = 'phone' AND uc.value_normalized = ${phoneNormalized}
+         AND pu.merged_into_id IS NULL
        LIMIT 3`,
     );
     if (byPhone.rows.length > 1) {
@@ -233,12 +238,10 @@ export async function insertIdentityProjection(
   const res = await runMergeSql<{ id: string }>(
     db,
     sql`INSERT INTO public.platform_users (
-       integrator_user_id, phone_normalized, display_name, first_name, last_name, email,
-       patient_phone_trust_at
+       integrator_user_id, display_name, first_name, last_name
      )
      VALUES (
-       ${integratorUserId}::bigint, ${input.phoneNormalized}, ${displayName}, ${input.firstName}, ${input.lastName}, ${input.email},
-       CASE WHEN ${input.phoneNormalized}::text IS NOT NULL AND trim(${input.phoneNormalized}::text) <> '' THEN now() ELSE NULL END
+       ${integratorUserId}::bigint, ${displayName}, ${input.firstName}, ${input.lastName}
      )
      RETURNING id::text AS id`,
   );
@@ -259,7 +262,10 @@ export async function insertIdentityProjection(
   // A name-only messenger event does not change the assembled contact index. Rebuilding all contact
   // sources here would make an unrelated profile refresh depend on the definer-only OAuth table.
   if (phoneNormalized || trimmedOrNull(input.email)) {
-    await syncUserContactsMirror(db, id);
+    await mutateCanonicalUserContacts(db, id, [
+      ...(phoneNormalized ? [{ action: 'upsert' as const, kind: 'phone' as const, valueNormalized: phoneNormalized, isPrimary: true, confirmedAt: new Date().toISOString(), sourceOrigin: 'direct' as const }] : []),
+      ...(trimmedOrNull(input.email) ? [{ action: 'upsert' as const, kind: 'email' as const, valueNormalized: trimmedOrNull(input.email)!.toLowerCase(), isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }] : []),
+    ]);
   }
   return id;
 }
@@ -316,12 +322,6 @@ export async function enrichIdentityProjection(
          WHEN ${input.channelCode}::text IN ('telegram', 'max') THEN COALESCE(last_name, ${input.lastName}::text)
          ELSE COALESCE(${input.lastName}::text, last_name)
        END,
-       email = COALESCE(${input.email}::text, email),
-       phone_normalized = COALESCE(${input.phoneNormalized}::text, phone_normalized),
-       patient_phone_trust_at = CASE
-         WHEN ${input.phoneNormalized}::text IS NOT NULL AND trim(${input.phoneNormalized}::text) <> '' THEN now()
-         ELSE patient_phone_trust_at
-       END,
        integrator_user_id = COALESCE(integrator_user_id, ${integratorUserId}::bigint),
        updated_at = now()
      WHERE id = ${platformUserId}::uuid AND merged_into_id IS NULL`,
@@ -333,7 +333,10 @@ export async function enrichIdentityProjection(
   }
   await syncUserIdentityFioMirror(db, platformUserId);
   if (phoneNormalized || trimmedOrNull(input.email)) {
-    await syncUserContactsMirror(db, platformUserId);
+    await mutateCanonicalUserContacts(db, platformUserId, [
+      ...(phoneNormalized ? [{ action: 'upsert' as const, kind: 'phone' as const, valueNormalized: phoneNormalized, isPrimary: true, confirmedAt: new Date().toISOString(), sourceOrigin: 'direct' as const }] : []),
+      ...(trimmedOrNull(input.email) ? [{ action: 'upsert' as const, kind: 'email' as const, valueNormalized: trimmedOrNull(input.email)!.toLowerCase(), isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }] : []),
+    ]);
   }
 }
 

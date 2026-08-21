@@ -1,0 +1,50 @@
+#!/bin/bash
+# Puts the previous release back in front of users, without rebuilding anything.
+#
+# It reuses the image that was live before the current one, which is still on disk. That is why this
+# is fast — under a minute — and why it is trustworthy: it is byte-for-byte the artifact that was
+# serving, not a fresh build of the same commit that might resolve a dependency differently.
+#
+#   rollback-prod          go back one release
+#   rollback-prod <image>  go back to a specific image from `prod-status --history`
+#
+# LIMIT, and it is a real one: this rolls back CODE. If the release being undone changed the database
+# schema, the old code meets the new schema. Nothing here can undo a migration — that needs the
+# pre-migration dump, and it costs whatever was written since.
+
+set -uo pipefail
+LIB=/opt/bersoncarebot/pipeline/bcb-bluegreen-lib.sh
+[ -f "$LIB" ] || { echo "FATAL: pipeline library missing at $LIB" >&2; exit 1; }
+. /etc/bcb-pipeline.conf
+. "$LIB"
+
+[ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ] && { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 0; }
+
+require_pipeline
+
+ACTIVE=$(active_colour)
+[ "$ACTIVE" = none ] && die "nothing is deployed, so there is nothing to roll back to"
+CURRENT_IMAGE=$(colour_running_image "$ACTIVE")
+
+TARGET_IMAGE="${1:-}"
+if [ -z "$TARGET_IMAGE" ]; then
+  # The most recent successful release whose image differs from what is live now. Failed attempts are
+  # in the log too and are skipped: rolling back onto a release that never became healthy would just
+  # fail the same gate again, slower.
+  TARGET_IMAGE=$(awk -F'\t' -v cur="$CURRENT_IMAGE" \
+    '($2=="deploy" || $2=="rollback") && $4!=cur {last=$4} END{print last}' "$BCB_RELEASES_LOG" 2>/dev/null)
+  [ -n "$TARGET_IMAGE" ] || die "no previous successful release found in $BCB_RELEASES_LOG"
+fi
+
+docker image inspect "$TARGET_IMAGE" >/dev/null 2>&1 ||
+  die "image $TARGET_IMAGE is no longer on disk; deploy the commit by name instead: deploy-prod <commit>"
+
+say "rolling back: $CURRENT_IMAGE → $TARGET_IMAGE"
+warn "this restores code only; database schema changes are not undone"
+
+# Deliberately the same code path as a normal deploy, health gate included. A rollback that skipped
+# the gate could replace a broken release with a release that is broken for a different reason and
+# report success.
+/opt/bersoncarebot/pipeline/bcb-deploy --no-build "$TARGET_IMAGE" || die "rollback failed; $ACTIVE is still live"
+record_release "$(active_colour)" "$TARGET_IMAGE" "${TARGET_IMAGE##*:}" "rollback"
+say "rolled back to $TARGET_IMAGE"

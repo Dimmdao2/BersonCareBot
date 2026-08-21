@@ -5,7 +5,6 @@ import {
 } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
   CONTACTS,
-  syncUserContactsMirrorWebapp,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
 
@@ -115,5 +114,4 @@ export async function insertChannelBinding(params: {
      VALUES ($1, $2, $3)`,
     [params.userId, params.channelCode, params.externalId],
   );
-  await syncUserContactsMirrorWebapp(getWebappSqlDb(), params.userId);
 }

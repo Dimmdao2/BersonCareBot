@@ -109,9 +109,14 @@ async function fetchLegacy(client) {
 
 async function fetchTarget(client) {
   const usersRes = await client.query(`
-    SELECT id, integrator_user_id, phone_normalized, display_name
-    FROM platform_users
-    WHERE integrator_user_id IS NOT NULL
+    SELECT users.id, users.integrator_user_id, contact.value_normalized AS phone_normalized,
+           users.display_name
+    FROM platform_users AS users
+    LEFT JOIN user_contacts AS contact
+      ON contact.platform_user_id = users.id
+     AND contact.contact_kind = 'phone'
+     AND contact.is_primary = true
+    WHERE users.integrator_user_id IS NOT NULL
   `);
   const bindingsRes = await client.query(`
     SELECT ucb.user_id, ucb.channel_code, ucb.external_id

@@ -17,7 +17,7 @@ vi.mock('@/infra/repos/userContactsSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/repos/userContactsSql')>();
   return {
     ...actual,
-    syncUserContactsMirrorWebapp: syncContactsMirrorMock,
+    mutateCanonicalUserContactsWebapp: syncContactsMirrorMock,
   };
 });
 
@@ -129,7 +129,9 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
     expect(syncMirrorMock).toHaveBeenCalledOnce();
     expect(syncMirrorMock).toHaveBeenCalledWith(fakeClient, LOCKED_USER_ID);
     expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
-    expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, LOCKED_USER_ID);
+    expect(syncContactsMirrorMock).toHaveBeenCalledWith(fakeClient, LOCKED_USER_ID, [
+      expect.objectContaining({ action: 'upsert', kind: 'phone' }),
+    ]);
     const updateCall = runIdentityClientPgTextMock.mock.calls.find(
       ([, sql]) => typeof sql === 'string' && sql.includes('UPDATE platform_users'),
     );
@@ -150,7 +152,7 @@ describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write'
     expect(syncMirrorMock).toHaveBeenCalledOnce();
     expect(syncMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
     expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
-    expect(syncContactsMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID);
+    expect(syncContactsMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID, []);
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
   });
 });

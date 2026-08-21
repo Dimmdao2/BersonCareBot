@@ -66,13 +66,17 @@ async function resolveCanonicalPlatformUserSummary(
       email: string | null;
     }>(
       db,
-      `SELECT id::text,
-              merged_into_id::text AS merged_into_id,
-              display_name,
-              phone_normalized,
-              email
-       FROM public.platform_users
-       WHERE id = $1::uuid`,
+      `SELECT pu.id::text,
+              pu.merged_into_id::text AS merged_into_id,
+              pu.display_name,
+              phone.value_normalized AS phone_normalized,
+              email.value_normalized AS email
+       FROM public.platform_users pu
+       LEFT JOIN public.user_contacts phone ON phone.platform_user_id = pu.id
+         AND phone.contact_kind = 'phone' AND phone.is_primary = true
+       LEFT JOIN public.user_contacts email ON email.platform_user_id = pu.id
+         AND email.contact_kind = 'email' AND email.is_primary = true
+       WHERE pu.id = $1::uuid`,
       [current],
     );
     const row = r.rows[0];

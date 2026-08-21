@@ -84,10 +84,11 @@ export async function resolveGoogleCalendarDescriptionContext(
   if (normalizedPhone) {
     const userRes = await runIntegratorSql<{ id: string }>(
       db,
-      sql`SELECT id::text
-          FROM platform_users
-          WHERE phone_normalized = ${normalizedPhone}
-            AND merged_into_id IS NULL
+      sql`SELECT pu.id::text
+          FROM user_contacts uc
+          JOIN platform_users pu ON pu.id = uc.platform_user_id
+          WHERE uc.contact_kind = 'phone' AND uc.value_normalized = ${normalizedPhone}
+            AND pu.merged_into_id IS NULL
           LIMIT 1`,
     );
     const platformUserId = userRes.rows[0]?.id;

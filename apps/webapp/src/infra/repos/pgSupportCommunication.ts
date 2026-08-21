@@ -657,7 +657,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           ${FIO.firstName} AS first_name,
           ${FIO.lastName} AS last_name,
           ${FIO.patronymic} AS patronymic,
-          pu.phone_normalized,
+          (SELECT uc.value_normalized FROM user_contacts uc
+           WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
           sc.channel_external_id,
           last_personal.last_msg_text AS last_message_text,
           last_personal.last_sender_role AS last_sender_role,

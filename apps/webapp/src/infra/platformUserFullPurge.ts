@@ -81,14 +81,14 @@ async function deletePhoneKeyedWebappRows(
     client,
     `DELETE FROM message_log
      WHERE user_id IN (
-       SELECT id::text FROM platform_users
-       WHERE phone_normalized IS NOT NULL
-         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
+       SELECT platform_user_id::text FROM user_contacts
+       WHERE contact_kind = 'phone'
+         AND regexp_replace(value_normalized, '\\D', '', 'g') = $1
      )
         OR platform_user_id IN (
-          SELECT id FROM platform_users
-          WHERE phone_normalized IS NOT NULL
-            AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
+          SELECT platform_user_id FROM user_contacts
+          WHERE contact_kind = 'phone'
+            AND regexp_replace(value_normalized, '\\D', '', 'g') = $1
         )`,
     [digs],
   );

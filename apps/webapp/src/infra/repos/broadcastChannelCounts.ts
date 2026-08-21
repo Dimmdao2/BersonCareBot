@@ -13,7 +13,11 @@ import {
   userContacts,
   userWebPushSubscriptions,
 } from '../../../db/schema/schema';
-import { drizzlePrimaryEmailCol, drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
+import {
+  drizzlePrimaryEmailCol,
+  drizzlePrimaryEmailConfirmedAtCol,
+  drizzlePrimaryPhoneCol,
+} from '@/infra/repos/userContactsSql';
 import type {
   BroadcastChannelCounts,
   BroadcastChannelCountsPort,
@@ -55,7 +59,7 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
           INNER JOIN ${platformUsers} pu ON pu.id = uc.platform_user_id
           WHERE uc.contact_kind = 'email'
             AND uc.is_primary = true
-            AND pu.email_verified_at IS NOT NULL
+            AND uc.confirmed_at IS NOT NULL
             AND pu.merged_into_id IS NULL
         `),
       ]);
@@ -118,7 +122,7 @@ export function createPgBroadcastChannelCountsPort(): BroadcastChannelCountsPort
           .where(
             and(
               inArray(platformUsers.id, ids),
-              isNotNull(platformUsers.emailVerifiedAt),
+              isNotNull(drizzlePrimaryEmailConfirmedAtCol),
               isNotNull(drizzlePrimaryEmailCol),
               isNull(platformUsers.mergedIntoId),
             ),

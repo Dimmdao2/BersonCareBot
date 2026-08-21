@@ -2,7 +2,7 @@
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
-import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
+import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
 
 /** F6 case 4 (§2a, migration 0342): 'oauth' — phone added as a confirmed contact by an OAuth
  *  provider that returned it alongside an already-matched email (never a login identifier). */
@@ -12,8 +12,7 @@ export type PhoneHistorySource = 'otp' | 'messenger' | 'merge' | 'admin' | 'proj
 export type PhoneHistoryConfirmingChannel = 'telegram' | 'max' | 'email' | 'sms';
 
 /**
- * Вызывать **после** того, как в транзакции обновлён `platform_users.phone_normalized`
- * (закрывает предыдущие активные интервалы и открывает новый для текущего номера).
+ * Canonically changes the phone and records the historical interval in the same transaction.
  */
 export async function applyPlatformUserPhoneHistoryTransition(
   client: Pool | PoolClient,
@@ -54,5 +53,8 @@ export async function applyPlatformUserPhoneHistoryTransition(
       db,
     );
   }
-  await syncUserContactsMirrorWebapp(db, opts.platformUserId);
+  await mutateCanonicalUserContactsWebapp(db, opts.platformUserId, p
+    ? [{ action: 'upsert', kind: 'phone', valueNormalized: p, isPrimary: true,
+        confirmedAt: new Date().toISOString(), sourceOrigin: 'direct' }]
+    : [{ action: 'remove', kind: 'phone' }]);
 }

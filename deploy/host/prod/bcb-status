@@ -1,0 +1,41 @@
+#!/bin/bash
+# What is actually live right now, asked of docker and nginx rather than of our own notes.
+#
+#   prod-status            current state
+#   prod-status --history  the release log, newest last
+#   prod-status --logs     recent output from the live containers
+
+set -uo pipefail
+LIB=/opt/bersoncarebot/pipeline/bcb-bluegreen-lib.sh
+[ -f "$LIB" ] || { echo "FATAL: pipeline library missing at $LIB" >&2; exit 1; }
+. /etc/bcb-pipeline.conf
+. "$LIB"
+
+ACTIVE=$(active_colour)
+IDLE=$(idle_colour)
+
+case "${1:-}" in
+  --history)
+    [ -f "$BCB_RELEASES_LOG" ] || { echo "no releases yet"; exit 0; }
+    printf '%-22s %-9s %-6s %-28s %s\n' WHEN KIND COLOUR IMAGE COMMIT
+    awk -F'\t' '{printf "%-22s %-9s %-6s %-28s %s\n", $1,$2,$3,$4,$5}' "$BCB_RELEASES_LOG"
+    exit 0 ;;
+  --logs)
+    [ "$ACTIVE" = none ] && { echo "nothing is deployed"; exit 0; }
+    compose "$ACTIVE" "$(colour_running_image "$ACTIVE")" --profile singletons logs --tail "${2:-80}"
+    exit 0 ;;
+esac
+
+echo "active colour : $ACTIVE"
+echo "idle colour   : $IDLE"
+if [ "$ACTIVE" != none ]; then
+  IMG=$(colour_running_image "$ACTIVE")
+  echo "live image    : ${IMG:-<none>}"
+  # Read out of the image itself, so it reports the commit that was built rather than the tag someone
+  # may have retagged since.
+  docker run --rm --entrypoint cat "$IMG" /app/.build-id 2>/dev/null | sed 's/^/                /'
+fi
+echo "nginx sends to: $(grep -oE '127\.0\.0\.1:[0-9]+' "$BCB_UPSTREAM_CONF" 2>/dev/null | paste -sd' ' || echo '<not configured>')"
+echo
+echo "containers:"
+docker ps --filter 'name=bcb-' --format '  {{.Names}}\t{{.Status}}\t{{.Image}}' | sed 's/\t/  /g'
