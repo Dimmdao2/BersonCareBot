@@ -144,7 +144,7 @@ export async function findCanonicalUserIdByIntegratorId(
 
 /**
  * Canonical user with this phone and trusted patient activation (`user_contacts.confirmed_at`).
- * Used for messenger entry resolution: do not link a channel to a canon by phone unless activation is trusted (§5).
+ * Every confirmed phone remains login-capable; primary selects delivery preference only.
  */
 export async function findTrustedCanonicalUserIdByPhone(
   db: WebappSqlExecutor,
@@ -157,7 +157,6 @@ export async function findTrustedCanonicalUserIdByPhone(
     .where(
       and(
         eq(userContacts.contactKind, 'phone'),
-        eq(userContacts.isPrimary, true),
         eq(userContacts.valueNormalized, phoneNormalized),
         isNotNull(userContacts.confirmedAt),
         isNull(platformUsers.mergedIntoId),

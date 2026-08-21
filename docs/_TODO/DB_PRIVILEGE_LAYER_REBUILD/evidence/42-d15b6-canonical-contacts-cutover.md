@@ -14,11 +14,33 @@
   не добавлен. Demote старого primary, conflict validation, upsert и promote выполняются одним атомарным
   data-modifying CTE. Cross-user conflict возвращает доменный конфликт без снятия текущего primary; concurrent
   `23505` откатывает весь statement и маппится по `uq_user_contacts_phone|email`.
-- Timestamp-forward `20260821T040000_cut_over_canonical_contacts.sql` сначала fail-closed сверяет старые
-  phone/email/trust timestamps, затем переводит все активные function roots, проверяет catalog dependencies и
-  legacy function bodies, и только после этого удаляет пять contact columns из `platform_users`. В migration нет
+- Timestamp-forward `20260821T040000_cut_over_canonical_contacts.sql` сначала fail-closed сохраняет каждый
+  legacy scalar в canonical row, отказывает при cross-account ownership conflict, сводит legacy scalars к
+  canonical primary и требует нулевой parity до DROP. Затем он переводит все активные function roots, проверяет
+  catalog dependencies и точные physical legacy references, и только после этого удаляет пять contact columns из
+  `platform_users`. В migration нет
   GRANT/REVOKE/ROLE/OWNER/RLS policy; privilege surface изменена только в declaration и пересобранных artifacts.
 - D15b/7 не затронут.
+
+## Принятые audit fixes (MF-1…MF-6)
+
+- MF-1: read-only named-DEV measurement без значений вернул `mismatches=5` (`phone_value=1`,
+  `phone_confirm=4`, `email_confirm=1`); единственный legacy-only phone не имеет foreign owner. Forward
+  сначала inserts/подтверждает только own canonical contact, затем проверяет, что ни один legacy value не потерян,
+  и только после нулевого parity assertion продолжает к DROP. Migration не применялась.
+- MF-2: active `app.read_current_patient_identity_contacts()` теперь возвращает тот же contract
+  `(o_phone, o_email)` из primary `user_contacts`; `platform_user_contacts` остаётся отдельным
+  organization-scoped supplementary path.
+- MF-3: legacy-body gate больше не сопоставляет произвольный `alias.email`: он связывает physical
+  `platform_users` table/rowtype alias с legacy-column use. Это ловит прежний `account.email` MF-2 body, но
+  не derived `v_user.email_normalized` и не canonical `holder.email`.
+- MF-4: trusted messenger resolver требует `confirmed_at`, но не `is_primary`: любой confirmed phone остаётся
+  login identifier; primary — только delivery preference. Cross-account canonical uniqueness unchanged.
+- MF-5: targeted integrator in-memory model теперь исполняет canonical CTE/create/enrich/history paths, без
+  removed platform scalar mirror.
+- MF-6: manual merge performs `merge-from`, then canonical `promote` within the existing mutation root. Promote
+  changes only primary state; it preserves transferred confirmation, owner and `source_origin`. Acceptance fails
+  if transferred OAuth contact is not moved/preserved.
 
 ## Reader/writer census
 
@@ -83,17 +105,24 @@ pnpm --dir apps/webapp exec vitest run --project unit
   src/infra/repos/d15b6PhoneMessengerBindMirror.unit.test.ts
   src/infra/repos/pgCanonicalPlatformUser.unit.test.ts
   src/modules/auth/oauthWebLoginResolve.unit.test.ts
-  src/modules/auth/emailOtpPublic.unit.test.ts --reporter verbose
-  -> 7 files, 33 passed
+  src/modules/auth/oauthVkResolve.unit.test.ts
+  src/modules/auth/emailOtpPublic.unit.test.ts
+  src/infra/accountMergeMedicalHistory.unit.test.ts --reporter verbose
+  -> 9 files, 46 passed
 
 pnpm --dir apps/integrator exec vitest run
   src/infra/db/messengerPhonePublicBind0380.unit.test.ts
+  src/infra/db/userUpsert.identity.test.ts
   src/infra/adapters/deliveryTargetsPort.test.ts --reporter verbose
-  -> 2 files, 32 passed
+  -> 3 files, 40 passed
 
 /home/dev/brain/host-orch/run-tests.sh "pnpm run test:db-privileges"
   -> 183 tests; 154 passed, 29 skipped, 0 failed
 
+pnpm --dir packages/platform-merge run build &&
+pnpm --dir packages/operator-db-schema run build &&
+pnpm --dir packages/db-principal run build &&
+pnpm --dir packages/error-tracking run build &&
 pnpm --dir apps/integrator typecheck && pnpm --dir apps/webapp typecheck
   -> exit 0 for both strict typechecks
 

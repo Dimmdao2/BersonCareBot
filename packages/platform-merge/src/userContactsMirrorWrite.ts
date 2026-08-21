@@ -4,6 +4,7 @@ import { runMergeSql, type MergeSqlExecutor } from './mergeSql.js';
 
 export type CanonicalContactMutation =
   | { action: 'upsert'; kind: 'phone' | 'email'; valueNormalized: string; isPrimary: boolean; confirmedAt: string | null; sourceOrigin: 'direct' | 'oauth' }
+  | { action: 'promote'; kind: 'phone' | 'email'; valueNormalized: string }
   | { action: 'remove'; kind: 'phone' | 'email'; valueNormalized?: string }
   | { action: 'merge-from'; duplicatePlatformUserId: string }
   | { action: 'remove-all' };
@@ -57,6 +58,30 @@ export async function mutateCanonicalUserContacts(
       await runMergeSql(db, sql`DELETE FROM public.user_contacts
         WHERE platform_user_id = ${platformUserId}::uuid AND contact_kind = ${mutation.kind}::text
           AND (${mutation.valueNormalized ?? null}::text IS NULL OR value_normalized = ${mutation.valueNormalized ?? null}::text)`);
+      continue;
+    }
+    if (mutation.action === 'promote') {
+      const result = await runMergeSql(db, sql`WITH demoted_primary AS (
+          UPDATE public.user_contacts
+          SET is_primary = false, updated_at = now()
+          WHERE platform_user_id = ${platformUserId}::uuid
+            AND contact_kind = ${mutation.kind}::text
+            AND is_primary = true
+            AND value_normalized <> ${mutation.valueNormalized}::text
+          RETURNING id
+        ), promoted_value AS (
+          UPDATE public.user_contacts
+          SET is_primary = true, updated_at = now()
+          WHERE platform_user_id = ${platformUserId}::uuid
+            AND contact_kind = ${mutation.kind}::text
+            AND value_normalized = ${mutation.valueNormalized}::text
+            AND (SELECT count(*) FROM demoted_primary) >= 0
+          RETURNING id
+        )
+        SELECT id FROM promoted_value`);
+      if (result.rowCount === 0) {
+        throw new Error(`canonical_${mutation.kind}_contact_missing`);
+      }
       continue;
     }
     try {

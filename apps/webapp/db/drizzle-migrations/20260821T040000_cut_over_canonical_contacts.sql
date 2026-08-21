@@ -6,6 +6,129 @@
 -- copied from the current schema-B roots and converted in this forward migration; privileges stay
 -- declaration-owned and are reconciled outside the migration.
 
+-- Preserve every legacy scalar as a canonical row before its column disappears.  A value already
+-- held by another account is an ownership conflict, never a reason to overwrite or reassign it.
+DO $d15b6_contact_ownership$
+DECLARE
+  v_conflicts bigint;
+BEGIN
+  SELECT count(*) INTO v_conflicts
+  FROM public.platform_users AS person
+  JOIN public.user_contacts AS contact
+    ON contact.contact_kind = 'phone'
+   AND contact.value_normalized = person.phone_normalized
+   AND contact.platform_user_id <> person.id
+  WHERE person.phone_normalized IS NOT NULL;
+
+  SELECT v_conflicts + count(*) INTO v_conflicts
+  FROM public.platform_users AS person
+  JOIN public.user_contacts AS contact
+    ON contact.contact_kind = 'email'
+   AND contact.value_normalized = person.email_normalized
+   AND contact.platform_user_id <> person.id
+  WHERE person.email_normalized IS NOT NULL;
+
+  IF v_conflicts <> 0 THEN
+    RAISE EXCEPTION 'D15b/6 legacy contact convergence has % cross-account ownership conflicts', v_conflicts;
+  END IF;
+END
+$d15b6_contact_ownership$;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+INSERT INTO public.user_contacts (
+  platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at
+)
+SELECT person.id, 'phone', person.phone_normalized, false, person.patient_phone_trust_at, 'direct', now()
+FROM public.platform_users AS person
+WHERE person.phone_normalized IS NOT NULL
+ON CONFLICT (value_normalized) WHERE contact_kind = 'phone'
+DO UPDATE SET
+  confirmed_at = COALESCE(public.user_contacts.confirmed_at, EXCLUDED.confirmed_at),
+  updated_at = now()
+WHERE public.user_contacts.platform_user_id = EXCLUDED.platform_user_id;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+INSERT INTO public.user_contacts (
+  platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at
+)
+SELECT person.id, 'email', person.email_normalized, false, person.email_verified_at, 'direct', now()
+FROM public.platform_users AS person
+WHERE person.email_normalized IS NOT NULL
+ON CONFLICT (value_normalized) WHERE contact_kind = 'email'
+DO UPDATE SET
+  confirmed_at = COALESCE(public.user_contacts.confirmed_at, EXCLUDED.confirmed_at),
+  updated_at = now()
+WHERE public.user_contacts.platform_user_id = EXCLUDED.platform_user_id;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+DO $d15b6_preserved_legacy_contacts$
+DECLARE
+  v_unpreserved bigint;
+BEGIN
+  SELECT count(*) INTO v_unpreserved
+  FROM public.platform_users AS person
+  WHERE (person.phone_normalized IS NOT NULL AND NOT EXISTS (
+           SELECT 1 FROM public.user_contacts AS contact
+           WHERE contact.platform_user_id = person.id
+             AND contact.contact_kind = 'phone'
+             AND contact.value_normalized = person.phone_normalized
+         ))
+     OR (person.email_normalized IS NOT NULL AND NOT EXISTS (
+           SELECT 1 FROM public.user_contacts AS contact
+           WHERE contact.platform_user_id = person.id
+             AND contact.contact_kind = 'email'
+             AND contact.value_normalized = person.email_normalized
+         ));
+
+  IF v_unpreserved <> 0 THEN
+    RAISE EXCEPTION 'D15b/6 legacy contact convergence could not preserve % contact values', v_unpreserved;
+  END IF;
+END
+$d15b6_preserved_legacy_contacts$;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+WITH primary_contacts AS (
+  SELECT person.id,
+    phone.value_normalized AS phone_normalized,
+    phone.confirmed_at AS patient_phone_trust_at,
+    email_contact.value_normalized AS email_normalized,
+    email_contact.confirmed_at AS email_verified_at
+  FROM public.platform_users AS person
+  LEFT JOIN LATERAL (
+    SELECT contact.value_normalized, contact.confirmed_at
+    FROM public.user_contacts AS contact
+    WHERE contact.platform_user_id = person.id
+      AND contact.contact_kind = 'phone'
+      AND contact.is_primary = true
+    LIMIT 1
+  ) AS phone ON true
+  LEFT JOIN LATERAL (
+    SELECT contact.value_normalized, contact.confirmed_at
+    FROM public.user_contacts AS contact
+    WHERE contact.platform_user_id = person.id
+      AND contact.contact_kind = 'email'
+      AND contact.is_primary = true
+    LIMIT 1
+  ) AS email_contact ON true
+)
+UPDATE public.platform_users AS person
+SET phone_normalized = canonical.phone_normalized,
+    patient_phone_trust_at = canonical.patient_phone_trust_at,
+    email = canonical.email_normalized,
+    email_normalized = canonical.email_normalized,
+    email_verified_at = canonical.email_verified_at,
+    updated_at = now()
+FROM primary_contacts AS canonical
+WHERE canonical.id = person.id
+  AND (
+    person.phone_normalized IS DISTINCT FROM canonical.phone_normalized
+    OR person.patient_phone_trust_at IS DISTINCT FROM canonical.patient_phone_trust_at
+    OR person.email_normalized IS DISTINCT FROM canonical.email_normalized
+    OR person.email_verified_at IS DISTINCT FROM canonical.email_verified_at
+    OR person.email IS DISTINCT FROM canonical.email_normalized
+  );
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
 DO $d15b6_parity$
 DECLARE
   v_mismatches bigint;
@@ -32,13 +155,10 @@ BEGIN
      OR person.patient_phone_trust_at IS DISTINCT FROM phone.confirmed_at
      OR person.email_normalized IS DISTINCT FROM email.value_normalized
      OR person.email_verified_at IS DISTINCT FROM email.confirmed_at
-     OR (
-       person.email IS NOT NULL
-       AND lower(btrim(person.email)) IS DISTINCT FROM person.email_normalized
-     );
+     OR person.email IS DISTINCT FROM email.value_normalized;
 
   IF v_mismatches <> 0 THEN
-    RAISE EXCEPTION 'D15b/6 canonical contact parity failed: % platform users differ', v_mismatches;
+    RAISE EXCEPTION 'D15b/6 canonical contact convergence failed: % platform users differ', v_mismatches;
   END IF;
 
   SELECT count(*) INTO v_mismatches
@@ -4074,6 +4194,47 @@ $function$
 -- BCB-MIGRATION-OWNER: app_object_owner
 DROP INDEX IF EXISTS public.idx_platform_users_phone;
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+CREATE OR REPLACE FUNCTION app.read_current_patient_identity_contacts(OUT o_phone text, OUT o_email text)
+ RETURNS record
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER PARALLEL RESTRICTED
+ SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  v_patient uuid := app.current_patient_user_id();
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_patient_booking_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'booking.patient-identity-contacts.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.read_current_patient_identity_contacts()'::regprocedure);
+
+  IF v_patient IS NULL THEN
+    RAISE EXCEPTION 'accepted patient context required' USING ERRCODE = '42501';
+  END IF;
+
+  SELECT phone.value_normalized, email_contact.value_normalized
+  INTO o_phone, o_email
+  FROM public.platform_users AS account
+  LEFT JOIN LATERAL (
+    SELECT contact.value_normalized
+    FROM public.user_contacts AS contact
+    WHERE contact.platform_user_id = account.id
+      AND contact.contact_kind = 'phone'
+      AND contact.is_primary = true
+    LIMIT 1
+  ) AS phone ON true
+  LEFT JOIN LATERAL (
+    SELECT contact.value_normalized
+    FROM public.user_contacts AS contact
+    WHERE contact.platform_user_id = account.id
+      AND contact.contact_kind = 'email'
+      AND contact.is_primary = true
+    LIMIT 1
+  ) AS email_contact ON true
+  WHERE account.id = v_patient
+    AND account.merged_into_id IS NULL;
+END
+$function$;
+--> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 DO $d15b6_dependencies$
 DECLARE
@@ -4098,12 +4259,48 @@ BEGIN
     RAISE EXCEPTION 'D15b/6 legacy contact columns still have dependencies: %', v_dependents;
   END IF;
 
-  SELECT array_agg(namespace.nspname || '.' || procedure.proname)
+  WITH function_bodies AS (
+    SELECT namespace.nspname || '.' || procedure.proname AS identity,
+           procedure.prosrc AS body
+    FROM pg_catalog.pg_proc AS procedure
+    JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
+    WHERE namespace.nspname IN ('app', 'public')
+  ), physical_qualified AS (
+    SELECT identity
+    FROM function_bodies
+    WHERE body ~ '\m(?:public\.)?platform_users[[:space:]]*\.[[:space:]]*(phone_normalized|email|email_normalized|email_verified_at|patient_phone_trust_at)\M'
+  ), physical_table_alias AS (
+    SELECT DISTINCT function_bodies.identity
+    FROM function_bodies
+    CROSS JOIN LATERAL regexp_matches(
+      function_bodies.body,
+      '\m(FROM|JOIN|UPDATE)[[:space:]]+(?:public\.)?platform_users[[:space:]]+(?:AS[[:space:]]+)?([a-z_][a-z0-9_]*)',
+      'gi'
+    ) AS alias_match(parts)
+    WHERE function_bodies.body ~ (
+      '\m' || alias_match.parts[2] || '[[:space:]]*\.[[:space:]]*(phone_normalized|email|email_normalized|email_verified_at|patient_phone_trust_at)\M'
+    )
+  ), physical_rowtype_alias AS (
+    SELECT DISTINCT function_bodies.identity
+    FROM function_bodies
+    CROSS JOIN LATERAL regexp_matches(
+      function_bodies.body,
+      '\m([a-z_][a-z0-9_]*)[[:space:]]+(?:public\.)?platform_users%ROWTYPE\M',
+      'gi'
+    ) AS row_alias(parts)
+    WHERE function_bodies.body ~ (
+      '\m' || row_alias.parts[1] || '[[:space:]]*\.[[:space:]]*(phone_normalized|email|email_normalized|email_verified_at|patient_phone_trust_at)\M'
+    )
+  )
+  SELECT array_agg(DISTINCT identity)
   INTO v_legacy_functions
-  FROM pg_catalog.pg_proc AS procedure
-  JOIN pg_catalog.pg_namespace AS namespace ON namespace.oid = procedure.pronamespace
-  WHERE namespace.nspname IN ('app', 'public')
-    AND procedure.prosrc ~ '(u|pu|users|user|patient|person|platform_user|holder|owner|recipient|source|target|duplicate)\.(phone_normalized|email|email_normalized|email_verified_at|patient_phone_trust_at)';
+  FROM (
+    SELECT identity FROM physical_qualified
+    UNION ALL
+    SELECT identity FROM physical_table_alias
+    UNION ALL
+    SELECT identity FROM physical_rowtype_alias
+  ) AS physical_legacy_references;
 
   IF cardinality(v_legacy_functions) > 0 THEN
     RAISE EXCEPTION 'D15b/6 legacy contact function readers/writers remain: %', v_legacy_functions;

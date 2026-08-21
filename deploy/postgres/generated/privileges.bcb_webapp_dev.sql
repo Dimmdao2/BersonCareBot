@@ -3447,7 +3447,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_current_patient_booking_slot_snapshot(uuid,uuid,text,text)', 'public.app_runtime_settings', ARRAY['key', 'scope', 'organization_id', 'audience', 'value_json']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_fio()', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_fio()', 'public.user_identity', ARRAY['platform_user_id', 'last_name', 'first_name', 'patronymic', 'display_name']::text[], ARRAY['SELECT']::text[]),
-  ('app.read_current_patient_identity_contacts()', 'public.platform_users', ARRAY['id', 'email', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_current_patient_identity_contacts()', 'public.platform_users', ARRAY['id', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_identity_contacts()', 'public.user_contacts', ARRAY['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_material_rating_snapshot(text,uuid)', 'public.material_ratings', ARRAY['organization_id', 'stars', 'target_id', 'target_kind', 'user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_organization_entitlements()', 'public.be_organizations', ARRAY['id', 'is_active', 'tariff_id']::text[], ARRAY['SELECT']::text[]),
@@ -16275,7 +16275,7 @@ GRANT SELECT ("email", "email_normalized", "email_verified_at", "id", "merged_in
 GRANT SELECT ("email_verified_at", "id", "merged_into_id", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
 GRANT SELECT ("email", "email_normalized", "id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
 GRANT INSERT ("display_name", "email", "email_normalized", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_password_auth_owner";
-GRANT SELECT ("email", "id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_patient_booking_owner";
+GRANT SELECT ("id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_patient_booking_owner";
 GRANT SELECT ("email", "email_normalized", "email_verified_at", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT SELECT ("email_normalized", "email_verified_at", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT SELECT ("calendar_timezone", "id") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";

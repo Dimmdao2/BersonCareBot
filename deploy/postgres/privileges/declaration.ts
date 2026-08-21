@@ -4817,7 +4817,7 @@ const REV10_CONTEXT = {
       purpose: 'return only the caller own identity phone and e-mail, never the staff client projection',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.platform_users', columns: ['id', 'email', 'merged_into_id'],
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts',
           columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],

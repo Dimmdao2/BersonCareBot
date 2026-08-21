@@ -782,8 +782,11 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             ✅ **#987 code-candidate 21.08.2026 (этот коммит):** все runtime readers/writers переведены на
             `user_contacts`; существующий `mutateCanonicalUserContacts` стал единственным атомарным DML-root;
             reverse mirror удалён; timestamp-forward `20260821T040000_cut_over_canonical_contacts.sql` после
-            fail-closed parity/dependency gates снимает пять legacy contact columns и переводит затронутые function
-            roots. Census: `0` direct legacy schema/API refs, `6` production mutation callers, `1` direct DML file,
+            fail-closed canonical-preservation/parity/dependency gates снимает пять legacy contact columns и переводит
+            затронутые function roots. Принятые MF-1…MF-6 исправлены: exact five named-DEV mismatches сходятся без
+            foreign ownership/loss, patient root читает canonical email, physical-body proof не ловит derived aliases,
+            confirmed non-primary phone login-enabled, integrator canonical behavior model зелёный, manual merge
+            сохраняет OAuth provenance/confirmation. Census: `0` direct legacy schema/API refs, `6` production mutation callers, `1` direct DML file,
             `0` reverse-mirror refs (точные команды, исключения и зелёные targeted/typecheck/privilege/generator gates
             — `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/42-d15b6-canonical-contacts-cutover.md`). Галочка
             остаётся `[ ]`: named DEV migration и реальный login/bind/delivery/parity gate не выполнялись; точные

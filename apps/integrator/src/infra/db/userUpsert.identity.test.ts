@@ -25,7 +25,6 @@ type IdentityRow = { resource: string; external_id: string; user_id: string };
 type UserRow = { id: string; merged_into_user_id: string | null };
 type PlatformUserRow = {
   id: string;
-  phone_normalized: string | null;
   integrator_user_id: string | null;
   merged_into_id: string | null;
   display_name: string | null;
@@ -52,6 +51,8 @@ type UserContactRow = {
   channel_code: string | null;
   value_normalized: string;
   is_primary: boolean;
+  confirmed_at?: string | null;
+  source_origin?: 'direct' | 'oauth';
 };
 
 type Tables = {
@@ -190,6 +191,45 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
     if (q.startsWith('insert into user_notification_topics')) return rows([]);
 
     // --- canonical platform_users ------------------------------------------------------------------
+    if (q.startsWith('select value_normalized as phone_normalized from user_contacts')) {
+      const hit = tables.userContacts.find(
+        (contact) => contact.platform_user_id === p[0] && contact.contact_kind === 'phone' && contact.is_primary,
+      );
+      return rows(hit ? [{ phone_normalized: hit.value_normalized }] : []);
+    }
+    if (q.startsWith('with existing_value as materialized')) {
+      const platformUserId = tables.platformUsers.find((user) => p.includes(user.id))?.id;
+      const valueNormalized = p.find((value) => value?.startsWith('+')) ?? null;
+      const kind = p.find((value) => value === 'phone' || value === 'email') ?? null;
+      if (!platformUserId || !valueNormalized || !kind) return rows([]);
+      const conflict = tables.userContacts.find(
+        (contact) =>
+          contact.contact_kind === kind &&
+          contact.value_normalized === valueNormalized &&
+          contact.platform_user_id !== platformUserId,
+      );
+      if (conflict) return rows([]);
+      tables.userContacts = tables.userContacts.map((contact) =>
+        contact.platform_user_id === platformUserId && contact.contact_kind === kind
+          ? { ...contact, is_primary: false }
+          : contact,
+      );
+      const current = tables.userContacts.find(
+        (contact) =>
+          contact.platform_user_id === platformUserId &&
+          contact.contact_kind === kind &&
+          contact.value_normalized === valueNormalized,
+      );
+      if (current) current.is_primary = true;
+      else tables.userContacts.push({
+        platform_user_id: platformUserId,
+        contact_kind: kind,
+        channel_code: null,
+        value_normalized: valueNormalized,
+        is_primary: true,
+      });
+      return rows([{ id: 'canonical-contact' }]);
+    }
     if (q.includes('from user_contacts uc') && q.includes("contact_kind = 'phone'")) {
       const hits = tables.userContacts
         .filter(
@@ -212,30 +252,6 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       tables.userContacts = tables.userContacts.filter((uc) => uc.platform_user_id !== p[0]);
       return { rows: [] as T[], rowCount: before - tables.userContacts.length };
     }
-    if (q.startsWith('insert into user_contacts')) {
-      const pu = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
-      if (!pu?.phone_normalized) return { rows: [] as T[], rowCount: 0 };
-      const conflict = tables.userContacts.find(
-        (uc) => uc.contact_kind === 'phone' && uc.value_normalized === pu.phone_normalized,
-      );
-      if (conflict && conflict.platform_user_id !== pu.id) {
-        const err = Object.assign(new Error('uq_user_contacts_phone'), {
-          code: '23505',
-          constraint: 'uq_user_contacts_phone',
-        });
-        throw err;
-      }
-      tables.userContacts = tables.userContacts.filter((uc) => uc.platform_user_id !== pu.id);
-      tables.userContacts.push({
-        platform_user_id: pu.id,
-        contact_kind: 'phone',
-        channel_code: null,
-        value_normalized: pu.phone_normalized,
-        is_primary: true,
-      });
-      return { rows: [] as T[], rowCount: 1 };
-    }
-
     if (q.includes('from platform_users')) {
       const live = tables.platformUsers.filter((u) => u.merged_into_id === null);
       if (q.includes('existing_int_uid')) {
@@ -246,17 +262,15 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
         const hit = live.filter((u) => u.integrator_user_id === p[0]);
         return rows(hit.map((u) => ({ id: u.id })));
       }
-      if (q.includes('phone_normalized = $1')) {
-        const hit = live.filter((u) => u.phone_normalized === p[0] && u.id !== (p[1] ?? null));
-        return rows(hit.map((u) => ({ id: u.id })));
-      }
       const hit = live.find((u) => u.id === p[0]);
       return rows(
         hit
           ? [
               {
                 id: hit.id,
-                phone_normalized: hit.phone_normalized,
+                phone_normalized: tables.userContacts.find(
+                  (contact) => contact.platform_user_id === hit.id && contact.contact_kind === 'phone' && contact.is_primary,
+                )?.value_normalized ?? null,
                 integrator_user_id: hit.integrator_user_id,
                 created_at: new Date('2026-01-01T00:00:00.000Z'),
               },
@@ -288,32 +302,18 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       tables.platformUsers.push({
         id,
         integrator_user_id: at(0),
-        phone_normalized: at(1),
-        display_name: at(2),
-        first_name: at(3),
-        last_name: at(4),
+        display_name: at(1),
+        first_name: at(2),
+        last_name: at(3),
         merged_into_id: null,
       });
       return rows([{ id }]);
     }
     if (q.startsWith('update platform_users')) {
-      if (
-        q.includes('phone_normalized = $1') &&
-        q.includes('patient_phone_trust_at') &&
-        q.includes('id = $3')
-      ) {
-        const hit = tables.platformUsers.find((u) => u.id === p[2] && u.merged_into_id === null);
+      if (q.includes('integrator_user_id = coalesce') && !q.includes('display_name = case')) {
+        const hit = tables.platformUsers.find((u) => u.id === p[1] && u.merged_into_id === null);
         if (!hit) return { rows: [] as T[], rowCount: 0 };
-        hit.phone_normalized = at(0);
-        if (!hit.integrator_user_id) hit.integrator_user_id = at(1);
-        return { rows: [] as T[], rowCount: 1 };
-      }
-      // `applyMessengerPhonePublicBind`'s final phone-set UPDATE (legacy 3-param shape: id, phone, integratorId).
-      if (q.includes('phone_normalized = $2')) {
-        const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
-        if (!hit) return { rows: [] as T[], rowCount: 0 };
-        hit.phone_normalized = at(1);
-        if (!hit.integrator_user_id) hit.integrator_user_id = at(2);
+        if (!hit.integrator_user_id) hit.integrator_user_id = at(0);
         return { rows: [] as T[], rowCount: 1 };
       }
       // `applyMessengerPhonePublicBind`'s realign UPDATE (stale integrator_user_id on a bound row).
@@ -331,7 +331,8 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       // enrichIdentityProjection: platformUserId is bound last (`WHERE id = $N`).
       if (q.includes('display_name = case')) {
         const idMatch = q.match(/where id = \$(\d+)/);
-        const platformUserId = idMatch ? at(Number(idMatch[1]) - 1) : p[0];
+        const platformUserId = tables.platformUsers.find((user) => p.includes(user.id))?.id
+          ?? (idMatch ? at(Number(idMatch[1]) - 1) : p[0]);
         const hit = tables.platformUsers.find(
           (u) => u.id === platformUserId && u.merged_into_id === null,
         );
@@ -343,7 +344,7 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       // enrichIdentityProjection (legacy param order): [platformUserId, displayName, ...]
       const hit = tables.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
       if (!hit) return { rows: [] as T[], rowCount: 0 };
-      const [, displayName, firstName, lastName, , phoneNormalized, integratorUserId, channelCode] =
+      const [, displayName, firstName, lastName, , integratorUserId, channelCode] =
         p;
       const isMessenger = channelCode === 'telegram' || channelCode === 'max';
       if (displayName && firstName && lastName) hit.display_name = displayName;
@@ -354,7 +355,6 @@ function makeDb(tables: Tables): DbPort & { statements: string[] } {
       hit.last_name = isMessenger
         ? (hit.last_name ?? lastName ?? null)
         : (lastName ?? hit.last_name ?? null);
-      if (phoneNormalized) hit.phone_normalized = phoneNormalized;
       if (integratorUserId && !hit.integrator_user_id) hit.integrator_user_id = integratorUserId;
       return { rows: [] as T[], rowCount: 1 };
     }
@@ -484,13 +484,16 @@ describe('user.upsert: новый человек на первом вебхук�
         {
           id: 'pu-existing',
           integrator_user_id: '6000',
-          phone_normalized: '+79180000099',
           display_name: 'Мария Иванова',
           first_name: 'Мария',
           last_name: 'Иванова',
           merged_into_id: null,
         },
       ],
+      userContacts: [{
+        platform_user_id: 'pu-existing', contact_kind: 'phone', channel_code: null,
+        value_normalized: '+79180000099', is_primary: true,
+      }],
       bindings: [{ channel_code: 'max', external_id: '42', user_id: 'pu-existing' }],
     });
     const db = makeDb(tables);
@@ -507,7 +510,9 @@ describe('user.upsert: новый человек на первом вебхук�
     expect(pu.id).toBe('pu-existing');
     expect(pu.first_name).toBe('Мария');
     expect(pu.last_name).toBe('Иванова');
-    expect(pu.phone_normalized).toBe('+79180000099');
+    expect(tables.userContacts).toContainEqual(expect.objectContaining({
+      platform_user_id: pu.id, contact_kind: 'phone', value_normalized: '+79180000099', is_primary: true,
+    }));
     expect(tables.bindings).toEqual([
       { channel_code: 'max', external_id: '42', user_id: 'pu-existing' },
     ]);
@@ -527,7 +532,7 @@ describe('два вебхука подряд: создание на первом
     });
     expect(tables.platformUsers).toHaveLength(1);
     const pu = tables.platformUsers[0]!;
-    expect(pu.phone_normalized).toBeNull();
+    expect(tables.userContacts).toEqual([]);
     expect(tables.bindings).toEqual([
       { channel_code: 'telegram', external_id: '888', user_id: pu.id },
     ]);
@@ -542,7 +547,9 @@ describe('два вебхука подряд: создание на первом
     expect(linkResult).toEqual({ userPhoneLinkApplied: true });
     expect(tables.platformUsers).toHaveLength(1);
     expect(tables.platformUsers[0]!.id).toBe(pu.id);
-    expect(tables.platformUsers[0]!.phone_normalized).toBe('+79170000022');
+    expect(tables.userContacts).toContainEqual(expect.objectContaining({
+      platform_user_id: pu.id, contact_kind: 'phone', value_normalized: '+79170000022', is_primary: true,
+    }));
     expect(tables.contacts).toEqual([]);
     expect(tables.identities).toEqual([]);
     expect(tables.users).toEqual([]);
@@ -558,13 +565,16 @@ describe('D28: отзыв подтверждения вместе с номер�
         {
           id: 'pu-existing',
           integrator_user_id: '7000',
-          phone_normalized: '+79180000011',
           display_name: 'Пётр Сидоров',
           first_name: 'Пётр',
           last_name: 'Сидоров',
           merged_into_id: null,
         },
       ],
+      userContacts: [{
+        platform_user_id: 'pu-existing', contact_kind: 'phone', channel_code: null,
+        value_normalized: '+79180000011', is_primary: true,
+      }],
       bindings: [{ channel_code: 'telegram', external_id: '999', user_id: 'pu-existing' }],
       phoneHistory: [
         {
@@ -584,7 +594,9 @@ describe('D28: отзыв подтверждения вместе с номер�
     });
 
     expect(linkResult).toEqual({ userPhoneLinkApplied: true });
-    expect(tables.platformUsers[0]!.phone_normalized).toBe('+79170000099');
+    expect(tables.userContacts).toContainEqual(expect.objectContaining({
+      platform_user_id: 'pu-existing', contact_kind: 'phone', value_normalized: '+79170000099', is_primary: true,
+    }));
 
     // Old number's active confirmation is gone — a different future owner of it could confirm it
     // without hitting `uq_user_phone_history_phone_active` (§Р-D28: «значит конфликта не будет»).
@@ -618,7 +630,9 @@ describe('D28: отзыв подтверждения вместе с номер�
     });
 
     const pu = tables.platformUsers.find((u) => u.id === result.platformUserId);
-    expect(pu?.phone_normalized).toBe('+79000000055');
+    expect(tables.userContacts).toContainEqual(expect.objectContaining({
+      platform_user_id: result.platformUserId, contact_kind: 'phone', value_normalized: '+79000000055', is_primary: true,
+    }));
     expect(tables.phoneHistory).toEqual([
       {
         platform_user_id: result.platformUserId,

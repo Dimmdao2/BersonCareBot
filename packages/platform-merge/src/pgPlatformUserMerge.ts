@@ -763,8 +763,8 @@ export async function mergePlatformUsersInTransaction(
     const selectedPhone = manualResolution.fields.phone_normalized === 'target' ? a.phone_normalized : b.phone_normalized;
     const selectedEmail = manualResolution.fields.email === 'target' ? a.email : b.email;
     await mutateCanonicalUserContacts(client, targetId, [
-      ...(selectedPhone ? [{ action: 'upsert' as const, kind: 'phone' as const, valueNormalized: selectedPhone, isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }] : []),
-      ...(selectedEmail ? [{ action: 'upsert' as const, kind: 'email' as const, valueNormalized: selectedEmail, isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }] : []),
+      ...(selectedPhone ? [{ action: 'promote' as const, kind: 'phone' as const, valueNormalized: selectedPhone }] : []),
+      ...(selectedEmail ? [{ action: 'promote' as const, kind: 'email' as const, valueNormalized: selectedEmail }] : []),
     ]);
   }
 
