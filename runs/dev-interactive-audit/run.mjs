@@ -6,7 +6,7 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from '../clickthrough/lib/browser.mjs';
+import { chromium } from './lib/browser.mjs';
 import { CONTROL_ADAPTER_MATRIX, DOCTOR_PATIENT_CARD_TABS, ROLE_SCENARIOS } from './scenarios.mjs';
 import {
   buildTraversalPlan,

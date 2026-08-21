@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { chromium } from '../clickthrough/lib/browser.mjs';
+import { chromium } from './lib/browser.mjs';
 
 const baseUrl = 'http://127.0.0.1:5200';
 const password = process.env.DEV_AUDIT_PASSWORD ?? '';

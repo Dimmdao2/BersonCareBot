@@ -560,71 +560,10 @@ B1 must not run as a TEST runtime login. The checker must verify `current_user` 
 `BYPASSRLS`; if it is ever added for this step, that must be documented and checked as a separate protocol
 change.
 
-**SUPERSEDED HISTORICAL BLOCK — DO NOT EXECUTE:** the paragraphs below through the fixture capability gate
-describe the former locked overlay/fixture closure. The current fresh-reset path does not call the separate
-strict-finalizer or synthetic A/B fixture seeder; generated access is already installed and verified by §7.
-
-Historically, before fixture reconciliation, the wrapper ran the TEST strict finalizer
-`deploy/postgres/test-strict-rls-finalizer.sql`. It reapplies the generated helper-based strict policy set, applies
-FORCE to the exact canonical 163-table inventory, and fails unless every target has both ENABLE and FORCE. Migration
-0177 remains historical compatibility provenance; its NO FORCE end-state is not accepted on TEST. The finalizer runs
-after migrations, data cleanup, settings, runtime roles/grants, reviewed overlays, specialist consolidation, and B1.
-The runtime owner must already be `NOBYPASSRLS`, and temporary membership/BYPASS cleanup is asserted again after the
-finalizer. Recovery means fixing code/policy and rerunning; TEST walls are never switched off.
-
-The same file is also the prod-cutover walls installer (owner-gated `-v allow_authorized_prod_target=1` unlock,
-otherwise byte-for-byte the same TEST-only refusal) — exact invocation, ordering proof, and readiness-matrix status
-are in `SAAS_PROD_DEPLOY_PROCESS.md` §3.5 (item #9), which points back to this §10 for the after-grants/
-before-restart ordering.
-
-The wrapper must then reconcile the S3 walkthrough fixture through
-`apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` in a separate controlled TEST-only fixture
-reconciliation window. This happens after migrations, runtime overlays, TEST settings,
-specialist consolidation, and B1. The contract is:
-
-- secret packet path: `/opt/env/bersoncarebot/saas-test-fixture.env`, non-symlink regular file, exact owner/group/mode
-  `root:deploy 0640`;
-- explicit opt-in key: `SAAS_TEST_FIXTURE_ENABLED=1`;
-- required secret keys, names only:
-  `SAAS_TEST_FIXTURE_CLINIC_A_EMAIL`, `SAAS_TEST_FIXTURE_CLINIC_A_PASSWORD`,
-  `SAAS_TEST_FIXTURE_CLINIC_B_EMAIL`, `SAAS_TEST_FIXTURE_CLINIC_B_PASSWORD`;
-- parser accepts exactly those five keys once each as JSON-quoted strings. Unknown/duplicate keys, unquoted or
-  malformed lines, command substitution/backticks, `DATABASE_URL`, `PGOPTIONS`, and every other override fail
-  before restore. The packet is never sourced by a shell;
-- the seeder queries `current_database()` before any write and accepts exactly `bersoncarebot_test`; URL-shape
-  matching alone is not sufficient;
-- two synthetic verified email+password owners are active `owner`/clinic-admin members with active specialists;
-- manifest v2 gives Clinic A three staff accounts (owner/manager plus two specialists) and five patients, while
-  solo Clinic B has one owner/specialist and three patients. The extra Clinic A specialists, one representative
-  patient in each clinic, and the shared A/B patient have separate reserved `.test` email logins; they reuse their
-  clinic's protected TEST-only password, so the five-key packet does not grow. Non-secret login refs, exact A/B
-  organization/enrollment refs, public routes and desktop/mobile viewports are versioned under
-  `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs`;
-- both fixture emails must use the reserved non-deliverable `.test` top-level domain;
-- both clinics have deterministic past/future appointments with canonical services. Representative patients also
-  have an active package ledger, a treatment program, exercise completion history (weighted, bodyweight and
-  metric-less variants), events, and rolling diary snapshots for doctor/patient graphs;
-- reconciliation is transactional and deterministic for repo-reserved fixture IDs; reruns repair the same rows
-  rather than appending duplicates. Cleanup is limited to reserved fixture personas and manifest IDs and must never
-  delete every appointment/enrollment merely because it belongs to a fixture organization;
-- because locked/FORCE policies correctly reject an unscoped runtime write, the wrapper temporarily grants the
-  webapp migrator membership in `bersoncarebot_test` and temporarily sets that owner role `BYPASSRLS` only for
-  the seeder command. It immediately reuses `cleanup_elevation` to revoke both, and the existing `EXIT` trap plus
-  post-cleanup assertions make residue fatal on success or failure;
-- no real PII, message delivery, notification, S3, HTTP, or other external write path is used;
-- stdout is aggregate-only and never contains fixture email, password, cookie, token, or opaque row ID.
-
-Immediately after fixture reconciliation and privilege cleanup, the shared strict closure must run the canonical
-`deploy/postgres/test-patient-identity-capability-gate.sql`. In a rollback-only transaction it installs the existing
-signed principal context for the two representative fixture patients and one unrelated fixture patient through the
-actual locked topology: the discovered webapp nonstaff `LOGIN NOINHERIT NOBYPASSRLS` role must have exactly one
-direct `app_patient` membership with `ADMIN FALSE, INHERIT FALSE, SET TRUE`; the gate authenticates as that base
-login, executes `SET ROLE app_patient`, installs the signed context, and calls only the existing
-`app.is_current_patient_test_account()` capability. The required result is `patientA=true`, `patientB=true`, and
-`unrelated=false`; any other result aborts before the owner-ready matrix or service restart. Output contains only
-those labels and booleans, never fixture identifiers or restricted settings. The canonical P0.5b role wall keeps
-`app_patient` itself as restricted `LOGIN NOBYPASSRLS` without provisioning a credential; `NOLOGIN` is not its
-invariant and must not be asserted by this gate.
+**Current rule:** the fresh-reset path does not seed, reconcile, or require any persistent live-DEV/TEST fixture
+data. Role/product checks use the already registered owner accounts and clinics under `AGENTS.md` §1b; a
+behavioral mutation probe is allowed only inside a guaranteed-rollback transaction that leaves no fixture entity
+behind. Generated access is already installed and verified by §7.
 
 The TEST settings override enables and locks the mirrored global `specialist_signup_enabled=true` row for the
 owner walkthrough. This is TEST-only: production remains default-off. On TEST, clean public/login, combined
@@ -769,21 +708,6 @@ The wrapper owns the disposable sequence:
 8. assert cleanup: disposable runtime owner is `NOBYPASSRLS` and has no temporary `app_owner` membership;
 9. run disposable DB-state checks through `run-phase4-prod-copy-rehearsal.mjs --mode=db-state`;
 10. leave TEST services, TEST env, production services, and production DB untouched.
-
-For a fresh walkthrough-fixture convergence proof, use the same wrapper with
-`--prove-test-fixture --drop-on-success`. This explicit mode accepts only a new local
-`bcb_saas_*_rehearsal_*` database, refuses `--replace-existing`, applies the canonical
-E1 patient-runtime capability overlay and TEST settings override inside that disposable
-database, runs the fixture double-seed,
-proves the exact public/integrator identifier mirror plus patient A=true, patient B=true
-and an unrelated patient=false, and always removes the disposable database and role.
-The ordinary TEST seeder target remains exact `bersoncarebot_test`; the rehearsal
-exception is fail-closed behind `SAAS_TEST_FIXTURE_REHEARSAL_MODE=1`, a guarded database
-name attested again through `SAAS_TEST_FIXTURE_REHEARSAL_DATABASE`, and a loopback database
-URL whose path must match that attestation. These values are supplied only by this wrapper.
-The dormant `#667` base intentionally does not grant the patient E1 capability; fixture proof
-therefore creates a separate disposable runtime role and rehydrates the same reviewed E1 overlay
-before the settings override, matching the strict TEST closure instead of adding an ad hoc grant.
 
 This wrapper closes the previous DEV/disposable dormant-wrapper gap. It does not touch TEST services and
 does not claim TEST deploy proof. Full disposable execution is restore+migration proof only after an

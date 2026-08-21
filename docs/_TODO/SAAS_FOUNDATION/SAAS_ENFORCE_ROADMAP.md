@@ -73,25 +73,16 @@ what breaks under enforce on TEST. It is not an ON/OFF decision threshold or rol
 
 ### Overall acceptance commands for the current path
 
-**УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** `smoke:saas-product` and the operator-managed `--fixture-file` below are
-retired; `check-saas-product-smoke-contract.mjs` and `scripts/smoke-saas-product.mjs` no longer exist
-(`HARD_MIGRATION_PROTOCOL.md`: "Fixture-based A1/product smoke выведен из deploy решением владельца
-30.07.2026"; `AGENTS.md` §1b). The command block below is retained for provenance only, do not run it.
+`smoke:saas-product` and its operator-managed `--fixture-file` are retired: `check-saas-product-smoke-contract.mjs`
+and `scripts/smoke-saas-product.mjs` no longer exist (`HARD_MIGRATION_PROTOCOL.md`: "Fixture-based A1/product smoke
+выведен из deploy решением владельца 30.07.2026"; `AGENTS.md` §1b).
 
 The owner-authorized TEST workflow is objectively centred on a fresh TEST deployment and locked-mode product proof;
-it does not invoke an ON/OFF flip:
-
-```bash
-bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild
-pnpm run smoke:saas-product -- \
-  --mode=locked \
-  --base-url=https://test.bersoncare.ru \
-  --fixture-file=/run/bersoncarebot/saas-smoke.fixture
-```
-
-The product smoke and multi-org isolation matrix must pass before TEST acceptance via the current-path
-scenario-based checks (see D3/D4/E2 below); the operator-managed fixture path above is not the acceptance
-gate. No action beyond TEST acceptance is in this roadmap.
+it does not invoke an ON/OFF flip and does not seed fixture data. Acceptance runs
+`bash deploy/host/deploy-test-full-reset.sh --confirm-full-reset <hash-bound-owner-inputs> feat/doctor-ui-rebuild`,
+then proves the product smoke and multi-org isolation matrix through the current-path scenario-based checks (see
+D3/D4/E2 below) using the already registered owner accounts and clinics. No action beyond TEST acceptance is in
+this roadmap.
 
 ### Historical note — superseded flip finish line
 
@@ -498,8 +489,8 @@ check:saas-d3-4-bootstrap-base-login-grants` (the bootstrap-grants checker this 
       text; not ticked here either.
 
 Exit: after the Phase-5 settings implementation, the locked TEST read matrix is 17/17 with expected
-non-empty facts; S1/S2/P2/P_SHARED cross-tenant negatives are zero; the fixture is operator-managed; and the
-discussion-summary regression is green. A static checker, a 16/17 run, or an absent fixture is not a D3 exit.
+non-empty facts, read against the already registered owner accounts and clinics; S1/S2/P2/P_SHARED cross-tenant
+negatives are zero; and the discussion-summary regression is green. A static checker or a 16/17 run is not a D3 exit.
 
 ### Phase D4 — TEST enforced write coverage · tier: daily · audit: deep
 
@@ -515,9 +506,9 @@ discussion-summary regression is green. A static checker, a 16/17 run, or an abs
       write inventory with before/after/cleanup/cross-tenant-negative fields; no dedicated D4 contract file found
       (`find docs/_TODO/SAAS_FOUNDATION -iname "*d4*"` → nothing). Matches the file's own phase-status-table row: "No
       machine-readable enforced write matrix or TEST before/after artifacts found."
-- [ ] Drive the inventory only against owner-authorized TEST fixtures with send-safe integrations and TEST object
-      storage. Re-runs must be idempotent or clean their own fixture records; no external DB, real delivery, or
-      external bucket is in scope.
+- [ ] Drive the inventory only against the already registered owner accounts and clinics, with send-safe
+      integrations and TEST object storage. Every mutation runs inside a guaranteed-rollback transaction that
+      leaves no fixture entity behind; no external DB, real delivery, or external bucket is in scope.
       — OPEN: no inventory exists yet to drive (previous box); nothing to tick.
 - [ ] Assert server-derived organization/patient ownership on every create/update/delete; a payload-supplied tenant
       identifier is rejected or ignored by the authorized server path. Evidence: before/after assertions plus one
@@ -538,7 +529,7 @@ discussion-summary regression is green. A static checker, a 16/17 run, or an abs
       the same machine-readable evidence; no family is waived.
       — OPEN: moot until the inventory (first box) exists; no split has been declared.
 
-Exit: every approved inventory scenario has a passing TEST before/after assertion and fixture cleanup proof; every
+Exit: every approved inventory scenario has a passing TEST before/after assertion and a guaranteed-rollback proof; every
 feature family has a failed cross-tenant mutation negative; settings writes are either proven through the approved
 Phase-5 design or explicitly absent; and no real external channel was reached.
 
@@ -921,8 +912,8 @@ PASS, and the final D3 17/17 smoke remains absent.
 | C4    | repo-artifact-only                | Four independent operational login/capability contours, pre-checkout pool routing, explicit locked `SET ROLE`, narrow grants/accessor, startup probes, mutation-sensitive checker, and isolated PostgreSQL 16 positive/negative proof.                                                | Owner-authorized strict+FORCE scheduler/media/internal cron fixtures and fake/local object-storage proof; no live credential flip has occurred.                                                      |
 | D1    | repo-artifact-only                | `pnpm run check:saas-d1-664-with-check-reverify`                                                                                                                                                                                                                                      | Owner-authorized strict+FORCE/live re-verification if required by the phase gate.                                                                                                                    |
 | D2    | repo-artifact-only                | `pnpm run check:saas-d2-fb1-bootstrap-phone-write`                                                                                                                                                                                                                                    | TEST-topology strict+FORCE application smoke for FB#1 and isolation negatives.                                                                                                                       |
-| D3    | blocked                           | `check:saas-product-smoke-contract` and `check:saas-d3-4-bootstrap-base-login-grants` exit 0 as static/repo checks; progression is 4/17 → 13/17 → 16/17, without a final 17/17 artifact. `SEQUENCE.md:72-80` records the visible discussion-summary block on mixed `system_settings`. | Engineering implementation for the settings-root split, then an operator-managed locked TEST read matrix with expected non-empty facts and 17/17; do not infer PASS from log prose or static checks. |
-| D4    | not-started                       | No machine-readable enforced write matrix or TEST before/after artifacts found in this pass.                                                                                                                                                                                          | Approved controlled write matrix, fixture cleanup/idempotency proof, and cross-tenant mutation negatives; settings writes wait for Phase 5 and `be_organizations` remains out of scope.              |
+| D3    | blocked                           | `check:saas-d3-4-bootstrap-base-login-grants` exits 0 as a static/repo check; progression is 4/17 → 13/17 → 16/17, without a final 17/17 artifact. `SEQUENCE.md:72-80` records the visible discussion-summary block on mixed `system_settings`. | Engineering implementation for the settings-root split, then a locked TEST read matrix against the already registered owner accounts and clinics with expected non-empty facts and 17/17; do not infer PASS from log prose or static checks. |
+| D4    | not-started                       | No machine-readable enforced write matrix or TEST before/after artifacts found in this pass.                                                                                                                                                                                          | Approved controlled write matrix against the already registered owner accounts and clinics, guaranteed-rollback proof, and cross-tenant mutation negatives; settings writes wait for Phase 5 and `be_organizations` remains out of scope.              |
 | E1    | not-started                       | No structured counter schema, report command, or redaction/fault-injection artifact found in this pass.                                                                                                                                                                               | Enforced-TEST counters/report plus redaction and deterministic fault-injection tests.                                                                                                                |
 | E2    | not-started (depends on D3/D4/E1) | No all-unit enforced workload artifact found in this pass.                                                                                                                                                                                                                            | One declared all-unit TEST workload, locked product smoke, send-safe background proof, and E1 zero-unexplained report — not a shadow/ON-OFF run.                                                     |
 | F1    | not-required-current-path         | Explicit roadmap marker (owner, 2026-07-15)                                                                                                                                                                                                                                           | No external rollout is planned; an OFF lever would create a cross-clinic disclosure risk.                                                                                                            |

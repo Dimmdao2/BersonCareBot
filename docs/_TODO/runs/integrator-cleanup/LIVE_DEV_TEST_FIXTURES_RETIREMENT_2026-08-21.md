@@ -204,4 +204,91 @@ this retirement.
 No scripts were modified in this pass (only three `.md` files), so no `bash -n`/`node --check` was needed beyond
 the manifest parse re-confirmation above.
 
-NOT DONE: rebuild platform-merge / candidate ordinary owner-login live gate / landing / TEST deploy / push / full CI.
+## Pass 4 — current fixture procedure closure, 21.08.2026
+
+Scope per `LIVE_FIXTURE_RETIREMENT_CURRENT_PROCEDURE_CLOSURE_BRIEF_2026-08-21.md`: close the Pass-3 findings —
+`SAAS_S3_TEST_WALKTHROUGH.md`'s old-then-new fixture body, `SAAS_ENFORCE_ROADMAP.md`'s dead fixture command
+block and fixture-worded D3/D4 exit/summary lines, the superseded fixture/reconciliation block plus disposable
+fixture proof in `HARD_MIGRATION_PROTOCOL.md`, the open S7.3 next-step line, and the Pass-3 "flagged, not
+touched" `runs/clickthrough/` tail. This closes that flagged tail; it is not left open again.
+
+### Removed directory
+
+- `runs/clickthrough/` deleted whole (`README.md`, `flows/*.mjs`, `lib/fixtureAuth.mjs`, `run-all.mjs`,
+  `run-one.mjs`, `seed-lfk-complex-for-owner-patient.mjs`, `smoke-auth-check.mjs`) — the live click-through tool
+  that read four roles' session cookies from `/run/bersoncarebot/saas-smoke.fixture` via `sudo -n cat`. No
+  replacement helper/runbook/seed was built.
+- One real caller existed outside the directory itself: `runs/dev-interactive-audit/{run.mjs,
+  patient-booking-lifecycle.mjs, patient-regressions.mjs, patient-route-crawl.mjs}` imported the generic
+  Playwright `chromium` resolver from `runs/clickthrough/lib/browser.mjs` (not a fixture file — no
+  `saas-smoke.fixture`/credential logic, just `npm root -g` resolution). That file was moved to
+  `runs/dev-interactive-audit/lib/browser.mjs` (its only remaining consumer), the four import paths updated to
+  `./lib/browser.mjs`, and its unused `BASE_URL`/`CLICKTHROUGH_BASE_URL` export (dev-interactive-audit has its
+  own `DEV_AUDIT_BASE_URL`) and the stale doc-comment pointer to the deleted `clickthrough/README.md` were
+  dropped. This is a relocation of a shared non-fixture utility, not a new harness.
+
+### Current-doc corrections
+
+- `SAAS_S3_TEST_WALKTHROUGH.md` — replaced the old-then-new banner-over-fixture-body with one positive
+  procedure: entry uses the two already-registered owner clinics and ordinary email+password login; the
+  `run-manifest.md` records the actually observed picture instead of an expected fixture manifest v2 count; the
+  screen-walk steps and classification section no longer assert fixed fixture counts/pictures, no fixture
+  packet cross-reference, and empty clinic state is recorded as legitimate rather than a gap to fill.
+- `SAAS_ENFORCE_ROADMAP.md` — deleted the dead `smoke:saas-product --fixture-file=/run/bersoncarebot/saas-smoke.fixture`
+  command block under "Overall acceptance commands for the current path" entirely (previously kept "for
+  provenance only"); corrected the open D3 Exit line and the D4 open checkbox/Exit line and the D3/D4
+  phase-status-table "Missing for roadmap exit" cells to read against the already registered owner accounts and
+  clinics with a guaranteed-rollback mutation probe, instead of an "operator-managed fixture"/"fixture cleanup"
+  requirement. Closed `[x]`/`[-]` historical rows and unrelated phases (A1, C3, C4, B2, C0 …) were left
+  untouched.
+- `HARD_MIGRATION_PROTOCOL.md` — removed the "SUPERSEDED HISTORICAL BLOCK — DO NOT EXECUTE" fixture-seeder
+  contract (secret packet path/keys, manifest v2 shape, transactional reconciliation, temporary BYPASSRLS grant)
+  and the immediately-following patient-identity fixture-capability-gate paragraph, replacing both with one short
+  current-rule paragraph (no seed/reconcile/require of persistent fixture data; existing owner accounts/clinics;
+  guaranteed-rollback mutation probe). Also removed the disposable-DB "fresh walkthrough-fixture convergence
+  proof" (`--prove-test-fixture`) paragraph from the DEV/disposable dormant-wrapper section. The current named
+  DEV→TEST route (steps 1–11, "CURRENT runtime gates" paragraph, static validation) was left intact.
+- `S7_3_TEST_LADDER_RUN.md` — replaced only the open forward-looking "Не снято" next-step line's
+  `owner UI-login (fixture packet или smoke refs)` with an ordinary owner UI-login instruction and no fixture
+  packet. The 31.07/05.08 past-tense FAIL evidence (including its `saas-test-fixture.env`/`seed:saas-test-walkthrough`
+  attempt log) was left unchanged, as directed.
+
+### Remaining matches, by class (after the above changes)
+
+Command (exit 0):
+
+```bash
+rg -n -i "saas-smoke\.fixture|saas-test-fixture\.env|SAAS_TEST_FIXTURE_[A-Z_]+|fixture.*(seed|reconcil|packet)|disposable fixture proof" \
+  docs/_TODO/SAAS_FOUNDATION/SAAS_S3_TEST_WALKTHROUGH.md docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md \
+  docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md docs/_TODO/runs/tariff/S7_3_TEST_LADDER_RUN.md
+```
+
+Six remaining lines, all compliant, none executable/instructional:
+
+- `S7_3_TEST_LADDER_RUN.md:63,185,188,191` — past-tense 05.08 FAIL-evidence log of the abandoned fixture-seed
+  attempt (kept per brief: preserve honest past FAIL evidence);
+- `S7_3_TEST_LADDER_RUN.md:218` — the corrected next-step line itself, stating no fixture packet is used;
+- `HARD_MIGRATION_PROTOCOL.md:572` — "no fixture packet or reconciliation window exists" (explicit negative
+  statement, not an instruction to create one);
+- `HARD_MIGRATION_PROTOCOL.md:583` — "`saas-smoke.fixture` не является входом миграции" (explicit negative
+  statement recording the 30.07 owner decision).
+
+`rg -n "runs/clickthrough" --glob '!runs/clickthrough/**' .` (run before deletion, exit 0): only the four
+brief/queue documents named in this pass's own scope line and the Pass-3 entry above referenced the path; no
+`package.json` script, import outside `runs/dev-interactive-audit/*.mjs` (fixed above), or open checkbox did.
+`git ls-files runs/clickthrough` is empty after the `git rm -r`.
+
+### Commands and results
+
+| Command | Exit | Result |
+|---|---:|---|
+| `rg -n "runs/clickthrough" --glob '!runs/clickthrough/**' .` (pre-deletion) | 0 | Found the four real import lines in `runs/dev-interactive-audit/*.mjs` plus doc-only mentions; no other caller. |
+| `node --check runs/dev-interactive-audit/run.mjs` | 0 | Parses after import-path fix. |
+| `node --check runs/dev-interactive-audit/patient-booking-lifecycle.mjs` | 0 | Parses after import-path fix. |
+| `node --check runs/dev-interactive-audit/patient-regressions.mjs` | 0 | Parses after import-path fix. |
+| `node --check runs/dev-interactive-audit/patient-route-crawl.mjs` | 0 | Parses after import-path fix. |
+| `node --check runs/dev-interactive-audit/lib/browser.mjs` | 0 | Relocated resolver parses. |
+| `git ls-files runs/clickthrough` | 0 (empty output) | Directory fully untracked. |
+| `git diff --check` | 0 | No whitespace errors. |
+
+NOT DONE: platform-merge rebuild / ordinary owner-login live gate / landing / TEST deploy / push / full CI.
