@@ -119,9 +119,14 @@ fixtures и без одноразовой базы.
    потом DROP `integrator.delivery_attempt_logs` (~6248 строк — там история ЕСТЬ, в отличие от outbox, сначала
    перенос). `integrator.message_retry_jobs` на именованной DEV отсутствует, ожидания будущих строк до 29.08
    нет, D30 не включает перенос или дренаж отсутствующей очереди — см. `docs/OWNER_DECISIONS.md` → «Track D —
-   текущий scope» → «Позднее решение 21.08.2026 по D15/D30». Оставшаяся работа D30 — Ш9 (свести
-   `worker`/`scheduler` в один резидентный процесс, `docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`,
-   шаг Ш9) и реально открытые Ш1–Ш6 того же плана. B3/Ш8 — только зависимость от D5–D7/D25 вне этого плана.
+   текущий scope» → «Позднее решение 21.08.2026 по D15/D30». **Ш9 закрыт тем же 21.08.2026** (`worker`/`scheduler`
+   сведены в один резидентный процесс, `docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`).
+   Оставшаяся работа D30 — реально открытые Ш1–Ш6 того же плана: следующий цельный шаг — именованная DEV/TEST
+   read-only сверка старых будущих задач специалиста (write-time producer для create/update/complete/delete уже
+   построен и подключён, cron-тик остался только legacy reconciliation), затем живой прогон write-time пути на
+   TEST, затем снятие sweep/route/registry/host cron для закрытых code-side шагов (Ш3), затем TEST-наблюдение и
+   фактическое снятие host cron через `cronport` для Ш4/Ш5/Ш6. B3/Ш8 — только зависимость от D5–D7/D25 вне этого
+   плана.
 
 ---
 
