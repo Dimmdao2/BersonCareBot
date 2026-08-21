@@ -4,7 +4,8 @@
 -- BCB-MIGRATION-VERIFY: SELECT app.read_integrator_provider_runtime_setting('vk_callback_secret');
 -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.read_integrator_clinic_delivery_credential(text,uuid)');
 CREATE OR REPLACE FUNCTION app.read_integrator_provider_runtime_setting(p_key text) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql
+    STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
 AS $_$
 DECLARE value_json jsonb;
@@ -28,7 +29,8 @@ END $_$;
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(p_key text, p_organization_id uuid) RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql
+    STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
 AS $$
 DECLARE
@@ -205,7 +207,8 @@ ALTER TABLE public.user_notification_topic_channels
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.set_current_patient_notification_topic_channel(text,text,boolean)');
 CREATE OR REPLACE FUNCTION app.set_current_patient_notification_topic_channel(p_topic_code text, p_channel_code text, p_is_enabled boolean) RETURNS boolean
- LANGUAGE plpgsql SECURITY DEFINER
+ LANGUAGE plpgsql
+ SECURITY DEFINER
  SET search_path TO 'pg_catalog'
 AS $_$
 DECLARE
