@@ -38,6 +38,24 @@ function essentialMessageSendIntent(): OutgoingIntent {
   } as OutgoingIntent;
 }
 
+function vkEssentialMessageSendIntent(): OutgoingIntent {
+  return {
+    type: 'message.send',
+    meta: {
+      eventId: 'vk:essential:1',
+      occurredAt: '2026-08-21T00:00:00.000Z',
+      source: 'vk',
+      outboundMessageClass: 'routine_product',
+      outboundCapability: 'essential_delivery',
+    },
+    payload: {
+      recipient: { userId: 789 },
+      message: { text: 'hello' },
+      delivery: { channels: ['vk'] },
+    },
+  } as OutgoingIntent;
+}
+
 function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): OutgoingIntent {
   return {
     ...messageSendIntent(),
@@ -236,5 +254,28 @@ describe('clinic-owned delivery routing', () => {
 
     await expect(port.dispatchOutgoing(queuedClinicBroadcastIntent())).resolves.toEqual({});
     expect(send).toHaveBeenCalledOnce();
+  });
+});
+
+describe('D31 VK common dispatch acceptance', () => {
+  it('passes an authorized VK delivery through the shared adapter and attempt journal', async () => {
+    const send = vi.fn(async () => ({ vkMessageId: '77' }));
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      writePort: { writeDb },
+      isPlatformIntegrationEnabled: async () => true,
+    });
+
+    await expect(port.dispatchOutgoing(vkEssentialMessageSendIntent())).resolves.toEqual({
+      vkMessageId: '77',
+    });
+    expect(send).toHaveBeenCalledOnce();
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({ channel: 'vk', status: 'success', attempt: 1 }),
+      }),
+    );
   });
 });

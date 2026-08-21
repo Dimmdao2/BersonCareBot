@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   createMessagingPort: vi.fn(),
   telegramSendMessage: vi.fn(),
   sendMaxMessage: vi.fn(),
+  sendVkMessage: vi.fn(),
+  answerVkMessageEvent: vi.fn(),
   sendMail: vi.fn(),
   resolveSmtpOutboundConfig: vi.fn(),
 }));
@@ -20,6 +22,31 @@ vi.mock('./max/runtimeConfig.js', () => ({
   getMaxApiKey: async () => 'platform-max-key',
   getMaxBaseUrl: () => '',
 }));
+vi.mock('./vk/client.js', () => ({
+  VkApiError: class VkApiError extends Error {
+    constructor(
+      readonly code: number | null,
+      readonly apiMessage: string,
+    ) {
+      super(apiMessage);
+    }
+  },
+  sendVkMessage: mocks.sendVkMessage,
+  answerVkMessageEvent: mocks.answerVkMessageEvent,
+}));
+vi.mock('../infra/adapters/integrationRuntimeConfig.js', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../infra/adapters/integrationRuntimeConfig.js')>();
+  return {
+    ...actual,
+    getVkRuntimeConfig: async () => ({
+      enabled: true,
+      communityAccessToken: 'platform-vk-token',
+      callbackSecret: 'callback-secret',
+      confirmationToken: 'confirmation-token',
+    }),
+  };
+});
 vi.mock('./email/mailer.js', () => ({ sendMail: mocks.sendMail }));
 vi.mock('../config/smtpOutbound.js', () => ({
   resolveSmtpOutboundConfig: mocks.resolveSmtpOutboundConfig,
@@ -27,10 +54,15 @@ vi.mock('../config/smtpOutbound.js', () => ({
 
 import { createTelegramDeliveryAdapter } from './telegram/deliveryAdapter.js';
 import { createMaxDeliveryAdapter } from './max/deliveryAdapter.js';
+import { createVkDeliveryAdapter } from './vk/deliveryAdapter.js';
+import { VkApiError } from './vk/client.js';
 import { createSmscDeliveryAdapter } from './smsc/deliveryAdapter.js';
 import { createEmailDeliveryAdapter } from './email/deliveryAdapter.js';
 
-function intent(channel: 'telegram' | 'max' | 'smsc' | 'email', payload: Record<string, unknown>) {
+function intent(
+  channel: 'telegram' | 'max' | 'vk' | 'smsc' | 'email',
+  payload: Record<string, unknown>,
+) {
   return {
     type: 'message.send',
     meta: {
@@ -62,6 +94,8 @@ beforeEach(() => {
     answerCallbackQuery: vi.fn(),
   });
   mocks.sendMaxMessage.mockResolvedValue({ body: { mid: 'max-message-1' } });
+  mocks.sendVkMessage.mockResolvedValue(77);
+  mocks.answerVkMessageEvent.mockResolvedValue(1);
   mocks.sendMail.mockResolvedValue({
     accepted: ['patient@example.test'],
     rejected: [],
@@ -105,6 +139,34 @@ describe('clinic credential handoff to provider adapters', () => {
       { apiKey: 'clinic-max-key' },
       expect.objectContaining({ userId: 456, text: 'hello' }),
     );
+  });
+
+  it('sends VK with the exact clinic community token', async () => {
+    await createVkDeliveryAdapter().send(
+      intent('vk', {
+        recipient: { userId: 789 },
+        delivery: {
+          clinicCredential: { channel: 'vk', accessToken: 'clinic-vk-token' },
+        },
+      }),
+    );
+
+    expect(mocks.sendVkMessage).toHaveBeenCalledWith(
+      { accessToken: 'clinic-vk-token' },
+      expect.objectContaining({ userId: 789, text: 'hello', eventId: 'adapter:vk' }),
+      expect.any(Function),
+    );
+  });
+
+  it('normalizes VK recipient denial for the common delivery journal classification', async () => {
+    mocks.sendVkMessage.mockRejectedValueOnce(new VkApiError(901, 'recipient denied'));
+
+    await expect(
+      createVkDeliveryAdapter().send(intent('vk', { recipient: { userId: 789 } })),
+    ).rejects.toMatchObject({
+      name: 'RecipientBlockedBotError',
+      channel: 'vk',
+    });
   });
 
   it('uses a clinic SMS client instead of the platform SMS client', async () => {

@@ -68,3 +68,72 @@ describe('D30 Ш4 saved oracle: canonical snooze generation', () => {
     ).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('D31 VK messenger delivery acceptance', () => {
+  it('materializes a VK delivery for a VK-linked patient who enabled the channel', async () => {
+    const materializeOccurrence = vi.fn(async () => 'materialized' as const);
+    const port: PatientReminderMaterializationPort = {
+      readSnapshot: vi.fn(async () => ({
+        rules: [rule],
+        dueOccurrences: [
+          {
+            ruleId: rule.id,
+            draft: {
+              occurrenceKey: 'rule-snoozed:2026-08-03T07:00:00.000Z',
+              plannedAt: '2026-08-03T07:04:00.000Z',
+            },
+            occurrence: {
+              id: 'occurrence-vk',
+              deliveryGeneration: 0,
+              plannedAt: '2026-08-03T07:04:00.000Z',
+            },
+          },
+        ],
+      })),
+      readDeliveryTargetSnapshot: vi.fn(async () => ({
+        vkId: 'vk-user-17',
+        channelPreferences: [
+          {
+            channelCode: 'vk' as const,
+            isEnabledForMessages: true,
+            isEnabledForNotifications: true,
+            isPreferredForAuth: false,
+          },
+        ],
+        topicChannelRows: [],
+        emailVerified: false,
+        muted: false,
+        topicMasterEnabled: true,
+        hasWebPushSubscription: false,
+        vapidConfigured: true,
+        smtpConfigured: false,
+      })),
+      materializeOccurrence,
+    };
+
+    await runPatientReminderMaterializationWake(
+      rule.organizationId,
+      new Date('2026-08-03T07:05:00.000Z'),
+      port,
+    );
+
+    expect(materializeOccurrence).toHaveBeenCalledWith(
+      rule,
+      expect.any(Object),
+      expect.any(Object),
+      [
+        expect.objectContaining({
+          channel: 'vk',
+          externalId: 'vk-user-17',
+          intent: expect.objectContaining({
+            meta: expect.objectContaining({ source: 'vk' }),
+            payload: expect.objectContaining({
+              recipient: { userId: 'vk-user-17' },
+              delivery: expect.objectContaining({ channels: ['vk'] }),
+            }),
+          }),
+        }),
+      ],
+    );
+  });
+});
