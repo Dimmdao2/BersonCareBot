@@ -17,11 +17,14 @@ DB=bersoncarebot_test
 PACKET=/opt/env/bersoncarebot/saas-test-fixture.env
 LOCK=/tmp/bcb-test-deploy.lock
 SEEDER_REL=apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts
+BASELINE_REL=deploy/postgres/reference-catalog-baselines.sql
+BASELINE_MIGRATION_REL=apps/webapp/db/drizzle-migrations/20260821T025935_restore_reference_catalog_baselines.sql
 UNITS=(api worker scheduler webapp media-worker)
 DB_TIMEOUT_S="${BCB_TEST_FIXTURE_DB_TIMEOUT_S:-15}"
 STATE=''
 PGPASS=''
 SEED_ENV=''
+BASELINE_SQL=''
 STATE_SECURED=0
 SERVICE_STATES_RECORDED=0
 ROLE_STATE_WRITTEN=0
@@ -163,6 +166,7 @@ restore_services() {
 remove_temporary_files() {
   [[ -z "$PGPASS" ]] || sudo -n rm -f -- "$PGPASS" || true
   [[ -z "$SEED_ENV" ]] || sudo -n rm -f -- "$SEED_ENV" || true
+  [[ -z "$BASELINE_SQL" ]] || sudo -n rm -f -- "$BASELINE_SQL" || true
 }
 
 cleanup() {
@@ -200,11 +204,18 @@ require_reviewed_source() {
   git -C "$SRC_REPO" diff --quiet --ignore-submodules -- || fail 'tracked source changes must be committed'
   git -C "$SRC_REPO" diff --cached --quiet --ignore-submodules -- || fail 'staged source changes must be committed'
   local path
-  for path in deploy/host/reconcile-saas-test-walkthrough-fixtures.sh; do
+  for path in deploy/host/reconcile-saas-test-walkthrough-fixtures.sh "$BASELINE_REL" "$BASELINE_MIGRATION_REL"; do
     [[ -f "$SRC_REPO/$path" && ! -L "$SRC_REPO/$path" ]] || fail "canonical path guard failed: $path"
     git -C "$SRC_REPO" ls-files --error-unmatch -- "$path" >/dev/null || fail "required reviewed file is not tracked: $path"
     git -C "$SRC_REPO" diff --quiet HEAD -- "$path" || fail "required reviewed file has uncommitted changes: $path"
   done
+  grep -q '^INSERT INTO public\.reference_catalog_baselines' "$SRC_REPO/$BASELINE_REL" ||
+    fail 'canonical reference catalog baseline asset has no baseline statements'
+  grep -q '^INSERT INTO public\.reference_catalog_baselines' "$SRC_REPO/$BASELINE_MIGRATION_REL" ||
+    fail 'reference catalog forward migration has no baseline statements'
+  sed -n '/^INSERT INTO public\.reference_catalog_baselines/,$p' "$SRC_REPO/$BASELINE_MIGRATION_REL" | cmp -s - \
+    <(sed -n '/^INSERT INTO public\.reference_catalog_baselines/,$p' "$SRC_REPO/$BASELINE_REL") ||
+    fail 'canonical reference catalog baseline asset does not match its forward migration'
 }
 
 require_seed_checkout() {
@@ -315,10 +326,12 @@ ROLE_STATE_WRITTEN=1
 state_append "secret=$PASSWORD"
 PGPASS="$(mktemp /tmp/bcb-test-fixture-seed.pgpass.XXXXXX)" || fail 'cannot allocate temporary PostgreSQL credential file'
 SEED_ENV="$(mktemp /tmp/bcb-test-fixture-seed.env.XXXXXX)" || fail 'cannot allocate protected seeder environment file'
+BASELINE_SQL="$(mktemp /tmp/bcb-test-fixture-reference-catalog.XXXXXX)" || fail 'cannot allocate protected baseline input file'
+cp -- "$SRC_REPO/$BASELINE_REL" "$BASELINE_SQL" || fail 'cannot stage canonical reference catalog baseline input'
 printf '127.0.0.1:5432:%s:%s:%s\n' "$DB" "$ROLE" "$PASSWORD" >"$PGPASS"
 printf 'PGPASSFILE=%q\nDATABASE_URL=%q\nSAAS_TEST_FIXTURE_ENV_FILE=%q\nSAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1\n' \
   "$PGPASS" "postgresql://${ROLE}@127.0.0.1:5432/${DB}" "$PACKET" >"$SEED_ENV"
-sudo -n chown deploy:deploy "$PGPASS" "$SEED_ENV" && sudo -n chmod 0600 "$PGPASS" "$SEED_ENV" ||
+sudo -n chown deploy:deploy "$PGPASS" "$SEED_ENV" "$BASELINE_SQL" && sudo -n chmod 0600 "$PGPASS" "$SEED_ENV" "$BASELINE_SQL" ||
   fail 'cannot secure temporary fixture credentials'
 PASSWORD=''
 
@@ -336,6 +349,17 @@ pg_run 'temporary fixture role creation' sudo -n -u postgres bash -c '
 CREATE ROLE $role LOGIN SUPERUSER PASSWORD '\''$secret'\'';
 SQL
 ' bash "$STATE" >/dev/null
+
+# The fixture needs an organization, so restore the reviewed global input before the unchanged TEST
+# seeder can create one. This deliberately runs only under the collision-safe temporary role and
+# never writes a migration ledger row; deployment still applies the forward migration normally.
+pg_run 'reference catalog baseline reconciliation' sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent bash -c '
+  set -Eeuo pipefail
+  set -a
+  . "$1"
+  set +a
+  exec psql -X -v ON_ERROR_STOP=1 -f "$2"
+' bash "$SEED_ENV" "$BASELINE_SQL" >/dev/null
 
 # The only child that receives DATABASE_URL sources a 0600 deploy-owned file; its argv contains paths only.
 # /home/dev is not traversable by deploy, so execute the reviewed-byte-identical seeder and guarded local tsx from TEST.
