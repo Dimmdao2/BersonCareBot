@@ -116,7 +116,7 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
             value_normalized: '+79001234567',
             is_primary: true,
             confirmed_at: new Date(),
-            source_origin: 'platform_users',
+            source_origin: 'direct',
           },
         ],
       });
