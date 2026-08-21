@@ -339,7 +339,7 @@ SQL
 
 # The only child that receives DATABASE_URL sources a 0600 deploy-owned file; its argv contains paths only.
 # /home/dev is not traversable by deploy, so execute the reviewed-byte-identical seeder and guarded local tsx from TEST.
-sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent TEST_REPO="$TEST_REPO" SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 bash -c '
+sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent NODE_ENV=test USE_REAL_DATABASE=1 TEST_REPO="$TEST_REPO" SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 bash -c '
   set -Eeuo pipefail
   set -a
   . "$1"
