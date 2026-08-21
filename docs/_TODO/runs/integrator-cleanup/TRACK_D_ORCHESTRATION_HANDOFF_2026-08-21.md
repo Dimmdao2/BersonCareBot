@@ -198,3 +198,33 @@ fixtures и без одноразовой базы.
 - **Сосед-оркестратор работал параллельно и ничего моего не сломал** — проверено сверкой вершин моих веток и
   файл-в-файл по контрольным суммам. Единственный его коммит в моей области (`26a94a822`) только добавляет:
   независимый аудит со слепой инъекцией, «убито 3, не поймано 0».
+
+---
+
+## 9. Пост-деплой статус 21.08.2026 (позже этого хендоффа — добавлено доксинк-проходом)
+
+Снимок §1–8 выше не переписан — это позднейшая надстройка поверх него, не замена. Дальнейшая работа по D15b/6
+и D30 Ш3 после этого хендоффа довела ветку до:
+
+- `integration` и `origin` `feat/doctor-ui-rebuild` совпадают на `92cf34ffa4bf4f277e7f3e67bd548c3805815ee2`
+  (merge `92cf34ffa` — `d15b6-pre-session-phone-lookup-20260821`).
+- Полный CI прошёл: `/tmp/bcb-track-d-full-ci-92cf34ffa.log`, `runs/ci-last.json` фиксирует тот же SHA,
+  `movedDuringRun=false`, `stepsExit=0`, `exitCode=0`.
+- `pnpm run push:checked` — успешно, origin на том же SHA.
+- `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершился: `/tmp/bcb-track-d-deploy-test-92cf34ffa.log`
+  заканчивается `deploy-test: PASS branch=feat/doctor-ui-rebuild head=92cf34ffa4bf B0/post-B0 only`. TEST
+  migration verification: webapp files/ledger `25/25`, mismatch `0`, D15 new tags `3`; integrator files/ledger
+  `1/1`, версия `core:20260816_0000_b0_baseline.sql`; api/scheduler/webapp/media-worker active, legacy worker
+  inactive/not-found, API и webapp health `200`.
+- **D15b/6** — код/миграция/привилегийная часть задеплоены на TEST этим SHA; чекбокс остаётся `[ ]`, потому что
+  обычный existing-owner TEST-гейт логина/привязки/доставки ещё не пройден. Полные детали и evidence —
+  `WORK_ORDER.md` D15b/6.
+- **D30 Ш3** — привилегийный ремонт `specialist_tasks` (прежний живой `42501 permission denied` из §D30-плана)
+  задеплоен тем же SHA, TEST reconcile-access прошёл; Ш3 остаётся `[ ]` — тот же обычный existing-owner
+  create/update/complete/delete/resident-delivery доказ ещё не выполнен. Детали —
+  `D30_SCHEDULER_REVERSAL_PLAN.md` Ш3.
+- Email-OTP challenge успешно инициирован для существующего аккаунта врача Dmitry Berson на TEST; код от
+  владельца не введён, аутентифицированная мутация задачи и provider-delivery proof не выполнялись — старт
+  challenge не равен успешному входу.
+- **D15b/7** остаётся не отложенным (снято 20.08) и идёт после фактического TEST-закрытия D15b/6 выше — это
+  очерёдность владельца, не техническая невозможность параллельной ветки.

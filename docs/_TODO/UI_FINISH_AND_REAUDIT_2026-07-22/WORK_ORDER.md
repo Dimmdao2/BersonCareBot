@@ -716,10 +716,30 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             — `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/42-d15b6-canonical-contacts-cutover.md`). Галочка
             остаётся `[ ]`: named DEV migration и реальный login/bind/delivery/parity gate не выполнялись; точные
             lead-команды записаны в evidence.
+            ⚠️ **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026 (после записи выше).** Код-кандидат приземлён в merge
+            `92cf34ffa4bf4f277e7f3e67bd548c3805815ee2` — `integration` и `origin` `feat/doctor-ui-rebuild`
+            совпадают на этом SHA. Полный CI прошёл (`/tmp/bcb-track-d-full-ci-92cf34ffa.log`;
+            `runs/ci-last.json` — тот же SHA, `movedDuringRun=false`, `stepsExit=0`, `exitCode=0`); `pnpm run
+            push:checked` успешно, origin указывает на тот же SHA; `bash deploy/host/deploy-test.sh` завершился —
+            `/tmp/bcb-track-d-deploy-test-92cf34ffa.log` заканчивается `deploy-test: PASS
+            branch=feat/doctor-ui-rebuild head=92cf34ffa4bf B0/post-B0 only`. TEST migration verification:
+            webapp files/ledger `25/25`, mismatch `0`, D15 new tags `3`; integrator files/ledger `1/1`, версия
+            `core:20260816_0000_b0_baseline.sql`; api/scheduler/webapp/media-worker active, legacy worker
+            inactive/not-found, API и webapp health `200`. То есть код/миграция/привилегийная часть D15b/6
+            задеплоены на TEST — прежнее «named DEV migration не выполнялась» устарело. Галочка остаётся `[ ]`:
+            обычный existing-owner TEST-гейт логина/привязки/доставки ещё не пройден — единственное недостающее
+            доказательство закрытия.
+            **Текущая попытка гейта, не завершена:** email-OTP challenge успешно инициирован для существующего
+            аккаунта врача Dmitry Berson на TEST; код от владельца ещё не введён, аутентифицированная мутация
+            задачи и provider-delivery proof не выполнялись. Старт challenge — не успешный вход; не путать одно
+            с другим.
       - [ ] **D15b/7 — псевдоним.** ⛔ **«OWNER-DEFER 03.08» СНЯТО 20.08 — в работе, не отложено.** Владелец,
             дословно: «сколько можно говорить про то что 'не сейчас' — устаревшая запись и её надо удалить».
             Идёт **после фактического TEST-закрытия D15b/6** (контакты — источник истины), без искусственного
-            ожидания сверх этого. Первый цельный этап — **D15b/7a**: внутри уже существующего identity/DB-port +
+            ожидания сверх этого. Это очерёдность владельца, а не техническая невозможность: параллельная
+            ветка D15b/7a технически может разрабатываться уже сейчас, порядок закрытия задаёт именно решение
+            владельца, а не блокирующая зависимость в коде. На 21.08.2026 единственное недостающее для закрытия
+            D15b/6 — TEST-гейт логина/привязки/доставки, см. чекбокс D15b/6 выше. Первый цельный этап — **D15b/7a**: внутри уже существующего identity/DB-port +
             port-context seam разделить opaque actor/identity ref и opaque medical-subject ref, используя/расширяя
             `app_ext.variant_a_identity_refs`, `app.pre_session_resolve_identity`,
             `PortContextPrincipal.actorRef/subjectRef`, `portContextRuntime` — без второго linkage-service, HTTP
@@ -1117,11 +1137,13 @@ booking/event gateway) в том же источнике помечены «за
       до D17.
       ⚠️ **ЧАСТИЧНО 03.08–05.08:** D15b/2 закрыл запись идентичности из integrator (`5137e8c68`, land
       `2c1cd63fb`) — одна реализация в `packages/platform-merge/src/identityProjectionWrite.ts`.
-      D15b/5 закрыт. **D15b/6 не закрыт:** code-candidate physical cutover `#987` от 21.08 переводит
-      `user_contacts` в единственный источник и ждёт named DEV migration + реальный login/bind/delivery/parity
-      gate ведущего; до этого прежняя запись «D15b/5–6 закрыты» ложна. Остаётся также D15b/7 псевдоним (не
-      отложен, идёт после фактического TEST-закрытия D15b/6 — см. чекбокс D15b/7 выше) и живая двухвебхуковая
-      проверка D15b/2 — за лидом.
+      D15b/5 закрыт. **D15b/6 не закрыт:** код/миграция/привилегийная часть physical cutover `#987` задеплоены
+      на TEST в merge `92cf34ffa4bf4f277e7f3e67bd548c3805815ee2` (full CI PASS, `push:checked` OK,
+      `deploy-test.sh` PASS, TEST migration verification webapp `25/25` + integrator `1/1`, детали — чекбокс
+      D15b/6 выше); обычный existing-owner TEST-гейт логина/привязки/доставки ещё не пройден — до этого прежняя
+      запись «D15b/5–6 закрыты» ложна. Остаётся также D15b/7 псевдоним (не отложен по решению владельца —
+      очерёдность, не техническая невозможность параллельной работы; идёт после фактического TEST-закрытия
+      D15b/6 — см. чекбокс D15b/7 выше) и живая двухвебхуковая проверка D15b/2 — за лидом.
 - [x] **D26 — слияние аккаунтов переписывается как ИНСТРУМЕНТ ПОДДЕРЖКИ, нынешний мерж вырезается.** Решение —
       **Р-D26** (§2.3). Правило конфликта — `IDENTITY_AND_MERGE_SCHEME.md` §5.2b (финальное, 20.08): блокирует
       автослияние ТОЛЬКО когда мед-данные есть с ОБЕИХ сторон одновременно; без конфликта история и переписка
