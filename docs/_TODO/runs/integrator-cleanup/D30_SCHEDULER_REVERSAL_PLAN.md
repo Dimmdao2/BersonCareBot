@@ -339,8 +339,18 @@ DEV отсутствует, D30 не включает перенос или др
       TEST не запускалась. Закрыть после обычного прогона на уже зарегистрированной owner-учётке на TEST
       (`AGENTS.md` §1a/§1b) — без создания синтетического пользователя и без предварительного заявления, что
       provider-доставка уже прошла; cron до периода наблюдения не снимать.
-
-- [ ] **Ш4. B1 — web-push-only напоминания.** Тот же приём. Отдельно: задача объявлена **обязательной** в
+      **CURRENT 21.08.2026 (D30 cron-retirement pass):** ре-измерение по коду доказывает, что cron-тик
+      остаётся ЕДИНСТВЕННЫМ производителем строк очереди — `remind_at` сам по себе НЕ создаёт задание.
+      `enqueueDueReminders` (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts:266`) сканирует
+      `isNotNull(remindAt) AND lte(remindAt, nowIso)` и вызывается только из
+      `dispatchDueSpecialistTaskReminders` → `POST /api/internal/specialist-task-reminders/tick`
+      (`apps/webapp/src/app/api/internal/specialist-task-reminders/tick/route.ts`); точный поиск
+      `grep -rn "enqueueDueReminders|specialist-task-reminders" apps/webapp/src apps/integrator/src --include=*.ts`
+      не находит ни одного другого callsite — ни write-time enqueue при установке `remind_at`
+      (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts:110,130`, только пишет колонку), ни резидентный wake
+      по аналогии с `wakeOperatorHealthDigest`/`wakeSystemHealthGuard`. Снятие cron сегодня оставит все
+      задачи специалиста без напоминаний — конкретный человеко-видимый разрыв. Ш3 остаётся `[ ]` и cron-триггер
+      НЕ трогается этим проходом; переезд на write-time enqueue или резидентный wake — отдельная задача. Тот же приём. Отдельно: задача объявлена **обязательной** в
       `deploy/HOST_DEPLOY_README.md`, её отсутствие проверяется `web-push-only-reminder-cron.sh status` и
       входит в пост-деплойный чек-лист — поэтому снятие cron обязано в том же коммите снять и эти проверки,
       иначе деплой начнёт падать на несуществующем требовании.
@@ -375,6 +385,24 @@ DEV отсутствует, D30 не включает перенос или др
       `7632b7091`) и приземлены `00ef96e59`; migration `0335` применена на DEV, runner postcheck
       `count=334 direct=328 reconciled=6`. Пункт остаётся `[ ]`: ещё нужен живой безопасный recipient probe,
       доказывающий ровно одну доставку и перенос следующего запуска после изменения `digestTime`.
+      **CURRENT 21.08.2026 (D30 cron-retirement pass, code-side):** трассировка producer → scheduler → wake
+      подтвердила полный функциональный паритет для обоих тиков — `apps/webapp/src/app/api/integrator/operator-health/digest-wake/route.ts`
+      и `apps/webapp/src/app/api/internal/operator-health-digest/tick/route.ts` вызывают один и тот же
+      `runOperatorHealthDigestTick()` и пишут один и тот же `job_key=health.operator_health_digest.tick`;
+      то же самое для `system-health/guard-wake` и `system-health-guard/tick` →
+      `runIntegratorPushOutboxHealthGuardTick()`. Резидентный scheduler уже будит оба с той же периодичностью,
+      что был у cron (`DIGEST_WAKE_PERIOD_MS`=1ч, `HEALTH_GUARD_WAKE_PERIOD_MS`=15мин,
+      `apps/integrator/src/infra/runtime/scheduler/main.ts:39-40`). Удалены этим коммитом:
+      `deploy/host/cron.d/bersoncarebot-operator-health-digest.cron.template`,
+      `deploy/host/cron.d/bersoncarebot-system-health-guard.cron.template`, соответствующие install-примеры и
+      абзацы `deploy/HOST_DEPLOY_README.md`. **НЕ удалены** (граница этого прохода): сами Bearer-роуты
+      `internal/operator-health-digest/tick` и `internal/system-health-guard/tick` — их callsite-строка
+      (`api/internal/operator-health-digest/tick:POST`, `api/internal/system-health-guard/tick:POST`) держит
+      exact-match `deploy/postgres/privileges/port-context-callsite-catalog.test.mjs` через
+      `deploy/postgres/privileges/declaration.ts`; правка каталога БД-привилегий — вне hard boundary этой
+      задачи («Do not touch ... database privileges»). Ш5 остаётся `[ ]`: код-сторона host-триггера ретирована,
+      но (а) сами роуты — легаси-хвост до отдельного привилегийного прохода, (б) живой recipient probe на
+      TEST/PROD и (в) фактическое снятие host cron через `cronport` — задача лида после деплоя.
 
 - [ ] **Ш6. B4 — снять внешний cron health-проб.** Работу продолжает делать `runScheduledOperatorHealthProbeTick`
       с due-gating и quiet-часами. **Гейт:** после снятия cron `lastRunAt` каждой включённой пробы продолжает
@@ -386,6 +414,26 @@ DEV отсутствует, D30 не включает перенос или др
       health cadence, sweep остаётся single-flight, ошибки sweep/reporter локализованы. Сам Ш6 остаётся `[ ]`:
       внешний cron/registry ещё не сняты, до этого нужно живое наблюдение каждого включённого `lastRunAt`
       в течение двух его интервалов и повтор того же наблюдения после снятия.
+      **CURRENT 21.08.2026 (D30 cron-retirement pass, code-side complete):** в отличие от Ш5, B4 — чистый
+      дубль: `apps/integrator/src/infra/runtime/scheduler/main.ts` уже вызывает
+      `runScheduledOperatorHealthProbeTick` (`operatorHealthProbeTick.ts`) напрямую in-process — due-gating по
+      `intervalMs` каждой пробы и `isOperatorHealthProbeQuiet`, чего прежний часовой HTTP cron не уважал.
+      `runOperatorHealthProbes` пишет `operator_job_status`/`health.outbound_probe.run`
+      (`apps/integrator/src/infra/db/repos/operatorHealthDrizzle.ts:243`) независимо от того, какой вызывающий
+      код (HTTP-роут или резидентный тик) его вызвал — значит удаление HTTP-роута не создаёт «no data» в
+      админке. Отличие от digest/guard: у probe-роута нет отдельной callsite-строки в
+      `port-context-callsite-catalog.test.mjs` — он делит `runWithInfraPrincipal({source:'scheduler:handle-tick-event'})`
+      с самим резидентным тиком, поэтому строка остаётся в коде и после удаления роута; исключений из
+      привилегийного каталога делать не пришлось. Удалено этим коммитом: HTTP-роут
+      `apps/integrator/src/integrations/bersoncare/operatorHealthProbeRoute.ts` + его регистрация в
+      `apps/integrator/src/app/routes.ts`, канонический скрипт `deploy/host/operator-health-probe.sh`, запись
+      `outbound_integration_probes` из `apps/webapp/src/modules/operator-health/cronJobRegistry.ts` (health
+      этой пробы продолжает читаться напрямую по `OPERATOR_OUTBOUND_PROBE_JOB_KEY` в
+      `collectCriticalHealthSignals.ts`/`collectAdminSystemHealthData.ts`, вне общего аккордеона «Cron-задачи
+      хоста»), секция «Operator health probes» в `deploy/HOST_DEPLOY_README.md` и абзац в
+      `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. Код-сторона Ш6 закрыта; box остаётся `[ ]`, потому что живое
+      наблюдение `lastRunAt` на TEST/PROD (до и после снятия host cron) и фактическое снятие через `cronport`
+      — задача лида после деплоя (hard boundary этого прохода: no DEV/TEST/PROD access, no cronport).
 
 **Ш8. B3 — ВЕДЁТСЯ В `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §D5–D7/D25.** Дренаж
 `integrator_push_outbox` исчезает вместе с M2M-каналом `reminder_rule_upsert`. В этом плане фиксируется только
