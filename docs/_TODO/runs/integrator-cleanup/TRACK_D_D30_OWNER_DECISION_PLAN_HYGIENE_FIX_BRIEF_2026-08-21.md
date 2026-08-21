@@ -7,7 +7,7 @@
 повторить `code-search` более поздних owner-решений, затем точный census в `docs/OWNER_DECISIONS.md`, актуальном
 `WORK_ORDER.md` и текущих D30/DB-privilege планах. Более позднее решение заменяет brief.
 
-Источник оракула: `docs/OWNER_DECISIONS.md` — «`integrator.message_retry_jobs` на именованной DEV нет; ожидания будущих строк до 29.08 нет».
+Источник оракула: `docs/OWNER_DECISIONS.md` — «ожидания будущих строк до 29.08 нет».
 
 ## Scope
 
