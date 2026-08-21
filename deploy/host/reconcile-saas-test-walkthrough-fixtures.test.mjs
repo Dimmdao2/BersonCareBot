@@ -25,7 +25,14 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(resolve(src, '.git'));
   mkdirSync(resolve(src, 'apps/webapp/scripts'), { recursive: true });
   mkdirSync(resolve(testRepo, '.git'), { recursive: true });
-  writeFileSync(resolve(src, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'fixture');
+  mkdirSync(resolve(testRepo, 'apps/webapp/scripts'), { recursive: true });
+  mkdirSync(resolve(testRepo, 'apps/webapp/node_modules/.bin'), { recursive: true });
+  writeFileSync(resolve(src, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
+  writeFileSync(resolve(src, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
+  writeFileSync(resolve(testRepo, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
+  writeFileSync(resolve(testRepo, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
+  writeFileSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), '#!/bin/bash\nexit 0\n');
+  chmodSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), 0o755);
   writeFileSync(resolve(src, 'deploy/host/saas-test-fixture-packet.mjs'), 'fixture');
   let body = readFileSync(source, 'utf8');
   body = body.replace('/home/dev/dev-projects/BersonCareBot', src)
@@ -35,6 +42,7 @@ function fixture(host = '151.241.228.122') {
     .replace('/tmp/bcb-test-fixture-seed.state.XXXXXX', resolve(root, 'state.XXXXXX'))
     .replace('/tmp/bcb-test-fixture-seed.pgpass.XXXXXX', resolve(root, 'pgpass.XXXXXX'))
     .replace('/tmp/bcb-test-fixture-seed.env.XXXXXX', resolve(root, 'seed.env.XXXXXX'))
+    .replace('find /tmp -maxdepth 1', `find ${root} -maxdepth 1`)
     .replace('SAFE_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', `SAFE_PATH=${binPlaceholder(root)}`);
   writeFileSync(script, body);
   chmodSync(script, 0o755);
@@ -43,6 +51,9 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(bin);
   const log = resolve(root, 'calls.log');
   writeFileSync(resolve(bin, 'hostname'), `#!/bin/bash\nprintf '${host}\\n'\n`);
+  writeFileSync(resolve(bin, 'id'), `#!/bin/bash
+if [[ "$1" == -u ]]; then printf '%s\\n' "${'${FIXTURE_UID:-1000}'}"; else /usr/bin/id "$@"; fi
+`);
   writeFileSync(resolve(bin, 'git'), `#!/bin/bash
 set -eu
 if [[ "$1" == -C ]]; then repo="$2"; shift 2; fi
@@ -53,10 +64,16 @@ case "$1" in
       --is-inside-work-tree) printf 'true\\n' ;;
       --show-toplevel) printf '%s\\n' "$repo" ;;
       --verify) printf '0123456789abcdef0123456789abcdef01234567\\n' ;;
+      HEAD) printf '0123456789abcdef0123456789abcdef01234567\\n' ;;
     esac
     ;;
   symbolic-ref) printf 'feat/doctor-ui-rebuild\\n' ;;
-  diff|ls-files) exit 0 ;;
+  diff)
+    [[ "$repo" == '${testRepo}' && "\${FIXTURE_TEST_TRACKED_DIRTY:-0}" == 1 ]] && exit 1
+    exit 0
+    ;;
+  merge-base) [[ "\${FIXTURE_TEST_NOT_ANCESTOR:-0}" != 1 ]] ;;
+  ls-files) exit 0 ;;
 esac
 `);
   writeFileSync(resolve(bin, 'systemctl'), `#!/bin/bash
@@ -72,6 +89,7 @@ printf '%s\\n' "$*" >> "$log"
 args="$*"
 if [[ "$args" == *'SAAS_TEST_FIXTURE_PACKET_VALIDATE_ONLY=1'* && "\${FAIL_PACKET:-0}" == 1 ]]; then exit 41; fi
 if [[ "$args" == *'chown deploy:deploy'* && "\${FAIL_PGPASS_CHOWN:-0}" == 1 ]]; then exit 42; fi
+if [[ "$args" == *'test -L '* ]]; then exit 1; fi
 if [[ "$args" == *'psql'* && "$args" == *'-d ${'bersoncarebot_test'}'* && "$args" == *'-Atqc'* ]]; then
   if [[ "\${BLOCK_DB_IDENTITY:-0}" == 1 ]]; then while :; do sleep 1; done; fi
   printf '%s\\n' "\${DATABASE_IDENTITY:-bersoncarebot_test}"
@@ -84,9 +102,19 @@ if [[ "$args" == *'DROP ROLE'* ]]; then
     exit 0
 fi
 if [[ "$args" == *'pg_stat_activity'* ]]; then printf '0\\n'; exit 0; fi
-if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then printf 'true\\n'; exit 0; fi
+if [[ "$args" == *'SELECT (NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '*'))::text;'* ]]; then
+  printf 'verified_absent\\n' >> "$log"
+  printf '%s\\n' "\${ROLE_VERIFICATION:-true}"
+  exit 0
+fi
+if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then
+  printf 'ERROR: argument of NOT must be type boolean, not type text\\n' >&2
+  exit 1
+fi
 if [[ "$args" == *'psql'* ]]; then exit 0; fi
 if [[ "$args" == *'timeout '* ]]; then
+  [[ "$args" == *'TEST_REPO=${testRepo}'* && "$args" == *'pnpm --dir "$TEST_REPO/apps/webapp" exec tsx "$2"'* && "$args" == *'${testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'* ]] || exit 63
+  printf 'seeder_pnpm_webapp_tsx\\n' >> "$log"
   if [[ "\${BLOCK_SEED:-0}" == 1 ]]; then
     printf 'seed_started\\n' >> "$log"
     trap 'exit 143' TERM INT HUP
@@ -98,9 +126,11 @@ fi
 if [[ "$args" == *'mktemp '* ]]; then template="${'${!#}'}"; mkdir -p "$(dirname "$template")"; mktemp "$template"; exit 0; fi
 if [[ "$args" == *'tee '* ]]; then target="${'${!#}'}"; cat >>"$target"; exit 0; fi
 if [[ "$args" == *'rm -f -- '* ]]; then rm -f -- "${'${!#}'}"; exit 0; fi
+if [[ "$args" == *'find '* ]]; then find '${root}' -maxdepth 1 -type f -name 'state.*' -print -quit; exit 0; fi
 exit 0
 `);
   chmodSync(resolve(bin, 'hostname'), 0o755);
+  chmodSync(resolve(bin, 'id'), 0o755);
   chmodSync(resolve(bin, 'git'), 0o755);
   chmodSync(resolve(bin, 'systemctl'), 0o755);
   chmodSync(resolve(bin, 'curl'), 0o755);
@@ -112,8 +142,8 @@ function binPlaceholder(root) {
   return `${resolve(root, 'bin')}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 }
 
-function run(entry, extra = {}) {
-  return spawnSync('bash', [entry.script], {
+function run(entry, extra = {}, args = []) {
+  return spawnSync('bash', [entry.script, ...args], {
     cwd: entry.src,
     encoding: 'utf8',
     env: { ...process.env, ...extra, PATH: `${entry.bin}:${process.env.PATH}` },
@@ -148,6 +178,15 @@ test('rejects a source tree that is not a git checkout before temporary authorit
   assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
 });
 
+test('rejects a root normal seed before packet or temporary authority', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry, { FIXTURE_UID: '0' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /run a normal seed as the non-root repository owner/);
+  assert.throws(() => readFileSync(entry.log, 'utf8'));
+});
+
 test('rejects a packet validator failure before database authority', (t) => {
   const entry = fixture();
   cleanupFixture(t, entry);
@@ -165,6 +204,28 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   const calls = readFileSync(entry.log, 'utf8');
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
+  assert.match(calls, /seeder_pnpm_webapp_tsx/);
+  assert.doesNotMatch(calls, /node --import tsx/);
+});
+
+test('rejects a TEST seeder that differs from the reviewed source before temporary authority', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  writeFileSync(resolve(entry.root, 'test/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'different');
+  const result = run(entry);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /TEST fixture seeder differs from the reviewed source checkout/);
+  assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
+});
+
+test('rejects a dirty imported TEST fixture file before temporary authority', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  writeFileSync(resolve(entry.root, 'test/apps/webapp/scripts/fixture-import.ts'), 'dirty import');
+  const result = run(entry, { FIXTURE_TEST_TRACKED_DIRTY: '1' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /tracked TEST checkout changes must be committed/);
+  assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
 });
 
 test('success runs existing seeder without leaking credentials and removes temporary authority', (t) => {
@@ -217,6 +278,46 @@ test('cleanup failure is fail-closed and preserves protected recovery state', (t
   assert.equal(result.status, 70);
   assert.match(result.stderr, /fixture reconciliation recovery is incomplete; TEST service\/role state is preserved/);
   assert.match(readFileSync(fixtureState(entry), 'utf8'), /^role=bcb_test_fixture_seed_[a-z0-9]+$/m);
+});
+
+test('root --recover converges when the recorded temporary role is already absent', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const failed = run(entry, { ROLE_VERIFICATION: 'false' });
+  assert.equal(failed.status, 70);
+  const state = fixtureState(entry);
+
+  const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /dropped[\s\S]*verified_absent/);
+});
+
+test('root --recover ignores a broken TEST seeder runtime and restores recorded units', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const failed = run(entry, { ROLE_VERIFICATION: 'false' });
+  assert.equal(failed.status, 70);
+  const state = fixtureState(entry);
+  rmSync(resolve(entry.root, 'test/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'));
+  rmSync(resolve(entry.root, 'test/apps/webapp/node_modules/.bin/tsx'));
+
+  const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /dropped[\s\S]*verified_absent/);
+  assert.match(calls, /systemctl start bersoncarebot-media-worker-test/);
+});
+
+test('cleanup fails closed when PostgreSQL does not confirm the temporary role is absent', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry, { ROLE_VERIFICATION: 'false' });
+  assert.equal(result.status, 70);
+  assert.match(readFileSync(entry.log, 'utf8'), /verified_absent/);
+  assert.ok(existsSync(fixtureState(entry)), 'failed verification retains recovery state');
 });
 
 test('an interrupted seed removes temporary authority', async (t) => {
