@@ -20,6 +20,7 @@
  *  3. The same for the organization-only principal (telegram/webhook.ts:377).
  */
 import type { Pool, PoolClient } from 'pg';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import {
@@ -29,6 +30,7 @@ import {
 } from '../principal/organizationPrincipal.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
 import type { IntegratorPortCapabilityDescriptor } from './portContextRuntime.js';
+import { integratorSqlFromPgText } from './runIntegratorSql.js';
 import { createDbWritePort } from './writePort.js';
 
 const ORG = '00000000-0000-4000-8000-000000000abc';
@@ -77,7 +79,9 @@ function portContextHarness(row: Record<string, unknown>): Harness {
     portContext: { pool: { connectionString: 'postgresql://integrator/app' }, capabilities },
     poolFactory: () => {
       const client = {
-        query: async (text: string) => {
+        query: async (queryConfig: unknown) => {
+          const text =
+            typeof queryConfig === 'string' ? queryConfig : (queryConfig as { text: string }).text;
           if (/app\.integrator_(upsert_channel_identity|bind_bootstrap_channel_phone)/.test(text)) {
             productQueries.push(text);
             return { rows: [row], rowCount: 1 };
@@ -93,12 +97,23 @@ function portContextHarness(row: Record<string, unknown>): Harness {
       } as unknown as Pool;
     },
   });
+  // The app's own Drizzle bridge (`runIntegratorSql.integratorSqlFromPgText` +
+  // `drizzle(...).execute()`) — the same door production `runIntegratorSql`/`runIntegratorNamedRoot`
+  // use to turn `$1..$n` query text back into a fragment. `provider` itself is untouched: it stays
+  // the real port-context proxy from `createIntegratorPoolProvider`, so its own `query` closure (the
+  // layer under test, `integratorPortContextPrincipal`) still runs underneath every call — Drizzle
+  // only compiles the SQL text before handing it to that same `provider.query`.
+  const drizzleDb = drizzle(provider);
   const db: DbPort = {
     async query<T>(text: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-      return (await (provider as unknown as { query: (t: string, p?: unknown[]) => unknown }).query(
-        text,
-        params,
-      )) as DbQueryResult<T>;
+      const raw = (await drizzleDb.execute(integratorSqlFromPgText(text, params ?? []))) as {
+        rows?: T[];
+        rowCount?: number | null;
+      };
+      return {
+        rows: raw.rows ?? [],
+        ...(typeof raw.rowCount === 'number' ? { rowCount: raw.rowCount } : {}),
+      };
     },
     async tx(): Promise<never> {
       throw new Error('user.upsert / user.phone.link must not open a relation transaction');
