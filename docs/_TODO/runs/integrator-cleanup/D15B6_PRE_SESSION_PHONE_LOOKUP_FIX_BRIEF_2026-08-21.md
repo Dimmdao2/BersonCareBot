@@ -17,7 +17,7 @@
 
 ## Задача
 
-1. Перед правками прочитать `AGENTS.md` по маршруту, §1 migrations/DEV safety, §5, §10/10a/10b, §24; затем проверить более поздние owner-решения D15b/6 и D15b/7 в `docs/OWNER_DECISIONS.md`, `WORK_ORDER.md` и `TRACK_D_ORCHESTRATION_HANDOFF_2026-08-21.md`. Если новое решение меняет brief — следовать ему и явно записать расхождение в отчёте.
+1. Перед правками прочитать `AGENTS.md` по маршруту, §1 migrations/DEV safety, §5, §10/10a/10b, §24; затем проверить более поздние owner-решения D15b/6 и D15b/7 в `docs/OWNER_DECISIONS.md`, `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` и `docs/_TODO/runs/integrator-cleanup/TRACK_D_ORCHESTRATION_HANDOFF_2026-08-21.md`. Если новое решение меняет brief — следовать ему и явно записать расхождение в отчёте.
 2. Точно трассировать весь pre-session phone-start read path: phone→canonical identity, SessionUser shape, channel preference/trust reads. Не чинить только первую строку, если следующий законный вызов в том же endpoint упадёт по той же границе.
 3. Починить минимально и целостно через существующий DB-port/port-context seam. Сначала ответить в отчёте: можно ли расширить/параметризовать существующую named-root точку вместо новой функции/обёртки/гейта. Не заводить второй identity store, HTTP hop, legacy-column fallback, broad relation grants или безымянную `pre_session` capability.
 4. Если требуются новые/изменённые SECURITY DEFINER roots: только Drizzle migration для тела функции и только `deploy/postgres/privileges/declaration.ts` + generator для rights/context; никаких `GRANT`/`REVOKE`/`CREATE ROLE`/`CREATE POLICY` в migration. Generated DEV/TEST artifacts обновить штатным генератором. Не переписывать landed migration.
