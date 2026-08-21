@@ -9,12 +9,25 @@
  * Проверяется наблюдаемый результат разбора входящего события каналом (`fromTelegram` / `fromMax` →
  * поле `phone`), а не внутренности нормализатора: именно это поле уезжает в привязку телефона.
  */
+import { createHmac } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { fromTelegram } from '../../integrations/telegram/mapIn.js';
 import { fromMax } from '../../integrations/max/mapIn.js';
 import { normalizeRuPhoneE164 } from './normalizeRuPhoneE164.js';
 import type { TelegramWebhookBodyValidated } from '../../integrations/telegram/schema.js';
 import type { MaxUpdateValidated } from '../../integrations/max/schema.js';
+
+/**
+ * D25 provider proof: `fromMax` now only trusts a contact phone when the vCard HMAC verifies
+ * against the configured bot token (see `max/mapIn.ts` — `getContactPhoneFromMaxMessage`). These
+ * parity tests are about phone-string normalization, not about the trust boundary itself, so they
+ * supply a real token + matching hash instead of exploiting the old "missing token ⇒ accept" gap.
+ */
+const MAX_BOT_TOKEN_FOR_TEST = 'test-max-bot-token';
+
+function signMaxVcfInfo(vcfInfo: string): string {
+  return createHmac('sha256', MAX_BOT_TOKEN_FOR_TEST).update(vcfInfo).digest('hex');
+}
 
 /** Один и тот же человек и один и тот же номер — в тех видах, в которых их реально присылают. */
 const SAME_NUMBER_AS_WRITTEN = [
@@ -45,8 +58,9 @@ function telegramContactPhone(written: string): string | undefined {
   return update && update.kind === 'message' ? update.phone : undefined;
 }
 
-/** Тот же человек прислал контакт в MAX (вложение с vCard). */
+/** Тот же человек прислал контакт в MAX (вложение с vCard, HMAC-подпись проверена ботом). */
 function maxContactPhone(written: string): string | undefined {
+  const vcfInfo = `BEGIN:VCARD\r\nTEL;TYPE=CELL:${written}\r\nEND:VCARD`;
   const body = {
     update_type: 'message_created',
     message: {
@@ -58,13 +72,13 @@ function maxContactPhone(written: string): string | undefined {
         attachments: [
           {
             type: 'contact',
-            payload: { vcf_info: `BEGIN:VCARD\r\nTEL;TYPE=CELL:${written}\r\nEND:VCARD` },
+            payload: { vcf_info: vcfInfo, hash: signMaxVcfInfo(vcfInfo) },
           },
         ],
       },
     },
   } as unknown as MaxUpdateValidated;
-  const update = fromMax(body, '');
+  const update = fromMax(body, MAX_BOT_TOKEN_FOR_TEST);
   return update && update.kind === 'message' ? update.phone : undefined;
 }
 
