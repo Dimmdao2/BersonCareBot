@@ -355,6 +355,17 @@ DEV отсутствует, D30 не включает перенос или др
       `SELECT/DELETE` but not effective INSERT/UPDATE for the emitted statement. Ш3 remains `[ ]`; repair and the
       same create/update/complete/delete/resident-delivery proof are required before removing sweep/route/registry/
       cron. Exact commands and evidence: `D30_SPECIALIST_TASK_TEST_LIVE_FAILURE_2026-08-21.md`.
+      ⚠️ **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026 (после записи выше).** Привилегийный ремонт `specialist_tasks`
+      приземлён и задеплоен на TEST в merge `92cf34ffa4bf4f277e7f3e67bd548c3805815ee2` — `integration` и
+      `origin` `feat/doctor-ui-rebuild` совпадают на этом SHA. Полный CI прошёл
+      (`/tmp/bcb-track-d-full-ci-92cf34ffa.log`; `runs/ci-last.json` — тот же SHA, `movedDuringRun=false`,
+      `stepsExit=0`, `exitCode=0`); `pnpm run push:checked` успешно; `bash deploy/host/deploy-test.sh` →
+      `/tmp/bcb-track-d-deploy-test-92cf34ffa.log` заканчивается `deploy-test: PASS
+      branch=feat/doctor-ui-rebuild head=92cf34ffa4bf B0/post-B0 only`. TEST reconcile-access прошёл на этой же
+      выкатке. Живой `42501 permission denied for table specialist_tasks` выше — историческая находка, операционно
+      заменена этим ремонтом; запись не стирается, только помечается замещённой. Ш3 остаётся `[ ]`: этот проход
+      не выполнял тот же обычный existing-owner create/update/complete/delete/resident-delivery доказ на TEST —
+      он по-прежнему требуется перед снятием sweep/route/registry/cron.
   - [x] **Ш4.0 (предпосылка, из находки 1 `D30_STEP0_AUDIT.md`).** Выполнено D21: прежние B1 cron/route/
         registry/host requirement и check→send→cache путь удалены; `web_push` и email идут через unified
         `public.outgoing_delivery_queue` со stable `event_id`, unique constraint + `ON CONFLICT DO NOTHING`
