@@ -8,7 +8,7 @@ apply.
 Источник оракула: `AGENTS.md` §1 — «До аудита и landing кандидат миграции обязан пройти owner-aware rollback-only
 preflight против именованной DEV из точного candidate checkout».
 
-Classification under §24.4: one-time owner-aware rollback-only runtime look. No new test, kill-set, fault injection
+Тест или взгляд (§24.4): one-time owner-aware rollback-only runtime look. No new test, kill-set, fault injection
 or product correction.
 
 Before action read the `AGENTS.md` map, then §1/§1b, §5/§6, §9–§10 and §24; read
