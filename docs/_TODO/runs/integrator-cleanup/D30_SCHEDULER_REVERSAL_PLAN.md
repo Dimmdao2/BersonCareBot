@@ -521,12 +521,11 @@ DEV отсутствует, D30 не включает перенос или др
 - **Ш1** — `organizationId` уже в `apps/webapp/db/schema/outgoingDeliveryQueue.ts:20` (с индексом,
   `:54`); `OutgoingDeliveryKind` union в `apps/integrator/src/infra/delivery/deliveryContract.ts` содержит
   виды сверх исходных трёх. Читатели не тронуты. Пункт остаётся закрытым кодом, живой гейт не открывался заново.
-- **Ш3–Ш6** — `apps/webapp/src/modules/operator-health/cronJobRegistry.ts` по-прежнему перечисляет
-  `system-health-guard`, `operator-health-digest`, `operator-health-probe`, `specialist-task-reminders/tick`;
-  `deploy/host/cron.d/` по-прежнему содержит `bersoncarebot-operator-health-digest.cron.template` и
-  `bersoncarebot-system-health-guard.cron.template`. Ни один найденный артефакт не указывает, что живое
-  наблюдение периода или снятие cron состоялись после 03.08 — соответствующие боксы остаются `[ ]` по тем же
-  причинам, что и раньше (living observation on TEST/PROD not performed by this pass).
+- **Ш3–Ш6 — это измерение устарело и заменено CURRENT evidence в самих шагах выше.** В текущем code-side
+  `cronJobRegistry.ts` ещё перечисляет `system-health-guard`, `operator-health-digest` и
+  `specialist-task-reminders/tick`, но запись operator-health-probe удалена; шаблоны digest/guard из
+  `deploy/host/cron.d/` также удалены. Ш5/Ш6 ретированы со стороны кода, а живое наблюдение и фактическое снятие
+  host cron через `cronport` остаются у лида после деплоя; соответствующие боксы остаются `[ ]`.
 
 Ни один бокс Ш1–Ш6 не менялся этим коммитом: их текст и статус — без изменений, только этот параграф добавлен
 как свежая точка ре-измерения. Полный живой прогон (dev/TEST provider proof) остаётся вне этого прохода по
