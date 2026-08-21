@@ -195,19 +195,21 @@ export async function pruneIdentityPlatformUserContactsAfterMerge(
     await runMergeSql(
       client,
       sql`DELETE FROM platform_user_contacts AS p
-       USING platform_users AS u
        WHERE p.platform_user_id = ${targetId}::uuid
-         AND u.id = ${targetId}::uuid
          AND (
            (
              p.contact_type IN ('phone', 'whatsapp')
-             AND u.phone_normalized IS NOT NULL
-             AND p.value_normalized = u.phone_normalized
+             AND EXISTS (
+               SELECT 1 FROM user_contacts uc WHERE uc.platform_user_id = ${targetId}::uuid
+                 AND uc.contact_kind = 'phone' AND uc.value_normalized = p.value_normalized
+             )
            )
            OR (
              p.contact_type = 'email'
-             AND u.email_normalized IS NOT NULL
-             AND p.value_normalized = u.email_normalized
+             AND EXISTS (
+               SELECT 1 FROM user_contacts uc WHERE uc.platform_user_id = ${targetId}::uuid
+                 AND uc.contact_kind = 'email' AND uc.value_normalized = p.value_normalized
+             )
            )
          )`,
     );

@@ -15,6 +15,7 @@ import {
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
 import { isCurrentPublicBookingPrincipal } from '@/app-layer/principal/publicBookingPrincipal';
 import { resolveOrCreateDoctorClientByPhoneInTransaction } from '@/infra/repos/pgDoctorClientCreate';
+import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
 import { ensureActivePatientSpecialistLink } from '@/infra/repos/pgPatientVisibilityLinks';
 import { transactionQuotaPort } from '@/infra/repos/transactionQuotaPort';
@@ -655,7 +656,7 @@ async function loadManualPatientForReplay(
       lastName: drizzleFioCols.lastName,
       firstName: drizzleFioCols.firstName,
       patronymic: drizzleFioCols.patronymic,
-      phoneNormalized: platformUsers.phoneNormalized,
+      phoneNormalized: drizzlePrimaryPhoneCol,
     })
     .from(platformUsers)
     .leftJoin(userIdentity, drizzleUserIdentityFioJoin)

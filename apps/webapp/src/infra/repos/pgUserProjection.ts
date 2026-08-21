@@ -22,7 +22,9 @@ import {
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import {
   drizzlePrimaryPhoneCol,
-  syncUserContactsMirrorWebapp,
+  drizzlePrimaryEmailCol,
+  drizzlePrimaryEmailConfirmedAtCol,
+  mutateCanonicalUserContactsWebapp,
 } from '@/infra/repos/userContactsSql';
 import { findCanonicalUserIdByPhone } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
@@ -38,6 +40,7 @@ import {
 import type { UserProjectionPort } from '@/modules/identity/ports';
 import {
   platformUsers,
+  userContacts,
   userNotificationTopics,
 } from '../../../db/schema/schema';
 
@@ -139,15 +142,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
     const pool = getPool();
     trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpdatePhone);
     await withPoolTransaction(pool, async (client) => {
-      const tx = txExecutor(client);
-      await tx
-        .update(platformUsers)
-        .set({
-          phoneNormalized,
-          patientPhoneTrustAt: sql`now()`,
-          updatedAt: sql`now()`,
-        })
-        .where(eq(platformUsers.id, platformUserId));
       await applyPlatformUserPhoneHistoryTransition(client, {
         platformUserId,
         newPhoneNormalized: phoneNormalized,
@@ -168,11 +162,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
       sets.push(`last_name = $${++idx}`);
       vals.push(params.lastName);
     }
-    if (params.email !== undefined) {
-      sets.push(`email = $${++idx}`);
-      vals.push(params.email);
-    }
-    if (vals.length === 0) return;
+    if (vals.length === 0 && params.email === undefined) return;
     vals.push(params.phoneNormalized);
     const pool = getPool();
     await withPoolTransaction(pool, async (client) => {
@@ -180,7 +170,9 @@ export const pgUserProjectionPort: UserProjectionPort = {
         client,
         webappSqlFromPgText(
           `UPDATE platform_users SET ${sets.join(', ')}
-         WHERE phone_normalized = $${idx + 1} AND merged_into_id IS NULL
+         WHERE EXISTS (SELECT 1 FROM user_contacts uc WHERE uc.platform_user_id = platform_users.id
+           AND uc.contact_kind = 'phone' AND uc.value_normalized = $${idx + 1})
+           AND merged_into_id IS NULL
          RETURNING id`,
           vals,
         ),
@@ -190,7 +182,10 @@ export const pgUserProjectionPort: UserProjectionPort = {
       }
       if (params.email !== undefined) {
         for (const row of updated.rows) {
-          await syncUserContactsMirrorWebapp(client, row.id);
+          await mutateCanonicalUserContactsWebapp(client, row.id, params.email?.trim()
+            ? [{ action: 'upsert', kind: 'email', valueNormalized: params.email.trim().toLowerCase(),
+                isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' }]
+            : [{ action: 'remove', kind: 'email' }]);
         }
       }
     });
@@ -237,8 +232,8 @@ export const pgUserProjectionPort: UserProjectionPort = {
   async getProfileEmailFields(platformUserId) {
     const rows = await getWebappSqlDb()
       .select({
-        email: platformUsers.email,
-        email_verified_at: platformUsers.emailVerifiedAt,
+        email: drizzlePrimaryEmailCol,
+        email_verified_at: drizzlePrimaryEmailConfirmedAtCol,
       })
       .from(platformUsers)
       .where(eq(platformUsers.id, platformUserId))
@@ -303,11 +298,14 @@ export const pgUserProjectionPort: UserProjectionPort = {
   async clearStaffAccountEmail(platformUserId) {
     const db = getWebappSqlDb();
     const current = await db
-      .select({ email: platformUsers.email })
-      .from(platformUsers)
+      .select({ email: userContacts.valueNormalized })
+      .from(userContacts)
+      .innerJoin(platformUsers, eq(platformUsers.id, userContacts.platformUserId))
       .where(
         and(
           eq(platformUsers.id, platformUserId),
+          eq(userContacts.contactKind, 'email'),
+          eq(userContacts.isPrimary, true),
           inArray(platformUsers.role, ['doctor', 'admin']),
           isNull(platformUsers.mergedIntoId),
         ),
@@ -320,22 +318,7 @@ export const pgUserProjectionPort: UserProjectionPort = {
     if (email == null || email.trim() === '') {
       return { ok: false as const, reason: 'already_empty' as const };
     }
-    await db
-      .update(platformUsers)
-      .set({
-        email: null,
-        emailNormalized: null,
-        emailVerifiedAt: null,
-        updatedAt: sql`now()`,
-      })
-      .where(
-        and(
-          eq(platformUsers.id, platformUserId),
-          inArray(platformUsers.role, ['doctor', 'admin']),
-          isNull(platformUsers.mergedIntoId),
-        ),
-      );
-    await syncUserContactsMirrorWebapp(db, platformUserId);
+    await mutateCanonicalUserContactsWebapp(db, platformUserId, [{ action: 'remove', kind: 'email' }]);
     return { ok: true as const };
   },
 
@@ -366,40 +349,12 @@ export const pgUserProjectionPort: UserProjectionPort = {
         patronymic
       ), ''), '')`);
     }
-    if (patch.email !== undefined) {
-      n += 1;
-      const emailN = n;
-      sets.push(`email = $${emailN}`);
-      vals.push(patch.email);
-      sets.push(
-        `email_verified_at = CASE
-          WHEN $${emailN}::text IS NULL OR btrim(COALESCE($${emailN}::text, '')) = '' THEN NULL
-          WHEN lower(btrim(COALESCE($${emailN}::text, ''))) IS DISTINCT FROM lower(btrim(COALESCE(email, ''))) THEN NULL
-          ELSE email_verified_at
-        END`,
-      );
-      sets.push(
-        `email_normalized = CASE
-          WHEN $${emailN}::text IS NULL OR btrim(COALESCE($${emailN}::text, '')) = '' THEN NULL
-          ELSE lower(btrim($${emailN}::text))
-        END`,
-      );
-    }
     if (patch.phoneNormalized !== undefined) {
       trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.AdminManualProfilePatch);
-      n += 1;
-      const phoneN = n;
-      sets.push(`phone_normalized = $${phoneN}`);
-      vals.push(patch.phoneNormalized);
-      sets.push(
-        `patient_phone_trust_at = CASE
-          WHEN $${phoneN}::text IS NULL OR btrim(COALESCE($${phoneN}::text, '')) = '' THEN NULL
-          ELSE now()
-        END`,
-      );
     }
 
-    if (sets.length === 1) {
+    if (patch.firstName === undefined && patch.lastName === undefined
+      && patch.email === undefined && patch.phoneNormalized === undefined) {
       return { ok: false as const, reason: 'nothing_to_update' as const };
     }
 
@@ -442,7 +397,22 @@ export const pgUserProjectionPort: UserProjectionPort = {
           patch.phoneNormalized !== undefined ||
           patch.email !== undefined
         ) {
-          await syncUserContactsMirrorWebapp(client, platformUserId);
+          const mutations = [];
+          if (patch.phoneNormalized !== undefined) {
+            const phone = patch.phoneNormalized?.trim();
+            mutations.push(phone
+              ? { action: 'upsert' as const, kind: 'phone' as const, valueNormalized: phone,
+                  isPrimary: true, confirmedAt: new Date().toISOString(), sourceOrigin: 'direct' as const }
+              : { action: 'remove' as const, kind: 'phone' as const });
+          }
+          if (patch.email !== undefined) {
+            const email = patch.email?.trim().toLowerCase();
+            mutations.push(email
+              ? { action: 'upsert' as const, kind: 'email' as const, valueNormalized: email,
+                  isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' as const }
+              : { action: 'remove' as const, kind: 'email' as const });
+          }
+          await mutateCanonicalUserContactsWebapp(client, platformUserId, mutations);
         }
 
         return { ok: true as const };

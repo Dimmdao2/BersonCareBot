@@ -8,7 +8,7 @@ import {
 /**
  * @param phoneProven the caller has proved control of this phone on THIS request path. Required,
  *   no default: every call site must state it (A-3). `false` still resolves or creates the
- *   identity, it just does not stamp `patient_phone_trust_at`.
+ *   identity; it does not mark the canonical phone as confirmed.
  */
 export async function resolveOrCreateUserByPhone(
   contactPhone: string,

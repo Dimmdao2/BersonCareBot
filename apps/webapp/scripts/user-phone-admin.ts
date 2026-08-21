@@ -250,9 +250,12 @@ async function findUser(phone: string) {
     created_at: string;
     integrator_user_id: string | null;
   }>(
-    `SELECT id, phone_normalized, display_name, role, created_at::text,
+    `SELECT users.id, contact.value_normalized AS phone_normalized,
+            users.display_name, users.role, users.created_at::text,
             integrator_user_id::text AS integrator_user_id
-     FROM platform_users WHERE phone_normalized = $1`,
+     FROM platform_users AS users
+     JOIN user_contacts AS contact ON contact.platform_user_id = users.id
+     WHERE contact.contact_kind = 'phone' AND contact.value_normalized = $1`,
     [norm],
   );
   return res.rows[0] ?? null;
@@ -392,14 +395,14 @@ async function deletePhoneKeyedWebappRows(
   r = await client.query(
     `DELETE FROM message_log
      WHERE user_id IN (
-       SELECT id::text FROM platform_users
-       WHERE phone_normalized IS NOT NULL
-         AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
+       SELECT platform_user_id::text FROM user_contacts
+       WHERE contact_kind = 'phone'
+         AND regexp_replace(value_normalized, '\\D', '', 'g') = $1
      )
         OR platform_user_id IN (
-          SELECT id FROM platform_users
-          WHERE phone_normalized IS NOT NULL
-            AND regexp_replace(phone_normalized, '\\D', '', 'g') = $1
+          SELECT platform_user_id FROM user_contacts
+          WHERE contact_kind = 'phone'
+            AND regexp_replace(value_normalized, '\\D', '', 'g') = $1
         )`,
     [digs],
   );

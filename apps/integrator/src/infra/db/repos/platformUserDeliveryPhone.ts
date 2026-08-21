@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { platformUsers } from '../schema/integratorPublicProduct.js';
+import { platformUsers, userContacts } from '../schema/integratorPublicProduct.js';
 import { resolveCanonicalPlatformUserIdFromId } from './platformUserByChannel.js';
 
 export type CanonicalPlatformUserDeliveryIdentity = {
@@ -17,10 +17,11 @@ export async function getCanonicalPlatformUserDeliveryIdentity(
   const canonicalId = await resolveCanonicalPlatformUserIdFromId(db, platformUserId);
   const rows = await getIntegratorDrizzleSession(db)
     .select({
-      phoneNormalized: platformUsers.phoneNormalized,
+      phoneNormalized: userContacts.valueNormalized,
       integratorUserId: platformUsers.integratorUserId,
     })
     .from(platformUsers)
+    .leftJoin(userContacts, and(eq(userContacts.platformUserId, platformUsers.id), eq(userContacts.contactKind, 'phone'), eq(userContacts.isPrimary, true)))
     .where(eq(platformUsers.id, canonicalId))
     .limit(1);
   const row = rows[0];
@@ -43,13 +44,14 @@ export async function getPhoneNormalizedForDeliveryLookup(
   if (!trimmed) return null;
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
-    .select({ phoneNormalized: platformUsers.phoneNormalized })
+    .select({ phoneNormalized: userContacts.valueNormalized })
     .from(platformUsers)
+    .innerJoin(userContacts, and(eq(userContacts.platformUserId, platformUsers.id), eq(userContacts.contactKind, 'phone'), eq(userContacts.isPrimary, true)))
     .where(
       and(
         isNull(platformUsers.mergedIntoId),
-        isNotNull(platformUsers.phoneNormalized),
-        sql`trim(${platformUsers.phoneNormalized}) <> ''`,
+        isNotNull(userContacts.valueNormalized),
+        sql`trim(${userContacts.valueNormalized}) <> ''`,
         or(
           eq(sql`${platformUsers.id}::text`, trimmed),
           eq(sql`${platformUsers.integratorUserId}::text`, trimmed),

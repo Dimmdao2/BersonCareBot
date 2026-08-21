@@ -8,7 +8,7 @@ import {
   webappSqlFromPgText,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
-import { syncUserContactsMirrorWebapp } from '@/infra/repos/userContactsSql';
+import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
 import {
   MergeConflictError,
   MergeDependentConflictError,
@@ -204,7 +204,10 @@ export async function findEmailOwnerConflict(userId: string, email: string): Pro
 
 export async function verifyUserEmail(userId: string, email: string): Promise<void> {
   await runWebappPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]);
-  await syncUserContactsMirrorWebapp(getWebappSqlDb(), userId);
+  await mutateCanonicalUserContactsWebapp(getWebappSqlDb(), userId, [{
+    action: 'upsert', kind: 'email', valueNormalized: email.trim().toLowerCase(), isPrimary: true,
+    confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
+  }]);
 }
 
 export async function claimVerifiedEmail(
@@ -233,12 +236,15 @@ export async function claimVerifiedEmail(
           merged_into_id: string | null;
           role: string;
         }>(
-          `SELECT id::text, email_normalized, merged_into_id::text, role::text
-         FROM platform_users
-         WHERE id = $1::uuid
-            OR (email_normalized = $2 AND merged_into_id IS NULL)
-         ORDER BY id
-         FOR UPDATE`,
+          `SELECT pu.id::text, email.value_normalized AS email_normalized,
+                  pu.merged_into_id::text, pu.role::text
+         FROM platform_users pu
+         LEFT JOIN user_contacts email ON email.platform_user_id = pu.id
+           AND email.contact_kind = 'email' AND email.is_primary = true
+         WHERE pu.id = $1::uuid
+            OR (email.value_normalized = $2 AND pu.merged_into_id IS NULL)
+         ORDER BY pu.id
+         FOR UPDATE OF pu`,
           [userId, emailNormalized],
           tx,
         );

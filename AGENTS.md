@@ -395,11 +395,16 @@ Runner временно даёт мигратору ровно указанну�
 не самостоятельные statement и не ставятся после SQL: parser читает их только в указанном порядке в начале блока.
 
 Новая таблица в `public` / `app` / `integrator` / `app_ext` сначала объявляется в
-`deploy/postgres/privileges/declaration.ts`, и только затем добавляется migration-файл. Санкционированная
-последовательность на DEV: `bash deploy/host/migrate-dev.sh --preflight`, затем
+`deploy/postgres/privileges/declaration.ts`, и только затем добавляется migration-файл. **До аудита и landing**
+кандидат миграции обязан пройти owner-aware rollback-only preflight против именованной DEV из точного candidate
+checkout: с теми же statement-owner markers, statement breakpoints и `FORCE RLS`, но без ledger/apply. Голый SQL
+от `postgres` не является preflight: superuser обходит именно те границы, которые должна проверить миграция. Если
+существующий entrypoint не умеет безопасно взять candidate source, сначала используется/добавляется bounded
+candidate-preflight path; landing ради первой попытки запрещён. После независимого аудита и landing канонический
+интеграционный путь повторяет `bash deploy/host/migrate-dev.sh --preflight`, затем только при PASS выполняет
 `bash deploy/host/migrate-dev.sh --execute`. Entry point механически засевает declaration-derived registry стены
 до первого migration statement, после миграций выполняет полный owner/access reconcile; ручная строка registry
-или запуск bare migrator этот контракт не заменяет.
+или superuser/bare-migrator прогон этот контракт не заменяет.
 
 **Смысл:** owner-header делает владельца каждого statement проверяемым до БД, а предварительный declaration-seed
 разрешает родиться уже объявленной таблице, не открывая стену для необъявленной или созданной не тем владельцем.
@@ -1971,8 +1976,11 @@ _Scoped: doctor CMS media pickers._
   владелец разрешил 19.08 «только если справляешься», то есть предел задаёт способность лида принимать работу, а
   не число. Жёсткий отказ один и стоит в порту — host-cap. Независимый непересекающийся scope можно параллелить,
   общий dev-server и полные прогоны сериализуются.
-- Worker не поднимает свой dev-server. Живую проверку делает отдельный verify/auditor-live на единственном сервере
-  интеграционного дерева.
+- Worker не занимает общие dev-порты и не принимает собственную живую проверку. Если live/runtime/DB-поведение
+  входит в критерий этапа, отдельный verify/auditor-live доказывает его **на candidate до landing**: на изолированном
+  порту либо безопасным rollback-only проходом named DEV/TEST. Общий интеграционный сервер после landing может
+  подтвердить уже принятую ветку, но не заменяет pre-landing acceptance и не служит местом первого обнаружения,
+  работает ли кандидат.
 
 ### 24.4. Аудит: сначала «тест или взгляд»
 
@@ -2025,6 +2033,8 @@ _Scoped: doctor CMS media pickers._
 
 - Уровни тестов и host-lock определяет §9–§10. Уже зелёный gate на том же SHA не повторять.
 - `stage done`: закрыты пункты этапа и его targeted/phase evidence.
+- `land-ready`: candidate прошёл все применимые targeted, audit и pre-landing live/rollback-only gates; landing
+  непроверенного поведения ради последующей первой проверки запрещён.
 - `milestone done`: принят интеграционный SHA, пройден требуемый full CI и живая проверка, если она применима.
 - `plan done`: закрыты все owner-checkbox; последний актуальный milestone evidence переиспользуется.
 - Worker `done` и audit `PASS` — входные сигналы. Галочки, taskdb status, merge и push делает лид после собственной

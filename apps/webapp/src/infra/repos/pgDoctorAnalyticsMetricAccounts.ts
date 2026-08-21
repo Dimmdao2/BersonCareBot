@@ -4,7 +4,7 @@ import {
   CONTACTS,
   CONTACTS_HAS_PHONE,
   CONTACTS_NO_PHONE,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+  USER_CONTACTS_PRIMARY_LATERALS,
 } from '@/infra/repos/userContactsSql';
 import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
@@ -246,7 +246,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -268,12 +268,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND ${CONTACTS_HAS_PHONE}
-               AND pu.email_verified_at IS NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NULL
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY display_name ASC, pu.id ASC
@@ -293,12 +293,12 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND ${CONTACTS_NO_PHONE}
-               AND pu.email_verified_at IS NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NULL
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
              ORDER BY display_name ASC, pu.id ASC
@@ -318,13 +318,13 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND ${sqlActiveTelegramBinding('pu.id')}
                AND NOT ${sqlActiveMaxBinding('pu.id')}
-               AND pu.email_verified_at IS NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NULL
              ${clientEx.andSql}
              ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -343,13 +343,13 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
                AND ${sqlActiveMaxBinding('pu.id')}
                AND NOT ${sqlActiveTelegramBinding('pu.id')}
-               AND pu.email_verified_at IS NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NULL
              ${clientEx.andSql}
              ORDER BY display_name ASC, pu.id ASC
              LIMIT $1::int OFFSET $2::int`,
@@ -368,11 +368,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND pu.email_verified_at IS NOT NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
                AND ${CONTACTS_NO_PHONE}
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
@@ -393,11 +393,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND pu.email_verified_at IS NOT NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
                AND ${sqlActiveTelegramBinding('pu.id')}
                AND NOT ${sqlActiveMaxBinding('pu.id')}
              ${clientEx.andSql}
@@ -418,11 +418,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND pu.email_verified_at IS NOT NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
                AND ${sqlActiveMaxBinding('pu.id')}
                AND NOT ${sqlActiveTelegramBinding('pu.id')}
              ${clientEx.andSql}
@@ -443,11 +443,11 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                NULL::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
-               AND pu.email_verified_at IS NOT NULL
+               AND ${CONTACTS.emailVerifiedAt} IS NOT NULL
                AND ${CONTACTS_HAS_PHONE}
                AND NOT ${sqlActiveMessengerBinding('pu.id')}
              ${clientEx.andSql}
@@ -651,7 +651,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
                'Бот заблокирован'::text AS event_label
              FROM platform_users pu
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              INNER JOIN user_channel_bindings ucb
                ON ucb.user_id = pu.id
               AND ucb.channel_code = $1::text
@@ -714,7 +714,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              FROM product_analytics_events_recent e
              INNER JOIN platform_users pu ON pu.id = e.user_id
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE e.event_type = 'push_open'
                AND e.user_id IS NOT NULL
                AND e.occurred_at >= (NOW() - ($1::integer * interval '1 hour'))${ex.andSql}
@@ -747,7 +747,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
              ) s
              INNER JOIN platform_users pu ON pu.id = s.user_id
              ${USER_IDENTITY_FIO_JOIN}
-             ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+             ${USER_CONTACTS_PRIMARY_LATERALS}
              WHERE pu.role = 'client'
                AND pu.merged_into_id IS NULL
                AND COALESCE(pu.is_archived, false) = false
@@ -783,7 +783,7 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
            ) s
            INNER JOIN platform_users pu ON pu.id = s.user_id
            ${USER_IDENTITY_FIO_JOIN}
-           ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
+           ${USER_CONTACTS_PRIMARY_LATERALS}
            WHERE pu.role = 'client'
              AND pu.merged_into_id IS NULL
              AND COALESCE(pu.is_archived, false) = false

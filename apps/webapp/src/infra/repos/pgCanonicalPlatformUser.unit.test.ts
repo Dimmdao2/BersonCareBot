@@ -33,7 +33,7 @@ beforeEach(() => {
 });
 
 describe('findTrustedCanonicalUserIdByPhone — D15b/6 user_contacts reader', () => {
-  it('resolves trusted owner via primary phone row in user_contacts', async () => {
+  it('resolves the owner of a confirmed non-primary phone in user_contacts', async () => {
     drizzleLimitResults.queue = [[{ id: TRUSTED_USER_ID }]];
 
     const id = await findTrustedCanonicalUserIdByPhone(makeDb(), PHONE);

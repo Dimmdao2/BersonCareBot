@@ -13,6 +13,7 @@ import type {
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import { organizationMemberInvites } from '../../../db/schema/organizationMemberInvites';
 import { platformUsers } from '../../../db/schema/schema';
+import { drizzlePrimaryEmailCol } from '@/infra/repos/userContactsSql';
 import {
   ORGANIZATION_INVITE_ROLES,
   ORGANIZATION_INVITE_STATUSES,
@@ -129,7 +130,7 @@ export function createPgOrganizationInvitesPort(): OrganizationInvitesPort {
           )
           .where(
             and(
-              eq(platformUsers.emailNormalized, input.invitedEmail),
+              eq(drizzlePrimaryEmailCol, input.invitedEmail),
               isNull(platformUsers.mergedIntoId),
             ),
           )

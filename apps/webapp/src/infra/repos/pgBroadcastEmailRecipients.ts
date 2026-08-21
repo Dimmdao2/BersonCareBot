@@ -10,7 +10,7 @@
 import { sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { drizzleSqlUuidInList } from '@/modules/analytics/analyticsAudience';
-import { drizzlePrimaryEmailCol } from '@/infra/repos/userContactsSql';
+import { drizzlePrimaryEmailCol, drizzlePrimaryEmailConfirmedAtCol } from '@/infra/repos/userContactsSql';
 import { platformUsers } from '../../../db/schema/schema';
 import type { BroadcastEmailRecipientsPort } from '@/modules/doctor-broadcasts/fanOutBroadcastEmail';
 
@@ -25,7 +25,7 @@ export function createPgBroadcastEmailRecipientsPort(): BroadcastEmailRecipients
         FROM ${platformUsers} pu
         WHERE pu.id IN (${drizzleSqlUuidInList(userIds)})
           AND ${drizzlePrimaryEmailCol} IS NOT NULL
-          AND pu.email_verified_at IS NOT NULL
+          AND ${drizzlePrimaryEmailConfirmedAtCol} IS NOT NULL
           AND pu.merged_into_id IS NULL
       `);
 

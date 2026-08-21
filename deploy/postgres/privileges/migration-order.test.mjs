@@ -271,14 +271,14 @@ test('static gate keeps the existing timestamp-name check in the same result', (
   assert.match(violations[0].reason, /file name/u);
 });
 
-test('all 19 real migrations pass the declaration-derived static acceptance gate', () => {
+test('all 20 real migrations pass the declaration-derived static acceptance gate', () => {
   const migrations = readMigrationFolder(REAL_MIGRATIONS_FOLDER);
   const declaredRelations = new Set([
     ...Object.keys(declaration.databases.bcb_webapp_dev.tables),
     ...Object.keys(declaration.portContext?.privateRelations ?? {}),
   ]);
 
-  assert.equal(migrations.length, 19);
+  assert.equal(migrations.length, 20);
   assert.deepEqual(findMigrationStaticViolations(migrations, declaredRelations), []);
 });
 

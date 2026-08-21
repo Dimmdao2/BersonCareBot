@@ -192,4 +192,72 @@ describe('support account merge', () => {
 
     expect(clinicalVisitOwner).toBe(oldAccountId);
   });
+
+  it('keeps a manually selected transferred OAuth contact confirmed and OAuth-origin', async () => {
+    type CanonicalContact = {
+      platformUserId: string;
+      kind: 'phone' | 'email';
+      value: string;
+      isPrimary: boolean;
+      confirmedAt: string | null;
+      sourceOrigin: 'direct' | 'oauth';
+    };
+    const contacts: CanonicalContact[] = [
+      { platformUserId: targetId, kind: 'phone', value: '+79990000001', isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' },
+      { platformUserId: targetId, kind: 'email', value: 'target@example.test', isPrimary: true, confirmedAt: null, sourceOrigin: 'direct' },
+      { platformUserId: duplicateId, kind: 'phone', value: '+79990000002', isPrimary: true, confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' },
+      { platformUserId: duplicateId, kind: 'email', value: 'oauth@example.test', isPrimary: true, confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' },
+    ];
+    const db = {
+      query: vi.fn(async (query: string, values?: unknown[]) => {
+        if (query.includes('FROM platform_users') && query.includes('FOR UPDATE')) {
+          return {
+            rows: [
+              { ...platformUserRow(targetId, 'Target'), phone_normalized: '+79990000001', email: 'target@example.test' },
+              { ...platformUserRow(duplicateId, 'Duplicate'), phone_normalized: '+79990000002', email: 'oauth@example.test' },
+            ],
+          };
+        }
+        if (query.includes('UPDATE public.user_contacts') && query.includes('SET platform_user_id')) {
+          for (const contact of contacts.filter((row) => row.platformUserId === duplicateId)) {
+            const targetAlreadyPrimary = contacts.some(
+              (row) => row.platformUserId === targetId && row.kind === contact.kind && row.isPrimary,
+            );
+            contact.platformUserId = targetId;
+            if (targetAlreadyPrimary) contact.isPrimary = false;
+          }
+          return { rows: [] };
+        }
+        if (query.includes('DELETE FROM public.user_contacts')) {
+          for (let index = contacts.length - 1; index >= 0; index--) {
+            if (contacts[index]?.platformUserId === duplicateId) contacts.splice(index, 1);
+          }
+          return { rows: [] };
+        }
+        if (query.includes('WITH demoted_primary AS')) {
+          const kind = values?.find((value) => value === 'phone' || value === 'email');
+          const value = values?.find((item) => item === '+79990000002' || item === 'oauth@example.test');
+          if ((kind !== 'phone' && kind !== 'email') || typeof value !== 'string') return { rows: [] };
+          for (const contact of contacts) {
+            if (contact.platformUserId === targetId && contact.kind === kind) {
+              contact.isPrimary = contact.value === value;
+            }
+          }
+          return { rows: [{ id: `promoted-${kind}` }], rowCount: 1 };
+        }
+        return { rows: [] };
+      }),
+    } as unknown as PlatformMergeDbClient;
+    const resolution = manualResolution(targetId, duplicateId);
+    resolution.fields.phone_normalized = 'duplicate';
+    resolution.fields.email = 'duplicate';
+
+    await mergePlatformUsersInTransaction(db, targetId, duplicateId, 'manual', { resolution });
+
+    expect(contacts.filter((contact) => contact.platformUserId === duplicateId)).toEqual([]);
+    expect(contacts.filter((contact) => contact.platformUserId === targetId && contact.isPrimary)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'phone', value: '+79990000002', confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' }),
+      expect.objectContaining({ kind: 'email', value: 'oauth@example.test', confirmedAt: '2026-08-20T00:00:00.000Z', sourceOrigin: 'oauth' }),
+    ]));
+  });
 });

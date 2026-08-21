@@ -303,7 +303,8 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
                 mr.updated_at::text AS updated_at,
                 COALESCE(
                   NULLIF(trim(COALESCE(ui.display_name, pu.display_name)), ''),
-                  NULLIF(trim(pu.phone_normalized), ''),
+                  NULLIF(trim((SELECT uc.value_normalized FROM user_contacts uc
+                    WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1)), ''),
                   mr.user_id::text
                 ) AS display_label
          FROM material_ratings mr
