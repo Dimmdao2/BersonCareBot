@@ -51,6 +51,10 @@ function fixture(host = '151.241.228.122') {
   const bin = resolve(root, 'bin');
   mkdirSync(bin);
   const log = resolve(root, 'calls.log');
+  writeFileSync(resolve(bin, 'pnpm'), `#!/bin/bash
+printf 'pnpm_cwd=%s\\n' "$(pwd -P)" >> '${log}'
+exit 0
+`);
   writeFileSync(resolve(bin, 'hostname'), `#!/bin/bash\nprintf '${host}\\n'\n`);
   writeFileSync(resolve(bin, 'id'), `#!/bin/bash
 if [[ "$1" == -u ]]; then printf '%s\\n' "${'${FIXTURE_UID:-1000}'}"; else /usr/bin/id "$@"; fi
@@ -122,7 +126,9 @@ if [[ "$args" == *'timeout '* ]]; then
     while :; do sleep 1; done
   fi
   [[ "\${FAIL_SEED:-0}" == 1 ]] && exit 23
-  exit 0
+  shift 3
+  "$@"
+  exit $?
 fi
 if [[ "$args" == *'mktemp '* ]]; then template="${'${!#}'}"; mkdir -p "$(dirname "$template")"; mktemp "$template"; exit 0; fi
 if [[ "$args" == *'tee '* ]]; then target="${'${!#}'}"; cat >>"$target"; exit 0; fi
@@ -133,10 +139,11 @@ exit 0
   chmodSync(resolve(bin, 'hostname'), 0o755);
   chmodSync(resolve(bin, 'id'), 0o755);
   chmodSync(resolve(bin, 'git'), 0o755);
+  chmodSync(resolve(bin, 'pnpm'), 0o755);
   chmodSync(resolve(bin, 'systemctl'), 0o755);
   chmodSync(resolve(bin, 'curl'), 0o755);
   chmodSync(resolve(bin, 'sudo'), 0o755);
-  return { root, src, script, bin, log };
+  return { root, src, testRepo, script, bin, log };
 }
 
 function binPlaceholder(root) {
@@ -206,6 +213,7 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
   assert.match(calls, /seeder_pnpm_webapp_tsx/);
+  assert.match(calls, new RegExp(`pnpm_cwd=${entry.testRepo}`));
   assert.doesNotMatch(calls, /node --import tsx/);
 });
 
