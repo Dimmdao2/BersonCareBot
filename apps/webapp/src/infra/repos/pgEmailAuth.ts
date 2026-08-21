@@ -109,9 +109,14 @@ export async function findEmailSendCooldown(
 }
 
 export async function deleteEmailChallengesForUser(userId: string): Promise<void> {
-  await runWebappPgText('SELECT app.email_auth_delete_email_challenges_for_user($1::uuid)', [
-    userId,
-  ]);
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.email_auth_delete_email_challenges_for_user(uuid)',
+    [userId],
+    webappSqlFromPgText('SELECT app.email_auth_delete_email_challenges_for_user($1::uuid)', [
+      userId,
+    ]),
+  );
 }
 
 export async function insertEmailChallenge(params: {
@@ -169,10 +174,13 @@ export async function findEmailChallengeForConfirm(
   challengeId: string,
   userId: string,
 ): Promise<EmailChallengeRow | null> {
-  const row = await runWebappPgText<EmailChallengeRow>(
-    `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_email_challenge_for_confirm($1::uuid, $2::uuid)`,
+  const query = `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
+     FROM app.email_auth_find_email_challenge_for_confirm($1::uuid, $2::uuid)`;
+  const row = await runWebappNamedRoot<EmailChallengeRow>(
+    getWebappSqlDb(),
+    'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)',
     [challengeId, userId],
+    webappSqlFromPgText(query, [challengeId, userId]),
   );
   return row.rows[0] ?? null;
 }
@@ -186,24 +194,39 @@ export async function findEmailChallengeForConfirm(
  * Returns null if the challenge no longer exists (e.g. a concurrent resend/expiry deleted it).
  */
 export async function incrementEmailChallengeAttempts(challengeId: string): Promise<number | null> {
-  const r = await runWebappPgText<{ attempts: number | string }>(
-    'SELECT attempts FROM app.email_auth_increment_email_challenge_attempts($1::uuid)',
+  const r = await runWebappNamedRoot<{ attempts: number | string }>(
+    getWebappSqlDb(),
+    'app.email_auth_increment_email_challenge_attempts(uuid)',
     [challengeId],
+    webappSqlFromPgText(
+      'SELECT attempts FROM app.email_auth_increment_email_challenge_attempts($1::uuid)',
+      [challengeId],
+    ),
   );
   const row = r.rows[0];
   return row ? Number(row.attempts) : null;
 }
 
 export async function findEmailOwnerConflict(userId: string, email: string): Promise<boolean> {
-  const conflict = await runWebappPgText<{ conflict: boolean }>(
-    `SELECT app.email_auth_find_email_owner_conflict($1::uuid, $2) AS conflict`,
+  const conflict = await runWebappNamedRoot<{ conflict: boolean }>(
+    getWebappSqlDb(),
+    'app.email_auth_find_email_owner_conflict(uuid,text)',
     [userId, email],
+    webappSqlFromPgText('SELECT app.email_auth_find_email_owner_conflict($1::uuid, $2) AS conflict', [
+      userId,
+      email,
+    ]),
   );
   return Boolean(conflict.rows[0]?.conflict);
 }
 
 export async function verifyUserEmail(userId: string, email: string): Promise<void> {
-  await runWebappPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]);
+  await runWebappNamedRoot(
+    getWebappSqlDb(),
+    'app.email_auth_verify_user_email(uuid,text)',
+    [userId, email],
+    webappSqlFromPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]),
+  );
   await mutateCanonicalUserContactsWebapp(getWebappSqlDb(), userId, [{
     action: 'upsert', kind: 'email', valueNormalized: email.trim().toLowerCase(), isPrimary: true,
     confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',

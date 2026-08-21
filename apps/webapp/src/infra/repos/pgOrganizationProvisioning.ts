@@ -1,5 +1,10 @@
-import { and, eq, isNull } from 'drizzle-orm';
-import { runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
+import { and, eq, isNull, sql } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
 import type {
   OrganizationProvisioningPort,
   SpecialistSignupIntent,
@@ -113,26 +118,25 @@ export function createPgOrganizationProvisioningPort(): OrganizationProvisioning
     },
 
     async getSpecialistSignupIntentByChallengeId(challengeId) {
-      return runWebappTransaction(async (tx) => {
-        const result = await runWebappPgText<SpecialistSignupIntentDbRow>(
-          `SELECT
-             id::text,
-             user_id::text,
-             challenge_id::text,
-             email_normalized,
-             organization_title,
-             organization_slug,
-             specialist_full_name,
-             status,
-             provisioned_organization_id::text,
-             provisioned_specialist_id::text,
-             provisioned_membership_id::text
-           FROM app.get_specialist_signup_intent_by_challenge($1::uuid)`,
-          [challengeId],
-          tx,
-        );
-        return result.rows[0] ? mapIntentDbRow(result.rows[0]) : null;
-      });
+      const result = await runWebappNamedRoot<SpecialistSignupIntentDbRow>(
+        getWebappSqlDb(),
+        'app.get_specialist_signup_intent_by_challenge(uuid)',
+        [challengeId],
+        sql`SELECT
+              id::text,
+              user_id::text,
+              challenge_id::text,
+              email_normalized,
+              organization_title,
+              organization_slug,
+              specialist_full_name,
+              status,
+              provisioned_organization_id::text,
+              provisioned_specialist_id::text,
+              provisioned_membership_id::text
+            FROM app.get_specialist_signup_intent_by_challenge(${challengeId}::uuid)`,
+      );
+      return result.rows[0] ? mapIntentDbRow(result.rows[0]) : null;
     },
 
     async getLatestSpecialistSignupIntentForUser() {

@@ -157,3 +157,60 @@ test('staff and global-admin login memberships stay disjoint at the platform bou
   }
   assert.deepEqual(globalAdmin, ['app_platform_settings', 'app_platform_admin']);
 });
+
+// Регистрация специалиста («открыто → создать клинику») и регистрация клиента с паролем идут под
+// bootstrap-принципалом: именованного корня в области видимости нет — рантайм ищет обобщённое имя
+// `pre_session`, его в каталоге нет и не должно быть, и запрос падает 500
+// («Missing declared webapp port capability: pre_session»). Единственная защита от возврата — чтобы
+// КАЖДЫЙ корень этого пути был объявлен возможностью класса `pre_session`: тогда рантайм резолвит
+// его по `functionIdentity` и обобщённое имя не запрашивается вовсе. Список — корни пути, а не текст
+// исходника: он держится тем, что происходит с живым человеком, а не тем, как написан вызов.
+const BOOTSTRAP_REGISTRATION_ROOTS = [
+  'app.email_password_register_pending(text,text,text,text,text,text)',
+  'app.email_password_find_user_id_by_email_challenge(uuid)',
+  'app.email_password_delete_unverified_registration(uuid)',
+  'app.email_password_find_login_candidate(text)',
+  'app.get_specialist_signup_intent_by_challenge(uuid)',
+  'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)',
+  'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)',
+  'app.email_auth_increment_email_challenge_attempts(uuid)',
+  'app.email_auth_find_email_owner_conflict(uuid,text)',
+  'app.email_auth_verify_user_email(uuid,text)',
+  'app.email_auth_delete_email_challenges_for_user(uuid)',
+];
+
+test('every registration root the bootstrap principal calls resolves as a pre_session capability', () => {
+  for (const dbName of ['bersoncarebot_test', 'bcb_webapp_dev']) {
+    const env = dbName === 'bersoncarebot_test' ? 'test' : 'dev';
+    const descriptors = JSON.parse(
+      renderPortContextRuntimeEnv(declaration, env, dbName, 'webapp').value,
+    );
+    // Ровно та ветка, которой резолвит рантайм для bootstrap-принципала в области именованного
+    // корня: совпадение по `functionIdentity` И `contextClass === 'pre_session'`.
+    for (const identity of BOOTSTRAP_REGISTRATION_ROOTS) {
+      const matches = Object.entries(descriptors).filter(
+        ([, descriptor]) => descriptor.functionIdentity === identity
+          && descriptor.contextClass === 'pre_session',
+      );
+      assert.equal(
+        matches.length,
+        1,
+        `${dbName}: ${identity} must resolve to exactly one pre_session capability, got ${matches.length}`,
+      );
+      assert.equal(matches[0][1].targetRole, 'app_pre_session', identity);
+      const declared = declaration.portContext.functions[identity];
+      assert.deepEqual(
+        declared.execute,
+        ['app_pre_session'],
+        `${identity}: EXECUTE принадлежит роли контекста, иначе корень отдаёт 42501 уже после резолва`,
+      );
+    }
+    // Обобщённой возможности с именем `pre_session` быть не должно: она открыла бы реляционный
+    // доступ всему, что бежит до сессии, вместо перечисленных корней.
+    assert.equal(
+      Object.hasOwn(descriptors, 'pre_session'),
+      false,
+      `${dbName}: a generic 'pre_session' capability must never exist`,
+    );
+  }
+});
