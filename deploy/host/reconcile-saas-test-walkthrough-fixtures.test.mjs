@@ -31,9 +31,11 @@ function fixture(host = '151.241.228.122') {
   body = body.replace('/home/dev/dev-projects/BersonCareBot', src)
     .replace('/opt/projects/bersoncarebot-test', testRepo)
     .replace('/opt/env/bersoncarebot/saas-test-fixture.env', resolve(root, 'packet'))
-    .replace('/run/bersoncarebot/saas-test-fixture-seed.state', resolve(root, 'run/state'))
     .replace('/tmp/bcb-test-deploy.lock', resolve(root, 'deploy.lock'))
-    .replace('/tmp/bcb-test-fixture-seed.XXXXXX', resolve(root, 'pgpass.XXXXXX'));
+    .replace('/tmp/bcb-test-fixture-seed.state.XXXXXX', resolve(root, 'state.XXXXXX'))
+    .replace('/tmp/bcb-test-fixture-seed.pgpass.XXXXXX', resolve(root, 'pgpass.XXXXXX'))
+    .replace('/tmp/bcb-test-fixture-seed.env.XXXXXX', resolve(root, 'seed.env.XXXXXX'))
+    .replace('SAFE_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', `SAFE_PATH=${binPlaceholder(root)}`);
   writeFileSync(script, body);
   chmodSync(script, 0o755);
   writeFileSync(resolve(root, 'packet'), 'opaque-test-packet');
@@ -41,6 +43,28 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(bin);
   const log = resolve(root, 'calls.log');
   writeFileSync(resolve(bin, 'hostname'), `#!/bin/bash\nprintf '${host}\\n'\n`);
+  writeFileSync(resolve(bin, 'git'), `#!/bin/bash
+set -eu
+if [[ "$1" == -C ]]; then repo="$2"; shift 2; fi
+[[ -d "$repo/.git" ]] || exit 1
+case "$1" in
+  rev-parse)
+    case "$2" in
+      --is-inside-work-tree) printf 'true\\n' ;;
+      --show-toplevel) printf '%s\\n' "$repo" ;;
+      --verify) printf '0123456789abcdef0123456789abcdef01234567\\n' ;;
+    esac
+    ;;
+  symbolic-ref) printf 'feat/doctor-ui-rebuild\\n' ;;
+  diff|ls-files) exit 0 ;;
+esac
+`);
+  writeFileSync(resolve(bin, 'systemctl'), `#!/bin/bash
+set -eu
+if [[ "$1" == is-active ]]; then exit 0; fi
+exit 0
+`);
+  writeFileSync(resolve(bin, 'curl'), '#!/bin/bash\nexit 0\n');
   writeFileSync(resolve(bin, 'sudo'), `#!/bin/bash
 set -eu
 log='${log}'
@@ -53,16 +77,15 @@ if [[ "$args" == *'psql'* && "$args" == *'-d ${'bersoncarebot_test'}'* && "$args
   printf '%s\\n' "\${DATABASE_IDENTITY:-bersoncarebot_test}"
   exit 0
 fi
-if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then printf 'true\\n'; exit 0; fi
-if [[ "$args" == *'psql'* ]]; then
-  input="$(cat || true)"
-  [[ "$input" == *'CREATE ROLE'* ]] && printf 'created\\n' >> "$log"
-  if [[ "$input" == *'DROP ROLE'* ]]; then
+if [[ "$args" == *'CREATE ROLE'* ]]; then printf 'created\\n' >> "$log"; exit 0; fi
+if [[ "$args" == *'DROP ROLE'* ]]; then
     [[ "\${FAIL_CLEANUP:-0}" == 1 ]] && exit 43
     printf 'dropped\\n' >> "$log"
-  fi
-  exit 0
+    exit 0
 fi
+if [[ "$args" == *'pg_stat_activity'* ]]; then printf '0\\n'; exit 0; fi
+if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then printf 'true\\n'; exit 0; fi
+if [[ "$args" == *'psql'* ]]; then exit 0; fi
 if [[ "$args" == *'timeout '* ]]; then
   if [[ "\${BLOCK_SEED:-0}" == 1 ]]; then
     printf 'seed_started\\n' >> "$log"
@@ -72,14 +95,21 @@ if [[ "$args" == *'timeout '* ]]; then
   [[ "\${FAIL_SEED:-0}" == 1 ]] && exit 23
   exit 0
 fi
-if [[ "$args" == *'install -d '* ]]; then mkdir -p '${resolve(root, 'run')}'; exit 0; fi
-if [[ "$args" == *'tee ${resolve(root, 'run/state')}'* ]]; then cat >'${resolve(root, 'run/state')}'; exit 0; fi
-if [[ "$args" == *'rm -f -- ${resolve(root, 'run/state')}'* ]]; then rm -f -- '${resolve(root, 'run/state')}'; exit 0; fi
+if [[ "$args" == *'mktemp '* ]]; then template="${'${!#}'}"; mkdir -p "$(dirname "$template")"; mktemp "$template"; exit 0; fi
+if [[ "$args" == *'tee '* ]]; then target="${'${!#}'}"; cat >>"$target"; exit 0; fi
+if [[ "$args" == *'rm -f -- '* ]]; then rm -f -- "${'${!#}'}"; exit 0; fi
 exit 0
 `);
   chmodSync(resolve(bin, 'hostname'), 0o755);
+  chmodSync(resolve(bin, 'git'), 0o755);
+  chmodSync(resolve(bin, 'systemctl'), 0o755);
+  chmodSync(resolve(bin, 'curl'), 0o755);
   chmodSync(resolve(bin, 'sudo'), 0o755);
   return { root, src, script, bin, log };
+}
+
+function binPlaceholder(root) {
+  return `${resolve(root, 'bin')}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 }
 
 function run(entry, extra = {}) {
@@ -92,6 +122,12 @@ function run(entry, extra = {}) {
 
 function cleanupFixture(t, entry) {
   t.after(() => rmSync(entry.root, { recursive: true, force: true }));
+}
+
+function fixtureState(entry) {
+  const name = readdirSync(entry.root).find((candidate) => candidate.startsWith('state.'));
+  assert.ok(name, 'protected recovery state should exist');
+  return resolve(entry.root, name);
 }
 
 test('rejects a wrong host before packet/database authority', (t) => {
@@ -109,7 +145,7 @@ test('rejects a source tree that is not a git checkout before temporary authorit
   rmSync(resolve(entry.src, '.git'), { recursive: true });
   const result = run(entry);
   assert.notEqual(result.status, 0);
-  assert.doesNotMatch(readFileSync(entry.log, 'utf8'), /created/);
+  assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
 });
 
 test('rejects a packet validator failure before database authority', (t) => {
@@ -144,7 +180,8 @@ test('success runs existing seeder without leaking credentials and removes tempo
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.doesNotMatch(calls, /password=/i);
   assert.doesNotMatch(calls, /DATABASE_URL=/);
-  assert.doesNotMatch(calls, /systemctl/);
+  assert.match(calls, /systemctl stop bersoncarebot-api-test/);
+  assert.match(calls, /systemctl start bersoncarebot-media-worker-test/);
 });
 
 test('injected seeder failure still drops temporary authority and does not leak credentials', (t) => {
@@ -178,8 +215,8 @@ test('cleanup failure is fail-closed and preserves protected recovery state', (t
   cleanupFixture(t, entry);
   const result = run(entry, { FAIL_CLEANUP: '1' });
   assert.equal(result.status, 70);
-  assert.match(result.stderr, /temporary fixture authority cleanup failed; recovery:/);
-  assert.match(readFileSync(resolve(entry.root, 'run/state'), 'utf8'), /^bcb_test_fixture_seed_[a-z0-9]+\n$/);
+  assert.match(result.stderr, /fixture reconciliation recovery is incomplete; TEST service\/role state is preserved/);
+  assert.match(readFileSync(fixtureState(entry), 'utf8'), /^role=bcb_test_fixture_seed_[a-z0-9]+$/m);
 });
 
 test('an interrupted seed removes temporary authority', async (t) => {
@@ -209,7 +246,12 @@ test('a hung database identity check is bounded by the wrapper', async (t) => {
     cwd: entry.src,
     detached: true,
     stdio: 'ignore',
-    env: { ...process.env, BLOCK_DB_IDENTITY: '1', PATH: `${entry.bin}:${process.env.PATH}` },
+    env: {
+      ...process.env,
+      BLOCK_DB_IDENTITY: '1',
+      BCB_TEST_FIXTURE_DB_TIMEOUT_S: '0.1',
+      PATH: `${entry.bin}:${process.env.PATH}`,
+    },
   });
   const completed = await Promise.race([
     new Promise((resolveClose) => child.once('close', () => resolveClose(true))),
