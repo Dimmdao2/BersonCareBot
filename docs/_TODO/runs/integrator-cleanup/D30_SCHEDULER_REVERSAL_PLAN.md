@@ -46,10 +46,10 @@
 | **B2**  | `POST /api/internal/specialist-task-reminders/tick`, cron 5–15 мин                                                                                                                                                                  | **ПЕРЕЕЗЖАЕТ**                                                     | Тот же класс: `specialist_tasks.remind_at` — бизнес-событие с точным временем, которое сегодня обнаруживается сканированием по будильнику. Домен изолирован (никогда не был в интеграторе), поэтому это **самый дешёвый первый переезд** — им и открывается порядок шагов (раздел 4).                                                                                                                                                                                                                                                                                                                                 |
 | **B3**  | `pnpm run integrator-push-outbox-tick` — дренаж `public.integrator_push_outbox`                                                                                                                                                     | **ИСЧЕЗАЕТ** (до исчезновения — переезжает, а не остаётся на cron) | Это буквально механика из фразы владельца, только в обратную сторону: вебапп шлёт директ (`postReminderRuleUpsertToIntegrator`, `modules/reminders/notifyIntegrator.ts:10`), не достучался — пишет ретрай (`enqueueIntegratorPushDefault`), кто-то собирает. Собирать должен планировщик, а не cron. Но сам канал существует только пока вебапп сообщает интегратору о правилах напоминаний через M2M `reminder_rule_upsert`; после D5–D7/D25 («интегратору остаётся только доставка входа») производитель строк исчезает и очередь умирает вместе с ним. **Снос — не в этом плане**, зависимость записана в шаге Ш8. |
 | **B4**  | `POST /internal/operator-health-probe` + `deploy/host/operator-health-probe.sh`, cron раз в час                                                                                                                                     | **ИСЧЕЗАЕТ**                                                       | Дубль. Ту же работу уже делает внутренний тик планировщика `runScheduledOperatorHealthProbeTick` (`scheduler/operatorHealthProbeTick.ts`) — и делает **правильнее**: с due-gating по `intervalMs`/`lastRunAt` на каждую пробу и с уважением quiet-часов (`isOperatorHealthProbeQuiet`). Внешний cron гоняет ВСЕ включённые пробы каждый час мимо этих настроек, то есть игнорирует значения, которые владелец задал в админке. Два независимых триггера одной работы — ровно «можно забыть снять». Оставить надо тот, который читает настройку.                                                                       |
-| **B5a** | `POST /api/internal/operator-health-critical/tick`, cron `*/5` (`deploy/host/cron.d/bersoncarebot-operator-health-critical.cron.template`)                                                                                          | **ОСТАЁТСЯ CRON**                                                  | Единственное честное исключение во всём списке: это сторож, который должен пережить смерть того, за кем следит. Если критичные алерты поедут внутрь планировщика, то падение планировщика перестанет быть заметным — некому будет сказать. Это «внешний будильник инфраструктуры», а не планирование бизнес-события. Подтверждение владельцем — **развилка №4**.                                                                                                                                                                                                                                                      |
+| **B5a** | `POST /api/internal/operator-health-critical/tick`, cron `*/5` (`deploy/host/cron.d/bersoncarebot-operator-health-critical.cron.template`)                                                                                          | **ОСТАЁТСЯ CRON**                                                  | Единственное честное исключение во всём списке: это сторож, который должен пережить смерть того, за кем следит. Если критичные алерты поедут внутрь планировщика, то падение планировщика перестанет быть заметным — некому будет сказать. Это «внешний будильник инфраструктуры», а не планирование бизнес-события. Решено правилом Р-D30, развилка снята (раздел «Развилки» ниже).                                                                                                                                                                                                                                                      |
 | **B5b** | `POST /api/internal/operator-health-digest/tick`, cron `0 * * * *`                                                                                                                                                                  | **ПЕРЕЕЗЖАЕТ**                                                     | Классический случай «исполнение по тику, решение в таблице»: время сводки уже лежит в БД (`operator_health_alert_config.digestTime`, по умолчанию 09:00), а cron будит каждый час и внутри проверяет, не пора ли. Это и есть due-gating, вынесенный наружу без нужды.                                                                                                                                                                                                                                                                                                                                                 |
 | **B5c** | `POST /api/internal/system-health-guard/tick`, cron `*/15`                                                                                                                                                                          | **ПЕРЕЕЗЖАЕТ**                                                     | Классификация `integrator_push_outbox` + TTL-purge архива сбоев. Первая половина исчезает вместе с B3; вторая — обычное due-задание. На cron не остаётся ничего, ради чего его стоило бы держать.                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| **B6**  | media-housekeeping: `media-pending-delete/purge`, `media-multipart/cleanup`, `media-preview:tick`, `media-playback-stats/retention`, `media-hls-proxy-errors/retention`, `product-analytics/retention`, `media-transcode/reconcile` | **ОСТАЁТСЯ CRON** (рекомендация; см. **развилку №3**)              | Это уборка инфраструктуры (retention, purge, abort зависших multipart), а не планирование бизнес-события: «задание» тут не появляется от действия человека, забыть его поставить = вырастет диск, а не пропадёт сообщение пациенту. Плюс часть из них обслуживает отдельное приложение `media-worker` с собственным циклом (C1 переписи). Но буква решения владельца — «всё, что МОЖЕТ переехать — переезжает», а технически может и это. Не додумываю: вердикт помечен как рекомендация и вынесен вопросом.                                                                                                          |
+| **B6**  | media-housekeeping: `media-pending-delete/purge`, `media-multipart/cleanup`, `media-preview:tick`, `media-playback-stats/retention`, `media-hls-proxy-errors/retention`, `product-analytics/retention`, `media-transcode/reconcile` | **ОСТАЁТСЯ CRON**              | Это уборка инфраструктуры (retention, purge, abort зависших multipart), а не планирование бизнес-события: «задание» тут не появляется от действия человека, забыть его поставить = вырастет диск, а не пропадёт сообщение пациенту. Плюс часть из них обслуживает отдельное приложение `media-worker` с собственным циклом (C1 переписи). Решено правилом Р-D30 («cron остаётся только там, где он внешний будильник инфраструктуры») — развилка снята (раздел «Развилки» ниже).                                                                                                          |
 
 ### Что при этом происходит с резидентными циклами (A1–A4 переписи)
 
@@ -93,7 +93,7 @@
 5. **Планировщик собирает и досылает.** `claimDueOutgoingDeliveries` (там же, :174) — `FOR UPDATE SKIP LOCKED`
    по `status ∈ (pending, failed_retryable) AND next_retry_at <= now()`; отправка через интегратор; исход —
    `sent` / повтор по `retryDelaySecondsAfterFailure` / `dead`.
-6. **Cron остаётся только сторожем** (B5a) и уборщиком инфраструктуры (B6, по развилке №3).
+6. **Cron остаётся только сторожем** (B5a) и уборщиком инфраструктуры (B6) — оба по правилу Р-D30, вопрос закрыт.
 
 **Что является заданием — точно:** строка `public.outgoing_delivery_queue`. Кто пишет: вебапп (решение),
 интегратор (ретрай после неуспешного директа). Кто читает: планировщик. Кто НЕ пишет и не читает: cron.
@@ -234,13 +234,16 @@ DEV отсутствует, D30 не включает перенос или др
 
 ### Что вырезается
 
-`integrator.message_retry_jobs` (таблица) · `infra/db/repos/jobQueue.ts` · `infra/adapters/jobQueuePort.ts` ·
-действие `message.retry.enqueue` (`contracts/ports.ts:71`, `contracts/schemas.ts:248`,
-`kernel/domain/actions/index.ts:48,85`, `kernel/domain/executor/handlers/delivery.ts:321`) · цикл A1
-`jobQueueLoop` (`worker/main.ts:64-120`) и то, что после этого станет недостижимым.
-**Границу «недостижимого» определять переписью по методу D12b, а не на глаз** — `jobExecutor.ts` экспортирует
-`assertWebappPushNotifyAccepted`, который импортирует и `worker/main.ts`, так что «удалить файл целиком» —
-неверный ход по умолчанию.
+`integrator.message_retry_jobs` (таблица, уже отсутствует на именованной DEV) · `infra/db/repos/jobQueue.ts` ·
+`infra/adapters/jobQueuePort.ts` · действие `message.retry.enqueue` (`contracts/ports.ts:71`,
+`contracts/schemas.ts:248`, `kernel/domain/actions/index.ts:48,85`, `kernel/domain/executor/handlers/delivery.ts:321`)
+и то, что после этого станет недостижимым. **21.08.2026 (Ш9):** сам цикл A1 `jobQueueLoop` и файл
+`worker/main.ts`, где он жил, уже удалены; `jobQueue.ts`/`jobQueuePort.ts` и действие `message.retry.enqueue`
+пока остаются подключены через `apps/integrator/src/app/di.ts` и `infra/db/writePort.ts` — их снос не входит ни
+в один шаг Ш0–Ш9 этого плана, остаётся отдельным хвостом переписи D12b. **Границу «недостижимого»
+по-прежнему надо определять переписью, а не на глаз:** `jobExecutor.ts` (сам он теперь без импортёра — старый
+`worker/main.ts`, звавший `assertWebappPushNotifyAccepted`, удалён Ш9) может стать частью того же хвоста, но
+это отдельная проверка, не «удалить файл целиком по совпадению имени».
 
 ---
 
@@ -321,9 +324,11 @@ DEV отсутствует, D30 не включает перенос или др
       проходит `pending → processing → sent`; `GET /api/admin/system-health` показывает те же счётчики, что до
       миграции. **Откат:** `DROP COLUMN` — данных не теряет, старый путь работает.
 
-- [ ] **Ш2. Планировщик учится собирать задания «вхолостую».** Сбор по новому `kind`, которого ещё никто не
-      производит (dark launch). **Гейт:** тик работает, `claimed=0` в журнале, ни одной отправки; ни один
-      существующий вид доставки не изменил поведения (прогон тестов доставки).
+**Ш2 — снят как отдельный шаг.** Dark-launch нового `kind` вхолостую был мостом к переезду, которого уже не
+надо строить отдельно: `claimDueOutgoingDeliveries` уже собирает по расширенному `OutgoingDeliveryKind`
+(`apps/integrator/src/infra/delivery/deliveryContract.ts`) и уже отдаёт на отправку виды сверх исходных трёх
+(Ш4 — `rem:<occurrence>:g<generation>:<channel>`), без отдельной вхолостую-фазы. Дальнейшие переезды (Ш3, Ш5,
+Ш6) используют ту же уже работающую единую очередь и расширяют `kind` по месту, не проходя отдельный Ш2.
 
 - [ ] **Ш3. B2 — напоминания о задачах специалиста (первый и самый изолированный переезд).** Вебапп пишет
       задание в момент установки `remind_at`; cron-тик остаётся включённым по общему приёму.
@@ -339,21 +344,32 @@ DEV отсутствует, D30 не включает перенос или др
       TEST не запускалась. Закрыть после обычного прогона на уже зарегистрированной owner-учётке на TEST
       (`AGENTS.md` §1a/§1b) — без создания синтетического пользователя и без предварительного заявления, что
       provider-доставка уже прошла; cron до периода наблюдения не снимать.
-      **CURRENT 21.08.2026 (D30 cron-retirement pass):** ре-измерение по коду доказывает, что cron-тик
-      остаётся ЕДИНСТВЕННЫМ производителем строк очереди — `remind_at` сам по себе НЕ создаёт задание.
-      `enqueueDueReminders` (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts:266`) сканирует
-      `isNotNull(remindAt) AND lte(remindAt, nowIso)` и вызывается только из
-      `dispatchDueSpecialistTaskReminders` → `POST /api/internal/specialist-task-reminders/tick`
-      (`apps/webapp/src/app/api/internal/specialist-task-reminders/tick/route.ts`); точный поиск
-      `grep -rn "enqueueDueReminders|specialist-task-reminders" apps/webapp/src apps/integrator/src --include=*.ts`
-      не находит ни одного другого callsite — ни write-time enqueue при установке `remind_at`
-      (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts:110,130`, только пишет колонку), ни резидентный wake
-      по аналогии с `wakeOperatorHealthDigest`/`wakeSystemHealthGuard`. Снятие cron сегодня оставит все
-      задачи специалиста без напоминаний — конкретный человеко-видимый разрыв. Ш3 остаётся `[ ]` и cron-триггер
-      НЕ трогается этим проходом; переезд на write-time enqueue или резидентный wake — отдельная задача. Тот же приём. Отдельно: задача объявлена **обязательной** в
-      `deploy/HOST_DEPLOY_README.md`, её отсутствие проверяется `web-push-only-reminder-cron.sh status` и
-      входит в пост-деплойный чек-лист — поэтому снятие cron обязано в том же коммите снять и эти проверки,
-      иначе деплой начнёт падать на несуществующем требовании.
+      **CURRENT 21.08.2026 (обновлено этим проходом — write-time producer уже построен и подключён):**
+      `createPgSpecialistTasksPort` (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts`) в одной транзакции с
+      `create` (`:98-122`) и `update` (`:124-164`) вызывает `prepareReminderDeliveries` и
+      `queueWriter.enqueueReady`, кладя canonical `specialist_task_reminder` строку в
+      `public.outgoing_delivery_queue` СРАЗУ при установке/изменении `remind_at`; `complete` (`:166-194`) и
+      `delete` (`:196-213`) вызывают `queueWriter.terminalizeUnsentSpecialistTaskReminders`, снимая ещё не
+      отправленные строки. Порт подключён в `buildAppDeps.ts:853-870` с полным набором зависимостей
+      (`prepareSpecialistTaskReminderDeliveries`) — это не заглушка. Утверждение «cron — единственный
+      производитель» было верно раньше и здесь больше не действует.
+      Cron-тик (`POST /api/internal/specialist-task-reminders/tick` →
+      `dispatchDueSpecialistTaskReminders` → `enqueueDueReminders`,
+      `apps/webapp/src/infra/repos/pgSpecialistTasks.ts:266`) остаётся в коде и продолжает сканировать
+      `isNotNull(remindAt) AND lte(remindAt, nowIso) AND isNull(reminderSentAt)` — но с write-time producer
+      это уже не целевой путь, а **legacy reconciliation/sweep**: подхватывает задачи, у которых `remind_at`
+      был установлен ДО появления write-time enqueue (строка есть в колонке, но никогда не материализовалась в
+      очередь) и служит подстраховкой на случай пропуска записи. Снимать его сейчас нельзя — сначала нужна
+      именованная DEV/TEST read-only сверка: сколько строк `specialist_tasks` с будущим `remind_at` и
+      `reminderSentAt IS NULL` не имеют соответствующей `event_id`-строки в `outgoing_delivery_queue`
+      (доказывает реальный объём legacy-хвоста, а не догадку), затем живой прогон
+      write-time create/update/complete/delete на TEST с доказательством резидентной доставки, и только потом
+      снятие sweep/route/registry/host cron тем же коммитом, что и пост-деплойные проверки. Ш3 остаётся `[ ]`:
+      code-side producer готов, но именованная DEV/TEST сверка legacy-хвоста и live-доказательство ещё не
+      выполнены этим проходом (hard boundary: no DB/DEV/TEST access). Отдельно: задача пока объявлена
+      **обязательной** в `deploy/HOST_DEPLOY_README.md`, её отсутствие проверяется
+      `web-push-only-reminder-cron.sh status` и входит в пост-деплойный чек-лист — снятие cron обязано в том
+      же коммите снять и эти проверки, иначе деплой начнёт падать на несуществующем требовании.
   - [x] **Ш4.0 (предпосылка, из находки 1 `D30_STEP0_AUDIT.md`).** Выполнено D21: прежние B1 cron/route/
         registry/host requirement и check→send→cache путь удалены; `web_push` и email идут через unified
         `public.outgoing_delivery_queue` со stable `event_id`, unique constraint + `ON CONFLICT DO NOTHING`
@@ -375,6 +391,14 @@ DEV отсутствует, D30 не включает перенос или др
         gates проходят. Land `775d900b4`; migration `0338` применена на DEV, runner postcheck
         `count=337 direct=331 reconciled=6`, direct occurrence INSERT/UPDATE у `app_owner` закрыты. Сам Ш4
         остаётся `[ ]`: живой безопасный provider proof со сходящимися счётчиками не выполнен.
+
+  - [ ] **Ш4 (top-level checkpoint, отдельно от Ш4.0-предпосылки выше).** Code complete: web-push/email
+        materialization перенесена в вебапп единой транзакцией (`event_id=rem:<occurrence>:g<generation>:<channel>`),
+        integrator перед provider делает только boolean claim-time revalidation, direct occurrence DML у
+        `app_owner` закрыт, миграция `0338` применена на DEV (`count=337 direct=331 reconciled=6`), saved unit/guard/
+        route-тесты и typecheck/lint зелёные (land `775d900b4`). Остаток — ровно один: живой safe-provider TEST
+        proof (доставка через планировщик со сходящимися счётчиками `planned`/`dueClaimed`/`sent` на именованной
+        TEST) не выполнен; коробка не закрывается по чтению кода.
 
 - [ ] **Ш5. B5b + B5c — сводка оператора и system-health-guard.** `digestTime` продолжает читаться из
       `operator_health_alert_config` — но читает его **вебапп при постановке задания**, а не планировщик.
@@ -407,8 +431,9 @@ DEV отсутствует, D30 не включает перенос или др
 - [ ] **Ш6. B4 — снять внешний cron health-проб.** Работу продолжает делать `runScheduledOperatorHealthProbeTick`
       с due-gating и quiet-часами. **Гейт:** после снятия cron `lastRunAt` каждой включённой пробы продолжает
       двигаться по своему `intervalMs`; ни одна проба не «замерла». Перед снятием — проверить, что ни у одной
-      включённой пробы `intervalMs` не больше часового шага снятого cron (иначе частота проб упадёт — см.
-      **развилку №5**).
+      включённой пробы `intervalMs` не больше часового шага снятого cron (иначе частота проб упадёт).
+      Развилка про частоту снята фактом: этот проход уже удалил внешний HTTP-роут и cron-точку code-side —
+      см. CURRENT 21.08.2026 ниже.
       **CURRENT PARTIAL 03.08:** prerequisite `6f8e8a011` + `0359a5c240` + saved-oracle test `2de1e01e4`
       принят аудитом `b9e157843` и приземлён merge `b1c33af7a`: долгий tenant sweep больше не блокирует
       health cadence, sweep остаётся single-flight, ошибки sweep/reporter локализованы. Сам Ш6 остаётся `[ ]`:
@@ -520,7 +545,9 @@ DEV отсутствует, D30 не включает перенос или др
 
 - **Ш1** — `organizationId` уже в `apps/webapp/db/schema/outgoingDeliveryQueue.ts:20` (с индексом,
   `:54`); `OutgoingDeliveryKind` union в `apps/integrator/src/infra/delivery/deliveryContract.ts` содержит
-  виды сверх исходных трёх. Читатели не тронуты. Пункт остаётся закрытым кодом, живой гейт не открывался заново.
+  виды сверх исходных трёх. Читатели не тронуты. Code-side сделан; коробка остаётся `[ ]`, потому что
+  обязательный живой гейт шага (dev-прогон `reminder_dispatch: pending → processing → sent` +
+  `GET /api/admin/system-health` со сходящимися счётчиками) не перепроверялся заново на этом дереве.
 - **Ш3–Ш6 — это измерение устарело и заменено CURRENT evidence в самих шагах выше.** В текущем code-side
   `cronJobRegistry.ts` ещё перечисляет `system-health-guard`, `operator-health-digest` и
   `specialist-task-reminders/tick`, но запись operator-health-probe удалена; шаблоны digest/guard из
@@ -563,9 +590,9 @@ DEV отсутствует, D30 не включает перенос или др
 1. **Решения.** Правила, сроки, тексты, каналы, темы, тарифные ветки — остаются в вебаппе и не переезжают в
    планировщик ни при каких условиях. Это предмет гейта из раздела 2a, а не пожелание.
 2. **B5a — критичные операторские алерты** (`operator-health-critical/tick`, cron `*/5`). Сторож обязан
-   пережить смерть того, за кем следит. Подтверждение — развилка №4.
+   пережить смерть того, за кем следит; решено правилом Р-D30, развилка снята.
 3. **B6 — media-housekeeping cron'ы** (purge, multipart cleanup, preview, retention playback/HLS/analytics,
-   transcode reconcile). Рекомендация, вынесенная вопросом (развилка №3).
+   transcode reconcile). Уборка инфраструктуры, не бизнес-событие; решено правилом Р-D30, развилка снята.
 4. **C1 — вечный цикл `media-worker`** (`apps/media-worker/src/main.ts`, `media_transcode_jobs`). Отдельное
    приложение, отдельный домен.
 5. **A2 — `projectionOutboxLoop`.** Уходит по D10, к D30 отношения не имеет.
@@ -588,15 +615,25 @@ DEV отсутствует, D30 не включает перенос или др
    (`plan[]`) и `onFail`-уведомление админу. В целевой схеме одна строка = один канал, а «не дошло в бота →
    шлём SMS» становится решением вебаппа (вторая строка с другим каналом). Это изменение поведения: подтвердить,
    что каскад каналов остаётся продуктовым решением вебаппа, а не логикой отправляющей стороны.
-3. **B6 — медиа-housekeeping.** «Всё, что может переехать» — формально может и это. Рекомендую оставить на
-   cron (уборка инфраструктуры, а не бизнес-событие), но решение за владельцем.
-4. **B5a — сторож.** Подтвердить, что критичные алерты остаются на cron именно как внешний будильник над
-   планировщиком.
-5. **B4 — частота проб после снятия cron.** Если у включённой пробы `intervalMs` больше часа, снятие часового
-   cron уменьшит фактическую частоту. Нужно ли выравнивать настройки перед снятием, или текущие значения
-   `intervalMs` и есть желаемая частота?
-   _(Развилка про D10a снята: владелец ответил 31.07 — выбор таблицы инженерный, «лишь бы работало, лишнее
-   вырезать». Действующее разделение «журнал / очередь» — в плане, пункт D10a.)_
+
+Развилки №3, №4 и №5 сняты: их предпосылка — общее правило Р-D30
+(`../../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2.3) — «переезжает всё, что сегодня висит на cron и
+является планированием; cron остаётся только там, где он внешний будильник инфраструктуры». Заводить их снова
+как открытые владельцу вопросы запрещено:
+
+- **B6 — медиа-housekeeping остаётся cron.** Purge, multipart cleanup, preview, retention, transcode reconcile —
+  уборка инфраструктуры (диск, зависшие джобы), а не планирование бизнес-события; правило Р-D30 относит её к
+  «остаётся cron» без дополнительного подтверждения.
+- **B5a — критичный watchdog остаётся cron.** Сторож обязан пережить смерть того, за кем следит
+  (`operator-health-critical/tick`, `*/5`) — внешний будильник инфраструктуры по тому же правилу, не
+  планирование.
+- **B4 — вопрос о частоте проб снят фактом.** Развилка была актуальна, пока внешний cron ещё существовал
+  рядом с внутренним due-gated тиком; Ш6 этого прохода (21.08.2026, code-side) уже удалил
+  `operator-health-probe.sh` и его роут — единственным триггером остался `runScheduledOperatorHealthProbeTick`
+  с due-gating по `intervalMs` каждой пробы, вопрос выравнивания частоты больше не встаёт.
+
+PROD этими изменениями не затрагивается: снятие B4-роута — код-сторона, фактическое снятие host cron для B5a/B6
+не производится, потому что они и не переезжают.
 
 ---
 
