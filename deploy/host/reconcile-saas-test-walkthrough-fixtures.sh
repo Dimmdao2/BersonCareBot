@@ -344,7 +344,7 @@ sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent TEST_REPO="$TEST_RE
   set -a
   . "$1"
   set +a
-  cd "$TEST_REPO"
+  cd "$TEST_REPO/apps/webapp"
   exec timeout --kill-after=10 300 "$TEST_REPO/apps/webapp/node_modules/.bin/tsx" "$2"
 ' bash "$SEED_ENV" "$TEST_REPO/$SEEDER_REL"
 printf 'SaaS TEST walkthrough fixture: PASS (two clinics reconciled; temporary authority removed)\n'

@@ -224,7 +224,7 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
   assert.match(calls, /seeder_test_local_tsx/);
-  assert.match(calls, new RegExp(`^tsx_cwd=${entry.testRepo}$`, 'm'));
+  assert.match(calls, new RegExp(`^tsx_cwd=${entry.testRepo}/apps/webapp$`, 'm'));
   assert.match(calls, new RegExp(`^tsx_argv=${entry.testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures\\.ts$`, 'm'));
   assert.match(calls, /tsx_home=\/nonexistent/);
   assert.doesNotMatch(calls, /pnpm_invoked|corepack_invoked/);
