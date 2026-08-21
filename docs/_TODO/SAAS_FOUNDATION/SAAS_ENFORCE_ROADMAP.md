@@ -471,20 +471,6 @@ Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FOR
       the patient can read the approved client setting and cannot read a secret or another patient’s discussion.
       Evidence: the targeted test and a locked TEST smoke result, both redacted of fixture data.
       — OPEN: gated on the prerequisite above, which is not done; no regression test found for this route.
-- [-] ~~Confirm an owner/operator-managed product smoke fixture file path is supplied.~~ —
-      **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** the enforcing checker
-      (`docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs`) and the fixture-file mechanism
-      itself no longer exist; persistent operator-managed fixture files are retired
-      (`HARD_MIGRATION_PROTOCOL.md`, `AGENTS.md` §1b). D3 read evidence now comes from the current-path
-      scenario-based TEST checks, not this fixture gate.
-
-- [-] ~~Run every read scenario in `saas-product-smoke-contract.json` ...~~ —
-      **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` and
-      `check:saas-product-smoke-contract` no longer exist; do not recreate this fixture contract. Also `pnpm run
-check:saas-d3-4-bootstrap-base-login-grants` (the bootstrap-grants checker this phase's evidence row cites) ran
-      RED today: `deploy/postgres/c4-operational-runtime.sql missing required fragment: p_key IN
-('video_hls_pipeline_enabled', 'video_watermark_enabled')` — a real, currently-broken prerequisite for the bootstrap
-      read surface, not fixed by this reconciliation pass.
 - [ ] For every denied or unexpectedly empty result, record the real principal, selected pool/role, helper context,
       policy, and scoped parent. A fix is accepted only with the corresponding scenario and an A/B negative read.
       — OPEN: no live run happened, so there is nothing to record yet.

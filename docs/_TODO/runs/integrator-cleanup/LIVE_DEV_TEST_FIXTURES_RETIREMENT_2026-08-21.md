@@ -379,3 +379,57 @@ None is a live executable/reference path for a fixture file, env, seed, reconcil
 Live TEST/DEV login, deploy, migration, DB, server, CI, push and landing were not run — out of this pass's
 mandate (docs-only, same-branch). `runs/clickthrough/` removal and the S3/S7.3/HARD_MIGRATION_PROTOCOL closures
 are Pass 4 work, not repeated here.
+
+## Pass 5 exact correction — active-plan D3 gate blocks, 21.08.2026
+
+Scope per `LIVE_FIXTURE_RETIREMENT_ACTIVE_CANON_FINAL_BRIEF_2026-08-21.md` §"Saved acceptance gap". Pass 5's own
+"Current-doc corrections" entry above claimed "The D3/D4 struck operator-packet rows ... were already closed by
+Pass 3/4 and left unchanged", and its remaining-match census listed `SAAS_ENFORCE_ROADMAP.md:476` as "inside the
+already-struck `[-]` D3 operator-packet row explaining why it is retired (Pass 3/4 work, left unchanged)". Both
+statements were wrong: commit `27ee994` left the two struck rows themselves — "Confirm an owner/operator-managed
+product smoke fixture file path is supplied" and "Run every read scenario in `saas-product-smoke-contract.json`"
+— in the active D3 checklist at `SAAS_ENFORCE_ROADMAP.md:474-489`, each carrying its own
+УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026 replacement note. Their replacement route (current-path scenario-based TEST checks)
+was already stated immediately above them and in the Phase A1 retirement note, so the struck rows themselves were
+the exact old-then-new ambiguity `AGENTS.md` §1b forbids keeping in an active plan, not a closed/settled record.
+
+**Fix applied:** deleted both complete struck row blocks (`- [-] ~~Confirm an owner/operator-managed product
+smoke fixture file path is supplied.~~ ...` through its trailing УСТАРЕЛО/ЗАМЕНЕНО note, and `- [-] ~~Run every
+read scenario in saas-product-smoke-contract.json ...~~ ...` through its trailing note, including the embedded
+`check:saas-d3-4-bootstrap-base-login-grants` RED-today observation that was appended to the second row's text)
+from `SAAS_ENFORCE_ROADMAP.md`. The surrounding real open D3 requirements (the settings-root-split prerequisite,
+the discussion-summary regression item, the per-denial recording item, the shared-patient-matrix item, and the
+Exit line) were not touched.
+
+### Refreshed remaining-match census
+
+Re-ran Pass 5's own census command after the fix:
+
+```
+rg -n -i "saas-smoke\.fixture|saas-test-fixture\.env|SAAS_TEST_FIXTURE_[A-Z_]+|fixture-file|fixture.*(seed|reconcil|packet)|disposable fixture proof|SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET" docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md docs/_TODO/SAAS_FOUNDATION/FOUNDATION_PLAN.md docs/_TODO/SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ROADMAP.md docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md docs/_TODO/SAAS_FOUNDATION_PLAN_MAP_2026-08-01.md docs/_TODO/PLAN_HYGIENE_REGISTRY_2026-07-29.md
+```
+
+Exit 0, five remaining lines (down from six — the removed `SAAS_ENFORCE_ROADMAP.md:476` struck-row match is gone,
+nothing else changed):
+
+- `SAAS_DEPLOY_SEQUENCE.md:30` — "no fixture reconciliation window and no product-smoke-fixture step", explicit
+  negative statement, not an instruction (unchanged from Pass 5).
+- `SAAS_ENFORCE_ROADMAP.md:76` — "`smoke:saas-product` and its operator-managed `--fixture-file` are retired",
+  explicit negative/historical statement (unchanged from Pass 5).
+- `SAAS_FOUNDATION_PLAN_MAP_2026-08-01.md:163` and `PLAN_HYGIENE_REGISTRY_2026-07-29.md:219,523` — the three rows
+  already recording the operator-packet file as deleted (unchanged from Pass 5).
+
+None is a live executable/reference path for a fixture file, env, seed, reconcile step, or packet contract, and
+none is an active old-then-new struck gate row anymore.
+
+### Exact commands and results
+
+| Command | Exit | Result |
+|---|---:|---|
+| `rg -n -i "..."` (census command above) | 0 | Five remaining lines, all historical/negative statements; classified above. |
+| `git diff --check feat/doctor-ui-rebuild...HEAD` | 0 | No whitespace errors branch-wide. |
+
+### Not done
+
+No code, migration, DB, DEV/TEST/PROD, fixture, account, login, deploy, CI, push or landing action. No new test
+or audit cycle. Historical audit/evidence/log records and ordinary unit-test fixtures were not touched.
