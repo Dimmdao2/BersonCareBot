@@ -7,7 +7,8 @@
 повторить `code-search` более поздних owner-решений, затем точный census в `docs/OWNER_DECISIONS.md`, актуальном
 `WORK_ORDER.md` и текущих D30/DB-privilege планах. Более позднее решение заменяет brief.
 
-Источник оракула: `docs/OWNER_DECISIONS.md` — «ожидания будущих строк до 29.08 нет».
+Источник оракула: `docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` —
+«Bounded docs worker removes incompatible drain/29.08/DROP mechanics from current D30/handoff/active DB-privilege plans instead of preserving two formulations».
 
 ## Scope
 
