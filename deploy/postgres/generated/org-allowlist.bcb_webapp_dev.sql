@@ -21,7 +21,6 @@ END
 $bcb$;
 
 WITH declared(schema_name, table_name) AS (VALUES
-  ('integrator', 'delivery_attempt_logs'),
   ('integrator', 'user_reminder_delivery_logs'),
   ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),

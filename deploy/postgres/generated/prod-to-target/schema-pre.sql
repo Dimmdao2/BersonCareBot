@@ -5352,37 +5352,56 @@ $$;
 
 
 --
--- Name: enqueue_integrator_inbound_reply(text, text, text, integer, uuid); Type: FUNCTION; Schema: app; Owner: -
+-- Name: enqueue_integrator_outgoing_delivery(text, text, text, text, integer, timestamp with time zone, uuid, integer); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.enqueue_integrator_inbound_reply(p_event_id text, p_channel text, p_payload_json_text text, p_max_attempts integer, p_organization_id uuid) RETURNS boolean
+CREATE FUNCTION app.enqueue_integrator_outgoing_delivery(p_event_id text, p_kind text, p_channel text, p_payload_json_text text, p_max_attempts integer, p_next_retry_at timestamp with time zone, p_organization_id uuid, p_done_retention_days integer) RETURNS boolean
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog', 'app', 'public', 'pg_temp'
     AS $_$
 DECLARE
   v_inserted_count integer := 0;
 BEGIN
-  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.inbound-reply.enqueue', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($4))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($5))::app.port_typed_arg]), 'app.enqueue_integrator_inbound_reply(text,text,text,integer,uuid)'::regprocedure);
-
+  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.outgoing.enqueue', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($5))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($6))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($7))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($8))::app.port_typed_arg]), 'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid,integer)'::regprocedure);
   IF p_event_id IS NULL OR btrim(p_event_id) = '' THEN
-    RAISE EXCEPTION 'inbound_reply_event_id_required' USING ERRCODE = '22023';
+    RAISE EXCEPTION 'integrator_outgoing_delivery_event_id_required' USING ERRCODE = '22023';
+  END IF;
+  IF p_kind NOT IN ('inbound_reply', 'operator_alert') THEN
+    RAISE EXCEPTION 'integrator_outgoing_delivery_kind_invalid' USING ERRCODE = '22023';
   END IF;
   IF p_channel NOT IN ('telegram', 'max') THEN
-    RAISE EXCEPTION 'inbound_reply_channel_invalid' USING ERRCODE = '22023';
+    RAISE EXCEPTION 'integrator_outgoing_delivery_channel_invalid' USING ERRCODE = '22023';
   END IF;
-  IF p_max_attempts < 1 OR p_max_attempts > 20 THEN
-    RAISE EXCEPTION 'inbound_reply_max_attempts_invalid' USING ERRCODE = '22023';
+  IF p_max_attempts IS NULL OR p_max_attempts < 1 OR p_max_attempts > 20 THEN
+    RAISE EXCEPTION 'integrator_outgoing_delivery_max_attempts_invalid' USING ERRCODE = '22023';
   END IF;
-
+  IF p_done_retention_days IS NULL OR p_done_retention_days < 1 OR p_done_retention_days > 365 THEN
+    RAISE EXCEPTION 'integrator_outgoing_delivery_done_retention_days_invalid' USING ERRCODE = '22023';
+  END IF;
   INSERT INTO public.outgoing_delivery_queue (
     event_id, kind, channel, payload_json, status, attempt_count, max_attempts,
     next_retry_at, organization_id
   ) VALUES (
-    p_event_id, 'inbound_reply', p_channel, p_payload_json_text::jsonb, 'pending', 0,
-    p_max_attempts, now(), p_organization_id
-  )
-  ON CONFLICT (event_id) DO NOTHING;
+    p_event_id, p_kind, p_channel, p_payload_json_text::jsonb, 'pending', 0,
+    p_max_attempts, COALESCE(p_next_retry_at, now()), p_organization_id
+  ) ON CONFLICT (event_id) DO NOTHING;
   GET DIAGNOSTICS v_inserted_count = ROW_COUNT;
+
+  DELETE FROM public.outgoing_delivery_queue
+  WHERE status = 'sent'
+    AND sent_at IS NOT NULL
+    AND NOT (
+      kind = 'specialist_task_reminder'
+      AND payload_json ? 'successOutcome'
+      AND payload_json #>> '{successOutcome,appliedAt}' IS NULL
+    )
+    AND NOT (
+      kind = 'specialist_task_reminder'
+      AND payload_json #>> '{bookkeeping,botMarkerRequired}' = 'true'
+      AND payload_json #>> '{bookkeeping,botMarkerAppliedAt}' IS NULL
+    )
+    AND sent_at < now() - ((p_done_retention_days::text || ' days')::interval);
+
   RETURN v_inserted_count = 1;
 END
 $_$;
@@ -13779,52 +13798,6 @@ $$;
 
 
 --
--- Name: read_integrator_projection_health(integer); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.read_integrator_projection_health(p_retry_threshold integer) RETURNS TABLE(pending_count bigint, dead_count bigint, cancelled_count bigint, oldest_pending_at text, processing_count bigint, retry_distribution jsonb, last_success_at text, retries_over_threshold bigint)
-    LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
-    SET search_path TO 'pg_catalog', 'app', 'integrator', 'pg_temp'
-    AS $_$
-BEGIN
-  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name, 'app_service'::name, 'service'::app.port_context_class, 'integrator.projection-health.read', app.hash_port_typed_args(ARRAY[ROW('integer@1', pg_catalog.int4send($1))::app.port_typed_arg]), 'app.read_integrator_projection_health(integer)'::regprocedure);
-
-  IF p_retry_threshold IS NULL OR p_retry_threshold < 0 THEN
-    RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'retry threshold must be non-negative';
-  END IF;
-  RETURN QUERY
-  WITH summary AS (
-    SELECT
-      count(*) FILTER (WHERE outbox.status = 'pending') AS pending_count,
-      count(*) FILTER (WHERE outbox.status = 'dead') AS dead_count,
-      count(*) FILTER (WHERE outbox.status = 'cancelled') AS cancelled_count,
-      (min(outbox.next_try_at) FILTER (WHERE outbox.status = 'pending'))::text AS oldest_pending_at,
-      count(*) FILTER (WHERE outbox.status = 'processing') AS processing_count,
-      (max(outbox.updated_at) FILTER (WHERE outbox.status = 'done'))::text AS last_success_at,
-      count(*) FILTER (
-        WHERE outbox.status IN ('pending', 'processing')
-          AND outbox.attempts_done >= p_retry_threshold
-      ) AS retries_over_threshold
-    FROM integrator.projection_outbox AS outbox
-  ), retry_counts AS (
-    SELECT coalesce(jsonb_object_agg(retries.attempts_done::text, retries.row_count
-      ORDER BY retries.attempts_done), '{}'::jsonb) AS retry_distribution
-    FROM (
-      SELECT outbox.attempts_done, count(*) AS row_count
-      FROM integrator.projection_outbox AS outbox
-      WHERE outbox.status IN ('pending', 'processing')
-      GROUP BY outbox.attempts_done
-    ) AS retries
-  )
-  SELECT summary.pending_count, summary.dead_count, summary.cancelled_count,
-    summary.oldest_pending_at, summary.processing_count, retry_counts.retry_distribution,
-    summary.last_success_at, summary.retries_over_threshold
-  FROM summary CROSS JOIN retry_counts;
-END
-$_$;
-
-
---
 -- Name: read_integrator_provider_runtime_setting(text); Type: FUNCTION; Schema: app; Owner: -
 --
 
@@ -16769,65 +16742,10 @@ $_$;
 
 
 --
--- Name: record_operational_delivery_attempt_audit(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
+-- Name: record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone); Type: FUNCTION; Schema: app; Owner: -
 --
 
-CREATE FUNCTION app.record_operational_delivery_attempt_audit(p_intent_type text, p_intent_event_id text, p_correlation_id text, p_organization_id uuid, p_channel text, p_status text, p_attempt integer, p_reason text, p_payload_text text, p_occurred_at timestamp with time zone) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'pg_catalog'
-    AS $_$
-DECLARE
-  v_payload_json jsonb;
-BEGIN
-  PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.attempt-audit', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.record_operational_delivery_attempt_audit(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)'::regprocedure);
-
-  v_payload_json := p_payload_text::jsonb;
-
-  IF p_intent_type IS NULL
-    OR NULLIF(btrim(p_intent_event_id), '') IS NULL
-    OR p_channel IS NULL
-    OR p_channel NOT IN ('max', 'telegram', 'smsc', 'web_push', 'email', 'unknown')
-    OR p_status IS NULL
-    OR p_status NOT IN ('success', 'failed', 'skipped')
-    OR p_attempt IS NULL
-    OR p_attempt NOT BETWEEN 1 AND 100
-    OR v_payload_json IS NULL
-    OR jsonb_typeof(v_payload_json) <> 'object'
-    OR p_occurred_at IS NULL
-    OR length(p_intent_type) > 200
-    OR length(p_intent_event_id) > 500
-    OR length(COALESCE(p_correlation_id, '')) > 500
-    OR length(COALESCE(p_reason, '')) > 1000
-    OR pg_column_size(v_payload_json) > 65536
-  THEN
-    RAISE EXCEPTION 'invalid operational delivery attempt audit input'
-      USING ERRCODE = '23514';
-  END IF;
-
-  INSERT INTO integrator.delivery_attempt_logs (
-    intent_type, intent_event_id, correlation_id, organization_id, channel,
-    status, attempt, reason, payload_json, occurred_at
-  ) VALUES (
-    NULLIF(p_intent_type, ''),
-    NULLIF(p_intent_event_id, ''),
-    NULLIF(p_correlation_id, ''),
-    p_organization_id,
-    p_channel,
-    p_status,
-    p_attempt,
-    NULLIF(p_reason, ''),
-    v_payload_json,
-    p_occurred_at
-  );
-END
-$_$;
-
-
---
--- Name: record_operator_delivery_attempt(text, text, text, integer, text); Type: FUNCTION; Schema: app; Owner: -
---
-
-CREATE FUNCTION app.record_operator_delivery_attempt(p_intent_event_id text, p_channel text, p_status text, p_attempt integer, p_reason text) RETURNS void
+CREATE FUNCTION app.record_operator_delivery_attempt(p_intent_type text, p_intent_event_id text, p_correlation_id text, p_organization_id uuid, p_channel text, p_status text, p_attempt integer, p_reason text, p_payload_text text, p_occurred_at timestamp with time zone) RETURNS void
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $_$
@@ -16839,8 +16757,9 @@ DECLARE
   v_topic_code text;
   v_integrator_user_id text;
   v_user_id uuid;
+  v_context_payload jsonb;
 BEGIN
-  PERFORM app.require_attested_context_for_roles('app_seam_telemetry_operator_owner'::name, ARRAY['app_operational_delivery_worker'::name]::name[]);
+  PERFORM app.require_accepted_context('app_seam_telemetry_operator_owner'::name, 'app_operational_delivery_worker'::name, 'service'::app.port_context_class, 'delivery.attempt-audit', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg, ROW('uuid@1', pg_catalog.uuid_send($4))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($5))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($6))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($7))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($8))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($9))::app.port_typed_arg, ROW('timestamptz@1', pg_catalog.timestamptz_send($10))::app.port_typed_arg]), 'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)'::regprocedure);
 
   IF length(COALESCE(p_intent_event_id, '')) NOT BETWEEN 1 AND 240
     OR p_channel NOT IN ('telegram', 'max', 'email', 'sms', 'smsc', 'web_push')
@@ -16862,7 +16781,47 @@ BEGIN
   LIMIT 1;
 
   IF v_queue_kind IS NULL THEN
-    RAISE EXCEPTION 'operator delivery attempt has no exact queue source' USING ERRCODE = '23514';
+    v_context_payload := p_payload_text::jsonb;
+    IF NULLIF(btrim(p_intent_type), '') IS NULL
+      OR length(p_intent_type) > 200
+      OR length(COALESCE(p_correlation_id, '')) > 500
+      OR v_context_payload IS NULL
+      OR jsonb_typeof(v_context_payload) <> 'object'
+      OR pg_column_size(v_context_payload) > 65536
+      OR p_occurred_at IS NULL
+    THEN
+      RAISE EXCEPTION 'invalid nonqueue operator delivery attempt audit context'
+        USING ERRCODE = '23514';
+    END IF;
+
+    INSERT INTO public.notification_delivery_attempts (
+      created_at,
+      organization_id,
+      intent_type,
+      channel,
+      status,
+      reason,
+      event_id,
+      metadata
+    ) VALUES (
+      p_occurred_at,
+      p_organization_id,
+      p_intent_type,
+      p_channel,
+      p_status,
+      p_reason,
+      p_intent_event_id,
+      jsonb_build_object(
+        'attempt', p_attempt,
+        'kind', p_intent_type,
+        'channel', p_channel,
+        'source', 'record_operator_delivery_attempt',
+        'queueSource', false,
+        'correlationId', NULLIF(p_correlation_id, ''),
+        'payload', v_context_payload
+      )
+    );
+    RETURN;
   END IF;
 
   v_occurrence_id := NULLIF(v_payload->>'occurrenceId', '')::uuid;
@@ -18263,6 +18222,45 @@ BEGIN
     WHERE policy.key = 'global'
       AND policy.is_active = true
     LIMIT 1
+  ), global_paid_policy_history AS (
+    SELECT
+      audit.created_at,
+      audit.details -> 'before' ->> 'postPaidPeriodBehavior' AS previous_behavior,
+      audit.details -> 'before' ->> 'postPaidPeriodTariffId' AS previous_tariff_id,
+      audit.details -> 'before' ->> 'isActive' AS previous_is_active,
+      audit.details -> 'after' ->> 'postPaidPeriodBehavior' AS next_behavior
+    FROM public.admin_audit_log AS audit
+    WHERE audit.action = 'saas_paid_period_policy_update'
+      AND audit.target_id = 'global'
+      AND audit.created_at > (SELECT period_ends_at FROM paid_period)
+  ), effective_global_paid_policy AS (
+    SELECT
+      candidate.post_paid_period_behavior,
+      candidate.post_paid_period_tariff_id,
+      EXISTS (
+        SELECT 1
+        FROM global_paid_policy_history AS history
+        WHERE CASE history.previous_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END
+            > CASE history.next_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END
+      ) AS was_tightened
+    FROM (
+      SELECT
+        current_policy.post_paid_period_behavior,
+        current_policy.post_paid_period_tariff_id,
+        'infinity'::timestamptz AS recorded_at,
+        CASE current_policy.post_paid_period_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END AS access_rank
+      FROM global_paid_policy AS current_policy
+      UNION ALL
+      SELECT
+        history.previous_behavior,
+        NULLIF(history.previous_tariff_id, '')::uuid,
+        history.created_at,
+        CASE history.previous_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END
+      FROM global_paid_policy_history AS history
+      WHERE history.previous_is_active = 'true'
+    ) AS candidate
+    ORDER BY candidate.access_rank DESC, candidate.recorded_at DESC
+    LIMIT 1
   ), effective AS (
     SELECT
       CASE
@@ -18271,18 +18269,18 @@ BEGIN
         WHEN trial.id IS NOT NULL THEN trial.tariff_id
         WHEN paid_period.period_ends_at IS NOT NULL
           AND v_now >= paid_period.period_ends_at
-          AND global_paid_policy.post_paid_period_behavior = 'tariff'
-          THEN global_paid_policy.post_paid_period_tariff_id
+          AND effective_global_paid_policy.post_paid_period_behavior = 'tariff'
+          THEN effective_global_paid_policy.post_paid_period_tariff_id
         ELSE organization.tariff_id
       END AS tariff_id,
       CASE
         WHEN trial.id IS NULL
           AND paid_period.period_ends_at IS NOT NULL
           AND v_now >= paid_period.period_ends_at
-          AND global_paid_policy.post_paid_period_behavior IS NOT NULL
+          AND effective_global_paid_policy.post_paid_period_behavior IS NOT NULL
           THEN CASE
-            WHEN global_paid_policy.post_paid_period_behavior = 'tariff' THEN 'active'
-            ELSE global_paid_policy.post_paid_period_behavior
+            WHEN effective_global_paid_policy.post_paid_period_behavior = 'tariff' THEN 'active'
+            ELSE effective_global_paid_policy.post_paid_period_behavior
           END
         WHEN trial.id IS NULL THEN 'active'
         WHEN v_now <= trial.ends_at THEN 'active'
@@ -18293,7 +18291,7 @@ BEGIN
         WHEN trial.id IS NULL
           AND paid_period.period_ends_at IS NOT NULL
           AND v_now >= paid_period.period_ends_at
-          AND global_paid_policy.post_paid_period_behavior = 'tariff'
+          AND effective_global_paid_policy.post_paid_period_behavior = 'tariff'
           THEN 'post_paid_period_tariff'
         WHEN trial.id IS NULL THEN 'assignment'
         WHEN v_now > trial.ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
@@ -18304,11 +18302,12 @@ BEGIN
         WHEN trial.ends_at IS NOT NULL THEN 'trial'
         WHEN paid_period.period_ends_at IS NOT NULL THEN 'paid_period'
         ELSE NULL
-      END AS period_source
+      END AS period_source,
+      COALESCE(effective_global_paid_policy.was_tightened, false) AS global_policy_was_tightened
     FROM public.be_organizations AS organization
     LEFT JOIN active_trial AS trial ON true
     LEFT JOIN paid_period ON true
-    LEFT JOIN global_paid_policy ON true
+    LEFT JOIN effective_global_paid_policy ON true
     WHERE organization.id = p_organization_id
       AND organization.is_active = true
   ), snapshot AS (
@@ -18377,6 +18376,14 @@ BEGIN
       CASE
         WHEN degradation_started_at IS NOT NULL AND v_now < degradation_started_at
           THEN 'full_access'
+        WHEN period_source = 'paid_period' AND access_source = 'post_paid_period_tariff' AND lifecycle = 'active'
+          THEN 'full_access'
+        WHEN period_source = 'paid_period' AND global_policy_was_tightened
+          AND degradation_started_at IS NOT NULL AND v_now < policy_schedule.grace_ends_at THEN 'grace'
+        WHEN period_source = 'paid_period' AND global_policy_was_tightened
+          AND degradation_started_at IS NOT NULL AND v_now < policy_schedule.read_only_ends_at THEN 'read_only'
+        WHEN period_source = 'paid_period' AND lifecycle = 'read_only' THEN 'read_only'
+        WHEN period_source = 'paid_period' AND lifecycle = 'blocked' THEN 'disabled'
         -- #1069 §2.13: without a resolved tariff there is nothing to hold access open with —
         -- `resolved_tariff_id IS NOT NULL` is what used to be carried by the `compatibility` state.
         WHEN degradation_started_at IS NULL
@@ -18397,7 +18404,11 @@ BEGIN
   )
   SELECT
     resolved_state,
-    CASE WHEN policy IS NULL THEN 'unconfigured' ELSE 'system' END,
+    CASE
+      WHEN period_source = 'paid_period' AND (access_source = 'post_paid_period_tariff' OR lifecycle = ANY (ARRAY['read_only', 'blocked'])) THEN 'global_paid_period'
+      WHEN policy IS NULL THEN 'unconfigured'
+      ELSE 'system'
+    END,
     CASE
       WHEN resolved_state = 'grace' THEN jsonb_build_object(
         'until', resolved.grace_ends_at,
@@ -18464,6 +18475,45 @@ BEGIN
     WHERE policy.key = 'global'
       AND policy.is_active = true
     LIMIT 1
+  ), global_paid_policy_history AS (
+    SELECT
+      audit.created_at,
+      audit.details -> 'before' ->> 'postPaidPeriodBehavior' AS previous_behavior,
+      audit.details -> 'before' ->> 'postPaidPeriodTariffId' AS previous_tariff_id,
+      audit.details -> 'before' ->> 'isActive' AS previous_is_active,
+      audit.details -> 'after' ->> 'postPaidPeriodBehavior' AS next_behavior
+    FROM public.admin_audit_log AS audit
+    WHERE audit.action = 'saas_paid_period_policy_update'
+      AND audit.target_id = 'global'
+      AND audit.created_at > (SELECT period_ends_at FROM paid_period)
+  ), effective_global_paid_policy AS (
+    SELECT
+      candidate.post_paid_period_behavior,
+      candidate.post_paid_period_tariff_id,
+      EXISTS (
+        SELECT 1
+        FROM global_paid_policy_history AS history
+        WHERE CASE history.previous_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END
+            > CASE history.next_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END
+      ) AS was_tightened
+    FROM (
+      SELECT
+        current_policy.post_paid_period_behavior,
+        current_policy.post_paid_period_tariff_id,
+        'infinity'::timestamptz AS recorded_at,
+        CASE current_policy.post_paid_period_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END AS access_rank
+      FROM global_paid_policy AS current_policy
+      UNION ALL
+      SELECT
+        history.previous_behavior,
+        NULLIF(history.previous_tariff_id, '')::uuid,
+        history.created_at,
+        CASE history.previous_behavior WHEN 'tariff' THEN 3 WHEN 'read_only' THEN 2 WHEN 'blocked' THEN 1 ELSE 0 END
+      FROM global_paid_policy_history AS history
+      WHERE history.previous_is_active = 'true'
+    ) AS candidate
+    ORDER BY candidate.access_rank DESC, candidate.recorded_at DESC
+    LIMIT 1
   ), effective AS (
     SELECT
       organization.id AS organization_id,
@@ -18473,18 +18523,18 @@ BEGIN
         WHEN trial.id IS NOT NULL THEN trial.tariff_id
         WHEN paid_period.period_ends_at IS NOT NULL
           AND v_now >= paid_period.period_ends_at
-          AND global_paid_policy.post_paid_period_behavior = 'tariff'
-          THEN global_paid_policy.post_paid_period_tariff_id
+          AND effective_global_paid_policy.post_paid_period_behavior = 'tariff'
+          THEN effective_global_paid_policy.post_paid_period_tariff_id
         ELSE organization.tariff_id
       END AS tariff_id,
       CASE
         WHEN trial.id IS NULL
           AND paid_period.period_ends_at IS NOT NULL
           AND v_now >= paid_period.period_ends_at
-          AND global_paid_policy.post_paid_period_behavior IS NOT NULL
+          AND effective_global_paid_policy.post_paid_period_behavior IS NOT NULL
           THEN CASE
-            WHEN global_paid_policy.post_paid_period_behavior = 'tariff' THEN 'active'
-            ELSE global_paid_policy.post_paid_period_behavior
+            WHEN effective_global_paid_policy.post_paid_period_behavior = 'tariff' THEN 'active'
+            ELSE effective_global_paid_policy.post_paid_period_behavior
           END
         WHEN trial.id IS NULL THEN 'active'
         WHEN v_now <= trial.ends_at THEN 'active'
@@ -18495,7 +18545,7 @@ BEGIN
         WHEN trial.id IS NULL
           AND paid_period.period_ends_at IS NOT NULL
           AND v_now >= paid_period.period_ends_at
-          AND global_paid_policy.post_paid_period_behavior = 'tariff'
+          AND effective_global_paid_policy.post_paid_period_behavior = 'tariff'
           THEN 'post_paid_period_tariff'
         WHEN trial.id IS NULL THEN 'assignment'
         WHEN v_now > trial.ends_at AND trial.post_trial_behavior = 'tariff' THEN 'post_trial_tariff'
@@ -18506,11 +18556,12 @@ BEGIN
         WHEN trial.ends_at IS NOT NULL THEN 'trial'
         WHEN paid_period.period_ends_at IS NOT NULL THEN 'paid_period'
         ELSE NULL
-      END AS period_source
+      END AS period_source,
+      COALESCE(effective_global_paid_policy.was_tightened, false) AS global_policy_was_tightened
     FROM public.be_organizations AS organization
     LEFT JOIN active_trial AS trial ON true
     LEFT JOIN paid_period ON true
-    LEFT JOIN global_paid_policy ON true
+    LEFT JOIN effective_global_paid_policy ON true
     WHERE organization.id = p_organization_id
       AND organization.is_active = true
   ), snapshot AS (
@@ -18620,6 +18671,12 @@ BEGIN
     SELECT
       included.*,
       CASE
+        WHEN period_source = 'paid_period' AND global_policy_was_tightened
+          AND degradation_started_at IS NOT NULL AND v_now < included.grace_ends_at THEN 'grace'
+        WHEN period_source = 'paid_period' AND global_policy_was_tightened
+          AND degradation_started_at IS NOT NULL AND v_now < included.read_only_ends_at THEN 'read_only'
+        WHEN period_source = 'paid_period' AND lifecycle = 'read_only' THEN 'read_only'
+        WHEN period_source = 'paid_period' AND lifecycle = 'blocked' THEN 'disabled'
         WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'full_access'
         WHEN resolved_tariff_id IS NULL THEN 'unconfigured'
         WHEN NOT mechanic_included THEN 'disabled'
@@ -18627,6 +18684,8 @@ BEGIN
         -- lasts exactly as long as the paid period (or the trial) does. Checked before the policy
         -- so a tariff whose ladder is not configured yet still grants access inside a live period.
         WHEN degradation_started_at IS NOT NULL AND v_now < degradation_started_at
+          THEN 'full_access'
+        WHEN period_source = 'paid_period' AND access_source = 'post_paid_period_tariff' AND lifecycle = 'active'
           THEN 'full_access'
         -- No period at all: an assigned tariff with nothing yet to measure from (§2.12/7.0 keeps
         -- this open, on purpose — not the removed `compatibility` state, which needed no tariff at
@@ -18650,6 +18709,7 @@ BEGIN
     p_mechanic,
     resolved_state,
     CASE
+      WHEN period_source = 'paid_period' AND (access_source = 'post_paid_period_tariff' OR lifecycle = ANY (ARRAY['read_only', 'blocked'])) THEN 'global_paid_period'
       WHEN p_mechanic = ANY (ARRAY['patient_card', 'patient_app', 'patient_diaries']) THEN 'critical'
       WHEN NOT mechanic_included THEN 'unconfigured'
       -- Mirrors the no-anchor full-access branch above: an assigned tariff with no period at all is
@@ -22243,49 +22303,6 @@ ALTER SEQUENCE drizzle.__drizzle_migrations_id_seq OWNED BY drizzle.__drizzle_mi
 
 
 --
--- Name: delivery_attempt_logs; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.delivery_attempt_logs (
-    id bigint NOT NULL,
-    intent_type text,
-    intent_event_id text,
-    correlation_id text,
-    channel text NOT NULL,
-    status text NOT NULL,
-    attempt integer NOT NULL,
-    reason text,
-    payload_json jsonb DEFAULT '{}'::jsonb NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    organization_id uuid,
-    CONSTRAINT delivery_attempt_logs_attempt_check CHECK ((attempt > 0)),
-    CONSTRAINT delivery_attempt_logs_status_check CHECK ((status = ANY (ARRAY['success'::text, 'failed'::text, 'skipped'::text])))
-);
-
-ALTER TABLE ONLY integrator.delivery_attempt_logs FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: delivery_attempt_logs_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.delivery_attempt_logs_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: delivery_attempt_logs_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.delivery_attempt_logs_id_seq OWNED BY integrator.delivery_attempt_logs.id;
-
-
---
 -- Name: direct_public_write_retries; Type: TABLE; Schema: integrator; Owner: -
 --
 
@@ -22387,47 +22404,6 @@ CREATE SEQUENCE integrator.integration_data_quality_incidents_id_seq
 --
 
 ALTER SEQUENCE integrator.integration_data_quality_incidents_id_seq OWNED BY integrator.integration_data_quality_incidents.id;
-
-
---
--- Name: projection_outbox; Type: TABLE; Schema: integrator; Owner: -
---
-
-CREATE TABLE integrator.projection_outbox (
-    id bigint NOT NULL,
-    event_type text NOT NULL,
-    idempotency_key text NOT NULL,
-    occurred_at timestamp with time zone DEFAULT now() NOT NULL,
-    payload jsonb DEFAULT '{}'::jsonb NOT NULL,
-    status text DEFAULT 'pending'::text NOT NULL,
-    attempts_done integer DEFAULT 0 NOT NULL,
-    max_attempts integer DEFAULT 5 NOT NULL,
-    next_try_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_error text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL
-);
-
-ALTER TABLE ONLY integrator.projection_outbox FORCE ROW LEVEL SECURITY;
-
-
---
--- Name: projection_outbox_id_seq; Type: SEQUENCE; Schema: integrator; Owner: -
---
-
-CREATE SEQUENCE integrator.projection_outbox_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1;
-
-
---
--- Name: projection_outbox_id_seq; Type: SEQUENCE OWNED BY; Schema: integrator; Owner: -
---
-
-ALTER SEQUENCE integrator.projection_outbox_id_seq OWNED BY integrator.projection_outbox.id;
 
 
 --
@@ -27019,13 +26995,6 @@ ALTER TABLE ONLY drizzle.__drizzle_migrations ALTER COLUMN id SET DEFAULT nextva
 
 
 --
--- Name: delivery_attempt_logs id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.delivery_attempt_logs ALTER COLUMN id SET DEFAULT nextval('integrator.delivery_attempt_logs_id_seq'::regclass);
-
-
---
 -- Name: direct_public_write_retries id; Type: DEFAULT; Schema: integrator; Owner: -
 --
 
@@ -27037,13 +27006,6 @@ ALTER TABLE ONLY integrator.direct_public_write_retries ALTER COLUMN id SET DEFA
 --
 
 ALTER TABLE ONLY integrator.integration_data_quality_incidents ALTER COLUMN id SET DEFAULT nextval('integrator.integration_data_quality_incidents_id_seq'::regclass);
-
-
---
--- Name: projection_outbox id; Type: DEFAULT; Schema: integrator; Owner: -
---
-
-ALTER TABLE ONLY integrator.projection_outbox ALTER COLUMN id SET DEFAULT nextval('integrator.projection_outbox_id_seq'::regclass);
 
 
 --

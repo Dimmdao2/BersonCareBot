@@ -853,12 +853,6 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало '
       + 'public.support_conversations 21/21; писатель ещё жив (пишется на каждое сообщение поддержки)' } },
-  { t: 'integrator.delivery_attempt_logs', cls: 'S', org: true, why: 'журнал попыток отправки — нельзя разобрать, '
-    + 'почему письмо/СМС не ушло',
-    revoke: { app_staff: 'D14/I16: payload_json содержит тело отправленного сообщения; tenant attribution '
-      + 'не даёт app_staff прямого чтения, доступ остаётся только у узкой операционной capability' },
-    pol: 'ЕДИНСТВЕННАЯ таблица схемы integrator, где стена реально нужна (evidence/15 §14).',
-    defect: ['D14-integrator-no-wall', 'I16-integrator-queues'] },
   { t: 'integrator.direct_public_write_retries', cls: 'S', org: false, why: 'durable retry прямой записи в public — '
     + 'временный отказ RLS/сети не должен потерять правило напоминания или журнал доставки',
     revoke: { app_staff: 'D10: очередь исполняется только integrator request и worker; payload содержит пациентские данные.' },

@@ -191,8 +191,6 @@ REVOKE UPDATE (payload_json) ON TABLE public.outgoing_delivery_queue FROM app_ow
 REVOKE UPDATE (alert_sent_at) ON TABLE public.operator_incidents FROM app_owner;
 REVOKE INSERT ON TABLE public.operator_incidents FROM app_owner;
 REVOKE UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.operator_incidents FROM app_owner;
-REVOKE INSERT ON TABLE integrator.delivery_attempt_logs FROM app_owner;
-REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq FROM app_owner;
 REVOKE USAGE ON SCHEMA integrator, public FROM app_owner;
 DROP ROLE IF EXISTS app_operational_diagnostic;
 DROP ROLE IF EXISTS app_operational_delivery_worker;
@@ -485,8 +483,6 @@ GRANT UPDATE (alert_sent_at) ON TABLE public.operator_incidents TO app_owner;
 GRANT INSERT ON TABLE public.operator_incidents TO app_owner;
 GRANT UPDATE (last_seen_at, occurrence_count, error_detail) ON TABLE public.operator_incidents TO app_owner;
 GRANT INSERT ON TABLE public.notification_delivery_attempts TO app_owner;
-GRANT INSERT ON TABLE integrator.delivery_attempt_logs TO app_owner;
-GRANT USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq TO app_owner;
 -- app.resolve_operator_probe_incidents (below) runs SECURITY DEFINER as app_owner and closes probe
 -- incidents by writing resolved_at only — the alert/occurrence columns above stay out of its reach.
 GRANT UPDATE (resolved_at) ON TABLE public.operator_incidents TO app_owner;
@@ -652,15 +648,13 @@ GRANT EXECUTE ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
 -- capability (delivery worker).
 --
 -- Why these exist (found 2026-08-07 in the TEST journal): the operator health probe tick and the
--- worker-drained delivery audit were shipped against `public.system_settings`, `public.operator_
--- job_status` and `integrator.delivery_attempt_logs` as PLAIN TABLE ACCESS, which no operational
+-- worker-drained delivery audit were shipped against `public.system_settings` and `public.operator_
+-- job_status` as PLAIN TABLE ACCESS, which no operational
 -- capability role has or should have. On TEST that produced, every single day:
 --   * 12075 x `42501 permission denied for table operator_job_status` -> `Runtime scheduler tick
 --     failed` every 5s, i.e. the MAX / Telegram / Google Calendar probes never ran at all;
 --   * `42501 permission denied for function current_org_id` on the RLS policy behind
 --     public.system_settings -> the admin-configured probe config was silently ignored;
---   * `42P01 relation "delivery_attempt_logs" does not exist` -> every non-email delivery attempt
---     lost its audit row and rolled back its transaction.
 -- The canon of this file is "runtime login receives EXECUTE on the function, never table SELECT",
 -- so each gap below is closed by a single-purpose SECURITY DEFINER capability whose scope is
 -- pinned inside the body (fixed settings key / fixed job_key / fixed dedup-key prefix set). None

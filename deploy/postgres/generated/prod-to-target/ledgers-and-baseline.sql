@@ -26,11 +26,17 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (629
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (630, '21700c35b550f6ca3fcf59a1a6589c02f882962645ee895f28abc60d984e7c23', 1800000076000, '20260820T112313_reminder_occurrence_delivery_capability');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (631, '24385d07cae4fb9b7504135dc80d9446d5a43d2a34a894997baa8ecfaed412cc', 1800000077000, '20260820T114223_appointment_bound_patient_payments');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (632, 'e3972e0e3c0a93eb00ec6600a75a065b01d4f4ab3e19f5b996b9b47d525063ce', 1800000078000, '20260820T122628_direct_public_write_retry_org_invariant');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (634, '63aedb1f4c3eabb3b4e8459da305a0a8c4dc8a596dfcb07b11f6b9f35e17d76b', 1800000079000, '20260820T175432_paid_period_global_access_authority');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (636, 'd7bbe891be7ac15b895ec6ed7aa3c6b884a005c6032705dd17b4cfdea1106109', 1800000080000, '20260820T185707_the_delivery_journal_accepts_a_nonqueue_attempt');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (643, '99098bff2eef013ff3b12ece21196820dbf3c544987bbd47406f75e550f0f708', 1800000083000, '20260821T002100_move_outgoing_delivery_retention_to_producer_root');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (645, 'ff3a4320be5e89f1a4c58a0ef77933e64a19729e399a3c3fbc5f9102ab7e4065', 1800000084000, '20260821T003000_cut_over_delivery_attempt_history');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (585, '228d8d4d652bca0248b084e6d69d5ee59dca3c8eb6108f9eca339f38de4c49dd', 1800000060000, '20260819T180713_a_lifetime_allowance_counted_by_join_is_not_lifetime');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (587, 'ba4a69129732ff76f639cf0459697fcf9e13b59a3a77069c0fe7496880492b9f', 1800000053000, '20260819T170216_a_public_visitor_becomes_a_client_when_identified');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (588, 'efdb857d09bcf0f22b53737b36fa639cbb09a49099e4f45f67568c6e47426914', 1800000055000, '20260819T163536_a_failed_public_booking_must_not_leave_a_client');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (589, '556c698a61df85ef709c67c4959fd5861143d1119c0237787bee0a61374dbfc8', 1800000056000, '20260819T182039_a_visitor_booking_spends_no_tariff_seat');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (624, '83df3f21ecb97fa497a471dea38f88806c5138cb2cb6d9e33d6c5da2a5e6ea25', 1800000074000, '20260820T010127_the_platform_admin_could_read_org_active_but_not_flip_it');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (640, '4fc3377305f80c7460af9c73a2fa1a7c0f8227a143068138ca4406fcb303789b', 1800000081000, '20260820T210709_retire_projection_outbox');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (641, '4143e15d93ba7fdecaa3a33b4b5670f678fd58c0b55306e87960a76890c6daae', 1800000082000, '20260821T001200_parameterize_integrator_outgoing_delivery_enqueue');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (619, '7f78a9b99869994799081d8cd17282adc0e7850d818509201353a57b85bf1091', 1800000071000, '20260819T204355_a_seat_invoice_is_not_cancelled_it_is_reissued');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (620, '66db5bf7824af292e1a0ec2fc5bac40c76c602a03cf248098f19d1f5b93369dc', 1800000072000, '20260819T205420_the_transcode_queue_dispatcher_had_no_door');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (621, 'd6b739a9e3c12bb5a796c9b1ac9298bb82f634ea3fed17866e02e566711292cd', 1800000073000, '20260819T210005_a_clinic_is_billed_for_seats_not_for_people');
@@ -97,7 +103,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 632, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 645, true);
 
 
 --

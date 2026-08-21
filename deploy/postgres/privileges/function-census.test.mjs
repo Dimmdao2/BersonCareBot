@@ -378,12 +378,12 @@ test('current-patient surface gate catches missing operation, absent relation, a
 test('legacy census is restored without obsolete context and overlaid by the active schema B roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 232,
+    functions: 231,
     owners: 40,
-    test: 232,
-    dev: 230,
+    test: 231,
+    dev: 229,
     triggers: 3,
-    relationEdges: 486,
+    relationEdges: 485,
   });
   // Замороженная легаси-перепись и её данные обязаны сходиться друг с другом; число берётся из
   // самой переписи, а не из второй копии в тесте. Ключи объекта не повторяются по построению.

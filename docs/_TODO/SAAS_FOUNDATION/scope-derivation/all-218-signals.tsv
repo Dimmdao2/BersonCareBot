@@ -4,7 +4,6 @@ integrator\tcontacts\tuser_id\t0
 integrator\tcontent_access_grants\tuser_id\t0
 integrator\tconversation_messages\texternal_chat_id\t0
 integrator\tconversations\tuser_identity_id\t0
-integrator\tdelivery_attempt_logs\t\t0
 integrator\tidempotency_keys\t\t0
 integrator\tidentities\tuser_id\t0
 integrator\tintegration_data_quality_incidents\t\t0

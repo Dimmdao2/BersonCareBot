@@ -147,6 +147,9 @@ const retiredLegacyIdentityTables = new Set(['integrator.message_drafts']);
 // D10 retired the projection transport after its producers and consumers reached zero. Keep the
 // historical tier registry immutable, but do not render a GRANT for the dropped relation.
 const retiredProjectionTransportTables = new Set(['integrator.projection_outbox']);
+// D10a moves the legacy delivery history to the canonical journal, then drops this relation.
+// Keep the historical tier registry immutable, but never emit a GRANT for the retired relation.
+const retiredDeliveryAttemptHistoryTables = new Set(['integrator.delivery_attempt_logs']);
 export const appStaffNoRuntimeDmlTables = new Set();
 
 const appStaffGrantTiers = new Set(['SCOPED', 'BOOTSTRAP', 'INFRA', 'LEGACY', 'TELEMETRY']);
@@ -172,6 +175,7 @@ export function getAppStaffGrantTables() {
         !s01RetiredLegacyBookingProjectionTables.has(row.table) &&
         !retiredLegacyIdentityTables.has(row.table) &&
         !retiredProjectionTransportTables.has(row.table) &&
+        !retiredDeliveryAttemptHistoryTables.has(row.table) &&
         !appStaffNoRuntimeDmlTables.has(row.table),
     )
     .map((row) => ({ ...splitQualifiedName(row.table), qualifiedName: row.table, tier: row.tier }))
