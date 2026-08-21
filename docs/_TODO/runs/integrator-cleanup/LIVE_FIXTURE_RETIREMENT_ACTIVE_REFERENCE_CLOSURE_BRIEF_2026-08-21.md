@@ -8,7 +8,7 @@
 `LIVE_DEV_TEST_FIXTURES_RETIREMENT_2026-08-21.md`. Повторить поиск более поздних owner-решений: сначала
 `code-search`, затем exact active-path census. Более позднее owner-решение заменяет brief.
 
-Источник оракула: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §10 — «на именованных DEV и TEST не создают, не сидируют, не reconcile-ят и не требуют persistent fixture-клиники, учётки и наборы данных».
+Источник оракула: `AGENTS.md` §1b — «удалённый fixture-механизм не восстанавливают».
 
 ## Scope и классификация
 
