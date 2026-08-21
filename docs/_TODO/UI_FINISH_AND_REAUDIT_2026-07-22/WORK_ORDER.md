@@ -779,6 +779,15 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             перевод infra-читателей разрешены в текущей оркестрации. Сохраняются фактические зависимости, безопасный
             порядок DEV→TEST и отдельно разрешаемый PROD; временный mirror-writer по-прежнему не считается
             закрытием D15b/6.
+            ✅ **#987 code-candidate 21.08.2026 (этот коммит):** все runtime readers/writers переведены на
+            `user_contacts`; существующий `mutateCanonicalUserContacts` стал единственным атомарным DML-root;
+            reverse mirror удалён; timestamp-forward `20260821T040000_cut_over_canonical_contacts.sql` после
+            fail-closed parity/dependency gates снимает пять legacy contact columns и переводит затронутые function
+            roots. Census: `0` direct legacy schema/API refs, `6` production mutation callers, `1` direct DML file,
+            `0` reverse-mirror refs (точные команды, исключения и зелёные targeted/typecheck/privilege/generator gates
+            — `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/42-d15b6-canonical-contacts-cutover.md`). Галочка
+            остаётся `[ ]`: named DEV migration и реальный login/bind/delivery/parity gate не выполнялись; точные
+            lead-команды записаны в evidence.
       - [ ] **D15b/7 — псевдоним.** ⛔ **«OWNER-DEFER 03.08» СНЯТО 20.08 — в работе, не отложено.** Владелец,
             дословно: «сколько можно говорить про то что 'не сейчас' — устаревшая запись и её надо удалить».
             Зависит по факту от D15b/6 (контакты — источник истины, сейчас реопенут) — сначала он, псевдоним
@@ -1433,10 +1442,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       до D17.
       ⚠️ **ЧАСТИЧНО 03.08–05.08:** D15b/2 закрыл запись идентичности из integrator (`5137e8c68`, land
       `2c1cd63fb`) — одна реализация в `packages/platform-merge/src/identityProjectionWrite.ts`.
-      D15b/5–6 закрыты (`#987` slices 1–4): `user_identity`/`user_contacts` схема, infra reader
-      cutover, dual-write writers, trusted-phone + public-booking resolve paths, legacy contact
-      unique indexes dropped from `platform_users`. Остаётся: D15b/7 псевдоним (вне объёма),
-      живая двухвебхуковая проверка D15b/2 — за лидом.
+      D15b/5 закрыт. **D15b/6 не закрыт:** code-candidate physical cutover `#987` от 21.08 переводит
+      `user_contacts` в единственный источник и ждёт named DEV migration + реальный login/bind/delivery/parity
+      gate ведущего; до этого прежняя запись «D15b/5–6 закрыты» ложна. Остаётся также D15b/7 псевдоним (вне
+      объёма) и живая двухвебхуковая проверка D15b/2 — за лидом.
 - [x] **D26 — слияние аккаунтов переписывается как ИНСТРУМЕНТ ПОДДЕРЖКИ, нынешний мерж вырезается.** Решение —
       **Р-D26** (§2.3). Правило конфликта — `IDENTITY_AND_MERGE_SCHEME.md` §5.2b (финальное, 20.08): блокирует
       автослияние ТОЛЬКО когда мед-данные есть с ОБЕИХ сторон одновременно; без конфликта история и переписка

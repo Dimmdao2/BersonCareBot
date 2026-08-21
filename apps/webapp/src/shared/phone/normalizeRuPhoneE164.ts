@@ -1,5 +1,5 @@
 /**
- * Normalizes arbitrary RU-style phone input to a single canonical form used in `platform_users.phone_normalized`.
+ * Normalizes arbitrary RU-style phone input to the canonical `user_contacts.value_normalized` form.
  * Policy: digits-only → E.164-like `+7XXXXXXXXXX` for 10-digit local RU numbers, plus 11-digit 7/8 prefixes.
  */
 export function normalizeRuPhoneE164(phone: string): string {

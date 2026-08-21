@@ -5,7 +5,7 @@ import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
  * Resolve-or-create a client by normalised phone.
  *
  * `phoneProven` is REQUIRED and has no default on purpose (A-3). Before 2026-07-26 this function
- * stamped `patient_phone_trust_at` on every insert, so an unauthenticated POST to
+ * marked every inserted canonical phone as confirmed, so an unauthenticated POST to
  * `/api/booking/public/create` minted a phone-trusted identity — the same flag the login path
  * consults (`pgCanonicalPlatformUser.ts:118-127`). Trust is now a claim the caller has to have
  * earned, and the caller has to say so in the type system.

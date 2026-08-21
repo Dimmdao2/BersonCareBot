@@ -1,5 +1,5 @@
 /**
- * D15b/6 audit MF-2 (0380): messenger phone bind mirrors user_contacts after write.
+ * D15b/6 audit MF-2: messenger phone bind writes the canonical contact before retaining history.
  */
 import { describe, expect, it } from 'vitest';
 import { applyMessengerPhonePublicBind, type MessengerPhoneBindDb } from '@bersoncare/platform-merge';
@@ -79,6 +79,19 @@ function makeDb(state: State) {
       return { rows: hits.slice(0, 1), rowCount: hits.length > 0 ? 1 : 0 };
     }
 
+    if (q.startsWith('select value_normalized as phone_normalized from user_contacts')) {
+      const hit = state.userContacts.find(
+        (contact) =>
+          contact.platform_user_id === p[0] &&
+          contact.contact_kind === 'phone' &&
+          contact.is_primary,
+      );
+      return {
+        rows: hit ? [{ phone_normalized: hit.value_normalized }] : [],
+        rowCount: hit ? 1 : 0,
+      };
+    }
+
     if (q.includes('from platform_users')) {
       const live = state.platformUsers.filter((u) => u.merged_into_id === null);
       if (q.includes('existing_int_uid')) {
@@ -133,6 +146,13 @@ function makeDb(state: State) {
       return { rows: [], rowCount: 1 };
     }
 
+    if (q.startsWith('update platform_users') && q.includes('integrator_user_id = coalesce')) {
+      const hit = state.platformUsers.find((u) => u.id === p[1] && u.merged_into_id === null);
+      if (!hit) return { rows: [], rowCount: 0 };
+      if (hit.integrator_user_id === null) hit.integrator_user_id = at(0);
+      return { rows: [], rowCount: 1 };
+    }
+
     if (
       q.startsWith('update platform_users') &&
       q.includes('phone_normalized = $1') &&
@@ -176,14 +196,49 @@ function makeDb(state: State) {
       return { rows: [], rowCount: 1 };
     }
 
+    if (q.startsWith('with existing_value as materialized')) {
+      const platformUserId = p.find((value) => value === BIND_USER);
+      const phone = p.find((value) => value === PHONE);
+      if (!platformUserId || !phone) return { rows: [], rowCount: 0 };
+      const conflict = state.userContacts.find(
+        (contact) =>
+          contact.contact_kind === 'phone' &&
+          contact.value_normalized === phone &&
+          contact.platform_user_id !== platformUserId,
+      );
+      if (conflict) return { rows: [], rowCount: 0 };
+      state.userContacts = state.userContacts.map((contact) =>
+        contact.platform_user_id === platformUserId && contact.contact_kind === 'phone'
+          ? { ...contact, is_primary: false }
+          : contact,
+      );
+      const current = state.userContacts.find(
+        (contact) =>
+          contact.platform_user_id === platformUserId &&
+          contact.contact_kind === 'phone' &&
+          contact.value_normalized === phone,
+      );
+      if (current) current.is_primary = true;
+      else {
+        state.userContacts.push({
+          platform_user_id: platformUserId,
+          contact_kind: 'phone',
+          channel_code: null,
+          value_normalized: phone,
+          is_primary: true,
+        });
+      }
+      return { rows: [{ id: 'contact-1' }], rowCount: 1 };
+    }
+
     throw new Error(`unexpected query: ${q}`);
   };
 
   return { query, statements };
 }
 
-describe('D15b/6 MF-2 — applyMessengerPhonePublicBind after 0380', () => {
-  it('mirrors user_contacts after platform_users phone write', async () => {
+describe('D15b/6 MF-2 — applyMessengerPhonePublicBind canonical contact write', () => {
+  it('writes user_contacts without rebuilding it from platform_users', async () => {
     const state: State = {
       platformUsers: [
         { id: BIND_USER, phone_normalized: null, integrator_user_id: INTEGRATOR_ID, merged_into_id: null },
@@ -202,7 +257,7 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind after 0380', () => {
     });
 
     expect(result).toEqual({ platformUserId: BIND_USER });
-    expect(state.platformUsers[0]!.phone_normalized).toBe(PHONE);
+    expect(state.platformUsers[0]!.phone_normalized).toBeNull();
     expect(state.userContacts).toEqual([
       {
         platform_user_id: BIND_USER,
@@ -210,6 +265,14 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind after 0380', () => {
         channel_code: null,
         value_normalized: PHONE,
         is_primary: true,
+      },
+    ]);
+    expect(state.phoneHistory).toEqual([
+      {
+        platform_user_id: BIND_USER,
+        phone_normalized: PHONE,
+        valid_to: null,
+        source: 'messenger',
       },
     ]);
     expect(db.statements.some((statement) => statement.includes('user_oauth_bindings'))).toBe(

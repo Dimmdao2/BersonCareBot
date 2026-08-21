@@ -1,9 +1,9 @@
 /**
  * Закрытый перечень **кодовых путей**, которые выставляют доверенную активацию телефона
- * для tier **patient** (колонка `platform_users.patient_phone_trust_at`).
+ * для tier **patient** (канонический phone-контакт в `user_contacts`).
  *
- * Любой новый writer `phone_normalized` **обязан** либо:
- * - обновить `patient_phone_trust_at` согласно одному из зарегистрированных путей ниже, либо
+ * Любой новый writer канонического phone-контакта **обязан** либо:
+ * - обновить `user_contacts.confirmed_at` согласно одному из зарегистрированных путей ниже, либо
  * - не рассчитывать на tier patient для этого пользователя до отдельного решения.
  *
  * Список в `docs/ARCHITECTURE/PLATFORM_IDENTITY_SCENARIOS_AND_CODE_MAP.md` §8 синхронизируется с этим enum.
@@ -37,7 +37,7 @@ export enum TrustedPatientPhoneSource {
   DoctorStaffClientCreate = 'doctor_staff_client_create',
 }
 
-/** Имя колонки в БД; единственный признак trusted-активации на чтении tier. */
+/** Стабильный row-alias канонического `user_contacts.confirmed_at` для tier-read contracts. */
 export const PATIENT_PHONE_TRUST_COLUMN = 'patient_phone_trust_at' as const;
 
 /** Строка канона из БД (или эквивалент), достаточная для read-side проверки §5. */
@@ -48,7 +48,7 @@ export type PatientPhoneCanonRow = {
 
 /**
  * Единственная read-side проверка: у канона есть телефон и он **доверен** для tier patient.
- * Не считать `phone_normalized` без `patient_phone_trust_at` активацией (§5).
+ * Не считать канонический phone без его `confirmed_at` активацией (§5).
  */
 export function isTrustedPatientPhoneActivation(row: PatientPhoneCanonRow): boolean {
   const p = row.phone_normalized;
@@ -59,7 +59,7 @@ export function isTrustedPatientPhoneActivation(row: PatientPhoneCanonRow): bool
 
 /**
  * Якорь для ревью и навигации: связывает SQL-writer с `TrustedPatientPhoneSource`.
- * Не меняет runtime-tier (источник истины — `patient_phone_trust_at` в БД).
+ * Не меняет runtime-tier (источник истины — `user_contacts.confirmed_at`).
  */
 export function trustedPatientPhoneWriteAnchor(source: TrustedPatientPhoneSource): void {
   void source;

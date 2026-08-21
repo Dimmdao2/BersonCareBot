@@ -1914,6 +1914,113 @@ const patientSelfFunction = (
   proconfig: ['search_path=pg_catalog'], relationSurfaces,
 });
 
+type CanonicalContactSurfaceCorrection = {
+  contacts?: readonly Privilege[];
+  operations?: Readonly<Record<string, readonly Privilege[]>>;
+  remove?: readonly string[];
+  delegatesTo?: readonly string[];
+};
+
+const CANONICAL_CONTACT_COLUMNS = [
+  'platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at',
+  'source_origin', 'created_at', 'updated_at',
+] as const;
+
+const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalContactSurfaceCorrection>> = {
+  'app.accept_org_invite(text,uuid,text)': { contacts: ['SELECT', 'INSERT', 'UPDATE'] },
+  'app.archive_operator_health_failures(text,integer,uuid)': { contacts: ['SELECT'] },
+  'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)': {
+    contacts: ['SELECT', 'INSERT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
+  },
+  'app.email_auth_verify_user_email(uuid,text)': {
+    contacts: ['SELECT', 'INSERT', 'UPDATE'], remove: ['public.platform_users'],
+  },
+  'app.email_otp_public_consume_latest_challenge(text,text)': {
+    contacts: ['SELECT', 'INSERT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
+  },
+  'app.email_otp_public_delete_unverified_registration(uuid)': { contacts: ['SELECT'] },
+  'app.email_otp_public_find_or_create_user(text)': {
+    contacts: ['SELECT', 'INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
+  },
+  'app.email_otp_public_find_user_by_email(text)': { contacts: ['SELECT'] },
+  'app.email_otp_public_register_patient(text,text,text,text)': {
+    contacts: ['SELECT', 'INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
+  },
+  'app.email_password_delete_unverified_registration(uuid)': { contacts: ['SELECT'] },
+  'app.email_password_find_login_candidate(text)': {
+    contacts: ['SELECT'], delegatesTo: ['app.find_platform_user_ids_by_any_confirmed_email(text)'],
+  },
+  'app.email_password_find_reset_candidate(text)': { contacts: ['SELECT'] },
+  'app.email_password_register_pending(text,text,text,text,text,text)': {
+    contacts: ['INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
+  },
+  'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)': {
+    contacts: ['SELECT', 'INSERT', 'UPDATE'],
+  },
+  'app.is_current_patient_test_account()': { contacts: ['SELECT'] },
+  'app.is_platform_registration_analytics_user_excluded(uuid)': { contacts: ['SELECT'] },
+  'app.password_credentials_replace_self(text,text)': { contacts: ['SELECT'] },
+  'app.password_credentials_upsert_self(text,text)': { contacts: ['SELECT'] },
+  'app.password_login_acquire_impl(text,text,uuid,text)': { contacts: ['SELECT'] },
+  'app.password_login_complete_impl(uuid,boolean)': { contacts: ['SELECT'] },
+  'app.password_login_issue_altcha_challenge_impl(text,uuid,text,timestamp with time zone)': {
+    contacts: ['SELECT'],
+  },
+  'app.patient_disable_reminder_messenger_topic(text,text)': { contacts: ['SELECT'] },
+  'app.patient_reminder_materialization_fingerprint(text,text)': { contacts: ['SELECT'] },
+  'app.phone_messenger_bind_completion_state(text,text,text,text)': { contacts: ['SELECT'] },
+  'app.provision_specialist_owner(uuid)': { contacts: ['SELECT'] },
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)': {
+    contacts: ['SELECT'],
+  },
+  'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
+    contacts: ['SELECT'],
+  },
+  'app.redeem_patient_invite_email(text)': {
+    contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
+  },
+  'app.resolve_public_booking_client_by_phone(text,text,boolean)': { contacts: ['SELECT', 'INSERT'] },
+  'app.revalidate_patient_reminder_delivery_materialization(uuid)': { contacts: ['SELECT'] },
+  'app.specialist_task_reminder_materialization_fingerprint(uuid)': { contacts: ['SELECT'] },
+};
+
+function applyCanonicalContactSurfaceCorrections(
+  functions: Record<string, DeclaredFunction>,
+): Record<string, DeclaredFunction> {
+  const corrected = { ...functions };
+  for (const [identity, correction] of Object.entries(CANONICAL_CONTACT_SURFACE_CORRECTIONS)) {
+    const fn = corrected[identity];
+    if (!fn) throw new Error(`canonical contact surface correction targets an undeclared function: ${identity}`);
+    const removed = new Set(correction.remove ?? []);
+    const operationCorrections = correction.operations ?? {};
+    const relationSurfaces = (fn.relationSurfaces ?? [])
+      .filter((surface) => !removed.has(surface.relation))
+      .map((surface) => ({
+        ...surface,
+        ...(operationCorrections[surface.relation]
+          ? { operations: operationCorrections[surface.relation] }
+          : {}),
+      }));
+    const replaceOrAppend = (surface: FunctionRelationSurface): void => {
+      const index = relationSurfaces.findIndex((candidate) => candidate.relation === surface.relation);
+      if (index === -1) relationSurfaces.push(surface);
+      else relationSurfaces[index] = { ...relationSurfaces[index], operations: surface.operations };
+    };
+    if (correction.contacts) {
+      replaceOrAppend({ relation: 'public.user_contacts', columns: CANONICAL_CONTACT_COLUMNS,
+        operations: correction.contacts, evidence: 'pg16-function-body-lexical-upper-bound' });
+    }
+    corrected[identity] = {
+      ...fn,
+      relationSurfaces,
+      ...(correction.delegatesTo
+        ? { delegatesTo: [...new Set([...(fn.delegatesTo ?? []), ...correction.delegatesTo])] }
+        : {}),
+    };
+  }
+  return corrected;
+}
+
 const patientSurface = (
   relation: string,
   columns: readonly string[],
@@ -1991,8 +2098,9 @@ const PATIENT_CHANNEL_CORE_SURFACES = [
     'is_enabled_for_notifications', 'is_preferred_for_auth', 'created_at', 'updated_at',
   ], ['SELECT', 'INSERT', 'UPDATE']),
   patientSurface('public.user_channel_bindings', ['user_id', 'channel_code'], ['SELECT']),
-  patientSurface('public.platform_users', ['id', 'email_verified_at'], ['SELECT']),
-  patientSurface('public.user_phone_history', ['platform_user_id', 'valid_to'], ['SELECT']),
+  patientSurface('public.user_contacts', [
+    'platform_user_id', 'contact_kind', 'confirmed_at',
+  ], ['SELECT']),
   patientSurface('public.user_web_push_subscriptions', [
     'id', 'user_id', 'endpoint', 'p256dh', 'auth', 'user_agent', 'created_at', 'updated_at',
   ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
@@ -2103,9 +2211,8 @@ const PATIENT_ROOT_OPERATIONS = {
     'public.user_channel_preferences': ['SELECT', 'INSERT', 'UPDATE'],
   },
   set_current_patient_preferred_auth_channel: {
-    'public.platform_users': ['SELECT'], 'public.user_channel_bindings': ['SELECT'],
+    'public.user_channel_bindings': ['SELECT'], 'public.user_contacts': ['SELECT'],
     'public.user_channel_preferences': ['SELECT', 'INSERT', 'UPDATE'],
-    'public.user_phone_history': ['SELECT'],
   },
   save_current_patient_web_push_subscription: {
     'public.user_web_push_subscriptions': ['SELECT', 'INSERT', 'UPDATE', 'DELETE'],
@@ -3141,7 +3248,7 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-package.reserve',
       functionIdentity: 'app.reserve_current_patient_booking_package(text)' },
   },
-  functions: {
+  functions: applyCanonicalContactSurfaceCorrections({
     ...BUSINESS_SEAM_FUNCTIONS,
     'app.patient_cancel_pending_reminder_occurrences(text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'],
@@ -5996,7 +6103,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'UPDATE' as const],
         evidence: 'exact UPDATE in migration 0050' as const }],
     }),
-  },
+  }),
 } as const;
 
 type LockedPolicyTarget = { policyName: string; descriptor: { table: string } };

@@ -143,7 +143,7 @@ export async function findCanonicalUserIdByIntegratorId(
 }
 
 /**
- * Canonical user with this phone **and** trusted patient activation (`patient_phone_trust_at`).
+ * Canonical user with this phone and trusted patient activation (`user_contacts.confirmed_at`).
  * Used for messenger entry resolution: do not link a channel to a canon by phone unless activation is trusted (§5).
  */
 export async function findTrustedCanonicalUserIdByPhone(
