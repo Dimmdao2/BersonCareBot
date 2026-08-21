@@ -2,7 +2,7 @@
 # The colour is not written anywhere in this file: it arrives as the compose project name, and the
 # published ports arrive as variables. That is what makes the two colours provably identical.
 #
-# Only `webapp` and `api` answer requests and therefore exist in both colours at once. The three
+# Only `webapp` and `api` answer requests and therefore exist in both colours at once. The two
 # background processes sit behind the `singletons` profile and are started only for the colour that
 # is live, because two schedulers means every patient gets every reminder twice.
 
@@ -78,14 +78,8 @@ services:
       retries: 12
       start_period: 30s
 
-  worker:
-    <<: *app
-    profiles: ["singletons"]
-    working_dir: /app/apps/integrator
-    command: ["node", "dist/infra/runtime/worker/main.js"]
-    env_file:
-      - ${BCB_ENV_DIR}/api.prod
-
+  # D30 Ш9: worker and scheduler are one resident process — one systemd-equivalent service, one
+  # leader lock, one top-level cycle. There is no separate `worker` service anymore.
   scheduler:
     <<: *app
     profiles: ["singletons"]

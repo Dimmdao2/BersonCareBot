@@ -48,4 +48,5 @@ Producer-adapter внутри `delivery-handler` infra scope читает DB-bac
 - Миграция очереди: `apps/webapp/db/drizzle-migrations/0060_outgoing_delivery_queue.sql`
 - Миграция blocked: `apps/webapp/db/drizzle-migrations/0107_messenger_bot_blocked.sql`
 - Репозиторий SQL: `apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.ts`
-- Воркер: `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`, подключение в `apps/integrator/src/infra/runtime/worker/main.ts`
+- Воркер: `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts`, подключение в резидентном
+  scheduler+worker процессе `apps/integrator/src/infra/runtime/scheduler/main.ts` (D30 Ш9)

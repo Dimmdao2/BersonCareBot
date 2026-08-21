@@ -6,7 +6,6 @@
   "scripts": {
     "dev": "pnpm --parallel --filter @bersoncare/integrator --filter @bersoncare/webapp run dev",
     "dev:integrator": "pnpm --dir apps/integrator dev",
-    "worker:dev": "pnpm --dir apps/integrator worker:dev",
     "scheduler:dev": "pnpm --dir apps/integrator scheduler:dev",
     "dev:stop": "bash scripts/kill-local-dev-ports.sh",
     "webapp:dev": "bash scripts/kill-local-dev-ports.sh && pnpm --dir apps/webapp dev",
@@ -17,7 +16,6 @@
     "start": "pnpm --dir apps/integrator start",
     "webapp:start": "pnpm --dir apps/webapp start",
     "webapp:typecheck": "pnpm --dir apps/webapp typecheck",
-    "worker:start": "pnpm --dir apps/integrator worker:start",
     "scheduler:start": "pnpm --dir apps/integrator scheduler:start",
     "scheduler:start:host": "pnpm --dir apps/integrator scheduler:start",
     "test": "pnpm --dir apps/integrator test",
@@ -69,7 +67,6 @@
     "scenarios": "pnpm --dir apps/integrator run scenarios",
     "build:host": "pnpm --dir apps/integrator build",
     "start:host": "pnpm --dir apps/integrator start",
-    "worker:start:host": "pnpm --dir apps/integrator worker:start",
     "migrate:host": "pnpm --dir apps/integrator run db:migrate:prod",
     "auto-close-conversations": "pnpm --dir apps/integrator run auto-close-conversations",
     "auto-close-conversations:host": "pnpm --dir apps/integrator run auto-close-conversations:host",

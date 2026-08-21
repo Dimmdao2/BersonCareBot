@@ -4,12 +4,11 @@ set -euo pipefail
 PROJECT_ROOT=/opt/projects/bersoncarebot
 SYSTEMD_DIR=/etc/systemd/system
 API_SERVICE=bersoncarebot-api-prod.service
-WORKER_SERVICE=bersoncarebot-worker-prod.service
+# D30 Ш9: worker and scheduler are one resident process now; SCHEDULER_SERVICE is that unit.
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
 API_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${API_SERVICE}"
-WORKER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${WORKER_SERVICE}"
 SCHEDULER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${SCHEDULER_SERVICE}"
 WEBAPP_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${WEBAPP_SERVICE}"
 MEDIA_WORKER_UNIT_SOURCE="${PROJECT_ROOT}/deploy/systemd/${MEDIA_WORKER_SERVICE}"
@@ -120,11 +119,10 @@ start_available_prod_services() {
 
   if bootstrap_path_is_file /opt/env/bersoncarebot/api.prod \
     && bootstrap_path_is_file "${PROJECT_ROOT}/apps/integrator/dist/main.js" \
-    && bootstrap_path_is_file "${PROJECT_ROOT}/apps/integrator/dist/infra/runtime/worker/main.js" \
     && bootstrap_path_is_file "${PROJECT_ROOT}/apps/integrator/dist/infra/runtime/scheduler/main.js"; then
-    bootstrap_systemctl start "${API_SERVICE}" "${WORKER_SERVICE}" "${SCHEDULER_SERVICE}" || return
+    bootstrap_systemctl start "${API_SERVICE}" "${SCHEDULER_SERVICE}" || return
   else
-    echo "API/worker/scheduler installed and enabled, but not started because api.prod or build artifacts are missing."
+    echo "API/scheduler installed and enabled, but not started because api.prod or build artifacts are missing."
   fi
 
   if bootstrap_path_is_file /opt/env/bersoncarebot/webapp.prod \
@@ -146,7 +144,7 @@ start_available_prod_services() {
 
 run_self_test() {
   local events="" webapp_active=0 control_ready=0 retirement_ready=0
-  local expected_prefix="systemctl:stop ${MEDIA_WORKER_SERVICE};systemctl:start ${API_SERVICE} ${WORKER_SERVICE} ${SCHEDULER_SERVICE};systemctl:restart ${WEBAPP_SERVICE};systemctl:is-active --quiet ${WEBAPP_SERVICE};"
+  local expected_prefix="systemctl:stop ${MEDIA_WORKER_SERVICE};systemctl:start ${API_SERVICE} ${SCHEDULER_SERVICE};systemctl:restart ${WEBAPP_SERVICE};systemctl:is-active --quiet ${WEBAPP_SERVICE};"
 
   bootstrap_path_is_file() { return 0; }
   bootstrap_path_is_dir() { return 0; }
@@ -215,7 +213,6 @@ assert_canonical_prod_host
   fail "systemd unit provisioning is root-only; ordinary deploy must not replace installed units"
 
 require_file "${API_UNIT_SOURCE}" "API unit template"
-require_file "${WORKER_UNIT_SOURCE}" "Worker unit template"
 require_file "${SCHEDULER_UNIT_SOURCE}" "Scheduler unit template"
 require_file "${WEBAPP_UNIT_SOURCE}" "Webapp unit template"
 require_file "${MEDIA_WORKER_UNIT_SOURCE}" "Media-worker unit template"
@@ -225,34 +222,29 @@ require_file "${MEDIA_LOGIN_RETIREMENT}" "exact media-login retirement primitive
 # shellcheck source=deploy/host/media-control-cutover-sequence.sh
 source "${MEDIA_CONTROL_CUTOVER}"
 require_safe_install_target "${API_SERVICE}"
-require_safe_install_target "${WORKER_SERVICE}"
 require_safe_install_target "${SCHEDULER_SERVICE}"
 require_safe_install_target "${WEBAPP_SERVICE}"
 require_safe_install_target "${MEDIA_WORKER_SERVICE}"
 
 /usr/bin/systemd-analyze verify \
   "${API_UNIT_SOURCE}" \
-  "${WORKER_UNIT_SOURCE}" \
   "${SCHEDULER_UNIT_SOURCE}" \
   "${WEBAPP_UNIT_SOURCE}" \
   "${MEDIA_WORKER_UNIT_SOURCE}" ||
   fail "systemd unit template verification failed"
 install -o root -g root -m 0644 "${API_UNIT_SOURCE}" "${SYSTEMD_DIR}/${API_SERVICE}"
-install -o root -g root -m 0644 "${WORKER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WORKER_SERVICE}"
 install -o root -g root -m 0644 "${SCHEDULER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${SCHEDULER_SERVICE}"
 install -o root -g root -m 0644 "${WEBAPP_UNIT_SOURCE}" "${SYSTEMD_DIR}/${WEBAPP_SERVICE}"
 install -o root -g root -m 0644 "${MEDIA_WORKER_UNIT_SOURCE}" "${SYSTEMD_DIR}/${MEDIA_WORKER_SERVICE}"
 /bin/systemctl daemon-reload
 
 verify_installed_unit "${API_SERVICE}" "${API_UNIT_SOURCE}"
-verify_installed_unit "${WORKER_SERVICE}" "${WORKER_UNIT_SOURCE}"
 verify_installed_unit "${SCHEDULER_SERVICE}" "${SCHEDULER_UNIT_SOURCE}"
 verify_installed_unit "${WEBAPP_SERVICE}" "${WEBAPP_UNIT_SOURCE}"
 verify_installed_unit "${MEDIA_WORKER_SERVICE}" "${MEDIA_WORKER_UNIT_SOURCE}"
 
 /bin/systemctl enable \
   "${API_SERVICE}" \
-  "${WORKER_SERVICE}" \
   "${SCHEDULER_SERVICE}" \
   "${WEBAPP_SERVICE}" \
   "${MEDIA_WORKER_SERVICE}"

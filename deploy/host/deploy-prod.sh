@@ -11,7 +11,7 @@ C4_MEDIA_CONTROL_CUTOVER=deploy/host/media-control-cutover-sequence.sh
 SAAS_C2_SECRET_PREFLIGHT=deploy/host/saas-c2-secret-preflight.mjs
 BACKUP_SCRIPT=/opt/backups/scripts/postgres-backup.sh
 API_SERVICE=bersoncarebot-api-prod.service
-WORKER_SERVICE=bersoncarebot-worker-prod.service
+# D30 Ш9: worker and scheduler are one resident process now; SCHEDULER_SERVICE is that unit.
 SCHEDULER_SERVICE=bersoncarebot-scheduler-prod.service
 WEBAPP_SERVICE=bersoncarebot-webapp-prod.service
 MEDIA_WORKER_SERVICE=bersoncarebot-media-worker-prod.service
@@ -106,7 +106,6 @@ require_file "${PROJECT_ROOT}/${C4_OPERATIONAL_READINESS}" "C4 operational readi
 require_file "${PROJECT_ROOT}/${C4_MEDIA_CONTROL_CUTOVER}" "C4 media control cutover sequence"
 require_file "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" "SaaS C2 secret preflight"
 require_unit_file "${API_SERVICE}"
-require_unit_file "${WORKER_SERVICE}"
 require_unit_file "${SCHEDULER_SERVICE}"
 require_unit_file "${WEBAPP_SERVICE}"
 require_unit_file "${MEDIA_WORKER_SERVICE}"
@@ -126,16 +125,14 @@ node "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" \
 
 require_sudo_rule "backup script" "${BACKUP_SCRIPT}" pre-migrations
 require_sudo_rule "API restart" /bin/systemctl restart "${API_SERVICE}"
-require_sudo_rule "worker restart" /bin/systemctl restart "${WORKER_SERVICE}"
 require_sudo_rule "scheduler restart" /bin/systemctl restart "${SCHEDULER_SERVICE}"
 require_sudo_rule "API status check" /bin/systemctl is-active --quiet "${API_SERVICE}"
-require_sudo_rule "worker status check" /bin/systemctl is-active --quiet "${WORKER_SERVICE}"
 require_sudo_rule "scheduler status check" /bin/systemctl is-active --quiet "${SCHEDULER_SERVICE}"
 
 export CI=true
 pnpm install --frozen-lockfile
 
-# Remove stale root dist/ from before move to apps/integrator (API/worker now run from apps/integrator/dist).
+# Remove stale root dist/ from before move to apps/integrator (API/scheduler now run from apps/integrator/dist).
 rm -rf dist
 
 pnpm build
@@ -215,7 +212,6 @@ media_cutover_restart_worker(){
 run_media_control_cutover_sequence
 
 sudo -n /bin/systemctl restart "${API_SERVICE}"
-sudo -n /bin/systemctl restart "${WORKER_SERVICE}"
 sudo -n /bin/systemctl restart "${SCHEDULER_SERVICE}"
 if ! sudo -n /bin/systemctl is-active --quiet "${MEDIA_WORKER_SERVICE}"; then
   echo "deploy-prod: ${MEDIA_WORKER_SERVICE} is not active. Last journal lines:" >&2
@@ -229,11 +225,6 @@ if ! sudo -n /bin/systemctl is-active --quiet "${API_SERVICE}"; then
   echo "deploy-prod: ${API_SERVICE} is not active. Last journal lines:" >&2
   sudo -n journalctl -u "${API_SERVICE}" -n 40 --no-pager 2>/dev/null || true
   echo "deploy-prod: Ensure api.prod has PORT=3200, TELEGRAM_BOT_TOKEN, SMSC_*, and values with \$ in single quotes." >&2
-  exit 1
-fi
-if ! sudo -n /bin/systemctl is-active --quiet "${WORKER_SERVICE}"; then
-  echo "deploy-prod: ${WORKER_SERVICE} is not active. Last journal lines:" >&2
-  sudo -n journalctl -u "${WORKER_SERVICE}" -n 40 --no-pager 2>/dev/null || true
   exit 1
 fi
 if ! sudo -n /bin/systemctl is-active --quiet "${SCHEDULER_SERVICE}"; then

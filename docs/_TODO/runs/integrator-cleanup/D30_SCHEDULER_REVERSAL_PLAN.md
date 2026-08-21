@@ -19,16 +19,17 @@
 
 ## Словарь (чтобы «планировщик» и «интегратор» дальше значили одно и то же)
 
-Сегодня «интегратор» — это ОДНО приложение из ТРЁХ процессов: `api` (HTTP, шлёт в каналы), `worker`
-(`bersoncarebot-worker-prod.service`, три вечных цикла), `scheduler` (`bersoncarebot-scheduler-prod.service`,
-свой вечный цикл + advisory-замок). В формулировке владельца:
+**21.08, после Ш9:** «интегратор» — ОДНО приложение из ДВУХ процессов: `api` (HTTP, шлёт в каналы) и один
+резидентный `bersoncarebot-scheduler-prod.service` (`apps/integrator/src/infra/runtime/scheduler/main.ts`) —
+один unit, один leader-замок (`SCHEDULER_LOCK_KEY`), один top-level цикл, совмещающий прежние роли `worker`
+(direct-public-write retries + `outgoingDeliveryLoop`) и `scheduler` (`schedule.tick`, операторские wake/probe
+тики). Отдельного `bersoncarebot-worker-prod.service` больше нет. В формулировке владельца:
 
 - **интегратор** = отправляющая сторона (`api` + адаптеры каналов). То, во что вебапп шлёт директ и что
   «не достучалось».
-- **планировщик** = резидентный процесс, который держит очередь заданий, ждёт их due-время и вызывает
-  интегратор на отправку. Сегодня эту роль физически делят `scheduler` (планирует напоминания) и
-  `worker`/`outgoingDeliveryLoop` (собирает и досылает). **Решение владельца 20.08 (Р-D30а): сводим в один
-  резидентный процесс** — один unit, один замок, один цикл; исполнение вынесено в шаг Ш9.
+- **планировщик** = тот же резидентный процесс: держит очередь заданий, ждёт их due-время и вызывает интегратор
+  на отправку. **Решение владельца 20.08 (Р-D30а) реализовано** — один резидентный процесс, один unit, один
+  замок, один цикл; закрыто шагом Ш9.
 - **задание** = одна строка единой очереди (раздел 3). Не «крон-задача».
 
 ---
@@ -58,7 +59,7 @@
 | --- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | A1  | `jobQueueLoop` → `integrator.message_retry_jobs` (`worker/main.ts:64`)                | **Целевая очередь — `public.outgoing_delivery_queue`** (раздел 3); `integrator.message_retry_jobs` на именованной DEV отсутствует, перенос/дренаж этой таблицы в D30 не входит (Ш7 отменён владельцем 21.08.2026). Исходно эта таблица использовалась не только как ретраи, но и как ПЛАНИРОВЩИК будущего (`firstTryAt` в `bookingLifecycleRoute.ts:471` — напоминание за N минут до приёма), причём с русским текстом, собранным в интеграторе (`bookingLifecycleRoute.ts:441`) — оба свойства были против решения владельца.                                             |
 | A2  | `projectionOutboxLoop` (`worker/main.ts:121`)                                         | **Не предмет D30.** Уходит по D10, зависимость не меняется.                                                                                                                                                                                                                                                                                                                                                  |
-| A3  | `outgoingDeliveryLoop` → `public.outgoing_delivery_queue` (`worker/main.ts:133`)      | **Остаётся и становится главным.** Это и есть «планировщик собирает и рассылает через интегратор» в сегодняшнем коде. Единая очередь строится на нём (раздел 3).                                                                                                                                                                                                                                             |
+| A3  | `outgoingDeliveryLoop` → `public.outgoing_delivery_queue` (после Ш9: `scheduler/main.ts`, single-flight body внутри `createSchedulerLockedTickCoordinator`) | **Остаётся и становится главным.** Это и есть «планировщик собирает и рассылает через интегратор» в сегодняшнем коде. Единая очередь строится на нём (раздел 3). Ш9 переносит его тик из отдельного `worker/main.ts` в резидентный процесс — сам тик (`outgoingDeliveryWorker.ts`) не переписан. |
 | A4a | `runSchedulerOrganizationTicks` → `schedule.tick` → `reminders.planDue`/`dispatchDue` | **Остаётся как ИСПОЛНЕНИЕ, теряет РЕШЕНИЕ.** Сегодня за этим тиком стоит `kernel/domain/reminders/policy.ts` с пресетами, `reminderInlineKeyboard`, deep-link-сборка и русские тексты — это решение внутри интегратора. Оно уезжает в вебапп по D5–D7/D13a; тик остаётся тем, кто в нужный момент берёт готовую строку и отдаёт её на отправку. Механическая защита от возврата решений — раздел 2a, гейт A. |
 | A4b | `runScheduledOperatorHealthProbeTick`                                                 | **Остаётся, становится единственным триггером проб** после исчезновения B4.                                                                                                                                                                                                                                                                                                                                  |
 
@@ -390,10 +391,85 @@ DEV отсутствует, D30 не включает перенос или др
 `integrator_push_outbox` исчезает вместе с M2M-каналом `reminder_rule_upsert`. В этом плане фиксируется только
 зависимость; работа здесь не начинается.
 
-- [ ] **Ш9. Топология процессов — решение получено (Р-D30а, 20.08), шаг открыт к исполнению.** `worker` и
-      `scheduler` сводятся в один резидентный процесс: один systemd-unit, один замок, один цикл, захват через
-      `SKIP LOCKED`. Меняет systemd-units и ёмкость доставки (`docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md`)
-      — потеря горизонтального масштабирования принята владельцем. Шаг по-прежнему не блокирует 0–7.
+- [x] **Ш9. Топология процессов — закрыто 21.08.2026.** `worker` и `scheduler` сведены в один резидентный
+      процесс: один systemd-unit, один leader-замок, один top-level цикл; захват due-строк по-прежнему через
+      `FOR UPDATE SKIP LOCKED` (`claimDueOutgoingDeliveries`, `claimDueDirectPublicWriteRetries` — не менялись).
+
+      **Код:** `apps/integrator/src/infra/runtime/scheduler/main.ts` — единственный оставшийся entrypoint;
+      `apps/integrator/src/infra/runtime/worker/main.ts` удалён. `main.ts` держит `SCHEDULER_LOCK_KEY` один раз
+      при старте (как раньше у scheduler), затем строит ДВА независимых DI-графа через `buildDeps()` — ровно как
+      было у отдельных процессов (`schedulerDeps` без override, `workerDeps` с прежним
+      `dispatchAttemptWritePort: deliveryWritePort`) — чтобы отправка/wake-тики не меняли поведение при слиянии.
+      `createSchedulerLockedTickCoordinator` (`schedulerLockedTick.ts`) параметризован тремя single-flight телами
+      вместо одного (`runOrganizationTicks`, `runOutgoingDeliveryTick`, `runDirectPublicWriteRetryTick`) — второй
+      координатор не заводился, переиспользован существующий (§5 «один общий проход»). Оба новых тела кикаются
+      каждый tick только после `assertLockStillHeld()`, то есть — в отличие от прежнего отдельного `worker`,
+      который не проверял никакой замок вообще, — теперь не запускаются, если процесс не лидер. Это и есть
+      принятая потеря горизонтального масштабирования доставки (Р-D30а,
+      `docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md` — юнитов на боксе стало 5 вместо 6).
+
+      **Systemd/deploy/scripts (тем же коммитом):** `deploy/systemd/bersoncarebot-worker-prod.service` удалён;
+      `bersoncarebot-scheduler-prod.service` Description обновлён. `deploy/host/deploy-prod.sh`,
+      `deploy/host/bootstrap-systemd-prod.sh` (+ `--self-test` зелёный), `deploy/host/install-systemd-sandbox.sh`,
+      `deploy/host/prod/bcb-bluegreen-lib.sh`, `deploy/docker/docker-compose.yml`, `deploy/sudoers-deploy.example`
+      больше не ссылаются на `WORKER_SERVICE`/`bersoncarebot-worker-prod`. `deploy/host/start-worker.sh` (мёртвый
+      лаунчер retired entrypoint) удалён. `apps/integrator/package.json` и корневой `package.json`: `worker:dev` /
+      `worker:start` / `worker:start:host` убраны, `scheduler:dev` / `scheduler:start` теперь запускают резидентный
+      процесс. `docs/ARCHITECTURE/SERVER CONVENTIONS.md`, `ARCHITECTURE.md`, `README.md`,
+      `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`, `deploy/HOST_DEPLOY_README.md`, `deploy/env/README.md`,
+      `docs/ARCHITECTURE/OUTGOING_DELIVERY_QUEUE.md`, `docs/BACKLOG_TAILS.md` обновлены coherently.
+      **Честная граница:** PROD физически ещё не редеплоен на момент этой записи (см. отметка в
+      `SERVER CONVENTIONS.md`) — раздел «systemd units» там явно помечен как «последнее подтверждённое состояние
+      ДО этого коммита», а не наблюдение после deploy.
+
+      **Тесты:** `schedulerLockedTick.unit.test.ts` расширен до новых полей (было 5 тестов на организационный
+      single-flight, стало 6 — добавлен `keeps health cadence moving while a slow outgoing-delivery tick is
+      behind a barrier...`) и usил `does not start another body after a later lock-loss observation`: теперь
+      проверяет, что `runOutgoingDeliveryTick`/`runDirectPublicWriteRetryTick` тоже не стартуют после потери
+      замка — до Ш9 это было структурно невозможно проверить, потому что delivery вообще не знал о замке.
+      Названная поломка: до Ш9 второй экземпляр без замка мог доставлять сообщения параллельно с лидером
+      (двойная отправка); после Ш9 конструкция делает это невозможным (delivery — тело того же
+      `lockedTick.runTick()`), тест ловит регрессию, если кто-то вынесет `runOutgoingDeliveryTick`/
+      `runDirectPublicWriteRetryTick` обратно в независимый цикл без проверки замка.
+      `schedulerDecisionGuard.test.ts` (12/12) и `deploySystemdSchedulerUnitGate.test.ts` (10/10) зелёные без
+      изменений своей логики — `SCANNED_DIRECTORIES` уже покрывал оба каталога, unit-gate уже игнорировал файлы
+      без «scheduler» в имени.
+
+      **Прогоны (эта комната, `apps/integrator`, узкий scope по §10):**
+      `pnpm --dir apps/integrator exec vitest --run src/infra/runtime/scheduler/schedulerLockedTick.unit.test.ts` — 6/6;
+      `pnpm --dir apps/integrator exec vitest --run src/infra/runtime/scheduler/schedulerDecisionGuard.test.ts src/infra/runtime/scheduler/deploySystemdSchedulerUnitGate.test.ts` — 25/25;
+      `pnpm --dir apps/integrator exec vitest --run` (phase-level, полный набор integrator) — 511 passed / 4 failed
+      (все 4 — `src/infra/db/platformIntegrationAvailability.test.ts`, подтверждено preexisting сравнением с
+      `git stash` до этой ветки: падают идентично без единой правки Ш9, не имеют отношения к теме);
+      `pnpm --dir apps/integrator exec tsc --noEmit` — чисто; `pnpm --dir apps/integrator run lint` — чисто;
+      `pnpm --dir apps/integrator run build` — чисто, `dist/infra/runtime/scheduler/main.js` собирается,
+      `dist/infra/runtime/worker/main.js` больше не производится; `bash deploy/host/bootstrap-systemd-prod.sh
+      --self-test` — `OK`; `bash -n` на всех правленых `deploy/host/*.sh` — чисто; `git diff --check` — чисто.
+      Не запускалось (вне hard boundary этого прохода): любой DB/host/DEV/TEST/PROD прогон, `pnpm run ci`.
+
+      Меняет systemd-units и ёмкость доставки (`docs/ARCHITECTURE/SCALING_AND_LAUNCH_CAPACITY.md`) — потеря
+      горизонтального масштабирования доставки принята владельцем. Шаг по-прежнему не блокировал 0–7 и их
+      статус этим коммитом не менялся (см. следующий раздел).
+
+### Ре-измерение Ш1–Ш6 против текущего кода (21.08.2026, тем же коммитом что и Ш9)
+
+Статический прогон (без DB/host-доступа — hard boundary этого прохода): подтверждено, что состояние,
+зафиксированное в шагах Ш1–Ш6 по состоянию на 03.08, не разошлось с текущим кодом на дереве этой ветки —
+изменений, закрывающих любую из оставшихся живых гейтов, не найдено:
+
+- **Ш1** — `organizationId` уже в `apps/webapp/db/schema/outgoingDeliveryQueue.ts:20` (с индексом,
+  `:54`); `OutgoingDeliveryKind` union в `apps/integrator/src/infra/delivery/deliveryContract.ts` содержит
+  виды сверх исходных трёх. Читатели не тронуты. Пункт остаётся закрытым кодом, живой гейт не открывался заново.
+- **Ш3–Ш6** — `apps/webapp/src/modules/operator-health/cronJobRegistry.ts` по-прежнему перечисляет
+  `system-health-guard`, `operator-health-digest`, `operator-health-probe`, `specialist-task-reminders/tick`;
+  `deploy/host/cron.d/` по-прежнему содержит `bersoncarebot-operator-health-digest.cron.template` и
+  `bersoncarebot-system-health-guard.cron.template`. Ни один найденный артефакт не указывает, что живое
+  наблюдение периода или снятие cron состоялись после 03.08 — соответствующие боксы остаются `[ ]` по тем же
+  причинам, что и раньше (living observation on TEST/PROD not performed by this pass).
+
+Ни один бокс Ш1–Ш6 не менялся этим коммитом: их текст и статус — без изменений, только этот параграф добавлен
+как свежая точка ре-измерения. Полный живой прогон (dev/TEST provider proof) остаётся вне этого прохода по
+явному hard boundary брифа (§«Hard boundaries» — no DB access, no DEV/TEST/PROD mutation).
 
 ---
 

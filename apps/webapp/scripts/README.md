@@ -8,7 +8,7 @@ CI guardrail: `check-legacy-migrations-frozen.sh` блокирует добав�
 
 **Напоминания и админ-настройки (`reminder_*`, `system_settings`, projection):** канон DDL только Drizzle и согласование с integrator — см. [`docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md`](../../../docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/README.md) и [`STAGE_PLAN.md`](../../../docs/RULES/REMINDERS_SETTINGS_DRIZZLE_ONLY/STAGE_PLAN.md).
 
-**Процесс `pnpm worker:start` (integrator)** эти файлы **не запускает**. Он гоняет job queue и projection outbox → события уходят в webapp по HTTP и обрабатываются продуктовым кодом (tier/trust там же, что при webhook). Подробнее: [`PLATFORM_IDENTITY_OPS.md`](PLATFORM_IDENTITY_OPS.md) §3.
+**Резидентный scheduler+worker процесс `pnpm scheduler:start` (integrator, D30 Ш9)** эти файлы **не запускает**. Он гоняет job queue и projection outbox → события уходят в webapp по HTTP и обрабатываются продуктовым кодом (tier/trust там же, что при webhook). Подробнее: [`PLATFORM_IDENTITY_OPS.md`](PLATFORM_IDENTITY_OPS.md) §3.
 
 ## Идентичность, телефон и tier patient (обход UI)
 
