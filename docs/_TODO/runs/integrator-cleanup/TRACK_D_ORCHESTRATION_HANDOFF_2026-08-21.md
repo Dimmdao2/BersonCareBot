@@ -127,7 +127,14 @@ fixtures и без одноразовой базы.
    TEST, затем снятие sweep/route/registry/host cron для закрытых code-side шагов (Ш3), затем TEST-наблюдение и
    фактическое снятие host cron через `cronport` для Ш4/Ш5/Ш6. B3/Ш8 — только зависимость от D5–D7/D25 вне этого
    плана.
-5. **D18 — измерено закрытым, не запускать отклонённую широкую конвертацию.** `production debt: 0`
+5. **D15b/7 (псевдоним) — не отложен, зависит на практике от TEST-закрытия D15b/6.** «Не сейчас» снято 20.08;
+   первый этап **D15b/7a** — внутри уже существующего identity/DB-port + port-context seam разделить opaque
+   actor/identity ref и opaque medical-subject ref (`app_ext.variant_a_identity_refs`,
+   `app.pre_session_resolve_identity`, `PortContextPrincipal.actorRef/subjectRef`, `portContextRuntime`), оба
+   ref разрешаются внутри seam в текущий `platform_users.id`. ⛔ **Не запускать** массовый перенос клинических
+   FK и не заводить второй linkage-service/HTTP hop/параллельный store — этого первый этап не требует. Точные
+   условия и числа — `docs/OWNER_DECISIONS.md` → «Track D» и `WORK_ORDER.md` D15b/7.
+6. **D18 — измерено закрытым, не запускать отклонённую широкую конвертацию.** `production debt: 0`
    (`node scripts/check-no-new-raw-sql.mjs --census`), `check-db-chokepoint: OK`. Остаток текстового SQL внутри
    уже легального моста (73 production-потребителя замером 21.08) — рациональная maintenance-работа D18b, не
    блокирующий пункт Track D; см. `docs/_TODO/TEXT_SQL_TO_BUILDER_PLAN_2026-08-19.md` («Текущая инструкция») и

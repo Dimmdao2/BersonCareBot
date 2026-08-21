@@ -156,9 +156,14 @@ Readers частично переведены на `user_identity`, но writers
 ### 4.2 Account root смешан с PII и medical attributes
 
 `platform_users` сейчас одновременно account root, identity row и место для DOB/gender/height/weight. Медицинские
-таблицы ссылаются на тот же physical user id. Полная деперсонализация уже исследована и owner-deferred: нужен
-opaque medical subject и отдельная identity mapping boundary, но это самостоятельный privacy workstream, не
-часть запуска и не побочный эффект contact cleanup.
+таблицы ссылаются на тот же physical user id. ⛔ **Уточнено 20–21.08 (Track D, D15b/7a) — это НЕ полностью
+отложенный workstream.** Первый совместимый этап — разделение opaque actor/identity ref и opaque medical-subject
+ref внутри уже существующего identity/DB-port + port-context seam, с разрешением обоих ref в текущий
+`platform_users.id` (без переноса клинических FK и без физического разнесения баз) — идёт сейчас, в текущей
+оркестрации Track D, не после production launch. Отдельным (действительно post-production) privacy-workstream
+остаётся только следующая, дорогая и низкообратимая стадия — физическое разнесение баз. Авторитет —
+`docs/OWNER_DECISIONS.md` → «Track D», `WORK_ORDER.md` D15b/7,
+`runs/integrator-cleanup/IDENTITY_AND_MERGE_SCHEME.md` §2b–§2c.
 
 ### 4.3 Session cookie, principal и свежий user snapshot смешаны
 
@@ -261,8 +266,9 @@ Medical/clinical/program/payment data не загружаются целиком
    подтверждённому контакту.
 7. Fail-closed migration: parity proof, удалить `platform_users.phone/email*` и mirror writer; добавить точные
    primary/scope/confirmation constraints. Историю/provenance не использовать как обратный source of truth.
-8. Отдельно завершить `user_identity` cutover. Pseudonymous medical subject mapping остаётся privacy workstream,
-   не частью contact migration.
+8. Отдельно завершить `user_identity` cutover. Первый этап opaque actor/medical-subject ref (D15b/7a) идёт сейчас
+   в Track D, не после launch (см. §4.2); отдельным post-production privacy workstream остаётся только
+   последующее физическое разнесение баз, не сама pseudonymous-схема ref.
 9. Перевести patient-invite start/verify/claim с legacy HMAC-table proof на transaction-bound named capability и
    удалить `app.context_signing_secrets` вместе с устаревшими signature/nonce arguments.
 10. Построить единый delivery-failure incident/alert контур для auth-кодов и остальных обязательных уведомлений:
