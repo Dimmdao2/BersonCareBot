@@ -1,3 +1,17 @@
+# УСТАРЕЛО/ЗАМЕНЕНО 2026-08-21 — у fixture есть TEST operator door
+
+Исторический incident ниже сохранён как причина контракта. Текущая команда на named TEST:
+
+```bash
+bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh
+```
+
+Она использует existing protected packet/parser и seeder, даёт temporary authority only for one transactional
+seed and removes it in EXIT. При cleanup failure: `sudo bash
+/home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
+Затем выполняется неизменённый `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`; его tenant-isolation
+preflight не ослабляется и получает meaningful Clinic A/B data.
+
 # Фикстуру на две клиники нечем запустить на TEST
 
 Найдено 19.08.2026. Работа ОСТАНОВЛЕНА по правилу владельца: «пошел на 4 круг одной проблемы — то
@@ -53,9 +67,9 @@
 
 ## Что уже подготовлено и лежит на месте
 
-`/etc/bersoncarebot/saas-test-fixture.env` — пакет по контракту `saas-test-fixture-packet.mjs`
-(root:deploy, 0640, `SAAS_TEST_FIXTURE_ENABLED=1`, синтетические почты
-`clinic-a@saas-test.bersoncare.ru` / `clinic-b@…`, пароль `123456testTEST`). Валиден, ждёт запуска.
+`/opt/env/bersoncarebot/saas-test-fixture.env` — пакет по контракту `saas-test-fixture-packet.mjs`
+(root:deploy, 0640, `SAAS_TEST_FIXTURE_ENABLED=1`). Значения credentials намеренно не записываются в git;
+packet валиден и ждёт запуска.
 
 ## Развилка для владельца — три варианта, выбирать ему
 

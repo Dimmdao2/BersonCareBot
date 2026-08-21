@@ -61,8 +61,13 @@ Store/payment использует только `fixture_noop`, уведомле
 и ссылаются на коммиченный `public/test-fixtures/saas-exercise.svg`: `/api/media/[id]` отдаёт его
 только для exact DB `bersoncarebot_test`, а playback descriptor возвращает same-origin URL. Внешние S3
 и каналы доставки не вызываются.
-Запускается только из `deploy/host/deploy-test-saas.sh` в узком controlled owner+BYPASSRLS reconciliation
-window с обязательным cleanup, требует explicit
+Перед обычным TEST deploy запускается только из exact source checkout:
+`bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh`.
+Дверь валидирует existing protected packet/parser и exact named DB, даёт existing transactional seeder
+collision-safe temporary LOGIN SUPERUSER и удаляет login/temporary credential в EXIT. Она не останавливает
+services, не меняет stationary runtime roles/grants/RLS и не заменяет tenant-isolation proof. При cleanup failure:
+`sudo bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
+Требуется explicit
 `SAAS_TEST_FIXTURE_ENABLED=1` и четыре credential key из защищённого внешнего TEST operator packet. Скрипт
 проверяет `current_database() = bersoncarebot_test`, не делает внешних вызовов и не печатает реквизиты/ID.
 Добавленные специалисты A и representative patients используют пароль своей клиники только внутри

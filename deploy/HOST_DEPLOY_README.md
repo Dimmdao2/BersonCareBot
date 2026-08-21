@@ -742,6 +742,18 @@ bash deploy/host/deploy-prod.sh
 > **OWNER-CORRECTION 17.08.2026.** До полного green runtime-прохода именованного DEV TEST не запускать.
 
 `deploy-test.sh` — единственный будущий entrypoint обновления существующей именованной TEST: он берёт lock до создания collision-safe transcript, собирает committed branch и применяет только B0-forward изменения. Он не создаёт базу, не восстанавливает dump и не исполняет historical, disposable, A0/A1 или PROD A→B0 machinery.
+
+Если tenant-wall preflight сообщает «ДОКАЗЫВАТЬ НЕЧЕГО» из-за отсутствия Clinic A/B, сначала выполнить:
+
+```bash
+bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh
+```
+
+Это TEST-only prerequisite: temporary collision-safe DB authority существует только на время existing
+transactional seeder и удаляется в EXIT вместе с temporary credential. Services не останавливаются, normal
+`deploy-test.sh` proof не меняется. При cleanup failure сначала выполнить
+`sudo bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
+После PASS повторить `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`.
 ### Отдельный webapp deploy
 
 ```bash
