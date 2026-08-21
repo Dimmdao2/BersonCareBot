@@ -257,15 +257,14 @@ explicit organizationId here regardless of the chokepoint fix.
    `rehearse-multitenant-isolation.mjs` — prove the principal+RLS plumbing (staff/patient wall, plain
    SET can't forge visibility, locked-mode fail-closed release). They don't exercise webapp
    route/page code, so they won't catch #821 alone, but must keep passing unmodified.
-2. **Application positive (new — the real regression coverage):** using
-   `seed-saas-test-walkthrough-fixtures.ts`'s two-clinic fixture, log in as Clinic A staff, hit each
-   §2 route (`working-hours`, `appointments/list`, `clients/search`, `treatment-program-templates`,
-   `prepayment-policies`, the `doctor/content` page loader); assert **non-empty Clinic-A rows** — today
-   `[]` under FORCE+locked, after fix the seeded rows.
-3. **Cross-org negative (must never regress):** same routes as Clinic B staff — only Clinic B rows (or
-   empty), never a Clinic A row. This catches a leak introduced by a careless fix per §4.
-4. **Companion-bug regression (§7):** a real (non-mocked) DELETE of a seeded working-hours row — assert
-   `is_active` actually flips to false in the DB, not just `200 OK`.
+2. **Application positive (new — the real regression coverage):** use the owner's already registered
+   Clinic A account and its existing data for the §2 routes (`working-hours`, `appointments/list`,
+   `clients/search`, `treatment-program-templates`, `prepayment-policies`, the `doctor/content` page loader).
+   Do not seed a clinic, user or dataset; see `AGENTS.md` §1b.
+3. **Cross-org negative (must never regress):** use the existing Clinic B account; it must return only
+   Clinic B rows (or empty), never a Clinic A row. This catches a leak introduced by a careless fix per §4.
+4. **Companion-bug regression (§7):** if a mutation probe is necessary, it must run in one transaction with
+   guaranteed rollback and leave no fixture entity or state behind; a response code alone is insufficient.
 5. Gate through `check-saas-db-regression.mjs` + `check-db-chokepoint.mjs` before any phase done.
    **TEST-only**, disposable DB names only, never dev/prod (per `PHASE4_ROLLOUT_RUNBOOK.md`).
 

@@ -13,13 +13,9 @@ import {
   runSaasIsolationPostRuntimeGate,
 } from '../src/modules/operator-health/saasIsolationPostRuntimeGate';
 
-const TEST_SCENARIOS = ['clean', 'okay', 'incomplete', 'critical'] as const;
-type TestScenario = (typeof TEST_SCENARIOS)[number];
-
 type Command =
   | { kind: 'event'; input: ReportSaasIsolationEventInput }
   | { kind: 'coverage'; input: RecordSaasIsolationCoverageInput }
-  | { kind: 'scenario'; state: TestScenario }
   | { kind: 'post-runtime-gate'; startedAt: string; checksCount: number }
   | { kind: 'read' };
 
@@ -42,7 +38,7 @@ function assertKnownOptions(
   for (let index = 1; index < args.length; index += 1) {
     const argument = args[index]!;
     if ((!values.has(argument) && !flags.has(argument)) || seen.has(argument)) {
-      throw new Error('usage: event|coverage|scenario|post-runtime-gate|read');
+      throw new Error('usage: event|coverage|post-runtime-gate|read');
     }
     seen.add(argument);
     if (values.has(argument) && args[index + 1] && !args[index + 1]!.startsWith('--')) {
@@ -82,13 +78,6 @@ export function parseSaasIsolationDiagnosticsCommand(rawArgs: string[]): Command
   if (command === 'read') {
     assertKnownOptions(args, []);
     return { kind: 'read' };
-  }
-  if (command === 'scenario') {
-    assertKnownOptions(args, ['--state']);
-    return {
-      kind: 'scenario',
-      state: enumValue(TEST_SCENARIOS, option(args, '--state'), 'invalid_test_scenario'),
-    };
   }
   if (command === 'post-runtime-gate') {
     assertKnownOptions(args, ['--started-at', '--checks']);
@@ -152,7 +141,7 @@ export function parseSaasIsolationDiagnosticsCommand(rawArgs: string[]): Command
       },
     };
   }
-  throw new Error('usage: event|coverage|scenario|post-runtime-gate|read');
+  throw new Error('usage: event|coverage|post-runtime-gate|read');
 }
 
 async function main(): Promise<void> {
@@ -165,13 +154,6 @@ async function main(): Promise<void> {
   if (command.kind === 'coverage') {
     await runtimeSaasIsolationDiagnostics.recordCoverage(command.input);
     process.stdout.write('coverage_recorded\n');
-    return;
-  }
-  if (command.kind === 'scenario') {
-    await getSaasIsolationOperatorPool().query('SELECT app.set_saas_isolation_test_scenario($1)', [
-      command.state,
-    ]);
-    process.stdout.write(`scenario_${command.state}\n`);
     return;
   }
   if (command.kind === 'post-runtime-gate') {

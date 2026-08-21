@@ -216,7 +216,7 @@
 | `SAAS_FOUNDATION/SAAS_E1_REMINDER_M2M_ORG_CONTEXT.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` | 29 | 29 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_A1.md` | 0 | 9 | 0 | ЗАКРЫТ | Основание: собственная шапка/строки фиксируют закрытый smoke A1; нет открытых пунктов. | архив |
-| `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | 0 | 0 | 0 | ЖИВОЙ | 0 открытых, но нет достаточного основания для архивного вердикта; требует решения лида. | оставить на месте |
+| `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | 0 | 0 | 0 | УДАЛЁН | Файл отсутствует на диске 21.08.2026: fixture-based A1/product smoke выведен из deploy решением владельца 30.07.2026 (`HARD_MIGRATION_PROTOCOL.md`). | не применимо — файла нет |
 | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` | 3 | 1 | 0 | ЖИВОЙ | Открытые [ ] остаются: без прямого архивного основания файл не закрывается. | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md` | 5 | 4 | 0 | ЖИВОЙ | «ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen)… не текущий план»; продолжение в `SAAS_ENFORCE_ROADMAP.md`, `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md` (`SAAS_FOUNDATION/SAAS_R0_PLAN_RECONCILIATION.md:3-6`). | гейт 29.07: держит живую работу, в архив не идёт |
 | `SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md` | 4 | 2 | 0 | ЖИВОЙ | «ИСТОРИЧЕСКАЯ ЗАПИСЬ (frozen)… не текущий план»; продолжение в `SEQUENCE.md`, `OWNER_RULINGS_2026-07-15.md`, `SAAS_ENFORCE_ROADMAP.md` (`SAAS_FOUNDATION/SAAS_R1_FINISH_LINE_AND_DOC_HYGIENE.md:3-6`). | гейт 29.07: держит живую работу, в архив не идёт |
@@ -520,7 +520,7 @@
 | `SAAS_FOUNDATION/SAAS_C4_SCHEDULER_MEDIA_CRON_FANOUT.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_E1_REMINDER_M2M_ORG_CONTEXT.md` | не относится к волне с архивным вердиктом | оставить на месте |
-| `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | не относится к волне с архивным вердиктом | оставить на месте |
+| `SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | удалён 21.08.2026, файла нет на диске | не применимо |
 | `SAAS_FOUNDATION/SAAS_S4_TARIFFS_STORE_ENTITLEMENTS_LOG.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/SAAS_S5_SETTINGS_ROOT_SPLIT_LOG.md` | не относится к волне с архивным вердиктом | оставить на месте |
 | `SAAS_FOUNDATION/T0_2_REQUEST_PRINCIPAL_CONTEXT_PLAN.md` | не относится к волне с архивным вердиктом | оставить на месте |

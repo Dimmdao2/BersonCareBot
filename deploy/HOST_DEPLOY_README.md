@@ -209,7 +209,7 @@ bash /opt/projects/bersoncarebot-test/deploy/host/provision-c4-operational-runti
 
 Bootstrap заменяет каждый env-файл атомарно (это не общая транзакция трёх файлов): добавляет три отдельные operational URL в `api.test`, создаёт control-only media-worker env
 и принудительно закрепляет в `webapp.test`
-`ALLOW_DEV_AUTH_BYPASS=false` (TEST работает как production-сборка; dev-bypass разрешён только локальному DEV),
+`ALLOW_DEV_AUTH_BYPASS=false` (TEST работает как production-сборка; локально `true` разрешает только `/api/auth/dev-public`, authenticated bypass удалён),
 переносит в `media-worker.test` только общий principal-контракт и необходимые S3/runtime поля из `api.test`,
 и нормализует три TEST-env как `root:deploy 0640`. Уже созданные URL при повторном запуске сохраняются; значения
 паролей и секретов не выводятся.
@@ -743,19 +743,9 @@ bash deploy/host/deploy-prod.sh
 
 `deploy-test.sh` — единственный будущий entrypoint обновления существующей именованной TEST: он берёт lock до создания collision-safe transcript, собирает committed branch и применяет только B0-forward изменения. Он не создаёт базу, не восстанавливает dump и не исполняет historical, disposable, A0/A1 или PROD A→B0 machinery.
 
-Если tenant-wall preflight сообщает «ДОКАЗЫВАТЬ НЕЧЕГО» из-за отсутствия Clinic A/B, сначала выполнить:
-
-```bash
-bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh
-```
-
-Это TEST-only prerequisite: temporary collision-safe DB authority существует только на время canonical
-global reference-catalog baseline reconcile и existing transactional seeder, затем удаляется в EXIT
-вместе с temporary credential. Это не применяет и не записывает migration ledger; B0-forward migration
-остаётся единственным deploy-path. Reviewed wrapper records, stops/quiesces, then restores the five TEST
-units and health-checks their recorded active state; normal `deploy-test.sh` proof не меняется. При cleanup failure сначала выполнить
-`sudo bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
-После PASS повторить `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`.
+Deploy не создаёт, не seed-ит и не требует persistent fixture-данные. Ролевые и продуктовые проверки выполняются
+от уже зарегистрированных owner-учёток/клиник согласно `AGENTS.md` §1b; отсутствие специально созданной Clinic A/B
+не является deploy precondition или recovery path.
 ### Отдельный webapp deploy
 
 ```bash

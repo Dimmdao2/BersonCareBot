@@ -60,10 +60,6 @@ const schemaBCensusFunctions = (censusKey, includeNewForward) => {
 };
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
-const TEST_ONLY = [
-  'app.read_saas_isolation_test_scenario_fixture_counts()',
-  'app.set_saas_isolation_test_scenario(text)',
-].sort();
 const GENUINE_PRE_SESSION_FUNCTIONS = `
 auth_login_token_confirm
 auth_login_token_create
@@ -156,9 +152,6 @@ test('every declared function has the exact source-reconstructed base type and s
   }, ...ACTIVE_FORWARD_MIGRATIONS.map((file) => ({ source: path.relative(REPOSITORY_ROOT, file), text: fs.readFileSync(file, 'utf8') })), {
     source: 'deploy/postgres/port-context/contract.sql',
     text: fs.readFileSync(path.resolve(REPOSITORY_ROOT, 'deploy/postgres/port-context/contract.sql'), 'utf8'),
-  }, {
-    source: 'deploy/postgres/test-saas-isolation-telemetry-fixtures.sql',
-    text: fs.readFileSync(path.resolve(REPOSITORY_ROOT, 'deploy/postgres/test-saas-isolation-telemetry-fixtures.sql'), 'utf8'),
   }];
   const canonical = latestFunctionReturnShapes(sources);
   const external = {
@@ -378,12 +371,12 @@ test('current-patient surface gate catches missing operation, absent relation, a
 test('legacy census is restored without obsolete context and overlaid by the active schema B roots', () => {
   assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
   assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 231,
+    functions: 229,
     owners: 40,
-    test: 231,
+    test: 229,
     dev: 229,
     triggers: 3,
-    relationEdges: 485,
+    relationEdges: 479,
   });
   // Замороженная легаси-перепись и её данные обязаны сходиться друг с другом; число берётся из
   // самой переписи, а не из второй копии в тесте. Ключи объекта не повторяются по построению.
@@ -411,9 +404,8 @@ test('legacy census is restored without obsolete context and overlaid by the act
   // ровно живой дефект 18.08 (L-7), описанный ниже в этом файле. Счётчик «396» показывал такую
   // подмену числом 395 и не называл ни функцию, ни базу; список называет её первой строкой diff-а.
   //
-  // Что ловит вторая: функция объявлена только для одной базы. Разница между TEST и DEV — это
-  // ровно `TEST_ONLY` и ничто больше; всё прочее означает, что DEV не получит двери, которую
-  // получит TEST, или наоборот.
+  // Что ловит вторая: TEST и DEV объявляют одинаковые функции; любое расхождение означает,
+  // что одна из сред получает дверь, которой нет в другой.
   assertNameCensus(
     'declaredNonDefinerFunctions',
     Object.entries(declaration.portContext.functions).filter(([, fn]) => fn.security !== 'DEFINER')
@@ -421,13 +413,13 @@ test('legacy census is restored without obsolete context and overlaid by the act
     'declared functions that are NOT SECURITY DEFINER',
   );
   assert.deepEqual(
-    testFunctions.map(([signature]) => signature).filter((signature) => !TEST_ONLY.includes(signature)).sort(),
+    testFunctions.map(([signature]) => signature).sort(),
     devFunctions.map(([signature]) => signature).sort(),
-    'TEST and DEV must declare the same functions apart from the exact TEST_ONLY fixtures',
+    'TEST and DEV must declare the same functions',
   );
   assertDefinerOwnersAreDeclaredSeamRoles();
   assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
-    .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), TEST_ONLY);
+    .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), []);
   const proconfigExceptions = Object.entries(BUSINESS_SEAM_FUNCTIONS)
     .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
     .map(([signature, fn]) => [signature, fn.proconfig[0]]);
@@ -714,19 +706,5 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.doesNotMatch(first, /THEN RAISE EXCEPTION 'function body requires undeclared/);
     assert.match(first, /app\.record_operator_outbound_probe_run\(text,timestamp with time zone,text,jsonb\)/);
     assert.doesNotMatch(first, /install_signed_context|release_principal_context|reset_principal_context/);
-    for (const signature of TEST_ONLY) {
-      if (database === 'bersoncarebot_test') assert.ok(first.includes(`ALTER FUNCTION ${signature} OWNER TO`), signature);
-      else assert.equal(first.includes(`ALTER FUNCTION ${signature} OWNER TO`), false, signature);
-    }
   }
-});
-
-test('a TEST-only return-shape drift is rendered only into the TEST catalog universe', () => {
-  const signature = 'app.read_saas_isolation_test_scenario_fixture_counts()';
-  const mutated = structuredClone(declaration);
-  mutated.portContext.functions[signature].returnsSet = false;
-  const testSql = generateFunctionCensusSql(mutated, 'bersoncarebot_test');
-  const devSql = generateFunctionCensusSql(mutated, 'bcb_webapp_dev');
-  assert.ok(testSql.includes(`('${signature}', 'saas_telemetry_owner'::name, 'record', false`));
-  assert.equal(devSql.includes(signature), false);
 });

@@ -81,7 +81,7 @@ Tier **patient** для закрытого кабинета PWA может вк�
 
 **Session/cookie** — транспорт идентичности; **tier** для `client` **всегда** пересчитывается на сервере по **актуальному канону из БД** после резолва (не по устаревшему snapshot в cookie). Решения о доступе опираются на БД; cookie может отставать до следующей легальной перезаписи (ограничения Next.js Server Components учитываются в реализации).
 
-**Legacy `tg:…` / не-UUID в `userId`:** архитектурное решение зафиксировано в `apps/webapp/src/modules/auth/sessionCanonicalUserIdPolicy.ts`: такой транспорт **не** является каноническим ключом; для `client` политика tier даёт только **onboarding** (см. `legacy_non_uuid_session` в `resolvePlatformAccessContext`). Основные login flows с PostgreSQL пишут в cookie UUID канона; совместимость с префиксами — временный onboarding-only режим (тесты, dev bypass, пути без БД).
+**Legacy `tg:…` / не-UUID в `userId`:** архитектурное решение зафиксировано в `apps/webapp/src/modules/auth/sessionCanonicalUserIdPolicy.ts`: такой транспорт **не** является каноническим ключом; для `client` политика tier даёт только **onboarding** (см. `legacy_non_uuid_session` в `resolvePlatformAccessContext`). Основные login flows с PostgreSQL пишут в cookie UUID канона; совместимость с префиксами — временный onboarding-only режим (тесты и пути без БД).
 
 ---
 

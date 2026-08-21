@@ -1,7 +1,6 @@
 /**
- * Resolves Playwright from the box's global npm install (not a repo dependency — see
- * runs/clickthrough/README.md for why). Falls back to a local node_modules resolution if the repo
- * ever gains its own playwright dependency later.
+ * Resolves Playwright from the box's global npm install (not a repo dependency). Falls back to a
+ * local node_modules resolution if the repo ever gains its own playwright dependency later.
  */
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
@@ -19,5 +18,3 @@ function resolvePlaywright() {
 }
 
 export const { chromium } = resolvePlaywright();
-
-export const BASE_URL = process.env.CLICKTHROUGH_BASE_URL || 'http://127.0.0.1:6300';

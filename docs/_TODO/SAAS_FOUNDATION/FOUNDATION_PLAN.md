@@ -88,7 +88,7 @@ every scoped table has FORCE RLS + a policy.
 
 **Block 5 — rest (dormant):** SecretsResolver + env fallback; i18n provider ru-only via **proxy (not
 middleware)**; S3 key prefix with org; dormant `activeOrganizationId` session field; outbox / audit /
-soft-delete; isolation test fixtures (2 orgs + a shared patient).
+soft-delete; isolation proof against the already-registered owner orgs/patients, no seeded fixture data.
 
 **Dropped from Phase 0** (deferred to the region phase): the `persons`/`directory` split —
 `platform_users.id` is already the patient FK baked into the new engine; splitting now fights it for
@@ -314,8 +314,10 @@ at)` on scoped clinical tables (medico-legal / 152-FZ / GDPR). Cheap now, lossy 
 4. **Transactional outbox:** `app.outbox(...)` + relay worker; booking write + side-effect enqueue in
    one tx; relay delivers to Telegram/Rubitime/GCal. Closes the desync class that already leaked an
    overlap booking to GCal in prod.
-5. **Multi-tenant test fixtures:** seed two cabinets + one shared Person; an isolation test asserting
-   doctor A cannot read cabinet B's chart (run under the non-bypass role).
+5. **Multi-tenant isolation proof:** against the already-registered owner clinics/cabinets (no seeded
+   cabinet/Person fixture), assert doctor A cannot read cabinet B's chart under the non-bypass role; any
+   probe mutation runs in a guaranteed-rollback transaction that leaves no fixture entity behind
+   (`docs/OWNER_DECISIONS.md:870-871`).
 
 ---
 
@@ -327,7 +329,7 @@ at)` on scoped clinical tables (medico-legal / 152-FZ / GDPR). Cheap now, lossy 
 4. SecretsResolver with env fallback (§5).
 5. i18n provider ru-only + content locale shape (§6).
 6. Region columns + RegionGuard + DirectoryPort stub + gateway contract doc (§7).
-7. Outbox + audit + soft-delete + isolation fixtures (§8).
+7. Outbox + audit + soft-delete + isolation proof (§8).
 8. Flags + flip runbook (§1).
 
 Throughout: production stays single-cabinet/`ru`, behavior unchanged.
@@ -504,7 +506,7 @@ reconciliation. Plan reframed accordingly.
 
 | Block                                                                  | What                                                                                                                                                                                                                                                                                                                                                                                                                                 | Eng-weeks          |
 | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------ |
-| **Phase 0 — dormant scaffolding** (zero behavior change, landable now) | ~50-table nullable scope + backfill across 5 migration roots · `directory/app` split with **soft refs** · **two DB roles now** · RLS policies under `FORCE`+narrow-bypass · CI RLS invariant · SecretsResolver+env fallback · i18n provider (proxy-based) · region cols · **S3 cabinet/region key scheme** · dormant `activeCabinetId` session field · outbox/audit/soft-delete/isolation fixtures · **decide Cabinet≡Organization** | **~2.5–4** 🟢 safe |
+| **Phase 0 — dormant scaffolding** (zero behavior change, landable now) | ~50-table nullable scope + backfill across 5 migration roots · `directory/app` split with **soft refs** · **two DB roles now** · RLS policies under `FORCE`+narrow-bypass · CI RLS invariant · SecretsResolver+env fallback · i18n provider (proxy-based) · region cols · **S3 cabinet/region key scheme** · dormant `activeCabinetId` session field · outbox/audit/soft-delete/isolation proof · **decide Cabinet≡Organization** | **~2.5–4** 🟢 safe |
 | **T0 — enforcement cutover** (the refactor; run when ready to enforce) | per-request pinned-connection model hooked at `runWebappPgText` + audit 39 dedicated + 132 raw paths · wrap **4 process entrypoints** · session live + cabinet-selection UX · swap to non-bypass app role + classify bypass paths · shadow-enforcement period                                                                                                                                                                        | **~6–9** 🔴        |
 | **Tenant lifecycle** (the SaaS itself)                                 | onboarding/provisioning + plan/billing · **per-tenant inbound bot routing** · offboarding/deletion/export · per-tenant quotas/rate-limit · per-tenant observability · `/admin` boundary                                                                                                                                                                                                                                              | **~5–8** 🟠        |
 | **i18n activation (EN)**                                               | unchanged                                                                                                                                                                                                                                                                                                                                                                                                                            | **~3–4.5** 🟡      |

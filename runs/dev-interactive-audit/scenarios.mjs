@@ -92,7 +92,6 @@ const contractsFor = (routes) => routes.map((route) => {
 
 export const ROLE_SCENARIOS = Object.freeze({
   global_admin: {
-    syntheticToken: 'admin',
     emailEnv: 'DEV_AUDIT_ADMIN_EMAIL',
     defaultEmail: 'dimmdao@gmail.com',
     identity: { role: 'admin', contactKind: 'email', contactValue: 'dimmdao@gmail.com' },
@@ -146,7 +145,6 @@ export const ROLE_SCENARIOS = Object.freeze({
     },
   },
   doctor: {
-    syntheticToken: 'clinic-admin',
     emailEnv: 'DEV_AUDIT_DOCTOR_EMAIL',
     defaultEmail: 'dimmdao@yandex.ru',
     identity: { role: 'doctor', contactKind: 'email', contactValue: 'dimmdao@yandex.ru' },
@@ -216,7 +214,6 @@ export const ROLE_SCENARIOS = Object.freeze({
     },
   },
   patient: {
-    syntheticToken: 'client',
     emailEnv: 'DEV_AUDIT_PATIENT_EMAIL',
     defaultEmail: 'kinesiospace@gmail.com',
     sessionCookieEnv: 'DEV_AUDIT_PATIENT_SESSION_COOKIE',

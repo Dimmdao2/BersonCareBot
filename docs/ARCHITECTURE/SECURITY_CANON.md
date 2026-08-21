@@ -136,11 +136,10 @@ RLS-политика на `platform_users` по той же схеме, что �
 
 **Как сейчас:**
 
-- `deploy/host/deploy-test-saas.sh` держит **два разных гейта**: жёсткий `apply_test_strict_rls_finalizer`
-  (`:779-791`, точная проверка FORCE RLS по 163 целям) + `run_saas_isolation_test_scenario_proof`
-  (`:768-776`, `:2555-2556`, сценарии из `diagnostics:saas-isolation:test-scenarios`) — оба fail-closed. Плюс
-  отдельный `run_e1_post_runtime_coverage_gate` (`:2293-2306`), который **не валит деплой** — сознательное
-  смягчение владельца от 18.07 («вариант B»), диагностика на TEST, не гейт.
+- `deploy/host/deploy-test-saas.sh` сохраняет жёсткий `apply_test_strict_rls_finalizer` — точную проверку
+  FORCE RLS. Fixture-зависимый `run_saas_isolation_test_scenario_proof` удалён 21.08.2026: TEST deploy не
+  создаёт и не требует постоянных fixture-данных. `run_e1_post_runtime_coverage_gate` остаётся диагностикой,
+  а не deploy-гейтом; проверки ролей выполняются по существующим owner-аккаунтам по `AGENTS.md` §1b.
 - `TENANT_HARD_MODE_LOG.md:5` фиксирует прогон 03.08 (`deploy-test.sh feat/doctor-ui-rebuild`) с `exit 0`,
   «strict closure 158/158». **Расхождение с исходным бэклогом:** УЗ-3 (`UZ3_COMPLIANCE_BACKLOG_2026-08-03.md:
   53`) пишет, что гейт «реально валил выкатку 03.08» — в репозитории найден только успешный прогон в тот же

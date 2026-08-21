@@ -211,67 +211,6 @@ Proven live on 2026-07-25: leftover probe membership made the next deploy abort 
 `FATAL: role bersoncarebot_test already has membership in app_owner before deploy`. That is the guard
 working as designed (fail-closed on pre-existing elevation) — not a bug to work around.
 
-## 2.2 SUPERSEDED HISTORICAL — former demo-fixture closure findings (2026-07-25)
-
-This section records why the old locked overlay/fixture closure was retired. It is not an active decision or
-execution path: the current fresh-reset does not seed S3 A/B clinics, mint stored smoke sessions, run the old
-nginx/A2/E1 chain or take TEST down on a post-restart product-smoke failure. Current authority is §2 plus
-`HARD_MIGRATION_PROTOCOL.md`; owner page acceptance happens separately after deploy.
-
-The post-migration closure itself now runs end to end on a from-zero prod dump: roles+grants → protected
-principal helpers → reviewed overlays → isolation telemetry → integrator login grants → **reversible SaaS
-isolation scenario proof** → TEST settings → **base policies → safe overlays → exact FORCE assertions** →
-C4 three-DB-login provisioning plus authenticated media control → strict+FORCE reassertion → nginx → ordered TEST
-restart (new webapp → control → legacy media-login retirement → media-worker). Two things surfaced:
-
-**(a) Three verification steps are built on the S3 demo clinics A/B and cannot run without them.**
-`test-patient-identity-capability-gate.sql`, `test-owner-ready-locked-matrix.sql` (26 hardcoded fixture
-UUIDs) and the A2 product smoke fixture (`/run/bersoncarebot/saas-smoke.fixture`, which carries **signed
-session cookies for demo user ids** `53000000-…-d0a2`/`d0a1`/`a101`/`d001`) all assert against those
-fixtures. The owner retired the demo data on 2026-07-25 and its seed step was removed from the closure, so
-each of them aborted the closure in turn. The first two now **skip loudly when the fixtures are absent and
-run unchanged (still fatal) when they are present** — one shared predicate,
-`demo_isolation_fixtures_present`. The product smoke still fails 18/22: the app is behaving CORRECTLY
-(401 for a session signed for a non-existent user, 307 for unauthenticated) — the fixture is stale, not the
-product. The 4 public scenarios pass, proving the app serves.
-→ **SUPERSEDED OWNER QUESTION:** (A) re-seed the synthetic demo clinics on TEST — they exist purely
-for this verification, are TEST-only and carry zero prod risk, and all three gates work again; or
-(B) re-issue the operator smoke fixture against the owner's real identities (doctor = yandex account,
-global admin = the account created by the identity data-fix), which tests real data but requires minting
-signed sessions for real users. Until one is chosen, authenticated product surfaces stay UNVERIFIED by
-automation.
-
-**(a.1) Owner rulings 2026-07-25 on the two blockers, and what they produced.**
-
-- **ФИО drift → "применяй" (DONE).** The reviewed manifest is snapshot-bound, and one client row had changed on prod
-  after the review (display name `Ольга Альмендингер` → `Olga A`, with first/last stored swapped). Procedure used,
-  and the one to repeat at the real cutover: update ONLY that row's `expectedBefore` to the current live value,
-  keep `desiredAfter` exactly as reviewed, drop `manifestSha256`, re-seal with
-  `pnpm --dir apps/webapp run fio:owner-reviewed-test:seal -- --manifest <payload> --output <sealed>`, confirm
-  `preview` reports `unexpectedDrift: 0`, then apply. Result: 165 eligible rows applied, drift 0, rollback artifact
-  written. **Expect this every time**: the manifest must be re-reviewed/re-sealed against the cutover-day dump.
-- **Verification apparatus → "реальные" (BLOCKED on a permission, not on engineering).** Re-pointing
-  `/run/bersoncarebot/saas-smoke.fixture` at real identities requires MINTING signed session cookies
-  (`encodeSessionCookie` = base64url(JSON) + HMAC-SHA256 with `SESSION_COOKIE_SECRET`) — which is exactly what the
-  existing operator fixture contains. The agent harness blocks that action as session forgery, so it needs either an
-  explicit owner permission rule or the owner running the mint themselves. Everything else is ready: doctor
-  `b0021a38…` (yandex), global admin `9c40e322…` (gmail, created by the data-fix), a real enrolled patient with a
-  real program instance/item and a real media file. **Independent limit:** the real clinic has NO
-  `clinic_public_directory_entries` row, so slug-dependent public booking scenarios cannot be verified on real data
-  until the clinic is published — that is a separate product action, not a fixture problem.
-
-**(b) A failed closure gate leaves TEST DOWN.** The failure path stops the TEST units (observed: webapp
-started 15:44:54, served 200s, was SIGTERM'd at 15:45:05 when the smoke gate failed). So an aborted closure
-is not just "gate red" — the environment goes offline. Restart explicitly after fixing a gate:
-
-```bash
-sudo systemctl start bersoncarebot-webapp-test bersoncarebot-api-test bersoncarebot-worker-test \
-  bersoncarebot-scheduler-test bersoncarebot-media-worker-test
-```
-
-For the real cutover this matters more: budget for the fact that a red gate takes the environment down, and
-verify services are up as an explicit final step.
-
 ## 2.5 Retired provider tables in an old dump
 
 Rubitime runtime was retired on 2026-07-27. The former R1–R7 plans, CSV backfill and archive/drop scripts are

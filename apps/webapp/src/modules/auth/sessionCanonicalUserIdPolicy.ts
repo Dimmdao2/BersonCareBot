@@ -7,7 +7,7 @@
  * phone OTP confirm), `SessionUser.userId` SHOULD be the **canonical** `platform_users.id` UUID
  * (possibly after merge resolve via `pgUserByPhone.findByUserId` / `findOrCreateByChannelBinding`).
  *
- * ## Legacy / compatibility: non-UUID `userId` (`tg:…`, `max:…`, `telegram:…` in in-memory tests, dev bypass)
+ * ## Legacy / compatibility: non-UUID `userId` (`tg:…`, `max:…`, `telegram:…` in in-memory tests)
  *
  * **Architectural decision:** any `userId` for which {@link isPlatformUserUuid} is **false** is **not** a DB
  * canonical key. Access decisions MUST NOT treat it as proof of a platform row. For `client`, tier policy
@@ -16,7 +16,6 @@
  *
  * This is a **temporary onboarding-only compatibility mode** for:
  * - Vitest / in-memory repos (`inMemoryIdentityResolutionPort` uses `telegram:` / `max:` prefixes),
- * - dev bypass tokens (`dev:client`, …),
  * - any call path that omits `IdentityResolutionPort` (should be rare outside tests).
  *
  * **Not** a second class of “production patient id”: main login flows with DB inject `pgIdentityResolutionPort`
