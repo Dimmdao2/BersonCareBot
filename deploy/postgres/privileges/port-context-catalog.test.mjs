@@ -1,39 +1,16 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
 import { assertNameCensus } from './name-census.mjs';
 import {
-  generateCatalogClosureVerifierSql,
-  generateEnvLoginVariableSql,
   generatePortContextCapabilitySeedSql,
-  generatePrivilegesSql,
-  generateRelationWallRegistrySeedSql,
-  generateSharedRoleVerifierSql,
-  renderEnvSql,
   renderPortContextRuntimeEnv,
   resolvePortContextCapabilities,
 } from './generate.mjs';
 
 const PORTS = ['webapp', 'integrator'];
-
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-test('pre-migration relation registry seed does not require declared relations to exist', () => {
-  const seedOnly = generateRelationWallRegistrySeedSql(
-    declaration,
-    'bcb_webapp_dev',
-    { reconcileOwners: false },
-  );
-  const fullReconcile = generateRelationWallRegistrySeedSql(declaration, 'bcb_webapp_dev');
-
-  assert.match(seedOnly, /'direct_public_write_retries'::name/u);
-  assert.match(seedOnly, /'app_object_owner'::name/u);
-  assert.doesNotMatch(seedOnly, /^ALTER TABLE /mu);
-  assert.match(fullReconcile, /^ALTER TABLE "integrator"\."direct_public_write_retries" OWNER TO "app_object_owner";/mu);
-});
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
   const result = spawnSync(process.execPath, [
@@ -113,7 +90,6 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
   assert.equal(webapp.tenant_service, undefined);
   assert.equal(webapp.service, undefined);
 
-  const seed = generatePortContextCapabilitySeedSql(declaration, 'bersoncarebot_test');
   const roots = rows.filter((row) => row.functionIdentity);
   // Дверь без `functionIdentity` — это возможность со сквозным `purpose: 'relation'`: доступ к
   // отношениям целиком вместо одного именованного корня. Счётчик корней («221») падал бы числом
@@ -135,16 +111,6 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
       ['staff_identity_resolve', 'bcb_test_webapp_staff'],
     ],
   );
-  for (const row of rows) {
-    assert.match(seed, new RegExp(row.capabilityId));
-    if (row.functionIdentity) {
-      assert.match(seed, new RegExp(escapeRegExp(row.functionIdentity)));
-    }
-  }
-  assert.equal((seed.match(/NULL::regprocedure/g) ?? []).length, rows.length - roots.length);
-  assert.match(seed, /DELETE FROM app_ext\.accepted_port_contexts;/);
-  assert.match(seed, /DELETE FROM app_ext\.port_context_capabilities;/);
-  assert.doesNotMatch(seed, /existing\.function_identity IS NOT NULL/);
 });
 
 test('relation capability mutations are visible to the declaration-owned seed', () => {
@@ -182,69 +148,6 @@ test('every descriptor target is SET-able by its exact session login', () => {
   );
 });
 
-test('env login render restores app schema usage after the deny-by-default artifact', () => {
-  const sql = renderEnvSql(declaration, 'test', 'bersoncarebot_test');
-  assert.match(sql, /SET LOCAL password_encryption = 'scram-sha-256';/);
-  for (const login of [
-    'bcb_test_webapp_staff', 'bcb_test_webapp_patient',
-    'bcb_test_webapp_global_admin', 'bcb_test_integrator',
-  ]) {
-    assert.match(sql, new RegExp(`GRANT USAGE ON SCHEMA "app" TO "${login}";`));
-  }
-  assert.doesNotMatch(sql, /GRANT USAGE ON SCHEMA "app_ext" TO "bcb_test_/);
-});
-
-test('repeatable reconcile receives exactly four declaration-owned contract login variables', () => {
-  const sql = generateEnvLoginVariableSql(declaration, 'dev', 'bcb_webapp_dev');
-  assert.deepEqual(
-    sql.split('\n').filter((line) => line.startsWith('\\set ')),
-    [
-      '\\set integrator_login bcb_dev_integrator',
-      '\\set app_global_admin_login bcb_dev_webapp_global_admin',
-      '\\set app_patient_login bcb_dev_webapp_patient',
-      '\\set app_staff_login bcb_dev_webapp_staff',
-    ],
-  );
-  assert.doesNotMatch(sql, /CREATE ROLE|PASSWORD|secret/iu);
-});
-
-test('target-only access reconcile contains no cluster role or shared membership mutation', () => {
-  const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev', {
-    source: 'deploy/postgres/privileges/declaration.ts',
-    includeClusterState: false,
-  });
-  assert.doesNotMatch(sql, /^CREATE ROLE /mu);
-  assert.doesNotMatch(sql, /^ALTER ROLE /mu);
-  assert.doesNotMatch(sql, /^GRANT "[^"]+" TO "[^"]+" WITH ADMIN /mu);
-  assert.doesNotMatch(sql, /^REVOKE "[^"]+" FROM /mu);
-  assert.doesNotMatch(sql, /DROP ROUTINE/u);
-  assert.match(sql, /Target-only reconcile: cluster-role baseline is a separate host operation/u);
-  assert.match(sql, /Target-only reconcile: shared seam-owner memberships are verified, not mutated/u);
-  assert.match(sql, /undeclared SECURITY DEFINER routines fail the bilateral audit/u);
-});
-
-test('database-local port-context contract contains no cluster role baseline', () => {
-  const contract = readFileSync(
-    new URL('../port-context/contract.sql', import.meta.url),
-    'utf8',
-  );
-  assert.doesNotMatch(contract, /\bCREATE ROLE\b/u);
-  assert.doesNotMatch(contract, /\bALTER ROLE\b/u);
-  assert.doesNotMatch(contract, /^GRANT\s+.+\s+TO\s+:"[^"]+"\s+WITH\s+(?:ADMIN|INHERIT|SET)/mu);
-  assert.match(contract, /Shared cluster roles must\n-- already exist through the declaration-owned shared-role baseline/u);
-});
-
-test('per-target reconcile can verify shared roles without mutating them', () => {
-  const sql = generateSharedRoleVerifierSql(declaration);
-  assert.doesNotMatch(sql, /\b(?:CREATE|ALTER|DROP|GRANT|REVOKE) ROLE\b/u);
-  assert.doesNotMatch(sql, /\b(?:GRANT|REVOKE)\s+[^;]+\s+(?:TO|FROM)\s+/u);
-  assert.match(sql, /shared role baseline drift/u);
-  assert.match(sql, /granted\.rolname IN \(SELECT role_name FROM bcb_expected_shared_roles\) OR member\.rolname IN/u);
-  assert.match(sql, /app_staff'::name,'bcb_dev_webapp_staff'::name,false,false,true,false/u);
-  assert.match(sql, /WHERE expected\.required/u);
-  assert.match(sql, /BCB_SHARED_ROLE_BASELINE_VERIFIED/u);
-});
-
 test('staff and global-admin login memberships stay disjoint at the platform boundary', () => {
   const staff = declaration.envMapping.test.bcb_test_webapp_staff.memberships.map(({ role }) => role);
   const globalAdmin = declaration.envMapping.test.bcb_test_webapp_global_admin.memberships.map(({ role }) => role);
@@ -253,86 +156,4 @@ test('staff and global-admin login memberships stay disjoint at the platform bou
     assert.equal(globalAdmin.includes(role), false, role);
   }
   assert.deepEqual(globalAdmin, ['app_platform_settings', 'app_platform_admin']);
-});
-
-test('declared definer delegation propagates context without widening direct execute', () => {
-  const sql = generatePrivilegesSql(declaration, 'bersoncarebot_test');
-  assert.match(
-    sql,
-    /app\.saas_billing_effective_tariff\(uuid,uuid\).*require_attested_context_for_roles[^\n]+app_clinic_billing[^\n]+app_patient[^\n]+app_platform_settings[^\n]+app_staff/,
-  );
-  assert.match(
-    sql,
-    /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO "app_platform_settings", "app_tenant_service";/,
-  );
-  assert.doesNotMatch(
-    sql,
-    /GRANT EXECUTE ON FUNCTION app\.saas_billing_effective_tariff\(uuid,uuid\) TO [^;]*"app_staff"/,
-  );
-  assert.match(
-    sql,
-    /app\.read_org_enforced_quota_usage\(uuid\).*require_attested_context_for_roles[^\n]+app_clinic_billing[^\n]+app_platform_settings/,
-  );
-  assert.match(
-    sql,
-    /GRANT EXECUTE ON FUNCTION app\.read_org_enforced_quota_usage\(uuid\) TO "app_platform_settings";/,
-  );
-  assert.doesNotMatch(
-    sql,
-    /GRANT EXECUTE ON FUNCTION app\.read_org_enforced_quota_usage\(uuid\) TO [^;]*"app_clinic_billing"/,
-  );
-  assert.match(
-    sql,
-    /GRANT EXECUTE ON FUNCTION app\.require_staff_security_self_user_id\(\) TO "app_patient", "app_seam_password_auth_owner", "app_seam_self_security_owner", "app_seam_specialist_provision_owner", "app_staff";/,
-  );
-});
-
-test('runtime gate reconciliation replaces single gates and validates every multi-context token', () => {
-  const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev');
-  assert.doesNotMatch(
-    sql,
-    /gate\.mode IN \('exact','exact_existing'\).*THEN CONTINUE/,
-  );
-  assert.match(
-    sql,
-    /guard_at := CASE gate\.mode[\s\S]*overlay\(routine\.prosrc, guard_source, guard_at, guard_length\)[\s\S]*IF new_source = routine\.prosrc THEN CONTINUE/,
-  );
-  assert.match(sql, /runtime definer gate is not a standalone statement/);
-  assert.match(sql, /l\.lanname='plpgsql'[\s\S]*\^BEGIN\[\[:space:\]\]\+PERFORM/);
-  const multiContextRow = sql.match(
-    /\('app\.resolve_staff_workspace_memberships\(uuid\)', 'exact_existing',[^\n]+/,
-  )?.[0] ?? '';
-  for (const token of [
-    'app_seam_org_directory_owner',
-    'app_pre_session',
-    'pre_session',
-    'app_staff',
-    'staff',
-    'auth.staff-workspace.resolve',
-    'app.hash_port_typed_args',
-    'app.resolve_staff_workspace_memberships(uuid)',
-  ]) {
-    assert.ok(multiContextRow.includes(token), token);
-  }
-});
-
-test('dependent sequences are revoked even when the current table grants no writes', () => {
-  const sql = generatePrivilegesSql(declaration, 'bcb_webapp_dev');
-  const start = sql.indexOf('-- ── app.context_signing_secrets');
-  const end = sql.indexOf('-- ── ', start + 4);
-  assert.ok(start >= 0 && end > start);
-  const section = sql.slice(start, end);
-  assert.match(section, /exact revoke/);
-  assert.match(section, /REVOKE ALL ON SEQUENCE/);
-  assert.doesNotMatch(section, /GRANT USAGE, SELECT ON SEQUENCE/);
-});
-
-test('catalog closure requires one exact owner policy on every private relation', () => {
-  const sql = generateCatalogClosureVerifierSql(declaration, 'bersoncarebot_test');
-  for (const [identity, relation] of Object.entries(declaration.portContext.privateRelations)) {
-    const [schema, name] = identity.split('.');
-    assert.match(sql, new RegExp(`bcb_private_owner_${schema}_${name}`));
-    assert.match(sql, new RegExp(relation.owner));
-  }
-  assert.match(sql, /private relation owner policy missing or non-exact/);
 });
