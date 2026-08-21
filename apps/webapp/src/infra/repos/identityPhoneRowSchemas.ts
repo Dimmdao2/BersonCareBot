@@ -57,7 +57,15 @@ const sessionIdentityContactRowSchema = z.object({
   value_normalized: z.string().trim().min(1),
   is_primary: z.coerce.boolean(),
   confirmed_at: z.union([z.date(), z.string()]).nullable(),
-  source_origin: z.enum(['platform_users', 'oauth_binding', 'phone_history']),
+  /**
+   * `user_contacts.source_origin` (D15b/6, migration 20260821T040000_cut_over_canonical_contacts).
+   * The forward migration dropped `user_contacts_source_origin_check` and re-added it restricted to
+   * `'direct' | 'oauth'` after collapsing every existing row (including the old
+   * `platform_users`/`oauth_binding`/`phone_history` tags) into one of these two values. Every row this
+   * query can ever see now satisfies that CHECK, so the old three-value enum here always rejected the
+   * live physical row shape — fail-closed straight into a 500 on every login.
+   */
+  source_origin: z.enum(['direct', 'oauth']),
 });
 
 export const platformUserSessionRowSchema = z.object({

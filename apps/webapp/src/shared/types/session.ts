@@ -14,7 +14,13 @@ export type SessionIdentityContact = {
   isPrimary: boolean;
   /** Missing means that the contact has not been confirmed. */
   confirmedAt?: string;
-  sourceOrigin: 'platform_users' | 'oauth_binding' | 'phone_history';
+  /**
+   * `direct` | `oauth` are the physical `user_contacts.source_origin` values after D15b/6
+   * (migration 20260821T040000_cut_over_canonical_contacts). The other three tags are still used by
+   * synthetic, non-DB contact lists (token-derived and in-memory sessions) that never round-trip
+   * through `user_contacts` and therefore never through its CHECK constraint.
+   */
+  sourceOrigin: 'platform_users' | 'oauth_binding' | 'phone_history' | 'direct' | 'oauth';
 };
 
 export type SessionUser = {
