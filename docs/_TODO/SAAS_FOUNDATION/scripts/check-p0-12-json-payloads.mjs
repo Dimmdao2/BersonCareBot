@@ -41,7 +41,6 @@ const expectedRows = new Map([
   ['public.idempotency_keys', 'response_body'],
   ['integrator.idempotency_keys', 'response_body'],
   ['public.integrator_push_outbox', 'payload,last_error'],
-  ['integrator.projection_outbox', 'payload,last_error'],
   ['public.outgoing_delivery_queue', 'payload_json,last_error'],
   ['integrator.delivery_attempt_logs', 'payload_json,reason'],
 ]);

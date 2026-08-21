@@ -34,7 +34,6 @@ INFRA|integrator.delivery_attempt_logs
 INFRA|integrator.direct_public_write_retries
 INFRA|integrator.idempotency_keys
 INFRA|integrator.integration_data_quality_incidents
-INFRA|integrator.projection_outbox
 INFRA|integrator.schema_migrations
 INFRA|public.auth_rate_limit_events
 INFRA|public.clinic_dedicated_bot_bindings
