@@ -9,8 +9,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * shape for both existing and new identities, and the fail-closed conflict/archived outcomes,
  * without a live DB.
  *
- * The messenger-channel-bind and profile-bind branches keep using the original relation-based
- * transaction (unchanged) and are covered by `d15b5FioDualWriteGaps.unit.test.ts`.
+ * The messenger-channel branch (no `profileBindOrganizationId`) is a sibling atomic root call, keyed
+ * by the channel binding — covered separately by
+ * `pgUserByPhone.createOrBind.messengerChannel.unit.test.ts`. Only the `profileBindOrganizationId`
+ * branch still uses the original relation-based transaction (a real, non-bootstrap organization
+ * principal wraps it) — covered by `d15b5FioDualWriteGaps.unit.test.ts`.
  */
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },

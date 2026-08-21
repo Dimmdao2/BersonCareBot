@@ -44,7 +44,7 @@ AS $function$
 DECLARE
   v_match_count integer;
   v_user_id uuid;
-  v_was_created boolean := false;
+  v_was_created boolean;
   v_display_name text;
   v_first_name text;
   v_last_name text;
@@ -57,6 +57,14 @@ DECLARE
   v_contact_write_count integer;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-login.confirm-resolve', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($3))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($4))::app.port_typed_arg]), 'app.pre_session_phone_confirm_resolve(text,text,boolean,text)'::regprocedure);
+
+  -- D15b/6 correction: initialized here, AFTER the gate call, never in DECLARE. The exact-gate
+  -- verifier (`deploy/postgres/privileges/generate.mjs`'s `preSessionGateVerifierLines`) scans
+  -- `prosrc` for `:=`/`DEFAULT` occurring BEFORE `PERFORM app.require_accepted_context(...)` and
+  -- refuses to grant EXECUTE on any function where the gate isn't provably the first executable
+  -- statement — a `DECLARE v_was_created boolean := false;` default trips that scan even though the
+  -- gate genuinely runs first, and the whole `--execute` GRANT transaction rolls back silently.
+  v_was_created := false;
 
   IF p_phone_normalized IS NULL OR p_phone_normalized !~ '^\+[1-9][0-9]{7,14}$' THEN
     RETURN jsonb_build_object('outcome', 'conflict');

@@ -1,15 +1,12 @@
+import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 /**
  * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` in `withTransaction`.
  * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgTextOnPool`; platform-merge bridge via same client executor.
  */
 import {
-  applyMessengerPhonePublicBind,
-  classifyMergeFailure,
   enrichMessengerBindAuditDetailsFields,
-  mergePlatformUsersInTransaction,
   type MessengerPhoneBindDb,
-  MessengerPhoneLinkError,
 } from '@bersoncare/platform-merge';
 import {
   computeConflictKeyFromCandidateIds,
@@ -17,20 +14,8 @@ import {
   type AuditLogStatus,
 } from '@/infra/adminAuditLog';
 import { getPool } from '@/infra/db/client';
-import {
-  getWebappSqlDb,
-  getWebappSqlFromPgClient,
-  runWebappNamedRoot,
-  webappSqlFromPgText,
-} from '@/infra/db/runWebappSql';
-import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
+import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
-import {
-  findCanonicalUserIdByPhone,
-  resolveCanonicalUserId,
-} from '@/infra/repos/pgCanonicalPlatformUser';
-import { applyPlatformUserPhoneHistoryTransition } from '@/infra/repos/pgPhoneHistory';
-import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { channelToBindingKey } from '@/modules/auth/channelContext';
 import type {
   PhoneMessengerBindChannel,
@@ -40,11 +25,9 @@ import type {
 } from '@/modules/auth/phoneMessengerBind.ports';
 import {
   auditLogRepeatRowSchema,
-  bindingOwnerRowSchema,
   mapPhoneMessengerBindSecretRow,
   parseIdentityRow,
-  platformUserIdRowSchema,
-  userIdRowSchema,
+  preSessionMessengerChannelResolveSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
 
@@ -141,39 +124,24 @@ async function runPhoneMessengerBindCompletionStateRoot(params: {
   );
 }
 
-async function mergeMessengerBindPair(
-  client: PoolClient,
-  params: {
-    targetId: string;
-    duplicateId: string;
-    channelCode: PhoneMessengerBindChannel;
-  },
-): Promise<{ ok: true } | PhoneMessengerBindPreOtpFailure> {
-  const targetId = params.targetId.trim();
-  const duplicateId = params.duplicateId.trim();
-  if (!targetId || !duplicateId || targetId === duplicateId) return { ok: true };
-  try {
-    await mergePlatformUsersInTransaction(
-      asMessengerPhoneBindDb(client),
-      targetId,
-      duplicateId,
-      'phone_bind',
-      { mergeContext: { channel: params.channelCode } },
-    );
-    return { ok: true };
-  } catch (err) {
-    const classified = classifyMergeFailure(err, [targetId, duplicateId]);
-    return {
-      ok: false,
-      code: classified.code,
-      candidateIds:
-        classified.candidateIds.length > 0 ? classified.candidateIds : [targetId, duplicateId],
-    };
-  }
-}
-
+/**
+ * D15b/6 messenger confirm-path correction. This used to open its own relation transaction
+ * (`auth_phone_bind_lock_channel_binding`-style raw SQL, `mergePlatformUsersInTransaction` /
+ * `applyMessengerPhonePublicBind` for a channel/phone-owner conflict) under whatever principal the
+ * caller's `withTransaction` happened to install — for both reachable callers (the signed integrator
+ * webhook and `createOrBind`'s messenger branch) that principal is the bootstrap principal, which has
+ * no unnamed relation door (`portContextRuntime.ts`, `capabilities['pre_session']` purpose=relation is
+ * intentionally absent). One named SECURITY DEFINER root
+ * (`app.pre_session_messenger_channel_resolve`, same owner as `app.pre_session_phone_confirm_resolve`)
+ * now resolves-or-creates the canonical holder for a messenger channel binding atomically and returns
+ * the full session-identity payload. A channel-owner/phone-owner/session-owner disagreement is a real
+ * merge decision `mergePlatformUsersInTransaction` (`packages/platform-merge`, ~1.6k lines) cannot run
+ * under this principal and this root does not duplicate — it fails closed with `outcome: 'conflict'`
+ * and the candidate ids, which this function maps to the existing `merge_blocked_ambiguous_candidates`
+ * classification so the caller's already-established manual-merge review path
+ * (`recordMessengerBindBlocked` → `admin_audit_log`) picks it up exactly like any other blocked merge.
+ */
 async function applyMessengerContactPreOtpImpl(
-  client: PoolClient,
   params: {
     phoneNormalized: string;
     channelCode: PhoneMessengerBindChannel;
@@ -182,189 +150,45 @@ async function applyMessengerContactPreOtpImpl(
     sessionUserId?: string | null;
   },
 ): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure> {
-  // Тот же порт на том же соединении транзакции — второй двери к базе в этой функции нет.
-  const clientDb = getWebappSqlFromPgClient(client);
   const channelCode = params.channelCode;
   const key = channelToBindingKey(channelCode);
   if (!key) return { ok: false, code: 'unsupported_channel' };
 
-  let phoneOwnerId: string | null = await findCanonicalUserIdByPhone(
-    clientDb,
-    params.phoneNormalized,
-  );
-  if (phoneOwnerId) {
-    await runIdentityClientPgText(
-      client,
-      `SELECT id FROM platform_users WHERE id = $1::uuid FOR UPDATE`,
-      [phoneOwnerId],
-    );
-  }
-
+  let sessionUserId: string | null = null;
   if (params.purpose === 'profile_bind') {
-    const sessionId = params.sessionUserId?.trim();
-    if (!sessionId) return { ok: false, code: 'session_required' };
-    let canonicalSession = (await resolveCanonicalUserId(clientDb, sessionId)) ?? sessionId;
-    if (phoneOwnerId) {
-      const phoneOwnerCanonical =
-        (await resolveCanonicalUserId(clientDb, phoneOwnerId)) ?? phoneOwnerId;
-      if (phoneOwnerCanonical !== canonicalSession) {
-        const merged = await mergeMessengerBindPair(client, {
-          targetId: canonicalSession,
-          duplicateId: phoneOwnerCanonical,
-          channelCode,
-        });
-        if (!merged.ok) return merged;
-        canonicalSession =
-          (await resolveCanonicalUserId(clientDb, canonicalSession)) ?? canonicalSession;
-      }
-    }
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: canonicalSession,
-      newPhoneNormalized: params.phoneNormalized,
-      source: 'messenger',
-      confirmingChannel: channelCode,
-    });
-    const ins = await runIdentityClientPgText(
-      client,
-      `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-       VALUES ($1, $2, $3)
-       ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id
-       RETURNING user_id`,
-      [canonicalSession, channelCode, params.externalId],
-    );
-    const boundUserId = ins.rows[0]
-      ? parseIdentityRow(userIdRowSchema, ins.rows[0], 'profile_bind').user_id
-      : null;
-    if (boundUserId && boundUserId !== canonicalSession) {
-      return { ok: false, code: 'channel_owned_by_other_user' };
-    }
-    await upsertBroadcastDefaultsAfterChannelBind(clientDb, canonicalSession, channelCode);
-    return { ok: true, accountCreated: false };
+    sessionUserId = params.sessionUserId?.trim() || null;
+    if (!sessionUserId) return { ok: false, code: 'session_required' };
   }
 
-  const bindingOwner = await runIdentityClientPgText(
-    client,
-    `SELECT ucb.user_id::text,
-            pu.integrator_user_id::text AS integrator_user_id
-     FROM user_channel_bindings ucb
-     JOIN platform_users pu ON pu.id = ucb.user_id
-     WHERE ucb.channel_code = $1 AND ucb.external_id = $2
-     FOR UPDATE OF ucb, pu`,
-    [channelCode, params.externalId],
+  const result = await runWebappNamedRoot<{ result: unknown }>(
+    getWebappSqlDb(),
+    'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)',
+    [channelCode, params.externalId, params.phoneNormalized, null, channelCode, sessionUserId],
+    sql`SELECT app.pre_session_messenger_channel_resolve(
+      ${channelCode}::text,
+      ${params.externalId}::text,
+      ${params.phoneNormalized}::text,
+      ${null}::text,
+      ${channelCode}::text,
+      ${sessionUserId}::uuid
+    ) AS result`,
   );
-  const bindingOwnerRow = bindingOwner.rows[0]
-    ? parseIdentityRow(bindingOwnerRowSchema, bindingOwner.rows[0], 'binding_owner')
-    : null;
-  const bindingOwnerId = bindingOwnerRow?.user_id ?? null;
-  const bindingOwnerIntegratorId = bindingOwnerRow?.integrator_user_id?.trim() || null;
-
-  if (bindingOwnerId && phoneOwnerId) {
-    const ownerCanonical =
-      (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
-    const phoneCanonical = (await resolveCanonicalUserId(clientDb, phoneOwnerId)) ?? phoneOwnerId;
-    if (ownerCanonical !== phoneCanonical) {
-      if (bindingOwnerIntegratorId) {
-        const mergeClient = asMessengerPhoneBindDb(client);
-        try {
-          const applied = await applyMessengerPhonePublicBind(mergeClient, {
-            channelCode,
-            externalId: params.externalId,
-            phoneNormalized: params.phoneNormalized,
-            canonicalIntegratorUserId: bindingOwnerIntegratorId,
-          });
-          await upsertBroadcastDefaultsAfterChannelBind(
-            clientDb,
-            applied.platformUserId,
-            channelCode,
-          );
-          return { ok: true, accountCreated: false };
-        } catch (err) {
-          if (err instanceof MessengerPhoneLinkError) {
-            return {
-              ok: false,
-              code: err.code,
-              candidateIds:
-                err.candidateIds.length > 0 ? err.candidateIds : [ownerCanonical, phoneCanonical],
-            };
-          }
-          return {
-            ok: false,
-            code: 'db_transient_failure',
-            candidateIds: [ownerCanonical, phoneCanonical],
-          };
-        }
-      }
-      const merged = await mergeMessengerBindPair(client, {
-        targetId: phoneCanonical,
-        duplicateId: ownerCanonical,
-        channelCode,
-      });
-      if (!merged.ok) return merged;
-      await upsertBroadcastDefaultsAfterChannelBind(clientDb, phoneCanonical, channelCode);
-      return { ok: true, accountCreated: false };
-    }
-  }
-
-  let userId: string;
-  let accountCreated = false;
-  if (bindingOwnerId && !phoneOwnerId) {
-    userId = (await resolveCanonicalUserId(clientDb, bindingOwnerId)) ?? bindingOwnerId;
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: userId,
-      newPhoneNormalized: params.phoneNormalized,
-      source: 'messenger',
-      confirmingChannel: channelCode,
-    });
-  } else if (phoneOwnerId) {
-    userId = phoneOwnerId;
-  } else {
-    const insert = await runIdentityClientPgText(
-      client,
-      `INSERT INTO platform_users (display_name, role)
-       VALUES ($1, 'client') RETURNING id`,
-      [params.phoneNormalized],
-    );
-    userId = parseIdentityRow(platformUserIdRowSchema, insert.rows[0], 'insert_phone_user').id;
-    accountCreated = true;
-    await applyPlatformUserPhoneHistoryTransition(client, {
-      platformUserId: userId,
-      newPhoneNormalized: params.phoneNormalized,
-      source: 'messenger',
-      confirmingChannel: channelCode,
-    });
-    await syncUserIdentityFioMirrorWebapp(client, userId);
-  }
-
-  if (bindingOwner.rows.length > 0) {
-    const ownerId = parseIdentityRow(
-      bindingOwnerRowSchema,
-      bindingOwner.rows[0],
-      'binding_owner_recheck',
-    ).user_id;
-    if (ownerId !== userId) {
-      const ownerCanonical = (await resolveCanonicalUserId(clientDb, ownerId)) ?? ownerId;
-      const userCanonical = (await resolveCanonicalUserId(clientDb, userId)) ?? userId;
-      if (ownerCanonical !== userCanonical) {
-        const merged = await mergeMessengerBindPair(client, {
-          targetId: userCanonical,
-          duplicateId: ownerCanonical,
-          channelCode,
-        });
-        if (!merged.ok) return merged;
-        userId = userCanonical;
-      }
-    }
-  }
-
-  await runIdentityClientPgText(
-    client,
-    `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-     VALUES ($1, $2, $3)
-     ON CONFLICT (channel_code, external_id) DO UPDATE SET user_id = EXCLUDED.user_id`,
-    [userId, channelCode, params.externalId],
+  const payload = parseIdentityRow(
+    preSessionMessengerChannelResolveSchema,
+    result.rows[0]?.result,
+    'pre_session_messenger_channel_resolve',
   );
-  await upsertBroadcastDefaultsAfterChannelBind(clientDb, userId, channelCode);
-  return { ok: true, accountCreated };
+  if (payload.outcome === 'conflict') {
+    if (payload.candidate_ids && payload.candidate_ids.length > 0) {
+      return { ok: false, code: 'merge_blocked_ambiguous_candidates', candidateIds: payload.candidate_ids };
+    }
+    return { ok: false, code: 'invalid_phone' };
+  }
+  // D2 (2026-07-26): an archived identity has no session — see `loadSessionIdentityUser`.
+  if (payload.is_archived) {
+    return { ok: false, code: 'account_archived' };
+  }
+  return { ok: true, accountCreated: payload.was_created };
 }
 
 async function recordMessengerBindBlockedImpl(

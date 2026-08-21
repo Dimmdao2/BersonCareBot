@@ -275,15 +275,13 @@ export async function completePhoneMessengerBindFromIntegrator(
     // as if `completionState.ready` had been true.
     let accountCreated = completionState.accountCreated;
     if (!completionState.ready) {
-      const preOtp = await port.withTransaction((client) =>
-        port.applyMessengerContactPreOtp(client, {
-          phoneNormalized: contactPhone,
-          channelCode: params.channelCode,
-          externalId: params.externalId.trim(),
-          purpose: bindPurpose,
-          sessionUserId: row.user_id,
-        }),
-      );
+      const preOtp = await port.applyMessengerContactPreOtp({
+        phoneNormalized: contactPhone,
+        channelCode: params.channelCode,
+        externalId: params.externalId.trim(),
+        purpose: bindPurpose,
+        sessionUserId: row.user_id,
+      });
       if (!preOtp.ok) {
         await port.updateFailed(row.id, preOtp.code);
         if (preOtp.candidateIds && preOtp.candidateIds.length > 0 && port.recordMessengerBindBlocked) {

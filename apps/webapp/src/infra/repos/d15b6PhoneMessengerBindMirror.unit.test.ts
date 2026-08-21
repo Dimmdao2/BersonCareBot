@@ -1,41 +1,17 @@
 /**
- * D15b/6: messenger bind changes the canonical phone through the shared contact/history root.
+ * D15b/6: messenger bind (secret lifecycle, completion-state read, and — messenger confirm-path
+ * correction — the pre-OTP contact/channel resolve) goes through exact named `pre_session` roots,
+ * never a raw relation transaction the bootstrap principal has no door for.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
 
-const syncMirrorMock = vi.hoisted(() => vi.fn());
 const runIdentityClientPgTextMock = vi.hoisted(() => vi.fn());
-const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
-const findCanonicalUserIdByPhoneMock = vi.hoisted(() => vi.fn());
-const applyPhoneHistoryMock = vi.hoisted(() => vi.fn());
-const upsertBroadcastMock = vi.hoisted(() => vi.fn());
 const runWebappNamedRootMock = vi.hoisted(() => vi.fn());
-
-vi.mock('@/infra/repos/userIdentityFioSql', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/infra/repos/userIdentityFioSql')>();
-  return {
-    ...actual,
-    syncUserIdentityFioMirrorWebapp: syncMirrorMock,
-  };
-});
 
 vi.mock('@/infra/repos/identityPhoneSql', () => ({
   runIdentityClientPgText: runIdentityClientPgTextMock,
   runIdentityPoolPgTextOnPool: vi.fn(),
-}));
-
-vi.mock('@/infra/repos/pgCanonicalPlatformUser', () => ({
-  resolveCanonicalUserId: resolveCanonicalUserIdMock,
-  findCanonicalUserIdByPhone: findCanonicalUserIdByPhoneMock,
-}));
-
-vi.mock('@/infra/repos/pgPhoneHistory', () => ({
-  applyPlatformUserPhoneHistoryTransition: applyPhoneHistoryMock,
-}));
-
-vi.mock('@/infra/upsertBroadcastDefaultsAfterChannelBind', () => ({
-  upsertBroadcastDefaultsAfterChannelBind: upsertBroadcastMock,
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
@@ -46,18 +22,13 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 }));
 
 vi.mock('@bersoncare/platform-merge', () => ({
-  applyMessengerPhonePublicBind: vi.fn(),
-  classifyMergeFailure: vi.fn(),
   enrichMessengerBindAuditDetailsFields: vi.fn(),
-  mergePlatformUsersInTransaction: vi.fn(),
-  MessengerPhoneLinkError: class MessengerPhoneLinkError extends Error {},
 }));
 
 import { createPgPhoneMessengerBindPort } from '@/infra/repos/pgPhoneMessengerBind';
 
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000d0001';
 const NEW_LOGIN_USER_ID = '00000000-0000-4000-8000-0000000d0003';
-const fakeClient = { tag: 'tx-client' };
 const fakePool = {
   connect() {
     throw new Error('test unexpectedly requested a pool connection');
@@ -67,17 +38,8 @@ const fakePool = {
   },
 } as unknown as Pool;
 
-function channelBindingInsertIndex(): number {
-  return runIdentityClientPgTextMock.mock.calls.findIndex(
-    ([, sql]) => typeof sql === 'string' && sql.includes('INSERT INTO user_channel_bindings'),
-  );
-}
-
 beforeEach(() => {
   vi.resetAllMocks();
-  syncMirrorMock.mockResolvedValue(undefined);
-  applyPhoneHistoryMock.mockResolvedValue(undefined);
-  upsertBroadcastMock.mockResolvedValue(undefined);
   runWebappNamedRootMock.mockResolvedValue({ rows: [] });
 });
 
@@ -148,16 +110,27 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
 
-  it('profile_bind: records the confirmed canonical phone before channel binding', async () => {
-    resolveCanonicalUserIdMock.mockResolvedValue(SESSION_USER_ID);
-    findCanonicalUserIdByPhoneMock.mockResolvedValue(null);
-    runIdentityClientPgTextMock
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ user_id: SESSION_USER_ID }] });
+  it('profile_bind: resolves through the exact named root instead of a relation transaction', async () => {
+    runWebappNamedRootMock.mockResolvedValueOnce({
+      rows: [
+        {
+          result: {
+            outcome: 'resolved',
+            was_created: false,
+            id: SESSION_USER_ID,
+            display_name: 'Иван',
+            role: 'client',
+            session_epoch: 1,
+            is_archived: false,
+            contacts: [],
+            bindings: [],
+          },
+        },
+      ],
+    });
 
     const port = createPgPhoneMessengerBindPort(fakePool);
-    const result = await port.applyMessengerContactPreOtp(fakeClient as never, {
+    const result = await port.applyMessengerContactPreOtp({
       phoneNormalized: '+79001234567',
       channelCode: 'telegram',
       externalId: 'tg-1',
@@ -166,38 +139,49 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     });
 
     expect(result).toEqual({ ok: true, accountCreated: false });
-    expect(findCanonicalUserIdByPhoneMock).toHaveBeenCalledWith({}, '+79001234567');
-    const bindIdx = channelBindingInsertIndex();
-    expect(bindIdx).toBeGreaterThanOrEqual(0);
-    expect(applyPhoneHistoryMock).toHaveBeenCalledWith(fakeClient, {
-      platformUserId: SESSION_USER_ID,
-      newPhoneNormalized: '+79001234567',
-      source: 'messenger',
-      confirmingChannel: 'telegram',
-    });
-    expect(applyPhoneHistoryMock.mock.invocationCallOrder[0]).toBeLessThan(
-      runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
-    );
+    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
+    const [db, identity, args] = runWebappNamedRootMock.mock.calls[0]!;
+    expect(db).toEqual({ tag: 'root-db' });
+    expect(identity).toBe('app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)');
+    expect(args).toEqual(['telegram', 'tg-1', '+79001234567', null, 'telegram', SESSION_USER_ID]);
+    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
 
-  it('login: records the confirmed canonical phone for the newly created account', async () => {
-    findCanonicalUserIdByPhoneMock.mockResolvedValue(null);
-    resolveCanonicalUserIdMock.mockImplementation(async (_db, id: string) => id);
-    runIdentityClientPgTextMock.mockImplementation(async (_client, sql: string) => {
-      if (sql.includes('FROM user_channel_bindings ucb')) {
-        return { rows: [] };
-      }
-      if (sql.includes('INSERT INTO platform_users')) {
-        return { rows: [{ id: NEW_LOGIN_USER_ID }] };
-      }
-      if (sql.includes('INSERT INTO user_channel_bindings')) {
-        return { rows: [] };
-      }
-      return { rows: [] };
+  it('profile_bind: fails closed without a session id instead of resolving anonymously', async () => {
+    const port = createPgPhoneMessengerBindPort(fakePool);
+    const result = await port.applyMessengerContactPreOtp({
+      phoneNormalized: '+79001234567',
+      channelCode: 'telegram',
+      externalId: 'tg-1',
+      purpose: 'profile_bind',
+      sessionUserId: null,
+    });
+
+    expect(result).toEqual({ ok: false, code: 'session_required' });
+    expect(runWebappNamedRootMock).not.toHaveBeenCalled();
+  });
+
+  it('login: resolves the newly created account through the exact named root', async () => {
+    runWebappNamedRootMock.mockResolvedValueOnce({
+      rows: [
+        {
+          result: {
+            outcome: 'resolved',
+            was_created: true,
+            id: NEW_LOGIN_USER_ID,
+            display_name: '+79007654321',
+            role: 'client',
+            session_epoch: 1,
+            is_archived: false,
+            contacts: [],
+            bindings: [{ channel_code: 'telegram', external_id: 'tg-2' }],
+          },
+        },
+      ],
     });
 
     const port = createPgPhoneMessengerBindPort(fakePool);
-    const result = await port.applyMessengerContactPreOtp(fakeClient as never, {
+    const result = await port.applyMessengerContactPreOtp({
       phoneNormalized: '+79007654321',
       channelCode: 'telegram',
       externalId: 'tg-2',
@@ -205,17 +189,31 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     });
 
     expect(result).toEqual({ ok: true, accountCreated: true });
-    expect(findCanonicalUserIdByPhoneMock).toHaveBeenCalledWith({}, '+79007654321');
-    const bindIdx = channelBindingInsertIndex();
-    expect(bindIdx).toBeGreaterThanOrEqual(0);
-    expect(applyPhoneHistoryMock).toHaveBeenCalledWith(fakeClient, {
-      platformUserId: NEW_LOGIN_USER_ID,
-      newPhoneNormalized: '+79007654321',
-      source: 'messenger',
-      confirmingChannel: 'telegram',
+    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
+    const [db, identity, args] = runWebappNamedRootMock.mock.calls[0]!;
+    expect(db).toEqual({ tag: 'root-db' });
+    expect(identity).toBe('app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)');
+    expect(args).toEqual(['telegram', 'tg-2', '+79007654321', null, 'telegram', null]);
+    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
+  });
+
+  it('login: fails closed on a channel/phone-owner conflict with the candidate ids for manual merge', async () => {
+    runWebappNamedRootMock.mockResolvedValueOnce({
+      rows: [{ result: { outcome: 'conflict', candidate_ids: [NEW_LOGIN_USER_ID, SESSION_USER_ID] } }],
     });
-    expect(applyPhoneHistoryMock.mock.invocationCallOrder[0]).toBeLessThan(
-      runIdentityClientPgTextMock.mock.invocationCallOrder[bindIdx]!,
-    );
+
+    const port = createPgPhoneMessengerBindPort(fakePool);
+    const result = await port.applyMessengerContactPreOtp({
+      phoneNormalized: '+79007654321',
+      channelCode: 'telegram',
+      externalId: 'tg-2',
+      purpose: 'login',
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      code: 'merge_blocked_ambiguous_candidates',
+      candidateIds: [NEW_LOGIN_USER_ID, SESSION_USER_ID],
+    });
   });
 });

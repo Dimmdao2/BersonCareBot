@@ -91,7 +91,7 @@ describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_syn
       port,
     );
 
-    expect(port.applyMessengerContactPreOtp).toHaveBeenCalledWith(FAKE_CLIENT, {
+    expect(port.applyMessengerContactPreOtp).toHaveBeenCalledWith({
       phoneNormalized: PHONE,
       channelCode: 'telegram',
       externalId: 'tg-1',

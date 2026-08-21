@@ -52,16 +52,19 @@ export interface PhoneMessengerBindPort {
     canonicalUserId: string | null;
   }>;
   withTransaction<T>(fn: (client: PoolClient) => Promise<T>): Promise<T>;
-  applyMessengerContactPreOtp(
-    client: PoolClient,
-    params: {
-      phoneNormalized: string;
-      channelCode: PhoneMessengerBindChannel;
-      externalId: string;
-      purpose: PhoneMessengerBindPurpose;
-      sessionUserId?: string | null;
-    },
-  ): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure>;
+  /**
+   * D15b/6 messenger confirm-path correction: this used to run inside `withTransaction` on a raw
+   * relation transaction the bootstrap principal has no door for (§`pre_session_messenger_channel_
+   * resolve` migration header). It is now a standalone atomic named-root call — no caller-supplied
+   * transaction — exactly like `pgUserByPhone.findByPhone`/`createOrBind`'s plain-phone branch.
+   */
+  applyMessengerContactPreOtp(params: {
+    phoneNormalized: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+    purpose: PhoneMessengerBindPurpose;
+    sessionUserId?: string | null;
+  }): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure>;
   recordMessengerBindBlocked?(
     client: PoolClient,
     params: {

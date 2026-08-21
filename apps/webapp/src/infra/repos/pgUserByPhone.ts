@@ -49,6 +49,7 @@ import {
   platformUserInsertRowSchema,
   platformUserPhoneRoleRowSchema,
   platformUserSessionRowSchema,
+  preSessionMessengerChannelResolveSchema,
   preSessionPhoneConfirmResolveSchema,
   preSessionPhoneSessionLookupSchema,
   puMergeRowSchema,
@@ -343,8 +344,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
       // new-user registration) reaches this under the bootstrap principal — no channel to bind
       // (`web`) and no already-authenticated profile-bind session — so it goes through the atomic
       // `pre_session` root instead of the relation-based transaction below, which the bootstrap
-      // principal has no capability for (see the migration's header comment for the two sub-cases —
-      // profile-bind and messenger channel bind — that still need that transaction).
+      // principal has no capability for (see below for the messenger-channel branch, and
+      // `runWithDbOrganizationPrincipal` below for the `profileBindOrganizationId` case — the only
+      // sub-case still using that transaction, under a real, non-bootstrap principal).
       const result = await runWebappNamedRoot<{ result: unknown }>(
         getWebappSqlDb(),
         'app.pre_session_phone_confirm_resolve(text,text,boolean,text)',
@@ -371,6 +373,61 @@ export const pgUserByPhonePort: UserByPhonePort = {
         // live duplicate is not guessed at here — a genuine merge decision belongs to an
         // authenticated/manual flow, not an anonymous OTP confirm.
         throw new MergeConflictError('createOrBind: ambiguous live phone holders');
+      }
+      // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
+      if (payload.is_archived) {
+        throw new Error('createOrBind: platform user is archived');
+      }
+      return {
+        user: sessionUserFromPreSessionIdentityPayload(payload),
+        wasCreated: payload.was_created,
+      };
+    }
+
+    if (key && !profileBindOrganizationId) {
+      // D15b/6 messenger confirm-path correction: `POST /api/auth/phone/messenger-bind/finish`'s
+      // `confirmPhoneAuth` reaches this with a messenger channel key under the same bootstrap
+      // principal as the plain-phone branch above — the channel binding was already established
+      // pre-OTP (`applyMessengerContactPreOtpImpl` → `app.pre_session_messenger_channel_resolve`),
+      // so this call re-resolves the SAME channel binding to refresh the now-OTP-proven phone
+      // contact and mint a session, atomically, under the same named root — never the relation-based
+      // transaction below, which the bootstrap principal has no capability for. Keyed by the channel
+      // binding (not just the phone), so it never risks a duplicate identity for an already
+      // channel-bound holder — see the migration header for the channel/phone-owner conflict
+      // doctrine this root fails closed on instead of re-deriving the merge decision.
+      const sessionUserId = options?.profileBindUserId?.trim() || null;
+      const result = await runWebappNamedRoot<{ result: unknown }>(
+        getWebappSqlDb(),
+        'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)',
+        [
+          parsedContext.channel,
+          parsedContext.chatId,
+          normalized,
+          parsedContext.displayName ?? null,
+          options?.confirmingChannel ?? null,
+          sessionUserId,
+        ],
+        sql`SELECT app.pre_session_messenger_channel_resolve(
+          ${parsedContext.channel}::text,
+          ${parsedContext.chatId}::text,
+          ${normalized}::text,
+          ${parsedContext.displayName ?? null}::text,
+          ${options?.confirmingChannel ?? null}::text,
+          ${sessionUserId}::uuid
+        ) AS result`,
+      );
+      const payload = parseIdentityRow(
+        preSessionMessengerChannelResolveSchema,
+        result.rows[0]?.result,
+        'pre_session_messenger_channel_resolve',
+      );
+      if (payload.outcome === 'conflict') {
+        // Same fail-closed doctrine as the plain-phone branch above: a channel-owner/phone-owner
+        // disagreement is a genuine merge decision, not a guess this anonymous OTP confirm makes.
+        throw new MergeConflictError(
+          'createOrBind: ambiguous messenger channel/phone holders',
+          payload.candidate_ids ?? [],
+        );
       }
       // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
       if (payload.is_archived) {

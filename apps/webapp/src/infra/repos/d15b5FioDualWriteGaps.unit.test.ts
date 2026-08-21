@@ -123,12 +123,17 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
 
     // D15b/6 confirm-path correction: `createOrBind` for a `web` channel (no channel to bind) now
     // resolves through the atomic `pre_session` SQL root instead of this relation-based transaction
-    // (`pgUserByPhone.ts`) — and `app.auth_phone_bind_lock_channel_binding` itself only ever locks a
+    // (`pgUserByPhone.ts`), and so does a bare messenger channel (no `profileBindOrganizationId`) —
+    // see `pgUserByPhone.createOrBind.messengerChannel.unit.test.ts`. The relation-based transaction
+    // this test exercises now survives ONLY for `profileBindOrganizationId` (an already-authenticated,
+    // organization-scoped bind, wrapped by a real `runWithDbOrganizationPrincipal`, mocked below to
+    // just invoke its callback) — `app.auth_phone_bind_lock_channel_binding` itself only ever locks a
     // real binding for `telegram`/`max`/`vk` (never `web`), so a "locked binding" scenario is only
     // realistic for a messenger channel. Use one here to keep exercising this relation-based path.
     await pgUserByPhonePort.createOrBind(
       '+79001234567',
       { channel: 'telegram', chatId: 'device-1', displayName: 'Иван' },
+      { profileBindOrganizationId: 'org-1' },
     );
 
     expect(syncMirrorMock).toHaveBeenCalledOnce();

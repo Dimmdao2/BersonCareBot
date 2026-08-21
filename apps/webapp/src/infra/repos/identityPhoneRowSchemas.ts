@@ -127,6 +127,24 @@ export const preSessionPhoneConfirmResolveSchema = z.discriminatedUnion('outcome
   }),
 ]);
 
+/**
+ * `app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)` jsonb payload (D15b/6
+ * messenger confirm-path correction). Same shape as {@link preSessionPhoneConfirmResolveSchema} —
+ * `outcome: 'conflict'` covers an invalid phone/external id AND the fail-closed case where the
+ * channel-binding owner, phone owner and/or session owner disagree (a real merge decision this root
+ * does not attempt — see the migration header). `candidate_ids` is present only for the latter, for
+ * the caller's existing manual-merge review path (`recordMessengerBindBlocked`).
+ */
+export const preSessionMessengerChannelResolveSchema = z.discriminatedUnion('outcome', [
+  z.object({ outcome: z.literal('conflict'), candidate_ids: z.array(z.string()).optional() }),
+  platformUserSessionRowSchema.extend({
+    outcome: z.literal('resolved'),
+    was_created: z.coerce.boolean(),
+    contacts: z.array(sessionIdentityContactRowSchema),
+    bindings: z.array(channelBindingRowSchema),
+  }),
+]);
+
 export const platformUserProfileRowSchema = z.object({
   display_name: z.string().nullable(),
   role: z.string(),
