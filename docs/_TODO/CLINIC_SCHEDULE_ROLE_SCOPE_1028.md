@@ -200,8 +200,9 @@ env/deploy/server scripts и другие UI-разделы запрещены.
 - [x] Обновить `DOCTOR_CABINET_NAVIGATION.md` новым контрактом одного schedule screen и role scope.
 - [x] Выполнить typecheck и targeted lint по изменённым production-файлам. Evidence:
   `pnpm --filter webapp typecheck` и scoped `eslint` PASS.
-- [ ] Выполнить DEV-smoke существующими `dev:doctor` и `dev:clinic-admin`: self/all/specialist, KPI parity,
-  nearest-free-window, create/reschedule/cancel и каждый direct-ID allow/deny из S4/S5.
+- [ ] Выполнить DEV-smoke обычным входом зарегистрированных owner-учёток врача и clinic admin (`AGENTS.md`
+  §1a): self/all/specialist, KPI parity, nearest-free-window, create/reschedule/cancel и каждый direct-ID
+  allow/deny из S4/S5.
 - [-] ~~Тестовые и Stryker-файлы не менять и тестовые suites не запускать: тестовый контур переделывается
   соседней работой по прямому указанию владельца.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ 30.07.2026:
   «уже начинай добавлять тесты»; «с тестами — читай инструкцию и разбирайся впредь сам».
