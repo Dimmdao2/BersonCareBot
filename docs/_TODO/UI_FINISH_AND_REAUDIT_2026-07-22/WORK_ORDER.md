@@ -732,6 +732,25 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             аккаунта врача Dmitry Berson на TEST; код от владельца ещё не введён, аутентифицированная мутация
             задачи и provider-delivery proof не выполнялись. Старт challenge — не успешный вход; не путать одно
             с другим.
+            **22.08: ввод кода упал дважды, обе причины — из cutover 21.08, обе воспроизведены на именованной
+            DEV (rollback-only, живая дверь под существующим владельцем).**
+            (1) `42501 permission denied for table platform_users` — ПОЧИНЕНО этим проходом: тело двери держит
+            два `FOR UPDATE` по `platform_users`, а PostgreSQL берёт за блокировку строки право класса UPDATE,
+            которого декларация после переезда записи в `user_contacts` роли не оставила. Правка — в декларации
+            (`ROW_LOCK_SURFACES`), грант ровно один, колоночный: `UPDATE ("updated_at")`. Тем же проходом закрыт
+            весь класс: 14 таких пар «замок без права» на 9 функциях, гейт — `row-lock-privileges.test.mjs`.
+            (2) ⛔ **НЕ ПОЧИНЕНО, блокирует тот же чекбокс:** сразу за снятым отказом прав успешная ветка двери
+            падает `42P10 there is no unique or exclusion constraint matching the ON CONFLICT specification`.
+            Все `INSERT INTO public.user_contacts … ON CONFLICT (platform_user_id, contact_kind,
+            value_normalized) WHERE contact_kind = 'email'` из миграции `20260821T040000_cut_over_canonical_contacts`
+            ссылаются на индекс, которого нет ни в snapshot, ни в миграциях: уникальные индексы почты —
+            `uq_user_contacts_email (value_normalized) WHERE contact_kind='email'` и
+            `uq_user_contacts_primary_email (platform_user_id) WHERE contact_kind='email' AND is_primary`.
+            Минимальное воспроизведение (DEV, от `postgres`, в транзакции с ROLLBACK): тот же `INSERT … ON
+            CONFLICT` любой строкой → `42P10`. Развилка владельца/ведущего, поэтому не тронуто воркером:
+            менять цель `ON CONFLICT` у ~9 дверей на `(value_normalized) WHERE contact_kind='email'`
+            (глобальная уникальность почты, как сейчас в индексе) ЛИБО добавлять миграцией трёхколоночный
+            уникальный индекс. Первое меняет тела дверей, второе — форму канона контактов.
       - [ ] **D15b/7 — псевдоним.** ⛔ **«OWNER-DEFER 03.08» СНЯТО 20.08 — в работе, не отложено.** Владелец,
             дословно: «сколько можно говорить про то что 'не сейчас' — устаревшая запись и её надо удалить».
             Идёт **после фактического TEST-закрытия D15b/6** (контакты — источник истины), без искусственного

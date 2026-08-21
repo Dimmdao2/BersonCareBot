@@ -374,13 +374,18 @@ test('full-body overdeclaration corrections preserve only executable operations'
   const provisionOrganization = functions['app.provision_specialist_owner(uuid)'].relationSurfaces
     .find((surface) => surface.relation === 'public.be_organizations');
   assert.deepEqual(provisionOrganization.operations, ['INSERT']);
+  // UPDATE здесь ИСПОЛНИМ и потому объявлен: обе выборки-кандидата берут `FOR UPDATE` (у очереди —
+  // `FOR UPDATE OF queue SKIP LOCKED`), а блокировку строки PostgreSQL проводит по праву класса
+  // UPDATE. Оплачена она одной колонкой `updated_at` — тело в эти таблицы не пишет, см.
+  // `ROW_LOCK_SURFACES` в декларации и `row-lock-privileges.test.mjs`.
   const archive = functions['app.archive_operator_health_failures(text,integer,uuid)'];
   for (const relation of [
     'public.outgoing_delivery_queue',
     'public.integrator_push_outbox',
   ]) {
-    assert.deepEqual(archive.relationSurfaces.find((surface) => surface.relation === relation).operations,
-      ['SELECT', 'DELETE'], relation);
+    const surface = archive.relationSurfaces.find((candidate) => candidate.relation === relation);
+    assert.deepEqual(surface.operations, ['SELECT', 'DELETE', 'UPDATE'], relation);
+    assert.deepEqual(surface.operationColumns?.UPDATE, ['updated_at'], relation);
   }
   assert.deepEqual(functions['app.start_provisioned_organization_trial()'].relationSurfaces
     .find((surface) => surface.relation === 'public.saas_organization_trials').operations,

@@ -60,11 +60,67 @@ export function parseExecutableFunctions(sql) {
   return functions;
 }
 
+/** Words that sit where a table alias would, but are not one. */
+const SQL_NOISE_AFTER_RELATION = new Set([
+  'as', 'on', 'where', 'order', 'group', 'having', 'limit', 'offset', 'for', 'inner', 'left',
+  'right', 'full', 'cross', 'join', 'using', 'set', 'values', 'returning', 'select', 'and', 'or',
+  'union', 'except', 'intersect', 'window', 'fetch',
+]);
+
+const LOCKING_CLAUSE = /\bfor\s+(?:no\s+key\s+update|key\s+share|update|share)\b(?:\s+of\s+([a-z_][a-z0-9_]*(?:\s*,\s*[a-z_][a-z0-9_]*)*))?/g;
+
+/** Parenthesis nesting depth at every position; a bracket itself belongs to the outer level. */
+function parenDepths(text) {
+  const depths = new Array(text.length);
+  let depth = 0;
+  for (let index = 0; index < text.length; index += 1) {
+    if (text[index] === '(') { depths[index] = depth; depth += 1; continue; }
+    if (text[index] === ')') { depth -= 1; depths[index] = depth; continue; }
+    depths[index] = depth;
+  }
+  return depths;
+}
+
+/**
+ * Relations whose rows the body locks with an explicit locking clause.
+ *
+ * PostgreSQL rule, verified against the live DEV database: a bare `FOR UPDATE` locks every table of
+ * its own `FROM`/`JOIN` list and leaves subqueries alone, while `FOR UPDATE OF <alias>` locks only
+ * the named ones. Scope is therefore taken by the parenthesis depth of the clause itself: a
+ * subquery sits deeper, a CTE body is its own group.
+ */
+export function rowLockedRelations(body) {
+  const schemaPattern = RELATION_SCHEMAS.join('|');
+  const relationHead = new RegExp(`^(?:${schemaPattern})\\.[a-z_][a-z0-9_]*`);
+  const sourcePattern = new RegExp(`\\b(?:${schemaPattern})\\.[a-z_][a-z0-9_]*\\b(?:\\s+as)?(?:\\s+([a-z_][a-z0-9_]*))?`, 'g');
+  const depths = parenDepths(body);
+  const locked = new Set();
+  for (const clause of body.matchAll(LOCKING_CLAUSE)) {
+    const lockDepth = depths[clause.index];
+    let scopeStart = body.lastIndexOf(';', clause.index) + 1;
+    for (let index = clause.index; index >= scopeStart; index -= 1) {
+      if (body[index] === '(' && depths[index] === lockDepth - 1) { scopeStart = index + 1; break; }
+    }
+    const named = clause[1] ? new Set(clause[1].split(',').map((alias) => alias.trim())) : null;
+    for (const source of body.slice(scopeStart, clause.index).matchAll(sourcePattern)) {
+      if (depths[scopeStart + source.index] !== lockDepth) continue;
+      const relation = source[0].match(relationHead)[0];
+      // `app.some_function(...)` inside the WHERE clause is a call, not a locked source.
+      if (body[scopeStart + source.index + relation.length] === '(') continue;
+      const alias = source[1] && !SQL_NOISE_AFTER_RELATION.has(source[1]) ? source[1] : null;
+      if (named && !named.has(alias ?? relation.slice(relation.indexOf('.') + 1))) continue;
+      locked.add(relation);
+    }
+  }
+  return locked;
+}
+
 export function extractRelationOperations(body) {
   const schemaPattern = RELATION_SCHEMAS.join('|');
   const relationNames = [...new Set([...body.matchAll(
     new RegExp(`\\b(${schemaPattern})\\.([a-z_][a-z0-9_]*)\\b`, 'g'),
   )].map((match) => `${match[1]}.${match[2]}`))].sort();
+  const locked = rowLockedRelations(body);
   const result = new Map();
 
   for (const relation of relationNames) {
@@ -105,6 +161,13 @@ export function extractRelationOperations(body) {
     for (const match of body.matchAll(new RegExp(`\\bdelete\\s+from\\s+${escaped}\\b[^;]*`, 'g'))) {
       if (/\b(where|returning)\b/.test(match[0])) operations.add('SELECT');
     }
+
+    // A row lock (`FOR UPDATE`/`FOR SHARE` and relatives) is not a read: PostgreSQL charges it an
+    // UPDATE-class privilege, and a column-level SELECT never satisfies it. Without this line the
+    // lexical upper bound calls such a table merely readable, the declaration grants the seam owner
+    // SELECT alone, and the live SECURITY DEFINER call dies with 42501 — exactly how the email-code
+    // login broke on 21.08.
+    if (operations.has('SELECT') && locked.has(relation)) operations.add('UPDATE');
 
     if (operations.size > 0) {
       result.set(relation, OPERATION_ORDER.filter((operation) => operations.has(operation)));

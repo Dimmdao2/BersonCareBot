@@ -2021,6 +2021,94 @@ function applyCanonicalContactSurfaceCorrections(
   return corrected;
 }
 
+/**
+ * Таблицы, строки которых тело шва БЛОКИРУЕТ (`FOR UPDATE`/`FOR SHARE` и родственные), и колонка,
+ * которой эта блокировка оплачивается.
+ *
+ * PostgreSQL считает блокировку строки правом класса UPDATE, а не чтением: колоночного `SELECT` ей
+ * не хватает, и запрос падает `42501 permission denied for table` ещё до сравнения данных. При этом
+ * табличный UPDATE не нужен — достаточно UPDATE на ОДНОЙ любой колонке (`ExecCheckPermissionsModified`
+ * при пустом наборе изменяемых колонок проверяет `ACLMASK_ANY`). Поэтому здесь названа ровно одна
+ * колонка на таблицу — служебная отметка времени, самое слабое право, которым замок оплачивается.
+ *
+ * Почему список нужен явный: лексическая перепись тела видит `FROM` и считает такую таблицу
+ * читаемой. 21.08 cutover канонических контактов увёл запись почты из `platform_users` в
+ * `user_contacts`, декларация честно сузила поверхность до `SELECT` — а два `FOR UPDATE` в теле
+ * `app.email_otp_public_consume_latest_challenge` остались, и вход по коду из почты умер отказом прав
+ * внутри SECURITY DEFINER (снаружи — «неверный код»). Список сверяется с артефактами тестом
+ * `row-lock-privileges.test.mjs`: замок без строки здесь роняет `pnpm test:db-privileges`.
+ */
+const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  'app.archive_operator_health_failures(text,integer,uuid)': {
+    'public.integrator_push_outbox': 'updated_at',
+    'public.outgoing_delivery_queue': 'updated_at',
+  },
+  'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)': {
+    // У таблицы нет `updated_at`: её единственная отметка времени — `occurred_at`.
+    'public.auth_rate_limit_events': 'occurred_at',
+  },
+  'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)': {
+    'public.be_organizations': 'updated_at',
+    'public.platform_users': 'updated_at',
+  },
+  'app.email_otp_public_consume_latest_challenge(text,text)': { 'public.platform_users': 'updated_at' },
+  'app.exchange_patient_invite(text,text,timestamp with time zone)': {
+    'public.be_organizations': 'updated_at',
+  },
+  'app.redeem_patient_invite_email(text)': {
+    'public.be_organizations': 'updated_at',
+    'public.platform_users': 'updated_at',
+  },
+  'app.reserve_current_patient_booking_package(text)': { 'public.be_patient_packages': 'updated_at' },
+  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
+    'public.be_organizations': 'updated_at',
+  },
+  'app.start_provisioned_organization_trial()': {
+    'public.saas_registration_tariff_policy': 'updated_at',
+    'public.saas_trial_policy': 'updated_at',
+  },
+  'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)': {
+    'public.be_organizations': 'updated_at',
+  },
+};
+
+function applyRowLockSurfaces(
+  functions: Record<string, DeclaredFunction>,
+): Record<string, DeclaredFunction> {
+  const locked = { ...functions };
+  for (const [identity, columnByRelation] of Object.entries(ROW_LOCK_SURFACES)) {
+    const fn = locked[identity];
+    if (!fn) throw new Error(`row lock surface targets an undeclared function: ${identity}`);
+    const pending = new Set(Object.keys(columnByRelation));
+    const relationSurfaces = (fn.relationSurfaces ?? []).map((surface) => {
+      const lockColumn = columnByRelation[surface.relation];
+      if (!lockColumn) return surface;
+      pending.delete(surface.relation);
+      if (surface.operations.includes('UPDATE')) return surface;
+      // Колонка замка попадает в поверхность, но НЕ расширяет чтение: если её там не было,
+      // существующий SELECT закрепляется прежним набором колонок.
+      const columns = surface.columns.includes(lockColumn)
+        ? surface.columns
+        : [...surface.columns, lockColumn];
+      return {
+        ...surface,
+        columns,
+        operations: [...surface.operations, 'UPDATE' as const],
+        operationColumns: {
+          ...(columns === surface.columns ? {} : { SELECT: surface.columns }),
+          ...surface.operationColumns,
+          UPDATE: [lockColumn],
+        },
+      };
+    });
+    if (pending.size > 0) {
+      throw new Error(`row lock surface names a relation the function does not declare: ${identity} -> ${[...pending].join(', ')}`);
+    }
+    locked[identity] = { ...fn, relationSurfaces };
+  }
+  return locked;
+}
+
 const patientSurface = (
   relation: string,
   columns: readonly string[],
@@ -3274,7 +3362,7 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-package.reserve',
       functionIdentity: 'app.reserve_current_patient_booking_package(text)' },
   },
-  functions: applyCanonicalContactSurfaceCorrections({
+  functions: applyRowLockSurfaces(applyCanonicalContactSurfaceCorrections({
     ...BUSINESS_SEAM_FUNCTIONS,
     'app.patient_cancel_pending_reminder_occurrences(text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'],
@@ -6252,7 +6340,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'UPDATE' as const],
         evidence: 'exact UPDATE in migration 0050' as const }],
     }),
-  }),
+  })),
 } as const;
 
 type LockedPolicyTarget = { policyName: string; descriptor: { table: string } };
