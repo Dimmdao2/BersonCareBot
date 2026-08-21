@@ -48,21 +48,21 @@ describe('sessionIdentityContactsFromRows', () => {
           value_normalized: '+79990000001',
           is_primary: true,
           confirmed_at: new Date('2026-08-14T10:00:00.000Z'),
-          source_origin: 'phone_history',
+          source_origin: 'direct',
         },
         {
           contact_kind: 'email',
           value_normalized: 'primary@example.test',
           is_primary: true,
           confirmed_at: '2026-08-14T11:00:00.000Z',
-          source_origin: 'oauth_binding',
+          source_origin: 'oauth',
         },
         {
           contact_kind: 'email',
           value_normalized: 'pending@example.test',
           is_primary: false,
           confirmed_at: null,
-          source_origin: 'platform_users',
+          source_origin: 'direct',
         },
       ]),
     ).toEqual([
@@ -71,20 +71,20 @@ describe('sessionIdentityContactsFromRows', () => {
         value: '+79990000001',
         isPrimary: true,
         confirmedAt: '2026-08-14T10:00:00.000Z',
-        sourceOrigin: 'phone_history',
+        sourceOrigin: 'direct',
       },
       {
         kind: 'email',
         value: 'primary@example.test',
         isPrimary: true,
         confirmedAt: '2026-08-14T11:00:00.000Z',
-        sourceOrigin: 'oauth_binding',
+        sourceOrigin: 'oauth',
       },
       {
         kind: 'email',
         value: 'pending@example.test',
         isPrimary: false,
-        sourceOrigin: 'platform_users',
+        sourceOrigin: 'direct',
       },
     ]);
   });
