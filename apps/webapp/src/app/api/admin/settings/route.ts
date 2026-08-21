@@ -70,6 +70,7 @@ import {
 } from '@/modules/system-settings/orgCustomDomainHostname';
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
+  isPlatformIntegrationAvailable,
   parsePlatformIntegrationAvailabilityEnvelope,
   type PlatformIntegrationId,
 } from '@/modules/system-settings/platformIntegrationAvailability';
@@ -298,7 +299,10 @@ async function isClinicDeliveryIntegrationEnabled(
     const setting = await getSetting('platform_integration_availability', 'admin', {
       organizationId: null,
     });
-    return parsePlatformIntegrationAvailabilityEnvelope(setting?.valueJson).integrations[integration];
+    return isPlatformIntegrationAvailable(
+      parsePlatformIntegrationAvailabilityEnvelope(setting?.valueJson),
+      integration,
+    );
   } catch {
     // An unreadable global switch is not permission to configure a tenant sender.
     return false;

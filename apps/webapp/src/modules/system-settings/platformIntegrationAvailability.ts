@@ -15,7 +15,10 @@ export type PlatformIntegrationId = (typeof PLATFORM_INTEGRATION_IDS)[number];
 
 export type PlatformIntegrationAvailability = Readonly<{
   version: 1;
-  integrations: Readonly<Record<PlatformIntegrationId, boolean>>;
+  /** Only ids whose persisted value is a valid boolean are present; a missing or malformed id
+   *  is simply absent here rather than invalidating the whole envelope — callers reading a
+   *  specific id must treat an absent entry as denied for that id only. */
+  integrations: Readonly<Partial<Record<PlatformIntegrationId, boolean>>>;
 }>;
 
 export type PlatformIntegrationCatalogEntry = Readonly<{
@@ -111,14 +114,6 @@ export function normalizePlatformIntegrationAvailability(
   if (!isRecord(value) || value.version !== 1 || !isRecord(value.integrations)) {
     return null;
   }
-
-  const integrations = {} as Record<PlatformIntegrationId, boolean>;
-  for (const id of PLATFORM_INTEGRATION_IDS) {
-    const enabled = value.integrations[id];
-    if (typeof enabled !== 'boolean') return null;
-    integrations[id] = enabled;
-  }
-
   if (
     Object.keys(value.integrations).some(
       (id) => !PLATFORM_INTEGRATION_IDS.includes(id as PlatformIntegrationId),
@@ -127,9 +122,23 @@ export function normalizePlatformIntegrationAvailability(
     return null;
   }
 
+  const integrations: Partial<Record<PlatformIntegrationId, boolean>> = {};
+  for (const id of PLATFORM_INTEGRATION_IDS) {
+    const enabled = value.integrations[id];
+    if (typeof enabled === 'boolean') {
+      integrations[id] = enabled;
+    }
+  }
+
   return { version: 1, integrations };
 }
 
+/**
+ * Throws only when the envelope itself is malformed (not a record, or an unsupported/invalid
+ * `version`/`integrations` shape). A missing or malformed individual id is not an envelope
+ * failure: it surfaces as an absent key in `.integrations`, and callers reading a specific id
+ * must treat that as denied for that id, not as a reason to distrust the whole registry.
+ */
 export function parsePlatformIntegrationAvailabilityEnvelope(
   envelope: unknown,
 ): PlatformIntegrationAvailability {
@@ -141,4 +150,12 @@ export function parsePlatformIntegrationAvailabilityEnvelope(
     throw new RuntimeSettingUnavailableError('platform_integration_availability');
   }
   return value;
+}
+
+/** Fail-closed accessor for a single id: an absent/malformed id denies only that id. */
+export function isPlatformIntegrationAvailable(
+  availability: PlatformIntegrationAvailability,
+  integrationId: PlatformIntegrationId,
+): boolean {
+  return availability.integrations[integrationId] === true;
 }

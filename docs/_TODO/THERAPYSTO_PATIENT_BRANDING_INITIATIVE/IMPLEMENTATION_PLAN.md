@@ -60,17 +60,25 @@ header», «получить имя для письма», «получить д
   clinic card и ссылку/форму booking; slug клиники в URL не обязателен, потому что организация уже определена Host.
 - Существующие clinic card/booking services переиспользуются; второго route tree с копиями UI и логики нет.
 - Session cookie остаётся host-only. Cross-domain SSO не вводится. CSRF продолжает использовать request origin.
-- Passkey/TOTP остаются staff-механикой Therapysto; на patient origins passkey не расширяется и не предлагается.
-  Yandex OAuth на patient surfaces при этом обязателен и не отключается.
+- Passkey НЕ удаляется. Он становится одной из переключаемых механик входа и по умолчанию выключен у докторов
+  (§1.6). Уже написанный код сохраняется.
+  Прежняя строка «Yandex OAuth на patient surfaces обязателен и не отключается» ОТМЕНЕНА решением владельца
+  21.08.2026 (§1.6): на staff surface OAuth нет вообще, на patient surface Yandex — открытый owner gate.
 - Metadata, OpenGraph и manifest вычисляются через тот же resolved surface; отдельные manifest-файлы под бренды
   не создаются.
 
-### 1.4 OAuth без потери Yandex-входа
+### 1.4 OAuth: только patient surface, и только если владелец его оставит
+
+**Действует под §1.6.** Весь этот раздел применяется ТОЛЬКО к patient-поверхностям и ТОЛЬКО если owner gate
+`OG-4` закрыт как «Яндекс остаётся». На staff/admin surface OAuth выключен по умолчанию (`OG-5` (б)) — механика
+в списке есть, работающего provider config на этой поверхности нет. Если `OG-4` закрыт как «убираем» — раздел не
+исполняется целиком, а `TPB-10` закрывается доказательством, что OAuth-путь недоступен на всех поверхностях.
 
 Несколько redirect URI у одного Yandex-приложения решают callback, но **не меняют имя/иконку consent**. Поэтому
 один global OAuth client не удовлетворяет white-label.
 
-- Therapysto использует существующую global Yandex app identity.
+- Therapysto staff surface OAuth не имеет — прежняя строка про «существующую global Yandex app identity» для него
+  отменена §1.6.
 - Стандартное patient-приложение получает отдельную global DB-backed Yandex app config с собственными
   client id/secret/exact redirect URI и именем/иконкой, зарегистрированными в Yandex.
 - Каждая активируемая branded clinic получает per-org DB-backed Yandex app config с consent identity этой клиники.
@@ -96,7 +104,46 @@ header», «получить имя для письма», «получить д
 - На branded surface email либо отправляется собственным SMTP/sender/template, либо недоступен/fail-closed. Письмо
   с Therapysto/другим брендом через platform fallback не отправляется.
 
+### 1.6 Политика входа по поверхностям (решение владельца 21.08.2026)
+
+Владелец сверился с мировыми аналогами (Physitrack, Medbridge) и зафиксировал:
+
+> «У них нет OAuth вообще для специалистов. Значит и у нас не будет — делаем как они. Для пациентов — оставим вход
+> по имейл и по номеру телефона (с подтверждением через бота). Возможно оставлю Яндекс OAuth, но может и нет.»
+
+- **Staff/admin (Therapysto): OAuth выключен** (`OG-5`, вариант (б), владелец 22.08.2026). Механика остаётся в
+  списке админки и в коде, но у докторов её значение по умолчанию — «выключено»: ни OAuth-кнопки на входе, ни
+  работающего provider config на этой поверхности, пока настройку не включат.
+**Модель (владелец, 22.08.2026, дословно): «все механики включаются в админке — отдельно для докторов и отдельно
+для пациентов».** То есть способ входа — это НЕ развилка в коде и не удаление кода, а значение настройки для
+конкретной поверхности. Матрица «поверхность × механика» живёт в админке, у каждой ячейки есть значение
+по умолчанию.
+
+- **Ничего уже написанного не удаляется.** Владелец: «я просто не хочу удалять то что уже сделано».
+  Выключенная механика остаётся в коде и включается настройкой, когда понадобится.
+- **Значения по умолчанию для докторов (владелец, 22.08.2026):** email + пароль включены; вторым фактором —
+  код на email ИЛИ код 2FA из приложения (TOTP); владелец: «я думаю этого достаточно».
+- **Passkey у докторов — выключён по умолчанию, но сохранён как опция.** Владелец: «мы этот passkey может и
+  включим потом как 2FA или сам доктор так захочет, а мы дадим как опцию». То есть у него два возможных будущих
+  режима — платформенный (включает админ) и личный (включает сам доктор себе). Реализация не обязана открывать
+  оба сразу, но НЕ должна закрывать второй архитектурно.
+- **PIN не нужен нигде** (владелец, 22.08.2026). Он вырезан целиком 04.08.2026 (`39ececd53`) — работы нет,
+  только запрет заводить заново.
+- **Patient (стандартное приложение и branded clinic): email и номер телефона** с подтверждением через бота.
+- **Яндекс OAuth для пациентов — открытый owner gate `OG-4`.** Safe default до его закрытия: НЕ строить, поверхность
+  работает на email+телефон. Google OAuth остаётся выключенным (решение по #1035).
+- **Следствие, которое и есть работа:** поверхностей теперь две с РАЗНОЙ политикой входа, а в global admin сегодня
+  один переключатель входа на всю платформу. Нужна политика входа per-surface: staff и patient настраиваются
+  раздельно, и настройка staff-поверхности физически не может включить на ней OAuth.
+
+Это правит §1.3 и §1.4 выше и добавляет `TPB-17…19` в §2.
+
 ## 2. Атомарные owner requirements
+
+> **Правка имени 22.08.2026.** Во всём документе `PersonCare` заменён на `BersonCare` (10 вхождений) по прямому
+> указанию владельца: «не PersonCare - BersonCare». Бренда `PersonCare` не существует — в коде это слово
+> встречалось один раз, в комментарии. Этап D означает: **BersonCare становится первой брендированной клиникой**
+> на общем механизме.
 
 Checkbox закрывается только доказательством, указанным в той же строке. ID не переименовываются.
 
@@ -110,17 +157,24 @@ Checkbox закрывается только доказательством, у�
   docs содержат только два выбранных полных домена.
 - [ ] `TPB-05` Пациент клиники входит через standard patient domain или активный branded clinic domain.
   Доказательство: одинаковые login/booking/cabinet behavior tests на обоих surface.
-- [ ] `TPB-06` PersonCare активирован первой конфигурацией универсального механизма, без PersonCare-specific code.
-  Доказательство: runtime settings/brand data + отсутствие PersonCare branching в product code.
+- [ ] `TPB-06` BersonCare активирован первой конфигурацией универсального механизма, без BersonCare-specific code.
+  Доказательство: runtime settings/brand data + отсутствие BersonCare branching в product code.
 - [ ] `TPB-07` Остаются один repo, один webapp, одна DB и общие mechanics. Доказательство: architecture diff не
   создаёт второго app/tree/store/dispatcher.
 - [ ] `TPB-08` Branding влияет только на patient-facing surface; staff/admin видят Therapysto. Доказательство:
   cross-surface metadata/UI tests.
 - [ ] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
   остаются org-scoped DB settings. Доказательство: config test и settings ownership tests.
-- [ ] `TPB-10` Yandex OAuth работает на Therapysto, standard patient и branded domains с правильной consent
-  identity, без cross-brand fallback. Доказательство: config-selection/state/callback tests и operator smoke каждой
-  зарегистрированной app identity.
+- [ ] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
+  противоречит решению «у специалистов OAuth нет». Требование теперь: на staff surface OAuth отсутствует; на
+  patient surfaces OAuth существует ТОЛЬКО если `OG-4` закрыт как «оставляем», и тогда — с собственной consent
+  identity каждой поверхности, без cross-brand fallback. Доказательство при `OG-4`=оставляем:
+  config-selection/state/callback tests и operator smoke каждой зарегистрированной app identity; при
+  `OG-4`=убираем: тест отсутствия OAuth-пути на всех поверхностях.
+
+  Происхождение прежней редакции: owner-требование брифа №10 звучало как «OAuth доступен, без утечки чужой
+  identity в consent». Формулировки «обязателен и не отключается» владелец не давал — она возникла при
+  синтезе плана. Зафиксировано, чтобы не воспроизвелась.
 - [ ] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
   booking и patient cabinet. Доказательство: branded-host page/navigation tests.
 - [ ] `TPB-12` Branded Telegram/MAX confirmations, codes и notifications идут только через clinic bot; SMS не
@@ -129,8 +183,25 @@ Checkbox закрывается только доказательством, у�
   Доказательство: template/profile selection tests и delivery fault injection.
 - [ ] `TPB-14` Первичная domain activation остаётся ручной; self-service DNS/TLS, SEO automation и marketplace не
   построены. Доказательство: operator runbook и отсутствие таких product flows в diff.
-- [ ] `TPB-15` User-visible BersonCareBot/platform PersonCare и понятие PersonCare Bot заменены; technical IDs и
+- [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
   history не переименованы. Доказательство: scoped exact inventory before/after с явным allowlist technical/history.
+- [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
+  возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
+  и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.
+- [ ] `TPB-17` На staff/admin surface OAuth-вход выключен настройкой (`OG-5` (б)): механика присутствует в
+  матрице, значение по умолчанию — «выключено», путь недоступен на уровне резолвера, пока её не включат. Доказательство: UI-тест login-экрана без
+  OAuth-элементов + route-тест, что OAuth start/callback на staff origin отвечают отказом, а не редиректом.
+- [ ] `TPB-18` Пациент входит по email и по номеру телефона с подтверждением через бота на обеих patient-поверхностях.
+  Доказательство: одинаковые login behavior tests на standard и branded origin для обоих способов.
+- [ ] `TPB-19` Механики входа настраиваются в админке матрицей «поверхность × механика», раздельно для докторов и
+  для пациентов, а не одним общим переключателем. Выключенная механика недоступна на уровне резолвера, а не только
+  скрыта в UI. Доказательство: settings-тест раздельных значений для двух поверхностей + fault injection
+  «обратиться к выключенной механике напрямую» получает отказ.
+
+  **`OG-5` ЗАКРЫТ владельцем 22.08.2026: вариант (б).** OAuth присутствует в списке механик и выключен по
+  умолчанию у докторов — так же, как passkey. Ничего не удаляется и не блокируется архитектурно. Прежняя
+  редакция требовала, чтобы OAuth на staff нельзя было включить в принципе; она отменена как противоречащая
+  модели «все механики включаются в админке».
 - [ ] `TPB-16` Реализация расширяет перечисленные choke points и не создаёт параллельных getters/resolvers/stores.
   Доказательство: dependency/architecture audit по diff.
 
@@ -192,10 +263,15 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
 **Gate C:** OAuth state/provider-selection tests; clinic-required dispatch fault injection; SMTP/template selection
 tests; проверка, что секреты не попадают в public runtime projection/logs; lint+typecheck.
 
-### D — PersonCare как первая конфигурация (`TPB-05`, `06`, `10`, `11`, `12`, `13`)
+### D — включение BersonCare первым арендатором: только настройки, без кода (`TPB-05`, `06`, `10`, `11`, `12`, `13`)
 
-- [ ] `D1` Через существующие settings/branding flows опубликовать PersonCare brand, custom hostname, Yandex app,
-  Telegram/MAX bots, SMTP/sender/templates. Product code не получает `if PersonCare`.
+Этап не пишет код. Он **включает** BersonCare тем механизмом, который построили A–C, и тем самым проверяет сам
+механизм: если для включения пришлось дописать код — механизм сделан неправильно, чинить надо его, а не
+подпирать заплаткой. BersonCare здесь — собственный продукт в роли первого арендатора: проходим ровно тот путь,
+которым потом пойдут чужие клиники.
+
+- [ ] `D1` Через существующие settings/branding flows опубликовать BersonCare brand, custom hostname, Yandex app,
+  Telegram/MAX bots, SMTP/sender/templates. Product code не получает `if BersonCare`.
 - [ ] `D2` Выполнить operator DNS/TLS/proxy binding и smoke полного patient journey: branded root → OAuth/login →
   recovery → card/booking → cabinet → bot/email notification.
 - [ ] `D3` Проверить standard patient domain тем же journey и Therapysto staff login отдельно; ни одна identity не
@@ -204,7 +280,29 @@ tests; проверка, что секреты не попадают в public r
 **Gate D:** runtime evidence на TEST. PROD/deploy/push не входят в текущее поручение и требуют отдельной команды
 владельца.
 
-### E — Финальная приёмка (`TPB-01…16`)
+### F — Политика входа по поверхностям (`TPB-17`, `18`, `19`)
+
+Исполняется после A (есть typed product-surface config) и до D/runtime activation.
+
+- [ ] `F1` Расширить резолвер поверхности типизированной auth policy: набор допустимых способов входа — свойство
+  поверхности, а не глобальная настройка. Staff-поверхность объявляет OAuth недопустимым на уровне типа.
+- [ ] `F2` Убрать OAuth-вход со staff/admin surface: UI, start/callback и provider config. Не прятать кнопку —
+  закрывать путь.
+- [ ] `F2b` Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию
+  выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается
+  настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).
+- [ ] `F2c` Второй фактор докторского входа по умолчанию: код на email ИЛИ TOTP. Один общий выбор фактора, не два
+  независимых пути входа.
+- [ ] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
+  переиспользуя существующие pre-session seams канонических контактов; второго пути входа не создавать.
+- [ ] `F4` Заменить единственный global-admin переключатель входа на per-surface политику; миграция существующего
+  значения детерминирована и не включает OAuth там, где его быть не должно.
+- [ ] `F5` Яндекс для пациентов реализуется ТОЛЬКО после закрытия `OG-4` как «оставляем». До этого §1.4 не
+  исполняется.
+
+**Gate F:** targeted auth/settings tests, fault injection «staff + OAuth» отвечает отказом, lint+typecheck.
+
+### E — Финальная приёмка (`TPB-01…19`)
 
 - [ ] `E1` Закрыть каждый checkbox §2 только его бинарным evidence; синхронизировать активные docs и runbook.
 - [ ] `E2` На implementation-ветке перед landing выполнить relevant tests, lint и typecheck. Full CI — только по
@@ -216,7 +314,7 @@ tests; проверка, что секреты не попадают в public r
 
 ## 4. Что сознательно не делаем
 
-- второй `webapp`, отдельную PersonCare папку, product fork или копию route tree;
+- второй `webapp`, отдельную BersonCare папку, product fork или копию route tree;
 - `staff.therapysto.ru`/`patient.therapysto.ru`;
 - generic hostname-binding/domain lifecycle table;
 - self-service DNS/TLS, SEO automation, domain marketplace;
@@ -231,8 +329,12 @@ tests; проверка, что секреты не попадают в public r
 Они не блокируют A–C, но обязательны до D/runtime activation:
 
 1. имя стандартного patient-приложения;
-2. его полный основной домен;
-3. полный домен PersonCare.
+2. его полный основной домен. Варианты владельца 21.08.2026: `Therapysto.app`, `Therapygo.ru`, `Therapygo.app`
+   или другое; staff-поверхность — `Therapysto.ru`;
+3. полный домен BersonCare;
+4. **`OG-4` — остаётся ли Яндекс OAuth для пациентов.** Владелец 21.08.2026: «возможно оставлю, но может и нет».
+   Safe default до ответа: не строить, patient-вход живёт на email+телефоне. Ответ «оставляем» включает §1.4 и `F5`;
+   ответ «убираем» закрывает `TPB-10` доказательством отсутствия OAuth на всех поверхностях.
 
 Остальные развилки первой редакции закрыты технически: domain edit остаётся owner-only; active docs исправляются
 на месте; standard и branded identity получают отдельные Yandex app registrations; новая domain table не нужна.

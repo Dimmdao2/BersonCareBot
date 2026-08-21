@@ -15,7 +15,10 @@ import { getPatientMaintenanceConfig } from './patientMaintenance';
 import { getSupportContactUrl } from './supportContactUrl';
 import { getTelegramBotToken } from './integrationRuntime';
 import { parseDoctorTodayPreferences } from './doctorTodayPreferences';
-import { parsePlatformIntegrationAvailabilityEnvelope } from './platformIntegrationAvailability';
+import {
+  isPlatformIntegrationAvailable,
+  parsePlatformIntegrationAvailabilityEnvelope,
+} from './platformIntegrationAvailability';
 import { createRuntimeConfigProvider } from './runtimeConfig';
 
 beforeEach(() => {
@@ -73,13 +76,48 @@ describe('DB-backed product values', () => {
     );
   });
 
-  it('refuses missing or malformed platform integration availability', () => {
+  it('refuses a missing envelope or an unsupported version instead of inventing a value', () => {
     expect(() => parsePlatformIntegrationAvailabilityEnvelope(undefined)).toThrow(
       'runtime_setting_unavailable:platform_integration_availability',
     );
     expect(() =>
-      parsePlatformIntegrationAvailabilityEnvelope({ value: { version: 1, integrations: {} } }),
+      parsePlatformIntegrationAvailabilityEnvelope({ value: { version: 2, integrations: {} } }),
     ).toThrow('runtime_setting_unavailable:platform_integration_availability');
+    expect(() =>
+      parsePlatformIntegrationAvailabilityEnvelope({ value: { version: 1, integrations: 'nope' } }),
+    ).toThrow('runtime_setting_unavailable:platform_integration_availability');
+  });
+
+  it('a channel missing from an otherwise-valid registry denies only that channel', () => {
+    // Reproduces the live TEST defect: a pre-D31 registry has every key except `vk`. A valid
+    // envelope must still be usable for the channels it does carry.
+    const availability = parsePlatformIntegrationAvailabilityEnvelope({
+      value: {
+        version: 1,
+        integrations: {
+          telegram: true,
+          max: true,
+          email: true,
+          smsc: true,
+          web_push: true,
+          google_calendar: true,
+          yandex_calendar: false,
+        },
+      },
+    });
+    expect(isPlatformIntegrationAvailable(availability, 'email')).toBe(true);
+    expect(isPlatformIntegrationAvailable(availability, 'vk')).toBe(false);
+  });
+
+  it('preserves an explicit vk switch in either state', () => {
+    const enabled = parsePlatformIntegrationAvailabilityEnvelope({
+      value: { version: 1, integrations: { vk: true } },
+    });
+    const disabled = parsePlatformIntegrationAvailabilityEnvelope({
+      value: { version: 1, integrations: { vk: false } },
+    });
+    expect(isPlatformIntegrationAvailable(enabled, 'vk')).toBe(true);
+    expect(isPlatformIntegrationAvailable(disabled, 'vk')).toBe(false);
   });
 
   it('refuses missing doctor preferences instead of substituting a compiled object', () => {

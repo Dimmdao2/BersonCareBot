@@ -1,6 +1,6 @@
 # Native mobile app initiative
 
-Статус: `planned`, taskdb `#915`; код и store-публикация не начаты.
+Статус: `MOB-00 in progress` (разморожено владельцем 2026-08-21, дословно: «разведочного этапа MOB-00 - запусти агента»), taskdb `#915`; код и store-публикация не начаты. Заморозка 27.07 и её снятие — в шапке [`MASTER_PLAN.md`](MASTER_PLAN.md). Разморожен ТОЛЬКО `MOB-00`; `MOB-01`+ по-прежнему закрыты.
 
 Owner direction 2026-07-19: целевой мобильный продукт — единое полноценное приложение BersonCare для iOS и
 Android, а не обязательная PWA. Telegram и MAX остаются только auth-каналами для login/bind codes; продуктовые
@@ -15,6 +15,9 @@ Production `server.url` не принимается как архитектур�
 
 - owner requirements: [`REQUIREMENTS.md`](REQUIREMENTS.md);
 - подробный план: [`MASTER_PLAN.md`](MASTER_PLAN.md);
+- **результат MOB-00 (ADR + разведочный spike, 2026-08-22):**
+  [`MOB-00_ADR_AND_SPIKE_FINDINGS.md`](MOB-00_ADR_AND_SPIKE_FINDINGS.md) — вердикт, замеры, пересчитанный
+  срок и открытые вопросы владельцу; коммит `a8209f7c0`;
 - действия владельца: [`OWNER_ACTIONS.md`](OWNER_ACTIONS.md);
 - финальная приёмка: [`FINAL_ACCEPTANCE.md`](FINAL_ACCEPTANCE.md);
 - append-only журнал: [`LOG.md`](LOG.md);
