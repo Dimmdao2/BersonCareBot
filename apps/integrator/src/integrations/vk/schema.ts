@@ -9,6 +9,11 @@ const VkMessageSchema = z.object({
   attachments: z.array(z.unknown()).optional(),
 }).passthrough();
 
+/** Official Callback API `message_new` events wrap the message in `object.message`. */
+const VkMessageNewObjectSchema = z.object({
+  message: VkMessageSchema,
+}).passthrough();
+
 const VkMessageEventSchema = z.object({
   event_id: z.string().min(1),
   user_id: z.number(),
@@ -22,11 +27,12 @@ export const VkCallbackSchema = z.object({
   secret: z.string().optional(),
   group_id: z.number().optional(),
   event_id: z.string().optional(),
-  object: z.union([VkMessageSchema, VkMessageEventSchema]).optional(),
+  object: z.union([VkMessageNewObjectSchema, VkMessageEventSchema]).optional(),
 }).passthrough();
 
 export type VkCallback = z.infer<typeof VkCallbackSchema>;
 export type VkMessage = z.infer<typeof VkMessageSchema>;
+export type VkMessageNewObject = z.infer<typeof VkMessageNewObjectSchema>;
 export type VkMessageEvent = z.infer<typeof VkMessageEventSchema>;
 
 export function parseVkCallback(raw: unknown):

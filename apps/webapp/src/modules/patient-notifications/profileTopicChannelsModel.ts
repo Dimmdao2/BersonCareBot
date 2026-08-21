@@ -6,6 +6,7 @@ import { patientNotificationTopicDisplayTitle } from './topicDisplayTitles';
 const CHANNEL_LABEL: Record<PatientTopicChannelCode, string> = {
   telegram: 'Telegram',
   max: 'MAX',
+  vk: 'ВКонтакте',
   email: 'Email',
   web_push: 'Push',
 };
@@ -29,6 +30,7 @@ export type ProfileNotificationTopicModel = {
 export type ProfileNotificationAvailability = {
   hasTelegram: boolean;
   hasMax: boolean;
+  hasVk?: boolean;
   emailVerified: boolean;
   /** Активная browser subscription. */
   hasWebPushSubscription: boolean;
@@ -66,6 +68,7 @@ export function buildProfileNotificationTopicModels(
     for (const code of allowed) {
       if (code === 'telegram' && !availability.hasTelegram) continue;
       if (code === 'max' && !availability.hasMax) continue;
+      if (code === 'vk' && !availability.hasVk) continue;
       if (code === 'email' && !availability.emailVerified) continue;
       if (code === 'web_push' && !webPushColumnVisible(availability)) continue;
       channels.push({

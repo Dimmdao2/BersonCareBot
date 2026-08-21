@@ -18,7 +18,12 @@ export type VkWebhookDeps = {
 function externalId(callback: Parameters<typeof fromVk>[0]): string | null {
   const object = callback.object;
   if (!object) return null;
-  if ('from_id' in object) return String(object.from_id);
+  if (callback.type === 'message_new' && 'message' in object) {
+    const message = object.message;
+    if (message && typeof message === 'object' && 'from_id' in message) {
+      return String(message.from_id);
+    }
+  }
   if ('user_id' in object) return String(object.user_id);
   return null;
 }

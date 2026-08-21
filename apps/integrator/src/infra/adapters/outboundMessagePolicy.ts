@@ -48,7 +48,7 @@ export function assertOutboundMessagePolicy(intent: OutgoingIntent): string {
   // N1 confines only external message sends. Callback/edit/delete retirement belongs to N4.
   if (intent.type !== 'message.send') return '';
   const channel = readChannel(intent);
-  if (!channel || !['telegram', 'max', 'email', 'smsc', 'web_push'].includes(channel)) {
+  if (!channel || !['telegram', 'max', 'vk', 'email', 'smsc', 'web_push'].includes(channel)) {
     throw new OutboundMessagePolicyError('channel_missing_or_unknown');
   }
   const hasRecognizedMarker =
@@ -68,11 +68,11 @@ export function assertOutboundMessagePolicy(intent: OutgoingIntent): string {
 
   if (
     hasMarker(intent, 'operator_security', 'operator_alert') &&
-    ['telegram', 'max', 'email', 'smsc', 'web_push'].includes(channel)
+    ['telegram', 'max', 'vk', 'email', 'smsc', 'web_push'].includes(channel)
   )
     return channel;
 
-  if (channel === 'telegram' || channel === 'max') {
+  if (channel === 'telegram' || channel === 'max' || channel === 'vk') {
     if (
       hasMarker(intent, 'auth_code', 'auth_code') ||
       hasMarker(intent, 'auth_code', 'contact_handshake')

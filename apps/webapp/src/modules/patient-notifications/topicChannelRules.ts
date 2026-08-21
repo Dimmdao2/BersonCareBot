@@ -3,7 +3,7 @@
  * `web_push` — отдельный канал браузерных push (PWA), не путать с мессенджерами.
  * SMS здесь не используется.
  */
-export const PATIENT_TOPIC_CHANNEL_CODES = ['telegram', 'max', 'email', 'web_push'] as const;
+export const PATIENT_TOPIC_CHANNEL_CODES = ['telegram', 'max', 'vk', 'email', 'web_push'] as const;
 export type PatientTopicChannelCode = (typeof PATIENT_TOPIC_CHANNEL_CODES)[number];
 
 export function isPatientTopicChannelCode(v: string): v is PatientTopicChannelCode {
@@ -14,7 +14,7 @@ export function isPatientTopicChannelCode(v: string): v is PatientTopicChannelCo
 export function allowedChannelsForTopic(topicCode: string): readonly PatientTopicChannelCode[] {
   const t = topicCode.trim();
   if (t === 'warmup_reminders' || t === 'training_reminders') {
-    return ['telegram', 'max', 'web_push'];
+    return ['telegram', 'max', 'vk', 'web_push'];
   }
   if (
     t === 'appointment_reminders' ||
@@ -23,7 +23,7 @@ export function allowedChannelsForTopic(topicCode: string): readonly PatientTopi
     t === 'support_messages' ||
     t === 'important_broadcasts'
   ) {
-    return ['telegram', 'max', 'email', 'web_push'];
+    return ['telegram', 'max', 'vk', 'email', 'web_push'];
   }
   return PATIENT_TOPIC_CHANNEL_CODES;
 }

@@ -3861,7 +3861,7 @@ export const userNotificationTopicChannels = pgTable(
     }),
     check(
       'user_notification_topic_channels_channel_check',
-      sql`${table.channelCode} = ANY (ARRAY['telegram'::text, 'max'::text, 'email'::text, 'web_push'::text])`,
+      sql`${table.channelCode} = ANY (ARRAY['telegram'::text, 'max'::text, 'vk'::text, 'email'::text, 'web_push'::text])`,
     ),
   ],
 );

@@ -22,7 +22,7 @@ describe('VK Callback API route', () => {
       const reply = await app.inject({
         method: 'POST',
         url: '/webhook/vk',
-        payload: { type: 'message_new', secret, object: { from_id: 17, peer_id: 17 } },
+        payload: { type: 'message_new', secret, object: { message: { from_id: 17, peer_id: 17 } } },
       });
       expect(reply.statusCode).toBe(403);
       expect(reply.body).toBe('forbidden');

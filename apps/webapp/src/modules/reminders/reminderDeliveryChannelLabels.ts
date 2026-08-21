@@ -14,6 +14,7 @@ const CHANNEL_LABEL_RU: Record<PatientTopicChannelCode, string> = {
   web_push: 'Push',
   telegram: 'Telegram',
   max: 'MAX',
+  vk: 'ВКонтакте',
   email: 'Email',
 };
 
@@ -50,7 +51,7 @@ export async function resolveActiveReminderDeliveryLabelsForTopic(input: {
     allowedChannelsForTopic(input.topicCode) as readonly PatientTopicChannelCode[],
   );
   const ordered: PatientTopicChannelCode[] = [];
-  const pushLike: PatientTopicChannelCode[] = ['web_push', 'telegram', 'max', 'email'];
+  const pushLike: PatientTopicChannelCode[] = ['web_push', 'telegram', 'max', 'vk', 'email'];
   for (const code of pushLike) {
     if (allowed.has(code)) ordered.push(code);
   }

@@ -1,6 +1,6 @@
 import type { IncomingUpdate } from '../../kernel/domain/types.js';
 import { normalizeChannelCallbackPayload } from '../telegram/mapIn.js';
-import type { VkCallback, VkMessage, VkMessageEvent } from './schema.js';
+import type { VkCallback, VkMessage, VkMessageEvent, VkMessageNewObject } from './schema.js';
 
 function messageType(message: VkMessage): string { return Array.isArray(message.attachments) && message.attachments.length > 0 ? 'unsupported' : 'text'; }
 function callbackPayload(raw: VkMessageEvent['payload']): string { return typeof raw === 'string' ? raw : raw && typeof raw === 'object' ? JSON.stringify(raw) : ''; }
@@ -8,7 +8,7 @@ function callbackPayload(raw: VkMessageEvent['payload']): string { return typeof
 /** Converts only documented `message_new` and `message_event` Callback payloads. */
 export function fromVk(callback: VkCallback): IncomingUpdate | null {
   if (callback.type === 'message_new') {
-    const message = callback.object as VkMessage | undefined;
+    const message = (callback.object as VkMessageNewObject | undefined)?.message;
     if (!message) return null;
     return {
       kind: 'message', chatId: message.peer_id, channelId: String(message.from_id),

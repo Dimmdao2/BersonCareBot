@@ -3,9 +3,9 @@ import { fromVk } from './mapIn.js';
 
 describe('fromVk', () => {
   it('maps text and makes attachment-only messages explicitly unsupported', () => {
-    expect(fromVk({ type: 'message_new', object: { from_id: 17, peer_id: 17, id: 9, text: 'Привет' } }))
+    expect(fromVk({ type: 'message_new', object: { message: { from_id: 17, peer_id: 17, id: 9, text: 'Привет' } } }))
       .toMatchObject({ kind: 'message', channelId: '17', relayMessageType: 'text' });
-    expect(fromVk({ type: 'message_new', object: { from_id: 17, peer_id: 17, attachments: [{ type: 'photo' }] } }))
+    expect(fromVk({ type: 'message_new', object: { message: { from_id: 17, peer_id: 17, attachments: [{ type: 'photo' }] } } }))
       .toMatchObject({ kind: 'message', relayMessageType: 'unsupported' });
   });
 

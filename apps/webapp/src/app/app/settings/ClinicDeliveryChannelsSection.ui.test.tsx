@@ -18,12 +18,13 @@ describe('ClinicDeliveryChannelsSection', () => {
           smsConfigured: true,
           telegramConfigured: true,
           maxConfigured: true,
+          vkConfigured: true,
           telegramWebhookPath: null,
           maxWebhookPath: null,
         }}
       />,
     );
 
-    expect(screen.getAllByText('Подключён')).toHaveLength(3);
+    expect(screen.getAllByText('Подключён')).toHaveLength(4);
   });
 });

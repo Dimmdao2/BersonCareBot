@@ -46,6 +46,7 @@ function parseTargets(value: unknown): PatientReminderDeliveryTargetSnapshot | n
   return {
     ...(typeof bindings.telegram === 'string' ? { telegramId: bindings.telegram } : {}),
     ...(typeof bindings.max === 'string' ? { maxId: bindings.max } : {}),
+    ...(typeof bindings.vk === 'string' ? { vkId: bindings.vk } : {}),
     channelPreferences:
       payload.channelPreferences as PatientReminderDeliveryTargetSnapshot['channelPreferences'],
     topicChannelRows:

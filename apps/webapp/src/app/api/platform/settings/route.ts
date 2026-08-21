@@ -42,6 +42,9 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'platform_integration_availability',
   'telegram_bot_token',
   'telegram_webhook_secret',
+  'vk_community_access_token',
+  'vk_callback_secret',
+  'vk_callback_confirmation_token',
   'telegram_mode',
   'booking_location_default_palette',
 ] as const satisfies readonly SystemSettingKey[];
@@ -51,6 +54,9 @@ const patchSchema = z.object({ key: platformKeySchema, value: z.unknown() });
 const PLATFORM_SECRET_SETTING_KEYS = new Set<SystemSettingKey>([
   'telegram_bot_token',
   'telegram_webhook_secret',
+  'vk_community_access_token',
+  'vk_callback_secret',
+  'vk_callback_confirmation_token',
 ]);
 
 function isPlatformSecretSettingKey(key: SystemSettingKey): boolean {
@@ -63,7 +69,40 @@ function hasStoredSecret(valueJson: unknown): boolean {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-function projectPlatformSettingForClient(setting: SystemSetting): SystemSetting {
+const PLATFORM_VK_CREDENTIAL_KEYS = [
+  'vk_community_access_token',
+  'vk_callback_secret',
+  'vk_callback_confirmation_token',
+] as const satisfies readonly SystemSettingKey[];
+
+function hasUsablePlatformVkCredentials(settings: readonly SystemSetting[]): boolean {
+  return PLATFORM_VK_CREDENTIAL_KEYS.every((key) =>
+    hasStoredSecret(settings.find((setting) => setting.key === key)?.valueJson),
+  );
+}
+
+function projectPlatformSettingForClient(
+  setting: SystemSetting,
+  allSettings: readonly SystemSetting[],
+): SystemSetting {
+  if (setting.key === 'platform_integration_availability') {
+    const normalized = normalizePlatformIntegrationAvailability(
+      setting.valueJson && typeof setting.valueJson === 'object'
+        ? (setting.valueJson as Record<string, unknown>).value
+        : null,
+    );
+    if (normalized && normalized.integrations.vk && !hasUsablePlatformVkCredentials(allSettings)) {
+      return {
+        ...setting,
+        valueJson: {
+          value: {
+            ...normalized,
+            integrations: { ...normalized.integrations, vk: false },
+          },
+        },
+      };
+    }
+  }
   if (!isPlatformSecretSettingKey(setting.key)) return setting;
   return { ...setting, valueJson: { value: { configured: hasStoredSecret(setting.valueJson) } } };
 }
@@ -112,7 +151,7 @@ export async function GET() {
   const [settings, channelPolicy, oauthProviderPolicy] = await Promise.all([
     buildAppDeps()
       .systemSettings.listSettingsByScope('admin', { organizationId: null })
-      .then((rows) => rows.filter(isPlatformGlobalSetting).map(projectPlatformSettingForClient)),
+      .then((rows) => rows.filter(isPlatformGlobalSetting).map((setting) => projectPlatformSettingForClient(setting, rows))),
     getAuthChannelPolicyDetail(),
     getOAuthProviderPolicyDetail(),
   ]);
@@ -133,6 +172,22 @@ export async function PATCH(request: Request) {
   if (valueJson === null) {
     return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
   }
+  if (
+    parsed.data.key === 'platform_integration_availability' &&
+    normalizePlatformIntegrationAvailability(
+      (valueJson as { value?: unknown }).value,
+    )?.integrations.vk === true
+  ) {
+    const settings = await buildAppDeps().systemSettings.listSettingsByScope('admin', {
+      organizationId: null,
+    });
+    if (!hasUsablePlatformVkCredentials(settings)) {
+      return NextResponse.json(
+        { ok: false, error: 'vk_platform_credentials_required' },
+        { status: 400 },
+      );
+    }
+  }
 
   const setting = await buildAppDeps().systemSettings.updateSetting(
     parsed.data.key,
@@ -141,5 +196,5 @@ export async function PATCH(request: Request) {
     gate.session.user.userId,
     { organizationId: null },
   );
-  return NextResponse.json({ ok: true, setting: projectPlatformSettingForClient(setting) });
+  return NextResponse.json({ ok: true, setting: projectPlatformSettingForClient(setting, [setting]) });
 }
