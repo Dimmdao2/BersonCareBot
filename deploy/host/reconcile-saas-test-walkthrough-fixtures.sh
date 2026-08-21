@@ -113,7 +113,7 @@ SQL
     done < "$1"
     [[ "$role" =~ ^bcb_test_fixture_seed_[a-z0-9]+$ ]] || exit 64
     psql -X -d postgres -v ON_ERROR_STOP=1 -Atqc \
-      "SELECT NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '\''$role'\'')::text;"
+      "SELECT (NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = '\''$role'\''))::text;"
   ' bash "$STATE")" == true ]] || return 1
 }
 
@@ -295,11 +295,11 @@ SQL
 ' bash "$STATE" >/dev/null
 
 # The only child that receives DATABASE_URL sources a 0600 deploy-owned file; its argv contains paths only.
-sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 bash -c '
+sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent SRC_REPO="$SRC_REPO" SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 bash -c '
   set -Eeuo pipefail
   set -a
   . "$1"
   set +a
-  exec timeout --kill-after=10 300 node --import tsx "$2"
+  exec timeout --kill-after=10 300 pnpm --dir "$SRC_REPO/apps/webapp" exec tsx "$2"
 ' bash "$SEED_ENV" "$SRC_REPO/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts"
 printf 'SaaS TEST walkthrough fixture: PASS (two clinics reconciled; temporary authority removed)\n'
