@@ -27,8 +27,10 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(resolve(testRepo, '.git'), { recursive: true });
   mkdirSync(resolve(testRepo, 'apps/webapp/scripts'), { recursive: true });
   mkdirSync(resolve(testRepo, 'apps/webapp/node_modules/.bin'), { recursive: true });
-  writeFileSync(resolve(src, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'fixture');
-  writeFileSync(resolve(testRepo, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'fixture');
+  writeFileSync(resolve(src, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
+  writeFileSync(resolve(src, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
+  writeFileSync(resolve(testRepo, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
+  writeFileSync(resolve(testRepo, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
   writeFileSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), '#!/bin/bash\nexit 0\n');
   chmodSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), 0o755);
   writeFileSync(resolve(src, 'deploy/host/saas-test-fixture-packet.mjs'), 'fixture');
@@ -62,10 +64,16 @@ case "$1" in
       --is-inside-work-tree) printf 'true\\n' ;;
       --show-toplevel) printf '%s\\n' "$repo" ;;
       --verify) printf '0123456789abcdef0123456789abcdef01234567\\n' ;;
+      HEAD) printf '0123456789abcdef0123456789abcdef01234567\\n' ;;
     esac
     ;;
   symbolic-ref) printf 'feat/doctor-ui-rebuild\\n' ;;
-  diff|ls-files) exit 0 ;;
+  diff)
+    [[ "$repo" == '${testRepo}' && "\${FIXTURE_TEST_TRACKED_DIRTY:-0}" == 1 ]] && exit 1
+    exit 0
+    ;;
+  merge-base) [[ "\${FIXTURE_TEST_NOT_ANCESTOR:-0}" != 1 ]] ;;
+  ls-files) exit 0 ;;
 esac
 `);
   writeFileSync(resolve(bin, 'systemctl'), `#!/bin/bash
@@ -210,6 +218,16 @@ test('rejects a TEST seeder that differs from the reviewed source before tempora
   assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
 });
 
+test('rejects a dirty imported TEST fixture file before temporary authority', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  writeFileSync(resolve(entry.root, 'test/apps/webapp/scripts/fixture-import.ts'), 'dirty import');
+  const result = run(entry, { FIXTURE_TEST_TRACKED_DIRTY: '1' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /tracked TEST checkout changes must be committed/);
+  assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
+});
+
 test('success runs existing seeder without leaking credentials and removes temporary authority', (t) => {
   const entry = fixture();
   cleanupFixture(t, entry);
@@ -274,6 +292,23 @@ test('root --recover converges when the recorded temporary role is already absen
   assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
   const calls = readFileSync(entry.log, 'utf8');
   assert.match(calls, /dropped[\s\S]*verified_absent/);
+});
+
+test('root --recover ignores a broken TEST seeder runtime and restores recorded units', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const failed = run(entry, { ROLE_VERIFICATION: 'false' });
+  assert.equal(failed.status, 70);
+  const state = fixtureState(entry);
+  rmSync(resolve(entry.root, 'test/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'));
+  rmSync(resolve(entry.root, 'test/apps/webapp/node_modules/.bin/tsx'));
+
+  const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /dropped[\s\S]*verified_absent/);
+  assert.match(calls, /systemctl start bersoncarebot-media-worker-test/);
 });
 
 test('cleanup fails closed when PostgreSQL does not confirm the temporary role is absent', (t) => {
