@@ -893,14 +893,14 @@ sudo systemctl reload nginx
 | `bersoncarebot-saas-billing-renewal` (имя на усмотрение)          | рекомендуется после К5                              | `POST /api/internal/saas-billing/renewal/tick` ежечасно — счёт продления тарифа истёкшим `saas_billing_subscriptions` |
 | прочие                                                            | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д.                                                                            |
 
-**Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в **`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**, UI **`/app/doctor/system-health`** → «Cron-задачи хоста». Канон ключей: **`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`**. Smoke после deploy:
+**Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в **`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**, UI **`/app/admin/system-health`** → «Cron-задачи хоста». Канон ключей: **`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`**. Smoke после deploy:
 
 ```bash
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
 # loopback dry-run retention (без DELETE) — после вызова tick появится в operator_job_status:
 curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
   "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
-# в UI: /app/doctor/system-health → «Cron-задачи хоста»
+# в UI: /app/admin/system-health → «Cron-задачи хоста»
 ```
 
 ---
