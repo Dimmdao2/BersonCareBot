@@ -8,7 +8,9 @@ Authority: `docs/OWNER_DECISIONS.md` решение 21.08, `docs/ARCHITECTURE/OW
 ролевые проверки используют обычный вход уже зарегистрированных owner-учёток. `/api/auth/dev-public` остаётся
 только clear-session helper.
 
-Источник оракула: `docs/OWNER_DECISIONS.md` решение 21.08 — «отдельное fixture-наполнение для проверок на live DEV/TEST запрещено».
+Источник оракула: `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` §10 — «на именованных DEV и TEST не создают,
+не сидируют, не reconcile-ят и не требуют persistent fixture-клиники, учётки и наборы данных; удалённый
+fixture-механизм не восстанавливают».
 
 Перед действием прочитать карту `AGENTS.md`, §0, §1/§1a/§1b, §7, §10a и §24; повторить поиск более поздних
 owner-решений в `docs/OWNER_DECISIONS.md`, `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md` и актуальном `WORK_ORDER.md`.
