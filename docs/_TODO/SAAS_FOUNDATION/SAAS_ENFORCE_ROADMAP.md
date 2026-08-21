@@ -73,6 +73,11 @@ what breaks under enforce on TEST. It is not an ON/OFF decision threshold or rol
 
 ### Overall acceptance commands for the current path
 
+**УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** `smoke:saas-product` and the operator-managed `--fixture-file` below are
+retired; `check-saas-product-smoke-contract.mjs` and `scripts/smoke-saas-product.mjs` no longer exist
+(`HARD_MIGRATION_PROTOCOL.md`: "Fixture-based A1/product smoke выведен из deploy решением владельца
+30.07.2026"; `AGENTS.md` §1b). The command block below is retained for provenance only, do not run it.
+
 The owner-authorized TEST workflow is objectively centred on a fresh TEST deployment and locked-mode product proof;
 it does not invoke an ON/OFF flip:
 
@@ -84,9 +89,9 @@ pnpm run smoke:saas-product -- \
   --fixture-file=/run/bersoncarebot/saas-smoke.fixture
 ```
 
-The product smoke and multi-org isolation matrix must pass before TEST acceptance. If the
-operator-managed fixture is absent, product smoke is **SKIPPED/BLOCKED**, not PASS. No action beyond TEST
-acceptance is in this roadmap.
+The product smoke and multi-org isolation matrix must pass before TEST acceptance via the current-path
+scenario-based checks (see D3/D4/E2 below); the operator-managed fixture path above is not the acceptance
+gate. No action beyond TEST acceptance is in this roadmap.
 
 ### Historical note — superseded flip finish line
 
@@ -467,26 +472,16 @@ Exit: FB#1 application smoke and PII isolation negatives exit 0 under strict+FOR
       the patient can read the approved client setting and cannot read a secret or another patient’s discussion.
       Evidence: the targeted test and a locked TEST smoke result, both redacted of fixture data.
       — OPEN: gated on the prerequisite above, which is not done; no regression test found for this route.
-- [ ] Confirm an owner/operator-managed product smoke fixture file path is supplied. The value stays outside
-      repo/logs. Before any TEST smoke, if the fixture is absent, record
-      **SKIPPED/BLOCKED** and stop before claiming D3/R1/R2 evidence. This is enforced by
-      `docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs:41-90`.
-      — OPEN: this is a live/operational confirmation (owner-supplied fixture path at TEST run time), not a
-      repo artifact; no such run happened in this pass. `check:saas-product-smoke-contract` itself is green
-      (see A1 above), but that only proves the checker enforces the block-on-absence rule, not that a fixture was supplied.
+- [-] ~~Confirm an owner/operator-managed product smoke fixture file path is supplied.~~ —
+      **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** the enforcing checker
+      (`docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs`) and the fixture-file mechanism
+      itself no longer exist; persistent operator-managed fixture files are retired
+      (`HARD_MIGRATION_PROTOCOL.md`, `AGENTS.md` §1b). D3 read evidence now comes from the current-path
+      scenario-based TEST checks, not this fixture gate.
 
-If the fixture is absent, record
-**SKIPPED/BLOCKED** and stop before claiming D3/R1/R2 evidence.
-
-`SAAS_PRODUCT_SMOKE_FIXTURE` unset is a documented blocker,
-not a successful D3 exit.
-
-- [ ] Run every read scenario in
-      `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` under the already-enforced TEST configuration for
-      doctor, clinic-admin, patient, and public entry points. Assert scenario-specific non-empty fixture facts, not
-      HTTP success alone; retain a redacted JSON/JUnit result.
-      — OPEN: contract file confirmed present (22 read scenarios), but this box requires an actual live-TEST run
-      producing a redacted result; none exists in the repo from today's pass. Also `pnpm run
+- [-] ~~Run every read scenario in `saas-product-smoke-contract.json` ...~~ —
+      **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** `docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` and
+      `check:saas-product-smoke-contract` no longer exist; do not recreate this fixture contract. Also `pnpm run
 check:saas-d3-4-bootstrap-base-login-grants` (the bootstrap-grants checker this phase's evidence row cites) ran
       RED today: `deploy/postgres/c4-operational-runtime.sql missing required fragment: p_key IN
 ('video_hls_pipeline_enabled', 'video_watermark_enabled')` — a real, currently-broken prerequisite for the bootstrap

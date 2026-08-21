@@ -115,3 +115,93 @@ runnable authenticated `dev-bypass`/`dev:*` path.
 | `rg -rn "take-baseline-screenshots.sh\|walk-app-pages-no-redirect.mjs\|smoke-patient-write-actions.mjs" --include=*.json --include=*.sh --include=*.mjs .` | no matches (no dangling caller) |
 
 No DEV/TEST/PROD access, live login, migration, deploy, push or full CI ran in this pass.
+
+## Pass 3 — classify and close the remaining current-plan references, 21.08.2026
+
+Scope per `LIVE_FIXTURE_RETIREMENT_ACTIVE_REFERENCE_CLOSURE_BRIEF_2026-08-21.md`: classify each remaining match
+outside `docs/archive/**`, `docs/REPORTS/**`, audit/evidence/log artifacts and completed `[x]` historical records,
+naming the four files it calls out plus active SAAS roadmap/checklists in general.
+
+### Files inspected and classification
+
+- `docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/audit/acceptance-ST-03.md` — the ST-03 checklist itself is already
+  historical `[x]` evidence except one open Live-TEST box; but its "Визуальный сценарий" section still named
+  `dev:admin` as the preliminary DEV entry. **Changed:** replaced with ordinary owner admin-account login
+  (`AGENTS.md` §1a).
+- `docs/_TODO/audits/CUTOVER_COMPLETENESS_AUDIT_2026-08-15.md` — inspected in full. The `Closure update`
+  block is a past-tense record of a completed run (`DONE`). The two `fixture`-word hits are (a) past-tense
+  "target fixtures" inside that closed run and (b) a risk-matrix line describing reversible synthetic-organization
+  mutation with "штатным API/fixture cleanup" — compliant with the AGENTS.md §1b/3 rollback-transaction allowance,
+  not a persistent-fixture instruction. **Left unchanged**, historical/compliant.
+- `docs/_TODO/NIGHT_PLAN_2026-07-26.md` — every `fixture` hit is inside a dated 2026-07-25/26 session log entry
+  describing a specific past smoke-fixture staleness finding and an owner-authorized past action. **Left
+  unchanged**, historical.
+- `docs/DOCTOR_UI_REBUILD_REVIEW/PATIENT_PAGE_BUILD_PLAN.md` — re-inspected; its one `dev-bypass?token=dev:doctor`
+  match is inside the dated "VERIFIED STATE (2026-06-14 ~05:00)" status-log entry describing how that past
+  verification was run. **Left unchanged**, historical, consistent with the prior pass's classification.
+- `docs/_TODO/SAAS_FOUNDATION/SAAS_S3_TEST_WALKTHROUGH.md` — an unexecuted (`0/31` checked), still-open TEST
+  walkthrough procedure whose entry section instructs a future persistent-fixture Clinic A/B: seed/reconcile via
+  a "hard wrapper repo-managed fixture step" and reading two email+password pairs from a protected
+  `/opt/env/bersoncarebot/saas-test-fixture.env`. This is exactly the future persistent-fixture/authenticated-preset
+  instruction the oracle targets, and it is already superseded by a later owner decision recorded canonically in
+  `HARD_MIGRATION_PROTOCOL.md` ("Fixture-based A1/product smoke выведен из deploy решением владельца 30.07.2026
+  ... Role checks use the already registered owner accounts and clinics; no fixture packet or reconciliation
+  window exists"). **Changed:** added a top-of-file УСТАРЕЛО/ЗАМЕНЕНО note pointing to that canonical decision and
+  `AGENTS.md` §1a/§1b, mirroring the same idiom already used in `OWNER_READY_TEST/ROADMAP.md`. The body's fixture
+  steps are left as retained historical-design text, not executed or rewritten into a new procedure.
+- `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` (active SAAS roadmap) — the "Overall acceptance commands
+  for the current path" block and two open D3 checkboxes instructed running `pnpm run smoke:saas-product` /
+  `check:saas-product-smoke-contract` against `/run/bersoncarebot/saas-smoke.fixture`, but
+  `check-saas-product-smoke-contract.mjs`, `scripts/smoke-saas-product.mjs` and
+  `saas-product-smoke-contract.json` no longer exist on disk (confirmed by `ls`/`rg`) and neither `smoke:saas-product`
+  nor `check:saas-product-smoke-contract` exist in `package.json`. **Changed:** marked the acceptance-commands
+  block and the two dead-script checkboxes УСТАРЕЛО/ЗАМЕНЕНО, pointing to the same `HARD_MIGRATION_PROTOCOL.md`
+  decision, without altering any other line in that file (all other `[x]`/`[ ]`/superseded-phase text — including
+  the still-live `check:saas-d3-4-bootstrap-base-login-grants` RED finding — left exactly as-is).
+- All other `fixture`/`dev-bypass`/`dev:*` matches surfaced by the repo-wide re-census below were inspected and
+  fall into: unit/scratch test fixtures meaning local test input (not touched, per acceptance), already-superseded
+  historical blocks (`HARD_MIGRATION_PROTOCOL.md`'s own labelled SUPERSEDED section, `SAAS_ENFORCE_ROADMAP.md`
+  Phase B2/C0 historical blocks), completed `[x]` rows, or dated audit/report/log records under `docs/REPORTS/**`,
+  `docs/_TODO/runs/**` and `.md` LOG files, all out of this pass's in-scope classification set.
+
+### Flagged, not touched (outside this brief's line-edit mandate)
+
+- `runs/clickthrough/` (`lib/fixtureAuth.mjs`, `seed-lfk-complex-for-owner-patient.mjs`, `smoke-auth-check.mjs`,
+  flows) is a live Playwright click-through tool that reads session cookies for four roles from
+  `/run/bersoncarebot/saas-smoke.fixture` via `sudo -n cat`. This is the same operator fixture path
+  `HARD_MIGRATION_PROTOCOL.md` records as retired from deploy/runtime closure. Whether the underlying accounts are
+  real registered owner accounts (a periodically-refreshed session-cookie cache, compliant) or a synthetic
+  fixture set requires an owner/architecture decision and touches a multi-file executable tool, not a single
+  contradicting line — outside this brief's scope (`Не строить replacement helper/runbook/seed`,
+  `без расширения соседнего product scope`). Left unmodified; flagged here so it is not silently missed.
+
+### Exact re-census (after the above changes)
+
+Command (exit 0):
+
+```bash
+rg -n "dev-bypass|dev%3A|dev:doctor|dev:admin|dev:clinic-admin|dev:client" -i \
+  --glob '!docs/archive/**' --glob '!docs/**/audit/**' --glob '!docs/**/evidence/**' \
+  --glob '!docs/**/LOG.md' --glob '!docs/**/log.md' .
+```
+
+Remaining matches are the same historical/audit/evidence/completed classes already documented in Pass 2, plus this
+file itself and the closure/fixer briefs under `docs/_TODO/runs/integrator-cleanup/`, which are evidence records of
+this retirement.
+
+### Commands and results
+
+| Command | Exit | Result |
+|---|---:|---|
+| `node /home/dev/brain/tools/code-search.mjs "persistent fixture seed reconcile authenticated preset dev bypass" --repo bcb -k 30` | 0 | Surfaced the four brief-named files plus `SAAS_ENFORCE_ROADMAP.md`/`SAAS_S3_TEST_WALKTHROUGH.md`; each inspected above. |
+| `ls docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-product-smoke-contract.mjs` | 2 (no such file) | Confirms the D3/Overall-acceptance script is dead. |
+| `ls docs/_TODO/SAAS_FOUNDATION/saas-product-smoke-contract.json` | 2 (no such file) | Confirms the contract JSON is dead. |
+| `grep -n "smoke:saas-product\|check:saas-product-smoke-contract" package.json apps/webapp/package.json` | 1 (no match) | Confirms neither script exists in either manifest. |
+| `grep -n -i "dev-bypass\|dev%3A\|dev:doctor\|dev:client\|dev:admin\|dev:clinic-admin" apps/webapp/src/modules/auth/service.ts` | 1 (no match) | The dev-bypass code path itself is gone (superseded independent-audit F1 already fixed prior to this pass). |
+| `node -e "JSON.parse(require('node:fs').readFileSync('package.json','utf8')); JSON.parse(require('node:fs').readFileSync('apps/webapp/package.json','utf8')); console.log('package-json: OK')"` | 0 | Untouched manifests still parse (no script/code was changed this pass). |
+| `git diff --check` | 0 | No whitespace errors. |
+
+No scripts were modified in this pass (only three `.md` files), so no `bash -n`/`node --check` was needed beyond
+the manifest parse re-confirmation above.
+
+NOT DONE: rebuild platform-merge / candidate ordinary owner-login live gate / landing / TEST deploy / push / full CI.
