@@ -527,12 +527,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 ### Phase 5 — интеграционная приёмка на тестовом сервере
 
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 (архивный план; synthetic-fixture-манифест оттуда отменён).
-- Отдельное fixture-наполнение (synthetic global_admin/demo-clinic-a/b) для этой проверки запрещено решением
-      владельца 21.08 (`docs/OWNER_DECISIONS.md`). Текущий путь: проверка §3.2 (новая org использует выбранный
-      trial tariff/duration, без hardcoded/default/all-true) — обычный signup flow на уже зарегистрированных
-      owner-аккаунтах/клиниках на TEST, без seeder/synthetic-аккаунтов; правки в БД только rollback-only.
+- Отдельное fixture-наполнение для проверок на live DEV/TEST запрещено решением владельца 21.08
+      (`docs/OWNER_DECISIONS.md`). Для обычных Phase 5 UI-проверок используются **уже зарегистрированные**
+      owner-учётки и клиники. §3.2 (реальный provisioning новой org) остаётся открытым до следующей обычной
+      регистрации настоящей owner-клиники через продуктовый signup; агент не создаёт суррогатную/fixture/synthetic
+      клинику ради галочки. Rollback-only относится только к прямым DB-пробам и не объявляется свойством signup.
       Историческая находка: `grep -rln "demo-clinic-a\|demo-clinic-b" apps/webapp --include="*.ts" --include="*.tsx" --include="*.sql"`
-      — 0 совпадений в коде (только в старых план-документах). Зависит и от открытого Phase 3 п.7 (trial при provisioning).
+      — 0 совпадений в коде (только в старых план-документах).
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, видит billing state».
 - Global admin создаёт/меняет тариф, полный mechanic grid, назначает A, меняет override, видит billing state.
       — ЧАСТИЧНО заложено: API/UI-механика (create/update/archive tariff, assign, override, полный mechanic-грид)
