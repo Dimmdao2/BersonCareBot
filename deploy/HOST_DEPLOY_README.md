@@ -299,21 +299,19 @@ regular non-symlink, `deploy:deploy`, `0600`:
 
 ---
 
-## Operator health probes (MVP)
+## Operator health probes
 
-Интегратор: **`POST /internal/operator-health-probe`** (синтетические пробы активных интеграций). Доступ **только** с подписью `x-bersoncare-timestamp` / `x-bersoncare-signature` (тот же секрет, что M2M webapp→integrator: **`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** в `api.prod`).
-
-**Канонический скрипт вызова с хоста:** [`deploy/host/operator-health-probe.sh`](../host/operator-health-probe.sh). Копируется вместе с репозиторием; на prod обычно symlink или копия под `/opt/backups/scripts/` (рядом с `postgres-backup.sh`) — путь оператор выбирает сам, важно чтобы скрипт был исполняемым (`chmod +x`).
-
-**Ручной smoke (loopback integrator):**
-
-```bash
-bash /opt/projects/bersoncarebot/deploy/host/operator-health-probe.sh
-```
-
-**Периодический запуск (пример, cron от root или от пользователя с доступом к `api.prod` и `curl` к `127.0.0.1:3200`):** раз в час — `0 * * * *` и тот же `bash …/operator-health-probe.sh`. Альтернатива — `systemd.timer` с `OnCalendar=hourly` и `ExecStart=` на этот скрипт (unit-файл в репозитории не зафиксирован — добавляется на хосте при необходимости).
-
-**Проверка:** при валидном env ответ JSON содержит `{"ok":true,...}` и статусы активных проб; при неверной подписи — **401** `invalid_signature`.
+**D30 Ш6 (21.08.2026, code-side retirement):** синтетические пробы (MAX/Telegram/Google Calendar) больше не
+имеют внешнего триггера. Резидентный `bersoncarebot-scheduler-prod.service` вызывает
+`runScheduledOperatorHealthProbeTick` в своём собственном цикле (due-gating по `intervalMs` каждой пробы и
+уважение quiet-часов из `operator_health_probe_config` — см. `apps/integrator/src/infra/runtime/scheduler/main.ts`
+и `operatorHealthProbeTick.ts`), напрямую, без HTTP. Прежний внешний trigger — `POST
+/internal/operator-health-probe` и канонический скрипт `deploy/host/operator-health-probe.sh` — удалены этим
+коммитом вместе с host cron-записью; они дублировали резидентный тик и игнорировали его due-gating (см.
+`docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`, вердикт B4). **Остаток для лида:** снять
+любую живую host cron/systemd-запись, которая ещё вызывает `operator-health-probe.sh` на PROD/TEST, через
+`cronport`, после деплоя этого кода и живой проверки, что `operator_job_status`
+(`health.outbound_probe.run`) продолжает свежеть без внешнего вызова.
 
 ---
 
@@ -458,7 +456,7 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 **HLS: reconcile очереди транскода (легаси-библиотека):** `POST /api/internal/media-transcode/reconcile` с тем же Bearer и JSON-телом **`{ "limit": 50 }`** (опционально; верхний cap на стороне сервера **200**). Работает только при **`video_hls_pipeline_enabled`** и **`video_hls_reconcile_enabled`** в admin **`system_settings`** (иначе **`503`** `pipeline_disabled` / `reconcile_disabled`). Один вызов = один батч постановки в **`media_transcode_jobs`** по той же логике, что скрипт phase-07 backfill. Успешная итерация обновляет строку **`public.operator_job_status`** (`job_family=media`, ключ **`media_transcode.reconcile`**), чтобы в админском «Здоровье системы» было видно последний тик reconcile.
 
-**Операторские уведомления (Wave 2):** шаблоны cron в **`deploy/host/cron.d/`** — `bersoncarebot-operator-health-critical.cron.template` (`*/5`, `POST /api/internal/operator-health-critical/tick`), `bersoncarebot-operator-health-digest.cron.template` (`0 * * * *`, `POST /api/internal/operator-health-digest/tick`), `bersoncarebot-system-health-guard.cron.template` (`*/15`, `POST /api/internal/system-health-guard/tick`). Все три требуют **`INTERNAL_JOB_SECRET`** в `webapp.prod` и loopback `127.0.0.1:6200`. Настройки доставки — ключ **`operator_health_alert_config`** (блок «Уведомления админу» в `/app/doctor/admin/technical`): критичные / сводка / конфликты аккаунтов, у каждого свои TG/Max/Push; время сводки — `digestTime` (default **09:00**). Guard tick классифицирует `integrator_push_outbox` и чистит TTL архива сбоев; **critical** push по ipo **error** — в `operator-health-critical/tick` (degraded — в сводку, волна 2). Дрейн outbox: `pnpm run integrator-push-outbox-tick` или отдельный systemd unit.
+**Операторские уведомления (Wave 2):** шаблон cron в **`deploy/host/cron.d/`** — `bersoncarebot-operator-health-critical.cron.template` (`*/5`, `POST /api/internal/operator-health-critical/tick`, остаётся cron — сторож обязан пережить смерть того, за кем следит, Р-D30 развилка №4). **D30 Ш5 (21.08.2026, code-side retirement):** сводка (`digest`, `0 * * * *`) и guard-тик (`*/15`, классификация `integrator_push_outbox`) больше не имеют host cron-шаблона — резидентный `bersoncarebot-scheduler-prod.service` будит их сам той же периодичностью через подписанные M2M-вызовы **`POST /api/integrator/operator-health/digest-wake`** и **`POST /api/integrator/system-health/guard-wake`** (`DIGEST_WAKE_PERIOD_MS`/`HEALTH_GUARD_WAKE_PERIOD_MS` в `apps/integrator/src/infra/runtime/scheduler/main.ts`), вызывая тот же webapp use-case (`runOperatorHealthDigestTick`/`runIntegratorPushOutboxHealthGuardTick`), что и прежний cron. Прежние Bearer-роуты `POST /api/internal/operator-health-digest/tick` и `POST /api/internal/system-health-guard/tick` в коде ещё существуют (не удалены этим коммитом — их callsite-строка держит exact-match тест `deploy/postgres/privileges/port-context-callsite-catalog.test.mjs`, а правка каталога БД-привилегий вне границ этой задачи) и молчаливо примут вызов, если host cron ещё не снят, но больше не требуются: `deploy/host/cron.d/bersoncarebot-operator-health-digest.cron.template` и `bersoncarebot-system-health-guard.cron.template` удалены этим коммитом. Настройки доставки — ключ **`operator_health_alert_config`** (блок «Уведомления админу» в `/app/doctor/admin/technical`): критичные / сводка / конфликты аккаунтов, у каждого свои TG/Max/Push; время сводки — `digestTime` (default **09:00**), читает вебапп при постановке. **Остаток для лида:** после деплоя и живой проверки (сводка/guard продолжают тикать без host cron) снять любую живую cron/systemd-запись через `cronport`. **critical** push по ipo **error** — в `operator-health-critical/tick` (degraded — в сводку, волна 2). Дрейн outbox: `pnpm run integrator-push-outbox-tick` или отдельный systemd unit.
 
 **Автопродление тарифа платформы (К5):** `POST /api/internal/saas-billing/renewal/tick` с тем же Bearer: раз в тик находит `saas_billing_subscriptions` с `source='paid_subscription'`, `status='active'` и `current_period_ends_at` в прошлом, и выставляет каждой счёт продления (`saas_billing_invoices`) через уже существующий провайдерский intent — та же логика, что ручное `createRenewalSaasBillingInvoice` (К0), но по расписанию, а не по запросу клиники. Повтор в тот же период не создаёт второй счёт — держится уникальным индексом `saas_billing_invoices_period_uidx (saas_billing_subscription_id, service_period_starts_at, service_period_ends_at)`. Шаблон `deploy/host/cron.d/bersoncarebot-saas-billing-renewal.cron.template` — **ежечасно** на loopback, параметр **`?limit=`** (по умолчанию 50, cap 200). Ответ JSON: `dueCount`, `created`, `alreadyInvoiced`, `failed`, `errors`.
 
@@ -554,12 +552,6 @@ curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
 ```cron
 CRON_TZ=Europe/Moscow
 0 4 * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
-```
-
-Пример **редкого** опроса `integrator_push_outbox` (guard tick: классификация + purge архива; critical push — в critical tick, см. `bersoncarebot-system-health-guard.cron.template`):
-
-```cron
-*/15 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/system-health-guard/tick" >/dev/null'
 ```
 
 Пример cron **напоминаний о задачах специалиста** (после миграции `0102_specialist_tasks.sql`):

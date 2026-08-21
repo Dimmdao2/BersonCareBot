@@ -71,16 +71,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: result.code }, { status: 400 });
   }
 
-  if ('status' in result) {
-    return NextResponse.json({
-      ok: true,
-      purpose: result.purpose,
-      status: result.status,
-      syncTargetUserId: result.syncTargetUserId,
-      accountCreated: result.accountCreated,
-    });
-  }
-
   return NextResponse.json({
     ok: true,
     purpose: result.purpose,

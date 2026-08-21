@@ -1,5 +1,14 @@
 # D10 + D20 convergence — independent audit 2026-08-21
 
+🟡 **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026.** The "16/16 + zero fixture residue" live gate this report names below ran
+against `realPostgresIntegrationTestHarness.ts` (fixture organization, admin-socket `sudo postgres`, committed
+setup + afterAll DELETE) — retired by the owner decision recorded in `docs/OWNER_DECISIONS.md` §«Что A→B имеет
+право нести в целевую базу» (21.08.2026) and executed in
+`docs/_TODO/runs/integrator-cleanup/LIVE_DEV_TEST_FIXTURES_RETIREMENT_2026-08-21.md`. That harness and its four
+consumer test files no longer exist; do not run the command below. Current D20 acceptance is the pointer in
+`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` (D20) and `AGENTS.md` §10a/§10b. This report's
+findings about the audited code itself are left unchanged below as a historical record.
+
 ## Verdict
 
 **PASS-code-with-named-post-land-live-gate.** No reachable product defect or authority violation was found in
