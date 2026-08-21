@@ -33,7 +33,7 @@ messenger-входом уже зарегистрированных owner-учё�
 
 ## Probe без утечки секрета
 
-Protected input подготовлен lead в `/run/user/1000/bcb-owner-dev-password-20260821` как regular `dev:dev 0600`.
+Protected input подготовлен lead в `/tmp/bcb-owner-dev-password-20260821` как regular `dev:dev 0600`.
 Не печатать и не передавать пароль в argv. Одноразовый Node/fetch probe читает файл внутри процесса, отправляет
 JSON body на `POST /api/auth/email-password/login` для owner global-admin email из §11, держит Set-Cookie только в
 памяти и затем вызывает `GET /api/me` на том же isolated origin.
