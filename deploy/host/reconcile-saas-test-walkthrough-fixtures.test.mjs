@@ -25,7 +25,12 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(resolve(src, '.git'));
   mkdirSync(resolve(src, 'apps/webapp/scripts'), { recursive: true });
   mkdirSync(resolve(testRepo, '.git'), { recursive: true });
+  mkdirSync(resolve(testRepo, 'apps/webapp/scripts'), { recursive: true });
+  mkdirSync(resolve(testRepo, 'apps/webapp/node_modules/.bin'), { recursive: true });
   writeFileSync(resolve(src, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'fixture');
+  writeFileSync(resolve(testRepo, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'fixture');
+  writeFileSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), '#!/bin/bash\nexit 0\n');
+  chmodSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), 0o755);
   writeFileSync(resolve(src, 'deploy/host/saas-test-fixture-packet.mjs'), 'fixture');
   let body = readFileSync(source, 'utf8');
   body = body.replace('/home/dev/dev-projects/BersonCareBot', src)
@@ -44,6 +49,9 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(bin);
   const log = resolve(root, 'calls.log');
   writeFileSync(resolve(bin, 'hostname'), `#!/bin/bash\nprintf '${host}\\n'\n`);
+  writeFileSync(resolve(bin, 'id'), `#!/bin/bash
+if [[ "$1" == -u ]]; then printf '%s\\n' "${'${FIXTURE_UID:-1000}'}"; else /usr/bin/id "$@"; fi
+`);
   writeFileSync(resolve(bin, 'git'), `#!/bin/bash
 set -eu
 if [[ "$1" == -C ]]; then repo="$2"; shift 2; fi
@@ -97,7 +105,7 @@ if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then
 fi
 if [[ "$args" == *'psql'* ]]; then exit 0; fi
 if [[ "$args" == *'timeout '* ]]; then
-  [[ "$args" == *'pnpm --dir "$SRC_REPO/apps/webapp" exec tsx "$2"'* ]] || exit 63
+  [[ "$args" == *'TEST_REPO=${testRepo}'* && "$args" == *'pnpm --dir "$TEST_REPO/apps/webapp" exec tsx "$2"'* && "$args" == *'${testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'* ]] || exit 63
   printf 'seeder_pnpm_webapp_tsx\\n' >> "$log"
   if [[ "\${BLOCK_SEED:-0}" == 1 ]]; then
     printf 'seed_started\\n' >> "$log"
@@ -114,6 +122,7 @@ if [[ "$args" == *'find '* ]]; then find '${root}' -maxdepth 1 -type f -name 'st
 exit 0
 `);
   chmodSync(resolve(bin, 'hostname'), 0o755);
+  chmodSync(resolve(bin, 'id'), 0o755);
   chmodSync(resolve(bin, 'git'), 0o755);
   chmodSync(resolve(bin, 'systemctl'), 0o755);
   chmodSync(resolve(bin, 'curl'), 0o755);
@@ -161,6 +170,15 @@ test('rejects a source tree that is not a git checkout before temporary authorit
   assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
 });
 
+test('rejects a root normal seed before packet or temporary authority', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry, { FIXTURE_UID: '0' });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /run a normal seed as the non-root repository owner/);
+  assert.throws(() => readFileSync(entry.log, 'utf8'));
+});
+
 test('rejects a packet validator failure before database authority', (t) => {
   const entry = fixture();
   cleanupFixture(t, entry);
@@ -179,6 +197,17 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
   assert.match(calls, /seeder_pnpm_webapp_tsx/);
+  assert.doesNotMatch(calls, /node --import tsx/);
+});
+
+test('rejects a TEST seeder that differs from the reviewed source before temporary authority', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  writeFileSync(resolve(entry.root, 'test/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'different');
+  const result = run(entry);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /TEST fixture seeder differs from the reviewed source checkout/);
+  assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
 });
 
 test('success runs existing seeder without leaking credentials and removes temporary authority', (t) => {
@@ -233,14 +262,14 @@ test('cleanup failure is fail-closed and preserves protected recovery state', (t
   assert.match(readFileSync(fixtureState(entry), 'utf8'), /^role=bcb_test_fixture_seed_[a-z0-9]+$/m);
 });
 
-test('recovery converges when the recorded temporary role is already absent', (t) => {
+test('root --recover converges when the recorded temporary role is already absent', (t) => {
   const entry = fixture();
   cleanupFixture(t, entry);
-  const failed = run(entry, { FAIL_CLEANUP: '1' });
+  const failed = run(entry, { ROLE_VERIFICATION: 'false' });
   assert.equal(failed.status, 70);
   const state = fixtureState(entry);
 
-  const recovered = run(entry, {}, ['--recover']);
+  const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
   assert.equal(recovered.status, 0, recovered.stderr);
   assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
   const calls = readFileSync(entry.log, 'utf8');
