@@ -366,6 +366,28 @@ DEV отсутствует, D30 не включает перенос или др
       заменена этим ремонтом; запись не стирается, только помечается замещённой. Ш3 остаётся `[ ]`: этот проход
       не выполнял тот же обычный existing-owner create/update/complete/delete/resident-delivery доказ на TEST —
       он по-прежнему требуется перед снятием sweep/route/registry/cron.
+      **CURRENT 22.08.2026 (D30 sweep/route/registry/host-cron cleanup pass, code-only, hard boundary: no DB/
+      DEV/TEST/PROD access, no `--execute`/deploy).** Перепись перед снятием, как требует бриф этого прохода:
+      write-time producer подтверждён на месте — `createPgSpecialistTasksPort`
+      (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts:118-119` `create`, `:154-156` `update`, `:188`/`:203`
+      `complete`/`delete` → `terminalizeUnsentSpecialistTaskReminders`) по-прежнему пишет
+      `specialist_task_reminder` в `outgoing_delivery_queue` в той же транзакции, резидентный процесс — по-прежнему
+      единственный исполнитель (Ш9). Но кандидат на снятие (route `POST /api/internal/specialist-task-reminders/tick`,
+      его тик `enqueueDueReminders` (`apps/webapp/src/infra/repos/pgSpecialistTasks.ts:266`), запись
+      `specialist_task_reminders_tick` в `cronJobRegistry.ts` и абзацы `deploy/HOST_DEPLOY_README.md` §463/§888)
+      остаётся без обязательного доказательства: не read-only gap-census (та часть плана — «сверка (1)» из
+      `WORK_ORDER.md` D30-ordering — закрыта 21.08, обе базы дали `future without queue=0`, см. выше), а живой
+      прогон create/update/complete/delete + resident-delivery на TEST (пункт «(2)» того же ordering). Этот
+      прогон FAIL'ил 21.08.2026 (`42501 permission denied for table specialist_tasks`,
+      `D30_SPECIALIST_TASK_TEST_LIVE_FAILURE_2026-08-21.md`); последовавший привилегийный ремонт (merge
+      `92cf34ffa4`) устраняет причину FAIL по чтению каталога грантов, но **тот же прогон повторно не
+      выполнялся** — зафиксировано в записи выше и не изменилось за этот проход (no TEST access в hard boundary).
+      **Вердикт этого прохода: sweep/route/registry/host-cron специалист-задач НЕ снимаются.** Требование брифа
+      «кандидат без доказательства не снимается» здесь не выполнено — доказательство (2) отсутствует, а не
+      устарело. Host-cron часть при этом уже сегодня no-op независимо от вердикта: `node
+      /home/dev/brain/tools/cronport.mjs list` на этом DEV/TEST-хосте (`151.241.228.122`) 22.08.2026 вернул те же
+      посторонние brain/backup/hygiene строки, что и 21.08.2026 — ни одной записи specialist-task-reminders нет,
+      снимать через `cronport` физически нечего.
   - [x] **Ш4.0 (предпосылка, из находки 1 `D30_STEP0_AUDIT.md`).** Выполнено D21: прежние B1 cron/route/
         registry/host requirement и check→send→cache путь удалены; `web_push` и email идут через unified
         `public.outgoing_delivery_queue` со stable `event_id`, unique constraint + `ON CONFLICT DO NOTHING`
@@ -429,6 +451,20 @@ DEV отсутствует, D30 не включает перенос или др
       приёмки. Ш5 остаётся `[ ]`: код-сторона host-триггера ретирована, но (а) сами роуты — легаси-хвост до
       живого доказательства выше, (б) живой recipient probe на TEST/PROD и (в) фактическое снятие host cron
       через `cronport` — задача лида после деплоя.
+      **CURRENT 22.08.2026 (D30 sweep/route/registry/host-cron cleanup pass, code-only).** Перепись перед
+      снятием: резидентный `scheduler/main.ts:132,145` по-прежнему сам будит `runOperatorHealthDigestTick`/
+      `runIntegratorPushOutboxHealthGuardTick` через `DIGEST_WAKE_PERIOD_MS`/`HEALTH_GUARD_WAKE_PERIOD_MS`
+      (`:39-40`), `cronJobRegistry.ts` по-прежнему перечисляет `operator_health.digest.daily` и
+      `system_health_guard` (проверено этим проходом чтением файла), Bearer-роуты
+      `POST /api/internal/operator-health-digest/tick` и `POST /api/internal/system-health-guard/tick`
+      по-прежнему существуют. Кандидаты на снятие (эти два роута + их запись в `cronJobRegistry.ts` +
+      соответствующие абзацы `deploy/HOST_DEPLOY_README.md`) остаются без доказательства (б) из раздела выше —
+      живого recipient probe на TEST/PROD, что резидентных обращений к роутам больше нет; этот проход не имеет
+      доступа к TEST/PROD (hard boundary брифа), доказательство получить не может. **Вердикт: НЕ снимаются.**
+      Host-cron шаблоны для digest/guard уже сняты предыдущим проходом (21.08) и `cronport list`, повторённый
+      этим проходом, подтверждает то же самое отсутствие записей — снимать через `cronport` нечего, но снятие
+      кода (роут + registry-строка) без предшествующего живого доказательства было бы ровно тем «кандидатом без
+      доказательства», который бриф запрещает снимать.
 
 - [ ] **Ш6. B4 — снять внешний cron health-проб.** Работу продолжает делать `runScheduledOperatorHealthProbeTick`
       с due-gating и quiet-часами. **Гейт:** после снятия cron `lastRunAt` каждой включённой пробы продолжает
@@ -461,6 +497,13 @@ DEV отсутствует, D30 не включает перенос или др
       `docs/ARCHITECTURE/SERVER CONVENTIONS.md`. Код-сторона Ш6 закрыта; box остаётся `[ ]`, потому что живое
       наблюдение `lastRunAt` на TEST/PROD (до и после снятия host cron) и фактическое снятие через `cronport`
       — задача лида после деплоя (hard boundary этого прохода: no DEV/TEST/PROD access, no cronport).
+      **CURRENT 22.08.2026 (D30 sweep/route/registry/host-cron cleanup pass).** Перепись подтверждает: снимать
+      здесь больше нечего — route, canonical script и registry-запись для B4 удалены предыдущим проходом
+      (21.08), `cronJobRegistry.ts` (прочитан этим проходом целиком) не содержит `outbound_integration_probes`
+      или любой другой B4-записи, `deploy/host/operator-health-probe.sh` отсутствует в дереве. `cronport list`,
+      повторённый 22.08.2026, не находит ни одной host-cron строки для этой пробы (как и 21.08) — сам box
+      остаётся открытым только на живое TEST/PROD-наблюдение и формальный `cronport remove`, если запись когда-то
+      появится на PROD; на этом DEV/TEST-хосте это уже no-op.
 
 **Ш8. B3 — ВЕДЁТСЯ В `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §D5–D7/D25.** Дренаж
 `integrator_push_outbox` исчезает вместе с M2M-каналом `reminder_rule_upsert`. В этом плане фиксируется только

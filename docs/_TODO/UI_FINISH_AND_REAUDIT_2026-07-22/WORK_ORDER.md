@@ -1406,15 +1406,23 @@ booking/event gateway) в том же источнике помечены «за
       каждый оставшийся scheduler/cron/topology шаг закрывается только после проверки текущего кода, более поздних
       owner-решений и собственного code/runtime evidence. Детализация —
       `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`; его старые технические предпосылки не имеют authority.
-      **Ш9 закрыт 21.08.2026** (один резидентный процесс, один замок, один цикл). **Следующий цельный этап,
-      по порядку:** (1) именованная DEV/TEST read-only сверка старых будущих задач специалиста — сколько строк
-      `specialist_tasks` с будущим `remind_at` и без `reminderSentAt` не имеют соответствующей строки в
-      `outgoing_delivery_queue` (write-time producer уже материализует новые/изменённые задачи, старый sweep-cron
-      остаётся только legacy reconciliation до этой сверки); (2) живой прогон write-time create/update/complete/
-      delete на TEST с доказательством резидентной доставки (Ш3); (3) снятие sweep/route/registry/host cron для
-      закрытых code-side шагов тем же коммитом, что и пост-деплойные проверки; (4) TEST-наблюдение и фактическое
-      снятие host cron через `cronport` для Ш4/Ш5/Ш6 (code complete, живой gate остаётся). Никакой миграции
-      очереди и никакой новой test-machinery в этом объёме нет.
+      **Ш9 закрыт 21.08.2026** (один резидентный процесс, один замок, один цикл). **(1) закрыт и принят
+      21.08.2026:** именованная DEV/TEST read-only сверка старых будущих задач специалиста выполнена — сколько
+      строк `specialist_tasks` с будущим `remind_at` и без `reminderSentAt` не имеют соответствующей строки в
+      `outgoing_delivery_queue`; обе базы (`bcb_webapp_dev`, `bersoncarebot_test`) дали `future without queue=0`
+      (`D30_SPECIALIST_TASK_TEST_LIVE_FAILURE_2026-08-21.md`) — легаси-хвоста материализовать нечего, write-time
+      producer уже материализует новые/изменённые задачи, старый sweep-cron остаётся только legacy reconciliation
+      до прохождения (2). **Следующий цельный этап, по порядку (пункт (1) выполнен, дальше по порядку):**
+      (2) живой прогон write-time create/update/complete/delete на TEST с доказательством резидентной доставки
+      (Ш3) — FAIL 21.08.2026 (`42501 permission denied for table specialist_tasks`), привилегийный ремонт
+      приземлён и задеплоен на TEST (merge `92cf34ffa4`), но тот же прогон повторно не выполнялся; (3) снятие
+      sweep/route/registry/host cron для закрытых code-side шагов тем же коммитом, что и пост-деплойные проверки
+      — 22.08.2026: код-side перепись повторена, снимать нечего: `cronport list` на DEV/TEST-хосте по-прежнему
+      не находит ни одной строки specialist-task/digest/guard/probe (host-cron часть — no-op), но sweep/route/
+      registry специалист-задач (Ш3) не снимаются, пока не пройдено (2), а route/registry digest/guard (Ш5) — пока
+      нет живого recipient probe на TEST/PROD (вне hard boundary без DB/TEST/PROD доступа); (4) TEST-наблюдение и
+      фактическое снятие host cron через `cronport` для Ш4/Ш5/Ш6 (code complete, живой gate остаётся). Никакой
+      миграции очереди и никакой новой test-machinery в этом объёме нет.
 
 ### 3.5 Track E — принятые решения без своего трека
 
