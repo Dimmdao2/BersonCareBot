@@ -433,3 +433,101 @@ none is an active old-then-new struck gate row anymore.
 
 No code, migration, DB, DEV/TEST/PROD, fixture, account, login, deploy, CI, push or landing action. No new test
 or audit cycle. Historical audit/evidence/log records and ordinary unit-test fixtures were not touched.
+
+## Pass 6 — remaining live-DB integration-test harness, 21.08.2026
+
+Scope: `apps/integrator/src/infra/db/realPostgresIntegrationTestHarness.ts` — the shared "REAL-Postgres
+integration-test boundary" this document's earlier passes had classified as out-of-scope test-only machinery.
+It hard-coded `TEST_FIXTURE_ORGANIZATION_ID`, exposed `withFixtures`/`withAdminSocket` (the latter shelling out
+to `sudo -n -u postgres psql`), and four consumer test files used it to commit fixture rows and clean them up
+afterward. The owner's 21.08 correction ("отдельное fixture-наполнение для проверок на live DEV/TEST
+запрещено") applies to test-only machinery exactly as it does to product seeders — closing this file completes
+the retirement this document tracks.
+
+### Consumer census
+
+Command (exit 0):
+
+```bash
+rg -l "realPostgresIntegrationTestHarness" --glob '!docs/**' .
+```
+
+Four consumers, each classified by behavior, not by file preservation:
+
+1. `apps/integrator/src/infra/db/runIntegratorSql.integration.test.ts` — used the harness ONLY for a
+   database-name/role identity guard (`assertTestDatabases`, a `SELECT current_database()`/`current_user`
+   read, no fixture data touched) plus `withRuntime` (real `app_operational_delivery_worker` infra principal,
+   no organization). The behavior under test — a `db.tx(...)` that throws on `42501` and must not silently
+   fall back — already aborts/rolls back on the thrown error; no fixture entity was ever created. **Kept**:
+   rewritten inline against `runWithInfraPrincipal` + `createDbPort()` directly, with the same database-name
+   guard duplicated locally (not reintroduced as a shared harness) and the fixture-organization identity check
+   dropped entirely (it proved nothing the direct guard doesn't already prove).
+2. `apps/integrator/src/infra/db/repos/outgoingDeliveryQueue.reclaim.integration.test.ts` — every fixture row
+   was written through `harness.withAdminSocket` (`sudo -n -u postgres psql`, a separate process/connection
+   per statement) across three independent `it()` blocks with `afterAll` DELETE cleanup: independently
+   committed transactions, not a single guaranteed rollback. **Deleted**, not rebuilt — the production path
+   (`resetStaleOutgoingDeliveryProcessing`, `enqueueOutgoingDeliveryIfAbsent`) cannot be proven inside one
+   rollback transaction without weakening or restructuring the application `DbPort`. Coverage retained by the
+   existing `db/repos/outgoingDeliveryQueue.namedRoot.unit.test.ts` (mock-level, already in the tree).
+3. `apps/integrator/src/infra/db/repos/operatorDeliveryAttempts.integration.test.ts` — same shape: eight
+   `it()` blocks writing/reading through `harness.withAdminSocket`, `afterAll` DELETE cleanup, independent
+   committed transactions. **Deleted**, not rebuilt, for the same reason. Coverage retained by the existing
+   `runtime/worker/operatorDeliveryAttemptWritePort.test.ts` (mock-level, already in the tree).
+4. `apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.rls.integration.test.ts` — did not
+   import the shared harness, but hard-coded its own fixture organization/user (`ORG_A =
+   'a0000000-...-000000000001'`, `FIXTURE_INTEGRATOR_USER_ID = '126'`) and ran three separate principal
+   contexts as three independent committed transactions (`upsertReminderRuleDirect` opens its own `db.tx(...)`
+   that commits on success) with `afterAll` DELETE cleanup. A single rollback-only probe is not possible here
+   either: proving RLS denial under one principal and RLS success under another inside ONE transaction would
+   require `SET LOCAL ROLE`-style role switching mid-transaction, which the app's `DbPort` does not support
+   (each `runWithXPrincipal` wrapper opens its own pooled connection). The only precedent for that technique
+   (`D10_RLS_LIVE_VERIFY_2026-08-20.md`) is a one-off manual `sudo postgres` psql script run by hand, not
+   reproducible test code. **Deleted**, not rebuilt. Coverage retained by the existing
+   `directPublic/writePort.unit.test.ts` (mock-level: proves `reminder-rule-upsert` is routed through the
+   org-principal re-wrap; does not, and cannot, prove the RLS grant itself — that remains a live-DB fact the
+   Postgres privilege declaration/generator gate already guards structurally).
+
+`deploy/postgres/privileges/relation-access.ts:918` still lists
+`apps/integrator/src/infra/db/realPostgresIntegrationTestHarness.ts` inside `public.be_organizations`'s
+`codePaths` evidence array (documentation only — not validated against the filesystem by
+`generate-cli.mjs --check`, confirmed by reading `generate.mjs`). Left untouched: it is a privilege-declaration
+file and this brief's hard boundary excludes privilege changes; the stale reference is harmless (an evidence
+string, not a grant) and is noted here rather than edited.
+
+### Authority sync
+
+- `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`, D20 §D4 remainder — updated: the previous
+  "rewrite under port-context, D10-style" instruction is replaced with the closure above (test deleted, why a
+  rollback-only rewrite is not possible, retained coverage named).
+- `docs/_TODO/runs/integrator-cleanup/D20_INTEGRATOR_MAP.md` line for
+  `realPostgresIntegrationTestHarness.ts`/`stubIntegratorDrizzleForTests.ts` — updated from "ОСТАЁТСЯ — это
+  фундамент следующего захода" to a УСТАРЕЛО/ЗАМЕНЕНО note pointing here and to `AGENTS.md` §10a/§10b.
+- `docs/_TODO/runs/integrator-cleanup/D20_LIVE_GATE_FIX_INDEPENDENT_AUDIT_2026-08-21.md` and
+  `D10_D20_CONVERGENCE_INDEPENDENT_AUDIT_2026-08-21.md` — each named a post-land "16/16 + zero fixture residue"
+  live gate that runs the now-deleted harness/tests. Both got a top-of-file УСТАРЕЛО/ЗАМЕНЕНО note pointing
+  here; the rest of each report (findings about the audited code itself) is left unchanged as a historical
+  record, per this document's own rule of not rewriting past command outputs.
+- The historical dated log entries in `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` and the "REJECTED, do not continue"
+  section of `TRACK_D_ORCHESTRATION_HANDOFF_2026-08-21.md` §3 already record the harness as retired/rejected in
+  past tense; left unchanged.
+
+### Commands and results
+
+| Command | Exit | Result |
+|---|---:|---|
+| `rg -l "realPostgresIntegrationTestHarness" --glob '!docs/**' .` (before) | 0 | Exactly the four consumers above. |
+| `rg -n "realPostgresIntegrationTestHarness\|withFixtures\|withAdminSocket\|TEST_FIXTURE_ORGANIZATION_ID" --glob '!docs/**' .` (after) | 0 | One remaining hit: the documentation-only `codePaths` entry in `relation-access.ts` (privilege file, out of this brief's scope, harmless). |
+| `pnpm --dir apps/integrator exec tsc --noEmit -p .` | 0 | Clean. |
+| `pnpm --dir apps/integrator exec vitest run src/infra/db/runIntegratorSql.integration.test.ts src/infra/db/repos/outgoingDeliveryQueue.namedRoot.unit.test.ts src/infra/runtime/worker/operatorDeliveryAttemptWritePort.test.ts src/infra/db/directPublic/writePort.unit.test.ts` | 0 | 3 files / 13 tests passed, 1 file / 1 test skipped (`runIntegratorSql.integration.test.ts`, opt-in env not set — correct skip). |
+| `pnpm --dir apps/integrator exec eslint src/infra/db/runIntegratorSql.integration.test.ts` | 0 | No lint findings on the changed file. |
+| `git diff --check` | 0 | No whitespace errors. |
+
+### Not done
+
+No DEV/TEST/PROD access, database command, migration, deploy, service or cron action. No fixture, seeder,
+admin-socket, disposable DB, or historical migration replay was created or run. No application/runtime
+identity, delivery, queue, retry, RLS, privilege, migration or product behavior was changed. D25/D30
+implementation files were not touched. No full CI, no push. The 16/16-style live-DB acceptance the two audit
+reports named no longer applies — current live acceptance for this area is: ordinary application tests
+(unit/mock-level, listed above) plus the existing registered-owner-only live UI acceptance route described in
+`AGENTS.md` §1a/§1b/§10a/§10b; no fixture-based live-DB gate remains or is claimed.

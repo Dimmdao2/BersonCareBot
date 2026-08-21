@@ -2,7 +2,8 @@ import { sql } from 'drizzle-orm';
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import type { IntegratorDrizzleDb } from './drizzle.js';
-import { createRealPostgresIntegrationTestHarness } from './realPostgresIntegrationTestHarness.js';
+import { createDbPort } from './client.js';
+import { runWithInfraPrincipal } from '../principal/organizationPrincipal.js';
 import { runIntegratorSql } from './runIntegratorSql.js';
 
 const enabled =
@@ -23,21 +24,32 @@ function findSqlStateInErrorChain(error: unknown, expected: string): string | un
   return undefined;
 }
 
-describe.skipIf(!enabled)('runIntegratorSql transaction errors (opt-in, allowed TEST DbPort)', () => {
-  const harness = createRealPostgresIntegrationTestHarness(
-    'worker:outgoing-delivery-tick',
-    'port-context',
+// Guards against running against anything but a named DEV/TEST database — no fixture data is
+// read or written by this check, just the current connection's own identity.
+async function assertTestDatabase(db: DbPort): Promise<void> {
+  const result = await runIntegratorSql<{ database_name: string }>(
+    db,
+    sql`SELECT current_database() AS database_name`,
   );
+  const name = result.rows[0]?.database_name ?? '';
+  if (name !== 'bcb_webapp_dev' && !/_test$/i.test(name)) {
+    throw new Error(
+      `refusing runtime connection: current_database="${name}" — expected bcb_webapp_dev or a *_test database`,
+    );
+  }
+}
 
+describe.skipIf(!enabled)('runIntegratorSql transaction errors (opt-in, allowed TEST DbPort)', () => {
   it('propagates PostgreSQL 42501 from the active Drizzle transaction without DbPort fallback', async () => {
-    await harness.assertTestDatabases();
     let fallback: ReturnType<typeof vi.spyOn> | undefined;
     let statement: ReturnType<typeof vi.spyOn> | undefined;
 
     let caught: unknown;
     try {
-      await harness.withRuntime((db) =>
-        db.tx(async (txDb) => {
+      await runWithInfraPrincipal({ source: 'worker:outgoing-delivery-tick' }, async () => {
+        const db = createDbPort();
+        await assertTestDatabase(db);
+        await db.tx(async (txDb) => {
           fallback = vi.spyOn(txDb, 'query');
           const active = txDb as DbPort & { integratorDrizzle?: Pick<IntegratorDrizzleDb, 'execute'> };
           if (!active.integratorDrizzle) throw new Error('active Drizzle transaction is required');
@@ -46,8 +58,8 @@ describe.skipIf(!enabled)('runIntegratorSql transaction errors (opt-in, allowed 
             txDb,
             sql`SELECT rolpassword FROM pg_catalog.pg_authid LIMIT 1`,
           );
-        }),
-      );
+        });
+      });
     } catch (error) {
       caught = error;
     }
