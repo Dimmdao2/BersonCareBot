@@ -155,10 +155,10 @@ move_singletons_to() {
   local new="$1" old="$2" image="$3"
   if [ "$old" != none ] && [ "$old" != "$new" ]; then
     say "stopping background processes on $old"
-    compose "$old" "$(colour_running_image "$old")" --profile singletons stop worker scheduler media-worker 2>/dev/null
+    compose "$old" "$(colour_running_image "$old")" --profile singletons stop scheduler media-worker 2>/dev/null
   fi
   say "starting background processes on $new"
-  compose "$new" "$image" --profile singletons up -d worker scheduler media-worker ||
+  compose "$new" "$image" --profile singletons up -d scheduler media-worker ||
     die "background processes failed to start on $new — nginx is already on $new, investigate before rolling back"
 }
 

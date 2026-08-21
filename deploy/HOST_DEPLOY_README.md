@@ -11,9 +11,9 @@
 В scope входят:
 
 - integrator API
-- integrator worker
+- integrator resident scheduler+worker process (D30 Ш9: один unit, один замок, один цикл)
 - webapp frontend
-- (инициатива **VIDEO_HLS_DELIVERY**) отдельный процесс **`apps/media-worker`** на хосте — **не** тот же unit, что integrator worker; см. § **systemd units → Worker**.
+- (инициатива **VIDEO_HLS_DELIVERY**) отдельный процесс **`apps/media-worker`** на хосте — **не** тот же unit, что integrator resident process; см. § **systemd units → Scheduler+Worker resident process**.
 
 Отдельный `BersonAdmin`/второй frontend в текущем host deploy **не подтверждён** и в этот документ не включён.
 
@@ -60,8 +60,9 @@ Production deployment выполняется только отдельным р�
 обычный `deploy-prod.sh` только проверяет и перезапускает):
 
 - `bersoncarebot-api-prod.service`
-- `bersoncarebot-worker-prod.service`
-- `bersoncarebot-scheduler-prod.service` — integrator `schedule.tick` (напоминания и сценарии из `content/scheduler/scripts.json`)
+- `bersoncarebot-scheduler-prod.service` — resident scheduler+worker process (D30 Ш9): integrator `schedule.tick`
+  (напоминания и сценарии из `content/scheduler/scripts.json`) **и** `public.outgoing_delivery_queue` /
+  direct-public-write retries
 - `bersoncarebot-webapp-prod.service`
 - `bersoncarebot-media-worker-prod.service` — HLS transcode (`apps/media-worker`), см. § **systemd units → HLS media-worker**
 
@@ -115,25 +116,12 @@ reviewed template; активный `FragmentPath` обязан указыват
 - `EnvironmentFile=/opt/env/bersoncarebot/api.prod`
 - `ExecStart=/usr/bin/node dist/main.js`
 
-#### Worker
+#### Scheduler+Worker resident process (integrator)
 
-Файл юнита:
-
-- `/etc/systemd/system/bersoncarebot-worker-prod.service`
-
-Эффективная конфигурация:
-
-- `WorkingDirectory=/opt/projects/bersoncarebot/apps/integrator`
-- `EnvironmentFile=/opt/env/bersoncarebot/api.prod`
-- `ExecStart=/usr/bin/node dist/infra/runtime/worker/main.js`
-
-**Не путать с HLS `apps/media-worker` (VIDEO_HLS_DELIVERY):**
-
-- Юнит **`bersoncarebot-worker-prod`** и команды **`pnpm worker:start`** / **`pnpm worker:dev`** в корне репозитория относятся **только** к **integrator projection worker** (`apps/integrator`). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь `public.media_transcode_jobs`.
-
-См. отдельный unit **`bersoncarebot-media-worker-prod`** ниже.
-
-#### Scheduler (integrator)
+D30 Ш9: `worker` и `scheduler` — один резидентный процесс с одним systemd-unit, одним leader-замком
+(`SCHEDULER_LOCK_KEY`, `FOR UPDATE`/`SKIP LOCKED`-семантика claim не меняется) и одним top-level циклом
+(`apps/integrator/src/infra/runtime/scheduler/main.ts`). Отдельного `bersoncarebot-worker-prod.service`
+больше нет — потеря горизонтального масштабирования доставки принята владельцем (Р-D30а).
 
 Файл юнита:
 
@@ -145,7 +133,21 @@ reviewed template; активный `FragmentPath` обязан указыват
 - `EnvironmentFile=/opt/env/bersoncarebot/api.prod`
 - `ExecStart=/usr/bin/node dist/infra/runtime/scheduler/main.js`
 
-**Не путать** с `bersoncarebot-worker-prod`: scheduler только генерирует `schedule.tick` и планирует due-напоминания; **integrator worker** обрабатывает очередь jobs / projection / `outgoing_delivery_queue`.
+Этот процесс генерирует `schedule.tick` и планирует due-напоминания, **и** обрабатывает очередь
+`public.outgoing_delivery_queue` / direct-public-write retries — оба тика захватываются только пока процесс
+держит leader-замок.
+
+**Upgrade с хоста, где ещё установлен и активен старый `bersoncarebot-worker-prod.service`:** `deploy/host/bootstrap-systemd-prod.sh`
+(root-only) перед стартом резидентного scheduler идемпотентно останавливает legacy unit, отключает его,
+удаляет точный установленный legacy unit-файл (безопасная проверка regular-non-symlink перед `rm`) и делает
+`daemon-reload`; отсутствие/уже неактивное состояние legacy unit — штатный повторный запуск, не ошибка. Обычный
+`deploy-prod.sh` (не root, не трогает root-owned units) перед рестартом scheduler fail-closed проверяет, что
+legacy unit не установлен, не активен и не enabled — если да, требует сначала прогнать root bootstrap на этом
+хосте. Это закрывает окно двойной доставки на upgrade (независимый аудит `D30_CURRENT_RESIDENT_PROCESS_AUDIT_2026-08-21.md`).
+
+**Не путать с HLS `apps/media-worker` (VIDEO_HLS_DELIVERY):** это отдельное приложение с собственным unit
+(`bersoncarebot-media-worker-prod`, ниже). Он **не** выполняет FFmpeg‑транскод HLS и **не** читает очередь
+`public.media_transcode_jobs`.
 
 #### HLS media-worker (VIDEO_HLS_DELIVERY)
 
@@ -166,7 +168,7 @@ reviewed template, собирает `apps/media-worker`, перезапуска�
 control seam. Пользователю **`deploy`** нужны только узкие права
 `restart`/`is-active`/`journalctl` — см. [`deploy/sudoers-deploy.example`](sudoers-deploy.example).
 
-**Не путать** с `bersoncarebot-worker-prod` (integrator projection): это разные процессы.
+**Не путать** с `bersoncarebot-scheduler-prod` (integrator resident scheduler+worker): это разные процессы.
 
 Первичное создание/нормализация трёх DB operational login и применение C4 grants выполняются отдельно от обычного
 deploy, **от root/DB-admin**, после наличия актуальной схемы и root-owned env-файлов:
@@ -388,7 +390,7 @@ B0-forward миграциями; schema guardrail остаётся read-only п�
 2. TLS: выпущен и подключён сертификат для нового домена в nginx (`listen 443 ssl`, корректные `fullchain`/`privkey`).
 3. Nginx vhost: в `server_name` указан новый домен; при необходимости старый домен оставлен как `301` redirect на новый.
 4. Env: в `/opt/env/bersoncarebot/api.prod` и `/opt/env/bersoncarebot/webapp.prod` обновлён `APP_BASE_URL=https://bersoncare.ru`.
-5. Перезапуск: `sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-scheduler-prod.service bersoncarebot-webapp-prod.service` и `sudo systemctl reload nginx`.
+5. Перезапуск: `sudo systemctl restart bersoncarebot-api-prod.service bersoncarebot-scheduler-prod.service bersoncarebot-webapp-prod.service` и `sudo systemctl reload nginx`.
 6. Внешние интеграции: обновлены allowlist/redirect/cors, где зашит origin webapp (Google OAuth redirect URI, MinIO CORS, CDN rules).
 
 Проверка:
@@ -734,7 +736,7 @@ bash deploy/host/deploy-prod.sh
 - pre-migrations DB backup
 - `pnpm migrate` (integrator + webapp Drizzle через `scripts/migrate-all.sh`)
 - **post-migrate schema guardrail:** `bash deploy/host/webapp-post-migrate-schema-check.sh` (набор колонок в `public`; см. файл — при ошибке деплой **останавливается до** рестарта сервисов)
-- restart API / worker / scheduler / webapp / media-worker
+- restart API / scheduler+worker resident process / webapp / media-worker
 - health check API
 
 ### Тест-деплой на `151.x` (feat → test)
@@ -866,7 +868,6 @@ bash deploy/host/deploy-prod.sh
 ```bash
 sudo systemctl status \
   bersoncarebot-api-prod.service \
-  bersoncarebot-worker-prod.service \
   bersoncarebot-scheduler-prod.service \
   bersoncarebot-webapp-prod.service \
   bersoncarebot-media-worker-prod.service
@@ -1025,7 +1026,7 @@ curl -sI -H "Host: bersoncare.ru" "http://127.0.0.1:6200/_next/static/chunks/$(b
 **Разовое исправление от root** (пользователь деплоя — **`deploy`**, путь проекта — из `SERVER CONVENTIONS.md`):
 
 ```bash
-sudo systemctl stop bersoncarebot-webapp-prod.service bersoncarebot-api-prod.service bersoncarebot-worker-prod.service bersoncarebot-scheduler-prod.service bersoncarebot-media-worker-prod.service 2>/dev/null || true
+sudo systemctl stop bersoncarebot-webapp-prod.service bersoncarebot-api-prod.service bersoncarebot-scheduler-prod.service bersoncarebot-media-worker-prod.service 2>/dev/null || true
 sudo chown -R deploy:deploy /opt/projects/bersoncarebot
 ```
 

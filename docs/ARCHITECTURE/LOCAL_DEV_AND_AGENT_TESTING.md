@@ -112,13 +112,12 @@ pnpm dev:stop
 
 ### 3.2 Integrator (отдельно)
 
-| Команда                   | Процесс                                 |
-| ------------------------- | --------------------------------------- |
-| `pnpm run dev:integrator` | API Fastify (`tsx watch src/main.ts`)   |
-| `pnpm run worker:dev`     | Worker: projection, outgoing delivery   |
-| `pnpm run scheduler:dev`  | Scheduler: `schedule.tick`, напоминания |
+| Команда                   | Процесс                                                                                        |
+| ------------------------- | ------------------------------------------------------------------------------------------------ |
+| `pnpm run dev:integrator` | API Fastify (`tsx watch src/main.ts`)                                                           |
+| `pnpm run scheduler:dev`  | Резидентный scheduler+worker (D30 Ш9): `schedule.tick`/напоминания + outgoing delivery/direct-write retries |
 
-Worker и scheduler — **второй терминал**, если нужны фоновые джобы без полного `pnpm run dev`.
+Резидентный процесс — **второй терминал**, если нужны фоновые джобы без полного `pnpm run dev`.
 
 ### 3.3 Media-worker
 
@@ -236,7 +235,6 @@ http://127.0.0.1:5200/api/me` — живой сервер отвечает, а �
 ```bash
 pnpm run dev                    # API + webapp
 # опционально в другом терминале:
-pnpm run worker:dev
 pnpm run scheduler:dev
 ```
 

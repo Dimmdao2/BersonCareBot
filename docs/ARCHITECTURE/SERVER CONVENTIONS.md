@@ -208,7 +208,7 @@ Orchestration-память, старые чаты и нижние историч
 
 ### systemd units
 
-На удалённом PROD-хосте `135.106.162.170` установлены и активны (канонические имена юнитов; шаблоны —
+На удалённом PROD-хосте `135.106.162.170` были установлены и активны, канонические имена юнитов (шаблоны —
 `deploy/systemd/`):
 
 - `bersoncarebot-api-prod.service`
@@ -216,6 +216,18 @@ Orchestration-память, старые чаты и нижние историч
 - `bersoncarebot-scheduler-prod.service` — integrator `schedule.tick` (напоминания `reminders.planDue` / `reminders.dispatchDue`)
 - `bersoncarebot-webapp-prod.service`
 - `bersoncarebot-media-worker-prod.service` — FFmpeg HLS transcode (`apps/media-worker`), очередь `public.media_transcode_jobs`; **не** путать с integrator `bersoncarebot-worker-prod`.
+
+**D30 Ш9 (код-комплит, PROD ещё не редеплоен на момент записи):** `deploy/systemd/bersoncarebot-worker-prod.service`
+удалён из репозитория, `worker` и `scheduler` слиты в один резидентный процесс/unit
+`bersoncarebot-scheduler-prod.service` (один leader-замок, один top-level цикл; `apps/integrator/src/infra/runtime/scheduler/main.ts`).
+Список выше — последнее подтверждённое состояние ДО этого коммита; PROD продолжает крутить два отдельных
+юнита, пока `deploy/host/deploy-prod.sh`/`bootstrap-systemd-prod.sh` не будут выполнены на `135.106.162.170`
+владельцем/оператором. Root `bootstrap-systemd-prod.sh` на этом upgrade идемпотентно останавливает/отключает/удаляет
+именно этот legacy unit (regular-non-symlink проверка перед `rm`, `daemon-reload`) до старта резидентного
+scheduler; ordinary `deploy-prod.sh` (не root) перед рестартом scheduler fail-closed отказывает, если legacy unit
+всё ещё установлен/активен/enabled, и требует сначала root bootstrap — это закрывает окно, где старый и новый
+процессы одновременно обрабатывают доставку. После следующего PROD deploy обновить этот раздел живым `systemctl status`, а не
+предположением.
 
 ### Unit details
 
@@ -227,23 +239,20 @@ Orchestration-память, старые чаты и нижние историч
 - ExecStart: `/usr/bin/node dist/main.js`
 - Port: `127.0.0.1:3200`
 
-#### Worker
+#### Scheduler+Worker resident process (D30 Ш9)
 
-- Unit: `bersoncarebot-worker-prod.service`
-- WorkingDirectory: `/opt/projects/bersoncarebot/apps/integrator`
-- EnvironmentFile: `/opt/env/bersoncarebot/api.prod`
-- ExecStart: `/usr/bin/node dist/infra/runtime/worker/main.js`
-- Public port: нет
-
-#### Scheduler
-
-- Unit: **`bersoncarebot-scheduler-prod.service`** (шаблон `deploy/systemd/bersoncarebot-scheduler-prod.service`)
+- Unit: **`bersoncarebot-scheduler-prod.service`** (шаблон `deploy/systemd/bersoncarebot-scheduler-prod.service`) —
+  отдельного `bersoncarebot-worker-prod.service` в репозитории больше нет, шаблон удалён этим коммитом.
 - WorkingDirectory: `/opt/projects/bersoncarebot/apps/integrator`
 - EnvironmentFile: `/opt/env/bersoncarebot/api.prod`
 - ExecStart: `/usr/bin/node dist/infra/runtime/scheduler/main.js`
 - Публичный порт: нет
-- Назначение: периодический **`schedule.tick`** → `reminders.planDue` / `reminders.dispatchDue` (см. `apps/integrator/src/content/scheduler/scripts.json`).
-- Проверка журнала (пример): `journalctl -u bersoncarebot-scheduler-prod.service -n 80 --no-pager` — ожидается строка **`Scheduler lock acquired, starting scheduler loop`** на единственном лидере.
+- Назначение: один leader-замок (`SCHEDULER_LOCK_KEY`), один top-level цикл, который совмещает прежние роли
+  `scheduler` (периодический **`schedule.tick`** → `reminders.planDue` / `reminders.dispatchDue`, см.
+  `apps/integrator/src/content/scheduler/scripts.json`) и `worker` (claim/dispatch
+  `public.outgoing_delivery_queue`, direct-public-write retries) — оба тика запускаются только пока процесс
+  держит замок.
+- Проверка журнала (пример): `journalctl -u bersoncarebot-scheduler-prod.service -n 80 --no-pager` — ожидается строка **`Scheduler lock acquired, starting resident scheduler+worker loop`** на единственном лидере.
 
 #### Webapp
 
@@ -553,8 +562,8 @@ integrator-only БД — **legacy** (см. [`DATABASE_UNIFIED_POSTGRES.md`](./DA
 ### systemd templates в репозитории
 
 - `deploy/systemd/bersoncarebot-api-prod.service`
-- `deploy/systemd/bersoncarebot-worker-prod.service`
-- `deploy/systemd/bersoncarebot-scheduler-prod.service`
+- `deploy/systemd/bersoncarebot-scheduler-prod.service` — D30 Ш9: резидентный scheduler+worker процесс, отдельного
+  `bersoncarebot-worker-prod.service` больше нет
 - `deploy/systemd/bersoncarebot-webapp-prod.service`
 - `deploy/systemd/bersoncarebot-media-worker-prod.service`
 

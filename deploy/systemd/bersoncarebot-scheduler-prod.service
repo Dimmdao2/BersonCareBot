@@ -1,5 +1,5 @@
 [Unit]
-Description=BersonCareBot Scheduler (Production)
+Description=BersonCareBot Scheduler+Worker resident process (Production)
 Wants=network-online.target
 After=network-online.target
 ConditionHost=adelaide
