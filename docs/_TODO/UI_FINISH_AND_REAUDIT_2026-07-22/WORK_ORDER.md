@@ -504,6 +504,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       `20260820T210709_retire_projection_outbox.sql`). Независимые аудиты и полные прогоны каждого шага —
       `docs/_TODO/runs/integrator-cleanup/D10_TRANSPORT_REMOVAL_STAGE1_2026-08-20.md`,
       `D10_TRANSPORT_REMOVAL_STAGE2_2026-08-20.md`, `D10_OUTBOX_DROP_2026-08-21.md` и очередь аудита.
+      Repo-traceable commands для трёх ключевых фактов (источник оракула: независимый audit `6282ca28-1385-46d6-9e73-e996265d2c5f`) — `D10_CLOSURE_EVIDENCE_REPORT_2026-08-21.md`.
       Миграция не мигрировала строки: замер перед сносом на обеих живых базах дал ноль `pending`/`dead`
       (DEV — 3759 `done` + 9 `cancelled`; TEST — 4668 `done` + 9 `cancelled`), таблица истории не держала, и
       владелец распорядился сносить код и миграцию одной выкаткой, не дожидаясь separate drain/migrate шага
