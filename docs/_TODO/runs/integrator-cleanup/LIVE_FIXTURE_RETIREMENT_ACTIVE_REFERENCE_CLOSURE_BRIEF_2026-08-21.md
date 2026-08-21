@@ -8,7 +8,8 @@
 `LIVE_DEV_TEST_FIXTURES_RETIREMENT_2026-08-21.md`. Повторить поиск более поздних owner-решений: сначала
 `code-search`, затем exact active-path census. Более позднее owner-решение заменяет brief.
 
-Источник оракула: `AGENTS.md` §1b — «удалённый fixture-механизм не восстанавливают».
+Источник оракула: `docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md` —
+«corrects only future persistent-fixture/authenticated-preset instructions and leaves historical reports/evidence/completed records plus local test inputs intact».
 
 ## Scope и классификация
 
