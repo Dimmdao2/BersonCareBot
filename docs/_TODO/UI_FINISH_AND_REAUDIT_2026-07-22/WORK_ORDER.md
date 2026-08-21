@@ -785,7 +785,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             следующим шагом, без искусственного ожидания. Замер ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а
             **130 FK-constraint'ов от 104 таблиц**; классификация по трём группам и спорные случаи — в
             документе переписи. Плюс предикаты RLS всех 157 SCOPED-таблиц. Единственный необратимый шаг.
-- [ ] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): журнал попыток —
+- [x] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): журнал попыток —
       `public.notification_delivery_attempts`, `integrator.delivery_attempt_logs` сносится; очередь —
       `public.outgoing_delivery_queue`, `integrator.message_retry_jobs` вырезается, недостающие поля добираются
       миграцией.
@@ -953,14 +953,19 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       она не зависит. Значит ридеры не «редизайнятся», а уходят вместе с legacy-таблицей одним пакетом; до
       этого момента расхождение, которое ловит релиз-гейт (77 строк), — не мусор, а ровно те свежие строки,
       что описаны блокером выше.
-      ✅ **CODE PREPARED 21.08 (#987), НЕ применено к DEV/TEST:**
-      `20260821T003000_cut_over_delivery_attempt_history.sql` переносит legacy rows в
-      `public.notification_delivery_attempts` с deterministic UUID от legacy primary key, `occurred_at` в
-      `created_at` и `attempt`/`correlationId`/`payload`/source-id в `metadata`; перед DROP стоят exact
-      count, provenance, duplicate и field-parity probes. Тем же пакетом удалены оба one-shot reader-а,
-      package registrations и stage6 release gate, обе Drizzle declarations, legacy C4 access surface и
-      declaration entry. Это code/migration-ready состояние, а не заявление о DEV/TEST: миграцию применяет
-      ведущий штатным `migrate-dev.sh --preflight` → `--execute` после landing.
+      ✅ **ЗАКРЫТО 21.08 (#987), land `f02027dcf`, named DEV:** миграция
+      `20260821T003000_cut_over_delivery_attempt_history.sql` перенесла legacy history в
+      `public.notification_delivery_attempts` с deterministic UUID и exact field/provenance parity, затем
+      сняла legacy root/table. Предварительный точный замер командой
+      `sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -qAtc
+      "BEGIN READ ONLY; SELECT count(*) FROM integrator.delivery_attempt_logs; ROLLBACK;"` → `6280`.
+      `migrate-dev.sh --preflight` и `--execute` → PASS; post-apply assertions дали ledger/table/function/
+      provenance-count/provenance-distinct = `1/1/1/1/1`, а aggregate provenance = `6280/6280`.
+      Оба one-shot reader-а, package registrations, stage6 release gate, Drizzle declarations и active
+      deploy/cutover access paths удалены. `refresh-prod-to-target-cutover --confirm-local-dev-target-refresh`
+      и `pnpm run check:prod-to-target-cutover` → PASS; live canonical-writer test под именованной DEV —
+      `operatorDeliveryAttempts.integration.test.ts`, `1` файл / `9` тестов PASS. TEST остаётся следующим
+      deploy-gate, PROD не трогался.
 - [x] **D10b — уборка и возврат зависших в очереди доставки.** ✅ **ЗАКРЫТО 31.07** (`4f203d08d`, `94cb2af4c`):
       возврат по таймауту, «мёртвая полка» при превышении числа возвратов, уборка выполненных. Доказано на
       настоящей `bersoncarebot_test`, проверено поломкой лидом.
@@ -972,7 +977,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       по-прежнему одна колонка. Расчёт «за сутки до приёма» живёт там, где известно время приёма.
       ⛔ Относительная задержка для напоминаний запрещена: она замораживает момент вычисления и теряет связь с
       временем приёма.
-- [ ] **D16 — один цикл доставки.**
+- [x] **D16 — один цикл доставки.**
       🟢 Перепись (`D16_LOOP_CENSUS.md`, `28f5a5536`) и исследование отраслевой практики
       (`D16_LOOP_ARCHITECTURE_RESEARCH.md`) сделаны 31.07. Решение и действующее прочтение — **Р-D16** (§2.3).
       ⛔ **Блокер «дренаж до 29.08» СНЯТ 20.08 — см. правку у D10a.** `outgoing_delivery_queue` уже единственная
@@ -984,10 +989,12 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       (`worker/main.ts:83-102` → `outgoingDeliveryWorker.ts:1218`). Остальные циклы (`projectionOutboxLoop`,
       `directPublicWriteRetryLoop`, планировщик `scheduler/main.ts`) полят другие таблицы, не эту очередь.
       Остаток D16 = остаток D10a (снос `delivery_attempt_logs`), см. правку выше.
-      ✅ **CODE PREPARED 21.08 (#987), НЕ применено к DEV/TEST:** D10a cutover removes the final legacy
-      table/reader path; source census remains one `outgoing_delivery_queue` consumer cycle
-      (`worker:outgoing-delivery-tick`). Post-landing validation must re-run the exact loop census and
-      sanctioned DEV migration wrapper; this line does not claim either environment has been migrated.
+      ✅ **ЗАКРЫТО 21.08 (#987), land `f02027dcf`:** D10a cutover удалил последний legacy journal/reader path
+      на именованной DEV. Повторный production-census командой
+      `rg -n --glob '!**/*.test.ts' --glob '!**/*.spec.ts' "runOutgoingDeliveryWorkerTick\\(" apps/integrator/src`
+      даёт ровно definition + один caller (`outgoingDeliveryWorker.ts:1167`, `worker/main.ts:67`), а точный
+      `rg` по `.claimDueJobs(` в тех же production roots даёт `0` callers. Единственный consumer остаётся
+      `worker:outgoing-delivery-tick`; второй независимый delivery loop отсутствует.
 - [ ] **D18 — вычистить весь остаток сырого SQL в обоих приложениях.** Решение и объём — **Р-D18** (§2.3).
       - [x] **D18a — запрет на НОВЫЙ сырой SQL.** `scripts/check-no-new-raw-sql.mjs`, подключён к root и webapp
             lint. После D18c debt-манифест удалён: gate разрешает только поимённые low-level DB-порты,
