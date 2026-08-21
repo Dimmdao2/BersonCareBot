@@ -17,7 +17,7 @@
 > `d1b8a1718`). Phase 5 (интеграционная приёмка) и §5a (квоты/механики/лестница) — **статус §5a повторно
 > открыт сверкой кода 20.08:** кроме 7.3/7.4 открыты `4b.3/4b.4` (вариант downgrade `read_only` не отличается
 > от `disable_immediately`), Т10 (глобальный выбор `read_only`/`blocked` перекрывается тарифной лестницей) и Т13
-> (нет единого write-gate для всего кабинета). Phase 5 fixtures/full CI — частично открыт.
+> (нет единого write-gate для всего кабинета). Phase 5 full CI — частично открыт.
 > Итог reconciliation 2026-07-27 сохранён ниже; **delta 2026-08-05:** строки «Phase 4 не существует» / «checkout
 > не существует» в Phase 5 и DoD — **устарели**, см. пометки у соответствующих пунктов.
 > **Исторический итог сверки 27.07: 20 из 44 боксов были отмечены `[x]`** (с пруфом
@@ -526,11 +526,13 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 
 ### Phase 5 — интеграционная приёмка на тестовом сервере
 
-ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Подготовить непересекающиеся synthetic fixtures только для включённых substages: global_admin».
-- Fixture-манифест: global_admin; demo-clinic-a/b с разными тарифами и override; новая org через signup flow
-      (проверяет §3.2 — использует выбранный trial tariff/duration, без hardcoded/default/all-true).
-      — НЕ СДЕЛАНО: `grep -rln "demo-clinic-a\|demo-clinic-b" apps/webapp --include="*.ts" --include="*.tsx" --include="*.sql"`
-      — 0 совпадений в коде (только в план-документах). Зависит и от открытого Phase 3 п.7 (trial при provisioning).
+ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 (архивный план; synthetic-fixture-манифест оттуда отменён).
+- Отдельное fixture-наполнение (synthetic global_admin/demo-clinic-a/b) для этой проверки запрещено решением
+      владельца 21.08 (`docs/OWNER_DECISIONS.md`). Текущий путь: проверка §3.2 (новая org использует выбранный
+      trial tariff/duration, без hardcoded/default/all-true) — обычный signup flow на уже зарегистрированных
+      owner-аккаунтах/клиниках на TEST, без seeder/synthetic-аккаунтов; правки в БД только rollback-only.
+      Историческая находка: `grep -rln "demo-clinic-a\|demo-clinic-b" apps/webapp --include="*.ts" --include="*.tsx" --include="*.sql"`
+      — 0 совпадений в коде (только в старых план-документах). Зависит и от открытого Phase 3 п.7 (trial при provisioning).
 ВЕДЁТСЯ В `SAAS_S4_TARIFFS_STORE_ENTITLEMENTS.md` §12 / S4-6 — «Global_admin создаёт/меняет tariff, цену/период/full mechanic map, назначает A, меняет override, видит billing state».
 - Global admin создаёт/меняет тариф, полный mechanic grid, назначает A, меняет override, видит billing state.
       — ЧАСТИЧНО заложено: API/UI-механика (create/update/archive tariff, assign, override, полный mechanic-грид)
@@ -549,7 +551,8 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       entitlement, подписка не значит automatic mechanic override).
       — ЧАСТИЧНО: unauthenticated/wrong-role 403 покрыт тестом (`api/admin/commercial/route.test.ts:49-54`,
       mocked-guard unit test, не живой E2E). Forged webhook/amount-mismatch/replay — unit + live TEST 04.08
-      (`saasWebhook.route.test.ts`, `wt/pay-close`); mechanic-OFF-during-subscription E2E на demo-fixtures не гонялись.
+      (`saasWebhook.route.test.ts`, `wt/pay-close`); mechanic-OFF-during-subscription E2E на зарегистрированных
+      owner-аккаунтах/клиниках ещё не гонялись.
 - [-] ~~Полный regression sweep: existing org сохраняют compatibility access до owner-approved mapping; после
       отдельного mapping apply ни одна организация не теряет доступ вопреки preview.~~ — ОТМЕНЕНО ВЛАДЕЛЬЦЕМ
       01.08 решением Р-12: compatibility behavior и owner-approved mapping удалены из целевой модели.
@@ -557,7 +560,7 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
 - Один финальный `pnpm install --frozen-lockfile && pnpm run ci` после всех фаз — не гонять full CI после
       каждого шага.
       — НЕ СДЕЛАНО в рамках этой сверки (запускались только точечные `vitest run` на затронутые файлы). Phase 4
-      billing закрыт 04.08; финальный full CI после Phase 5/fixtures — ещё открыт.
+      billing закрыт 04.08; финальный full CI после Phase 5 — ещё открыт.
 
 **Выход:** тарифы, единый chokepoint, admin-грид и SaaS billing (keyless-safe) работают на тестовом сервере;
 демонстрируемо владельцу.
@@ -1652,9 +1655,11 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
       следующий owner-checkpoint после deploy; `[ ]` честно до **owner UI-прогона** (глазами в кабинете/конструкторе).
       **DB/API-доказательство на TEST после deploy `0e14d534c` (05.08, агент):**
       - deploy exit 0 подтверждён; `https://test.bersoncare.ru/api/health` → 200; dev-bypass по-прежнему без cookie.
-      - UI/fixture-путь **заблокирован:** `platform_users` с `%saas-fixture%` = **0**; `pnpm --dir apps/webapp run seed:saas-test-walkthrough`
-        под `sudo` + `webapp.test` + `saas-test-fixture.env` → `permission denied for table platform_users` (роль
-        `bcb_test_worker_login`); `mint-smoke-session --check` → `refs_fixture_missing`.
+      - Историческая попытка 05.08 через отдельный fixture/seeder-путь провалилась (`platform_users` с
+        `%saas-fixture%` = 0, `seed:saas-test-walkthrough` → `permission denied for table platform_users`,
+        `mint-smoke-session --check` → `refs_fixture_missing`); этот путь не используется — отдельное
+        fixture-наполнение для проверок на live DEV/TEST запрещено решением владельца 21.08
+        (`docs/OWNER_DECISIONS.md`).
       - **Живой PostgreSQL на `bersoncarebot_test`** (`sudo -u postgres psql -d bersoncarebot_test`, транзакция с
         `ROLLBACK`): org `da6a96cb-8e94-4ec2-99da-2258bda0ce4d`, тариф с `system_access_policy` graceDays=7 /
         readOnlyDays=3 / terminalState=`disabled`, триал `post_trial_behavior='blocked'`, principal через
@@ -1664,8 +1669,10 @@ before/after mechanic map — в `details`. Вызов из module-слоя — 
         - `read_only_cabinet` → `read_only`; `read_only_mechanic_booking` → `read_only`, `mutation_allowed=f`
         - `disabled_cabinet` → `disabled`; `disabled_mechanic_booking` → `disabled`, `mutation_allowed=f`
       - Полный протокол: `docs/_TODO/runs/tariff/S7_3_TEST_LADDER_RUN.md` §«Прогон 05.08».
-      - **Не закрывает 7.3:** баннер/отказы/пациентская сторона/число (quota) — только резолверы; owner-password UI
-        или seed global-admin@saas-fixture.test всё ещё нужны для галочки «увидеть».
+      - **Не закрывает 7.3:** баннер/отказы/пациентская сторона/число (quota) — только резолверы. Текущий путь
+        для галочки «увидеть» — обычный логин уже зарегистрированными owner-аккаунтами/клиниками на именованном
+        TEST после деплоя (без seeder, fixture-пакета, перезаписи паролей, синтетических аккаунтов или
+        замещающего харнесса); владелец визуально проверяет баннер, отказы, пациентскую сторону и число.
 - [ ] **7.4** Владелец смотрит конструктор и подтверждает, что понятно, что и на сколько он настраивает.
       **Pre-TEST gate:** owner sign-off; `[ ]` до подтверждения владельца.
 
