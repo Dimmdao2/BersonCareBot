@@ -106,6 +106,15 @@ packet валиден и ждёт запуска.
 На dev строки есть (версии 1 и 2, 8 и 9 разделов), но ни одна миграция их не создаёт — внесли
 руками. Содержимое зафиксировано в миграции `0034`; на TEST применено, теперь строк 2.
 
+**УСТАРЕЛО/ЗАМЕНЕНО 2026-08-21:** это было верно до B0-перехода. Историческая `0034` действительно
+исправляла тогдашний TEST, но owner decision 20.08 вывел весь `0000`–`0049` chain из активного
+контура; после reset её DML больше не доезжает. На 21.08 прямой count на именованном TEST снова дал
+`0` строк в `public.reference_catalog_baselines` (DEV: `2`), а точная fixture упала с `P0002 query
+returned no rows` в `app.seed_reference_catalog_snapshot(uuid)`. Новый B0-forward repair —
+`20260821T025935_restore_reference_catalog_baselines.sql`: он идемпотентно возвращает глобальные
+версии 1 и 2. До его первого sanctioned deploy reviewed TEST fixture door под временной ролью
+reconciles тот же canonical asset, не применяя и не записывая migration ledger.
+
 ## 2. Миграция без отметки класса — ПОЧИНЕНО
 
 `0034` не несла `BCB-MIGRATION-OWNER`/`BCB-MIGRATION-BACKFILL`, и парсер миграций отказывал.

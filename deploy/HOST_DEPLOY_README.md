@@ -749,10 +749,11 @@ bash deploy/host/deploy-prod.sh
 bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh
 ```
 
-Это TEST-only prerequisite: temporary collision-safe DB authority существует только на время existing
-transactional seeder и удаляется в EXIT вместе с temporary credential. Reviewed wrapper records,
-stops/quiesces, then restores the five TEST units and health-checks their recorded active state; normal
-`deploy-test.sh` proof не меняется. При cleanup failure сначала выполнить
+Это TEST-only prerequisite: temporary collision-safe DB authority существует только на время canonical
+global reference-catalog baseline reconcile и existing transactional seeder, затем удаляется в EXIT
+вместе с temporary credential. Это не применяет и не записывает migration ledger; B0-forward migration
+остаётся единственным deploy-path. Reviewed wrapper records, stops/quiesces, then restores the five TEST
+units and health-checks their recorded active state; normal `deploy-test.sh` proof не меняется. При cleanup failure сначала выполнить
 `sudo bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
 После PASS повторить `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`.
 ### Отдельный webapp deploy
