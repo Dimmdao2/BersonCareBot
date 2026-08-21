@@ -80,6 +80,16 @@ table inet filter {
 
   chain forward {
     type filter hook forward priority filter; policy drop;
+
+    # Container traffic. Docker writes its own rules into the legacy ip filter table, but a packet
+    # has to clear both tables, so without these two lines every container is silently cut off from
+    # the network — outbound to S3, Telegram and the SMS gateway included. The interfaces are named
+    # explicitly and their names are fixed in the compose file; a wildcard here would also cover
+    # bridges created by anything else that happens to be installed later. docker0 belongs in the
+    # list because image builds run on the default bridge, not on a colour: without it every build
+    # hangs on apt and npm with timeouts that read like the internet is down.
+    iifname { "bcb-blue", "bcb-green", "docker0" } accept
+    oifname { "bcb-blue", "bcb-green", "docker0" } ct state established,related accept
   }
 
   chain output {

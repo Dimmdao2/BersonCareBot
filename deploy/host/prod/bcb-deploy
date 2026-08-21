@@ -1,0 +1,97 @@
+#!/bin/bash
+# Manual production deploy. Fetches the configured branch from GitHub, builds an image from that exact
+# commit, brings it up on the idle colour, and only moves traffic once that colour reports healthy.
+#
+# Nothing here runs on a schedule or a push. Production changes when a person types the command.
+#
+#   deploy-prod                 deploy the tip of the configured branch (main)
+#   deploy-prod <ref>           deploy a specific branch, tag or commit
+#   deploy-prod --no-build <img> put an already-built image live (this is what rollback-prod uses)
+
+set -uo pipefail
+LIB=/opt/bersoncarebot/pipeline/bcb-bluegreen-lib.sh
+# shellcheck source=/dev/null
+[ -f "$LIB" ] || { echo "FATAL: pipeline library missing at $LIB" >&2; exit 1; }
+. /etc/bcb-pipeline.conf
+. "$LIB"
+
+REF="${BCB_BRANCH:-main}"
+BUILD=1
+PREBUILT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --no-build) BUILD=0; PREBUILT="${2:?--no-build needs an image}"; shift 2 ;;
+    -h|--help)  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *)          REF="$1"; shift ;;
+  esac
+done
+
+require_pipeline
+
+# One deploy at a time. Two concurrent runs would each see the other's colour as idle and fight over
+# the same ports and the same nginx file.
+exec 9>"$BCB_STATE/deploy.lock"
+flock -n 9 || die "another deploy or rollback is already running"
+
+ACTIVE=$(active_colour)
+TARGET=$(idle_colour)
+say "active colour: $ACTIVE → deploying onto: $TARGET"
+
+if [ "$BUILD" = 1 ]; then
+  # ---------------------------------------------------------------- source
+  say "fetching $REF from GitHub"
+  [ -d "$BCB_SRC/.git" ] || die "source checkout missing at $BCB_SRC (run setup-docker-bluegreen.sh)"
+  export GIT_SSH_COMMAND="ssh -i $BCB_DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+  git -C "$BCB_SRC" fetch --prune origin || die "git fetch failed (is the deploy key still authorised?)"
+  # Hard reset, not merge: the checkout is a build input, not a workspace. Anything local in it is
+  # by definition not what was reviewed on GitHub, and a deploy that silently carries it forward is
+  # how a production host ends up running code that exists nowhere else.
+  git -C "$BCB_SRC" reset --hard "origin/$REF" 2>/dev/null || git -C "$BCB_SRC" reset --hard "$REF" ||
+    die "cannot resolve ref '$REF'"
+  git -C "$BCB_SRC" clean -fdx -e node_modules >/dev/null
+
+  COMMIT=$(git -C "$BCB_SRC" rev-parse --short HEAD)
+  SUBJECT=$(git -C "$BCB_SRC" log -1 --format='%s')
+  info "commit $COMMIT — $SUBJECT"
+  IMAGE="$BCB_IMAGE_REPO:$COMMIT"
+
+  # ---------------------------------------------------------------- build
+  # Built here rather than pulled from a registry: there is no registry, and adding one would mean a
+  # second place holding our code and a second set of credentials to protect. The cost is a few
+  # minutes of CPU on a machine that is otherwise idle during a manual deploy.
+  say "building $IMAGE (this takes a few minutes)"
+  docker build \
+    --file "$BCB_PIPELINE/Dockerfile" \
+    --build-arg GIT_COMMIT="$COMMIT" \
+    --build-arg BUILD_TIME="$(date -u +%FT%TZ)" \
+    --tag "$IMAGE" \
+    "$BCB_SRC" || die "build failed; nothing was deployed and $ACTIVE is still serving"
+else
+  IMAGE="$PREBUILT"
+  docker image inspect "$IMAGE" >/dev/null 2>&1 || die "image not found locally: $IMAGE"
+  COMMIT=$(docker inspect --format '{{index .Config.Labels "bcb.commit"}}' "$IMAGE" 2>/dev/null)
+  COMMIT="${COMMIT:-${IMAGE##*:}}"
+  say "using existing image $IMAGE"
+fi
+
+# ---------------------------------------------------------------- gate
+export BCB_IMAGE="$IMAGE"
+start_colour_frontends "$TARGET" "$IMAGE"
+
+if ! wait_for_colour_health "$TARGET"; then
+  warn "last 40 log lines from $TARGET:"
+  compose "$TARGET" "$IMAGE" logs --tail 40 webapp api 2>&1 | sed 's/^/    /' >&2
+  abandon_colour "$TARGET"
+  record_release "$TARGET" "$IMAGE" "$COMMIT" "failed"
+  die "the new release never became healthy — $ACTIVE is still live and untouched"
+fi
+
+# ---------------------------------------------------------------- cut over
+switch_nginx_to "$TARGET"
+move_singletons_to "$TARGET" "$ACTIVE" "$IMAGE"
+retire_colour "$ACTIVE"
+record_release "$TARGET" "$IMAGE" "$COMMIT" "deploy"
+prune_old_images
+
+say "done — $COMMIT is live on $TARGET"
+info "if it misbehaves: rollback-prod"

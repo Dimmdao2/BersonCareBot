@@ -1,0 +1,111 @@
+# One stack definition, instantiated twice — once as project `bcb-blue`, once as `bcb-green`.
+# The colour is not written anywhere in this file: it arrives as the compose project name, and the
+# published ports arrive as variables. That is what makes the two colours provably identical.
+#
+# Only `webapp` and `api` answer requests and therefore exist in both colours at once. The three
+# background processes sit behind the `singletons` profile and are started only for the colour that
+# is live, because two schedulers means every patient gets every reminder twice.
+
+# One network per colour, with a bridge interface whose name we choose rather than the random
+# `br-<hash>` docker would pick. The host firewall drops forwarded traffic by default, so container
+# networking only works because a rule names these interfaces — and a rule can only name them if the
+# name is stable across restarts.
+networks:
+  default:
+    name: bcb-${BCB_COLOUR:?BCB_COLOUR is required}
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.name: bcb-${BCB_COLOUR}
+
+x-app: &app
+  image: ${BCB_IMAGE:?BCB_IMAGE is required}
+  restart: unless-stopped
+  # The database is on the host, inside the encrypted volume, and does not listen on TCP. Reaching it
+  # through the mounted unix socket keeps it that way: no port opens for the sake of the containers.
+  volumes:
+    - /var/run/postgresql:/var/run/postgresql
+  # Nothing here writes to its own filesystem; uploads go to S3 and logs go to stdout.
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  logging:
+    driver: journald
+    options:
+      tag: "bcb-{{.Name}}"
+
+services:
+  webapp:
+    <<: *app
+    working_dir: /app/apps/webapp/.next/standalone/apps/webapp
+    command: ["node", "server.js"]
+    env_file:
+      - ${BCB_ENV_DIR:?BCB_ENV_DIR is required}/webapp.prod
+    environment:
+      PORT: "6200"
+      # Inside a container the server must accept on every interface; the host-side publish below is
+      # what keeps it off the public network. The systemd unit's 127.0.0.1 would bind the container's
+      # own loopback and the published port would answer nothing.
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "127.0.0.1:${BCB_WEBAPP_PORT:?BCB_WEBAPP_PORT is required}:6200"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:6200/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  api:
+    <<: *app
+    working_dir: /app/apps/integrator
+    command: ["node", "dist/main.js"]
+    env_file:
+      - ${BCB_ENV_DIR}/api.prod
+    environment:
+      PORT: "3200"
+    ports:
+      - "127.0.0.1:${BCB_API_PORT:?BCB_API_PORT is required}:3200"
+    healthcheck:
+      # /health reports the database too, so a container that starts but cannot reach postgres is
+      # unhealthy rather than green — the deploy gate reads this.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:3200/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    <<: *app
+    profiles: ["singletons"]
+    working_dir: /app/apps/integrator
+    command: ["node", "dist/infra/runtime/worker/main.js"]
+    env_file:
+      - ${BCB_ENV_DIR}/api.prod
+
+  scheduler:
+    <<: *app
+    profiles: ["singletons"]
+    working_dir: /app/apps/integrator
+    command: ["node", "dist/infra/runtime/scheduler/main.js"]
+    env_file:
+      - ${BCB_ENV_DIR}/api.prod
+
+  media-worker:
+    <<: *app
+    profiles: ["singletons"]
+    working_dir: /app/apps/media-worker
+    command: ["node", "dist/main.js"]
+    env_file:
+      - ${BCB_ENV_DIR}/media-worker.prod
+    environment:
+      # Pinned to this project's own webapp, overriding whatever the env file says. The control route
+      # is how the media worker reaches the database at all, and a worker talking to the other colour's
+      # webapp would be running new code against the old release's control seam.
+      MEDIA_WORKER_CONTROL_URL: "http://webapp:6200"
+    depends_on:
+      webapp:
+        condition: service_healthy
