@@ -5,12 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/main.ts",
-    "worker:dev": "tsx watch src/infra/runtime/worker/main.ts",
     "scheduler:dev": "tsx watch src/infra/runtime/scheduler/main.ts",
     "clean": "rm -rf dist",
     "build": "pnpm --dir ../../packages/operator-db-schema run build && pnpm --dir ../../packages/db-principal run build && pnpm --dir ../../packages/platform-merge run build && pnpm --dir ../../packages/error-tracking run build && pnpm run clean && tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
-    "worker:start": "node dist/infra/runtime/worker/main.js",
     "scheduler:start": "node dist/infra/runtime/scheduler/main.js",
     "test": "vitest --run",
     "test:e2e": "RUN_E2E_TESTS=true vitest --run e2e/*.test.ts",

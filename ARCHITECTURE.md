@@ -218,11 +218,12 @@
   - webhooks
   - health endpoints
 
-- `src/infra/runtime/worker/main.ts`
-  - обработка delivery/runtime jobs
-
-- `src/infra/runtime/scheduler/main.ts`
-  - production: systemd **`bersoncarebot-scheduler-prod.service`** (`deploy/systemd/bersoncarebot-scheduler-prod.service`); цикл `schedule.tick` → напоминания и др. сценарии из `content/scheduler/scripts.json`
+- `src/infra/runtime/scheduler/main.ts` — резидентный scheduler+worker процесс (D30 Ш9: один systemd-unit, один
+  leader-замок, один top-level цикл; отдельного `worker/main.ts` больше нет)
+  - production: systemd **`bersoncarebot-scheduler-prod.service`** (`deploy/systemd/bersoncarebot-scheduler-prod.service`)
+  - цикл `schedule.tick` → напоминания и др. сценарии из `content/scheduler/scripts.json`
+  - **и** claim/dispatch `public.outgoing_delivery_queue` + direct-public-write retries (прежняя роль `worker`),
+    только пока процесс держит leader-замок
 
 ## Webapp: операции с БД вне UI (скрипты, ручной SQL)
 

@@ -40,11 +40,11 @@ pnpm run dev              # integrator + webapp параллельно
 
 Dev-порты по умолчанию: **webapp** `http://127.0.0.1:5200`, **integrator API** `http://127.0.0.1:4200` (см. `.env` и `apps/webapp/.env.dev`).
 
-Отдельные процессы integrator (при необходимости — второй терминал):
+Резидентный процесс integrator (при необходимости — второй терминал; D30 Ш9: один процесс, совмещающий
+прежние роли `worker` и `scheduler` — `schedule.tick`/напоминания и outgoing-delivery/direct-write retries):
 
 ```bash
-pnpm run worker:dev       # projection / delivery jobs
-pnpm run scheduler:dev    # schedule.tick (напоминания и др.)
+pnpm run scheduler:dev
 ```
 
 Только webapp: `pnpm run webapp:dev`. Turbopack: `pnpm run dev:turbo`. Polling (VM/Docker): `pnpm --dir apps/webapp run dev:visual`. Только integrator: `pnpm run dev:integrator`. Остановка dev-портов: `pnpm run dev:stop`. Подробно: [`docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`](docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md).
@@ -92,11 +92,11 @@ pnpm run build && pnpm run build:webapp
 | `pnpm --dir apps/webapp run dev:visual`     | Webapp + file polling (VM/Docker)          |
 | `pnpm run dev:stop`                         | Остановить dev-порты 5200/4200             |
 | `pnpm run dev:integrator`                   | Только integrator API                      |
-| `pnpm run worker:dev` / `scheduler:dev`     | Фоновые процессы integrator                |
+| `pnpm run scheduler:dev`                    | Резидентный scheduler+worker процесс integrator |
 | `pnpm run build`                            | Сборка integrator + packages               |
 | `pnpm run build:webapp`                     | Production-сборка Next.js                  |
 | `pnpm start` / `pnpm run webapp:start`      | Prod-запуск из артефактов                  |
-| `pnpm run worker:start` / `scheduler:start` | Prod worker / scheduler                    |
+| `pnpm run scheduler:start`                  | Prod резидентный scheduler+worker процесс  |
 | `pnpm run migrate`                          | Обе миграции (integrator + webapp Drizzle) |
 | `pnpm run db:migrate`                       | Только integrator (dev, `tsx`)             |
 | `pnpm run migrate:webapp`                   | Только webapp Drizzle                      |

@@ -47,7 +47,7 @@ Verbose-логи не должны содержать сырые `params`/`paylo
 
 1. Baseline: при `flag=false` снять шум за ~10 мин:
    ```bash
-   journalctl -u bersoncarebot-webapp-prod.service -u bersoncarebot-worker-prod.service \
+   journalctl -u bersoncarebot-webapp-prod.service -u bersoncarebot-scheduler-prod.service \
      --since "10 min ago" --no-pager | rg -i "delivery attempt log|webhook received|notify"
    ```
    Ожидание: тихо (только warn/error при инцидентах).
