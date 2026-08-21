@@ -750,7 +750,8 @@ bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkth
 ```
 
 Это TEST-only prerequisite: temporary collision-safe DB authority существует только на время existing
-transactional seeder и удаляется в EXIT вместе с temporary credential. Services не останавливаются, normal
+transactional seeder и удаляется в EXIT вместе с temporary credential. Reviewed wrapper records,
+stops/quiesces, then restores the five TEST units and health-checks their recorded active state; normal
 `deploy-test.sh` proof не меняется. При cleanup failure сначала выполнить
 `sudo bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
 После PASS повторить `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`.
