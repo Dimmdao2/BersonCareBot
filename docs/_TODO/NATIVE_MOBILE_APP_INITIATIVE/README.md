@@ -15,6 +15,9 @@ Production `server.url` не принимается как архитектур�
 
 - owner requirements: [`REQUIREMENTS.md`](REQUIREMENTS.md);
 - подробный план: [`MASTER_PLAN.md`](MASTER_PLAN.md);
+- **результат MOB-00 (ADR + разведочный spike, 2026-08-22):**
+  [`MOB-00_ADR_AND_SPIKE_FINDINGS.md`](MOB-00_ADR_AND_SPIKE_FINDINGS.md) — вердикт, замеры, пересчитанный
+  срок и открытые вопросы владельцу; коммит `a8209f7c0`;
 - действия владельца: [`OWNER_ACTIONS.md`](OWNER_ACTIONS.md);
 - финальная приёмка: [`FINAL_ACCEPTANCE.md`](FINAL_ACCEPTANCE.md);
 - append-only журнал: [`LOG.md`](LOG.md);
