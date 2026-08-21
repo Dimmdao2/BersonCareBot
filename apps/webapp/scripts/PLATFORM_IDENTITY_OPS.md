@@ -54,7 +54,8 @@
 
 **Worker не выполняет** `apps/webapp/scripts/*` и **не пишет** напрямую в БД webapp.
 
-Процесс `worker:start` (см. `apps/integrator/package.json`) крутит два контура: очередь job’ов (integrator) и **projection outbox** → HTTP-вызов webapp (`emit` событий). Запись в webapp-таблицы `platform_users` / телефон / `patient_phone_trust_at` для проекций идёт **только** в обработчиках webapp (`handleIntegratorEvent` → `pgUserProjection` и т.д.), т.е. через те же доверенные пути, что и при живом webhook. С точки зрения Platform Identity & Access **воркер согласован** с архитектурой: отдельного «тихого» обхода tier через воркер нет.
+Резидентный scheduler+worker процесс `scheduler:start` (см. `apps/integrator/package.json`; D30 Ш9 — прежний
+отдельный `worker:start` слит в него) крутит два контура: очередь job’ов (integrator) и **projection outbox** → HTTP-вызов webapp (`emit` событий). Запись в webapp-таблицы `platform_users` / телефон / `patient_phone_trust_at` для проекций идёт **только** в обработчиках webapp (`handleIntegratorEvent` → `pgUserProjection` и т.д.), т.е. через те же доверенные пути, что и при живом webhook. С точки зрения Platform Identity & Access **воркер согласован** с архитектурой: отдельного «тихого» обхода tier через воркер нет.
 
 ---
 

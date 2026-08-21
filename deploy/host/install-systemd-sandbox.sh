@@ -16,10 +16,11 @@ die() { echo "[sandbox] FATAL: $*" >&2; exit 1; }
 [ "$(id -u)" = 0 ] || die "must run as root"
 
 # unit-suffix : service user : extra directives
+# D30 Ш9: worker and scheduler are one resident process/unit now (bersoncarebot-scheduler-prod.service);
+# there is no separate bersoncarebot-worker-prod.service to sandbox.
 UNITS="
 webapp:bcb-webapp:
 api:bcb-api:
-worker:bcb-worker:
 scheduler:bcb-scheduler:
 media-worker:bcb-media-worker:media
 "
