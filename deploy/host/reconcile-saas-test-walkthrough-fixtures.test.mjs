@@ -21,6 +21,7 @@ function fixture(host = '151.241.228.122') {
   const root = mkdtempSync(resolve(tmpdir(), 'bcb-fixture-door-'));
   const src = resolve(root, 'source');
   const testRepo = resolve(root, 'test');
+  const log = resolve(root, 'calls.log');
   const script = resolve(src, 'deploy/host/reconcile-saas-test-walkthrough-fixtures.sh');
   mkdirSync(dirname(script), { recursive: true });
   mkdirSync(resolve(src, '.git'));
@@ -32,7 +33,13 @@ function fixture(host = '151.241.228.122') {
   writeFileSync(resolve(src, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
   writeFileSync(resolve(testRepo, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
   writeFileSync(resolve(testRepo, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
-  writeFileSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), '#!/bin/bash\nexit 0\n');
+  writeFileSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), `#!/bin/bash
+set -eu
+printf 'tsx_cwd=%s\\n' "$(pwd -P)" >> '${log}'
+printf 'tsx_argv=%s\\n' "$*" >> '${log}'
+printf 'tsx_home=%s\\n' "$HOME" >> '${log}'
+exit 0
+`);
   chmodSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), 0o755);
   writeFileSync(resolve(src, 'deploy/host/saas-test-fixture-packet.mjs'), 'fixture');
   let body = readFileSync(source, 'utf8');
@@ -50,10 +57,13 @@ function fixture(host = '151.241.228.122') {
   writeFileSync(resolve(root, 'packet'), 'opaque-test-packet');
   const bin = resolve(root, 'bin');
   mkdirSync(bin);
-  const log = resolve(root, 'calls.log');
   writeFileSync(resolve(bin, 'pnpm'), `#!/bin/bash
-printf 'pnpm_cwd=%s\\n' "$(pwd -P)" >> '${log}'
-exit 0
+printf 'pnpm_invoked\\n' >> '${log}'
+exit 88
+`);
+  writeFileSync(resolve(bin, 'corepack'), `#!/bin/bash
+printf 'corepack_invoked\\n' >> '${log}'
+exit 89
 `);
   writeFileSync(resolve(bin, 'hostname'), `#!/bin/bash\nprintf '${host}\\n'\n`);
   writeFileSync(resolve(bin, 'id'), `#!/bin/bash
@@ -118,8 +128,8 @@ if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then
 fi
 if [[ "$args" == *'psql'* ]]; then exit 0; fi
 if [[ "$args" == *'timeout '* ]]; then
-  [[ "$args" == *'TEST_REPO=${testRepo}'* && "$args" == *'pnpm --dir "$TEST_REPO/apps/webapp" exec tsx "$2"'* && "$args" == *'${testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'* ]] || exit 63
-  printf 'seeder_pnpm_webapp_tsx\\n' >> "$log"
+  [[ "$args" == *'TEST_REPO=${testRepo}'* && "$args" == *'exec timeout --kill-after=10 300 "$TEST_REPO/apps/webapp/node_modules/.bin/tsx" "$2"'* && "$args" == *'${testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'* ]] || exit 63
+  printf 'seeder_test_local_tsx\\n' >> "$log"
   if [[ "\${BLOCK_SEED:-0}" == 1 ]]; then
     printf 'seed_started\\n' >> "$log"
     trap 'exit 143' TERM INT HUP
@@ -140,6 +150,7 @@ exit 0
   chmodSync(resolve(bin, 'id'), 0o755);
   chmodSync(resolve(bin, 'git'), 0o755);
   chmodSync(resolve(bin, 'pnpm'), 0o755);
+  chmodSync(resolve(bin, 'corepack'), 0o755);
   chmodSync(resolve(bin, 'systemctl'), 0o755);
   chmodSync(resolve(bin, 'curl'), 0o755);
   chmodSync(resolve(bin, 'sudo'), 0o755);
@@ -212,8 +223,11 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   const calls = readFileSync(entry.log, 'utf8');
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
-  assert.match(calls, /seeder_pnpm_webapp_tsx/);
-  assert.match(calls, new RegExp(`pnpm_cwd=${entry.testRepo}`));
+  assert.match(calls, /seeder_test_local_tsx/);
+  assert.match(calls, new RegExp(`^tsx_cwd=${entry.testRepo}$`, 'm'));
+  assert.match(calls, new RegExp(`^tsx_argv=${entry.testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures\\.ts$`, 'm'));
+  assert.match(calls, /tsx_home=\/nonexistent/);
+  assert.doesNotMatch(calls, /pnpm_invoked|corepack_invoked/);
   assert.doesNotMatch(calls, /node --import tsx/);
 });
 

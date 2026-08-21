@@ -227,6 +227,8 @@ require_seed_checkout() {
     fail 'TEST fixture seeder is not tracked'
   cmp -s "$SRC_REPO/$SEEDER_REL" "$TEST_REPO/$SEEDER_REL" ||
     fail 'TEST fixture seeder differs from the reviewed source checkout'
+  [[ -f "$TEST_REPO/apps/webapp/node_modules/.bin/tsx" && ! -L "$TEST_REPO/apps/webapp/node_modules/.bin/tsx" ]] ||
+    fail 'TEST checkout webapp tsx must be a regular non-symlink'
   [[ -x "$TEST_REPO/apps/webapp/node_modules/.bin/tsx" ]] ||
     fail 'TEST checkout webapp tsx is not executable'
 }
@@ -336,13 +338,13 @@ SQL
 ' bash "$STATE" >/dev/null
 
 # The only child that receives DATABASE_URL sources a 0600 deploy-owned file; its argv contains paths only.
-# /home/dev is not traversable by deploy, so execute the reviewed-byte-identical seeder from TEST.
+# /home/dev is not traversable by deploy, so execute the reviewed-byte-identical seeder and guarded local tsx from TEST.
 sudo -n -u deploy env -i PATH="$SAFE_PATH" HOME=/nonexistent TEST_REPO="$TEST_REPO" SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1 bash -c '
   set -Eeuo pipefail
   set -a
   . "$1"
   set +a
   cd "$TEST_REPO"
-  exec timeout --kill-after=10 300 pnpm --dir "$TEST_REPO/apps/webapp" exec tsx "$2"
+  exec timeout --kill-after=10 300 "$TEST_REPO/apps/webapp/node_modules/.bin/tsx" "$2"
 ' bash "$SEED_ENV" "$TEST_REPO/$SEEDER_REL"
 printf 'SaaS TEST walkthrough fixture: PASS (two clinics reconciled; temporary authority removed)\n'
