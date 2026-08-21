@@ -58,6 +58,11 @@ const EXPECTED_ROOTS = new Map(Object.entries({
     purpose: 'auth.channel-binding.session', argCount: 2,
     source: 'apps/webapp/src/infra/repos/pgIdentityResolution.ts',
   },
+  'app.pre_session_find_session_user_by_phone(text)': {
+    port: 'webapp', targetRole: 'app_pre_session', contextClass: 'pre_session',
+    purpose: 'auth.phone-login.session-lookup', argCount: 1,
+    source: 'apps/webapp/src/infra/repos/pgUserByPhone.ts',
+  },
   'app.read_current_patient_active_organizations()': {
     port: 'webapp', targetRole: 'app_patient', contextClass: 'patient',
     purpose: 'patient.organization.resolve', argCount: 0,

@@ -52,7 +52,7 @@ export const channelBindingRowSchema = z.object({
   external_id: z.string(),
 });
 
-const sessionIdentityContactRowSchema = z.object({
+export const sessionIdentityContactRowSchema = z.object({
   contact_kind: z.enum(['phone', 'email']),
   value_normalized: z.string().trim().min(1),
   is_primary: z.coerce.boolean(),
@@ -93,6 +93,21 @@ export const platformUserSessionRowSchema = z.object({
   is_archived: z.coerce.boolean(),
   security_factor_required: z.coerce.boolean().optional().default(false),
 });
+
+/**
+ * `app.pre_session_find_session_user_by_phone(text)` jsonb payload (D15b/6 repair). The `found:
+ * true` branch reuses {@link platformUserSessionRowSchema} for the base identity fields — same
+ * columns `loadSessionIdentityUser`'s first relation read used to produce — plus the two arrays
+ * its follow-up relation reads used to assemble, now returned by the same door call.
+ */
+export const preSessionPhoneSessionLookupSchema = z.discriminatedUnion('found', [
+  z.object({ found: z.literal(false) }),
+  platformUserSessionRowSchema.extend({
+    found: z.literal(true),
+    contacts: z.array(sessionIdentityContactRowSchema),
+    bindings: z.array(channelBindingRowSchema),
+  }),
+]);
 
 export const platformUserProfileRowSchema = z.object({
   display_name: z.string().nullable(),

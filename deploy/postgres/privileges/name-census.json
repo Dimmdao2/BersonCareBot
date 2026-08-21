@@ -72,6 +72,7 @@
     "app.patient_disable_reminder_messenger_topic",
     "app.patient_reminder_materialization_fingerprint",
     "app.phone_messenger_bind_completion_state",
+    "app.pre_session_find_session_user_by_phone",
     "app.provision_specialist_owner",
     "app.prune_operator_health_failure_archive",
     "app.prune_retention_target",

@@ -21,10 +21,7 @@ import type {
 } from '@/modules/auth/userByPhonePort';
 import { channelToBindingKey } from '@/modules/auth/channelContext';
 import { normalizeRuPhoneE164 } from '@/shared/phone/normalizeRuPhoneE164';
-import {
-  findCanonicalUserIdByPhone,
-  resolveCanonicalUserId,
-} from '@/infra/repos/pgCanonicalPlatformUser';
+import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
   mergePlatformUsersInTransaction,
   pickMergeTargetId,
@@ -52,11 +49,12 @@ import {
   platformUserInsertRowSchema,
   platformUserPhoneRoleRowSchema,
   platformUserSessionRowSchema,
+  preSessionPhoneSessionLookupSchema,
   puMergeRowSchema,
   sessionIdentityContactsFromRows,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
-import { getWebappSqlDb, getWebappSqlFromPgClient } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
 import { drizzlePrimaryPhoneCol, drizzlePrimaryPhoneConfirmedAtCol } from '@/infra/repos/userContactsSql';
 import {
@@ -260,12 +258,53 @@ export const pgUserByPhonePort: UserByPhonePort = {
     await runIdentityPoolPgText('SELECT app.bump_platform_user_session_epoch_self()');
   },
 
+  /**
+   * D15b/6 repair: the bootstrap principal that runs `POST /api/auth/phone/start` has no unnamed
+   * relation door (`portContextRuntime.ts`, `capabilities['pre_session']` purpose=relation is
+   * intentionally absent) — the previous two-step implementation (`findCanonicalUserIdByPhone` +
+   * `loadSessionIdentityUser`, both plain relation reads) failed with "Missing declared webapp
+   * port capability: pre_session" before OTP delivery was ever attempted. One named SECURITY
+   * DEFINER root now resolves the canonical holder AND assembles the full session-identity
+   * payload — same shape `loadSessionIdentityUser` used to build from two follow-up relation
+   * reads — so no unnamed read remains on this path. Phone lookup is not authentication proof:
+   * this intentionally does not read identity-self staff-security state, exactly like the
+   * relation-based implementation it replaces; only the exact-id post-verification path
+   * (`findByUserId`) may attach it to a session user.
+   */
   async findByPhone(normalizedPhone: string): Promise<SessionUser | null> {
-    const canonicalId = await findCanonicalUserIdByPhone(getWebappSqlDb(), normalizedPhone);
-    if (!canonicalId) return null;
-    // Phone lookup is not authentication proof. Do not read identity-self staff-security
-    // state here; only the exact-id post-verification path may attach it to a session user.
-    return loadSessionIdentityUser(canonicalId);
+    const result = await runWebappNamedRoot<{ result: unknown }>(
+      getWebappSqlDb(),
+      'app.pre_session_find_session_user_by_phone(text)',
+      [normalizedPhone],
+      sql`SELECT app.pre_session_find_session_user_by_phone(${normalizedPhone}::text) AS result`,
+    );
+    const payload = parseIdentityRow(
+      preSessionPhoneSessionLookupSchema,
+      result.rows[0]?.result,
+      'pre_session_find_session_user_by_phone',
+    );
+    if (!payload.found) return null;
+    // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
+    if (payload.is_archived) return null;
+    const firstName = payload.first_name?.trim() || undefined;
+    const lastName = payload.last_name?.trim() || undefined;
+    const patronymic = payload.patronymic?.trim() || undefined;
+    const contacts = sessionIdentityContactsFromRows(payload.contacts);
+    const phone = contacts.find((contact) => contact.kind === 'phone' && contact.isPrimary)?.value;
+    const email = contacts.find((contact) => contact.kind === 'email' && contact.isPrimary)?.value;
+    return {
+      userId: payload.id,
+      role: parseUserRole(payload.role, 'pre_session_find_session_user_by_phone.role'),
+      displayName: payload.display_name ?? '',
+      ...(firstName ? { firstName } : {}),
+      ...(lastName ? { lastName } : {}),
+      ...(patronymic ? { patronymic } : {}),
+      contacts,
+      ...(phone ? { phone } : {}),
+      ...(email ? { email } : {}),
+      bindings: bindingsFromRows(payload.bindings),
+      sessionEpoch: payload.session_epoch,
+    };
   },
 
   async createOrBind(
