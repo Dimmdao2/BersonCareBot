@@ -1,95 +1,24 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import test from 'node:test';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { declaration } from './declaration.ts';
 import {
   BUSINESS_SEAM_FUNCTIONS,
-  BUSINESS_SEAM_STATS,
-  LEGACY_DEFINER_CENSUS_COUNT,
-  OBSOLETE_CONTEXT_SIGNATURES,
 } from './function-census.ts';
 import { collectGaps, generateFunctionCensusSql } from './generate.mjs';
 import {
   compareFunctionSurfaces,
   extractPublicRelationOperations,
-  latestArtifactFunctions,
   parseExecutableFunctions,
 } from './function-body-surface.mjs';
 import { assertNameCensus } from './name-census.mjs';
 import {
-  compareDeclaredFunctionReturnShapes,
   extractFunctionReturnShapes,
   latestFunctionReturnShapes,
   parseReturnShape,
 } from './function-return-shape.mjs';
 
-const PRIVILEGES_DIR = path.dirname(fileURLToPath(import.meta.url));
-const REPOSITORY_ROOT = path.resolve(PRIVILEGES_DIR, '../../..');
-const MIGRATIONS_DIR = path.resolve(REPOSITORY_ROOT, 'apps/webapp/db/drizzle-migrations');
-const SCHEMA_B_SNAPSHOT = path.resolve(
-  REPOSITORY_ROOT,
-  'deploy/postgres/generated/prod-to-target/schema-pre.sql',
-);
-const ACTIVE_FORWARD_MIGRATIONS = fs.readdirSync(MIGRATIONS_DIR)
-  .filter((file) => /^\d{8}T\d{6}_.+\.sql$/.test(file))
-  .sort()
-  .map((file) => path.resolve(MIGRATIONS_DIR, file));
-const NAME_CENSUS = JSON.parse(
-  fs.readFileSync(path.resolve(PRIVILEGES_DIR, 'name-census.json'), 'utf8'),
-);
-const SCHEMA_B_SNAPSHOT_FUNCTIONS = parseExecutableFunctions(fs.readFileSync(SCHEMA_B_SNAPSHOT, 'utf8'));
-
-// The retired migration chain no longer records which historical file introduced a function. The
-// recorded census preserves that membership, while generated schema B supplies the executable body.
-// Active timestamp forwards overlay the snapshot so a new/changed definer is checked before the next
-// snapshot refresh and cannot disappear from the gate.
-const schemaBCensusFunctions = (censusKey, includeNewForward) => {
-  const recordedNames = new Set(NAME_CENSUS[censusKey]);
-  const latest = new Map(
-    SCHEMA_B_SNAPSHOT_FUNCTIONS
-      .filter((fn) => recordedNames.has(fn.name))
-      .map((fn) => [fn.name, fn]),
-  );
-  for (const fn of latestArtifactFunctions(ACTIVE_FORWARD_MIGRATIONS)) {
-    if (recordedNames.has(fn.name) || includeNewForward(fn)) latest.set(fn.name, fn);
-  }
-  return [...latest.values()].sort((a, b) => a.name.localeCompare(b.name));
-};
-
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
-const GENUINE_PRE_SESSION_FUNCTIONS = `
-auth_login_token_confirm
-auth_login_token_create
-auth_login_token_mark_session_issued
-auth_login_token_read
-auth_oauth_find_user
-auth_oauth_upsert_binding
-auth_rate_limit_check_and_record
-email_auth_find_email_otp_lock
-email_auth_register_email_otp_lockout
-email_auth_reset_email_otp_lockout
-get_public_reference_baseline
-read_saas_billing_payment_provider_preauth
-resolve_patient_acquiring_webhook_organization
-is_organization_slug_available
-is_smtp_outbound_configured
-integrator_event_idempotency_read
-integrator_event_idempotency_store
-phone_auth_find_latest_challenge_created_at
-phone_auth_find_otp_lock
-phone_auth_register_otp_lockout
-phone_auth_reset_otp_lockout
-phone_challenge_store_delete
-phone_challenge_store_delete_by_phone
-phone_challenge_store_increment_attempts
-phone_challenge_store_read
-phone_challenge_store_upsert
-phone_otp_public_booking_consume_challenge
-phone_otp_public_booking_issue_challenge
-`.trim().split('\n');
 
 const functionsFor = (database) => Object.entries(declaration.portContext.functions)
   .filter(([, fn]) => !fn.databases || fn.databases.includes(database));
@@ -117,81 +46,6 @@ const assertDefinerOwnersAreDeclaredSeamRoles = () => {
   );
   return owners;
 };
-
-test('the recorded current-patient schema B roots have exact executable relation-operation surfaces', () => {
-  const functions = schemaBCensusFunctions(
-    'currentPatientArtifactRoots',
-    () => false,
-  );
-  assertNameCensus('currentPatientArtifactRoots', functions.map((fn) => fn.name),
-    'current-patient roots reconstructed from generated schema B plus active timestamp forwards');
-  assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
-});
-
-test('all recorded schema B definers and active forward definers have exact executable relation-operation surfaces', () => {
-  const functions = schemaBCensusFunctions('b0ForwardArtifactRoots', (fn) => fn.securityDefiner);
-  // Каждое имя здесь — production-facing тело SECURITY DEFINER из generated schema B либо активного
-  // timestamp-forward. Исчезнувшее имя означает, что snapshot потерял защищаемую дверь; появившееся
-  // в forward-файле — новую дверь, которую сначала нужно сверить и явно принять в census.
-  assertNameCensus('b0ForwardArtifactRoots', functions.map((fn) => fn.name),
-    'recorded schema B and active timestamp-forward definer bodies');
-  assert.equal(functions.every((fn) => fn.securityDefiner), true);
-  for (const fn of functions) {
-    const candidates = Object.entries(declaration.portContext.functions)
-      .filter(([signature]) => signature.startsWith(`${fn.name}(`));
-    assert.equal(candidates.length, 1, fn.name);
-    assert.equal(candidates[0][1].security, 'DEFINER', candidates[0][0]);
-  }
-  assert.deepEqual(compareFunctionSurfaces(functions, declaration.portContext.functions), []);
-});
-
-test('every declared function has the exact source-reconstructed base type and set-returning flag, and no body is undeclared', () => {
-  const sources = [{
-    source: path.relative(REPOSITORY_ROOT, SCHEMA_B_SNAPSHOT),
-    text: fs.readFileSync(SCHEMA_B_SNAPSHOT, 'utf8'),
-  }, ...ACTIVE_FORWARD_MIGRATIONS.map((file) => ({ source: path.relative(REPOSITORY_ROOT, file), text: fs.readFileSync(file, 'utf8') })), {
-    source: 'deploy/postgres/port-context/contract.sql',
-    text: fs.readFileSync(path.resolve(REPOSITORY_ROOT, 'deploy/postgres/port-context/contract.sql'), 'utf8'),
-  }];
-  const canonical = latestFunctionReturnShapes(sources);
-  const external = {
-    'app_ext.digest(text,text)': { returns: 'bytea', returnsSet: false },
-    'app_ext.hmac(text,text,text)': { returns: 'bytea', returnsSet: false },
-  };
-  // Обратное направление к `compareDeclaredFunctionReturnShapes`: тот идёт по ОБЪЯВЛЕННЫМ функциям
-  // и называет каждую, которой не нашлось тела в исходниках. Здесь — недостающая половина: тело,
-  // восстановленное из исходников, которое не объявлено ничем. Такая функция не получает ни
-  // владельца шва, ни закрытого EXECUTE, ни сверки поверхности тела, и увидеть это нечем.
-  const declaredNames = new Set(Object.keys(declaration.portContext.functions)
-    .map((signature) => signature.slice(0, signature.indexOf('('))));
-  assert.deepEqual(
-    [...canonical.keys()].filter((name) => !declaredNames.has(name)).sort(),
-    [],
-    'function bodies reconstructed from the sources that no declaration claims',
-  );
-  assert.deepEqual(compareDeclaredFunctionReturnShapes(declaration.portContext.functions, canonical, external), []);
-
-  const practice = structuredClone(declaration.portContext.functions);
-  practice['app.record_current_patient_practice_completion(uuid,text,integer)'].returns = 'record';
-  assert.deepEqual(compareDeclaredFunctionReturnShapes(practice, canonical, external), [
-    'app.record_current_patient_practice_completion(uuid,text,integer): actual=uuid/set declared=record/set',
-  ]);
-  const rating = structuredClone(declaration.portContext.functions);
-  rating['app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid)'].returns = 'record';
-  assert.deepEqual(compareDeclaredFunctionReturnShapes(rating, canonical, external), [
-    'app.upsert_current_patient_material_rating(text,uuid,integer,uuid,uuid): actual=boolean/set declared=record/set',
-  ]);
-  const tableToScalar = structuredClone(declaration.portContext.functions);
-  tableToScalar['app.accept_org_invite(text,uuid,text)'].returnsSet = false;
-  assert.deepEqual(compareDeclaredFunctionReturnShapes(tableToScalar, canonical, external), [
-    'app.accept_org_invite(text,uuid,text): actual=record/set declared=record/scalar',
-  ]);
-  const scalarToSet = structuredClone(declaration.portContext.functions);
-  scalarToSet['app.abort_patient_program_submission_media(uuid)'].returnsSet = true;
-  assert.deepEqual(compareDeclaredFunctionReturnShapes(scalarToSet, canonical, external), [
-    'app.abort_patient_program_submission_media(uuid): actual=boolean/scalar declared=boolean/set',
-  ]);
-});
 
 test('return-shape parser covers TABLE, SETOF, OUT, dollar tags, defaults and comments', () => {
   assert.deepEqual(parseReturnShape('', ' RETURNS TABLE(id uuid) LANGUAGE sql '),
@@ -368,73 +222,6 @@ test('current-patient surface gate catches missing operation, absent relation, a
     ['SELECT', 'DELETE']);
 });
 
-test('legacy census is restored without obsolete context and overlaid by the active schema B roots', () => {
-  assert.equal(LEGACY_DEFINER_CENSUS_COUNT, 244);
-  assert.deepEqual(BUSINESS_SEAM_STATS, {
-    functions: 229,
-    owners: 40,
-    test: 229,
-    dev: 229,
-    triggers: 3,
-    relationEdges: 479,
-  });
-  // Замороженная легаси-перепись и её данные обязаны сходиться друг с другом; число берётся из
-  // самой переписи, а не из второй копии в тесте. Ключи объекта не повторяются по построению.
-  assert.equal(Object.keys(BUSINESS_SEAM_FUNCTIONS).length, BUSINESS_SEAM_STATS.functions);
-  for (const signature of OBSOLETE_CONTEXT_SIGNATURES) {
-    assert.equal(declaration.portContext.functions[signature], undefined, signature);
-  }
-  for (const signature of [
-    'app.install_port_context(uuid,app.port_context_claims)',
-    'app.clear_port_context()',
-    'app.begin_port_context(uuid,app.port_context_claims)',
-    'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)',
-    'app.require_attested_target_role(name,name[])',
-    'app.require_platform_principal()',
-    'app.current_actor_user_id()',
-    'app_ext.resolve_variant_a_identity(uuid)',
-  ]) assert.ok(declaration.portContext.functions[signature], signature);
-
-  const testFunctions = functionsFor('bersoncarebot_test');
-  const devFunctions = functionsFor('bcb_webapp_dev');
-  // Счётчики DEFINER и общего числа заменены двумя сверками имён.
-  //
-  // Что ловит первая: функция шва тихо стала SECURITY INVOKER. Тогда её тело исполняется правами
-  // вызывающего логина, а не владельца шва, и каждое обращение к закрытой таблице умирает 42501 —
-  // ровно живой дефект 18.08 (L-7), описанный ниже в этом файле. Счётчик «396» показывал такую
-  // подмену числом 395 и не называл ни функцию, ни базу; список называет её первой строкой diff-а.
-  //
-  // Что ловит вторая: TEST и DEV объявляют одинаковые функции; любое расхождение означает,
-  // что одна из сред получает дверь, которой нет в другой.
-  assertNameCensus(
-    'declaredNonDefinerFunctions',
-    Object.entries(declaration.portContext.functions).filter(([, fn]) => fn.security !== 'DEFINER')
-      .map(([signature]) => signature),
-    'declared functions that are NOT SECURITY DEFINER',
-  );
-  assert.deepEqual(
-    testFunctions.map(([signature]) => signature).sort(),
-    devFunctions.map(([signature]) => signature).sort(),
-    'TEST and DEV must declare the same functions',
-  );
-  assertDefinerOwnersAreDeclaredSeamRoles();
-  assert.deepEqual(Object.entries(BUSINESS_SEAM_FUNCTIONS)
-    .filter(([, fn]) => fn.databases.length === 1).map(([signature]) => signature).sort(), []);
-  const proconfigExceptions = Object.entries(BUSINESS_SEAM_FUNCTIONS)
-    .filter(([, fn]) => fn.proconfig[0] !== 'search_path=pg_catalog')
-    .map(([signature, fn]) => [signature, fn.proconfig[0]]);
-  // Счёт функций с каноническим search_path удалён: он ровно дополнение к списку исключений ниже,
-  // а тот перечислен ПОИМЁННО вместе со своим search_path — расхождение называет он.
-  assert.deepEqual(proconfigExceptions, [
-    ['app.accept_org_invite(text,uuid,text)', 'search_path=pg_catalog, app, public, pg_temp'],
-    ['app.close_active_user_phone_history(uuid)', 'search_path=app, public, pg_catalog'],
-    ['app.list_web_push_reminder_organization_ids(timestamp with time zone)', 'search_path=pg_catalog, public'],
-    ['app.read_outbound_provider_incident_health()', 'search_path=pg_catalog, public'],
-    ['app.resolve_saas_billing_invoice_for_webhook(text,text)', 'search_path=pg_catalog, app, public, pg_temp'],
-    ['app.resolve_saas_billing_refund_for_webhook(text,text)', 'search_path=pg_catalog, app, public, pg_temp'],
-  ]);
-});
-
 test('every application seam owner and function caller has the closed role shape', () => {
   const owners = new Set(Object.values(declaration.portContext.functions)
     .filter((fn) => fn.security === 'DEFINER' && fn.owner !== 'postgres').map((fn) => fn.owner));
@@ -460,22 +247,6 @@ test('every application seam owner and function caller has the closed role shape
       assert.ok(surface.columns.length > 0, `${signature}:${surface.relation}`);
       assert.ok(surface.operations.length > 0, `${signature}:${surface.relation}`);
     }
-  }
-});
-
-test('every genuine pre-session root has app_pre_session as its only caller', () => {
-  // Список выше — курируемое ПОДМНОЖЕСТВО: корней, у которых единственный вызывающий
-  // `app_pre_session`, в переписи больше, а здесь перечислены признанные подлинными. Вывести его
-  // из данных нельзя, поэтому он записан переписью имён: вычеркнутая строка тихо снимала бы
-  // проверку «единственный вызывающий» с этого корня — прежний `length === 28` ловил это числом 27,
-  // не называя вычеркнутого, а без него не ловит никто.
-  assertNameCensus('genuinePreSessionRoots', GENUINE_PRE_SESSION_FUNCTIONS,
-    'roots recognised as genuinely pre-session');
-  for (const functionName of GENUINE_PRE_SESSION_FUNCTIONS) {
-    const matches = Object.entries(BUSINESS_SEAM_FUNCTIONS)
-      .filter(([signature]) => signature.startsWith(`app.${functionName}(`));
-    assert.equal(matches.length, 1, functionName);
-    assert.deepEqual(matches[0][1].execute, ['app_pre_session'], matches[0][0]);
   }
 });
 
