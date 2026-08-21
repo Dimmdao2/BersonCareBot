@@ -50,4 +50,3 @@
 - Один текущий D30 route остаётся: scheduler/topology, включая Ш9; Ш1–Ш6/Ш8 не закрывать.
 - Явно stage только три scoped path, без `git add -A`; commit до завершения хода.
 - В финале назвать SHA, команды и `NOT DONE: D30 implementation / landing / TEST / deploy / push / full CI`.
-
