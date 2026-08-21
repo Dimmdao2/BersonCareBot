@@ -8209,13 +8209,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "completed_at",
+          "created_at",
           "description",
           "due_at",
+          "id",
           "is_important",
           "organization_id",
           "owner_user_id",
           "patient_user_id",
           "remind_at",
+          "reminder_sent_at",
           "title",
           "updated_at"
         ]
@@ -8231,6 +8235,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "due_at",
           "is_important",
           "organization_id",
+          "remind_at",
           "reminder_sent_at",
           "title",
           "updated_at"
