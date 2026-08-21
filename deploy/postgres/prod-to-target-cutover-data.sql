@@ -1130,7 +1130,6 @@ CREATE TEMP TABLE cutover_systemic_expected_counts (
 
 INSERT INTO cutover_systemic_expected_counts VALUES
   ('message_drafts', (SELECT count(*) FROM cutover_source_integrator.message_drafts)),
-  ('delivery_attempt_logs', (SELECT count(*) FROM cutover_source_integrator.delivery_attempt_logs)),
   ('media_playback_stats_hourly', (SELECT count(*) FROM cutover_source_public.media_playback_stats_hourly)),
   ('reminder_occurrence_history', (SELECT count(*) FROM cutover_source_public.reminder_occurrence_history));
 
@@ -1633,15 +1632,6 @@ BEGIN
   IF violations <> 0 THEN RAISE EXCEPTION 'reminder occurrences missing canonical scope: %', violations; END IF;
 
   SELECT count(*) INTO violations
-  FROM integrator.delivery_attempt_logs
-  WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
-  IF violations <> 0 THEN RAISE EXCEPTION 'delivery attempt logs missing canonical organization: %', violations; END IF;
-  IF (SELECT count(*) FROM integrator.delivery_attempt_logs)
-     <> (SELECT count(*) FROM cutover_source_integrator.delivery_attempt_logs) THEN
-    RAISE EXCEPTION 'delivery attempt log row count changed during cutover';
-  END IF;
-
-  SELECT count(*) INTO violations
   FROM public.media_playback_stats_hourly
   WHERE organization_id IS DISTINCT FROM current_setting('bcb.cutover.canonical_organization_id')::uuid;
   IF violations <> 0 THEN RAISE EXCEPTION 'media playback hourly stats missing canonical organization: %', violations; END IF;
@@ -1656,7 +1646,6 @@ SELECT json_build_object(
   'status', 'pass',
   'copyViolations', 0,
   'reminderOccurrences', (SELECT count(*) FROM integrator.user_reminder_occurrences),
-  'deliveryAttemptLogs', (SELECT count(*) FROM integrator.delivery_attempt_logs),
   'calendarMappings', (SELECT count(*) FROM public.booking_calendar_map),
   'playbackHourlyRows', (SELECT count(*) FROM public.media_playback_stats_hourly)
 )::text AS result

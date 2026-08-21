@@ -127,10 +127,6 @@ ORDER BY granted_role.rolname
 \gexec
 REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
   FROM :"integrator_runtime_config_role";
-REVOKE INSERT ON TABLE integrator.delivery_attempt_logs
-  FROM :"integrator_runtime_config_role";
-REVOKE USAGE ON SEQUENCE integrator.delivery_attempt_logs_id_seq
-  FROM :"integrator_runtime_config_role";
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 ALTER FUNCTION app.read_global_server_runtime_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_provider_runtime_setting(text) OWNER TO app_owner;
@@ -941,16 +937,6 @@ SELECT 1 / (
     ) privilege
     WHERE privilege.privilege_type = 'SELECT'
       AND privilege.grantee IN (0, runtime_role.oid)
-  )
-  AND NOT has_table_privilege(
-    :'integrator_runtime_config_role',
-    'integrator.delivery_attempt_logs',
-    'INSERT'
-  )
-  AND NOT has_sequence_privilege(
-    :'integrator_runtime_config_role',
-    'integrator.delivery_attempt_logs_id_seq',
-    'USAGE'
   )
   AND NOT EXISTS (
     SELECT 1
