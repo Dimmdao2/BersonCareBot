@@ -1,7 +1,6 @@
 # D15b/6 — phone confirm port-context correction (2026-08-21)
 
 ## Источник оракула
-
 > «Равноправный вход переводится на эту таблицу.» — `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`, D15b/6.
 
 > «Оставшаяся работа — перевести всех писателей/читателей на `public.user_contacts` через DB-порты и удалить дублирующие contact-колонки из `platform_users`.» — `docs/OWNER_DECISIONS.md`, owner decision 21.08.2026.
