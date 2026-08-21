@@ -81,7 +81,12 @@ describe('D25 audit — user.phone.link external contract', () => {
 
   it('refuses a phone owned by another account neutrally and fail-closed', async () => {
     const result = await linkPhone(
-      rowDb({ platform_user_id: SOURCE_USER, applied: false, failure_code: 'phone_owned_by_other_user' }),
+      rowDb({
+        platform_user_id: SOURCE_USER,
+        applied: false,
+        failure_code: 'phone_owned_by_other_user',
+        counterparty_platform_user_id: OTHER_USER,
+      }),
     );
     expect(result).toEqual({
       userPhoneLinkApplied: false,
@@ -93,7 +98,12 @@ describe('D25 audit — user.phone.link external contract', () => {
 
   it('leaves one durable manual-review case naming BOTH colliding accounts', async () => {
     await linkPhone(
-      rowDb({ platform_user_id: SOURCE_USER, applied: false, failure_code: 'phone_owned_by_other_user' }),
+      rowDb({
+        platform_user_id: SOURCE_USER,
+        applied: false,
+        failure_code: 'phone_owned_by_other_user',
+        counterparty_platform_user_id: OTHER_USER,
+      }),
     );
     await vi.waitFor(() => expect(fakes.recordBlocked).toHaveBeenCalledTimes(1));
     const call = fakes.recordBlocked.mock.calls[0]?.[0] as { candidateIds: string[]; reason: string };

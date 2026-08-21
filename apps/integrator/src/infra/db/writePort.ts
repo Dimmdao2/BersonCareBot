@@ -245,16 +245,22 @@ export function createDbWritePort(
           // `display_name` derived from them) is no longer autofilled from the channel's own profile —
           // the person types it at registration. The messenger profile contributes only its channel
           // display handle; no integrator-local identity or user row is created.
-          // D25: one exact named root (`app.integrator_upsert_channel_identity`) for every principal —
-          // bootstrap and organization/integrator alike. It never opens a relation transaction and its
-          // lookup is channel-binding-only (no phone-based candidate widening), so the ambiguity this
-          // used to defer via `writeIdentityAndPreferencesDirect`'s injected merge cascade cannot occur
-          // here; see D26 (`mergeCandidatesDirect.ts`, removed) — the integrator does not decide merges.
-          await upsertBootstrapChannelIdentity(db, {
-            channelCode,
-            externalId,
-            displayHandle: normalizeChannelDisplayHandle(username),
-          });
+          // D25: one exact named root (`app.integrator_upsert_channel_identity`), entered through the
+          // one direct-public principal chokepoint (`writeDirectPublic`), which re-installs the
+          // bootstrap principal the root's declared capability accepts — the webhook itself runs under
+          // `runWithIntegratorPrincipal`/`runWithOrganizationPrincipal` whenever the clinic is already
+          // resolved (telegram/webhook.ts), and the root is unreachable from those (audit K5, 22.08).
+          // It never opens a relation transaction and its lookup is channel-binding-only (no
+          // phone-based candidate widening), so the ambiguity this used to defer via
+          // `writeIdentityAndPreferencesDirect`'s injected merge cascade cannot occur here; see D26
+          // (`mergeCandidatesDirect.ts`, removed) — the integrator does not decide merges.
+          await writeDirectPublic('identity-upsert', () =>
+            upsertBootstrapChannelIdentity(db, {
+              channelCode,
+              externalId,
+              displayHandle: normalizeChannelDisplayHandle(username),
+            }),
+          );
           return;
         }
         case 'user.phone.link': {
@@ -286,19 +292,24 @@ export function createDbWritePort(
             return { userPhoneLinkApplied: false, phoneLinkReason: 'auth_channel_disabled' };
           }
           const phoneSuffix = phoneLogSuffix(phoneNormalized);
-          // D25: one exact named root (`app.integrator_bind_bootstrap_channel_phone`) for every
-          // principal — bootstrap and organization/integrator alike. It never opens a relation
-          // transaction and reports a conflict without deciding or executing an account merge (D26);
-          // the durable, repeat-aware `admin_audit_log` case below is the same one the retired
-          // relation-writer path (`applyMessengerPhonePublicBind`) used to record, now fed from the
-          // exact root's result whenever an organization is ambiently known (never for bootstrap).
+          // D25: one exact named root (`app.integrator_bind_bootstrap_channel_phone`), entered through
+          // the one direct-public principal chokepoint (`writeDirectPublic`), which re-installs the
+          // bootstrap principal the root's declared capability accepts — see `identity-upsert` above
+          // and audit K5 (22.08). That re-entry is scoped to the root call alone, so the ambient
+          // organization principal is back in force for the `admin_audit_log` case below. The root
+          // never opens a relation transaction and reports a conflict without deciding or executing an
+          // account merge (D26); the durable, repeat-aware `admin_audit_log` case below is the same one
+          // the retired relation-writer path (`applyMessengerPhonePublicBind`) used to record, now fed
+          // from the exact root's result whenever an organization is ambiently known.
           try {
-            const bindResult = await bindBootstrapMessengerPhone(db, {
-              channelCode: resource,
-              externalId: channelUserId,
-              phoneNormalized,
-              preferredPlatformUserId,
-            });
+            const bindResult = await writeDirectPublic('phone-bind', () =>
+              bindBootstrapMessengerPhone(db, {
+                channelCode: resource,
+                externalId: channelUserId,
+                phoneNormalized,
+                preferredPlatformUserId,
+              }),
+            );
             if (!bindResult.applied) {
               const reason = bindResult.failureCode as PhoneLinkFailureReason | null;
               logger.warn(
@@ -312,7 +323,19 @@ export function createDbWritePort(
                     db,
                     ...(getDispatchPort ? { getDispatchPort } : {}),
                     reason,
-                    candidateIds: bindResult.platformUserId ? [bindResult.platformUserId] : [],
+                    // K8 (audit, 22.08): the human Р-D26 hands the merge decision to opens this
+                    // case and must see BOTH colliding accounts — the source AND the account the
+                    // number/merge collided with, which the root now returns alongside it. It is
+                    // also what keeps `conflict_key` (sha256 of the sorted candidate ids) distinct:
+                    // with the source alone, two different conflicts sharing it collapsed into one
+                    // row and the second case disappeared into `repeat_count`.
+                    candidateIds: [
+                      ...new Set(
+                        [bindResult.platformUserId, bindResult.counterpartyPlatformUserId].filter(
+                          (id): id is string => typeof id === 'string' && id.length > 0,
+                        ),
+                      ),
+                    ],
                     details: {
                       channelCode: resource,
                       externalId: channelUserId,
