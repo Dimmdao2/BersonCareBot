@@ -292,3 +292,90 @@ brief/queue documents named in this pass's own scope line and the Pass-3 entry a
 | `git diff --check` | 0 | No whitespace errors. |
 
 NOT DONE: platform-merge rebuild / ordinary owner-login live gate / landing / TEST deploy / push / full CI.
+
+## Pass 5 — active-canon final pass, 21.08.2026
+
+Scope per `LIVE_FIXTURE_RETIREMENT_ACTIVE_CANON_FINAL_BRIEF_2026-08-21.md`: close the remaining active-plan
+fixture references outside the four files Pass 3/4 already closed — D30's Ш3 blocker, `FOUNDATION_PLAN.md`'s
+live seed instruction, `SAAS_DEPLOY_SEQUENCE.md`'s still-classified-live fixture reconciliation/product-smoke
+wording, `OWNER_READY_TEST/ROADMAP.md`'s two old-then-new УСТАРЕЛО/ЗАМЕНЕНО bullets, `SAAS_ENFORCE_ROADMAP.md`'s
+A1/product-smoke plan and status-table row still describing a dead checker as current, the superseded
+demo-fixture section of `SAAS_PROD_DEPLOY_PROCESS.md`, and the plan-map/hygiene-registry rows still calling the
+deleted `SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` live.
+
+### Current-doc corrections
+
+- `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` — Ш3's `CURRENT PARTIAL 03.08` note named the absent
+  `/run/bersoncarebot/saas-smoke.fixture` and a "test-session probe без нового временного auth-harness" as the
+  remaining blocker. Replaced with an ordinary named-TEST check on an already-registered owner account
+  (`AGENTS.md` §1a/§1b), explicitly stating no synthetic user is created and provider delivery is not yet claimed
+  to have passed.
+- `SAAS_FOUNDATION/FOUNDATION_PLAN.md` — §8 item 5 ("Multi-tenant test fixtures: seed two cabinets + one shared
+  Person") replaced with an existing-account/clinic isolation proof plus the guaranteed-rollback mutation
+  boundary from `docs/OWNER_DECISIONS.md:870-871`. The duplicate "isolation test fixtures (2 orgs + a shared
+  patient)" executive-summary line (§ before Block 5) and the §9 sequencing line ("Outbox + audit + soft-delete +
+  isolation fixtures") and the Phase-0 scope table row carried the same wording; all three reworded to "isolation
+  proof" against already-registered owner data, no seed.
+- `SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md` — still classified as a live sequence (no historical banner). Removed
+  the "Historical A/B sequence (superseded)" disposable-compatibility paragraph and its "must not be copied or run
+  against TEST" caveat (dead weight once removed, not moved elsewhere), removed "fixtures reconcile in a separate
+  short privilege window" and "mandatory product smoke" from the current-outcome paragraph, replacing both with a
+  pointer to the ordinary existing-owner acceptance check, and dropped the stale "fixture" word from
+  `deploy-test.sh`'s post-migration closure list (confirmed no `fixture` string exists in
+  `deploy/host/deploy-test-saas.sh`, `deploy-test.sh` or `deploy-test-full-reset.sh`).
+- `SAAS_FOUNDATION/OWNER_READY_TEST/ROADMAP.md` — both УСТАРЕЛО/ЗАМЕНЕНО old-then-new bullets (ST-01's seeder/smoke
+  note, and the struck `~~Fixture можно повторно применить~~` finalizer-checklist row) replaced with one positive
+  `[x]` current-state checkbox each; no retired seeder/fixture wording remains active in this file.
+- `SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md` — Phase A1 was still titled "Product-smoke contract and fixtures ·
+  tier: daily · audit: mini" with five `[x]` rows claiming `check:saas-product-smoke-contract` runs green today,
+  even though that checker/contract file no longer exists on disk (confirmed again by `ls`/`grep` below) and
+  `SAAS_S3_TEST_WALKTHROUGH.md`/`SAAS_PROD_DEPLOY_PROCESS.md` already record its 30.07.2026 retirement. Retitled
+  the phase "former product-smoke contract and fixtures · retired 30.07.2026, historical record only" with a
+  same-pattern retirement note as Phase B2's, pointing to D3/D4/E2 as the current path; the `[x]` rows themselves
+  are left as a historical record of what passed against the since-deleted checker, not rewritten as if still
+  runnable. The R0 phase-status table's A1 row ("Missing for roadmap exit: Owner-managed live fixture/base URL...")
+  changed to `retired 30.07.2026` state with `N/A — superseded by scenario-based D3/D4/E2 checks` instead of asking
+  for a live fixture. The D3/D4 struck operator-packet rows and "Overall acceptance commands" block were already
+  closed by Pass 3/4 and left unchanged; the unrelated C3/C4 queue-fixture and D2/D4 rollback-transaction language
+  is untouched per the oracle's own carve-out for test-local/queue-behavior fixtures.
+- `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` — deleted `## 2.2 SUPERSEDED HISTORICAL — former demo-fixture
+  closure findings (2026-07-25)` whole (61 lines: the demo-clinic-A/B verification-step analysis, the
+  `/run/bersoncarebot/saas-smoke.fixture` re-pointing question, the 2026-07-25 owner rulings sub-section, and the
+  failed-closure-leaves-TEST-down note). Git history retains it (this file's own history plus this result). The
+  following `## 2.5 Retired provider tables in an old dump` heading — initially dropped by the same line-range
+  delete — was restored so the section numbering and content stay intact. No PROD material outside §2.2 was
+  touched; no PROD action is authorized by this pass.
+- `SAAS_FOUNDATION_PLAN_MAP_2026-08-01.md` and `PLAN_HYGIENE_REGISTRY_2026-07-29.md` — the three rows classifying
+  `SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` as "живой процедурный контракт"/"ЖИВОЙ"/generic-wave "оставить
+  на месте" corrected to record it as deleted 21.08.2026 with the 30.07.2026 retirement citation (confirmed the
+  file is absent from disk below); no plan map or hygiene registry row now calls it live.
+- `runs/integrator-cleanup/LIVE_FIXTURE_RETIREMENT_CURRENT_PROCEDURE_CLOSURE_BRIEF_2026-08-21.md` — trailing blank
+  line at EOF removed so `git diff --check feat/doctor-ui-rebuild...HEAD` is clean once committed.
+
+### Exact commands and results
+
+| Command | Exit | Result |
+|---|---:|---|
+| `ls docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md` | 2 | Confirms the packet file is absent from disk. |
+| `grep -n -i "fixture" deploy/host/deploy-test-saas.sh deploy/host/deploy-test.sh deploy/host/deploy-test-full-reset.sh` | 1 (no match) | Confirms the deploy scripts' closure sequence has no fixture step, supporting the `SAAS_DEPLOY_SEQUENCE.md` edit. |
+| `rg -n -i "saas-smoke\.fixture\|saas-test-fixture\.env\|SAAS_TEST_FIXTURE_[A-Z_]+\|fixture-file\|fixture.*(seed\|reconcil\|packet)\|disposable fixture proof\|SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET" docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md docs/_TODO/SAAS_FOUNDATION/FOUNDATION_PLAN.md docs/_TODO/SAAS_FOUNDATION/SAAS_DEPLOY_SEQUENCE.md docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ROADMAP.md docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md docs/_TODO/SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md docs/_TODO/SAAS_FOUNDATION_PLAN_MAP_2026-08-01.md docs/_TODO/PLAN_HYGIENE_REGISTRY_2026-07-29.md` | 0 | Six remaining lines, all classified below. |
+| `git diff --check` | 0 | No whitespace errors in the working tree. |
+
+Remaining matches, by class (after the above changes):
+
+- `SAAS_DEPLOY_SEQUENCE.md:30` — "no fixture reconciliation window and no product-smoke-fixture step", an explicit
+  negative statement, not an instruction.
+- `SAAS_ENFORCE_ROADMAP.md:76` — "`smoke:saas-product` and its operator-managed `--fixture-file` are retired",
+  explicit negative/historical statement (already present before this pass).
+- `SAAS_ENFORCE_ROADMAP.md:476` — inside the already-struck `[-]` D3 operator-packet row explaining why it is
+  retired (Pass 3/4 work, left unchanged).
+- `SAAS_FOUNDATION_PLAN_MAP_2026-08-01.md:163` and `PLAN_HYGIENE_REGISTRY_2026-07-29.md:219,523` — the three rows
+  this pass just corrected to say the packet file is deleted/not live.
+
+None is a live executable/reference path for a fixture file, env, seed, reconcile step, or packet contract.
+
+### Not done
+
+Live TEST/DEV login, deploy, migration, DB, server, CI, push and landing were not run — out of this pass's
+mandate (docs-only, same-branch). `runs/clickthrough/` removal and the S3/S7.3/HARD_MIGRATION_PROTOCOL closures
+are Pass 4 work, not repeated here.

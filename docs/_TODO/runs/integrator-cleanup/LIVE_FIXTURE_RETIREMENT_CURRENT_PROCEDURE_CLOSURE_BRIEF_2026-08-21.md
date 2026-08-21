@@ -67,4 +67,3 @@
 - Явно stage только scoped paths; без `git add -A`; commit до конца хода.
 - Финал: SHA, exact commands и `NOT DONE: platform-merge rebuild / ordinary owner-login live gate / landing /
   TEST deploy / push / full CI`.
-

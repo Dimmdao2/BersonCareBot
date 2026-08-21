@@ -198,11 +198,19 @@ Tiers: **mini** = Sonnet/mechanical bounded change; **daily** = gpt-5.5 implemen
 gpt-5.6-sol only for security architecture. Each phase is audited independently by a different agent/model. No
 phase may claim exit from unit tests alone when its criterion requires a disposable DB or running application.
 
-### Phase A1 — Product-smoke contract and fixtures · tier: daily · audit: mini
+### Phase A1 — former product-smoke contract and fixtures · retired 30.07.2026, historical record only
 
-Scope: define deterministic, non-PII fixture IDs/accounts and a headless HTTP/browser harness for doctor, admin,
-and patient. Separate read-only smoke from controlled mutation scenarios so reruns are idempotent. The runner may
-retain legacy mode parsing for artifact compatibility, but the current acceptance evidence is locked TEST work.
+> **Why this phase is retired.** Fixture-based A1/product smoke was retired from deploy by owner decision
+> 30.07.2026 (`HARD_MIGRATION_PROTOCOL.md`; `AGENTS.md` §1b; `docs/OWNER_DECISIONS.md:870-871`).
+> `check-saas-product-smoke-contract.mjs`, `scripts/smoke-saas-product.mjs` and
+> `saas-product-smoke-contract.json` no longer exist on disk and neither `smoke:saas-product` nor
+> `check:saas-product-smoke-contract` exist in any `package.json`. The `[x]` rows below record a run that
+> passed against the since-deleted checker; they are history, not a runnable command or an open requirement.
+> The current product-smoke path is D3 (reads), D4 (writes) and E2 against the already registered owner
+> accounts and clinics — see "Overall acceptance commands for the current path" above.
+
+Scope (historical): define deterministic, non-PII fixture IDs/accounts and a headless HTTP/browser harness for
+doctor, admin, and patient. Separate read-only smoke from controlled mutation scenarios so reruns are idempotent.
 
 - [x] Specify route/API/state matrix: schedule, working hours, bookings, client card, analytics, content,
       broadcasts, patient appointments/program/media, admin settings/system health, public booking and Server Actions.
@@ -901,7 +909,7 @@ PASS, and the final D3 17/17 smoke remains absent.
 
 | Phase | State                             | Evidence used                                                                                                                                                                                                                                                                         | Missing for roadmap exit                                                                                                                                                                             |
 | ----- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A1    | repo-artifact-only                | `SAAS_PRODUCT_SMOKE_A1.md`; `pnpm run check:saas-product-smoke-contract`                                                                                                                                                                                                              | Owner-managed live fixture/base URL and deployed smoke proving non-empty product facts.                                                                                                              |
+| A1    | retired 30.07.2026 — see phase note | `SAAS_PRODUCT_SMOKE_A1.md` (historical); `check-saas-product-smoke-contract.mjs`/`smoke-saas-product.mjs` no longer exist on disk                                                                                                                                                    | N/A — superseded by scenario-based D3/D4/E2 checks against the already registered owner accounts and clinics.                                                                                        |
 | A2    | repo-artifact-only                | `deploy/nginx/test-webapp.conf`; `pnpm run check:saas-a2-nginx-forwarded-host`                                                                                                                                                                                                        | Effective `nginx -T`/Server Action proof on authorized deployed environment.                                                                                                                         |
 | B1    | repo-artifact-only                | `pnpm run check:saas-b1-doctor-admin-identity`; guard regression tests exist in webapp                                                                                                                                                                                                | Disposable fresh-copy diagnosis plus A1 doctor/admin subset green.                                                                                                                                   |
 | B2    | not-required-current-path         | `SEQUENCE.md:4-19` fixes TEST-first enforced readiness; taskdb #725/#734/#735 are live wall evidence, not B2 proof.                                                                                                                                                                   | The former twice-green dormant/restart gate served a later ON transition and is superseded. Do not run it or infer B2 PASS.                                                                          |
