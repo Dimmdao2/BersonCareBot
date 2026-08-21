@@ -46,7 +46,10 @@ import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
-import { parsePlatformIntegrationAvailabilityEnvelope } from '@/modules/system-settings/platformIntegrationAvailability';
+import {
+  isPlatformIntegrationAvailable,
+  parsePlatformIntegrationAvailabilityEnvelope,
+} from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
@@ -347,7 +350,7 @@ export default async function SettingsPage({
         ) : null}
         <ClinicDeliveryChannelsSection initial={clinicDelivery} />
         {shouldShowGoogleCalendarSettings(
-          integrationAvailability.integrations.google_calendar,
+          isPlatformIntegrationAvailable(integrationAvailability, 'google_calendar'),
           externalCalendarEnabled,
         ) ? (
           <GoogleCalendarSection

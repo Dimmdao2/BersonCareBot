@@ -9,6 +9,7 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import {
+  isPlatformIntegrationAvailable,
   PLATFORM_INTEGRATION_CATALOG,
   parsePlatformIntegrationAvailabilityEnvelope,
   type PlatformIntegrationAvailability,
@@ -88,7 +89,7 @@ export function PlatformIntegrationAvailabilitySection() {
               <LabeledSwitch
                 label={integration.label}
                 hint={integration.clinicHint}
-                checked={availability.integrations[integration.id]}
+                checked={isPlatformIntegrationAvailable(availability, integration.id)}
                 disabled={!loaded || saving !== null}
                 onCheckedChange={(enabled) => void updateIntegration(integration.id, enabled)}
               />

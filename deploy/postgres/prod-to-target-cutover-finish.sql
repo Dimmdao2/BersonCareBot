@@ -78,7 +78,7 @@ VALUES
    '{"value":{"retriesDebounceMinutes":15,"stalePendingDebounceMinutes":15,"oldestPendingStaleMinutes":30}}'::jsonb,
    now()),
   ('platform_integration_availability', 'admin', NULL,
-   '{"value":{"version":1,"integrations":{"telegram":true,"max":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}}'::jsonb,
+   '{"value":{"version":1,"integrations":{"telegram":true,"max":true,"vk":true,"email":true,"smsc":true,"web_push":true,"google_calendar":true,"yandex_calendar":false}}}'::jsonb,
    now())
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
 

@@ -59,6 +59,8 @@ vi.mock('@/modules/system-settings/platformIntegrationAvailability', () => ({
     version: 1,
     integrations: { google_calendar: false },
   }),
+  isPlatformIntegrationAvailable: (availability: { integrations: Record<string, boolean> }, id: string) =>
+    availability.integrations[id] === true,
 }));
 
 const { default: SettingsPage } = await import('./page');
