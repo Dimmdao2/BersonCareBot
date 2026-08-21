@@ -26,7 +26,7 @@ import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
  * Функция никогда не бросает: она стоит на пути отправки и не имеет права его ломать.
  */
 
-const EMPTY_AUDIENCE_FALLBACK_SUBJECT = 'BersonCare: некому доставить служебное уведомление';
+const EMPTY_AUDIENCE_FALLBACK_SUBJECT = 'Therapysto: некому доставить служебное уведомление';
 
 type FallbackEmailInput = {
   to: string;

@@ -135,7 +135,7 @@ export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceS
   ];
 
   const shellBrand = {
-    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'BersonCare',
+    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'Therapysto',
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,
   };
 

@@ -124,7 +124,7 @@ export function StaffPasskeySection() {
       </DoctorSectionHeader>
       <p className="text-sm text-muted-foreground">
         Вход подтверждается Face ID, отпечатком или кодом устройства — без пароля и без
-        дополнительного кода. Биометрия остаётся на устройстве и не передаётся BersonCare.
+        дополнительного кода. Биометрия остаётся на устройстве и не передаётся Therapysto.
       </p>
       {credentials.map((credential, index) => (
         <div

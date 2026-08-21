@@ -8,10 +8,11 @@ import {
 
 /** Metadata для staff layouts (`doctor`, `settings`, `admin`) — отдельный manifest, patient root не трогаем. */
 export const staffPwaLayoutMetadata: Metadata = {
+  title: 'Therapysto',
   manifest: STAFF_PWA_MANIFEST_PATH,
   appleWebApp: {
     capable: true,
-    title: 'BersonAdmin',
+    title: 'Therapysto',
     statusBarStyle: 'default',
   },
   icons: {

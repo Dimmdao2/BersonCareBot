@@ -28,13 +28,13 @@ describe('sendOperatorFallbackEmail — env label on the fallback subject', () =
   it('prefixes [PROD] and keeps the rest of the subject intact', async () => {
     await sendOperatorFallbackEmail({
       to: 'fallback@example.com',
-      subject: 'BersonCare: некому доставить служебное уведомление',
+      subject: 'Therapysto: некому доставить служебное уведомление',
       text: 'Служебное уведомление не имело ни одного адресата.',
     });
 
     expect(sendTransactionalEmail).toHaveBeenCalledWith(
       'fallback@example.com',
-      '[PROD] BersonCare: некому доставить служебное уведомление',
+      '[PROD] Therapysto: некому доставить служебное уведомление',
       'Служебное уведомление не имело ни одного адресата.',
     );
   });
