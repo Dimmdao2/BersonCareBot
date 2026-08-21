@@ -2,6 +2,10 @@
 
 Role: same-branch documentation/current-procedure worker on `wt/live-fixtures-retirement-20260821`.
 
+Источник оракула: `docs/OWNER_DECISIONS.md:870-871` — «отдельное fixture-наполнение для проверок на live
+DEV/TEST запрещено. Агенты, deploy и тесты используют уже зарегистрированные owner-учётки и клиники;
+rollback-only probe не оставляет fixture-сущностей».
+
 ## Authority
 
 - Read `AGENTS.md` heading map, then §0, §1a/§1b, §12 and §24 before editing.
