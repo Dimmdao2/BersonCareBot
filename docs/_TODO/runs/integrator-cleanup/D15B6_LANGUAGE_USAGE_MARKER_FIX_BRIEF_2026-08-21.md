@@ -47,4 +47,3 @@ tests/gates, docs/canon, DB/env/DEV/TEST/PROD или ветки.
 
 Запрещено: `migrate-dev.sh`, direct `psql`, ручной SQL, DB access, `--execute`, `--reapply`, fixture,
 disposable DB, landing, deploy, push, full CI.
-
