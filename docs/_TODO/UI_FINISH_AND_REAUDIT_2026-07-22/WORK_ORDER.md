@@ -65,8 +65,7 @@ exit `0`, а живой `POST /api/auth/email-otp/start` на TEST вернул 
 - **Консолидация функций — задавать вопрос в каждом брифе (`AGENTS.md` §5/§24.2, добавлено 20.08).** Владелец
   20.08 попросил ещё и прогнать этим вопросом уже СДЕЛАННЫЕ этапы Track D: для каждой уже влитой/закрытой ветки
   Track D (D10/D10a/D26/D39 и далее по мере закрытия) проверить, нет ли заведённой функции-дубля вместо параметра
-  существующей точки, и свести, если есть. ⛔ **ЗАМЕНЕНО 21.08 решением владельца:** прежние «не сейчас» и
-  «не начинать без явной команды» больше не действуют; проход разрешён в текущей оркестрации.
+  существующей точки, и свести, если есть. Проход разрешён в текущей оркестрации.
 
 ### 2.2 Track D — цель и решения, действующие на ВСЕ пункты
 
@@ -189,18 +188,18 @@ exit `0`, а живой `POST /api/auth/email-otp/start` на TEST вернул 
 13. **D19** — сверка правила и целевой схемы с тем, что получилось. Физически последний: проверяет уже выданную
     роль.
 
-Каждый пакет гоняет свои тесты плюс typecheck и lint затронутых приложений. Полный CI, disposable
-restore+migrate и живая проверка на TEST — это гейты вехи, а не повтор на каждый микропакет.
+Каждый пакет гоняет свои тесты плюс typecheck и lint затронутых приложений. Полный CI и живая проверка на именованных
+DEV и TEST — гейты вехи, а не повтор на каждый микропакет. Одноразовые базы и historical replay запрещены.
 
 ### 2.3 Track D — решения по отдельным пунктам
 
 Решение governs указанный пункт чек-листа; сам пункт хранит требование и доказательство и ссылается сюда.
 
-- **Р-D10 (владелец, 30.07), действует → D10.** `jsonStableStringify` сохранить только как детерминированную
-  сериализацию для хеша/ключа идемпотентности и при удалении транспорта перенести его из обвязки
-  `webappEventsClient` в нейтральный модуль; HTTP-body builder и весь смысл `integrator → webapp POST
-  /api/integrator/events` удалить. Кандидат `336e833e3` не интегрировать: алгоритм там тот же, а обвязка
-  обслуживает удаляемый контракт.
+- **Р-D10 (владелец, 30.07; уточнено 21.08), действует → D10.** `jsonStableStringify` сохраняется только как
+  нейтральная детерминированная сериализация для хеша/ключа идемпотентности. Старый HTTP-перенос/синхронизация
+  обращений поддержки из integrator в webapp удаляется: integrator принимает обращение и пишет его в новую систему
+  поддержки через свой DB-порт и права. Blanket-запрета на остальные integrator→webapp HTTP-вызовы нет: health,
+  web-push, materialization и channel binding до решения классифицируются отдельно по ownership и side effect.
 - **Р-D11 (владелец, 30.07), действует → D11.** «вырезай весь блок lfk-diary в интеграторе».
 - **Р-D12 (владелец, 30.07), действует → D12.** «просто вырезать; если что-то упадёт — посмотреть, что взять
   из старого кода и перенести в вебапп».
@@ -216,21 +215,19 @@ restore+migrate и живая проверка на TEST — это гейты �
   решение, не продуктовое; требование владельца ровно одно: остаётся одна, и она работает.
   **Инженерное решение (агентское), действует.** Журнал попыток доставки —
   `public.notification_delivery_attempts` (пациент, тема, организация, канал, статус, ошибка);
-  `integrator.delivery_attempt_logs` сносится. Очередь доставки — `public.outgoing_delivery_queue` (таблицу
+  `integrator.delivery_attempt_logs` отсутствует. Очередь доставки — `public.outgoing_delivery_queue` (таблицу
   определяет вебапп, обрабатывает воркер интегратора `worker/outgoingDeliveryWorker.ts` через
-  `db/repos/outgoingDeliveryQueue.ts`), недостающие поля добираются миграцией; `integrator.message_retry_jobs`
-  вырезается — обоснование и порядок шагов в `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` §3.
+  `db/repos/outgoingDeliveryQueue.ts`); `integrator.message_retry_jobs` отсутствует и в D30 не переносится.
   Переименование `notification_delivery_attempts` отклонено владельцем как лишняя миграция.
 - **Р-D16 (владелец, 31.07 + агентское прочтение), действует → D16.** Ответ владельца о методе: «Один цикл —
   да это ты же писал план… Как получить на такие вопросы ответ: НАЙТИ КАК ПРАВИЛЬНО — то есть как делается во
   взрослых системах». Формулировка «один цикл» была строкой плана, а не требованием владельца; уточнять её у
   него нельзя, выбор обосновывается практикой (`D16_LOOP_ARCHITECTURE_RESEARCH.md`: Celery, Sidekiq, Airflow,
   SQS, K8s CronJob, Postgres SKIP LOCKED).
-  **Действующее прочтение:** «один цикл» = один цикл ДОСТАВКИ внутри `worker`, а не один процесс на весь
-  интегратор. `jobQueueLoop`/`message_retry_jobs` и `outgoingDeliveryLoop`/`outgoing_delivery_queue` — один
-  класс работы, «обычная доставка / отложено / ретрай» держатся как СОСТОЯНИЯ одной строки в одной таблице (см.
-  Р-D10a). Очередь остаётся в интеграторе: повторы и лимиты у каждого канала свои. ⛔ Отдельного модуля
-  «воркер-шедулер» не заводить. Судьба процесса `scheduler` после D5–D7 решается по D30, а не отдельно.
+  **Действующее прочтение:** «один цикл» = один цикл ДОСТАВКИ внутри `worker`. Обычная доставка, отложенная попытка
+  и retry — состояния строки в единственной `public.outgoing_delivery_queue`; compatibility-имена методов
+  `jobQueue` второй таблицы или второго цикла не создают. Повторы и лимиты каналов исполняет integrator.
+  Топология процессов задаётся Р-D30 ниже.
 - **Р-D18 (владелец, 30.07), действует → D18.** «по ходу плана надо вычистить весь остаток сырого sql — то что
   не миграции и не корректно идёт в дриззл обёртку». ⛔ Перепись заранее не делается (владелец 30.07): она
   считает код, который исчезнет вместе с D11–D16, и протухает в день составления. Законно и не трогается:
@@ -300,13 +297,11 @@ restore+migrate и живая проверка на TEST — это гейты �
   сотрудника клиники и пациента; название аккаунта клиники и локации латиницей можно. Автоподстановку имени из
   мессенджеров и OAuth больше не делаем — требуем ввод при регистрации. Открытое: что делать с уже
   существующими латинскими именами в базе (развилка №1 схемы).
-- **Р-D30 (владелец, 31.07), действует → D30.** «Крон можно забыть снять, забыть поставить, отдать не тому
-  юзеру, добавится задание — и т.д. Я думаю крон для другого. Думаю, что всё должно быть наоборот. Всё, что
-  может переехать из крона в планировщик — переезжает туда. А вебапп отправляет только директ-сообщения в
-  интегратор. Интегратор, если не достучался — пишет в таблицу ретраи, а планировщик их уже собирает и
-  рассылает опять через интегратор.» Разделяются две оси: владение решением (какие напоминания, какие сроки,
-  какие тексты) — вебапп, как в D5–D7; исполнение по расписанию (кто крутит цикл и когда запускает) —
-  резидентный планировщик, а не cron и не таймер внутри вебаппа. Обоснование практикой —
+- **Р-D30 (владелец, 31.07 и 20.08), действует → D30, D16.** Разделяются две оси: владение решением (какие
+  напоминания, сроки и тексты) — webapp; исполнение по расписанию — integrator. `worker` и `scheduler` сводятся
+  в один резидентный процесс: один systemd-unit, один замок и один цикл. Повторы исполняются через единственную
+  `public.outgoing_delivery_queue`; отсутствующая `integrator.message_retry_jobs` в D30 не переносится и не
+  дренируется. Обоснование практикой —
   `D16_LOOP_ARCHITECTURE_RESEARCH.md`: cron даёт at-most-once по тику без due-gating, инстансов Next.js может
   быть несколько и они перезапускаются на каждом деплое, вечный цикл внутри вебаппа — анти-паттерн. Расписание
   в БД + выбор единственного главного (advisory lock `SCHEDULER_LOCK_KEY` уже есть).
@@ -318,18 +313,9 @@ restore+migrate и живая проверка на TEST — это гейты �
   Объём: переезжает всё, что сегодня висит на cron и является планированием; cron остаётся только там, где он
   внешний будильник инфраструктуры. Сюда же ложатся расчётные триггеры уведомлений
   (`QUOTAS_AND_MECHANICS_DESIGN_2026-07-28.md`): задание «за три дня до конца периода» записывается
-  планировщику в момент начала периода. Пошаговый план —
-  `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` (вердикт по каждой cron-точке, слияние очередей,
-  шаги Ш0–Ш9, развилки); дублировать его содержание здесь запрещено.
-  ⚠️ **Расхождение с более ранним прочтением, разрешено в пользу этого решения (31.07 новее).** §2.2 формулирует
-  цель Track D как «всё остальное уезжает в вебапп», из чего читалось, что и цикл исполнения планировщика
-  переезжает в вебапп. Это решение прочтение отменяет прямо: владение решением — вебапп, но исполнение по
-  расписанию остаётся резидентным процессом вне вебаппа. Актуальна эта редакция.
-- **Р-D30а (владелец, 20.08, развилка №1 плана D30), действует → D30, D16.** «решили свести их в один
-  процесс. да». `worker` и `scheduler` сводятся в ОДИН резидентный процесс: один systemd-unit, один замок,
-  один цикл. Захват заданий остаётся через `SKIP LOCKED`, чтобы разнести обратно можно было без изменения
-  контракта очереди. Граница: горизонтальное масштабирование доставки при этом теряется — это принято.
-  ⛔ Развилка №1 закрыта; заводить её заново запрещено.
+  планировщику в момент начала периода. Детализация cron-точек и шагов —
+  `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`; статус каждого шага закрывается только фактическим
+  code/runtime evidence. Захват заданий сохраняет `SKIP LOCKED`.
 - **Р-D31 (владелец, 31.07, развилка №4 карты), действует → D31.** «делать API для VK, инсту удалять».
 - **Р-D32 (владелец, 31.07, развилка №10 карты), действует → D32.** «Какое голосовое? У нас нет такого
   механизма пока в вебапп. Если ты про бота — можно ответить, что пока не поддерживается».
@@ -423,24 +409,15 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
 Решения, действующие на все пункты, — §2.2. Порядок исполнения — §2.2 «Порядок исполнения Track D», читать
 только его.
 
-> **Pre-TEST census 05.08 (#987, `123029848`): READY for TEST deploy** — честная разметка, не закрытие чекбоксов.
-> ⛔ **СТРОКА НИЖЕ УСТАРЕЛА, ИСПРАВЛЕНО 20.08 (владелец поймал дважды: банер тут не поправили, когда поправили
-> сам пункт D10a).** `integrator.message_retry_jobs` физически отсутствует на DEV и на TEST — снесена ранее
-> (`DB_PRIVILEGE_LAYER_REBUILD` TEST-QUEUE-2026-08-11, `PLAN.md:142` `[x]`), дренировать нечего, блокера «до
-> 29.08» не существует. Живая проверка 20.08: `outgoing_delivery_queue` — единственная активная очередь
-> (`pending=92`, `dead=87`, `sent=2564` на DEV сейчас); `integrator.delivery_attempt_logs` жив и пишется по сей
-> день (последняя запись 2026-08-19) — вот это и есть реальный остаток D10a/D16, не «ждём дренажа». Полный
-> статус — в самом пункте D10a ниже.
-> **OWNER-DEFER СНЯТО 20.08 (владелец, дословно): «сколько можно говорить про то что 'не сейчас' — устаревшая
-> запись и её надо удалить».** D15b/7 (псевдоним) — в работе, не отложено; см. пункт ниже.
-> **Прогресс без ложного `[x]`:** D15b/5–6, D18b touched-path slices 1–4, D10a journal partial.
+> **Текущий статус 21.08.** `integrator.message_retry_jobs` отсутствует; ожидания дренажа до 29.08 нет.
+> D15b/7 не отложен. Закрытие каждого следующего пункта требует собственного фактического evidence.
 
 #### Пункты D0–D19
 
 - [x] **D0 — честный гейт вывода, без удаления.** `--expect-post-r6` обязан обнаруживать ветку/пакет
       `booking.upsert`, `buildAppointmentRecordUpsertedFanout`, производителя и обработчика
       `appointment.record.upserted`, `/api/integrator/events`, `tryEmitWebappProjectionThenEnqueue`,
-      `projection_outbox` и воркер проекции. Фикстура/самотест доказывает, что каждая категория меняет вердикт.
+      `projection_outbox` и воркер проекции. Самотест доказывает, что каждая категория меняет вердикт.
 - [x] **D1 — идентичность и предпочтения уведомлений.** Одна транзакция интегратора пишет якоря каналов и
       канонические `public.platform_users` / `user_channel_bindings` / `user_notification_topics`; свою
       канальную идентичность и состояние мессенджера интегратор сохраняет.
@@ -510,7 +487,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       `docs/archive/2026-07-rubitime-retirement/`.
 - [x] **D9b — уборка provider-neutral проекции записей.** **DONE 2026-07-30:** удалены только неиспользуемые
       `publicAppointmentRecordSync` и остатки транспорта `appointment.record.*`; канонический жизненный цикл
-      записи, `message_retry_jobs`, `booking_calendar_map` и синк Google сохранены. Доказательство:
+      записи, очередь доставки, `booking_calendar_map` и синк Google были вне scope. Доказательство:
       `legacyAppointmentProjectionTransport.contract.test.ts` + целевая fault injection + независимый аудит.
       ⛔ Архив Rubitime не является доказательством удаления provider-neutral данных.
 - [ ] **D10 — снос транспорта проекции, после всех производителей.** Только после точной переписи «нулевой
@@ -734,238 +711,26 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `.returning()` — echo только что записали. Доказательство: `rg platformUsers\.(displayName|…)`
             по `apps/webapp/src/infra` → один файл с `.returning()`; `fio.route.test.ts` 4/4;
             journal-sync + migrator self-test зелёные; typecheck без ошибок в затронутых файлах.
-      - [ ] **D15b/6 — контакты в `user_contacts`** (36 читателей в исходной переписи `infra`). Не перенос, а сборка из ЧЕТЫРЁХ
-            мест: колонки `platform_users`, `user_oauth_bindings.email`, `user_phone_history`,
-            `user_channel_bindings`. Уникальные индексы переезжают вместе — они держат «один контакт = один
-            аккаунт». Равноправный вход переводится на эту таблицу.
-            ✅ **#987 slice 1 (`c698e703d`):** migration `0379_user_contacts_d15b6_local.sql` — table +
-            backfill + unique indexes + RLS; `syncUserContactsMirror`; login paths; initial dual-write.
-            ✅ **#987 slice 2 (`50bdcb705`):** census §2.1 infra contact readers → `userContactsSql`
-            (`CONTACTS`/`CONTACTS_HAS_PHONE`/`CONTACTS_NO_PHONE`/laterals/`drizzlePrimary*Col`/`primaryPhoneCoalesceFor`);
-            dual-write completed on writers (`pgUserProjection`, `pgEmailAuth`, `pgEmailSetupFlowPort`,
-            `pgDoctorClientCreate`, `pgIdentityResolution`, `pgChannelLinkStart`/`Claim`, …);
-            purge deletes `user_contacts`. Доказательство: `rg` census files import `userContactsSql`;
-            `vitest run --project unit userContactsSql.unit.test.ts d15b5FioDualWriteGaps.unit.test.ts` 8/8.
-            ✅ **#987 slice 3 (`a80997914` + this commit):** audit MF messenger bind — mirror after both
-            `user_channel_bindings` INSERT paths (`pgPhoneMessengerBind`); trusted phone lookup
-            (`findTrustedCanonicalUserIdByPhone`) and public booking resolve (`pgPublicBookingUserResolve`)
-            read via `user_contacts` assembly + dual-write mirrors on create. Доказательство:
-            `d15b6PhoneMessengerBindMirror.unit.test.ts` 2/2;
-            `pgCanonicalPlatformUser.unit.test.ts` + `pgPublicBookingUserResolve.unit.test.ts` 4/4.
-            ✅ **#987 slice 4 (this commit):** migration
-            `0380_drop_platform_users_contact_unique_d15b6_local.sql` — fail-closed phone/email mirror
-            parity, then drop `platform_users_phone_normalized_key` and
-            `uq_platform_users_email_normalized_active`; uniqueness enforced on `user_contacts` only.
-            Merge clears duplicate `user_contacts` before target mirror; 23505 handlers →
-            `uq_user_contacts_phone` / `uq_user_contacts_email`. Доказательство:
-            `bash apps/webapp/scripts/check-drizzle-journal-sync.sh`;
-            `node apps/webapp/scripts/run-webapp-drizzle-migrate.mjs --self-test`;
-            `pnpm --dir apps/webapp test -- userContactsSql.unit.test.ts d15b5FioDualWriteGaps.unit.test.ts pgCanonicalPlatformUser.unit.test.ts pgPublicBookingUserResolve.unit.test.ts`.
-            ⛔ **OWNER-REOPENED 14.08.2026 — прежнее `[x]` было ложным.** Слайсы 1–4 перенесли уникальность и
-            часть чтений, но не источник истины: production writer `syncUserContactsMirror` всё ещё удаляет
-            строки пользователя и пересобирает их из `platform_users`, `user_oauth_bindings` и
-            `user_phone_history`. Живой DEV замер дал полное совпадение всех `200` основных телефонов и `126`
-            основных email со старыми колонками, то есть `user_contacts` пока зеркало. Целевая схема подтверждена:
-            таблица привязок контактов остаётся и становится единственным источником phone/email; зеркальный
-            rebuild и дублирующие contact-колонки снимаются после перевода auth/session/delivery/merge путей.
-            Точный замер `200|126`:
-            `sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FILTER (WHERE contact_kind='phone' AND is_primary), count(*) FILTER (WHERE contact_kind='email' AND is_primary) FROM public.user_contacts;"`.
-            Старые `integrator.contacts`, `integrator.identities`, `integrator.users`,
-            `integrator.telegram_users` в каталоге DEV отсутствуют. D15b/6 закрывается только direct canonical
-            writes + отсутствие runtime-читателей старых колонок + fail-closed migration parity/drop + live
-            login/bind/delivery proof; исторические `user_phone_history` и provider binding не считаются
-            каноническим контактом и не должны обратно собирать его.
-            ⛔ **OWNER-DEFER 14.08.2026 ЗАМЕНЁН 21.08.2026:** полный physical cutover, единый rich user facade и
-            перевод infra-читателей разрешены в текущей оркестрации. Сохраняются фактические зависимости, безопасный
-            порядок DEV→TEST и отдельно разрешаемый PROD; временный mirror-writer по-прежнему не считается
-            закрытием D15b/6.
-      - [ ] **D15b/7 — псевдоним.** ⛔ **«OWNER-DEFER 03.08» СНЯТО 20.08 — в работе, не отложено.** Владелец,
-            дословно: «сколько можно говорить про то что 'не сейчас' — устаревшая запись и её надо удалить».
-            Зависит по факту от D15b/6 (контакты — источник истины, сейчас реопенут) — сначала он, псевдоним
-            следующим шагом, без искусственного ожидания. Замер ⚠️ ИСПРАВЛЕН ПЕРЕПИСЬЮ: не «46 ключей», а
+      - [ ] **D15b/6 — `public.user_contacts` становится единственным текущим хранилищем phone/email.**
+            Это не перенос контактов из integrator: старые `integrator.contacts`, `integrator.identities`,
+            `integrator.users`, `integrator.telegram_users` отсутствуют, а живая DEV-сверка 21.08 после удаления
+            тестового пользователя подтвердила: недостающих/разошедшихся phone/email и дублей нормализованных contact-значений нет.
+            **Один атомарный критерий закрытия:** auth/session/delivery/merge и integrator читают и пишут текущий
+            phone/email только через свои DB-порты в `public.user_contacts`; зеркальный rebuild удалён; fail-closed
+            проверка паритета/дублей проходит перед DROP; дублирующие contact-колонки `platform_users` удалены; на именованной DEV,
+            затем TEST доказаны живые login/bind/delivery без возврата к старым колонкам. Исторические
+            `user_phone_history` и provider binding не становятся вторым текущим контактом.
+            ✅ **Задел #987 (`c698e703d`, `50bdcb705`, `a80997914`):** таблица, RLS, уникальность и часть читателей уже переведены;
+            это не закрывает пунк, пока mirror-writer и старые колонки живы.
+      - [ ] **D15b/7 — псевдоним.** Делается после D15b/6; откладывающей owner-метки нет. Замер переписи: не «46 ключей», а
             **130 FK-constraint'ов от 104 таблиц**; классификация по трём группам и спорные случаи — в
             документе переписи. Плюс предикаты RLS всех 157 SCOPED-таблиц. Единственный необратимый шаг.
-- [x] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): журнал попыток —
-      `public.notification_delivery_attempts`, `integrator.delivery_attempt_logs` сносится; очередь —
-      `public.outgoing_delivery_queue`, `integrator.message_retry_jobs` вырезается, недостающие поля добираются
-      миграцией.
-      ⚠️ **ПРОГРЕСС 04.08, не закрывает D10a целиком:** merge `84b376f5a` (`wt/delivery-attempt-log`) — журнал
-      `integrator.delivery_attempt_logs` снова пишет operator-alert попытки (audit PASS `660c37c01`); целевая
-      консолидация в `notification_delivery_attempts` и снос integrator-таблицы — ещё открыты (вместе с D16/D30).
-      ⚠️ **ПРОГРЕСС 05.08 (#987):** `app.record_operator_delivery_attempt` пишет в
-      `public.notification_delivery_attempts` (org/user/topic из queue payload); worker убрал параллельный
-      `recordNotificationDeliveryAttemptBestEffort`; `dispatchPort` логирует web-push skipped/failed и
-      recipient_blocked_bot как skipped. Снос `integrator.delivery_attempt_logs` и `message_retry_jobs` —
-      по-прежнему с D16/D30 после дренажа legacy-очереди. **Pre-TEST census 05.08: DROP заблокирован до
-      ~2026-08-29** — 20 `pending` строк с `due` по 29.08 на DEV; `[ ]` не снимать раньше дренажа.
-      ⛔ Порядок: сначала перевести потребителей метрик и сердцебиения на остающуюся очередь, потом сносить
-      лишнее миграцией. Снос вести вместе с D16 и D30 — там же считаются циклы.
-      ✅ **ПРОВЕРКА 20.08 против живых баз — часть заявленного УЖЕ СДЕЛАНА, галочка отставала.**
-      `integrator.message_retry_jobs` НЕ существует ни на DEV, ни на TEST; в схеме `integrator` остались
-      `delivery_attempt_logs`, `idempotency_keys`, `integration_data_quality_incidents`, `projection_outbox`,
-      `schema_migrations`, `user_reminder_delivery_logs`, `user_reminder_occurrences`. Очередь ретраев
-      интегратора пишет в `public.outgoing_delivery_queue` (`infra/db/repos/jobQueue.ts`). Блокер «DROP
-      заблокирован дренажом до ~29.08» снят реальностью — дренировать нечего. Открытым по D10a остаётся снос
-      `integrator.delivery_attempt_logs` в пользу `public.notification_delivery_attempts`.
-      🟡 **Перепись производителей/читателей 20.08** (`D10A_D16_CONSOLIDATION_2026-08-20.md`, докс-only,
-      приземлено): снос ещё НЕ готов — жив один писатель (`messageLogs.ts:81` →
-      `app.record_operational_delivery_attempt_audit`, десятиаргументный именованный root) и два
-      зарегистрированных CLI-читателя (`backfill-communication-history`, `reconcile-communication-domain` —
-      второй реально вызывается `scripts/stage6-release-gate.mjs:44`, релиз-гейтом). Оба ридера вне скоупа
-      `apps/webapp/src/**`, которым был ограничен воркер. Отдельно найден спящий второй писатель через C4-оверлей
-      (`deploy/postgres/c4-operational-runtime.sql:926-996`, девятиаргументный `record_operational_delivery_attempt_audit`,
-      провижинится `provision-c4-operational-runtime.sh`) — сейчас не вызывается ни одним найденным caller'ом, но
-      способен вернуть legacy-писателя при провижининге оверлея; надо свести с десятиаргументным контрактом ДО
-      сноса. **Следующий шаг — не новый воркер, а решение оркестратора**: расширить скоуп на
-      `apps/webapp/scripts/**` + разобраться с C4-оверлеем, только потом готовить DROP-миграцию (не применять —
-      воркеры миграции не применяют).
-      🔴 **НАХОДКА 20.08, замерена ведущим на живых базах — файл деплоя разошёлся с генератором и с реальностью.**
-      `deploy/postgres/c4-operational-runtime.sql:926` создаёт **девятиаргументную**
-      `app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamptz)` —
-      БЕЗ `organization_id`, пишущую в legacy `integrator.delivery_attempt_logs`, и выдаёт на неё
-      `GRANT EXECUTE` воркеру доставки. Но:
-      — на живых `bcb_webapp_dev` И `bersoncarebot_test` существует **только десятиаргументная** версия
-        (`…,uuid,…` — с `organization_id`), девятиаргументной там нет вообще (`pg_proc`, проверено);
-      — генератор прав знает тоже только десятиаргументную (`generated/privileges.*.sql`,
-        `generated/port-context-capabilities.*.sql`);
-      — приложение зовёт строго десятиаргументную по полной сигнатуре (`repos/messageLogs.ts:81`).
-      То есть c4-файл — застрявшая старая редакция. Опасность не теоретическая: `c4-operational-runtime.sql`
-      лежит на пути `deploy/host/provision-c4-operational-runtime.sh`, который вызывают **`deploy-prod.sh` и
-      `deploy-test-saas.sh`**; при следующем развёртывании в базе появится функция, о которой генератор прав
-      ничего не знает, с выданным EXECUTE, org-слепая, пишущая в таблицу, которую D10a готовится снести.
-      ⛔ Правку НЕ делать вслепую: сигнатуры разные, поэтому `CREATE OR REPLACE` не заменит правильную функцию,
-      а ДОБАВИТ вторую рядом. Порядок: сверить c4-файл с генератором как источником истины, убрать устаревшую
-      девятиаргументную декларацию вместе с её GRANT-строкой, и только потом DROP legacy-таблицы.
-      ⛔ **ОТКЛОНЕНО 20.08: правка `reconcile-communication-domain.mjs` (`37e8ef818`, ветка
-      `wt/d10a-scope2-20260820`) — НЕ приземляется, ломает релиз-гейт.** Воркер перенаправил сверку с
-      `integrator.delivery_attempt_logs.intent_event_id` на `notification_delivery_attempts.event_id`. Ведущий
-      проверил на живой `bcb_webapp_dev` — populations разные: старый источник даёт 6214 уникальных id, из
-      которых **6137 совпадают** с целью `support_delivery_events` (то есть покрытие цели 100%, расхождение 77
-      строк, ~1.2%); новый источник даёт 2305 id, из которых совпадают только **531**. После правки гейт считал
-      бы ~77% расхождения вместо реальных 1.2% — то есть проверял бы не то и врал. Причина: `event_id` в
-      канонической таблице заполнен лишь у 2305 из 12419 строк и это не тот же идентификатор. Этот ридер —
-      НЕ механический редирект (первая перепись это и говорила про соседний `backfill`-скрипт); ему нужен
-      осознанный редизайн вместе со сносом таблицы, а до сноса он обязан читать старую таблицу.
-      🔴 **БЛОКЕР D10a, измерен ведущим на живой `bcb_webapp_dev` 20.08 — цель пункта в нынешнем виде
-      НЕДОСТИЖИМА: канонический журнал структурно НЕ УМЕЕТ записать половину доставок.**
-      Замер (`public.notification_delivery_attempts` за 30 дней, разбивка канал×статус): `email` — 200 `skipped`
-      и **НОЛЬ `success`**; `smsc`/`sms` — **ноль строк вообще**. При этом legacy `integrator.delivery_attempt_logs`
-      за тот же период пишет живые `email|success` (последняя — 19.08, вчера) и `smsc|success`. Всего за 30 дней
-      495 legacy-строк, из них 84 не имеют пары в каноническом журнале — все со статусом `success`.
-      **Причина найдена, не гипотеза:** `app.record_operator_delivery_attempt` (`\sf` на живой базе) обязана
-      найти ТОЧНУЮ строку-источник в `public.outgoing_delivery_queue` по `channel` + `payload_json #>>
-      '{intent,meta,eventId}'`, иначе `RAISE EXCEPTION 'operator delivery attempt has no exact queue source'`
-      (`23514`). А два целых класса писем через очередь не проходят ВООБЩЕ (проверено построчно, ни один
-      `intent_event_id` не находит строку очереди ни на своём канале, ни на любом):
-      — `operator-alert:incident:…:email:…` — письма оператору об инцидентах (это ровно тот путь, про который
-        известен пробел в прод-алертинге);
-      — `booking.confirmation.ics:<uuid>` — письма подтверждения записи ЖИВЫМ пациентам.
-      Отдельно: очередь называет канал `sms`, legacy-журнал — `smsc`; при точном сравнении `queue.channel =
-      p_channel` это никогда не совпадёт, что объясняет полное отсутствие SMS в каноническом журнале.
-      **Следствие для порядка работ:** снести `integrator.delivery_attempt_logs` сейчас — значит молча
-      перестать журналировать подтверждения записи пациентам и алерты оператору. Сначала канонический журнал
-      обязан научиться принимать попытку БЕЗ строки очереди (или эти отправки обязаны идти через очередь) —
-      и только потом писатель, ридеры и DROP. Это условие самого D10a («сначала перевести потребителей… потом
-      сносить»), а не новый скоуп.
-      ✅ **РАЗВИЛКА ЗАКРЫТА 20.08 ведущим — решение Р-D10a-2, владельца не касается (инженерное).**
-      Разбор перед решением уточнил картину: раскол не «email против telegram», а **«отправлено воркером
-      доставки против отправлено мимо него»**. Роутер
-      `operatorDeliveryAttemptWritePort.ts:34` шлёт попытку в канонический журнал ТОЛЬКО когда принципал —
-      `worker:outgoing-delivery-tick`; всё прочее падает в legacy-ветку `writePort.ts:882`.
-      **Решение: канонический журнал обязан принимать попытку БЕЗ строки очереди.** Довод, который закрывает
-      альтернативу: провести operator-alert через очередь доставки НЕЛЬЗЯ по существу — это алерт о том, что
-      доставка сломалась, и он не имеет права зависеть от сломанной доставки. Значит «всё через очередь» —
-      не улучшение, а ошибка проектирования. Второй класс, `booking.confirmation.ics`, — отдельный вопрос
-      единого цикла (**D16**), а не этой правки: это живой путь писем пациентам, менять его синхронность
-      попутно нельзя.
-      **Проверено, что цель это выдержит:** в `public.notification_delivery_attempts` `organization_id`
-      **nullable** (NOT NULL только `channel` и `status`), а политики RLS дают
-      `app_seam_telemetry_operator_owner` / `saas_system_health_owner` читать всё, тогда как арендатору
-      `rev10_tenant_select_122` показывает лишь свою клинику. То есть платформенный алерт без клиники ляжет
-      правильно: оператор его увидит, чужая клиника — нет.
-      **Где делается правка (конвенция репозитория, не выбор):** тело
-      `app.record_operator_delivery_attempt` принадлежит миграционному леджеру — это прямо заявлено в
-      `scripts/check-c4-migration-owned-function-bodies.mjs`, а `c4-operational-runtime.sql` держит по нему
-      только `ALTER`/`REVOKE`/`GRANT`. Значит это **миграция**, НЕ правка c4-файла; гранты при этом остаются в
-      генераторе привилегий, как требует канон. Воркер миграцию пишет, но НЕ применяет — применяет и
-      доказывает ведущий на именованной DEV.
-      ⚠️ **Помечено как протухшее:** `DB_PRIVILEGE_LAYER_REBUILD/evidence/30-definer-seams-full-census.md:81`
-      утверждает, что тела функции на TEST и DEV расходятся («TEST пишет широкую notification projection;
-      DEV — узкий operator log»). На 20.08 это неверно: `md5(prosrc)` на обеих базах совпадает
-      (`63c7f67e…`), обе пишут `public.notification_delivery_attempts`. Расхождение с тех пор устранено.
-      ✅ **ЖИВОЕ ДОКАЗАТЕЛЬСТВО ПОЛУЧЕНО 20.08 + ЕДИНСТВЕННЫЙ ПИСАТЕЛЬ СДЕЛАН.** Реализация Р-D10a-2 —
-      merge `1617f53ae`: новая ДЕСЯТИаргументная `app.record_operator_delivery_attempt` (форма совпадает с
-      legacy-дверью, поэтому та снимается без потери полей), тело ушло миграцией, права остались в генераторе.
-      Доказано ведущим на живой `bcb_webapp_dev` под НАСТОЯЩИМ принципалом (`bcb_dev_integrator` по mTLS,
-      `app.begin_port_context`, эффективная роль `app_operational_delivery_worker`), а НЕ тестом:
-      — письмо ПАЦИЕНТУ без строки очереди → строка записана, клиника СОХРАНЕНА;
-      — алерт ОПЕРАТОРУ без строки очереди → строка записана, клиника NULL (верно для платформенного события);
-      — регрессия queue-ветки с намеренно неверными аргументами → победили данные очереди, подлог не просочился.
-      Оба письма — `email|success`, класс, которого в каноническом журнале за 30 дней было НОЛЬ; до правки оба
-      вызова падали бы с `23514`. Пробные строки удалены (остаток проверен запросом — 0).
-      Следом merge `c5440424a`: развилка по принципалу снята, **канонический журнал — единственный писатель**,
-      legacy-писатель удалён из кода (ноль вхождений). Независимый аудит соседнего оркестратора со слепой
-      инъекцией поломок — PASS, убито 3, не поймано 0; ведущий перепрогнал сам: 502 passed, typecheck 0.
-      🔴 **ДЕФЕКТ СВОЕЙ ЖЕ РАБОТЫ, НАЙДЕН И ПОЧИНЕН 21.08 (`669d282ba`) — читать всем, кто трогает
-         именованные корни.** После «единственного писателя» весь `delivery.attempt.log` пошёл в
-         `app.record_operator_delivery_attempt`, а каталог capability port-context объявлял ТОЛЬКО старую
-         дверь `record_operational_delivery_attempt_audit`. Резолвер принципала интегратора требует ровно
-         одного точного совпадения function identity и упал бы ГРОМКО ещё до SQL —
-         `Missing unique declared integrator port capability`. Проверено запросом к
-         `app_ext.port_context_capabilities` на обеих живых базах: записи под канонический корень не было
-         ни на DEV, ни на TEST. Живого падения не наблюдалось только потому, что DEV-интегратор не запущен,
-         а на TEST крутится код ДО D10 — то есть это выстрелило бы на первой же выкатке.
-         Починка тройная, одна причина: `declaration.ts` (capability → канонический корень),
-         callsite-оракул (та же дверь, новый файл вызова; полей те же десять) и сам вызов — идентичность
-         теперь стоит ЛИТЕРАЛОМ, а не через константу. Артефакты перегенерированы: канонический корень
-         получил `exact`-гейт с хешем типизированных аргументов.
-      ⚠️ **ПРАВИЛО, РОЖДЁННОЕ ЭТИМ ПРОВАЛОМ — 5.1.11, применять ко ВСЕМ пунктам D0–D35.**
-         **Пакет, который заводит, переименовывает или меняет подпись именованного корня в базе, обязан
-         прогнать `node --test deploy/postgres/privileges/port-context-callsite-catalog.test.mjs` — и это
-         обязанность ВЕДУЩЕГО, а не воркера.** Сторож существовал и поймал бы дефект сразу: он сверяет
-         каталог capability с местами вызова, читая аргумент статически. Я его не прогнал, потому что гонял
-         наборы приложений (`vitest` интегратора и вебаппа), а этот гейт живёт ОТДЕЛЬНО, вне их — и
-         «зелёный CI приложений» его отсутствие не показывает. Из этого же следуют два запрета:
-         — ⛔ **идентичность корня в вызове пишется литералом.** Вынос в константу прячет её от сверки, и
-           расхождение каталога с кодом становится невидимым до первого живого отказа принципала;
-         — ⛔ **несовпадение каталога с кодом чинится ОБЪЯВЛЕНИЕМ capability, никогда грантом роли и
-           никогда правкой теста под сломанный код.**
-      🟡 **Остаток того же сторожа, НЕ мой хвост по D10a, а хвост D10 — отдан работающему пакету сноса.**
-         Красным осталось ровно одно: `app.read_integrator_projection_health(integer)` — корень, чей вызов
-         снесён вместе с транспортом проекции (`rg` по `apps/` даёт ноль), а объявления живы в трёх местах:
-         capability (`declaration.ts:2312`), сам корень (`declaration.ts:4274`) и callsite-оракул (:640).
-         Корень читает `integrator.projection_outbox`, поэтому снимается ВМЕСТЕ с таблицей — это ветка
-         `wt/d10-outbox-drop-20260821`. Отдельного скоупа не заводить.
-      🔴 **Остаток D10a — снос legacy-таблицы, и ПЕРЕД ним обязателен перенос истории.** В
-      `integrator.delivery_attempt_logs` ~6280 строк; DROP без переноса — потеря журнала. Порядок: перенести
-      историю в `public.notification_delivery_attempts` (attempt/correlation/payload → `metadata`,
-      `occurred_at` → `created_at`), затем снять два CLI-ридера cutover'а вместе с их вызовом из релиз-гейта,
-      затем DROP миграцией и снятие прав legacy-двери в генераторе.
-      ⚠️ **Долг проверяемости, найден при живом заходе:** opt-in real-Postgres тесты (этот и D4-шный) НЕ
-      запускаются — гейт требует `DB_PRINCIPAL_SIGNING_SECRET`, которого под `port-context` нет, и оснастка
-      ждёт роль `app_staff`, а получает `app_tenant_service`. Молчаливый `skipped` хуже красного: выглядит
-      как «не сломано». Чинить оснастку под port-context.
-      ℹ️ Попутно снят вопрос «что делать с двумя CLI-ридерами»: `backfill-communication-history` и
-      `reconcile-communication-domain` — инструменты РАЗОВОГО cutover'а (читают `INTEGRATOR_DATABASE_URL`,
-      исторически отдельную базу интегратора; после объединения оба URL смотрят в одну базу). Каноническая
-      `public.support_delivery_events` при этом живая и имеет собственных писателей
-      (`pgSupportCommunication.ts:535`, `writeSupportQuestionsDirect.ts:288`) и читателя (`:618`) — от legacy-таблицы
-      она не зависит. Значит ридеры не «редизайнятся», а уходят вместе с legacy-таблицей одним пакетом; до
-      этого момента расхождение, которое ловит релиз-гейт (77 строк), — не мусор, а ровно те свежие строки,
-      что описаны блокером выше.
-      ✅ **ЗАКРЫТО 21.08 (#987), land `f02027dcf`, named DEV:** миграция
-      `20260821T003000_cut_over_delivery_attempt_history.sql` перенесла legacy history в
-      `public.notification_delivery_attempts` с deterministic UUID и exact field/provenance parity, затем
-      сняла legacy root/table. Предварительный точный замер командой
-      `sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -qAtc
-      "BEGIN READ ONLY; SELECT count(*) FROM integrator.delivery_attempt_logs; ROLLBACK;"` → `6280`.
-      `migrate-dev.sh --preflight` и `--execute` → PASS; post-apply assertions дали ledger/table/function/
-      provenance-count/provenance-distinct = `1/1/1/1/1`, а aggregate provenance = `6280/6280`.
-      Оба one-shot reader-а, package registrations, stage6 release gate, Drizzle declarations и active
-      deploy/cutover access paths удалены. `refresh-prod-to-target-cutover --confirm-local-dev-target-refresh`
-      и `pnpm run check:prod-to-target-cutover` → PASS; live canonical-writer test под именованной DEV —
-      `operatorDeliveryAttempts.integration.test.ts`, `1` файл / `9` тестов PASS. TEST остаётся следующим
-      deploy-gate, PROD не трогался.
+- [x] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): текущий журнал попыток —
+      `public.notification_delivery_attempts`, текущая очередь — `public.outgoing_delivery_queue`.
+      `integrator.message_retry_jobs`, `integrator.delivery_attempt_logs` и `integrator.projection_outbox` на именованной
+      DEV отсутствуют; ожидания дренажа до 29.08 нет. Compatibility-имена в `infra/db/repos/jobQueue.ts` работают
+      поверх `public.outgoing_delivery_queue` и не образуют второй store. Пункт закрыт 21.08 (#987, land `f02027dcf`)
+      после cutover писателей/читателей и named-DEV проверки; TEST остаётся общим deploy-gate вехи.
 - [x] **D10b — уборка и возврат зависших в очереди доставки.** ✅ **ЗАКРЫТО 31.07** (`4f203d08d`, `94cb2af4c`):
       возврат по таймауту, «мёртвая полка» при превышении числа возвратов, уборка выполненных. Доказано на
       настоящей `bersoncarebot_test`, проверено поломкой лидом.
@@ -977,24 +742,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       по-прежнему одна колонка. Расчёт «за сутки до приёма» живёт там, где известно время приёма.
       ⛔ Относительная задержка для напоминаний запрещена: она замораживает момент вычисления и теряет связь с
       временем приёма.
-- [x] **D16 — один цикл доставки.**
-      🟢 Перепись (`D16_LOOP_CENSUS.md`, `28f5a5536`) и исследование отраслевой практики
-      (`D16_LOOP_ARCHITECTURE_RESEARCH.md`) сделаны 31.07. Решение и действующее прочтение — **Р-D16** (§2.3).
-      ⛔ **Блокер «дренаж до 29.08» СНЯТ 20.08 — см. правку у D10a.** `outgoing_delivery_queue` уже единственная
-      живая очередь (проверено на живой DEV). Остаток D16 = тот же остаток, что у D10a: свести
-      `integrator.delivery_attempt_logs` в `notification_delivery_attempts` и убедиться, что у интегратора
-      не осталось второго независимого цикла опроса — задача в работе, не ждёт дат.
-      ✅ **Вторая часть D16 (нет второго независимого цикла) ПОДТВЕРЖДЕНА 20.08** (`D10A_D16_CONSOLIDATION_2026-08-20.md`):
-      единственный `while(true)`-потребитель `outgoing_delivery_queue` — `worker:outgoing-delivery-tick`
-      (`worker/main.ts:83-102` → `outgoingDeliveryWorker.ts:1218`). Остальные циклы (`projectionOutboxLoop`,
-      `directPublicWriteRetryLoop`, планировщик `scheduler/main.ts`) полят другие таблицы, не эту очередь.
-      Остаток D16 = остаток D10a (снос `delivery_attempt_logs`), см. правку выше.
-      ✅ **ЗАКРЫТО 21.08 (#987), land `f02027dcf`:** D10a cutover удалил последний legacy journal/reader path
-      на именованной DEV. Повторный production-census командой
-      `rg -n --glob '!**/*.test.ts' --glob '!**/*.spec.ts' "runOutgoingDeliveryWorkerTick\\(" apps/integrator/src`
-      даёт ровно definition + один caller (`outgoingDeliveryWorker.ts:1167`, `worker/main.ts:67`), а точный
-      `rg` по `.claimDueJobs(` в тех же production roots даёт `0` callers. Единственный consumer остаётся
-      `worker:outgoing-delivery-tick`; второй независимый delivery loop отсутствует.
+- [x] **D16 — один цикл доставки.** Решение — **Р-D16** (§2.3). Единственный consumer
+      `public.outgoing_delivery_queue` — `worker:outgoing-delivery-tick`; второй независимый delivery loop отсутствует.
+      Закрыто 21.08 (#987, land `f02027dcf`) production-census текущего кода. Отсутствующая
+      `integrator.message_retry_jobs` не создаёт ожидания до 29.08 и не входит в оставшуюся работу D30.
 - [ ] **D18 — вычистить весь остаток сырого SQL в обоих приложениях.** Решение и объём — **Р-D18** (§2.3).
       - [x] **D18a — запрет на НОВЫЙ сырой SQL.** `scripts/check-no-new-raw-sql.mjs`, подключён к root и webapp
             lint. После D18c debt-манифест удалён: gate разрешает только поимённые low-level DB-порты,
@@ -1060,7 +811,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             голом пуле, ни разу не импортировав `config/env.ts`. Настоящая цена — сменить форму
             `ProjectionHealthQueryable` и `createProjectionHealthPoolProvider` с `query(text, params)` на
             `execute(fragment)`; для HTTP-пути это даром, для CLI деплой-гейта — правка его контракта.
-            Комментарий в файле исправлен (`a283e4c8a`~1), работа ОТЛОЖЕНА, а не невозможна.
+            Комментарий в файле исправлен (`a283e4c8a`~1); этот старый эпизод не является blocker/defer текущего этапа.
 
             **Остаток на 01.08 после двух проходов (манифест: интегратор 13, вебапп 30).** Целевое
             состояние от владельца дословно: «сырого sql и запросов мимо порта не должно остаться
@@ -1232,12 +983,12 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       по `AGENTS.md` §10a: сначала смотрим, нельзя ли закрыть конструкцией, тест — только под названный
       дорогой и молчаливый отказ.
 
-- [x] **D37 — постановка повторов доставки идёт мимо общей очереди в двух местах.**
+- [x] **D37 — два обхода общей постановки повторов доставки удалены.**
       _Перенумерован 01.08 с D33: этот номер уже занят закрытым пунктом «мёртвый провайдер бэкфила»
       ниже в этом же блоке. Столкновение возникло, когда пункты из #1081 дописали, не сверившись со
       списком; воркер, получив «сделай D33», мог взять не тот._ Вставка в
-      `integrator.message_retry_jobs` полагается на `enqueueMessageRetryJob`, а поверх неё есть абстракция
-      `QueuePort` (`infra/adapters/jobQueuePort.ts`), через которую ходят обработчики доставки. До
+      Текущий путь постановки идёт через `QueuePort` (`infra/adapters/jobQueuePort.ts`) в
+      `public.outgoing_delivery_queue`. До
       `c33fdccae` мимо неё ходили двое, каждый со своим построением payload и своей политикой повторов:
       `integrations/bersoncare/bookingLifecycleRoute.ts` (свои `maxAttempts`/`backoffSeconds`) и
       `infra/db/writePort.ts` (свой payload `message.retry.enqueue`). Следствие по конструкции было таким:
@@ -1433,10 +1184,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       до D17.
       ⚠️ **ЧАСТИЧНО 03.08–05.08:** D15b/2 закрыл запись идентичности из integrator (`5137e8c68`, land
       `2c1cd63fb`) — одна реализация в `packages/platform-merge/src/identityProjectionWrite.ts`.
-      D15b/5–6 закрыты (`#987` slices 1–4): `user_identity`/`user_contacts` схема, infra reader
-      cutover, dual-write writers, trusted-phone + public-booking resolve paths, legacy contact
-      unique indexes dropped from `platform_users`. Остаётся: D15b/7 псевдоним (вне объёма),
-      живая двухвебхуковая проверка D15b/2 — за лидом.
+      D15b/5 закрыт; `#987` slices 1–4 дали D15b/6 только фундамент: `user_contacts` schema, часть reader/writer
+      cutover и trusted-phone/public-booking resolve paths. D15b/6 остаётся открыт до полного перехода всех
+      читателей/писателей и удаления дублирующих contact-колонок `platform_users`; после него открыт D15b/7.
+      Живая двухвебхуковая проверка D15b/2 — за лидом.
 - [x] **D26 — слияние аккаунтов переписывается как ИНСТРУМЕНТ ПОДДЕРЖКИ, нынешний мерж вырезается.** Решение —
       **Р-D26** (§2.3). Правило конфликта — `IDENTITY_AND_MERGE_SCHEME.md` §5.2b (финальное, 20.08): блокирует
       автослияние ТОЛЬКО когда мед-данные есть с ОБЕИХ сторон одновременно; без конфликта история и переписка
@@ -1590,10 +1341,10 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       канала (`user_phone_history.confirming_channel`, миграция `0341`). Приземления: `dea19e48c`, `cb1aba0f1`,
       `739ef01bf`. Независимые аудиты: D27-A1 PASS, D27-A2 FAIL→fixer, D27 порядок каналов PASS, D27 F5/F6
       FAIL→fixer (дефект «OAuth не подтверждал уже существующий адрес» пойман ДО приземления).
-      ⚠️ **Что осталось и где живёт, чтобы не считалось закрытым молча:** один сохранённый оракул отложен —
+      ⚠️ **Что осталось и где живёт, чтобы не считалось закрытым молча:** один сохранённый оракул открыт —
       медленный почтовый провайдер делает known-адрес заметно медленнее unknown; изнутри запроса это не
-      маскируется, честно закрывается только выносом провайдера из публичной latency, поэтому тест помечен
-      отложенным и принадлежит **D27-C / D30** (durable auth delivery queue). Отдельно: сегодняшняя
+      маскируется, честно закрывается только выносом провайдера из публичной latency; работа принадлежит
+      **D27-C / D30** (durable auth delivery queue). Отдельно: сегодняшняя
       нейтрализация ответов на `email-otp/start` МАСКИРУЕТ настоящий отказ доставки письма — человек видит «код
       отправлен», когда письмо не ушло; это найдено живой диагностикой 03.08 и требует своего решения вместе с
       D27-C.
@@ -1645,59 +1396,14 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       `oauthWebLoginResolve` и в записи проекции идентичности. Существующие имена НЕ переписывались.
       ⚠️ **Хвост, закрывается отдельно:** отказ доходил до экрана кодом (`validation_error`), а не фразой —
       бриф `docs/_TODO/runs/briefs/FIO_REJECT_MESSAGE_BRIEF_2026-08-04.md`.
-- [ ] **D30 — разворот архитектуры запуска по расписанию.** Решение, гейты и объём — **Р-D30** (§2.3).
-      **CURRENT PARTIAL 03.08:** Ш7 stages 1–4 приземлены `25a6c11a7`; migration `0339`
-      (`idx=337`, `when=1793539230043`) применена на DEV. Appointment-reminder producer переведён на единую
-      `public.outgoing_delivery_queue`; после apply новая appointment-reminder queue имеет `0` активных строк,
-      но в legacy остались `24` старые active строки (`20 pending`, `4` stale processing). Legacy consumer/table
-      оставлены до их штатного дренажа и доказанного post-cutover zero-write периода; точный evidence
-      и оставшаяся точка невозврата записаны в `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7.
-      D30 и Ш7 остаются открытыми.
-      **RE-MEASURE 04.08 (без code changes):** состав legacy не изменился (113 строк: `20 pending` due
-      `06–29.08`, `4 stale processing` с `25–28.07`, `22 dead`, `67 done`); `max(created_at)` по всей таблице
-      — `2026-07-24`, т.е. **zero-write период 10+ суток подтверждён измерением** (был только заявлением).
-      Producer-код перепроверен статически до webapp-стороны — источник (а) закрыт по коду, не только по
-      факту отсутствия новых строк. Дренаж 4 stale-processing строк и закрытие точки невозврата **не
-      выполнены — окружение, не код**: reclaim-фикс (`a521ca4d2`/`638b7b9cb`, смержен `657b9b3bb`) корректен,
-      но DEV-worker сегодня вообще не может стартовать — единственная DEV app-роль `bcb_webapp_dev_user` не
-      состоит в `app_operational_delivery_worker` (нужна SECURITY DEFINER-пробам `assertDeliveryWorkerPoolReady`),
-      а DEV, в отличие от TEST, не имеет ни одного узкого operational-логина по семьям процессов. Попытка
-      выдать грант отклонена Postgres (`permission denied to grant role ... ADMIN option`) — вне мандата
-      этого хода поднимать привилегии/трогать модель грантов без владельца. Отдельно: даже при исправном
-      worker закрыть точку невозврата раньше **2026-08-29** нельзя — 20 pending строк это легитимные будущие
-      напоминания (due по 29.08), обязаны пройти через legacy-consumer по своей природе. Полный evidence —
-      `D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7, блок «RE-MEASURE 04.08». **Вопрос владельцу:** нужно ли
-      провизионить DEV operational-логины (delivery/scheduler/diagnostic) по образцу TEST, или DEV
-      сознательно не гоняет этот worker и живая проверка Ш7-дренажа переносится на TEST. D30 и Ш7 остаются
-      открытыми.
-      **DEV-worker unblock 04.08:** членство выдано каноническим DEV-only расширением (`dev-c5`/`dev-c6`/
-      `dev-c7` в `deploy/postgres/`, детали и обоснование — `D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7 блок «DEV-
-      worker unblock 04.08»); все три найденных грант-блокера закрыты. Но воркер всё ещё не стартует —
-      **новый, более серьёзный и не-DEV-специфичный баг**: `assertDeliveryWorkerPoolReady` оборачивает все
-      восемь readiness-проб в одну `BEGIN READ ONLY`, а две из них (`revalidate_specialist_task_reminder_
-      materialization`/`apply_specialist_task_reminder_success_outcome`) делают `SELECT ... FOR UPDATE` —
-      несовместимо с read-only транзакцией структурно, на любом окружении. Тот же сбой **прямо сейчас
-      держит в crash-loop TEST outgoing-delivery worker** — непрерывно с `2026-08-03 05:41` (комментарий
-      `1f9b2f22f`) по `2026-08-04 07:33`, 8080+ повторов в PostgreSQL-логе. Чинить код (тело функции или
-      `probeReadOnly()`) вне мандата грантового DEV-хода. **Срочный отдельный вопрос владельцу:** это живой
-      инцидент на TEST, не только блокер Ш7-дренажа — нужно отдельное решение/тикет, не D30. Дренаж `4
-      stale processing` по-прежнему не выполнен (воркер не дошёл до `jobQueueLoop`); состав `bcb_webapp_dev`
-      очереди не изменился. D30 и Ш7 остаются открытыми.
-      **READINESS-PROBE FIX + DEV LIVE DRAIN 04.08 (`wt/d30-drain`):** проба исправлена (виновный коммит
-      `1f9b2f22f`, обе `FOR UPDATE`-строки заменены на `has_function_privilege`-проверку, как у соседней
-      `record_operator_delivery_attempt`); прямой replay всех восьми проб на `bcb_webapp_dev` — PASS. Три
-      новых DEV-only грантовых разрыва, найденных живым прогоном за пределами восьми проб, закрыты
-      (`dev-c8`/`dev-c9`/`dev-c10` в `deploy/postgres/`); `apps/webapp/.env.dev` этого worktree дополнен
-      `DATABASE_URL_DELIVERY_WORKER` (без него `selectPool()` кидает отдельную ошибку ещё до БД). `pnpm run
-      worker:dev` стартует чисто и держит job-queue/projection-outbox/outgoing-delivery loops. Дренаж:
-      `bcb_webapp_dev` legacy-очередь была `20 pending`/`4 processing`/`22 dead`/`67 done` → стала
-      `20 pending`/`0 processing`/`26 dead`/`67 done` — все 4 stale-processing строки слиты (в `dead`, штатно
-      по retry-policy). Полный evidence, включая находку `dev-c10` (возможный TEST-блокер после выката
-      фикса пробы — отдельный вопрос владельцу/лиду) — `D30_SCHEDULER_REVERSAL_PLAN.md` §Ш7, блок
-      «READINESS-PROBE FIX + DEV LIVE DRAIN 04.08». TEST не деплоился. D30 и Ш7 остаются открытыми (точка
-      невозврата ждёт `2026-08-29`+ по due легитимных `pending`-строк).
-      **Pre-TEST census 05.08 (#987):** DROP legacy consumer/table и закрытие D30/D10a — **заблокированы до
-      ~2026-08-29**; это не блокер TEST deploy, `[ ]` не снимать раньше.
+- [ ] **D30 — разворот архитектуры запуска по расписанию.** Решение и гейты — **Р-D30** (§2.3).
+      Цель — перенести подходящие scheduled jobs из cron и webapp-таймеров в один резидентный процесс integrator,
+      объединяющий `worker` и `scheduler`, при сохранении webapp-ownership правил, сроков и текстов.
+      `integrator.message_retry_jobs` на именованной DEV отсутствует; повторы уже живут в
+      `public.outgoing_delivery_queue`, поэтому ожидания или дренажа до 29.08 нет. Этот факт не закрывает D30 целиком:
+      каждый оставшийся scheduler/cron/topology шаг закрывается только после проверки текущего кода, более поздних
+      owner-решений и собственного code/runtime evidence. Детализация —
+      `runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md`; его старые технические предпосылки не имеют authority.
 
 ### 3.5 Track E — принятые решения без своего трека
 
