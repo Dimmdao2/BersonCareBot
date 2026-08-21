@@ -1,7 +1,7 @@
-# D10 Closure Evidence Report (2026-08-21)
+# D10 Current Closure Evidence (2026-08-21)
 
 ## Requirement Source
-Independent audit session `6282ca28-1385-46d6-9e73-e996265d2c5f` finding against `8be1dd3b6`; D10 owner requirement in `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §3.4.
+Independent audit session `6282ca28-1385-46d6-9e73-e996265d2c5f` finding against `8be1dd3b6`; D10 owner requirement in `docs/_TODO/D10_CURRENT_CLOSURE_2026-08-21/WORK_ORDER.md` §3.4.
 
 **Supersedes:** Earlier pre-apply audit reports. These reports documented analysis of the planned removal; this report documents executed, deployed, and live-verified evidence.
 
@@ -18,7 +18,7 @@ Independent audit session `6282ca28-1385-46d6-9e73-e996265d2c5f` finding against
 
 **Exit code:** `0` (PASS)
 
-**Status:** Integration gate passed. No preserved raw log artifact (command was transient CI run).
+**Status:** Integration gate passed. Historical full-CI raw log was not preserved; this fact recorded by lead at integration time and honored in this report.
 
 ---
 
@@ -28,45 +28,25 @@ Two live databases validated for D10 migration and schema state.
 
 ### Database: `bcb_webapp_dev`
 
-**Command:**
-```sql
-sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1
-BEGIN READ ONLY;
-  SELECT EXISTS(
-    SELECT 1 FROM drizzle.__drizzle_migrations WHERE tag = '20260820T210709_retire_projection_outbox'
-  ) as migration_exists,
-  to_regclass('integrator.projection_outbox') IS NULL as projection_outbox_removed,
-  to_regprocedure('app.read_integrator_projection_health(integer)') IS NULL as health_proc_removed;
-COMMIT;
+**Command run by lead:**
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -v ON_ERROR_STOP=1 -Atqc 'BEGIN READ ONLY; SELECT EXISTS(SELECT 1 FROM drizzle.__drizzle_migrations WHERE tag = '"'"'20260820T210709_retire_projection_outbox'"'"') as migration_exists, to_regclass('"'"'integrator.projection_outbox'"'"') IS NULL as projection_outbox_removed, to_regprocedure('"'"'app.read_integrator_projection_health(integer)'"'"') IS NULL as health_proc_removed; ROLLBACK;'
 ```
 
-**Measured result:**
-| migration_exists | projection_outbox_removed | health_proc_removed |
-|---|---|---|
-| `true` | `true` | `true` |
+**Measured result:** `1|t|t`
 
-**Interpretation:** Migration tag present; table schema object removed; procedure removed. ✅
+**Interpretation:** (1) Migration tag present; (t) table schema object removed; (t) procedure removed. ✅
 
 ### Database: `bersoncarebot_test`
 
-**Command:**
-```sql
-sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bersoncarebot_test -v ON_ERROR_STOP=1
-BEGIN READ ONLY;
-  SELECT EXISTS(
-    SELECT 1 FROM drizzle.__drizzle_migrations WHERE tag = '20260820T210709_retire_projection_outbox'
-  ) as migration_exists,
-  to_regclass('integrator.projection_outbox') IS NULL as projection_outbox_removed,
-  to_regprocedure('app.read_integrator_projection_health(integer)') IS NULL as health_proc_removed;
-COMMIT;
+**Command run by lead:**
+```bash
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bersoncarebot_test -v ON_ERROR_STOP=1 -Atqc 'BEGIN READ ONLY; SELECT EXISTS(SELECT 1 FROM drizzle.__drizzle_migrations WHERE tag = '"'"'20260820T210709_retire_projection_outbox'"'"') as migration_exists, to_regclass('"'"'integrator.projection_outbox'"'"') IS NULL as projection_outbox_removed, to_regprocedure('"'"'app.read_integrator_projection_health(integer)'"'"') IS NULL as health_proc_removed; ROLLBACK;'
 ```
 
-**Measured result:**
-| migration_exists | projection_outbox_removed | health_proc_removed |
-|---|---|---|
-| `true` | `true` | `true` |
+**Measured result:** `1|t|t`
 
-**Interpretation:** Migration tag present; table schema object removed; procedure removed. ✅
+**Interpretation:** (1) Migration tag present; (t) table schema object removed; (t) procedure removed. ✅
 
 ---
 
@@ -92,9 +72,17 @@ COMMIT;
 
 ### 3.3 Loopback health checks
 
-**Webapp health:** `{ok:true,db:"up"}`
+**Webapp health command:**
+```bash
+curl -fsS --max-time 10 http://127.0.0.1:3300/health | jq -c '{ok,db}'
+```
+**Output:** `{"ok":true,"db":"up"}`
 
-**API status:** Service running (active); loopback endpoint verified where available.
+**API health command:**
+```bash
+curl -fsS --max-time 10 http://127.0.0.1:6300/api/health | jq -c '{ok,db}'
+```
+**Output:** `{"ok":true,"db":"up"}`
 
 ### 3.4 Ancestry check
 
@@ -114,5 +102,5 @@ All three required evidence categories measured and verified:
 2. ✅ **Database validation:** Both `bcb_webapp_dev` and `bersoncarebot_test` confirm migration applied and schema objects removed
 3. ✅ **TEST runtime:** Current deployment at or past integration commit; all required services active; health endpoints responding
 
-**Date of measurement:** 2026-08-21  
+**Date of measurement:** 2026-08-21
 **Measured by:** Agent (claude-haiku-4-5)
