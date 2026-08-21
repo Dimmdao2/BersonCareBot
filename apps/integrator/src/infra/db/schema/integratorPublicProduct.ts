@@ -5,23 +5,19 @@
  * Связка Google Calendar и зеркало `public.patient_bookings` меняются только через узкие
  * SECURITY DEFINER roots из `repos/bookingCalendarMap.ts`; описание map здесь остаётся каталогом схемы.
  */
-import { sql } from 'drizzle-orm';
 import {
   bigint,
   bigserial,
   boolean,
-  index,
   integer,
   jsonb,
   PgSchema,
-  pgSchema,
   text,
   timestamp,
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
 
-const integratorSchema = pgSchema('integrator');
 // `pgSchema('public')` intentionally throws in Drizzle because the library assumes the default
 // search_path always contains `public`. Our port-context runtime deliberately removes that implicit
 // path, so construct the exported schema object directly and keep every generated relation explicit.

@@ -47,7 +47,6 @@
     "check:saas-c2-secrets-deployment-plumbing": "node --check deploy/host/saas-c2-secret-preflight.mjs && node deploy/host/saas-c2-secret-preflight.mjs --self-test",
     "check:saas-d1-664-with-check-reverify": "node --check docs/_TODO/SAAS_FOUNDATION/scripts/check-d1-664-with-check-reverify.mjs && node docs/_TODO/SAAS_FOUNDATION/scripts/check-d1-664-with-check-reverify.mjs",
     "rehearse:e1-patient-capabilities": "node docs/_TODO/SAAS_FOUNDATION/scripts/rehearse-e1-patient-runtime-capabilities.mjs",
-    "preci": "node scripts/ci-preflight.mjs",
     "ci": "node scripts/ci-record.mjs",
     "ci:steps": "pnpm lint && pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:db-principal && pnpm test:db-privileges && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
     "ci:resume:after-lint": "pnpm typecheck && pnpm test && pnpm test:scripts && pnpm test:db-principal && pnpm test:db-privileges && pnpm test:webapp && pnpm test:media-worker && pnpm build && pnpm build:webapp && pnpm run audit",
