@@ -127,6 +127,15 @@ fixtures и без одноразовой базы.
    TEST, затем снятие sweep/route/registry/host cron для закрытых code-side шагов (Ш3), затем TEST-наблюдение и
    фактическое снятие host cron через `cronport` для Ш4/Ш5/Ш6. B3/Ш8 — только зависимость от D5–D7/D25 вне этого
    плана.
+5. **D18 — измерено закрытым, не запускать отклонённую широкую конвертацию.** `production debt: 0`
+   (`node scripts/check-no-new-raw-sql.mjs --census`), `check-db-chokepoint: OK`. Остаток текстового SQL внутри
+   уже легального моста (73 production-потребителя замером 21.08) — рациональная maintenance-работа D18b, не
+   блокирующий пункт Track D; см. `docs/_TODO/TEXT_SQL_TO_BUILDER_PLAN_2026-08-19.md` («Текущая инструкция») и
+   `WORK_ORDER.md` D18/D18a/D18b/D18c. ⛔ Брошенная широкая конвертация `f7ef75996` (аудит `56b7077dc`,
+   клон `bcb-wt-d18-current-builder-20260821`) отклонена — write/tx/rollback не доказаны; **не запускать её
+   как Track D работу**, брифом `D18_CURRENT_TEXT_SQL_BUILDER_CONVERSION_BRIEF_2026-08-21.md` его former
+   whole-bucket scope помечен RETIRED. Единственный принятый пример перевода — `pgUserProjection.ts`,
+   приземлён отдельно `c5e77210a`.
 
 ---
 
