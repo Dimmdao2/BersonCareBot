@@ -249,3 +249,19 @@ integration) совпадает с фактическим состоянием �
 - **D30 остаточные шаги** (sweep/route/registry/host cron cleanup, TEST/PROD deploy для Ш9) вне объёма D19,
   не проверялись сверх факта «Ш9 код-комплит».
 - **Чекбокс D19 в WORK_ORDER.md не проставлен** — по границам брифа это делает ведущий.
+
+---
+
+## Поправка лида 22.08.2026 (сверка с живым TEST, не с план-файлом)
+
+Вывод отчёта «TEST — задекларирована в коде, но live cutover не выполнен (Ф8 открыт)» **не подтвердился фактом**.
+Открытые `[ ]` в Ф8 — состояние план-файла, а не состояние среды. Живой TEST уже разведён по логинам:
+
+- `/opt/env/bersoncarebot/api.test` — `INTEGRATOR_DB_URL='postgres://bcb_test_integrator…'`, плюс `INTEGRATOR_DB_LOGIN`
+  и mTLS-ключи `INTEGRATOR_DB_TLS_*`;
+- `/opt/env/bersoncarebot/webapp.test` — три отдельных подключения `DATABASE_URL_STAFF` / `DATABASE_URL_PATIENT` /
+  `DATABASE_URL_GLOBAL_ADMIN` с `WEBAPP_DB_*_LOGIN` и своими сертификатами.
+
+Общей роли на TEST нет. Поэтому в `apps/webapp/ARCHITECTURE.md` внесён более короткий и проверяемый текст: DEV и TEST
+разведены, по PROD сверяться с фактическим env прод-хоста, а не с этим документом. Ф8/Ф9 остаются мерой готовности
+плана привилегий, но ссылаться на них как на состояние среды нельзя.

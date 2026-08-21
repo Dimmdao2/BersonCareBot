@@ -47,29 +47,18 @@ Hard rules:
   путями в `.js` и ломается (прецедент зафиксирован в `INTEGRATOR_CONTRACT.md`), а два отдельных деплоя связываются
   релизами намертво. Плюс у приложений разные принципалы (вебапп — из сессии, интегратор — из опознания в мессенджере)
   и разные транзакционные контексты.
-  ⚠️ **Гейт правила частичный (D19 re-verify, 22.08.2026):** structural AST-гейт D19a
-  (`scripts/check-webapp-infra-import-boundary.mjs`) ловит только `@/infra/*` внутри `apps/webapp/src/modules/**`
-  и `apps/webapp/src/app/api/**/route.ts`; голый относительный импорт из дерева `apps/webapp` в дерево
-  `apps/integrator` (или обратно) вне этих двух путей он не проверяет, и `no-restricted-imports` тоже не содержит
-  такого паттерна. Живой пример, найденный этой перепроверкой: `apps/webapp/src/shared/normalizeToUtcInstant.ts:11`
-  — `export { … } from '../../../integrator/src/shared/normalizeToUtcInstant.js'`. Это не новый обход (файл от
-  04.04.2026, до старта Track D) и не действующий путь (ни один production-файл его не импортирует — мёртвый
-  реэкспорт), поэтому чекбокс D19a это закрытие не отменяет; но факт "нет прямых импортов" на 22.08.2026 неточен
-  буквально, а гейт эту форму не поймает и для нового кода. Решение (удалить мёртвый файл или расширить гейт) —
-  за пределами перечитывания документа, см. отчёт `docs/_TODO/runs/integrator-cleanup/D19_ARCHITECTURE_REVERIFY_2026-08-22.md`.
-- **One PostgreSQL cluster, but DB login/role are no longer uniform across environments** (D19 re-verify,
-  22.08.2026 — this line previously claimed "same `DATABASE_URL` and DB role for both services", which is stale).
-  **DEV** already runs webapp and integrator through **separate logins**, integrator scoped to a narrow role
-  distinct from webapp's (`bcb_dev_integrator` → `canonicalRole: 'app_integrator_request'` vs.
-  `bcb_dev_webapp_staff`/`bcb_dev_webapp_patient`/`bcb_dev_webapp_global_admin` —
-  `deploy/postgres/privileges/declaration.ts:1838-1856`), live per `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/PLAN.md`
-  Ф7. **PROD still uses one shared runtime role/`DATABASE_URL`** for both `api.prod` and `webapp.prod`
-  (`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, `deploy/env/README.md`), and **TEST cutover has not landed**
-  (same plan, Ф8 — all steps still open). Canonical platform data lives in schema **`public`**, integrator
-  runtime in **`integrator`**, regardless of login/role topology. Narrowing the role for every environment is
-  tracked by Track D **D17** (open as of 22.08.2026) — do not read this line as "already done everywhere".
-  Integrator writes to `public` only through repository/transaction code agreed in
-  `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, not by importing webapp modules.
+  ⚠️ **Гейт этого правила частичный.** `scripts/check-webapp-infra-import-boundary.mjs` проверяет только `@/infra/*`
+  внутри `apps/webapp/src/modules/**` и `apps/webapp/src/app/api/**/route.ts`; относительный импорт из дерева
+  `apps/webapp` в `apps/integrator` вне этих путей не ловит ни он, ни `no-restricted-imports`. Единственный
+  найденный случай — мёртвый реэкспорт `apps/webapp/src/shared/normalizeToUtcInstant.ts:11` (никто не импортирует).
+- **Один кластер PostgreSQL, но логин и роль у приложений РАЗНЫЕ** — прежняя формулировка «same `DATABASE_URL` and DB
+  role for both services» устарела. DEV и TEST уже разведены по отдельным логинам: интегратор ходит под
+  `bcb_*_integrator` (`canonicalRole: 'app_integrator_request'`), вебапп — под тремя логинами по принципалу
+  (`*_webapp_staff` / `*_webapp_patient` / `*_webapp_global_admin`), см. `REV10_ENV_MAPPING` в
+  `deploy/postgres/privileges/declaration.ts` и env-ключи `INTEGRATOR_DB_LOGIN` / `WEBAPP_DB_*_LOGIN`. По PROD
+  сверяйся с фактическим env на прод-хосте, а не с этим файлом. Канонические данные платформы — в схеме `public`,
+  рантайм интегратора — в `integrator`. Интегратор пишет в `public` только через код репозиториев/транзакций,
+  описанный в `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, не импортируя модули вебаппа.
 - **Cross-process** integration where not same-DB SQL: signed entry links, webhooks, `INTEGRATOR_API_URL`, verified contact linking, HTTP sync and outbox queues as fallback.
 
 ## Целевая схема: кто что делает (зафиксировано 30.07)
