@@ -147,7 +147,10 @@ cleanup() {
     printf 'TEST writers remain stopped after failed migration/deploy; inspect the transcript before recovery.\n' >&2
     # Только пути/ветка/head/код — никаких env-значений и содержимого /opt/env/**. Отказ канала не
     # смеет менять $status: `|| true` глушит и таймаут, и неуспешную доставку, exit ниже — тем же кодом.
-    last_error="$(grep -a '^FATAL: ' -- "$TRANSCRIPT" 2>/dev/null | tail -n1)"
+    # `|| true` обязателен: под `set -euo pipefail` пустой grep (в транскрипте нет строки FATAL —
+    # например деплой убит сборкой, а не fail()) возвращает 1, присваивание наследует этот код, и
+    # cleanup вылетает ДО отправки, подменив ещё и код возврата на 1. Проверено воспроизведением.
+    last_error="$(grep -a '^FATAL: ' -- "$TRANSCRIPT" 2>/dev/null | tail -n1)" || true
     head_short="$(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD 2>/dev/null || echo unknown)"
     notify_text="TEST deploy упал (код $status): писатели ОСТАНОВЛЕНЫ и НЕ поднимутся сами.
 Шаг: ${last_error:-см. транскрипт}
