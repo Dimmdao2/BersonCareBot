@@ -5,15 +5,6 @@
 -- copied from the current schema-B roots and converted in this forward migration; privileges stay
 -- declaration-owned and are reconciled outside the migration.
 
--- The table owner is subject to FORCE RLS. Temporarily lift FORCE only while the
--- preservation/parity/backfill statements execute; restore it before later DDL.
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-ALTER TABLE public.platform_users NO FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-ALTER TABLE public.user_contacts NO FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
 -- BCB-MIGRATION-BACKFILL
 -- Preserve every legacy scalar as a canonical row before its column disappears.  A value already
 -- held by another account is an ownership conflict, never a reason to overwrite or reassign it.
@@ -193,13 +184,6 @@ UPDATE public.user_contacts
 SET source_origin = CASE WHEN source_origin = 'oauth_binding' THEN 'oauth' ELSE 'direct' END,
     updated_at = now()
 WHERE source_origin NOT IN ('direct', 'oauth');
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-ALTER TABLE public.platform_users FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-ALTER TABLE public.user_contacts FORCE ROW LEVEL SECURITY;
---> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 ALTER TABLE public.user_contacts ADD CONSTRAINT user_contacts_source_origin_check
 CHECK (source_origin = ANY (ARRAY['direct'::text, 'oauth'::text]));
