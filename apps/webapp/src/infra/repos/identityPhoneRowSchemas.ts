@@ -132,8 +132,9 @@ export const preSessionPhoneConfirmResolveSchema = z.discriminatedUnion('outcome
  * messenger confirm-path correction). Same shape as {@link preSessionPhoneConfirmResolveSchema} —
  * `outcome: 'conflict'` covers an invalid phone/external id AND the fail-closed case where the
  * channel-binding owner, phone owner and/or session owner disagree (a real merge decision this root
- * does not attempt — see the migration header). `candidate_ids` is present only for the latter, for
- * the caller's existing manual-merge review path (`recordMessengerBindBlocked`).
+ * does not attempt — see the migration header). `candidate_ids` is present only for the latter; the
+ * root itself already records the `messenger_phone_bind_blocked` case for the manual-merge review
+ * path (D15b/6 conflict-audit correction — no caller-side write).
  */
 export const preSessionMessengerChannelResolveSchema = z.discriminatedUnion('outcome', [
   z.object({ outcome: z.literal('conflict'), candidate_ids: z.array(z.string()).optional() }),
@@ -218,11 +219,6 @@ export const platformUserInsertRowSchema = z.object({
 export const bindingOwnerRowSchema = z.object({
   user_id: z.string(),
   integrator_user_id: z.string().nullable(),
-});
-
-export const auditLogRepeatRowSchema = z.object({
-  id: z.string(),
-  repeat_count: z.coerce.number(),
 });
 
 const phoneMessengerBindSecretRowSchema = z.object({

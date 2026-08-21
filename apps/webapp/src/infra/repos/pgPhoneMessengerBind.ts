@@ -1,21 +1,10 @@
 import { sql } from 'drizzle-orm';
-import type { Pool, PoolClient, QueryResultRow } from 'pg';
+import type { Pool, QueryResultRow } from 'pg';
 /**
- * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")` in `withTransaction`.
- * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgTextOnPool`; platform-merge bridge via same client executor.
+ * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgTextOnPool`.
  */
-import {
-  enrichMessengerBindAuditDetailsFields,
-  type MessengerPhoneBindDb,
-} from '@bersoncare/platform-merge';
-import {
-  computeConflictKeyFromCandidateIds,
-  currentAuditOrganizationId,
-  type AuditLogStatus,
-} from '@/infra/adminAuditLog';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra/db/runWebappSql';
-import { withPoolTransaction } from '@/infra/db/withClient';
 import { channelToBindingKey } from '@/modules/auth/channelContext';
 import type {
   PhoneMessengerBindChannel,
@@ -24,21 +13,10 @@ import type {
   PhoneMessengerBindPurpose,
 } from '@/modules/auth/phoneMessengerBind.ports';
 import {
-  auditLogRepeatRowSchema,
   mapPhoneMessengerBindSecretRow,
   parseIdentityRow,
   preSessionMessengerChannelResolveSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
-import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
-
-function asMessengerPhoneBindDb(client: PoolClient): MessengerPhoneBindDb {
-  return {
-    async query<R extends QueryResultRow = QueryResultRow>(queryText: string, values?: unknown[]) {
-      const result = await runIdentityClientPgText<R>(client, queryText, values ?? []);
-      return { rows: result.rows, rowCount: result.rowCount ?? undefined };
-    },
-  };
-}
 
 async function runPhoneMessengerBindSecretRoot<T extends QueryResultRow = QueryResultRow>(
   action: string,
@@ -138,8 +116,11 @@ async function runPhoneMessengerBindCompletionStateRoot(params: {
  * merge decision `mergePlatformUsersInTransaction` (`packages/platform-merge`, ~1.6k lines) cannot run
  * under this principal and this root does not duplicate — it fails closed with `outcome: 'conflict'`
  * and the candidate ids, which this function maps to the existing `merge_blocked_ambiguous_candidates`
- * classification so the caller's already-established manual-merge review path
- * (`recordMessengerBindBlocked` → `admin_audit_log`) picks it up exactly like any other blocked merge.
+ * classification. D15b/6 conflict-audit correction (2026-08-21): the root ITSELF now records the
+ * `messenger_phone_bind_blocked` case in `admin_audit_log`, atomically, in the same statement that
+ * decides the conflict — a caller-side follow-up transaction had no relation door under the bootstrap
+ * principal and always failed before its first query, silently, leaving the admin manual-merge review
+ * with no case to resolve. This JS layer no longer attempts that write.
  */
 async function applyMessengerContactPreOtpImpl(
   params: {
@@ -191,101 +172,10 @@ async function applyMessengerContactPreOtpImpl(
   return { ok: true, accountCreated: payload.was_created };
 }
 
-async function recordMessengerBindBlockedImpl(
-  client: PoolClient,
-  params: {
-    reason: string;
-    candidateIds: string[];
-    channelCode: PhoneMessengerBindChannel;
-    externalId: string;
-    phoneNormalized: string;
-    source: string;
-  },
-): Promise<void> {
-  const candidateIds = [...new Set(params.candidateIds.map((id) => id.trim()).filter(Boolean))];
-  const phoneSuffix = params.phoneNormalized.replace(/\D/g, '').slice(-4) || '****';
-  let conflictKey: string | null = null;
-  if (candidateIds.length > 0) {
-    try {
-      conflictKey = computeConflictKeyFromCandidateIds(candidateIds);
-    } catch {
-      conflictKey = null;
-    }
-  }
-
-  let enrichedFields: Record<string, unknown> = {};
-  try {
-    enrichedFields = await enrichMessengerBindAuditDetailsFields(asMessengerPhoneBindDb(client), {
-      reason: params.reason,
-      candidateIds,
-      channelCode: params.channelCode,
-      externalId: params.externalId,
-    });
-  } catch {
-    enrichedFields = {};
-  }
-
-  const baseDetails = {
-    reason: params.reason,
-    candidateIds,
-    channelCode: params.channelCode,
-    externalId: params.externalId,
-    phoneSuffix,
-    source: params.source,
-    ...enrichedFields,
-  };
-  const status: AuditLogStatus = 'error';
-  const organizationId = currentAuditOrganizationId();
-
-  if (!conflictKey) {
-    await runIdentityClientPgText(
-      client,
-      `INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
-       VALUES ($1::uuid, NULL, 'messenger_phone_bind_anomaly', $2, NULL, $3::jsonb, $4)`,
-      [organizationId, candidateIds[0] ?? null, JSON.stringify(baseDetails), status],
-    );
-    return;
-  }
-
-  const existing = await runIdentityClientPgText(
-    client,
-    `SELECT id::text, repeat_count
-     FROM admin_audit_log
-     WHERE conflict_key = $1 AND resolved_at IS NULL
-     FOR UPDATE
-     LIMIT 1`,
-    [conflictKey],
-  );
-  if (existing.rows[0]) {
-    const row = parseIdentityRow(auditLogRepeatRowSchema, existing.rows[0], 'audit_log_repeat');
-    await runIdentityClientPgText(
-      client,
-      `UPDATE admin_audit_log
-       SET details = details || $2::jsonb,
-           repeat_count = repeat_count + 1,
-           last_seen_at = now(),
-           status = $3
-       WHERE id = $1::uuid`,
-      [row.id, JSON.stringify(baseDetails), status],
-    );
-    return;
-  }
-
-  await runIdentityClientPgText(
-    client,
-    `INSERT INTO admin_audit_log
-       (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-     VALUES ($1::uuid, NULL, 'messenger_phone_bind_blocked', $2, $3, $4::jsonb, $5, 1, now())
-     ON CONFLICT (conflict_key) WHERE resolved_at IS NULL DO UPDATE
-       SET details = admin_audit_log.details || EXCLUDED.details,
-           repeat_count = admin_audit_log.repeat_count + 1,
-           last_seen_at = now(),
-           status = EXCLUDED.status`,
-    [organizationId, candidateIds[0] ?? null, conflictKey, JSON.stringify(baseDetails), status],
-  );
-}
-
-export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMessengerBindPort {
+// `_pool` kept only for call-site/test signature parity with the port factory family — this port no
+// longer opens a raw relation transaction of its own (D15b/6 conflict-audit correction removed the
+// last one, the bootstrap principal never had a door for it anyway).
+export function createPgPhoneMessengerBindPort(_pool: Pool = getPool()): PhoneMessengerBindPort {
   return {
     async findByTokenHash(tokenHash) {
       const r = await runPhoneMessengerBindSecretRoot(
@@ -406,11 +296,6 @@ export function createPgPhoneMessengerBindPort(pool: Pool = getPool()): PhoneMes
       };
     },
 
-    async withTransaction(fn) {
-      return withPoolTransaction(pool, fn);
-    },
-
     applyMessengerContactPreOtp: applyMessengerContactPreOtpImpl,
-    recordMessengerBindBlocked: recordMessengerBindBlockedImpl,
   };
 }

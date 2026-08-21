@@ -13,7 +13,6 @@
  * to the caller as a status requiring another write.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { PoolClient } from 'pg';
 import type {
   PhoneMessengerBindPort,
   PhoneMessengerBindPreOtpFailure,
@@ -34,7 +33,6 @@ const { completePhoneMessengerBindFromIntegrator } = await import('./phoneMessen
 
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000e0001';
 const PHONE = '+79180000011';
-const FAKE_CLIENT = {} as PoolClient;
 
 function baseRow(overrides: Partial<PhoneMessengerBindSecretRow> = {}): PhoneMessengerBindSecretRow {
   return {
@@ -67,9 +65,7 @@ function buildFakePort(overrides: Partial<PhoneMessengerBindPort> = {}): PhoneMe
       syncTargetUserId: SESSION_USER_ID,
       canonicalUserId: null,
     })),
-    withTransaction: vi.fn(async (fn) => fn(FAKE_CLIENT)),
     applyMessengerContactPreOtp: vi.fn(async () => ({ ok: true as const, accountCreated: false })),
-    recordMessengerBindBlocked: vi.fn(async () => {}),
     ...overrides,
   };
 }
@@ -128,7 +124,12 @@ describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_syn
     expect(result).toEqual({ ok: true, purpose: 'profile_bind' });
   });
 
-  it('pre-OTP bind reports a merge conflict → fails cleanly (fails the token, records the blocked bind), no partial success', async () => {
+  it('pre-OTP bind reports a merge conflict → fails cleanly (fails the token), no partial success, no caller-side transaction', async () => {
+    // D15b/6 conflict-audit correction: the durable `messenger_phone_bind_blocked` audit case is now
+    // produced by `applyMessengerContactPreOtp` itself (the exact `pre_session_messenger_channel_
+    // resolve` operation), atomically with the conflict decision — see
+    // `d15b6PhoneMessengerBindMirror.unit.test.ts` for that behavior. This caller has no `withTransaction`/
+    // `recordMessengerBindBlocked` on the port to attempt (removed) and must not reintroduce one.
     const conflict: PhoneMessengerBindPreOtpFailure = {
       ok: false,
       code: 'merge_blocked_medical_history',
@@ -137,6 +138,8 @@ describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_syn
     const port = buildFakePort({
       applyMessengerContactPreOtp: vi.fn(async () => conflict),
     });
+    expect(port).not.toHaveProperty('withTransaction');
+    expect(port).not.toHaveProperty('recordMessengerBindBlocked');
 
     const result = await completePhoneMessengerBindFromIntegrator(
       {
@@ -151,16 +154,6 @@ describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_syn
 
     expect(result).toEqual({ ok: false, code: 'merge_blocked_medical_history' });
     expect(port.updateFailed).toHaveBeenCalledWith('secret-1', 'merge_blocked_medical_history');
-    expect(port.recordMessengerBindBlocked).toHaveBeenCalledWith(
-      FAKE_CLIENT,
-      expect.objectContaining({
-        reason: 'merge_blocked_medical_history',
-        candidateIds: [SESSION_USER_ID, 'other-user'],
-        channelCode: 'telegram',
-        externalId: 'tg-1',
-        phoneNormalized: PHONE,
-      }),
-    );
     expect(port.markConsumed).not.toHaveBeenCalled();
   });
 });

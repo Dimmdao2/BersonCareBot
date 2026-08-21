@@ -21,10 +21,6 @@ vi.mock('@/infra/db/runWebappSql', () => ({
   webappSqlFromPgText: vi.fn(() => ({ tag: 'root-sql' })),
 }));
 
-vi.mock('@bersoncare/platform-merge', () => ({
-  enrichMessengerBindAuditDetailsFields: vi.fn(),
-}));
-
 import { createPgPhoneMessengerBindPort } from '@/infra/repos/pgPhoneMessengerBind';
 
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000d0001';
@@ -215,5 +211,14 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
       code: 'merge_blocked_ambiguous_candidates',
       candidateIds: [NEW_LOGIN_USER_ID, SESSION_USER_ID],
     });
+    // D15b/6 conflict-audit correction: exactly one call, into the named root — the audit case
+    // (`messenger_phone_bind_blocked`) is produced by that SAME root, atomically with the conflict
+    // decision (see the migration). No caller-side transaction is attempted: `fakePool` throws if its
+    // `connect`/`query` is ever reached, and this port no longer exposes a `withTransaction`/
+    // `recordMessengerBindBlocked` pair to reach it through.
+    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
+    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
+    expect(port).not.toHaveProperty('withTransaction');
+    expect(port).not.toHaveProperty('recordMessengerBindBlocked');
   });
 });

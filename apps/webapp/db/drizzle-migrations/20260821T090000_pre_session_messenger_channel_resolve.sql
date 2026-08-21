@@ -36,8 +36,12 @@
 -- 11.08.2026 pre-session decision) and this root does not duplicate that algorithm in SQL. It fails
 -- closed with `outcome: 'conflict'` and the candidate ids instead — same "не догадка" doctrine
 -- `app.pre_session_phone_confirm_resolve`/`app.resolve_public_booking_client_by_phone` already
--- established — and the caller already routes a `conflict` outcome to the existing manual-merge
--- review path (`recordMessengerBindBlocked` → `admin_audit_log`).
+-- established. D15b/6 conflict-audit correction (2026-08-21): this root ALSO writes the
+-- `messenger_phone_bind_blocked` case into `admin_audit_log` itself, in the same statement that
+-- decides the conflict — the caller (bootstrap principal) has no relation door of its own to record
+-- it afterwards; see the conflict branch below for the durable/repeat-aware write this replaces
+-- (`recordMessengerBindBlocked`, which a caller-side `withTransaction` could never actually run under
+-- this principal).
 --
 -- Trusted messenger provenance (brief D15b/6, "Preserve trusted messenger provenance"): unlike
 -- `app.pre_session_phone_confirm_resolve`'s `p_phone_number_proven` gate, this root always confirms
@@ -57,6 +61,11 @@ DECLARE
   v_phone_owner_id uuid;
   v_session_owner_id uuid;
   v_candidate_ids uuid[];
+  v_candidate_ids_text text[];
+  v_conflict_key text;
+  v_phone_suffix text;
+  v_audit_details jsonb;
+  v_existing_audit_id uuid;
   v_user_id uuid;
   v_was_created boolean;
   v_display_name text;
@@ -127,6 +136,59 @@ BEGIN
   IF array_length(v_candidate_ids, 1) > 1 THEN
     -- Channel owner, phone owner and/or session owner disagree: a real merge decision, not this
     -- root's job (see header). Fail closed with the candidates for the existing manual-merge path.
+    --
+    -- D15b/6 conflict-audit correction (2026-08-21): the `messenger_phone_bind_blocked` case is
+    -- recorded HERE, in the same atomic operation that decides the conflict, not by the caller in a
+    -- follow-up transaction — the bootstrap principal that reaches this root has no relation door of
+    -- its own for `admin_audit_log` (`portContextRuntime.ts`, `capabilities['pre_session']`
+    -- purpose=relation intentionally absent), so a caller-side `withTransaction` write always failed
+    -- before its first query and was silently swallowed, leaving no case for the admin manual-merge
+    -- review to resolve (see `pgPhoneMessengerBind.ts`, the now-removed best-effort call this
+    -- replaces). Durable/repeat-aware, same key and shape `recordMessengerBindBlocked` used: sha256
+    -- hex of the sorted unique candidate ids, one open row per key, `repeat_count`/`last_seen_at`
+    -- bumped on every re-hit while unresolved. Only the minimum case the existing admin path already
+    -- resolves from (`parseMessengerPhoneBindAuditTargets` falls back to the raw id when
+    -- `details.candidates` is absent) — no candidate display-name/phone/email enrichment, which would
+    -- need relation reads (merged-identity chase across `platform_users`/`user_contacts`) beyond what
+    -- this seam already touches to resolve the conflict itself.
+    v_candidate_ids_text := ARRAY(SELECT DISTINCT unnest(v_candidate_ids)::text ORDER BY 1);
+    v_conflict_key := encode(app_ext.digest(array_to_string(v_candidate_ids_text, '|'), 'sha256'), 'hex');
+    v_phone_suffix := COALESCE(NULLIF(right(regexp_replace(p_phone_normalized, '\D', '', 'g'), 4), ''), '****');
+    v_audit_details := jsonb_build_object(
+      'reason', 'merge_blocked_ambiguous_candidates',
+      'candidateIds', to_jsonb(v_candidate_ids_text),
+      'channelCode', p_channel_code,
+      'externalId', p_external_id,
+      'phoneSuffix', v_phone_suffix,
+      'source', 'pre_session_messenger_channel_resolve'
+    );
+
+    SELECT id INTO v_existing_audit_id
+    FROM public.admin_audit_log
+    WHERE conflict_key = v_conflict_key AND resolved_at IS NULL
+    FOR UPDATE;
+
+    IF v_existing_audit_id IS NOT NULL THEN
+      UPDATE public.admin_audit_log
+      SET details = details || v_audit_details,
+          repeat_count = repeat_count + 1,
+          last_seen_at = now(),
+          status = 'error'
+      WHERE id = v_existing_audit_id;
+    ELSE
+      INSERT INTO public.admin_audit_log
+        (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
+      VALUES (
+        'a0000000-0000-4000-8000-000000000001'::uuid, NULL, 'messenger_phone_bind_blocked',
+        v_candidate_ids_text[1], v_conflict_key, v_audit_details, 'error', 1, now()
+      )
+      ON CONFLICT (conflict_key) WHERE resolved_at IS NULL DO UPDATE
+        SET details = admin_audit_log.details || EXCLUDED.details,
+            repeat_count = admin_audit_log.repeat_count + 1,
+            last_seen_at = now(),
+            status = EXCLUDED.status;
+    END IF;
+
     RETURN jsonb_build_object('outcome', 'conflict', 'candidate_ids', to_jsonb(v_candidate_ids));
   END IF;
 
