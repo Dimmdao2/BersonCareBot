@@ -4,7 +4,6 @@ import { createContentPort } from '../../../infra/adapters/contentPort.js';
 import { createTemplatePort } from '../../../infra/adapters/templatePort.js';
 import type {
   Action,
-  DbWritePort,
   DomainContext,
   OutgoingIntent,
   WebappEventsPort,
@@ -139,11 +138,9 @@ describe('main menu mini-app retirement', () => {
       rootDir: path.resolve(process.cwd(), 'src/content'),
     });
     const templatePort = createTemplatePort({ contentPort });
-    const writePort: DbWritePort = {
-      writeDb: async (write) => {
-        if (write.type === 'user.phone.link') return { userPhoneLinkApplied: true };
-      },
-    };
+    // D25: neither webapp.phoneMessengerBind.complete nor webapp.channelLink.complete write
+    // through the integrator's own DbWritePort anymore — webapp applies the canonical bind
+    // itself. No writePort is provided below on purpose.
     const webappEventsPort: WebappEventsPort = {
       completePhoneMessengerBind: async () => ({
         ok: true,
@@ -205,7 +202,6 @@ describe('main menu mini-app retirement', () => {
         contentPort,
         templatePort,
         webappEventsPort,
-        writePort,
       });
       const serializedIntents = JSON.stringify(result.intents);
 
@@ -217,56 +213,42 @@ describe('main menu mini-app retirement', () => {
     }
   });
 
-  it('syncs the canonical phone link before finalizing a pending webapp bind', async () => {
-    const writes: Action['params'][] = [];
-    let completionCalls = 0;
-    const result = await executeAction(
-      {
-        id: 'phone-bind-two-phase-profile',
-        type: 'webapp.phoneMessengerBind.complete',
-        mode: 'sync',
-        params: {
-          setupToken: 'setup-token-two-phase',
-          channelCode: 'telegram',
-          externalId: '99321',
-          phoneNormalized: '+79990000994',
-        },
-      },
-      context('telegram'),
-      {
-        webappEventsPort: {
-          completePhoneMessengerBind: async () => {
-            completionCalls += 1;
-            if (completionCalls === 1) {
-              return {
-                ok: true,
-                purpose: 'profile_bind' as const,
-                status: 'phone_sync_required',
-                syncTargetUserId: '00000000-0000-4000-8000-000000009321',
-                accountCreated: false,
-              };
-            }
-            return { ok: true, purpose: 'profile_bind' as const };
+  it(
+    'D25: webapp.phoneMessengerBind.complete finalizes from ONE webapp call — no more integrator ' +
+      'user.phone.link round trip when the canonical bind was not immediately ready',
+    async () => {
+      const writes: Action['params'][] = [];
+      let completionCalls = 0;
+      const result = await executeAction(
+        {
+          id: 'phone-bind-single-call-profile',
+          type: 'webapp.phoneMessengerBind.complete',
+          mode: 'sync',
+          params: {
+            setupToken: 'setup-token-single-call',
+            channelCode: 'telegram',
+            externalId: '99321',
+            phoneNormalized: '+79990000994',
           },
         },
-        writePort: {
-          writeDb: async (write) => {
-            writes.push(write.params);
-            return { userPhoneLinkApplied: true };
+        context('telegram'),
+        {
+          webappEventsPort: {
+            // D25: webapp now applies the canonical phone/binding itself (applyMessengerContactPreOtp)
+            // inside this ONE call — even when the bind wasn't already in place — instead of
+            // returning `phone_sync_required` and expecting the integrator to write it and call back.
+            completePhoneMessengerBind: async () => {
+              completionCalls += 1;
+              return { ok: true, purpose: 'profile_bind' as const };
+            },
           },
+          // No `writePort` provided: this path must not need one anymore.
         },
-      },
-    );
+      );
 
-    expect(result.status).toBe('success');
-    expect(completionCalls).toBe(2);
-    expect(writes).toEqual([
-      expect.objectContaining({
-        resource: 'telegram',
-        channelUserId: '99321',
-        phoneNormalized: '+79990000994',
-        preferredPlatformUserId: '00000000-0000-4000-8000-000000009321',
-      }),
-    ]);
-  });
+      expect(result.status).toBe('success');
+      expect(completionCalls).toBe(1);
+      expect(writes).toEqual([]);
+    },
+  );
 });
