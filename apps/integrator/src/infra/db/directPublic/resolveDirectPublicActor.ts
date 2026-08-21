@@ -21,7 +21,7 @@ export type DirectPublicActorInput = {
 };
 
 export type DirectPublicActorResolveDeps = {
-  /** Same contract/default as D1's `WriteIdentityAndPreferencesDeps.mergeCandidateIds`. */
+  /** Same swappable-collapse contract as this module's own `defaultMergeCandidateIds` default below. */
   mergeCandidateIds?: (txDb: DbPort, candidateIds: string[]) => Promise<string>;
 };
 

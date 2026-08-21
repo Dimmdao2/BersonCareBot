@@ -11,17 +11,10 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
-import {
-  getCurrentDbPrincipal,
-  getCurrentDbPrincipalOrganizationId,
-} from '@bersoncare/db-principal';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
 import { appendMessageLog } from './repos/messageLogs.js';
 import { writeOperatorDeliveryAttempt } from './repos/operatorDeliveryAttempts.js';
-import {
-  applyMessengerPhonePublicBind,
-  MessengerPhoneLinkError,
-} from './repos/messengerPhonePublicBind.js';
 import { recordMessengerPhoneBindBlocked } from './repos/messengerPhoneBindAudit.js';
 import {
   createContentAccessGrant,
@@ -39,15 +32,10 @@ import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js
 import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
-  writeIdentityAndPreferencesDirect,
   upsertBootstrapChannelIdentity,
   normalizeChannelDisplayHandle,
   type DirectPublicChannelCode,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
-import {
-  mergeCandidateIdsViaPlatformMerge,
-  isIdentityMergeAmbiguityError,
-} from './directPublic/mergeCandidatesDirect.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
 import { collectPlatformUserCandidates } from './directPublic/writeIdentityAndPreferencesDirect.js';
@@ -257,40 +245,22 @@ export function createDbWritePort(
           // `display_name` derived from them) is no longer autofilled from the channel's own profile —
           // the person types it at registration. The messenger profile contributes only its channel
           // display handle; no integrator-local identity or user row is created.
-          try {
-            // D15b/4 fix (access sweep 2026-08-04, ACCESS_SWEEP_2026-08-04.md "Топ находка"): this
-            // writes `public.platform_users`/`user_channel_bindings` directly (see
-            // writeIdentityAndPreferencesDirect.ts). Under the bare "integrator" principal
-            // (`app_patient`, org set, `patient_user_id` NULL) every `platform_users` FORCE-RLS policy
-            // denies it — reads come back silently empty, writes get permission-denied. Same
-            // `writeDirectPublic` applies the same organization principal as the D3-D5 direct writes.
-            const input = {
+          // D25: one exact named root (`app.integrator_upsert_channel_identity`), entered through the
+          // one direct-public principal chokepoint (`writeDirectPublic`), which re-installs the
+          // bootstrap principal the root's declared capability accepts — the webhook itself runs under
+          // `runWithIntegratorPrincipal`/`runWithOrganizationPrincipal` whenever the clinic is already
+          // resolved (telegram/webhook.ts), and the root is unreachable from those (audit K5, 22.08).
+          // It never opens a relation transaction and its lookup is channel-binding-only (no
+          // phone-based candidate widening), so the ambiguity this used to defer via
+          // `writeIdentityAndPreferencesDirect`'s injected merge cascade cannot occur here; see D26
+          // (`mergeCandidatesDirect.ts`, removed) — the integrator does not decide merges.
+          await writeDirectPublic('identity-upsert', () =>
+            upsertBootstrapChannelIdentity(db, {
               channelCode,
               externalId,
               displayHandle: normalizeChannelDisplayHandle(username),
-              firstName: null,
-              lastName: null,
-              displayName: null,
-            };
-            if (getCurrentDbPrincipal()?.kind === 'bootstrap') {
-              await upsertBootstrapChannelIdentity(db, input);
-            } else {
-              await writeDirectPublic('identity-upsert', () =>
-                writeIdentityAndPreferencesDirect(db, input, {
-                  mergeCandidateIds: mergeCandidateIdsViaPlatformMerge,
-                }),
-              );
-            }
-          } catch (err) {
-            if (isIdentityMergeAmbiguityError(err)) {
-              logger.warn(
-                { err, mutationType: mutation.type, resource, externalId },
-                'user.upsert: ambiguous identity merge deferred (no direct write)',
-              );
-              return;
-            }
-            throw err;
-          }
+            }),
+          );
           return;
         }
         case 'user.phone.link': {
@@ -322,97 +292,50 @@ export function createDbWritePort(
             return { userPhoneLinkApplied: false, phoneLinkReason: 'auth_channel_disabled' };
           }
           const phoneSuffix = phoneLogSuffix(phoneNormalized);
+          // D25: one exact named root (`app.integrator_bind_bootstrap_channel_phone`), entered through
+          // the one direct-public principal chokepoint (`writeDirectPublic`), which re-installs the
+          // bootstrap principal the root's declared capability accepts — see `identity-upsert` above
+          // and audit K5 (22.08). That re-entry is scoped to the root call alone, so the ambient
+          // organization principal is back in force for the `admin_audit_log` case below. The root
+          // never opens a relation transaction and reports a conflict without deciding or executing an
+          // account merge (D26); the durable, repeat-aware `admin_audit_log` case below is the same one
+          // the retired relation-writer path (`applyMessengerPhonePublicBind`) used to record, now fed
+          // from the exact root's result whenever an organization is ambiently known.
           try {
-            let applied = false;
-            let platformUserIdForLog: string | undefined;
-            if (getCurrentDbPrincipal()?.kind === 'bootstrap') {
-              const bootstrapResult = await bindBootstrapMessengerPhone(db, {
+            const bindResult = await writeDirectPublic('phone-bind', () =>
+              bindBootstrapMessengerPhone(db, {
                 channelCode: resource,
                 externalId: channelUserId,
                 phoneNormalized,
                 preferredPlatformUserId,
-              });
-              if (!bootstrapResult.applied) {
-                const reason = bootstrapResult.failureCode as PhoneLinkFailureReason | null;
-                return {
-                  userPhoneLinkApplied: false,
-                  ...(reason ? { phoneLinkReason: reason } : { phoneLinkIndeterminate: true }),
-                };
-              }
-              logger.info(
-                {
-                  event: 'messenger_phone_bind_tx',
-                  bindOutcome: 'bind_tx_ok',
-                  metric: 'messenger_bind_ok',
-                  resource,
-                  channelCode: resource,
-                  externalId: channelUserId,
-                  platformUserId: bootstrapResult.platformUserId ?? undefined,
-                  phoneSuffix,
-                  ...(asNonEmptyString(mutation.params.correlationId)
-                    ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
-                    : {}),
-                },
-                'bind_tx_ok',
-              );
-              return { userPhoneLinkApplied: true };
-            }
-            // Same D15b/4 fix as `user.upsert` above: this binding-first canonical write is RLS-denied
-            // under the bare integrator principal, so it runs with the already-resolved organization
-            // principal. It does not create or update integrator-local identity/user rows.
-            await writeDirectPublic('phone-bind', () =>
-              db.tx(async (txDb) => {
-                const { platformUserId } = await applyMessengerPhonePublicBind(txDb, {
-                  channelCode: resource,
-                  externalId: channelUserId,
-                  phoneNormalized,
-                  canonicalIntegratorUserId: null,
-                  preferredPlatformUserId,
-                });
-                platformUserIdForLog = platformUserId;
-                applied = true;
               }),
             );
-            logger.info(
-              {
-                event: 'messenger_phone_bind_tx',
-                bindOutcome: 'bind_tx_ok',
-                metric: 'messenger_bind_ok',
-                resource,
-                channelCode: resource,
-                externalId: channelUserId,
-                platformUserId: platformUserIdForLog,
-                phoneSuffix,
-                ...(asNonEmptyString(mutation.params.correlationId)
-                  ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
-                  : {}),
-              },
-              'bind_tx_ok',
-            );
-            return { userPhoneLinkApplied: applied };
-          } catch (err) {
-            if (err instanceof MessengerPhoneLinkError) {
-              const cause = (err as Error & { cause?: unknown }).cause;
-              const sqlState = pgSqlStateFromUnknown(cause) ?? pgSqlStateFromUnknown(err);
+            if (!bindResult.applied) {
+              const reason = bindResult.failureCode as PhoneLinkFailureReason | null;
               logger.warn(
-                {
-                  ...bindLogBase,
-                  reason: err.code,
-                  ...(sqlState ? { sqlState } : {}),
-                  phoneSuffix,
-                },
+                { ...bindLogBase, reason: reason ?? 'indeterminate', phoneSuffix },
                 'bind_tx_fail',
               );
-              if (err.code !== 'db_transient_failure') {
-                // Same D15b/4 fix: `admin_audit_log` insert/update, also RLS-scoped by
-                // `organization_id` (`saas_org_dormant_p0_8_3`) — denied under the bare integrator
-                // principal, blocked entirely for `app_patient` (no grant at all).
+              const organizationId = getCurrentDbPrincipalOrganizationId();
+              if (reason && organizationId) {
                 void writeDirectPublic('admin-audit-write', () =>
                   recordMessengerPhoneBindBlocked({
                     db,
                     ...(getDispatchPort ? { getDispatchPort } : {}),
-                    reason: err.code,
-                    candidateIds: err.candidateIds,
+                    reason,
+                    // K8 (audit, 22.08): the human Р-D26 hands the merge decision to opens this
+                    // case and must see BOTH colliding accounts — the source AND the account the
+                    // number/merge collided with, which the root now returns alongside it. It is
+                    // also what keeps `conflict_key` (sha256 of the sorted candidate ids) distinct:
+                    // with the source alone, two different conflicts sharing it collapsed into one
+                    // row and the second case disappeared into `repeat_count`.
+                    candidateIds: [
+                      ...new Set(
+                        [bindResult.platformUserId, bindResult.counterpartyPlatformUserId].filter(
+                          (id): id is string => typeof id === 'string' && id.length > 0,
+                        ),
+                      ),
+                    ],
                     details: {
                       channelCode: resource,
                       externalId: channelUserId,
@@ -424,15 +347,29 @@ export function createDbWritePort(
                   }),
                 ).catch(() => {});
               }
-              if (err.code === 'db_transient_failure') {
-                return {
-                  userPhoneLinkApplied: false,
-                  phoneLinkIndeterminate: true,
-                  phoneLinkReason: err.code,
-                };
-              }
-              return { userPhoneLinkApplied: false, phoneLinkReason: err.code };
+              return {
+                userPhoneLinkApplied: false,
+                ...(reason ? { phoneLinkReason: reason } : { phoneLinkIndeterminate: true }),
+              };
             }
+            logger.info(
+              {
+                event: 'messenger_phone_bind_tx',
+                bindOutcome: 'bind_tx_ok',
+                metric: 'messenger_bind_ok',
+                resource,
+                channelCode: resource,
+                externalId: channelUserId,
+                platformUserId: bindResult.platformUserId ?? undefined,
+                phoneSuffix,
+                ...(asNonEmptyString(mutation.params.correlationId)
+                  ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
+                  : {}),
+              },
+              'bind_tx_ok',
+            );
+            return { userPhoneLinkApplied: true };
+          } catch (err) {
             const sqlState = pgSqlStateFromUnknown(err);
             logger.error(
               { err, ...bindLogBase, ...(sqlState ? { sqlState } : {}), phoneSuffix },

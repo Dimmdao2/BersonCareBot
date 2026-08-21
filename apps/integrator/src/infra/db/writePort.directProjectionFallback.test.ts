@@ -31,7 +31,6 @@ vi.mock('./repos/reminders.js', () => ({
 }));
 vi.mock('./directPublic/writeIdentityAndPreferencesDirect.js', () => ({
   collectPlatformUserCandidates: fakes.candidates,
-  writeIdentityAndPreferencesDirect: vi.fn(),
   upsertBootstrapChannelIdentity: vi.fn(),
   normalizeChannelDisplayHandle: vi.fn(),
 }));
