@@ -64,6 +64,7 @@ describe('patient reminder ready-delivery materializer', () => {
       const recipientKey = {
         telegram: 'chatId',
         max: 'userId',
+        vk: 'userId',
         email: 'email',
         web_push: 'pushUserId',
       }[delivery.channel];
