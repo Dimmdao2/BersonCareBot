@@ -31,6 +31,10 @@ function fixture(host = '151.241.228.122') {
   mkdirSync(resolve(testRepo, 'apps/webapp/node_modules/.bin'), { recursive: true });
   writeFileSync(resolve(src, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
   writeFileSync(resolve(src, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
+  mkdirSync(resolve(src, 'apps/webapp/db/drizzle-migrations'), { recursive: true });
+  mkdirSync(resolve(src, 'deploy/postgres'), { recursive: true });
+  writeFileSync(resolve(src, 'deploy/postgres/reference-catalog-baselines.sql'), '-- canonical\n-- shared\n\nINSERT INTO public.reference_catalog_baselines VALUES (1);\n');
+  writeFileSync(resolve(src, 'apps/webapp/db/drizzle-migrations/20260821T025935_restore_reference_catalog_baselines.sql'), '-- BCB-MIGRATION-BACKFILL\n-- BCB-MIGRATION-VERIFY: SELECT true\n--\n-- shared forward input\n\nINSERT INTO public.reference_catalog_baselines VALUES (1);\n');
   writeFileSync(resolve(testRepo, 'apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'), 'import \'./fixture-import.ts\';\n');
   writeFileSync(resolve(testRepo, 'apps/webapp/scripts/fixture-import.ts'), 'fixture');
   writeFileSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), `#!/bin/bash
@@ -40,6 +44,7 @@ printf 'tsx_argv=%s\\n' "$*" >> '${log}'
 printf 'tsx_home=%s\\n' "$HOME" >> '${log}'
 printf 'tsx_node_env=%s\\n' "$NODE_ENV" >> '${log}'
 printf 'tsx_use_real_database=%s\\n' "$USE_REAL_DATABASE" >> '${log}'
+printf 'tsx_inherited_fixture_sentinel=%s\\n' "\${INHERITED_FIXTURE_SENTINEL:-}" >> '${log}'
 exit 0
 `);
   chmodSync(resolve(testRepo, 'apps/webapp/node_modules/.bin/tsx'), 0o755);
@@ -52,6 +57,7 @@ exit 0
     .replace('/tmp/bcb-test-fixture-seed.state.XXXXXX', resolve(root, 'state.XXXXXX'))
     .replace('/tmp/bcb-test-fixture-seed.pgpass.XXXXXX', resolve(root, 'pgpass.XXXXXX'))
     .replace('/tmp/bcb-test-fixture-seed.env.XXXXXX', resolve(root, 'seed.env.XXXXXX'))
+    .replace('/tmp/bcb-test-fixture-reference-catalog.XXXXXX', resolve(root, 'baseline.XXXXXX'))
     .replace('find /tmp -maxdepth 1', `find ${root} -maxdepth 1`)
     .replace('SAFE_PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', `SAFE_PATH=${binPlaceholder(root)}`);
   writeFileSync(script, body);
@@ -86,6 +92,7 @@ case "$1" in
     ;;
   symbolic-ref) printf 'feat/doctor-ui-rebuild\\n' ;;
   diff)
+    [[ "$repo" == '${src}' && "$*" == *'reference-catalog-baselines.sql'* && "\${FIXTURE_SOURCE_BASELINE_DIRTY:-0}" == 1 ]] && exit 1
     [[ "$repo" == '${testRepo}' && "\${FIXTURE_TEST_TRACKED_DIRTY:-0}" == 1 ]] && exit 1
     exit 0
     ;;
@@ -127,6 +134,15 @@ fi
 if [[ "$args" == *'SELECT NOT EXISTS'* ]]; then
   printf 'ERROR: argument of NOT must be type boolean, not type text\\n' >&2
   exit 1
+fi
+if [[ "$args" == *'${root}/baseline.'* && "$args" == *'psql'* && "$args" == *'-f '* ]]; then
+  if [[ "\${FAIL_BASELINE:-0}" == 1 ]]; then
+    printf 'baseline_failed\n' >> "$log"
+    exit 24
+  fi
+  printf 'baseline_psql_args=%s\n' "$args" >> "$log"
+  printf 'baseline_reconciled\n' >> "$log"
+  exit 0
 fi
 if [[ "$args" == *'psql'* ]]; then exit 0; fi
 if [[ "$args" == *'timeout '* ]]; then
@@ -226,6 +242,11 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.match(calls, /apps\/webapp\/scripts\/seed-saas-test-walkthrough-fixtures\.ts/);
   assert.match(calls, /seeder_test_local_tsx/);
+  const baselineCall = calls.indexOf('baseline_reconciled');
+  const seederCall = calls.indexOf('seeder_test_local_tsx');
+  assert.notEqual(baselineCall, -1, 'baseline reconciliation must run');
+  assert.notEqual(seederCall, -1, 'existing seeder must run');
+  assert.ok(baselineCall < seederCall, 'baseline reconciliation must precede the existing seeder');
   assert.match(calls, new RegExp(`^tsx_cwd=${entry.testRepo}/apps/webapp$`, 'm'));
   assert.match(calls, new RegExp(`^tsx_argv=${entry.testRepo}/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures\\.ts$`, 'm'));
   assert.match(calls, /tsx_home=\/nonexistent/);
@@ -233,6 +254,41 @@ test('invokes the existing seeder with its deterministic double-run proof', (t) 
   assert.match(calls, /^tsx_use_real_database=1$/m);
   assert.doesNotMatch(calls, /pnpm_invoked|corepack_invoked/);
   assert.doesNotMatch(calls, /node --import tsx/);
+});
+
+test('reconciles both baseline versions through one protected PostgreSQL transaction', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry);
+  assert.equal(result.status, 0, result.stderr);
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /exec psql -X --single-transaction -v ON_ERROR_STOP=1 -f/);
+});
+
+test('does not pass caller environment through the temporary-authority child', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry, { INHERITED_FIXTURE_SENTINEL: 'must-not-cross-boundary' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(readFileSync(entry.log, 'utf8'), /^tsx_inherited_fixture_sentinel=$/m);
+});
+
+test('rejects missing, divergent, or unreviewed baseline input before temporary authority', (t) => {
+  for (const mutation of ['missing', 'divergent', 'unreviewed']) {
+    const entry = fixture();
+    cleanupFixture(t, entry);
+    if (mutation === 'missing')
+      rmSync(resolve(entry.src, 'deploy/postgres/reference-catalog-baselines.sql'));
+    if (mutation === 'divergent') {
+      writeFileSync(
+        resolve(entry.src, 'deploy/postgres/reference-catalog-baselines.sql'),
+        '-- divergent but structurally executable\n\nINSERT INTO public.reference_catalog_baselines VALUES (2);\n',
+      );
+    }
+    const result = run(entry, mutation === 'unreviewed' ? { FIXTURE_SOURCE_BASELINE_DIRTY: '1' } : {});
+    assert.notEqual(result.status, 0, mutation);
+    assert.doesNotMatch(existsSync(entry.log) ? readFileSync(entry.log, 'utf8') : '', /created/);
+  }
 });
 
 test('rejects a TEST seeder that differs from the reviewed source before temporary authority', (t) => {
@@ -264,12 +320,15 @@ test('success runs existing seeder without leaking credentials and removes tempo
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, /postgresql:\/\/[^\s]*:[^\s]*@|opaque-test-packet/);
   const calls = readFileSync(entry.log, 'utf8');
   assert.match(calls, /created/);
+  assert.match(calls, /baseline_reconciled/);
   assert.match(calls, /dropped/);
   assert.match(calls, /SAAS_TEST_FIXTURE_DOUBLE_RUN_PROOF=1/);
   assert.doesNotMatch(calls, /password=/i);
   assert.doesNotMatch(calls, /DATABASE_URL=/);
-  assert.match(calls, /systemctl stop bersoncarebot-api-test/);
-  assert.match(calls, /systemctl start bersoncarebot-media-worker-test/);
+  for (const unit of ['api', 'worker', 'scheduler', 'webapp', 'media-worker']) {
+    assert.match(calls, new RegExp(`systemctl stop bersoncarebot-${unit}-test`));
+    assert.match(calls, new RegExp(`systemctl start bersoncarebot-${unit}-test`));
+  }
   assert.equal(existsSync(resolve(entry.root, 'deploy.lock')), true, 'normal non-root seed creates the shared deploy lock');
 });
 
@@ -278,8 +337,33 @@ test('injected seeder failure still drops temporary authority and does not leak 
   cleanupFixture(t, entry);
   const result = run(entry, { FAIL_SEED: '1' });
   assert.notEqual(result.status, 0);
-  assert.match(readFileSync(entry.log, 'utf8'), /dropped/);
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /baseline_reconciled[\s\S]*dropped/);
+  for (const unit of ['api', 'worker', 'scheduler', 'webapp', 'media-worker']) {
+    assert.match(calls, new RegExp(`systemctl start bersoncarebot-${unit}-test`));
+  }
   assert.doesNotMatch(`${result.stdout}${result.stderr}`, /postgresql:\/\/[^\s]*:[^\s]*@|opaque-test-packet/);
+});
+
+test('injected baseline reconciliation failure skips the seeder and restores temporary authority and services', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const result = run(entry, { FAIL_BASELINE: '1' });
+  assert.notEqual(result.status, 0);
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /baseline_failed[\s\S]*dropped/);
+  assert.doesNotMatch(calls, /seeder_test_local_tsx/);
+  for (const unit of ['api', 'worker', 'scheduler', 'webapp', 'media-worker']) {
+    assert.match(calls, new RegExp(`systemctl start bersoncarebot-${unit}-test`));
+  }
+  assert.deepEqual(
+    readdirSync(entry.root).filter((name) => /^(?:pgpass|seed\.env|baseline)\./u.test(name)),
+    [],
+  );
+  assert.doesNotMatch(
+    `${result.stdout}${result.stderr}`,
+    /postgresql:\/\/[^\s]*:[^\s]*@|opaque-test-packet/,
+  );
 });
 
 test('rejects wrong database identity before allocating temporary authority', (t) => {
@@ -348,6 +432,22 @@ test('root --recover ignores a broken TEST seeder runtime and restores recorded 
   const state = fixtureState(entry);
   rmSync(resolve(entry.root, 'test/apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts'));
   rmSync(resolve(entry.root, 'test/apps/webapp/node_modules/.bin/tsx'));
+
+  const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
+  assert.equal(recovered.status, 0, recovered.stderr);
+  assert.equal(existsSync(state), false, 'successful recovery removes its protected state');
+  const calls = readFileSync(entry.log, 'utf8');
+  assert.match(calls, /dropped[\s\S]*verified_absent/);
+  assert.match(calls, /systemctl start bersoncarebot-media-worker-test/);
+});
+
+test('root --recover ignores broken baseline input and restores recorded units', (t) => {
+  const entry = fixture();
+  cleanupFixture(t, entry);
+  const failed = run(entry, { ROLE_VERIFICATION: 'false' });
+  assert.equal(failed.status, 70);
+  const state = fixtureState(entry);
+  rmSync(resolve(entry.src, 'deploy/postgres/reference-catalog-baselines.sql'));
 
   const recovered = run(entry, { FIXTURE_UID: '0' }, ['--recover']);
   assert.equal(recovered.status, 0, recovered.stderr);
