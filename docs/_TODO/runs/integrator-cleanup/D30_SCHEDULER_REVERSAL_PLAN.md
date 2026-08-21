@@ -347,6 +347,14 @@ DEV отсутствует, D30 не включает перенос или др
       `cronport list` на целевом хосте, и только по его выводу — `cronport disable`/`remove` НАЙДЕННОЙ
       записи специалист-task напоминания (сигнатуру cron заранее не угадывать); тем же коммитом снимается и
       соответствующий абзац `deploy/HOST_DEPLOY_README.md`.
+      **CURRENT LIVE 21.08.2026:** named DEV/TEST read-only gap census is complete: both databases have
+      `future open=0`, `all open with remind_at=0`, and therefore `without matching queue row=0`; there is no
+      legacy specialist-task backlog to migrate or drain. The following existing-owner TEST gate failed before
+      creating a task: ordinary doctor login passed, but `POST /api/doctor/tasks` returned 500 and the journal
+      recorded SQLSTATE `42501 permission denied for table specialist_tasks`. Live catalog: `app_staff` has
+      `SELECT/DELETE` but not effective INSERT/UPDATE for the emitted statement. Ш3 remains `[ ]`; repair and the
+      same create/update/complete/delete/resident-delivery proof are required before removing sweep/route/registry/
+      cron. Exact commands and evidence: `D30_SPECIALIST_TASK_TEST_LIVE_FAILURE_2026-08-21.md`.
   - [x] **Ш4.0 (предпосылка, из находки 1 `D30_STEP0_AUDIT.md`).** Выполнено D21: прежние B1 cron/route/
         registry/host requirement и check→send→cache путь удалены; `web_push` и email идут через unified
         `public.outgoing_delivery_queue` со stable `event_id`, unique constraint + `ON CONFLICT DO NOTHING`
