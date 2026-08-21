@@ -1166,9 +1166,22 @@ booking/event gateway) в том же источнике помечены «за
          ноль строк `must be legacy-guc`/`SIGNING_SECRET is required` в journalctl, то есть на живом пути эта
          ветка не достигается (port-context уходит раньше по своей дороге). Записано как наблюдение, НЕ как
          задача — новый скоуп из него не заводить.
-         **Остаток D4 (инженерная работа, владельца не касается):** переписать тест под port-context по образцу
-         уже работающих живых проверок D10 (`D10_RLS_LIVE_VERIFY_2026-08-20.md` — транзакция на именованной базе
-         с `app.begin_port_context` и `ROLLBACK` в конце), а не чинить креды под мёртвый режим.
+         🟡 **D4 ЗАКРЫТО 21.08.2026 — тест удалён, не переписан.** Владелец 21.08 запретил отдельное
+         fixture-наполнение для проверок на live DEV/TEST (`docs/OWNER_DECISIONS.md` §«Что A→B имеет право
+         нести в целевую базу»). `writeReminderRulesDirect.rls.integration.test.ts` хардкодил fixture-организацию
+         и fixture-пользователя (`ORG_A`/`FIXTURE_INTEGRATOR_USER_ID`) и открывал НЕЗАВИСИМЫЕ закоммиченные
+         транзакции на три разных принципала подряд с уборкой через `afterAll` DELETE — не единая откатываемая
+         транзакция; `upsertReminderRuleDirect` сам коммитит через собственный `db.tx(...)`, поэтому обернуть
+         его вызов в один внешний rollback нельзя без правки прикладного кода (запрещено брифом). Переписать
+         под port-context по образцу `D10_RLS_LIVE_VERIFY_2026-08-20.md` тоже нельзя: та проверка — разовый
+         ручной `sudo postgres`-скрипт лида с `SET LOCAL ROLE` внутри одной транзакции, а не воспроизводимый
+         тестовый файл, и такую же переключаемость ролей внутри одной транзакции прикладной `DbPort` не
+         поддерживает (каждый `runWithXPrincipal` — свой пул-коннекшен). Файл удалён вместе с общим харнессом
+         `realPostgresIntegrationTestHarness.ts` — исполнение и точный census:
+         `docs/_TODO/runs/integrator-cleanup/LIVE_DEV_TEST_FIXTURES_RETIREMENT_2026-08-21.md`. Сохранённое
+         покрытие: `directPublic/writePort.unit.test.ts` (mock-уровень: `reminder-rule-upsert` идёт под
+         org-principal re-wrap) — реальную RLS-проверку живого прогона на именованной DEV/TEST владелец
+         оставляет за собой/лидом при необходимости, новую тестовую машинерию под неё не заводить.
       2. **D5 «сообщение пациента в поддержку может потеряться» — ЛОЖНАЯ ТРЕВОГА, это мёртвый код.**
          `mirrorPatientUserMessageToWebapp` (`kernel/domain/support/webappSupportSync.ts:25`) имеет **ноль
          вызовов** во всём репозитории (проверено grep по `*.ts`/`*.tsx`/`*.mjs` вне `dist`/`node_modules`).
