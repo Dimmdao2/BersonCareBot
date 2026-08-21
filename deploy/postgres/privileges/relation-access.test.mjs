@@ -457,44 +457,31 @@ test('tenant identity grant is operation- and column-specific', () => {
   exactColumns('public.platform_users', 'app_tenant_service', 'SELECT', [
     'id',
     'birth_date',
-    'phone_normalized',
-    'patient_phone_trust_at',
     'integrator_user_id',
     'merged_into_id',
     'display_name',
     'first_name',
     'last_name',
     'patronymic',
-    'email',
-    'email_verified_at',
     'role',
     'created_at',
-    'email_normalized',
     'updated_at',
   ]);
   exactColumns('public.platform_users', 'app_tenant_service', 'INSERT', [
     'id',
     'integrator_user_id',
-    'phone_normalized',
     'display_name',
     'first_name',
     'last_name',
-    'email',
-    'email_verified_at',
-    'patient_phone_trust_at',
     'role',
   ]);
   exactColumns('public.platform_users', 'app_tenant_service', 'UPDATE', [
-    'phone_normalized',
-    'patient_phone_trust_at',
     'integrator_user_id',
     'merged_into_id',
     'merged_at',
     'display_name',
     'first_name',
     'last_name',
-    'email',
-    'email_normalized',
     'updated_at',
   ]);
   assertNoOperation('public.platform_users', 'app_tenant_service', 'DELETE');
@@ -929,9 +916,9 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.deepEqual(
     users.access.grants.find((grant) =>
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
-    ['id', 'email', 'email_verified_at', 'calendar_timezone', 'integrator_user_id',
+    ['id', 'calendar_timezone', 'integrator_user_id',
       'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
-      'is_blocked', 'patient_phone_trust_at', 'reminder_muted_until'],
+      'is_blocked', 'reminder_muted_until'],
   );
   const identity = tables['public.user_identity'];
   assert.equal(identity.access.kind, 'direct');

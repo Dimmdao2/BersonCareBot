@@ -42,7 +42,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     databases: ['bersoncarebot_test', 'bcb_webapp_dev'],
     relationSurfaces: [
       { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
-      { relation: 'public.platform_users', columns: ['id', 'integrator_user_id', 'email', 'email_verified_at', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      { relation: 'public.platform_users', columns: ['id', 'integrator_user_id', 'is_blocked', 'is_archived', 'merged_into_id', 'reminder_muted_until'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'bot_blocked_at'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.user_channel_preferences', columns: ['platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'], operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
@@ -149,10 +149,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "role",
           "created_at",
           "updated_at",
-          "email",
-          "email_verified_at",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT",
@@ -1409,10 +1406,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "id",
           "role",
           "updated_at",
-          "email",
-          "email_verified_at",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT",
@@ -2148,8 +2142,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -2583,10 +2576,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "updated_at",
-          "email",
-          "email_verified_at",
-          "email_normalized"
+          "updated_at"
         ],
         "operations": [
           "SELECT",
@@ -2644,10 +2634,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "created_at",
-          "email",
-          "email_verified_at",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT",
@@ -2685,7 +2672,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "role",
-          "email_verified_at",
           "merged_into_id"
         ],
         "operations": [
@@ -2804,9 +2790,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "display_name",
           "role",
           "created_at",
-          "email",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT",
@@ -2843,8 +2827,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -2887,10 +2870,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "role",
           "first_name",
           "last_name",
-          "email",
-          "email_verified_at",
           "merged_into_id",
-          "email_normalized",
           "patronymic"
         ],
         "operations": [
@@ -2929,7 +2909,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "role",
-          "email_verified_at",
           "merged_into_id"
         ],
         "operations": [
@@ -2967,9 +2946,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "email_verified_at",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -3062,9 +3039,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "updated_at",
           "first_name",
           "last_name",
-          "email",
           "merged_into_id",
-          "email_normalized",
           "patronymic"
         ],
         "operations": [
@@ -3230,7 +3205,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "email",
           "merged_into_id"
         ],
         "operations": [
@@ -3876,8 +3850,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.platform_users",
         "columns": [
-          "id",
-          "phone_normalized"
+          "id"
         ],
         "operations": [
           "SELECT"
@@ -4009,7 +3982,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "phone_normalized",
           "role"
         ],
         "operations": [
@@ -5217,9 +5189,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "updated_at",
-          "email",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -5294,9 +5264,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "updated_at",
-          "email",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -5392,10 +5360,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "updated_at",
-          "email",
-          "email_verified_at",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -5469,7 +5434,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "updated_at",
-          "email_verified_at",
           "merged_into_id"
         ],
         "operations": [
@@ -5555,9 +5519,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "email",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT"
@@ -5695,9 +5657,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "updated_at",
-          "integrator_user_id",
-          "email",
-          "email_verified_at"
+          "integrator_user_id"
         ],
         "operations": [
           "SELECT"
@@ -5993,8 +5953,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "created_at",
           "updated_at",
           "integrator_user_id",
-          "email",
-          "email_verified_at",
           "reminder_muted_until"
         ],
         "operations": [
@@ -7224,7 +7182,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "role",
           "created_at",
           "updated_at",
-          "email_verified_at",
           "merged_into_id"
         ],
         "operations": [
@@ -10225,9 +10182,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "id",
           "role",
           "updated_at",
-          "email_verified_at",
-          "merged_into_id",
-          "email_normalized"
+          "merged_into_id"
         ],
         "operations": [
           "SELECT",
@@ -11455,8 +11410,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "email",
-          "email_verified_at",
           "is_blocked",
           "is_archived",
           "merged_into_id",
@@ -12003,9 +11956,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "created_at",
-          "updated_at",
-          "email",
-          "email_verified_at"
+          "updated_at"
         ],
         "operations": [
           "SELECT"
