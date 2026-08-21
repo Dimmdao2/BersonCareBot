@@ -47,7 +47,18 @@ Hard rules:
   путями в `.js` и ломается (прецедент зафиксирован в `INTEGRATOR_CONTRACT.md`), а два отдельных деплоя связываются
   релизами намертво. Плюс у приложений разные принципалы (вебапп — из сессии, интегратор — из опознания в мессенджере)
   и разные транзакционные контексты.
-- **One PostgreSQL** in production: same `DATABASE_URL` and DB **role** for both services; canonical platform data in schema **`public`**, integrator runtime in **`integrator`** — see `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`. Integrator writes to `public` only through repository/transaction code agreed in that doc, not by importing webapp modules.
+  ⚠️ **Гейт этого правила частичный.** `scripts/check-webapp-infra-import-boundary.mjs` проверяет только `@/infra/*`
+  внутри `apps/webapp/src/modules/**` и `apps/webapp/src/app/api/**/route.ts`; относительный импорт из дерева
+  `apps/webapp` в `apps/integrator` вне этих путей не ловит ни он, ни `no-restricted-imports`. Единственный
+  найденный случай — мёртвый реэкспорт `apps/webapp/src/shared/normalizeToUtcInstant.ts:11` (никто не импортирует).
+- **Один кластер PostgreSQL, но логин и роль у приложений РАЗНЫЕ** — прежняя формулировка «same `DATABASE_URL` and DB
+  role for both services» устарела. DEV и TEST уже разведены по отдельным логинам: интегратор ходит под
+  `bcb_*_integrator` (`canonicalRole: 'app_integrator_request'`), вебапп — под тремя логинами по принципалу
+  (`*_webapp_staff` / `*_webapp_patient` / `*_webapp_global_admin`), см. `REV10_ENV_MAPPING` в
+  `deploy/postgres/privileges/declaration.ts` и env-ключи `INTEGRATOR_DB_LOGIN` / `WEBAPP_DB_*_LOGIN`. По PROD
+  сверяйся с фактическим env на прод-хосте, а не с этим файлом. Канонические данные платформы — в схеме `public`,
+  рантайм интегратора — в `integrator`. Интегратор пишет в `public` только через код репозиториев/транзакций,
+  описанный в `docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`, не импортируя модули вебаппа.
 - **Cross-process** integration where not same-DB SQL: signed entry links, webhooks, `INTEGRATOR_API_URL`, verified contact linking, HTTP sync and outbox queues as fallback.
 
 ## Целевая схема: кто что делает (зафиксировано 30.07)
