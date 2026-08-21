@@ -19,34 +19,11 @@ Acceptance: `audit/acceptance-ST-01.md`.
 - [x] Code/scratch: оба TEST deploy/migrate-пути останавливают writers.
 - [x] Code/scratch: после migrations/backfills/cleanup/roles/helpers/overlays выполняются strict policies и FORCE.
 - [x] Scratch: exact post-assert подтверждает канонический inventory; временные привилегии отозваны.
-- [x] Code/static: отдельный seeder запускается после finalizer в коротком TEST-only privilege window.
-- [x] Code/static: сервисы запускаются только после успешного finalizer+seed; locked product smoke обязателен.
+- **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:** отдельный TEST seeder и fixture-dependent smoke удалены; deploy не создаёт
+  и не требует persistent fixture-данные (см. `AGENTS.md` §1b).
 - [x] Code/static: OFF/NO FORCE не используется как TEST recovery.
 - [x] Targeted checks, deep audit, fixes и независимый code/scratch re-audit закрыты.
 - [ ] Live TEST closure/health/locked smoke подтверждены.
-
-## ST-02 — богатый повторяемый TEST fixture pack
-
-> **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
-> `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, правила ведения документации и логов,
-> релевантные `.cursor/rules/*.mdc` по теме этапа. Агентов запускать только через `tools/orch-launch.sh`.
-> **НЕ ИЗОБРЕТАТЬ:** почти всё уже описано в документах репозитория. Сначала искать готовое
-> (`node /home/dev/brain/tools/code-search.mjs "<q>" --repo bcb`), переиспользовать существующее; своё писать
-> только если готового нет — и написать в коммите, почему готовое не подошло.
-
-Acceptance: `audit/acceptance-ST-02.md`.
-
-- [x] Code/static: versioned manifest и deterministic reserved IDs.
-- [x] Code/static: Clinic A owner + 2 specialists; Clinic B solo owner/specialist.
-- [x] Code/static: A=5, B=3; doctor/patient/shared/global-admin `.test` logins.
-- [x] Code/static: услуги и прошлые/будущие записи обеих клиник.
-- [x] Code/static: абонементы, остатки, резервирование/списание и история.
-- [x] Code/static: программы, упражнения, action/event history и snapshots для графиков.
-- [x] Code/static: все варианты метрик, включая отсутствие количественных значений.
-- [x] Code/static: double-run/sentinel/collision contract и reserved-only cleanup.
-- [x] Code/static: public/login/registration/booking и locked matrix имеют исполняемые contracts.
-- [x] Targeted checks, deep audit, fixes и independent code re-audit закрыты.
-- [ ] Live TEST double-run, public/media/slots, matrix and shared-context behavior proven.
 
 ## ST-03 — E1 SaaS isolation diagnostics в Global Admin System Health
 
@@ -87,13 +64,13 @@ Acceptance: `audit/acceptance-ST-04.md`.
 - [ ] Live TEST diagnostic-login provision/rotation and effective diagnostic/worker role matrix proven.
 - [ ] Этапные коммиты небольшие и запушены в `feat/doctor-ui-rebuild`.
 - [ ] Full CI зелёный на итоговом SHA.
-- [ ] Fresh TEST deploy проходит strict finalizer, seed и locked smoke.
+- [ ] Fresh TEST deploy проходит security closure и health без fixture precondition.
 - [x] Code contract: smoke uses a separate global-admin profile and negative clinic-admin/doctor probes.
 - [ ] Live product smoke proves those positive/negative profiles.
 - [x] Code/scratch contract доказывает reversible okay/incomplete/critical и exact +1 всех шести классов.
 - [ ] Live TEST execution этих diagnostics scenarios подтверждено.
 - [ ] После smoke повторно подтверждены strict+FORCE, cross-tenant write denials и public/login/registration routes.
-- [ ] Ролевой walkthrough выполнен по seeded данным.
+- [ ] Ролевой walkthrough выполнен через уже зарегистрированные owner-учётки и клиники.
 - [ ] Visual reviewer #1 и независимый Chief #2 проверили каждый визуальный clause.
 - [ ] Нет забытых worktree, сессий и процессов инициативы.
 - [ ] Владелец получает маршруты/роли/состав данных и screenshot manifest без секретов.
@@ -110,6 +87,7 @@ Acceptance: `audit/acceptance-ST-04.md`.
 - [ ] ST-01—ST-04 закрыты по своим acceptance.
 - [ ] #770, #797 и #798 синхронизированы с доказательствами и commit refs.
 - [ ] TEST остаётся strict+FORCE и fail-closed.
-- [ ] Fixture можно повторно применить после следующих миграций.
+- [-] ~~Fixture можно повторно применить после следующих миграций.~~ — **УСТАРЕЛО/ЗАМЕНЕНО 21.08.2026:**
+      persistent fixture-наборы на live TEST запрещены.
 - [ ] System Health показывает SaaS-диагностику.
 - [ ] TEST готов к ручной продуктовой проверке владельцем.

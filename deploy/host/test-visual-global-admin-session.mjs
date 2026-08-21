@@ -16,7 +16,6 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { resolveDeployGroupId } from './saas-test-fixture-packet.mjs';
 import { readSmokeLoginPacket } from './smoke-login-packet.mjs';
 
 const sessionCookieName = 'bersoncare_webapp_session';
@@ -30,6 +29,13 @@ const outputPath = path.join(outputDirectory, 'global-admin.cookies');
 const defaultTtlSeconds = 30 * 60;
 const minTtlSeconds = 5 * 60;
 const maxTtlSeconds = 60 * 60;
+
+function resolveDeployGroupId(groupFile = '/etc/group') {
+  const line = readFileSync(groupFile, 'utf8').split(/\r?\n/).find((candidate) => candidate.startsWith('deploy:'));
+  const groupId = Number((line?.split(':') ?? [])[2]);
+  if (!Number.isSafeInteger(groupId) || groupId < 0) fail('deploy_group_not_found');
+  return groupId;
+}
 
 function fail(code) {
   throw new Error(code);

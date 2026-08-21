@@ -34,11 +34,11 @@ port-context к ней ведут четыре URL с разными логин�
 
 | Нужно                                                                             | Среда                       | Почему                                                                             |
 | --------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------------------------------------------- |
-| Увидеть именно развёрнутый TEST-коммит, TEST-фикстуры и реальные tenant/RLS-gates | `https://test.bersoncare.ru` | Это deploy truth; вход — штатный email/password из защищённого TEST fixture packet |
-| Быстро менять код и данные, делать повторные скриншоты                            | DEV `http://127.0.0.1:5200`  | Hot reload, dev-bypass и свободные изменения `bcb_webapp_dev`                      |
+| Увидеть именно развёрнутый TEST-коммит и реальные tenant/RLS-gates | `https://test.bersoncare.ru` | Это deploy truth; вход — штатный owner email/password |
+| Быстро менять код и повторять скриншоты                            | DEV `http://127.0.0.1:5200`  | Hot reload и уже зарегистрированные owner-учётки/клиники |
 
-`bcb_webapp_dev` — рабочая песочница: её разрешено сидировать и менять для разработки/UX.
-Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
+На именованной DEV нельзя создавать, сидировать, reconcile-ить или требовать persistent fixture-данные;
+проверки используют уже зарегистрированные owner-учётки и клиники. Ограничение остаётся на внешние эффекты: из DEV нельзя отправлять
 реальные сообщения/SMS, вызывать production endpoints или писать в production S3. PROD-БД wrapper не читает и
 не открывает.
 
@@ -164,9 +164,7 @@ sudo -u postgres psql -d bcb_webapp_dev -At -c "SELECT pg_get_userbyid(proowner)
 
 **Что уже выдано dev-скриптами** (применять `sudo -u postgres psql -d bcb_webapp_dev -f <файл>`):
 `dev-c0-runtime-logins.sql` — рантайм-логины; `dev-c1-bootstrap-schema-app-grants.sql` — доступ к схеме
-`app`, установка и снятие принципала обоим пулам, право владельца definer-функции звать `app.is_staff()`;
-`dev-c2-dev-bypass-fixture.sql` — учётки всех пресетов дев-входа, членства и записи пациентов в
-клинику.
+`app`, установка и снятие принципала обоим пулам, право владельца definer-функции звать `app.is_staff()`.
 
 **Что НЕ выровнено и ждёт работы:** владельцы остальных функций схемы `app`. Источник истины — сами
 скрипты `deploy/postgres/*.sql`: в них перечислено поимённо, какая функция обязана принадлежать
@@ -230,66 +228,9 @@ NODE_ENV=development
 
 | `token`            | Роль в сессии                               | Admin mode         | Типичное использование                                                              |
 | ------------------ | ------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------- |
-| `dev:admin`        | `admin` + membership `assistant`            | **всегда включён** | Настройки `/app/doctor/admin/*`, audit-log, system-health, merge, опасные admin API |
-| `dev:clinic-admin` | `doctor` + membership `owner` + specialist  | нет                | Владелец и специалист отдельной демо-клиники без global-admin экранов                |
-| `dev:doctor`       | `doctor` + membership `doctor` + specialist | нет                | Кабинет специалиста без admin-only экранов                                          |
-| `dev:client`       | `client`                                    | —                  | Кабинет пациента                                                                    |
-| `dev:doctor-isolated` | `doctor` + specialist in a separate clinic | нет              | Проверка межорганизационной изоляции                                                 |
-| `dev:client-isolated` | `client` in the separate clinic            | —                | Пациент для положительного сценария отдельной клиники                                |
-| `dev:doctor-colleague` | `doctor` + second specialist in the main clinic | нет          | Проверка изоляции между специалистами одной клиники                                  |
-| `dev:client-colleague` | `client` assigned only to the second specialist | —            | Пациент для отрицательного сценария основного врача                                  |
-
-Когда включён DB-backed identity port, каждый `dev:*` preset требует уже подготовленные synthetic
-`platform_users` + точную messenger binding из preset. Dev bypass на входе делает только read-only lookup;
-отсутствующая binding завершает вход fail-closed и не создаёт пользователя, не вставляет и не переназначает
-`user_channel_bindings`. Поэтому эти четыре аккаунта должны быть подготовлены одноразовым DEV seed/setup до
-проверки входа; это не runtime account-creation path и не основание расширять D3.4 SELECT-only grants.
-
-В `legacy-guc`/`shadow` три staff-токена идемпотентно создают/чинят общую синтетическую `DEV Demo Clinic` и своё
-единственное active membership, а все четыре токена синхронизируют preset phone. `dev:doctor` получает отдельного
-specialist, `dev:clinic-admin` — owner-membership и свою specialist-карточку, `dev:admin` — минимальный `assistant`
-membership без specialist (права global admin даёт platform-role + `adminMode`, а не ownership клиники).
-
-В `locked`/`port-context` те же exact synthetic rows готовит
-`deploy/postgres/dev-c2-dev-bypass-fixture.sql`. Скрипт использует фиксированную `DEV Demo Clinic` и никогда не
-выбирает первую реальную организацию или specialist из восстановленного дампа. Поэтому `dev:doctor` и
-`dev:clinic-admin` не могут прикрепиться к клинике или карточке Дмитрия Берсона.
-
-В `locked` и `port-context` dev bypass полностью read-only: найденный по binding аккаунт обязан уже иметь точный preset phone;
-отсутствующий или отличный phone завершает вход fail-closed. Phone, role, organization, membership и specialist
-на входе не исправляются. Это сохраняет D3.4 bootstrap surface SELECT-only.
-
-#### 4.2.1 Разовая подготовка dev-bypass после создания свежей DEV-БД
-
-Это отдельный one-time setup **после** разрешённого restore/seed и migrations, но **до** финального переключения
-этой DEV-БД в `locked`. Он не является deploy, reset или частью обычного перезапуска приложения.
-
-1. Убедиться, что разрешённый DEV dump/seed уже содержит все четыре synthetic `platform_users` и их точные preset
-   messenger bindings. Запустить webapp в `legacy-guc` (либо в уже настроенном write-capable dev mode) с DEV-only
-   `DATABASE_URL`; production URL/secrets не использовать. Если binding отсутствует, остановиться: runtime её не
-   создаёт, D3.4 grants не расширять, ручной ad hoc SQL не писать — сначала исправить утверждённый DEV seed/source.
-2. Не поднимать второй Next server: сначала проверить владельца процесса через `pgrep -af next`. На единственном
-   DEV server последовательно открыть каждый токен; это один раз синхронизирует phones и создаст/починит staff
-   workspace:
-
-   ```bash
-   for token in client doctor clinic-admin admin; do
-     curl -fsS -o /dev/null -c "/tmp/bcb-dev-${token}.cookies" -L \
-       "http://127.0.0.1:5200/api/auth/dev-bypass?token=dev%3A${token}"
-   done
-   ```
-
-3. **Только для текущего pre-cutover legacy runtime:** контролируемо остановить этот DEV server, вернуть в
-   `.env.dev` `DB_PRINCIPAL_CONTEXT_MODE=locked` и locked dual-pool URLs, не меняя signing secret. Это не target
-   topology: после revision 11 cutover используются staff/patient/global-admin webapp pools и integrator pool с
-   mTLS. Проверить permission `0600`
-   как в разделе 3, затем запустить ровно один DEV server заново.
-4. Повторить четыре входа и для каждого cookie проверить `/api/me`; все четыре запроса должны вернуть успешную
-   сессию. В этом проходе DB не меняется: любой fail означает drift/missing preparation, а не повод дать runtime
-   `UPDATE`/`INSERT` права.
-
-Cookie jars из `/tmp` после проверки удалить. Эту последовательность не повторяют при code-only deploy, build,
-обычном restart или UI-разработке; она нужна только для новой/заново подготовленной DEV-БД.
+`dev:*` presets больше не имеют выделенного persistent dataset. Для DEV/TEST ролевой вход и ручная проверка
+используют существующие owner-учётки и клиники согласно `AGENTS.md` §1b; dev-bypass не создаёт и не исправляет
+телефоны, пользователей, membership или specialist rows.
 
 ### 4.3 Способы входа
 

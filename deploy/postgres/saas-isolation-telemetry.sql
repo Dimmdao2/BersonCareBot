@@ -1,9 +1,8 @@
 -- E1 true-global SaaS isolation telemetry privilege overlay.
 -- Run as PostgreSQL superuser after migration 0194 and before strict/FORCE assertions.
 -- Runtime roles receive EXECUTE on a closed SECURITY DEFINER API, never table DML.
--- TEST-only scenario fixture functions live in test-saas-isolation-telemetry-fixtures.sql
--- (applied only by deploy-test-saas.sh, never by deploy-prod.sh) so this production overlay
--- can never carry TEST-only objects, regardless of where it is applied.
+-- This shared overlay contains no TEST-only fixture objects; TEST deployment must not add
+-- persistent scenario state to either live database.
 
 \set ON_ERROR_STOP on
 \pset pager off

@@ -59,7 +59,6 @@ allowed sequence once a fresh production dump is obtained.
   `appointment_records` into canonical appointments. It is cutover tooling, never a runtime provider integration.
 - `docs/archive/2026-07-rubitime-retirement/SAAS_FOUNDATION/scripts/rubitime-db-cleanup-one-pass.mjs` - historical provenance only; do not execute it.
 - `apps/webapp/scripts/fio-backfill/README.md` - reviewed-manifest FIO apply/rollback contract.
-- `apps/webapp/scripts/seed-saas-test-walkthrough-fixtures.ts` - idempotent TEST-only A/B walkthrough fixture.
 - `deploy/host/saas-test-mode.sh` - TEST-only redacted mode check / dormant rollback helper.
 - `scripts/deploy-saas-667.sh` - disposable/prod-copy #667 migration chain model.
 - `deploy/postgres/c4d-platform-lfk-media-owner-online-index.sql` - one-time transaction-free C4D hot-index step.
@@ -132,10 +131,9 @@ wrapper is blocked and must be fixed; его нельзя объявить ка�
    failed strict TEST deployment by switching walls off. `--mode locked` remains blocked because the supported
    wrappers already own the locked closure; any exceptional owner-directed environment rewrite is a separate
    incident operation and does not count as strict TEST acceptance.
-10. Every fresh TEST restore requires the hash-bound owner-reviewed FIO manifest and legacy-appointment CSV plus
-    the protected `/opt/env/bersoncarebot/saas-smoke-login.env` owner-login packet. The wrapper validates all three
-    before restore and converges only the three canonical owner TEST credentials before the port-context cutover.
-    The retired S3 A/B walkthrough fixture is not seeded or required.
+10. Every fresh TEST restore requires the hash-bound owner-reviewed FIO manifest and legacy-appointment CSV.
+    It does not create, seed, reconcile or require persistent fixture data; role/product checks use existing
+    owner accounts and clinics under `AGENTS.md` §1b.
 
 ## Roles
 
@@ -631,12 +629,8 @@ invariant and must not be asserted by this gate.
 The TEST settings override enables and locks the mirrored global `specialist_signup_enabled=true` row for the
 owner walkthrough. This is TEST-only: production remains default-off. On TEST, clean public/login, combined
 specialist+clinic registration and booking are reached at `/app`, `/app` → `Я специалист`, and `/book` in a
-cookie-free profile. DEV-only `/api/auth/dev-public` helpers are not valid TEST evidence. Exact scenarios and
-viewports are in `OWNER_READY_TEST/ST-02_WALKTHROUGH.md`.
-
-This fixture packet is TEST operator input, not application runtime/integration configuration. It must not be
-added to `api.test`, `webapp.test`, `system_settings`, git, screenshots, shell history, or captured evidence.
-The fixture reconciliation privilege window is also not runtime and must never be reused by an application unit.
+cookie-free profile. DEV-only `/api/auth/dev-public` helpers are not valid TEST evidence. Role checks use the
+already registered owner accounts and clinics; no fixture packet or reconciliation window exists.
 
 **CURRENT runtime gates:** after the generated single-target closure, the fresh-reset wrapper installs/asserts the
 TEST media-worker unit, restarts `api`, `worker`, `scheduler`, `webapp` and `media-worker`, verifies that all five

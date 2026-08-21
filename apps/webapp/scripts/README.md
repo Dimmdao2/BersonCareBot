@@ -33,56 +33,8 @@ unique run tag. Self-test проверяет реальные каноничес
 
 ## Прочие файлы
 
-**SaaS S3 TEST fixture:** [`seed-saas-test-walkthrough-fixtures.ts`](seed-saas-test-walkthrough-fixtures.ts)
-транзакционно и идемпотентно восстанавливает manifest v2: многопрофильную клинику A (управляющий и два
-специалиста, пять пациентов) и соло-клинику B (один специалист, три пациента). Representative patient каждой
-клиники имеет отдельный email-login; fixture также содержит услуги, прошлые/будущие записи, абонементы с
-историей списаний, программы упражнений, разные варианты отметок выполнения и данные графиков. Очистка
-ограничена repo-reserved персонами/ID и не удаляет произвольные строки всей клиники.
-Shared patient состоит в обеих клиниках; public booking получает branch/availability/hours и два
-deterministic legacy `branchServiceId` mapping, а System Health — отдельный global-admin login.
-Shared patient также имеет свой reserved `.test` email/password credential; пароль повторно использует
-защищённый Clinic A packet key, поэтому нового секрета нет. Детерминированные login/context/route/viewport
-ссылки лежат в `SAAS_TEST_FIXTURE_MANIFEST.operatorRefs`; operator walkthrough описан в
-[`ST-02_WALKTHROUGH.md`](../../../docs/_TODO/SAAS_FOUNDATION/OWNER_READY_TEST/ST-02_WALKTHROUGH.md).
-Для U5A live recovery отдельный
-[`patient-organization-test-lifecycle.ts`](patient-organization-test-lifecycle.ts) может обратимо перевести только
-reserved shared-patient enrollment клиники B между `active` и `discharged`. Он требует exact
-`bersoncarebot_test`, sanctioned `SAAS_ISOLATION_OPERATOR_DATABASE_URL`, явный `--execute` и закрытую ephemeral
-capability от root-only wrapper `deploy/host/run-u5a-patient-organization-test-lifecycle.sh`. Operator login
-из URL обязан совпасть с `session_user` и `current_user`, иметь только canonical
-`saas_telemetry_operator` membership и не иметь прямых table grants. URI `options` запрещён до соединения, а
-libpq `PG*` окружение очищается на каждой psql/Node границе. Operator вызывает только SECURITY DEFINER function;
-wrapper снимает function в EXIT cleanup. Function использует существующий узкий `app_owner` ACL из canonical
-patient-invites strict overlay; новых table grants, BYPASS-ролей и seeder elevation не создаёт.
-`restore --execute` является обязательным data cleanup после проверки. Это TEST fixture control, не продуктовый
-enrollment writer.
-Store/payment использует только `fixture_noop`, уведомления выключены. Media rows имеют `s3_key IS NULL`
-и ссылаются на коммиченный `public/test-fixtures/saas-exercise.svg`: `/api/media/[id]` отдаёт его
-только для exact DB `bersoncarebot_test`, а playback descriptor возвращает same-origin URL. Внешние S3
-и каналы доставки не вызываются.
-Перед обычным TEST deploy запускается только из exact source checkout:
-`bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh`.
-Дверь валидирует existing protected packet/parser и exact named DB, даёт existing transactional seeder
-collision-safe temporary LOGIN SUPERUSER и удаляет login/temporary credential в EXIT. Она не останавливает
-services, не меняет stationary runtime roles/grants/RLS и не заменяет tenant-isolation proof. При cleanup failure:
-`sudo bash /home/dev/dev-projects/BersonCareBot/deploy/host/reconcile-saas-test-walkthrough-fixtures.sh --recover`.
-Требуется explicit
-`SAAS_TEST_FIXTURE_ENABLED=1` и четыре credential key из защищённого внешнего TEST operator packet. Скрипт
-проверяет `current_database() = bersoncarebot_test`, не делает внешних вызовов и не печатает реквизиты/ID.
-Добавленные специалисты A и representative patients используют пароль своей клиники только внутри
-зарезервированных `.test`-аккаунтов; secret packet остаётся неизменным.
-Packet никогда не shell-source-ится: единый parser требует non-symlink `root:deploy 0640`, ровно пять
-JSON-quoted ключей и отклоняет unknown/duplicate/malformed/shell-конструкции.
-Канон: `docs/_TODO/SAAS_FOUNDATION/HARD_MIGRATION_PROTOCOL.md`.
-
-**Protected product-smoke fixture — canonical public slots:** если versioned smoke contract добавил
-`publicBookingBranchId` + `publicBookingClinicServiceId`, внешний `/run/bersoncarebot/saas-smoke.fixture` обновляется
-только root/operator entrypoint `deploy/host/update-saas-product-smoke-fixture-canonical-slots.sh`. Он принимает
-только exact TEST checkout/env/DB, выполняет read-only разрешение одной активной same-org canonical пары по уже
-сохранённому public slug и legacy ref, не печатает opaque refs, прогоняет существующие metadata validator и offline
-`--check-fixture`, сохраняет защищённый `.previous` и заменяет файл атомарно. Полная команда и recovery boundary:
-`docs/_TODO/SAAS_FOUNDATION/SAAS_PRODUCT_SMOKE_FIXTURE_OPERATOR_PACKET.md`.
+Live DEV/TEST fixture machinery removed 21.08.2026. Do not create, seed, reconcile or require persistent fixture
+clinics, users or datasets; use the already registered owner accounts and clinics under `AGENTS.md` §1b.
 
 Остальные скрипты (`backfill-*`, `reconcile-*`, `*.sql`, …) — назначение и параметры в комментариях в начале каждого файла.
 
@@ -102,18 +54,6 @@ Event writes use the ambient EXECUTE-only writer role; `read` and `coverage` req
 login in `SAAS_ISOLATION_OPERATOR_DATABASE_URL`. Ambient app/bootstrap roles cannot read, record coverage or resolve.
 Run `pnpm --dir apps/webapp exec tsx scripts/report-saas-isolation-diagnostics.ts read`; coverage also requires a
 caller-generated UUID `--id`. SQL, payloads and identity fields are never accepted.
-
-For the owner-ready TEST walkthrough, the same CLI has a reversible protected scenario command:
-`pnpm --dir apps/webapp run diagnostics:saas-isolation -- scenario --state <okay|incomplete|critical|clean>`.
-The database function refuses every database except exact `bersoncarebot_test`, is executable only by the separate
-operator role, and changes only reserved `test-fixture:v3:*` diagnostics rows and three reserved coverage UUIDs.
-The executable wrapper
-`pnpm --dir apps/webapp run diagnostics:saas-isolation:test-scenarios -- --execute` verifies
-`okay → incomplete → critical` and always invokes `clean` plus a reserved-row count assertion in `finally`.
-`--prove-cleanup-on-injected-failure` intentionally stops after `incomplete`, then proves the same cleanup path.
-Both modes preflight exact `bersoncarebot_test` and the separate least-privilege operator membership before writes;
-they never print the connection URL. Cleanup does not delete or resolve real diagnostics events. Because real active
-events remain authoritative, `okay` intentionally cannot mask an existing genuine critical signal.
 
 The shared TEST deploy closure invokes the generic `post-runtime-gate` command only after locked services, health,
 nginx and product smoke have passed. It reads diagnostics before recording coverage, records all six required process

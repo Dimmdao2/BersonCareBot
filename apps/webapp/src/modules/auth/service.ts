@@ -2,7 +2,6 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { cookies, headers } from 'next/headers';
 import { decodeBase64Url } from '@/shared/utils/base64url';
 import {
-  devBypassDatabaseIdentityIsReadOnly,
   env,
   isProduction,
   webappRuntimeDatabaseIsConfigured,
@@ -69,7 +68,6 @@ import {
   ensureDbPrincipalContext,
 } from '@bersoncare/db-principal';
 import { isDevAuthBypassEnabled } from './devBypassPolicy';
-import type { DevBypassStaffWorkspaceKind } from './devBypassClinicAdminWorkspaceReconciliation';
 import { requireSessionUserPort } from './sessionUserPort';
 
 const TELEGRAM_INIT_DATA_MAX_AGE_SEC = 3600; // 1 hour
@@ -572,28 +570,6 @@ async function optionalResolutionHintsFromVerifiedWebappEntryToken(
   return messengerResolutionHintsFromToken(parsed);
 }
 
-/** Dev bypass + БД: синтетический аккаунт уже найден read-only по binding; синхронизируем его preset phone. */
-async function applyDevBypassPlatformUserPhoneInDb(
-  user: SessionUser,
-  parsed: IntegratorTokenPayload,
-): Promise<SessionUser> {
-  const raw = parsed.phone?.trim();
-  if (!raw) return user;
-  const phone = normalizePhone(raw);
-  if (!isValidPhoneE164(phone)) return user;
-  if (!isPlatformUserUuid(user.userId)) return user;
-
-  enterStaffSecuritySelfPrincipal(user.userId, 'auth/exchange:dev-bypass-verified-self');
-
-  const { applyDevBypassPlatformUserPhoneInDb } =
-    await import('@/modules/auth/devBypassPlatformUserPhonePort');
-  await applyDevBypassPlatformUserPhoneInDb(user.userId, user.role, phone);
-
-  const fresh = await requireSessionUserPort().findByUserId(user.userId);
-  // Keep explicit dev bypass role from token preset even if DB row still has stale role.
-  return fresh ? { ...fresh, role: user.role } : { ...user, phone };
-}
-
 function devBypassPresetPhoneMatches(user: SessionUser, parsed: IntegratorTokenPayload): boolean {
   const rawPresetPhone = parsed.phone?.trim();
   const rawStoredPhone = user.phone?.trim();
@@ -612,7 +588,6 @@ export async function exchangeIntegratorToken(
   updateRoleFn?: ((platformUserId: string, role: string) => Promise<void>) | null,
 ): Promise<ExchangeResult | null> {
   const devParsed = parseDevBypassToken(token);
-  const readOnlyDevBypass = Boolean(devParsed) && devBypassDatabaseIdentityIsReadOnly();
   const parsed = devParsed ?? (await parseIntegratorToken(token));
   if (!parsed) {
     if (process.env.NODE_ENV !== 'test') {
@@ -679,35 +654,11 @@ export async function exchangeIntegratorToken(
   if (devParsed && user.role !== parsed.role) {
     // Dev bypass tokens must keep explicit preset role (dev:admin/dev:doctor/dev:client),
     // even when identity resolution returns an existing row with stale role from DB.
-    if (!readOnlyDevBypass && updateRoleFn && isPlatformUserUuid(user.userId)) {
-      await updateRoleFn(user.userId, parsed.role);
-    }
     user = { ...user, role: parsed.role };
   }
 
   if (devParsed && webappRuntimeDatabaseIsConfigured()) {
-    if (readOnlyDevBypass) {
-      if (!devBypassPresetPhoneMatches(user, parsed)) return null;
-    } else {
-      user = await applyDevBypassPlatformUserPhoneInDb(user, parsed);
-      const staffWorkspaceKind: DevBypassStaffWorkspaceKind | null =
-        parsed.sub === '00000000-0000-0000-0000-000000000002'
-          ? 'doctor'
-          : parsed.sub === '00000000-0000-0000-0000-000000000003'
-            ? 'global_admin'
-            : parsed.sub === '00000000-0000-0000-0000-000000000004'
-              ? 'clinic_admin'
-              : null;
-      if (staffWorkspaceKind) {
-        const { ensureDevBypassStaffWorkspace } =
-          await import('@/modules/auth/devBypassClinicAdminWorkspacePort');
-        await ensureDevBypassStaffWorkspace({
-          platformUserId: user.userId,
-          displayName: parsed.displayName ?? user.displayName,
-          kind: staffWorkspaceKind,
-        });
-      }
-    }
+    if (!devBypassPresetPhoneMatches(user, parsed)) return null;
   }
 
   if (
