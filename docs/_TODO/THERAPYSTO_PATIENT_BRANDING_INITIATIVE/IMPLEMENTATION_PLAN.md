@@ -261,7 +261,12 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
 **Gate C:** OAuth state/provider-selection tests; clinic-required dispatch fault injection; SMTP/template selection
 tests; проверка, что секреты не попадают в public runtime projection/logs; lint+typecheck.
 
-### D — BersonCare как первая конфигурация (`TPB-05`, `06`, `10`, `11`, `12`, `13`)
+### D — включение BersonCare первым арендатором: только настройки, без кода (`TPB-05`, `06`, `10`, `11`, `12`, `13`)
+
+Этап не пишет код. Он **включает** BersonCare тем механизмом, который построили A–C, и тем самым проверяет сам
+механизм: если для включения пришлось дописать код — механизм сделан неправильно, чинить надо его, а не
+подпирать заплаткой. BersonCare здесь — собственный продукт в роли первого арендатора: проходим ровно тот путь,
+которым потом пойдут чужие клиники.
 
 - [ ] `D1` Через существующие settings/branding flows опубликовать BersonCare brand, custom hostname, Yandex app,
   Telegram/MAX bots, SMTP/sender/templates. Product code не получает `if BersonCare`.
