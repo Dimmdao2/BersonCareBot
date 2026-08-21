@@ -493,93 +493,37 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       записи, очередь доставки, `booking_calendar_map` и синк Google были вне scope. Доказательство:
       `legacyAppointmentProjectionTransport.contract.test.ts` + целевая fault injection + независимый аудит.
       ⛔ Архив Rubitime не является доказательством удаления provider-neutral данных.
-- [ ] **D10 — снос транспорта проекции, после всех производителей.** Только после точной переписи «нулевой
-      производитель»: снести fanout/outbox, воркер и его обвязку, общий emit-клиент, `/api/integrator/events`,
-      контракт события и исключение CSRF, health/proxy/digest-инструменты проекции и таблицу outbox миграцией.
-      ⛔ Не удалять общую идемпотентность, очереди доставки и посторонние сервисные HTTP-вызовы.
-      Судьба `jsonStableStringify` и HTTP-обвязки — решение **Р-D10** (§2.3).
-      ✅ **Фундамент под снос готов, ПРОВЕРЕНО 20.08.** Zero-producer census — YES (независимый аудит
-      `D10_DURABLE_FALLBACK_AUDIT_2026-08-20.md`). Durable-fallback путь для пяти прямых операций прошёл 4
-      круга: unreplayable (42501) → межтенантная дыра в RLS → нехватка grant под `ON CONFLICT` → **PASS**
-      (`D10_GRANT_FIX_VERIFY_2026-08-20.md`, независимая живая проверка на `bcb_webapp_dev`, 5/5 kill-set).
-      Следующий шаг — сам снос транспорта (fanout/outbox/воркер/`/api/integrator/events`) по тексту выше, не
-      ещё один круг фикса.
-      ✅ **STAGE 1 (интегратор) СДЕЛАН 20.08** — ветка `wt/d10-transport-stage1-20260820` (`210c57ea2`),
-      отчёт `D10_TRANSPORT_REMOVAL_STAGE1_2026-08-20.md`, вердикт в очереди аудита. Удалены fanout, outbox-репо
-      и merge-политика, projection-воркер и его обвязка, `/health/projection`, emit-клиент к
-      `/api/integrator/events`, контракт события и projection-health tooling в `src`. Сохранены (и это
-      требование, а не недосмотр): очередь доставки, общая идемпотентность, очередь direct-write retry, общий
-      HTTP-клиент к вебаппу и `jsonStableStringify`. Диff −1109/+173, только удаления.
-      **Перепроверено ведущим своей рукой, не по отчёту:** `tsc --noEmit` EXIT=0; `vitest run` по интегратору
-      EXIT=0 — 97 файлов, 489 passed; `eslint apps/integrator/src --max-warnings=0` EXIT=0. Цель этапа
-      подтверждена независимо: `rg` по `apps/integrator/src` даёт **ноль писателей** в `projection_outbox`.
-      ✅ **STAGE 2 (вебапп + хвосты) СДЕЛАН 20.08** — ветка `wt/d10-transport-stage2-20260820`, отведена от
-      вершины stage 1: `710d1d3b2` (воркер) + `6a8b91c04` (правка ведущего), отчёт
-      `D10_TRANSPORT_REMOVAL_STAGE2_2026-08-20.md`, вердикт в очереди аудита. Диff к stage 1 — 76 файлов,
-      **−2869/+410**. Снесены: потребитель вебаппа (`modules/integrator/events.ts` 874 строки,
-      `ingestErrorClassification.ts`, исключение CSRF, запись в реестре защищённых действий), весь
-      projection-слой operator-health (пороги, digest-debounce и его тик, ветка health-failure-archive), снятая
-      CLI-команда projection-health и её вызовы из пяти релиз-гейтов, deploy-доки, и мёртвая заглушка
-      `stubIntegratorDrizzleForTests.ts`. Drizzle-декларацию таблицы и миграции воркер не трогал — запрещено
-      брифом.
-      **Перепроверено ведущим своей рукой:** webapp `tsc --noEmit` EXIT=0; webapp vitest по ВСЕЙ затронутой
-      области EXIT=0, 73 файла / 296 passed; `pnpm --dir apps/webapp run lint` (со структурными гейтами) EXIT=0;
-      integrator `tsc --noEmit` EXIT=0; integrator vitest EXIT=0 / 495 passed.
-      🔴 **Ведущий поймал поломку, которую воркер не увидел из-за узкой выборки.** В
-      `platformOperatorCapabilities.unit.test.ts` воркер подменил данные мока, а `expect` оставил старым —
-      файл краснел. Отчёт при этом гласил «webapp vitest exit 0, 31 tests»: сломанный файл в его выборку НЕ
-      ПОПАЛ. Починено ведущим одной строкой. **Вывод в практику: у воркера-сноса выборка тестов обязана
-      покрывать всю область, где он правил файлы, а не только удалённые каталоги.**
-      ⚠️ **Выход за file-scope, принят по существу:** тронуты `scripts/stage{4,6,7,9,11}-release-gate.mjs`,
-      которых в скоупе не было. Оставить их было нельзя — они звали удаляемую команду `projection-health` и
-      легли бы все. Записано, чтобы расширение скоупа не выглядело нормой.
-      🟡 **Остаток D10 — два пункта:**
-      1. ⚠️ **НЕ ДОКАЗАНО кодом, нужен живой прогон:** в `deploy/host/assert-c4-operational-runtime-ready.sh`
-         вырезаны пробы по `integrator.projection_outbox`, и проба роли `app_operational_diagnostic` теперь не
-         утверждает ВООБЩЕ НИЧЕГО — остались только `SET ROLE`/`RESET ROLE`. На живых базах у этой роли гранта
-         на `projection_outbox` нет ни на DEV, ни на TEST, поэтому по коду строку не оценить. Перед
-         приземлением deploy-части нужен прогон readiness на TEST. Отдельный вопрос, который стоит задать
-         тогда же: если у `app_operational_diagnostic` не осталось ни одного утверждения, не мертва ли сама
-         роль — но это НЕ повод заводить скоуп сейчас.
-      ✅ **РАЗВИЛКА ЗАКРЫТА ВЛАДЕЛЬЦЕМ 21.08 — снос делается сейчас, ждать выкатки не надо.** Ведущий
-         предложил придержать DROP, потому что на TEST развёрнут код ДО D10 и он ещё пишет в таблицу.
-         Владелец дословно: «Что значит вносить нельзя? Ты же сносишь на dev а потом на test одновременно с
-         миграцией и деплоем кода, ты похоже перебдел». Он прав: миграция и код едут ОДНОЙ выкаткой, поэтому
-         окна «старый код против снесённой таблицы» не возникает — на DEV миграцию применяет ведущий, а
-         работающего DEV-интегратора нет; на TEST выкатка меняет код и прогоняет миграции вместе. Записано,
-         чтобы этот страх не всплыл третий раз.
-      📏 **Замер, который всё равно нужен был перед сносом — что в таблице лежит.**
-         На TEST развёрнут код ДО D10 (`/opt/projects/bersoncarebot-test`, вершина `4693847510d`) и он ещё
-         писал: 94 строки за сутки, последняя 20.08 19:00 — то есть «ноль производителей» верно для
-         репозитория и неверно для работающего TEST, и выкатка обязана снять эту разницу.
-         DEV — 3759 `done` + 9 `cancelled`, ноль `pending`/`dead`, последняя 25.07;
-         TEST — 4668 `done` + 9 `cancelled`, ноль `pending`/`dead`. **Неприменённых событий нет ни там, ни
-         там** — таблица истории не держит, сносится как транспортный остаток, переносить нечего.
-      🔴 **НАЙДЕНО 21.08: гейт готовности называет функции, которых в базе НЕТ.** Это не про
-         `projection_outbox` — это хвост D10a, и он ломает выкатку раньше, чем до неё дойдёт очередь.
-         В `deploy/host/assert-c4-operational-runtime-ready.sh` (длинная строка `delivery_login`, ~127):
-         — `has_function_privilege(..., 'app.record_operator_delivery_attempt(text,text,text,integer,text)', …)`
-           — пятиаргументную форму снесла миграция `20260820T185707`; живой запрос на `bcb_webapp_dev` даёт
-           `ERROR: function ... does not exist`, EXIT=1, а при `ON_ERROR_STOP=1` это валит ВЕСЬ прогон готовности;
-         — `app.record_operational_delivery_attempt_audit(text,text,text,text,text,integer,text,jsonb,timestamptz)`
-           — девятиаргументной формы нет вовсе (живая — десятиаргументная с `uuid`). В позиции `expect_denied`
-           это **молчаливо-ложный зелёный**: проба «проходит» потому, что функции нет, а не потому, что права
-           закрыты. Ровно тот класс проверки, ради устранения которого существует трек.
-         Та же мёртвая пятиаргументная подпись — в `deploy/postgres/dev-c3-app-function-owners.sql` (≈105, 154,
-         277). `c4-operational-runtime.sql` уже верен — правился вместе с миграцией.
-         ▶ Пакет запущен: `wt/d10-readiness-identity-20260820` (terra/high), бриф — только эти два файла,
-         база не трогается, права не расширяются. Живой прогон readiness на TEST — за ведущим, после пакета.
-      ✂️ **Поправка к моей же формулировке выше:** «проба роли `app_operational_diagnostic` теперь не утверждает
-         ВООБЩЕ НИЧЕГО» относится только к строке логина. Ниже по файлу у этой роли остаётся живое утверждение
-         `expect_denied` («diagnostic cross-contour reminder read»). Роль не «пустая» — вопрос о её судьбе
-         по-прежнему НЕ повод заводить скоуп.
-      2. **DROP `integrator.projection_outbox` миграцией** — вместе с Drizzle-декларацией таблицы
-         (`infra/db/schema/integratorQueues.ts`). Строго последним. Воркеры миграции не применяют.
-      ✅ **ПРИЗЕМЛЕНО 20.08 по разрешению владельца** («все что можешь свое - вливай»): stage 1 — merge
-      `7ae0d8a4b`, stage 2 — merge `6824ea5af`. Обе прошли через `orch-launch.sh land` с вердиктами в очереди
-      аудита. ⚠️ Полный CI после приземления не гонялся — прямое распоряжение владельца того же хода
-      («после приземления full ci не гоняй»); каждая ветка была перепроверена ведущим ДО слияния по своей
-      затронутой области.
+- [x] **D10 — снос транспорта проекции, после всех производителей.** ✅ **ЗАКРЫТО 21.08.** Снесены fanout/outbox,
+      воркер и его обвязка, общий emit-клиент, `/api/integrator/events`, контракт события и исключение CSRF,
+      health/proxy/digest-инструменты проекции, и таблица `integrator.projection_outbox` — миграцией, вместе с
+      Drizzle-декларацией и правами в генераторе. Сохранены (требование, не недосмотр): общая идемпотентность,
+      очереди доставки, посторонние сервисные HTTP-вызовы. Судьба `jsonStableStringify` и HTTP-обвязки —
+      **Р-D10** (§2.3), сохранены.
+      Коммиты в integration: stage 1 (интегратор) `210c57ea2`; stage 2 (вебапп + хвосты) `710d1d3b2` +
+      `6a8b91c04`; финальный снос схемы/Drizzle/прав `a9e1bdfec` (миграция
+      `20260820T210709_retire_projection_outbox.sql`). Независимые аудиты и полные прогоны каждого шага —
+      `docs/_TODO/runs/integrator-cleanup/D10_TRANSPORT_REMOVAL_STAGE1_2026-08-20.md`,
+      `D10_TRANSPORT_REMOVAL_STAGE2_2026-08-20.md`, `D10_OUTBOX_DROP_2026-08-21.md` и очередь аудита.
+      Repo-traceable commands для трёх ключевых фактов (источник оракула: независимый audit `6282ca28-1385-46d6-9e73-e996265d2c5f`) — `D10_CURRENT_CLOSURE_EVIDENCE_2026-08-21.md`.
+      Миграция не мигрировала строки: замер перед сносом на обеих живых базах дал ноль `pending`/`dead`
+      (DEV — 3759 `done` + 9 `cancelled`; TEST — 4668 `done` + 9 `cancelled`), таблица истории не держала, и
+      владелец распорядился сносить код и миграцию одной выкаткой, не дожидаясь separate drain/migrate шага
+      (дословно 21.08: «Ты же сносишь на dev а потом на test одновременно с миграцией и деплоем кода, ты похоже
+      перебдел»).
+      Full CI на integration SHA `f6c39c9a0` прошёл (`pnpm run ci`, exit 0). Live-подтверждение на именованных
+      `bcb_webapp_dev` и `bersoncarebot_test` (admin-socket `BEGIN READ ONLY`): ledger tag
+      `20260820T210709_retire_projection_outbox` присутствует; `to_regclass('integrator.projection_outbox')` и
+      `to_regprocedure('app.read_integrator_projection_health(integer)')` оба NULL. TEST задеплоен на integration
+      SHA `6fa2f6e1b`, wrapper status `0`, все четыре сервиса (`api`, объединённый `scheduler`, `webapp`,
+      `media-worker`) active, оба health-эндпоинта `{ok:true,db:"up"}`, legacy
+      `bersoncarebot-worker-test.service` отсутствует/неактивен/disabled.
+      ⛔ **Не путать с независимой готовностью деплоя.** Легаси-скрипт
+      `deploy/host/assert-c4-operational-runtime-ready.sh` НЕ подтверждён зелёным этим закрытием — это
+      отдельный долг более старшей инстанции `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/` (revision-11: контекстные
+      функции `install_signed_context`/`release_principal_context`/`reset_principal_context` — «historical
+      replacements», их в базе нет, а этот скрипт/preflight всё ещё ждёт старый signing-secret/context path).
+      Не блокер D10 и не второй активный пункт D10 — см. `DB_PRIVILEGE_LAYER_REBUILD/AUDIT_LOG.md` (запись про
+      `assert-c4-operational-runtime-ready.sh`, `MUST FIX`) и `SCHEME.md` §generator.
 - [x] **D11 — блок дневника и ЛФК удалён из бота.** Настоящий дневник живёт в вебаппе. Решение — **Р-D11**
       (§2.3). Прогон — `docs/_TODO/runs/integrator-diary-removal/`.
 - [x] **D12b — перепись ДОСТИЖИМЫХ сценариев исполнителя.** ✅ **ЗАКРЫТО 31.07** (`43eff0ac8`),

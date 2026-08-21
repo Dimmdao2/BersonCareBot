@@ -23,16 +23,18 @@ artifact has column-scoped app_staff INSERT/UPDATE, while the actual Drizzle INS
    `GRANT`/`REVOKE` in a migration. Do not edit an applied migration.
 5. Preserve organization/owner RLS, current product semantics, atomic write-time queue materialization and
    terminalization of unsent reminders on update/complete/delete.
-6. Add only behavior/security evidence for the real expensive failure. No source-text/count/SQL-form gate. A test
-   that merely pins a column list is forbidden; prove the accepted port can create/update/complete/delete within its
-   own tenant and cannot cross tenant/owner where applicable.
+6. **ЗАМЕНЕНО owner-коррекцией 21.08.2026:** постоянный DB-proof/test для этой разовой сверки грантов не добавлять.
+   Форма реальных Drizzle statements и итоговые ACL принимаются инспекцией diff/generator output, а поведение —
+   отдельным rollback-only живым проходом на именованной DEV через существующую owner-учётку и данные. Не писать
+   source-text/count/SQL-form gate и не создавать fixture/user/clinic. Временное ослабление живых grants для fault
+   injection также запрещено: доказательство не должно оставлять окно с изменёнными правами.
 
 ## Validation and handoff
 
-Run targeted tests, webapp typecheck, scoped lint, privilege generator/checks and `git diff --check`. No full CI.
+Run existing targeted tests, webapp typecheck, scoped lint, privilege generator/checks and `git diff --check`. No
+new permanent test file and no full CI.
 Worker must not access DB/DEV/TEST/PROD, create fixtures/users/clinics, run deploy or push. Commit all work.
 
 After worker completion: one independent audit. If a migration/function is present, a separate owner-aware named-
 DEV rollback-only preflight is mandatory before landing. Candidate live behavior must be checked before landing on
 an isolated port or rollback-only named DEV path; TEST is post-land only after full CI/deploy.
-
