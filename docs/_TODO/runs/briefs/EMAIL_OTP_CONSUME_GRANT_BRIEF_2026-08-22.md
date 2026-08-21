@@ -35,25 +35,30 @@ where: 'SQL statement "SELECT 1
 PL/pgSQL function app.email_otp_public_consume_latest_challenge(text,text) line 28 at PERFORM'
 ```
 
-Функция `SECURITY DEFINER`, владелец — `app_seam_email_otp_owner`. Фактические права на таблицу
-(`information_schema.role_table_grants`, обе именованные базы дают ОДИНАКОВЫЙ ответ, то есть это не
-дрейф TEST, а декларация):
+Функция `SECURITY DEFINER`, владелец — `app_seam_email_otp_owner`.
+
+**ТОЧНАЯ причина — ведущий изолировал её экспериментом на именованной DEV, не по догадке.** Роль
+получает от генератора колоночные `SELECT`/`INSERT` на `platform_users` (см.
+`deploy/postgres/generated/privileges.*.sql`, строки с `GRANT SELECT (...) ON TABLE
+"public"."platform_users" TO "app_seam_email_otp_owner"`) плюс табличный `DELETE`. Табличного
+`UPDATE` у неё нет. А `SELECT ... FOR UPDATE` в PostgreSQL блокирует строку и требует именно
+табличного права на изменение — колоночного `SELECT` для этого недостаточно:
 
 ```
-app_object_owner              | DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE
-app_seam_email_otp_owner      | DELETE
-app_seam_identity_lookup_owner| DELETE
-app_seam_password_auth_owner  | DELETE
-app_staff                     | DELETE,SELECT
+BEGIN; SET LOCAL ROLE app_seam_email_otp_owner;
+SELECT 1 FROM public.platform_users AS candidate
+  WHERE candidate.id IS NOT NULL ORDER BY candidate.id LIMIT 1;             -->  1 строка, OK
+SELECT 1 FROM public.platform_users AS candidate
+  WHERE candidate.id IS NOT NULL ORDER BY candidate.id LIMIT 1 FOR UPDATE;  -->  ERROR: permission denied for table platform_users
 ```
 
-То есть у владельца функции на `platform_users` есть только `DELETE`, а строке нужен как минимум
-`SELECT`, и из-за `FOR UPDATE` — ещё и `UPDATE` (Postgres требует UPDATE для блокировки строки).
+Один и тот же запрос, одна и та же роль: без `FOR UPDATE` — работает, с `FOR UPDATE` — отказ.
+⛔ **Отсюда: НЕ надо выдавать роли `SELECT` — он у неё уже есть. Вопрос ровно в блокировке строки.**
 
-Функция появилась миграцией `apps/webapp/db/drizzle-migrations/20260821T040000_cut_over_canonical_contacts.sql`
-(cutover D15b/6 от 21.08). До 20.08 вход по почте работал — в очереди доставки есть успешная
-отправка 20.08 23:02 со статусом `sent`, а сломалось после этой выкатки. **Это регрессия вчерашнего
-дня, а не древний дефект.**
+**Права НЕ откатывались.** Ничего не отзывали: генератор идемпотентно применяет ровно то, что
+объявлено. Изменилось другое — миграция 21.08 принесла НОВУЮ функцию, которая берёт блокировку, а в
+декларацию право под эту блокировку никто не добавил. То есть дефект не в применении прав, а в том,
+что декларацию расширили под чтение, но не под блокировку.
 
 ## Что сделать
 
@@ -66,10 +71,12 @@ app_staff                     | DELETE,SELECT
 2. **Права — ТОЛЬКО через декларацию и генератор** (`deploy/postgres/privileges/declaration.ts` →
    штатный generate). ⛔ `GRANT`/`REVOKE` внутри миграции запрещены каноном, это отдельное жёсткое
    правило §«Миграция не выдаёт и не отзывает права. Никогда».
-3. **Проверь двух соседей.** `app_seam_identity_lookup_owner` и `app_seam_password_auth_owner` имеют
-   ровно тот же подозрительный набор `DELETE`. Установи по их функциям, сломаны ли они так же
-   (вход по паролю, резолв личности). Если да — почини тем же проходом, это один класс дефекта.
-   Если нет — напиши, почему им хватает.
+3. **Найди ВСЕ функции того же класса, не только эту.** Дефект — «тело функции берёт блокировку или
+   пишет, а декларация даёт только чтение». Пройди по функциям seam-владельцев (начни с
+   `app_seam_identity_lookup_owner` и `app_seam_password_auth_owner` — это вход по паролю и резолв
+   личности) и найди все места с `FOR UPDATE`/`FOR NO KEY UPDATE`/`UPDATE`/`INSERT` по таблицам,
+   где у владельца нет соответствующего табличного права. Сломанные почини тем же проходом; по
+   остальным напиши, почему им хватает. Пустой результат доказывается перечислением того, где искал.
 4. **Докажи поведением, а не рассуждением.** Нужен тест, который краснеет на текущем продукте и
    зеленеет после правки. Уровень — существующий механизм проверки прав/RLS из §10b
    (`pnpm test:db-privileges` и соседние наборы), не новая машинерия.
