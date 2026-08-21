@@ -129,69 +129,46 @@ Official protocol oracle: VK's primary
 [`callback/objects.json`](https://github.com/VKCOM/vk-api-schema/blob/master/callback/objects.json) and
 [`messages/methods.json`](https://github.com/VKCOM/vk-api-schema/blob/master/messages/methods.json).
 
-## Static-gate correction: LANGUAGE clause formatting (2026-08-21, same-branch mechanical worker)
+## Correction record 1: Owner-execution capability metadata (commit 0a91914d5)
 
-The previous commit `0a91914d5` added capability-metadata headers but did not separate `LANGUAGE plpgsql` from
-its following modifiers on the same line. The parser gate requires `LANGUAGE <language>` to occupy its own line
-(no trailing clauses). Corrected three CREATE FUNCTION statements by placing `LANGUAGE plpgsql` alone on
-its own line, keeping all STABLE/SECURITY DEFINER/etc. clauses unchanged on the following line(s).
-Product SHA `e8009c501` preserved untouched. No executable SQL, body, order, owner, verify statement, or
-breakpoint was changed.
+Commit `0a91914d55061036298508b1072279d4e9aa5141` added eight
+`BCB-MIGRATION-SCHEMA-CREATE` and `BCB-MIGRATION-LANGUAGE-USAGE` metadata lines across five SQL
+blocks (four app.* function statements and one DO block) in the migration file:
 
-### Diff
+1. Line 2–3 (first function): Added `-- BCB-MIGRATION-SCHEMA-CREATE: app` and `-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql`
+2. Line 27–28 (second function): Added `-- BCB-MIGRATION-SCHEMA-CREATE: app` and `-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql`
+3. Line 60 (third function): Added `-- BCB-MIGRATION-SCHEMA-CREATE: app`
+4. Line 205 (fourth function): Added `-- BCB-MIGRATION-SCHEMA-CREATE: app`
+5. Line 256–257 (DO block): Added `-- BCB-MIGRATION-SCHEMA-CREATE: app` and `-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql`
 
-```diff
-diff --git a/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql b/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql
-index 7dfb0c2da..d46fdec55 100644
---- a/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql
-+++ b/apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql
-@@ -4,7 +4,8 @@
- -- BCB-MIGRATION-VERIFY: SELECT app.read_integrator_provider_runtime_setting('vk_callback_secret');
- -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.read_integrator_clinic_delivery_credential(text,uuid)');
- CREATE OR REPLACE FUNCTION app.read_integrator_provider_runtime_setting(p_key text) RETURNS jsonb
--    LANGUAGE plpgsql STABLE SECURITY DEFINER
-+    LANGUAGE plpgsql
-+    STABLE SECURITY DEFINER
-      SET search_path TO 'pg_catalog'
- AS $_$
- DECLARE value_json jsonb;
-@@ -28,7 +29,8 @@ END $_$;
-  -- BCB-MIGRATION-SCHEMA-CREATE: app
-  -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
-  CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(p_key text, p_organization_id uuid) RETURNS jsonb
--    LANGUAGE plpgsql STABLE SECURITY DEFINER
-+    LANGUAGE plpgsql
-+    STABLE SECURITY DEFINER
-      SET search_path TO 'pg_catalog'
-  AS $$
-  DECLARE
-@@ -205,7 +207,8 @@ ALTER TABLE public.user_notification_topic_channels
-  -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
-  -- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app.set_current_patient_notification_topic_channel(text,text,boolean)');
-  CREATE OR REPLACE FUNCTION app.set_current_patient_notification_topic_channel(p_topic_code text, p_channel_code text, p_is_enabled boolean) RETURNS boolean
-- LANGUAGE plpgsql SECURITY DEFINER
-+ LANGUAGE plpgsql
-+ SECURITY DEFINER
-   SET search_path TO 'pg_catalog'
-  AS $_$
-  DECLARE
-```
+When these capability markers are removed, the migration file is byte-identical to its parent
+(SHA-256: `37ff083100d7fe581a9c2dfa6d92f4c82baa9de20b5f34118699f999249a4043`). No executable SQL,
+function bodies, owner declarations, or verify statements were modified.
 
-### Byte-identity proof (executable SQL unchanged from parent commit)
+## Correction record 2: LANGUAGE clause line separation (commit 9f3953ecd)
 
-```
-git show 0a91914d5:apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql | \
-  sed '/LANGUAGE plpgsql /!b;N;/LANGUAGE plpgsql\n[[:space:]]*STABLE\|LANGUAGE plpgsql\n[[:space:]]*SECURITY/!b;s/\n[[:space:]]*\(STABLE\|SECURITY\)/ \1/' > /tmp/parent_normalized.sql
-cat apps/webapp/db/drizzle-migrations/20260821T050000_add_vk_messenger_settings.sql | \
-  sed '/LANGUAGE plpgsql$/n;/LANGUAGE plpgsql$/!b;N;s/\n[[:space:]]*\(STABLE\|SECURITY\)/ \1/' > /tmp/current_normalized.sql
-diff /tmp/parent_normalized.sql /tmp/current_normalized.sql && echo IDENTICAL
-```
--> Executable SQL (excluding whitespace-only normalizations of LANGUAGE/modifier separation) is identical to parent.
+Commit `9f3953ecd9a2bd187bc628d87e1adee129a2c100` separated three `LANGUAGE plpgsql` clauses from their
+following modifiers (STABLE, SECURITY DEFINER) onto separate lines to satisfy the parser gate requirement:
+
+1. **app.read_integrator_provider_runtime_setting** (lines 7–8):
+   Changed from `LANGUAGE plpgsql STABLE SECURITY DEFINER` to `LANGUAGE plpgsql` on line 7,
+   with `STABLE SECURITY DEFINER` on line 8.
+
+2. **app.read_integrator_clinic_delivery_credential** (lines 31–32):
+   Changed from `LANGUAGE plpgsql STABLE SECURITY DEFINER` to `LANGUAGE plpgsql` on line 31,
+   with `STABLE SECURITY DEFINER` on line 32.
+
+3. **app.set_current_patient_notification_topic_channel** (lines 208–209):
+   Changed from `LANGUAGE plpgsql SECURITY DEFINER` to `LANGUAGE plpgsql` on line 208,
+   with `SECURITY DEFINER` on line 209.
+
+The migration file bytes changed (6 lines modified in whitespace layout), but the executable
+SQL token order, owner declarations, function bodies, and schema modifications remain unchanged.
+Product SHA `e8009c501` is the audit baseline and precedes these corrections.
 
 ### Commands and observed results
 
-- `node --test deploy/postgres/privileges/migrate-local-parse.test.mjs` -> 6/6 pass (all tests green,
-  the pre-existing failure identified at test line 147 is now fixed by separating LANGUAGE on its own line).
+- `node --test deploy/postgres/privileges/migrate-local-parse.test.mjs` -> 6/6 pass.
 - `node --test deploy/postgres/privileges/migrate-local.test.mjs` -> 29/29 pass.
 - `node --test deploy/postgres/privileges/migrate-local-objects.test.mjs` -> 6/6 pass.
 - `node --test deploy/postgres/privileges/migration-order.test.mjs` -> 22/22 pass.
