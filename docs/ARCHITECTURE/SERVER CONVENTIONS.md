@@ -333,15 +333,16 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 
 **Projection health (`projection_outbox`, integrator DB):** канонически **`GET /health/projection`** на хосте integrator (публичный пример: `https://tgcarebot.bersonservices.ru/health/projection`). На webapp добавлены прокси с тем же JSON: **`GET /api/health/projection`**, **`GET /health/projection`**, **`GET /app/health/projection`** — серверный fetch на `{INTEGRATOR_API_URL}/health/projection`; при пустом `INTEGRATOR_API_URL` ответ **503** `integrator_url_not_configured`.
 
-**Operator health probes (MAX + Telegram + Google Calendar):** integrator принимает
-**`POST /internal/operator-health-probe`** только с подписью **`x-bersoncare-timestamp`** +
-**`x-bersoncare-signature`** (HMAC-SHA256 от `timestamp + '.' + rawBody`, secret —
-**`INTEGRATOR_WEBHOOK_SECRET`** или **`INTEGRATOR_SHARED_SECRET`** из `api.prod`, длина ≥ 16). Публичного
-неподписанного доступа нет. Канонический вызов с хоста: скрипт репозитория
-[`deploy/host/operator-health-probe.sh`](../../deploy/host/operator-health-probe.sh) (по умолчанию
-`http://127.0.0.1:3200`, переопределение `INTEGRATOR_API_URL`). Периодический запуск — **cron** или **systemd
-timer** от пользователя с правом `curl` к loopback и чтением `api.prod` (частота: раз в час или реже; см.
-`deploy/HOST_DEPLOY_README.md`). Rubitime probe удалён вместе с provider runtime 2026-07-27.
+**Operator health probes (MAX + Telegram + Google Calendar):** больше не имеют внешнего HTTP-триггера. **D30
+Ш6 (21.08.2026):** резидентный `bersoncarebot-scheduler-prod.service` вызывает `runScheduledOperatorHealthProbeTick`
+(`apps/integrator/src/infra/runtime/scheduler/operatorHealthProbeTick.ts`) напрямую в своём цикле, с due-gating
+по `intervalMs` каждой пробы и уважением quiet-часов из `operator_health_probe_config` — прежний внешний cron
+гонял все включённые пробы каждый час мимо этих настроек. Прежний trigger **`POST
+/internal/operator-health-probe`** (HMAC-подпись `x-bersoncare-timestamp`/`x-bersoncare-signature`,
+`INTEGRATOR_WEBHOOK_SECRET`/`INTEGRATOR_SHARED_SECRET`) и канонический скрипт
+`deploy/host/operator-health-probe.sh` удалены; см.
+`docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` (вердикт B4). Rubitime probe удалён вместе с
+provider runtime 2026-07-27.
 
 Дополнительно в `tgcarebot` vhost есть legacy-path:
 
