@@ -1,7 +1,7 @@
 # D15b/6 — messenger conflict audit correction (2026-08-21)
 
 ## Источник оракула
-> «После опознания любая работа с пользовательскими данными требует уже human principal.» — `docs/OWNER_DECISIONS.md`, owner decision 11.08.2026.
+> «attested pre-session транзакцию. Полномочие этой транзакции доказывает только ключ порта и ограничивается exact» — `docs/OWNER_DECISIONS.md`, owner decision 11.08.2026.
 
 Authority: `D15B6_MESSENGER_PRESESSION_PROTOCOL_CORRECTION_BRIEF_2026-08-21.md` item 3 — preserve
 conflict/manual-merge rules; `WORK_ORDER.md` D15b/6, D25 and D26; `AGENTS.md` §5 and §24. Candidate:
