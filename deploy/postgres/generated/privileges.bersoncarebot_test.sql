@@ -17950,8 +17950,8 @@ GRANT SELECT ("id", "organization_id", "reminder_sent_at") ON TABLE "public"."sp
 GRANT SELECT ("completed_at", "created_at", "description", "due_at", "id", "is_important", "organization_id", "owner_user_id", "patient_user_id", "remind_at", "reminder_sent_at", "title", "updated_at") ON TABLE "public"."specialist_tasks" TO "app_seam_reminder_specialist_owner";
 GRANT UPDATE ("id", "organization_id", "reminder_sent_at") ON TABLE "public"."specialist_tasks" TO "app_seam_reminder_specialist_owner";
 GRANT SELECT, DELETE ON TABLE "public"."specialist_tasks" TO "app_staff";
-GRANT INSERT ("description", "due_at", "is_important", "organization_id", "owner_user_id", "patient_user_id", "remind_at", "title", "updated_at") ON TABLE "public"."specialist_tasks" TO "app_staff";
-GRANT UPDATE ("completed_at", "description", "due_at", "is_important", "organization_id", "reminder_sent_at", "title", "updated_at") ON TABLE "public"."specialist_tasks" TO "app_staff";
+GRANT INSERT ("completed_at", "created_at", "description", "due_at", "id", "is_important", "organization_id", "owner_user_id", "patient_user_id", "remind_at", "reminder_sent_at", "title", "updated_at") ON TABLE "public"."specialist_tasks" TO "app_staff";
+GRANT UPDATE ("completed_at", "description", "due_at", "is_important", "organization_id", "remind_at", "reminder_sent_at", "title", "updated_at") ON TABLE "public"."specialist_tasks" TO "app_staff";
 GRANT SELECT ("id", "organization_id", "owner_user_id", "remind_at", "reminder_sent_at", "title") ON TABLE "public"."specialist_tasks" TO "app_tenant_service";
 GRANT INSERT ("id", "organization_id", "owner_user_id", "remind_at", "title") ON TABLE "public"."specialist_tasks" TO "app_tenant_service";
 GRANT UPDATE ("reminder_sent_at") ON TABLE "public"."specialist_tasks" TO "app_tenant_service";
