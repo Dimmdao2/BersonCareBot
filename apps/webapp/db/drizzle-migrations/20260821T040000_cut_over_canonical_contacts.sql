@@ -4270,6 +4270,7 @@ END
 $function$;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 DO $d15b6_dependencies$
 DECLARE
   v_dependents text[];
