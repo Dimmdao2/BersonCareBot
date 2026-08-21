@@ -127,7 +127,7 @@ fixtures и без одноразовой базы.
    TEST, затем снятие sweep/route/registry/host cron для закрытых code-side шагов (Ш3), затем TEST-наблюдение и
    фактическое снятие host cron через `cronport` для Ш4/Ш5/Ш6. B3/Ш8 — только зависимость от D5–D7/D25 вне этого
    плана.
-5. **D15b/7 (псевдоним) — не отложен, но зависит по факту от завершённого D15b/6.** «Не сейчас» снято 20.08;
+5. **D15b/7 (псевдоним) — не отложен, зависит на практике от TEST-закрытия D15b/6.** «Не сейчас» снято 20.08;
    первый этап **D15b/7a** — внутри уже существующего identity/DB-port + port-context seam разделить opaque
    actor/identity ref и opaque medical-subject ref (`app_ext.variant_a_identity_refs`,
    `app.pre_session_resolve_identity`, `PortContextPrincipal.actorRef/subjectRef`, `portContextRuntime`), оба
