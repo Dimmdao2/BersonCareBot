@@ -16,7 +16,7 @@ import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
 import { PWA_APP_ROOT_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
-import { getRequestSurface } from '@/shared/lib/surface/requestSurface.server';
+import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import {
   surfaceDisplayName,
   surfaceLayoutMetadata,
@@ -31,7 +31,7 @@ import {
  * представлялся пациентским продуктом.
  */
 export async function generateMetadata(): Promise<Metadata> {
-  return surfaceLayoutMetadata(await getRequestSurface());
+  return surfaceLayoutMetadata(await getResolvedSurface());
 }
 
 /** Safe-area insets для мобильных (вырез, индикатор дома) — нужен viewport-fit=cover. */
@@ -49,7 +49,7 @@ export const viewport: Viewport = {
 
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const [platformEntry, surface] = await Promise.all([getPlatformEntry(), getRequestSurface()]);
+  const [platformEntry, surface] = await Promise.all([getPlatformEntry(), getResolvedSurface()]);
   const buildId = (process.env.BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || '').trim();
   return (
     <html lang="ru" suppressHydrationWarning className="font-sans">

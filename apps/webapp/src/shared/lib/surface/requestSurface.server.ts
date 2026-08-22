@@ -1,17 +1,14 @@
 import { headers } from 'next/headers';
-import {
-  SURFACE_PATHNAME_HEADER,
-  SURFACE_SEARCH_HEADER,
-  resolveRequestSurface,
-  type ProductSurface,
-} from '@/config/surfaceRoutes';
+import { notFound } from 'next/navigation';
+import { readResolvedSurface, type ResolvedSurface } from './requestSurface';
 
 /**
- * Поверхность текущего запроса для RSC. Путь приходит заголовком из `src/proxy.ts` — Next не даёт
- * layout'у pathname. Единственные вызывающие: корневой layout (метаданные + видимое имя) и
- * `AppEntryRsc` (заголовок shell'а общего экрана входа).
+ * Reads the already-resolved request boundary value. Host is intentionally unavailable here:
+ * proxy is the only resolver and overwrites the internal header on every dynamic request.
  */
-export async function getRequestSurface(): Promise<ProductSurface> {
+export async function getResolvedSurface(): Promise<ResolvedSurface> {
   const h = await headers();
-  return resolveRequestSurface(h.get(SURFACE_PATHNAME_HEADER), h.get(SURFACE_SEARCH_HEADER));
+  const surface = readResolvedSurface(h);
+  if (!surface) notFound();
+  return surface;
 }

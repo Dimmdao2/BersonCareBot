@@ -22,15 +22,44 @@ import {
   handlePlatformContextRequest,
 } from '@/middleware/platformContext';
 import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
-import { SURFACE_PATHNAME_HEADER, SURFACE_SEARCH_HEADER } from '@/config/surfaceRoutes';
+import { canSurfaceEnterRoute } from '@/config/surfaceRoutes';
+import {
+  RESOLVED_SURFACE_HEADER,
+  resolveRequestSurface,
+  serializeResolvedSurface,
+  type TenantSurfaceLookup,
+} from '@/shared/lib/surface/requestSurface';
 
-export function proxy(request: NextRequest) {
+const NO_TENANT_SURFACE: TenantSurfaceLookup = async () => ({ status: 'unknown' });
+
+export async function proxy(
+  request: NextRequest,
+  nextContextOrTenantLookup?: unknown,
+) {
+  // Next supplies a NextFetchEvent as argument two. Tests and the B1 composition seam may instead
+  // inject the Host lookup function without making this resolver depend on its persistence module.
+  const resolveTenantSurface =
+    typeof nextContextOrTenantLookup === 'function'
+      ? (nextContextOrTenantLookup as TenantSurfaceLookup)
+      : NO_TENANT_SURFACE;
   // Only UUID-shaped values cross the trust boundary. Free-form/oversized caller text is replaced,
   // so it can never become a log field or an internal header value.
   const correlationId = resolveCorrelationId(
     request.headers.get(BC_CORRELATION_ID_HEADER) ??
       request.headers.get('x-bc-auth-correlation-id'),
   );
+  const forwardedProtocol = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim();
+  const resolvedSurface = await resolveRequestSurface({
+    host: request.headers.get('host'),
+    protocol: forwardedProtocol || request.nextUrl.protocol,
+    resolveTenantSurface,
+  });
+  if (!resolvedSurface || !canSurfaceEnterRoute(resolvedSurface.surface, request.nextUrl.pathname)) {
+    const response = new NextResponse(null, { status: 404 });
+    response.headers.set('Cache-Control', 'no-store');
+    response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
+    return response;
+  }
   const csrfDecision = decideCsrfOrigin({
     method: request.method,
     pathname: request.nextUrl.pathname,
@@ -111,12 +140,12 @@ export function proxy(request: NextRequest) {
   }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(BC_CORRELATION_ID_HEADER, correlationId);
-  // Путь запроса — единственный вход `resolveRequestSurface` (TPB-08): Next не даёт layout'у
-  // pathname, поэтому идентичность поверхности вычислить без этого проброса негде. Раньше заголовок
-  // ставился только для `/app/patient` (patient-layout policy); теперь — для всего matcher'а, иначе
-  // staff-маршрут снова молча получит пациентскую идентичность корня.
-  requestHeaders.set(SURFACE_PATHNAME_HEADER, pathname);
-  requestHeaders.set(SURFACE_SEARCH_HEADER, request.nextUrl.search);
+  // Incoming internal context is never trusted. Every downstream consumer reads this exact value;
+  // none of them re-resolves Host/path or falls back to a platform surface (TPB-16).
+  requestHeaders.delete(RESOLVED_SURFACE_HEADER);
+  requestHeaders.delete('x-bc-pathname');
+  requestHeaders.delete('x-bc-search');
+  requestHeaders.set(RESOLVED_SURFACE_HEADER, serializeResolvedSurface(resolvedSurface));
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
@@ -127,22 +156,19 @@ export function proxy(request: NextRequest) {
 }
 
 /**
- * ЕДИНСТВЕННЫЙ источник matcher'а. Читать его нужно отсюда — импортом `config`, а не переписывая
- * список литералом у себя (TPB-16). Копия в `config/surfaceRoutes.ts` была и удалена: matcher —
- * шов, на котором стоит идентичность поверхности (без заголовка пути рантайм отдаёт пациентский
- * fallback), поэтому вторая копия делала гейт слепым ровно к той поломке, ради которой он заведён.
+ * The literal matcher makes proxy the actual dynamic-request choke point. It includes public
+ * patient routes, API and manifests while leaving Next internals and immutable image/font assets
+ * on the static fast path.
  *
  * Почему литерал, а не импортированная константа: Next читает `config` статическим разбором
  * исходника. Замерено на этой сборке — вынос списка даже в константу ЭТОГО файла роняет
  * `next build`: «Next.js can't recognize the exported `config` field in route. `matcher` needs to be
  * a static string or array of static strings or array of static objects». То есть значение обязано
- * быть литералом здесь, и направление зависимости одно: matcher живёт в этом файле, остальные
- * читают его отсюда импортом `config` (так делает гейт `config/surfaceRoutes.unit.test.ts`).
+ * быть литералом здесь.
  */
 export const config = {
-  // `/` добавлен вместе с проброской пути поверхности: лендинг — staff-маркетинг («Therapysto —
-  // кабинет специалиста»), и без него он остаётся единственным staff-маршрутом, до которого
-  // резолвер не дотягивается. Порядок обработки для `/` тот же, что для `/app`: portalForAppPath
-  // здесь null, поэтому сессионная логика не срабатывает.
-  matcher: ['/', '/app', '/app/:path*', '/api/:path*'],
+  matcher: [
+    '/book/embed.js',
+    '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2)$).*)',
+  ],
 };
