@@ -117,6 +117,7 @@ function buildMessageSendIntent(input: {
   deliveryChannels: string[];
   parseMode?: 'HTML';
   imageUrl?: string;
+  unsubscribeUrl?: string;
 }): Record<string, unknown> {
   const occurredAt = new Date().toISOString();
   const source = input.channel === 'sms' ? 'sms' : input.channel;
@@ -145,6 +146,13 @@ function buildMessageSendIntent(input: {
       },
       ...(input.parseMode ? { parse_mode: input.parseMode } : {}),
       ...(input.imageUrl ? { imageUrl: input.imageUrl } : {}),
+      ...(input.unsubscribeUrl
+        ? {
+            replyMarkup: {
+              inline_keyboard: [[{ text: 'Отписаться от темы', url: input.unsubscribeUrl }]],
+            },
+          }
+        : {}),
     },
   };
 }
@@ -162,6 +170,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   attachMenu?: boolean;
   /** URL картинки рассылки — пробрасывается ТОЛЬКО в telegram-intent (sendPhoto). */
   imageUrl?: string | null;
+  /** Signed, recipient-specific topic-unsubscribe URL. Messenger channels only. */
+  unsubscribeUrlByUserId?: ReadonlyMap<string, string>;
 };
 
 /**
@@ -192,6 +202,7 @@ export function buildDoctorBroadcastDeliveryJobs(
     const prefs = resolveBroadcastNotificationPrefsFromBatch(prefsMap, client.userId);
     const tg = client.bindings.telegramId?.trim();
     const mx = client.bindings.maxId?.trim();
+    const unsubscribeUrl = input.unsubscribeUrlByUserId?.get(client.userId);
 
     if (wantsTelegram) {
       if (tg && broadcastIncludeTelegramJob(audienceFilter, prefs, true)) {
@@ -215,6 +226,7 @@ export function buildDoctorBroadcastDeliveryJobs(
               deliveryChannels: ['telegram'],
               parseMode: 'HTML',
               imageUrl: input.imageUrl ?? undefined,
+              unsubscribeUrl,
             }),
           },
         });
@@ -240,6 +252,7 @@ export function buildDoctorBroadcastDeliveryJobs(
               text: messengerText,
               deliveryChannels: ['max'],
               parseMode: 'HTML',
+              unsubscribeUrl,
             }),
           },
         });

@@ -38,6 +38,17 @@ integrator не подменяет его платформенным sender. Pus
   clinic; платформа для неё не является fallback.
 - `broadcastEligible.ts` — `filterEligibleBroadcastClients` + `deriveBroadcastDeliveryPolicy`.
 
+Поверх channel eligibility один общий send-time gate читает master-тему из `user_notification_topics`:
+`service` / `organizational` / `important_notice` → `important_broadcasts`, остальные категории →
+`patient_news`. Отписанный пользователь исключается до постановки Telegram/MAX/SMS jobs и до fan-out
+Push/email, поэтому preview и execute видят одно множество получателей.
+
+Telegram/MAX и email получают кнопку **«Отписаться от темы»**. Ссылка создаётся
+`patient-notifications/topicUnsubscribe.ts`: HMAC-SHA256 подписывает адресата, topic code и уникальный `auditId`,
+а публичный `GET /api/public/notifications/unsubscribe` без сессии идемпотентно выключает только эту master-тему.
+Ответ маршрута одинаков для валидного, повторного, неизвестного и испорченного маркера и не раскрывает наличие
+адресата. Служебные сообщения вне `doctor-broadcasts` такую кнопку не получают.
+
 PWA-чат (все eligible): `appendPatientInboundAdminMessage` после `execute` (полный текст в тред).
 Клик по push-уведомлению открывает `/app/patient/messages`. Legacy `/app/patient/broadcasts/{auditId}` → редирект в чат.
 

@@ -37,7 +37,16 @@
 - **SUPERSEDED 2026-07-27:** SMS cannot bypass recipient preferences under §21; see the **«Уведомления»** authority-map row.
 - **`sms_only`**: при выбранном канале SMS — доставка по номеру **без** проверки SMS-prefs (изоляция как для узкого канала).
 
-Пер-топик настройки (`user_notification_topic_channels`) в рассылках врача **не** используются.
+Перед preview и execute сервис одним batch-чтением `user_notification_topics` применяет master-тему рассылки:
+`service` / `organizational` / `important_notice` → `important_broadcasts`, остальные категории →
+`patient_news`. `is_enabled=false` исключает адресата из всех выбранных каналов до queue/fan-out; отсутствие
+строки сохраняет действующий default темы. Channel rows `user_notification_topic_channels` остаются вторым
+пересечением внутри конкретного канала, но не заменяют master gate.
+
+Для Telegram/MAX и email строится одна HMAC-SHA256 ссылка на адресата, master-тему и `broadcast auditId`.
+Бессессионный `GET /api/public/notifications/unsubscribe` идемпотентно выключает только подписанную тему и всегда
+возвращает одинаковый ответ, включая неизвестного адресата и испорченный маркер. Служебные сообщения вне
+`doctor-broadcasts` CTA не получают.
 
 После успешной привязки `telegram`, `max` или `sms` webapp выполняет **upsert** prefs с `is_enabled_for_messages/notifications = true`, чтобы канал явно включён для рассылок (повторное подключение снова включает prefs).
 

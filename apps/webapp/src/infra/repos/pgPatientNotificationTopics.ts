@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, inArray, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import type {
   NotificationTopicMasterRow,
@@ -25,6 +25,26 @@ export function createPgPatientNotificationTopicsPort(): PatientNotificationTopi
         }),
       );
     },
+    async listByUserIds(userIds) {
+      const uniqueUserIds = [...new Set(userIds.map((userId) => userId.trim()).filter(Boolean))];
+      if (uniqueUserIds.length === 0) return new Map();
+      const db = getDrizzle();
+      const rows = await db
+        .select({
+          userId: userNotificationTopics.userId,
+          topicCode: userNotificationTopics.topicCode,
+          isEnabled: userNotificationTopics.isEnabled,
+        })
+        .from(userNotificationTopics)
+        .where(inArray(userNotificationTopics.userId, uniqueUserIds));
+      const byUserId = new Map<string, NotificationTopicMasterRow[]>();
+      for (const row of rows) {
+        const current = byUserId.get(row.userId) ?? [];
+        current.push({ topicCode: row.topicCode.trim(), isEnabled: row.isEnabled });
+        byUserId.set(row.userId, current);
+      }
+      return byUserId;
+    },
     async setTopicEnabled(userId, topicCode, isEnabled) {
       const result = await runWebappNamedRoot<{ saved: boolean }>(
         getWebappSqlDb(),
@@ -43,5 +63,6 @@ export function createPgPatientNotificationTopicsPort(): PatientNotificationTopi
 
 export const inMemoryPatientNotificationTopicsPort: PatientNotificationTopicsPort = {
   listByUserId: async () => [],
+  listByUserIds: async () => new Map(),
   setTopicEnabled: async () => {},
 };

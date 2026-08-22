@@ -35,6 +35,9 @@ import { logger } from '@/infra/logging/logger';
 import { routePaths } from '@/app-layer/routes/paths';
 import { env } from '@/config/env';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
+import type { PatientNotificationTopicsPort } from '@/modules/patient-notifications/patientNotificationTopicsPort';
+import { broadcastNotificationTopicCode } from '@/modules/patient-notifications/notificationTopicCodes';
+import { buildRecipientsPreviewFromClients } from './broadcastAudienceMetrics';
 
 export type DoctorBroadcastAudienceContext = {
   organizationId: string;
@@ -61,6 +64,13 @@ export type DoctorBroadcastsServiceDeps = {
    * остаётся видимым, счётчик реальный, но фактическая рассылка guarded).
    */
   fanOutBroadcastEmailDeps?: FanOutBroadcastEmailDeps;
+  fanOutBroadcastEmail?: typeof fanOutBroadcastEmail;
+  patientNotificationTopics: PatientNotificationTopicsPort;
+  buildTopicUnsubscribeUrl: (input: {
+    userId: string;
+    topicCode: string;
+    nonce: string;
+  }) => string;
   /**
    * 3.2: physically refuses a mailings write unless a passing `mailings` mutation decision already
    * ran in this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
@@ -98,6 +108,44 @@ export function buildPatientNotificationsOpenUrl(appBaseUrl: string): string {
 }
 
 export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps) {
+  async function resolveTopicSubscribedAudience(
+    command: BroadcastCommand,
+    context: DoctorBroadcastAudienceContext,
+  ): Promise<BroadcastAudienceResolveResult> {
+    const channels = resolvedChannels(command);
+    const resolved = await deps.resolveBroadcastAudience(
+      command.audienceFilter,
+      channels,
+      command.category,
+      context,
+    );
+    const topicCode = broadcastNotificationTopicCode(command.category);
+    const rowsByUserId = await deps.patientNotificationTopics.listByUserIds(
+      resolved.eligibleClients.map((client) => client.userId),
+    );
+    const eligibleClients = resolved.eligibleClients.filter((client) => {
+      const row = rowsByUserId
+        .get(client.userId)
+        ?.find((candidate) => candidate.topicCode === topicCode);
+      return row?.isEnabled !== false;
+    });
+    const eligibleIds = new Set(eligibleClients.map((client) => client.userId));
+    const webPushEligibleUserIds = new Set(
+      [...resolved.webPushEligibleUserIds].filter((userId) => eligibleIds.has(userId)),
+    );
+    const emailEligibleUserIds = resolved.emailEligibleUserIds
+      ? new Set([...resolved.emailEligibleUserIds].filter((userId) => eligibleIds.has(userId)))
+      : undefined;
+    return {
+      ...resolved,
+      audienceSize: eligibleClients.length,
+      recipientsPreview: buildRecipientsPreviewFromClients(eligibleClients),
+      eligibleClients,
+      webPushEligibleUserIds,
+      ...(emailEligibleUserIds ? { emailEligibleUserIds } : {}),
+    };
+  }
+
   return {
     getCategories(): BroadcastCategory[] {
       return [...CATEGORIES];
@@ -108,12 +156,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       context: DoctorBroadcastAudienceContext,
     ): Promise<BroadcastPreviewResult> {
       const channels = resolvedChannels(command);
-      const resolved = await deps.resolveBroadcastAudience(
-        command.audienceFilter,
-        channels,
-        command.category,
-        context,
-      );
+      const resolved = await resolveTopicSubscribedAudience(command, context);
       const {
         audienceSize,
         segmentSize,
@@ -139,15 +182,10 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
     ): Promise<{ auditEntry: BroadcastAuditEntry }> {
       deps.assertWriteClearance?.('mailings');
       const channels = resolvedChannels(command);
-      const resolved = await deps.resolveBroadcastAudience(
-        command.audienceFilter,
-        channels,
-        command.category,
-        {
-          organizationId: options.organizationId,
-          visibilityActor: options.visibilityActor,
-        },
-      );
+      const resolved = await resolveTopicSubscribedAudience(command, {
+        organizationId: options.organizationId,
+        visibilityActor: options.visibilityActor,
+      });
       const {
         audienceSize,
         eligibleClients,
@@ -161,6 +199,17 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       // In-app chat has no markup → patient sees clean text, not raw **/-/_ markers.
       const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();
+      const topicCode = broadcastNotificationTopicCode(command.category);
+      const unsubscribeUrlByUserId = new Map(
+        eligibleClients.map((client) => [
+          client.userId,
+          deps.buildTopicUnsubscribeUrl({
+            userId: client.userId,
+            topicCode,
+            nonce: auditId,
+          }),
+        ]),
+      );
       const jobs = buildDoctorBroadcastDeliveryJobs({
         auditId,
         eligibleClients,
@@ -171,6 +220,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         audienceFilter: command.audienceFilter,
         notificationPrefsByUserId,
         imageUrl: command.message.mediaUrl ?? null,
+        unsubscribeUrlByUserId,
       });
       const auditBase = {
         organizationId: options.organizationId,
@@ -247,7 +297,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         const emailClients = emailEligibleUserIds
           ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
           : eligibleClients;
-        await fanOutBroadcastEmail(
+        await (deps.fanOutBroadcastEmail ?? fanOutBroadcastEmail)(
           {
             organizationId: options.organizationId,
             auditId,
@@ -256,6 +306,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             broadcastBody: stripMarkdownToPlain(command.message.body),
             mediaUrl: command.message.mediaUrl ?? null,
             eligibleClients: emailClients,
+            unsubscribeUrlByUserId,
           },
           deps.fanOutBroadcastEmailDeps,
         );

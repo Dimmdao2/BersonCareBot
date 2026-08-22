@@ -239,12 +239,6 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
       const emailFields = await deps.getProfileEmailFields(platformUserId);
       const to = emailFields.email?.trim();
       if (to && emailFields.emailVerifiedAt) {
-        const smtp = await deps.systemSettings.getSetting('smtp_outbound', 'admin');
-        const smtpParsed = smtp?.valueJson ? smtpInnerFromValueJson(smtp.valueJson) : null;
-        const listUnsubscribe =
-          smtpParsed?.success === true && smtpParsed.data.from.includes('@')
-            ? `<mailto:${smtpParsed.data.from.trim()}?subject=unsubscribe>`
-            : null;
         // S10: relay email through integrator dispatchPort (redirect-covered) instead of direct SMTP.
         tasks.push(
           relayOutbound(
@@ -254,10 +248,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
               channel: 'email',
               recipient: to,
               text: `${notificationText}\n\n${openUrl}`,
-              metadata: {
-                subject: EMAIL_SUBJECT,
-                ...(listUnsubscribe ? { listUnsubscribe } : {}),
-              },
+              metadata: { subject: EMAIL_SUBJECT },
             },
             deps,
           ).then((res) => {
