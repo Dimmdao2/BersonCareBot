@@ -1981,6 +1981,9 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)': {
     contacts: ['SELECT'],
   },
+  'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)': {
+    contacts: ['SELECT'],
+  },
   'app.redeem_patient_invite_email(text)': {
     contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
@@ -2662,6 +2665,15 @@ const REV10_CONTEXT = {
       targetRole: 'app_platform_settings', contextClass: 'platform',
       purpose: 'analytics.platform-user-stats.read',
       functionIdentity: 'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)' },
+    // Экран «Приложение» (`/app/doctor/usage`). Именная таблица «Клиент» с него снята целиком
+    // (Р-АДМИН 22.08 + условие #1019-Q1 от 26.07), а всё, что осталось, — агрегат: KPI, суточные
+    // активные, заходы по каналу, топ страниц, push по темам. Роль экрана получает EXECUTE и ни
+    // одного табличного гранта на телеметрию.
+    webapp_product_analytics_dashboard: { port: 'webapp',
+      runtimeName: 'product_analytics_dashboard', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.product-dashboard.read',
+      functionIdentity: 'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)' },
     list_platform_registration_analytics_events: { port: 'webapp',
       runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -3656,6 +3668,38 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_bindings',
           columns: ['user_id', 'channel_code', 'external_id', 'created_at', 'bot_blocked_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Единственная дверь экрана «Приложение». Прежде экран читал ОТНОШЕНИЕМ три таблицы
+    // телеметрии и `platform_users ⋈ user_identity` ради ФИО в таблице «Клиент»; таблица снята
+    // решением владельца, а у `app_platform_settings` на все три телеметрические таблицы прав нет
+    // вовсе, поэтому маршрут отдавал 500 с 42501. Дверь отдаёт СЧЁТ и ни одного идентификатора
+    // человека: `pageUniqueUsers`/`activeUsersDaily` — это `count(DISTINCT user_id)` внутри тела.
+    // Владелец шва существующий: `app_seam_platform_analytics_owner` уже владеет обоими соседними
+    // корнями платформенной аналитики и уже читает `product_analytics_user_hourly`.
+    'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)': rev10Function({
+      owner: 'app_seam_platform_analytics_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_platform_settings'],
+      purpose: 'return only the aggregated product analytics dashboard snapshot',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'role'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_events_recent',
+          columns: ['occurred_at', 'event_type', 'entry_channel', 'page_key', 'topic_code',
+            'push_kind', 'warmup_slogan_key', 'user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_push_notifications',
+          columns: ['created_at', 'user_id', 'topic_code', 'push_kind', 'warmup_slogan_key',
+            'warmup_slogan_text'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_user_hourly',
+          columns: ['bucket_hour', 'user_id', 'page_key', 'app_opens', 'page_views', 'push_opens',
+            'active_minutes'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { UsageMetricAccountsDialog } from './UsageMetricAccountsDialog';
+import { useCallback, useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import {
   Collapsible,
@@ -19,7 +18,6 @@ import { DOCTOR_ANALYTICS_WINDOW_HOUR_PRESETS } from '@/app/app/doctor/analytics
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { PRODUCT_ANALYTICS_PUSH_TOPIC_HINT } from '@/modules/product-analytics/productAnalyticsTopicLabels';
 import type { ProductAnalyticsAdminDashboard } from '@/modules/product-analytics/types';
-import { formatDisplayZoneInstantRu } from '@/shared/datetime/displayTimeZoneFormat';
 import { ProductAnalyticsActiveUsersChart } from './ProductAnalyticsActiveUsersChart';
 import { ProductAnalyticsEntryChannelChart } from './ProductAnalyticsEntryChannelChart';
 import { ProductAnalyticsPushByTopicChart } from './ProductAnalyticsPushByTopicChart';
@@ -80,8 +78,6 @@ export function ProductAnalyticsSection() {
   const [data, setData] = useState<ProductAnalyticsAdminDashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showAllClients, setShowAllClients] = useState(false);
-  const [clientsDialogOpen, setClientsDialogOpen] = useState(false);
 
   const load = useCallback(async (hours: number) => {
     setLoading(true);
@@ -111,15 +107,6 @@ export function ProductAnalyticsSection() {
   }, [load, windowHours]);
 
   const pushOpenRatePct = data ? Math.round(data.summary.pushOpenRate * 100) : 0;
-  const sortedClientRows = useMemo(
-    () =>
-      (data?.clientActivity ?? [])
-        .slice()
-        .sort((a, b) => b.totalActivity - a.totalActivity || b.pageViews - a.pageViews),
-    [data?.clientActivity],
-  );
-  const topClientRows = sortedClientRows.slice(0, 10);
-  const extraClientRows = sortedClientRows.slice(10);
   const channelTotalsText =
     data?.entryChannelTotals
       .map((row) => `${CHANNEL_LABEL[row.entryChannel] ?? row.entryChannel}: ${row.appOpens}`)
@@ -154,11 +141,12 @@ export function ProductAnalyticsSection() {
       {data ? (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+            {/* Клика по карточке нет намеренно: она открывала список людей поимённо со ссылкой на
+                карточку пациента. Экран остаётся на числе (решение владельца Р-АДМИН 22.08.2026). */}
             <DoctorStatCard
               id="usage-kpi-active-users"
               title="Активных пользователей"
               value={data.summary.uniqueActiveUsers}
-              onClick={() => setClientsDialogOpen(true)}
             />
             <DoctorStatCard
               id="usage-kpi-app-opens"
@@ -257,81 +245,6 @@ export function ProductAnalyticsSection() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="py-3">
-              <CardTitle className="text-sm">Пользователи приложения</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <StatTable
-                columns={[
-                  { key: 'displayName', header: 'Клиент' },
-                  { key: 'lastSeenAt', header: 'Последний визит' },
-                  { key: 'appOpens', header: 'Заходы' },
-                  { key: 'pageViews', header: 'Страницы' },
-                  { key: 'pushOpens', header: 'Push open' },
-                  { key: 'activeMinutes', header: 'Минуты' },
-                  { key: 'channels', header: 'Каналы' },
-                ]}
-                rows={topClientRows.map((r) => ({
-                  displayName: r.displayName,
-                  lastSeenAt: formatDisplayZoneInstantRu(r.lastSeenAt, data.displayTimezone),
-                  appOpens: r.appOpens,
-                  pageViews: r.pageViews,
-                  pushOpens: r.pushOpens,
-                  activeMinutes: r.activeMinutes,
-                  channels:
-                    r.channels
-                      .map(
-                        (c) =>
-                          `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`,
-                      )
-                      .join(', ') || '—',
-                }))}
-              />
-              {extraClientRows.length > 0 ? (
-                <Collapsible open={showAllClients} onOpenChange={setShowAllClients}>
-                  <CollapsibleTrigger className="text-xs text-primary underline underline-offset-2">
-                    {showAllClients ? 'Скрыть' : `Показать всех (${sortedClientRows.length})`}
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="pt-3">
-                    <StatTable
-                      columns={[
-                        { key: 'displayName', header: 'Клиент' },
-                        { key: 'lastSeenAt', header: 'Последний визит' },
-                        { key: 'appOpens', header: 'Заходы' },
-                        { key: 'pageViews', header: 'Страницы' },
-                        { key: 'pushOpens', header: 'Push open' },
-                        { key: 'activeMinutes', header: 'Минуты' },
-                        { key: 'channels', header: 'Каналы' },
-                      ]}
-                      rows={extraClientRows.map((r) => ({
-                        displayName: r.displayName,
-                        lastSeenAt: formatDisplayZoneInstantRu(r.lastSeenAt, data.displayTimezone),
-                        appOpens: r.appOpens,
-                        pageViews: r.pageViews,
-                        pushOpens: r.pushOpens,
-                        activeMinutes: r.activeMinutes,
-                        channels:
-                          r.channels
-                            .map(
-                              (c) =>
-                                `${CHANNEL_LABEL[c.entryChannel] ?? c.entryChannel}: ${c.totalActivity}`,
-                            )
-                            .join(', ') || '—',
-                      }))}
-                    />
-                  </CollapsibleContent>
-                </Collapsible>
-              ) : null}
-            </CardContent>
-          </Card>
-          <UsageMetricAccountsDialog
-            open={clientsDialogOpen}
-            onOpenChange={setClientsDialogOpen}
-            title="Активные пользователи"
-            rows={sortedClientRows}
-            displayTimezone={data.displayTimezone}
-          />
         </>
       ) : null}
     </div>

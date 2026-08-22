@@ -2,6 +2,7 @@ import {
   runProductAnalyticsRetention,
   type ProductAnalyticsRetentionParams,
 } from '@/modules/product-analytics/productAnalyticsRetention';
+import type { AnalyticsTestAccountSpec } from '@/modules/analytics/analyticsAudience';
 import { normalizePageKey } from '@/modules/product-analytics/normalizePageKey';
 import type { ProductAnalyticsPort } from '@/modules/product-analytics/ports';
 import { clampProductAnalyticsWindowHours } from '@/modules/product-analytics/timeRange';
@@ -59,12 +60,12 @@ export function createProductAnalyticsService(port: ProductAnalyticsPort) {
       });
     },
 
-    async getAdminDashboard(params: { windowHours?: number; includeTestAccounts?: boolean }) {
+    async getAdminDashboard(params: {
+      windowHours?: number;
+      audience: AnalyticsTestAccountSpec;
+    }) {
       const windowHours = clampProductAnalyticsWindowHours(params.windowHours);
-      return port.getAdminDashboard({
-        windowHours,
-        includeTestAccounts: params.includeTestAccounts,
-      });
+      return port.getAdminDashboard({ windowHours, audience: params.audience });
     },
 
     async purgeRecentOlderThan(

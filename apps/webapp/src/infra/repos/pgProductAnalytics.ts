@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm';
+import { eq, lt, sql } from 'drizzle-orm';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
@@ -6,17 +6,14 @@ import {
 import {
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
+  type ProductAnalyticsHourlyRollupRow,
+  type WarmupSloganSampleRow,
 } from '@/modules/product-analytics/buildAdminDashboard';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { pruneRetentionTarget } from '@/infra/db/pruneRetentionTarget';
-import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudience';
+import { platformAudienceJson } from '@/infra/repos/pgAnalyticsAudience';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
-import { getServerConfigStructuredValue } from '@/modules/system-settings/configAdapter';
-import {
-  normalizeTestAccountIdentifiersValue,
-  type TestAccountIdentifiers,
-} from '@/modules/system-settings/testAccounts';
-import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
+import { productAnalyticsPageGroupsJson } from '@/modules/product-analytics/productAnalyticsPageKey';
 import {
   hourlyDimsFromEvent,
   shouldUpdateUserHourly,
@@ -33,16 +30,15 @@ import type {
   ListRegistrationEventsParams,
   ListRegistrationEventsResult,
   ProductAnalyticsIngestEvent,
+  ProductAnalyticsUserAggregates,
   RecordPushOpenInput,
 } from '@/modules/product-analytics/types';
 import { PRODUCT_ANALYTICS_DIM_ALL } from '@/modules/product-analytics/types';
 import {
   productAnalyticsEventsRecent,
   productAnalyticsHourly,
-  productAnalyticsUserHourly,
   productPushNotifications,
 } from '../../../db/schema/productAnalytics';
-import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
@@ -50,12 +46,6 @@ import {
 } from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-
-async function loadProductAnalyticsTestAccountIdentifiers(): Promise<TestAccountIdentifiers | null> {
-  return normalizeTestAccountIdentifiersValue(
-    await getServerConfigStructuredValue('test_account_identifiers'),
-  );
-}
 
 function pgErrCode(e: unknown): string | undefined {
   if (typeof e === 'object' && e !== null && 'code' in e) {
@@ -173,6 +163,69 @@ async function insertRecent(
     }
     throw e;
   }
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+}
+
+function asRows(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.map(asRecord) : [];
+}
+
+function asCount(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function asText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function readHourlyRows(value: unknown): ProductAnalyticsHourlyRollupRow[] {
+  return asRows(value).map((row) => ({
+    bucketHour: asText(row.bucketHour),
+    eventType: asText(row.eventType),
+    entryChannel: asText(row.entryChannel),
+    pageKey: asText(row.pageKey),
+    topicCode: asText(row.topicCode),
+    pushKind: asText(row.pushKind),
+    warmupSloganKey: asText(row.warmupSloganKey),
+    eventCount: asCount(row.eventCount),
+  }));
+}
+
+function readWarmupSloganSamples(value: unknown): WarmupSloganSampleRow[] {
+  return asRows(value).map((row) => ({
+    sloganKey: asText(row.sloganKey),
+    sampleText: typeof row.sampleText === 'string' ? row.sampleText : null,
+  }));
+}
+
+/** Ни одного идентификатора человека здесь нет и появиться не может: дверь отдаёт только счёт. */
+function readUserAggregates(value: unknown): ProductAnalyticsUserAggregates {
+  const raw = asRecord(value);
+  return {
+    totalActiveMinutes: asCount(raw.totalActiveMinutes),
+    uniqueActiveUsers: asCount(raw.uniqueActiveUsers),
+    activeUsersDaily: asRows(raw.activeUsersDaily).map((row) => ({
+      day: asText(row.day),
+      activeUsers: asCount(row.activeUsers),
+    })),
+    pageUniqueUsers: asRows(raw.pageUniqueUsers).map((row) => ({
+      pageKey: asText(row.pageKey),
+      uniqueUsers: asCount(row.uniqueUsers),
+    })),
+    pageUniqueUsersHourly: asRows(raw.pageUniqueUsersHourly).map((row) => ({
+      bucket: asText(row.bucket),
+      pageKey: asText(row.pageKey),
+      uniqueUsers: asCount(row.uniqueUsers),
+    })),
+  };
 }
 
 export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
@@ -303,177 +356,52 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       return { deduped: false };
     },
 
-    async getAdminDashboard({ windowHours, includeTestAccounts = false }) {
-      const db = getDrizzle();
+    async getAdminDashboard({ windowHours, audience }) {
       const displayTimezone = await getAppDisplayTimeZone();
       const startHour = productAnalyticsWindowStartHour(windowHours);
-      const excludedUserIds = await resolveAnalyticsExcludedUserIds(db, {
-        includeTestAccounts,
-        excludeStaffRoles: true,
-        testAccountIdentifiers: includeTestAccounts
-          ? null
-          : await loadProductAnalyticsTestAccountIdentifiers(),
-      });
+      const endExclusive = new Date().toISOString();
 
-      const recentEventConditions = [gte(productAnalyticsEventsRecent.occurredAt, startHour)];
-      if (excludedUserIds.length > 0) {
-        const notExcluded = or(
-          isNull(productAnalyticsEventsRecent.userId),
-          notInArray(productAnalyticsEventsRecent.userId, excludedUserIds),
-        );
-        if (notExcluded) recentEventConditions.push(notExcluded);
-      }
-      const recentRows = await db
-        .select({
-          occurredAt: productAnalyticsEventsRecent.occurredAt,
-          eventType: productAnalyticsEventsRecent.eventType,
-          entryChannel: productAnalyticsEventsRecent.entryChannel,
-          pageKey: productAnalyticsEventsRecent.pageKey,
-          topicCode: productAnalyticsEventsRecent.topicCode,
-          pushKind: productAnalyticsEventsRecent.pushKind,
-          warmupSloganKey: productAnalyticsEventsRecent.warmupSloganKey,
-        })
-        .from(productAnalyticsEventsRecent)
-        .where(and(...recentEventConditions) ?? recentEventConditions[0]);
-
-      const pushConditions = [gte(productPushNotifications.createdAt, startHour)];
-      if (excludedUserIds.length > 0) {
-        pushConditions.push(notInArray(productPushNotifications.userId, excludedUserIds));
-      }
-      const pushRows = await db
-        .select({
-          createdAt: productPushNotifications.createdAt,
-          topicCode: productPushNotifications.topicCode,
-          pushKind: productPushNotifications.pushKind,
-          warmupSloganKey: productPushNotifications.warmupSloganKey,
-          warmupSloganText: productPushNotifications.warmupSloganText,
-        })
-        .from(productPushNotifications)
-        .where(and(...pushConditions) ?? pushConditions[0]);
-
-      const hourlyByKey = new Map<
-        string,
-        {
-          bucketHour: string;
-          eventType: string;
-          entryChannel: string;
-          pageKey: string;
-          topicCode: string;
-          pushKind: string;
-          warmupSloganKey: string;
-          eventCount: number;
-        }
-      >();
-      const addHourlyEvent = (event: ProductAnalyticsIngestEvent, increment = 1) => {
-        const bucketHour = truncateToUtcHour(event.occurredAt ?? new Date().toISOString());
-        const dims = hourlyDimsFromEvent(event);
-        const key = [
-          bucketHour,
-          event.eventType,
-          dims.entryChannel,
-          dims.pageKey,
-          dims.topicCode,
-          dims.pushKind,
-          dims.warmupSloganKey,
-        ].join('|');
-        const current = hourlyByKey.get(key);
-        if (current) {
-          current.eventCount += increment;
-          return;
-        }
-        hourlyByKey.set(key, {
-          bucketHour,
-          eventType: event.eventType,
-          entryChannel: dims.entryChannel,
-          pageKey: dims.pageKey,
-          topicCode: dims.topicCode,
-          pushKind: dims.pushKind,
-          warmupSloganKey: dims.warmupSloganKey,
-          eventCount: increment,
-        });
-      };
-      for (const row of recentRows) {
-        addHourlyEvent({
-          eventType: row.eventType as ProductAnalyticsIngestEvent['eventType'],
-          entryChannel: row.entryChannel as ProductAnalyticsIngestEvent['entryChannel'],
-          occurredAt: row.occurredAt,
-          pageKey: row.pageKey,
-          topicCode: row.topicCode,
-          pushKind: row.pushKind,
-          warmupSloganKey: row.warmupSloganKey,
-        });
-      }
-      for (const row of pushRows) {
-        addHourlyEvent({
-          eventType: 'push_sent',
-          entryChannel: PRODUCT_ANALYTICS_DIM_ALL as ProductAnalyticsIngestEvent['entryChannel'],
-          occurredAt: row.createdAt,
-          topicCode: row.topicCode,
-          pushKind: row.pushKind,
-          warmupSloganKey: row.warmupSloganKey,
-        });
-      }
-      const hourlyRows = [...hourlyByKey.values()];
-
-      const userHourlyConditions = [gte(productAnalyticsUserHourly.bucketHour, startHour)];
-      if (excludedUserIds.length > 0) {
-        userHourlyConditions.push(notInArray(productAnalyticsUserHourly.userId, excludedUserIds));
-      }
-      const userHourlyRows = await db
-        .select({
-          bucketHour: productAnalyticsUserHourly.bucketHour,
-          userId: productAnalyticsUserHourly.userId,
-          entryChannel: productAnalyticsUserHourly.entryChannel,
-          pageKey: productAnalyticsUserHourly.pageKey,
-          appOpens: productAnalyticsUserHourly.appOpens,
-          pageViews: productAnalyticsUserHourly.pageViews,
-          pushOpens: productAnalyticsUserHourly.pushOpens,
-          activeMinutes: productAnalyticsUserHourly.activeMinutes,
-          lastSeenAt: productAnalyticsUserHourly.lastSeenAt,
-        })
-        .from(productAnalyticsUserHourly)
-        .where(and(...userHourlyConditions) ?? userHourlyConditions[0]);
-
-      const userIds = [...new Set(userHourlyRows.map((r) => r.userId))];
-      const userDisplayNames: Record<string, string> = {};
-      if (userIds.length > 0) {
-        const userRows = await db
-          .select({
-            id: platformUsers.id,
-            displayName: drizzleFioCols.displayName,
-            firstName: drizzleFioCols.firstName,
-            lastName: drizzleFioCols.lastName,
-          })
-          .from(platformUsers)
-          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
-          .where(inArray(platformUsers.id, userIds));
-        for (const row of userRows) {
-          const firstLast = [row.firstName?.trim(), row.lastName?.trim()]
-            .filter(Boolean)
-            .join(' ')
-            .trim();
-          const displayName = row.displayName?.trim() || firstLast || 'Пациент';
-          userDisplayNames[row.id] = displayName;
-        }
-      }
-
-      const warmupSamples = pushRows
-        .filter((r) => r.pushKind === 'warmup' && r.warmupSloganKey != null)
-        .map((r) => ({
-          sloganKey: r.warmupSloganKey as string,
-          sampleText: r.warmupSloganText,
-        }));
+      // ОДНО обращение вместо четырёх отношенческих чтений. Прежний код читал
+      // `product_analytics_events_recent`, `product_push_notifications`,
+      // `product_analytics_user_hourly` и `platform_users ⋈ user_identity` (ради ФИО в снятой
+      // таблице «Клиент») под `app_platform_settings`. У этой роли на три телеметрические таблицы
+      // прав нет вовсе, а на `platform_users` — только `SELECT (id, calendar_timezone)`, поэтому
+      // экран отдавал 500 с 42501. Грант не выдаётся (решение владельца Р-АДМИН): дверь отдаёт
+      // СЧЁТ, и читать строки людей роли по-прежнему нечем.
+      //
+      // Идентичность корня пишется ЛИТЕРАЛОМ в самом вызове: каталог call-site читает её из AST, и
+      // вынесенная в константу строка для него — «dynamic named-root identity».
+      //
+      // `excludeStaffRoles: true` — как и раньше на этом экране: он считает продуктовую активность
+      // и персонал из неё убирает.
+      const args = [
+        startHour,
+        endExclusive,
+        displayTimezone,
+        platformAudienceJson(audience, { excludeStaffRoles: true }),
+        productAnalyticsPageGroupsJson(),
+      ] as const;
+      const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+        getWebappSqlDb(),
+        'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)',
+        args,
+        sql`SELECT app.read_product_analytics_dashboard(
+          ${sql.param(args[0])}::timestamptz,
+          ${sql.param(args[1])}::timestamptz,
+          ${sql.param(args[2])}::text,
+          ${sql.param(args[3])}::text,
+          ${sql.param(args[4])}::text
+        ) AS snapshot`,
+      );
+      const snapshot = asRecord(result.rows[0]?.snapshot);
 
       return buildAdminDashboard({
         windowHours,
         displayTimezone,
         startHourInclusive: startHour,
-        hourlyRows,
-        userHourlyRows,
-        userDisplayNames,
-        warmupSloganSamples: warmupSamples
-          .filter((r): r is { sloganKey: string; sampleText: string | null } => r.sloganKey != null)
-          .map((r) => ({ sloganKey: r.sloganKey, sampleText: r.sampleText })),
+        hourlyRows: readHourlyRows(snapshot.hourly),
+        userAggregates: readUserAggregates(snapshot.userAggregates),
+        warmupSloganSamples: readWarmupSloganSamples(snapshot.warmupSloganSamples),
       });
     },
 

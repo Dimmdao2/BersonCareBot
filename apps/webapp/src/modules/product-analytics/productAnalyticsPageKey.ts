@@ -37,46 +37,65 @@ const STATIC_PAGE_LABELS: Record<string, string> = {
   '/app/patient/content/page': 'Страница контента',
 };
 
+/**
+ * Правила схлопывания ключей страниц — ЕДИНСТВЕННЫЙ источник, и он же уезжает в SQL.
+ *
+ * Раньше это было деревом `if`-ов, и пока схлопывание жило только в TypeScript, второго читателя у
+ * него не было. Теперь уникальных пользователей по странице считает именованный корень
+ * `app.read_product_analytics_dashboard`: `count(distinct user_id)` обязан считаться ПОСЛЕ
+ * схлопывания, иначе один человек, открывший `/app/patient/treatment/:id` и
+ * `/app/patient/treatment`, попадёт в «Клиенты» дважды (на DEV 22.08.2026 в эту группу сходятся три
+ * из тридцати восьми хранимых ключей и они же самые частые).
+ *
+ * Второй копии правил в SQL нет и не будет: тело корня получает ЭТОТ список параметром
+ * `p_page_groups_json` и умеет только применять его — тем же приёмом, каким соседние корни получают
+ * `p_audience_json` вместо второго определения «служебной учётки» (AGENTS §5).
+ *
+ * `group: null` — «правило совпало, ключ оставить как есть»: это не то же самое, что «ни одно
+ * правило не совпало», потому что совпадение останавливает перебор.
+ */
+export const PRODUCT_ANALYTICS_PAGE_GROUP_SCOPE_PREFIX = '/app/patient';
+
+export type ProductAnalyticsPageGroupRule = {
+  match: 'exact' | 'prefix';
+  value: string;
+  group: string | null;
+};
+
+export const PRODUCT_ANALYTICS_PAGE_GROUP_RULES: readonly ProductAnalyticsPageGroupRule[] = [
+  { match: 'prefix', value: '/app/patient/treatment', group: '/app/patient/treatment/program' },
+  { match: 'exact', value: '/app/patient/go/daily-warmup', group: '/app/patient/warmup' },
+  { match: 'exact', value: '/app/patient/warmup', group: '/app/patient/warmup' },
+  { match: 'exact', value: '/app/patient/go/plan-start-lesson', group: '/app/patient/treatment/program' },
+  { match: 'prefix', value: '/app/patient/go/', group: null },
+  { match: 'prefix', value: '/app/patient/booking', group: '/app/patient/booking' },
+  { match: 'prefix', value: '/app/patient/content/', group: '/app/patient/content/page' },
+  { match: 'prefix', value: '/app/patient/help/', group: '/app/patient/help' },
+  { match: 'exact', value: '/app/patient/help', group: '/app/patient/help' },
+  { match: 'prefix', value: '/app/patient/sections/', group: '/app/patient/sections' },
+  { match: 'exact', value: '/app/patient/sections', group: '/app/patient/sections' },
+  { match: 'prefix', value: '/app/patient/memberships/', group: '/app/patient/memberships' },
+  { match: 'prefix', value: '/app/patient/broadcasts/', group: '/app/patient/broadcasts' },
+  { match: 'prefix', value: '/app/patient/intake/', group: '/app/patient/intake' },
+  { match: 'prefix', value: '/app/patient/diary/', group: '/app/patient/diary' },
+] as const;
+
+/** Ровно то, что уезжает в `p_page_groups_json`: тело корня разбирает эти два поля и больше ничего. */
+export function productAnalyticsPageGroupsJson(): string {
+  return JSON.stringify({
+    scopePrefix: PRODUCT_ANALYTICS_PAGE_GROUP_SCOPE_PREFIX,
+    rules: PRODUCT_ANALYTICS_PAGE_GROUP_RULES,
+  });
+}
+
 /** Collapse normalized keys for analytics (ingest + historical rollup). */
 export function groupProductAnalyticsPageKey(pageKey: string): string {
   const key = pageKey.trim();
-  if (!key.startsWith('/app/patient')) return key;
+  if (!key.startsWith(PRODUCT_ANALYTICS_PAGE_GROUP_SCOPE_PREFIX)) return key;
 
-  if (key.startsWith('/app/patient/treatment')) {
-    return '/app/patient/treatment/program';
-  }
-  if (key === '/app/patient/go/daily-warmup' || key === '/app/patient/warmup') {
-    return '/app/patient/warmup';
-  }
-  if (key === '/app/patient/go/plan-start-lesson') {
-    return '/app/patient/treatment/program';
-  }
-  if (key.startsWith('/app/patient/go/')) {
-    return key;
-  }
-  if (key.startsWith('/app/patient/booking')) {
-    return '/app/patient/booking';
-  }
-  if (key.startsWith('/app/patient/content/')) {
-    return '/app/patient/content/page';
-  }
-  if (key.startsWith('/app/patient/help/') || key === '/app/patient/help') {
-    return '/app/patient/help';
-  }
-  if (key.startsWith('/app/patient/sections/') || key === '/app/patient/sections') {
-    return '/app/patient/sections';
-  }
-  if (key.startsWith('/app/patient/memberships/')) {
-    return '/app/patient/memberships';
-  }
-  if (key.startsWith('/app/patient/broadcasts/')) {
-    return '/app/patient/broadcasts';
-  }
-  if (key.startsWith('/app/patient/intake/')) {
-    return '/app/patient/intake';
-  }
-  if (key.startsWith('/app/patient/diary/')) {
-    return '/app/patient/diary';
+  for (const rule of PRODUCT_ANALYTICS_PAGE_GROUP_RULES) {
+    const hit = rule.match === 'exact' ? key === rule.value : key.startsWith(rule.value);
+    if (hit) return rule.group ?? key;
   }
 
   return key;
