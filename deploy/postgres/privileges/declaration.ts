@@ -2080,6 +2080,164 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
   },
 };
 
+
+/**
+ * Пары «арендный DEFINER-корень → стенованное отношение», у которых организационного предиката НЕТ
+ * ПО ДЕЛУ, и названная причина каждой.
+ *
+ * `SECURITY DEFINER` обходит RLS, поэтому гейт `definer-tenant-predicate.test.mjs` требует, чтобы
+ * КАЖДОЕ чтение стенованной таблицы в теле корня, доступного арендатору, было сужено принципалом
+ * порта. Часть корней сузить нечем: они работают ДО того, как человек стал клиентом клиники, либо
+ * читают глобальную строку платформы, либо саму клинику ещё создают. Здесь эти чтения названы
+ * поимённо и объяснены словами — по одной причине на пару.
+ *
+ * ЭТО НЕ ВЫКЛЮЧАТЕЛЬ ПРОВЕРКИ. Пометка снимает ровно одну пару; пустая или отписочная причина
+ * краснеет так же, как её отсутствие; пометка на чтении, которому предикат УЖЕ поставили, тоже
+ * краснеет — иначе она бесшумно снимала бы будущую регрессию. Сам набор пар записан переписью имён
+ * `definerRootsCrossingTenantWall`, поэтому вырасти молча он не может: новая строка здесь — это
+ * видимый дифф и в этом файле, и в `name-census.json`.
+ *
+ * ЧЕГО ЗДЕСЬ НЕТ. Корни, у которых предиката нет и причины тоже нет, сюда НЕ вписаны — гейт на них
+ * краснеет, и это ответ на вопрос «а не забудут ли в соседней функции». Перепись, их разбор и
+ * оценка живого маршрута — `docs/_TODO/runs/integrator-cleanup/DEFINER_TENANT_PREDICATE_GATE_2026-08-22.md`.
+ */
+const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  // Приглашение в персонал: строку находит неугадываемый `token_hash`, и человек, который его
+  // предъявил, к этой клинике ещё не принадлежит — сравнивать её организацию не с чем. Место в
+  // тарифе считается по клинике САМОГО приглашения, а не по клинике вызывающего, потому что
+  // вызывающий её и не имеет.
+  'app.accept_org_invite(text,uuid,text)': {
+    'public.organization_member_invites': 'приглашение находит неугадываемый token_hash; принимающий в эту клинику ещё не входит, организации у него нет',
+    'public.be_organizations': 'клиника приглашения читается ради названия и включённого числа мест; принимающий её сотрудником пока не является',
+    'public.be_organization_members': 'счёт занятых мест ведётся по клинике ПРИГЛАШЕНИЯ — у принимающего своей клиники ещё нет',
+    'public.platform_users': 'человек опознаётся по своему платформенному id до вступления в клинику; строка своя, а не чужая',
+    'public.user_contacts': 'почта того же человека, кто принимает приглашение; читается по его собственному id',
+    'public.saas_billing_subscriptions': 'подписка клиники ПРИГЛАШЕНИЯ: по ней считается оплаченное число мест перед приёмом',
+    'public.saas_org_entitlement_overrides': 'переопределение мест клиники ПРИГЛАШЕНИЯ; та же проверка места, тот же довод',
+  },
+
+  // Привязка канала при входе: пара (канал, внешний id) приходит от мессенджера, человек ещё не
+  // опознан и клиника ещё не выбрана. Организации в этот момент не существует.
+  'app.auth_phone_bind_lock_channel_binding(text,text)': {
+    'public.user_channel_bindings': 'привязка ищется по паре (канал, внешний id) на входе — человек ещё не опознан, клиники в контексте нет',
+  },
+  'app.auth_phone_bind_upsert_channel_binding(uuid,text,text)': {
+    'public.user_channel_bindings': 'та же привязка по паре (канал, внешний id) перед записью — организации на этом шаге ещё нет',
+  },
+
+  // Пациентское приглашение: вся цепочка адресуется секретом (`continuation_hash`/`token_hash`), и
+  // до его предъявления человек клиникой не опознан. Организацию тут не проверяют — её ИЗВЛЕКАЮТ
+  // из самой строки приглашения и дальше ведут по ней.
+  'app.claim_unbound_patient_invite_email(text,text,text,bigint,text)': {
+    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
+    'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность — сравнивать её не с чем',
+    'public.org_enrollments': 'зачисление той же строки приглашения (enrollment_id + organization_id приглашения), а не произвольное',
+    'public.platform_users': 'человек приглашения по его patient_user_id из той же строки; конфликт владельца почты — часть ответа двери',
+    'public.user_contacts': 'почта того же человека и проверка, не занята ли она другим — смысл двери именно в этом',
+  },
+
+  'app.email_otp_public_delete_unverified_registration(uuid)': {
+    'public.user_contacts': 'удаляется НЕподтверждённая регистрация: человек ещё не в клинике, подтверждённой почты у него нет',
+  },
+
+  'app.exchange_patient_invite(text,text,timestamp with time zone)': {
+    'public.patient_invites': 'приглашение находит неугадываемый token_hash; обмен идёт до вступления в клинику',
+    'public.org_enrollments': 'зачисление берётся по ключам из самой строки приглашения',
+    'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
+  },
+
+  // Опознание человека на входе: почта и канал — это то, ЧЕМ человек себя называет, пока клиника
+  // ещё не выбрана. Организационного контекста в этот момент нет ни у одного вызывающего.
+  'app.find_platform_user_ids_by_any_confirmed_email(text)': {
+    'public.user_contacts': 'опознание по подтверждённой почте на входе: клиника ещё не выбрана, организации в контексте нет',
+    'public.platform_users': 'та же дверь отбрасывает слитые записи опознанного человека; клиники на этом шаге нет',
+  },
+  'app.get_preferred_auth_channel_code(uuid)': {
+    'public.user_channel_preferences': 'выбор канала для отправки кода входа: человек ещё не в клинике, организации в контексте нет',
+  },
+
+  'app.list_active_booking_cities()': {
+    'public.booking_cities': 'глобальный справочник городов публичной записи: строки платформенные, клинике не принадлежат',
+  },
+
+  'app.lookup_patient_invite_continuation(text)': {
+    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
+    'public.org_enrollments': 'зачисление по ключам из строки приглашения',
+    'public.be_organizations': 'название клиники приглашения для экрана предъявителя',
+  },
+  'app.lookup_pending_org_invite(text)': {
+    'public.organization_member_invites': 'приглашение в персонал находит неугадываемый token_hash до вступления в клинику',
+    'public.be_organizations': 'название клиники приглашения; принимающий её сотрудником ещё не является',
+  },
+
+  'app.provision_specialist_owner(uuid)': {
+    'public.be_organization_members': 'корень СОЗДАЁТ клинику специалиста: до него организации у вызывающего нет вовсе, и проверка «нет ли уже членства» идёт по человеку, а не по клинике',
+  },
+
+  // Организация приходит не из аргумента, а из ответа соседнего корня, который сам её и ставит по
+  // принципалу. Межпроцедурно разбор этого не видит — граница названа в шапке анализатора.
+  'app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text)': {
+    'public.be_branches': 'организация взята из снимка соседнего корня app.read_current_patient_booking_slot_snapshot, который сам сузил её принципалом пациента',
+    'public.be_clinic_services': 'та же организация из того же снимка соседнего корня; своего аргумента организации у двери нет',
+    'public.be_specialists': 'та же организация из того же снимка соседнего корня; своего аргумента организации у двери нет',
+  },
+
+  // Опознание получателя доставки: телефон/ручка канала — это то, чем интегратор называет человека,
+  // и до опознания сравнивать нечего. Организацию корень проверяет ПОСЛЕ, у самого получателя.
+  'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)': {
+    'public.platform_users': 'опознание получателя по телефону либо ручке канала: пока человек не найден, его клиника неизвестна',
+    'public.user_contacts': 'тот же поиск по подтверждённому телефону — ключ поиска, а не выборка по клинике',
+    'public.user_channel_bindings': 'тот же поиск по внешнему id телеграма/max — ключ поиска, а не выборка по клинике',
+  },
+
+  'app.read_org_brand_core_context(uuid)': {
+    'public.be_organizations': 'стена здесь дизъюнкция: своя клиника ЛИБО активное зачисление пациента (app.current_patient_has_active_org_enrollment); разбор внутрь предиката-помощника не заходит',
+  },
+
+  'app.redeem_patient_invite_email(text)': {
+    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
+    'public.be_organizations': 'клиника берётся ИЗ строки приглашения и проверяется на активность',
+    'public.org_enrollments': 'зачисление по ключам из той же строки приглашения',
+    'public.user_contacts': 'почта человека приглашения — её подтверждение и есть смысл двери',
+  },
+
+  'app.resolve_payment_webhook_organization(text,text,text)': {
+    'public.be_payment_provider_events': 'дверь НАХОДИТ клинику по ключу идемпотентности вебхука провайдера — организация здесь ответ, а не условие',
+    'public.be_payment_intents': 'тот же поиск клиники по ключу идемпотентности намерения оплаты — организация ответ, а не условие',
+  },
+
+  'app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text)': {
+    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; подтверждение почты идёт до вступления в клинику',
+    'public.be_organizations': 'клиника приглашения проверяется на активность перед отправкой кода',
+  },
+  'app.verify_patient_invite_email_proof(text,text,text,text,bigint,text)': {
+    'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; сверка кода идёт до вступления в клинику',
+    'public.be_organizations': 'клиника приглашения проверяется на активность перед зачётом кода',
+  },
+};
+
+function applyTenantWallCrossings(
+  functions: Record<string, DeclaredFunction>,
+): Record<string, DeclaredFunction> {
+  const marked = { ...functions };
+  for (const [identity, whyByRelation] of Object.entries(TENANT_WALL_CROSSINGS)) {
+    const fn = marked[identity];
+    if (!fn) throw new Error(`tenant wall crossing targets an undeclared function: ${identity}`);
+    const pending = new Set(Object.keys(whyByRelation));
+    const relationSurfaces = (fn.relationSurfaces ?? []).map((surface) => {
+      const why = whyByRelation[surface.relation];
+      if (!why) return surface;
+      pending.delete(surface.relation);
+      return { ...surface, crossesTenantWall: { why } };
+    });
+    if (pending.size > 0) {
+      throw new Error(`tenant wall crossing names a relation the function does not declare: ${identity} -> ${[...pending].join(', ')}`);
+    }
+    marked[identity] = { ...fn, relationSurfaces };
+  }
+  return marked;
+}
+
 function applyRowLockSurfaces(
   functions: Record<string, DeclaredFunction>,
 ): Record<string, DeclaredFunction> {
@@ -3518,7 +3676,7 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.patient-package.reserve',
       functionIdentity: 'app.reserve_current_patient_booking_package(text)' },
   },
-  functions: applyRowLockSurfaces(applyCanonicalContactSurfaceCorrections({
+  functions: applyTenantWallCrossings(applyRowLockSurfaces(applyCanonicalContactSurfaceCorrections({
     ...BUSINESS_SEAM_FUNCTIONS,
     'app.patient_cancel_pending_reminder_occurrences(text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'],
@@ -6905,7 +7063,7 @@ const REV10_CONTEXT = {
         operations: ['SELECT' as const, 'UPDATE' as const],
         evidence: 'exact UPDATE in migration 0050' as const }],
     }),
-  })),
+  }))),
 } as const;
 
 type LockedPolicyTarget = { policyName: string; descriptor: { table: string } };
