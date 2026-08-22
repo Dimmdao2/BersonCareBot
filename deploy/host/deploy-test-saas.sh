@@ -36,6 +36,13 @@ if [[ -L "$MEDIA_CONTROL_CUTOVER_LIB" || ! -f "$MEDIA_CONTROL_CUTOVER_LIB" || "$
 fi
 # shellcheck source=deploy/host/media-control-cutover-sequence.sh
 source "$MEDIA_CONTROL_CUTOVER_LIB"
+SAAS_ISOLATION_COVERAGE_GATE_LIB="$DEPLOY_TEST_SAAS_SCRIPT_DIR/saas-isolation-coverage-gate-lib.sh"
+if [[ -L "$SAAS_ISOLATION_COVERAGE_GATE_LIB" || ! -f "$SAAS_ISOLATION_COVERAGE_GATE_LIB" || "$(realpath "$SAAS_ISOLATION_COVERAGE_GATE_LIB")" != "$SAAS_ISOLATION_COVERAGE_GATE_LIB" ]]; then
+  echo "FATAL: shared SaaS isolation coverage gate library path guard failed" >&2
+  exit 1
+fi
+# shellcheck source=deploy/host/saas-isolation-coverage-gate-lib.sh
+source "$SAAS_ISOLATION_COVERAGE_GATE_LIB"
 
 SRC_REPO=/home/dev/dev-projects/BersonCareBot
 DEPLOY_REPO=/opt/projects/bersoncarebot-test
@@ -117,7 +124,6 @@ CLOSURE_GATE_FAILURES=()
 # Distinct exit code meaning "gates are red BUT the TEST units are up and healthy". The caller
 # (deploy-test.sh) must treat it as a red deploy that is NOT an outage, and must not stop the units.
 CLOSURE_GATE_RED_EXIT=3
-E1_RUNTIME_COVERAGE_STARTED_AT=""
 
 # ── KNOWN ANCHORS (owner's real, stable prod identities — the whole sequence keys off these; same on prod) ──
 #   doctor phone   +79643805480   (p0-data-fix + override: role=doctor, owns yandex email, doctor allowlist)
@@ -1723,37 +1729,6 @@ WHERE p.prosecdef AND pg_get_userbyid(p.proowner) = 'saas_telemetry_owner'
   echo "   $DB + saas_telemetry_owner SECURITY DEFINER anon-reachable surface: OK (17 required table privileges present, $actual_db_owner_anon_secdef/$expected_db_owner_anon_secdef $DB + $actual_telemetry_owner_anon_secdef/$expected_telemetry_owner_anon_secdef saas_telemetry_owner, bootstrap role $nonstaff_role)"
 }
 
-mark_e1_runtime_coverage_start(){
-  E1_RUNTIME_COVERAGE_STARTED_AT="$(node -e 'process.stdout.write(new Date().toISOString())')"
-}
-
-run_e1_post_runtime_coverage_gate(){
-  [ -n "$E1_RUNTIME_COVERAGE_STARTED_AT" ] || {
-    echo "FATAL: E1 runtime coverage start was not recorded before TEST restart" >&2
-    exit 1
-  }
-  # Coverage represents the five active runtime-unit checks, the health probe,
-  # the nginx preflight, and both locked product-smoke runs. The product smoke
-  # includes Global Admin System Health, which reads the cron-family health.
-  # Runtime reporters have a 250 ms bounded write; allow those smoke-triggered
-  # writes to settle before the authoritative pre-coverage read.
-  sleep 1
-  # TEST-only softening (owner 2026-07-18, var B): this is a DIAGNOSTIC/observability gate, NOT the
-  # wall enforcement — FORCE-RLS is asserted separately above and stays hard. On TEST a single benign
-  # transient must NOT fail-closed and take down the demo env; warn loudly and continue. Prod deploy
-  # scripts never call this closure, so prod strictness is unaffected.
-  if sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    pnpm --dir apps/webapp run diagnostics:saas-isolation -- post-runtime-gate \
-      --started-at '$E1_RUNTIME_COVERAGE_STARTED_AT' --checks 9"; then
-    echo "   E1 post-runtime coverage/read gate: OK"
-  else
-    echo "   ⚠️  WARN [TEST]: E1 isolation post-runtime gate did NOT pass — TEST deploy CONTINUES (env stays up)." >&2
-    echo "   ⚠️  FORCE-RLS wall assertion above stays hard; this gate is diagnostic-only on TEST." >&2
-    echo "   ⚠️  Triage:  (as deploy, webapp.test env)  pnpm --dir apps/webapp run diagnostics:saas-isolation -- read" >&2
-    echo "   ⚠️  Resolve once triaged benign:  ... diagnostics:saas-isolation -- coverage --id <uuid> --status complete --started-at <after last_seen> --finished-at <now> --services cron,integrator,media_worker,scheduler,webapp,worker --checks 9 --unexpected 0" >&2
-  fi
-}
-
 run_b1_doctor_admin_identity_assertion(){
   if [ "${SAAS_B1_IDENTITY_ASSERTION_SKIP:-0}" = "1" ]; then
     echo "   B1 doctor/admin identity assertion: skipped (SAAS_B1_IDENTITY_ASSERTION_SKIP=1)"
@@ -2043,7 +2018,10 @@ run_strict_post_migration_closure(){
   log "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface (A-1 stage 1, whole-class gate)"
   run_closure_gate "DB-owner + telemetry-owner SECURITY DEFINER anon-reachable surface" assert_db_owner_and_telemetry_owner_secdef_anon_surface_pinned
   log "E1 post-runtime coverage/read gate"
-  run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate
+  # 9 checks: five active runtime-unit checks, the health probe, the nginx preflight and both
+  # locked product-smoke runs. The product smoke includes Global Admin System Health, which
+  # reads the cron-family health.
+  run_closure_gate "E1 post-runtime coverage/read gate" run_e1_post_runtime_coverage_gate 9
   if [ "${#CLOSURE_GATE_FAILURES[@]}" -gt 0 ]; then
     echo "FATAL: ${#CLOSURE_GATE_FAILURES[@]} post-health closure gate(s) RED:" >&2
     printf '  - %s\n' "${CLOSURE_GATE_FAILURES[@]}" >&2

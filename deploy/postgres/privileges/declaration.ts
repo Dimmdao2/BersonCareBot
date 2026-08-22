@@ -3683,6 +3683,44 @@ const REV10_CONTEXT = {
           evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034' as const },
       ],
     }),
+    // Отпечаток материализации напоминания задачи считает `app.…_fingerprint(uuid)`, у которой
+    // EXECUTE только у `app_operational_delivery_worker`, и генератор выводит ей attested-гейт
+    // ровно под эту роль. Но зовёт её `app.refresh_specialist_task_reminder_materialization`,
+    // исполняемая `app_staff`, — и под контекстом персонала внутренний гейт отвечал
+    // `42501 accepted port context required`. То есть постановка напоминания по задаче падала не
+    // только на правах очереди: она падала бы и на отпечатке. Дверь остаётся ОДНА (прямой EXECUTE
+    // на счётчик отпечатка `app_staff` НЕ выдаётся): объявленное делегирование пропускает контекст
+    // обёртки внутрь, гранты по-прежнему выводятся только из `execute`.
+    'app.refresh_specialist_task_reminder_materialization(text)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.refresh_specialist_task_reminder_materialization(text)'],
+      delegatesTo: ['app.specialist_task_reminder_materialization_fingerprint(uuid)'],
+    },
+    // Единственная дверь поколения напоминаний ОДНОЙ задачи специалиста — близнец соседа выше.
+    // До неё вебапп трогал очередь реляционно под `app_staff`, у которого на ней НОЛЬ привилегий:
+    // кнопка «Выполнить» отвечала 500 (`42501 permission denied for table
+    // outgoing_delivery_queue`), а напоминания по задачам не ставились ни разу. Роль рантайма
+    // получает EXECUTE и ничего больше; INSERT на очередь добавляется владельцу шва, у которого
+    // SELECT и UPDATE там уже были. Гейт — attested, а не exact: корень зовётся внутри уже
+    // открытой реляционной транзакции задачи (запись задачи и снятие её напоминаний — один факт),
+    // как соседний `app.refresh_specialist_task_reminder_materialization`.
+    'app.replace_specialist_task_reminder_generation(uuid,text,text)': rev10Function({
+      owner: 'app_seam_reminder_specialist_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_staff'],
+      purpose: 'reminder.specialist-task-generation.replace',
+      typedArgs: ['uuid', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.specialist_tasks', columns: ['id', 'organization_id'],
+          operations: ['SELECT' as const],
+          evidence: 'exact tenant lookup of the generation target in migration 20260822T121000' as const },
+        { relation: 'public.outgoing_delivery_queue',
+          columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
+            'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority',
+            'updated_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 20260822T121000' as const },
+      ],
+    }),
     // Google-календарь клиники читается ТОЛЬКО под арендной ролью. До 19.08 EXECUTE держал
     // `app_integrator_request` — принципала этого класса на пути календаря не бывает вовсе: и шаг
     // записи (`bookingLifecycleRoute` → `sync.ts`), и проба оператора приходят сюда с

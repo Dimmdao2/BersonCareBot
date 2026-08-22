@@ -20,6 +20,14 @@ BUNDLE=/tmp/bcb-test-deploy.bundle
 TRANSCRIPT_DIR=${BCB_TEST_DEPLOY_TRANSCRIPT_DIR:-/var/log/bersoncarebot/deploy-test}
 TRANSCRIPT=""
 UNITS=(api scheduler webapp media-worker)
+DEPLOY_TEST_SCRIPT_DIR="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)")"
+SAAS_ISOLATION_COVERAGE_GATE_LIB="$DEPLOY_TEST_SCRIPT_DIR/saas-isolation-coverage-gate-lib.sh"
+if [[ -L "$SAAS_ISOLATION_COVERAGE_GATE_LIB" || ! -f "$SAAS_ISOLATION_COVERAGE_GATE_LIB" || "$(realpath "$SAAS_ISOLATION_COVERAGE_GATE_LIB")" != "$SAAS_ISOLATION_COVERAGE_GATE_LIB" ]]; then
+  echo "FATAL: shared SaaS isolation coverage gate library path guard failed" >&2
+  exit 1
+fi
+# shellcheck source=deploy/host/saas-isolation-coverage-gate-lib.sh
+source "$SAAS_ISOLATION_COVERAGE_GATE_LIB"
 # D30 Ш9: worker и scheduler на TEST — один resident-процесс, как и на PROD (см. одноимённые константы
 # и `retire_legacy_worker_unit` в `deploy/host/bootstrap-systemd-prod.sh`). Source-entrypoint воркера
 # после Ш9 удалён; следующий штатный TEST deploy не должен ни оживлять его, ни оставлять старый unit
@@ -363,6 +371,15 @@ RUN_TENANT_ISOLATION_WALL_DB=1 TENANT_ISOLATION_PROOF_DB="$DB" \
 printf 'deploy-test: retiring legacy %s before the merged scheduler can start\n' "$LEGACY_WORKER_SERVICE"
 retire_legacy_test_worker_unit
 
+# Окно покрытия изоляции открывается ДО рестарта: запись покрытия ниже заявляет ровно тот отрезок
+# времени, в котором службы поднимались и проверялись. Раньше эту запись делала строгая закрывающая
+# последовательность (`deploy-test-saas.sh --post-migration-closure`), которую fe7aa07d9 (12.08.2026)
+# убрала отсюда ради снятия операционных логинов — вместе с ней штатный деплой перестал писать
+# покрытие вообще, и «Здоровье системы» показывает монитор изоляции слепым (`coverage_missing`,
+# все шесть служб в `missingServices`). Возвращается только производитель покрытия, не вся закрывающая
+# последовательность: её остальные гейты пересоздают как раз те логины, ради удаления которых её сняли.
+mark_e1_runtime_coverage_start
+
 for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
 for attempt in $(seq 1 30); do
   all_active=1
@@ -372,6 +389,10 @@ for attempt in $(seq 1 30); do
   if [[ "$all_active" == 1 ]] && curl -fsS --max-time 3 http://127.0.0.1:3300/health >/dev/null &&
      curl -fsS --max-time 3 http://127.0.0.1:6300/api/health >/dev/null; then
     SERVICES_RELEASED=1
+    # 9 проверок изоляции этого деплоя: две пробы стены арендатора (до остановки служб и после сверки
+    # прав), сама сверка прав `reconcile-access`, четыре `is-active` по юнитам TEST и два health-эндпоинта
+    # (интегратор + вебапп). Гейт диагностический: его отказ печатает WARN и НЕ роняет уже поднятый TEST.
+    run_e1_post_runtime_coverage_gate 9
     printf 'deploy-test: PASS branch=%s head=%s B0/post-B0 only\n' \
       "$BRANCH" "$(sudo -u deploy git -C "$DEPLOY_REPO" rev-parse --short HEAD)"
     exit 0
