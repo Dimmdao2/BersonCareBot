@@ -54,6 +54,13 @@ function isExtraFormField(field: FormField): boolean {
 type ConfirmStepOptions = {
   formFieldsApiPath?: string;
   successRedirectPath?: string;
+  /**
+   * Куда вести после успешного (не-payment, не-reschedule) создания записи. По умолчанию —
+   * внутренний экран `/app/patient/booking/new/done` (требует сессии). Публичный вызывающий
+   * обязан передать сюда публичный путь — иначе анонимного посетителя уносит на /app/patient,
+   * который проверяет сессию и отправляет на логин (баг: экран мигал и пропадал).
+   */
+  doneRedirectPath?: string;
   buildAwaitingPaymentHref?: (booking: PatientBookingRecord, contactPhone: string) => string;
   useCreateBookingHook?: typeof useCreateBooking;
   useRescheduleBookingHook?: typeof useRescheduleBooking;
@@ -91,6 +98,7 @@ export function ConfirmStepClient({
   appDisplayTimeZone,
   formFieldsApiPath = "/api/booking/form-fields",
   successRedirectPath = routePaths.bookingNew,
+  doneRedirectPath = routePaths.bookingNewDone,
   buildAwaitingPaymentHref,
   useCreateBookingHook = useCreateBooking,
   useRescheduleBookingHook = useRescheduleBooking,
@@ -329,7 +337,7 @@ export function ConfirmStepClient({
                 (type === "online" ? "Онлайн" : cityTitle ?? "");
               if (loc) doneQ.set("locationLabel", loc);
               if (cityCode) doneQ.set("cityCode", cityCode);
-              router.push(`${routePaths.bookingNewDone}?${doneQ.toString()}`);
+              router.push(`${doneRedirectPath}?${doneQ.toString()}`);
             });
         }}
       >

@@ -90,6 +90,17 @@ export function BookingDoneClient({
             {dateLabel} · {timeStart} — {timeEnd}
           </li>
           {locationLabel ? <li>{locationLabel}</li> : null}
+          <li>
+            Адрес:{" "}
+            <a
+              href="https://dmitryberson.ru/adress"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              https://dmitryberson.ru/adress
+            </a>
+          </li>
         </ul>
       </div>
 
