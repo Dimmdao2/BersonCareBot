@@ -4,6 +4,7 @@
  * ICS-формат: RFC 5545, временны́е метки в UTC (суффикс Z), уникальный UID.
  * Не зависит от DOM/navigator — может вызываться и в тестах без jsdom.
  */
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 export type CalendarEventParams = {
   /** ISO-строка начала (с timezone offset или Z). */
@@ -58,7 +59,7 @@ export function buildIcsContent(params: CalendarEventParams, appBaseUrl: string)
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//BersonCare//Patient Booking//RU',
+    `PRODID:-//${PATIENT_DEFAULT_SURFACE_NAME}//Patient Booking//RU`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

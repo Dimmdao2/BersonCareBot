@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 export const STAFF_PWA_MANIFEST_PATH = '/manifest-staff.webmanifest';
 export const STAFF_PWA_ICON_192 = '/staff-pwa-icon-192.png';
@@ -9,8 +10,8 @@ export const STAFF_PWA_APPLE_TOUCH = '/staff-pwa-apple-touch.png';
 export function buildStaffPwaManifest(): MetadataRoute.Manifest {
   return {
     id: '/app-staff',
-    name: 'Therapysto',
-    short_name: 'Therapysto',
+    name: STAFF_SURFACE.name,
+    short_name: STAFF_SURFACE.name,
     description: 'Кабинет врача и администратора: клиенты, расписание, контент, настройки.',
     start_url: '/app/doctor',
     scope: '/app',

@@ -5,14 +5,15 @@ import {
   STAFF_PWA_ICON_512,
   STAFF_PWA_MANIFEST_PATH,
 } from '@/shared/lib/pwa/staffPwaManifest';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 /** Metadata для staff layouts (`doctor`, `settings`, `admin`) — отдельный manifest, patient root не трогаем. */
 export const staffPwaLayoutMetadata: Metadata = {
-  title: 'Therapysto',
+  title: STAFF_SURFACE.name,
   manifest: STAFF_PWA_MANIFEST_PATH,
   appleWebApp: {
     capable: true,
-    title: 'Therapysto',
+    title: STAFF_SURFACE.name,
     statusBarStyle: 'default',
   },
   icons: {

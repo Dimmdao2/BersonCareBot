@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   patientButtonPrimaryClass,
@@ -58,7 +59,7 @@ export function BookingDoneClient({
 }: BookingDoneParams) {
   const summary = buildSummary(serviceTitle, locationLabel);
   const location = locationLabel || undefined;
-  const description = 'Запись через BersonCare';
+  const description = `Запись через ${PATIENT_DEFAULT_SURFACE_NAME}`;
 
   const calendarParams = useMemo(
     () => ({ startAt: slotStart, endAt: slotEnd, summary, location, description, bookingId }),

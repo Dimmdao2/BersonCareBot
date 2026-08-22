@@ -14,6 +14,7 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { routePaths } from '@/app-layer/routes/paths';
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 import {
   getPatientPrimaryNavActiveId,
   PATIENT_PRIMARY_NAV_ITEMS,
@@ -252,7 +253,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
                     : 'max-h-8 opacity-100',
                 )}
               >
-                BersonCare
+                {PATIENT_DEFAULT_SURFACE_NAME}
               </span>
             </Link>
           </div>

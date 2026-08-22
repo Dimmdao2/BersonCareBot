@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env } from '@/config/env';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import {
   classifyUnauthenticatedAppEntry,
   shouldAllowStandaloneTokenExchange,
@@ -81,7 +82,7 @@ export async function AppEntryRsc({
 
   return (
     <PatientAppShell
-      title="BersonCare"
+      title={PATIENT_DEFAULT_SURFACE.name}
       user={null}
       patientHideHome
       patientHideRightIcons

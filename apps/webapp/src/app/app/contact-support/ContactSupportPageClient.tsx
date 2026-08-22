@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 import { PatientSupportForm } from '@/app/app/patient/support/PatientSupportForm';
 import { readAuthFlowPending } from '@/shared/ui/patient/auth/authFlowPendingStorage';
 import { cn } from '@/lib/utils';
@@ -57,7 +58,7 @@ export default function LoginContactSupportPageClient({ initialFrom }: Props) {
 
   return (
     <PatientAppShell
-      title="BersonCare"
+      title={PATIENT_DEFAULT_SURFACE_NAME}
       user={null}
       backHref={nav.href}
       backLabel={nav.label}

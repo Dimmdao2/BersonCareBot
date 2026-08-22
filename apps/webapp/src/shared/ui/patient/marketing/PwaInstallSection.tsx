@@ -5,6 +5,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 /** Chromium install prompt (не все конфигурации `tsc` подтягивают тип из DOM lib). */
 type BeforeInstallPromptEventLike = Event & {
@@ -128,7 +129,7 @@ export function PwaInstallSection() {
             ) : (
               <>
                 Если кнопки нет: меню браузера (⋮) → «Установить приложение…» или «Приложение
-                BersonCare…».
+                {` ${PATIENT_DEFAULT_SURFACE_NAME}…».`}
               </>
             )}
           </p>

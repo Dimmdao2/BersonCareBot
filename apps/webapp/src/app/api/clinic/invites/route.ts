@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { env } from '@/config/env';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   requireEntitlementForRead,
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
   const inviteUrl = buildInviteUrl(baseUrl, token);
   const emailResult = await sendEmailSetupLinkViaIntegrator(
     result.invite.invitedEmail,
-    'Приглашение в Therapysto',
+    `Приглашение в ${STAFF_SURFACE.name}`,
     [
       `Вас пригласили в клинику ${result.invite.organizationTitle ?? ''}.`.trim(),
       'Откройте ссылку и подтвердите email кодом:',

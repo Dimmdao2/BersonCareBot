@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { relayOutbound } from '@/modules/messaging/relayOutbound';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 const bodySchema = z.object({
   to: z.string().trim().email(),
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
     channel: 'email',
     recipient: body.to,
     text: 'Это тестовое письмо с экрана настроек администратора. Если вы его получили, исходящая почта настроена верно.',
-    metadata: { subject: 'Тест SMTP — Therapysto' },
+    metadata: { subject: `Тест SMTP — ${STAFF_SURFACE.name}` },
   });
 
   if (res.ok) {

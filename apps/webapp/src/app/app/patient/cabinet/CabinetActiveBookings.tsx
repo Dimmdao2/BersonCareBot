@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
 import { CabinetBookingActions } from './CabinetBookingActions';
 import { cn } from '@/lib/utils';
@@ -72,7 +73,7 @@ function generateIcs(booking: PatientBookingRecord): string {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//BersonCare//BersonCare//RU',
+    `PRODID:-//${PATIENT_DEFAULT_SURFACE_NAME}//${PATIENT_DEFAULT_SURFACE_NAME}//RU`,
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTART:${dtstart}`,

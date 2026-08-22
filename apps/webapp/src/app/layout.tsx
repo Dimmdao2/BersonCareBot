@@ -16,10 +16,17 @@ import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
 import { PWA_APP_ROOT_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
+/**
+ * Staff-зоны (`doctor`/`settings`/`admin`/`account`/`manage`) переопределяют эти метаданные через
+ * `staffPwaLayoutMetadata`. Этот root fallback реально виден на лендинге `/` (сам переопределяет
+ * себя через `page.tsx`), `/app/patient/**`, `/book`, `/join` и `/legal/**` — везде patient-стиль,
+ * поэтому имя берётся из standard patient surface, не staff.
+ */
 export const metadata: Metadata = {
-  title: 'BersonCare Webapp',
-  description: 'Patient and doctor web application for the BersonCare platform.',
+  title: PATIENT_DEFAULT_SURFACE.name,
+  description: `Patient web application for ${PATIENT_DEFAULT_SURFACE.name}.`,
   icons: {
     icon: [
       { url: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' },
@@ -30,7 +37,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: 'BersonCare',
+    title: PATIENT_DEFAULT_SURFACE.name,
     statusBarStyle: 'default',
   },
 };

@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
 /**
  * Web App Manifest (PWA).
@@ -11,8 +12,8 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/app',
-    name: 'BersonCare — забота о твоём здоровье',
-    short_name: 'BersonCare',
+    name: `${PATIENT_DEFAULT_SURFACE.name} — забота о твоём здоровье`,
+    short_name: PATIENT_DEFAULT_SURFACE.name,
     description:
       'Мобильный помощник для восстановления и реабилитации: разминки, упражнения, дневник самочувствия, напоминания и полезные материалы.',
     start_url: '/app/patient',
