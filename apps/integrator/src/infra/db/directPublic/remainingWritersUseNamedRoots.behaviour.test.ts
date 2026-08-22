@@ -88,7 +88,7 @@ describe('D17 шаг 2b — метка «бот заблокирован»', () 
       markUserChannelBotBlocked(db, {
         platformUserId: PLATFORM_USER,
         channel: 'telegram',
-        externalId: 777,
+        externalId: '777',
       }),
     );
 
@@ -136,7 +136,7 @@ describe('D17 шаг 2b — метка «бот заблокирован»', () 
       markUserChannelBotBlocked(db, {
         platformUserId: PLATFORM_USER,
         channel: 'telegram',
-        externalId: 777,
+        externalId: '777',
       }),
     );
 
@@ -156,7 +156,7 @@ describe('D17 шаг 2b — метка «бот заблокирован»', () 
       markUserChannelBotBlocked(db, {
         platformUserId: null,
         channel: 'telegram',
-        externalId: 777,
+        externalId: '777',
       }),
     );
 
