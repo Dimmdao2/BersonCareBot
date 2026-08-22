@@ -26,6 +26,17 @@ function exactColumns(relation, role, operation, expected) {
   assert.deepEqual([...grant.columns].sort(), [...expected].sort());
 }
 
+function exactRepeatedColumns(relation, role, operation, expected) {
+  const matches = directGrants(relation).filter(
+    (grant) => grant.role === role && grant.operations.includes(operation),
+  );
+  assert.ok(matches.length > 0, `${relation} ${role} ${operation}`);
+  for (const grant of matches) {
+    assert.notEqual(grant.columns, 'table', `${relation} ${role} ${operation} must be column-scoped`);
+    assert.deepEqual([...grant.columns].sort(), [...expected].sort());
+  }
+}
+
 function assertNoOperation(relation, role, operation) {
   assert.equal(
     directGrants(relation).some(
@@ -461,7 +472,6 @@ test('tenant calendar and package roots expose only their proven columns', () =>
 test('tenant identity grant is operation- and column-specific', () => {
   exactColumns('public.platform_users', 'app_tenant_service', 'SELECT', [
     'id',
-    'birth_date',
     'integrator_user_id',
     'merged_into_id',
     'display_name',
@@ -490,6 +500,41 @@ test('tenant identity grant is operation- and column-specific', () => {
     'updated_at',
   ]);
   assertNoOperation('public.platform_users', 'app_tenant_service', 'DELETE');
+});
+
+test('patient demographics inherit the clinical profile column wall', () => {
+  exactRepeatedColumns('public.doctor_patient_support', 'app_staff', 'INSERT', [
+    'birth_date',
+    'comments_enabled',
+    'gender',
+    'height_cm',
+    'id',
+    'media_enabled',
+    'on_support',
+    'organization_id',
+    'patient_user_id',
+    'support_started_at',
+    'updated_at',
+    'updated_by',
+    'weight_kg',
+  ]);
+  exactRepeatedColumns('public.doctor_patient_support', 'app_staff', 'UPDATE', [
+    'birth_date',
+    'comments_enabled',
+    'gender',
+    'height_cm',
+    'media_enabled',
+    'organization_id',
+    'updated_at',
+    'updated_by',
+    'weight_kg',
+  ]);
+  assert.equal(
+    directGrants('public.doctor_patient_support').some(
+      (grant) => grant.role === 'app_patient' && grant.columns === 'table',
+    ),
+    true,
+  );
 });
 
 test('merge-only tenant updates cannot mutate unrelated payment or timeline columns', () => {

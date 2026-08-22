@@ -4,6 +4,14 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import type { ClientSupportProfile } from '@/modules/doctor-clients/supportPolicy';
 import { doctorPatientSupport } from '../../../db/schema/doctorPatientSupport';
+import { platformUsers } from '../../../db/schema/schema';
+
+export type PatientClinicalDemographics = {
+  birthDate: string | null;
+  gender: 'male' | 'female' | null;
+  heightCm: number | null;
+  weightKg: number | null;
+};
 
 function mapRow(row: typeof doctorPatientSupport.$inferSelect): ClientSupportProfile {
   return {
@@ -44,6 +52,73 @@ export async function getClientSupportProfile(
     .where(eq(doctorPatientSupport.patientUserId, patientUserId))
     .limit(1);
   return rows[0] ? mapRow(rows[0]) : null;
+}
+
+/** Reads patient-subject demographics through the same tenant wall as the support profile. */
+export async function getPatientClinicalDemographics(
+  patientUserId: string,
+): Promise<PatientClinicalDemographics | null> {
+  const db = getDrizzle();
+  const rows = await db
+    .select({
+      birthDate: doctorPatientSupport.birthDate,
+      gender: doctorPatientSupport.gender,
+      heightCm: doctorPatientSupport.heightCm,
+      weightKg: doctorPatientSupport.weightKg,
+    })
+    .from(platformUsers)
+    .leftJoin(doctorPatientSupport, eq(doctorPatientSupport.patientUserId, platformUsers.id))
+    .where(and(eq(platformUsers.id, patientUserId), eq(platformUsers.role, 'client')))
+    .limit(1);
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    birthDate: row.birthDate ?? null,
+    gender: row.gender === 'male' || row.gender === 'female' ? row.gender : null,
+    heightCm: row.heightCm ?? null,
+    weightKg: row.weightKg ?? null,
+  };
+}
+
+/** Writes patient-subject demographics without moving or weakening the existing profile tenant key. */
+export async function updatePatientClinicalDemographics(
+  patientUserId: string,
+  values: {
+    birthDate?: string | null;
+    gender?: 'male' | 'female' | null;
+    heightCm?: number | null;
+    weightKg?: number | null;
+  },
+): Promise<void> {
+  const patch: Partial<typeof doctorPatientSupport.$inferInsert> = {
+    updatedAt: new Date().toISOString(),
+  };
+  if (values.birthDate !== undefined) patch.birthDate = values.birthDate;
+  if (values.gender !== undefined) patch.gender = values.gender;
+  if (values.heightCm !== undefined) patch.heightCm = values.heightCm;
+  if (values.weightKg !== undefined) patch.weightKg = values.weightKg;
+  if (Object.keys(patch).length === 1) return;
+
+  await runDrizzleMutationTransaction(async (tx) => {
+    const patientRows = await tx
+      .select({ id: platformUsers.id })
+      .from(platformUsers)
+      .where(and(eq(platformUsers.id, patientUserId), eq(platformUsers.role, 'client')))
+      .limit(1);
+    if (!patientRows[0]) return;
+
+    await tx
+      .insert(doctorPatientSupport)
+      .values({
+        organizationId: currentWriteOrganizationId(),
+        patientUserId,
+        ...patch,
+      })
+      .onConflictDoUpdate({
+        target: doctorPatientSupport.patientUserId,
+        set: patch,
+      });
+  });
 }
 
 export async function upsertClientSupportProfile(params: {

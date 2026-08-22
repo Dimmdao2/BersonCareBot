@@ -151,11 +151,11 @@ export type PatientCardHeader = {
     hasConversation: boolean;
     isArchived: boolean;
     isBlocked: boolean;
-    /** Дата рождения из platform_users.birth_date (ISO yyyy-mm-dd), null если не задана. */
+    /** Дата рождения из клинического профиля пациента (ISO yyyy-mm-dd), null если не задана. */
     birthDate: string | null;
     /** Возраст в полных годах, вычисляется из birthDate; null если birthDate отсутствует. */
     age: number | null;
-    /** Пол пациента из platform_users.gender; null если не указан. */
+    /** Пол из клинического профиля пациента; null если не указан. */
     gender: 'male' | 'female' | null;
   };
   /** Сопровождение врача. */
@@ -312,13 +312,13 @@ export type DoctorClientsPort = {
     actorId: string;
   }): Promise<ClientSupportProfile>;
   /**
-   * Устанавливает дату рождения клиента (platform_users.birth_date).
+   * Устанавливает дату рождения в клиническом профиле пациента.
    * Принимает ISO yyyy-mm-dd или null (сброс).
    * Работает только для клиентов (role='client').
    */
   setPatientBirthDate(userId: string, birthDate: string | null): Promise<void>;
   /**
-   * Устанавливает пол клиента (platform_users.gender): 'male' | 'female' | null (сброс).
+   * Устанавливает пол в клиническом профиле: 'male' | 'female' | null (сброс).
    * Работает только для клиентов (role='client').
    */
   setPatientGender(userId: string, gender: 'male' | 'female' | null): Promise<void>;
@@ -339,7 +339,7 @@ export type DoctorClientsPort = {
     userId: string,
   ): Promise<{ heightCm: number | null; weightKg: number | null } | null>;
   /**
-   * Устанавливает рост и/или вес пациента (platform_users.height_cm / weight_kg).
+   * Устанавливает рост и/или вес в клиническом профиле пациента.
    * Обновляются только переданные поля (null = сброс).
    * Работает только для клиентов (role='client').
    */

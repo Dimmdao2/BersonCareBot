@@ -3595,7 +3595,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
   },
   "public.doctor_patient_support": {
     "kind": "direct",
-    "purpose": "Флаги сопровождения пациента — определяет, ведёт ли врач клиента и открыты ли ему чат/медиа",
+    "purpose": "Клинический профиль пациента — демография и флаги сопровождения под стеной клиники",
     "codePaths": [
       "apps/integrator/src/integrations/google-calendar/calendarDescription.ts",
       "apps/webapp/src/app/app/patient/treatment/loadPatientProgramInteractionBundle.ts",
@@ -3625,14 +3625,19 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "birth_date",
           "comments_enabled",
+          "gender",
+          "height_cm",
+          "id",
           "media_enabled",
           "on_support",
           "organization_id",
           "patient_user_id",
           "support_started_at",
           "updated_at",
-          "updated_by"
+          "updated_by",
+          "weight_kg"
         ]
       },
       {
@@ -3641,11 +3646,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "birth_date",
           "comments_enabled",
+          "gender",
+          "height_cm",
           "media_enabled",
           "organization_id",
           "updated_at",
-          "updated_by"
+          "updated_by",
+          "weight_kg"
         ]
       },
       {
@@ -3671,14 +3680,19 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "birth_date",
           "comments_enabled",
+          "gender",
+          "height_cm",
+          "id",
           "media_enabled",
           "on_support",
           "organization_id",
           "patient_user_id",
           "support_started_at",
           "updated_at",
-          "updated_by"
+          "updated_by",
+          "weight_kg"
         ]
       },
       {
@@ -3687,11 +3701,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "birth_date",
           "comments_enabled",
+          "gender",
+          "height_cm",
           "media_enabled",
           "organization_id",
           "updated_at",
-          "updated_by"
+          "updated_by",
+          "weight_kg"
         ]
       }
     ]
@@ -6324,13 +6342,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "birth_date",
           "blocked_at",
           "blocked_by",
           "blocked_reason",
           "calendar_timezone",
           "display_name",
-          "gender",
           "integrator_user_id",
           "is_archived",
           "is_blocked",
@@ -6355,7 +6371,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "id",
-          "birth_date",
           "integrator_user_id",
           "merged_into_id",
           "display_name",
@@ -10298,7 +10313,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
   },
   "public.user_identity": {
     "kind": "direct",
-    "purpose": "ФИО и дата рождения — имя пациента во всех экранах",
+    "purpose": "Именной профиль актора — ФИО во всех экранах",
     "codePaths": [
       "apps/webapp/src/infra/repos/pgBookingCalendar.ts",
       "apps/webapp/src/infra/repos/pgBookingEngine.ts",
@@ -10334,7 +10349,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
-          "birth_date",
           "display_name",
           "first_name",
           "last_name",
@@ -10349,7 +10363,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "birth_date",
           "display_name",
           "first_name",
           "last_name",

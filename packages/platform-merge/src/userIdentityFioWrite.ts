@@ -3,7 +3,7 @@ import type { PlatformMergeDbClient } from './pgPlatformUserMerge.js';
 import { runMergeSql, type MergeSqlExecutor } from './mergeSql.js';
 
 /**
- * D15b/5 dual-write: mirror FIO columns from `platform_users` into `user_identity`.
+ * D15b/5 dual-write: mirror name columns from `platform_users` into `user_identity`.
  * Called after every identity projection write while columns still live on both tables.
  *
  * No `merged_into_id IS NULL` filter: readers dropped their COALESCE fallback, so every
@@ -18,10 +18,10 @@ export async function syncUserIdentityFioMirror(
   await runMergeSql(
     db,
     sql`INSERT INTO public.user_identity (
-       platform_user_id, first_name, last_name, patronymic, display_name, birth_date, updated_at
+       platform_user_id, first_name, last_name, patronymic, display_name, updated_at
      )
      SELECT
-       id, first_name, last_name, patronymic, COALESCE(display_name, ''), birth_date, now()
+       id, first_name, last_name, patronymic, COALESCE(display_name, ''), now()
      FROM public.platform_users
      WHERE id = ${platformUserId}::uuid
      ON CONFLICT (platform_user_id) DO UPDATE SET
@@ -29,7 +29,6 @@ export async function syncUserIdentityFioMirror(
        last_name = EXCLUDED.last_name,
        patronymic = EXCLUDED.patronymic,
        display_name = EXCLUDED.display_name,
-       birth_date = EXCLUDED.birth_date,
        updated_at = now()`,
   );
 }

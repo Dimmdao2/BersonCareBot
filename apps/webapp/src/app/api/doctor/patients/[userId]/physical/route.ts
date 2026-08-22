@@ -1,13 +1,13 @@
 /**
  * GET  /api/doctor/patients/[userId]/physical
  *   → { ok: true, heightCm: number | null, weightKg: number | null }
- *   Reads platform_users.height_cm, weight_kg WHERE id=$userId AND role='client'
+ *   Reads height_cm and weight_kg from the tenant-walled patient clinical profile.
  *   Auth: requireDoctorApiSession
  *
  * PATCH /api/doctor/patients/[userId]/physical
  *   Body: { heightCm?: number | null, weightKg?: number | null }
  *   Validates: heightCm 50–250 (integer), weightKg 10–500 (integer), both nullable
- *   Updates platform_users SET height_cm, weight_kg, updated_at=now() WHERE id=$userId
+ *   Updates the tenant-walled patient clinical profile.
  *   → { ok: true }
  *   Auth: requireDoctorApiSession
  */
