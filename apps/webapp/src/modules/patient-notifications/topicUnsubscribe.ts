@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import { isValidNotificationTopicId } from './notificationsTopics';
+import { isValidNotificationTopicId, isValidNotificationTopicTitle } from './notificationsTopics';
 
 const TOKEN_VERSION = 1;
 const SIGNING_PURPOSE = 'patient-notification-topic-unsubscribe';
@@ -11,6 +11,15 @@ type TopicUnsubscribeTokenPayload = {
   userId: string;
   topicCode: string;
   nonce: string;
+  /** Patient-facing title at send time. Optional for previously issued signed links. */
+  topicTitle?: string;
+};
+
+export type TopicUnsubscribeResult = {
+  /** Null only when the token itself is invalid; never exposes recipient existence. */
+  topicCode: string | null;
+  /** The human title from the signed delivery link, when present. */
+  topicTitle: string | null;
 };
 
 export type TopicUnsubscribeServiceDeps = {
@@ -27,9 +36,7 @@ function requireSecret(getSecret: () => string): string {
 }
 
 function sign(encodedPayload: string, secret: string): Buffer {
-  return createHmac('sha256', secret)
-    .update(`${SIGNING_PURPOSE}.${encodedPayload}`)
-    .digest();
+  return createHmac('sha256', secret).update(`${SIGNING_PURPOSE}.${encodedPayload}`).digest();
 }
 
 function decodeToken(token: string, secret: string): TopicUnsubscribeTokenPayload | null {
@@ -57,16 +64,24 @@ function decodeToken(token: string, secret: string): TopicUnsubscribeTokenPayloa
     const userId = typeof candidate.userId === 'string' ? candidate.userId.trim() : '';
     const topicCode = typeof candidate.topicCode === 'string' ? candidate.topicCode.trim() : '';
     const nonce = typeof candidate.nonce === 'string' ? candidate.nonce.trim() : '';
+    const topicTitle = typeof candidate.topicTitle === 'string' ? candidate.topicTitle.trim() : '';
     if (
       candidate.v !== TOKEN_VERSION ||
       !isPlatformUserUuid(userId) ||
       !isValidNotificationTopicId(topicCode) ||
       nonce.length < 8 ||
-      nonce.length > 200
+      nonce.length > 200 ||
+      (topicTitle.length > 0 && !isValidNotificationTopicTitle(topicTitle))
     ) {
       return null;
     }
-    return { v: TOKEN_VERSION, userId, topicCode, nonce };
+    return {
+      v: TOKEN_VERSION,
+      userId,
+      topicCode,
+      nonce,
+      ...(topicTitle ? { topicTitle } : {}),
+    };
   } catch {
     return null;
   }
@@ -74,17 +89,24 @@ function decodeToken(token: string, secret: string): TopicUnsubscribeTokenPayloa
 
 export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps) {
   return {
-    createUrl(input: { userId: string; topicCode: string; nonce: string }): string {
+    createUrl(input: {
+      userId: string;
+      topicCode: string;
+      topicTitle: string;
+      nonce: string;
+    }): string {
       const secret = requireSecret(deps.getSecret);
       const payload: TopicUnsubscribeTokenPayload = {
         v: TOKEN_VERSION,
         userId: input.userId.trim(),
         topicCode: input.topicCode.trim(),
+        topicTitle: input.topicTitle.trim(),
         nonce: input.nonce.trim(),
       };
       if (
         !isPlatformUserUuid(payload.userId) ||
         !isValidNotificationTopicId(payload.topicCode) ||
+        !isValidNotificationTopicTitle(payload.topicTitle) ||
         payload.nonce.length < 8 ||
         payload.nonce.length > 200
       ) {
@@ -96,19 +118,18 @@ export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps)
       return `${base}${PUBLIC_TOPIC_UNSUBSCRIBE_PATH}?token=${encodeURIComponent(token)}`;
     },
 
-    async unsubscribeByToken(token: string): Promise<'applied' | 'invalid'> {
+    async unsubscribeByToken(token: string): Promise<TopicUnsubscribeResult> {
       const secret = requireSecret(deps.getSecret);
       const payload = decodeToken(token.trim(), secret);
-      if (!payload) return 'invalid';
+      if (!payload) return { topicCode: null, topicTitle: null };
       try {
         await deps.runForPatient(payload.userId, () =>
           deps.setTopicEnabled(payload.userId, payload.topicCode, false),
         );
-        return 'applied';
       } catch {
         // Public response must not reveal whether the signed recipient still exists.
-        return 'invalid';
       }
+      return { topicCode: payload.topicCode, topicTitle: payload.topicTitle ?? null };
     },
   };
 }

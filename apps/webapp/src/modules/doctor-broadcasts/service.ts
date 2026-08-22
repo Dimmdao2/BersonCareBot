@@ -69,8 +69,11 @@ export type DoctorBroadcastsServiceDeps = {
   buildTopicUnsubscribeUrl: (input: {
     userId: string;
     topicCode: string;
+    topicTitle: string;
     nonce: string;
   }) => string;
+  /** Existing patient-facing title from `system_settings.notifications_topics`. */
+  getTopicDisplayTitle: (topicCode: string, organizationId: string) => Promise<string | null>;
   /**
    * 3.2: physically refuses a mailings write unless a passing `mailings` mutation decision already
    * ran in this request (injected from `buildAppDeps.ts` as `assertMechanicWriteClearance`).
@@ -200,12 +203,15 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       const messageBodyPlainText = stripMarkdownToPlain(messageBody);
       const auditId = randomUUID();
       const topicCode = broadcastNotificationTopicCode(command.category);
+      const topicTitle = await deps.getTopicDisplayTitle(topicCode, options.organizationId);
+      if (!topicTitle) throw new Error(`broadcast_topic_title_missing:${topicCode}`);
       const unsubscribeUrlByUserId = new Map(
         eligibleClients.map((client) => [
           client.userId,
           deps.buildTopicUnsubscribeUrl({
             userId: client.userId,
             topicCode,
+            topicTitle,
             nonce: auditId,
           }),
         ]),
@@ -221,6 +227,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         notificationPrefsByUserId,
         imageUrl: command.message.mediaUrl ?? null,
         unsubscribeUrlByUserId,
+        unsubscribeTopicTitle: topicTitle,
       });
       const auditBase = {
         organizationId: options.organizationId,
@@ -307,6 +314,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             mediaUrl: command.message.mediaUrl ?? null,
             eligibleClients: emailClients,
             unsubscribeUrlByUserId,
+            unsubscribeTopicTitle: topicTitle,
           },
           deps.fanOutBroadcastEmailDeps,
         );
