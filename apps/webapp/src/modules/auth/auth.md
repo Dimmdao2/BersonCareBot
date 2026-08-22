@@ -1,6 +1,7 @@
 # auth
 
-Авторизация и сессии веб-приложения (BersonCare webapp).
+Авторизация и сессии веб-приложения (Therapysto у персонала, Therapygo у пациентов — см.
+`config/productSurfaces.ts`).
 
 ## Сессия
 

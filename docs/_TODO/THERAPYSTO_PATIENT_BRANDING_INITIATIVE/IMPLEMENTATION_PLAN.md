@@ -317,6 +317,19 @@ Checkbox закрывается только доказательством, у�
   построены. Доказательство: operator runbook и отсутствие таких product flows в diff.
 - [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
   history не переименованы. Доказательство: scoped exact inventory before/after с явным allowlist technical/history.
+
+  > **НЕ ЗАКРЫВАТЬ (находка `S-1`, 22.08.2026).** Инвентаризация по всему репозиторию закрыта (`A3`), но
+  > текст кода входа по e-mail и SMS до сих пор говорит «BersonCare» и его видит **ПЕРСОНАЛ**, а не только
+  > пациенты: регистрация специалиста (`api/auth/specialist-signup/start`) и приём приглашения персонала
+  > (`api/clinic/invites/accept/start`) идут через `startEmailChallenge`, а живой источник текста —
+  > definer-функция `app.email_auth_start_challenge`
+  > (`deploy/postgres/organization-member-invites-rls.sql:929,931`), плюс те же строки хардкодом в
+  > `apps/integrator/src/integrations/bersoncare/{sendEmailRoute,sendSmsRoute,sendOtpRoute}.ts`.
+  > Четыре круга это пропустили, потому что мерили идентичность СТРАНИЦЫ, а текст письма не страница и не в
+  > webapp. **Строкой не чинится:** один путь обслуживает три разных правильных имени (Therapysto персоналу,
+  > Therapygo пациенту общего входа, бренд клиники пациенту клиники) — подстановка «Therapysto» нарушит
+  > `TPB-06`/`TPB-08`. Нужен параметр от вызывающего, а не дефолт у получателя, то есть механизм этапа `C`.
+  > Развилка владельцу — `Q1` в `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §6.
 - [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
   возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
   и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.
@@ -423,7 +436,7 @@ Checkbox закрывается только доказательством, у�
 > документы), auth-часть Gate A, `config.md:12` (ссылка на удалённый хук). Подделка `x-bc-pathname` вне
 > matcher'а сознательно отложена в `B`, где поверхность резолвится по Host.
 
-- [ ] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
+- [x] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
   deploy seam; standard patient `name` и `origin` — обязательные deploy inputs без placeholder/default бренда.
 - [x] `A2a` **Остаток после `A0`, часть «единый identity seam»:** root metadata и лендинг переведены на
   Therapysto через ОДИН identity value. Идентичность больше не объявляется на маршруте: таблица
@@ -436,10 +449,22 @@ Checkbox закрывается только доказательством, у�
 - [ ] `A2b` **Остаток `A2`:** legal-страницы и остальной невыполненный периметр (patient mail становится
   brand-aware только в C; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без
   его команды). Patient metadata берёт standard patient config.
-- [ ] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
+- [~] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
   occurrences. npm/package/table/module/route identifiers и archive/audit history не трогать.
-- [ ] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
+  **Инвентаризация закрыта 22.08.2026 по ВСЕМУ репозиторию** (прежние круги мерили `apps/webapp/src` и дважды
+  на этом попались): 4839 вхождений в 1230 файлах разложены по четырём корзинам, каждое оставшееся — с
+  причиной. Корзина «правим сейчас» оказалась **пустой**: `git grep -nI "BersonCare" -- apps/webapp/src` → 6
+  строк, все шесть либо технические, либо исключены владельцем, либо пациентские (этап `C`).
+  Доказательство: `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §3 (числа + команды) и §4.1 (живой прогон, 8
+  staff-маршрутов, `BersonCare`×0).
+  **Пункт НЕ закрыт до конца из-за находки `S-1`** — см. `TPB-15` ниже.
+- [x] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
   `TPB-01…16`. Не добавлять параллельную сноску рядом со старым активным вариантом и не редактировать archive.
+  Закрыто 22.08.2026: 7 файлов правлены на месте (`README.md`, `docs/PRODUCT_OVERVIEW.md`,
+  `SCREEN_ARCHITECTURE_GUIDE.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `TOOLING_AND_PACKAGES_DECISIONS.md`,
+  `config/config.md`, `modules/auth/auth.md`), сносок рядом со старым вариантом не добавлено. Список того,
+  что сознательно НЕ переписано, и почему (живые адреса деплоя, имя репозитория, имя дизайн-системы,
+  имя файла спецификации) — `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §4.3.
 
 **Gate A:** targeted config/metadata/auth tests, webapp lint+typecheck для изменённой ветки; review показывает один
 identity seam, а не набор getters.
