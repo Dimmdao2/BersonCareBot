@@ -19,7 +19,7 @@
     "scheduler:start": "pnpm --dir apps/integrator scheduler:start",
     "scheduler:start:host": "pnpm --dir apps/integrator scheduler:start",
     "test": "pnpm --dir apps/integrator test",
-    "test:scripts": "node --test scripts/*.test.mjs",
+    "test:scripts": "node --test scripts/*.test.mjs deploy/host/*.test.mjs",
     "test:webapp": "pnpm --dir apps/webapp test",
     "test:webapp:fast": "pnpm --dir apps/webapp test:fast",
     "test:webapp:unit": "pnpm --dir apps/webapp test:unit",
