@@ -264,3 +264,21 @@ test('every registration root the bootstrap principal calls resolves as a pre_se
     );
   }
 });
+
+// D17. Логин интегратора носил РОЛЬ ВЕБАППА `app_tenant_service` и ходил под ней в тринадцать
+// дверей своего порта. Двери, где корень принадлежит интегратору одному, переведены на его
+// собственную роль `app_integrator_request`; остаток назван поимённо. Счётчик здесь не годится:
+// «три» не сказало бы, КАКАЯ дверь снова уехала на чужую роль, а именно это и есть регрессия —
+// интегратор получает 62 отношения арендаторского стола вебаппа, включая ПДн `platform_users`.
+// Перепись обязана пустеть, а не расти: пока она непуста, членство логина в `app_tenant_service`
+// снять нельзя.
+test('integrator port doors on the webapp tenant role are named, and the list only shrinks', () => {
+  const rows = resolvePortContextCapabilities(declaration, 'bersoncarebot_test');
+  assertNameCensus(
+    'integratorDoorsOnTheWebappTenantRole',
+    rows
+      .filter((row) => row.port === 'integrator' && row.targetRole === 'app_tenant_service')
+      .map((row) => `${row.runtimeName} -> ${row.functionIdentity ?? 'relation-wide'}`),
+    'integrator port capabilities still reached through the webapp tenant role',
+  );
+});
