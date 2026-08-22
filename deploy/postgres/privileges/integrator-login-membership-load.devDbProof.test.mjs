@@ -1,26 +1,15 @@
 /**
- * D17 шаг 3 — живое доказательство того, что два членства логина интегратора НЕСУЩИЕ, а не
- * остаточные: `app_tenant_service` и `app_operational_delivery_worker`.
+ * D17(в) — post-reconcile proof: the integrator login no longer carries the webapp tenant role;
+ * its organization transaction uses the exact `app_integrator_tenant_service` relation surface.
  *
- * Какую поломку ловит (одной строкой): кто-то снимает одно из этих членств (или сужает права
- * роли), не переведя сначала живые пути, — и приём сообщений или доставка молча получают 42501.
- *
- * Почему проверка появилась 22.08. Шаг 3 должен был снять «лишние» членства, а замер показал
- * обратное: снимать нечего, потому что обе роли держат живой продукт.
- *   • `app_tenant_service` — ЕДИНСТВЕННАЯ из шести ролей логина, которой видны шесть колонок,
- *     читаемых реляционными читателями интегратора (`repos/platformUserByChannel.ts:127-129`,
- *     `repos/reminders.ts:28-32,323,343,374,394`, `repos/adminStats.ts:44,50,51`). Ни одна другая
- *     роль их не видит, значит снятие членства = отказ на разрешении получателя.
+ * Проверка ловит возврат широкого членства/capability и потерю узких прав живых читателей.
  *   • `app_operational_delivery_worker` — единственная, которой доступна `UPDATE` очереди
  *     `public.outgoing_delivery_queue` (`repos/outgoingDeliveryQueue.ts`, `repos/jobQueue.ts`),
  *     то есть без неё воркер доставки не двигает ни одной строки.
- * Ни один офлайн-тест этого не краснит: декларация описывает ЖЕЛАЕМОЕ состояние прав, а вопрос
- * здесь другой — хватает ли оставшихся ролей живому коду. Ответ живёт только в кластере.
- *
  * Проверка идёт против ЖИВОГО каталога прав, а не против текста декларации, и потому краснеет и
  * тогда, когда декларацию правят, и тогда, когда кластер разъезжается с ней.
  *
- * Третий тест — самопроверка батареи: заведомо ложная цель (роль, которой этих прав не давали)
+ * Последний тест — самопроверка батареи: заведомо ложная цель (роль, которой этих прав не давали)
  * ОБЯЗАНА не пройти тот же предикат. Без неё зелёный цвет ничего не значил бы.
  *
  * Читать `pg_roles`/`has_column_privilege` может любой, но держим тот же локальный админ-канал,
@@ -72,8 +61,10 @@ const TENANT_SERVICE_READS = [
   ['public.user_contacts', 'platform_user_id', 'repos/platformUserByChannel.ts:128'],
   ['public.user_channel_bindings', 'user_id', 'repos/platformUserByChannel.ts:129'],
   ['public.org_enrollments', 'platform_user_id', 'repos/reminders.ts:30'],
-  ['public.be_organization_members', 'platform_user_id', 'repos/reminders.ts:32'],
   ['public.reminder_rules', 'integrator_rule_id', 'repos/reminders.ts:323'],
+  ['public.broadcast_audit', 'organization_id', 'repos/broadcastAudit.ts'],
+  ['integrator.user_reminder_occurrences', 'organization_id', 'repos/reminders.ts'],
+  ['integrator.user_reminder_delivery_logs', 'organization_id', 'repos/reminders.ts'],
 ];
 
 /** Очередь доставки: без этих операций воркер не двигает ни одной строки. */
@@ -94,17 +85,24 @@ function rolesWithColumnPrivilege(roles, relation, column, privilege) {
   return out ? out.split('\n').map((s) => s.trim()).filter(Boolean) : [];
 }
 
-test('app_tenant_service — единственная роль логина, которой видны колонки живых читателей', { skip: !ENABLED }, () => {
+test('integrator has the narrow tenant role and no webapp tenant membership', { skip: !ENABLED }, () => {
   const roles = memberships();
-  assert.ok(roles.includes('app_tenant_service'), `логин ${LOGIN} не член app_tenant_service`);
+  assert.ok(!roles.includes('app_tenant_service'), `логин ${LOGIN} всё ещё член app_tenant_service`);
+  assert.ok(roles.includes('app_integrator_tenant_service'),
+    `логин ${LOGIN} не член app_integrator_tenant_service`);
   for (const [relation, column, where] of TENANT_SERVICE_READS) {
     const holders = rolesWithColumnPrivilege(roles, relation, column, 'SELECT');
-    assert.deepEqual(
-      holders,
-      ['app_tenant_service'],
-      `${relation}.${column} (${where}): ожидали ровно app_tenant_service, получили [${holders.join(', ')}]`,
-    );
+    assert.ok(holders.includes('app_integrator_tenant_service'),
+      `${relation}.${column} (${where}): narrow role absent from [${holders.join(', ')}]`);
   }
+});
+
+test('integrator capability catalog has no app_tenant_service target', { skip: !ENABLED }, () => {
+  assert.equal(psql(`SELECT count(*) FROM app_ext.port_context_capabilities
+    WHERE port='integrator' AND session_login='${LOGIN}' AND target_role='app_tenant_service';`), '0');
+  assert.equal(psql(`SELECT count(*) FROM app_ext.port_context_capabilities
+    WHERE port='integrator' AND session_login='${LOGIN}'
+      AND target_role='app_integrator_tenant_service' AND purpose='relation';`), '1');
 });
 
 test('app_operational_delivery_worker — единственная роль логина, которой доступна запись очереди', { skip: !ENABLED }, () => {

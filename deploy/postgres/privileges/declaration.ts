@@ -1781,7 +1781,7 @@ const REV10_RUNTIME = [
   'app_platform_admin', 'app_worker',
   'app_operational_media_worker', 'app_operational_maintenance', 'saas_telemetry_operator', 'app_integrator_request',
   'app_integrator_resolver', 'app_operational_delivery_worker', 'app_operational_scheduler',
-  'app_tenant_service', 'app_service',
+  'app_integrator_tenant_service', 'app_tenant_service', 'app_service',
 ] as const;
 
 const REV10_SEAM_OWNERS = [
@@ -1850,7 +1850,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
     passwordEnv: 'BCB_DEV_WEBAPP_GLOBAL_ADMIN_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
     bcb_dev_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
       ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
-        'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
+        'app_operational_scheduler', 'app_integrator_tenant_service', 'app_service'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_DEV_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bcb_webapp_dev'] },
   },
@@ -1870,7 +1870,7 @@ const REV10_ENV_MAPPING: Record<string, Record<string, LoginRecord>> = {
     passwordEnv: 'BCB_TEST_WEBAPP_GLOBAL_ADMIN_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
     bcb_test_integrator: { port: 'integrator', canonicalRole: 'app_integrator_request', memberships: [
       ...['app_integrator_request', 'app_integrator_resolver', 'app_operational_delivery_worker',
-        'app_operational_scheduler', 'app_tenant_service', 'app_service'].map(rev10Membership),
+        'app_operational_scheduler', 'app_integrator_tenant_service', 'app_service'].map(rev10Membership),
     ], login: true, superuser: false, bypassrls: false, createrole: false, inherit: false,
     passwordEnv: 'BCB_TEST_INTEGRATOR_PASSWORD', rolconfig: null, connect: ['bersoncarebot_test'] },
   },
@@ -2649,7 +2649,7 @@ const REV10_CONTEXT = {
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_scheduler',
       contextClass: 'service', purpose: 'relation', runtimeSources: INTEGRATOR_SCHEDULER_SOURCES },
     integrator_tenant_service_relation: { port: 'integrator', runtimeName: 'tenant_service',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_tenant_service',
       contextClass: 'tenant_service', purpose: 'relation' },
     integrator_service_relation: { port: 'integrator', runtimeName: 'service',
       sessionRole: 'app_integrator_request', targetRole: 'app_service',
@@ -2726,11 +2726,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'integrator.reminder-delivery-event.append',
       functionIdentity: 'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)' },
-    integrator_delivery_content_access_grant_upsert: { port: 'integrator',
-      runtimeName: 'delivery_content_access_grant_upsert', sessionRole: 'app_integrator_request',
-      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
-      purpose: 'integrator.content-access-grant.upsert',
-      functionIdentity: 'app.integrator_upsert_content_access_grant(uuid,text,text,bigint,text,text,text,timestamp with time zone,timestamp with time zone,text,timestamp with time zone)' },
     // Корень уже есть и делает ровно это (`integrator_support_delivery_attempt_record` на порту
     // вебаппа) — второй не заводим, добавляем этой же функции дверь с порта интегратора.
     // Ключ обязан отличаться от ключа двери вебаппа: каталог — один объектный литерал, и одинаковый
@@ -6642,25 +6637,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.integrator_upsert_content_access_grant(uuid,text,text,bigint,text,text,text,timestamp with time zone,timestamp with time zone,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_operational_delivery_worker'],
-      purpose: 'integrator.content-access-grant.upsert',
-      typedArgs: ['uuid', 'text', 'text', 'bigint', 'text', 'text', 'text',
-        'timestamp with time zone', 'timestamp with time zone', 'text', 'timestamp with time zone'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.content_access_grants_webapp',
-          columns: ['organization_id', 'integrator_grant_id', 'platform_user_id', 'integrator_user_id',
-            'content_id', 'purpose', 'token_hash', 'expires_at', 'revoked_at', 'meta_json',
-            'created_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'integrator.direct_public_write_retries',
-          columns: ['status', 'operation', 'organization_id', 'payload'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
     'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
       execute: ['app_integrator_request'], purpose: 'integrator.notification-delivery-attempt.record',
@@ -7881,7 +7857,7 @@ function revision10TableGrants(access: RelationAccess): Record<string, GrantDecl
   }]));
 }
 
-const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user = 'app_tenant_service' THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_maintenance','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
+const REV10_CONTEXT_ROLE_CLASS = "CASE WHEN current_user = 'app_pre_session' THEN 'pre_session'::app.port_context_class WHEN current_user = 'app_patient' THEN 'patient'::app.port_context_class WHEN current_user IN ('app_integrator_request','app_integrator_resolver') THEN 'integrator'::app.port_context_class WHEN current_user IN ('app_integrator_tenant_service','app_tenant_service') THEN 'tenant_service'::app.port_context_class WHEN current_user IN ('app_platform_settings','app_platform_admin','saas_telemetry_operator') THEN 'platform'::app.port_context_class WHEN current_user IN ('app_worker','app_operational_media_worker','app_operational_maintenance','app_operational_delivery_worker','app_operational_scheduler','app_service') THEN 'service'::app.port_context_class ELSE 'staff'::app.port_context_class END";
 const REV10_EMPTY_TYPED_ARGS_HASH = "decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex')";
 
 function revision10ContextGates(table: string, index: number, access: RelationAccess): PolicyDecl[] {
@@ -7928,6 +7904,7 @@ const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
  * (active staff OR patient enrollment), or P (an exact current-org parent).
  */
 const REV10_TENANT_DIRECT_ORG = new Set([
+  'integrator.user_reminder_delivery_logs',
   'integrator.user_reminder_occurrences',
   'public.be_appointment_staff_comments', 'public.be_appointments', 'public.be_organization_members',
   'public.be_organizations', 'public.be_package_usages', 'public.be_patient_booking_profiles',
@@ -8123,15 +8100,24 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
   return undefined;
 }
 
+const REV10_TENANT_SERVICE_ROLES = ['app_integrator_tenant_service', 'app_tenant_service'] as const;
+
+function isRevision10TenantServiceRole(role: string): boolean {
+  return REV10_TENANT_SERVICE_ROLES.some((tenantRole) => tenantRole === role);
+}
+
 function revision10TenantPolicies(
   tableKey: string, index: number, access: Extract<RelationAccess, { kind: 'direct' }>,
 ): PolicyDecl[] {
   const operations = [...new Set(access.grants
-    .filter((grant) => grant.role === 'app_tenant_service')
+    .filter((grant) => isRevision10TenantServiceRole(grant.role))
     .flatMap((grant) => grant.operations)
     .filter((operation): operation is 'SELECT' | 'INSERT' | 'UPDATE' | 'DELETE' =>
       ['SELECT', 'INSERT', 'UPDATE', 'DELETE'].includes(operation)))].sort();
   return operations.map((operation) => {
+    const tenantRoles = [...new Set(access.grants
+      .filter((grant) => isRevision10TenantServiceRole(grant.role) && grant.operations.includes(operation))
+      .map((grant) => grant.role))].sort();
     const base = revision10TenantBasePredicate(tableKey);
     const membershipRefs = operation === 'INSERT' || operation === 'UPDATE'
       ? REV10_TENANT_MEMBERSHIP_WRITE[tableKey]?.[operation]
@@ -8149,7 +8135,7 @@ function revision10TenantPolicies(
     const withCheck = [base, membershipCheck, parentCheck].filter(Boolean).join(' AND ');
     return {
       name: `rev10_tenant_${operation.toLowerCase()}_${index + 1}`,
-      as: 'PERMISSIVE', cmd: operation, to: ['app_tenant_service'],
+      as: 'PERMISSIVE', cmd: operation, to: tenantRoles,
       ...(operation === 'INSERT' ? {} : { using: base }),
       ...(operation === 'SELECT' || operation === 'DELETE' ? {} : { withCheck }),
       note: `exact tenant ${operation} D/M/P wall for ${tableKey}`,
@@ -8168,7 +8154,7 @@ const REV10_EXPLICIT_ORG_COLUMN = new Set([
 
 function revision10DirectBusinessPredicate(tableKey: string, access: Extract<RelationAccess, { kind: 'direct' }>): string {
   const roles = [...new Set(access.grants.map((grant) => grant.role))].sort();
-  const ordinaryRoles = roles.filter((role) => !['app_tenant_service'].includes(role));
+  const ordinaryRoles = roles.filter((role) => !isRevision10TenantServiceRole(role));
   const rolePredicate = ordinaryRoles.length > 0
     ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
     : 'false';
@@ -8209,23 +8195,6 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
 function revision10DeliveryReplayPolicies(tableKey: string, index: number): PolicyDecl[] | undefined {
   const deliveryRole = 'app_operational_delivery_worker';
   const staffRole = 'app_staff';
-  if (tableKey === 'public.content_access_grants_webapp') {
-    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
-      + ` WHERE claimed_retry.status = 'processing'`
-      + ` AND claimed_retry.operation = 'content_access_grant_upsert'`
-      + ' AND claimed_retry.organization_id = content_access_grants_webapp.organization_id'
-      + ` AND claimed_retry.payload ->> 'organizationId' = content_access_grants_webapp.organization_id::text`
-      + ` AND claimed_retry.payload ->> 'integratorGrantId' = content_access_grants_webapp.integrator_grant_id))`;
-    const staffWall = "(organization_id = (SELECT app.current_org_id()))";
-    return [
-      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
-        to: [deliveryRole], using: workerWall, withCheck: workerWall,
-        note: 'delivery replay may reach only the organization and grant named by a claimed retry' },
-      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
-        to: [staffRole], using: staffWall, withCheck: staffWall,
-        note: 'staff reaches content grants only inside its accepted organization context' },
-    ];
-  }
   if (tableKey === 'public.reminder_delivery_events') {
     const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
       + ` WHERE claimed_retry.status = 'processing'`
@@ -8542,8 +8511,7 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const contextGates = access ? revision10ContextGates(key, index, access) : [];
     const locked = REV10_LOCKED_POLICIES.get(key);
     const directRoles = access?.kind === 'direct' ? [...new Set(access.grants.map((grant) => grant.role))].sort() : [];
-    const ordinaryDirectRoles = directRoles.filter((role) =>
-      !['app_tenant_service'].includes(role));
+    const ordinaryDirectRoles = directRoles.filter((role) => !isRevision10TenantServiceRole(role));
     const classSafe = (predicate: string, policyRoles: string[] = ordinaryDirectRoles) => {
       // Каждый вызов организационного аксессора в квале политики оборачивается в собственный
       // скалярный под-запрос: планировщик считает его один раз (InitPlan), а не на каждую строку.
@@ -8629,7 +8597,7 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       ...(policy.using ? { using: classSafe(policy.using, policy.to) } : {}),
       ...(policy.withCheck ? { withCheck: classSafe(policy.withCheck, policy.to) } : {}),
     }));
-    const tenantBusiness = access?.kind === 'direct' && directRoles.includes('app_tenant_service')
+    const tenantBusiness = access?.kind === 'direct' && directRoles.some(isRevision10TenantServiceRole)
       ? revision10TenantPolicies(key, index, access)
       : [];
     const runtimeBusiness = [...runtimeBusinessBase, ...tenantBusiness];

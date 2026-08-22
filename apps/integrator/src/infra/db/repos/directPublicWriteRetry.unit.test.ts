@@ -15,7 +15,6 @@ describe('enqueueDirectPublicWriteRetry', () => {
     'reminder_occurrence_failed_record',
     'reminder_occurrence_expired_record',
     'reminder_delivery_log_append',
-    'content_access_grant_upsert',
   ] as const)('inserts an idempotent durable row for %s', async (operation) => {
     const calls: Array<{ text: string; params: unknown[] | undefined }> = [];
     const db: DbPort = {

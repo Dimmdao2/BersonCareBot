@@ -309,9 +309,7 @@
     "read_saas_billing_payment_provider_preauth",
     "resolve_patient_acquiring_webhook_organization"
   ],
-  "integratorDoorsOnTheWebappTenantRole": [
-    "tenant_service -> relation-wide"
-  ],
+  "integratorDoorsOnTheWebappTenantRole": [],
   "integratorRootColumnParameterRenames": [
     "app.integrator_bind_bootstrap_channel_phone: public.user_contacts.value_normalized <- p_phone_normalized",
     "app.record_operator_delivery_attempt: public.notification_delivery_attempts.created_at <- p_occurred_at",
@@ -346,6 +344,7 @@
   "tenantRuntimeRoles": [
     "app_clinic_billing",
     "app_integrator_request",
+    "app_integrator_tenant_service",
     "app_patient",
     "app_staff",
     "app_tenant_service"

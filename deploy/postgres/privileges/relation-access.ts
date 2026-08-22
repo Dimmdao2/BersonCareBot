@@ -40,6 +40,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["channel", "created_at", "occurrence_id", "payload_json", "status"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["INSERT"],
+        "columns": ["channel", "created_at", "error_code", "id", "occurrence_id", "organization_id", "payload_json", "status"]
+      },
+      {
         "role": "app_integrator_request",
         "operations": [
           "SELECT"
@@ -81,6 +91,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts"
     ],
     "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["delivery_channel", "error_code", "failed_at", "id", "organization_id", "planned_at", "platform_user_id", "rule_id", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["UPDATE"],
+        "columns": ["delivery_channel", "delivery_job_id", "error_code", "failed_at", "planned_at", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["DELETE"],
+        "columns": "table"
+      },
       {
         "role": "app_integrator_request",
         "operations": [
@@ -2333,6 +2358,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["id", "organization_id"]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -3047,7 +3077,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "Выданные пациенту доступы к контенту — пациент теряет доступ к выданным ему материалам",
     "codePaths": [
-      "apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts",
       "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/repos/pgEntitlements.ts",
@@ -3112,49 +3141,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "platform_user_id"
-        ]
-      },
-      {
-        "role": "app_operational_delivery_worker",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_operational_delivery_worker",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "content_id",
-          "created_at",
-          "expires_at",
-          "integrator_grant_id",
-          "integrator_user_id",
-          "meta_json",
-          "organization_id",
-          "platform_user_id",
-          "purpose",
-          "revoked_at",
-          "token_hash"
-        ]
-      },
-      {
-        "role": "app_operational_delivery_worker",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "content_id",
-          "expires_at",
-          "integrator_user_id",
-          "meta_json",
-          "organization_id",
-          "platform_user_id",
-          "purpose",
-          "revoked_at",
-          "token_hash"
         ]
       }
     ]
@@ -4928,6 +4914,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["organization_id", "platform_user_id", "status"]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -6317,6 +6308,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["id", "integrator_user_id", "merged_into_id"]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -7261,6 +7257,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "packages/platform-merge/src/pgPlatformUserMerge.ts"
     ],
     "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["category", "integrator_rule_id", "integrator_user_id", "organization_id"]
+      },
       {
         "role": "app_staff",
         "operations": [
@@ -10067,6 +10068,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["channel_code", "external_id", "user_id"]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -10262,6 +10268,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "packages/platform-merge/src/userIdentityFioWrite.ts"
     ],
     "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["contact_kind", "is_primary", "platform_user_id", "value_normalized"]
+      },
       {
         "role": "app_staff",
         "operations": [

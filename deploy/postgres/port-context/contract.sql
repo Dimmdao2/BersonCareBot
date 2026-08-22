@@ -79,7 +79,7 @@ BEGIN
   FOREACH role_name IN ARRAY ARRAY[
     'app_pre_session','app_staff','app_patient','app_clinic_billing','app_platform_settings','app_platform_admin','app_worker',
     'app_operational_media_worker','saas_telemetry_operator','app_integrator_request','app_integrator_resolver',
-    'app_operational_delivery_worker','app_operational_scheduler','app_tenant_service','app_service',
+    'app_operational_delivery_worker','app_operational_scheduler','app_integrator_tenant_service','app_tenant_service','app_service',
     'app_seam_context_owner','app_seam_password_auth_owner','app_seam_email_otp_owner','app_seam_passkey_owner',
     'app_seam_phone_binding_owner','app_seam_self_security_owner','app_seam_identity_lookup_owner',
     'app_seam_patient_invite_owner','app_seam_org_invite_owner','app_seam_specialist_provision_owner',
@@ -213,7 +213,7 @@ ALTER TABLE app_ext.accepted_port_contexts OWNER TO app_seam_context_owner;
 ALTER TABLE app_ext.variant_a_identity_refs OWNER TO app_seam_identity_lookup_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM PUBLIC, :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
 REVOKE ALL ON ALL TABLES IN SCHEMA app_ext FROM app_pre_session, app_staff, app_patient, app_platform_settings,
-  app_integrator_request, app_integrator_resolver, app_tenant_service, app_service, app_seam_password_auth_owner;
+  app_integrator_request, app_integrator_resolver, app_integrator_tenant_service, app_tenant_service, app_service, app_seam_password_auth_owner;
 
 -- An accepted context is addressable only by the transaction that installed it: every gate below
 -- matches `transaction_id = pg_current_xact_id()`, and `xid8` is never reused.  A row that outlives
@@ -572,7 +572,7 @@ DECLARE value uuid;
 BEGIN
   SELECT organization_id INTO value FROM app_ext.accepted_port_contexts
    WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL
-     AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_integrator_request','app_tenant_service','app_worker');
+     AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_integrator_request','app_integrator_tenant_service','app_tenant_service','app_worker');
   IF NOT FOUND THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted organization context required'; END IF;
   RETURN value;
 END $$;
@@ -967,12 +967,12 @@ REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.install_port_context(uuid,app.port_context_claims), app.clear_port_context() TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
 GRANT EXECUTE ON FUNCTION app.begin_port_context(uuid,app.port_context_claims) TO :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";
 GRANT EXECUTE ON FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) TO app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_payment_webhook_owner;
-GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner, app_seam_phone_binding_owner, app_seam_payment_webhook_owner;
+GRANT EXECUTE ON FUNCTION app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure) TO app_pre_session, app_staff, app_patient, app_clinic_billing, app_platform_settings, app_worker, app_operational_media_worker, saas_telemetry_operator, app_integrator_request, app_integrator_resolver, app_operational_delivery_worker, app_operational_scheduler, app_integrator_tenant_service, app_tenant_service, app_service, app_seam_context_owner, app_seam_password_auth_owner, app_seam_identity_lookup_owner, app_seam_staff_security_owner, app_seam_patient_self_actions_owner, app_seam_settings_runtime_owner, app_seam_org_commerce_owner, app_seam_delivery_scope_owner, app_seam_phone_binding_owner, app_seam_payment_webhook_owner;
 REVOKE ALL ON FUNCTION app.require_attested_context_for_roles(name,name[]) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app.require_attested_context_for_roles(name,name[]) TO app_seam_context_owner;
 GRANT EXECUTE ON FUNCTION app.require_platform_principal() TO app_platform_settings;
 GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_clinic_billing, app_patient, app_platform_settings;
-GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_clinic_billing, app_patient, app_integrator_request, app_tenant_service, app_worker;
+GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_clinic_billing, app_patient, app_integrator_request, app_integrator_tenant_service, app_tenant_service, app_worker;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_request;
 GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid,text) TO app_pre_session, app_platform_admin;

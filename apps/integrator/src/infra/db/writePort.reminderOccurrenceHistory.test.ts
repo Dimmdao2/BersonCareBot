@@ -6,7 +6,6 @@ const fakes = vi.hoisted(() => ({ recordFinalized: vi.fn() }));
 vi.mock('./directPublic/writeReminderProjectionDirect.js', () => ({
   recordReminderOccurrenceFinalizedDirect: fakes.recordFinalized,
   appendReminderDeliveryEventDirect: vi.fn(),
-  upsertContentAccessGrantDirect: vi.fn(),
 }));
 import { createDbWritePort } from './writePort.js';
 

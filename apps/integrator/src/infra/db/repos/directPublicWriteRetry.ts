@@ -3,7 +3,6 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { UpsertReminderRuleDirectInput } from '../directPublic/writeReminderRulesDirect.js';
 import type { AppendSupportDeliveryEventDirectInput } from '../directPublic/writeSupportQuestionsDirect.js';
 import type {
-  ContentAccessGrantDirectInput,
   ReminderDeliveryLoggedDirectInput,
   ReminderOccurrenceFinalizedDirectInput,
 } from '../directPublic/writeReminderProjectionDirect.js';
@@ -15,15 +14,13 @@ export type DirectPublicWriteRetryOperation =
   | 'reminder_occurrence_sent_record'
   | 'reminder_occurrence_failed_record'
   | 'reminder_occurrence_expired_record'
-  | 'reminder_delivery_log_append'
-  | 'content_access_grant_upsert';
+  | 'reminder_delivery_log_append';
 
 export type DirectPublicWriteRetryPayload = (
   | UpsertReminderRuleDirectInput
   | AppendSupportDeliveryEventDirectInput
   | ReminderOccurrenceFinalizedDirectInput
   | ReminderDeliveryLoggedDirectInput
-  | ContentAccessGrantDirectInput
 ) & { organizationId: string };
 
 export type DirectPublicWriteRetryRow = {

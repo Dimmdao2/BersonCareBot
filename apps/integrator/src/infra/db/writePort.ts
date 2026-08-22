@@ -38,12 +38,9 @@ import {
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
-import { collectPlatformUserCandidates } from './directPublic/writeIdentityAndPreferencesDirect.js';
 import {
   appendReminderDeliveryEventDirect,
   recordReminderOccurrenceFinalizedDirect,
-  upsertContentAccessGrantDirect,
-  type ContentAccessGrantDirectInput,
   type ReminderDeliveryLoggedDirectInput,
   type ReminderOccurrenceFinalizedDirectInput,
 } from './directPublic/writeReminderProjectionDirect.js';
@@ -174,14 +171,12 @@ export function createDbWritePort(
       | 'reminder_occurrence_sent_record'
       | 'reminder_occurrence_failed_record'
       | 'reminder_occurrence_expired_record'
-      | 'reminder_delivery_log_append'
-      | 'content_access_grant_upsert',
+      | 'reminder_delivery_log_append',
     organizationId: string,
     stableId: string,
     payload:
       | ReminderOccurrenceFinalizedDirectInput
-      | ReminderDeliveryLoggedDirectInput
-      | ContentAccessGrantDirectInput,
+      | ReminderDeliveryLoggedDirectInput,
   ): Promise<void> {
     await enqueueDirectPublicWriteRetry(db, {
       operation,
@@ -719,54 +714,15 @@ export function createDbWritePort(
             typeof mutation.params.metaJson === 'object' && mutation.params.metaJson !== null
               ? (mutation.params.metaJson as Record<string, unknown>)
               : {};
-          const directInput = await db.tx(
-            async (txDb): Promise<ContentAccessGrantDirectInput | null> => {
-              const canonicalUserId = userId;
-              const created = await createContentAccessGrant(txDb, {
-                id,
-                userId: canonicalUserId,
-                contentId,
-                purpose,
-                tokenHash: asNullableString(mutation.params.tokenHash),
-                expiresAt,
-                metaJson,
-              });
-              if (!created.organizationId) return null;
-              const candidates = await collectPlatformUserCandidates(txDb, {
-                integratorUserId: canonicalUserId,
-                phoneNormalized: null,
-                channelCode: '',
-                externalId: '',
-              });
-              return {
-                organizationId: created.organizationId,
-                integratorGrantId: id,
-                integratorUserId: canonicalUserId,
-                platformUserId: candidates[0] ?? null,
-                contentId,
-                purpose,
-                tokenHash: asNullableString(mutation.params.tokenHash),
-                expiresAt,
-                revokedAt: null,
-                metaJson,
-                createdAt: created.createdAt,
-              };
-            },
-          );
-          if (!directInput) return;
-          try {
-            await writeDirectPublic('content-access-grant-upsert', () =>
-              upsertContentAccessGrantDirect(db, directInput!),
-            );
-          } catch (err) {
-            await queueDirectPublicRetry(
-              'content_access_grant_upsert',
-              directInput.organizationId,
-              id,
-              directInput,
-            );
-            logger.warn({ err, id }, 'content access grant direct write failed, queued retry');
-          }
+          await db.tx((txDb) => createContentAccessGrant(txDb, {
+            id,
+            userId,
+            contentId,
+            purpose,
+            tokenHash: asNullableString(mutation.params.tokenHash),
+            expiresAt,
+            metaJson,
+          }));
           return;
         }
         case 'delivery.attempt.log': {

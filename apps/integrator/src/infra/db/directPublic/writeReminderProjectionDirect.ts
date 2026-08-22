@@ -3,7 +3,7 @@ import type { DbPort } from '../../../kernel/contracts/index.js';
 import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 /**
- * D17. The two remaining relational writers of this file are named roots now.
+ * D17. The remaining relational writer of this file is a named root now.
  *
  * Both land under `app_operational_delivery_worker`, not under the organization principal, because
  * that is the only role of the integrator login the declaration grants these two tables to — and it
@@ -16,8 +16,6 @@ import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
  */
 const APPEND_REMINDER_DELIVERY_EVENT_ROOT =
   'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)';
-const UPSERT_CONTENT_ACCESS_GRANT_ROOT =
-  'app.integrator_upsert_content_access_grant(uuid,text,text,bigint,text,text,text,timestamp with time zone,timestamp with time zone,text,timestamp with time zone)';
 
 export type ReminderOccurrenceFinalizedDirectInput = {
   integratorOccurrenceId: string;
@@ -45,21 +43,7 @@ export type ReminderDeliveryLoggedDirectInput = {
   createdAt: string;
 };
 
-export type ContentAccessGrantDirectInput = {
-  organizationId: string;
-  integratorGrantId: string;
-  integratorUserId: string;
-  platformUserId: string | null;
-  contentId: string;
-  purpose: string;
-  tokenHash: string | null;
-  expiresAt: string;
-  revokedAt: string | null;
-  metaJson: Record<string, unknown>;
-  createdAt: string;
-};
-
-/** Direct replacement for the three reminder/content HTTP projection consumers. */
+/** Direct replacement for the reminder HTTP projection consumers. */
 export async function recordReminderOccurrenceFinalizedDirect(
   db: DbPort,
   input: ReminderOccurrenceFinalizedDirectInput,
@@ -113,37 +97,6 @@ export async function appendReminderDeliveryEventDirect(
       ${input.integratorOccurrenceId}::text, ${input.integratorRuleId}::text,
       ${input.integratorUserId}::bigint, ${input.channel}::text, ${input.status}::text,
       ${input.errorCode}::text, ${payloadJson}::text, ${input.createdAt}::timestamptz
-    )`,
-  );
-}
-
-export async function upsertContentAccessGrantDirect(
-  db: DbPort,
-  input: ContentAccessGrantDirectInput,
-): Promise<void> {
-  const metaJson = JSON.stringify(input.metaJson);
-  await runIntegratorNamedRoot(
-    db,
-    UPSERT_CONTENT_ACCESS_GRANT_ROOT,
-    [
-      input.organizationId,
-      input.integratorGrantId,
-      input.platformUserId,
-      input.integratorUserId,
-      input.contentId,
-      input.purpose,
-      input.tokenHash,
-      input.expiresAt,
-      input.revokedAt,
-      metaJson,
-      input.createdAt,
-    ],
-    sql`SELECT app.integrator_upsert_content_access_grant(
-      ${input.organizationId}::uuid, ${input.integratorGrantId}::text,
-      ${input.platformUserId}::text, ${input.integratorUserId}::bigint,
-      ${input.contentId}::text, ${input.purpose}::text, ${input.tokenHash}::text,
-      ${input.expiresAt}::timestamptz, ${input.revokedAt}::timestamptz,
-      ${metaJson}::text, ${input.createdAt}::timestamptz
     )`,
   );
 }
