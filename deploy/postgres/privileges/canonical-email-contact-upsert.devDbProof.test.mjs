@@ -20,7 +20,10 @@
  * `42P10`) и зелёный после того, как правка приземлилась.
  *
  * Предусловия прогона, обе — состояние базы, а не этого файла:
- *   1. миграция `20260822T090000_the_email_contact_door_names_its_real_index.sql` применена;
+ *   1. применены миграции `20260822T090000_the_email_contact_door_names_its_real_index.sql`,
+ *      `20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context.sql` и
+ *      `20260822T110000_the_email_verify_root_demotes_the_previous_primary.sql` (последняя нужна
+ *      только тесту про смену почты — без неё он падает `23505 uq_user_contacts_primary_email`);
  *   2. привилегии сведены с `deploy/postgres/generated/privileges.<база>.sql` — без этого
  *      `app.email_otp_public_consume_latest_challenge` отказывает `42501` на блокировке строки
  *      `platform_users` ещё до записи контакта (см. `ROW_LOCK_SURFACES` в `declaration.ts`).
@@ -51,6 +54,9 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
 /** Значения проб живут только внутри транзакции пробы, но на всякий случай они узнаваемы. */
 const EMAIL_BOUND_BY_DOOR = 'd15b6-proof-bound@example.test';
 const EMAIL_OWNED_UPFRONT = 'd15b6-proof-owned@example.test';
+/** Прежняя первичная почта четвёртого человека и новая, на которую он её меняет. */
+const EMAIL_OLD_PRIMARY = 'd15b6-proof-old-primary@example.test';
+const EMAIL_NEW_PRIMARY = 'd15b6-proof-new-primary@example.test';
 
 function psql(sql) {
   return execFileSync(
@@ -80,10 +86,18 @@ WITH created AS (
   INSERT INTO public.platform_users(display_name, role) VALUES ('d15b6 proof three', 'client')
   RETURNING id)
 INSERT INTO probe_ids(k, v) SELECT 'p3', id FROM created;
+WITH created AS (
+  INSERT INTO public.platform_users(display_name, role) VALUES ('d15b6 proof four', 'client')
+  RETURNING id)
+INSERT INTO probe_ids(k, v) SELECT 'p4', id FROM created;
 INSERT INTO public.user_contacts(
   platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at)
 SELECT v, 'email', '${EMAIL_OWNED_UPFRONT}', true, now(), 'direct', now()
   FROM probe_ids WHERE k = 'p3';
+INSERT INTO public.user_contacts(
+  platform_user_id, contact_kind, value_normalized, is_primary, confirmed_at, source_origin, updated_at)
+SELECT v, 'email', '${EMAIL_OLD_PRIMARY}', true, now(), 'direct', now()
+  FROM probe_ids WHERE k = 'p4';
 
 CREATE TEMP TABLE probe_out(ord serial PRIMARY KEY, k text NOT NULL, v text NOT NULL);
 `;
@@ -157,11 +171,12 @@ function probe(body) {
 ${FIXTURE}
 ${ACCEPT_HELPER}
 DO $probe$
-DECLARE p1 uuid; p2 uuid; p3 uuid; r record; s text;
+DECLARE p1 uuid; p2 uuid; p3 uuid; p4 uuid; r record; s text;
 BEGIN
   SELECT v INTO p1 FROM probe_ids WHERE k = 'p1';
   SELECT v INTO p2 FROM probe_ids WHERE k = 'p2';
   SELECT v INTO p3 FROM probe_ids WHERE k = 'p3';
+  SELECT v INTO p4 FROM probe_ids WHERE k = 'p4';
 ${body}
 END $probe$;
 SELECT k || '=' || v FROM probe_out ORDER BY ord;
@@ -276,4 +291,43 @@ ${countRows(EMAIL_OWNED_UPFRONT, 'rows')}
       `чужая почта пропущена дверью входа по коду: ${out.outcome}`);
     assert.equal(out.rows, '1', `отказ по чужой почте всё-таки завёл строку: ${out.rows}`);
     assert.equal(out.owner, 'true', 'чужая подтверждённая почта перевешена на другой аккаунт');
+  });
+
+test('смена почты: новая становится первичной, прежняя перестаёт ею быть, дубля нет',
+  { skip: !ENABLED }, () => {
+    // Смысл: `uq_user_contacts_primary_email` — `UNIQUE (platform_user_id) WHERE contact_kind =
+    // 'email' AND is_primary`, поэтому две первичные почты у одного человека физически невозможны.
+    // Понижением прежней занимался ВТОРОЙ, дублирующий проход из `pgEmailAuth.verifyUserEmail`
+    // (`mutateCanonicalUserContacts`, CTE `demoted_primary`), который под bootstrap-принципалом
+    // просил несуществующую способность `pre_session` и падал. Убрать его, не перенеся понижение в
+    // корень, значило заменить один отказ другим: замер на живой `bcb_webapp_dev` 22.08 давал
+    // `23505 ... "uq_user_contacts_primary_email"` ровно на этом сценарии.
+    //
+    // Тест красный на сломанном продукте (корень без `demoted_other_primary` отдаёт 23505) и
+    // зелёный после `20260822T110000_the_email_verify_root_demotes_the_previous_primary.sql`.
+    const out = probe(`
+  BEGIN
+    ${acceptVerifyDoor('p4', `'${EMAIL_NEW_PRIMARY}'`)}
+    PERFORM app.email_auth_verify_user_email(p4, '${EMAIL_NEW_PRIMARY}');
+    s := 'ok';
+  EXCEPTION WHEN OTHERS THEN s := SQLSTATE || ' ' || SQLERRM;
+  END;
+  INSERT INTO probe_out(k, v) VALUES ('outcome', s);
+  INSERT INTO probe_out(k, v) SELECT 'primaries', count(*)::text FROM public.user_contacts
+   WHERE platform_user_id = p4 AND contact_kind = 'email' AND is_primary = true;
+  INSERT INTO probe_out(k, v) SELECT 'new', is_primary::text || '/' || (confirmed_at IS NOT NULL)::text
+    FROM public.user_contacts
+   WHERE platform_user_id = p4 AND contact_kind = 'email'
+     AND value_normalized = '${EMAIL_NEW_PRIMARY}';
+  INSERT INTO probe_out(k, v) SELECT 'old', is_primary::text || '/' || (confirmed_at IS NOT NULL)::text
+    FROM public.user_contacts
+   WHERE platform_user_id = p4 AND contact_kind = 'email'
+     AND value_normalized = '${EMAIL_OLD_PRIMARY}';`);
+
+    assert.equal(out.outcome, 'ok', `дверь отказала на смене почты: ${out.outcome}`);
+    assert.equal(out.primaries, '1', `первичных почт у человека стало не одна: ${out.primaries}`);
+    assert.equal(out.new, 'true/true', `новая почта не стала подтверждённой первичной: ${out.new}`);
+    // Прежняя почта не удаляется и не «разподтверждается»: человеку разрешено держать несколько
+    // подтверждённых адресов (`IDENTITY_AND_MERGE_SCHEME.md` §2), первичный из них — один.
+    assert.equal(out.old, 'false/true', `прежняя почта осталась первичной либо потеряна: ${out.old}`);
   });
