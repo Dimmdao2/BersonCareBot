@@ -4,7 +4,11 @@ import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
-import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import {
+  chatBubbleOwnClass,
+  chatBubblePeerClass,
+  chatThreadSurfaceClass,
+} from '@/shared/ui/chat/chatThreadSurface';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { openExternalLinkInMessenger } from '@/shared/lib/openExternalLinkInMessenger';
 import {
@@ -118,13 +122,13 @@ export function ChatView({
   const patientBubbleMine = cn(
     'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
     bubbleRadiusPatientChatClass,
-    'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]',
+    chatBubbleOwnClass,
   );
 
   const patientBubbleOther = cn(
     'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
     bubbleRadiusPatientChatClass,
-    'border border-[var(--patient-surface-info-border)]/80 bg-[var(--patient-color-primary-soft)] text-[var(--patient-text-primary)]',
+    chatBubblePeerClass,
   );
 
   return (
@@ -235,9 +239,7 @@ export function ChatView({
                       <div
                         className={cn(
                           'max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow-sm',
-                          mine
-                            ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                            : 'bg-muted text-foreground',
+                          mine ? chatBubbleOwnClass : chatBubblePeerClass,
                         )}
                       >
                         {m.mediaUrl ? (

@@ -24,7 +24,11 @@ import {
 } from '@/modules/messaging/messageFormatting';
 import { chatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
 import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
-import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import {
+  chatBubbleOwnClass,
+  chatBubblePeerClass,
+  chatThreadSurfaceClass,
+} from '@/shared/ui/chat/chatThreadSurface';
 import { ProgramItemDiscussionMediaPicker } from '@/app/app/patient/treatment/ProgramItemDiscussionMediaPicker';
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 import { notifyPatientSupportUnreadCountChanged } from '@/modules/messaging/hooks/useSupportUnreadPolling';
@@ -243,9 +247,7 @@ export function ProgramItemDiscussionDialog(props: {
                         className={cn(
                           'max-w-full px-3 py-2 text-sm shadow-sm md:max-w-[min(100%,24rem)]',
                           'rounded-[var(--patient-card-radius-mobile)] md:rounded-[var(--patient-card-radius-desktop)]',
-                          mine
-                            ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
-                            : 'border border-[var(--patient-surface-info-border)]/80 bg-[var(--patient-color-primary-soft)] text-[var(--patient-text-primary)]',
+                          mine ? chatBubbleOwnClass : chatBubblePeerClass,
                         )}
                       >
                         <ProgramItemDiscussionMessageBody message={m} mine={mine} />
