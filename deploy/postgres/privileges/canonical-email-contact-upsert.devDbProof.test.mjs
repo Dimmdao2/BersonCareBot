@@ -132,12 +132,17 @@ END $accept$;
 `;
 
 /**
- * `app.email_auth_verify_user_email` закрыт «аттестованным» гейтом: он сверяет только целевую роль
- * принятого контекста, поэтому берётся объявленная способность `relation` роли `app_patient` —
- * ровно та, под которой ходит вебапп-пациент.
+ * `app.email_auth_verify_user_email` закрыт СТРОГИМ гейтом класса `pre_session`
+ * (`20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context.sql`): сверяются и
+ * функция, и назначение, и сами аргументы. Поэтому контекст пересоздаётся ПЕРЕД КАЖДЫМ вызовом
+ * двери и несёт ровно те значения, с которыми дверь зовут: другой e-mail — другой хэш — другой
+ * контекст. Прежняя редакция брала способность `relation` роли `app_patient` один раз на пробу; это
+ * было верно, пока дверь стояла под аттестованным гейтом, и перестало быть верным вместе с ним.
  */
-const ACCEPT_VERIFY_DOOR = `PERFORM pg_temp.accept_context(NULL, 'relation', 'app_patient',
-    ARRAY[ROW('text@1', pg_catalog.textsend('unused'))::app.port_typed_arg]);`;
+const acceptVerifyDoor = (userExpr, emailExpr) => `PERFORM pg_temp.accept_context(
+    'app.email_auth_verify_user_email(uuid,text)', 'auth.email-otp.email.verify', 'app_pre_session',
+    ARRAY[ROW('uuid@1', pg_catalog.uuid_send(${userExpr}))::app.port_typed_arg,
+          ROW('text@1', pg_catalog.textsend(${emailExpr}))::app.port_typed_arg]);`;
 
 /** `app.email_otp_public_consume_latest_challenge` закрыт строгим гейтом: сверяются и аргументы. */
 const acceptConsumeDoor = (email, codeHash) => `PERFORM pg_temp.accept_context(
@@ -178,9 +183,10 @@ test('свою почту дверь подтверждает повторно: 
     // Смысл: человек второй раз вводит код на ту же свою почту. `42P10` здесь и был блокером D15b/6,
     // а вторая строка сломала бы `uq_user_contacts_email` и вход по этой почте вообще.
     const out = probe(`
-  ${ACCEPT_VERIFY_DOOR}
   BEGIN
+    ${acceptVerifyDoor('p1', "'D15b6-Proof-Bound@Example.Test'")}
     PERFORM app.email_auth_verify_user_email(p1, 'D15b6-Proof-Bound@Example.Test');
+    ${acceptVerifyDoor('p1', `'${EMAIL_BOUND_BY_DOOR}'`)}
     PERFORM app.email_auth_verify_user_email(p1, '${EMAIL_BOUND_BY_DOOR}');
     s := 'ok';
   EXCEPTION WHEN OTHERS THEN s := SQLSTATE || ' ' || SQLERRM;
@@ -205,8 +211,8 @@ test('чужую почту дверь подтверждения отбивае
     // поэтому отказ обязан быть ошибкой. Тихий успех означал бы, что человек считает почту
     // привязанной, а войдёт по ней ЧУЖОЙ аккаунт.
     const out = probe(`
-  ${ACCEPT_VERIFY_DOOR}
   BEGIN
+    ${acceptVerifyDoor('p2', `'${EMAIL_OWNED_UPFRONT}'`)}
     PERFORM app.email_auth_verify_user_email(p2, '${EMAIL_OWNED_UPFRONT}');
     s := 'ALLOWED';
   EXCEPTION WHEN OTHERS THEN s := SQLSTATE || ' ' || SQLERRM;

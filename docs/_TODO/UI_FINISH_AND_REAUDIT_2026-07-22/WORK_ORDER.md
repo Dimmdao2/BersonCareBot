@@ -434,6 +434,29 @@ DEV и TEST — гейты вехи, а не повтор на каждый ми
       воспроизводится с начала. Pre-session-контекст ходит через пул `patient` (`portContextRuntime.ts:381`),
       поэтому утечка на любом bootstrap-отказе выводит из строя и вход по паролю, и вход по коду.
       Чинить надо ОБА: и сам отказ `pre_session`, и то, что отказ не возвращает соединение в пул.
+      ↳ **ПЕРЕМЕРЕНО 22.08 после `20260822T100000` (DEV, :5200): `start` больше не 500, блокер сдвинулся
+      на шаг `confirm`.** Десять корней входа и регистрации переведены на строгий гейт
+      `app.require_accepted_context` класса `pre_session`, `bash deploy/host/migrate-dev.sh --execute` →
+      `migrate-dev: PASS`, порт-контекстные сиды DEV перегенерированы, `:5200` перезапущен с ними.
+      Живой прогон: `POST /api/auth/specialist-signup/slug` → **200**, `POST /api/auth/specialist-signup/start`
+      → **200** (`ok:true`, challengeId), код лёг в `public.outgoing_delivery_queue`;
+      `POST /api/auth/email-otp/start` → **200**, `POST /api/auth/email-otp/confirm` → **200**
+      `{"ok":true,"redirectTo":"/app/doctor","role":"doctor"}`. Ни одного `42501` / «accepted port context
+      required» в логе вебаппа.
+      ⛔ **Оставшийся блокер Б2 — НЕ в базе, а в коде: `POST /api/auth/specialist-signup/confirm` → 500,
+      `Error: Missing declared webapp port capability: pre_session`** из
+      `pgEmailAuth.verifyUserEmail` (`apps/webapp/src/infra/repos/pgEmailAuth.ts:223-233`). Функция сперва
+      зовёт объявленный корень `app.email_auth_verify_user_email(uuid,text)` — он ОТРАБАТЫВАЕТ (строка
+      `public.user_contacts` создана, `is_primary=t`, `confirmed_at` проставлен), — а следом ВТОРЫМ,
+      дублирующим шагом зовёт `mutateCanonicalUserContactsWebapp`: сырую многоCTE-запись в
+      `public.user_contacts` через `runWebappSql`, которая просит ОБОБЩЁННУЮ способность `pre_session`.
+      Такой способности нет и не должно быть по построению (см. `portContextRuntime.ts`,
+      `capabilities['pre_session']` отсутствует намеренно). После `20260822T090000` корень делает ровно тот
+      же update-then-insert, что и канонический писатель, поэтому второй вызов — дубль. Развилка владельца:
+      убрать дублирующий вызов из `verifyUserEmail` (рекомендация) либо провести эту запись через
+      именованный корень. ⛔ Заводить обобщённую `pre_session` нельзя — это снимет стену.
+      Про утечку пула: после рестарта `:5200` был ровно ОДИН такой 500, и последующие вход по коду и
+      выдача кода отвечали 200 — то есть замер выше этим прогоном не опровергнут и не подтверждён.
 
 ### 3.3 Track C — Rubitime: выведен и заархивирован
 
