@@ -4,6 +4,7 @@ import { proxy } from '@/proxy';
 import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import type { AppSession, UserRole } from '@/shared/types/session';
+import { SURFACE_PATHNAME_HEADER, SURFACE_SEARCH_HEADER } from '@/config/surfaceRoutes';
 
 function unsafeRequest(pathname: string, headers: Record<string, string> = {}): NextRequest {
   return new NextRequest(`https://app.example.test${pathname}`, {
@@ -138,3 +139,40 @@ describe('global admin reaching platform pages under the doctor portal prefix', 
     );
   });
 });
+
+/**
+ * Гейт круга 4 закрывал «ГДЕ ставится заголовок поверхности» (накрытие `config.matcher`), но не «ЧТО
+ * ставится»: удаление строки `requestHeaders.set(SURFACE_PATHNAME_HEADER, …)` в `proxy.ts` молча
+ * возвращало сразу три уже закрытые находки (`?intent=specialist`, `?from=clinic-demo`,
+ * `?from=staff-factor` снова отдавали пациентское имя) при полностью зелёном наборе тестов.
+ * Находка `R4-1` аудита круга 4.
+ */
+describe('proxy доносит до layout путь и строку запроса поверхности', () => {
+  function requestHeaderFromProxy(
+    path: string,
+    header: string,
+    role?: UserRole,
+  ): string | null {
+    const response = proxy(appRequest(path, role));
+    return response.headers.get(`x-middleware-request-${header}`);
+  }
+
+  it.each([
+    ['/', undefined],
+    ['/app/doctor/login', undefined],
+    ['/app/patient', 'client' as UserRole],
+    ['/app/doctor/patients', 'doctor' as UserRole],
+  ])('кладёт %s в заголовок пути', (path, role) => {
+    expect(requestHeaderFromProxy(path, SURFACE_PATHNAME_HEADER, role)).toBe(path);
+  });
+
+  it('кладёт строку запроса — без неё различимые по параметру staff-адреса снова станут пациентскими', () => {
+    expect(
+      requestHeaderFromProxy('/app/contact-support?from=clinic-demo', SURFACE_SEARCH_HEADER),
+    ).toBe('?from=clinic-demo');
+    expect(requestHeaderFromProxy('/app?intent=specialist', SURFACE_SEARCH_HEADER)).toBe(
+      '?intent=specialist',
+    );
+  });
+});
+
