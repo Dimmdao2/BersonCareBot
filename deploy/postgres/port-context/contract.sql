@@ -613,9 +613,9 @@ BEGIN SELECT integrator_user_id INTO value FROM app_ext.accepted_port_contexts W
 -- ALREADY-KNOWN user dirtied the table.  Measured on `bcb_webapp_dev`: 142 778
 -- updates and 589 autovacuum cycles over a table holding 13 live rows.
 --
--- The map is append-only and `opaque_ref` is a pure function of
--- `physical_user_id`, so an existing row never needs rewriting and the common
--- path is a single primary-key lookup with no write at all.  The insert keeps
+-- The map is append-only and `opaque_ref` is a pure function of the PAIR
+-- `(physical_user_id, ref_kind)`, so an existing row never needs rewriting and
+-- the common path is a single primary-key lookup with no write at all.  The insert keeps
 -- `ON CONFLICT DO NOTHING` for the concurrent-first-resolution race; because
 -- DO NOTHING returns no row, the losing session re-reads.  That re-read can miss
 -- a row the winner has inserted but not yet committed, which is why the read is
@@ -623,7 +623,7 @@ BEGIN SELECT integrator_user_id INTO value FROM app_ext.accepted_port_contexts W
 -- row visible and the next pass finds it.  The return value is unchanged.
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid, p_ref_kind text)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-DECLARE opaque uuid; attempt integer;
+DECLARE opaque uuid; attempt integer; digest text;
 BEGIN
   -- The exact public identity root has already checked function/purpose/args;
   -- this private resolver remains executable only by its identity owner.
@@ -641,13 +641,40 @@ BEGIN
        AND ref_kind = p_ref_kind;
     IF opaque IS NOT NULL THEN RETURN opaque; END IF;
 
+    -- D15b/7a step 4 (22.08): the reference is derived from the PERSON AND THE KIND, and this one
+    -- expression is the whole derivation.  Until step 4 it read `sha256(uuid_send(id))` -- a pure
+    -- function of the person alone -- so the subject reference of somebody who already had an actor
+    -- one came out BYTE-IDENTICAL to it and died on `variant_a_identity_refs_opaque_ref_key`.  The
+    -- kind therefore enters the hashed input as a domain separator: the person is always exactly
+    -- 16 bytes (`uuid_send`), so the tail is unambiguously the kind and two kinds cannot produce
+    -- one input.
+    --
+    -- The separator of the ACTOR kind is empty ON PURPOSE, and that is not cosmetic: it keeps the
+    -- actor derivation byte-for-byte what it was, so every actor reference minted before this step
+    -- (24 rows on DEV) stays exactly what the formula produces today.  Give the actor kind a
+    -- non-empty separator and those rows survive only because the map is read-first -- the code
+    -- could no longer derive a single one of them, and any later check of "stored equals derived"
+    -- would fail on all of them at once.
+    --
+    -- Why still derived rather than `gen_random_uuid()` (owner question 1 of the scheme, section 6):
+    -- the documented safe default is the derived form, and randomness would drop the property that
+    -- one and the same (person, kind) yields one and the same reference in any database of the
+    -- cluster.  What the derivation does NOT hand out is the OTHER reference: computing the subject
+    -- reference from the actor one needs `uuid_send(id)` itself, and getting it back out of a
+    -- truncated SHA-256 is a preimage search, not an inversion.
+    digest := encode(pg_catalog.sha256(
+      uuid_send(p_platform_user_id) ||
+      CASE WHEN p_ref_kind = 'actor' THEN ''::bytea
+           ELSE pg_catalog.convert_to(p_ref_kind, 'UTF8') END
+    ), 'hex');
+
     INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref, ref_kind)
     VALUES (p_platform_user_id, (
-      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
-      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),9,4) || '-' ||
-      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),13,4) || '-' ||
-      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
-      substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
+      substr(digest,1,8) || '-' ||
+      substr(digest,9,4) || '-' ||
+      substr(digest,13,4) || '-' ||
+      substr(digest,17,4) || '-' ||
+      substr(digest,21,12)
     )::uuid, p_ref_kind)
     -- The arbiter names the REAL index.  Since D15b/7a step 2 the primary key is
     -- `(physical_user_id, ref_kind)`, and `ON CONFLICT (<columns>)` is index inference: a

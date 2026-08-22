@@ -65,16 +65,25 @@ const operationStorage = new AsyncLocalStorage<WebappPortOperation>();
  */
 const requestOpaqueIdentityRefs = cache(() => new Map<string, Promise<string>>());
 
+/** Вид непрозрачной ссылки: «кто действует» и «о ком данные». Закрытый список — тот же, что в CHECK карты. */
+export type OpaqueIdentityRefKind = 'actor' | 'subject';
+
 /**
  * Ключ памяти. Экспортирован ради теста: сама поштучная память принадлежит `react.cache`, а вот
  * РАЗДЕЛЁННОСТЬ ключа — это то, что здесь написано, и именно она не даёт ссылке, полученной
  * правами одного пула или для одного человека, перейти к другому.
+ *
+ * D15b/7a Ш4 (22.08): в ключе появился ВИД. С этого шага один и тот же человек в одном и том же
+ * пуле имеет ДВЕ разные ссылки, и ключ без вида отдал бы вторую поездку ответ первой — пациент
+ * получил бы акторскую ссылку в `subject_ref`, то есть ровно ту подмену, против которой затеян
+ * весь раздел. Выглядело бы это как исправная страница.
  */
 export function opaqueIdentityRefMemoKey(
   pool: 'staff' | 'patient' | 'globalAdmin',
   physicalIdentityId: string,
+  refKind: OpaqueIdentityRefKind,
 ): string {
-  return `${pool} ${physicalIdentityId}`;
+  return `${pool} ${refKind} ${physicalIdentityId}`;
 }
 
 export function runWithWebappPortOperation<T>(operation: WebappPortOperation, fn: () => T): T {
@@ -298,13 +307,21 @@ function capabilityFor(
 }
 
 /**
+ * Непрозрачные ссылки человека, уже разрешённые для этого запроса, по видам.
+ *
+ * D15b/7a Ш4 (22.08): здесь их стало ДВЕ, а не одна на оба поля. Ключ — вид, а не позиция: подставить
+ * субъектную ссылку в `actor_ref` можно только опечаткой в имени поля, а не перепутав аргументы.
+ */
+export type OpaqueIdentityRefs = Partial<Record<OpaqueIdentityRefKind, string>>;
+
+/**
  * The old ALS carrier remains a request identity source only. In target mode it is never installed
  * as a GUC or signed payload: this projection is validated again by the declared DB capability.
  */
 export function webappPortContextPrincipal(
   principal: DbPrincipal | undefined,
   capabilities: Record<string, PortCapabilityDescriptor>,
-  opaqueIdentityRef?: string,
+  opaqueIdentityRefs?: OpaqueIdentityRefs,
 ): { pool: 'staff' | 'patient' | 'globalAdmin'; principal: PortContextPrincipal } {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
   const descriptorName =
@@ -336,7 +353,9 @@ export function webappPortContextPrincipal(
         pool: 'staff',
         principal: {
           ...base,
-          actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
+          // Класс `staff` несёт ТОЛЬКО акторскую ссылку: `subject_ref` ему запрещён матрицей
+          // классов (`contract.sql`), а видимость строк ему даёт стена арендатора.
+          actorRef: requiredOpaqueIdentityRef(opaqueIdentityRefs?.actor),
           organizationId: principal.organizationId,
         },
       };
@@ -352,8 +371,13 @@ export function webappPortContextPrincipal(
         pool: 'patient',
         principal: {
           ...base,
-          actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
-          subjectRef: requiredOpaqueIdentityRef(opaqueIdentityRef),
+          // D15b/7a Ш4: две РАЗНЫЕ ссылки одного и того же человека. До этого шага сюда приезжало
+          // одно значение дважды, и требование «резолвер не принимает actor-ref вместо subject-ref»
+          // было невыразимо — подменять было нечем. Обе по-прежнему разрешаются в один физический
+          // id, поэтому проверка `actor_id IS DISTINCT FROM subject_id` в
+          // `app_ext.assert_port_context_claim` проходит, как и проходила.
+          actorRef: requiredOpaqueIdentityRef(opaqueIdentityRefs?.actor),
+          subjectRef: requiredOpaqueIdentityRef(opaqueIdentityRefs?.subject),
           ...(principal.organizationId ? { organizationId: principal.organizationId } : {}),
         },
       };
@@ -362,7 +386,7 @@ export function webappPortContextPrincipal(
         throw new Error('Platform port context requires a platform principal');
       return {
         pool: 'globalAdmin',
-        principal: { ...base, actorRef: requiredOpaqueIdentityRef(opaqueIdentityRef) },
+        principal: { ...base, actorRef: requiredOpaqueIdentityRef(opaqueIdentityRefs?.actor) },
       };
     case 'tenant_service':
       if (principal.kind !== 'organization')
@@ -468,22 +492,37 @@ function opaqueRefFromResult(result: unknown): string {
  * mismatch» на первом же входе ЛЮБОГО человека, при зелёных миграции и деплое. Поэтому и
  * подставляемое в SQL значение, и типизированный аргумент берутся из ОДНОЙ константы.
  *
- * Пока просится только акторская ссылка: Ш4 — тот шаг, где класс `patient` начинает просить ещё и
- * субъектную, и где ключ памяти ниже расширяется видом.
+ * D15b/7a Ш4 (22.08): вид стал ПАРАМЕТРОМ этой одной поездки, а не константой на весь порт. Класс
+ * `patient` просит две ссылки — акторскую и субъектную; `staff` и `platform` — только акторскую,
+ * потому что `subject_ref` им запрещён матрицей классов.
  */
 const IDENTITY_ROOT = 'app.pre_session_resolve_identity(uuid,text)';
-const ACTOR_REF_KIND = 'actor';
+const ACTOR_REF_KIND: OpaqueIdentityRefKind = 'actor';
+const SUBJECT_REF_KIND: OpaqueIdentityRefKind = 'subject';
+
+/**
+ * Какие виды ссылок вправе нести контекст этого принципала.
+ *
+ * Соответствие «вид принципала → класс контекста» здесь ровно то же, что в `capabilityFor` и в
+ * `webappPortContextPrincipal` ниже: субъектную ссылку несёт один класс `patient`. Спросить лишний
+ * вид — не безобидно: это лишняя поездка в базу и лишняя строка карты у человека, которому она не
+ * нужна.
+ */
+function opaqueIdentityRefKindsFor(principal: DbPrincipal): readonly OpaqueIdentityRefKind[] {
+  return principal.kind === 'patient' ? [ACTOR_REF_KIND, SUBJECT_REF_KIND] : [ACTOR_REF_KIND];
+}
 
 async function resolveOpaqueIdentityRef(
   client: IdentityResolverClient,
   principal: DbPrincipal,
   capabilities: Record<string, PortCapabilityDescriptor>,
+  refKind: OpaqueIdentityRefKind,
 ): Promise<string | undefined> {
   const physicalId = physicalIdentityId(principal);
   if (!physicalId) return undefined;
   const pool = poolForPrincipal(principal);
   const memo = requestOpaqueIdentityRefs();
-  const memoKey = opaqueIdentityRefMemoKey(pool, physicalId);
+  const memoKey = opaqueIdentityRefMemoKey(pool, physicalId, refKind);
   const existing = memo.get(memoKey);
   if (existing) return existing;
 
@@ -503,11 +542,11 @@ async function resolveOpaqueIdentityRef(
     client,
     descriptor,
     IDENTITY_ROOT,
-    [portTypedArg('uuid', physicalId), portTypedArg('text', ACTOR_REF_KIND)],
+    [portTypedArg('uuid', physicalId), portTypedArg('text', refKind)],
     async (sameClient) =>
       opaqueRefFromResult(
         await drizzle(sameClient as unknown as PoolClient).execute(
-          sql`SELECT app.pre_session_resolve_identity(${physicalId}::uuid, ${ACTOR_REF_KIND}::text) AS opaque_ref`,
+          sql`SELECT app.pre_session_resolve_identity(${physicalId}::uuid, ${refKind}::text) AS opaque_ref`,
         ),
       ),
   );
@@ -520,6 +559,26 @@ async function resolveOpaqueIdentityRef(
   }
 }
 
+/**
+ * Все ссылки, которые вправе нести контекст этого принципала, — одной точкой.
+ *
+ * Виды разрешаются ПО ОЧЕРЕДИ, а не `Promise.all`: обе поездки идут по ОДНОМУ уже взятому
+ * mTLS-соединению, и каждая — отдельная транзакция с установкой и снятием pre-session-контекста.
+ * Запустить их параллельно на одном соединении значит вложить транзакцию в транзакцию.
+ */
+async function resolveOpaqueIdentityRefs(
+  client: IdentityResolverClient,
+  principal: DbPrincipal,
+  capabilities: Record<string, PortCapabilityDescriptor>,
+): Promise<OpaqueIdentityRefs> {
+  const refs: OpaqueIdentityRefs = {};
+  for (const refKind of opaqueIdentityRefKindsFor(principal)) {
+    const ref = await resolveOpaqueIdentityRef(client, principal, capabilities, refKind);
+    if (ref) refs[refKind] = ref;
+  }
+  return refs;
+}
+
 /** Exact physical→opaque handoff on the checked-out mTLS connection, before human context install. */
 export async function resolveWebappPortContextPrincipal(
   client: IdentityResolverClient,
@@ -527,6 +586,6 @@ export async function resolveWebappPortContextPrincipal(
   capabilities: Record<string, PortCapabilityDescriptor>,
 ): Promise<{ pool: 'staff' | 'patient' | 'globalAdmin'; principal: PortContextPrincipal }> {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
-  const opaqueIdentityRef = await resolveOpaqueIdentityRef(client, principal, capabilities);
-  return webappPortContextPrincipal(principal, capabilities, opaqueIdentityRef);
+  const opaqueIdentityRefs = await resolveOpaqueIdentityRefs(client, principal, capabilities);
+  return webappPortContextPrincipal(principal, capabilities, opaqueIdentityRefs);
 }
