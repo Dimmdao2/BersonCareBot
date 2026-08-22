@@ -296,6 +296,10 @@ BersonCare — это два физически изолированных UI-м
 | Плеер                 | `PatientMediaPlaybackVideo`                                                                                       | `shared/ui/patient/media/*`                       |
 | Раскладка страницы    | `patientInnerPageStackClass`, `patientInnerCardGridClass`, `patientPageHeaderClass`                               | `patientVisual.ts`                                |
 
+На мобильном viewport любая модалка открывается от нижнего края на фиксированную высоту
+`calc(100dvh - 3.5rem)`: оставляет 56 px сверху, держит контент у верхнего края и прокручивает переполнение
+внутри. Контракт задают общие `DialogContent` и нижний `SheetContent`; боковые панели навигации к нему не относятся.
+
 ---
 
 ## 7. Правила композиции, которые соблюдаются всегда (инварианты)
