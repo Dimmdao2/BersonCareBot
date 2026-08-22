@@ -109,6 +109,9 @@ function parseRubitimeNumericId(raw: string): number | null {
   return Math.trunc(n);
 }
 
+/** Владелец 22.08: строка адреса — во все клиентские тексты подтверждения и напоминаний. */
+const CLINIC_ADDRESS_LINE = 'Адрес: https://dmitryberson.ru/adress';
+
 function patientCreatedText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
   const dateLabel = formatBookingRuDateTime(payload.slotStart, timeZone);
   const typeLabel = payload.bookingType === 'online' ? 'Онлайн' : 'Очный приём';
@@ -116,7 +119,7 @@ function patientCreatedText(payload: BookingLifecyclePayloadValidated, timeZone:
     asNonEmptyString(payload.cityCodeSnapshot) ??
     asNonEmptyString(payload.city);
   const citySuffix = city ? ` (${city})` : '';
-  return `Запись подтверждена: ${dateLabel}\n${typeLabel}${citySuffix}`;
+  return `Запись подтверждена: ${dateLabel}\n${typeLabel}${citySuffix}\n${CLINIC_ADDRESS_LINE}`;
 }
 
 function patientCancelledText(payload: BookingLifecyclePayloadValidated, timeZone: string): string {
@@ -156,44 +159,64 @@ function doctorRescheduledText(payload: BookingLifecyclePayloadValidated, timeZo
 async function sendLinkedChannelMessage(input: {
   dispatchPort: DispatchPort;
   phoneNormalized: string | null;
+  /** Владелец 22.08: клиент без привязанного telegram/max (публичная запись) должен получить
+   *  хоть что-то — резерв на email, когда указан. */
+  email: string | null;
   text: string;
   eventId: string;
+  emailSubject?: string;
 }): Promise<void> {
-  if (!input.phoneNormalized) return;
-  const deliveryTargets = createDeliveryTargetsPort({
-    getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
-  });
-  const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
-  const bindings = fetched?.channelBindings;
-  if (!bindings) return;
-
-  if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
-    await input.dispatchPort.dispatchOutgoing({
-      type: 'message.send',
-      meta: {
-        eventId: `${input.eventId}:telegram`,
-        occurredAt: new Date().toISOString(),
-        source: 'telegram',
-      },
-      payload: {
-        recipient: { chatId: bindings.telegramId.trim() },
-        message: { text: input.text },
-        delivery: { channels: ['telegram'], maxAttempts: 3 },
-      },
+  if (input.phoneNormalized) {
+    const deliveryTargets = createDeliveryTargetsPort({
+      getAppBaseUrl: () => getAppBaseUrl(createDbPort()),
     });
+    const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized);
+    const bindings = fetched?.channelBindings;
+
+    if (bindings && typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
+      await input.dispatchPort.dispatchOutgoing({
+        type: 'message.send',
+        meta: {
+          eventId: `${input.eventId}:telegram`,
+          occurredAt: new Date().toISOString(),
+          source: 'telegram',
+        },
+        payload: {
+          recipient: { chatId: bindings.telegramId.trim() },
+          message: { text: input.text },
+          delivery: { channels: ['telegram'], maxAttempts: 3 },
+        },
+      });
+    }
+    if (bindings && typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
+      await input.dispatchPort.dispatchOutgoing({
+        type: 'message.send',
+        meta: {
+          eventId: `${input.eventId}:max`,
+          occurredAt: new Date().toISOString(),
+          source: 'max',
+        },
+        payload: {
+          recipient: maxUserRecipient(bindings.maxId.trim()),
+          message: { text: input.text },
+          delivery: { channels: ['max'], maxAttempts: 3 },
+        },
+      });
+    }
   }
-  if (typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
+  if (input.email) {
     await input.dispatchPort.dispatchOutgoing({
       type: 'message.send',
       meta: {
-        eventId: `${input.eventId}:max`,
+        eventId: `${input.eventId}:email`,
         occurredAt: new Date().toISOString(),
-        source: 'max',
+        source: 'email',
       },
       payload: {
-        recipient: maxUserRecipient(bindings.maxId.trim()),
+        recipient: { email: input.email },
+        subject: input.emailSubject ?? 'BersonCare',
         message: { text: input.text },
-        delivery: { channels: ['max'], maxAttempts: 3 },
+        delivery: { channels: ['email'], maxAttempts: 3 },
       },
     });
   }
@@ -241,6 +264,8 @@ async function scheduleBookingReminders(input: {
   bookingId: string;
   slotStartIso: string;
   phoneNormalized: string | null;
+  /** Владелец 22.08: без привязанного telegram/max (публичная запись) — резерв на email. */
+  email: string | null;
   patientName: string | null;
   timeZone: string;
   webappEventsPort?: WebappEventsPort;
@@ -254,14 +279,18 @@ async function scheduleBookingReminders(input: {
       })
     : null;
   const bindings = fetched?.channelBindings;
-  if (!bindings) return;
 
+  // Порядок = порядок фолбэка между попытками отправки одного напоминания (см. jobExecutor
+  // resolveIntentForAttempt: attemptIndex выбирает следующий элемент channels/targets).
   const targets: Array<{ resource: string; address: Record<string, unknown> }> = [];
-  if (typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
+  if (bindings && typeof bindings.telegramId === 'string' && bindings.telegramId.trim()) {
     targets.push({ resource: 'telegram', address: { chatId: bindings.telegramId.trim() } });
   }
-  if (typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
+  if (bindings && typeof bindings.maxId === 'string' && bindings.maxId.trim()) {
     targets.push({ resource: 'max', address: maxUserRecipient(bindings.maxId.trim()) });
+  }
+  if (input.email) {
+    targets.push({ resource: 'email', address: { email: input.email } });
   }
   if (targets.length === 0) return;
 
@@ -271,9 +300,18 @@ async function scheduleBookingReminders(input: {
   const patientLabel = input.patientName ?? 'Пациент';
   const dateLabel = formatBookingRuDateTime(input.slotStartIso, input.timeZone);
   const reminders = [
-    { code: '24h', offsetMs: 24 * 60 * 60 * 1000, text: `Напоминание: приём ${dateLabel} (через 24 часа).` },
-    { code: '2h', offsetMs: 2 * 60 * 60 * 1000, text: `Напоминание: приём ${dateLabel} (через 2 часа).` },
+    {
+      code: '24h',
+      offsetMs: 24 * 60 * 60 * 1000,
+      text: `Напоминание: приём ${dateLabel} (через 24 часа).\n${CLINIC_ADDRESS_LINE}`,
+    },
+    {
+      code: '2h',
+      offsetMs: 2 * 60 * 60 * 1000,
+      text: `Напоминание: приём ${dateLabel} (через 2 часа).\n${CLINIC_ADDRESS_LINE}`,
+    },
   ];
+  const maxAttempts = Math.max(2, targets.length);
 
   for (const reminder of reminders) {
     const runAtMs = startMs - reminder.offsetMs;
@@ -290,11 +328,12 @@ async function scheduleBookingReminders(input: {
         },
         payload: {
           message: { text: `${patientLabel}, ${reminder.text}` },
+          subject: 'BersonCare — напоминание о записи',
           delivery: { channels, maxAttempts: 1 },
         },
       },
       targets,
-      retry: { maxAttempts: 2, backoffSeconds: [60] },
+      retry: { maxAttempts, backoffSeconds: [60] },
       booking: { bookingId: input.bookingId, reminderCode: reminder.code },
       webappPushNotify: {
         phoneNormalized: input.phoneNormalized,
@@ -306,7 +345,7 @@ async function scheduleBookingReminders(input: {
       phoneNormalized: input.phoneNormalized,
       messageText: `${patientLabel}, ${reminder.text}`,
       firstTryDelaySeconds: delaySec,
-      maxAttempts: 2,
+      maxAttempts,
       kind: 'message.deliver',
       payloadJson,
     });
@@ -423,6 +462,7 @@ async function handleBookingLifecycleEvent(
   const { payload, eventType } = body;
   const bookingId = payload.bookingId;
   const contactPhone = asNonEmptyString(payload.contactPhone);
+  const contactEmail = asNonEmptyString(payload.contactEmail);
   const patientName = asNonEmptyString(payload.contactName);
   const dedupKey = asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${bookingId}`;
   if (isBookingEventDuplicate(dedupKey)) return;
@@ -435,8 +475,10 @@ async function handleBookingLifecycleEvent(
     await sendLinkedChannelMessage({
       dispatchPort,
       phoneNormalized: contactPhone,
+      email: contactEmail,
       text: patientText,
       eventId: `booking-created:${bookingId}`,
+      emailSubject: 'BersonCare — запись подтверждена',
     });
     await sendDoctorMessage(dispatchPort, doctorCreatedText(payload, timeZone), `booking-created:${bookingId}`);
     await sendBookingWebPush({
@@ -452,6 +494,7 @@ async function handleBookingLifecycleEvent(
       bookingId,
       slotStartIso: payload.slotStart,
       phoneNormalized: contactPhone,
+      email: contactEmail,
       patientName,
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),
@@ -470,8 +513,10 @@ async function handleBookingLifecycleEvent(
       await sendLinkedChannelMessage({
         dispatchPort,
         phoneNormalized: contactPhone,
+        email: contactEmail,
         text: patientText,
         eventId: `booking-cancelled:${bookingId}`,
+        emailSubject: 'BersonCare — запись отменена',
       });
       await sendBookingWebPush({
         ...(webappEventsPort ? { webappEventsPort } : {}),
@@ -494,8 +539,10 @@ async function handleBookingLifecycleEvent(
     await sendLinkedChannelMessage({
       dispatchPort,
       phoneNormalized: contactPhone,
+      email: contactEmail,
       text: patientText,
       eventId: `booking-rescheduled:${bookingId}`,
+      emailSubject: 'BersonCare — запись перенесена',
     });
     await sendDoctorMessage(dispatchPort, doctorRescheduledText(payload, timeZone), `booking-rescheduled:${bookingId}`);
     await sendBookingWebPush({
@@ -510,6 +557,7 @@ async function handleBookingLifecycleEvent(
       bookingId,
       slotStartIso: payload.slotStart,
       phoneNormalized: contactPhone,
+      email: contactEmail,
       patientName,
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),
@@ -524,8 +572,10 @@ async function handleBookingLifecycleEvent(
     await sendLinkedChannelMessage({
       dispatchPort,
       phoneNormalized: contactPhone,
+      email: contactEmail,
       text: patientText,
       eventId: `booking-payment:${bookingId}`,
+      emailSubject: 'BersonCare — оплата подтверждена',
     });
     await sendDoctorMessage(
       dispatchPort,
@@ -536,6 +586,7 @@ async function handleBookingLifecycleEvent(
       bookingId,
       slotStartIso: payload.slotStart,
       phoneNormalized: contactPhone,
+      email: contactEmail,
       patientName,
       timeZone,
       ...(webappEventsPort ? { webappEventsPort } : {}),

@@ -598,6 +598,60 @@ describe('POST /api/bersoncare/rubitime/booking-event', () => {
     expect(enqueueMessageRetryJob).not.toHaveBeenCalled();
   });
 
+  it('booking.created sends patient email when no telegram/max binding exists (public widget client)', async () => {
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone.mockResolvedValue(null);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify(
+      bookingEventBody({
+        bookingId: '9f14566f-a4de-4ab4-9336-5ddf806cd6ce',
+        contactEmail: 'patient@example.com',
+      }),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    const emailCall = dispatchOutgoing.mock.calls.find(
+      (call) => (call[0] as { meta: { eventId: string } }).meta.eventId.endsWith(':email'),
+    );
+    expect(emailCall).toBeDefined();
+    const intent = emailCall![0] as {
+      payload: { recipient: { email: string }; subject: string; delivery: { channels: string[] } };
+    };
+    expect(intent.payload.recipient.email).toBe('patient@example.com');
+    expect(intent.payload.delivery.channels).toEqual(['email']);
+    expect(intent.payload.subject).toContain('BersonCare');
+  });
+
+  it('booking.created schedules reminders via email fallback when no messenger binding exists', async () => {
+    enqueueMessageRetryJob.mockClear();
+    const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
+    getTargetsByPhone.mockResolvedValue(null);
+    const app = await buildApp(dispatchOutgoing);
+    const raw = JSON.stringify(
+      bookingEventBody({
+        bookingId: 'af24566f-a4de-4ab4-9336-5ddf806cd6ce',
+        contactEmail: 'patient@example.com',
+      }),
+    );
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/bersoncare/rubitime/booking-event',
+      headers: makeHeaders(raw),
+      body: raw,
+    });
+    expect(res.statusCode).toBe(200);
+    expect(enqueueMessageRetryJob).toHaveBeenCalled();
+    const call = enqueueMessageRetryJob.mock.calls[0]![1] as {
+      payloadJson: { targets: Array<{ resource: string; address: Record<string, unknown> }> };
+    };
+    expect(call.payloadJson.targets).toEqual([{ resource: 'email', address: { email: 'patient@example.com' } }]);
+  });
+
   it('booking.rescheduled cancels pending reminders and schedules new ones', async () => {
     const dispatchOutgoing = vi.fn().mockResolvedValue(undefined);
     getTargetsByPhone
