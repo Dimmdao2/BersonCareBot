@@ -3794,6 +3794,10 @@ const REV10_CONTEXT = {
           // `organization_slug_claims` идёт от владельца ЭТОЙ definer-функции. Одного INSERT телу
           // не хватало: вставка карточки каталога отказывала `42501 permission denied for table
           // organization_slug_claims`. Чтение узкое — ровно три колонки условия триггера.
+          // В ТЕКСТЕ тела этого SELECT нет и быть не может, поэтому он назван маркером
+          // `requiredByTrigger`: гейт сверяет с живым каталогом, что триггер существует, что он
+          // INVOKER, что тело вставляет карточку каталога и что читает `organization_slug_claims`
+          // именно тело триггера (`types.ts` → `FunctionRelationSurface.requiredByTrigger`).
           : surface.relation === 'public.organization_slug_claims'
             ? {
               ...surface,
@@ -3801,6 +3805,12 @@ const REV10_CONTEXT = {
               operationColumns: {
                 ...surface.operationColumns,
                 SELECT: ['kind', 'organization_id', 'slug'],
+              },
+              requiredByTrigger: {
+                SELECT: {
+                  trigger: 'clinic_public_directory_current_slug_guard',
+                  onRelation: 'public.clinic_public_directory_entries',
+                },
               },
             }
             : surface) ?? [],

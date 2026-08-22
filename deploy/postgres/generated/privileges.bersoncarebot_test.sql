@@ -3882,8 +3882,50 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('public.audit_app_runtime_settings_change()', 'public.app_runtime_settings_audit', ARRAY['audience', 'key', 'new_value_json', 'old_value_json', 'organization_id', 'scope', 'source', 'updated_by']::text[], ARRAY['INSERT']::text[])
 ;
 CREATE TEMP TABLE bcb_function_surface_gaps(message text PRIMARY KEY) ON COMMIT DROP;
+CREATE TEMP TABLE bcb_function_surface_trigger_sources(signature text NOT NULL, relation_name text NOT NULL, operation text NOT NULL, trigger_name text NOT NULL, trigger_relation text NOT NULL, verified boolean NOT NULL DEFAULT false) ON COMMIT DROP;
+INSERT INTO bcb_function_surface_trigger_sources(signature,relation_name,operation,trigger_name,trigger_relation) VALUES
+  ('app.provision_specialist_owner(uuid)', 'public.organization_slug_claims', 'SELECT', 'clinic_public_directory_current_slug_guard', 'public.clinic_public_directory_entries')
+;
 DO $bcb$
-DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text; actual_select boolean; actual_insert boolean; actual_update boolean; actual_delete boolean;
+DECLARE marker record; trg record; body_source text; relation_pattern text; trigger_pattern text; fires boolean;
+BEGIN
+  FOR marker IN SELECT * FROM bcb_function_surface_trigger_sources ORDER BY signature,relation_name,operation LOOP
+    SELECT pg_catalog.lower(p.prosrc) INTO body_source FROM pg_catalog.pg_proc p WHERE p.oid=pg_catalog.to_regprocedure(marker.signature);
+    IF body_source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('trigger-induced surface target missing: '||marker.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;
+    IF NOT EXISTS (SELECT 1 FROM bcb_function_relation_surfaces declared WHERE declared.signature=marker.signature AND declared.relation_name=marker.relation_name AND marker.operation=ANY(declared.operations)) THEN
+      INSERT INTO bcb_function_surface_gaps VALUES ('trigger-induced operation is not declared on the surface: '||marker.signature||' -> '||marker.relation_name||' ('||marker.operation||')') ON CONFLICT DO NOTHING; CONTINUE;
+    END IF;
+    SELECT t.tgtype AS tgtype, f.prosecdef AS secdef, pg_catalog.lower(f.prosrc) AS fsrc INTO trg
+      FROM pg_catalog.pg_trigger t JOIN pg_catalog.pg_proc f ON f.oid=t.tgfoid
+     WHERE t.tgrelid=pg_catalog.to_regclass(marker.trigger_relation) AND t.tgname=marker.trigger_name AND NOT t.tgisinternal;
+    IF NOT FOUND THEN
+      INSERT INTO bcb_function_surface_gaps VALUES ('trigger-induced surface names a trigger absent from the catalog: '||marker.signature||' -> '||marker.relation_name||' ('||marker.trigger_name||' ON '||marker.trigger_relation||')') ON CONFLICT DO NOTHING; CONTINUE;
+    END IF;
+    IF trg.secdef THEN
+      INSERT INTO bcb_function_surface_gaps VALUES ('trigger-induced surface names a SECURITY DEFINER trigger, which runs under its own owner: '||marker.signature||' -> '||marker.relation_name||' ('||marker.trigger_name||' ON '||marker.trigger_relation||')') ON CONFLICT DO NOTHING; CONTINUE;
+    END IF;
+    trigger_pattern := pg_catalog.replace(marker.trigger_relation, '.', '\.');
+    fires := ((trg.tgtype & 4) <> 0 AND body_source ~ ('\minsert[[:space:]]+into[[:space:]]+'||trigger_pattern||'\M'))
+      OR ((trg.tgtype & 16) <> 0 AND body_source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||trigger_pattern||'\M'))
+      OR ((trg.tgtype & 8) <> 0 AND body_source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||trigger_pattern||'\M'));
+    IF NOT fires THEN
+      INSERT INTO bcb_function_surface_gaps VALUES ('trigger-induced surface names a trigger the body never fires: '||marker.signature||' -> '||marker.relation_name||' ('||marker.trigger_name||' ON '||marker.trigger_relation||')') ON CONFLICT DO NOTHING; CONTINUE;
+    END IF;
+    relation_pattern := pg_catalog.replace(marker.relation_name, '.', '\.');
+    IF NOT (CASE marker.operation
+      WHEN 'SELECT' THEN trg.fsrc ~ ('\m(select|perform)\M[^;]*\mfrom[[:space:]]+'||relation_pattern||'\M') OR trg.fsrc ~ ('\mjoin[[:space:]]+'||relation_pattern||'\M') OR trg.fsrc ~ ('\mfrom\M[^;]*,[[:space:]]*'||relation_pattern||'\M')
+      WHEN 'INSERT' THEN trg.fsrc ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M')
+      WHEN 'UPDATE' THEN trg.fsrc ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M')
+      WHEN 'DELETE' THEN trg.fsrc ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M')
+      ELSE false END) THEN
+      INSERT INTO bcb_function_surface_gaps VALUES ('trigger-induced surface names a trigger whose body has no such relation operation: '||marker.signature||' -> '||marker.relation_name||' ('||marker.operation||' in '||marker.trigger_name||')') ON CONFLICT DO NOTHING; CONTINUE;
+    END IF;
+    UPDATE bcb_function_surface_trigger_sources SET verified=true WHERE signature=marker.signature AND relation_name=marker.relation_name AND operation=marker.operation;
+  END LOOP;
+END
+$bcb$;
+DO $bcb$
+DECLARE function_row record; relation_row record; surface record; source text; relation_pattern text; column_pattern text; mutation text; gap_list text; actual_select boolean; actual_insert boolean; actual_update boolean; actual_delete boolean; trigger_explained text[];
 BEGIN
   IF 'insert into x(id) values (1) on conflict do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M' THEN RAISE EXCEPTION 'targetless ON CONFLICT DO NOTHING was classified as requiring SELECT'; END IF;
   IF NOT ('insert into x(id) values (1) on conflict (id) do nothing' ~ '\mon[[:space:]]+conflict[[:space:]]+(\(|on[[:space:]]+constraint\M)[^;]*\mdo[[:space:]]+nothing\M') THEN RAISE EXCEPTION 'indexed ON CONFLICT DO NOTHING was not classified as requiring SELECT'; END IF;
@@ -3903,6 +3945,8 @@ BEGIN
     IF source IS NULL THEN INSERT INTO bcb_function_surface_gaps VALUES ('function body surface target missing: '||surface.signature) ON CONFLICT DO NOTHING; CONTINUE; END IF;
     relation_pattern := pg_catalog.replace(surface.relation_name, '.', '\.');
     column_pattern := pg_catalog.array_to_string(surface.columns, '|');
+    SELECT pg_catalog.array_agg(marker.operation) INTO trigger_explained FROM bcb_function_surface_trigger_sources marker WHERE marker.signature=surface.signature AND marker.relation_name=surface.relation_name AND marker.verified;
+    trigger_explained := COALESCE(trigger_explained, ARRAY[]::text[]);
     actual_insert := source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M');
     actual_update := source ~ ('\mupdate[[:space:]]+(only[[:space:]]+)?'||relation_pattern||'\M') OR source ~ ('\minsert[[:space:]]+into[[:space:]]+'||relation_pattern||'\M[^;]*\mon[[:space:]]+conflict\M[^;]*\mdo[[:space:]]+update\M') OR source ~ ('\m(select|perform)\M[^;]*\m(from|join)[[:space:]]+'||relation_pattern||'\M[^;]*\mfor[[:space:]]+(no[[:space:]]+key[[:space:]]+update|key[[:space:]]+share|update|share)\M');
     actual_delete := source ~ ('\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M');
@@ -3920,14 +3964,14 @@ BEGIN
     IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('UPDATE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
     mutation := (pg_catalog.regexp_match(source, '(\mdelete[[:space:]]+from[[:space:]]+'||relation_pattern||'\M[^;]*)'))[1];
     IF (mutation ~ '\mreturning[[:space:]]+[*]' OR mutation ~ ('\m(where|returning)\M[^;]*\m('||column_pattern||')\M')) AND NOT ('SELECT'=ANY(surface.operations)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('DELETE predicate/RETURNING requires undeclared SELECT: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
-    IF 'SELECT'=ANY(surface.operations) AND NOT actual_select THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared SELECT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
-    IF 'INSERT'=ANY(surface.operations) AND NOT actual_insert THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared INSERT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
-    IF 'UPDATE'=ANY(surface.operations) AND NOT actual_update THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared UPDATE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
-    IF 'DELETE'=ANY(surface.operations) AND NOT actual_delete THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared DELETE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'SELECT'=ANY(surface.operations) AND NOT actual_select AND NOT ('SELECT'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared SELECT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'INSERT'=ANY(surface.operations) AND NOT actual_insert AND NOT ('INSERT'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared INSERT has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'UPDATE'=ANY(surface.operations) AND NOT actual_update AND NOT ('UPDATE'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared UPDATE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
+    IF 'DELETE'=ANY(surface.operations) AND NOT actual_delete AND NOT ('DELETE'=ANY(trigger_explained)) THEN INSERT INTO bcb_function_surface_gaps VALUES ('declared DELETE has no executable relation operation: '||surface.signature||' -> '||surface.relation_name) ON CONFLICT DO NOTHING; END IF;
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=407 rows=966 special_contracts=8';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=407 rows=966 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 
