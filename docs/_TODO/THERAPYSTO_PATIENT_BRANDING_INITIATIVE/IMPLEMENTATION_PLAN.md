@@ -624,6 +624,13 @@ identity seam, а не набор getters.
 - [x] `B1a` Зарезервировать служебные метки (`www`, `app`, `api`, `mail`, `admin` и т.п.), чтобы slug клиники не
   мог их занять. Проверка — на записи slug, а не только на чтении. Доказательство:
   `selfRenameAllowance.unit.test.ts` не вызывает write port; живой rollback-only proof отвергает `www` DB constraint.
+  Дополнение 23.08: `20260823T011000_reject_numeric_organization_slug_claims.sql` добавляет DB CHECK для
+  `^[0-9]+$` без второй копии списка меток; `RUN_CLINIC_DOMAIN_WRITE_CONSTRAINTS_DB=1 node --test
+  deploy/postgres/privileges/clinic-domain-write-constraints.devDbProof.test.mjs` → 3 pass. Отчёт:
+  `docs/REPORTS/CLINIC_DOMAIN_WRITE_CONSTRAINTS_FIX_2026-08-23.md`.
+
+  **OWNER QUESTION (не задача):** входит ли в фразу «и т.п.» также `mta-sts`, `mx`, `mta`, `relay`, `webmail`,
+  `ns`, `www1`, `www2`? В текущий список они не добавлены.
 - [x] `B2` **Возвращён в этап 22.08.2026** вместе с расконсервацией своего домена (§1.2): защита от дубля
   `org_custom_domain_hostname` на записи — узкий partial unique expression index, новой таблицы нет.
   Два арендатора не должны суметь объявить один и тот же хост. Доказательство:

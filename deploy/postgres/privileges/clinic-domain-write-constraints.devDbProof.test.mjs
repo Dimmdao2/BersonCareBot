@@ -80,6 +80,45 @@ ROLLBACK;
 });
 
 test(
+  'database write rejects an all-numeric label reserved by the application policy',
+  { skip: !ENABLED },
+  () => {
+    const result = psql(`
+BEGIN;
+DO $$
+DECLARE
+  v_org uuid;
+  v_actor uuid;
+  v_constraint text;
+BEGIN
+  SELECT id INTO v_org FROM public.be_organizations ORDER BY id LIMIT 1;
+  SELECT id INTO v_actor FROM public.platform_users ORDER BY id LIMIT 1;
+  IF v_org IS NULL OR v_actor IS NULL THEN
+    RAISE EXCEPTION 'DEV fixture requires one organization and one platform user';
+  END IF;
+  BEGIN
+    INSERT INTO public.organization_slug_claims
+      (slug, kind, organization_id, created_by_platform_user_id)
+    VALUES ('123', 'reservation', v_org, v_actor);
+  EXCEPTION WHEN check_violation THEN
+    GET STACKED DIAGNOSTICS v_constraint = CONSTRAINT_NAME;
+    IF v_constraint <> 'organization_slug_claims_slug_numeric_check' THEN
+      RAISE;
+    END IF;
+    PERFORM set_config('bcb.result', 'numeric_slug_rejected', false);
+  END;
+  IF current_setting('bcb.result', true) IS DISTINCT FROM 'numeric_slug_rejected' THEN
+    RAISE EXCEPTION 'all-numeric reserved slug write unexpectedly succeeded';
+  END IF;
+END $$;
+SELECT current_setting('bcb.result');
+ROLLBACK;
+`);
+    assert.equal(result, 'numeric_slug_rejected');
+  },
+);
+
+test(
   'database write rejects a custom hostname already claimed by another organization',
   { skip: !ENABLED },
   () => {
