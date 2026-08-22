@@ -1,6 +1,5 @@
 import type {
   OutgoingIntent,
-  ReadyOutgoingDelivery,
   SpecialistTaskReadyOutgoingDelivery,
 } from '@/modules/messaging/outgoingDeliveryQueuePort';
 import {
@@ -41,7 +40,7 @@ function eventId(
 export async function prepareSpecialistTaskReminderDeliveries(
   task: SpecialistTaskRow,
   deps: PrepareSpecialistTaskReminderDeliveriesDeps,
-): Promise<ReadyOutgoingDelivery[]> {
+): Promise<SpecialistTaskReadyOutgoingDelivery[]> {
   if (!task.organizationId || !task.remindAt || task.completedAt) return [];
   const organizationId = task.organizationId;
   const remindAt = task.remindAt;
@@ -53,7 +52,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
   ]);
   const text = reminderText(task, patientName);
   const occurredAt = new Date().toISOString();
-  const deliveries: ReadyOutgoingDelivery[] = [];
+  const deliveries: SpecialistTaskReadyOutgoingDelivery[] = [];
   const appendDelivery = (
     channel: SpecialistTaskReadyOutgoingDelivery['channel'],
     materializedIntent: MaterializedIntent,

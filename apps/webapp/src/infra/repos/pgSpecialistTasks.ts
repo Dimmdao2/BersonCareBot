@@ -14,9 +14,9 @@ import type {
   SpecialistTaskPatientSummary,
   SpecialistTaskRow,
 } from '@/modules/specialist-tasks/types';
-import type { ReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
+import type { SpecialistTaskReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 
-type ReminderPreparation = (task: SpecialistTaskRow) => Promise<ReadyOutgoingDelivery[]>;
+type ReminderPreparation = (task: SpecialistTaskRow) => Promise<SpecialistTaskReadyOutgoingDelivery[]>;
 const queueWriter = createPgOutgoingDeliveryQueueWritePort();
 
 function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
@@ -116,7 +116,11 @@ export function createPgSpecialistTasksPort(
         if (!row) throw new Error('specialist_tasks insert failed');
         const task = mapRow(row);
         const deliveries = await prepareReminderDeliveries(task);
-        for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
+        await queueWriter.replaceSpecialistTaskReminderGeneration(tx, {
+          taskId: task.id,
+          deliveries,
+          reason: 'SPECIALIST_TASK_REMINDER_SUPERSEDED',
+        });
         return task;
       });
     },
@@ -152,10 +156,9 @@ export function createPgSpecialistTasksPort(
           patch.remindAt !== undefined;
         if (affectsIntent) {
           const deliveries = await prepareReminderDeliveries(task);
-          for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
-          await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+          await queueWriter.replaceSpecialistTaskReminderGeneration(tx, {
             taskId,
-            exceptEventIds: deliveries.map((delivery) => delivery.eventId),
+            deliveries,
             reason: 'SPECIALIST_TASK_REMINDER_SUPERSEDED',
           });
         }
@@ -185,8 +188,9 @@ export function createPgSpecialistTasksPort(
             ),
           )
           .returning();
-        await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+        await queueWriter.replaceSpecialistTaskReminderGeneration(tx, {
           taskId,
+          deliveries: [],
           reason: 'SPECIALIST_TASK_REMINDER_CANCELLED',
         });
         return updated[0] ? mapRow(updated[0]) : null;
@@ -200,8 +204,9 @@ export function createPgSpecialistTasksPort(
         });
         if (!existing) return false;
         currentWriteOrganizationId(existing.organizationId);
-        await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+        await queueWriter.replaceSpecialistTaskReminderGeneration(tx, {
           taskId,
+          deliveries: [],
           reason: 'SPECIALIST_TASK_REMINDER_DELETED',
         });
         const deleted = await tx
@@ -277,10 +282,9 @@ export function createPgSpecialistTasksPort(
           });
           if (!fresh) return;
           const deliveries = await prepareReminderDeliveries(mapRow(fresh));
-          for (const delivery of deliveries) await queueWriter.enqueueReady(tx, delivery);
-          await queueWriter.terminalizeUnsentSpecialistTaskReminders(tx, {
+          await queueWriter.replaceSpecialistTaskReminderGeneration(tx, {
             taskId: task.id,
-            exceptEventIds: deliveries.map((delivery) => delivery.eventId),
+            deliveries,
             reason: 'SPECIALIST_TASK_REMINDER_SUPERSEDED',
           });
           enqueued += deliveries.length;
