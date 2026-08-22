@@ -19,19 +19,21 @@ import {
   relayMessengerPhoneBindAdminIncident,
   type MessengerPhoneBindIncidentTopic,
 } from '../adminIncidentAlertRelay.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 /**
- * Inserts/updates `public.admin_audit_log` for messenger phone-bind failures.
- * Column set must stay aligned with Drizzle `adminAuditLog` in
- * `apps/webapp/db/schema/schema.ts` (integrator uses raw SQL + `DbPort`; webapp owns schema).
+ * D17 шаг 2b. Разбор конфликта привязки номера уходит в `public.admin_audit_log` ОДНИМ именованным
+ * корнем вместо собственной `db.tx` из четырёх реляционных операторов (`SELECT … FOR UPDATE`,
+ * `UPDATE` счётчика повторов, `INSERT` первой строки и `UPDATE` в ответ на гонку 23505). Дверь одна,
+ * потому что действие одно — «зафиксировать случай и сказать, первый ли он»; её `boolean` и есть
+ * прежний `insertedFirst`, по которому ниже решается, будить ли администратора.
+ *
+ * Замок открытой строки и разбор гонки уехали в тело корня целиком: разделив дверь на «прочитать» и
+ * «записать», мы вынесли бы блокировку за её пределы и потеряли атомарность, ради которой здесь и
+ * была транзакция. Именованный корень транзакцию отношений не открывает и внутри неё не стартует.
  */
-
-function isPgUniqueViolation(err: unknown): boolean {
-  if (typeof err !== 'object' || err === null) return false;
-  const e = err as { code?: unknown; cause?: { code?: unknown } };
-  return e.code === '23505' || e.cause?.code === '23505';
-}
+const RECORD_MESSENGER_PHONE_BIND_AUDIT_ROOT =
+  'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)';
 
 /**
  * Durable audit + deduped admin relay (first inserted open row per `conflict_key`, or first anomaly insert).
@@ -99,63 +101,25 @@ export async function recordMessengerPhoneBindBlocked(input: {
   };
 
   let insertedFirst = false;
-  // D15b/4 (access sweep 2026-08-04): `admin_audit_log` is org-scoped RLS (`saas_org_dormant_p0_8_3`
-  // — `organization_id = app.current_org_id()`), and the retired write here never set the column, so
-  // a row written under the org principal this function now runs under (caller wraps this whole call
-  // in `writeDirectPublic`) would fail its own WITH CHECK. Read the SAME ambient
-  // org id the caller's principal switch used — never guessed, never a different resolution.
+  // D15b/4 (access sweep 2026-08-04): `admin_audit_log` — таблица класса org (`organization_id =
+  // app.current_org_id()`), и прежний писатель колонку не ставил. Организация читается ТА ЖЕ
+  // окружающая, которую поставил переключатель принципала у вызывающего (`writeDirectPublic`
+  // в `writePort.ts`), — не угадывается и не разрешается вторым способом. Корень сверяет её с
+  // принятым контекстом и сужает ею КАЖДЫЙ поиск строки.
   const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
+  const detailsJson = JSON.stringify(baseDetails);
+  const targetId = candidateIds[0] ?? null;
 
   try {
-    await input.db.tx(async (tx) => {
-      if (conflictKey) {
-        const existing = await runIntegratorSql<{ id: string; repeat_count: number }>(
-          tx,
-          sql`SELECT id::text, repeat_count FROM public.admin_audit_log
-           WHERE conflict_key = ${conflictKey} AND resolved_at IS NULL
-           FOR UPDATE
-           LIMIT 1`,
-        );
-        if (existing.rows[0]) {
-          await runIntegratorSql(
-            tx,
-            sql`UPDATE public.admin_audit_log
-             SET details = details || ${JSON.stringify(baseDetails)}::jsonb,
-                 repeat_count = repeat_count + 1,
-                 last_seen_at = now(),
-                 status = 'error'
-             WHERE id = ${existing.rows[0].id}::uuid`,
-          );
-        } else {
-          try {
-            await runIntegratorSql(
-              tx,
-              sql`INSERT INTO public.admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status, repeat_count, last_seen_at)
-               VALUES (${organizationId}::uuid, NULL, 'messenger_phone_bind_blocked', ${candidateIds[0] ?? null}, ${conflictKey}, ${JSON.stringify(baseDetails)}::jsonb, 'error', 1, now())`,
-            );
-            insertedFirst = true;
-          } catch (err) {
-            if (!isPgUniqueViolation(err)) throw err;
-            await runIntegratorSql(
-              tx,
-              sql`UPDATE public.admin_audit_log
-               SET details = details || ${JSON.stringify(baseDetails)}::jsonb,
-                   repeat_count = repeat_count + 1,
-                   last_seen_at = now(),
-                   status = 'error'
-               WHERE conflict_key = ${conflictKey} AND resolved_at IS NULL`,
-            );
-          }
-        }
-      } else {
-        await runIntegratorSql(
-          tx,
-          sql`INSERT INTO public.admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
-           VALUES (${organizationId}::uuid, NULL, 'messenger_phone_bind_anomaly', ${candidateIds[0] ?? null}, NULL, ${JSON.stringify(baseDetails)}::jsonb, 'error')`,
-        );
-        insertedFirst = true;
-      }
-    });
+    const recorded = await runIntegratorNamedRoot<{ inserted_first: boolean }>(
+      input.db,
+      RECORD_MESSENGER_PHONE_BIND_AUDIT_ROOT,
+      [organizationId, targetId, conflictKey, detailsJson],
+      sql`SELECT app.integrator_record_messenger_phone_bind_audit(
+        ${organizationId}::uuid, ${targetId}::text, ${conflictKey}::text, ${detailsJson}::text
+      ) AS inserted_first`,
+    );
+    insertedFirst = recorded.rows[0]?.inserted_first === true;
   } catch (err) {
     logger.error(
       { err, reason: input.reason },

@@ -2577,6 +2577,21 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.broadcast-audit-counter.increment',
       functionIdentity: 'app.integrator_increment_broadcast_audit_counter(uuid,uuid,text)' },
+    // D17 шаг 2b: три оставшихся реляционных писателя `public.*` из интегратора. Ключ каждой двери
+    // порта интегратора начинается с `integrator_port_…` — каталог возможностей это ОДИН объектный
+    // литерал, и одинаковый ключ не дополняет соседа, а вытесняет его молча (так шаг 1 потерял
+    // дверь поддержки). Класс контекста у обеих — `tenant_service`: живой маршрут ставит метку и
+    // пишет разбор конфликта внутри организационного принципала.
+    integrator_port_user_channel_bot_blocked_set: { port: 'integrator',
+      runtimeName: 'user_channel_bot_blocked_set', sessionRole: 'app_integrator_request',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.user-channel-bot-blocked.set',
+      functionIdentity: 'app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)' },
+    integrator_port_messenger_phone_bind_audit_record: { port: 'integrator',
+      runtimeName: 'messenger_phone_bind_audit_record', sessionRole: 'app_integrator_request',
+      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      purpose: 'integrator.messenger-phone-bind-audit.record',
+      functionIdentity: 'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)' },
     integrator_auth_channel_setting_read: { port: 'integrator', runtimeName: 'auth_channel_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-auth-channel.read',
@@ -6281,6 +6296,42 @@ const REV10_CONTEXT = {
         { relation: 'public.broadcast_audit',
           columns: ['id', 'organization_id', 'sent_count', 'error_count', 'blocked_recipient_count'],
           operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // D17 шаг 2b: две двери на три оставшихся реляционных писателя `public.*`. Тело каждой повторяет
+    // ту стену, которую сегодня даёт RLS роли живого маршрута (конкретная политика названа в шапке
+    // миграции корня).
+    'app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)': rev10Function({
+      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'integrator.user-channel-bot-blocked.set',
+      typedArgs: ['uuid', 'uuid', 'text', 'text', 'boolean', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.user_channel_bindings',
+          columns: ['user_id', 'channel_code', 'external_id', 'bot_blocked_at', 'bot_blocked_reason'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members',
+          columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments',
+          columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // `SELECT … FOR UPDATE` по открытой строке случая — право класса UPDATE, а не SELECT; оно у
+    // этого владельца шва уже объявлено, и тело всё равно обновляет ту же таблицу по существу дела.
+    'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_tenant_service'], purpose: 'integrator.messenger-phone-bind-audit.record',
+      typedArgs: ['uuid', 'text', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.admin_audit_log',
+          columns: ['id', 'organization_id', 'actor_id', 'action', 'target_id', 'conflict_key',
+            'details', 'status', 'repeat_count', 'last_seen_at', 'resolved_at'],
+          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
