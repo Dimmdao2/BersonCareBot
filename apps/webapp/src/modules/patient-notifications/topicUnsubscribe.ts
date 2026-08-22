@@ -106,7 +106,7 @@ export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps)
       if (
         !isPlatformUserUuid(payload.userId) ||
         !isValidNotificationTopicId(payload.topicCode) ||
-        !isValidNotificationTopicTitle(payload.topicTitle) ||
+        !isValidNotificationTopicTitle(payload.topicTitle ?? '') ||
         payload.nonce.length < 8 ||
         payload.nonce.length > 200
       ) {
