@@ -31,9 +31,15 @@ import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
  * Замок открытой строки и разбор гонки уехали в тело корня целиком: разделив дверь на «прочитать» и
  * «записать», мы вынесли бы блокировку за её пределы и потеряли атомарность, ради которой здесь и
  * была транзакция. Именованный корень транзакцию отношений не открывает и внутри неё не стартует.
+ *
+ * D15b/7a Ш8 (22.08): дверь та же, имя новое. Вид события переехал из тела двери (там он выводился
+ * из «`conflict_key` пуст или нет») в её ПАРАМЕТР, и та же точка обслуживает четыре точки
+ * пересечения границы «личность ↔ медицина». Второй двери в `admin_audit_log` не заведено —
+ * AGENTS.md §5: варианты одного действия это параметры одной точки, а имя, переставшее описывать
+ * работу, меняется тем же изменением. Здесь поэтому вид события называется явно, а не выводится.
  */
-const RECORD_MESSENGER_PHONE_BIND_AUDIT_ROOT =
-  'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)';
+const RECORD_COLLAPSING_AUDIT_EVENT_ROOT =
+  'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)';
 
 /**
  * Durable audit + deduped admin relay (first inserted open row per `conflict_key`, or first anomaly insert).
@@ -110,16 +116,23 @@ export async function recordMessengerPhoneBindBlocked(input: {
   const detailsJson = JSON.stringify(baseDetails);
   const targetId = candidateIds[0] ?? null;
 
+  // Вид события называет вызывающий, а не выводит тело двери. Значение то же, что и было:
+  // есть ключ схлопывания — это разбор конфликта, нет — аномалия без кандидатов.
+  const auditAction = conflictKey ? 'messenger_phone_bind_blocked' : 'messenger_phone_bind_anomaly';
+  // У этого события актора нет: его пишет сервер по входящему вебхуку, а не человек.
+  const auditActorId: string | null = null;
+
   try {
-    const recorded = await runIntegratorNamedRoot<{ inserted_first: boolean }>(
+    const recorded = await runIntegratorNamedRoot<{ recorded: { inserted_first?: boolean } | null }>(
       input.db,
-      RECORD_MESSENGER_PHONE_BIND_AUDIT_ROOT,
-      [organizationId, targetId, conflictKey, detailsJson],
-      sql`SELECT app.integrator_record_messenger_phone_bind_audit(
-        ${organizationId}::uuid, ${targetId}::text, ${conflictKey}::text, ${detailsJson}::text
-      ) AS inserted_first`,
+      RECORD_COLLAPSING_AUDIT_EVENT_ROOT,
+      [auditAction, organizationId, auditActorId, targetId, conflictKey, detailsJson],
+      sql`SELECT app.record_collapsing_audit_event(
+        ${auditAction}::text, ${organizationId}::uuid, ${auditActorId}::uuid, ${targetId}::text,
+        ${conflictKey}::text, ${detailsJson}::text
+      ) AS recorded`,
     );
-    insertedFirst = recorded.rows[0]?.inserted_first === true;
+    insertedFirst = recorded.rows[0]?.recorded?.inserted_first === true;
   } catch (err) {
     logger.error(
       { err, reason: input.reason },

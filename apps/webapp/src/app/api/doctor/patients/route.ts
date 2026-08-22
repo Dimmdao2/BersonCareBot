@@ -12,6 +12,8 @@
 import { NextResponse } from 'next/server';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { recordPatientListView } from '@/app-layer/identity/recordIdentityBoundaryCrossing';
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
 
 export async function GET(request: Request) {
@@ -52,6 +54,18 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   const clients = await deps.doctorClients.listClients(filters);
+
+  // D15b/7a Ш8: список — ОДНО событие на пакет, не строка на человека (решение владельца,
+  // `IDENTITY_AND_MERGE_SCHEME.md` §2c: «список из N пациентов — ОДНО событие, не N»). В записи
+  // остаётся размер пакета, а не перечень людей: кто числится в клинике, и так известно по её
+  // зачислениям, а список идентификаторов был бы лишними персональными данными в журнале.
+  await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.identity-boundary-audit', () =>
+    recordPatientListView({
+      organizationId: gate.ctx.organizationId,
+      actorId: gate.ctx.session.user.userId,
+      subjectCount: clients.length,
+    }),
+  );
 
   return NextResponse.json({ clients });
 }

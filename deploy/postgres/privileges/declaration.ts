@@ -2611,7 +2611,7 @@ const REV10_CONTEXT = {
       runtimeName: 'messenger_phone_bind_audit_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.messenger-phone-bind-audit.record',
-      functionIdentity: 'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)' },
+      functionIdentity: 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)' },
     // D17 финал: реляционные ЧИТАТЕЛИ `public.*` из интегратора. Ключ двери порта интегратора
     // начинается с `integrator_port_…` по той же причине, что у шага 2b: каталог возможностей — ОДИН
     // объектный литерал, и одинаковый ключ вытесняет соседа молча.
@@ -2971,6 +2971,22 @@ const REV10_CONTEXT = {
     webapp_pre_session_audit_event_append: { port: 'webapp', runtimeName: 'pre_session_audit_event_append',
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
+    // D15b/7a Ш8: две веб-возможности ОДНОЙ двери журнала пересечения границы. Дверь одна на все
+    // четыре точки (акт связывания, вход, карточка, список) — вид события её ПАРАМЕТР, а не вторая
+    // функция (AGENTS.md §5). Классов два, потому что и точки две по природе: вход человек делает
+    // до установки своего принципала (`pre_session`), карточку и список открывает персонал
+    // (`staff`). Цель у обеих одна — тело двери сверяет пару «роль/класс» по действию, и подменить
+    // одну точку другой нечем: под контекстом персонала действие входа не пройдёт гейт.
+    webapp_staff_identity_boundary_audit_record: { port: 'webapp',
+      runtimeName: 'staff_identity_boundary_audit_record', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'identity.boundary-crossing.record',
+      functionIdentity: 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)' },
+    webapp_pre_session_identity_boundary_audit_record: { port: 'webapp',
+      runtimeName: 'pre_session_identity_boundary_audit_record', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'identity.boundary-crossing.record',
+      functionIdentity: 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)' },
     webapp_platform_incidents_acknowledge: { port: 'webapp', runtimeName: 'platform_incidents_acknowledge',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.operator-incidents.acknowledge',
@@ -6551,12 +6567,26 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // ОДНА дверь записи схлопывающегося события в `admin_audit_log`. До D15b/7a Ш8 она называлась
+    // `app.integrator_record_messenger_phone_bind_audit` и знала ровно один случай — разбор
+    // конфликта привязки номера. Ш8 не завёл вторую: вид события стал ПАРАМЕТРОМ этой точки
+    // (AGENTS.md §5), и та же дверь пишет четыре точки пересечения границы «личность↔медицина».
+    // Имя перестало описывать работу — точка переименована тем же изменением, как §5 и требует.
+    //
+    // Три возможности с тремя парами «роль/класс» переводят генератор в режим `exact_existing`:
+    // гейт в теле рукописный (CASE по действию), reconcile сверяет в нём токены каждой тройки,
+    // а не переписывает его. Четвёртая ветка гейта — внутренний вызов из
+    // `app_ext.resolve_variant_a_identity`: акт связывания рождается внутри разрешения ссылки, и
+    // ветка требует контекст ИМЕННО того разрешения, поэтому своей возможности у неё нет.
+    //
     // `SELECT … FOR UPDATE` по открытой строке случая — право класса UPDATE, а не SELECT; оно у
     // этого владельца шва уже объявлено, и тело всё равно обновляет ту же таблицу по существу дела.
-    'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_integrator_request'], purpose: 'integrator.messenger-phone-bind-audit.record',
-      typedArgs: ['uuid', 'text', 'text', 'text'],
+    // `created_at` в поверхности нет: строку рождает DEFAULT, тело её не называет.
+    'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_integrator_request', 'app_staff', 'app_pre_session', 'app_seam_identity_lookup_owner'],
+      purpose: 'integrator.messenger-phone-bind-audit.record',
+      typedArgs: ['text', 'uuid', 'uuid', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.admin_audit_log',
@@ -6724,6 +6754,10 @@ const REV10_CONTEXT = {
       // ever reads an existing reference or inserts a missing one. It never rewrites a row.
       // Вид ссылки — аргумент с Ш3 (22.08): тело читает `ref_kind` в предикате, пишет его
       // вставкой и называет арбитром `ON CONFLICT` — все три операции лежат в одной поверхности.
+      // D15b/7a Ш8: рождение subject-ссылки — это и есть акт связывания, и он уходит в ОДНУ дверь
+      // журнала. Своей поверхности на `admin_audit_log` у резолвера от этого не появляется: пишет
+      // дверь, у неё эта поверхность и объявлена.
+      delegatesTo: ['app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
     // Совместимая сигнатура D15b/7a Ш3–Ш6: тонкий делегат без собственного тела, снимается Ш7.
     // Своей поверхности у него нет и быть не может: карту читает и пишет тот, кому он передаёт.
