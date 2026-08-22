@@ -1253,7 +1253,9 @@ booking/event gateway) в том же источнике помечены «за
       `app_integrator_tenant_service`. Текущая декларация даёт `old_memberships=0`, `narrow_memberships=1`,
       `old_capabilities=0`, `narrow_capabilities=1`, `relations=8`, `forced_relations=8`; точная команда и
       живое rollback-only доказательство `0 → 78 → 0` записаны в
-      `runs/integrator-cleanup/D17_DROP_WIDE_MEMBERSHIP_2026-08-22.md`. Отдельная роль интегратора: право писать только то, что нужно приёму и
+      `runs/integrator-cleanup/D17_DROP_WIDE_MEMBERSHIP_2026-08-22.md`. ⚠️ Замер сделан на **DEV**: на TEST узкая
+      роль приезжает выкаткой 23.08, и что доставка при ней живая, проверяется обходом
+      `OWNER_WALKTHROUGHS/2026-08-23_TEST_FULL_WALK.md` (строка «узкая роль интегратора не мешает доставке»). Отдельная роль интегратора: право писать только то, что нужно приёму и
       доставке (свои таблицы, очередь, привязки каналов), без доступа к продуктовому канону. ~~Сегодня у него та
       же роль, что у вебаппа~~ ⚠️ **ФАКТ УСТАРЕЛ 20.08:** `bcb_dev_integrator`/`bcb_test_integrator` уже
       задекларированы отдельным login/`canonicalRole: 'app_integrator_request'`
