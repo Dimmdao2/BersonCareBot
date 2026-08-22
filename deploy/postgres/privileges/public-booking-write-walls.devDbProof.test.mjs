@@ -61,7 +61,7 @@ function fixture(sql, what) {
  * аргументы. `typedArgsSql` считается ЗДЕСЬ, от имени администратора: `app.hash_port_typed_args`
  * рабочим ролям не выдан, и это правильно — его зовут изнутри дверей.
  */
-function acceptPatientContext({ purpose, functionIdentity, typedArgsSql, subjectRef, organizationId }) {
+function acceptPatientContext({ purpose, functionIdentity, typedArgsSql, actorRef, organizationId }) {
   // Строка способности ПЕРЕСНИМАЕТСЯ с объявленной, отличаясь только логином: заявку здесь ставит
   // администратор, а `app.require_attested_context_for_roles` — гейт, который дверь зачисления зовёт
   // вложенно вместе с единственной проверкой оплаченного числа клиентов — соединяет принятый
@@ -70,6 +70,14 @@ function acceptPatientContext({ purpose, functionIdentity, typedArgsSql, subject
   // теряется; сама пересъёмка живёт внутри транзакции, которая заканчивается ROLLBACK. Строка
   // принятого контекста может быть в транзакции только одна — ключ (база, бэкенд, транзакция).
   return `
+-- D15b/7a Ш5 (22.08): поля заявки несут ссылки РАЗНОГО вида, и это не оформление. С этого шага
+-- app.current_patient_user_id разрешает subject_ref СУБЪЕКТНЫМ видом, поэтому акторская ссылка,
+-- положенная сюда (как было до Ш4), дала бы 42501 на первом же чтении пациента и уронила бы дверь
+-- не по её причине. Субъектная чеканится тем же резолвером, что зовёт приложение, отдельным
+-- statement-ом (чтобы DML не жил внутри чужого запроса) и внутри той же транзакции с ROLLBACK.
+DO $mint$ BEGIN PERFORM set_config('bcb.proof_subject_ref', app_ext.resolve_variant_a_identity(
+  (SELECT r.physical_user_id FROM app_ext.variant_a_identity_refs r
+    WHERE r.opaque_ref = '${actorRef}'::uuid), 'subject')::text, false); END $mint$;
 INSERT INTO app_ext.port_context_capabilities
   (capability_id, port, session_login, target_role, context_class, purpose, function_identity)
 SELECT '00000000-0000-4000-8000-0000000000fd'::uuid, c.port, session_user,
@@ -84,7 +92,7 @@ INSERT INTO app_ext.accepted_port_contexts (
 SELECT d.oid, pg_backend_pid(), pg_current_xact_id(), c.capability_id, c.session_login,
        c.port, c.target_role, c.context_class, c.purpose, c.function_identity,
        app.hash_port_typed_args(${typedArgsSql}),
-       '${subjectRef}'::uuid, '${subjectRef}'::uuid,
+       '${actorRef}'::uuid, current_setting('bcb.proof_subject_ref')::uuid,
        ${organizationId ? `'${organizationId}'::uuid` : 'NULL::uuid'}
   FROM pg_database d, app_ext.port_context_capabilities c
  WHERE d.datname = current_database()
@@ -121,27 +129,32 @@ const enrolTypedArgs = (organizationId) =>
   `ARRAY[ROW('uuid@1', pg_catalog.uuid_send('${organizationId}'::uuid))::app.port_typed_arg,`
   + ` ROW('text@1', pg_catalog.textsend('${ENROL_CHANNEL}'))::app.port_typed_arg]`;
 
-function enrol({ subjectRef, organizationId }) {
+function enrol({ actorRef, organizationId }) {
   return callDoor({
     context: acceptPatientContext({
       purpose: ENROL_PURPOSE,
       functionIdentity: ENROL_FN,
       typedArgsSql: enrolTypedArgs(organizationId),
-      subjectRef,
+      actorRef,
     }),
     call: `app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid, '${ENROL_CHANNEL}'::text)`,
   });
 }
 
-/** Личность, у которой ЕСТЬ разрешаемая ссылка variant-a: без неё контекст не назовёт человека. */
+/**
+ * АКТОРСКАЯ ссылка личности клиента: без неё контекст не назовёт человека. Вид назван явно с Ш5
+ * (22.08) — карта с Ш1 держит на человека строку каждого вида, и «любая его строка» перестала быть
+ * однозначным ответом: субъектная строка, взятая сюда, поехала бы в `actor_ref`, где резолвер её
+ * теперь не берёт.
+ */
 function anyPatientRef() {
   return fixture(
     `SELECT ref.opaque_ref
        FROM app_ext.variant_a_identity_refs ref
        JOIN public.platform_users u ON u.id = ref.physical_user_id
-      WHERE u.merged_into_id IS NULL AND u.role = 'client'
+      WHERE u.merged_into_id IS NULL AND u.role = 'client' AND ref.ref_kind = 'actor'
       LIMIT 1;`,
-    'клиент с разрешаемой ссылкой личности',
+    'клиент с разрешаемой акторской ссылкой личности',
   )[0];
 }
 
@@ -155,10 +168,10 @@ function publishedOrg() {
 
 test('дверь зачисления не верит аргументу: неопубликованная и выдуманная клиника отвергнуты базой',
   { skip: !ENABLED }, () => {
-    const subjectRef = anyPatientRef();
+    const actorRef = anyPatientRef();
 
     const published = publishedOrg();
-    const accepted = enrol({ subjectRef, organizationId: published });
+    const accepted = enrol({ actorRef, organizationId: published });
     assert.match(accepted, /^ALLOW\|\{.*"status": ?"(active|invited)".*\}$/u,
       `опубликованная клиника не приняла посетителя: ${accepted}`);
 
@@ -174,13 +187,13 @@ test('дверь зачисления не верит аргументу: нео
       ['неопубликованная', unpublished],
       ['выдуманная', INVENTED_ORG],
     ]) {
-      const refusal = enrol({ subjectRef, organizationId });
+      const refusal = enrol({ actorRef, organizationId });
       assert.match(refusal, /^42501\|/u, `${label} клиника принята дверью: ${refusal}`);
     }
   });
 
 test('дверь зачисления берёт человека из контекста, а не из аргумента', { skip: !ENABLED }, () => {
-  const subjectRef = anyPatientRef();
+  const actorRef = anyPatientRef();
   const organizationId = publishedOrg();
 
   // Аргумент с человеком у двери отсутствует по сигнатуре — это и есть стена. Проверяется, что
@@ -191,17 +204,17 @@ ${acceptPatientContext({
   purpose: ENROL_PURPOSE,
   functionIdentity: ENROL_FN,
   typedArgsSql: enrolTypedArgs(organizationId),
-  subjectRef,
+  actorRef,
 })}
 DELETE FROM public.org_enrollments
  WHERE organization_id = '${organizationId}'::uuid
-   AND platform_user_id = app_ext.resolve_variant_a_physical('${subjectRef}'::uuid);
+   AND platform_user_id = app_ext.resolve_variant_a_physical('${actorRef}'::uuid, 'actor');
 SELECT app.enroll_current_patient_in_public_booking_clinic('${organizationId}'::uuid, '${ENROL_CHANNEL}'::text);
-SELECT (e.platform_user_id = app_ext.resolve_variant_a_physical('${subjectRef}'::uuid))::text
+SELECT (e.platform_user_id = app_ext.resolve_variant_a_physical('${actorRef}'::uuid, 'actor'))::text
        || '|' || e.status || '|' || COALESCE(e.portal_activated_via, '<null>')
   FROM public.org_enrollments e
  WHERE e.organization_id = '${organizationId}'::uuid
-   AND e.platform_user_id = app_ext.resolve_variant_a_physical('${subjectRef}'::uuid);
+   AND e.platform_user_id = app_ext.resolve_variant_a_physical('${actorRef}'::uuid, 'actor');
 ROLLBACK;`)
     .split('\n')
     .map((line) => line.trim())
@@ -213,7 +226,7 @@ ROLLBACK;`)
 });
 
 test('выписанного и архивного клиента дверь зачисления обратно не открывает', { skip: !ENABLED }, () => {
-  const subjectRef = anyPatientRef();
+  const actorRef = anyPatientRef();
   const organizationId = publishedOrg();
 
   for (const status of ['discharged', 'archived']) {
@@ -223,10 +236,10 @@ ${acceptPatientContext({
   purpose: ENROL_PURPOSE,
   functionIdentity: ENROL_FN,
   typedArgsSql: enrolTypedArgs(organizationId),
-  subjectRef,
+  actorRef,
 })}
 INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
-VALUES ('${organizationId}'::uuid, app_ext.resolve_variant_a_physical('${subjectRef}'::uuid), '${status}')
+VALUES ('${organizationId}'::uuid, app_ext.resolve_variant_a_physical('${actorRef}'::uuid, 'actor'), '${status}')
 ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET status = '${status}',
   portal_activated_at = NULL, portal_activated_via = NULL;
 DO $proof$
@@ -254,7 +267,7 @@ test('чужой идентификатор организации в созда
     // и ЖИВАЯ, публично записываемая тройка «филиал+специалист+услуга» ЧУЖОЙ клиники. Иначе тест
     // ничего не доказывает: выдуманные идентификаторы каталога роняют вызов на проверке каталога
     // (42501) независимо от того, сверяется ли организация вообще — проверено внесением поломки.
-    const [subjectRef, patientId, ownOrg, foreignOrg, branchId, specialistId, serviceId] = fixture(`
+    const [actorRef, patientId, ownOrg, foreignOrg, branchId, specialistId, serviceId] = fixture(`
 SELECT ref.opaque_ref || '|' || ref.physical_user_id || '|' || own.organization_id || '|'
        || a.organization_id || '|' || a.branch_id || '|' || a.specialist_id || '|' || a.service_id
   FROM app_ext.variant_a_identity_refs ref
@@ -268,7 +281,7 @@ SELECT ref.opaque_ref || '|' || ref.physical_user_id || '|' || own.organization_
   JOIN public.be_clinic_services s
     ON s.id = a.service_id AND s.organization_id = a.organization_id AND s.is_active
    AND s.public_widget_visible AND NOT s.admin_manual_only
- WHERE a.is_active
+ WHERE a.is_active AND ref.ref_kind = 'actor'
  LIMIT 1;`, 'клиент своей клиники и живая публичная тройка каталога чужой клиники');
 
     // Всё в полезной нагрузке настоящее и согласованное, кроме одного: организация ЧУЖАЯ, а принятый
@@ -292,7 +305,7 @@ SELECT ref.opaque_ref || '|' || ref.physical_user_id || '|' || own.organization_
         purpose: 'booking.patient-appointments.create',
         functionIdentity: 'app.create_current_patient_booking_appointments(text)',
         typedArgsSql: `ARRAY[ROW('text@1', pg_catalog.textsend('${payload}'::text))::app.port_typed_arg]`,
-        subjectRef,
+        actorRef,
         organizationId: ownOrg,
       }),
       call: `app.create_current_patient_booking_appointments('${payload}'::text)`,

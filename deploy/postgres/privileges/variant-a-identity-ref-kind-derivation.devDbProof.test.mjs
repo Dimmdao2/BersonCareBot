@@ -15,7 +15,8 @@
  * разделитель акторского вида ПУСТ — этим акторская формула осталась побайтно прежней.
  *
  * Что здесь доказывается ПОВЕДЕНИЕМ самих функций, а не текстом исходника:
- *   1. два вида одного человека дают РАЗНЫЕ ссылки, и обе разрешаются в него же;
+ *   1. два вида одного человека дают РАЗНЫЕ ссылки, и обе разрешаются в него же — каждая своим
+ *      видом (Ш5, 22.08: однопараметрический вызов назвал бы 'actor' и субъектную больше не берёт);
  *   2. каждую из уже выданных акторских ссылок продукт ВОСПРОИЗВОДИТ дословно (строка удаляется в
  *      откаченной транзакции и чеканится заново ТЕМ ЖЕ резолвером — сравнивается не пересказ
  *      формулы, а её собственный ответ);
@@ -127,8 +128,8 @@ test('Ш4: два вида одного человека дают РАЗНЫЕ �
     subject_ref := app_ext.resolve_variant_a_identity(person, 'subject');
     PERFORM set_config('bcb.probe',
       actor_ref::text || '|' || subject_ref::text || '|' ||
-      app_ext.resolve_variant_a_physical(actor_ref)::text || '|' ||
-      app_ext.resolve_variant_a_physical(subject_ref)::text || '|' || person::text, false);
+      app_ext.resolve_variant_a_physical(actor_ref, 'actor')::text || '|' ||
+      app_ext.resolve_variant_a_physical(subject_ref, 'subject')::text || '|' || person::text, false);
   END;`);
     assert.equal(parts.length, 5, `вид не развёл ссылки: ${parts.join('|')}`);
     assert.notEqual(parts[1], parts[0],

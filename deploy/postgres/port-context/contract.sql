@@ -583,7 +583,9 @@ BEGIN
   SELECT actor_ref INTO opaque_ref FROM app_ext.accepted_port_contexts
    WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role IN ('app_staff','app_clinic_billing','app_patient','app_platform_settings','app_platform_admin');
   IF opaque_ref IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted actor context required'; END IF;
-  SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
+  -- D15b/7a Ш5 (22.08): аксессор называет ВИД ссылки, которую читает. `actor_ref` обязан нести
+  -- акторскую — субъектная, положенная в это поле, отвергается резолвером, а не разрешается молча.
+  SELECT app_ext.resolve_variant_a_physical(opaque_ref, 'actor') INTO physical_id;
   RETURN physical_id;
 END $$;
 CREATE OR REPLACE FUNCTION app.current_patient_user_id()
@@ -593,7 +595,11 @@ BEGIN
   SELECT subject_ref INTO opaque_ref FROM app_ext.accepted_port_contexts
    WHERE database_oid=(SELECT oid FROM pg_database WHERE datname=current_database()) AND backend_pid=pg_backend_pid() AND transaction_id=pg_current_xact_id() AND cleared_at IS NULL AND target_role='app_patient';
   IF opaque_ref IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted patient context required'; END IF;
-  SELECT app_ext.resolve_variant_a_physical(opaque_ref) INTO physical_id;
+  -- D15b/7a Ш5 (22.08): здесь читается `subject_ref`, значит и спрашивается СУБЪЕКТНЫЙ вид. Оставь
+  -- тут прежний однопараметрический вызов — он назвал бы 'actor', и после Ш4 (пациент кладёт в это
+  -- поле субъектную ссылку) КАЖДОЕ чтение пациента умерло бы `42501`. Это не украшение вида, а
+  -- условие работоспособности шага: правка тела резолвера и правка его вызывающих неразделимы.
+  SELECT app_ext.resolve_variant_a_physical(opaque_ref, 'subject') INTO physical_id;
   RETURN physical_id;
 END $$;
 CREATE OR REPLACE FUNCTION app.current_integrator_user_id()
@@ -700,27 +706,43 @@ BEGIN
   RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, 'actor');
 END $$;
 
--- D15b/7a step 3 (22.08): the reverse resolver ACCEPTS the expected kind and does NOT yet compare
--- it.  That is the whole of step 3 and it is deliberate: today both references of a person are the
--- same value (`portContextRuntime.ts` puts one reference into both `actor_ref` and `subject_ref`),
--- so a comparison here would refuse every live patient transaction.  Step 4 makes the application
--- ask for a subject reference; step 5 -- and only step 5 -- turns the argument below into a
--- fail-closed check that raises `42501` on a kind mismatch, exactly as on an unknown reference.
--- The argument exists one step early so that the caller chain, the declaration and the grants move
--- once, and step 5 is a change of this body alone.
+-- D15b/7a step 5 (22.08): the reverse resolver COMPARES the kind, and this is the step where the
+-- oracle's requirement -- "the resolver does not accept an actor-ref where a subject-ref is due"
+-- (`WORK_ORDER.md`, D15b/7) -- stops being a promise about the application and becomes a refusal
+-- of the DATABASE.  Steps 1-2 gave the map a kind, step 3 gave this function the argument, step 4
+-- made the two references of one person genuinely different values; up to here a reference of the
+-- wrong kind resolved silently, because the row was found by `opaque_ref` alone.
+--
+-- The kind enters the LOOKUP PREDICATE rather than a second statement comparing what the first one
+-- found.  Two reasons, and neither is brevity.  First, `opaque_ref` is UNIQUE, so "find by ref then
+-- check the kind" and "find by (ref, kind)" answer identically -- but the predicate form has ONE
+-- exit for both refusals, and the scheme asks for exactly that: a mismatch raises `42501` EXACTLY
+-- as an unknown reference does.  Second, a reference whose kind is wrong must be indistinguishable
+-- from a reference that does not exist, message included: telling the caller "this ref exists, but
+-- it is the actor one" hands out the very fact the split is built to withhold -- that the presented
+-- value is a live reference of that person at all.  Hence no new error class and no new message.
+--
+-- What this does NOT do is validate the ASKED-FOR kind against the closed list.  It cannot: an
+-- unknown kind matches no row and is refused by this same `42501`, which is the correct answer for
+-- a caller inventing a third kind of reference.  The closed list stays where a list belongs -- the
+-- table CHECK, on the minting side.
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid, p_expected_ref_kind text)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE physical_id uuid;
 BEGIN
-  SELECT physical_user_id INTO physical_id FROM app_ext.variant_a_identity_refs WHERE opaque_ref = p_opaque_ref;
+  SELECT physical_user_id INTO physical_id FROM app_ext.variant_a_identity_refs
+   WHERE opaque_ref = p_opaque_ref AND ref_kind = p_expected_ref_kind;
   IF physical_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted opaque identity context required'; END IF;
   RETURN physical_id;
 END $$;
 
--- Compatibility signature, D15b/7a steps 3-6 only.  Unlike its minting twin this one still has
--- live in-database callers -- `app.current_actor_user_id`, `app.current_patient_user_id` and
--- `app_ext.assert_port_context_claim` all resolve a reference without naming a kind until step 5 --
--- so it keeps its execute grant.  It carries no body of its own.  Step 7 drops it by name.
+-- Compatibility signature, D15b/7a steps 3-6 only.  Until step 5 it had live in-database callers:
+-- `app.current_actor_user_id`, `app.current_patient_user_id` and `app_ext.assert_port_context_claim`
+-- each resolved a reference without naming a kind.  Step 5 gave all three the kind they mean, so
+-- nothing inside the database reaches this door any more.  It survives to step 7, which drops it by
+-- name, and it keeps its execute grant meanwhile -- withdrawing the grant is a privilege change,
+-- and step 5 changes no privileges (scheme, section 3.2).  It is not a way around the check: it
+-- carries no body of its own, it names the ACTOR kind, and the one resolver above compares it.
 CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 BEGIN
@@ -770,8 +792,13 @@ RETURNS void LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE
 SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE actor_id uuid; subject_id uuid;
 BEGIN
-  IF p_actor_ref IS NOT NULL THEN actor_id := app_ext.resolve_variant_a_physical(p_actor_ref); END IF;
-  IF p_subject_ref IS NOT NULL THEN subject_id := app_ext.resolve_variant_a_physical(p_subject_ref); END IF;
+  -- D15b/7a Ш5 (22.08): каждое поле заявки разрешается ВИДОМ, который ему положен, и это то самое
+  -- место, где подмена полей становится отказом БАЗЫ, а не договорённостью приложения. Заявка
+  -- приходит от того, кто устанавливает контекст; до этого шага он мог назвать акторскую ссылку
+  -- субъектом и получить принятый контекст, в котором `actor_id = subject_id` — то есть пройти
+  -- проверку «пациент действует только за себя» ссылкой, которой у него на это права нет.
+  IF p_actor_ref IS NOT NULL THEN actor_id := app_ext.resolve_variant_a_physical(p_actor_ref, 'actor'); END IF;
+  IF p_subject_ref IS NOT NULL THEN subject_id := app_ext.resolve_variant_a_physical(p_subject_ref, 'subject'); END IF;
 
   -- staff (app_staff, app_clinic_billing): актор обязан иметь ДЕЙСТВУЮЩЕЕ членство именно в
   -- заявленной организации.  `status='active'` — не украшение: на dev тот же человек числится

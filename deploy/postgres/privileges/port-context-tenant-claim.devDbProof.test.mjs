@@ -48,22 +48,37 @@ function psql(sql) {
 
 const INVENTED = '11111111-2222-4333-8444-555555555555';
 
-/** Возвращает 'ok' либо 'SQLSTATE|сообщение' — так один прогон покрывает и приём, и отказ. */
-function claim({ contextClass, targetRole, actorRef, subjectRef, organizationId, integratorUserId }) {
+/**
+ * Возвращает 'ok' либо 'SQLSTATE|сообщение' — так один прогон покрывает и приём, и отказ.
+ *
+ * `subjectKindOf` — СУБЪЕКТНАЯ ссылка человека, которому принадлежит переданная акторская. Опция
+ * появилась с D15b/7a Ш5 (22.08): гейт с этого шага разрешает `actor_ref` акторским видом, а
+ * `subject_ref` — субъектным, и подставить сюда одно значение дважды (как делали и приложение, и
+ * этот тест до Ш4) значит получить `42501` по виду вместо проверки, ради которой тест написан.
+ * Ссылка чеканится тем же резолвером, что зовёт приложение; вызов обёрнут в `BEGIN … ROLLBACK`,
+ * поэтому в карте DEV после прогона не остаётся ни одной новой строки.
+ */
+function claim({ contextClass, targetRole, actorRef, subjectRef, subjectKindOf, organizationId, integratorUserId }) {
   const literal = (value, cast) => (value === undefined || value === null ? 'NULL' : `'${value}'::${cast}`);
+  const subjectSql = subjectKindOf
+    ? `app_ext.resolve_variant_a_identity((SELECT r.physical_user_id
+         FROM app_ext.variant_a_identity_refs r WHERE r.opaque_ref = '${subjectKindOf}'::uuid), 'subject')`
+    : literal(subjectRef, 'uuid');
   // Итог кладётся в параметр сессии, а не в NOTICE: NOTICE уходит в stderr и до `execFileSync` не
   // доезжает, а исход отказа — ровно то, что здесь доказывается.
   return psql(`
+BEGIN;
 DO $$
 BEGIN
   PERFORM app_ext.assert_port_context_claim(
     '${contextClass}', '${targetRole}'::name,
-    ${literal(actorRef, 'uuid')}, ${literal(subjectRef, 'uuid')},
+    ${literal(actorRef, 'uuid')}, ${subjectSql},
     ${literal(organizationId, 'uuid')}, ${integratorUserId ?? 'NULL'}::bigint);
   PERFORM set_config('bcb.claim_result', 'ok', false);
 EXCEPTION WHEN OTHERS THEN PERFORM set_config('bcb.claim_result', SQLSTATE || '|' || SQLERRM, false);
 END $$;
 SELECT current_setting('bcb.claim_result');
+ROLLBACK;
 `).trim();
 }
 
@@ -87,6 +102,7 @@ SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organi
                           AND mine.organization_id = other.organization_id
                           AND mine.status = 'active')
      LIMIT 1) AS foreign_org ON TRUE
+ WHERE ref.ref_kind = 'actor'
  LIMIT 1;`, 'сотрудник с действующим членством и вторая организация без его членства');
 
   assert.equal(claim({ contextClass: 'staff', targetRole: 'app_staff', actorRef, organizationId: ownOrg }), 'ok');
@@ -116,20 +132,21 @@ SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organi
                         WHERE mine.platform_user_id = ref.physical_user_id
                           AND mine.organization_id = other.organization_id)
      LIMIT 1) AS foreign_org ON TRUE
+ WHERE ref.ref_kind = 'actor'
  LIMIT 1;`, 'пациент с зачислением и вторая организация, где у него нет НИКАКОГО зачисления');
 
   assert.equal(
-    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectRef: patientRef, organizationId: ownOrg }),
+    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectKindOf: patientRef, organizationId: ownOrg }),
     'ok',
   );
   // Спящий режим: организации ещё нет — проверять нечего, но личность обязана разрешаться.
   assert.equal(
-    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectRef: patientRef }),
+    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectKindOf: patientRef }),
     'ok',
   );
 
   for (const [label, organizationId] of [['чужая', foreignOrg], ['выдуманная', INVENTED]]) {
-    const refusal = claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectRef: patientRef, organizationId });
+    const refusal = claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectKindOf: patientRef, organizationId });
     assert.match(refusal, /^42501\|/u, `${label} организация принята: ${refusal}`);
   }
 
@@ -139,30 +156,38 @@ SELECT ref.opaque_ref || '|' || own.organization_id || '|' || foreign_org.organi
 SELECT ref.opaque_ref || '|' || e.organization_id
   FROM app_ext.variant_a_identity_refs ref
   JOIN public.org_enrollments e ON e.platform_user_id = ref.physical_user_id AND e.status = 'invited'
+ WHERE ref.ref_kind = 'actor'
  LIMIT 1;`, 'клиент, заведённый врачом (зачисление в статусе invited)');
   assert.equal(
-    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: invitedRef, subjectRef: invitedRef, organizationId: invitedOrg }),
+    claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: invitedRef, subjectKindOf: invitedRef, organizationId: invitedOrg }),
     'ok',
     'клиент, заведённый врачом, не пущен в свою же клинику',
   );
 
   const [otherRef] = fixture(
-    `SELECT opaque_ref FROM app_ext.variant_a_identity_refs WHERE opaque_ref <> '${patientRef}'::uuid LIMIT 1;`,
+    `SELECT opaque_ref FROM app_ext.variant_a_identity_refs
+      WHERE opaque_ref <> '${patientRef}'::uuid AND ref_kind = 'actor' LIMIT 1;`,
     'вторая известная личность',
   );
-  const split = claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectRef: otherRef, organizationId: ownOrg });
+  const split = claim({ contextClass: 'patient', targetRole: 'app_patient', actorRef: patientRef, subjectKindOf: otherRef, organizationId: ownOrg });
   assert.match(split, /^42501\|/u, `стена пациента шире, чем «только свои данные»: ${split}`);
+
+  // Подмена ВИДА ссылки (своя же акторская, предъявленная субъектом) — отказ с D15b/7a Ш5, и
+  // доказывается она не здесь: этот файл спрашивает ЖИВОЙ каталог DEV, а тела шага приезжают
+  // reconcile-ом, который ветка Ш5 вести не может. Проверка живёт в
+  // `variant-a-identity-ref-kind-fail-closed.devDbProof.test.mjs`, где контракт проигрывается из
+  // файла продукта. Здесь остаётся ровно то, что верно по обе стороны reconcile.
 });
 
 test('platform: класс достаётся только настоящему администратору платформы', { skip: !ENABLED }, () => {
   const [adminRef] = fixture(`
 SELECT ref.opaque_ref FROM app_ext.variant_a_identity_refs ref
   JOIN public.platform_users u ON u.id = ref.physical_user_id
- WHERE u.role = 'admin' AND u.merged_into_id IS NULL LIMIT 1;`, 'администратор платформы');
+ WHERE u.role = 'admin' AND u.merged_into_id IS NULL AND ref.ref_kind = 'actor' LIMIT 1;`, 'администратор платформы');
   const [otherRef] = fixture(`
 SELECT ref.opaque_ref FROM app_ext.variant_a_identity_refs ref
   JOIN public.platform_users u ON u.id = ref.physical_user_id
- WHERE u.role <> 'admin' LIMIT 1;`, 'пользователь без роли администратора');
+ WHERE u.role <> 'admin' AND ref.ref_kind = 'actor' LIMIT 1;`, 'пользователь без роли администратора');
 
   assert.equal(claim({ contextClass: 'platform', targetRole: 'app_platform_admin', actorRef: adminRef }), 'ok');
   const refusal = claim({ contextClass: 'platform', targetRole: 'app_platform_admin', actorRef: otherRef });
