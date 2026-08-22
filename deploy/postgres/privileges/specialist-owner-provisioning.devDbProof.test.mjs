@@ -203,7 +203,7 @@ ${gateRewrite()}
 ${FIXTURE}
 ${ACCEPT_HELPER}
 DO $probe$
-DECLARE u uuid; ch uuid; opaque uuid; r record; s text;
+DECLARE u uuid; ch uuid; opaque uuid; r record; s text; provisioned boolean := false;
 BEGIN
   SELECT v INTO u FROM ids WHERE k = 'u';
   SELECT v INTO ch FROM ids WHERE k = 'ch';
@@ -230,10 +230,12 @@ test('регистрация клиники доходит до конца: ор
   BEGIN
     SELECT * INTO r FROM app.provision_specialist_owner(ch);
     s := r.ok::text || '/' || COALESCE(r.code, '<null>');
+    provisioned := r.ok;
   EXCEPTION WHEN OTHERS THEN s := SQLSTATE || ' ' || SQLERRM;
   END;
   INSERT INTO probe_out(k, v) VALUES ('outcome', s);
-  IF r.ok IS NOT TRUE THEN RETURN; END IF;
+  -- Отказ двери — сам по себе провал теста; дальше идти не на чем, запись r не заполнена.
+  IF NOT provisioned THEN RETURN; END IF;
 
   -- Мёртвая мастерская (owner-reported): членство без specialist_id навсегда лишает клинику
   -- clinical.workspace. Проверяем связку, а не только факт трёх идентификаторов.
