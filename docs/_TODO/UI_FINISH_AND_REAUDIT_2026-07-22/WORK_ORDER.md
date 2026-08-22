@@ -424,6 +424,16 @@ DEV и TEST — гейты вехи, а не повтор на каждый ми
       класс, что описан в `apps/webapp/src/app-layer/booking/createVerifiedPublicBooking.ts:158-162`:
       обращение к базе под bootstrap-принципалом без именованного корня, сломано с port-context cutover 12.08.
       Проверка слага (`/slug`) при этом работает — падает именно шаг `start`.
+      ⚠️ **ВТОРАЯ, БОЛЕЕ ОПАСНАЯ НАХОДКА того же замера (22.08): падение `start` НЕ отпускает соединение
+      пула, и после двух таких падений вход перестаёт работать у всех.** Доказано причинно на TEST:
+      после `systemctl restart bersoncarebot-webapp-test` вход отвечает **200 за 0.16 с**; два подряд
+      `POST /api/auth/specialist-signup/start` (оба **500**) → тот же вход не отвечает вообще (обрывается по
+      таймауту 30 с и 70 с), при этом процесс вебаппа занимает 1.2% CPU, в логе ни строки, а в
+      `pg_stat_activity` ровно **2 соединения роли `bcb_test_webapp_patient` в состоянии `idle`** — то есть
+      запрос стоит в очереди за свободным соединением, а не считает и не ждёт базу. После рестарта картина
+      воспроизводится с начала. Pre-session-контекст ходит через пул `patient` (`portContextRuntime.ts:381`),
+      поэтому утечка на любом bootstrap-отказе выводит из строя и вход по паролю, и вход по коду.
+      Чинить надо ОБА: и сам отказ `pre_session`, и то, что отказ не возвращает соединение в пул.
 
 ### 3.3 Track C — Rubitime: выведен и заархивирован
 
@@ -764,18 +774,44 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             которого декларация после переезда записи в `user_contacts` роли не оставила. Правка — в декларации
             (`ROW_LOCK_SURFACES`), грант ровно один, колоночный: `UPDATE ("updated_at")`. Тем же проходом закрыт
             весь класс: 14 таких пар «замок без права» на 9 функциях, гейт — `row-lock-privileges.test.mjs`.
-            (2) ⛔ **НЕ ПОЧИНЕНО, блокирует тот же чекбокс:** сразу за снятым отказом прав успешная ветка двери
-            падает `42P10 there is no unique or exclusion constraint matching the ON CONFLICT specification`.
-            Все `INSERT INTO public.user_contacts … ON CONFLICT (platform_user_id, contact_kind,
-            value_normalized) WHERE contact_kind = 'email'` из миграции `20260821T040000_cut_over_canonical_contacts`
-            ссылаются на индекс, которого нет ни в snapshot, ни в миграциях: уникальные индексы почты —
+            (2) `42P10 there is no unique or exclusion constraint matching the ON CONFLICT specification`
+            сразу за снятым отказом прав — **починено в коде 22.08, чекбокс остаётся `[ ]`** (закрывает его
+            только живой TEST-гейт владельца). `INSERT INTO public.user_contacts … ON CONFLICT
+            (platform_user_id, contact_kind, value_normalized) WHERE contact_kind = 'email'` ссылается на
+            индекс, которого нет ни в snapshot, ни в миграциях: уникальные индексы почты —
             `uq_user_contacts_email (value_normalized) WHERE contact_kind='email'` и
             `uq_user_contacts_primary_email (platform_user_id) WHERE contact_kind='email' AND is_primary`.
-            Минимальное воспроизведение (DEV, от `postgres`, в транзакции с ROLLBACK): тот же `INSERT … ON
-            CONFLICT` любой строкой → `42P10`. Развилка владельца/ведущего, поэтому не тронуто воркером:
-            менять цель `ON CONFLICT` у ~9 дверей на `(value_normalized) WHERE contact_kind='email'`
-            (глобальная уникальность почты, как сейчас в индексе) ЛИБО добавлять миграцией трёхколоночный
-            уникальный индекс. Первое меняет тела дверей, второе — форму канона контактов.
+            Развилку закрыл ведущий: меняется цель `ON CONFLICT` в телах дверей, трёхколоночный уникальный
+            индекс НЕ заводится — он разрешил бы одну почту у нескольких аккаунтов и сломал бы «вход в один
+            аккаунт по любому его подтверждённому контакту».
+            **Замер вместо прежней оценки «~9 дверей»:** сломанная цель встречалась в 4 местах и ровно в 4
+            телах, все — из `20260821T040000_cut_over_canonical_contacts` (строки 364, 811, 881, 1020), более
+            поздние миграции (`…T070000`, `…T080000`, `…T090000`, `20260822T010000`) её не несут —
+            `grep -rn "ON CONFLICT (platform_user_id, contact_kind, value_normalized)" apps/webapp/db/drizzle-migrations/`.
+            Функции: `app.accept_org_invite(text,uuid,text)` (владелец `app_seam_org_invite_owner`),
+            `app.claim_unbound_patient_invite_email(text,text,text,bigint,text)` (`app_seam_patient_invite_owner`),
+            `app.email_auth_verify_user_email(uuid,text)` и
+            `app.email_otp_public_consume_latest_challenge(text,text)` (обе — `app_seam_email_otp_owner`).
+            Правка — forward-миграция `20260822T090000_the_email_contact_door_names_its_real_index.sql`
+            (применённые файлы не редактируются): владелец, сигнатура, список аргументов и гейт контекста
+            первым оператором сохранены, `GRANT`/`REVOKE`/`CREATE POLICY` в ней нет, декларация прав не
+            менялась — все четыре уже объявляют `public.user_contacts` SELECT+INSERT+UPDATE по каноническим
+            колонкам, новых `FOR UPDATE`/`FOR SHARE` нет, `ROW_LOCK_SURFACES` не тронут.
+            У `app.email_auth_verify_user_email` тело дополнительно приведено к форме единственного
+            канонического писателя (`userContactsMirrorWrite.ts`, та же форма в `…T080000`/`…T090000`):
+            она возвращает `void` и ничего не пред-проверяет, поэтому с простым `DO UPDATE` по
+            `(value_normalized)` чужая подтверждённая строка молча переподтверждалась бы, а вызвавший не
+            получал бы ни контакта, ни ошибки; теперь чужая почта доходит до `uq_user_contacts_email` и
+            отбивается `23505`. Остальные три отказывают чужому владельцу ДО апсерта своим кодом
+            (`email_mismatch` / `conflicting_identity` / `email_conflict`).
+            Доказательство поведения — `deploy/postgres/privileges/canonical-email-contact-upsert.devDbProof.test.mjs`
+            (opt-in `RUN_CANONICAL_EMAIL_CONTACT_UPSERT_DB=1`, именованная DEV, каждая проба в транзакции с
+            `ROLLBACK`): на живых телах 22.08 — 0/4, все три вызова двери отдают `42P10`; с применённой в той
+            же откатываемой транзакции миграцией — 4/4. `bash deploy/host/migrate-dev.sh --preflight` — PASS
+            (`pending=2`: `20260822T010000` уже был pending до этой работы, плюс новая).
+            ⚠️ Оставшееся предусловие живого прогона — reconcile привилегий на DEV: без него
+            `app.email_otp_public_consume_latest_challenge` всё ещё отдаёт `42501 permission denied for table
+            platform_users` (грант из пункта (1) лежит в артефакте, но на DEV не сведён).
       - [ ] **D15b/7 — псевдоним.** ⛔ **«OWNER-DEFER 03.08» СНЯТО 20.08 — в работе, не отложено.** Владелец,
             дословно: «сколько можно говорить про то что 'не сейчас' — устаревшая запись и её надо удалить».
             Идёт **после фактического TEST-закрытия D15b/6** (контакты — источник истины), без искусственного
