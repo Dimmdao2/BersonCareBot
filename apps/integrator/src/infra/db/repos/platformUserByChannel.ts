@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
 import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 
 /**
@@ -32,11 +33,27 @@ type ChannelBindingIdentityRow = {
   phone_normalized: string | null;
 };
 
-/** One door, two search forms: by channel external id OR by the confirmed phone. */
+/**
+ * One door, two search forms: by channel external id OR by the confirmed phone.
+ *
+ * Два класса контекста, обе двери — порта интегратора: организационный принципал открывает дверь
+ * класса `tenant_service`, интеграторский — класса `integrator`, и гейт корня ветвится по двери
+ * (`20260822T190000_the_incoming_recipient_door_opens_for_the_integrator_principal.sql`).
+ *
+ * Без арендатора чтения нет и быть не может, поэтому оно и не начинается. Стена корня — «человек
+ * виден клинике, только если он её активный сотрудник либо активный зачисленный», и клинику она
+ * берёт из принятого контекста. Bootstrap-принципал организации не несёт по контракту
+ * (`app.install_port_context` требует `organization_id IS NULL` у обоих классов, которые рантайм
+ * порта подбирает под bootstrap), значит третьей двери здесь нет: дверь без стены читала бы чужого
+ * арендатора. Ответ «получатель не опознан» — это ПРАВИЛЬНЫЙ ответ для маршрута без клиники;
+ * прежде вместо него улетал бросок, который не ловил никто до `eventGateway`, и человек не получал
+ * НИ ОДНОГО ответа на своё сообщение.
+ */
 async function readChannelBindingIdentity(
   db: DbPort,
   input: { channelCode: string; externalId: string | null; phoneNormalized: string | null },
 ): Promise<ChannelBindingIdentityRow | null> {
+  if (!getCurrentOrganizationPrincipalId()) return null;
   const res = await runIntegratorNamedRoot<ChannelBindingIdentityRow>(
     db,
     CHANNEL_BINDING_IDENTITY_ROOT,

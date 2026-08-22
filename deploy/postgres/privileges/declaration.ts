@@ -2628,6 +2628,21 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.platform-user-delivery-identity.read',
       functionIdentity: 'app.integrator_read_platform_user_delivery_identity(text)' },
+    // ВТОРАЯ дверь в тот же корень опознания получателя — для ИНТЕГРАТОРСКОГО принципала.
+    // Вебхук выбирает принципал тройкой `integrator` → `organization` → `bootstrap`
+    // (`telegram/webhook.ts:372,377,378`), а дверь была одна, класса `tenant_service`; под
+    // интеграторским рантайм порта не находил возможности, бросок доходил до `eventGateway` и
+    // человек не получал НИ ОДНОГО ответа. Роль та же, `app_integrator_request`: обе двери —
+    // порта интегратора, чужой роли ни одна не называет. Гейт корня ветвится по двери
+    // (миграция `20260822T190000_the_incoming_recipient_door_opens_for_the_integrator_principal.sql`).
+    // Третьей двери, bootstrap-класса, здесь нет и быть не может: этот класс по контракту не несёт
+    // организации, а без неё стена арендатора в теле не выполнима — дверь была бы ШИРЕ чтения.
+    integrator_port_channel_binding_identity_read_integrator_context: { port: 'integrator',
+      runtimeName: 'channel_binding_identity_read_integrator_context',
+      sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_request', contextClass: 'integrator',
+      purpose: 'integrator.channel-binding-identity.read',
+      functionIdentity: 'app.integrator_read_channel_binding_identity(text,text,text)' },
     // Пред-маршрутизация ищет клинику ДО того, как принципал её знает, поэтому её дверь — не
     // `tenant_service`, а тот же bootstrap-класс, которым уже ходят два соседних резолвера
     // (`integrator_user_organization_resolve`, `integrator_dedicated_bot_organization_resolve`).

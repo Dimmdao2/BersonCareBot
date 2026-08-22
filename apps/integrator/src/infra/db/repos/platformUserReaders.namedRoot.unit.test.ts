@@ -6,6 +6,10 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../../kernel/contracts/index.js';
+import {
+  runWithBootstrapPrincipal,
+  runWithOrganizationPrincipal,
+} from '../../principal/organizationPrincipal.js';
 
 const fakes = vi.hoisted(() => ({
   runNamedRoot: vi.fn(async (): Promise<{ rows: Record<string, unknown>[] }> => ({ rows: [] })),
@@ -27,6 +31,8 @@ import {
 const IDENTITY_ROOT = 'app.integrator_read_channel_binding_identity(text,text,text)';
 const ORGANIZATION_ROOT = 'app.resolve_active_organization_for_channel_binding(text,text)';
 const DELIVERY_ROOT = 'app.integrator_read_platform_user_delivery_identity(text)';
+
+const ORG = 'a0000000-0000-4000-8000-000000000001';
 
 const bindingRow = {
   platform_user_id: '093d8c23-1910-48f1-8f7f-ba2993004827',
@@ -50,7 +56,8 @@ describe('integrator channel-binding identity reader', () => {
     const db = {} as DbPort;
     answers([bindingRow]);
 
-    await expect(getChannelBindingLinkData(db, { channelCode: 'telegram', externalId: '957924152' }))
+    await expect(runWithOrganizationPrincipal(ORG, () =>
+      getChannelBindingLinkData(db, { channelCode: 'telegram', externalId: '957924152' })))
       .resolves.toEqual({
         userId: bindingRow.platform_user_id,
         channelId: '957924152',
@@ -66,7 +73,8 @@ describe('integrator channel-binding identity reader', () => {
     answers([bindingRow]);
 
     await expect(
-      findChannelBindingByPhone(db, { channelCode: 'channel', phoneNormalized: '+79060432251' }),
+      runWithOrganizationPrincipal(ORG, () =>
+        findChannelBindingByPhone(db, { channelCode: 'channel', phoneNormalized: '+79060432251' })),
     ).resolves.toEqual({
       userId: bindingRow.platform_user_id,
       channelId: '957924152',
@@ -83,7 +91,8 @@ describe('integrator channel-binding identity reader', () => {
     answers([bindingRow]);
 
     await expect(
-      resolveCanonicalPlatformUserIdByChannel(db, { channelCode: 'max', externalId: '42' }),
+      runWithOrganizationPrincipal(ORG, () =>
+        resolveCanonicalPlatformUserIdByChannel(db, { channelCode: 'max', externalId: '42' })),
     ).resolves.toBe(bindingRow.platform_user_id);
     expect(callOf(0)).toEqual([db, IDENTITY_ROOT, ['max', '42', null]]);
   });
@@ -92,12 +101,32 @@ describe('integrator channel-binding identity reader', () => {
     const db = {} as DbPort;
     answers([]);
 
-    await expect(getChannelBindingLinkData(db, { channelCode: 'telegram', externalId: '1' }))
-      .resolves.toBeNull();
-    await expect(findChannelBindingByPhone(db, { channelCode: 'telegram', phoneNormalized: '+7' }))
-      .resolves.toBeNull();
-    await expect(resolveCanonicalPlatformUserIdByChannel(db, { channelCode: 'telegram', externalId: '1' }))
-      .resolves.toBeNull();
+    await runWithOrganizationPrincipal(ORG, async () => {
+      await expect(getChannelBindingLinkData(db, { channelCode: 'telegram', externalId: '1' }))
+        .resolves.toBeNull();
+      await expect(findChannelBindingByPhone(db, { channelCode: 'telegram', phoneNormalized: '+7' }))
+        .resolves.toBeNull();
+      await expect(resolveCanonicalPlatformUserIdByChannel(db, { channelCode: 'telegram', externalId: '1' }))
+        .resolves.toBeNull();
+    });
+  });
+
+  // Стена корня берёт клинику из принятого контекста, а bootstrap-принципал её по контракту не
+  // несёт — значит читать нечем, и дверь не открывается вовсе. Прежде сюда улетал бросок, который
+  // не ловил никто до `eventGateway`: человек не получал НИ ОДНОГО ответа на своё сообщение.
+  it('never opens the door without a tenant, and answers "not identified" instead', async () => {
+    const db = {} as DbPort;
+    answers([bindingRow]);
+
+    await runWithBootstrapPrincipal({ source: 'telegram-webhook:unresolved-org' }, async () => {
+      await expect(getChannelBindingLinkData(db, { channelCode: 'telegram', externalId: '957924152' }))
+        .resolves.toBeNull();
+      await expect(findChannelBindingByPhone(db, { channelCode: 'telegram', phoneNormalized: '+79060432251' }))
+        .resolves.toBeNull();
+      await expect(resolveCanonicalPlatformUserIdByChannel(db, { channelCode: 'max', externalId: '42' }))
+        .resolves.toBeNull();
+    });
+    expect(fakes.runNamedRoot).not.toHaveBeenCalled();
   });
 });
 
