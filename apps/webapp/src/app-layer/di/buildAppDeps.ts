@@ -85,6 +85,8 @@ import {
 import { resolveBroadcastWebPushEligibleUserIds } from '@/modules/doctor-broadcasts/resolveBroadcastWebPushEligibleUserIds';
 import { fanOutBroadcastWebPush } from '@/modules/doctor-broadcasts/fanOutBroadcastWebPush';
 import { createTopicUnsubscribeService } from '@/modules/patient-notifications/topicUnsubscribe';
+import { parseNotificationsTopics } from '@/modules/patient-notifications/notificationsTopics';
+import { patientNotificationTopicDisplayTitle } from '@/modules/patient-notifications/topicDisplayTitles';
 import { inMemoryDoctorClientsPort } from '@/infra/repos/inMemoryDoctorClients';
 import { inMemoryBroadcastAuditPort } from '@/infra/repos/inMemoryBroadcastAudit';
 import { createPgBroadcastAuditPort } from '@/infra/repos/pgBroadcastAudit';
@@ -1814,6 +1816,15 @@ function _buildAppDeps() {
       doctorBroadcastDeliveryCommitPort,
       patientNotificationTopics: patientNotificationTopicsPort,
       buildTopicUnsubscribeUrl: topicUnsubscribeService.createUrl,
+      getTopicDisplayTitle: async (topicCode, organizationId) => {
+        const setting = await systemSettingsService.getSetting('notifications_topics', 'admin', {
+          organizationId,
+        });
+        const topic = parseNotificationsTopics(setting?.valueJson ?? null).find(
+          (candidate) => candidate.id === topicCode,
+        );
+        return topic ? patientNotificationTopicDisplayTitle(topic.id, topic.title) : null;
+      },
       patientInboundChatPort: supportCommunicationPort,
       fanOutBroadcastWebPush,
       patientWebPushNotifyDeps: {
