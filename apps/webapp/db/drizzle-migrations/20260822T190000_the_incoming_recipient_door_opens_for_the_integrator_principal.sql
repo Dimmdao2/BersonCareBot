@@ -1,7 +1,8 @@
--- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-OWNER: app_seam_context_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('app.integrator_read_channel_binding_identity(text,text,text)')::oid) LIKE '%''integrator''::app.port_context_class%'
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
+-- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('app.integrator_read_channel_binding_identity(text,text,text)')::oid) ~ 'BEGIN[[:space:]]+PERFORM[[:space:]]+app[.]require_accepted_context'
+-- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_userbyid(p.proowner) = 'app_seam_context_owner' FROM pg_catalog.pg_proc p WHERE p.oid = pg_catalog.to_regprocedure('app.integrator_context_installed()')
 --
 -- Опознание получателя во входящем событии: ВТОРАЯ ДВЕРЬ у существующего корня.
 --
@@ -26,25 +27,22 @@
 -- (`20260822T140000_the_shared_roots_name_the_role_of_their_door.sql`), второй такой формы не
 -- заводим.
 --
--- ПОЧЕМУ РАЗЛИЧИТЕЛЬ — `app.current_integrator_user_id()`, А НЕ GUC `role`. У соседа двери
+-- ПОЧЕМУ РАЗЛИЧИТЕЛЬ — `app.integrator_context_installed()`, А НЕ GUC `role`. У соседа двери
 -- различались ролью, поэтому различителем был `current_setting('role')`. Здесь роль у обеих
 -- дверей одна, а различается КЛАСС, и `role` его не называет. Класс лежит в
 -- `app_ext.accepted_port_contexts`, но владелец этого шва (`app_seam_identity_lookup_owner`)
--- не имеет на неё SELECT (замерено на `bcb_webapp_dev`: `has_table_privilege(...)` = f при
--- USAGE = t); выдать право значило бы завести ВТОРОГО читателя принятого контекста рядом с
--- `app.require_accepted_context` — ровно тот дубль прохода, который запрещает AGENTS.md §5.
--- Поэтому класс называет ЕДИНСТВЕННЫЙ уже объявленный аксессор интеграторской личности:
--- `app.install_port_context` (`deploy/postgres/port-context/contract.sql:399-405`) требует
--- `integrator_user_id IS NOT NULL` у класса `integrator` с ролью `app_integrator_request` и
--- `integrator_user_id IS NULL` у класса `tenant_service` — то есть непустой
--- `app.current_integrator_user_id()` возможен ровно у одного из двух классов и ни у чего больше.
+-- не может прочитать её напрямую: таблицу держит FORCE RLS, и даже временный SELECT даёт этому
+-- владельцу всегда NULL. Поэтому таблицу по-прежнему читает только `app_seam_context_owner`, через
+-- узкую внутреннюю boolean-пробу. EXECUTE на неё получает поимённо только спрашивающий шов;
+-- `integrator_user_id` как значение она не возвращает, и единственным аксессором личности остаётся
+-- `app.current_integrator_user_id()`.
 --
 -- ПРОБА НЕ ЯВЛЯЕТСЯ ПРОВЕРКОЙ. Она только ВЫБИРАЕТ ветку; принимает или отвергает по-прежнему
 -- `app.require_accepted_context`, сверяя роль, класс, цель, хеш типизированных аргументов и
 -- идентичность функции со строкой принятого контекста. Ошибись проба в любую сторону — гейт
--- ответит 42501; открыть дверь, которой порт не открывал, она не может. Аксессор при отсутствии
--- интеграторского контекста сам поднимает 42501, поэтому проба обёрнута в обработчик
--- `insufficient_privilege`: «нет интеграторского контекста» — это ответ пробы, а не отказ корня.
+-- ответит 42501; открыть дверь, которой порт не открывал, она не может. Проба возвращает false и
+-- при tenant_service-двери, и при отсутствии принятого контекста: различает и принимает эти случаи
+-- только следующий `app.require_accepted_context`.
 --
 -- СТЕНА АРЕНДАТОРА НЕ ТРОНУТА и не может ослабнуть новой дверью: у класса `integrator` с ролью
 -- `app_integrator_request` `organization_id` обязателен тем же оператором контракта, что и у
@@ -77,14 +75,54 @@
 --    объявлены в `relationSurfaces` этого корня и не расширяются (список читаемых отношений и
 --    колонок не изменился ни на одну колонку), плюс EXECUTE на `app.require_accepted_context`,
 --    `app.hash_port_typed_args`, `app.current_org_id` и — новое в этой миграции —
---    `app.current_integrator_user_id`. Замер на `bcb_webapp_dev`:
---    `has_function_privilege('app_seam_identity_lookup_owner','app.current_integrator_user_id()','EXECUTE')`
---    = t, право уже есть и декларацией не добавляется.
+--    `app.integrator_context_installed`. EXECUTE на новую пробу декларация выдаёт поимённо только
+--    `app_seam_identity_lookup_owner`; сама проба владеет SELECT на двух отношениях `app_ext` через
+--    владельца `app_seam_context_owner`, которому FORCE RLS разрешает эту строку.
 -- 4. Чего не хватало в декларации: строки возможности для ВТОРОЙ двери. Добавлена в этой же ветке —
 --    `integrator_port_channel_binding_identity_read_integrator_context` в
 --    `deploy/postgres/privileges/declaration.ts`. `GRANT`/`REVOKE`/`CREATE POLICY` здесь нет: права
 --    и строки каталога возможностей кладёт reconcile из декларации (AGENTS.md §1).
 
+-- Узкая внутренняя проба класса принятого контекста. Она не проверяет дверь и не возвращает
+-- личность: единственный ответ — существует ли у текущей транзакции активная принятая строка класса
+-- `integrator` на роли порта интегратора. Полную пару capability/role/class/purpose/function/hash
+-- независимо и fail-closed проверяет корень первым оператором ниже.
+CREATE OR REPLACE FUNCTION app.integrator_context_installed()
+RETURNS boolean
+LANGUAGE sql
+VOLATILE
+SECURITY DEFINER
+PARALLEL UNSAFE
+SET search_path = pg_catalog, app, app_ext, pg_temp
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+      FROM app_ext.accepted_port_contexts AS accepted
+      INNER JOIN app_ext.port_context_capabilities AS capability
+              ON capability.capability_id = accepted.capability_id
+             AND capability.port = accepted.port
+             AND capability.session_login = accepted.session_login
+             AND capability.target_role = accepted.target_role
+             AND capability.context_class = accepted.context_class
+             AND capability.purpose = accepted.purpose
+             AND capability.function_identity IS NOT DISTINCT FROM accepted.function_identity
+             AND capability.active_from <= pg_catalog.clock_timestamp()
+             AND (capability.active_until IS NULL
+                  OR capability.active_until > pg_catalog.clock_timestamp())
+     WHERE accepted.database_oid = (SELECT oid FROM pg_catalog.pg_database
+                                      WHERE datname = pg_catalog.current_database())
+       AND accepted.backend_pid = pg_catalog.pg_backend_pid()
+       AND accepted.transaction_id = pg_catalog.pg_current_xact_id()
+       AND accepted.cleared_at IS NULL
+       AND accepted.session_login = session_user
+       AND accepted.target_role = 'app_integrator_request'::name
+       AND accepted.context_class = 'integrator'::app.port_context_class
+  )
+$function$;
+
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.integrator_read_channel_binding_identity(
   p_channel_code text,
   p_external_id text,
@@ -103,22 +141,12 @@ DECLARE
   v_next uuid;
   v_depth integer := 0;
   v_handle text;
-  v_integrator_user_id bigint;
 BEGIN
-  -- Проба двери: непустая интеграторская личность бывает ровно у класса `integrator`, пустая — у
-  -- класса `tenant_service`. Аксессор при её отсутствии поднимает 42501, и это его нормальный
-  -- ответ «интеграторского контекста нет», а не отказ корня.
-  BEGIN
-    v_integrator_user_id := app.current_integrator_user_id();
-  EXCEPTION WHEN insufficient_privilege THEN
-    v_integrator_user_id := NULL;
-  END;
-
   PERFORM app.require_accepted_context(
     'app_seam_identity_lookup_owner'::name,
     'app_integrator_request'::name,
     CASE
-      WHEN v_integrator_user_id IS NOT NULL THEN 'integrator'::app.port_context_class
+      WHEN app.integrator_context_installed() THEN 'integrator'::app.port_context_class
       ELSE 'tenant_service'::app.port_context_class
     END,
     'integrator.channel-binding-identity.read',
