@@ -947,7 +947,10 @@ test('runtime settings and account email use semantic row walls without broad pa
   const platformSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_platform_select_'));
   assert.deepEqual(patientSelect?.to, ['app_patient']);
-  assert.match(patientSelect?.using ?? '', /id = app\.current_patient_user_id\(\)/);
+  // D15b/7a Ш6 (22.08): корень учётки — акторская вещь, читается акторской ссылкой; субъектная
+  // (медицинская) ссылка своей строки в `platform_users` больше не открывает.
+  assert.match(patientSelect?.using ?? '', /id = app\.current_actor_user_id\(\)/);
+  assert.doesNotMatch(patientSelect?.using ?? '', /app\.current_patient_user_id\(\)/);
   assert.doesNotMatch(patientSelect?.using ?? '', /be_organization_members/);
   assert.deepEqual(staffSelect?.to, ['app_staff']);
   assert.match(staffSelect?.using ?? '', /access_member\.platform_user_id = platform_users\.id/);
@@ -1268,7 +1271,11 @@ test('patient notification preferences are product-complete and remain self-only
     const staffPolicy = table.policies.find((policy) =>
       policy.name.startsWith('rev10_staff_member_managed_'));
     assert.deepEqual(patientPolicy?.to, ['app_patient'], relation);
-    assert.match(patientPolicy?.using ?? '', /app\.current_patient_user_id\(\)/, relation);
+    // D15b/7a Ш6 (22.08): самообслуживание по каналам и контактам — акторская вещь. Второе
+    // утверждение важнее первого: субъектная (медицинская) ссылка сюда больше не пускает.
+    assert.match(patientPolicy?.using ?? '', /app\.current_actor_user_id\(\)/, relation);
+    assert.doesNotMatch(patientPolicy?.using ?? '', /app\.current_patient_user_id\(\)/, relation);
+    assert.doesNotMatch(patientPolicy?.withCheck ?? '', /app\.current_patient_user_id\(\)/, relation);
     assert.doesNotMatch(patientPolicy?.using ?? '', /be_organization_members/, relation);
     assert.deepEqual(staffPolicy?.to, ['app_staff'], relation);
     assert.match(staffPolicy?.using ?? '', /access_member\.platform_user_id =/, relation);
@@ -1503,5 +1510,39 @@ test('base port logins retain app schema usage needed to install transaction con
   ]) {
     const usage = declaration.databases[database].schemas.app.usage;
     for (const login of logins) assert.ok(usage.includes(login), `${database}: ${login}`);
+  }
+});
+
+// D15b/7a Ш6 (22.08). Девять политик из 1.3(д) схемы — самообслуживание человека по СВОЕЙ учётке:
+// корень `platform_users`, контакты, каналы, предпочтения доставки и ФИО. До Ш4 обе непрозрачные
+// ссылки резолвились в один физический id, поэтому субъектный аксессор тут работал случайно; после
+// разделения он означал бы, что личность открывается МЕДИЦИНСКОЙ ссылкой. Список закреплён поимённо:
+// таблица, уехавшая из-под этого утверждения, роняет тест, а не тихо возвращается к субъектной ссылке.
+const REV10_ACTOR_SELF_SERVICE_POLICIES = {
+  'public.platform_users': 'rev10_platform_users_patient_select_',
+  'public.user_channel_bindings': 'rev10_patient_self_managed_',
+  'public.user_channel_preferences': 'rev10_patient_self_managed_',
+  'public.user_contacts': 'rev10_patient_self_managed_',
+  'public.user_identity': 'rev10_patient_self_managed_',
+  'public.user_notification_topic_channels': 'rev10_patient_self_managed_',
+  'public.user_notification_topics': 'rev10_patient_self_managed_',
+  'public.user_phone_history': 'rev10_patient_self_managed_',
+  'public.user_web_push_subscriptions': 'rev10_patient_self_managed_',
+};
+
+test('account self-service walls are gated by the actor reference, never by the subject one', () => {
+  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
+    const tables = declaration.databases[dbName].tables;
+    for (const [relation, prefix] of Object.entries(REV10_ACTOR_SELF_SERVICE_POLICIES)) {
+      const policy = tables[relation].policies.find((candidate) =>
+        candidate.name.startsWith(prefix) && candidate.to.includes('app_patient'));
+      assert.ok(policy, `${dbName}: ${relation} lost its self-service policy`);
+      const predicates = [policy.using, policy.withCheck].filter((value) => value != null);
+      assert.ok(predicates.length > 0, `${dbName}: ${relation} has no predicate`);
+      for (const predicate of predicates) {
+        assert.match(predicate, /app\.current_actor_user_id\(\)/u, `${dbName}: ${relation}`);
+        assert.doesNotMatch(predicate, /app\.current_patient_user_id\(\)/u, `${dbName}: ${relation}`);
+      }
+    }
   }
 });

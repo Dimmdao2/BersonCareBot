@@ -8134,9 +8134,12 @@ function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
 
 function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
   return [
+    // D15b/7a Ш6 (22.08): корень учётки — АКТОРСКАЯ вещь, и гейтится акторской ссылкой. До Ш4 обе
+    // ссылки резолвились в один физический id, поэтому субъектный аксессор тут «работал»; после
+    // разделения он означал бы, что личность человека открывается медицинской ссылкой.
     { name: `rev10_platform_users_patient_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
-      to: ['app_patient'], using: '(id = app.current_patient_user_id())',
-      note: 'patient may read only its own explicitly granted profile columns' },
+      to: ['app_patient'], using: '(id = app.current_actor_user_id())',
+      note: 'identity-self may read only its own explicitly granted profile columns' },
     { name: `rev10_platform_users_staff_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff'],
       using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
@@ -8197,7 +8200,10 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   const relationName = tableKey.slice('public.'.length);
   const userColumn = REV10_PATIENT_SELF_MANAGED_COLUMN[tableKey];
   if (!userColumn) throw new Error(`missing patient self-managed column for ${tableKey}`);
-  const patientWall = `(${userColumn} = app.current_patient_user_id())`;
+  // D15b/7a Ш6 (22.08): восемь таблиц этой семьи — контакты, каналы, предпочтения доставки и ФИО, то
+  // есть самообслуживание человека по СВОЕЙ учётке, а не данные о пациенте. Гейт — акторская ссылка.
+  // `app_patient` уже несёт EXECUTE на `app.current_actor_user_id()` (REV10_RUNTIME), новых грантов нет.
+  const patientWall = `(${userColumn} = app.current_actor_user_id())`;
   const staffWall = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
     + ` WHERE access_member.platform_user_id = ${relationName}.${userColumn}`
     + ' AND access_member.organization_id = (SELECT app.current_org_id())'
@@ -8209,7 +8215,7 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_patient'], using: patientWall, withCheck: patientWall,
-      note: `patient manages only its own rows in ${tableKey}` },
+      note: `identity-self manages only its own rows in ${tableKey}` },
     { name: `rev10_staff_member_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: staffWall, withCheck: staffWall,
       note: `staff manages ${tableKey} only for current-clinic members and enrolled patients` },
