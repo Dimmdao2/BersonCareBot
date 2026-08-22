@@ -1,3 +1,4 @@
+import type { AnalyticsTestAccountSpec } from '@/modules/analytics/analyticsAudience';
 import type { PlatformAnalyticsDashboard } from '@/modules/platform-analytics/types';
 import type { VideoDurationBucket } from '@/modules/platform-analytics/durationBuckets';
 
@@ -7,12 +8,7 @@ import type { VideoDurationBucket } from '@/modules/platform-analytics/durationB
  * `user_channel_bindings`, а у платформенного принципала на них нет прав — резолв живёт за той же
  * дверью, что и сами агрегаты.
  */
-export type PlatformAnalyticsAudienceSpec = {
-  includeTestAccounts: boolean;
-  testPhones: string[];
-  testTelegramIds: string[];
-  testMaxIds: string[];
-};
+export type PlatformAnalyticsAudienceSpec = AnalyticsTestAccountSpec;
 
 export type PlatformAnalyticsWindow = {
   iana: string;
