@@ -20,13 +20,16 @@ export function createPgBroadcastEmailRecipientsPort(): BroadcastEmailRecipients
       if (userIds.length === 0) return new Map();
 
       const db = getDrizzle();
+      // Без псевдонима `pu`: подзапросы первичного контакта корреллируют по ПОЛНОМУ имени
+      // `"platform_users"."id"` (см. `userContactsSql.ts`), а псевдоним прячет имя таблицы — запрос
+      // умирал бы 42P01 «invalid reference to FROM-clause entry for table platform_users».
       const result = await db.execute<{ id: string; email_normalized: string }>(sql`
-        SELECT pu.id::text, ${drizzlePrimaryEmailCol} AS email_normalized
-        FROM ${platformUsers} pu
-        WHERE pu.id IN (${drizzleSqlUuidInList(userIds)})
+        SELECT platform_users.id::text, ${drizzlePrimaryEmailCol} AS email_normalized
+        FROM ${platformUsers}
+        WHERE platform_users.id IN (${drizzleSqlUuidInList(userIds)})
           AND ${drizzlePrimaryEmailCol} IS NOT NULL
           AND ${drizzlePrimaryEmailConfirmedAtCol} IS NOT NULL
-          AND pu.merged_into_id IS NULL
+          AND platform_users.merged_into_id IS NULL
       `);
 
       const map = new Map<string, string>();
