@@ -165,7 +165,7 @@ grep -rn "\bcreateSupportQuestionDirect\b" --include=*.ts --include=*.mjs --incl
                                     be_organizations, support_conversations, support_questions}
 :432                              GRANT UPDATE ("conversation_id") ON public.support_conversation_messages
 ```
-Это запись в канон поддержки, выданная вне `deploy/postgres/privileges/`. Пока оверлей в цепочке деплоя,
+Это запись в канон поддержки, выданная вне `deploy/postgres/privileges/`. ⚠️ Уточнение 22.08: оверлей снят и на живом TEST его гранты не действовали. Пока оверлей был в цепочке деплоя,
 правка декларации фактическую широту роли на TEST не меняет. Тот же файл уже помечен в декларации как
 подлежащий снятию — `declaration.ts:191-194` (`CODE_MUST_CHANGE` C4).
 
@@ -213,7 +213,13 @@ preflight проверял бы неизменённое дерево и на в
 
 1. Перенести владение шестью путями §2.2 в вебапп по форме 5.1.2 (или перевести их на именованные корни) —
    до тех пор членства `app_tenant_service` и `app_operational_delivery_worker` снять нельзя.
-2. Снять оверлей `integrator-login-public-identity-grants.sql` из цепочки TEST-деплоя (`CODE_MUST_CHANGE` C4).
+2. ~~Снять оверлей `integrator-login-public-identity-grants.sql` из цепочки TEST-деплоя (`CODE_MUST_CHANGE` C4).~~
+   ✅ **СДЕЛАНО 22.08 по решению владельца, и оценка «оверлей ставит деплой мимо генератора» ОПРОВЕРГНУТА
+   фактом.** `deploy-test.sh`, которым TEST выкатывается сегодня, оверлей не вызывал вовсе — он был только в
+   `deploy-test-saas.sh`; и на живом TEST у `bcb_test_integrator` **ноль** прямых грантов на `public.*`
+   (`information_schema.role_table_grants`), потому что reconcile декларации отзывает всё необъявленное.
+   То есть второго источника прав не было — был мёртвый файл. Снят целиком вместе с обеими точками вызова,
+   записью в самотесте и FATAL-проверкой; сам SQL удалён.
 3. Только после (1) и (2) — снять эти два членства у логина интегратора в `declaration.ts`,
    прогнать `generate-cli.mjs --all` + `--check`, `migrate-dev.sh --preflight` и поведенческие тесты
    привилегий (отказ роли на запрещённой записи, успех на разрешённой).
