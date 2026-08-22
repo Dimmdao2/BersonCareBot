@@ -38,9 +38,13 @@ export function getPostAuthRedirectTarget(
   nextParam: string | null,
   fallbackRedirectTo?: string | null,
   portal?: RoleLoginPortal | null,
+  options: { showAccessDeniedToast?: boolean } = {},
 ): string {
   if (portal) {
     if (!roleCanUsePortal(role, portal)) {
+      if (options.showAccessDeniedToast === false) {
+        return getRedirectPathForRole(role);
+      }
       return `${getRedirectPathForRole(role)}?app_access_denied=1`;
     }
     if (isSafeRolePortalNext(nextParam, portal)) return nextParam;

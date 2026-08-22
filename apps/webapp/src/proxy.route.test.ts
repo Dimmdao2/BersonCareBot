@@ -107,11 +107,11 @@ describe('role-specific protected app doors', () => {
     expect(proxy(appRequest('/book/clinic-a')).headers.get('location')).toBeNull();
   });
 
-  it('sends an authenticated user at the wrong portal to their own cabinet with denial feedback', () => {
-    const response = proxy(appRequest('/app/doctor/patients', 'client'));
+  it('sends a doctor from a patient content route to their own cabinet with denial feedback', () => {
+    const response = proxy(appRequest('/app/patient/profile', 'doctor'));
 
     expect(response.headers.get('location')).toBe(
-      'https://app.example.test/app/patient?app_access_denied=1',
+      'https://app.example.test/app/doctor?app_access_denied=1',
     );
   });
 
