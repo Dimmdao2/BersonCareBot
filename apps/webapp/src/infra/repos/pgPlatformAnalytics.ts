@@ -1,9 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
-import {
-  ALWAYS_EXCLUDED_ANALYTICS_PHONES,
-  STAFF_ANALYTICS_ROLES,
-} from '@/infra/repos/pgAnalyticsAudience';
+import { platformAudienceJson } from '@/infra/repos/pgAnalyticsAudience';
 import {
   classifyMediaUrlKind,
   isHostingIframeKind,
@@ -98,16 +95,6 @@ function exerciseVideoSplit(value: unknown): { videoFiles: number; videoIframe: 
   return { videoFiles, videoIframe };
 }
 
-function audienceJson(audience: PlatformAnalyticsAudienceSpec): string {
-  return JSON.stringify({
-    excludeStaffRoles: true,
-    staffRoles: [...STAFF_ANALYTICS_ROLES],
-    excludedPhones: [...ALWAYS_EXCLUDED_ANALYTICS_PHONES, ...audience.testPhones],
-    telegramIds: audience.testTelegramIds,
-    maxIds: audience.testMaxIds,
-  });
-}
-
 export function createPgPlatformAnalyticsPort(): PlatformAnalyticsPort {
   return {
     async readSnapshot(window): Promise<PlatformAnalyticsSnapshot> {
@@ -121,7 +108,7 @@ export function createPgPlatformAnalyticsPort(): PlatformAnalyticsPort {
         window.startUtcIso,
         window.endExclusiveUtcIso,
         window.iana,
-        audienceJson(window.audience),
+        platformAudienceJson(window.audience, { excludeStaffRoles: true }),
       ] as const;
       const result = await runWebappNamedRoot<{ snapshot: unknown }>(
         getWebappSqlDb(),

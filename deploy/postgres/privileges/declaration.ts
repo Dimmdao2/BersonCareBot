@@ -1978,6 +1978,9 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
     contacts: ['SELECT'],
   },
+  'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)': {
+    contacts: ['SELECT'],
+  },
   'app.redeem_patient_invite_email(text)': {
     contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
@@ -2651,6 +2654,14 @@ const REV10_CONTEXT = {
       targetRole: 'app_platform_settings', contextClass: 'platform',
       purpose: 'analytics.platform-dashboard.read',
       functionIdentity: 'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)' },
+    // Экраны «Регистрации и слияния» и «Подписчики приложения» — та же дверь, тот же принципал.
+    // Ключ здесь один, потому что и корень один: каталог возможностей — ОДИН объектный литерал, и
+    // одинаковый ключ не дополняет соседа, а вытесняет его молча.
+    webapp_platform_user_stats: { port: 'webapp',
+      runtimeName: 'platform_user_stats', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.platform-user-stats.read',
+      functionIdentity: 'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)' },
     list_platform_registration_analytics_events: { port: 'webapp',
       runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -3621,6 +3632,30 @@ const REV10_CONTEXT = {
         { relation: 'public.media_playback_client_events', columns: ['created_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_hls_proxy_error_events', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Одна дверь на ОБА экрана платформенной статистики людей («Регистрации и слияния» и
+    // «Подписчики приложения»): оба спрашивают «сколько людей за окно локальных суток за вычетом
+    // служебных учёток» теми же четырьмя аргументами, поэтому это секции одного ответа, а не две
+    // функции (AGENTS §5). Владелец шва — существующий `app_seam_platform_analytics_owner`: ровно
+    // он уже читает все три отношения этого тела ради соседнего корня дашборда, и второй владелец
+    // не нужен. `app_platform_settings` получает EXECUTE и ни одного табличного гранта: у неё на
+    // `platform_users` только `SELECT (id, calendar_timezone)`, а на `user_channel_bindings` —
+    // ничего, и по решению Р-АДМИН (22.08) так и остаётся. Ровно на этом оба экрана и отдавали 500
+    // с 42501 (живой обход TEST 22.08.2026).
+    'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)': rev10Function({
+      owner: 'app_seam_platform_analytics_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_platform_settings'],
+      purpose: 'return only aggregated platform user registration/merge/subscriber counts',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users',
+          columns: ['id', 'role', 'created_at', 'merged_at', 'merged_into_id', 'is_archived'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings',
+          columns: ['user_id', 'channel_code', 'external_id', 'created_at', 'bot_blocked_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

@@ -1,3 +1,4 @@
+import type { AnalyticsTestAccountSpec } from '@/modules/analytics/analyticsAudience';
 import type { AdminPlatformUserStatsPort } from '@/modules/admin-platform-stats/ports';
 import {
   MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
@@ -9,27 +10,28 @@ import type {
   AdminSubscriberStatsPayload,
 } from '@/modules/admin-platform-stats/types';
 
+type StatsRequest = {
+  iana: string;
+  preset: AdminStatsTimePreset;
+  customFrom?: string;
+  customTo?: string;
+  audience: AnalyticsTestAccountSpec;
+};
+
 export function createAdminPlatformUserStatsService(port: AdminPlatformUserStatsPort) {
   return {
-    async getRegistrationStats(params: {
-      iana: string;
-      preset: AdminStatsTimePreset;
-      customFrom?: string;
-      customTo?: string;
-      excludedUserIds?: string[];
-    }): Promise<AdminRegistrationStatsPayload> {
+    async getRegistrationStats(params: StatsRequest): Promise<AdminRegistrationStatsPayload> {
       const { iana, preset, customFrom, customTo } = params;
       const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } =
         resolveAdminStatsLocalRange(iana, preset, customFrom, customTo, {
           enforceMinInclusiveDays: MIN_REGISTRATION_STATS_INCLUSIVE_DAYS,
         });
 
-      const raw = await port.getRegistrationStats({
+      const raw = await port.readStats({
         iana,
         startUtcIso,
         endExclusiveUtcIso,
-        dayKeys,
-        excludedUserIds: params.excludedUserIds ?? [],
+        audience: params.audience,
       });
 
       const series = dayKeys.map((day) => ({
@@ -53,32 +55,26 @@ export function createAdminPlatformUserStatsService(port: AdminPlatformUserStats
       };
     },
 
-    async getSubscriberStats(params: {
-      iana: string;
-      preset: AdminStatsTimePreset;
-      customFrom?: string;
-      customTo?: string;
-      excludedUserIds?: string[];
-    }): Promise<AdminSubscriberStatsPayload> {
+    async getSubscriberStats(params: StatsRequest): Promise<AdminSubscriberStatsPayload> {
       const { iana, preset, customFrom, customTo } = params;
       const { fromDay, toDay, startUtcIso, endExclusiveUtcIso, dayKeys } =
         resolveAdminStatsLocalRange(iana, preset, customFrom, customTo);
 
-      const raw = await port.getSubscriberBindingStats({
+      const raw = await port.readStats({
         iana,
         startUtcIso,
         endExclusiveUtcIso,
-        excludedUserIds: params.excludedUserIds ?? [],
+        audience: params.audience,
       });
 
-      let running = raw.countBeforeStart;
+      let running = raw.subscribersBeforeStart;
       const series = dayKeys.map((day) => {
-        running += raw.newByDay.get(day) ?? 0;
+        running += raw.subscribersNewByDay.get(day) ?? 0;
         return { day, cumulativeSubscribers: running };
       });
 
-      const cumulativeEnd = series.at(-1)?.cumulativeSubscribers ?? raw.countBeforeStart;
-      const baseline = raw.countBeforeStart;
+      const cumulativeEnd = series.at(-1)?.cumulativeSubscribers ?? raw.subscribersBeforeStart;
+      const baseline = raw.subscribersBeforeStart;
 
       return {
         iana,
