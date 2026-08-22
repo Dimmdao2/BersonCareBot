@@ -288,6 +288,20 @@ export interface FunctionRelationSurface {
   operationColumns?: Partial<Record<Privilege, readonly string[]>>;
   /** Operations which use PostgreSQL system columns and therefore cannot use column-level ACLs. */
   tableOperations?: readonly Privilege[];
+  /**
+   * Операция, которой в ТЕКСТЕ тела нет и быть не может: её выполняет ТРИГГЕР, срабатывающий на
+   * записи тела в другую таблицу. Триггер SECURITY INVOKER, поэтому его собственный запрос идёт от
+   * владельца ЭТОЙ definer-функции и оплачивается её грантом. Ключ — операция, значение — имя
+   * триггера и таблица, на которой он висит.
+   *
+   * Это ЕДИНСТВЕННЫЙ способ объяснить объявленную операцию, невидимую в теле: без маркера гейт
+   * по-прежнему краснеет «declared X has no executable relation operation», то есть мусор в
+   * декларации ловится как раньше. Сам маркер выдумать нельзя — гейт сверяет с живым каталогом,
+   * что триггер существует на названной таблице, что он INVOKER, что тело в эту таблицу пишет
+   * событием этого триггера и что тело триггера действительно выполняет названную операцию по
+   * названному отношению.
+   */
+  requiredByTrigger?: Partial<Record<Privilege, { trigger: string; onRelation: string }>>;
   /** The census is evidence for a later exact grant stage, not authority to emit grants now. */
   evidence:
     | 'pg16-function-body-lexical-upper-bound'

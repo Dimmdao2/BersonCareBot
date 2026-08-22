@@ -10,6 +10,7 @@ import {
   compareFunctionSurfaces,
   extractPublicRelationOperations,
   parseExecutableFunctions,
+  parseTriggers,
 } from './function-body-surface.mjs';
 import { assertNameCensus } from './name-census.mjs';
 import {
@@ -169,6 +170,101 @@ test('upsert surfaces never narrow SELECT — ON CONFLICT DO UPDATE reads the co
     }
   }
   assert.deepEqual(offenders, []);
+});
+
+// Ловит: объявленную операцию, которой в теле нет, «объяснили» маркером `requiredByTrigger` с
+// именем триггера, которого нет (опечатка, переименование, копипаста с соседней таблицы). Отказ
+// дорогой и молчаливый: генератор выдаёт владельцу шва грант, который никто не может проследить до
+// исполняемого оператора, а НАСТОЯЩЕЕ право, которого требует живой триггер, при этом может так и
+// не быть выдано — гейт зелёный, миграция зелёная, деплой зелёный, а первый живой вызов падает
+// `42501`, и снаружи это выглядит не отказом прав, а неверно работающей функцией (регистрация
+// клиники, 22.08). Три случая в одном месте: маркер сошёлся, маркер выдуман, маркера нет вовсе.
+test('trigger-induced surface passes only when the named trigger is real, INVOKER and actually fires', () => {
+  const triggerSql = `
+    CREATE TRIGGER fixture_guard BEFORE INSERT OR UPDATE OF slug ON public.fixture_directory
+      FOR EACH ROW EXECUTE FUNCTION app.fixture_guard_body();
+  `;
+  const triggers = parseTriggers(triggerSql);
+  assert.deepEqual(triggers.map((trigger) => [trigger.name, trigger.relation, [...trigger.events].sort()]),
+    [['fixture_guard', 'public.fixture_directory', ['INSERT', 'UPDATE']]]);
+
+  const functions = [
+    {
+      name: 'app.fixture_provision_root',
+      securityDefiner: true,
+      body: `
+        insert into public.fixture_directory (organization_id, slug) values (p_org, p_slug);
+        insert into public.fixture_claims (organization_id, slug) values (p_org, p_slug);
+      `,
+    },
+    {
+      name: 'app.fixture_guard_body',
+      securityDefiner: false,
+      body: `
+        if not exists (select 1 from public.fixture_claims c where c.slug = new.slug) then
+          raise exception 'no claim';
+        end if;
+      `,
+    },
+  ];
+  const surfaceWith = (requiredByTrigger) => ({
+    'app.fixture_provision_root()': {
+      relationSurfaces: [
+        { relation: 'public.fixture_directory', operations: ['INSERT'] },
+        { relation: 'public.fixture_claims', operations: ['INSERT', 'SELECT'], requiredByTrigger },
+      ],
+    },
+    // Обработчик триггера присутствует как ИСТОЧНИК тела, поэтому несёт и собственную поверхность;
+    // на живом гейте он в проверку не попадает вовсе — тот идёт только по SECURITY DEFINER.
+    'app.fixture_guard_body()': {
+      relationSurfaces: [{ relation: 'public.fixture_claims', operations: ['SELECT'] }],
+    },
+  });
+
+  // (а) маркер сошёлся с реальностью — SELECT объяснён, дыры нет.
+  assert.deepEqual(compareFunctionSurfaces(functions, surfaceWith({
+    SELECT: { trigger: 'fixture_guard', onRelation: 'public.fixture_directory' },
+  }), triggers), []);
+
+  // (б) маркер называет несуществующий триггер — гейт краснеет ДВАЖДЫ: выдуманным именем и
+  // по-прежнему необъяснённой операцией.
+  assert.deepEqual(compareFunctionSurfaces(functions, surfaceWith({
+    SELECT: { trigger: 'fixture_guard_typo', onRelation: 'public.fixture_directory' },
+  }), triggers), [
+    'app.fixture_provision_root() -> public.fixture_claims (SELECT via fixture_guard_typo): '
+      + 'names a trigger absent from the artifacts',
+    'app.fixture_provision_root() -> public.fixture_claims: actual=INSERT declared=INSERT,SELECT',
+  ]);
+
+  // (в) маркера нет вовсе — старое поведение сохранено, мусор в декларации ловится как раньше.
+  assert.deepEqual(compareFunctionSurfaces(functions, surfaceWith(undefined), triggers), [
+    'app.fixture_provision_root() -> public.fixture_claims: actual=INSERT declared=INSERT,SELECT',
+  ]);
+
+  // (г) триггер SECURITY DEFINER исполняется от СВОЕГО владельца, а не от владельца этой двери,
+  // значит объяснить её грант он не может.
+  const definerGuard = functions.map((fn) => (fn.name === 'app.fixture_guard_body'
+    ? { ...fn, securityDefiner: true } : fn));
+  assert.deepEqual(compareFunctionSurfaces(definerGuard, surfaceWith({
+    SELECT: { trigger: 'fixture_guard', onRelation: 'public.fixture_directory' },
+  }), triggers), [
+    'app.fixture_provision_root() -> public.fixture_claims (SELECT via fixture_guard): '
+      + 'names a SECURITY DEFINER trigger, which runs under its own owner',
+    'app.fixture_provision_root() -> public.fixture_claims: actual=INSERT declared=INSERT,SELECT',
+  ]);
+
+  // (д) тело двери в подтриггерную таблицу не пишет — триггер не срабатывает, объяснения нет.
+  const noWrite = functions.map((fn) => (fn.name === 'app.fixture_provision_root'
+    ? { ...fn, body: 'insert into public.fixture_claims (slug) values (p_slug);' } : fn));
+  assert.deepEqual(compareFunctionSurfaces(noWrite, surfaceWith({
+    SELECT: { trigger: 'fixture_guard', onRelation: 'public.fixture_directory' },
+  }), triggers), [
+    'app.fixture_provision_root() -> public.fixture_claims (SELECT via fixture_guard): '
+      + 'names a trigger the body never fires',
+    'app.fixture_provision_root() -> public.fixture_claims: actual=INSERT declared=INSERT,SELECT',
+    'app.fixture_provision_root() -> public.fixture_directory: '
+      + 'declared surface has no executable relation operation',
+  ]);
 });
 
 test('current-patient surface gate catches missing operation, absent relation, and overbroad SELECT together', () => {

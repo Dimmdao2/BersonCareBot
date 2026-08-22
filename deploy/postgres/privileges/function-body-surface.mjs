@@ -191,8 +191,86 @@ export function latestArtifactFunctions(paths) {
   return [...latest.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function compareFunctionSurfaces(functions, declaredFunctions) {
+/**
+ * Триггеры артефакта: имя, таблица, события и функция-обработчик.
+ *
+ * Нужны ровно для одного класса прав: тело SECURITY DEFINER пишет в таблицу, на которой висит
+ * SECURITY INVOKER триггер, и запрос ИЗ ТЕЛА ТРИГГЕРА идёт от владельца definer-функции. В тексте
+ * тела такого чтения нет по построению, поэтому лексический разбор объявляет его лишним. Триггеры
+ * живут в `deploy/postgres/generated/prod-to-target/schema-post.sql` и в forward-миграциях — не в
+ * `schema-pre.sql`.
+ */
+export function parseTriggers(sql) {
+  const schemaPattern = RELATION_SCHEMAS.join('|');
+  const pattern = new RegExp(
+    'create\\s+(?:constraint\\s+)?trigger\\s+([a-z_][a-z0-9_]*)\\s+'
+    + '(?:before|after|instead\\s+of)\\s+([\\s\\S]*?)\\s+on\\s+'
+    + `((?:${schemaPattern})\\.[a-z_][a-z0-9_]*)\\b[\\s\\S]*?`
+    + `execute\\s+(?:procedure|function)\\s+((?:${schemaPattern})\\.[a-z_][a-z0-9_]*)\\s*\\(`,
+    'gi',
+  );
+  const triggers = [];
+  for (const match of sql.matchAll(pattern)) {
+    const events = new Set();
+    for (const event of ['insert', 'update', 'delete']) {
+      if (new RegExp(`\\b${event}\\b`, 'i').test(match[2])) events.add(event.toUpperCase());
+    }
+    triggers.push({
+      name: match[1].toLowerCase(),
+      relation: match[3].toLowerCase(),
+      events,
+      functionName: match[4].toLowerCase(),
+    });
+  }
+  return triggers;
+}
+
+/** Операции, которые объявлены ради триггера и подтверждены реальностью артефакта. */
+function triggerExplainedOperations(signature, surface, body, triggers, bodies, gaps) {
+  const explained = new Set();
+  for (const [operation, source] of Object.entries(surface.requiredByTrigger ?? {})) {
+    const where = `${signature} -> ${surface.relation} (${operation} via ${source?.trigger})`;
+    if (!surface.operations.includes(operation)) {
+      gaps.push(`${where}: trigger-induced operation is not declared on the surface`);
+      continue;
+    }
+    const trigger = triggers.find((candidate) => candidate.name === source.trigger
+      && candidate.relation === source.onRelation);
+    if (!trigger) {
+      gaps.push(`${where}: names a trigger absent from the artifacts`);
+      continue;
+    }
+    const handler = bodies.get(trigger.functionName);
+    if (!handler) {
+      gaps.push(`${where}: names a trigger whose handler is absent from the artifacts`);
+      continue;
+    }
+    if (handler.securityDefiner) {
+      gaps.push(`${where}: names a SECURITY DEFINER trigger, which runs under its own owner`);
+      continue;
+    }
+    const written = extractRelationOperations(body).get(trigger.relation) ?? [];
+    if (!written.some((candidate) => trigger.events.has(candidate))) {
+      gaps.push(`${where}: names a trigger the body never fires`);
+      continue;
+    }
+    if (!(extractRelationOperations(handler.body).get(surface.relation) ?? []).includes(operation)) {
+      gaps.push(`${where}: names a trigger whose body has no such relation operation`);
+      continue;
+    }
+    explained.add(operation);
+  }
+  return explained;
+}
+
+/**
+ * `triggers` — разобранные `CREATE TRIGGER` того же набора артефактов. Без них маркер
+ * `requiredByTrigger` подтвердить нечем, и объявленная ради триггера операция останется дырой:
+ * гейт не ослабляется молчанием.
+ */
+export function compareFunctionSurfaces(functions, declaredFunctions, triggers = []) {
   const gaps = [];
+  const bodies = new Map(functions.map((fn) => [fn.name, fn]));
   for (const fn of functions) {
     const candidates = Object.entries(declaredFunctions)
       .filter(([signature]) => signature.startsWith(`${fn.name}(`));
@@ -213,15 +291,22 @@ export function compareFunctionSurfaces(functions, declaredFunctions) {
     }
     const declared = new Map((declaration.relationSurfaces ?? [])
       .map((surface) => [surface.relation, [...surface.operations].sort()]));
+    // Право, которого требует ТРИГГЕР, в тексте тела невидимо по построению. Оно засчитывается
+    // только по явному маркеру, и только когда маркер сошёлся с артефактами по всем условиям выше —
+    // иначе объявленная операция остаётся мусором в декларации, как и раньше.
+    const byTrigger = new Map((declaration.relationSurfaces ?? [])
+      .filter((surface) => surface.requiredByTrigger)
+      .map((surface) => [surface.relation,
+        triggerExplainedOperations(signature, surface, fn.body, triggers, bodies, gaps)]));
     for (const relation of [...new Set([...actual.keys(), ...declared.keys()])].sort()) {
-      const actualOperations = actual.get(relation);
       const declaredOperations = declared.get(relation);
-      if (!actualOperations) {
+      const effective = [...new Set([...(actual.get(relation) ?? []), ...(byTrigger.get(relation) ?? [])])];
+      if (effective.length === 0) {
         gaps.push(`${signature} -> ${relation}: declared surface has no executable relation operation`);
       } else if (!declaredOperations) {
-        gaps.push(`${signature} -> ${relation}: executable relation surface is absent; actual=${actualOperations.join(',')}`);
+        gaps.push(`${signature} -> ${relation}: executable relation surface is absent; actual=${effective.join(',')}`);
       } else {
-        const expected = [...actualOperations].sort();
+        const expected = [...effective].sort();
         if (expected.join(',') !== declaredOperations.join(',')) {
           gaps.push(`${signature} -> ${relation}: actual=${expected.join(',')} declared=${declaredOperations.join(',')}`);
         }
