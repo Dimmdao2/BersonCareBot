@@ -1337,7 +1337,7 @@ release omits all U8 branches and proceeds from U9 to U10.
   credentials remain server-owned and org configuration remains DB-backed/mirrored.
 - **Owner ruling/policy:** channel-exact no fallback: configured custom email forbids platform-email delivery and
   configured custom SMS forbids platform-SMS delivery for all patient/user messages. Apply standards-backed
-  `expires_at`, stable delivery id/provider-callback dedupe and configurable `1m/5m/15m` jittered BersonCare
+  `expires_at`, stable delivery id/provider-callback dedupe and configurable `1m/5m/15m` jittered platform
   pre-acceptance application submission retries; direct SMTP `4xx`/MTA cadence remains separate and is also capped
   by `expires_at`. Accepted provider submission is never resubmitted; ambiguous SMTP disconnect after `DATA` stays
   `unknown` for reconciliation. After three systemic failures (or immediate permanent auth/config failure), open the

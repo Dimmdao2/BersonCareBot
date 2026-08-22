@@ -1,10 +1,4 @@
-import type { Metadata } from 'next';
 import { PLATFORM_NAME } from '@/config/productSurfaces';
-
-export const metadata: Metadata = {
-  title: `Условия использования · ${PLATFORM_NAME}`,
-  description: `Условия использования веб-приложения ${PLATFORM_NAME}.`,
-};
 
 /** Публичная страница условий использования (URL для OAuth consent screen и магазинов). */
 export default function TermsOfServicePage() {

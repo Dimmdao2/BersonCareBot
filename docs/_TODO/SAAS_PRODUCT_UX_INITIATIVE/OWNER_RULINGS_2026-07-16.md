@@ -73,8 +73,8 @@ release/deploy gate.
 Для платного полного брендирования организация использует собственный домен либо субдомен платформы, задаёт своё
 название и логотип и полностью заменяет product-facing branding на закреплённой за ней поверхности. Отдельный
 layout, theme или bespoke design под каждую клинику не планируется: меняются identity/brand assets, но не базовая
-композиция продукта. Вне такой платной org-поверхности BersonCare остаётся platform/personal brand владельца.
-Это решение не требует видимого BersonCare/platform brand внутри fully branded org surface. Какие сведения и
+композиция продукта. Вне такой платной org-поверхности staff/admin identity — Therapysto, standard patient identity —
+Therapygo. Это решение не требует видимого Therapysto/Therapygo/platform brand внутри fully branded org surface. Какие сведения и
 контакты должны быть доступны в legal/support/security flows и как они представлены, определяется позднее по
 применимому праву, договорам и security/recovery contract; точная disclosure/copy здесь не выбрана.
 

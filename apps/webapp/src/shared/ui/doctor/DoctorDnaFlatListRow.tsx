@@ -1,5 +1,5 @@
 /**
- * Flat list-row vocabulary for the BersonCare Doctor Design DNA.
+ * Flat list-row vocabulary for the Therapysto Doctor Design DNA.
  *
  * Rows deliberately carry no card chrome or selected fill: hierarchy and selection
  * come from a warm hairline divider, text weight, and the 3px primary marker.

@@ -316,7 +316,7 @@ scheduler; ordinary `deploy-prod.sh` (не root) перед рестартом s
 | nginx              | В HTTPS `server {}` для `bersoncare.ru`: `error_page 502 503 504 =200 /maintenance.html;` + `location = /maintenance.html` с `internal` (фрагмент: [`deploy/nginx/webapp-maintenance-pages.example.conf`](../../deploy/nginx/webapp-maintenance-pages.example.conf)) |
 | Статика            | `/opt/projects/bersoncarebot/apps/webapp/public/maintenance.html` (в репозитории: `apps/webapp/public/maintenance.html`; попадает на хост через `deploy-prod.sh`)                                                                                                    |
 | Флаг deploy        | **Нет** — `/var/lib/bersoncarebot/deploy-maintenance.on` и скрипт `deploy-maintenance.sh` не используются                                                                                                                                                            |
-| Проверка на хосте  | `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app \| head -10` → HTML «BersonCare — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service`                                                                |
+| Проверка на хосте  | `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app \| head -10` → HTML «Therapysto — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service`                                                                |
 
 Отдельно: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app экран при **работающем** webapp; не заменяет nginx-страницу на рестарте.
 

@@ -407,22 +407,24 @@ Checkbox закрывается только доказательством, у�
 > прямая команда владельца приземлять плюс bounded строковый rename; живая проверка выполнена ПОСЛЕ
 > landing, а не до.
 
-> **`A0`-РАСШИРЕННЫЙ ЗАКРЫТ 22.08.2026 после четырёх кругов и PASS независимого аудита** (круг 4,
+> **Ретроспектива четырёх кругов:** круг 4 объявил «`A0`-расширенный закрыт» после PASS независимого аудита
+> (это прежний вердикт, не текущий checkbox; пересмотр ниже опроверг полноту `A1` и нашёл остаток `A2b`)
+> (круг 4,
 > `1fe5f5660` + `51631fedf`, отчёт `5e4f3b7dc`; вердикты всех кругов — в
 > `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`). Работа ЛЕЖИТ НА ВЕТКЕ `wt/therapysto-stage-a-20260822`, в
 > `feat` не сведена — режим из шапки файла.
 >
-> - [x] `A1` **Единый typed product-surface config** — `config/productSurfaces.ts` (server, env-override)
+> - Предыдущее доказательство `A1`: **единый typed product-surface config** — `config/productSurfaces.ts` (server, env-override)
 >   + `config/productSurfaceNames.ts` (client-safe литералы; разделение проверено аудитором инъекцией:
 >   импорт серверного конфига из `'use client'` уводит `config/env.ts` с секретом в браузерный чанк).
 >   Therapysto у персонала, Therapygo у пациентов, значения переопределяются `PATIENT_APP_NAME` /
 >   `PATIENT_APP_ORIGIN`.
-> - [x] `A2a` **Идентичность поверхности больше не объявляется каждым маршрутом.** Девять
+> - Предыдущее доказательство `A2a`: **идентичность поверхности больше не объявляется каждым маршрутом.** Девять
 >   `export const metadata` удалены; вместо них одна таблица «путь → поверхность»
 >   (`config/surfaceRoutes.ts`) и одна точка применения — `generateMetadata` корневого layout; путь
 >   доносит `proxy.ts`. Новая страница внутри классифицированного поддерева получает верную
 >   идентичность, ничего не объявляя.
-> - [x] `A2b` **Metadata-часть Gate A** — гейт `surfaceRoutes.unit.test.ts` строит предикат накрытия из
+> - Предыдущее доказательство metadata-части `A2b`: гейт `surfaceRoutes.unit.test.ts` строит предикат накрытия из
 >   `config.matcher` самого `proxy.ts` (вторая копия удалена), плюс `proxy.route.test.ts` проверяет сам
 >   факт установки заголовков. Обе части проверены инъекциями.
 >
@@ -436,8 +438,11 @@ Checkbox закрывается только доказательством, у�
 > документы), auth-часть Gate A, `config.md:12` (ссылка на удалённый хук). Подделка `x-bc-pathname` вне
 > matcher'а сознательно отложена в `B`, где поверхность резолвится по Host.
 
-- [x] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
+- [ ] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
   deploy seam; standard patient `name` и `origin` — обязательные deploy inputs без placeholder/default бренда.
+  **Частично:** единый typed config и один seam реализованы, но `config/env.ts` всё ещё задаёт defaults для
+  `PATIENT_APP_NAME` и `PATIENT_APP_ORIGIN`; это не соответствует требованию «обязательные deploy inputs».
+  Удаление defaults меняет deploy-контракт и требует owner-решения, поэтому этот ход его не подменяет.
 - [x] `A2a` **Остаток после `A0`, часть «единый identity seam»:** root metadata и лендинг переведены на
   Therapysto через ОДИН identity value. Идентичность больше не объявляется на маршруте: таблица
   `apps/webapp/src/config/surfaceRoutes.ts` («путь запроса → поверхность») применяется в единственной точке —
@@ -446,25 +451,32 @@ Checkbox закрывается только доказательством, у�
   Доказательство: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CORRECTION_STAGE_A_ROUND3_2026-08-22.md` —
   живой обход всех 149 маршрутов дерева на dev-сервере, 0 расхождений; проверка под тремя сессиями владельца;
   `PATIENT_APP_NAME=QA-Renamed` не переопределяет staff-имя (`QA-Renamed`×0 на staff-маршрутах).
-- [ ] `A2b` **Остаток `A2`:** legal-страницы и остальной невыполненный периметр (patient mail становится
+- [x] `A2b` **Остаток `A2`:** legal-страницы и остальной невыполненный периметр (patient mail становится
   brand-aware только в C; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без
   его команды). Patient metadata берёт standard patient config.
-- [~] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
+  Закрыто 22.08.2026: две оставшиеся route-local metadata-декларации в `app/legal/*` удалены; legal title,
+  apple-title, manifest и icons теперь приходят из единственного root `generateMetadata`, живой прогон зелёный.
+- [ ] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
   occurrences. npm/package/table/module/route identifiers и archive/audit history не трогать.
   **Инвентаризация закрыта 22.08.2026 по ВСЕМУ репозиторию** (прежние круги мерили `apps/webapp/src` и дважды
-  на этом попались): 4839 вхождений в 1230 файлах разложены по четырём корзинам, каждое оставшееся — с
-  причиной. Корзина «правим сейчас» оказалась **пустой**: `git grep -nI "BersonCare" -- apps/webapp/src` → 6
-  строк, все шесть либо технические, либо исключены владельцем, либо пациентские (этап `C`).
+  на этом попались): 4817 широких вхождений в 1222 файлах и 887 exact-oracle вхождений в 305 файлах
+  (evidence-report исключён из обеих команд, чтобы census не был самоссылочным),
+  разложены по четырём корзинам, каждое оставшееся — с
+  причиной. Первое заявление «корзина правим сейчас пуста» было неверным: standalone `admin/` не входил в
+  webapp-census; его `<title>` и `<h1>` исправлены на Therapysto и отдельная Vite-сборка зелёная.
   Доказательство: `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §3 (числа + команды) и §4.1 (живой прогон, 8
   staff-маршрутов, `BersonCare`×0).
   **Пункт НЕ закрыт до конца из-за находки `S-1`** — см. `TPB-15` ниже.
-- [x] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
+- [ ] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
   `TPB-01…16`. Не добавлять параллельную сноску рядом со старым активным вариантом и не редактировать archive.
-  Закрыто 22.08.2026: 7 файлов правлены на месте (`README.md`, `docs/PRODUCT_OVERVIEW.md`,
+  Частично 22.08.2026: первоначальные 7 файлов правлены на месте (`README.md`, `docs/PRODUCT_OVERVIEW.md`,
   `SCREEN_ARCHITECTURE_GUIDE.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `TOOLING_AND_PACKAGES_DECISIONS.md`,
-  `config/config.md`, `modules/auth/auth.md`), сносок рядом со старым вариантом не добавлено. Список того,
-  что сознательно НЕ переписано, и почему (живые адреса деплоя, имя репозитория, имя дизайн-системы,
-  имя файла спецификации) — `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §4.3.
+  `config/config.md`, `modules/auth/auth.md`) и дополнительные active SaaS branding contracts/runbooks,
+  сносок рядом со старым вариантом не добавлено. Но активный
+  `CLINIC_PUBLIC_PAGE_AND_URL_FLIP_2026-08-19.md` одновременно содержит новую карту 22.08 и старые
+  несовместимые domain-решения в §9/§11/§12; по прямому указанию брифа большой неочевидный rewrite вынесен
+  владельцу списком, а не переписан самовольно. Доказательство и полный список —
+  `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §4.2–4.3.
 
 **Gate A:** targeted config/metadata/auth tests, webapp lint+typecheck для изменённой ветки; review показывает один
 identity seam, а не набор getters.
@@ -473,7 +485,7 @@ identity seam, а не набор getters.
 > маршрутов обходом реального `src/app/**` и краснеет, когда staff-маршрут отдаёт пациентскую идентичность.
 > Проверен тремя инъекциями неисправности (убрать правило поддерева · объявить staff-поддерево пациентским ·
 > добавить новый верхнеуровневый маршрут) — все три пойманы; см. `CORRECTION_STAGE_A_ROUND3_2026-08-22.md`.
-> Остальные части Gate A (`auth tests`, полный `A2b`/`A3`/`A4`) остаются открытыми.
+> `A2b` закрыт пересмотром 22.08. Остальные части Gate A (`auth tests`, `A3`/`A4`) остаются открытыми.
 >
 > Круг 4 (22.08.2026, `CORRECTION_STAGE_A_ROUND4_2026-08-22.md`) закрыл две находки круга 3 против этого же
 > гейта: гейт больше не читает вторую копию `config.matcher` (копия из `surfaceRoutes.ts` удалена, предикат

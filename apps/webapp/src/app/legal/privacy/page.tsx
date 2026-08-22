@@ -1,10 +1,4 @@
-import type { Metadata } from 'next';
 import { PLATFORM_NAME } from '@/config/productSurfaces';
-
-export const metadata: Metadata = {
-  title: `Политика конфиденциальности · ${PLATFORM_NAME}`,
-  description: `Политика конфиденциальности веб-приложения ${PLATFORM_NAME}.`,
-};
 
 /** Публичная политика конфиденциальности (URL для OAuth consent screen и магазинов). */
 export default function PrivacyPolicyPage() {

@@ -11,7 +11,7 @@ roadmap. The earlier statement about `0` pending product decisions applies only 
 
 ## Цель
 
-Спроектировать целевую продуктовую структуру BersonCare как specialist-oriented SaaS:
+Спроектировать целевую продуктовую структуру Therapysto/Therapygo как specialist-oriented SaaS:
 
 - какие роли и контексты существуют;
 - какие экраны доступны каждой роли;

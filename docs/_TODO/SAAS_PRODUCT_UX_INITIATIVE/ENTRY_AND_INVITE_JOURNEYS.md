@@ -632,7 +632,7 @@ launch identity path. Custom-sender retry/expiry/retention uses the standards-ba
 
 That policy is channel-exact: a configured organization custom email provider disables platform-email fallback for
 all patient/user email, and a configured organization custom SMS provider disables platform-SMS fallback for all
-patient/user SMS. `1m/5m/15m` is only BersonCare pre-acceptance application submission retry where applicable;
+patient/user SMS. `1m/5m/15m` is only the platform's pre-acceptance application submission retry where applicable;
 direct SMTP MTA cadence is separate and still capped by business `expires_at`. Provider-accepted delivery is never
 resubmitted; callbacks/provider IDs dedupe, and ambiguous SMTP disconnect after `DATA` stays `unknown` pending
 reconciliation. The owner receives an in-app sender incident plus platform service email with no patient content,
