@@ -858,6 +858,39 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             и спорные случаи — в документе переписи (`docs/_TODO/runs/integrator-cleanup/D15B1_IDENTITY_CENSUS_2026-08-03.md`);
             прежние числа «46 ключей» и «130 FK от 104 таблиц / 157 SCOPED» — исторические промежуточные замеры,
             текущим не являются.
+            **Фактическое состояние D15b/7a на 22.08 (галочка не ставится — шаги 1–2 из девяти).** Порядок шагов
+            принят и лежит в `docs/_TODO/runs/integrator-cleanup/D15B7A_ACTOR_SUBJECT_SPLIT_SCHEME_2026-08-22.md` §4.
+            **Ш1 (вид в карте) и Ш2 (ключ по паре) написаны и проверены на именованной DEV, но НЕ ПРИМЕНЕНЫ:**
+            `--execute` был запрещён брифом, пока reconcile на DEV красный по независимой причине (гейты
+            pre_session, ветка `wt/pre-session-gates-20260822`). Что сделано: `app_ext.variant_a_identity_refs`
+            получает `ref_kind text NOT NULL DEFAULT 'actor'` + CHECK `('actor','subject')`, первичный ключ —
+            `(physical_user_id, ref_kind)`, `opaque_ref` остаётся UNIQUE; в декларации колонка добавлена в
+            private-relation и в `relationSurfaces` обоих резолверов. Поведение не меняется: все 22 строки на
+            DEV — `'actor'`, сигнатуры резолверов, политики и приложение не тронуты.
+            **Расхождение со схемой, которое надо знать перед следующим шагом (замерено 22.08):** схема
+            назначала Ш1/Ш2 timestamp-миграциями, но `ALTER TABLE … ADD CONSTRAINT … PRIMARY KEY` строит индекс
+            и требует ОДНОВРЕМЕННО владения таблицей и `CREATE` на схеме `app_ext`, а эти права принадлежат
+            разным ролям без членства между ними: владелец таблицы `app_seam_identity_lookup_owner` получает
+            `42501 permission denied for schema app_ext` (у него на схеме только `USAGE`), `app_object_owner`
+            (единственный с `UC`) — `must be owner of table`. Выдать недостающее право миграцией запрещено
+            (AGENTS.md §1), объявить семенному владельцу `CREATE` на `app_ext` значило бы разрешить ему плодить
+            в шве любые объекты. Поэтому DDL живёт в `deploy/postgres/port-context/contract.sql` —
+            авторитете рождения объектов `app_ext`, который сам снимает стену рождения на время своего прохода, —
+            идемпотентными шагами; приезжает шагом reconcile, а не наката миграций. Ни одна миграция репозитория
+            никогда не создавала и не меняла объект `app_ext`.
+            **Ш2 обязателен вместе с одной правкой тела, иначе он ломает вход:**
+            `app_ext.resolve_variant_a_identity` вставлял с `ON CONFLICT (physical_user_id)`, а это вывод
+            индекса — после смены ключа спецификация не совпадает ни с одним индексом и первое же разрешение
+            НОВОГО человека умирает `42P10` (воспроизведено на DEV в откаченной транзакции; тот же класс, что
+            почтовая дверь 22.08). Арбитр переведён на `(physical_user_id, ref_kind)`; сигнатура,
+            `regprocedure` и возвращаемое значение прежние.
+            **Проверено:** `migrate-dev.sh --preflight` PASS; `pnpm test:db-privileges` 138 pass / 0 fail;
+            новый поведенческий гейт
+            `deploy/postgres/privileges/variant-a-identity-ref-roundtrip.devDbProof.test.mjs` (круг «id → ссылка
+            → id» на известном И на новом человеке, отказ выдуманной ссылки `42501`) — 3/3 на DEV; вход по
+            паролю на :5200 тремя учётками владельца — `200` с прежними ролями `admin`/`doctor`/`client`.
+            **Следующее:** применить накопленное на DEV (`migrate-dev.sh --execute`) после того, как соседняя
+            ветка вернёт reconcile в зелёное, затем Ш3 — резолверы принимают вид, но ещё не проверяют его.
 - [x] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): текущий журнал попыток —
       `public.notification_delivery_attempts`, текущая очередь — `public.outgoing_delivery_queue`.
       `integrator.message_retry_jobs`, `integrator.delivery_attempt_logs` и `integrator.projection_outbox` на именованной
