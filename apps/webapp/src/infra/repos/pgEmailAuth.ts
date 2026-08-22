@@ -8,7 +8,6 @@ import {
   webappSqlFromPgText,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
-import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
 import {
   MergeConflictError,
   MergeDependentConflictError,
@@ -220,6 +219,21 @@ export async function findEmailOwnerConflict(userId: string, email: string): Pro
   return Boolean(conflict.rows[0]?.conflict);
 }
 
+/**
+ * Binding a confirmed e-mail to an account is ONE operation and it belongs to ONE root
+ * (AGENTS.md §5). Until 22.08.2026 this function ran the root and then wrote the very same
+ * `public.user_contacts` row a second time through the raw canonical-contacts engine. The second
+ * pass carried no named operation, so under the bootstrap principal of the e-mail doors it asked
+ * for a generic `pre_session` capability, which does not exist in the catalog and must not: every
+ * pre-session capability names its function. Result — `Missing declared webapp port capability:
+ * pre_session` on a confirmation whose root had already succeeded, i.e. the row was written and the
+ * caller was told the confirmation failed.
+ *
+ * The root owns the whole operation now, including demoting whatever e-mail used to be primary
+ * (`20260822T110000_the_email_verify_root_demotes_the_previous_primary.sql`) — the one thing the
+ * removed second pass did that the root did not, and the one thing whose absence would have turned
+ * this refusal into a `23505` on `uq_user_contacts_primary_email` when a person changes address.
+ */
 export async function verifyUserEmail(userId: string, email: string): Promise<void> {
   await runWebappNamedRoot(
     getWebappSqlDb(),
@@ -227,10 +241,6 @@ export async function verifyUserEmail(userId: string, email: string): Promise<vo
     [userId, email],
     webappSqlFromPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]),
   );
-  await mutateCanonicalUserContactsWebapp(getWebappSqlDb(), userId, [{
-    action: 'upsert', kind: 'email', valueNormalized: email.trim().toLowerCase(), isPrimary: true,
-    confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
-  }]);
 }
 
 export async function claimVerifiedEmail(

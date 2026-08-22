@@ -457,6 +457,44 @@ DEV и TEST — гейты вехи, а не повтор на каждый ми
       именованный корень. ⛔ Заводить обобщённую `pre_session` нельзя — это снимет стену.
       Про утечку пула: после рестарта `:5200` был ровно ОДИН такой 500, и последующие вход по коду и
       выдача кода отвечали 200 — то есть замер выше этим прогоном не опровергнут и не подтверждён.
+      ↳ **ПЕРЕМЕРЕНО 22.08 после снятия дубля (ветка `wt/email-verify-double-write-20260822`, DEV, :5300
+      из worktree). Отказ `pre_session` на подтверждении почты ушёл, блокер сдвинулся ещё на шаг —
+      в `app.provision_specialist_owner`.** Сделано: второй, дублирующий проход убран из
+      `pgEmailAuth.verifyUserEmail`, операцией целиком владеет корень
+      `app.email_auth_verify_user_email(uuid,text)`; корень дополнен понижением прежней первичной почты
+      (`20260822T110000_the_email_verify_root_demotes_the_previous_primary.sql`) — без этого простое
+      удаление вызова заменило бы один отказ другим, `23505 uq_user_contacts_primary_email` на смене
+      почты (замерено на живой `bcb_webapp_dev` пробой с ROLLBACK).
+      Живой прогон: `slug` → **200**, `start` → **200**, код взят из `public.outgoing_delivery_queue`,
+      `confirm` → **503 `provisioning_pending`**; строка почты при этом СОЗДАНА
+      (`user_contacts`: `is_primary=t`, `confirmed_at` проставлен, роль пользователя `doctor`), то есть
+      подтверждение почты отработало. Вход по коду проверен на этом же человеке до конца:
+      `email-otp/start` → **200**, `email-otp/confirm` → **200**
+      `{"ok":true,"redirectTo":"/app/doctor","role":"doctor"}`, сессионная кука выставлена, строка почты
+      осталась одна.
+      ⛔ **Два оставшихся блокера Б2, оба ВНЕ скоупа снятия дубля — не заводить работу без решения:**
+      1. `app.provision_specialist_owner(uuid)` падает `permission denied for table
+         organization_slug_claims`. В декларации этот доступ ЕСТЬ
+         (`deploy/postgres/generated/privileges.bcb_webapp_dev.sql`: INSERT на
+         `public.organization_slug_claims`), в кластере у владельца шва
+         `app_seam_specialist_provision_owner` его НЕТ — то есть DEV просто не сведён. Лечится
+         `bash deploy/host/migrate-dev.sh --execute` назначенной веткой, кодом ничего не правится.
+      2. После сведения тот же корень упрётся в гейт: он объявлен `attested`
+         (`require_attested_context_for_roles(..., ARRAY['app_patient'])`), EXECUTE выдан только
+         `app_patient` и явно отозван у `app_pre_session`, а маршрут `specialist-signup/confirm`
+         доходит до него под bootstrap-принципалом. Это ровно тот же перевод на
+         `require_accepted_context` класса `pre_session`, что сделан для десяти корней в
+         `20260822T100000`, — `provision_specialist_owner` в те десять не входил.
+      ↳ **Перепись соседей того же класса (замер той же ветки, 22.08).** Двойного прохода
+      «именованный корень + сразу за ним `mutateCanonicalUserContactsWebapp` по той же строке» в
+      репозитории больше НЕТ ни одного — `verifyUserEmail` был единственным. Но под bootstrap-принципалом
+      достижимы ещё два писателя канонических контактов, у которых именованного корня нет вовсе, поэтому
+      они падают тем же `Missing declared webapp port capability: pre_session`, и снятием дубля не лечатся:
+      `pgOAuthUserResolve.ts:53,134,158` (маршруты `api/auth/oauth/callback/*`) и
+      `pgChannelLinkClaim.ts:267` (`api/auth/channel-link/start`, `api/integrator/channel-link/complete`) —
+      там сырым остался не только контакт, а весь путь целиком. `pgUserProjection.ts:193,329,414`,
+      `pgUserByPhone.ts`, `pgDoctorClientCreate.ts`, `pgPhoneHistory.ts` под bootstrap не достижимы
+      (staff/admin-маршруты либо мёртвые через DI методы) — их трогать не надо.
 
 ### 3.3 Track C — Rubitime: выведен и заархивирован
 
