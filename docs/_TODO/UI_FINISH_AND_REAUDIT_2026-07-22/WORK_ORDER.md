@@ -1234,18 +1234,61 @@ booking/event gateway) в том же источнике помечены «за
       (10 тестов) — проверяет, что запись доезжает под тем принципалом, под которым её делает живой маршрут, и
       что чужой организации она не достаётся; обе инъекции неисправности (вернуть реляционный INSERT; подставить
       организацию принятого контекста вместо организации строки) красят его.
-      **ЧТО ОСТАЛОСЬ (не делалось этим ходом, намеренно):** шаг 3 — снять у логина интегратора членства в
+      **ЧТО ОСТАЛОСЬ (не делалось шагом 1, намеренно):** шаг 3 — снять у логина интегратора членства в
       `app_tenant_service` и `app_operational_delivery_worker`. Оверлей
       `integrator-login-public-identity-grants.sql` снят 22.08 (в дереве его уже нет, см. §5 переписи), а
-      реляционных писателей ПРОДУКТОВОГО КАНОНА из §2.2 переписи больше нет — этим ходом. **Но реляционная
-      запись по `public.*` из интегратора этим не исчерпана** (замер независимого аудита 22.08): живыми
-      остаются `repos/userChannelBotBlocked.ts` → `public.user_channel_bindings`,
-      `repos/messengerPhoneBindAudit.ts` → `public.admin_audit_log` и `repos/operatorHealthDrizzle.ts` →
-      `public.operator_incidents`/`public.operator_job_status` — каждый вне §2.2 и потому вне шага 1, но
-      каждый уедет вместе с членствами. Поэтому шаг 3 начинается с решения по этим трём, а не с самого
-      снятия. Пока членства на месте, поведение не изменилось ни
-      на йоту: корни исполняются под теми же ролями, под которыми шли прежние прямые записи, — именно поэтому
-      снятие членств и есть отдельный, проверяемый шаг, а не хвост этого.
+      реляционных писателей ПРОДУКТОВОГО КАНОНА из §2.2 переписи больше нет — шагом 1. Пока членства на
+      месте, поведение не изменилось ни на йоту: корни исполняются под теми же ролями, под которыми шли
+      прежние прямые записи, — именно поэтому снятие членств и есть отдельный, проверяемый шаг, а не хвост
+      предыдущего.
+      **ШАГ 2b (три оставшихся реляционных писателя `public.*`) ВЫПОЛНЕН 22.08 — галочку D17 НЕ ставит, это
+      не приёмка.** Три пути, названные замером независимого аудита 22.08 (каждый вне §2.2 переписи и потому
+      вне шага 1), переведены тем же способом — через chokepoint `writeDirectPublic` →
+      `runIntegratorNamedRoot`, без новых слоёв:
+      • `public.user_channel_bindings` (метка «бот заблокирован», ПЯТЬ операторов) —
+        `20260822T111000_the_bot_blocked_marker_gets_a_named_root.sql` →
+        `app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)`
+        (владелец шва `app_seam_delivery_scope_owner`, исполняется под `app_tenant_service`) →
+        `repos/userChannelBotBlocked.ts`. Дверь ОДНА: снятие метки — та же запись с `p_bot_blocked = false`,
+        три формы поиска строки — параметры одного действия. Тело повторяет `rev10_tenant_insert_216`
+        (`WITH CHECK` → отказ 42501) и `rev10_tenant_update_216` (`USING` → чужая строка не видна) дословно,
+        сохраняя разницу между ними.
+      • `public.admin_audit_log` (разбор конфликта привязки номера — собственная `db.tx` из `SELECT … FOR
+        UPDATE`, `UPDATE`, `INSERT` и разбора 23505) — `20260822T111100_…` →
+        `app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text) RETURNS boolean`
+        (`app_seam_identity_lookup_owner`, `app_tenant_service`) → `repos/messengerPhoneBindAudit.ts`.
+        `boolean` двери и есть прежний `insertedFirst`; замок и разбор гонки уехали в тело целиком, чтобы не
+        вынести блокировку за пределы двери.
+      • `public.operator_incidents`/`public.operator_job_status` — **НОВОГО корня не заводилось.** Двери
+        `app.record_operator_outbound_probe_run`, `app.read_operator_outbound_probe_meta` и
+        `app.resolve_operator_probe_incidents` уже существуют и делают ровно эту запись, а живой маршрут уже
+        ходил через них: единственный вызывающий — тик расписания, целиком обёрнутый в
+        `runWithInfraPrincipal({ source: 'scheduler:handle-tick-event' })`, поэтому роль всегда
+        `app_operational_scheduler` и реляционная ветка `else` не исполнялась НИКОГДА. Убраны как второй путь
+        к той же записи: три запасные ветки и две мёртвые функции
+        (`markOperatorIncidentAlertSent`/`getOperatorIncidentAlertState` — вызывающих в дереве нет, живая
+        отметка идёт корнем из `repos/outgoingDeliveryScope.ts:70`).
+      Ключи обеих новых возможностей несут префикс `integrator_port_…` — каталог это один объектный литерал,
+      и одинаковый ключ вытесняет соседа молча (та же причина, что у двери поддержки в шаге 1); диффы
+      `port-context-capabilities.*.sql` — ровно `+2` строки, ни одной `-`. Права — только через декларацию и
+      генератор; `GRANT`/`REVOKE`/`CREATE POLICY` в миграциях нет (0 совпадений). Доказательства:
+      `migrate-dev.sh --preflight` — PASS (`pending=7 total=37`, ROLLBACK), оба `--check` побайтно,
+      `pnpm test:db-privileges` — 142 pass / 0 fail / 44 skip, интегратор `tsc --noEmit` + `eslint` чисто,
+      весь vitest интегратора 551 pass. Поведенческие тесты — по одному на каждый из трёх путей
+      (`directPublic/remainingWritersUseNamedRoots.behaviour.test.ts`, 9 тестов, и
+      `repos/operatorHealthUsesNamedRootsOnly.behaviour.test.ts`, 3 теста); все три инъекции неисправности
+      (вернуть реляционный писатель) красят их, продукт возвращён побайтно.
+      **ПЕРЕПИСЬ ПОСЛЕ ШАГА 2b НЕ ЧИСТА — и это вопрос ведущему, а не работа исполнителя.** В
+      `apps/integrator/**` остаются: `public.outgoing_delivery_queue` (8 `UPDATE`,
+      `repos/outgoingDeliveryQueue.ts` + `repos/jobQueue.ts`) — живой и это ОБЪЯВЛЕННОЕ назначение роли
+      `app_operational_delivery_worker` (декларация даёт ей SELECT + UPDATE на 11 колонок именно этой
+      таблицы, плюс есть возможность отношения `integrator_delivery_relation`); три МЁРТВЫЕ функции записи
+      канона поддержки (`directPublic/writeSupportQuestionsDirect.ts:119,179,231` →
+      `public.support_questions`/`public.support_question_messages`, вызывающих в дереве ноль, живой путь —
+      HTTP `/api/integrator/support/question`); DEV-скрипт
+      `infra/scripts/reconcile-dev-patient-reminder-orphans.ts` → `public.reminder_rules`. Полный разбор,
+      разбор прав по §1 и три вопроса владельцу:
+      `runs/integrator-cleanup/D17_STEP2B_REMAINING_WRITERS_2026-08-22.md`.
       **ЗАФИКСИРОВАНО КАК ЕСТЬ, НЕ «ПОЧИНЕНО»:** `reminder_delivery_events` и `content_access_grants_webapp`
       пишутся только повтором (`directPublicWriteRetryWorker`) под `app_operational_delivery_worker` с занятой
       строкой повтора — передний план на них падал и падает, и оба корня повторяют эту стену
