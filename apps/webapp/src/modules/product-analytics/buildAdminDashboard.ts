@@ -6,6 +6,7 @@ import { truncateToUtcHour } from '@/modules/product-analytics/aggregateKeys';
 import type {
   ProductAnalyticsAdminDashboard,
   ProductAnalyticsEntryChannel,
+  ProductAnalyticsUserAggregates,
 } from '@/modules/product-analytics/types';
 import {
   groupProductAnalyticsPageKey,
@@ -19,7 +20,6 @@ import {
 
 export const PRODUCT_ANALYTICS_TOP_PAGES_LIMIT = 40;
 export const PRODUCT_ANALYTICS_PAGE_HOURLY_TOP_PAGES_LIMIT = 8;
-export const PRODUCT_ANALYTICS_CLIENT_ACTIVITY_LIMIT = 100;
 
 export type ProductAnalyticsHourlyRollupRow = {
   bucketHour: string;
@@ -71,16 +71,76 @@ function addPageViewCount(map: Map<string, number>, rawPageKey: string, count: n
   map.set(key, (map.get(key) ?? 0) + count);
 }
 
-function addPageViewUser(map: Map<string, Set<string>>, rawPageKey: string, userId: string): void {
-  const key = rollupPageKey(rawPageKey);
-  const users = map.get(key) ?? new Set<string>();
-  users.add(userId);
-  map.set(key, users);
-}
 
 export function productAnalyticsWindowStartHour(windowHours: number, now = new Date()): string {
   const startMs = now.getTime() - windowHours * 60 * 60 * 1000;
   return truncateToUtcHour(new Date(startMs).toISOString());
+}
+
+/**
+ * Тот же СЧЁТ, что считает именованный корень, — для пути без базы (in-memory порт). Здесь строки
+ * пользователей ещё видны: они лежат в памяти процесса и наружу не уезжают. На боевом пути этой
+ * функции соответствует тело `app.read_product_analytics_dashboard`, и живая проверка
+ * `productAnalyticsDashboard.devDbProof` сверяет их числа до единицы — расхождение двух
+ * реализаций ловится тестом, а не глазами.
+ */
+export function aggregateProductAnalyticsUserHourly(
+  rows: ProductAnalyticsUserHourlyRollupRow[],
+  input: { displayTimezone: string; startHourInclusive: string },
+): ProductAnalyticsUserAggregates {
+  const startMs = new Date(input.startHourInclusive).getTime();
+  const tz = input.displayTimezone;
+
+  let totalActiveMinutes = 0;
+  const activeUserIds = new Set<string>();
+  const dailyActiveUsers = new Map<string, Set<string>>();
+  const pageUsers = new Map<string, Set<string>>();
+  const pageUsersByBucket = new Map<string, Map<string, Set<string>>>();
+
+  for (const r of rows) {
+    if (new Date(r.bucketHour).getTime() < startMs) continue;
+    totalActiveMinutes += r.activeMinutes;
+    const activity = r.appOpens + r.pageViews + r.pushOpens + r.activeMinutes;
+    if (activity <= 0) continue;
+
+    activeUserIds.add(r.userId);
+    const day = toDisplayZoneDayKey(r.bucketHour, tz);
+    const daySet = dailyActiveUsers.get(day) ?? new Set<string>();
+    daySet.add(r.userId);
+    dailyActiveUsers.set(day, daySet);
+
+    if (isRollupTotalDim(r.pageKey) || r.pageViews <= 0) continue;
+    const groupKey = rollupPageKey(r.pageKey);
+    const users = pageUsers.get(groupKey) ?? new Set<string>();
+    users.add(r.userId);
+    pageUsers.set(groupKey, users);
+
+    const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, tz);
+    const byPage = pageUsersByBucket.get(bucketKey) ?? new Map<string, Set<string>>();
+    const bucketUsers = byPage.get(groupKey) ?? new Set<string>();
+    bucketUsers.add(r.userId);
+    byPage.set(groupKey, bucketUsers);
+    pageUsersByBucket.set(bucketKey, byPage);
+  }
+
+  return {
+    totalActiveMinutes,
+    uniqueActiveUsers: activeUserIds.size,
+    activeUsersDaily: [...dailyActiveUsers.entries()]
+      .map(([day, users]) => ({ day, activeUsers: users.size }))
+      .sort((a, b) => a.day.localeCompare(b.day)),
+    pageUniqueUsers: [...pageUsers.entries()].map(([pageKey, users]) => ({
+      pageKey,
+      uniqueUsers: users.size,
+    })),
+    pageUniqueUsersHourly: [...pageUsersByBucket.entries()].flatMap(([bucket, byPage]) =>
+      [...byPage.entries()].map(([pageKey, users]) => ({
+        bucket,
+        pageKey,
+        uniqueUsers: users.size,
+      })),
+    ),
+  };
 }
 
 export function buildAdminDashboard(input: {
@@ -89,57 +149,35 @@ export function buildAdminDashboard(input: {
   generatedAt?: string;
   startHourInclusive: string;
   hourlyRows: ProductAnalyticsHourlyRollupRow[];
-  userHourlyRows: ProductAnalyticsUserHourlyRollupRow[];
+  /**
+   * Величины про людей приезжают СЧЁТОМ, а не строками. На боевом пути их считает именованный
+   * корень под владельцем шва; в памяти — `aggregateProductAnalyticsUserHourly` из этого же файла.
+   * Строк пользователей сборщик больше не видит вовсе, поэтому и отдать их экрану не может.
+   */
+  userAggregates: ProductAnalyticsUserAggregates;
   warmupSloganSamples?: WarmupSloganSampleRow[];
-  userDisplayNames?: Record<string, string>;
 }): ProductAnalyticsAdminDashboard {
   const displayTimezone = input.displayTimezone;
   const startMs = new Date(input.startHourInclusive).getTime();
   const inWindow = (bucketHour: string) => new Date(bucketHour).getTime() >= startMs;
 
   const hourly = input.hourlyRows.filter((r) => inWindow(r.bucketHour));
-  const userHourly = input.userHourlyRows.filter((r) => inWindow(r.bucketHour));
 
   let totalAuthLogins = 0;
   let totalAppOpens = 0;
   let totalPageViews = 0;
   let totalPushOpens = 0;
   let totalPushSent = 0;
-  let totalActiveMinutes = 0;
 
   const channelByBucket = new Map<string, Record<ProductAnalyticsEntryChannel, number>>();
   const channelTotals = emptyChannelCounts();
   const pageViews = new Map<string, number>();
-  const pageUniqueUsers = new Map<string, Set<string>>();
   const pageViewsByBucket = new Map<string, Map<string, number>>();
-  const pageUniqueUsersByBucket = new Map<string, Map<string, Set<string>>>();
   const topicSent = new Map<string, number>();
   const topicOpened = new Map<string, number>();
   const sloganSent = new Map<string, number>();
   const sloganOpened = new Map<string, number>();
   const sloganSample = new Map<string, string | null>();
-  const clientSummary = new Map<
-    string,
-    {
-      userId: string;
-      displayName: string;
-      lastSeenAt: string | null;
-      appOpens: number;
-      pageViews: number;
-      pushOpens: number;
-      activeMinutes: number;
-      channels: Map<
-        ProductAnalyticsEntryChannel,
-        {
-          appOpens: number;
-          pageViews: number;
-          pushOpens: number;
-          activeMinutes: number;
-        }
-      >;
-    }
-  >();
-
   for (const row of input.warmupSloganSamples ?? []) {
     if (!sloganSample.has(row.sloganKey)) {
       sloganSample.set(row.sloganKey, row.sampleText);
@@ -204,81 +242,17 @@ export function buildAdminDashboard(input: {
     }
   }
 
-  const activeUserIds = new Set<string>();
-  const dailyActiveUsers = new Map<string, Set<string>>();
-
-  for (const r of userHourly) {
-    totalActiveMinutes += r.activeMinutes;
-    const activity = r.appOpens + r.pageViews + r.pushOpens + r.activeMinutes;
-    if (activity <= 0) continue;
-    activeUserIds.add(r.userId);
-    const day = toDisplayZoneDayKey(r.bucketHour, displayTimezone);
-    const daySet = dailyActiveUsers.get(day) ?? new Set<string>();
-    daySet.add(r.userId);
-    dailyActiveUsers.set(day, daySet);
-
-    if (!isRollupTotalDim(r.pageKey) && r.pageViews > 0) {
-      addPageViewUser(pageUniqueUsers, r.pageKey, r.userId);
-
-      const bucketKey = toDisplayZoneHourBucketKey(r.bucketHour, displayTimezone);
-      const byPage = pageUniqueUsersByBucket.get(bucketKey) ?? new Map<string, Set<string>>();
-      addPageViewUser(byPage, r.pageKey, r.userId);
-      pageUniqueUsersByBucket.set(bucketKey, byPage);
-    }
-
-    if (
-      !PRODUCT_ANALYTICS_ENTRY_CHANNELS.includes(r.entryChannel as ProductAnalyticsEntryChannel)
-    ) {
-      continue;
-    }
-    const ch = r.entryChannel as ProductAnalyticsEntryChannel;
-    const client =
-      clientSummary.get(r.userId) ??
-      (() => {
-        const created = {
-          userId: r.userId,
-          displayName: input.userDisplayNames?.[r.userId] ?? 'Пациент',
-          lastSeenAt: null as string | null,
-          appOpens: 0,
-          pageViews: 0,
-          pushOpens: 0,
-          activeMinutes: 0,
-          channels: new Map<
-            ProductAnalyticsEntryChannel,
-            {
-              appOpens: number;
-              pageViews: number;
-              pushOpens: number;
-              activeMinutes: number;
-            }
-          >(),
-        };
-        clientSummary.set(r.userId, created);
-        return created;
-      })();
-
-    client.appOpens += r.appOpens;
-    client.pageViews += r.pageViews;
-    client.pushOpens += r.pushOpens;
-    client.activeMinutes += r.activeMinutes;
-    if (
-      !client.lastSeenAt ||
-      new Date(r.lastSeenAt ?? r.bucketHour).getTime() > new Date(client.lastSeenAt).getTime()
-    ) {
-      client.lastSeenAt = r.lastSeenAt ?? r.bucketHour;
-    }
-
-    const channelCounters = client.channels.get(ch) ?? {
-      appOpens: 0,
-      pageViews: 0,
-      pushOpens: 0,
-      activeMinutes: 0,
-    };
-    channelCounters.appOpens += r.appOpens;
-    channelCounters.pageViews += r.pageViews;
-    channelCounters.pushOpens += r.pushOpens;
-    channelCounters.activeMinutes += r.activeMinutes;
-    client.channels.set(ch, channelCounters);
+  // Уникальные люди приезжают уже посчитанными и уже СХЛОПНУТЫМИ по правилам группировки:
+  // `count(distinct)` после схлопывания — единственный способ не задвоить человека, открывшего два
+  // сырых ключа одной группы.
+  const pageUniqueUsers = new Map(
+    input.userAggregates.pageUniqueUsers.map((r) => [r.pageKey, r.uniqueUsers] as const),
+  );
+  const pageUniqueUsersByBucket = new Map<string, Map<string, number>>();
+  for (const r of input.userAggregates.pageUniqueUsersHourly) {
+    const byPage = pageUniqueUsersByBucket.get(r.bucket) ?? new Map<string, number>();
+    byPage.set(r.pageKey, r.uniqueUsers);
+    pageUniqueUsersByBucket.set(r.bucket, byPage);
   }
 
   const entryChannelHourly = [...channelByBucket.entries()]
@@ -296,7 +270,7 @@ export function buildAdminDashboard(input: {
       pageKey,
       pageLabel: labelProductAnalyticsPageKey(pageKey),
       views,
-      uniqueUsers: pageUniqueUsers.get(pageKey)?.size ?? 0,
+      uniqueUsers: pageUniqueUsers.get(pageKey) ?? 0,
     }))
     .sort((a, b) => b.views - a.views || a.pageKey.localeCompare(b.pageKey))
     .slice(0, PRODUCT_ANALYTICS_TOP_PAGES_LIMIT);
@@ -312,7 +286,7 @@ export function buildAdminDashboard(input: {
           bucket,
           pageKey,
           views,
-          uniqueUsers: pageUniqueUsersByBucket.get(bucket)?.get(pageKey)?.size ?? 0,
+          uniqueUsers: pageUniqueUsersByBucket.get(bucket)?.get(pageKey) ?? 0,
         })),
     )
     .sort(
@@ -350,66 +324,25 @@ export function buildAdminDashboard(input: {
     })
     .sort((a, b) => b.sent - a.sent || a.sloganKey.localeCompare(b.sloganKey));
 
-  const activeUsersDaily = [...dailyActiveUsers.entries()]
-    .map(([day, users]) => ({ day, activeUsers: users.size }))
-    .sort((a, b) => a.day.localeCompare(b.day));
+  const activeUsersDaily = [...input.userAggregates.activeUsersDaily].sort((a, b) =>
+    a.day.localeCompare(b.day),
+  );
 
   const entryChannelTotals = PRODUCT_ANALYTICS_ENTRY_CHANNELS.map((entryChannel) => ({
     entryChannel,
     appOpens: channelTotals[entryChannel],
   }));
 
-  const clientActivity = [...clientSummary.values()]
-    .map((row) => {
-      const channels = PRODUCT_ANALYTICS_ENTRY_CHANNELS.map((entryChannel) => {
-        const stats = row.channels.get(entryChannel) ?? {
-          appOpens: 0,
-          pageViews: 0,
-          pushOpens: 0,
-          activeMinutes: 0,
-        };
-        const totalActivity =
-          stats.appOpens + stats.pageViews + stats.pushOpens + stats.activeMinutes;
-        return {
-          entryChannel,
-          appOpens: stats.appOpens,
-          pageViews: stats.pageViews,
-          pushOpens: stats.pushOpens,
-          activeMinutes: stats.activeMinutes,
-          totalActivity,
-        };
-      }).filter((stats) => stats.totalActivity > 0);
-      const totalActivity = row.appOpens + row.pageViews + row.pushOpens + row.activeMinutes;
-      return {
-        userId: row.userId,
-        displayName: row.displayName,
-        lastSeenAt: row.lastSeenAt,
-        appOpens: row.appOpens,
-        pageViews: row.pageViews,
-        pushOpens: row.pushOpens,
-        activeMinutes: row.activeMinutes,
-        totalActivity,
-        channels,
-      };
-    })
-    .sort(
-      (a, b) =>
-        b.totalActivity - a.totalActivity ||
-        (b.lastSeenAt ?? '').localeCompare(a.lastSeenAt ?? '') ||
-        a.displayName.localeCompare(b.displayName),
-    )
-    .slice(0, PRODUCT_ANALYTICS_CLIENT_ACTIVITY_LIMIT);
-
   return {
     windowHours: input.windowHours,
     displayTimezone,
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     summary: {
-      uniqueActiveUsers: activeUserIds.size,
+      uniqueActiveUsers: input.userAggregates.uniqueActiveUsers,
       totalAuthLogins,
       totalAppOpens,
       totalPageViews,
-      totalActiveMinutes,
+      totalActiveMinutes: input.userAggregates.totalActiveMinutes,
       totalPushSent,
       totalPushOpens,
       pushOpenRate: openRate(totalPushOpens, totalPushSent),
@@ -421,6 +354,5 @@ export function buildAdminDashboard(input: {
     pushByTopic,
     warmupSlogans,
     activeUsersDaily,
-    clientActivity,
   };
 }
