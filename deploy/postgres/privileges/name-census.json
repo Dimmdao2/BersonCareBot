@@ -232,6 +232,53 @@
     "saas_system_health_owner",
     "saas_telemetry_owner"
   ],
+  "definerRootsCrossingTenantWall": [
+    "app.accept_org_invite(text,uuid,text) -> public.be_organization_members",
+    "app.accept_org_invite(text,uuid,text) -> public.be_organizations",
+    "app.accept_org_invite(text,uuid,text) -> public.organization_member_invites",
+    "app.accept_org_invite(text,uuid,text) -> public.platform_users",
+    "app.accept_org_invite(text,uuid,text) -> public.saas_billing_subscriptions",
+    "app.accept_org_invite(text,uuid,text) -> public.saas_org_entitlement_overrides",
+    "app.accept_org_invite(text,uuid,text) -> public.user_contacts",
+    "app.auth_phone_bind_lock_channel_binding(text,text) -> public.user_channel_bindings",
+    "app.auth_phone_bind_upsert_channel_binding(uuid,text,text) -> public.user_channel_bindings",
+    "app.claim_unbound_patient_invite_email(text,text,text,bigint,text) -> public.be_organizations",
+    "app.claim_unbound_patient_invite_email(text,text,text,bigint,text) -> public.org_enrollments",
+    "app.claim_unbound_patient_invite_email(text,text,text,bigint,text) -> public.patient_invites",
+    "app.claim_unbound_patient_invite_email(text,text,text,bigint,text) -> public.platform_users",
+    "app.claim_unbound_patient_invite_email(text,text,text,bigint,text) -> public.user_contacts",
+    "app.email_otp_public_delete_unverified_registration(uuid) -> public.user_contacts",
+    "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.be_organizations",
+    "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.org_enrollments",
+    "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.patient_invites",
+    "app.find_platform_user_ids_by_any_confirmed_email(text) -> public.platform_users",
+    "app.find_platform_user_ids_by_any_confirmed_email(text) -> public.user_contacts",
+    "app.get_preferred_auth_channel_code(uuid) -> public.user_channel_preferences",
+    "app.list_active_booking_cities() -> public.booking_cities",
+    "app.lookup_patient_invite_continuation(text) -> public.be_organizations",
+    "app.lookup_patient_invite_continuation(text) -> public.org_enrollments",
+    "app.lookup_patient_invite_continuation(text) -> public.patient_invites",
+    "app.lookup_pending_org_invite(text) -> public.be_organizations",
+    "app.lookup_pending_org_invite(text) -> public.organization_member_invites",
+    "app.provision_specialist_owner(uuid) -> public.be_organization_members",
+    "app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text) -> public.be_branches",
+    "app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text) -> public.be_clinic_services",
+    "app.read_current_patient_booking_creation_snapshot(uuid,uuid,text,text) -> public.be_specialists",
+    "app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone) -> public.platform_users",
+    "app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone) -> public.user_channel_bindings",
+    "app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone) -> public.user_contacts",
+    "app.read_org_brand_core_context(uuid) -> public.be_organizations",
+    "app.redeem_patient_invite_email(text) -> public.be_organizations",
+    "app.redeem_patient_invite_email(text) -> public.org_enrollments",
+    "app.redeem_patient_invite_email(text) -> public.patient_invites",
+    "app.redeem_patient_invite_email(text) -> public.user_contacts",
+    "app.resolve_payment_webhook_organization(text,text,text) -> public.be_payment_intents",
+    "app.resolve_payment_webhook_organization(text,text,text) -> public.be_payment_provider_events",
+    "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text) -> public.be_organizations",
+    "app.start_patient_invite_email_proof(text,text,text,timestamp with time zone,text,bigint,text) -> public.patient_invites",
+    "app.verify_patient_invite_email_proof(text,text,text,text,bigint,text) -> public.be_organizations",
+    "app.verify_patient_invite_email_proof(text,text,text,text,bigint,text) -> public.patient_invites"
+  ],
   "genuinePreSessionRoots": [
     "auth_login_token_confirm",
     "auth_login_token_create",
@@ -272,6 +319,13 @@
     "app.record_operator_delivery_attempt: public.notification_delivery_attempts.event_id <- p_intent_event_id",
     "app.upsert_google_calendar_event_id: public.booking_calendar_map.gcal_event_id <- p_event_id"
   ],
+  "principalAccessorClosure": [
+    "app.current_actor_user_id()",
+    "app.current_integrator_user_id()",
+    "app.current_org_id()",
+    "app.current_patient_user_id()",
+    "app.require_staff_security_self_user_id()"
+  ],
   "relationWideCapabilities": [
     "integrator/integrator_delivery_relation",
     "integrator/integrator_request_relation",
@@ -288,5 +342,12 @@
     "webapp/webapp_staff_relation",
     "webapp/webapp_telemetry_relation",
     "webapp/webapp_worker_relation"
+  ],
+  "tenantRuntimeRoles": [
+    "app_clinic_billing",
+    "app_integrator_request",
+    "app_patient",
+    "app_staff",
+    "app_tenant_service"
   ]
 }

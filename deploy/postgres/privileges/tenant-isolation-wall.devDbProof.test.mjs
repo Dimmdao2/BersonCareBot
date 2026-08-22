@@ -53,6 +53,7 @@ import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
+import { tenantWalledRelations } from './tenant-wall.mjs';
 
 const ENABLED = process.env.RUN_TENANT_ISOLATION_WALL_DB === '1';
 const DATABASE = process.env.TENANT_ISOLATION_PROOF_DB ?? process.env.PORT_CONTEXT_PROOF_DB ?? 'bcb_webapp_dev';
@@ -61,28 +62,19 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
   throw new Error(`unsafe database identifier '${DATABASE}'`);
 }
 
-/** Стены, которые несут организационный предикат. Остальные org-таблицы (`platform-role`) арендной
- *  роли не открыты вовсе и предметом этой проверки не являются. */
-const TENANT_WALLS = new Set(['clinic', 'clinic+patient', 'reference-org-copy', 'platform-role+clinic']);
-
 /**
- * Предметы — из декларации, не из списка здесь. Раньше предмет ещё и требовал `table.org === true`;
- * это поле в декларации значит «перепись ИЗМЕРИЛА и таблица несёт organization_id», а не «у таблицы
- * есть стена клиники» (types.ts: «Опущено там, где перепись не мерила»). Требовать его тут держало
- * вне проверки 50 таблиц под стеной клиники (`be_payments`, `support_conversations`, `system_settings`,
+ * Предметы — из декларации, не из списка здесь, и спрашиваются в ОБЩЕМ месте (`tenant-wall.mjs`):
+ * ровно те же предметы берёт гейт организационного предиката в телах SECURITY DEFINER, и второй
+ * копии списка быть не должно. Раньше предмет ещё и требовал `table.org === true`; это поле в
+ * декларации значит «перепись ИЗМЕРИЛА и таблица несёт organization_id», а не «у таблицы есть стена
+ * клиники» (types.ts: «Опущено там, где перепись не мерила»). Требовать его тут держало вне проверки
+ * 50 таблиц под стеной клиники (`be_payments`, `support_conversations`, `system_settings`,
  * `saas_billing_*` и другие) — не потому что стены нет, а потому что перепись поля `org` их не
- * коснулась (blind-audit F1, 2026-08-19/20). Стену определяет ИСКЛЮЧИТЕЛЬНО `wall`; наличие самой
- * колонки `organization_id` на каждый предмет всё равно перепроверяет `census()` ниже на живой базе —
- * таблица без колонки уходит в «не проверено» с причиной, а не молча выпадает из предметов.
+ * коснулась (blind-audit F1, 2026-08-19/20). Наличие самой колонки `organization_id` на каждый
+ * предмет всё равно перепроверяет `census()` ниже на живой базе — таблица без колонки уходит в
+ * «не проверено» с причиной, а не молча выпадает из предметов.
  */
-function subjectsFromDeclaration(database) {
-  const declared = declaration.databases[database];
-  if (!declared) throw new Error(`декларация не знает базы '${database}'`);
-  return Object.entries(declared.tables)
-    .filter(([, table]) => TENANT_WALLS.has(table.wall) && table.disposition === 'ACTIVE')
-    .map(([name]) => name)
-    .sort();
-}
+const subjectsFromDeclaration = (database) => tenantWalledRelations(declaration, database);
 
 const IDENTIFIER = /^[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*$/u;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;

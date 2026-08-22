@@ -20,27 +20,13 @@
  * то есть против того, что реально приедет в кластер, а не против пересказа в декларации.
  */
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
-import { latestArtifactFunctions, rowLockedRelations } from './function-body-surface.mjs';
-
-const SCHEMA_SNAPSHOT = fileURLToPath(
-  new URL('../generated/prod-to-target/schema-pre.sql', import.meta.url),
-);
-const MIGRATIONS_FOLDER = fileURLToPath(
-  new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url),
-);
-
-/** Snapshot первым, затем активные forward-миграции по имени файла — тот же порядок, что у раннера. */
-const activeArtifacts = () => [
-  SCHEMA_SNAPSHOT,
-  ...readdirSync(MIGRATIONS_FOLDER).filter((file) => file.endsWith('.sql')).sort()
-    .map((file) => join(MIGRATIONS_FOLDER, file)),
-];
+import {
+  SCHEMA_SNAPSHOT, activeSchemaArtifacts, latestArtifactFunctions, rowLockedRelations,
+} from './function-body-surface.mjs';
 
 const DATABASES = ['bersoncarebot_test', 'bcb_webapp_dev'];
 
@@ -63,7 +49,7 @@ const holdsUpdate = (database, relation, role) => {
 /** Тела с замком, сведённые с объявленной функцией; пары, которые надо проверить правами. */
 function lockedPairs(database) {
   const pairs = [];
-  for (const fn of latestArtifactFunctions(activeArtifacts())) {
+  for (const fn of latestArtifactFunctions(activeSchemaArtifacts())) {
     const locked = rowLockedRelations(fn.body);
     if (locked.size === 0) continue;
     const signatures = declaredSignature(fn.name);
@@ -90,7 +76,7 @@ test('каждая заблокированная телом таблица не
 
 test('замок оплачивается одной колонкой, а не табличным UPDATE и не расширенным чтением', () => {
   const wide = [];
-  for (const fn of latestArtifactFunctions(activeArtifacts())) {
+  for (const fn of latestArtifactFunctions(activeSchemaArtifacts())) {
     const locked = rowLockedRelations(fn.body);
     if (locked.size === 0) continue;
     const signatures = declaredSignature(fn.name);
@@ -141,7 +127,7 @@ test('лексический разбор различает замок, под�
 });
 
 test('артефакты схемы читаются и содержат объявленные швы', () => {
-  const artifacts = activeArtifacts();
+  const artifacts = activeSchemaArtifacts();
   assert.ok(artifacts.length > 1, 'нет активных forward-миграций рядом со snapshot');
   assert.ok(readFileSync(SCHEMA_SNAPSHOT, 'utf8').length > 0);
   const locking = latestArtifactFunctions(artifacts).filter((fn) => rowLockedRelations(fn.body).size > 0);

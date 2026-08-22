@@ -21,28 +21,13 @@
  * схемы (generated snapshot + активные forward-миграции), то есть против того, что приедет в кластер.
  */
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
-import { insertColumnBindings, latestArtifactFunctions } from './function-body-surface.mjs';
+import {
+  activeSchemaArtifacts, insertColumnBindings, latestArtifactFunctions,
+} from './function-body-surface.mjs';
 import { assertNameCensus } from './name-census.mjs';
-
-const SCHEMA_SNAPSHOT = fileURLToPath(
-  new URL('../generated/prod-to-target/schema-pre.sql', import.meta.url),
-);
-const MIGRATIONS_FOLDER = fileURLToPath(
-  new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url),
-);
-
-/** Snapshot первым, затем активные forward-миграции по имени файла — тот же порядок, что у раннера. */
-const activeArtifacts = () => [
-  SCHEMA_SNAPSHOT,
-  ...readdirSync(MIGRATIONS_FOLDER).filter((file) => file.endsWith('.sql')).sort()
-    .map((file) => join(MIGRATIONS_FOLDER, file)),
-];
 
 const integratorPortRoots = () => new Set(Object.values(declaration.portContext.capabilities)
   .filter((capability) => capability.port === 'integrator' && capability.functionIdentity)
@@ -53,7 +38,7 @@ const integratorPortRoots = () => new Set(Object.values(declaration.portContext.
 function bindingsOfIntegratorRoots() {
   const roots = integratorPortRoots();
   const found = [];
-  for (const fn of latestArtifactFunctions(activeArtifacts())) {
+  for (const fn of latestArtifactFunctions(activeSchemaArtifacts())) {
     if (!roots.has(fn.name)) continue;
     for (const binding of insertColumnBindings(fn.body)) found.push({ ...binding, root: fn.name });
   }

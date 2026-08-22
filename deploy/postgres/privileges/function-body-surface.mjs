@@ -1,4 +1,21 @@
 import fs from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const SCHEMA_SNAPSHOT = fileURLToPath(new URL('../generated/prod-to-target/schema-pre.sql', import.meta.url));
+const MIGRATIONS_FOLDER = fileURLToPath(new URL('../../../apps/webapp/db/drizzle-migrations', import.meta.url));
+
+/**
+ * ДЕЙСТВУЮЩИЕ артефакты схемы в порядке раннера: snapshot первым, затем активные forward-миграции
+ * по имени файла. Это то, что реально приедет в кластер, — а не пересказ в декларации.
+ *
+ * Список жил тремя копиями в трёх файлах проверок; четвёртая копия и разъехалась бы первой.
+ */
+export const activeSchemaArtifacts = () => [
+  SCHEMA_SNAPSHOT,
+  ...fs.readdirSync(MIGRATIONS_FOLDER).filter((file) => file.endsWith('.sql')).sort()
+    .map((file) => join(MIGRATIONS_FOLDER, file)),
+];
 
 const OPERATION_ORDER = ['SELECT', 'INSERT', 'UPDATE', 'DELETE'];
 const RELATION_SCHEMAS = ['app', 'app_ext', 'integrator', 'public'];
