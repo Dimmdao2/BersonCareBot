@@ -14,11 +14,17 @@ type TopicUnsubscribeTokenPayload = {
 };
 
 export type TopicUnsubscribeServiceDeps = {
-  secret: string;
+  getSecret: () => string;
   appBaseUrl: string;
   setTopicEnabled: (userId: string, topicCode: string, enabled: boolean) => Promise<void>;
   runForPatient: <T>(userId: string, action: () => Promise<T>) => Promise<T>;
 };
+
+function requireSecret(getSecret: () => string): string {
+  const secret = getSecret().trim();
+  if (secret.length < 16) throw new Error('topic_unsubscribe_secret_unavailable');
+  return secret;
+}
 
 function sign(encodedPayload: string, secret: string): Buffer {
   return createHmac('sha256', secret)
@@ -67,11 +73,9 @@ function decodeToken(token: string, secret: string): TopicUnsubscribeTokenPayloa
 }
 
 export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps) {
-  const secret = deps.secret.trim();
-  if (secret.length < 16) throw new Error('topic_unsubscribe_secret_unavailable');
-
   return {
     createUrl(input: { userId: string; topicCode: string; nonce: string }): string {
+      const secret = requireSecret(deps.getSecret);
       const payload: TopicUnsubscribeTokenPayload = {
         v: TOKEN_VERSION,
         userId: input.userId.trim(),
@@ -93,6 +97,7 @@ export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps)
     },
 
     async unsubscribeByToken(token: string): Promise<'applied' | 'invalid'> {
+      const secret = requireSecret(deps.getSecret);
       const payload = decodeToken(token.trim(), secret);
       if (!payload) return 'invalid';
       try {
