@@ -282,3 +282,49 @@ test('integrator port doors on the webapp tenant role are named, and the list on
     'integrator port capabilities still reached through the webapp tenant role',
   );
 });
+
+// Опознание получателя во входящем событии. Вебхук выбирает принципал тройкой
+// `integrator` → `organization` → `bootstrap` (`telegram/webhook.ts:372,377,378`), а рантайм порта
+// интегратора резолвит именованный корень по паре (`functionIdentity`, класс, выведенный из
+// принципала). Пока дверь была одна, работал только средний маршрут: под интеграторским рантайм
+// не находил возможности и бросал, бросок доходил до `eventGateway` и человек не получал НИ ОДНОГО
+// ответа на своё сообщение. Проверка держится на этом, а не на счётчике дверей: она называет, что
+// резолвится под каждым из трёх принципалов.
+//
+// Третьей двери, bootstrap-класса, здесь быть НЕ должно: этот класс по контракту
+// (`app.install_port_context`) не несёт организации, а без неё стена арендатора в теле корня не
+// выполнима — дверь читала бы чужого арендатора. Под bootstrap чтение не делается вовсе
+// (`repos/platformUserByChannel.ts`).
+const RECIPIENT_ROOT = 'app.integrator_read_channel_binding_identity(text,text,text)';
+
+test('the incoming-recipient root has exactly one door per webhook principal that carries a tenant', () => {
+  for (const dbName of ['bersoncarebot_test', 'bcb_webapp_dev']) {
+    const env = dbName === 'bersoncarebot_test' ? 'test' : 'dev';
+    const descriptors = JSON.parse(
+      renderPortContextRuntimeEnv(declaration, env, dbName, 'integrator').value,
+    );
+    const doors = Object.values(descriptors).filter(
+      (descriptor) => descriptor.functionIdentity === RECIPIENT_ROOT,
+    );
+    // Организационный принципал резолвит класс `tenant_service`, интеграторский — `integrator`;
+    // ровно по одной двери на каждый, обе — на СВОЕЙ роли порта интегратора.
+    assert.deepEqual(
+      doors.map((descriptor) => [descriptor.contextClass, descriptor.targetRole]).sort(),
+      [['integrator', 'app_integrator_request'], ['tenant_service', 'app_integrator_request']],
+      `${dbName}: ${RECIPIENT_ROOT} must open for the organization and the integrator principal, each on the integrator's own role`,
+    );
+    // Ветка резолвера для bootstrap-принципала (`portContextRuntime.ts:219-223`): класс
+    // `pre_session` ЛИБО класс `integrator` на роли `app_integrator_resolver`.
+    assert.deepEqual(
+      doors.filter((descriptor) => descriptor.contextClass === 'pre_session'
+        || descriptor.targetRole === 'app_integrator_resolver'),
+      [],
+      `${dbName}: a bootstrap-reachable door would read this root without a tenant wall`,
+    );
+    assert.deepEqual(
+      declaration.portContext.functions[RECIPIENT_ROOT].execute,
+      ['app_integrator_request'],
+      'EXECUTE принадлежит одной роли: обе двери — порта интегратора, чужая роль не называется',
+    );
+  }
+});

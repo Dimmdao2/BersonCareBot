@@ -50,6 +50,7 @@ vi.mock('../drizzle.js', () => ({
 }));
 
 import { resolveCanonicalPlatformUserIdByChannel } from './platformUserByChannel.js';
+import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 import { getPhoneNormalizedForDeliveryLookup } from './platformUserDeliveryPhone.js';
 
 vi.mock('./channelUsers.js', () => ({}));
@@ -226,6 +227,12 @@ describe('маршрут резолва: по какому ключу ищем �
   });
 });
 
+// Читатель привязки канала требует арендатора: стену «активный сотрудник ЛИБО активный
+// зачисленный» корень берёт из принятого контекста, и без организации дверь не открывается вовсе
+// (`platformUserByChannel.ts`). Поэтому каждый резолв здесь идёт под организационным принципалом —
+// иначе тест на «null» проходил бы по отсутствию клиники, а не по тому, что он проверяет.
+const RESOLVE_ORG = 'a0000000-0000-4000-8000-000000000001';
+
 describe('резолв платформенного пользователя: «ничего не нашли» — это отказ, а не пустой адрес', () => {
   it('дано: привязки канала нет → когда резолв по каналу → тогда null, и отправлять некому', async () => {
     // АРБИТР: в resolveCanonicalPlatformUserIdByChannel() вернуть `row?.platform_user_id ?? ''`
@@ -233,10 +240,11 @@ describe('резолв платформенного пользователя: «
     drizzleLimitResults.queue = [[]];
     const empty = fakeDb([]);
     expect(
-      await resolveCanonicalPlatformUserIdByChannel(empty, {
-        channelCode: 'telegram',
-        externalId: '7924656602',
-      }),
+      await runWithOrganizationPrincipal(RESOLVE_ORG, () =>
+        resolveCanonicalPlatformUserIdByChannel(empty, {
+          channelCode: 'telegram',
+          externalId: '7924656602',
+        })),
     ).toBeNull();
   });
 
@@ -249,10 +257,11 @@ describe('резолв платформенного пользователя: «
     drizzleLimitResults.queue = [[{ userId: '   ' }], [{ mergedIntoId: null }]];
     const blank = fakeDb([{ platform_user_id: '   ' }]);
     return expect(
-      resolveCanonicalPlatformUserIdByChannel(blank, {
-        channelCode: 'telegram',
-        externalId: '7924656602',
-      }),
+      runWithOrganizationPrincipal(RESOLVE_ORG, () =>
+        resolveCanonicalPlatformUserIdByChannel(blank, {
+          channelCode: 'telegram',
+          externalId: '7924656602',
+        })),
     ).resolves.toBeNull();
   });
 
@@ -265,10 +274,11 @@ describe('резолв платформенного пользователя: «
     ];
     const found = fakeDb([{ platform_user_id: ' 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0 ' }]);
     return expect(
-      resolveCanonicalPlatformUserIdByChannel(found, {
-        channelCode: 'telegram',
-        externalId: '7924656602',
-      }),
+      runWithOrganizationPrincipal(RESOLVE_ORG, () =>
+        resolveCanonicalPlatformUserIdByChannel(found, {
+          channelCode: 'telegram',
+          externalId: '7924656602',
+        })),
     ).resolves.toBe('1c312a64-fab8-4b75-b24e-88a1d6ebe4e0');
   });
 
