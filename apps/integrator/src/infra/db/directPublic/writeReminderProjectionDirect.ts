@@ -1,6 +1,23 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorNamedRoot, runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
+
+/**
+ * D17. The two remaining relational writers of this file are named roots now.
+ *
+ * Both land under `app_operational_delivery_worker`, not under the organization principal, because
+ * that is the only role of the integrator login the declaration grants these two tables to — and it
+ * grants them ONLY for a claimed durable retry (`rev10_delivery_replay_worker_170` /
+ * `rev10_delivery_replay_worker_84`). The foreground attempt from the delivery worker runs inside an
+ * organization principal, finds no `service`-class capability for the root, throws, and its caller
+ * queues the durable retry exactly as it does today; `directPublicWriteRetryWorker` then reaches the
+ * root under the delivery capability and the row lands. Each root body repeats that claimed-retry
+ * wall in SQL, because a SECURITY DEFINER body does not see the policy.
+ */
+const APPEND_REMINDER_DELIVERY_EVENT_ROOT =
+  'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)';
+const UPSERT_CONTENT_ACCESS_GRANT_ROOT =
+  'app.integrator_upsert_content_access_grant(uuid,text,text,bigint,text,text,text,timestamp with time zone,timestamp with time zone,text,timestamp with time zone)';
 
 export type ReminderOccurrenceFinalizedDirectInput = {
   integratorOccurrenceId: string;
@@ -75,16 +92,28 @@ export async function appendReminderDeliveryEventDirect(
   db: DbPort,
   input: ReminderDeliveryLoggedDirectInput,
 ): Promise<void> {
-  await runIntegratorSql(
+  const payloadJson = JSON.stringify(input.payloadJson);
+  await runIntegratorNamedRoot(
     db,
-    sql`INSERT INTO public.reminder_delivery_events (
-      organization_id, integrator_delivery_log_id, integrator_occurrence_id, integrator_rule_id,
-      integrator_user_id, channel, status, error_code, payload_json, created_at
-    ) VALUES (
-      ${input.organizationId}::uuid, ${input.integratorDeliveryLogId}, ${input.integratorOccurrenceId},
-      ${input.integratorRuleId}, ${input.integratorUserId}::bigint, ${input.channel}, ${input.status},
-      ${input.errorCode}, ${JSON.stringify(input.payloadJson)}::jsonb, ${input.createdAt}::timestamptz
-    ) ON CONFLICT (integrator_delivery_log_id) DO NOTHING`,
+    APPEND_REMINDER_DELIVERY_EVENT_ROOT,
+    [
+      input.organizationId,
+      input.integratorDeliveryLogId,
+      input.integratorOccurrenceId,
+      input.integratorRuleId,
+      input.integratorUserId,
+      input.channel,
+      input.status,
+      input.errorCode,
+      payloadJson,
+      input.createdAt,
+    ],
+    sql`SELECT app.integrator_append_reminder_delivery_event(
+      ${input.organizationId}::uuid, ${input.integratorDeliveryLogId}::text,
+      ${input.integratorOccurrenceId}::text, ${input.integratorRuleId}::text,
+      ${input.integratorUserId}::bigint, ${input.channel}::text, ${input.status}::text,
+      ${input.errorCode}::text, ${payloadJson}::text, ${input.createdAt}::timestamptz
+    )`,
   );
 }
 
@@ -92,25 +121,29 @@ export async function upsertContentAccessGrantDirect(
   db: DbPort,
   input: ContentAccessGrantDirectInput,
 ): Promise<void> {
-  await runIntegratorSql(
+  const metaJson = JSON.stringify(input.metaJson);
+  await runIntegratorNamedRoot(
     db,
-    sql`INSERT INTO public.content_access_grants_webapp (
-      organization_id, integrator_grant_id, platform_user_id, integrator_user_id, content_id, purpose,
-      token_hash, expires_at, revoked_at, meta_json, created_at
-    ) VALUES (
-      ${input.organizationId}::uuid, ${input.integratorGrantId}, ${input.platformUserId}::uuid,
-      ${input.integratorUserId}::bigint, ${input.contentId}, ${input.purpose}, ${input.tokenHash},
+    UPSERT_CONTENT_ACCESS_GRANT_ROOT,
+    [
+      input.organizationId,
+      input.integratorGrantId,
+      input.platformUserId,
+      input.integratorUserId,
+      input.contentId,
+      input.purpose,
+      input.tokenHash,
+      input.expiresAt,
+      input.revokedAt,
+      metaJson,
+      input.createdAt,
+    ],
+    sql`SELECT app.integrator_upsert_content_access_grant(
+      ${input.organizationId}::uuid, ${input.integratorGrantId}::text,
+      ${input.platformUserId}::text, ${input.integratorUserId}::bigint,
+      ${input.contentId}::text, ${input.purpose}::text, ${input.tokenHash}::text,
       ${input.expiresAt}::timestamptz, ${input.revokedAt}::timestamptz,
-      ${JSON.stringify(input.metaJson)}::jsonb, ${input.createdAt}::timestamptz
-    ) ON CONFLICT (integrator_grant_id) DO UPDATE SET
-      organization_id = EXCLUDED.organization_id,
-      platform_user_id = COALESCE(EXCLUDED.platform_user_id, content_access_grants_webapp.platform_user_id),
-      integrator_user_id = EXCLUDED.integrator_user_id,
-      content_id = EXCLUDED.content_id,
-      purpose = EXCLUDED.purpose,
-      token_hash = EXCLUDED.token_hash,
-      expires_at = EXCLUDED.expires_at,
-      revoked_at = EXCLUDED.revoked_at,
-      meta_json = EXCLUDED.meta_json`,
+      ${metaJson}::text, ${input.createdAt}::timestamptz
+    )`,
   );
 }

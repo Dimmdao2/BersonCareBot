@@ -315,3 +315,82 @@ export function compareFunctionSurfaces(functions, declaredFunctions, triggers =
   }
   return gaps.sort();
 }
+
+/** Closing index of the bracket that opens at `open`, or -1 if the body never closes it. */
+function matchParen(body, open) {
+  let depth = 0;
+  for (let index = open; index < body.length; index += 1) {
+    if (body[index] === '(') depth += 1;
+    else if (body[index] === ')') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/** Top-level comma split: a comma inside brackets belongs to the expression, not to the list. */
+function splitTopLevel(list) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  for (const character of list) {
+    if (character === '(') depth += 1;
+    if (character === ')') depth -= 1;
+    if (character === ',' && depth === 0) { parts.push(current.trim()); current = ''; continue; }
+    current += character;
+  }
+  parts.push(current.trim());
+  return parts;
+}
+
+const stripTrailingCast = (expression) => expression.replace(/::[a-z_][a-z0-9_. []]*$/, '').trim();
+
+/**
+ * Which column of an `INSERT … VALUES` each expression lands in.
+ *
+ * Column list and VALUES tuple are two parallel lists that PostgreSQL matches BY POSITION and never
+ * by name: swap two entries on one side only, and the statement still compiles, still runs, and
+ * writes each value into the neighbouring column. Returns one binding per column —
+ * `{ relation, column, expression, parameter }`, where `parameter` is the root parameter the
+ * expression is fed from (`p_x`, also through a single `v_x := p_x::type` normalisation) or null
+ * when the value is a literal, `now()` or any other expression that no parameter reaches.
+ * `column` is null when the two lists have different lengths — that is itself the finding.
+ */
+export function insertColumnBindings(body) {
+  const assignments = new Map();
+  for (const assignment of body.matchAll(/\b(v_[a-z0-9_]+)\s*:=\s*([^;]+);/g)) {
+    if (!assignments.has(assignment[1])) assignments.set(assignment[1], assignment[2].trim());
+  }
+  const schemaPattern = RELATION_SCHEMAS.join('|');
+  const head = new RegExp(`\\binsert\\s+into\\s+((?:${schemaPattern})\\.[a-z_][a-z0-9_]*)\\s*\\(`, 'g');
+  const bindings = [];
+  for (const match of body.matchAll(head)) {
+    const columnsOpen = match.index + match[0].length - 1;
+    const columnsClose = matchParen(body, columnsOpen);
+    if (columnsClose < 0) continue;
+    const afterColumns = body.slice(columnsClose + 1).match(/^\s*values\s*\(/);
+    if (!afterColumns) continue;
+    const valuesOpen = columnsClose + afterColumns[0].length;
+    const valuesClose = matchParen(body, valuesOpen);
+    if (valuesClose < 0) continue;
+    const relation = match[1];
+    const columns = splitTopLevel(body.slice(columnsOpen + 1, columnsClose));
+    const expressions = splitTopLevel(body.slice(valuesOpen + 1, valuesClose));
+    if (columns.length !== expressions.length) {
+      bindings.push({ relation, column: null, expression: `${columns.length} columns / ${expressions.length} values`, parameter: null });
+      continue;
+    }
+    for (let index = 0; index < columns.length; index += 1) {
+      let source = stripTrailingCast(expressions[index]);
+      if (assignments.has(source)) source = stripTrailingCast(assignments.get(source));
+      bindings.push({
+        relation,
+        column: columns[index],
+        expression: expressions[index],
+        parameter: /^p_[a-z0-9_]+$/.test(source) ? source : null,
+      });
+    }
+  }
+  return bindings;
+}

@@ -7,7 +7,9 @@
  * • дано: запись журнала упала → когда доставка → тогда сама доставка не отменяется.
  *
  * Заглушка — только БД (`db.query`); предмет проверки — какие параметры (канал/причина/occurrence)
- * реально доехали до INSERT, и что провал самой записи не пробрасывается наружу.
+ * реально доехали до записи, и что провал самой записи не пробрасывается наружу. С D17 запись идёт
+ * не относительным `INSERT`, а именованным корнем `app.integrator_record_notification_delivery_attempt`,
+ * поэтому позиции ниже — позиции АРГУМЕНТОВ корня, а не колонок `INSERT`.
  * У каждого `it` — свой арбитр, прогнан руками; вывод — в отчёте D20_TESTS_LEVEL2_REPORT.md.
  */
 import { describe, expect, it } from 'vitest';
@@ -19,7 +21,7 @@ import {
   recordNotificationDeliveryAttemptBestEffort,
 } from './notificationDeliveryAttempts.js';
 
-/** Позиции параметров INSERT INTO public.notification_delivery_attempts (см. исходник). */
+/** Позиции аргументов `app.integrator_record_notification_delivery_attempt` (см. исходник). */
 const COL = {
   organizationId: 0,
   userId: 1,
@@ -36,15 +38,6 @@ const COL = {
   errorMessage: 12,
 } as const;
 
-/** Достаёт индекс колонки из РЕАЛЬНОГО списка колонок в тексте выполняемого INSERT (не хардкод). */
-function columnIndexFromInsertSql(sqlText: string, columnName: string): number {
-  const match = sqlText.match(/INSERT INTO public\.notification_delivery_attempts\s*\(([^)]*)\)/i);
-  if (!match) throw new Error('unexpected INSERT shape: column list not found in SQL text');
-  const columns = match[1]!.split(',').map((c) => c.trim());
-  const idx = columns.indexOf(columnName);
-  if (idx === -1) throw new Error(`column "${columnName}" not found in INSERT column list`);
-  return idx;
-}
 
 function harness(): { db: DbPort; inserts: unknown[][] } {
   const inserts: unknown[][] = [];
@@ -231,19 +224,18 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
     expect(seenOrgAtInsert).toEqual([ORG]);
   });
 
-  it('дано: реальный текст выполняемого INSERT → когда запись → тогда значения status/reason попадают ИМЕННО в те колонки, что названы в СПИСКЕ КОЛОНОК запроса, а не в захардкоженную позицию', async () => {
-    // N3 (D20_LEVEL2_REAUDIT.md): переставить `status` и `reason` МЕСТАМИ В СПИСКЕ КОЛОНОК, не
-    // трогая VALUES, раньше проходило незамеченным — весь набор сверял только ПОЗИЦИЮ параметра
-    // (COL.status/COL.reason — хардкод), а не то, в какую колонку эта позиция реально попадёт. В
-    // проде такая перестановка молча пишет status='muted' (текст причины), reason='skipped'
-    // (статус) — операторский журнал начинает врать.
-    // АРБИТР: в INSERT поменять местами `status` и `reason` в СПИСКЕ КОЛОНОК (VALUES не трогать) —
-    // тест покраснеет: колонка 'status' в тексте запроса окажется на позиции, где VALUES несёт
-    // значение reason, и наоборот.
-    const inserts: Array<{ text: string; params: unknown[] }> = [];
+  it('дано: позиционный набор аргументов корня → когда запись → тогда каждое значение стоит на своей позиции, а не на соседней', async () => {
+    // N3 (D20_LEVEL2_REAUDIT.md) в редакции D17. Прежняя формулировка сверяла СПИСОК КОЛОНОК в
+    // тексте `INSERT` с позициями в `VALUES`; после перевода записи на именованный корень списка
+    // колонок в вызывающем коде нет вовсе — колонки живут в теле
+    // `app.integrator_record_notification_delivery_attempt`, а вызывающий отвечает ровно за одно:
+    // за ПОРЯДОК позиционных аргументов. Тот же операторский журнал начинает врать, если
+    // `status` и `reason` (обе `text`) поменять местами в этом наборе.
+    // АРБИТР: переставить в вызове `input.status` и `reason` — тест краснеет на полном наборе.
+    const calls: Array<{ text: string; params: unknown[] }> = [];
     const db: DbPort = {
       async query<T>(text: string, params?: unknown[]): Promise<DbQueryResult<T>> {
-        inserts.push({ text, params: params ?? [] });
+        calls.push({ text, params: params ?? [] });
         return { rows: [] as T[] };
       },
       async tx<T>(fn: (db: DbPort) => Promise<T>): Promise<T> {
@@ -258,10 +250,25 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
       eventId: 'evt-col',
     });
 
-    const { text, params } = inserts[0]!;
-    const statusIdx = columnIndexFromInsertSql(text, 'status');
-    const reasonIdx = columnIndexFromInsertSql(text, 'reason');
-    expect(params[statusIdx]).toBe('skipped');
-    expect(params[reasonIdx]).toBe('muted');
+    const { text, params } = calls[0]!;
+    expect(text).toContain('app.integrator_record_notification_delivery_attempt');
+    expect(params).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+      'telegram',
+      'skipped',
+      'muted',
+      null,
+      'evt-col',
+      null,
+      null,
+      null,
+      '{}',
+    ]);
+    expect(params[COL.status]).toBe('skipped');
+    expect(params[COL.reason]).toBe('muted');
   });
 });

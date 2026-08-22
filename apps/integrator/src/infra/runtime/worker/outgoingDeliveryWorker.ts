@@ -70,7 +70,7 @@ import {
   markUserChannelBotBlocked,
   resolvePlatformUserIdForBotBlockedMarker,
 } from '../../db/repos/userChannelBotBlocked.js';
-import { runIntegratorSql } from '../../db/runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from '../../db/runIntegratorSql.js';
 import {
   runWithInfraPrincipal,
   runWithOptionalOrganizationPrincipal,
@@ -262,12 +262,7 @@ async function incrementBroadcastAuditErrorIfDoctorBroadcast(
   const auditId =
     typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await runWithBroadcastAuditOrganization(db, auditId, (targetDb) =>
-    runIntegratorSql(
-      targetDb,
-      sql`UPDATE public.broadcast_audit SET error_count = error_count + 1 WHERE id = ${auditId}::uuid`,
-    ),
-  );
+  await incrementBroadcastAuditCounter(db, auditId, 'error_count');
 }
 
 async function incrementBroadcastAuditBlockedIfDoctorBroadcast(
@@ -278,12 +273,7 @@ async function incrementBroadcastAuditBlockedIfDoctorBroadcast(
   const auditId =
     typeof row.payloadJson.broadcastAuditId === 'string' ? row.payloadJson.broadcastAuditId : null;
   if (!auditId) return;
-  await runWithBroadcastAuditOrganization(db, auditId, (targetDb) =>
-    runIntegratorSql(
-      targetDb,
-      sql`UPDATE public.broadcast_audit SET blocked_recipient_count = blocked_recipient_count + 1 WHERE id = ${auditId}::uuid`,
-    ),
-  );
+  await incrementBroadcastAuditCounter(db, auditId, 'blocked_recipient_count');
 }
 
 function resolveExternalIdForBotBlockedMarker(
@@ -360,16 +350,35 @@ async function runWithReminderOccurrenceOrganization<T>(
   return await runWithOptionalOrganizationPrincipal(organizationId, fn);
 }
 
-async function runWithBroadcastAuditOrganization<T>(
+/**
+ * D17. The three counter bumps on `public.broadcast_audit` are one named root with the counter as a
+ * parameter — one door, not three. `app_tenant_service` is the only role of the integrator login the
+ * declaration grants UPDATE on this table, so the write still travels under the organization
+ * principal read off the broadcast row itself; the root body repeats `rev10_tenant_update_65`, which
+ * a SECURITY DEFINER body does not otherwise see. No relation transaction is opened: a named root
+ * refuses to start inside one.
+ */
+const INCREMENT_BROADCAST_AUDIT_COUNTER_ROOT =
+  'app.integrator_increment_broadcast_audit_counter(uuid,uuid,text)';
+
+type BroadcastAuditCounter = 'sent_count' | 'error_count' | 'blocked_recipient_count';
+
+async function incrementBroadcastAuditCounter(
   db: DbPort,
   broadcastAuditId: string,
-  fn: (targetDb: DbPort) => Promise<T>,
-): Promise<T> {
+  counter: BroadcastAuditCounter,
+): Promise<void> {
   const organizationId = await resolveBroadcastAuditOrganizationId(db, broadcastAuditId);
-  if (organizationId && db.integratorDrizzle === undefined) {
-    return await runWithOrganizationPrincipal(organizationId, () => db.tx((txDb) => fn(txDb)));
-  }
-  return await runWithOptionalOrganizationPrincipal(organizationId, () => fn(db));
+  await runWithOptionalOrganizationPrincipal(organizationId, () =>
+    runIntegratorNamedRoot(
+      db,
+      INCREMENT_BROADCAST_AUDIT_COUNTER_ROOT,
+      [broadcastAuditId, organizationId, counter],
+      sql`SELECT app.integrator_increment_broadcast_audit_counter(
+        ${broadcastAuditId}::uuid, ${organizationId}::uuid, ${counter}::text
+      )`,
+    ),
+  );
 }
 
 /**
@@ -981,12 +990,7 @@ export async function processOutgoingDeliveryRow(
       await dispatchOutgoing(toSend);
       await maybeClearMessengerBotBlockedMarker(db, row, toSend);
       await queueMarkSent(db, row.id);
-      await runWithBroadcastAuditOrganization(db, broadcastAuditId, (targetDb) =>
-        runIntegratorSql(
-          targetDb,
-          sql`UPDATE public.broadcast_audit SET sent_count = sent_count + 1 WHERE id = ${broadcastAuditId}::uuid`,
-        ),
-      );
+      await incrementBroadcastAuditCounter(db, broadcastAuditId, 'sent_count');
       logger.info(
         {
           broadcastAuditId,

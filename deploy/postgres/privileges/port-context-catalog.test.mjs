@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import ts from 'typescript';
 
 import { declaration } from './declaration.ts';
 import { assertNameCensus } from './name-census.mjs';
@@ -11,6 +15,52 @@ import {
 } from './generate.mjs';
 
 const PORTS = ['webapp', 'integrator'];
+
+const DECLARATION_PATH = fileURLToPath(new URL('./declaration.ts', import.meta.url));
+
+// Повторный ключ в объектном литерале JS — не ошибка и не предупреждение: побеждает последнее
+// определение, а первое исчезает ДО того, как декларацию увидит хоть один импорт. Поэтому найти
+// потерю можно только в исходнике декларации: любая проверка, которая сверяет уже загруженный
+// объект с другим видом того же объекта, потеряет строку на ОБЕИХ сторонах и останется зелёной.
+// Разбор идёт настоящим парсером TypeScript, а не текстовым поиском: значение имеет позиция ключа
+// в дереве (какому литералу он принадлежит), а не то, как строка выглядит.
+function findDuplicateObjectKeys(sourcePath) {
+  const source = ts.createSourceFile(
+    sourcePath,
+    readFileSync(sourcePath, 'utf8'),
+    ts.ScriptTarget.ES2022,
+    true,
+  );
+  const duplicates = [];
+  const lineOf = (node) => source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+  const visit = (node) => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const firstLine = new Map();
+      for (const property of node.properties) {
+        if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property)
+          && !ts.isMethodDeclaration(property)) continue;
+        const { name } = property;
+        if (!ts.isIdentifier(name) && !ts.isStringLiteral(name) && !ts.isNumericLiteral(name)) continue;
+        const key = name.text;
+        if (firstLine.has(key)) duplicates.push(`${key}: объявлен на :${firstLine.get(key)}, вытеснен на :${lineOf(property)}`);
+        else firstLine.set(key, lineOf(property));
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return duplicates;
+}
+
+test('no declared key is silently overwritten by a later twin in the same object literal', () => {
+  // Живой отказ, который это ловит: дверь порта интегратора на корень поддержки была объявлена
+  // ключом, уже занятым дверью порта вебаппа. Объявление интегратора исчезло до генерации, в
+  // артефакты уехало 5 возможностей вместо 6, отбор возможности по `functionIdentity` перестал
+  // находить дверь, и запись в `support_delivery_events` прекратилась — молча, под видом
+  // «передний план упал, доедет повтором». Разные двери на один корень различаются ключом
+  // (`integrator_port_*`), а `runtimeName` у них может совпадать: он уникален В ПРЕДЕЛАХ порта.
+  assert.deepEqual(findDuplicateObjectKeys(DECLARATION_PATH), []);
+});
 
 test('the generator library refuses a mistaken direct CLI invocation', () => {
   const result = spawnSync(process.execPath, [
