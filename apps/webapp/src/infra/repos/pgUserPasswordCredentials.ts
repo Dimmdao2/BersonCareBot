@@ -1,10 +1,9 @@
-/** Wave 3 phase 15B — domain SQL via the webapp port; TX on `registerPendingVerification`. */
+/** Wave 3 phase 15B — domain SQL via the webapp port; `registerPendingVerification` — named root. */
 import { sql } from 'drizzle-orm';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
   runWebappPgText,
-  runWebappTransaction,
 } from '@/infra/db/runWebappSql';
 import argon2 from 'argon2';
 import {
@@ -77,37 +76,37 @@ export function createPgUserPasswordCredentialsPort(
     patronymic: string | null;
     role: 'client' | 'doctor';
   }): Promise<{ ok: true; userId: string } | { ok: false; reason: 'duplicate_email' }> {
+    const args = [
+      params.emailNormalized,
+      params.passwordHash,
+      params.lastName,
+      params.firstName,
+      params.patronymic,
+      params.role,
+    ] as const;
     try {
-      return await runWebappTransaction(async (tx) => {
-        const result = await runWebappPgText<{
-          ok: boolean;
-          code: string | null;
-          user_id: string | null;
-        }>(
-          `SELECT ok, code, user_id::text AS user_id
-           FROM app.email_password_register_pending($1, $2, $3, $4, $5, $6)`,
-          [
-            params.emailNormalized,
-            params.passwordHash,
-            params.lastName,
-            params.firstName,
-            params.patronymic,
-            params.role,
-          ],
-          tx,
-        );
-        const row = result.rows[0];
-        if (!row) {
-          throw new Error('email_password_register_pending_failed');
-        }
-        if (!row.ok) {
-          return { ok: false, reason: 'duplicate_email' };
-        }
-        if (!row.user_id) {
-          throw new Error('email_password_register_pending_missing_user_id');
-        }
-        return { ok: true as const, userId: row.user_id };
-      });
+      const result = await runWebappNamedRoot<{
+        ok: boolean;
+        code: string | null;
+        user_id: string | null;
+      }>(
+        getWebappSqlDb(),
+        'app.email_password_register_pending(text,text,text,text,text,text)',
+        args,
+        sql`SELECT ok, code, user_id::text AS user_id
+            FROM app.email_password_register_pending(${args[0]}, ${args[1]}, ${args[2]}, ${args[3]}, ${args[4]}, ${args[5]})`,
+      );
+      const row = result.rows[0];
+      if (!row) {
+        throw new Error('email_password_register_pending_failed');
+      }
+      if (!row.ok) {
+        return { ok: false, reason: 'duplicate_email' };
+      }
+      if (!row.user_id) {
+        throw new Error('email_password_register_pending_missing_user_id');
+      }
+      return { ok: true as const, userId: row.user_id };
     } catch (e: unknown) {
       const code =
         typeof e === 'object' && e !== null && 'code' in e
@@ -190,25 +189,32 @@ export function createPgUserPasswordCredentialsPort(
     },
 
     async deleteUnverifiedEmailPasswordRegistration(userId) {
-      await runWebappPgText('SELECT app.email_password_delete_unverified_registration($1::uuid)', [
-        userId,
-      ]);
+      await runWebappNamedRoot(
+        getWebappSqlDb(),
+        'app.email_password_delete_unverified_registration(uuid)',
+        [userId],
+        sql`SELECT app.email_password_delete_unverified_registration(${userId}::uuid)`,
+      );
     },
 
     async findUserIdByEmailChallengeId(challengeId) {
-      const r = await runWebappPgText<{ user_id: string }>(
-        'SELECT app.email_password_find_user_id_by_email_challenge($1::uuid)::text AS user_id',
+      const r = await runWebappNamedRoot<{ user_id: string }>(
+        getWebappSqlDb(),
+        'app.email_password_find_user_id_by_email_challenge(uuid)',
         [challengeId],
+        sql`SELECT app.email_password_find_user_id_by_email_challenge(${challengeId}::uuid)::text AS user_id`,
       );
       return r.rows[0]?.user_id ?? null;
     },
 
     async tryResendRegistrationChallenge({ emailNormalized, plainPassword }) {
-      const r = await runWebappPgText<{ id: string; password_hash: string }>(
-        `SELECT user_id::text AS id, password_hash
-         FROM app.email_password_find_login_candidate($1)
-         WHERE email_verified = false`,
+      const r = await runWebappNamedRoot<{ id: string; password_hash: string }>(
+        getWebappSqlDb(),
+        'app.email_password_find_login_candidate(text)',
         [emailNormalized],
+        sql`SELECT user_id::text AS id, password_hash
+            FROM app.email_password_find_login_candidate(${emailNormalized})
+            WHERE email_verified = false`,
       );
       const row = r.rows[0];
       if (!row) return { ok: false };
