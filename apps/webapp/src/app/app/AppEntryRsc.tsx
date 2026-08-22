@@ -20,8 +20,7 @@ import { AppEntryLoginContent } from './AppEntryLoginContent';
 import { PatientUnsupportedClientFallback } from './PatientUnsupportedClientFallback';
 import { getUnsupportedClientFallbackEnabled } from '@/modules/auth/unsupportedClientFallback';
 import { parseSupportedClientEnvironment } from '@/modules/auth/supportedClientMatrix';
-import { roleCanUsePortal, type RoleLoginPortal } from '@/modules/auth/roleLogin';
-import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
+import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
 
 export type AppEntrySearchParams = { next?: string; t?: string; token?: string; switch?: string };
 
@@ -41,9 +40,9 @@ export async function AppEntryRsc({
 
   if (session) {
     redirect(
-      roleLoginPortal && !roleCanUsePortal(session.user.role, roleLoginPortal)
-        ? buildOwnHubUrlWithAccessDeniedToast(session.user.role)
-        : getPostAuthRedirectTarget(session.user.role, nextParam ?? null, null, roleLoginPortal),
+      getPostAuthRedirectTarget(session.user.role, nextParam ?? null, null, roleLoginPortal, {
+        showAccessDeniedToast: false,
+      }),
     );
   }
 
