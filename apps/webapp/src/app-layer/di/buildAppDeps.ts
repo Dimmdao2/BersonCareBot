@@ -5,7 +5,11 @@
  */
 
 import { cache } from 'react';
-import { getCurrentDbPrincipal, runWithDbClinicBillingPrincipal } from '@bersoncare/db-principal';
+import {
+  getCurrentDbPrincipal,
+  runWithDbClinicBillingPrincipal,
+  runWithDbPatientPrincipal,
+} from '@bersoncare/db-principal';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
@@ -80,6 +84,7 @@ import {
 } from '@/modules/doctor-broadcasts/broadcastEligible';
 import { resolveBroadcastWebPushEligibleUserIds } from '@/modules/doctor-broadcasts/resolveBroadcastWebPushEligibleUserIds';
 import { fanOutBroadcastWebPush } from '@/modules/doctor-broadcasts/fanOutBroadcastWebPush';
+import { createTopicUnsubscribeService } from '@/modules/patient-notifications/topicUnsubscribe';
 import { inMemoryDoctorClientsPort } from '@/infra/repos/inMemoryDoctorClients';
 import { inMemoryBroadcastAuditPort } from '@/infra/repos/inMemoryBroadcastAudit';
 import { createPgBroadcastAuditPort } from '@/infra/repos/pgBroadcastAudit';
@@ -528,6 +533,17 @@ const globalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = !inMe
 const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
   : inMemoryPatientNotificationTopicsPort;
+const topicUnsubscribeService = createTopicUnsubscribeService({
+  secret: env.SESSION_COOKIE_SECRET,
+  appBaseUrl: env.APP_BASE_URL,
+  setTopicEnabled: (userId, topicCode, enabled) =>
+    patientNotificationTopicsPort.setTopicEnabled(userId, topicCode, enabled),
+  runForPatient: (userId, action) =>
+    runWithDbPatientPrincipal(
+      { platformUserId: userId, source: 'public-topic-unsubscribe' },
+      action,
+    ),
+});
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const passwordLoginProtectionPort = !inMemoryRepos
   ? createPgPasswordLoginProtectionPort()
@@ -1755,12 +1771,22 @@ function _buildAppDeps() {
               readReminderNotifyGate: readReminderWebappNotifyGate,
             })
           : new Set<string>();
+        const emailEligibleUserIds = channels.includes('email')
+          ? new Set(
+              (
+                await broadcastEmailRecipientsPort.getVerifiedEmailsForUserIds(
+                  effective.map((client) => client.userId),
+                )
+              ).keys(),
+            )
+          : new Set<string>();
         const eligibleClients = filterEligibleBroadcastClients(
           effective,
           channels,
           filter,
           prefsMap,
           webPushEligibleUserIds,
+          emailEligibleUserIds,
         );
         const recipientsPreview = buildRecipientsPreviewFromClients(eligibleClients);
         const policy = deriveBroadcastDeliveryPolicy(filter, channels);
@@ -1774,6 +1800,7 @@ function _buildAppDeps() {
           deliveryPolicyKind: policy.kind,
           deliveryPolicyDescriptionRu: policy.descriptionRu,
           webPushEligibleUserIds,
+          emailEligibleUserIds,
         };
         if (!devMode) {
           return base;
@@ -1785,6 +1812,8 @@ function _buildAppDeps() {
       },
       broadcastAuditPort,
       doctorBroadcastDeliveryCommitPort,
+      patientNotificationTopics: patientNotificationTopicsPort,
+      buildTopicUnsubscribeUrl: topicUnsubscribeService.createUrl,
       patientInboundChatPort: supportCommunicationPort,
       fanOutBroadcastWebPush,
       patientWebPushNotifyDeps: {
@@ -1938,6 +1967,7 @@ function _buildAppDeps() {
     topicChannelPrefs: topicChannelPrefsPort,
     staffUsers: staffUsersPort,
     patientNotificationTopics: patientNotificationTopicsPort,
+    topicUnsubscribe: topicUnsubscribeService,
     userProjection: {
       upsertFromProjection: userProjectionPort.upsertFromProjection,
       findByIntegratorId: userProjectionPort.findByIntegratorId,

@@ -16,14 +16,23 @@ import { escapeHtml } from '@/shared/lib/escapeHtml';
 import type { ClientListItem } from '@/modules/doctor-clients/ports';
 import type { BroadcastCategory } from './ports';
 
-/** RASSL-06: HTML-тело письма с inline-картинкой сверху + заголовок + текст (всё HTML-escaped). */
-export function buildBroadcastEmailHtml(title: string, body: string, mediaUrl: string): string {
-  const img = `<img src="${escapeHtml(mediaUrl)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`;
-  const head = title.trim()
-    ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(title.trim())}</div>`
+/** HTML-тело рассылки: контент и обязательная topic-unsubscribe CTA (всё HTML-escaped). */
+export function buildBroadcastEmailHtml(input: {
+  title: string;
+  body: string;
+  unsubscribeUrl: string;
+  mediaUrl?: string | null;
+}): string {
+  const img = input.mediaUrl
+    ? `<img src="${escapeHtml(input.mediaUrl)}" alt="" style="max-width:100%;height:auto;border-radius:8px;display:block;margin-bottom:12px" />`
     : '';
-  const text = `<div style="white-space:pre-wrap">${escapeHtml(body)}</div>`;
-  return `${img}${head}${text}`;
+  const head = input.title.trim()
+    ? `<div style="font-weight:600;font-size:16px;margin-bottom:6px">${escapeHtml(input.title.trim())}</div>`
+    : '';
+  const text = `<div style="white-space:pre-wrap">${escapeHtml(input.body)}</div>`;
+  const unsubscribeUrl = escapeHtml(input.unsubscribeUrl);
+  const unsubscribe = `<div style="margin-top:20px"><a href="${unsubscribeUrl}" style="display:inline-block;padding:8px 14px;border:1px solid #d8d8d8;border-radius:18px;color:#555;text-decoration:none">Отписаться от темы</a></div>`;
+  return `${img}${head}${text}${unsubscribe}`;
 }
 
 /** Маппинг email-адресов по userId (только с подтверждённым email). */
@@ -44,6 +53,7 @@ export type FanOutBroadcastEmailInput = {
   /** RASSL-06: опц. URL картинки — рендерится inline в HTML-теле письма. */
   mediaUrl?: string | null;
   eligibleClients: readonly ClientListItem[];
+  unsubscribeUrlByUserId: ReadonlyMap<string, string>;
 };
 
 export type FanOutBroadcastEmailDeps = RelayOutboundDeps & {
@@ -92,7 +102,8 @@ export async function fanOutBroadcastEmail(
 
   for (const client of input.eligibleClients) {
     const emailAddress = emailMap.get(client.userId);
-    if (!emailAddress) {
+    const unsubscribeUrl = input.unsubscribeUrlByUserId.get(client.userId);
+    if (!emailAddress || !unsubscribeUrl) {
       skipped += 1;
       continue;
     }
@@ -106,18 +117,18 @@ export async function fanOutBroadcastEmail(
           organizationId: input.organizationId,
           channel: 'email',
           recipient: emailAddress,
-          text: `${input.broadcastTitle}\n\n${input.broadcastBody}`,
-          metadata: { subject: input.broadcastTitle },
+          text: `${input.broadcastTitle}\n\n${input.broadcastBody}\n\nОтписаться от темы: ${unsubscribeUrl}`,
+          metadata: {
+            subject: input.broadcastTitle,
+            listUnsubscribe: `<${unsubscribeUrl}>`,
+          },
           senderScope: 'clinic_required',
-          ...(input.mediaUrl
-            ? {
-                html: buildBroadcastEmailHtml(
-                  input.broadcastTitle,
-                  input.broadcastBody,
-                  input.mediaUrl,
-                ),
-              }
-            : {}),
+          html: buildBroadcastEmailHtml({
+            title: input.broadcastTitle,
+            body: input.broadcastBody,
+            mediaUrl: input.mediaUrl,
+            unsubscribeUrl,
+          }),
         },
         deps,
       );

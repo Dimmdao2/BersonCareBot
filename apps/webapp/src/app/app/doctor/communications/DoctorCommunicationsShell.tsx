@@ -1,11 +1,13 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { Settings } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
-import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { cn } from '@/lib/utils';
 import {
@@ -222,6 +224,17 @@ export function DoctorCommunicationsShell({
       <DoctorPageHeader
         id="doctor-communications-header"
         title="Коммуникации"
+        info={
+          activeTab === 'broadcasts' ? (
+            <Link
+              href="/app/settings?tab=organization#clinic-delivery-channels"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              <Settings aria-hidden className="size-4" />
+              Настройки уведомлений
+            </Link>
+          ) : undefined
+        }
         tabs={
           <CommunicationsTabsNav
             activeTab={activeTab}

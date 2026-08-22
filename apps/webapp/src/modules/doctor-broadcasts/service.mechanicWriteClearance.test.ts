@@ -48,6 +48,12 @@ function buildService() {
     }),
     broadcastAuditPort,
     doctorBroadcastDeliveryCommitPort,
+    patientNotificationTopics: {
+      listByUserId: async () => [],
+      listByUserIds: async () => new Map(),
+      setTopicEnabled: async () => {},
+    },
+    buildTopicUnsubscribeUrl: () => 'https://example.test/unsubscribe',
     assertWriteClearance: assertMechanicWriteClearance,
   });
   return { service, commitAuditAndDeliveryQueue };

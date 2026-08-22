@@ -6,5 +6,8 @@ export type NotificationTopicMasterRow = {
 /** Master enable/disable per notification topic (`user_notification_topics`). */
 export type PatientNotificationTopicsPort = {
   listByUserId: (userId: string) => Promise<NotificationTopicMasterRow[]>;
+  listByUserIds: (
+    userIds: readonly string[],
+  ) => Promise<ReadonlyMap<string, NotificationTopicMasterRow[]>>;
   setTopicEnabled: (userId: string, topicCode: string, isEnabled: boolean) => Promise<void>;
 };

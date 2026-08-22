@@ -41,7 +41,7 @@ export function ClinicDeliveryChannelsSection({ initial }: ClinicDeliveryChannel
   const [pending, startTransition] = useTransition();
 
   return (
-    <Card className="border-border">
+    <Card id="clinic-delivery-channels" className="border-border">
       <CardHeader className="pb-2">
         <CardTitle className="text-base">Каналы доставки клиники</CardTitle>
       </CardHeader>
