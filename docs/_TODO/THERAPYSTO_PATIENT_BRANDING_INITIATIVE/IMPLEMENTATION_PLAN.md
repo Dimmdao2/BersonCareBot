@@ -263,10 +263,41 @@ Checkbox закрывается только доказательством, у�
 
 ### A — Identity и active docs (`TPB-01`, `02`, `03`, `04`, `09`, `15`)
 
+> **ЧАСТИЧНО ЗАКРЫТО 22.08.2026 — подэтап `A0`, приземлён в `feat` как `9a9a31225`** (ветка
+> `wt/therapysto-staff-rename-20260822`, коммит воркера `d8668e641`, бриф
+> `docs/_TODO/runs/briefs/THERAPYSTO_STAFF_RENAME_BRIEF_2026-08-22.md`, строка вердикта — в
+> `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`).
+>
+> Владелец 22.08 попросил вынести переименование ТОЛЬКО докторского приложения отдельным первым шагом,
+> «не трогая пациентов, не трогая морду пациентов вообще». Сделано:
+>
+> - [x] `A0.1` Identity установленного приложения персонала → Therapysto: `staffPwaManifest.ts`
+>   (`name`, `short_name`), `staffPwaLayoutMetadata.ts` (`appleWebApp.title`; было `BersonAdmin`).
+> - [x] `A0.2` **Собственный заголовок вкладки для зон персонала** — прямое требование владельца («наши
+>   собственные заголовки обязательно»). Корневой `layout.tsx` НЕ тронут.
+> - [x] `A0.3` Staff-only видимый текст: боковое меню доктора/админа, fallback displayName докторской
+>   оболочки, тема тестового SMTP-письма админа себе, тема приглашения ПЕРСОНАЛА
+>   (`role: z.enum(['admin','doctor'])`), текст про passkey на странице аккаунта, две строки operator-alerts.
+>
+> **Доказательство (живой прогон ведущего на dev-сервере после приземления):** `/manifest-staff.webmanifest`
+> отдаёт `"name":"Therapysto"`, `/manifest.webmanifest` отдаёт `"BersonCare — забота о твоём здоровье"` —
+> то есть пациент не задет. Плюс `pnpm --filter webapp typecheck` exit 0 и vitest 4 файла / 8 тестов PASS.
+>
+> **Осознанно НЕ входило в `A0`** (остаётся в `A1`–`A4` ниже): корневые метаданные, приложение и меню
+> пациента, лендинг и юридические страницы, подписи в письмах пациентам (этап C), passkey/TOTP issuer
+> (исключены владельцем: «паскей отложим потом, они выключены»), typed product-surface config, правка
+> активных документов. Промежуточное состояние «доктор видит Therapysto, пациент видит BersonCare» —
+> ожидаемое, а не дефект.
+>
+> **Ограничение, записанное честно:** независимый адверсарный аудит перед приземлением НЕ запускался —
+> прямая команда владельца приземлять плюс bounded строковый rename; живая проверка выполнена ПОСЛЕ
+> landing, а не до.
+
 - [ ] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
   deploy seam; standard patient `name` и `origin` — обязательные deploy inputs без placeholder/default бренда.
-- [ ] `A2` Перевести root/staff metadata, manifest, landing/legal, navigation, passkey/TOTP issuer и staff-facing
-  copy на Therapysto через единый identity value. Patient metadata берёт standard patient config, а patient mail
+- [ ] `A2` **Остаток после `A0`:** перевести root metadata, landing/legal и остальной невыполненный периметр на
+  Therapysto через единый identity value. Staff manifest/metadata/navigation/staff-facing copy уже закрыты в
+  `A0`; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без его команды. Patient metadata берёт standard patient config, а patient mail
   становится brand-aware только в C.
 - [ ] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
   occurrences. npm/package/table/module/route identifiers и archive/audit history не трогать.
