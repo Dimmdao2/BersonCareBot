@@ -26,7 +26,6 @@ export type DbReadQueryType =
   | 'stats.adminDashboard'
   | 'reminders.rules.forUser'
   | 'reminders.rule.forUserAndCategory'
-  | 'reminders.rule.byId'
   | 'reminders.occurrences.forRuleRange'
   | 'reminders.occurrence.ownerUserId'
   | 'reminders.delivery.staleMessengerMessage'

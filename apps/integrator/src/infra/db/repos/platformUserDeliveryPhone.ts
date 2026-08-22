@@ -1,35 +1,49 @@
-import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { platformUsers, userContacts } from '../schema/integratorPublicProduct.js';
-import { resolveCanonicalPlatformUserIdFromId } from './platformUserByChannel.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
+
+/**
+ * D17 финал. Оба чтения шли реляционно по `public.platform_users` + `public.user_contacts` под
+ * ролью вебаппа. Ключ у них разный по форме (uuid канонического человека либо числовой
+ * `integrator_user_id`), а читаемое — одно и то же, поэтому корень ОДИН и принимает обе формы.
+ */
+
+const DELIVERY_IDENTITY_ROOT = 'app.integrator_read_platform_user_delivery_identity(text)';
 
 export type CanonicalPlatformUserDeliveryIdentity = {
   phoneNormalized: string | null;
   integratorUserId: string | null;
 };
 
+async function readDeliveryIdentity(
+  db: DbPort,
+  userKey: string,
+): Promise<CanonicalPlatformUserDeliveryIdentity | null> {
+  const res = await runIntegratorNamedRoot<{
+    phone_normalized: string | null;
+    integrator_user_id: string | null;
+  }>(
+    db,
+    DELIVERY_IDENTITY_ROOT,
+    [userKey],
+    sql`SELECT phone_normalized, integrator_user_id
+        FROM app.integrator_read_platform_user_delivery_identity(${userKey}::text)`,
+  );
+  const row = res.rows[0];
+  if (!row) return null;
+  return {
+    phoneNormalized: row.phone_normalized?.trim() || null,
+    integratorUserId:
+      row.integrator_user_id == null ? null : String(row.integrator_user_id),
+  };
+}
+
 /** Canonical delivery identity for a platform user; DB failures are intentionally observable. */
 export async function getCanonicalPlatformUserDeliveryIdentity(
   db: DbPort,
   platformUserId: string,
 ): Promise<CanonicalPlatformUserDeliveryIdentity | null> {
-  const canonicalId = await resolveCanonicalPlatformUserIdFromId(db, platformUserId);
-  const rows = await getIntegratorDrizzleSession(db)
-    .select({
-      phoneNormalized: userContacts.valueNormalized,
-      integratorUserId: platformUsers.integratorUserId,
-    })
-    .from(platformUsers)
-    .leftJoin(userContacts, and(eq(userContacts.platformUserId, platformUsers.id), eq(userContacts.contactKind, 'phone'), eq(userContacts.isPrimary, true)))
-    .where(eq(platformUsers.id, canonicalId))
-    .limit(1);
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    phoneNormalized: row.phoneNormalized?.trim() || null,
-    integratorUserId: row.integratorUserId == null ? null : String(row.integratorUserId),
-  };
+  return readDeliveryIdentity(db, platformUserId);
 }
 
 /**
@@ -42,23 +56,6 @@ export async function getPhoneNormalizedForDeliveryLookup(
 ): Promise<string | null> {
   const trimmed = userKey.trim();
   if (!trimmed) return null;
-  const d = getIntegratorDrizzleSession(db);
-  const rows = await d
-    .select({ phoneNormalized: userContacts.valueNormalized })
-    .from(platformUsers)
-    .innerJoin(userContacts, and(eq(userContacts.platformUserId, platformUsers.id), eq(userContacts.contactKind, 'phone'), eq(userContacts.isPrimary, true)))
-    .where(
-      and(
-        isNull(platformUsers.mergedIntoId),
-        isNotNull(userContacts.valueNormalized),
-        sql`trim(${userContacts.valueNormalized}) <> ''`,
-        or(
-          eq(sql`${platformUsers.id}::text`, trimmed),
-          eq(sql`${platformUsers.integratorUserId}::text`, trimmed),
-        ),
-      ),
-    )
-    .limit(1);
-  const raw = rows[0]?.phoneNormalized;
-  return typeof raw === 'string' && raw.trim().length > 0 ? raw.trim() : null;
+  const identity = await readDeliveryIdentity(db, trimmed);
+  return identity?.phoneNormalized ?? null;
 }

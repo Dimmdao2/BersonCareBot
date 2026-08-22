@@ -2609,6 +2609,30 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.messenger-phone-bind-audit.record',
       functionIdentity: 'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)' },
+    // D17 финал: реляционные ЧИТАТЕЛИ `public.*` из интегратора. Ключ двери порта интегратора
+    // начинается с `integrator_port_…` по той же причине, что у шага 2b: каталог возможностей — ОДИН
+    // объектный литерал, и одинаковый ключ вытесняет соседа молча.
+    // Класс контекста у обеих дверей — `tenant_service`: живой маршрут читает получателя внутри
+    // организационного принципала, и тело корня повторяет ту же стену арендатора, которой сегодня
+    // сужает эти чтения RLS роли `app_tenant_service`.
+    integrator_port_channel_binding_identity_read: { port: 'integrator',
+      runtimeName: 'channel_binding_identity_read', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
+      purpose: 'integrator.channel-binding-identity.read',
+      functionIdentity: 'app.integrator_read_channel_binding_identity(text,text,text)' },
+    integrator_port_platform_user_delivery_identity_read: { port: 'integrator',
+      runtimeName: 'platform_user_delivery_identity_read', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
+      purpose: 'integrator.platform-user-delivery-identity.read',
+      functionIdentity: 'app.integrator_read_platform_user_delivery_identity(text)' },
+    // Пред-маршрутизация ищет клинику ДО того, как принципал её знает, поэтому её дверь — не
+    // `tenant_service`, а тот же bootstrap-класс, которым уже ходят два соседних резолвера
+    // (`integrator_user_organization_resolve`, `integrator_dedicated_bot_organization_resolve`).
+    integrator_channel_organization_resolve: { port: 'integrator',
+      runtimeName: 'integrator_channel_organization_resolve', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+      purpose: 'integrator.channel-organization.resolve',
+      functionIdentity: 'app.resolve_active_organization_for_channel_binding(text,text)' },
     integrator_auth_channel_setting_read: { port: 'integrator', runtimeName: 'auth_channel_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-auth-channel.read',
@@ -6221,6 +6245,63 @@ const REV10_CONTEXT = {
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // D17 финал: три корня на семь живых реляционных читателей `public.*` из интегратора.
+    // `be_organization_members` и `org_enrollments` в переписи первого и третьего — не расширение
+    // доступа, а СТЕНА: тело повторяет предикат `rev10_tenant_select_*`, которым RLS сужает те же
+    // чтения под ролью вебаппа сегодня. `SECURITY DEFINER` обходит RLS, поэтому без этих двух
+    // отношений корень был бы ШИРЕ прежнего чтения.
+    'app.integrator_read_channel_binding_identity(text,text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_integrator_request'], purpose: 'integrator.channel-binding-identity.read',
+      typedArgs: ['text', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'display_handle'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.integrator_read_platform_user_delivery_identity(text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_integrator_request'], purpose: 'integrator.platform-user-delivery-identity.read',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'integrator_user_id', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Сосед `app.resolve_active_organization_for_integrator_user_id(bigint)` делает то же дело по
+    // ДРУГОМУ ключу — по integrator_user_id, а не по привязке канала; поэтому это второй корень, а
+    // не вторая дверь в первый. Стены арендатора здесь нет и быть не может: дверь как раз и ищет
+    // организацию, и отдаёт наружу ровно один uuid, ни одной колонки о человеке.
+    'app.resolve_active_organization_for_channel_binding(text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_integrator_resolver'], purpose: 'integrator.channel-organization.resolve',
+      typedArgs: ['text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
