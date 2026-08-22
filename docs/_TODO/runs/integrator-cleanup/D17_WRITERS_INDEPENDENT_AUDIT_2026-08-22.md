@@ -419,3 +419,240 @@ $ git show 8fc46b499 -- deploy/postgres/privileges/declaration.ts | grep -E "^-"
   осталась ровно той, что была.
 * Ничего не чинил и не правил — ни кода, ни миграций, ни декларации. Все три инъекции неисправности
   возвращены побайтно, дерево перед написанием отчёта чистое (`git status --porcelain` пуст).
+
+---
+
+# ИСПРАВЛЕНО ПО ВЕРДИКТУ (worker-фиксер, 22.08.2026)
+
+Роль: worker по вердикту FAIL выше. Задание — ровно три пункта вердикта плюс правка одной ложной
+формулировки; всё остальное намеренно не трогалось (§24.6). Продуктовый код интегратора и все пять
+миграций этим ходом **не менялись ни на байт** — `git status --porcelain` ниже это показывает.
+
+## 1. F1 (БЛОКЕР) — шестая дверь теперь существует
+
+**Что было.** Ключ `integrator_support_delivery_attempt_record` объявлялся дважды в ОДНОМ объектном
+литерале: `declaration.ts:2562` (порт интегратора) и `:3140` (порт вебаппа). JS оставляет последнее
+определение, поэтому дверь интегратора исчезала до всякой генерации.
+
+**Что сделано.** Ключ двери ИНТЕГРАТОРА переименован в `integrator_port_support_delivery_attempt_record`.
+Это не выдуманное соглашение: тем же префиксом в этом же файле уже различаются две двери на
+`app.record_reminder_occurrence_finalized_projection` — `integrator_port_reminder_occurrence_finalized_record`
+(порт интегратора, `declaration.ts:2504`) против `integrator_reminder_occurrence_finalized_record`
+(порт вебаппа). Переименована именно новая дверь, не существующая: `capabilityId` считается
+`deterministicCapabilityId(dbName, loginName, name)`, то есть ИЗ КЛЮЧА — трогать ключ живой двери
+вебаппа значило бы менять её `capability_id` в каталоге и в рантайм-JSON без единой причины.
+`runtimeName` у обеих остаётся коротким (`support_delivery_attempt_record`): он уникален в пределах
+порта, и генератор это проверяет отдельно (`generate.mjs:198-202`).
+
+**Доказательство — 5 строк возможностей стали 6, в обоих артефактах:**
+
+```
+$ node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only
+$ node deploy/postgres/privileges/generate-cli.mjs --all
+$ # шесть возможностей D17 на порту интегратора, было (HEAD) → стало (дерево):
+  port-context-capabilities.bcb_webapp_dev.sql:   before=5 after=6
+  port-context-capabilities.bersoncarebot_test.sql: before=5 after=6
+```
+
+Поимённо, все шесть теперь по одной строке в каталоге `bcb_webapp_dev`:
+
+```
+1  integrator.reminder-rule.upsert
+1  integrator.reminder-delivery-event.append
+1  integrator.content-access-grant.upsert
+1  integrator.support-delivery-attempt.record   ← её и не было
+1  integrator.notification-delivery-attempt.record
+1  integrator.broadcast-audit-counter.increment
+```
+
+Тот же отбор, которым падал рантайм (`portContextRuntime.ts:209-229`), теперь дверь находит:
+
+```
+$ node -e "… renderPortContextRuntimeEnv(declaration,'dev','bcb_webapp_dev','integrator') …"
+has support_delivery_attempt_record? true
+{"capabilityId":"b3b7e27e-6e8b-5ba1-a5dd-db68bc49fbb3","targetRole":"app_tenant_service",
+ "contextClass":"tenant_service","purpose":"integrator.support-delivery-attempt.record",
+ "functionIdentity":"app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)"}
+```
+
+Дверь вебаппа при этом ПОБАЙТНО та же — `capability_id` `07b01163-8b7f-5966-9a32-c7ab98a983b4`
+не двинулся (сверено `git show HEAD:…` против дерева).
+
+## 2. F3 — гейт на класс ошибки «ключ вытеснил соседа молча»
+
+**Почему прежний гейт не мог поймать.** `port-context-catalog.test.mjs` сверял резолвер с
+`Object.keys(declaration.portContext.capabilities)` — с объектом, который дубль УЖЕ схлопнул: обе
+стороны сравнения теряли строку одинаково. Поймать потерю можно только ДО схлопывания, то есть в
+исходнике декларации.
+
+**Что сделано.** В тот же файл (второго гейта не заводил — §5, один chokepoint) добавлен тест
+`no declared key is silently overwritten by a later twin in the same object literal`. Он разбирает
+`declaration.ts` НАСТОЯЩИМ парсером TypeScript и ищет повторный ключ в пределах одного объектного
+литерала — по дереву, а не текстовым поиском: значение имеет принадлежность ключа литералу, а не то,
+как выглядит строка. Проверка идёт по ВСЕМУ файлу, не только по каталогу возможностей: тот же молчаливый
+вытеснитель одинаково возможен в `functions`, `databases` и любом другом литерале декларации.
+
+**Красный на сломанном состоянии** (ключ возвращён к прежнему, вытесняющему имени):
+
+```
+$ node --experimental-strip-types --test deploy/postgres/privileges/port-context-catalog.test.mjs
+not ok 1 - no declared key is silently overwritten by a later twin in the same object literal
+    + 'integrator_support_delivery_attempt_record: объявлен на :2565, вытеснен на :3143'
+# pass 7
+# fail 1
+```
+
+Обратите внимание на `# pass 7`: ВСЕ прежние проверки на сломанном продукте остаются зелёными —
+ровно как и говорил вердикт. Новый гейт здесь единственный сигнал.
+
+**Зелёный после правки** (продукт возвращён из бэкапа побайтно):
+
+```
+$ node --experimental-strip-types --test deploy/postgres/privileges/port-context-catalog.test.mjs
+# pass 8
+# fail 0
+```
+
+## 3. F2 — `broadcast_audit` покрыт поведением
+
+Новый файл `apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.broadcastAudit.d17.test.ts`
+(4 теста). Ведёт НАСТОЯЩИЙ маршрут воркера — `processClaimedOutgoingDeliveryRow` с разрешением области,
+финализацией строки очереди и классификацией отказа; заглушка одна и она на границе `DbPort`.
+Наблюдаемый выход: какой оператор ушёл в базу, с каким позиционным набором и под каким принципалом.
+Проверяются все три исхода журнала рассылки врача (отправлено / ошибка / адресат заблокировал бота) и
+четвёртый случай — повторяемый отказ на непоследней попытке счётчик не поднимает вовсе (иначе одна
+рассылка сосчиталась бы ошибкой столько раз, сколько было ретраев).
+
+**Три инъекции неисправности, продукт после каждой возвращён побайтно:**
+
+```
+И1  :993 'sent_count' → 'error_count'                      Tests  1 failed | 3 passed (4)
+И2  :265 'error_count' → 'sent_count'                      Tests  1 failed | 3 passed (4)
+И3  :276 'blocked_recipient_count' → 'error_count'         Tests  1 failed | 3 passed (4)
+$ git diff --stat -- apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts
+(пусто — побайтно)
+```
+
+И1 — ровно та инъекция, которая в вердикте оставляла зелёными все 227 тестов.
+
+### 3a. Сузившийся арбитр N3 закрыт
+
+Новый гейт `deploy/postgres/privileges/named-root-column-mapping.test.mjs` (2 теста) + разбор
+`insertColumnBindings()` в общем модуле `function-body-surface.mjs` (рядом с `rowLockedRelations` —
+той же формы работа, тот же модуль). Проверяет привязку «параметр корня → колонка» в телах
+именованных корней ПОРТА ИНТЕГРАТОРА против ДЕЙСТВУЮЩИХ артефактов схемы (generated snapshot +
+активные forward-миграции), то есть против того, что реально приедет в кластер:
+
+1. список колонок и список `VALUES` одной длины (буквально прежний N3);
+2. колонку кормит ОДНОИМЁННЫЙ параметр (через один уровень нормализации `v_x := p_y::type`), а каждое
+   осознанное переименование названо переписью `integratorRootColumnParameterRenames`.
+
+Область шире одного `T110400` намеренно: это ровно те двери, которые заменили собой реляционную запись
+интегратора и вместе с ней прежнего арбитра. Все шесть корней D17 правилу подчиняются без исключений;
+в перепись попали ПЯТЬ уже существовавших осознанных переименований (`record_operator_delivery_attempt`
+×3, `integrator_bind_bootstrap_channel_phone`, `upsert_google_calendar_event_id`) — новое расхождение
+теперь нельзя добавить молча.
+
+**Две инъекции в тело миграции `T110400`, файл после каждой возвращён побайтно:**
+
+```
+И4  перестановка p_status/p_reason в VALUES:
+    not ok 2 - колонку кормит одноимённый параметр корня, а каждое исключение названо переписью
+      appeared (2): …notification_delivery_attempts.reason <- p_status,
+                    …notification_delivery_attempts.status <- p_reason
+И5  колонка metadata выброшена из списка колонок:
+    not ok 1 - в теле каждого корня интегратора список колонок и список значений одной длины
+      + 'app.integrator_record_notification_delivery_attempt -> public.notification_delivery_attempts:
+         13 columns / 14 values'
+$ git diff --stat -- apps/webapp/db/drizzle-migrations/20260822T110400_*.sql
+(пусто — побайтно)
+```
+
+Именно И4 вердикт называл проходящей всё зелёным.
+
+## 4. F4 — ложная строка переписи поправлена в обоих местах
+
+`D17_CANON_WRITER_CENSUS_2026-08-22.md` §5 п.1 и блок D17 `WORK_ORDER.md`: «реляционных `INSERT`/`UPDATE`
+по `public.*` в `apps/integrator/**` не осталось» → «реляционных писателей ПРОДУКТОВОГО КАНОНА из §2.2
+не осталось», с ЯВНЫМ перечислением того, что осталось живым (`userChannelBotBlocked` →
+`user_channel_bindings`, `messengerPhoneBindAudit` → `admin_audit_log`, `operatorHealthDrizzle` →
+`operator_incidents`/`operator_job_status`), мёртвого (`writeSupportQuestionsDirect`) и dev-скрипта.
+В `WORK_ORDER.md` дополнительно сказано, почему это важно именно для шага 3: три живых писателя уедут
+вместе с членствами, поэтому шаг 3 начинается с решения по ним, а не со снятия. Переводить их на корни
+в этот объём не входило и не делалось.
+
+Там же в `WORK_ORDER.md` поправлено имя возможности на `integrator_port_support_delivery_attempt_record`
+с объяснением, почему ключ обязан отличаться от ключа двери вебаппа.
+
+## 5. Проверки
+
+```
+$ node deploy/postgres/privileges/generate-cli.mjs --all --check                    EXIT=0, побайтно
+$ node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only --check EXIT=0, побайтно
+$ pnpm test:db-privileges                          EXIT=0 · 141 pass / 0 fail / 36 skip  (было 138 pass; +3 = новые гейты)
+$ bash deploy/host/migrate-dev.sh --preflight      EXIT=0 · PASS · pending=5 total=34 · ROLLBACK
+$ (apps/integrator) tsc --noEmit -p tsconfig.json  EXIT=0
+$ eslint <пять затронутых файлов>                  EXIT=0
+$ node scripts/check-db-chokepoint.mjs                    PASS
+$ node scripts/check-no-new-raw-sql.mjs                   PASS
+$ node scripts/check-queue-port-boundary.mjs              PASS
+$ node scripts/check-test-runner-visibility.mjs           PASS
+$ node scripts/check-c4-migration-owned-function-bodies.mjs PASS
+$ (apps/integrator) vitest --run src/infra/db src/infra/runtime/worker
+    Test Files  48 passed | 1 skipped (49)
+    Tests  231 passed | 1 skipped (232)          (было 227 pass; +4 = новый тест broadcast_audit)
+```
+
+`--preflight` из этого клона поначалу отказывал (`FATAL: DEV API env path guard failed`): worktree не
+несёт `.env` и `apps/webapp/.env.dev` — они в `.gitignore` и живут в главном дереве. Оба файла скопированы
+из главного дерева на время прогона и удалены сразу после; в индекс они не попадали и попасть не могли.
+`--execute` не запускался.
+
+Дерево перед коммитом — только свои файлы, продуктовый код и миграции не тронуты:
+
+```
+$ git status --porcelain
+ M deploy/postgres/generated/port-context-capabilities.bcb_webapp_dev.sql
+ M deploy/postgres/generated/port-context-capabilities.bersoncarebot_test.sql
+ M deploy/postgres/generated/privileges.bcb_webapp_dev.sql
+ M deploy/postgres/generated/privileges.bersoncarebot_test.sql
+ M deploy/postgres/privileges/declaration.ts
+ M deploy/postgres/privileges/function-body-surface.mjs
+ M deploy/postgres/privileges/name-census.json
+ M deploy/postgres/privileges/port-context-catalog.test.mjs
+ M docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md
+ M docs/_TODO/runs/integrator-cleanup/D17_CANON_WRITER_CENSUS_2026-08-22.md
+?? apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.broadcastAudit.d17.test.ts
+?? deploy/postgres/privileges/named-root-column-mapping.test.mjs
+```
+
+## ВОПРОСЫ ВЛАДЕЛЬЦУ:
+
+1. **F3: гейт поставлен, конструкция — нет.** Аудит предлагал верхнюю ступень §10a — объявлять каталог
+   возможностей списком ПАР вместо объектного литерала, тогда дубль ключа перестаёт быть выразимым
+   вовсе. Задание требовало проверку, и проверка сделана. Переводить 233 возможности на список пар —
+   отдельная работа, я её не начинал. Делать?
+2. **F5 (латентное расхождение, из вердикта, вне моего объёма).** В корне напоминаний стена проверяет
+   ВХОДНОЙ `p_platform_user_id`, а политика — РЕЗУЛЬТИРУЮЩУЮ строку. Сегодня недостижимо
+   (`upsertReminderRuleDirect` бросает `no_platform_user_candidate` раньше). Приводить тело к политике
+   или оставить как есть с записью о расхождении?
+3. **F6 (изменение поведения, из вердикта, вне моего объёма).** Столкновение `integrator_intent_event_id`
+   ЧУЖОЙ организации: раньше тихий no-op, теперь вечный повтор → DLQ. Изменение в сторону громкости, но
+   это изменение. Оставляем громким или возвращаем no-op на чужой организации?
+4. **Три живых реляционных писателя `public.*` (F4).** `userChannelBotBlocked`, `messengerPhoneBindAudit`,
+   `operatorHealthDrizzle` — формулировка поправлена, сами писатели не тронуты (в объём не входило). Они
+   упадут в момент снятия членств (шаг 3): переводить их на корни отдельным шагом до снятия или снимать
+   членства только после решения по каждому?
+
+## НЕ СДЕЛАНО:
+
+* F5, F6 и перевод трёх живых писателей `public.*` на корни — вне вердикта-задания, подняты вопросами
+  выше. Ничего по ним не менялось.
+* Полный CI и `push` не запускались — прямой запрет брифа.
+* `--execute`, TEST и PROD не трогались — прямой запрет брифа. `--preflight` отработал rollback-only.
+* Живой вызов шестого корня под реальным принципалом на DEV не делался: DEV ведёт соседняя ветка, пять
+  корней D17 там ещё не созданы (ledger пуст по `20260822T1100%`, что аудит и замерил). F1 доказан по
+  сгенерированному каталогу и по тому самому отбору возможности, который падал в рантайме.
+* Тесты вебаппа не гонялись: код вебаппа не менялся, его дверь на корень поддержки осталась побайтно той же.
+* Устаревшие номера строк в блоке D17 `WORK_ORDER.md` (`:268,:284,:987` для
+  `incrementBroadcastAuditCounter`; фактически `:265,:276,:993`) не правил — этого нет в вердикте.

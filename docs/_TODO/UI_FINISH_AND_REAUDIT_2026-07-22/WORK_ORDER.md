@@ -1180,8 +1180,10 @@ booking/event gateway) в том же источнике помечены «за
       • `support_delivery_events` — **НОВОГО корня не заводилось.** Корень
         `app.record_integrator_support_delivery_attempt(...)` уже существовал и делает ровно эту запись, так
         что вместо второго пути ему добавлена дверь с порта интегратора (capability
-        `integrator_support_delivery_attempt_record`), а `directPublic/writeSupportQuestionsDirect.ts` зовёт
-        его. Одно расхождение вынесено явно: существующий корень пишет `conversation_message_id = NULL`,
+        `integrator_port_support_delivery_attempt_record` — ключ обязан отличаться от ключа двери вебаппа
+        `integrator_support_delivery_attempt_record`: каталог возможностей это один объектный литерал, и
+        одинаковый ключ не дополняет соседа, а вытесняет его молча), а
+        `directPublic/writeSupportQuestionsDirect.ts` зовёт его. Одно расхождение вынесено явно: существующий корень пишет `conversation_message_id = NULL`,
         поэтому вызов с непустым `conversationMessageId` теперь бросает
         `support_delivery_attempt_conversation_message_not_supported` вместо тихой потери связи с сообщением.
         Живые вызывающие такого значения не передают; расширять сигнатуру чужого корня — продуктовое решение
@@ -1195,9 +1197,15 @@ booking/event gateway) в том же источнике помечены «за
       что чужой организации она не достаётся; обе инъекции неисправности (вернуть реляционный INSERT; подставить
       организацию принятого контекста вместо организации строки) красят его.
       **ЧТО ОСТАЛОСЬ (не делалось этим ходом, намеренно):** шаг 3 — снять у логина интегратора членства в
-      `app_tenant_service` и `app_operational_delivery_worker`. Оба предусловия к нему теперь закрыты: оверлей
+      `app_tenant_service` и `app_operational_delivery_worker`. Оверлей
       `integrator-login-public-identity-grants.sql` снят 22.08 (в дереве его уже нет, см. §5 переписи), а
-      реляционных писателей канона больше нет — этим ходом. Пока членства на месте, поведение не изменилось ни
+      реляционных писателей ПРОДУКТОВОГО КАНОНА из §2.2 переписи больше нет — этим ходом. **Но реляционная
+      запись по `public.*` из интегратора этим не исчерпана** (замер независимого аудита 22.08): живыми
+      остаются `repos/userChannelBotBlocked.ts` → `public.user_channel_bindings`,
+      `repos/messengerPhoneBindAudit.ts` → `public.admin_audit_log` и `repos/operatorHealthDrizzle.ts` →
+      `public.operator_incidents`/`public.operator_job_status` — каждый вне §2.2 и потому вне шага 1, но
+      каждый уедет вместе с членствами. Поэтому шаг 3 начинается с решения по этим трём, а не с самого
+      снятия. Пока членства на месте, поведение не изменилось ни
       на йоту: корни исполняются под теми же ролями, под которыми шли прежние прямые записи, — именно поэтому
       снятие членств и есть отдельный, проверяемый шаг, а не хвост этого.
       **ЗАФИКСИРОВАНО КАК ЕСТЬ, НЕ «ПОЧИНЕНО»:** `reminder_delivery_events` и `content_access_grants_webapp`

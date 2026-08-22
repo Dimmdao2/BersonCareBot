@@ -215,9 +215,16 @@ preflight проверял бы неизменённое дерево и на в
    до тех пор членства `app_tenant_service` и `app_operational_delivery_worker` снять нельзя.~~
    ✅ **СДЕЛАНО 22.08 (шаг 1): все шесть переведены на именованные корни.** Пять новых корней
    (`20260822T1100*_*.sql`) плюс шестой путь — `support_delivery_events` — сведён на УЖЕ СУЩЕСТВУЮЩИЙ корень
-   `app.record_integrator_support_delivery_attempt(...)`, второго пути не заводилось. Реляционных `INSERT`/
-   `UPDATE` по `public.*` в `apps/integrator/**` не осталось; проверка — поведенческий тест
-   `apps/integrator/src/infra/db/directPublic/canonWritersUseNamedRoots.behaviour.test.ts`. Подробности,
+   `app.record_integrator_support_delivery_attempt(...)`, второго пути не заводилось. Реляционных писателей
+   ПРОДУКТОВОГО КАНОНА из §2.2 в `apps/integrator/**` не осталось; проверка — поведенческий тест
+   `apps/integrator/src/infra/db/directPublic/canonWritersUseNamedRoots.behaviour.test.ts`. **Реляционная
+   запись по `public.*` из интегратора при этом сохраняется вне §2.2** (независимый аудит 22.08 замерил
+   командой): живые `repos/userChannelBotBlocked.ts` → `public.user_channel_bindings`,
+   `repos/messengerPhoneBindAudit.ts` → `public.admin_audit_log`, `repos/operatorHealthDrizzle.ts` →
+   `public.operator_incidents`/`public.operator_job_status`; плюс мёртвый `directPublic/
+   writeSupportQuestionsDirect.ts` (три функции без вызывающих) и dev-скрипт `infra/scripts/
+   reconcile-dev-patient-reminder-orphans.ts`. Это предусловие пункта 3: снятию членств предшествует
+   решение по каждому из трёх живых. Подробности,
    роли исполнения и одно вынесенное расхождение (`conversation_message_id`) — в блоке D17 файла
    `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`. Членства при этом НЕ снимались — это пункт 3.
 2. ~~Снять оверлей `integrator-login-public-identity-grants.sql` из цепочки TEST-деплоя (`CODE_MUST_CHANGE` C4).~~

@@ -2559,7 +2559,10 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.integrator_upsert_content_access_grant(uuid,text,text,bigint,text,text,text,timestamp with time zone,timestamp with time zone,text,timestamp with time zone)' },
     // Корень уже есть и делает ровно это (`integrator_support_delivery_attempt_record` на порту
     // вебаппа) — второй не заводим, добавляем этой же функции дверь с порта интегратора.
-    integrator_support_delivery_attempt_record: { port: 'integrator',
+    // Ключ обязан отличаться от ключа двери вебаппа: каталог — один объектный литерал, и одинаковый
+    // ключ не «дополняет», а вытесняет соседа молча. Префикс `integrator_port_` — тот же, которым
+    // уже отличается вторая дверь `record_reminder_occurrence_finalized_projection` (см. выше).
+    integrator_port_support_delivery_attempt_record: { port: 'integrator',
       runtimeName: 'support_delivery_attempt_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.support-delivery-attempt.record',
