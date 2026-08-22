@@ -1,4 +1,4 @@
-import { PLATFORM_NAME } from '@/config/productSurfaces';
+import { LEGAL_DOCUMENT_OPERATOR } from '@/config/legalDocumentOperator';
 
 /** Публичная страница условий использования (URL для OAuth consent screen и магазинов). */
 export default function TermsOfServicePage() {
@@ -6,7 +6,7 @@ export default function TermsOfServicePage() {
     <>
       <h1 className="text-xl font-semibold tracking-tight">Условия использования</h1>
       <p className="text-muted-foreground">
-        Настоящий документ определяет правила использования веб-приложения {PLATFORM_NAME}
+        Настоящий документ определяет правила использования веб-приложения {LEGAL_DOCUMENT_OPERATOR.productName}
         {' '}(далее — «Сервис»), предоставляемого владельцем сервиса пользователям.
       </p>
       <section className="space-y-2">

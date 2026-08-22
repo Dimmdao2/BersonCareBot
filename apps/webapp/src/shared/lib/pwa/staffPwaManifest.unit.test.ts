@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import { metadata as legalLayoutMetadata } from '@/app/legal/layout';
 import { buildPatientPwaManifest } from './patientPwaManifest';
 import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import {
+  LEGAL_DOCUMENT_OPERATOR,
+  legalDocumentMetadata,
+} from '@/config/legalDocumentOperator';
 import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
-import { buildStaffPwaManifest } from './staffPwaManifest';
+import { buildStaffPwaManifest, STAFF_PWA_MANIFEST_PATH } from './staffPwaManifest';
 
 describe('staff PWA identity', () => {
   it('exposes Therapysto in the installed app and staff document metadata', () => {
@@ -13,6 +18,22 @@ describe('staff PWA identity', () => {
     expect(staffPwaLayoutMetadata).toMatchObject({
       title: 'Therapysto',
       appleWebApp: { title: 'Therapysto' },
+    });
+  });
+
+  it('gives both legal documents one complete platform identity', () => {
+    expect(LEGAL_DOCUMENT_OPERATOR.requisites).toEqual({
+      status: 'awaiting-owner-input',
+      legalEntityName: '',
+      registeredAddress: '',
+      inn: '',
+      ogrn: '',
+    });
+    expect(legalLayoutMetadata).toBe(legalDocumentMetadata);
+    expect(legalLayoutMetadata).toMatchObject({
+      title: LEGAL_DOCUMENT_OPERATOR.productName,
+      manifest: STAFF_PWA_MANIFEST_PATH,
+      appleWebApp: { title: LEGAL_DOCUMENT_OPERATOR.productName },
     });
   });
 });
