@@ -328,3 +328,17 @@ test('the incoming-recipient root has exactly one door per webhook principal tha
     );
   }
 });
+
+test('the incoming-recipient class probe stays internal to the context and identity seams', () => {
+  const probe = declaration.portContext.functions['app.integrator_context_installed()'];
+  assert.equal(probe.owner, 'app_seam_context_owner');
+  assert.equal(probe.invocation, 'internal');
+  assert.equal(probe.returns, 'boolean');
+  assert.deepEqual(probe.execute, ['app_seam_identity_lookup_owner']);
+  assert.deepEqual(
+    Object.values(declaration.portContext.capabilities)
+      .filter((capability) => capability.functionIdentity === 'app.integrator_context_installed()'),
+    [],
+    'an internal class probe must not become a third runtime door',
+  );
+});

@@ -3614,6 +3614,28 @@ const REV10_CONTEXT = {
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // D17 incoming-recipient door: a non-throwing class probe, not a second identity accessor.
+    // Generalizing `require_attested_target_role` would mix two contracts: that function returns
+    // an exact role and raises on absence; this one only chooses which class the following
+    // `require_accepted_context` must verify. The only identity value accessor remains
+    // `app.current_integrator_user_id()`.
+    'app.integrator_context_installed()': rev10Function({
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_seam_identity_lookup_owner'],
+      purpose: 'probe whether the integrator request door installed an integrator-class context',
+      typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], invocation: 'internal' as const,
+      relationSurfaces: [
+        { relation: 'app_ext.accepted_port_contexts', columns: [
+          'database_oid', 'backend_pid', 'transaction_id', 'capability_id', 'session_login', 'port',
+          'target_role', 'context_class', 'purpose', 'function_identity', 'cleared_at',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'app_ext.port_context_capabilities', columns: [
+          'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose',
+          'function_identity', 'active_from', 'active_until',
+        ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.enqueue_current_reminder_rule_push(text)': rev10Function({
       owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
       execute: ['app_patient', 'app_staff'], purpose: 'enqueue only the current patient or staff-org reminder retry',
