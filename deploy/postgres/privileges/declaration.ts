@@ -1947,9 +1947,11 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
     contacts: ['SELECT', 'INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
   },
   'app.email_password_delete_unverified_registration(uuid)': { contacts: ['SELECT'] },
-  'app.email_password_find_login_candidate(text)': {
-    contacts: ['SELECT'], delegatesTo: ['app.find_platform_user_ids_by_any_confirmed_email(text)'],
-  },
+  // Дверь переотправки ищет черновик по `public.user_contacts` сама и БЕЗ фильтра подтверждения:
+  // тому, кому нужна переотправка кода, почту подтверждать было нечем. Делегата
+  // `app.find_platform_user_ids_by_any_confirmed_email(text)` она больше не зовёт — он остаётся
+  // резолвером ПОДТВЕРЖДЁННОГО владельца адреса (owner-conflict, вход, OAuth-резолв).
+  'app.email_password_find_login_candidate(text)': { contacts: ['SELECT'] },
   'app.email_password_find_reset_candidate(text)': { contacts: ['SELECT'] },
   'app.email_password_register_pending(text,text,text,text,text,text)': {
     contacts: ['INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
@@ -3949,7 +3951,6 @@ const REV10_CONTEXT = {
       execute: [
         ...BUSINESS_SEAM_FUNCTIONS['app.find_platform_user_ids_by_any_confirmed_email(text)'].execute,
         'app_seam_email_otp_owner',
-        'app_seam_password_auth_owner',
       ],
     },
     'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)': {
