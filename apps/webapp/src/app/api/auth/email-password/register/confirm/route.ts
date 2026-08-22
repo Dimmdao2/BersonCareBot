@@ -15,7 +15,10 @@ import { confirmEmailChallenge } from '@/modules/auth/emailAuth';
 import { reconcileDbRoleWithEnvRole, resolveRoleFromEnv } from '@/modules/auth/envRole';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
-import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
+import {
+  enterStaffSecuritySelfPrincipal,
+  runWithStaffSecuritySelfPrincipal,
+} from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 
 const bodySchema = z.object({
@@ -69,7 +72,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const profileEmail = (await deps.userProjection.getProfileEmailFields(userId)).email ?? null;
+  // Почта человека читается под ЕГО идентичностью-себя, а не под предсессионным принципалом, под
+  // которым исполняется маршрут (`stampBootstrapPrincipal` выше): у `app_pre_session` нет гранта на
+  // `public.user_contacts` — после цутовера `20260821T040000` этот вызов отказывает `42501`, а
+  // подтверждение регистрации падает 500 ещё до проверки кода. Субъект тот же, что и у самого
+  // подтверждения: человек читает СВОЮ почту (`platform_user_id = app.current_patient_user_id()`).
+  // Неканонический id идентичности-себя не получает (та же проверка, что ниже на строке успеха):
+  // тогда почта в поле журнала остаётся пустой, а не роняет подтверждение.
+  const profileEmail = isPlatformUserUuid(userId)
+    ? (
+        await runWithStaffSecuritySelfPrincipal(
+          userId,
+          'api/auth/email-password/register/confirm:profile-email-self',
+          () => deps.userProjection.getProfileEmailFields(userId),
+        )
+      ).email ?? null
+    : null;
 
   const result = await confirmEmailChallenge(
     userId,

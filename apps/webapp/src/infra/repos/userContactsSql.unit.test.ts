@@ -3,13 +3,19 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { SQL } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/node-postgres';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { mutateCanonicalUserContacts } from '@bersoncare/platform-merge';
 import {
   CONTACTS,
   CONTACTS_NO_PHONE,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
+  drizzlePrimaryEmailCol,
+  drizzlePrimaryEmailConfirmedAtCol,
+  drizzlePrimaryPhoneCol,
 } from '@/infra/repos/userContactsSql';
+import { platformUsers } from '../../../db/schema/schema';
 
 describe('userContactsSql — D15b/6 source-of-truth contract', () => {
   it('reads the primary phone from user_contacts only, with no fallback to platform_users', () => {
@@ -81,5 +87,48 @@ describe('userContactsSql — D15b/6 source-of-truth contract', () => {
         isPrimary: true, confirmedAt: null, sourceOrigin: 'direct',
       }])).rejects.toThrow('canonical_phone_contact_conflict');
     expect(executeSql).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Поломка, которую ловят эти два теста: подзапрос первичного контакта коррелирует не с человеком
+ * снаружи, а сам с собой. Подставили в подзапрос неквалифицированное `"id"` — получили
+ * `WHERE "platform_user_id" = "id"`, где `"id"` связывается с `user_contacts.id`; условие ложно
+ * всегда, подзапрос молча отдаёт NULL, и у человека с подтверждённой почтой она «пропадает».
+ * Именно так вело себя `getProfileEmailFields` после цутовера `20260821T040000` (замер на
+ * `bcb_webapp_dev` 22.08.2026). Отличить NULL-из-за-корреляции от NULL-из-за-отсутствия контакта
+ * снаружи нельзя, поэтому проверяется тот SQL, который уходит в базу.
+ */
+describe('первичный контакт коррелирует с внешним platform_users, а не сам с собой', () => {
+  const db = drizzle({ client: { query: async () => ({ rows: [] }) } as never });
+  const correlation = (text: string): string => {
+    const match = /WHERE\s+([^\n]*?platform_user_id[^\n]*?)\n/.exec(text);
+    if (!match) throw new Error(`не нашли условие корреляции в SQL:\n${text}`);
+    return match[1]!.trim();
+  };
+
+  const selectListSql = (): string =>
+    db
+      .select({ email: drizzlePrimaryEmailCol, verified: drizzlePrimaryEmailConfirmedAtCol })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, '00000000-0000-4000-8000-0000000d0c10'))
+      .toSQL().sql;
+
+  const whereClauseSql = (): string =>
+    db
+      .select({ id: platformUsers.id })
+      .from(platformUsers)
+      .where(eq(drizzlePrimaryPhoneCol, '+79990000000'))
+      .toSQL().sql;
+
+  it('одно и то же условие корреляции в обоих режимах печати drizzle', () => {
+    expect(correlation(selectListSql())).toBe(correlation(whereClauseSql()));
+  });
+
+  it('корреляция называет внешнюю таблицу, а не собственный ключ подзапроса', () => {
+    for (const text of [selectListSql(), whereClauseSql()]) {
+      expect(correlation(text)).toContain('"platform_users"."id"');
+      expect(correlation(text)).not.toMatch(/=\s*"id"$/);
+    }
   });
 });

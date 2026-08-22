@@ -1947,9 +1947,11 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
     contacts: ['SELECT', 'INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
   },
   'app.email_password_delete_unverified_registration(uuid)': { contacts: ['SELECT'] },
-  'app.email_password_find_login_candidate(text)': {
-    contacts: ['SELECT'], delegatesTo: ['app.find_platform_user_ids_by_any_confirmed_email(text)'],
-  },
+  // Дверь переотправки ищет черновик по `public.user_contacts` сама и БЕЗ фильтра подтверждения:
+  // тому, кому нужна переотправка кода, почту подтверждать было нечем. Делегата
+  // `app.find_platform_user_ids_by_any_confirmed_email(text)` она больше не зовёт — он остаётся
+  // резолвером ПОДТВЕРЖДЁННОГО владельца адреса (owner-conflict, вход, OAuth-резолв).
+  'app.email_password_find_login_candidate(text)': { contacts: ['SELECT'] },
   'app.email_password_find_reset_candidate(text)': { contacts: ['SELECT'] },
   'app.email_password_register_pending(text,text,text,text,text,text)': {
     contacts: ['INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
@@ -2544,7 +2546,7 @@ const REV10_CONTEXT = {
     // запись сегодня исполняется организационным принципалом, и `service` там, где её приземляет
     // долговечный повтор доставки.
     integrator_reminder_rule_upsert: { port: 'integrator', runtimeName: 'reminder_rule_upsert',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request',
       contextClass: 'tenant_service', purpose: 'integrator.reminder-rule.upsert',
       functionIdentity: 'app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)' },
     integrator_delivery_reminder_delivery_event_append: { port: 'integrator',
@@ -2569,12 +2571,12 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     integrator_notification_delivery_attempt_record: { port: 'integrator',
       runtimeName: 'notification_delivery_attempt_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.notification-delivery-attempt.record',
       functionIdentity: 'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)' },
     integrator_broadcast_audit_counter_increment: { port: 'integrator',
       runtimeName: 'broadcast_audit_counter_increment', sessionRole: 'app_integrator_request',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.broadcast-audit-counter.increment',
       functionIdentity: 'app.integrator_increment_broadcast_audit_counter(uuid,uuid,text)' },
     // D17 шаг 2b: три оставшихся реляционных писателя `public.*` из интегратора. Ключ каждой двери
@@ -2584,12 +2586,12 @@ const REV10_CONTEXT = {
     // пишет разбор конфликта внутри организационного принципала.
     integrator_port_user_channel_bot_blocked_set: { port: 'integrator',
       runtimeName: 'user_channel_bot_blocked_set', sessionRole: 'app_integrator_request',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.user-channel-bot-blocked.set',
       functionIdentity: 'app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)' },
     integrator_port_messenger_phone_bind_audit_record: { port: 'integrator',
       runtimeName: 'messenger_phone_bind_audit_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.messenger-phone-bind-audit.record',
       functionIdentity: 'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)' },
     integrator_auth_channel_setting_read: { port: 'integrator', runtimeName: 'auth_channel_setting',
@@ -3341,19 +3343,19 @@ const REV10_CONTEXT = {
       contextClass: 'service', purpose: 'delivery.appointment-reminder-advance',
       functionIdentity: 'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)' },
     get_google_calendar_event_id: { port: 'integrator', runtimeName: 'get_google_calendar_event_id',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'calendar.map.get', functionIdentity: 'app.get_google_calendar_event_id(uuid)' },
     upsert_google_calendar_event_id: { port: 'integrator', runtimeName: 'upsert_google_calendar_event_id',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'calendar.map.upsert', functionIdentity: 'app.upsert_google_calendar_event_id(uuid,text)' },
     delete_google_calendar_event_id: { port: 'integrator', runtimeName: 'delete_google_calendar_event_id',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'calendar.map.delete', functionIdentity: 'app.delete_google_calendar_event_id(uuid)' },
     read_booking_calendar_patient_profile: { port: 'integrator', runtimeName: 'read_booking_calendar_patient_profile',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'calendar.patient-profile.read', functionIdentity: 'app.read_booking_calendar_patient_profile(uuid)' },
     read_booking_calendar_latest_staff_comment: { port: 'integrator', runtimeName: 'read_booking_calendar_latest_staff_comment',
-      sessionRole: 'app_integrator_request', targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'calendar.staff-comment.read', functionIdentity: 'app.read_booking_calendar_latest_staff_comment(uuid)' },
     is_current_patient_self_booking_allowed: { port: 'webapp', runtimeName: 'is_current_patient_self_booking_allowed',
       sessionRole: 'app_patient', targetRole: 'app_patient', contextClass: 'patient',
@@ -3949,7 +3951,6 @@ const REV10_CONTEXT = {
       execute: [
         ...BUSINESS_SEAM_FUNCTIONS['app.find_platform_user_ids_by_any_confirmed_email(text)'].execute,
         'app_seam_email_otp_owner',
-        'app_seam_password_auth_owner',
       ],
     },
     'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)': {
@@ -5009,7 +5010,7 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.get_google_calendar_event_id(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_integrator_request'],
       purpose: 'read one Google event id after proving appointment organization', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -5018,7 +5019,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.upsert_google_calendar_event_id(uuid,text)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_integrator_request'],
       purpose: 'atomically upsert calendar mapping and patient-booking mirror after organization proof', typedArgs: ['uuid', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -5028,7 +5029,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.delete_google_calendar_event_id(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'void', returnsSet: false, execute: ['app_integrator_request'],
       purpose: 'atomically delete calendar mapping and clear patient-booking mirror after organization proof', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -5038,7 +5039,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_booking_calendar_patient_profile(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_integrator_request'],
       purpose: 'calendar enrichment returns only the problem flag and note for the appointment patient', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -5047,7 +5048,7 @@ const REV10_CONTEXT = {
       ],
     }),
     'app.read_booking_calendar_latest_staff_comment(uuid)': rev10Function({
-      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_tenant_service'],
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'text', returnsSet: false, execute: ['app_integrator_request'],
       purpose: 'calendar enrichment returns only the latest staff comment body for one appointment', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
@@ -6241,7 +6242,7 @@ const REV10_CONTEXT = {
     // (ссылка на конкретную политику — в шапке миграции корня).
     'app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)': rev10Function({
       owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
-      execute: ['app_tenant_service'], purpose: 'integrator.reminder-rule.upsert',
+      execute: ['app_integrator_request'], purpose: 'integrator.reminder-rule.upsert',
       typedArgs: ['text', 'text', 'uuid', 'bigint', 'text', 'boolean', 'text', 'text', 'integer',
         'integer', 'integer', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text',
         'integer', 'integer', 'text', 'boolean'],
@@ -6309,7 +6310,7 @@ const REV10_CONTEXT = {
     }),
     'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_tenant_service'], purpose: 'integrator.notification-delivery-attempt.record',
+      execute: ['app_integrator_request'], purpose: 'integrator.notification-delivery-attempt.record',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'integer', 'text',
         'text', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
@@ -6329,7 +6330,7 @@ const REV10_CONTEXT = {
     }),
     'app.integrator_increment_broadcast_audit_counter(uuid,uuid,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_tenant_service'], purpose: 'integrator.broadcast-audit-counter.increment',
+      execute: ['app_integrator_request'], purpose: 'integrator.broadcast-audit-counter.increment',
       typedArgs: ['uuid', 'uuid', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -6344,7 +6345,7 @@ const REV10_CONTEXT = {
     // миграции корня).
     'app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_tenant_service'], purpose: 'integrator.user-channel-bot-blocked.set',
+      execute: ['app_integrator_request'], purpose: 'integrator.user-channel-bot-blocked.set',
       typedArgs: ['uuid', 'uuid', 'text', 'text', 'boolean', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
@@ -6364,7 +6365,7 @@ const REV10_CONTEXT = {
     // этого владельца шва уже объявлено, и тело всё равно обновляет ту же таблицу по существу дела.
     'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_tenant_service'], purpose: 'integrator.messenger-phone-bind-audit.record',
+      execute: ['app_integrator_request'], purpose: 'integrator.messenger-phone-bind-audit.record',
       typedArgs: ['uuid', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
