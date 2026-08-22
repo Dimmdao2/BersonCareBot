@@ -8,6 +8,28 @@ function tokenFromUrl(url: string): string {
 }
 
 describe('topic unsubscribe signed flow', () => {
+  it.each([
+    ['missing', ''],
+    ['short', 'short-secret'],
+  ])('rejects link creation and marker verification when the secret is %s', async (_kind, secret) => {
+    const service = createTopicUnsubscribeService({
+      getSecret: () => secret,
+      appBaseUrl: 'https://example.test',
+      setTopicEnabled: vi.fn(async () => {}),
+      runForPatient: async <T>(_userId: string, action: () => Promise<T>) => action(),
+    });
+    const validInput = {
+      userId: USER_ID,
+      topicCode: 'patient_news',
+      nonce: 'broadcast-audit-missing-secret',
+    };
+
+    expect(() => service.createUrl(validInput)).toThrow('topic_unsubscribe_secret_unavailable');
+    await expect(service.unsubscribeByToken('payload.signature')).rejects.toThrow(
+      'topic_unsubscribe_secret_unavailable',
+    );
+  });
+
   it('disables only the signed topic and makes a repeated visit idempotent', async () => {
     const state = new Map([
       ['patient_news', true],
@@ -22,7 +44,7 @@ describe('topic unsubscribe signed flow', () => {
       return action();
     };
     const service = createTopicUnsubscribeService({
-      secret: 'unit-test-secret-at-least-16-chars',
+      getSecret: () => 'unit-test-secret-at-least-16-chars',
       appBaseUrl: 'https://example.test/',
       setTopicEnabled,
       runForPatient,
@@ -47,7 +69,7 @@ describe('topic unsubscribe signed flow', () => {
   it('rejects a tampered recipient/topic marker before the write', async () => {
     const setTopicEnabled = vi.fn(async () => {});
     const service = createTopicUnsubscribeService({
-      secret: 'unit-test-secret-at-least-16-chars',
+      getSecret: () => 'unit-test-secret-at-least-16-chars',
       appBaseUrl: 'https://example.test',
       setTopicEnabled,
       runForPatient: async <T>(_userId: string, action: () => Promise<T>) => action(),

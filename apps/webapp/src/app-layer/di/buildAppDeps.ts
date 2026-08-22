@@ -534,7 +534,7 @@ const patientNotificationTopicsPort = !inMemoryRepos
   ? createPgPatientNotificationTopicsPort()
   : inMemoryPatientNotificationTopicsPort;
 const topicUnsubscribeService = createTopicUnsubscribeService({
-  secret: env.SESSION_COOKIE_SECRET,
+  getSecret: () => env.SESSION_COOKIE_SECRET,
   appBaseUrl: env.APP_BASE_URL,
   setTopicEnabled: (userId, topicCode, enabled) =>
     patientNotificationTopicsPort.setTopicEnabled(userId, topicCode, enabled),
