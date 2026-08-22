@@ -22,7 +22,7 @@ type DoctorAdminSidebarProps = {
   enableBadgePolling?: boolean;
   homeHref?: string;
   /**
-   * UX-05 B2: server-resolved effective organization brand. Degrades to the platform "Berson Care"
+   * UX-05 B2: server-resolved effective organization brand. Degrades to the platform "Therapysto"
    * mark when absent (account/global-admin/manage shells never pass it).
    */
   brand?: { displayName: string; logoUrl: string | null };
@@ -81,9 +81,9 @@ export function DoctorAdminSidebar({
         </span>
         <span className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-sm font-semibold tracking-tight text-foreground">
-            {brand?.displayName ?? 'Berson Care'}
+            {brand?.displayName ?? 'Therapysto'}
           </span>
-          <span className="truncate text-xs text-muted-foreground">BersonCare</span>
+          <span className="truncate text-xs text-muted-foreground">Therapysto</span>
         </span>
       </Link>
       <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

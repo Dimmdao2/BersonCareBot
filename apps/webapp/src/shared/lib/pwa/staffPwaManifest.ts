@@ -9,8 +9,8 @@ export const STAFF_PWA_APPLE_TOUCH = '/staff-pwa-apple-touch.png';
 export function buildStaffPwaManifest(): MetadataRoute.Manifest {
   return {
     id: '/app-staff',
-    name: 'BersonAdmin',
-    short_name: 'BersonAdmin',
+    name: 'Therapysto',
+    short_name: 'Therapysto',
     description: 'Кабинет врача и администратора: клиенты, расписание, контент, настройки.',
     start_url: '/app/doctor',
     scope: '/app',

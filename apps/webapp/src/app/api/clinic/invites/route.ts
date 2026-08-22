@@ -92,7 +92,7 @@ export async function POST(request: Request) {
   const inviteUrl = buildInviteUrl(baseUrl, token);
   const emailResult = await sendEmailSetupLinkViaIntegrator(
     result.invite.invitedEmail,
-    'Приглашение в BersonCare',
+    'Приглашение в Therapysto',
     [
       `Вас пригласили в клинику ${result.invite.organizationTitle ?? ''}.`.trim(),
       'Откройте ссылку и подтвердите email кодом:',

@@ -37,7 +37,7 @@ export async function POST(req: Request) {
     channel: 'email',
     recipient: body.to,
     text: 'Это тестовое письмо с экрана настроек администратора. Если вы его получили, исходящая почта настроена верно.',
-    metadata: { subject: 'Тест SMTP — BersonCare' },
+    metadata: { subject: 'Тест SMTP — Therapysto' },
   });
 
   if (res.ok) {
