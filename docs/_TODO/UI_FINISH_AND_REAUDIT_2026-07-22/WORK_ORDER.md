@@ -1100,6 +1100,54 @@ booking/event gateway) в том же источнике помечены «за
       TEST-деплой мимо генератора (`deploy-test-saas.sh:1963,2119`) — правка декларации его не закрывает.
       Полный разбор с `path:line`, доказательствами достижимости и мёртвого кода, и порядком оставшихся
       шагов: `runs/integrator-cleanup/D17_CANON_WRITER_CENSUS_2026-08-22.md`.
+      **ШАГ 1 (перевод писателей на именованные корни) ВЫПОЛНЕН 22.08 — галочку D17 НЕ ставит, это не
+      приёмка.** Все шесть реляционных писателей из переписи больше не пишут `public.*` из интегратора;
+      запись идёт через существующий chokepoint `writeDirectPublic` → `runIntegratorNamedRoot`, новых слоёв
+      и обходных путей не заводилось. Что переведено (миграция → корень → вызывающий):
+      • `reminder_rules` + подметание `integrator.user_reminder_occurrences` —
+        `20260822T110000_the_reminder_rule_upsert_gets_a_named_root.sql` →
+        `app.integrator_upsert_reminder_rule(...)` (владелец шва `app_seam_reminder_patient_owner`,
+        исполняется под `app_tenant_service`) → `directPublic/writeReminderRulesDirect.ts`. Обе записи
+        остались атомарными: они внутри одного тела корня.
+      • `reminder_delivery_events` — `20260822T110100_…` → `app.integrator_append_reminder_delivery_event(...)`
+        (`app_seam_delivery_scope_owner`, `app_operational_delivery_worker`) →
+        `directPublic/writeReminderProjectionDirect.ts`.
+      • `content_access_grants_webapp` — `20260822T110200_…` → `app.integrator_upsert_content_access_grant(...)`
+        (там же) → тот же файл.
+      • `notification_delivery_attempts` — `20260822T110400_…` →
+        `app.integrator_record_notification_delivery_attempt(...)` (`app_tenant_service`) →
+        `repos/notificationDeliveryAttempts.ts`.
+      • `broadcast_audit` (три счётчика) — `20260822T110500_…` →
+        `app.integrator_increment_broadcast_audit_counter(...)` (`app_tenant_service`) →
+        `runtime/worker/outgoingDeliveryWorker.ts` (одна функция `incrementBroadcastAuditCounter` на все три
+        места `:268,:284,:987`).
+      • `support_delivery_events` — **НОВОГО корня не заводилось.** Корень
+        `app.record_integrator_support_delivery_attempt(...)` уже существовал и делает ровно эту запись, так
+        что вместо второго пути ему добавлена дверь с порта интегратора (capability
+        `integrator_support_delivery_attempt_record`), а `directPublic/writeSupportQuestionsDirect.ts` зовёт
+        его. Одно расхождение вынесено явно: существующий корень пишет `conversation_message_id = NULL`,
+        поэтому вызов с непустым `conversationMessageId` теперь бросает
+        `support_delivery_attempt_conversation_message_not_supported` вместо тихой потери связи с сообщением.
+        Живые вызывающие такого значения не передают; расширять сигнатуру чужого корня — продуктовое решение
+        ведущего, не работа из находки.
+      Права — только через декларацию и генератор (`deploy/postgres/privileges/declaration.ts` + `--all` и
+      `--all --port-context-only`), артефакты пересобраны и совпадают побайтно; `GRANT`/`REVOKE`/`CREATE POLICY`
+      в миграциях нет. Гейт `row-lock-privileges.test.mjs` зелёный (4/4), `pnpm test:db-privileges` — 138 pass /
+      0 fail / 33 skip, `bash deploy/host/migrate-dev.sh --preflight` — PASS (`pending=5`, откат).
+      Поведенческий тест: `apps/integrator/src/infra/db/directPublic/canonWritersUseNamedRoots.behaviour.test.ts`
+      (10 тестов) — проверяет, что запись доезжает под тем принципалом, под которым её делает живой маршрут, и
+      что чужой организации она не достаётся; обе инъекции неисправности (вернуть реляционный INSERT; подставить
+      организацию принятого контекста вместо организации строки) красят его.
+      **ЧТО ОСТАЛОСЬ (не делалось этим ходом, намеренно):** шаг 3 — снять у логина интегратора членства в
+      `app_tenant_service` и `app_operational_delivery_worker`. Оба предусловия к нему теперь закрыты: оверлей
+      `integrator-login-public-identity-grants.sql` снят 22.08 (в дереве его уже нет, см. §5 переписи), а
+      реляционных писателей канона больше нет — этим ходом. Пока членства на месте, поведение не изменилось ни
+      на йоту: корни исполняются под теми же ролями, под которыми шли прежние прямые записи, — именно поэтому
+      снятие членств и есть отдельный, проверяемый шаг, а не хвост этого.
+      **ЗАФИКСИРОВАНО КАК ЕСТЬ, НЕ «ПОЧИНЕНО»:** `reminder_delivery_events` и `content_access_grants_webapp`
+      пишутся только повтором (`directPublicWriteRetryWorker`) под `app_operational_delivery_worker` с занятой
+      строкой повтора — передний план на них падал и падает, и оба корня повторяют эту стену
+      (`rev10_delivery_replay_worker_170`/`_84`) в своём теле.
 - [ ] **D19 — перепроверить правило и схему ПОСЛЕ реализации.** Когда D11–D18 закрыты, вернуться к
       `apps/webapp/ARCHITECTURE.md`: сверить записанную целевую схему с тем, что получилось, и при расхождении
       актуализировать правило, а не подгонять реальность под текст. Список проверки: остался ли в интеграторе

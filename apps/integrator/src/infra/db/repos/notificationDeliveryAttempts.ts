@@ -1,11 +1,25 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import { logger } from '../../observability/logger.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
-import {
-  runWithOptionalOrganizationPrincipal,
-  runWithOrganizationPrincipal,
-} from '../../principal/organizationPrincipal.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
+import { runWithOptionalOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
+
+/**
+ * D17. `app_tenant_service` is the only role of the integrator login the declaration grants INSERT on
+ * `public.notification_delivery_attempts`, so this write has always travelled under the organization
+ * principal — and only when the caller knew the organization. The named root keeps exactly that:
+ * without an organization there is no organization principal, so in port-context mode no
+ * `tenant_service` capability matches and the call fails before the database; if it does reach the
+ * database, the root refuses on `app.current_org_id()`. Either way the best-effort catch below turns
+ * it into the same warning a missing grant produced today, and delivery is not cancelled. The root
+ * body repeats `rev10_tenant_insert_120` in SQL.
+ *
+ * It is deliberately NOT `app.record_operator_delivery_attempt`, the other root over this table:
+ * that one is the queue-derived operator journal and validates a closed set of statuses and reasons
+ * (`failed` only with `provider_rejected`), which this relay path does not satisfy.
+ */
+const RECORD_NOTIFICATION_DELIVERY_ATTEMPT_ROOT =
+  'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)';
 
 export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max' | 'web_push' | 'email';
 
@@ -43,17 +57,6 @@ function parseOccurrenceUuid(value: string | undefined | null): string | null {
   return null;
 }
 
-async function runWithOptionalOrganizationPrincipalTransaction<T>(
-  db: DbPort,
-  organizationId: string | null | undefined,
-  fn: (targetDb: DbPort) => Promise<T>,
-): Promise<T> {
-  if (organizationId && db.integratorDrizzle === undefined) {
-    return runWithOrganizationPrincipal(organizationId, () => db.tx((txDb) => fn(txDb)));
-  }
-  return runWithOptionalOrganizationPrincipal(organizationId, () => fn(db));
-}
-
 /** Best-effort insert into webapp `notification_delivery_attempts` (shared public schema). */
 export async function recordNotificationDeliveryAttemptBestEffort(
   db: DbPort,
@@ -61,28 +64,52 @@ export async function recordNotificationDeliveryAttemptBestEffort(
 ): Promise<void> {
   try {
     const metadataJson = JSON.stringify(input.metadata ?? {});
-    await runWithOptionalOrganizationPrincipalTransaction(db, input.organizationId, (targetDb) =>
-      runIntegratorSql(
-        targetDb,
-        sql`INSERT INTO public.notification_delivery_attempts (
-          organization_id,
-          user_id, integrator_user_id, topic_code, intent_type, channel, status, reason,
-          provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
-        ) VALUES (
-          ${input.organizationId ?? null}::uuid,
-          ${input.userId ?? null}::uuid,
-          ${input.integratorUserId ?? null},
-          ${input.topicCode ?? null},
-          ${input.intentType ?? null},
-          ${input.channel},
-          ${input.status},
-          ${input.reason ?? null},
-          ${input.providerStatusCode ?? null},
-          ${input.eventId ?? null},
-          ${parseOccurrenceUuid(input.occurrenceId)}::uuid,
-          ${input.recipientRef ?? null},
-          ${input.errorMessage ?? null},
-          ${metadataJson}::jsonb
+    const organizationId = input.organizationId ?? null;
+    const userId = input.userId ?? null;
+    const integratorUserId = input.integratorUserId ?? null;
+    const topicCode = input.topicCode ?? null;
+    const intentType = input.intentType ?? null;
+    const reason = input.reason ?? null;
+    const providerStatusCode = input.providerStatusCode ?? null;
+    const eventId = input.eventId ?? null;
+    const occurrenceId = parseOccurrenceUuid(input.occurrenceId);
+    const recipientRef = input.recipientRef ?? null;
+    const errorMessage = input.errorMessage ?? null;
+    await runWithOptionalOrganizationPrincipal(organizationId, () =>
+      runIntegratorNamedRoot(
+        db,
+        RECORD_NOTIFICATION_DELIVERY_ATTEMPT_ROOT,
+        [
+          organizationId,
+          userId,
+          integratorUserId,
+          topicCode,
+          intentType,
+          input.channel,
+          input.status,
+          reason,
+          providerStatusCode,
+          eventId,
+          occurrenceId,
+          recipientRef,
+          errorMessage,
+          metadataJson,
+        ],
+        sql`SELECT app.integrator_record_notification_delivery_attempt(
+          ${organizationId}::uuid,
+          ${userId}::text,
+          ${integratorUserId}::text,
+          ${topicCode}::text,
+          ${intentType}::text,
+          ${input.channel}::text,
+          ${input.status}::text,
+          ${reason}::text,
+          ${providerStatusCode}::integer,
+          ${eventId}::text,
+          ${occurrenceId}::text,
+          ${recipientRef}::text,
+          ${errorMessage}::text,
+          ${metadataJson}::text
         )`,
       ),
     );

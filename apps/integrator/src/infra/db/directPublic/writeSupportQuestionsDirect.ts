@@ -65,7 +65,10 @@
  */
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from '../runIntegratorSql.js';
+
+const RECORD_SUPPORT_DELIVERY_ATTEMPT_ROOT =
+  'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)';
 
 function trimmedOrNull(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -278,18 +281,59 @@ export async function appendSupportDeliveryEventDirect(
   db: DbPort,
   input: AppendSupportDeliveryEventDirectInput,
 ): Promise<AppendSupportDeliveryEventDirectResult> {
-  return db.tx(async (txDb) => {
-    const payloadJson = JSON.stringify(input.payloadJson ?? {});
-    const res = await runIntegratorSql<{ id: string }>(
-      txDb,
-      sql`INSERT INTO public.support_delivery_events (
-         organization_id, conversation_message_id, integrator_intent_event_id, correlation_id,
-         channel_code, status, attempt, reason, payload_json, occurred_at
-       ) VALUES (${input.organizationId}::uuid, ${input.conversationMessageId}, ${input.integratorIntentEventId}, ${input.correlationId}, ${input.channelCode}, ${input.status}, ${input.attempt}, ${input.reason}, ${payloadJson}::jsonb, ${input.occurredAt}::timestamptz)
-       ON CONFLICT (integrator_intent_event_id) WHERE integrator_intent_event_id IS NOT NULL
-       DO NOTHING
-       RETURNING id::text AS id`,
+  // D17: the relational INSERT is gone. `app.record_integrator_support_delivery_attempt` ALREADY
+  // exists for exactly this row (same eleven columns, same partial-unique ON CONFLICT, same
+  // `organization_id = app.current_org_id()` wall that `rev10_tenant_insert_195` applies here today),
+  // and the webapp already reaches it through `pgIntegratorSupportQuestionOwnership`. A second root
+  // would be a second door onto one write, so this is the same root with an integrator-port
+  // capability added beside the webapp one.
+  //
+  // That root always writes `conversation_message_id = NULL`, which is the only value this path has
+  // ever produced (`writePort.ts` `delivery.attempt.log` builds the input with a literal `null`, and
+  // the durable retry replays that same input). A non-null value could therefore only arrive from a
+  // future caller, and dropping it silently is exactly the class of gap D3/D4 had to repair — so it
+  // is refused loudly instead.
+  if (input.conversationMessageId !== null) {
+    throw new Error('support_delivery_attempt_conversation_message_not_supported');
+  }
+  const payloadJson = JSON.stringify(input.payloadJson ?? {});
+  const res = await runIntegratorNamedRoot<{ payload: unknown }>(
+    db,
+    RECORD_SUPPORT_DELIVERY_ATTEMPT_ROOT,
+    [
+      input.organizationId,
+      input.integratorIntentEventId,
+      input.correlationId,
+      input.channelCode,
+      input.status,
+      input.attempt,
+      input.reason,
+      payloadJson,
+      input.occurredAt,
+    ],
+    sql`SELECT app.record_integrator_support_delivery_attempt(
+      ${input.organizationId}::uuid,
+      ${input.integratorIntentEventId}::text,
+      ${input.correlationId}::text,
+      ${input.channelCode}::text,
+      ${input.status}::text,
+      ${input.attempt}::integer,
+      ${input.reason}::text,
+      ${payloadJson}::text,
+      ${input.occurredAt}::timestamptz
+    ) AS payload`,
+  );
+  const payload = res.rows[0]?.payload;
+  if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+    throw new Error('support_delivery_attempt_write_failed');
+  }
+  const row = payload as Record<string, unknown>;
+  // A refused organization used to surface as an RLS violation and therefore as a durable retry;
+  // this root reports it in its envelope instead, so the same refusal has to be re-thrown here.
+  if (row.ok !== true || typeof row.id !== 'string') {
+    throw new Error(
+      typeof row.code === 'string' ? row.code : 'support_delivery_attempt_write_failed',
     );
-    return { id: res.rows[0]?.id ?? '' };
-  });
+  }
+  return { id: row.id };
 }

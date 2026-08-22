@@ -37,16 +37,25 @@
  * `collectPlatformUserCandidates` is called with `channelCode: ''`, `externalId: ''`; the channel-binding
  * branch is a no-op on empty args.
  *
- * CHOKEPOINT: injected `DbPort`; writes run on the tx-bound connection inside `db.tx(...)`. Raw SQL is
+ * D17: THE WRITE ITSELF IS NO LONGER RELATIONAL. The canonical row and the occurrence sweep that
+ * used to run as two statements of one integrator transaction are now the single named root
+ * `app.integrator_upsert_reminder_rule` (SECURITY DEFINER, owner `app_seam_reminder_patient_owner`),
+ * which keeps them atomic inside its own body and repeats the tenant wall RLS used to apply
+ * (`rev10_tenant_insert_173` / `rev10_tenant_update_173` / `rev10_tenant_delete_17`) — see the root's
+ * migration. Platform-user/organization RESOLUTION stays here and stays relational: it only reads.
+ *
+ * CHOKEPOINT: injected `DbPort`; the resolution reads run inside `db.tx(...)`, the write runs through
+ * `runIntegratorNamedRoot` (which refuses to start inside an open relation transaction). Raw SQL is
  * allowed here (src/infra/db repo).
  */
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
 import { collectPlatformUserCandidates } from './writeIdentityAndPreferencesDirect.js';
 import { resolveExactActiveOrganizationId } from './resolveDirectPublicActor.js';
-import { userReminderOccurrences } from '../schema/integratorDomainRepos.js';
-import { getIntegratorDrizzleSession } from '../drizzle.js';
+
+const UPSERT_REMINDER_RULE_ROOT =
+  'app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)';
 
 export type UpsertReminderRuleDirectInput = {
   /** Raw integrator-space id (`identities.user_id`), NOT a `public.platform_users.id`. */
@@ -121,87 +130,83 @@ export async function upsertReminderRuleDirect(
   db: DbPort,
   input: UpsertReminderRuleDirectInput,
 ): Promise<UpsertReminderRuleDirectResult> {
-  return db.tx(async (txDb) => {
-    const canonicalIntegratorUserId = input.integratorUserId;
-    // Integrator_user_id-only resolution (no channel/phone args) — see file header.
-    let platformUserId = input.resolvedPlatformUserId ?? null;
-    let organizationId = input.resolvedOrganizationId ?? null;
-    if (!platformUserId || !organizationId) {
+  const canonicalIntegratorUserId = input.integratorUserId;
+  let platformUserId = input.resolvedPlatformUserId ?? null;
+  let organizationId = input.resolvedOrganizationId ?? null;
+  if (!platformUserId || !organizationId) {
+    // Integrator_user_id-only resolution (no channel/phone args) — see file header. Read-only, so it
+    // keeps its own bounded transaction and finishes before the named root opens its context.
+    const resolved = await db.tx(async (txDb) => {
       const candidates = await collectPlatformUserCandidates(txDb, {
         integratorUserId: canonicalIntegratorUserId,
         phoneNormalized: null,
         channelCode: '',
         externalId: '',
       });
-      platformUserId = candidates[0] ?? null;
-      if (!platformUserId) {
+      const candidateId = candidates[0] ?? null;
+      if (!candidateId) {
         throw new ReminderRuleDirectWriteError('no_platform_user_candidate', {
           integratorUserId: canonicalIntegratorUserId,
         });
       }
       // Fail-closed via the exact-org resolver on 0/2+ active enrollments. The caller
       // treats this as a durable direct-write retry when no pre-routing result was available.
-      organizationId = await resolveExactActiveOrganizationId(txDb, platformUserId);
-    }
-    const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;
-    const notificationTopicCodeValue = notificationTopicCodeProvided
-      ? input.notificationTopicCode
-      : null;
-    const scheduleDataValue = scheduleDataJson(input.scheduleData);
+      return {
+        platformUserId: candidateId,
+        organizationId: await resolveExactActiveOrganizationId(txDb, candidateId),
+      };
+    });
+    platformUserId = resolved.platformUserId;
+    organizationId = resolved.organizationId;
+  }
+  const notificationTopicCodeProvided = input.notificationTopicCode !== undefined;
+  const notificationTopicCodeValue = notificationTopicCodeProvided
+    ? input.notificationTopicCode
+    : null;
+  const scheduleDataValue = scheduleDataJson(input.scheduleData);
 
-    const res = await runIntegratorSql<{ updated_at: string }>(
-      txDb,
-      sql`INSERT INTO public.reminder_rules (
-         integrator_rule_id, platform_user_id, organization_id, integrator_user_id, category, is_enabled,
-         schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
-         days_mask, content_mode,
-         linked_object_type, linked_object_id, custom_title, custom_text,
-         schedule_data, reminder_intent, quiet_hours_start_minute, quiet_hours_end_minute,
-         notification_topic_code, updated_at
-       )
-       VALUES (
-         ${input.integratorRuleId}, ${platformUserId}::uuid, ${organizationId}::uuid, ${canonicalIntegratorUserId}::bigint, ${input.category}, ${input.isEnabled},
-         ${input.scheduleType}, ${input.timezone}, ${input.intervalMinutes}, ${input.windowStartMinute}, ${input.windowEndMinute},
-         ${input.daysMask}, ${input.contentMode},
-         ${input.linkedObjectType}, ${input.linkedObjectId}, ${input.customTitle}, ${input.customText},
-         ${scheduleDataValue}::jsonb, ${input.reminderIntent}, ${input.quietHoursStartMinute}, ${input.quietHoursEndMinute},
-         ${notificationTopicCodeValue}, now()
-       )
-       ON CONFLICT (integrator_rule_id) DO UPDATE SET
-         platform_user_id = COALESCE(EXCLUDED.platform_user_id, reminder_rules.platform_user_id),
-         organization_id = COALESCE(EXCLUDED.organization_id, reminder_rules.organization_id),
-         integrator_user_id = EXCLUDED.integrator_user_id,
-         category = EXCLUDED.category,
-         is_enabled = EXCLUDED.is_enabled,
-         schedule_type = EXCLUDED.schedule_type,
-         timezone = EXCLUDED.timezone,
-         interval_minutes = EXCLUDED.interval_minutes,
-         window_start_minute = EXCLUDED.window_start_minute,
-         window_end_minute = EXCLUDED.window_end_minute,
-         days_mask = EXCLUDED.days_mask,
-         content_mode = EXCLUDED.content_mode,
-         linked_object_type = EXCLUDED.linked_object_type,
-         linked_object_id = EXCLUDED.linked_object_id,
-         custom_title = EXCLUDED.custom_title,
-         custom_text = EXCLUDED.custom_text,
-         schedule_data = EXCLUDED.schedule_data,
-         reminder_intent = EXCLUDED.reminder_intent,
-         quiet_hours_start_minute = EXCLUDED.quiet_hours_start_minute,
-         quiet_hours_end_minute = EXCLUDED.quiet_hours_end_minute,
-         notification_topic_code = CASE WHEN ${notificationTopicCodeProvided} THEN EXCLUDED.notification_topic_code ELSE reminder_rules.notification_topic_code END,
-         updated_at = EXCLUDED.updated_at
-       RETURNING updated_at::text AS updated_at`,
-    );
-    const updatedAt = res.rows[0]?.updated_at;
-    if (!updatedAt) throw new Error('reminder_rules upsert returned no row');
-    await getIntegratorDrizzleSession(txDb)
-      .delete(userReminderOccurrences)
-      .where(
-        and(
-          eq(userReminderOccurrences.ruleId, input.integratorRuleId),
-          inArray(userReminderOccurrences.status, ['planned', 'queued']),
-        ),
-      );
-    return { platformUserId, organizationId, updatedAt };
-  });
+  const res = await runIntegratorNamedRoot<{ updated_at: string | null }>(
+    db,
+    UPSERT_REMINDER_RULE_ROOT,
+    [
+      input.integratorRuleId,
+      platformUserId,
+      organizationId,
+      canonicalIntegratorUserId,
+      input.category,
+      input.isEnabled,
+      input.scheduleType,
+      input.timezone,
+      input.intervalMinutes,
+      input.windowStartMinute,
+      input.windowEndMinute,
+      input.daysMask,
+      input.contentMode,
+      input.linkedObjectType,
+      input.linkedObjectId,
+      input.customTitle,
+      input.customText,
+      scheduleDataValue,
+      input.reminderIntent,
+      input.quietHoursStartMinute,
+      input.quietHoursEndMinute,
+      notificationTopicCodeValue,
+      notificationTopicCodeProvided,
+    ],
+    sql`SELECT app.integrator_upsert_reminder_rule(
+      ${input.integratorRuleId}::text, ${platformUserId}::text, ${organizationId}::uuid,
+      ${canonicalIntegratorUserId}::bigint, ${input.category}::text, ${input.isEnabled}::boolean,
+      ${input.scheduleType}::text, ${input.timezone}::text, ${input.intervalMinutes}::integer,
+      ${input.windowStartMinute}::integer, ${input.windowEndMinute}::integer,
+      ${input.daysMask}::text, ${input.contentMode}::text,
+      ${input.linkedObjectType}::text, ${input.linkedObjectId}::text,
+      ${input.customTitle}::text, ${input.customText}::text,
+      ${scheduleDataValue}::text, ${input.reminderIntent}::text,
+      ${input.quietHoursStartMinute}::integer, ${input.quietHoursEndMinute}::integer,
+      ${notificationTopicCodeValue}::text, ${notificationTopicCodeProvided}::boolean
+    ) AS updated_at`,
+  );
+  const updatedAt = res.rows[0]?.updated_at;
+  if (!updatedAt) throw new Error('reminder_rules upsert returned no row');
+  return { platformUserId, organizationId, updatedAt };
 }
