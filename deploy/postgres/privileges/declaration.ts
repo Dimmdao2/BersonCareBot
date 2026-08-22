@@ -4038,13 +4038,6 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_google_calendar_setting(text,uuid)'],
       execute: ['app_tenant_service'],
     },
-    'app.saas_billing_effective_tariff(uuid,uuid)': {
-      ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'],
-      execute: [
-        ...BUSINESS_SEAM_FUNCTIONS['app.saas_billing_effective_tariff(uuid,uuid)'].execute,
-        'app_tenant_service',
-      ],
-    },
     'app.choose_organization_first_tariff(uuid,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'],
       execute: [
@@ -4906,28 +4899,6 @@ const REV10_CONTEXT = {
           // Возраст строки дверь только ЧИТАЕТ — он и есть признак «эту строку завела воронка».
           operationColumns: { UPDATE: ['status', 'portal_activated_at', 'portal_activated_via'] },
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
-    // ЕДИНСТВЕННЫЙ потолок оплаченного числа клиентов. Владелец — коммерческий шов: ровно у него уже
-    // есть все чтения правила. Прямой EXECUTE — только у персонала клиники: её писатель карточек
-    // зовёт функцию из своей реляционной транзакции. Публичная дверь (миграция 0053, владелец 19.08,
-    // `OWNER_PRODUCT_RULES.md` §33.2) больше НЕ вызывающий — запись на приём не тратит оплаченное
-    // место, и у этой функции снова ровно один вызывающий, как до 0052.
-    'app.assert_org_patient_count_quota_available(uuid)': rev10Function({
-      owner: 'app_seam_org_commerce_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_staff'],
-      purpose: 'the only patient_count ceiling, spent by the staff card writer alone',
-      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
-      proconfig: ['search_path=pg_catalog'],
-      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
-      relationSurfaces: [
-        { relation: 'public.be_organizations', columns: ['id', 'tariff_id'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.saas_org_entitlement_overrides',
-          columns: ['organization_id', 'mechanic', 'expires_at', 'quota'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.org_enrollments', columns: ['organization_id', 'status'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     // Две двери визитки клиники (миграция 0049). Перевод обеих на `app_seam_public_slug_owner`

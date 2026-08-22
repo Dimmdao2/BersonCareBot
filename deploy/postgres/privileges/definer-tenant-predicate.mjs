@@ -77,7 +77,10 @@ const NOT_A_COLUMN = new Set([
 ]);
 
 const OPERAND = '(?:[a-z_][a-z0-9_]*\\.)?[a-z_][a-z0-9_]*(?:\\s*\\(\\s*\\))?(?:::[a-z_][a-z0-9_ ]*)?';
-const EQUALITY = new RegExp(`(${OPERAND})\\s*=\\s*(${OPERAND})`, 'g');
+const EQUALITY = new RegExp(
+  `(${OPERAND})\\s*(?:=|is\\s+not\\s+distinct\\s+from)\\s*(${OPERAND})`,
+  'g',
+);
 const INEQUALITY = new RegExp(`(${OPERAND})\\s*(?:is\\s+distinct\\s+from|<>)\\s*(${OPERAND})`, 'g');
 const IS_NULL = new RegExp(`(${OPERAND})\\s+is\\s+null\\b`, 'g');
 const INTO_LIST = /\binto\s+((?:strict\s+)?[a-z_][a-z0-9_.,\s]*?)\s+from\b/;

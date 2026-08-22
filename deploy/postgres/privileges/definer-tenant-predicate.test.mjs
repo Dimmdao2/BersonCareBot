@@ -259,6 +259,17 @@ test('инъекция: другое написание той же стены �
   `;
   assert.deepEqual(unboundTenantReads(throughCte, isFixtureWalled, PRINCIPAL), []);
 
+  // NULL-safe равенство — та же привязка. Общий корень аудита принимает uuid
+  // у арендной двери и NULL у pre-session, но в обоих случаях ищет только свою строку.
+  const nullSafeEquality = `
+    if p_organization_id is distinct from app.current_org_id() then
+      raise exception 'mismatch' using errcode = '42501';
+    end if;
+    select note.body from public.fixture_notes as note
+     where note.organization_id is not distinct from p_organization_id;
+  `;
+  assert.deepEqual(unboundTenantReads(nullSafeEquality, isFixtureWalled, PRINCIPAL), []);
+
   // Тот же корень без сверки параметра: организация приходит снаружи, стены нет.
   const unvalidated = validatedParameter.replace(
     /if p_organization_id is distinct from app\.current_org_id\(\) then[\s\S]*?end if;/, '',

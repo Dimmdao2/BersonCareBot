@@ -76,8 +76,8 @@ export type PublicBookingEnrollment = {
  * сама по себе лимита не расходует и не должна его расходовать». Т12 (owner 19.08, later the same
  * day, `docs/OWNER_DECISIONS.md`: «лимит клиентов - убрать») then removed the ceiling itself — the
  * staff card writer (`ensureInvitedOrganizationClientRelationship`) no longer calls
- * `app.assert_org_patient_count_quota_available` either. The function stays in the schema (migrations
- * are immutable history) but nothing in the application calls it any more.
+ * `app.assert_org_patient_count_quota_available` either. D17 retires that dead database function;
+ * its historical definitions remain only in immutable migration files.
  */
 export async function enrollCurrentPatientInPublicBookingClinic(
   organizationId: string,
