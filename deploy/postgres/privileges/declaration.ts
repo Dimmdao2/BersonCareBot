@@ -2463,8 +2463,10 @@ const REV10_CONTEXT = {
       'context_class', 'purpose', 'function_identity', 'typed_args_hash', 'actor_ref', 'subject_ref',
       'organization_id', 'integrator_user_id', 'request_id', 'installed_at', 'cleared_at',
     ] },
+    // `ref_kind` (D15b/7a Ш1, 22.08): один человек — одна ссылка НА КАЖДЫЙ вид. Все существующие
+    // строки — 'actor' (DEFAULT миграции), поэтому поведение до Ш4 прежнее.
     'app_ext.variant_a_identity_refs': { owner: 'app_seam_identity_lookup_owner', columns: [
-      'physical_user_id', 'opaque_ref', 'created_at',
+      'physical_user_id', 'opaque_ref', 'ref_kind', 'created_at',
     ] },
   },
   capabilities: {
@@ -6394,7 +6396,10 @@ const REV10_CONTEXT = {
     'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       // UPDATE dropped 19.08 with the no-op upsert: the map is append-only, so the resolver only
       // ever reads an existing reference or inserts a missing one. It never rewrites a row.
-      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+      // `ref_kind` — с Ш2 (22.08): арбитр `ON CONFLICT` называет обе колонки нового первичного
+      // ключа. Присваивает тело по-прежнему только `physical_user_id`/`opaque_ref`; вид приходит
+      // из DEFAULT колонки, поэтому операции поверхности не меняются.
+      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
     // Deferred constraint trigger on app_ext.accepted_port_contexts: the accepted context is deleted
     // at COMMIT of the very transaction that installed it, so a committed context row cannot exist
     // and no periodic sweep is needed. DEFINER on the table owner because the effective role at
@@ -6415,7 +6420,10 @@ const REV10_CONTEXT = {
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
       purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+      // `ref_kind` объявлен как часть верхней границы поверхности этого тела: колонка есть в
+      // ключевой строке карты, и Ш5 сделает её предметом проверки прямо здесь. Операция остаётся
+      // одна — SELECT.
+      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // Проверка заявки на арендатора при установке контекста (19.08).  Живёт у шва личностей, а не
     // у шва контекста: контекст ещё не установлен, а этому владельцу RLS-политики членства открыты

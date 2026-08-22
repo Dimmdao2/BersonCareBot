@@ -434,6 +434,29 @@ DEV и TEST — гейты вехи, а не повтор на каждый ми
       воспроизводится с начала. Pre-session-контекст ходит через пул `patient` (`portContextRuntime.ts:381`),
       поэтому утечка на любом bootstrap-отказе выводит из строя и вход по паролю, и вход по коду.
       Чинить надо ОБА: и сам отказ `pre_session`, и то, что отказ не возвращает соединение в пул.
+      ↳ **ПЕРЕМЕРЕНО 22.08 после `20260822T100000` (DEV, :5200): `start` больше не 500, блокер сдвинулся
+      на шаг `confirm`.** Десять корней входа и регистрации переведены на строгий гейт
+      `app.require_accepted_context` класса `pre_session`, `bash deploy/host/migrate-dev.sh --execute` →
+      `migrate-dev: PASS`, порт-контекстные сиды DEV перегенерированы, `:5200` перезапущен с ними.
+      Живой прогон: `POST /api/auth/specialist-signup/slug` → **200**, `POST /api/auth/specialist-signup/start`
+      → **200** (`ok:true`, challengeId), код лёг в `public.outgoing_delivery_queue`;
+      `POST /api/auth/email-otp/start` → **200**, `POST /api/auth/email-otp/confirm` → **200**
+      `{"ok":true,"redirectTo":"/app/doctor","role":"doctor"}`. Ни одного `42501` / «accepted port context
+      required» в логе вебаппа.
+      ⛔ **Оставшийся блокер Б2 — НЕ в базе, а в коде: `POST /api/auth/specialist-signup/confirm` → 500,
+      `Error: Missing declared webapp port capability: pre_session`** из
+      `pgEmailAuth.verifyUserEmail` (`apps/webapp/src/infra/repos/pgEmailAuth.ts:223-233`). Функция сперва
+      зовёт объявленный корень `app.email_auth_verify_user_email(uuid,text)` — он ОТРАБАТЫВАЕТ (строка
+      `public.user_contacts` создана, `is_primary=t`, `confirmed_at` проставлен), — а следом ВТОРЫМ,
+      дублирующим шагом зовёт `mutateCanonicalUserContactsWebapp`: сырую многоCTE-запись в
+      `public.user_contacts` через `runWebappSql`, которая просит ОБОБЩЁННУЮ способность `pre_session`.
+      Такой способности нет и не должно быть по построению (см. `portContextRuntime.ts`,
+      `capabilities['pre_session']` отсутствует намеренно). После `20260822T090000` корень делает ровно тот
+      же update-then-insert, что и канонический писатель, поэтому второй вызов — дубль. Развилка владельца:
+      убрать дублирующий вызов из `verifyUserEmail` (рекомендация) либо провести эту запись через
+      именованный корень. ⛔ Заводить обобщённую `pre_session` нельзя — это снимет стену.
+      Про утечку пула: после рестарта `:5200` был ровно ОДИН такой 500, и последующие вход по коду и
+      выдача кода отвечали 200 — то есть замер выше этим прогоном не опровергнут и не подтверждён.
 
 ### 3.3 Track C — Rubitime: выведен и заархивирован
 
@@ -835,6 +858,39 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             и спорные случаи — в документе переписи (`docs/_TODO/runs/integrator-cleanup/D15B1_IDENTITY_CENSUS_2026-08-03.md`);
             прежние числа «46 ключей» и «130 FK от 104 таблиц / 157 SCOPED» — исторические промежуточные замеры,
             текущим не являются.
+            **Фактическое состояние D15b/7a на 22.08 (галочка не ставится — шаги 1–2 из девяти).** Порядок шагов
+            принят и лежит в `docs/_TODO/runs/integrator-cleanup/D15B7A_ACTOR_SUBJECT_SPLIT_SCHEME_2026-08-22.md` §4.
+            **Ш1 (вид в карте) и Ш2 (ключ по паре) написаны и проверены на именованной DEV, но НЕ ПРИМЕНЕНЫ:**
+            `--execute` был запрещён брифом, пока reconcile на DEV красный по независимой причине (гейты
+            pre_session, ветка `wt/pre-session-gates-20260822`). Что сделано: `app_ext.variant_a_identity_refs`
+            получает `ref_kind text NOT NULL DEFAULT 'actor'` + CHECK `('actor','subject')`, первичный ключ —
+            `(physical_user_id, ref_kind)`, `opaque_ref` остаётся UNIQUE; в декларации колонка добавлена в
+            private-relation и в `relationSurfaces` обоих резолверов. Поведение не меняется: все 22 строки на
+            DEV — `'actor'`, сигнатуры резолверов, политики и приложение не тронуты.
+            **Расхождение со схемой, которое надо знать перед следующим шагом (замерено 22.08):** схема
+            назначала Ш1/Ш2 timestamp-миграциями, но `ALTER TABLE … ADD CONSTRAINT … PRIMARY KEY` строит индекс
+            и требует ОДНОВРЕМЕННО владения таблицей и `CREATE` на схеме `app_ext`, а эти права принадлежат
+            разным ролям без членства между ними: владелец таблицы `app_seam_identity_lookup_owner` получает
+            `42501 permission denied for schema app_ext` (у него на схеме только `USAGE`), `app_object_owner`
+            (единственный с `UC`) — `must be owner of table`. Выдать недостающее право миграцией запрещено
+            (AGENTS.md §1), объявить семенному владельцу `CREATE` на `app_ext` значило бы разрешить ему плодить
+            в шве любые объекты. Поэтому DDL живёт в `deploy/postgres/port-context/contract.sql` —
+            авторитете рождения объектов `app_ext`, который сам снимает стену рождения на время своего прохода, —
+            идемпотентными шагами; приезжает шагом reconcile, а не наката миграций. Ни одна миграция репозитория
+            никогда не создавала и не меняла объект `app_ext`.
+            **Ш2 обязателен вместе с одной правкой тела, иначе он ломает вход:**
+            `app_ext.resolve_variant_a_identity` вставлял с `ON CONFLICT (physical_user_id)`, а это вывод
+            индекса — после смены ключа спецификация не совпадает ни с одним индексом и первое же разрешение
+            НОВОГО человека умирает `42P10` (воспроизведено на DEV в откаченной транзакции; тот же класс, что
+            почтовая дверь 22.08). Арбитр переведён на `(physical_user_id, ref_kind)`; сигнатура,
+            `regprocedure` и возвращаемое значение прежние.
+            **Проверено:** `migrate-dev.sh --preflight` PASS; `pnpm test:db-privileges` 138 pass / 0 fail;
+            новый поведенческий гейт
+            `deploy/postgres/privileges/variant-a-identity-ref-roundtrip.devDbProof.test.mjs` (круг «id → ссылка
+            → id» на известном И на новом человеке, отказ выдуманной ссылки `42501`) — 3/3 на DEV; вход по
+            паролю на :5200 тремя учётками владельца — `200` с прежними ролями `admin`/`doctor`/`client`.
+            **Следующее:** применить накопленное на DEV (`migrate-dev.sh --execute`) после того, как соседняя
+            ветка вернёт reconcile в зелёное, затем Ш3 — резолверы принимают вид, но ещё не проверяют его.
 - [x] **D10a — один журнал доставки и одна очередь.** Решение — **Р-D10a** (§2.3): текущий журнал попыток —
       `public.notification_delivery_attempts`, текущая очередь — `public.outgoing_delivery_queue`.
       `integrator.message_retry_jobs`, `integrator.delivery_attempt_logs` и `integrator.projection_outbox` на именованной
