@@ -187,7 +187,8 @@ function harness(
       }
       if (
         state.botMarkerFailuresRemaining > 0 &&
-        sql.includes('UPDATE public.user_channel_bindings')
+        // D17 шаг 2b: метку снимает именованный корень, а не UPDATE по отношению.
+        sql.includes('app.integrator_set_user_channel_bot_blocked')
       ) {
         state.botMarkerFailuresRemaining -= 1;
         throw new Error('temporary_bot_marker_bookkeeping_failure');

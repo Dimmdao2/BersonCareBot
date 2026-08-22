@@ -1,15 +1,9 @@
 /**
  * Запись и обновление operator health таблиц через Drizzle (без сырого SQL в приложении).
  */
-import { and, eq, inArray, isNull, like, sql } from 'drizzle-orm';
-import {
-  OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
-  PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
-  operatorIncidents,
-  operatorJobStatus,
-} from '@bersoncare/operator-db-schema';
+import { sql } from 'drizzle-orm';
+import { OUTBOUND_PROVIDER_INCIDENT_DIRECTION } from '@bersoncare/operator-db-schema';
 import { createDbPort } from '../client.js';
-import { getIntegratorDrizzle } from '../drizzle.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import { getCurrentIntegratorTechnicalRuntimeRole } from '../withClient.js';
 import { runWithDeliveryWorkerPrincipal } from '../../principal/organizationPrincipal.js';
@@ -88,33 +82,14 @@ export async function openOrTouchOperatorIncident(
   return { id: row.id, occurrenceCount: row.occurrence_count };
 }
 
-export async function markOperatorIncidentAlertSent(incidentId: string): Promise<void> {
-  const db = getIntegratorDrizzle();
-  await db
-    .update(operatorIncidents)
-    .set({ alertSentAt: new Date().toISOString() })
-    .where(eq(operatorIncidents.id, incidentId));
-}
-
-export async function getOperatorIncidentAlertState(
-  incidentId: string,
-): Promise<{ alertSentAt: string | null } | null> {
-  const db = getIntegratorDrizzle();
-  const rows = await db
-    .select({ alertSentAt: operatorIncidents.alertSentAt })
-    .from(operatorIncidents)
-    .where(eq(operatorIncidents.id, incidentId))
-    .limit(1);
-  const r = rows[0];
-  if (!r) return null;
-  return { alertSentAt: r.alertSentAt ?? null };
-}
-
 /**
- * Закрыть все открытые инциденты, чей dedup_key начинается с префикса.
+ * D17 шаг 2b. Здесь стояли `markOperatorIncidentAlertSent` и `getOperatorIncidentAlertState` —
+ * реляционные UPDATE/SELECT по `public.operator_incidents` через Drizzle. Обе были мёртвым кодом:
+ * ни одного вызова в продуктовом дереве, а живая отметка «оповещение отправлено» идёт через
+ * одноимённую дверь в `outgoingDeliveryScope.ts` (`app.mark_operator_incident_alert_sent`,
+ * `outgoingDeliveryWorker.ts:745`) с другой сигнатурой. Второй путь к той же записи — нарушение §5.
  */
-const OPERATOR_HEALTH_JOB_FAMILY = 'health';
-const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
+
 const OPERATOR_OUTBOUND_PROBE_CHANNELS = ['max', 'telegram', 'google_calendar'] as const;
 type OperatorOutboundProbeChannel = (typeof OPERATOR_OUTBOUND_PROBE_CHANNELS)[number];
 
@@ -124,24 +99,18 @@ type OperatorOutboundProbeChannel = (typeof OPERATOR_OUTBOUND_PROBE_CHANNELS)[nu
  * `job_key` inside the function body. Before this the probe tick did a plain table SELECT and
  * threw `42501 permission denied for table operator_job_status` on every 5-second poll, which is
  * why the MAX / Telegram / Google Calendar probes had never run under the locked operational role.
+ *
+ * D17 шаг 2b: запасной реляционный путь по этой таблице (SELECT здесь и upsert в
+ * `recordOperatorOutboundProbeRun`) убран. Он был вторым путём к той же записи и недостижимым:
+ * единственный живой вызывающий — тик расписания под `scheduler:handle-tick-event`, то есть роль
+ * всегда `app_operational_scheduler`, и `job_key` пинится телом двери, а не вызывающим.
  */
 async function readOperatorOutboundProbeMeta(): Promise<Record<string, unknown>> {
-  if (getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler') {
-    const result = await runIntegratorSql<{ meta_json: unknown }>(
-      createDbPort(),
-      sql`SELECT app.read_operator_outbound_probe_meta() AS meta_json`,
-    );
-    const meta = result.rows[0]?.meta_json;
-    return meta && typeof meta === 'object' && !Array.isArray(meta)
-      ? (meta as Record<string, unknown>)
-      : {};
-  }
-  const rows = await getIntegratorDrizzle()
-    .select({ metaJson: operatorJobStatus.metaJson })
-    .from(operatorJobStatus)
-    .where(eq(operatorJobStatus.jobKey, OPERATOR_OUTBOUND_PROBE_JOB_KEY))
-    .limit(1);
-  const meta = rows[0]?.metaJson;
+  const result = await runIntegratorSql<{ meta_json: unknown }>(
+    createDbPort(),
+    sql`SELECT app.read_operator_outbound_probe_meta() AS meta_json`,
+  );
+  const meta = result.rows[0]?.meta_json;
   return meta && typeof meta === 'object' && !Array.isArray(meta)
     ? (meta as Record<string, unknown>)
     : {};
@@ -205,57 +174,15 @@ export async function recordOperatorOutboundProbeRun(input: {
     lastRunAt,
   };
 
-  const conflictSet = anyFail
-    ? {
-        jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-        lastStatus: 'failure' as const,
-        lastFinishedAt: finishedIso,
-        lastFailureAt: finishedIso,
-        lastDurationMs: 0,
-        lastError: 'probe_fail',
-        metaJson,
-      }
-    : {
-        jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-        lastStatus: 'success' as const,
-        lastFinishedAt: finishedIso,
-        lastSuccessAt: finishedIso,
-        lastFailureAt: null,
-        lastDurationMs: 0,
-        lastError: null,
-        metaJson,
-      };
-
-  if (getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler') {
-    await runIntegratorSql(
-      createDbPort(),
-      sql`SELECT app.record_operator_outbound_probe_run(
-        ${anyFail ? 'failure' : 'success'},
-        ${finishedIso}::timestamptz,
-        ${anyFail ? 'probe_fail' : null},
-        ${metaJson}::jsonb
-      )`,
-    );
-  } else {
-    await getIntegratorDrizzle()
-      .insert(operatorJobStatus)
-      .values({
-        jobKey: OPERATOR_OUTBOUND_PROBE_JOB_KEY,
-        jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-        lastStatus: anyFail ? 'failure' : 'success',
-        lastStartedAt: finishedIso,
-        lastFinishedAt: finishedIso,
-        lastSuccessAt: anyFail ? null : finishedIso,
-        lastFailureAt: anyFail ? finishedIso : null,
-        lastDurationMs: 0,
-        lastError: anyFail ? 'probe_fail' : null,
-        metaJson,
-      })
-      .onConflictDoUpdate({
-        target: operatorJobStatus.jobKey,
-        set: conflictSet,
-      });
-  }
+  await runIntegratorSql(
+    createDbPort(),
+    sql`SELECT app.record_operator_outbound_probe_run(
+      ${anyFail ? 'failure' : 'success'},
+      ${finishedIso}::timestamptz,
+      ${anyFail ? 'probe_fail' : null},
+      ${metaJson}::jsonb
+    )`,
+  );
 
   return { consecutiveFailRuns, consecutiveFailures, lastRunAt };
 }
@@ -295,37 +222,25 @@ export async function resolveOpenOperatorOutboundProbeIncidents(
   );
   const providerResolved = await resolveOpenOperatorIncidentsByDedupKeyPrefix(
     `${OUTBOUND_PROVIDER_INCIDENT_DIRECTION}:${integration}:`,
-    PAGE_ON_FIRST_OCCURRENCE_ERROR_CLASSES,
   );
   return probeResolved + providerResolved;
 }
 
+/**
+ * D17 шаг 2b: остался ОДИН путь — узкая дверь пробы. Реляционный `UPDATE` по
+ * `public.operator_incidents`, стоявший здесь запасным вариантом, был вторым путём к той же записи
+ * и при этом недостижимым: единственный живой вызывающий — тик расписания
+ * (`runScheduledOperatorHealthProbeTick` → `runWithInfraPrincipal('scheduler:handle-tick-event')`),
+ * то есть роль всегда `app_operational_scheduler`. У самой роли DML на этой таблице нет; дверь
+ * пишет только `resolved_at` и сама отбирает классы «пейджить с первого раза» в пространстве
+ * `outbound_delivery_provider` — поэтому список классов в аргументах больше не нужен.
+ */
 export async function resolveOpenOperatorIncidentsByDedupKeyPrefix(
   prefix: string,
-  onlyErrorClasses?: readonly string[],
 ): Promise<number> {
-  // The scheduler has no DML on public.operator_incidents; its capability writes resolved_at only
-  // and rejects any prefix outside the three outbound probes.
-  if (getCurrentIntegratorTechnicalRuntimeRole() === 'app_operational_scheduler') {
-    const result = await runIntegratorSql<{ resolved: number }>(
-      createDbPort(),
-      sql`SELECT app.resolve_operator_probe_incidents(${prefix}) AS resolved`,
-    );
-    return Number(result.rows[0]?.resolved ?? 0);
-  }
-  const db = getIntegratorDrizzle();
-  const pattern = `${prefix}%`;
-  const finishedAt = new Date().toISOString();
-  const rows = await db
-    .update(operatorIncidents)
-    .set({ resolvedAt: finishedAt })
-    .where(
-      and(
-        isNull(operatorIncidents.resolvedAt),
-        like(operatorIncidents.dedupKey, pattern),
-        ...(onlyErrorClasses ? [inArray(operatorIncidents.errorClass, [...onlyErrorClasses])] : []),
-      ),
-    )
-    .returning({ id: operatorIncidents.id });
-  return rows.length;
+  const result = await runIntegratorSql<{ resolved: number }>(
+    createDbPort(),
+    sql`SELECT app.resolve_operator_probe_incidents(${prefix}) AS resolved`,
+  );
+  return Number(result.rows[0]?.resolved ?? 0);
 }

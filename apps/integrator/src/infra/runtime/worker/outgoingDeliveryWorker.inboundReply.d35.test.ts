@@ -75,10 +75,11 @@ function harness(): Harness {
           ] as T[],
         };
       }
-      if (sqlText.includes('user_channel_bindings') && sqlText.includes('bot_blocked_at = now()')) {
-        // markUserChannelBotBlocked, no platformUserId in this fixture (externalId-only branch)
-        // binds (bot_blocked_reason, channel_code, external_id) in that order.
-        blockedMarkerCalls.push({ channel: params?.[1], externalId: params?.[2] });
+      if (sqlText.includes('app.integrator_set_user_channel_bot_blocked') && params?.[4] === true) {
+        // D17 шаг 2b: метку ставит именованный корень, а не запись по отношению. Позиционный набор
+        // корня — (organization_id, user_id, channel_code, external_id, bot_blocked, reason);
+        // `params[4] === true` отделяет постановку метки от её снятия той же дверью.
+        blockedMarkerCalls.push({ channel: params?.[2], externalId: params?.[3] });
         return { rows: [] as T[] };
       }
       if (sqlText.includes("status = 'dead'")) {
@@ -114,9 +115,9 @@ describe('inbound_reply: постоянный отказ (бот заблоки�
     // исключения рядом с 'operator_alert') — строка попадёт в обычный retryable-путь, incidentRecorder
     // окажется вызван (нарушая п.1 «не порождает инцидента»), тест покраснеет.
     // АРБИТР 2 (находка Н2 слепого аудита D35, #987): удалить вызов `markUserChannelBotBlocked(...)`
-    // в finalizeRecipientBlockedBotDelivery() (outgoingDeliveryWorker.ts:450) — третье обещание п.1
-    // брифа («канал помечается») перестанет исполняться, но deadCalls/incidentRecorder не заметят
-    // этого вовсе; blockedMarkerCalls останется пустым, тест покраснеет именно на нём.
+    // в finalizeRecipientBlockedBotDelivery() — третье обещание п.1 брифа («канал помечается»)
+    // перестанет исполняться, но deadCalls/incidentRecorder не заметят этого вовсе;
+    // blockedMarkerCalls останется пустым, тест покраснеет именно на нём.
     incidentRecorder.mockClear();
     const h = harness();
 

@@ -18,7 +18,8 @@ export type DirectPublicWriteOperation =
   | 'reminder-occurrence-finalize'
   | 'reminder-delivery-append'
   | 'content-access-grant-upsert'
-  | 'support-delivery-append';
+  | 'support-delivery-append'
+  | 'user-channel-bot-blocked-set';
 
 /**
  * `organization` — the write is an ordinary RLS-scoped relation write and needs `is_staff() AND
@@ -58,6 +59,10 @@ const principalStrategy: Readonly<
   'reminder-delivery-append': 'organization',
   'content-access-grant-upsert': 'organization',
   'support-delivery-append': 'organization',
+  // D17 шаг 2b: метку «бот заблокирован» ставит и снимает `outgoingDeliveryWorker`, а арендаторскую
+  // строку очереди он обрабатывает внутри `runWithOrganizationPrincipal(scope.organizationId, …)` —
+  // ровно тот принципал, которому декларация даёт запись в эти две колонки.
+  'user-channel-bot-blocked-set': 'organization',
 };
 
 export function writeDirectPublic<T>(
