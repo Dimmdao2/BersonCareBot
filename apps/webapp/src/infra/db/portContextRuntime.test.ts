@@ -20,6 +20,11 @@ import {
 const ORG = '00000000-0000-4000-8000-000000000001';
 const USER = '00000000-0000-4000-8000-000000000010';
 const OPAQUE_USER = '10000000-0000-4000-8000-000000000010';
+/**
+ * Субъектная ссылка того же человека (D15b/7a Ш4). Она НАМЕРЕННО другая: до Ш4 в оба поля ехало
+ * одно значение, и «резолвер не принимает actor-ref вместо subject-ref» было нечем даже проверить.
+ */
+const OPAQUE_SUBJECT = '20000000-0000-4000-8000-000000000020';
 const CAPABILITY = '00000000-0000-0000-0000-000000000101';
 
 const staffCapability: PortCapabilityDescriptor = {
@@ -57,9 +62,13 @@ function normalizeFakeQuery(
   input: FakeQueryInput,
   values?: readonly unknown[],
 ): { text: string; values: readonly unknown[] } {
+  // `pg` принимает и `query(text, values)`, и `query({text, values})`, и оба вида приезжают сюда:
+  // drizzle зовёт КЛИЕНТА первым объектом БЕЗ значений и отдельным вторым аргументом. Читать в
+  // объектной форме только `input.values` значит потерять параметры именно у тех поездок, которые
+  // строит drizzle — например, у разрешения личности, где во втором параметре едет вид ссылки.
   return typeof input === 'string'
     ? { text: input, values: values ?? [] }
-    : { text: input.text, values: input.values ?? [] };
+    : { text: input.text, values: input.values ?? values ?? [] };
 }
 
 function fakePool(log: string[], releases: Error[], cleanupFails = false): Pool {
@@ -179,7 +188,7 @@ describe('webapp port-context runtime', () => {
     const selected = webappPortContextPrincipal(
       { kind: 'staff', organizationId: ORG, platformUserId: USER },
       { staff: staffCapability },
-      OPAQUE_USER,
+      { actor: OPAQUE_USER },
     );
     expect(selected).toMatchObject({
       pool: 'staff',
@@ -271,7 +280,7 @@ describe('webapp port-context runtime', () => {
         webappPortContextPrincipal(
           { kind: 'staff', organizationId: ORG, platformUserId: USER },
           { staff: staffCapability, read_profile: named },
-          OPAQUE_USER,
+          { actor: OPAQUE_USER },
         ),
     );
     expect(selected.principal).toMatchObject({
@@ -291,7 +300,7 @@ describe('webapp port-context runtime', () => {
         webappPortContextPrincipal(
           { kind: 'patient', platformUserId: USER },
           { patient_active_organizations_resolve: patientOrganizationResolveCapability },
-          OPAQUE_USER,
+          { actor: OPAQUE_USER, subject: OPAQUE_SUBJECT },
         ),
     );
     expect(selected).toMatchObject({
@@ -300,7 +309,7 @@ describe('webapp port-context runtime', () => {
         targetRole: 'app_patient',
         functionIdentity: 'app.read_current_patient_active_organizations()',
         actorRef: OPAQUE_USER,
-        subjectRef: OPAQUE_USER,
+        subjectRef: OPAQUE_SUBJECT,
       },
     });
     expect(selected.principal).not.toHaveProperty('organizationId');
@@ -313,12 +322,12 @@ describe('webapp port-context runtime', () => {
             functionIdentity: undefined,
           },
         },
-        OPAQUE_USER,
+        { actor: OPAQUE_USER, subject: OPAQUE_SUBJECT },
       );
     expect(relation.principal).toMatchObject({
       targetRole: 'app_patient',
       actorRef: OPAQUE_USER,
-      subjectRef: OPAQUE_USER,
+      subjectRef: OPAQUE_SUBJECT,
     });
     expect(relation.principal).not.toHaveProperty('organizationId');
   });
@@ -408,6 +417,127 @@ describe('webapp port-context runtime', () => {
     );
     expect(installs[1]?.[4]).toBe(named.functionIdentity);
     expect(installs[1]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', USER)]));
+  });
+
+  /**
+   * Что ловит: пациент, у которого `actor_ref` и `subject_ref` — ОДНО значение.
+   *
+   * До D15b/7a Ш4 порт разрешал личность один раз и клал полученную ссылку в оба поля claims. Пока
+   * это так, требование оракула «резолвер не принимает actor-ref вместо subject-ref» невыразимо:
+   * подменять нечем. Ш4 — тот шаг, где приложение начинает просить ссылку НУЖНОГО ВИДА, и проверить
+   * это можно только свидетельством, которое реально уехало в `app.begin_port_context`: в тексте
+   * запроса вида нет, а обе ссылки выглядят как обычные uuid.
+   *
+   * Заодно проверяется, что вид доехал до самого корня разрешения (второй типизированный аргумент
+   * каждой из двух поездок) — база хеширует ровно его, и разойтись им нельзя.
+   */
+  it('asks for an actor and a subject reference of one patient and installs them apart', async () => {
+    const installs: unknown[][] = [];
+    const kindsAsked: unknown[] = [];
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff/app' },
+        patient: { connectionString: 'postgresql://patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
+        capabilities: {
+          patient_identity_resolve: patientIdentityCapability,
+          patient: {
+            capabilityId: '00000000-0000-0000-0000-000000000123',
+            targetRole: 'app_patient',
+            contextClass: 'patient',
+            purpose: 'relation',
+          },
+        },
+      },
+      poolFactory: () => {
+        const client = {
+          query: async (input: FakeQueryInput, values?: readonly unknown[]) => {
+            const query = normalizeFakeQuery(input, values);
+            if (query.text.includes('app.begin_port_context')) installs.push([...query.values]);
+            if (query.text.startsWith('SELECT app.pre_session_resolve_identity')) {
+              const refKind = query.values[1];
+              kindsAsked.push(refKind);
+              // Карта отвечает РАЗНЫМ значением на разный вид — ровно то, что делает выдача после
+              // Ш4 (`sha256(uuid_send(id) || <вид>)` в `contract.sql`).
+              return {
+                rows: [{ opaque_ref: refKind === 'subject' ? OPAQUE_SUBJECT : OPAQUE_USER }],
+                rowCount: 1,
+              };
+            }
+            return { rows: [], rowCount: 0 };
+          },
+          release: () => undefined,
+        } as unknown as PoolClient;
+        return {
+          connect: async () => client,
+          on: () => undefined,
+          end: async () => undefined,
+        } as unknown as Pool;
+      },
+    });
+    await runWithDbPatientPrincipal({ platformUserId: USER }, () =>
+      runPgPoolPgText(pool, 'SELECT patient_reads_own_row'),
+    );
+
+    // Две поездки за личностью и одна установка человеческого контекста.
+    expect(installs).toHaveLength(3);
+    expect(kindsAsked).toEqual(['actor', 'subject']);
+    expect(installs[0]?.[5]).toEqual(
+      hashPortTypedArgs([portTypedArg('uuid', USER), portTypedArg('text', 'actor')]),
+    );
+    expect(installs[1]?.[5]).toEqual(
+      hashPortTypedArgs([portTypedArg('uuid', USER), portTypedArg('text', 'subject')]),
+    );
+
+    // Само свидетельство: `actor_ref` (позиция 7 в ROW claims) и `subject_ref` (позиция 8) —
+    // РАЗНЫЕ, и каждое — ссылка своего вида, а не одна и та же дважды.
+    const humanClaim = installs[2] ?? [];
+    expect(humanClaim[6]).toBe(OPAQUE_USER);
+    expect(humanClaim[7]).toBe(OPAQUE_SUBJECT);
+    expect(humanClaim[6]).not.toBe(humanClaim[7]);
+  });
+
+  /**
+   * Что ловит: персонал, которому начали просить субъектную ссылку. `subject_ref` классу `staff`
+   * запрещён матрицей классов (`contract.sql`), и лишняя поездка завела бы ему в карте строку вида
+   * `subject`, которой не ждёт никто, — молча, при исправном экране.
+   */
+  it('asks a staff principal for the actor reference only', async () => {
+    const kindsAsked: unknown[] = [];
+    const installs: unknown[][] = [];
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff/app' },
+        patient: { connectionString: 'postgresql://patient/app' },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
+        capabilities: staffCapabilities,
+      },
+      poolFactory: () => {
+        const client = {
+          query: async (input: FakeQueryInput, values?: readonly unknown[]) => {
+            const query = normalizeFakeQuery(input, values);
+            if (query.text.includes('app.begin_port_context')) installs.push([...query.values]);
+            if (query.text.startsWith('SELECT app.pre_session_resolve_identity')) {
+              kindsAsked.push(query.values[1]);
+              return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
+            }
+            return { rows: [], rowCount: 0 };
+          },
+          release: () => undefined,
+        } as unknown as PoolClient;
+        return {
+          connect: async () => client,
+          on: () => undefined,
+          end: async () => undefined,
+        } as unknown as Pool;
+      },
+    });
+    await runWithDbStaffPrincipal({ organizationId: ORG, platformUserId: USER }, () =>
+      runPgPoolPgText(pool, 'SELECT staff_reads_own_org'),
+    );
+    expect(kindsAsked).toEqual(['actor']);
+    expect(installs[1]?.[6]).toBe(OPAQUE_USER);
+    expect(installs[1]?.[7]).toBeNull();
   });
 
   it('rejects a missing principal before physical checkout', async () => {
