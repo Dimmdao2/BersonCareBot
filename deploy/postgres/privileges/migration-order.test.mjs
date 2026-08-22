@@ -167,10 +167,32 @@ test('every expected object gets one positional catalog probe', () => {
   ]);
 
   const sql = renderObjectPresenceSql(objects);
-  assert.match(sql, /SELECT 0 AS at, \(SELECT EXISTS \(SELECT 1 FROM pg_catalog\.pg_proc/u);
-  assert.match(sql, /p\.proname = 'door'/u);
-  assert.match(sql, /n\.nspname = 'app'/u);
+  assert.match(sql, /SELECT 0 AS at, \(SELECT to_regprocedure\('app\.door\(\)'\) IS NOT NULL\)/u);
   assert.equal(renderObjectPresenceSql([]), null);
+});
+
+test('dropping one function overload does not retire another overload', () => {
+  const objects = collectExpectedObjects([
+    migration('20260820T010000_create', 'CREATE FUNCTION app.door(p_id uuid) RETURNS void LANGUAGE sql AS $$ SELECT $$;'),
+    migration('20260820T020000_drop_other', 'DROP FUNCTION IF EXISTS app.door(text);'),
+  ]);
+
+  assert.deepEqual(objects.map((object) => object.identity), ['app.door(uuid)']);
+});
+
+test('PostgreSQL type aliases identify the same function across create and drop', () => {
+  const objects = collectExpectedObjects([
+    migration(
+      '20260820T010000_create',
+      'CREATE FUNCTION app.door(p_at timestamptz, p_id int4) RETURNS void LANGUAGE sql AS $$ SELECT $$;',
+    ),
+    migration(
+      '20260820T020000_drop',
+      'DROP FUNCTION IF EXISTS app.door(timestamp with time zone, integer);',
+    ),
+  ]);
+
+  assert.deepEqual(objects, []);
 });
 
 // Every migration name is a timestamp. The retired journal and allowlist cannot create exceptions.
