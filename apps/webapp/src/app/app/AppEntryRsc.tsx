@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env } from '@/config/env';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import {
   classifyUnauthenticatedAppEntry,
   shouldAllowStandaloneTokenExchange,
@@ -79,10 +79,17 @@ export async function AppEntryRsc({
       : routeBoundMessengerSurface === 'max' || entryClassification === 'max_miniapp'
         ? 'max'
         : 'browser';
+  // TPB-08: staff login portals (`/app/doctor/login`, `/app/admin/login`) identify as the staff
+  // surface even though they render through the shared patient-styled shell; the patient portal
+  // and the surface-less `/app`, `/app/tg`, `/app/max` entries keep the patient identity.
+  const shellTitle =
+    roleLoginPortal === 'doctor' || roleLoginPortal === 'admin'
+      ? STAFF_SURFACE.name
+      : PATIENT_DEFAULT_SURFACE.name;
 
   return (
     <PatientAppShell
-      title={PATIENT_DEFAULT_SURFACE.name}
+      title={shellTitle}
       user={null}
       patientHideHome
       patientHideRightIcons

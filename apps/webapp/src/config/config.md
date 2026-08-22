@@ -8,3 +8,8 @@
 поверхностей (`STAFF_SURFACE`, `PATIENT_DEFAULT_SURFACE`, `PLATFORM_NAME`); см. комментарий в файле.
 `productSurfaceNames.ts` — литералы имён без чтения env (безопасно импортировать из `'use client'`,
 в отличие от `env.ts`/`productSurfaces.ts`); `env.ts` и `productSurfaces.ts` берут дефолт оттуда же.
+Клиентский display патч-имени (env-переопределяемого `PATIENT_APP_NAME`, TPB-09) — НЕ через этот
+литерал: `'use client'`-компоненты берут его через `usePatientSurfaceName()` из
+`@/shared/ui/PlatformProvider`, куда server-resolved значение приходит из `RootLayout`
+(`app/layout.tsx`). `STAFF_SURFACE_NAME` env-переопределения не имеет (владелец, TPB-01) — его
+безопасно импортировать из `productSurfaceNames.ts` напрямую.

@@ -68,7 +68,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div id="app-root" className={PWA_APP_ROOT_CLASS}>
           <TooltipProvider>
             <ClientToaster />
-            <PlatformProvider serverHint={platformEntry}>
+            <PlatformProvider serverHint={platformEntry} patientSurfaceName={PATIENT_DEFAULT_SURFACE.name}>
               <BuildVersionWatcher />
               <HorizontalOverflowProbe />
               {children}

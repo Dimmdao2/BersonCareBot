@@ -5,7 +5,7 @@ import { routePaths } from '@/app-layer/routes/paths';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { isMessengerMiniAppHost } from '@/shared/lib/messengerMiniApp';
 import { isStandalonePwa } from '@/shared/lib/webPush/pwaDisplay';
-import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
+import { usePatientSurfaceName } from '@/shared/ui/PlatformProvider';
 
 /** Chromium install prompt (не все конфигурации `tsc` подтягивают тип из DOM lib). */
 type BeforeInstallPromptEventLike = Event & {
@@ -31,6 +31,7 @@ function isLikelySafariNotChromium(): boolean {
 
 /** Блок установки PWA: Chrome (`beforeinstallprompt`), iOS (текст), без SW в Mini App. */
 export function PwaInstallSection() {
+  const patientSurfaceName = usePatientSurfaceName();
   const [mounted, setMounted] = useState(false);
   const [isIos, setIsIos] = useState(false);
   const [isSafari, setIsSafari] = useState(false);
@@ -129,7 +130,7 @@ export function PwaInstallSection() {
             ) : (
               <>
                 Если кнопки нет: меню браузера (⋮) → «Установить приложение…» или «Приложение
-                {` ${PATIENT_DEFAULT_SURFACE_NAME}…».`}
+                {` ${patientSurfaceName}…».`}
               </>
             )}
           </p>

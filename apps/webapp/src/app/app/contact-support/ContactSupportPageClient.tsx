@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { LegalFooterLinks } from '@/shared/ui/patient/LegalFooterLinks';
-import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
+import { usePatientSurfaceName } from '@/shared/ui/PlatformProvider';
 import { PatientSupportForm } from '@/app/app/patient/support/PatientSupportForm';
 import { readAuthFlowPending } from '@/shared/ui/patient/auth/authFlowPendingStorage';
 import { cn } from '@/lib/utils';
@@ -37,6 +37,7 @@ function backNavMerged(initialFrom?: string | null): { href: string; label: stri
 type Props = { initialFrom?: string | string[] | null };
 
 export default function LoginContactSupportPageClient({ initialFrom }: Props) {
+  const patientSurfaceName = usePatientSurfaceName();
   const fromParam =
     typeof initialFrom === 'string'
       ? initialFrom
@@ -58,7 +59,7 @@ export default function LoginContactSupportPageClient({ initialFrom }: Props) {
 
   return (
     <PatientAppShell
-      title={PATIENT_DEFAULT_SURFACE_NAME}
+      title={patientSurfaceName}
       user={null}
       backHref={nav.href}
       backLabel={nav.label}
