@@ -282,8 +282,135 @@ function splitQualified(raw) {
 }
 
 function objectKey(object) {
+  if (object.kind === 'function') return `function ${object.identity}`;
   const relation = object.relation ? `${object.relation.schema ?? '*'}.${object.relation.name}` : null;
   return [object.kind, relation, `${object.schema ?? '*'}.${object.name}`].filter(Boolean).join(' ');
+}
+
+const MULTI_WORD_TYPE_HEADS = new Set([
+  'timestamp',
+  'time',
+  'double',
+  'character',
+  'bit',
+  'interval',
+]);
+
+const FUNCTION_TYPE_ALIASES = new Map([
+  ['bool', 'boolean'],
+  ['char', 'character'],
+  ['decimal', 'numeric'],
+  ['float4', 'real'],
+  ['float8', 'double precision'],
+  ['int', 'integer'],
+  ['int2', 'smallint'],
+  ['int4', 'integer'],
+  ['int8', 'bigint'],
+  ['time', 'time without time zone'],
+  ['timetz', 'time with time zone'],
+  ['timestamp', 'timestamp without time zone'],
+  ['timestamptz', 'timestamp with time zone'],
+  ['varbit', 'bit varying'],
+  ['varchar', 'character varying'],
+]);
+
+function canonicalFunctionType(rawType) {
+  const type = rawType.toLowerCase().replaceAll(/\s+/gu, ' ').replace(/^pg_catalog\./u, '').trim();
+  const array = /(?:\[\])+$/u.exec(type)?.[0] ?? '';
+  const base = array ? type.slice(0, -array.length) : type;
+  return `${FUNCTION_TYPE_ALIASES.get(base) ?? base}${array}`;
+}
+
+function splitTopLevelArguments(text) {
+  const parts = [];
+  let depth = 0;
+  let current = '';
+  let quote = null;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    current += character;
+    if (quote) {
+      if (character !== quote) continue;
+      if (text[index + 1] === quote) {
+        current += text[index + 1];
+        index += 1;
+      } else {
+        quote = null;
+      }
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === '(' || character === '[') depth += 1;
+    if (character === ')' || character === ']') depth -= 1;
+    if (character === ',' && depth === 0) {
+      parts.push(current.slice(0, -1));
+      current = '';
+    }
+  }
+  parts.push(current);
+  return parts.map((part) => part.trim()).filter(Boolean);
+}
+
+function closingParenthesis(source, openIndex) {
+  let depth = 0;
+  let quote = null;
+  for (let index = openIndex; index < source.length; index += 1) {
+    const character = source[index];
+    if (quote) {
+      if (character !== quote) continue;
+      if (source[index + 1] === quote) index += 1;
+      else quote = null;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (character === '(') depth += 1;
+    if (character === ')') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  throw new Error('migration has an unbalanced function argument list');
+}
+
+function declaredArgumentType(declaration) {
+  let rest = declaration.replaceAll(/\s+/gu, ' ').trim();
+  const mode = /^(?:IN|OUT|INOUT|VARIADIC)\s+/iu.exec(rest);
+  const out = /^OUT\s+/iu.test(rest);
+  if (mode) rest = rest.slice(mode[0].length);
+  rest = rest.replace(/\s+DEFAULT\b[\s\S]*$/iu, '').replace(/\s*=\s*[\s\S]*$/u, '').trim();
+  const head = rest.split(' ')[0];
+  const tail = rest.slice(head.length).trim();
+  const named = tail.length > 0 && !MULTI_WORD_TYPE_HEADS.has(head.toLowerCase().replace(/[[(].*$/u, ''));
+  return { out, type: canonicalFunctionType(named ? tail : rest) };
+}
+
+function classifyFunctionStatement(head) {
+  const pattern = new RegExp(
+    `^(CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION|DROP\\s+FUNCTION(?:\\s+IF\\s+EXISTS)?)\\s+(${QUALIFIED})\\s*\\(`,
+    'iu',
+  );
+  const match = pattern.exec(head);
+  if (!match) return null;
+  const open = match[0].length - 1;
+  const close = closingParenthesis(head, open);
+  const argumentTypes = splitTopLevelArguments(head.slice(open + 1, close))
+    .map(declaredArgumentType)
+    .filter((argument) => !argument.out)
+    .map((argument) => argument.type);
+  const qualified = splitQualified(match[2]);
+  const identity = `${qualified.schema ? `${qualified.schema}.` : ''}${qualified.name}(${argumentTypes.join(',')})`;
+  return {
+    effect: /^CREATE/iu.test(match[1]) ? 'create' : 'drop',
+    kind: 'function',
+    ...qualified,
+    identity,
+  };
 }
 
 /**
@@ -293,10 +420,10 @@ function objectKey(object) {
  */
 function classifyStatement(sql) {
   const head = sql.replace(/^(?:\s|--[^\n]*\n)+/u, '');
+  const functionEffect = classifyFunctionStatement(head);
+  if (functionEffect) return [functionEffect];
   const rules = [
     // created
-    [new RegExp(`^CREATE\\s+(?:OR\\s+REPLACE\\s+)?FUNCTION\\s+${IF_NOT_EXISTS}(${QUALIFIED})\\s*\\(`, 'iu'),
-      (m) => [{ effect: 'create', kind: 'function', ...splitQualified(m[1]) }]],
     [new RegExp(`^CREATE\\s+(?:UNLOGGED\\s+)?TABLE\\s+${IF_NOT_EXISTS}(${QUALIFIED})`, 'iu'),
       (m) => [{ effect: 'create', kind: 'table', ...splitQualified(m[1]) }]],
     [new RegExp(`^CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:MATERIALIZED\\s+)?VIEW\\s+${IF_NOT_EXISTS}(${QUALIFIED})`, 'iu'),
@@ -308,8 +435,6 @@ function classifyStatement(sql) {
     [new RegExp(`^CREATE\\s+(?:OR\\s+REPLACE\\s+)?TRIGGER\\s+(${NAME})[\\s\\S]*?\\sON\\s+(${QUALIFIED})`, 'iu'),
       (m) => [{ effect: 'create', kind: 'trigger', ...splitQualified(m[1]), relation: splitQualified(m[2]) }]],
     // dropped
-    [new RegExp(`^DROP\\s+FUNCTION\\s+${IF_EXISTS}(${QUALIFIED})`, 'iu'),
-      (m) => [{ effect: 'drop', kind: 'function', ...splitQualified(m[1]) }]],
     [new RegExp(`^DROP\\s+TABLE\\s+${IF_EXISTS}(${QUALIFIED})`, 'iu'),
       (m) => [{ effect: 'drop-relation', kind: 'table', ...splitQualified(m[1]) }]],
     [new RegExp(`^DROP\\s+(?:MATERIALIZED\\s+)?VIEW\\s+${IF_EXISTS}(${QUALIFIED})`, 'iu'),
@@ -361,16 +486,29 @@ export function collectExpectedObjects(migrations) {
     for (const statement of parseOwnerStatements(migration.source, migration.tag)) {
       for (const effect of classifyStatement(statement.sql)) {
         if (effect.effect === 'create') {
-          const object = { kind: effect.kind, schema: effect.schema, name: effect.name, relation: effect.relation ?? null };
+          const object = {
+            kind: effect.kind,
+            schema: effect.schema,
+            name: effect.name,
+            identity: effect.identity ?? null,
+            relation: effect.relation ?? null,
+          };
           expected.set(objectKey(object), { ...object, tag: migration.tag });
           continue;
         }
         for (const [key, object] of [...expected]) {
-          const target = { kind: effect.kind, schema: effect.schema, name: effect.name, relation: effect.relation ?? null };
+          const target = {
+            kind: effect.kind,
+            schema: effect.schema,
+            name: effect.name,
+            identity: effect.identity ?? null,
+            relation: effect.relation ?? null,
+          };
           const hitsSelf = effect.effect !== 'forget-relation'
             && object.kind === effect.kind
             && object.name === effect.name
             && (object.schema === null || effect.schema === null || object.schema === effect.schema)
+            && (effect.kind !== 'function' || object.identity === effect.identity)
             && (effect.kind !== 'column' && effect.kind !== 'constraint' && effect.kind !== 'trigger'
               ? true
               : sameRelation(object.relation, effect.relation));
@@ -394,7 +532,7 @@ export function renderObjectPresenceSql(objects) {
       ? `c.relname = ${literal(object.relation.name)}${object.relation.schema ? ` AND rn.nspname = ${literal(object.relation.schema)}` : ''}`
       : 'true';
     const query = {
-      function: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace WHERE p.proname = ${literal(object.name)} AND ${schema})`,
+      function: `SELECT to_regprocedure(${literal(object.identity)}) IS NOT NULL`,
       table: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('r','p','f') AND ${schema})`,
       view: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('v','m') AND ${schema})`,
       index: `SELECT EXISTS (SELECT 1 FROM pg_catalog.pg_class c JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = ${literal(object.name)} AND c.relkind IN ('i','I'))`,
@@ -414,5 +552,8 @@ function literal(value) {
 
 export function describeObject(object) {
   const where = object.relation ? ` on ${object.relation.schema ? `${object.relation.schema}.` : ''}${object.relation.name}` : '';
-  return `${object.kind} ${object.schema ? `${object.schema}.` : ''}${object.name}${where} (from ${object.tag})`;
+  const name = object.kind === 'function'
+    ? object.identity
+    : `${object.schema ? `${object.schema}.` : ''}${object.name}`;
+  return `${object.kind} ${name}${where} (from ${object.tag})`;
 }

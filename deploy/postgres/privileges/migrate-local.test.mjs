@@ -182,7 +182,7 @@ test('normal legacy execution still accepts migration, backfill and post files',
 // Selection is by name now: pending is every file the ledger does not name, in file-name order.
 // The fake psql answers three different questions the wrapper asks — prepare the ledger, read it,
 // probe the catalog — so a run can be driven without a database.
-function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = null }) {
+function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = null, migrationSql = {} }) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-local-ledger-'));
   const bin = join(root, 'bin');
   const migrations = join(root, 'migrations');
@@ -199,7 +199,8 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
       join(migrations, `${tag}.sql`),
       [
         '-- BCB-MIGRATION-OWNER: app_probe_owner',
-        `CREATE OR REPLACE FUNCTION app.door_${tag}() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;`,
+        migrationSql[tag]
+          ?? `CREATE OR REPLACE FUNCTION app.door_${tag}() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;`,
         '',
       ].join('\n'),
     );
@@ -219,6 +220,7 @@ function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = n
   // The catalog probe asks one row per expected object, positional. The fake answers `t` for every
   // probe except the one that names `absentObject`'s function — "the ledger names it, the catalog
   // does not have it".
+  const absentNeedle = absentObject === true ? 'door_20260820t000100_first' : (absentObject || '');
   writeFileSync(
     join(bin, 'psql'),
     `#!/usr/bin/env bash
@@ -238,7 +240,7 @@ if [[ -n "$statement" ]]; then
     [[ "$line" == SELECT*' AS at'* ]] || continue
     at="\${line#SELECT }"
     at="\${at%% *}"
-    if [[ '${absentObject ? 'yes' : 'no'}' == 'yes' && "$line" == *door_20260820t000100_first* ]]; then
+    if [[ -n ${JSON.stringify(absentNeedle)} && "$line" == *${JSON.stringify(absentNeedle)}* ]]; then
       printf '%s\\tf\\n' "$at"
     else
       printf '%s\\tt\\n' "$at"
@@ -304,10 +306,74 @@ test('an applied migration whose object is gone stops the run and names it', () 
 
   assert.notEqual(result.status, 0, 'a ledger answering for absent objects must not report success');
   assert.match(result.stderr, /objects are not in the catalog/u);
-  assert.match(result.stderr, /absent: function app\.door_20260820t000100_first \(from 20260820T000100_first\)/u);
+  assert.match(result.stderr, /absent: function app\.door_20260820t000100_first\(\) \(from 20260820T000100_first\)/u);
   assert.match(result.stderr, /--reapply 20260820T000100_first/u);
   assert.doesNotMatch(result.stdout, /already current/u);
   assert.equal(existsSync(runtime.capture), false, 'no transaction may reach psql behind the gate');
+});
+
+test('an applied later migration can retire an object promised by an earlier migration', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
+    absentObject: true,
+    migrationSql: {
+      '20260820T000200_third': 'DROP FUNCTION IF EXISTS app.door_20260820t000100_first();',
+    },
+  });
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /already current/u);
+  assert.doesNotMatch(result.stderr, /--reapply/u);
+});
+
+test('a pending later drop does not retire an object promised by an applied migration', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival'],
+    absentObject: true,
+    migrationSql: {
+      '20260820T000200_third': 'DROP FUNCTION IF EXISTS app.door_20260820t000100_first();',
+    },
+  });
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /objects are not in the catalog/u);
+  assert.match(result.stderr, /--reapply 20260820T000100_first/u);
+});
+
+test('a drop ordered before the creator does not retire the object created later', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['20260820T000000_late_arrival', '20260820T000100_first', '20260820T000200_third'],
+    absentObject: true,
+    migrationSql: {
+      '20260820T000000_late_arrival': 'DROP FUNCTION IF EXISTS app.door_20260820t000100_first();',
+    },
+  });
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /objects are not in the catalog/u);
+});
+
+test('dropping another overload does not hide an applied function missing from the catalog', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'],
+    absentObject: 'shared_door',
+    migrationSql: {
+      '20260820T000100_first': 'CREATE FUNCTION app.shared_door(p_id uuid) RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;',
+      '20260820T000200_third': 'DROP FUNCTION IF EXISTS app.shared_door(text);',
+    },
+  });
+
+  const result = runLedgerMigrator(runtime);
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /absent: function app\.shared_door\(uuid\)/u);
+  assert.match(result.stderr, /--reapply 20260820T000100_first/u);
 });
 
 test('the named reapply drops the stale ledger row and sends the migration through again', () => {
