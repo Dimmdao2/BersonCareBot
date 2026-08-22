@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import patientManifest from '@/app/manifest';
+import { buildPatientPwaManifest } from './patientPwaManifest';
 import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
 import { buildStaffPwaManifest } from './staffPwaManifest';
@@ -25,7 +25,7 @@ describe('staff PWA identity', () => {
  */
 describe('installed PWA contract survives the surface rename', () => {
   it('keeps the patient installation identity and only renames it', () => {
-    expect(patientManifest()).toMatchObject({
+    expect(buildPatientPwaManifest()).toMatchObject({
       id: '/app',
       scope: '/app',
       start_url: '/app/patient',
@@ -43,6 +43,6 @@ describe('installed PWA contract survives the surface rename', () => {
       name: STAFF_SURFACE.name,
       short_name: STAFF_SURFACE.name,
     });
-    expect(staff.id).not.toBe(patientManifest().id);
+    expect(staff.id).not.toBe(buildPatientPwaManifest().id);
   });
 });

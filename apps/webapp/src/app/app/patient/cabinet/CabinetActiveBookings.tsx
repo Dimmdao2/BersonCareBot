@@ -5,7 +5,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
-import { usePatientSurfaceName } from '@/shared/ui/PlatformProvider';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
 import { CabinetBookingActions } from './CabinetBookingActions';
 import { cn } from '@/lib/utils';
@@ -101,7 +101,7 @@ function downloadIcs(booking: PatientBookingRecord, appName: string): void {
 }
 
 export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
-  const patientSurfaceName = usePatientSurfaceName();
+  const surfaceName = useSurfaceName();
   if (bookings.length === 0) {
     return (
       <Card className={cn(patientCardClass, 'ring-0')}>
@@ -157,7 +157,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                       variant="ghost"
                       size="sm"
                       className="h-auto min-h-0 px-1 py-0 text-xs"
-                      onClick={() => downloadIcs(row, patientSurfaceName)}
+                      onClick={() => downloadIcs(row, surfaceName)}
                     >
                       .ics
                     </Button>

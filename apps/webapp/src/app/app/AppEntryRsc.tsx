@@ -6,7 +6,6 @@ import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env } from '@/config/env';
-import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 import {
   classifyUnauthenticatedAppEntry,
   shouldAllowStandaloneTokenExchange,
@@ -15,6 +14,8 @@ import { buildPrefetchedPublicAuthConfig } from '@/modules/auth/publicAuthSnapsh
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getMessengerSurfaceHint, getPlatformEntry } from '@/shared/lib/platformCookie.server';
+import { getRequestSurface } from '@/shared/lib/surface/requestSurface.server';
+import { surfaceDisplayName } from '@/shared/lib/surface/surfaceLayoutMetadata';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { AppEntryLoginContent } from './AppEntryLoginContent';
@@ -79,13 +80,11 @@ export async function AppEntryRsc({
       : routeBoundMessengerSurface === 'max' || entryClassification === 'max_miniapp'
         ? 'max'
         : 'browser';
-  // TPB-08: staff login portals (`/app/doctor/login`, `/app/admin/login`) identify as the staff
-  // surface even though they render through the shared patient-styled shell; the patient portal
-  // and the surface-less `/app`, `/app/tg`, `/app/max` entries keep the patient identity.
-  const shellTitle =
-    roleLoginPortal === 'doctor' || roleLoginPortal === 'admin'
-      ? STAFF_SURFACE.name
-      : PATIENT_DEFAULT_SURFACE.name;
+  // TPB-08: этот RSC обслуживает и staff-, и patient-входы (`/app/doctor/login`,
+  // `/app/admin/login`, `/app?intent=specialist` — staff; `/app`, `/app/patient/login`, `/app/tg`,
+  // `/app/max` — пациент), поэтому имя в шапке берётся у той же таблицы маршрутов, что и метаданные
+  // документа, а не перечислением порталов здесь.
+  const shellTitle = surfaceDisplayName(await getRequestSurface());
 
   return (
     <PatientAppShell

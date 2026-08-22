@@ -22,6 +22,7 @@ import {
   handlePlatformContextRequest,
 } from '@/middleware/platformContext';
 import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
+import { SURFACE_PATHNAME_HEADER, SURFACE_SEARCH_HEADER } from '@/config/surfaceRoutes';
 
 export function proxy(request: NextRequest) {
   // Only UUID-shaped values cross the trust boundary. Free-form/oversized caller text is replaced,
@@ -110,10 +111,12 @@ export function proxy(request: NextRequest) {
   }
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(BC_CORRELATION_ID_HEADER, correlationId);
-  if (pathname.startsWith('/app/patient')) {
-    requestHeaders.set('x-bc-pathname', pathname);
-    requestHeaders.set('x-bc-search', request.nextUrl.search);
-  }
+  // Путь запроса — единственный вход `resolveRequestSurface` (TPB-08): Next не даёт layout'у
+  // pathname, поэтому идентичность поверхности вычислить без этого проброса негде. Раньше заголовок
+  // ставился только для `/app/patient` (patient-layout policy); теперь — для всего matcher'а, иначе
+  // staff-маршрут снова молча получит пациентскую идентичность корня.
+  requestHeaders.set(SURFACE_PATHNAME_HEADER, pathname);
+  requestHeaders.set(SURFACE_SEARCH_HEADER, request.nextUrl.search);
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
@@ -124,5 +127,9 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/app', '/app/:path*', '/api/:path*'],
+  // `/` добавлен вместе с проброской пути поверхности: лендинг — staff-маркетинг («Therapysto —
+  // кабинет специалиста»), и без него он остаётся единственным staff-маршрутом, до которого
+  // резолвер не дотягивается. Порядок обработки для `/` тот же, что для `/app`: portalForAppPath
+  // здесь null, поэтому сессионная логика не срабатывает.
+  matcher: ['/', '/app', '/app/:path*', '/api/:path*'],
 };

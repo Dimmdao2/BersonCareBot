@@ -2,14 +2,10 @@
  * /app/doctor/layout.tsx — thin shell: delegates request-local bootstrap to loadDoctorWorkspaceShell.
  */
 import type { ReactNode } from 'react';
-import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
-import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { loadDoctorWorkspaceShell } from './loadDoctorWorkspaceShell';
-
-export const metadata: Metadata = staffPwaLayoutMetadata;
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
   const shell = await loadDoctorWorkspaceShell();

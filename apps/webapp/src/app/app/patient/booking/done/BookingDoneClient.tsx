@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { usePatientSurfaceName } from '@/shared/ui/PlatformProvider';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   patientButtonPrimaryClass,
@@ -57,10 +57,10 @@ export function BookingDoneClient({
   appDisplayTimeZone,
   appBaseUrl,
 }: BookingDoneParams) {
-  const patientSurfaceName = usePatientSurfaceName();
+  const surfaceName = useSurfaceName();
   const summary = buildSummary(serviceTitle, locationLabel);
   const location = locationLabel || undefined;
-  const description = `Запись через ${patientSurfaceName}`;
+  const description = `Запись через ${surfaceName}`;
 
   const calendarParams = useMemo(
     () => ({ startAt: slotStart, endAt: slotEnd, summary, location, description, bookingId }),
@@ -71,7 +71,7 @@ export function BookingDoneClient({
   const yandexUrl = buildYandexCalendarUrl(calendarParams);
 
   const handleDownloadIcs = useCallback(() => {
-    const ics = buildIcsContent(calendarParams, appBaseUrl, patientSurfaceName);
+    const ics = buildIcsContent(calendarParams, appBaseUrl, surfaceName);
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -81,7 +81,7 @@ export function BookingDoneClient({
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [calendarParams, appBaseUrl, bookingId, patientSurfaceName]);
+  }, [calendarParams, appBaseUrl, bookingId, surfaceName]);
 
   const dateLabel = formatBookingDateLongRu(slotStart, appDisplayTimeZone);
   const timeStart = formatBookingTimeShortRu(slotStart, appDisplayTimeZone);

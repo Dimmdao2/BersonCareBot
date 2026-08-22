@@ -1,12 +1,8 @@
-import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import '../../styles/doctor.css';
-import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { loadManagementWorkspace } from './loadManagementWorkspace';
-
-export const metadata: Metadata = staffPwaLayoutMetadata;
 
 export default async function ManagementLayout({ children }: { children: ReactNode }) {
   const { workspace, organizationName } = await loadManagementWorkspace();

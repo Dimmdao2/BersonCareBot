@@ -16,31 +16,23 @@ import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
 import { PWA_APP_ROOT_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { getRequestSurface } from '@/shared/lib/surface/requestSurface.server';
+import {
+  surfaceDisplayName,
+  surfaceLayoutMetadata,
+} from '@/shared/lib/surface/surfaceLayoutMetadata';
 
 /**
- * Staff-зоны (`doctor`/`settings`/`admin`/`account`/`manage`) переопределяют эти метаданные через
- * `staffPwaLayoutMetadata`. Этот root fallback реально виден на лендинге `/` (сам переопределяет
- * себя через `page.tsx`), `/app/patient/**`, `/book`, `/join` и `/legal/**` — везде patient-стиль,
- * поэтому имя берётся из standard patient surface, не staff.
+ * ЕДИНСТВЕННАЯ точка, где поверхность запроса превращается в идентичность документа (TPB-08).
+ * Ни один маршрут больше не объявляет `title`/`description`/`manifest`/`icons`/`appleWebApp` сам:
+ * какому пути какая поверхность — решает таблица `config/surfaceRoutes.ts`, и новая страница внутри
+ * классифицированного поддерева получает верную идентичность, ничего не объявляя. Раньше это был
+ * пациентский fallback, который staff-зоны перекрывали каждая у себя, и забытый маршрут молча
+ * представлялся пациентским продуктом.
  */
-export const metadata: Metadata = {
-  title: PATIENT_DEFAULT_SURFACE.name,
-  description: `Patient web application for ${PATIENT_DEFAULT_SURFACE.name}.`,
-  icons: {
-    icon: [
-      { url: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' },
-      { url: '/pwa-icon-512.png', sizes: '512x512', type: 'image/png' },
-    ],
-    shortcut: [{ url: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png' }],
-    apple: [{ url: '/apple-touch-icon.png', sizes: '180x180' }],
-  },
-  appleWebApp: {
-    capable: true,
-    title: PATIENT_DEFAULT_SURFACE.name,
-    statusBarStyle: 'default',
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return surfaceLayoutMetadata(await getRequestSurface());
+}
 
 /** Safe-area insets для мобильных (вырез, индикатор дома) — нужен viewport-fit=cover. */
 export const viewport: Viewport = {
@@ -57,7 +49,7 @@ export const viewport: Viewport = {
 
 /** Рендерит общую обёртку страницы: тег html, тело и дочернее содержимое (конкретная страница). */
 export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
-  const platformEntry = await getPlatformEntry();
+  const [platformEntry, surface] = await Promise.all([getPlatformEntry(), getRequestSurface()]);
   const buildId = (process.env.BUILD_ID || process.env.NEXT_PUBLIC_BUILD_ID || '').trim();
   return (
     <html lang="ru" suppressHydrationWarning className="font-sans">
@@ -68,7 +60,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <div id="app-root" className={PWA_APP_ROOT_CLASS}>
           <TooltipProvider>
             <ClientToaster />
-            <PlatformProvider serverHint={platformEntry} patientSurfaceName={PATIENT_DEFAULT_SURFACE.name}>
+            <PlatformProvider serverHint={platformEntry} surfaceName={surfaceDisplayName(surface)}>
               <BuildVersionWatcher />
               <HorizontalOverflowProbe />
               {children}

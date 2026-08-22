@@ -14,23 +14,25 @@ import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 export const PlatformContext = createContext<PlatformMode>('mobile');
 
 /**
- * TPB-09: server-resolved (env-overridable) standard patient app display name, threaded to
- * `'use client'` components through the one provider already mounted once at the root layout
- * (`RootLayout` in `app/layout.tsx` — see `patientSurfaceName` prop below). The literal here is
- * only the fallback for a tree rendered without this provider (isolated component tests); real
- * app render always goes through `RootLayout`, so this default never masks an unset env override.
+ * Видимое имя продукта для ТЕКУЩЕЙ поверхности запроса (TPB-08/TPB-09), протянутое в
+ * `'use client'`-дерево через единственный провайдер, уже смонтированный один раз в корневом layout
+ * (`RootLayout` в `app/layout.tsx` — проп `surfaceName` ниже). Значение решает
+ * `config/surfaceRoutes.ts`: на patient-поверхности это env-переопределяемое имя пациентского
+ * приложения, на staff-поверхности — `Therapysto`. Литерал здесь — только fallback для дерева,
+ * отрендеренного без провайдера (изолированные тесты компонентов); реальный рендер всегда идёт
+ * через `RootLayout`.
  */
-export const PatientSurfaceNameContext = createContext<string>(PATIENT_DEFAULT_SURFACE_NAME);
+export const SurfaceNameContext = createContext<string>(PATIENT_DEFAULT_SURFACE_NAME);
 
-/** Client hook for the env-overridable standard patient app display name (TPB-09). */
-export function usePatientSurfaceName(): string {
-  return useContext(PatientSurfaceNameContext);
+/** Client hook for the display name of the current request surface. */
+export function useSurfaceName(): string {
+  return useContext(SurfaceNameContext);
 }
 
 type Props = {
   serverHint: PlatformEntry;
-  /** Server-resolved standard patient app name (`config/productSurfaces.ts`, TPB-09). */
-  patientSurfaceName: string;
+  /** Имя поверхности, разрешённое на сервере (`shared/lib/surface/surfaceLayoutMetadata.ts`). */
+  surfaceName: string;
   children: ReactNode;
 };
 
@@ -42,7 +44,7 @@ function initialModeFromHint(hint: PlatformEntry): PlatformMode {
   return hint === 'bot' ? 'bot' : 'mobile';
 }
 
-export function PlatformProvider({ serverHint, patientSurfaceName, children }: Props) {
+export function PlatformProvider({ serverHint, surfaceName, children }: Props) {
   const [mode, setMode] = useState<PlatformMode>(() => initialModeFromHint(serverHint));
   const syncedEntryRef = useRef<PlatformEntry | null>(null);
 
@@ -80,8 +82,8 @@ export function PlatformProvider({ serverHint, patientSurfaceName, children }: P
   }, [serverHint]);
 
   return (
-    <PatientSurfaceNameContext.Provider value={patientSurfaceName}>
+    <SurfaceNameContext.Provider value={surfaceName}>
       <PlatformContext.Provider value={mode}>{children}</PlatformContext.Provider>
-    </PatientSurfaceNameContext.Provider>
+    </SurfaceNameContext.Provider>
   );
 }

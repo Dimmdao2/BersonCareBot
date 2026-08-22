@@ -296,10 +296,17 @@ Checkbox закрывается только доказательством, у�
 
 - [ ] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
   deploy seam; standard patient `name` и `origin` — обязательные deploy inputs без placeholder/default бренда.
-- [ ] `A2` **Остаток после `A0`:** перевести root metadata, landing/legal и остальной невыполненный периметр на
-  Therapysto через единый identity value. Staff manifest/metadata/navigation/staff-facing copy уже закрыты в
-  `A0`; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без его команды. Patient metadata берёт standard patient config, а patient mail
-  становится brand-aware только в C.
+- [x] `A2a` **Остаток после `A0`, часть «единый identity seam»:** root metadata и лендинг переведены на
+  Therapysto через ОДИН identity value. Идентичность больше не объявляется на маршруте: таблица
+  `apps/webapp/src/config/surfaceRoutes.ts` («путь запроса → поверхность») применяется в единственной точке —
+  `generateMetadata` корневого `apps/webapp/src/app/layout.tsx` — сразу на metadata/manifest/icons и на видимое
+  имя через тот же `PlatformProvider`; девять прежних `export const metadata = staffPwaLayoutMetadata` удалены.
+  Доказательство: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CORRECTION_STAGE_A_ROUND3_2026-08-22.md` —
+  живой обход всех 149 маршрутов дерева на dev-сервере, 0 расхождений; проверка под тремя сессиями владельца;
+  `PATIENT_APP_NAME=QA-Renamed` не переопределяет staff-имя (`QA-Renamed`×0 на staff-маршрутах).
+- [ ] `A2b` **Остаток `A2`:** legal-страницы и остальной невыполненный периметр (patient mail становится
+  brand-aware только в C; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без
+  его команды). Patient metadata берёт standard patient config.
 - [ ] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
   occurrences. npm/package/table/module/route identifiers и archive/audit history не трогать.
 - [ ] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
@@ -307,6 +314,12 @@ Checkbox закрывается только доказательством, у�
 
 **Gate A:** targeted config/metadata/auth tests, webapp lint+typecheck для изменённой ветки; review показывает один
 identity seam, а не набор getters.
+
+> Metadata-тест части Gate A закрыт 22.08.2026: `apps/webapp/src/config/surfaceRoutes.unit.test.ts` берёт список
+> маршрутов обходом реального `src/app/**` и краснеет, когда staff-маршрут отдаёт пациентскую идентичность.
+> Проверен тремя инъекциями неисправности (убрать правило поддерева · объявить staff-поддерево пациентским ·
+> добавить новый верхнеуровневый маршрут) — все три пойманы; см. `CORRECTION_STAGE_A_ROUND3_2026-08-22.md`.
+> Остальные части Gate A (`auth tests`, полный `A2b`/`A3`/`A4`) остаются открытыми.
 
 ### B — Единый surface/brand path (`TPB-05`, `07`, `08`, `09`, `11`, `14`, `16`)
 
