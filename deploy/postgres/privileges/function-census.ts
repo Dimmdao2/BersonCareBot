@@ -3704,6 +3704,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       "search_path=pg_catalog"
     ],
     "execute": [
+      "app_integrator_request",
       "app_operational_delivery_worker",
       "app_tenant_service"
     ],

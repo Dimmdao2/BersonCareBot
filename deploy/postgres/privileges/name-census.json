@@ -263,8 +263,6 @@
     "resolve_patient_acquiring_webhook_organization"
   ],
   "integratorDoorsOnTheWebappTenantRole": [
-    "reminder_occurrence_finalized_record -> app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)",
-    "support_delivery_attempt_record -> app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)",
     "tenant_service -> relation-wide"
   ],
   "integratorRootColumnParameterRenames": [

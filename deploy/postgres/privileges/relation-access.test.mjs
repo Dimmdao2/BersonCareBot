@@ -179,7 +179,12 @@ test('patient reminder history is readable and its seen cursor mutates only thro
     const projection = declaration.portContext.functions[
       'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'
     ];
+    // Три двери — три роли, и EXECUTE у функции один на всех: `app_tenant_service` открывает дверь
+    // вебаппа, `app_integrator_request` — дверь порта интегратора, `app_operational_delivery_worker`
+    // — дверь долговечного повтора доставки. Какая роль ходит какой дверью, решает гейт тела:
+    // каждая его ветка называет РОВНО ОДНУ роль, поэтому право EXECUTE не даёт пройти чужой дверью.
     assert.deepEqual(projection.execute, [
+      'app_integrator_request',
       'app_operational_delivery_worker',
       'app_tenant_service',
     ]);
