@@ -233,25 +233,12 @@ test('delivery replay capability has only the exact projection relation operatio
   for (const operation of ['UPDATE', 'DELETE']) {
     assertNoOperation('public.reminder_delivery_events', deliveryRole, operation);
   }
-  assert.equal(
-    grantFor('public.content_access_grants_webapp', deliveryRole, 'SELECT').columns,
-    'table',
-  );
-  exactColumns('public.content_access_grants_webapp', deliveryRole, 'INSERT', [
-    'content_id', 'created_at', 'expires_at', 'integrator_grant_id', 'integrator_user_id',
-    'meta_json', 'organization_id', 'platform_user_id', 'purpose', 'revoked_at', 'token_hash',
-  ]);
-  exactColumns('public.content_access_grants_webapp', deliveryRole, 'UPDATE', [
-    'content_id', 'expires_at', 'integrator_user_id', 'meta_json', 'organization_id',
-    'platform_user_id', 'purpose', 'revoked_at', 'token_hash',
-  ]);
-  assertNoOperation('public.content_access_grants_webapp', deliveryRole, 'DELETE');
+  for (const operation of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+    assertNoOperation('public.content_access_grants_webapp', deliveryRole, operation);
+  }
 
   for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
-    for (const relation of [
-      'public.reminder_delivery_events',
-      'public.content_access_grants_webapp',
-    ]) {
+    for (const relation of ['public.reminder_delivery_events']) {
       const table = declaration.databases[dbName].tables[relation];
       const contextGate = table.policies.find((candidate) =>
         candidate.name.startsWith('rev10_context_gate_'));
@@ -290,7 +277,7 @@ test('tenant reminder-rule writer can cancel only pending integrator occurrences
     const table = declaration.databases[dbName].tables['integrator.user_reminder_occurrences'];
     const tenantPolicy = table.policies.find((candidate) =>
       candidate.name.startsWith('rev10_tenant_delete_'));
-    assert.deepEqual(tenantPolicy?.to, ['app_tenant_service']);
+    assert.deepEqual(tenantPolicy?.to, ['app_integrator_tenant_service', 'app_tenant_service']);
     assert.match(tenantPolicy?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/u);
   }
 });

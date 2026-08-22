@@ -10,8 +10,6 @@ import {
 import {
   appendReminderDeliveryEventDirect,
   recordReminderOccurrenceFinalizedDirect,
-  upsertContentAccessGrantDirect,
-  type ContentAccessGrantDirectInput,
   type ReminderDeliveryLoggedDirectInput,
   type ReminderOccurrenceFinalizedDirectInput,
 } from '../../db/directPublic/writeReminderProjectionDirect.js';
@@ -99,9 +97,8 @@ export async function executeDirectPublicWriteRetry(
     );
     return;
   }
-  await writeDirectPublic('content-access-grant-upsert', () =>
-    upsertContentAccessGrantDirect(db, retry.payload as ContentAccessGrantDirectInput),
-  );
+  const exhaustive: never = retry.operation;
+  throw new Error(`unknown direct public write retry operation: ${String(exhaustive)}`);
 }
 
 export async function runDirectPublicWriteRetryWorkerTick(

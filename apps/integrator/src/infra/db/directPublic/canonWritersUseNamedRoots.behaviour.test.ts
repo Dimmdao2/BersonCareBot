@@ -34,10 +34,7 @@ import {
 } from '../portContextRuntime.js';
 import { writeDirectPublic } from './writePort.js';
 import { upsertReminderRuleDirect } from './writeReminderRulesDirect.js';
-import {
-  appendReminderDeliveryEventDirect,
-  upsertContentAccessGrantDirect,
-} from './writeReminderProjectionDirect.js';
+import { appendReminderDeliveryEventDirect } from './writeReminderProjectionDirect.js';
 import { appendSupportDeliveryEventDirect } from './writeSupportQuestionsDirect.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../repos/notificationDeliveryAttempts.js';
 
@@ -161,8 +158,8 @@ describe('D17 — правило напоминаний', () => {
   });
 });
 
-describe('D17 — событие доставки напоминания и доступ к контенту', () => {
-  it('оба уходят корнями под инфра-принципалом воркера повторов, без транзакции отношений', async () => {
+describe('D17 — событие доставки напоминания', () => {
+  it('уходит корнем под инфра-принципалом воркера повторов, без транзакции отношений', async () => {
     const { db, executed } = recordingDb();
 
     await runWithInfraPrincipal(
@@ -205,38 +202,6 @@ describe('D17 — событие доставки напоминания и до
     ]);
   });
 
-  it('доступ к контенту уходит корнем и несёт организацию строки', async () => {
-    const { db, executed } = recordingDb();
-
-    await runWithInfraPrincipal(
-      { source: 'worker:direct-public-write-retry-tick', portCapability: 'delivery' },
-      () =>
-        writeDirectPublic('content-access-grant-upsert', () =>
-          upsertContentAccessGrantDirect(db, {
-            organizationId: ORG_ROW,
-            integratorGrantId: 'grant-1',
-            integratorUserId: '42',
-            platformUserId: PLATFORM_USER,
-            contentId: 'content-1',
-            purpose: 'lfk',
-            tokenHash: null,
-            expiresAt: OCCURRED_AT,
-            revokedAt: null,
-            metaJson: {},
-            createdAt: OCCURRED_AT,
-          }),
-        ),
-    );
-
-    const call = expectOnlyNamedRoot(
-      executed,
-      'app.integrator_upsert_content_access_grant',
-      'content_access_grants_webapp',
-    );
-    expect(call.principalKind).toBe('infra');
-    expect(call.params[0]).toBe(ORG_ROW);
-    expect(call.params[2]).toBe(PLATFORM_USER);
-  });
 });
 
 describe('D17 — событие доставки поддержки', () => {

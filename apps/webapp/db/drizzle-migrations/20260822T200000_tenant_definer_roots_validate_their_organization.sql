@@ -8,6 +8,7 @@ DROP FUNCTION app.assert_org_patient_count_quota_available(uuid);
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_org_commerce_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.apply_paid_saas_billing_tariff(
   p_saas_billing_invoice_id uuid,
@@ -59,6 +60,7 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.record_reminder_occurrence_finalized_projection(
   p_integrator_occurrence_id text,
@@ -159,6 +161,7 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_org_commerce_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.refresh_saas_billing_invoice_purchased_tariff(
   p_saas_billing_invoice_id uuid,
@@ -256,6 +259,7 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_org_commerce_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.release_carried_seat_debt(
   p_saas_billing_invoice_id uuid,

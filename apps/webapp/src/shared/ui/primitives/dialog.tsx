@@ -54,8 +54,11 @@ function DialogContent({
           // corners, slides up. Desktop (sm:): centered dialog, unchanged from before.
           // Owner 2026-07-25: plain Dialog usages (outside DoctorModal) opened as a
           // centered dialog on phones too — cramped and off pattern vs. our sheets.
-          'fixed inset-x-0 bottom-0 z-50 grid max-h-[85dvh] w-full min-w-0 max-w-full translate-x-0 translate-y-0 gap-4 overflow-x-clip overflow-y-auto rounded-t-2xl bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8 sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:max-h-[calc(100dvh-4rem)] sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-4 sm:data-open:slide-in-from-bottom-0 sm:data-open:zoom-in-95 sm:data-closed:slide-out-to-bottom-0 sm:data-closed:zoom-out-95',
+          'fixed inset-x-0 bottom-0 z-50 grid w-full min-w-0 max-w-full translate-x-0 translate-y-0 gap-4 overflow-x-clip overflow-y-auto rounded-t-2xl bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-8 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-8 sm:inset-x-auto sm:top-1/2 sm:left-1/2 sm:bottom-auto sm:max-h-[calc(100dvh-4rem)] sm:max-w-sm sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-xl sm:pb-4 sm:data-open:slide-in-from-bottom-0 sm:data-open:zoom-in-95 sm:data-closed:slide-out-to-bottom-0 sm:data-closed:zoom-out-95',
           className,
+          // Mobile modals always occupy the same nearly-full viewport height. Keep
+          // this after caller classes so legacy max-h overrides cannot shrink them.
+          'max-sm:!h-[calc(100dvh-3.5rem)] max-sm:!max-h-[calc(100dvh-3.5rem)] max-sm:content-start',
         )}
         {...props}
       >

@@ -9,10 +9,8 @@ const fakes = vi.hoisted(() => ({
   insertDeliveryLog: vi.fn(),
   createGrant: vi.fn(),
   context: vi.fn(),
-  candidates: vi.fn(),
   occurrenceDirect: vi.fn(),
   deliveryDirect: vi.fn(),
-  contentDirect: vi.fn(),
   runOrganization: vi.fn(async (_organizationId: string, fn: () => Promise<unknown>) => fn()),
 }));
 
@@ -30,14 +28,12 @@ vi.mock('./repos/reminders.js', () => ({
   rescheduleReminderOccurrencePlanned: vi.fn(),
 }));
 vi.mock('./directPublic/writeIdentityAndPreferencesDirect.js', () => ({
-  collectPlatformUserCandidates: fakes.candidates,
   upsertBootstrapChannelIdentity: vi.fn(),
   normalizeChannelDisplayHandle: vi.fn(),
 }));
 vi.mock('./directPublic/writeReminderProjectionDirect.js', () => ({
   recordReminderOccurrenceFinalizedDirect: fakes.occurrenceDirect,
   appendReminderDeliveryEventDirect: fakes.deliveryDirect,
-  upsertContentAccessGrantDirect: fakes.contentDirect,
 }));
 vi.mock('../principal/organizationPrincipal.js', () => ({
   runWithOrganizationPrincipal: fakes.runOrganization,
@@ -71,7 +67,7 @@ function db(): DbPort {
   };
 }
 
-describe('direct reminder/content projection durability', () => {
+describe('direct reminder projection durability', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.context.mockResolvedValue(CONTEXT);
@@ -81,10 +77,8 @@ describe('direct reminder/content projection durability', () => {
       createdAt: '2026-08-20T10:01:00.000Z',
       organizationId: ORGANIZATION_ID,
     });
-    fakes.candidates.mockResolvedValue([CONTEXT.platformUserId]);
     fakes.occurrenceDirect.mockRejectedValue(new Error('synthetic direct failure'));
     fakes.deliveryDirect.mockRejectedValue(new Error('synthetic direct failure'));
-    fakes.contentDirect.mockRejectedValue(new Error('synthetic direct failure'));
     fakes.enqueue.mockResolvedValue(undefined);
   });
 
@@ -158,31 +152,6 @@ describe('direct reminder/content projection durability', () => {
         status: 'failed',
         errorCode: null,
         payloadJson: {},
-        createdAt: '2026-08-20T10:01:00.000Z',
-      },
-    ],
-    [
-      'content.access.grant.create',
-      {
-        id: 'grant-1',
-        userId: '2',
-        contentId: 'content-1',
-        purpose: 'preview',
-        expiresAt: '2026-08-21T10:00:00.000Z',
-      },
-      'content_access_grant_upsert',
-      'grant-1',
-      {
-        organizationId: ORGANIZATION_ID,
-        integratorGrantId: 'grant-1',
-        integratorUserId: '2',
-        platformUserId: CONTEXT.platformUserId,
-        contentId: 'content-1',
-        purpose: 'preview',
-        tokenHash: null,
-        expiresAt: '2026-08-21T10:00:00.000Z',
-        revokedAt: null,
-        metaJson: {},
         createdAt: '2026-08-20T10:01:00.000Z',
       },
     ],

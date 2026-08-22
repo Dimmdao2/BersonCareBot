@@ -3,7 +3,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import {
+  chatBubbleOwnClass,
+  chatBubblePeerClass,
+  chatThreadSurfaceClass,
+} from '@/shared/ui/chat/chatThreadSurface';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
@@ -364,80 +368,83 @@ function ThreadMessage({
   }
 
   return (
-    <div
-      className={cn(
-        'border-b border-border px-4 py-3 last:border-b-0',
-        isUnread ? 'border-l-2 border-l-primary bg-primary/5' : isPatient && 'opacity-80',
-      )}
-    >
-      <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="flex items-baseline gap-1.5 text-xs font-semibold text-muted-foreground">
-          {isPatient ? 'Пациент' : 'Врач'}
-          {isUnread && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-              новое
-            </span>
-          )}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          {formatRelativeTime(message.createdAt)}
-        </span>
-      </div>
-      {message.body && (
-        <p className="text-sm text-foreground whitespace-pre-wrap">{message.body}</p>
-      )}
-      {!message.body && !message.mediaFileId && (
-        <p className="text-sm text-muted-foreground italic">—</p>
-      )}
-
-      {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
-
-      {isPatient && !success && (
-        <div className="mt-1.5">
-          {replyOpen ? (
-            <MessageComposer
-              value={replyText}
-              onValueChange={setReplyText}
-              onSubmit={handleSend}
-              submitting={sending}
-              placeholder="Ответить…"
-              ariaLabel="Текст ответа"
-              submitLabel="Ответить"
-              submittingLabel="Отправка…"
-              rows={2}
-              className="flex flex-col gap-1.5"
-              actionsClassName="flex gap-2"
-              status={error ? <p className="text-xs text-destructive">{error}</p> : null}
-              secondaryActions={
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => {
-                    setReplyOpen(false);
-                    setReplyText('');
-                    setError(null);
-                  }}
-                >
-                  Отмена
-                </Button>
-              }
-              renderTextarea={(props) => <Textarea {...props} className="text-sm resize-none" />}
-              renderSubmit={(props) => <Button {...props} size="sm" />}
-            />
-          ) : (
-            <Button
-              type="button"
-              variant="link"
-              size="sm"
-              onClick={() => setReplyOpen(true)}
-              className={cn(doctorInlineLinkClass, 'text-xs h-auto p-0')}
-            >
-              Ответить
-            </Button>
-          )}
+    <div className={cn('flex px-4 py-2.5', isPatient ? 'justify-start' : 'justify-end')}>
+      <div
+        className={cn(
+          'w-fit max-w-[85%] rounded-md px-3 py-2 shadow-sm',
+          isPatient ? chatBubblePeerClass : chatBubbleOwnClass,
+          isUnread && 'border-l-2 border-l-primary',
+        )}
+      >
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <span className="flex items-baseline gap-1.5 text-xs font-semibold text-muted-foreground">
+            {isPatient ? 'Пациент' : 'Врач'}
+            {isUnread && (
+              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                новое
+              </span>
+            )}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {formatRelativeTime(message.createdAt)}
+          </span>
         </div>
-      )}
+        {message.body && (
+          <p className="text-sm text-foreground whitespace-pre-wrap">{message.body}</p>
+        )}
+        {!message.body && !message.mediaFileId && (
+          <p className="text-sm text-muted-foreground italic">—</p>
+        )}
+
+        {success && <p className="mt-1.5 text-xs text-primary">Ответ отправлен</p>}
+
+        {isPatient && !success && (
+          <div className="mt-1.5">
+            {replyOpen ? (
+              <MessageComposer
+                value={replyText}
+                onValueChange={setReplyText}
+                onSubmit={handleSend}
+                submitting={sending}
+                placeholder="Ответить…"
+                ariaLabel="Текст ответа"
+                submitLabel="Ответить"
+                submittingLabel="Отправка…"
+                rows={2}
+                className="flex flex-col gap-1.5"
+                actionsClassName="flex gap-2"
+                status={error ? <p className="text-xs text-destructive">{error}</p> : null}
+                secondaryActions={
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setReplyOpen(false);
+                      setReplyText('');
+                      setError(null);
+                    }}
+                  >
+                    Отмена
+                  </Button>
+                }
+                renderTextarea={(props) => <Textarea {...props} className="text-sm resize-none" />}
+                renderSubmit={(props) => <Button {...props} size="sm" />}
+              />
+            ) : (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => setReplyOpen(true)}
+                className={cn(doctorInlineLinkClass, 'text-xs h-auto p-0')}
+              >
+                Ответить
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

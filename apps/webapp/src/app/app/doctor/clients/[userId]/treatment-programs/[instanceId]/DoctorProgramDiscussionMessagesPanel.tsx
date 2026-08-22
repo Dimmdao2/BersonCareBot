@@ -20,7 +20,11 @@ import {
 } from '@/modules/messaging/messageFormatting';
 import { chatMessageDeliveryStatus } from '@/modules/messaging/chatMessageDeliveryStatus';
 import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
-import { chatThreadSurfaceClass } from '@/shared/ui/chat/chatThreadSurface';
+import {
+  chatBubbleOwnClass,
+  chatBubblePeerClass,
+  chatThreadSurfaceClass,
+} from '@/shared/ui/chat/chatThreadSurface';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { ProgramItemDiscussionMessageBody } from '@/app/app/patient/treatment/ProgramItemDiscussionMessageBody';
 
@@ -266,7 +270,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 <div
                   className={cn(
                     'max-w-[min(100%,22rem)] rounded-md border px-3 py-2 text-sm shadow-sm',
-                    fromPatient ? 'border-border bg-muted/20' : 'border-primary/20 bg-primary/5',
+                    fromPatient ? chatBubblePeerClass : chatBubbleOwnClass,
                   )}
                   onTouchStart={
                     fromPatient && onSendReply && touchEnabled

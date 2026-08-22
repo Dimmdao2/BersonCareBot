@@ -154,14 +154,15 @@ invoice/pay-link/QR или новый provider-readiness contract выносит
 
 Разделить три непересекающихся по риску этапа:
 
-1. **UI-3a cosmetics:** подтверждённые тексты, фон/градиент, мелкая presentation-плотность и split 45/55 с
+1. **UI-3a cosmetics:** подтверждённые тексты, фон переписки, мелкая presentation-плотность и split 45/55 с
    fallback 50/50 через существующий layout primitive;
 2. **UI-3b broadcast IA:** журнал, выбор/раскрытие и error-details с отдельным interaction acceptance;
 3. **UI-3c composer foundation:** shared composer с parity текущей немедленной отправки. Отложенная отправка не
    является частью UI-3c и ведётся отдельно как UI-7a по более позднему минимальному owner-scope 2026-08-17.
 
-**Owner-ruling content to preserve in the bounded subscopes:** одинаковый chat background в doctor/patient chat,
-modal и comments; имя в шапке как единственная card navigation; убрать лишнюю верхнюю фразу broadcasts; выбранная
+**Owner-ruling content to preserve in the bounded subscopes:** белая поверхность переписки во всех doctor/patient
+chat, modal и comments; сообщения собеседника на светло-голубых плашках, собственные — на светло-серых; имя в
+шапке как единственная card navigation; убрать лишнюю верхнюю фразу broadcasts; выбранная
 рассылка раскрывается без перекрытий с summary/delivery/error data; в левом списке заявок не дублировать ссылку на
 имя, если она есть в detail. 45/55 явно заменяет прежние 40/60; fallback — 50/50. Существующую принятую
 chat-card navigation нельзя молча заменить новой: route и доступность должны сохраниться.
@@ -598,8 +599,9 @@ brief или заменять одним общим пунктом.
 
 - [x] Desktop split во всех применимых вкладках — 45/55 с fallback 50/50; mobile master/detail сохранён.
       (✓ `lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]` in BroadcastsTab.tsx:165, DoctorSupportInbox.tsx:510, DoctorCommentsTab.tsx:1125)
-- [x] Exact owner gradient применён одинаково к doctor/patient chat, modal и comments (`#961`).
-      (✓ single asset shared/ui/chat/chatThreadSurface.ts:1-3, reused by ChatView.tsx:108-112, DoctorCommentsTab.tsx:1055-1086, ProgramItemDiscussionDialog.tsx:203-250)
+- [x] Белый фон, голубые плашки собеседника и серые собственные применены одинаково к doctor/patient chat, modal
+      и comments. (✓ shared/ui/chat/chatThreadSurface.ts; consumers: ChatView.tsx,
+      DoctorCommentsTab.tsx, ProgramItemDiscussionDialog.tsx, DoctorProgramDiscussionMessagesPanel.tsx)
 - [x] Имя в шапке является единственной card navigation с сохранённым route contract.
       (✓ DoctorSupportInbox.tsx:365-418,447-455; DoctorCommentsTab.tsx header link via patientCardHref)
 - [x] Убрана лишняя верхняя broadcast-фраза с отдельным current-code evidence (`#961`).
@@ -819,7 +821,7 @@ Targeted checks presentation workers могут идти независимо; l
 | UI-1c appointment detail card            | `#951`, sibling закрытого C1 `#851`                           | новый owner delta; запускать отдельно, не переоткрывать и не повторять весь C1                                                                      |
 | SCH-G5                                   | `#848`                                                        | owner-waiting, без реализации                                                                                                                       |
 | UI-2 built-in Online location            | базовый online-location scope отделить от расширенного `#215` | G5 закрыт; переиспользовать существующую модель и не объявлять закрытым расширенный flow `#215`                                                     |
-| UI-3 communications                      | historical C1 / `#852`; residual `#961` + `#962`              | `#961` gradient+broadcast IA; `#962` shared composer; закрытую 45/55 часть не повторять                                                             |
+| UI-3 communications                      | historical C1 / `#852`; residual `#961` + `#962`              | `#961` chat surface+broadcast IA; `#962` shared composer; закрытую 45/55 часть не повторять                                                         |
 | UI-4/UI-6 presentation                   | historical C1 / `#850`; UI-5a `#958`; UI-6b `#963`            | UI-4 = list + filters без preview; closed presentation не повторять; UI-6 product residual ждёт exact owner contract                                |
 | UI-5a existing-card full-workspace reuse | `#958`; layout-only predecessor U5B                           | selected card заменяет весь content container; возврат восстанавливает list state; после route/guard census, без data/API/visibility/schema changes |
 | UI-5b organization card/history policy   | `#971`; U5B contract `#928`                                   | candidate live-verified in isolated worktree; owner acceptance and integration remain; A↔B/revoked live seals stay owner-deferred to the client-screen stage |
