@@ -10,6 +10,7 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 type CredentialSummary = {
   credentialId: string;
@@ -124,7 +125,7 @@ export function StaffPasskeySection() {
       </DoctorSectionHeader>
       <p className="text-sm text-muted-foreground">
         Вход подтверждается Face ID, отпечатком или кодом устройства — без пароля и без
-        дополнительного кода. Биометрия остаётся на устройстве и не передаётся Therapysto.
+        дополнительного кода. Биометрия остаётся на устройстве и не передаётся {STAFF_SURFACE_NAME}.
       </p>
       {credentials.map((credential, index) => (
         <div

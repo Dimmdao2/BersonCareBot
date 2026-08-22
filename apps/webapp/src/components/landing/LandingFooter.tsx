@@ -7,6 +7,7 @@ import {
   landingContainer,
 } from '@/components/landing/landingTypography';
 import { cn } from '@/lib/utils';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 const linkClass = 'inline-flex items-center gap-1.5 transition hover:text-[#17264A]';
 
@@ -27,7 +28,7 @@ export function LandingFooter() {
                 height={32}
                 className="h-8 w-8 rounded-xl"
               />
-              <p className="text-base font-semibold text-[#17264A]">BersonCare</p>
+              <p className="text-base font-semibold text-[#17264A]">{STAFF_SURFACE.name}</p>
             </div>
             <p className={cn(landingBody, 'mt-3 max-w-sm')}>
               Платформа для работы специалиста и сопровождения пациентов.

@@ -1,9 +1,4 @@
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'Политика конфиденциальности · BersonCare',
-  description: 'Политика конфиденциальности веб-приложения BersonCare.',
-};
+import { PLATFORM_NAME } from '@/config/productSurfaces';
 
 /** Публичная политика конфиденциальности (URL для OAuth consent screen и магазинов). */
 export default function PrivacyPolicyPage() {
@@ -12,7 +7,7 @@ export default function PrivacyPolicyPage() {
       <h1 className="text-xl font-semibold tracking-tight">Политика конфиденциальности</h1>
       <p className="text-muted-foreground">
         Настоящая политика описывает, как обрабатываются персональные данные при использовании
-        веб-приложения BersonCare Platform (далее — «Сервис»).
+        веб-приложения {PLATFORM_NAME} (далее — «Сервис»).
       </p>
       <section className="space-y-2">
         <h2 className="text-base font-medium">1. Какие данные могут обрабатываться</h2>
@@ -31,7 +26,7 @@ export default function PrivacyPolicyPage() {
           настроек интерфейса. Эти данные не используются для рекламного таргетинга.
         </p>
         <p>
-          Публичный лендинг BersonCare не использует аналитические или маркетинговые cookie. Если в
+          Публичный лендинг {PLATFORM_NAME} не использует аналитические или маркетинговые cookie. Если в
           будущем на лендинге появятся счётчики аналитики, рекламные пиксели или формы сбора данных,
           политика и интерфейс уведомления пользователя должны быть обновлены до запуска таких
           инструментов.

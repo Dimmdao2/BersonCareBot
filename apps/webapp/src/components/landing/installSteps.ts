@@ -1,5 +1,6 @@
 import type { InstallHintKind } from '@/components/landing/InstallStepVisual';
 import type { LandingInstallPlatform } from '@/components/landing/detectLandingInstallPlatform';
+import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 export type InstallStep = {
   title: string;
@@ -11,7 +12,7 @@ export const IOS_INSTALL_INTRO = 'Важно: установка работае�
 
 export const ANDROID_INSTALL_INTRO = 'Важно: откройте сайт в Chrome.';
 
-export const INSTALL_SUCCESS_NOTE = 'Готово: иконка BersonCare появится на экране телефона.';
+export const INSTALL_SUCCESS_NOTE = `Готово: иконка ${STAFF_SURFACE_NAME} появится на экране телефона.`;
 
 export const stepsIos: readonly InstallStep[] = [
   { title: 'Нажмите «Поделиться»', hint: 'ios-share' },

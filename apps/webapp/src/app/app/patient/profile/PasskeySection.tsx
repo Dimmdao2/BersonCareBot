@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import { patientMutedTextClass } from '@/shared/ui/patient/patientVisual';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 
 type CredentialSummary = {
   credentialId: string;
@@ -21,6 +22,7 @@ type CredentialsPayload = {
 };
 
 export function PasskeySection() {
+  const surfaceName = useSurfaceName();
   const [credentials, setCredentials] = useState<CredentialSummary[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -117,7 +119,7 @@ export function PasskeySection() {
     <div className="flex flex-col gap-3">
       <p className={patientMutedTextClass}>
         Вход подтверждается Face ID, отпечатком или кодом устройства. Биометрия остаётся на
-        устройстве и не передаётся BersonCare.
+        устройстве и не передаётся {surfaceName}.
       </p>
       {credentials.map((credential, index) => (
         <div

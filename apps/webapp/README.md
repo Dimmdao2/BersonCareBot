@@ -1,6 +1,7 @@
-# BersonCare Webapp
+# Webapp
 
-`webapp/` is a standalone fullstack `Next.js` service for the BersonCare platform.
+`webapp/` is a standalone fullstack `Next.js` service serving the Therapysto staff surface and the
+Therapygo patient surface (`src/config/productSurfaces.ts`).
 
 It is intentionally separated from the current `tgcarebot` integrator **as a process**:
 

@@ -30,8 +30,9 @@ domain, sender и per-origin PWA readiness contracts в коде не подтв
 
 `Core organization context` не является брендингом и не продаётся как paid mechanic. После trusted lookup или для
 разрешённой public projection он всегда содержит минимально необходимую идентификацию организации: canonical
-display name и нейтральную attribution. На platform-default surfaces BersonCare остаётся platform brand. Fully
-branded org surface не обязана визуально показывать BersonCare; exact legal/support/security information,
+display name и нейтральную attribution. На platform-default surfaces действует identity поверхности: Therapysto
+для staff/admin и Therapygo для patient. Fully branded org surface использует бренд клиники и не обязана визуально
+показывать Therapysto или Therapygo; exact legal/support/security information,
 responsible-party copy и presentation определяются отдельным legal/contract/security review.
 
 `Brand presentation` — отдельный published слой: organization name/logo, branded header/body, optional
@@ -41,7 +42,7 @@ surface-specific readiness. Его отсутствие всегда дегра�
 
 | Уровень                                          | Смысл                                                                                                                                                                      | Что не обещает                                                         |
 | ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| **P — Platform-only**                            | BersonCare является trust anchor, origin, sender и fallback; core organization context показывается там, где подтверждён trusted object/relationship или public projection | Paid brand presentation, отдельный домен или sender identity           |
+| **P — Platform-only**                            | Therapysto является staff/admin identity, Therapygo — patient identity; surface identity служит trust anchor/origin/sender fallback, а core organization context показывается там, где подтверждён trusted object/relationship или public projection | Paid brand presentation, отдельный домен или sender identity           |
 | **O — Organization identity**                    | На platform origin поверх core context опубликованы organization name/logo, contacts и branded content в общей design system                                               | Отдельную installed app identity, custom hostname или sender domain    |
 | **F — future full branded organization surface** | Собственный domain или platform subdomain, org name/logo вместо product-facing platform branding, единый platform layout/design                                            | Per-clinic theme/layout, separate codebase или native organization app |
 
@@ -96,7 +97,7 @@ boundaries so future work does not weaken authorization; every `F` cell is absen
 
 | Surface                     | P — platform-only                                                                                                    | O — organization identity                                                   | F — future full branded org surface                                                                                                   | Canonical fallback                                                                                                           | Owner / readiness                                                          |
 | --------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Platform landing            | BersonCare acquisition для специалиста/клиники                                                                       | Не подменяется организацией                                                 | Не подменяется организацией                                                                                                           | Platform landing                                                                                                             | Platform; всегда published                                                 |
+| Platform landing            | Therapysto acquisition для специалиста/клиники                                                                       | Не подменяется организацией                                                 | Не подменяется организацией                                                                                                           | Platform landing                                                                                                             | Platform; всегда published                                                 |
 | Organization public profile | Platform chrome + core display name from published projection                                                        | Paid name/logo/content, specialists, services, addresses, optional contacts | Org-first on active `public_profile` binding; no required visible platform brand inferred                                             | Stable platform alias route                                                                                                  | Public projection + optional brand revision + binding readiness            |
 | Public booking              | Platform booking + core org name/context                                                                             | Paid visuals/content plus selected branch/specialist                        | Org-first on active `booking` binding                                                                                                 | Stable platform alias booking route                                                                                          | Booking object/config + optional brand + binding readiness                 |
 | Join preview                | Platform trust before lookup; core org name after valid trusted-token lookup                                         | Paid logo/header and masked-recipient presentation                          | Org-first on active `join` binding; token organization still wins                                                                     | Stable platform alias join/recovery route                                                                                    | Invite lifecycle + optional brand + binding readiness                      |
@@ -107,7 +108,7 @@ boundaries so future work does not weaken authorization; every `F` cell is absen
 | Email                       | Verified platform From + core org identification only when no custom provider is configured                          | Paid branded header/template and optional validated contact                 | Authenticated org sender only after complete sender readiness                                                                         | Configured-custom-provider messages use bounded retry within `expires_at`, then expire; no platform sender fallback          | Sender identity/readiness + template eligibility                           |
 | SMS                         | Registered platform/provider sender + neutral core org identification while no org custom SMS provider is configured | Paid copy treatment cannot invent sender identity                           | Registered/verified org sender where provider/region allows it                                                                        | Once org custom SMS provider is configured: hold/bounded retry within `expires_at`, then expire; never platform SMS fallback | Registration, consent/legal basis, delivery policy                         |
 | Push                        | Exact installed app/origin identity + neutral core org context when safe                                             | Paid presentation only within notification privacy limits                   | Generated org-PWA identity after origin/readiness activation                                                                          | Platform subscription/channel fallback                                                                                       | Exact origin/app subscription + topic consent                              |
-| Legal                       | Platform terms/privacy/operator                                                                                      | Org service/contact/privacy content                                         | Exact required parties/copy/presentation follows applicable law/contracts; no visible BersonCare promise                              | Safe legal-information route                                                                                                 | Legal review + validated published data                                    |
+| Legal                       | Platform terms/privacy/operator                                                                                      | Org service/contact/privacy content                                         | Exact required parties/copy/presentation follows applicable law/contracts; no visible Therapysto/Therapygo promise                     | Safe legal-information route                                                                                                 | Legal review + validated published data                                    |
 | Support/status              | Platform support and status on platform surfaces                                                                     | Org care/service support content                                            | Recovery/support/status functions remain reachable; exact visible identity follows later contract                                     | Safe support/status route                                                                                                    | Support responsibility review per issue class                              |
 | Domain settings/status      | Not configured explanation                                                                                           | Domain upsell/readiness preview                                             | Full verify/status/error/remove UI                                                                                                    | Canonical platform management route                                                                                          | Owner/admin capability; custom-domain entitlement                          |
 
@@ -125,7 +126,7 @@ boundaries so future work does not weaken authorization; every `F` cell is absen
 | Email                 | Verified platform sender plus neutral org identification for eligible transactional object                                                     | Branded header/body/template/contact; custom From is a separate sender gate                                    |
 | SMS                   | Registered sender plus neutral org identification and safe link context                                                                        | Optional branded copy within provider/legal limits; no inferred sender id                                      |
 | Push                  | Exact installed app identity plus privacy-safe org context where useful                                                                        | Limited branded wording; future org-app identity remains deferred                                              |
-| Legal/support         | Platform-default surface uses platform information; fully branded surface exposes information required by later legal/contract/security review | Organization-first layout and validated service-support presentation; no mandatory visible BersonCare inferred |
+| Legal/support         | Platform-default surface uses its Therapysto/Therapygo identity and platform information; fully branded surface exposes information required by later legal/contract/security review | Organization-first layout and validated service-support presentation; no mandatory visible Therapysto/Therapygo inferred |
 | Domain management     | Canonical org name, hostname/base/binding facts and platform fallback URLs                                                                     | Brand preview only; no effect on proof or readiness                                                            |
 
 In every row, paid additions may disappear independently. The minimum core payload remains after a trusted lookup or
@@ -135,7 +136,7 @@ authorized relationship and never contains extra private fields.
 
 - Audience: solo specialist and clinic buyer. Patient entry is a compact `У меня есть приглашение / Войти`, not a
   competing patient-acquisition hero.
-- Organization custom domains never redirect the platform root or specialist signup away from BersonCare.
+- Organization custom domains never redirect the Therapysto root or specialist signup away from Therapysto.
 - A published organization profile may be linked from a future directory. Directory/search is explicitly outside
   initial launch by owner ruling 2026-07-16.
 
@@ -267,7 +268,7 @@ immediately. HTTP/SMS submission retries apply to network timeout, `429` (respec
 `500/502/503/504`; other `4xx` are permanent unless the provider documents otherwise
 ([Twilio retry guidance](https://help.twilio.com/articles/48916449686299),
 [Twilio 20429](https://www.twilio.com/docs/api/errors/20429)). Retry is bounded, uses backoff+jitter and one stable
-`delivery_id`. Once a provider/MTA accepts submission, BersonCare never creates a new submit; it waits for provider
+`delivery_id`. Once a provider/MTA accepts submission, the platform never creates a new submit; it waits for provider
 status/callback and deduplicates callbacks by provider message id. An ambiguous SMTP disconnect after `DATA` is
 recorded as `unknown`: SMTP cannot guarantee exactly-once there, so the system reconciles status/dedupe evidence and
 does not blindly resubmit a new logical delivery.
@@ -275,7 +276,7 @@ This follows the retry/circuit patterns in
 [AWS Well-Architected](https://docs.aws.amazon.com/wellarchitected/2023-04-10/framework/rel_mitigate_interaction_failure_limit_retries.html)
 and [Azure Circuit Breaker](https://learn.microsoft.com/en-us/azure/architecture/patterns/circuit-breaker).
 
-**Configurable BersonCare product defaults, not RFC mandates:** `1m / 5m / 15m` with jitter is the
+**Configurable platform product defaults, not RFC mandates:** `1m / 5m / 15m` with jitter is the
 application-to-provider **pre-acceptance submission** schedule for transient network/API failures and SMTP submission
 failures only where the provider contract designates application-level retry. A direct SMTP `4xx`/MTA queue uses its
 configured SMTP/provider cadence; RFC 5321's roughly 30-minute retry and 4–5-day give-up guidance is the transport
@@ -329,7 +330,7 @@ about visible branding on a fully branded surface.
 
 Exact controller/operator/processor identity, copy, visible brand and placement require legal/contract/security
 approval. UX reserves reachable legal, privacy, terms, support and recovery functions without promising visible
-BersonCare/platform branding inside the fully branded org surface.
+Therapysto/Therapygo/platform branding inside the fully branded org surface.
 
 ## 9. Custom-domain base, surface bindings and UI
 

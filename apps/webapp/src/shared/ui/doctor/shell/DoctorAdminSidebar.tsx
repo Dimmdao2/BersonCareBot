@@ -13,6 +13,7 @@ import {
   DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
+import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 type DoctorAdminSidebarProps = {
   userDisplayName?: string;
@@ -81,9 +82,9 @@ export function DoctorAdminSidebar({
         </span>
         <span className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-sm font-semibold tracking-tight text-foreground">
-            {brand?.displayName ?? 'Therapysto'}
+            {brand?.displayName ?? STAFF_SURFACE_NAME}
           </span>
-          <span className="truncate text-xs text-muted-foreground">Therapysto</span>
+          <span className="truncate text-xs text-muted-foreground">{STAFF_SURFACE_NAME}</span>
         </span>
       </Link>
       <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

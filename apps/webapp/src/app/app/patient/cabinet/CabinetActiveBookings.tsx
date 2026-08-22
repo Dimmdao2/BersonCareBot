@@ -5,6 +5,7 @@ import { Button } from '@/shared/ui/patient/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/patient/primitives/card';
 import type { PatientBookingRecord } from '@/modules/patient-booking/types';
 import { formatBookingDateTimeMediumRu } from '@/shared/lib/formatBusinessDateTime';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import { bookingProvenancePrefix, nativeBookingSubtitle } from './patientBookingLabels';
 import { CabinetBookingActions } from './CabinetBookingActions';
 import { cn } from '@/lib/utils';
@@ -63,7 +64,7 @@ function googleCalendarUrl(booking: PatientBookingRecord): string {
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-function generateIcs(booking: PatientBookingRecord): string {
+function generateIcs(booking: PatientBookingRecord, appName: string): string {
   const uid = `bersoncare-booking-${booking.id}@bersoncare`;
   const title = booking.canonicalInPersonContext?.serviceTitle ?? 'Запись';
   const location = booking.canonicalInPersonContext?.branchTitle ?? '';
@@ -72,7 +73,7 @@ function generateIcs(booking: PatientBookingRecord): string {
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//BersonCare//BersonCare//RU',
+    `PRODID:-//${appName}//${appName}//RU`,
     'BEGIN:VEVENT',
     `UID:${uid}`,
     `DTSTART:${dtstart}`,
@@ -86,8 +87,8 @@ function generateIcs(booking: PatientBookingRecord): string {
     .join('\r\n');
 }
 
-function downloadIcs(booking: PatientBookingRecord): void {
-  const content = generateIcs(booking);
+function downloadIcs(booking: PatientBookingRecord, appName: string): void {
+  const content = generateIcs(booking, appName);
   const blob = new Blob([content], { type: 'text/calendar' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -100,6 +101,7 @@ function downloadIcs(booking: PatientBookingRecord): void {
 }
 
 export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
+  const surfaceName = useSurfaceName();
   if (bookings.length === 0) {
     return (
       <Card className={cn(patientCardClass, 'ring-0')}>
@@ -155,7 +157,7 @@ export function CabinetActiveBookings({ bookings, appDisplayTimeZone }: Props) {
                       variant="ghost"
                       size="sm"
                       className="h-auto min-h-0 px-1 py-0 text-xs"
-                      onClick={() => downloadIcs(row)}
+                      onClick={() => downloadIcs(row, surfaceName)}
                     >
                       .ics
                     </Button>

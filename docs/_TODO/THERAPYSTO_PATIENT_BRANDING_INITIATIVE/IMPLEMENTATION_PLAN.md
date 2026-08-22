@@ -421,6 +421,19 @@ Checkbox закрывается только доказательством, у�
   построены. Доказательство: operator runbook и отсутствие таких product flows в diff.
 - [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
   history не переименованы. Доказательство: scoped exact inventory before/after с явным allowlist technical/history.
+
+  > **НЕ ЗАКРЫВАТЬ (находка `S-1`, 22.08.2026).** Инвентаризация по всему репозиторию закрыта (`A3`), но
+  > текст кода входа по e-mail и SMS до сих пор говорит «BersonCare» и его видит **ПЕРСОНАЛ**, а не только
+  > пациенты: регистрация специалиста (`api/auth/specialist-signup/start`) и приём приглашения персонала
+  > (`api/clinic/invites/accept/start`) идут через `startEmailChallenge`, а живой источник текста —
+  > definer-функция `app.email_auth_start_challenge`
+  > (`deploy/postgres/organization-member-invites-rls.sql:929,931`), плюс те же строки хардкодом в
+  > `apps/integrator/src/integrations/bersoncare/{sendEmailRoute,sendSmsRoute,sendOtpRoute}.ts`.
+  > Четыре круга это пропустили, потому что мерили идентичность СТРАНИЦЫ, а текст письма не страница и не в
+  > webapp. **Строкой не чинится:** один путь обслуживает три разных правильных имени (Therapysto персоналу,
+  > Therapygo пациенту общего входа, бренд клиники пациенту клиники) — подстановка «Therapysto» нарушит
+  > `TPB-06`/`TPB-08`. Нужен параметр от вызывающего, а не дефолт у получателя, то есть механизм этапа `C`.
+  > Развилка владельцу — `Q1` в `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §6.
 - [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
   возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
   и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.
@@ -498,22 +511,24 @@ Checkbox закрывается только доказательством, у�
 > прямая команда владельца приземлять плюс bounded строковый rename; живая проверка выполнена ПОСЛЕ
 > landing, а не до.
 
-> **`A0`-РАСШИРЕННЫЙ ЗАКРЫТ 22.08.2026 после четырёх кругов и PASS независимого аудита** (круг 4,
+> **Ретроспектива четырёх кругов:** круг 4 объявил «`A0`-расширенный закрыт» после PASS независимого аудита
+> (это прежний вердикт, не текущий checkbox; пересмотр ниже опроверг полноту `A1` и нашёл остаток `A2b`)
+> (круг 4,
 > `1fe5f5660` + `51631fedf`, отчёт `5e4f3b7dc`; вердикты всех кругов — в
 > `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`). Работа ЛЕЖИТ НА ВЕТКЕ `wt/therapysto-stage-a-20260822`, в
 > `feat` не сведена — режим из шапки файла.
 >
-> - [x] `A1` **Единый typed product-surface config** — `config/productSurfaces.ts` (server, env-override)
+> - Предыдущее доказательство `A1`: **единый typed product-surface config** — `config/productSurfaces.ts` (server, env-override)
 >   + `config/productSurfaceNames.ts` (client-safe литералы; разделение проверено аудитором инъекцией:
 >   импорт серверного конфига из `'use client'` уводит `config/env.ts` с секретом в браузерный чанк).
 >   Therapysto у персонала, Therapygo у пациентов, значения переопределяются `PATIENT_APP_NAME` /
 >   `PATIENT_APP_ORIGIN`.
-> - [x] `A2a` **Идентичность поверхности больше не объявляется каждым маршрутом.** Девять
+> - Предыдущее доказательство `A2a`: **идентичность поверхности больше не объявляется каждым маршрутом.** Девять
 >   `export const metadata` удалены; вместо них одна таблица «путь → поверхность»
 >   (`config/surfaceRoutes.ts`) и одна точка применения — `generateMetadata` корневого layout; путь
 >   доносит `proxy.ts`. Новая страница внутри классифицированного поддерева получает верную
 >   идентичность, ничего не объявляя.
-> - [x] `A2b` **Metadata-часть Gate A** — гейт `surfaceRoutes.unit.test.ts` строит предикат накрытия из
+> - Предыдущее доказательство metadata-части `A2b`: гейт `surfaceRoutes.unit.test.ts` строит предикат накрытия из
 >   `config.matcher` самого `proxy.ts` (вторая копия удалена), плюс `proxy.route.test.ts` проверяет сам
 >   факт установки заголовков. Обе части проверены инъекциями.
 >
@@ -529,17 +544,59 @@ Checkbox закрывается только доказательством, у�
 
 - [ ] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
   deploy seam; standard patient `name` и `origin` — обязательные deploy inputs без placeholder/default бренда.
-- [ ] `A2` **Остаток после `A0`:** перевести root metadata, landing/legal и остальной невыполненный периметр на
-  Therapysto через единый identity value. Staff manifest/metadata/navigation/staff-facing copy уже закрыты в
-  `A0`; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без его команды. Patient metadata берёт standard patient config, а patient mail
-  становится brand-aware только в C.
+  **Частично:** единый typed config и один seam реализованы, но `config/env.ts` всё ещё задаёт defaults для
+  `PATIENT_APP_NAME` и `PATIENT_APP_ORIGIN`; это не соответствует требованию «обязательные deploy inputs».
+  Удаление defaults меняет deploy-контракт и требует owner-решения, поэтому этот ход его не подменяет.
+- [x] `A2a` **Остаток после `A0`, часть «единый identity seam»:** root metadata и лендинг переведены на
+  Therapysto через ОДИН identity value. Идентичность больше не объявляется на маршруте: таблица
+  `apps/webapp/src/config/surfaceRoutes.ts` («путь запроса → поверхность») применяется в единственной точке —
+  `generateMetadata` корневого `apps/webapp/src/app/layout.tsx` — сразу на metadata/manifest/icons и на видимое
+  имя через тот же `PlatformProvider`; девять прежних `export const metadata = staffPwaLayoutMetadata` удалены.
+  Доказательство: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CORRECTION_STAGE_A_ROUND3_2026-08-22.md` —
+  живой обход всех 149 маршрутов дерева на dev-сервере, 0 расхождений; проверка под тремя сессиями владельца;
+  `PATIENT_APP_NAME=QA-Renamed` не переопределяет staff-имя (`QA-Renamed`×0 на staff-маршрутах).
+- [x] `A2b` **Остаток `A2`:** legal-страницы и остальной невыполненный периметр (patient mail становится
+  brand-aware только в C; passkey/TOTP issuer исключены владельцем 22.08 и в этот пункт не возвращаются без
+  его команды). Patient metadata берёт standard patient config.
+  Закрыто 22.08.2026: две оставшиеся route-local metadata-декларации в `app/legal/*` удалены; legal title,
+  apple-title, manifest и icons теперь приходят из единственного root `generateMetadata`, живой прогон зелёный.
 - [ ] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
   occurrences. npm/package/table/module/route identifiers и archive/audit history не трогать.
+  **Инвентаризация закрыта 22.08.2026 по ВСЕМУ репозиторию** (прежние круги мерили `apps/webapp/src` и дважды
+  на этом попались): 4817 широких вхождений в 1222 файлах и 887 exact-oracle вхождений в 305 файлах
+  (evidence-report исключён из обеих команд, чтобы census не был самоссылочным),
+  разложены по четырём корзинам, каждое оставшееся — с
+  причиной. Первое заявление «корзина правим сейчас пуста» было неверным: standalone `admin/` не входил в
+  webapp-census; его `<title>` и `<h1>` исправлены на Therapysto и отдельная Vite-сборка зелёная.
+  Доказательство: `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §3 (числа + команды) и §4.1 (живой прогон, 8
+  staff-маршрутов, `BersonCare`×0).
+  **Пункт НЕ закрыт до конца из-за находки `S-1`** — см. `TPB-15` ниже.
 - [ ] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
   `TPB-01…16`. Не добавлять параллельную сноску рядом со старым активным вариантом и не редактировать archive.
+  Частично 22.08.2026: первоначальные 7 файлов правлены на месте (`README.md`, `docs/PRODUCT_OVERVIEW.md`,
+  `SCREEN_ARCHITECTURE_GUIDE.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `TOOLING_AND_PACKAGES_DECISIONS.md`,
+  `config/config.md`, `modules/auth/auth.md`) и дополнительные active SaaS branding contracts/runbooks,
+  сносок рядом со старым вариантом не добавлено. Но активный
+  `CLINIC_PUBLIC_PAGE_AND_URL_FLIP_2026-08-19.md` одновременно содержит новую карту 22.08 и старые
+  несовместимые domain-решения в §9/§11/§12; по прямому указанию брифа большой неочевидный rewrite вынесен
+  владельцу списком, а не переписан самовольно. Доказательство и полный список —
+  `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §4.2–4.3.
 
 **Gate A:** targeted config/metadata/auth tests, webapp lint+typecheck для изменённой ветки; review показывает один
 identity seam, а не набор getters.
+
+> Metadata-тест части Gate A закрыт 22.08.2026: `apps/webapp/src/config/surfaceRoutes.unit.test.ts` берёт список
+> маршрутов обходом реального `src/app/**` и краснеет, когда staff-маршрут отдаёт пациентскую идентичность.
+> Проверен тремя инъекциями неисправности (убрать правило поддерева · объявить staff-поддерево пациентским ·
+> добавить новый верхнеуровневый маршрут) — все три пойманы; см. `CORRECTION_STAGE_A_ROUND3_2026-08-22.md`.
+> `A2b` закрыт пересмотром 22.08. Остальные части Gate A (`auth tests`, `A3`/`A4`) остаются открытыми.
+>
+> Круг 4 (22.08.2026, `CORRECTION_STAGE_A_ROUND4_2026-08-22.md`) закрыл две находки круга 3 против этого же
+> гейта: гейт больше не читает вторую копию `config.matcher` (копия из `surfaceRoutes.ts` удалена, предикат
+> строится из самого `proxy.ts` — инъекция «убрать `/` из matcher'а», прежде не пойманная, теперь краснит два
+> теста), и `/app/contact-support` отдаёт Therapysto по staff-сигналам `from=clinic-demo` и `from=staff-factor`
+> (`TPB-08`; пациентская форма без параметра не задета). Обход выполнен ОТ staff-входов (лендинг, экраны входа
+> персонала, письма и приглашения), а не от дерева маршрутов — прежнее доказательство было круговым.
 
 ### Решение владельца 22.08.2026: общий вход `/app` на одном хосте не решаем; работа не приземляется
 
@@ -555,8 +612,7 @@ identity seam, а не набор getters.
 - **Правки этапа `A`, которые заставляют staff-страницы объявлять Therapysto, остаются нужными** и после
   переезда: они гарантируют, что зона персонала не наследует пациентскую идентичность независимо от хоста.
   Это не временная подпорка под одно-хостовый случай.
-- 🔴 **Ничего не приземляется** — см. режим работы в шапке файла: правило распространено владельцем на
-  ВСЕ этапы плана, не только на `A`. Этап `A` живёт на `wt/therapysto-stage-a-20260822`.
+- **Ведущий не сводит этапы в `feat`** — см. шапку файла. Этап `A` живёт на `wt/therapysto-stage-a-20260822`.
 - Владелец берёт на себя оба домена (`therapysto.ru` уже делегирован, `therapygo.ru` — за ним).
 
 ### B — Единый surface/brand path (`TPB-05`, `07`, `08`, `09`, `11`, `14`, `16`)

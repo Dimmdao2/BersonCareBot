@@ -1,4 +1,4 @@
-/** Публичный specialist-first лендинг BersonCare. */
+/** Публичный specialist-first лендинг Therapysto. */
 
 import type { Metadata } from 'next';
 import './styles/landing.css';
@@ -6,8 +6,9 @@ import { LandingAcquisition } from '@/components/landing/LandingAcquisition';
 import { LandingPwaClientBootstrap } from '@/components/landing/LandingPwaClientBootstrap';
 import { StandaloneRootRedirect } from '@/components/landing/StandaloneRootRedirect';
 import { env } from '@/config/env';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
-const ogTitle = 'BersonCare — кабинет специалиста';
+const ogTitle = `${STAFF_SURFACE.name} — кабинет специалиста`;
 const ogDescription =
   'Расписание, карточки клиентов, программы реабилитации и связь с пациентами в одном рабочем кабинете.';
 const shareImage = '/pwa-icon-512.png';
@@ -22,14 +23,14 @@ export function generateMetadata(): Metadata {
       title: ogTitle,
       description: ogDescription,
       url: appBaseUrl,
-      siteName: 'BersonCare',
+      siteName: STAFF_SURFACE.name,
       type: 'website',
       images: [
         {
           url: shareImage,
           width: 512,
           height: 512,
-          alt: 'Иконка BersonCare',
+          alt: `Иконка ${STAFF_SURFACE.name}`,
         },
       ],
     },
