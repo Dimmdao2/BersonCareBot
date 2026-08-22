@@ -6227,7 +6227,9 @@ const REV10_CONTEXT = {
           columns: ['organization_id', 'integrator_delivery_log_id', 'integrator_occurrence_id',
             'integrator_rule_id', 'integrator_user_id', 'channel', 'status', 'error_code',
             'payload_json', 'created_at'],
-          operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+          // Тело вставляет с `ON CONFLICT (<арбитр>) DO NOTHING`: указанный арбитр заставляет PostgreSQL
+          // ПРОЧИТАТЬ конфликтующую строку, поэтому одного INSERT для исполнения тела не хватает.
+          operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'integrator.direct_public_write_retries',
           columns: ['status', 'operation', 'organization_id', 'payload'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
