@@ -13,6 +13,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
+import { recordPatientCardOpen } from '@/app-layer/identity/recordIdentityBoundaryCrossing';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
@@ -78,6 +79,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ use
   if (!header) {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
+
+  // D15b/7a Ш8: открытие карточки — одна из четырёх точек пересечения границы «личность ↔
+  // медицина». Запись стоит ПОСЛЕ проверки доступа и после того, как карточка действительно
+  // отдана: журнал должен содержать состоявшиеся обращения, а не отказы — отказ и так виден
+  // отдельно, а «врач попробовал открыть чужого пациента» — это не пересечение границы.
+  // Объём — РАЗ на пару «врач-пациент» в сутки; повторные открытия того же дня поднимают счётчик
+  // повторов, а не плодят строки, и считает это база, а не маршрут.
+  await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.identity-boundary-audit', () =>
+    recordPatientCardOpen({
+      organizationId: gate.ctx.organizationId,
+      actorId: gate.ctx.session.user.userId,
+      patientUserId,
+    }),
+  );
 
   return NextResponse.json({ ok: true, header });
 }
