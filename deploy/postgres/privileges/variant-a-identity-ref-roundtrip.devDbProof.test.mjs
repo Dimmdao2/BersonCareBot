@@ -18,7 +18,8 @@
  * не довольствуется уже лежащей строкой, а требует ссылку у никому не известного uuid.
  *
  * Проверяется ПОВЕДЕНИЕ пары резолверов, а не текст их исходника и не наличие колонки:
- *   1. известный человек: `resolve_variant_a_identity(id)` → `resolve_variant_a_physical(ref)` = id,
+ *   1. известный человек: `resolve_variant_a_identity(id, 'actor')` →
+ *      `resolve_variant_a_physical(ref, 'actor')` = id,
  *      и повторный вызов на том же человеке отдаёт ТУ ЖЕ ссылку (карта append-only);
  *   2. новый человек: тот же круг проходит целиком, то есть путь вставки жив;
  *   3. выдуманная ссылка отвергается `42501`, а не отдаёт чужой id.
@@ -66,9 +67,9 @@ BEGIN
     PERFORM set_config('bcb.round_trip', 'no-fixture', false);
     RETURN;
   END IF;
-  first_ref := app_ext.resolve_variant_a_identity(person);
-  second_ref := app_ext.resolve_variant_a_identity(person);
-  back := app_ext.resolve_variant_a_physical(first_ref);
+  first_ref := app_ext.resolve_variant_a_identity(person, 'actor');
+  second_ref := app_ext.resolve_variant_a_identity(person, 'actor');
+  back := app_ext.resolve_variant_a_physical(first_ref, 'actor');
   PERFORM set_config('bcb.round_trip',
     first_ref::text || '|' || second_ref::text || '|' || back::text || '|' || person::text, false);
 EXCEPTION WHEN OTHERS THEN PERFORM set_config('bcb.round_trip', SQLSTATE || '|' || SQLERRM, false);
@@ -115,7 +116,7 @@ test('выдуманная ссылка отвергается 42501, а не о
 DO $$
 DECLARE invented uuid := '11111111-2222-4333-8444-555555555555';
 BEGIN
-  PERFORM app_ext.resolve_variant_a_physical(invented);
+  PERFORM app_ext.resolve_variant_a_physical(invented, 'actor');
   PERFORM set_config('bcb.invented', 'accepted', false);
 EXCEPTION WHEN OTHERS THEN PERFORM set_config('bcb.invented', SQLSTATE, false);
 END $$;

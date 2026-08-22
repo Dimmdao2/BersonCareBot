@@ -6759,10 +6759,6 @@ const REV10_CONTEXT = {
       // дверь, у неё эта поверхность и объявлена.
       delegatesTo: ['app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
-    // Совместимая сигнатура D15b/7a Ш3–Ш6: тонкий делегат без собственного тела, снимается Ш7.
-    // Своей поверхности у него нет и быть не может: карту читает и пишет тот, кому он передаёт.
-    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'compatibility delegate to the exact kind-aware variant-a map resolver', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-      relationSurfaces: [], delegatesTo: ['app_ext.resolve_variant_a_identity(uuid,text)'] }),
     // Deferred constraint trigger on app_ext.accepted_port_contexts: the accepted context is deleted
     // at COMMIT of the very transaction that installed it, so a committed context row cannot exist
     // and no periodic sweep is needed. DEFINER on the table owner because the effective role at
@@ -6788,15 +6784,6 @@ const REV10_CONTEXT = {
       // принимает аргументом, но ещё не сравнивает. Операция остаётся одна — SELECT.
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
-    // Совместимая сигнатура D15b/7a Ш3–Ш6. В отличие от делегата выдачи этот ещё жив для
-    // вызывающих ВНУТРИ базы (`app.current_actor_user_id`, `app.current_patient_user_id`,
-    // `app_ext.assert_port_context_claim`) до Ш5, поэтому сохраняет EXECUTE. Своей поверхности нет.
-    'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
-      purpose: 'compatibility delegate to the exact kind-aware reverse Variant-A resolver', typedArgs: ['uuid'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-      relationSurfaces: [], delegatesTo: ['app_ext.resolve_variant_a_physical(uuid,text)'],
-    }),
     // Проверка заявки на арендатора при установке контекста (19.08).  Живёт у шва личностей, а не
     // у шва контекста: контекст ещё не установлен, а этому владельцу RLS-политики членства открыты
     // без контекста, и ровно эти колонки у него уже есть под другие его функции — новых прав
@@ -6820,16 +6807,6 @@ const REV10_CONTEXT = {
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_pre_session', 'app_platform_admin'],
       purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-    }),
-    // Совместимая сигнатура D15b/7a Ш3–Ш6, снимается Ш7. Без EXECUTE и без своей capability:
-    // три веб-возможности этой же правкой уехали на двухаргументный корень, и пришедший сюда всё
-    // равно не смог бы засвидетельствовать под неё контекст. Грант здесь был бы ВТОРОЙ ЖИВОЙ
-    // ДВЕРЬЮ к карте личностей — ровно то, против чего весь этот раздел (AGENTS.md §5).
-    'app.pre_session_resolve_identity(uuid)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [],
-      purpose: 'compatibility delegate to the exact kind-aware pre-session identity root', typedArgs: ['uuid'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-      relationSurfaces: [], delegatesTo: ['app_ext.resolve_variant_a_identity(uuid,text)'],
     }),
     'app.auth_channel_binding_session(text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
