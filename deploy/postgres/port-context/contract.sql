@@ -141,11 +141,73 @@ CREATE TABLE IF NOT EXISTS app_ext.accepted_port_contexts (
   PRIMARY KEY (database_oid, backend_pid, transaction_id),
   CHECK (cleared_at IS NULL OR cleared_at >= installed_at)
 );
+-- ОДНА строка на человека НА КАЖДЫЙ ВИД непрозрачной ссылки (D15b/7a, шаги 1-2, 22.08).
+--
+-- Оракул просит «разделить opaque actor/identity ref и opaque medical-subject ref»
+-- (`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`, D15b/7).  До этой правки требование
+-- было не просто не выполнено, а НЕВЫРАЗИМО: карта держала ОДНУ ссылку на человека,
+-- `portContextRuntime.ts:355-356` подставлял одно и то же значение и в `actor_ref`, и в
+-- `subject_ref`, а `assert_port_context_claim` разрешал оба поля одним и тем же
+-- `resolve_variant_a_physical`.  Резолверу, который «не принимает actor-ref вместо subject-ref»,
+-- нечего было отвергать, пока вид ссылки существовал в единственном экземпляре.
+--
+-- Шаг 1 даёт карте ВИД, шаг 2 переводит ключ на пару.  Поведение НЕ меняется: все существующие
+-- строки получают `ref_kind = 'actor'` из DEFAULT, каждый читатель читает те же строки, что вчера,
+-- ни одна сигнатура резолвера и ни одна политика не тронуты.  `opaque_ref` остаётся глобально
+-- UNIQUE: две ссылки не должны совпасть, какого бы вида они ни были.  Вид — закрытый список, а не
+-- свободный текст: неизвестное значение после шага 5 неотличимо от ссылки не того вида,
+-- пронесённой мимо резолвера.
+--
+-- ПОЧЕМУ ЭТОТ DDL ЖИВЁТ ЗДЕСЬ, А НЕ В `apps/webapp/db/drizzle-migrations/` (замерено 22.08).
+-- `ALTER TABLE … ADD CONSTRAINT … PRIMARY KEY` строит индекс, то есть требует ОДНОВРЕМЕННО
+-- владения таблицей и CREATE на схеме.  В `app_ext` эти два права принадлежат РАЗНЫМ ролям и
+-- пересечения нет:
+--   * `app_seam_identity_lookup_owner` (владелец таблицы): `ADD COLUMN` проходит, а
+--     `ADD CONSTRAINT … PRIMARY KEY` отвечает `42501 permission denied for schema app_ext` —
+--     на схеме у него только USAGE (`nspacl`: `app_seam_identity_lookup_owner=U`);
+--   * `app_object_owner` (единственный, у кого на `app_ext` есть `UC`): `must be owner of table`;
+--   * членства между ними нет (`pg_auth_members` — ноль строк).
+-- Ни одна роль не может выполнить этот statement, а выдать недостающее право миграцией запрещено
+-- прямо (AGENTS.md §1, «⛔ Миграция не выдаёт и не отзывает права»); объявить же семенному
+-- владельцу CREATE на `app_ext` значило бы разрешить ему плодить в шве любые объекты — ровно то,
+-- против чего эта схема и построена.  Этот файл — авторитет рождения объектов `app_ext` (он же
+-- снимает стену рождения на время своего прохода, см. заголовок), поэтому здесь DDL исполняется
+-- локальным административным каналом reconcile и остаётся идемпотентным.
 CREATE TABLE IF NOT EXISTS app_ext.variant_a_identity_refs (
-  physical_user_id uuid PRIMARY KEY,
+  physical_user_id uuid NOT NULL,
   opaque_ref uuid NOT NULL UNIQUE,
-  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+  ref_kind text NOT NULL DEFAULT 'actor',
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+  CONSTRAINT variant_a_identity_refs_pkey PRIMARY KEY (physical_user_id, ref_kind),
+  CONSTRAINT variant_a_identity_refs_ref_kind_check CHECK (ref_kind IN ('actor', 'subject'))
 );
+-- Таблица уже рождённая (DEV, TEST, PROD и любая база из снимка схемы B) приходит к той же форме
+-- этими шагами.  Каждый из них проверяет факт, а не догадку, поэтому повторный reconcile — no-op.
+ALTER TABLE app_ext.variant_a_identity_refs
+  ADD COLUMN IF NOT EXISTS ref_kind text NOT NULL DEFAULT 'actor';
+DO $variant_a_kind$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_constraint
+                  WHERE conrelid = 'app_ext.variant_a_identity_refs'::regclass
+                    AND conname = 'variant_a_identity_refs_ref_kind_check') THEN
+    ALTER TABLE app_ext.variant_a_identity_refs
+      ADD CONSTRAINT variant_a_identity_refs_ref_kind_check CHECK (ref_kind IN ('actor', 'subject'));
+  END IF;
+  -- Ключ по паре.  Пока все строки — 'actor', новый ключ удовлетворён каждой существующей строкой
+  -- и отвергает ровно те дубли, что отвергал старый; обратим (вернуть PRIMARY KEY
+  -- (physical_user_id)) до тех пор, пока не появилась первая строка вида 'subject' — то есть до
+  -- шага 4.  Имя constraint остаётся прежним: ключ расширяется, а не заменяется.
+  IF EXISTS (SELECT 1 FROM pg_catalog.pg_constraint
+              WHERE conrelid = 'app_ext.variant_a_identity_refs'::regclass
+                AND contype = 'p'
+                AND pg_catalog.pg_get_constraintdef(oid)
+                    <> 'PRIMARY KEY (physical_user_id, ref_kind)') THEN
+    ALTER TABLE app_ext.variant_a_identity_refs DROP CONSTRAINT variant_a_identity_refs_pkey;
+    ALTER TABLE app_ext.variant_a_identity_refs
+      ADD CONSTRAINT variant_a_identity_refs_pkey PRIMARY KEY (physical_user_id, ref_kind);
+  END IF;
+END
+$variant_a_kind$;
 ALTER TABLE app_ext.port_context_capabilities OWNER TO app_seam_context_owner;
 ALTER TABLE app_ext.accepted_port_contexts OWNER TO app_seam_context_owner;
 ALTER TABLE app_ext.variant_a_identity_refs OWNER TO app_seam_identity_lookup_owner;
@@ -579,7 +641,13 @@ BEGIN
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
     )::uuid)
-    ON CONFLICT (physical_user_id) DO NOTHING
+    -- The arbiter names the REAL index.  Since D15b/7a step 2 the primary key is
+    -- `(physical_user_id, ref_kind)`, and `ON CONFLICT (<columns>)` is index inference: a
+    -- specification naming `physical_user_id` alone matches no index any more and would die
+    -- `42P10` on the first resolution of an unknown person.  `ref_kind` is not assigned by the
+    -- INSERT above -- it arrives from the column DEFAULT `'actor'` -- but inference is about the
+    -- index, not about the insert column list, so the conflicting row is still found.
+    ON CONFLICT (physical_user_id, ref_kind) DO NOTHING
     RETURNING opaque_ref INTO opaque;
     IF opaque IS NOT NULL THEN RETURN opaque; END IF;
   END LOOP;
