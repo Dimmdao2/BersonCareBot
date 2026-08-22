@@ -716,18 +716,6 @@ BEGIN
     MESSAGE = 'variant-a identity reference could not be resolved';
 END $$;
 
--- Compatibility signature, D15b/7a steps 3-6 only.  It carries no body of its own: it names the
--- actor kind and hands the whole question to the one resolver above, so there is exactly one place
--- where a reference is read or minted.  Step 7 drops it by name.  It holds NO execute grant --
--- a granted twin would be a second live door into the map, which is the opposite of what this
--- split is for; what survives here is the OID, so a rollback of step 3 is an edit of bodies and
--- descriptors rather than a re-creation of a function other objects point at.
-CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN
-  RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, 'actor');
-END $$;
-
 -- D15b/7a step 5 (22.08): the reverse resolver COMPARES the kind, and this is the step where the
 -- oracle's requirement -- "the resolver does not accept an actor-ref where a subject-ref is due"
 -- (`WORK_ORDER.md`, D15b/7) -- stops being a promise about the application and becomes a refusal
@@ -756,19 +744,6 @@ BEGIN
    WHERE opaque_ref = p_opaque_ref AND ref_kind = p_expected_ref_kind;
   IF physical_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted opaque identity context required'; END IF;
   RETURN physical_id;
-END $$;
-
--- Compatibility signature, D15b/7a steps 3-6 only.  Until step 5 it had live in-database callers:
--- `app.current_actor_user_id`, `app.current_patient_user_id` and `app_ext.assert_port_context_claim`
--- each resolved a reference without naming a kind.  Step 5 gave all three the kind they mean, so
--- nothing inside the database reaches this door any more.  It survives to step 7, which drops it by
--- name, and it keeps its execute grant meanwhile -- withdrawing the grant is a privilege change,
--- and step 5 changes no privileges (scheme, section 3.2).  It is not a way around the check: it
--- carries no body of its own, it names the ACTOR kind, and the one resolver above compares it.
-CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN
-  RETURN app_ext.resolve_variant_a_physical(p_opaque_ref, 'actor');
 END $$;
 
 -- Заявку на арендатора проверяет БАЗА, а не приложение.  До 19.08 `install_port_context` разбирал
@@ -972,16 +947,6 @@ BEGIN
   RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, p_ref_kind);
 END $$;
 
--- Compatibility signature, D15b/7a steps 3-6 only; step 7 drops it by name.  It holds NO execute
--- grant and therefore no capability of its own: the three webapp capabilities moved to the
--- two-argument identity in the same change, so a caller arriving here could not attest a context
--- for it anyway.  What it preserves is the OID other objects and a rollback can point at.
-CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid)
-RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
-BEGIN
-  RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, 'actor');
-END $$;
-
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.clear_port_context() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.begin_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
@@ -992,12 +957,9 @@ ALTER FUNCTION app.current_org_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_actor_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_patient_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_integrator_user_id() OWNER TO app_seam_context_owner;
-ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid,text) OWNER TO app_seam_identity_lookup_owner;
-ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid,text) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) OWNER TO app_seam_identity_lookup_owner;
-ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.pre_session_resolve_identity(uuid,text) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
@@ -1013,15 +975,8 @@ GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_clinic_b
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_clinic_billing, app_patient, app_integrator_request, app_tenant_service, app_worker;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_request;
--- Step 3 moves the human entry door to the two-argument identity.  The one-argument compatibility
--- signatures of the ROOT and of the private minting resolver are deliberately left ungranted --
--- see their bodies.  The reverse resolver keeps both grants because both signatures still have
--- live in-database callers until step 5.
 GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid,text) TO app_pre_session, app_platform_admin;
-REVOKE ALL ON FUNCTION app.pre_session_resolve_identity(uuid) FROM app_pre_session, app_platform_admin;
-REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid) FROM app_pre_session, app_seam_password_auth_owner;
 REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid,text) FROM app_pre_session, app_seam_password_auth_owner;
-GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid) TO app_seam_context_owner;
 GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid,text) TO app_seam_context_owner;
 REVOKE ALL ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) TO app_seam_context_owner;

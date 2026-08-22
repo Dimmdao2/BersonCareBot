@@ -207,7 +207,7 @@ DECLARE u uuid; ch uuid; opaque uuid; r record; s text; provisioned boolean := f
 BEGIN
   SELECT v INTO u FROM ids WHERE k = 'u';
   SELECT v INTO ch FROM ids WHERE k = 'ch';
-  opaque := app_ext.resolve_variant_a_identity(u);
+  opaque := app_ext.resolve_variant_a_identity(u, 'actor');
   PERFORM pg_temp.accept_relation_context('app_patient', opaque);
   BEGIN
     SELECT * INTO r FROM app.provision_specialist_owner(ch);

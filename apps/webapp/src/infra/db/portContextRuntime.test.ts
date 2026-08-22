@@ -162,6 +162,44 @@ describe('webapp port-context runtime', () => {
     expect(releases).toHaveLength(0);
   });
 
+  it('does not select an injected legacy one-argument identity root', async () => {
+    const resolverQueries: string[] = [];
+    const pool = createWebappPoolProvider({
+      portContext: {
+        staff: { connectionString: 'postgresql://staff@example.test/app', ssl: {} },
+        patient: { connectionString: 'postgresql://patient@example.test/app', ssl: {} },
+        globalAdmin: { connectionString: 'postgresql://global-admin/app' },
+        capabilities: staffCapabilities,
+      },
+      poolFactory: () => {
+        const client = {
+          query: async (input: FakeQueryInput, values?: readonly unknown[]) => {
+            const query = normalizeFakeQuery(input, values);
+            if (query.text.startsWith('SELECT app.pre_session_resolve_identity')) {
+              resolverQueries.push(query.text);
+              if (query.text === 'SELECT app.pre_session_resolve_identity($1::uuid) AS opaque_ref') {
+                throw new Error('injected legacy root was selected');
+              }
+              return { rows: [{ opaque_ref: OPAQUE_USER }], rowCount: 1 };
+            }
+            return { rows: [{ client }], rowCount: 1 };
+          },
+          release: () => undefined,
+        } as unknown as PoolClient;
+        return { connect: async () => client, on: () => undefined, end: async () => undefined } as unknown as Pool;
+      },
+    });
+
+    await runWithDbStaffPrincipal(
+      { organizationId: ORG, platformUserId: USER },
+      () => runPgPoolPgText(pool, 'SELECT exact_client'),
+    );
+
+    expect(resolverQueries).toEqual([
+      'SELECT app.pre_session_resolve_identity($1::uuid, $2::text) AS opaque_ref',
+    ]);
+  });
+
   it('destroys the checkout when cleanup fails instead of returning it to either physical pool', async () => {
     const log: string[] = [];
     const releases: Error[] = [];
