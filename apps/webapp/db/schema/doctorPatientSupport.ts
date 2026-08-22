@@ -1,12 +1,17 @@
 import {
   boolean,
+  check,
+  date,
   foreignKey,
   index,
+  integer,
   pgTable,
+  text,
   timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 import { beOrganizations } from './bookingEngine';
 import { platformUsers } from './schema';
 
@@ -26,6 +31,11 @@ export const doctorPatientSupport = pgTable(
     commentsEnabled: boolean('comments_enabled'),
     /** null = use doctor default for patients without support */
     mediaEnabled: boolean('media_enabled'),
+    /** Patient-subject demographics; deliberately not stored on the actor account root. */
+    birthDate: date('birth_date'),
+    gender: text('gender'),
+    heightCm: integer('height_cm'),
+    weightKg: integer('weight_kg'),
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -35,6 +45,10 @@ export const doctorPatientSupport = pgTable(
     index('idx_doctor_patient_support_organization_id').on(table.organizationId),
     uniqueIndex('uq_doctor_patient_support_patient').on(table.patientUserId),
     index('idx_doctor_patient_support_on_support').on(table.onSupport),
+    check(
+      'doctor_patient_support_gender_check',
+      sql`${table.gender} IS NULL OR ${table.gender} IN ('male', 'female')`,
+    ),
     foreignKey({
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],

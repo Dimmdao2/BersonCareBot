@@ -1154,7 +1154,7 @@ SELECT :'cutover_d16_result'::json AS cutover_step_d16_message_drafts;
 -- The separated identity profile is derived from the already owner-reviewed platform users.
 \echo '=== CUTOVER STEP D17/24: build canonical identity profiles ==='
 INSERT INTO public.user_identity (
-  platform_user_id, first_name, last_name, patronymic, display_name, birth_date,
+  platform_user_id, first_name, last_name, patronymic, display_name,
   created_at, updated_at
 )
 SELECT
@@ -1163,7 +1163,6 @@ SELECT
   user_row.last_name,
   user_row.patronymic,
   COALESCE(user_row.display_name, ''),
-  user_row.birth_date,
   user_row.created_at,
   user_row.updated_at
 FROM public.platform_users user_row
@@ -1187,6 +1186,86 @@ SELECT json_build_object(
 )::text AS result
 \gset cutover_d17_
 SELECT :'cutover_d17_result'::json AS cutover_step_d17_identity_profiles;
+
+-- D15b/7a: patient-subject demographics leave the actor root.  The ordinary common-column copy
+-- cannot carry source-only actor columns, so this explicit transform preserves them in the
+-- already-existing tenant-walled clinical profile.
+INSERT INTO public.doctor_patient_support AS clinical_profile (
+  organization_id, patient_user_id, height_cm, weight_kg, gender, birth_date, updated_at
+)
+SELECT
+  COALESCE(
+    existing_profile.organization_id,
+    (
+      SELECT enrollment.organization_id
+      FROM public.org_enrollments AS enrollment
+      WHERE enrollment.platform_user_id = source_person.id
+        AND enrollment.status IN ('active', 'invited')
+      ORDER BY (enrollment.status = 'active') DESC, enrollment.organization_id
+      LIMIT 1
+    )
+  ),
+  source_person.id,
+  source_person.height_cm,
+  source_person.weight_kg,
+  source_person.gender,
+  source_person.birth_date,
+  now()
+FROM cutover_source_public.platform_users AS source_person
+LEFT JOIN public.doctor_patient_support AS existing_profile
+  ON existing_profile.patient_user_id = source_person.id
+WHERE source_person.role = 'client'
+  AND (
+    source_person.height_cm IS NOT NULL
+    OR source_person.weight_kg IS NOT NULL
+    OR source_person.gender IS NOT NULL
+    OR source_person.birth_date IS NOT NULL
+  )
+ON CONFLICT (patient_user_id) DO UPDATE SET
+  height_cm = EXCLUDED.height_cm,
+  weight_kg = EXCLUDED.weight_kg,
+  gender = EXCLUDED.gender,
+  birth_date = EXCLUDED.birth_date,
+  updated_at = EXCLUDED.updated_at;
+
+DO $cutover_d17_patient_demographics$
+DECLARE
+  v_before record;
+  v_after record;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM cutover_source_public.platform_users
+    WHERE role IS DISTINCT FROM 'client'
+      AND (height_cm IS NOT NULL OR weight_kg IS NOT NULL OR gender IS NOT NULL OR birth_date IS NOT NULL)
+  ) THEN
+    RAISE EXCEPTION 'D17 patient demographics exist on a non-client actor';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+    FROM public.doctor_patient_support
+    WHERE organization_id IS NULL
+      AND (height_cm IS NOT NULL OR weight_kg IS NOT NULL OR gender IS NOT NULL OR birth_date IS NOT NULL)
+  ) THEN
+    RAISE EXCEPTION 'D17 patient demographics have no clinic tenant key';
+  END IF;
+  SELECT count(height_cm) AS height_count,
+         count(weight_kg) AS weight_count,
+         count(gender) AS gender_count,
+         count(birth_date) AS birth_count
+    INTO v_before
+  FROM cutover_source_public.platform_users;
+  SELECT count(height_cm) AS height_count,
+         count(weight_kg) AS weight_count,
+         count(gender) AS gender_count,
+         count(birth_date) AS birth_count
+    INTO v_after
+  FROM public.doctor_patient_support;
+  IF v_before IS DISTINCT FROM v_after THEN
+    RAISE EXCEPTION 'D17 patient demographic count mismatch: before=%, after=%', v_before, v_after;
+  END IF;
+END
+$cutover_d17_patient_demographics$;
 
 \echo '=== CUTOVER STEP D18/24: build normalized identity contacts ==='
 INSERT INTO public.user_contacts (

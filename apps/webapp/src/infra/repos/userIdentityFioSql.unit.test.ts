@@ -19,7 +19,7 @@ describe('userIdentityFioSql — D15b/5 source-of-truth contract', () => {
     expect(USER_IDENTITY_FIO_JOIN).toContain('user_identity ui');
   });
 
-  it('syncUserIdentityFioMirror upserts all five FIO columns for EVERY row, tombstones included', async () => {
+  it('syncUserIdentityFioMirror upserts all four name columns for EVERY row, tombstones included', async () => {
     const query = vi.fn(
       async (_sql: string, _params?: unknown[]) => ({ rows: [] as never[], rowCount: 1 }),
     );
@@ -32,9 +32,10 @@ describe('userIdentityFioSql — D15b/5 source-of-truth contract', () => {
     expect(params).toEqual([userId]);
     expect(sql).toContain('INSERT INTO public.user_identity');
     expect(sql).toContain('ON CONFLICT (platform_user_id) DO UPDATE SET');
-    for (const col of ['first_name', 'last_name', 'patronymic', 'display_name', 'birth_date']) {
+    for (const col of ['first_name', 'last_name', 'patronymic', 'display_name']) {
       expect(sql).toContain(col);
     }
+    expect(sql).not.toContain('birth_date');
     // A `merged_into_id IS NULL` filter here would leave merge tombstones without a mirror row,
     // and with the reader fallback gone their FIO would read NULL.
     expect(sql).not.toContain('merged_into_id IS NULL');

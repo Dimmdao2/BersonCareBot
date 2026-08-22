@@ -22,12 +22,10 @@ export const FIO = {
   lastName: 'ui.last_name',
   patronymic: 'ui.patronymic',
   displayName: 'ui.display_name',
-  birthDate: 'ui.birth_date',
 } as const;
 
-/** Five FIO columns with legacy column aliases for drop-in SELECT lists. */
-export const FIO_SELECT =
-  `${FIO.displayName} AS display_name, ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, ${FIO.patronymic} AS patronymic, ${FIO.birthDate} AS birth_date`;
+/** Four name columns with legacy column aliases for drop-in SELECT lists. */
+export const FIO_SELECT = `${FIO.displayName} AS display_name, ${FIO.firstName} AS first_name, ${FIO.lastName} AS last_name, ${FIO.patronymic} AS patronymic`;
 
 function resolveWebappSqlExecutor(executor: WebappSqlExecutor | PoolClient): WebappSqlExecutor {
   if ('release' in executor && typeof (executor as PoolClient).release === 'function') {
@@ -60,5 +58,4 @@ export const drizzleFioCols = {
   firstName: sql<string | null>`${userIdentity.firstName}`,
   lastName: sql<string | null>`${userIdentity.lastName}`,
   patronymic: sql<string | null>`${userIdentity.patronymic}`,
-  birthDate: sql<string | null>`${userIdentity.birthDate}`,
 };
