@@ -63,6 +63,18 @@ async function readAnalyticsTestAccountIdentifiers(deps: {
 }
 
 /**
+ * Идентификаторы служебных учёток в том виде, в каком они уезжают за именованную дверь. Один тип на
+ * все платформенные поверхности: у `app_platform_settings` нет прав резолвить их в id, и каждая
+ * копия этой формы рано или поздно разъезжается с той, которую разбирает SQL-корень.
+ */
+export type AnalyticsTestAccountSpec = {
+  includeTestAccounts: boolean;
+  testPhones: string[];
+  testTelegramIds: string[];
+  testMaxIds: string[];
+};
+
+/**
  * Идентификаторы тестовых/служебных учёток БЕЗ резолва их id. Резолв (`platform_users`,
  * `user_channel_bindings`) доступен не каждому принципалу: платформенная аналитика ходит под
  * ролью, у которой на эти таблицы прав нет, и отсекает учётки уже за дверью агрегата. Политика
@@ -70,12 +82,7 @@ async function readAnalyticsTestAccountIdentifiers(deps: {
  */
 export async function loadAnalyticsTestAccountSpec(deps: {
   systemSettings: SettingsReader;
-}): Promise<{
-  includeTestAccounts: boolean;
-  testPhones: string[];
-  testTelegramIds: string[];
-  testMaxIds: string[];
-}> {
+}): Promise<AnalyticsTestAccountSpec> {
   const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
   if (includeTestAccounts) {
     return { includeTestAccounts: true, testPhones: [], testTelegramIds: [], testMaxIds: [] };

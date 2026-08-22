@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
+import { loadPlatformAnalyticsAudienceSpec } from '@/app-layer/analytics/loadAnalyticsAudience';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   requireAdminApiContext,
@@ -43,7 +43,10 @@ export async function GET(req: Request) {
 
   const iana = await getAppDisplayTimeZone();
   const deps = buildAppDeps();
-  const audience = await loadDoctorAnalyticsAudience();
+  // Спецификация служебных учёток, а НЕ список их id: резолв id читает `platform_users` и
+  // `user_channel_bindings`, у платформенного принципала на них прав нет, и раньше он падал
+  // здесь 42501 ещё до самих счётчиков. Отсев уехал за ту же дверь, что и агрегаты.
+  const audience = await loadPlatformAnalyticsAudienceSpec();
 
   try {
     const body = await deps.adminPlatformUserStats.getSubscriberStats({
@@ -51,7 +54,7 @@ export async function GET(req: Request) {
       preset,
       customFrom: fromRaw ?? undefined,
       customTo: toRaw ?? undefined,
-      excludedUserIds: audience.excludedUserIds,
+      audience,
     });
     return NextResponse.json({ ok: true as const, ...body });
   } catch (e) {

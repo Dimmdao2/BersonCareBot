@@ -1978,6 +1978,9 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
     contacts: ['SELECT'],
   },
+  'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)': {
+    contacts: ['SELECT'],
+  },
   'app.redeem_patient_invite_email(text)': {
     contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
@@ -2503,9 +2506,17 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
+    // Дверь ПОРТА ИНТЕГРАТОРА в общий с вебаппом корень. Роль — своя, `app_integrator_request`:
+    // до 22.08 эта дверь называла роль ВЕБАППА, и попасть в собственный корень интегратор мог
+    // только надев её вместе со всем арендаторским столом вебаппа. Дверь вебаппа в тот же корень
+    // (`integrator_reminder_occurrence_finalized_record`) свою роль сохраняет — соответствие
+    // «дверь → роль» один к одному, гейт корня ветвится по двери (миграция
+    // `20260822T140000_the_shared_roots_name_the_role_of_their_door.sql`).
+    // Класс контекста остаётся `tenant_service`: рантайм порта интегратора выбирает возможность по
+    // паре (function_identity, contextClass), а живой вызывающий держит организационный принципал.
     integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
       runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.reminder-occurrence-finalized.record',
       functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     integrator_delivery_reminder_occurrence_finalized_record: { port: 'integrator',
@@ -2564,9 +2575,13 @@ const REV10_CONTEXT = {
     // Ключ обязан отличаться от ключа двери вебаппа: каталог — один объектный литерал, и одинаковый
     // ключ не «дополняет», а вытесняет соседа молча. Префикс `integrator_port_` — тот же, которым
     // уже отличается вторая дверь `record_reminder_occurrence_finalized_projection` (см. выше).
+    // Роль — своя, `app_integrator_request`, по той же причине и той же формой, что у второй двери
+    // `record_reminder_occurrence_finalized_projection` выше: одно тело, две двери, у каждой ветки
+    // гейта ровно одна роль. Дверь вебаппа `integrator_support_delivery_attempt_record` остаётся на
+    // `app_tenant_service`.
     integrator_port_support_delivery_attempt_record: { port: 'integrator',
       runtimeName: 'support_delivery_attempt_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.support-delivery-attempt.record',
       functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     integrator_notification_delivery_attempt_record: { port: 'integrator',
@@ -2639,6 +2654,14 @@ const REV10_CONTEXT = {
       targetRole: 'app_platform_settings', contextClass: 'platform',
       purpose: 'analytics.platform-dashboard.read',
       functionIdentity: 'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)' },
+    // Экраны «Регистрации и слияния» и «Подписчики приложения» — та же дверь, тот же принципал.
+    // Ключ здесь один, потому что и корень один: каталог возможностей — ОДИН объектный литерал, и
+    // одинаковый ключ не дополняет соседа, а вытесняет его молча.
+    webapp_platform_user_stats: { port: 'webapp',
+      runtimeName: 'platform_user_stats', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.platform-user-stats.read',
+      functionIdentity: 'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)' },
     list_platform_registration_analytics_events: { port: 'webapp',
       runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -3609,6 +3632,30 @@ const REV10_CONTEXT = {
         { relation: 'public.media_playback_client_events', columns: ['created_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.media_hls_proxy_error_events', columns: ['created_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Одна дверь на ОБА экрана платформенной статистики людей («Регистрации и слияния» и
+    // «Подписчики приложения»): оба спрашивают «сколько людей за окно локальных суток за вычетом
+    // служебных учёток» теми же четырьмя аргументами, поэтому это секции одного ответа, а не две
+    // функции (AGENTS §5). Владелец шва — существующий `app_seam_platform_analytics_owner`: ровно
+    // он уже читает все три отношения этого тела ради соседнего корня дашборда, и второй владелец
+    // не нужен. `app_platform_settings` получает EXECUTE и ни одного табличного гранта: у неё на
+    // `platform_users` только `SELECT (id, calendar_timezone)`, а на `user_channel_bindings` —
+    // ничего, и по решению Р-АДМИН (22.08) так и остаётся. Ровно на этом оба экрана и отдавали 500
+    // с 42501 (живой обход TEST 22.08.2026).
+    'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)': rev10Function({
+      owner: 'app_seam_platform_analytics_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_platform_settings'],
+      purpose: 'return only aggregated platform user registration/merge/subscriber counts',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users',
+          columns: ['id', 'role', 'created_at', 'merged_at', 'merged_into_id', 'is_archived'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings',
+          columns: ['user_id', 'channel_code', 'external_id', 'created_at', 'bot_blocked_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -5437,7 +5484,10 @@ const REV10_CONTEXT = {
     }),
     'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
-      execute: ['app_tenant_service'],
+      // Две двери — две роли: `app_tenant_service` открывает дверь вебаппа, `app_integrator_request`
+      // дверь порта интегратора. EXECUTE принадлежит функции целиком, поэтому здесь их обе; какая
+      // роль ходит какой дверью, решает гейт тела, и каждая его ветка называет ровно одну.
+      execute: ['app_integrator_request', 'app_tenant_service'],
       purpose: 'idempotently record one delivery result inside the attested organization',
       typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'integer', 'text', 'text', 'timestamp with time zone'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
