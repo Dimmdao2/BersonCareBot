@@ -103,19 +103,18 @@ AS $function$
 DECLARE
   v_details jsonb;
   v_existing_id uuid;
-  v_inserted_first boolean := false;
+  v_inserted_first boolean;
   v_status text;
   v_needs_org boolean;
   v_crossing boolean;
   v_key text;
   v_day text;
-  v_volume bigint := 0;
-  v_alarm boolean := false;
+  v_volume bigint;
+  v_alarm boolean;
   v_alarm_key text;
-  v_uuid_re constant text := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
-  v_crossing_actions constant text[] :=
-    ARRAY['identity_session_start', 'identity_patient_card_open', 'identity_patient_list_view'];
-  v_volume_threshold constant bigint := 200;
+  v_uuid_re text;
+  v_crossing_actions text[];
+  v_volume_threshold bigint;
 BEGIN
   PERFORM app.require_accepted_context(
     'app_seam_identity_lookup_owner'::name,
@@ -156,6 +155,13 @@ BEGIN
       ELSE 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)'::regprocedure
     END
   );
+
+  v_inserted_first := false;
+  v_volume := 0;
+  v_alarm := false;
+  v_uuid_re := '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  v_crossing_actions := ARRAY['identity_session_start', 'identity_patient_card_open', 'identity_patient_list_view'];
+  v_volume_threshold := 200;
 
   IF p_action IS NULL OR p_action NOT IN (
     'messenger_phone_bind_blocked',
