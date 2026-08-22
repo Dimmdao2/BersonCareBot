@@ -93,8 +93,20 @@ export const SURFACE_ROUTE_RULES: readonly SurfaceRouteRule[] = [
   },
   {
     match: { kind: 'prefix', path: '/app/contact-support' },
+    query: { key: 'from', value: 'clinic-demo' },
+    surface: 'staff',
+    why: 'Единственный лид-адрес клиники: четыре CTA staff-лендинга («Демо для клиники», «Запросить демо», «Запросить демо для клиники») ведут сюда и только сюда, различимо параметром — как и регистрация специалиста через /app?intent=specialist.',
+  },
+  {
+    match: { kind: 'prefix', path: '/app/contact-support' },
+    query: { key: 'from', value: 'staff-factor' },
+    surface: 'staff',
+    why: 'Ссылка «Нет доступа к приложению и резервным кодам» со staff-шага второго фактора (AuthFlowV2, emailAuthMode staff_factor) — шаг существует только у персонала. Найдено обходом staff-входов, тот же класс, что и clinic-demo.',
+  },
+  {
+    match: { kind: 'prefix', path: '/app/contact-support' },
     surface: 'patient',
-    why: 'Обращение в поддержку с пациентского экрана входа.',
+    why: 'Обращение в поддержку с пациентского экрана входа. Значения `from`, которые ставит общий AuthFlowV2 обеим аудиториям (`login`/`verify`/`reset`), staff-сигналом не являются и остаются здесь.',
   },
   {
     match: { kind: 'prefix', path: '/app/doctor' },
@@ -186,8 +198,13 @@ export function classifyRequestSurface(pathname: string, search = ''): ProductSu
 /**
  * Поверхность для рантайма. Путь берётся из заголовка proxy; если заголовка нет (запрос вне
  * matcher'а proxy — `/book`, `/join`, `/legal`, `/[clinicSlug]`) — остаётся пациентская
- * идентичность, ровно та же, что у всех этих маршрутов по таблице. Тест проверяет, что это
- * совпадение не случайно: каждый маршрут вне matcher'а обязан классифицироваться как `patient`.
+ * идентичность, ровно та же, что у всех этих маршрутов по таблице.
+ *
+ * Это совпадение не случайно, и оно проверяется против САМОГО `config.matcher` из `src/proxy.ts`
+ * (`surfaceRoutes.unit.test.ts` импортирует `config` и строит предикат из его значения). Второй
+ * копии matcher'а здесь нет намеренно: пока она была (`isSurfaceHeaderCarryingPath`), правка
+ * matcher'а в proxy оставляла гейт зелёным, а staff-маршрут молча терял заголовок и получал
+ * пациентскую идентичность.
  */
 export function resolveRequestSurface(
   pathname: string | null | undefined,
@@ -195,10 +212,4 @@ export function resolveRequestSurface(
 ): ProductSurface {
   if (!pathname) return 'patient';
   return classifyRequestSurface(pathname, search ?? '') ?? 'patient';
-}
-
-/** Пути, для которых proxy проставляет заголовок пути (см. `config.matcher` в `src/proxy.ts`). */
-export function isSurfaceHeaderCarryingPath(pathname: string): boolean {
-  const path = normalizePathname(pathname);
-  return path === '/' || path === '/app' || path.startsWith('/app/');
 }

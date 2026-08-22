@@ -1,11 +1,8 @@
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-  classifyRequestSurface,
-  isSurfaceHeaderCarryingPath,
-  resolveRequestSurface,
-} from './surfaceRoutes';
+import { classifyRequestSurface, resolveRequestSurface } from './surfaceRoutes';
+import { config as proxyConfig } from '@/proxy';
 import {
   surfaceDisplayName,
   surfaceLayoutMetadata,
@@ -70,6 +67,40 @@ function collectPageRoutes(dir: string, routePrefix: string, out: string[]): str
 
 const ROUTES = collectPageRoutes(APP_DIR, '', []).sort();
 
+/**
+ * Накрытие пути matcher'ом proxy — из САМОГО `config.matcher` (`src/proxy.ts`), а не из второй
+ * копии списка. Копия («маршруты вне matcher'а») здесь была и делала гейт слепым: правка
+ * `config.matcher` (например, убрать `/`) оставляла все тесты зелёными, а живой staff-лендинг терял
+ * заголовок пути и получал пациентский манифест, иконки и apple-title.
+ *
+ * Синтаксис Next (path-to-regexp) поддержан ровно в используемой части; на любой другой
+ * конструкции функция бросает — новая строка matcher'а не должна пройти мимо гейта молча.
+ */
+function matcherPatternToRegExp(pattern: string): RegExp {
+  let source = '';
+  for (const segment of pattern.split('/').slice(1)) {
+    if (segment === '') continue;
+    if (!segment.startsWith(':')) {
+      source += `/${segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`;
+      continue;
+    }
+    const named = /^:[A-Za-z_][A-Za-z0-9_]*([*+?]?)$/.exec(segment);
+    if (!named) throw new Error(`Unsupported proxy matcher syntax: "${pattern}"`);
+    if (named[1] === '*') source += '(?:/[^/]+)*';
+    else if (named[1] === '+') source += '(?:/[^/]+)+';
+    else if (named[1] === '?') source += '(?:/[^/]+)?';
+    else source += '/[^/]+';
+  }
+  return new RegExp(`^${source === '' ? '/' : source}$`);
+}
+
+const PROXY_MATCHER_PATTERNS = proxyConfig.matcher.map(matcherPatternToRegExp);
+
+/** Ставит ли proxy на этом пути заголовок поверхности — иначе рантайм отдаст пациентский fallback. */
+function isCoveredByProxyMatcher(pathname: string): boolean {
+  return PROXY_MATCHER_PATTERNS.some((pattern) => pattern.test(pathname));
+}
+
 const STAFF_METADATA = surfaceLayoutMetadata('staff');
 const PATIENT_METADATA = surfaceLayoutMetadata('patient');
 
@@ -110,10 +141,27 @@ describe('surface routes: каждый маршрут дерева класси�
     expect(segments).toEqual([...KNOWN_TOP_LEVEL_SEGMENTS].sort());
   });
 
+  it('каждый staff-маршрут накрыт matcher-ом proxy — иначе заголовка пути нет и вернётся пациентский fallback', () => {
+    const staffRoutes = ROUTES.filter((route) => classifyRequestSurface(route) === 'staff');
+    expect(staffRoutes.length).toBeGreaterThan(0);
+    expect(staffRoutes.filter((route) => !isCoveredByProxyMatcher(route))).toEqual([]);
+  });
+
   it('маршруты вне matcher proxy классифицированы как patient — иначе fallback их подменит', () => {
-    const outsideMatcher = ROUTES.filter((route) => !isSurfaceHeaderCarryingPath(route));
+    const outsideMatcher = ROUTES.filter((route) => !isCoveredByProxyMatcher(route));
     expect(outsideMatcher.length).toBeGreaterThan(0);
     expect(outsideMatcher.filter((route) => classifyRequestSurface(route) !== 'patient')).toEqual([]);
+  });
+
+  it('предикат matcher-а не выродился: дерево делится на накрытые и не накрытые', () => {
+    expect(ROUTES.some(isCoveredByProxyMatcher)).toBe(true);
+    expect(ROUTES.some((route) => !isCoveredByProxyMatcher(route))).toBe(true);
+    expect(matcherPatternToRegExp('/').test('/')).toBe(true);
+    expect(matcherPatternToRegExp('/').test('/app')).toBe(false);
+    expect(matcherPatternToRegExp('/app/:path*').test('/app')).toBe(true);
+    expect(matcherPatternToRegExp('/app/:path*').test('/app/doctor/login')).toBe(true);
+    expect(matcherPatternToRegExp('/app/:path*').test('/legal/terms')).toBe(false);
+    expect(() => matcherPatternToRegExp('/app/:path(\\d+)')).toThrow();
   });
 });
 
@@ -127,6 +175,8 @@ describe('surface routes: staff-достижимые маршруты отдаю
     ['/app/admin/login', ''],
     ['/app/doctor/install', ''],
     ['/app/clinic/invites/accept', '?token=abc'],
+    ['/app/contact-support', '?from=clinic-demo'],
+    ['/app/contact-support', '?from=staff-factor'],
     ['/app/account', ''],
     ['/app/manage', ''],
     ['/app/settings', ''],
@@ -163,6 +213,8 @@ describe('surface routes: пациентские маршруты не заде�
     ['/app/tg', ''],
     ['/app/max', ''],
     ['/app/contact-support', ''],
+    ['/app/contact-support', '?from=login'],
+    ['/app/contact-support', '?from=verify'],
     ['/book/some-slug', ''],
     ['/join/start', ''],
     ['/legal/terms', ''],
