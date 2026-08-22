@@ -75,8 +75,11 @@ export function DoctorTodayDashboard({
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
       <DoctorPageHeader id="doctor-today-header" title="Сегодня" />
 
-      <div id="doctor-today-two-panes" className="grid gap-3 md:grid-cols-2 md:items-start">
-        <div id="doctor-today-left-pane" className="flex flex-col gap-3">
+      <div
+        id="doctor-today-two-panes"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start"
+      >
+        <div id="doctor-today-left-pane" className="flex min-w-0 flex-col gap-3">
           <DoctorTodayLeftKpiRow
             pendingTestsTotal={data.pendingProgramTestsTotal}
             unreadConversations={data.unreadConversations}
@@ -209,7 +212,7 @@ export function DoctorTodayDashboard({
           </DoctorSection>
         </div>
 
-        <div id="doctor-today-right-pane" className="flex flex-col gap-3">
+        <div id="doctor-today-right-pane" className="flex min-w-0 flex-col gap-3">
           <TodayMiniCalendarWithModal
             appointments={data.todayAppointments}
             calendarSnapshot={calendarSnapshot}
