@@ -459,6 +459,21 @@ function opaqueRefFromResult(result: unknown): string {
   return opaqueRef.toLowerCase();
 }
 
+/**
+ * Вид непрозрачной ссылки, который просит приложение, и точный корень, за которым он живёт.
+ *
+ * D15b/7a Ш3 (22.08): корень принимает вид ВТОРЫМ типизированным аргументом, и хеш аргументов
+ * считается по обоим. База считает тот же хеш внутри `app.pre_session_resolve_identity` — назвать
+ * здесь один аргумент, а там два (или наоборот) значит получить `42501` «port context capability
+ * mismatch» на первом же входе ЛЮБОГО человека, при зелёных миграции и деплое. Поэтому и
+ * подставляемое в SQL значение, и типизированный аргумент берутся из ОДНОЙ константы.
+ *
+ * Пока просится только акторская ссылка: Ш4 — тот шаг, где класс `patient` начинает просить ещё и
+ * субъектную, и где ключ памяти ниже расширяется видом.
+ */
+const IDENTITY_ROOT = 'app.pre_session_resolve_identity(uuid,text)';
+const ACTOR_REF_KIND = 'actor';
+
 async function resolveOpaqueIdentityRef(
   client: IdentityResolverClient,
   principal: DbPrincipal,
@@ -479,7 +494,7 @@ async function resolveOpaqueIdentityRef(
     descriptor.contextClass !== 'pre_session' ||
     (descriptor.targetRole !== 'app_pre_session' && descriptor.targetRole !== 'app_platform_admin') ||
     descriptor.purpose !== 'identity.variant-a.resolve' ||
-    descriptor.functionIdentity !== 'app.pre_session_resolve_identity(uuid)'
+    descriptor.functionIdentity !== IDENTITY_ROOT
   ) {
     throw new Error(`Missing exact declared webapp identity capability: ${descriptorName}`);
   }
@@ -487,12 +502,12 @@ async function resolveOpaqueIdentityRef(
   const resolution = runWebappPreSessionNamedRoot(
     client,
     descriptor,
-    'app.pre_session_resolve_identity(uuid)',
-    [portTypedArg('uuid', physicalId)],
+    IDENTITY_ROOT,
+    [portTypedArg('uuid', physicalId), portTypedArg('text', ACTOR_REF_KIND)],
     async (sameClient) =>
       opaqueRefFromResult(
         await drizzle(sameClient as unknown as PoolClient).execute(
-          sql`SELECT app.pre_session_resolve_identity(${physicalId}::uuid) AS opaque_ref`,
+          sql`SELECT app.pre_session_resolve_identity(${physicalId}::uuid, ${ACTOR_REF_KIND}::text) AS opaque_ref`,
         ),
       ),
   );

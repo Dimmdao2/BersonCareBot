@@ -2463,8 +2463,10 @@ const REV10_CONTEXT = {
       'context_class', 'purpose', 'function_identity', 'typed_args_hash', 'actor_ref', 'subject_ref',
       'organization_id', 'integrator_user_id', 'request_id', 'installed_at', 'cleared_at',
     ] },
+    // `ref_kind` (D15b/7a Ш1, 22.08): один человек — одна ссылка НА КАЖДЫЙ вид. Все существующие
+    // строки — 'actor' (DEFAULT миграции), поэтому поведение до Ш4 прежнее.
     'app_ext.variant_a_identity_refs': { owner: 'app_seam_identity_lookup_owner', columns: [
-      'physical_user_id', 'opaque_ref', 'created_at',
+      'physical_user_id', 'opaque_ref', 'ref_kind', 'created_at',
     ] },
   },
   capabilities: {
@@ -2593,13 +2595,13 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.list_active_canonical_appointments_by_phone(text)' },
     webapp_staff_identity_resolve: { port: 'webapp', runtimeName: 'staff_identity_resolve',
       sessionRole: 'app_staff', targetRole: 'app_pre_session', contextClass: 'pre_session',
-      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid)' },
+      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid,text)' },
     webapp_patient_identity_resolve: { port: 'webapp', runtimeName: 'patient_identity_resolve',
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
-      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid)' },
+      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid,text)' },
     webapp_global_admin_identity_resolve: { port: 'webapp', runtimeName: 'globalAdmin_identity_resolve',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'pre_session',
-      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid)' },
+      purpose: 'identity.variant-a.resolve', functionIdentity: 'app.pre_session_resolve_identity(uuid,text)' },
     auth_channel_binding_session: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.channel-binding.session',
@@ -3773,11 +3775,42 @@ const REV10_CONTEXT = {
     },
     'app.provision_specialist_owner(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'],
-      delegatesTo: ['app.require_staff_security_self_user_id()'],
+      // `app.start_provisioned_organization_trial()` — не отдельная дверь, а второй шаг ЭТОЙ выдачи:
+      // прямых вызовов из кода нет, а его собственный первый оператор берёт человека из
+      // `app.current_patient_user_id()`. Аттестованный гейт при этом требовал контекст роли
+      // `app_platform_settings` — принятая строка контекста в транзакции ровно одна, поэтому пара
+      // «нужен пациент И нужен платформенный админ» недостижима ни при каком вызове, и регистрация
+      // клиники умирала здесь `42501`. Делегирование расширяет допустимые роли делегата ролями
+      // вызывающей двери (`app_patient`), НЕ делая его исполнимым этой ролью напрямую.
+      delegatesTo: [
+        'app.require_staff_security_self_user_id()',
+        'app.start_provisioned_organization_trial()',
+      ],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'].relationSurfaces
         ?.map((surface) => surface.relation === 'public.be_organizations'
           ? { ...surface, operations: ['INSERT' as const] }
-          : surface) ?? [],
+          // Триггер `clinic_public_directory_current_slug_guard` на
+          // `public.clinic_public_directory_entries` — SECURITY INVOKER, значит его SELECT по
+          // `organization_slug_claims` идёт от владельца ЭТОЙ definer-функции. Одного INSERT телу
+          // не хватало: вставка карточки каталога отказывала `42501 permission denied for table
+          // organization_slug_claims`. Чтение узкое — ровно три колонки условия триггера.
+          : surface.relation === 'public.organization_slug_claims'
+            ? {
+              ...surface,
+              operations: ['SELECT' as const, ...surface.operations],
+              operationColumns: {
+                ...surface.operationColumns,
+                SELECT: ['kind', 'organization_id', 'slug'],
+              },
+            }
+            : surface) ?? [],
+    },
+    // Второй шаг выдачи, продолжение того же delegatesTo-хвоста: свою организацию он находит по
+    // `app.current_patient_user_id()`, то есть исполним только в контексте пациента, а гейт называл
+    // одну лишь `app_platform_settings`. Прямых вызовов из кода нет — это внутренний резолвер.
+    'app.start_provisioned_organization_trial()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.start_provisioned_organization_trial()'],
+      delegatesTo: ['app.current_provisioned_owner_organization()'],
     },
     'app.replace_pending_specialist_signup_challenge(uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.replace_pending_specialist_signup_challenge(uuid,text)'],
@@ -6255,10 +6288,16 @@ const REV10_CONTEXT = {
     'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
-    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+    'app_ext.resolve_variant_a_identity(uuid,text)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       // UPDATE dropped 19.08 with the no-op upsert: the map is append-only, so the resolver only
       // ever reads an existing reference or inserts a missing one. It never rewrites a row.
-      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+      // Вид ссылки — аргумент с Ш3 (22.08): тело читает `ref_kind` в предикате, пишет его
+      // вставкой и называет арбитром `ON CONFLICT` — все три операции лежат в одной поверхности.
+      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
+    // Совместимая сигнатура D15b/7a Ш3–Ш6: тонкий делегат без собственного тела, снимается Ш7.
+    // Своей поверхности у него нет и быть не может: карту читает и пишет тот, кому он передаёт.
+    'app_ext.resolve_variant_a_identity(uuid)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'compatibility delegate to the exact kind-aware variant-a map resolver', typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [], delegatesTo: ['app_ext.resolve_variant_a_identity(uuid,text)'] }),
     // Deferred constraint trigger on app_ext.accepted_port_contexts: the accepted context is deleted
     // at COMMIT of the very transaction that installed it, so a committed context row cannot exist
     // and no periodic sweep is needed. DEFINER on the table owner because the effective role at
@@ -6275,11 +6314,23 @@ const REV10_CONTEXT = {
         evidence: 'pg16-function-body-lexical-upper-bound' as const,
       }],
     }),
+    'app_ext.resolve_variant_a_physical(uuid,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
+      purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      // `ref_kind` объявлен как часть верхней границы поверхности этого тела: колонка есть в
+      // ключевой строке карты, и Ш5 сделает её предметом проверки прямо здесь — вид Ш3 уже
+      // принимает аргументом, но ещё не сравнивает. Операция остаётся одна — SELECT.
+      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    // Совместимая сигнатура D15b/7a Ш3–Ш6. В отличие от делегата выдачи этот ещё жив для
+    // вызывающих ВНУТРИ базы (`app.current_actor_user_id`, `app.current_patient_user_id`,
+    // `app_ext.assert_port_context_claim`) до Ш5, поэтому сохраняет EXECUTE. Своей поверхности нет.
     'app_ext.resolve_variant_a_physical(uuid)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_seam_context_owner'],
-      purpose: 'resolve an opaque Variant-A context reference only for the context installer', typedArgs: ['uuid'],
+      purpose: 'compatibility delegate to the exact kind-aware reverse Variant-A resolver', typedArgs: ['uuid'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
-      relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+      relationSurfaces: [], delegatesTo: ['app_ext.resolve_variant_a_physical(uuid,text)'],
     }),
     // Проверка заявки на арендатора при установке контекста (19.08).  Живёт у шва личностей, а не
     // у шва контекста: контекст ещё не установлен, а этому владельцу RLS-политики членства открыты
@@ -6300,10 +6351,20 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.pre_session_resolve_identity(uuid)': rev10Function({
+    'app.pre_session_resolve_identity(uuid,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: ['app_pre_session', 'app_platform_admin'],
-      purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid'],
+      purpose: 'exact physical-to-opaque handoff before a human transaction', typedArgs: ['uuid', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+    }),
+    // Совместимая сигнатура D15b/7a Ш3–Ш6, снимается Ш7. Без EXECUTE и без своей capability:
+    // три веб-возможности этой же правкой уехали на двухаргументный корень, и пришедший сюда всё
+    // равно не смог бы засвидетельствовать под неё контекст. Грант здесь был бы ВТОРОЙ ЖИВОЙ
+    // ДВЕРЬЮ к карте личностей — ровно то, против чего весь этот раздел (AGENTS.md §5).
+    'app.pre_session_resolve_identity(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [],
+      purpose: 'compatibility delegate to the exact kind-aware pre-session identity root', typedArgs: ['uuid'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
+      relationSurfaces: [], delegatesTo: ['app_ext.resolve_variant_a_identity(uuid,text)'],
     }),
     'app.auth_channel_binding_session(text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,

@@ -33,7 +33,7 @@ const staffIdentityCapability: PortCapabilityDescriptor = {
   targetRole: 'app_pre_session',
   contextClass: 'pre_session',
   purpose: 'identity.variant-a.resolve',
-  functionIdentity: 'app.pre_session_resolve_identity(uuid)',
+  functionIdentity: 'app.pre_session_resolve_identity(uuid,text)',
 };
 const staffCapabilities = {
   staff: staffCapability,
@@ -143,7 +143,7 @@ describe('webapp port-context runtime', () => {
     expect(log).toEqual([
       'BEGIN; RESET ROLE',
       'SELECT app.begin_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
-      'SELECT app.pre_session_resolve_identity($1::uuid) AS opaque_ref',
+      'SELECT app.pre_session_resolve_identity($1::uuid, $2::text) AS opaque_ref',
       'RESET ROLE; SELECT app.clear_port_context(); COMMIT',
       'BEGIN; RESET ROLE',
       'SELECT app.begin_port_context($1::uuid, ROW(1, $2::app.port_context_class, $3::name, $4::text, $5::regprocedure, $6::bytea, $7::uuid, $8::uuid, $9::uuid, $10::bigint, $11::uuid)::app.port_context_claims)',
@@ -397,6 +397,15 @@ describe('webapp port-context runtime', () => {
     );
     expect(installs).toHaveLength(2);
     expect(installs[0]?.[4]).toBe(staffIdentityCapability.functionIdentity);
+    // Личность разрешается корнем с ДВУМЯ типизированными аргументами (D15b/7a Ш3): физический
+    // id и вид ссылки. Тот же хеш считает тело `app.pre_session_resolve_identity` в базе — если
+    // порт засвидетельствует один аргумент там, где база хеширует два, вход ЛЮБОГО человека
+    // умрёт `42501` «port context capability mismatch» при зелёных миграции и деплое. Ловится это
+    // только сверкой самого свидетельства, а не текстом запроса: значения второго аргумента в
+    // тексте нет.
+    expect(installs[0]?.[5]).toEqual(
+      hashPortTypedArgs([portTypedArg('uuid', USER), portTypedArg('text', 'actor')]),
+    );
     expect(installs[1]?.[4]).toBe(named.functionIdentity);
     expect(installs[1]?.[5]).toEqual(hashPortTypedArgs([portTypedArg('uuid', USER)]));
   });
