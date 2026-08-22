@@ -478,9 +478,11 @@ function sameRelation(a, b) {
 /**
  * Net objects the applied migrations promise the database still holds: created by one of them and
  * not removed by any later one (a table drop takes its columns, constraints, triggers and indexes
- * with it, exactly as PostgreSQL does).
+ * with it, exactly as PostgreSQL does). When `catalogMigrationTags` is supplied, later migrations
+ * are planned work for this run: their CREATE restores the object after the guard, so neither that
+ * object nor an earlier version of it is expected in the catalog before the transaction begins.
  */
-export function collectExpectedObjects(migrations) {
+export function collectExpectedObjects(migrations, { catalogMigrationTags = null } = {}) {
   const expected = new Map();
   for (const migration of migrations) {
     for (const statement of parseOwnerStatements(migration.source, migration.tag)) {
@@ -493,7 +495,11 @@ export function collectExpectedObjects(migrations) {
             identity: effect.identity ?? null,
             relation: effect.relation ?? null,
           };
-          expected.set(objectKey(object), { ...object, tag: migration.tag });
+          if (catalogMigrationTags === null || catalogMigrationTags.has(migration.tag)) {
+            expected.set(objectKey(object), { ...object, tag: migration.tag });
+          } else {
+            expected.delete(objectKey(object));
+          }
           continue;
         }
         for (const [key, object] of [...expected]) {

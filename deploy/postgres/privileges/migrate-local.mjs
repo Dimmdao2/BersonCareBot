@@ -129,8 +129,8 @@ function readAppliedDrizzleRows(db) {
  * is applied, every object the applied migrations created and did not later drop is probed by name,
  * and a single absent one stops the run and is named.
  */
-function findMissingObjects(db, appliedMigrations) {
-  const objects = collectExpectedObjects(appliedMigrations);
+function findMissingObjects(db, migrations, catalogMigrationTags) {
+  const objects = collectExpectedObjects(migrations, { catalogMigrationTags });
   const sql = renderObjectPresenceSql(objects);
   if (!sql) return [];
   const result = spawnPsql(
@@ -344,21 +344,6 @@ if (drizzleFolder) {
   }
 
   const applied = migrations.filter((migration) => !pendingTags.has(migration.tag));
-  const missing = findMissingObjects(db, applied.filter((migration) => !reapplyTags.includes(migration.tag)));
-  if (missing.length > 0) {
-    const holders = [...new Set(missing.map((object) => object.tag))];
-    fail(
-      [
-        `${db} records ${holders.length} migration(s) as applied whose objects are not in the catalog, `
-          + 'so the ledger is answering for a schema it does not have:',
-        ...missing.map((object) => `  absent: ${describeObject(object)}`),
-        'Re-run with '
-          + `${holders.map((tag) => `--reapply ${tag}`).join(' ')} `
-          + 'to send them through this same wrapper again, after confirming each is safe to execute twice.',
-      ].join('\n'),
-    );
-  }
-
   const pending = migrations.filter(
     (migration) => pendingTags.has(migration.tag) || reapplyTags.includes(migration.tag),
   );
@@ -380,6 +365,36 @@ if (drizzleFolder) {
               + 'is forbidden. Restore the original file name, or if this is genuinely new work, change its SQL.',
         )
         .join('\n'),
+    );
+  }
+  // The catalog assertion describes the state after this transaction succeeds, not merely the
+  // ledger state at its start. A pending DROP may therefore retire an object created by an earlier
+  // applied migration. Migrations outside this run's pending set remain deliberately invisible.
+  // Keep canonical folder order: concatenating applied and pending sets could invert a create/drop
+  // pair when a newly landed migration sorts below an applied one.
+  const guardTags = new Set([
+    ...applied.filter((migration) => !reapplyTags.includes(migration.tag)).map((migration) => migration.tag),
+    ...pending.map((migration) => migration.tag),
+  ]);
+  const catalogMigrationTags = new Set(
+    applied.filter((migration) => !reapplyTags.includes(migration.tag)).map((migration) => migration.tag),
+  );
+  const missing = findMissingObjects(
+    db,
+    migrations.filter((migration) => guardTags.has(migration.tag)),
+    catalogMigrationTags,
+  );
+  if (missing.length > 0) {
+    const holders = [...new Set(missing.map((object) => object.tag))];
+    fail(
+      [
+        `${db} records ${holders.length} migration(s) as applied whose objects are not in the catalog, `
+          + 'so the ledger is answering for a schema it does not have:',
+        ...missing.map((object) => `  absent: ${describeObject(object)}`),
+        'Re-run with '
+          + `${holders.map((tag) => `--reapply ${tag}`).join(' ')} `
+          + 'to send them through this same wrapper again, after confirming each is safe to execute twice.',
+      ].join('\n'),
     );
   }
   steps = pending.flatMap((migration) =>
