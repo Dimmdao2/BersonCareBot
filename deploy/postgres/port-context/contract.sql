@@ -621,32 +621,38 @@ BEGIN SELECT integrator_user_id INTO value FROM app_ext.accepted_port_contexts W
 -- a row the winner has inserted but not yet committed, which is why the read is
 -- a bounded retry rather than a single attempt -- the winner's commit makes the
 -- row visible and the next pass finds it.  The return value is unchanged.
-CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)
+CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid, p_ref_kind text)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE opaque uuid; attempt integer;
 BEGIN
   -- The exact public identity root has already checked function/purpose/args;
   -- this private resolver remains executable only by its identity owner.
+  --
+  -- D15b/7a step 3 (22.08): the KIND of the reference is a parameter of the one resolver, not a
+  -- twin function (AGENTS.md 5, "variants of one action are parameters of one point").  The map is
+  -- keyed by `(physical_user_id, ref_kind)` since step 2, so asking for a kind is asking for a
+  -- different row of the same map -- the read, the insert and the arbiter all carry the kind.
+  -- The kind is NOT validated here: the closed list lives in the table CHECK, which refuses an
+  -- unknown value at the insert with `23514` instead of quietly minting a fourth kind of reference.
   FOR attempt IN 1..5 LOOP
     SELECT opaque_ref INTO opaque
       FROM app_ext.variant_a_identity_refs
-     WHERE physical_user_id = p_platform_user_id;
+     WHERE physical_user_id = p_platform_user_id
+       AND ref_kind = p_ref_kind;
     IF opaque IS NOT NULL THEN RETURN opaque; END IF;
 
-    INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref)
+    INSERT INTO app_ext.variant_a_identity_refs(physical_user_id, opaque_ref, ref_kind)
     VALUES (p_platform_user_id, (
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),1,8) || '-' ||
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),9,4) || '-' ||
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),13,4) || '-' ||
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),17,4) || '-' ||
       substr(encode(pg_catalog.sha256(uuid_send(p_platform_user_id)), 'hex'),21,12)
-    )::uuid)
+    )::uuid, p_ref_kind)
     -- The arbiter names the REAL index.  Since D15b/7a step 2 the primary key is
     -- `(physical_user_id, ref_kind)`, and `ON CONFLICT (<columns>)` is index inference: a
     -- specification naming `physical_user_id` alone matches no index any more and would die
-    -- `42P10` on the first resolution of an unknown person.  `ref_kind` is not assigned by the
-    -- INSERT above -- it arrives from the column DEFAULT `'actor'` -- but inference is about the
-    -- index, not about the insert column list, so the conflicting row is still found.
+    -- `42P10` on the first resolution of an unknown person.
     ON CONFLICT (physical_user_id, ref_kind) DO NOTHING
     RETURNING opaque_ref INTO opaque;
     IF opaque IS NOT NULL THEN RETURN opaque; END IF;
@@ -655,13 +661,43 @@ BEGIN
     MESSAGE = 'variant-a identity reference could not be resolved';
 END $$;
 
-CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
+-- Compatibility signature, D15b/7a steps 3-6 only.  It carries no body of its own: it names the
+-- actor kind and hands the whole question to the one resolver above, so there is exactly one place
+-- where a reference is read or minted.  Step 7 drops it by name.  It holds NO execute grant --
+-- a granted twin would be a second live door into the map, which is the opposite of what this
+-- split is for; what survives here is the OID, so a rollback of step 3 is an edit of bodies and
+-- descriptors rather than a re-creation of a function other objects point at.
+CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN
+  RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, 'actor');
+END $$;
+
+-- D15b/7a step 3 (22.08): the reverse resolver ACCEPTS the expected kind and does NOT yet compare
+-- it.  That is the whole of step 3 and it is deliberate: today both references of a person are the
+-- same value (`portContextRuntime.ts` puts one reference into both `actor_ref` and `subject_ref`),
+-- so a comparison here would refuse every live patient transaction.  Step 4 makes the application
+-- ask for a subject reference; step 5 -- and only step 5 -- turns the argument below into a
+-- fail-closed check that raises `42501` on a kind mismatch, exactly as on an unknown reference.
+-- The argument exists one step early so that the caller chain, the declaration and the grants move
+-- once, and step 5 is a change of this body alone.
+CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid, p_expected_ref_kind text)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 DECLARE physical_id uuid;
 BEGIN
   SELECT physical_user_id INTO physical_id FROM app_ext.variant_a_identity_refs WHERE opaque_ref = p_opaque_ref;
   IF physical_id IS NULL THEN RAISE EXCEPTION USING ERRCODE='42501', MESSAGE='accepted opaque identity context required'; END IF;
   RETURN physical_id;
+END $$;
+
+-- Compatibility signature, D15b/7a steps 3-6 only.  Unlike its minting twin this one still has
+-- live in-database callers -- `app.current_actor_user_id`, `app.current_patient_user_id` and
+-- `app_ext.assert_port_context_claim` all resolve a reference without naming a kind until step 5 --
+-- so it keeps its execute grant.  It carries no body of its own.  Step 7 drops it by name.
+CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN
+  RETURN app_ext.resolve_variant_a_physical(p_opaque_ref, 'actor');
 END $$;
 
 -- Заявку на арендатора проверяет БАЗА, а не приложение.  До 19.08 `install_port_context` разбирал
@@ -831,7 +867,19 @@ BEGIN
 END $$;
 
 -- Exact physical-to-opaque handoff used by each authenticated human pool.
-CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid)
+--
+-- D15b/7a step 3 (22.08): the named root carries the KIND of the requested reference.  It stays the
+-- only door behind which a physical `platform_users.id` lives, and it stays ONE door: the kind is a
+-- second typed argument of this root, not a second root.  The gate is hand-written because three
+-- capabilities point at this identity with two distinct target roles (`app_pre_session` for the
+-- staff and patient pools, `app_platform_admin` for the global admin); the reconcile verifies the
+-- tokens of exactly this statement instead of replacing it.
+--
+-- The typed-argument hash now covers BOTH arguments.  That is not cosmetic: the application hashes
+-- the same two arguments in `apps/webapp/src/infra/db/portContextRuntime.ts`, and a root whose gate
+-- hashed one argument while the caller attested two would refuse every human entry with `42501`
+-- "port context capability mismatch".
+CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid, p_ref_kind text)
 RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
 BEGIN
   PERFORM app.require_accepted_context(
@@ -842,10 +890,20 @@ BEGIN
     END,
     'pre_session'::app.port_context_class,
     'identity.variant-a.resolve',
-    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg]),
-    'app.pre_session_resolve_identity(uuid)'::regprocedure
+    app.hash_port_typed_args(ARRAY[ROW('uuid@1', uuid_send(p_platform_user_id))::app.port_typed_arg, ROW('text@1', textsend(p_ref_kind))::app.port_typed_arg]),
+    'app.pre_session_resolve_identity(uuid,text)'::regprocedure
   );
-  RETURN app_ext.resolve_variant_a_identity(p_platform_user_id);
+  RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, p_ref_kind);
+END $$;
+
+-- Compatibility signature, D15b/7a steps 3-6 only; step 7 drops it by name.  It holds NO execute
+-- grant and therefore no capability of its own: the three webapp capabilities moved to the
+-- two-argument identity in the same change, so a caller arriving here could not attest a context
+-- for it anyway.  What it preserves is the OID other objects and a rollback can point at.
+CREATE OR REPLACE FUNCTION app.pre_session_resolve_identity(p_platform_user_id uuid)
+RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER VOLATILE PARALLEL UNSAFE SET search_path = pg_catalog, app, app_ext, pg_temp AS $$
+BEGIN
+  RETURN app_ext.resolve_variant_a_identity(p_platform_user_id, 'actor');
 END $$;
 
 ALTER FUNCTION app.install_port_context(uuid, app.port_context_claims) OWNER TO app_seam_context_owner;
@@ -859,9 +917,12 @@ ALTER FUNCTION app.current_actor_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_patient_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app.current_integrator_user_id() OWNER TO app_seam_context_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid,text) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid,text) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.pre_session_resolve_identity(uuid) OWNER TO app_seam_identity_lookup_owner;
+ALTER FUNCTION app.pre_session_resolve_identity(uuid,text) OWNER TO app_seam_identity_lookup_owner;
 ALTER FUNCTION app.hash_port_typed_args(app.port_typed_arg[]) OWNER TO app_object_owner;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app FROM PUBLIC;
 REVOKE ALL ON ALL FUNCTIONS IN SCHEMA app_ext FROM PUBLIC;
@@ -876,9 +937,16 @@ GRANT EXECUTE ON FUNCTION app.current_actor_user_id() TO app_staff, app_clinic_b
 GRANT EXECUTE ON FUNCTION app.current_org_id() TO app_staff, app_clinic_billing, app_patient, app_integrator_request, app_tenant_service, app_worker;
 GRANT EXECUTE ON FUNCTION app.current_patient_user_id() TO app_patient;
 GRANT EXECUTE ON FUNCTION app.current_integrator_user_id() TO app_integrator_request;
-GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid) TO app_pre_session, app_platform_admin;
+-- Step 3 moves the human entry door to the two-argument identity.  The one-argument compatibility
+-- signatures of the ROOT and of the private minting resolver are deliberately left ungranted --
+-- see their bodies.  The reverse resolver keeps both grants because both signatures still have
+-- live in-database callers until step 5.
+GRANT EXECUTE ON FUNCTION app.pre_session_resolve_identity(uuid,text) TO app_pre_session, app_platform_admin;
+REVOKE ALL ON FUNCTION app.pre_session_resolve_identity(uuid) FROM app_pre_session, app_platform_admin;
 REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid) FROM app_pre_session, app_seam_password_auth_owner;
+REVOKE ALL ON FUNCTION app_ext.resolve_variant_a_identity(uuid,text) FROM app_pre_session, app_seam_password_auth_owner;
 GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid) TO app_seam_context_owner;
+GRANT EXECUTE ON FUNCTION app_ext.resolve_variant_a_physical(uuid,text) TO app_seam_context_owner;
 REVOKE ALL ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION app_ext.assert_port_context_claim(text,name,uuid,uuid,uuid,bigint) TO app_seam_context_owner;
 REVOKE ALL ON ALL TABLES IN SCHEMA app FROM PUBLIC, :"app_staff_login", :"app_patient_login", :"app_global_admin_login", :"integrator_login";

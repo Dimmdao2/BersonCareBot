@@ -101,7 +101,7 @@ test('one declaration renders the exact DB catalog and both runtime JSON catalog
     'capabilities that hold relation-wide access instead of one named root',
   );
   const identityResolvers = roots.filter(
-    (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid)',
+    (row) => row.functionIdentity === 'app.pre_session_resolve_identity(uuid,text)',
   );
   assert.deepEqual(
     identityResolvers.map((row) => [row.runtimeName, row.sessionLogin]),
