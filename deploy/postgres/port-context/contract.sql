@@ -688,7 +688,29 @@ BEGIN
     -- `42P10` on the first resolution of an unknown person.
     ON CONFLICT (physical_user_id, ref_kind) DO NOTHING
     RETURNING opaque_ref INTO opaque;
-    IF opaque IS NOT NULL THEN RETURN opaque; END IF;
+    IF opaque IS NOT NULL THEN
+      -- D15b/7a step 8 (22.08): THIS is the act of binding a person to medicine, and it is the only
+      -- place in the cluster where it happens.  The map is append-only and keyed by (person, kind),
+      -- so a row of kind `subject` is minted exactly ONCE per person, ever -- which is precisely the
+      -- volume the plan asks for on this point ("creating the link -- one event"), with no dedupe,
+      -- no queue and no counter needed to get it.
+      --
+      -- The audit goes through the ONE collapsing-audit door, not through an INSERT of its own: a
+      -- second writer into `admin_audit_log` would be the second path the whole section exists to
+      -- forbid (AGENTS.md 5).  That door refuses this action unless the transaction carries the
+      -- accepted context of THIS resolve -- same person, kind `subject` -- so the event cannot be
+      -- written about somebody else, nor outside the act it describes.
+      --
+      -- The actor kind is deliberately NOT audited: minting an actor reference is the person's own
+      -- identity becoming addressable, which crosses no boundary.  Writing it too would bury the
+      -- four points the owner agreed to under noise from every account that ever logs in.
+      IF p_ref_kind = 'subject' THEN
+        PERFORM app.record_collapsing_audit_event(
+          'identity_subject_link_created', NULL, NULL, p_platform_user_id::text, NULL,
+          '{"point":"link_created","ref_kind":"subject"}');
+      END IF;
+      RETURN opaque;
+    END IF;
   END LOOP;
   RAISE EXCEPTION USING ERRCODE = '40001',
     MESSAGE = 'variant-a identity reference could not be resolved';
