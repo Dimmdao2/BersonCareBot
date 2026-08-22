@@ -3775,11 +3775,42 @@ const REV10_CONTEXT = {
     },
     'app.provision_specialist_owner(uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'],
-      delegatesTo: ['app.require_staff_security_self_user_id()'],
+      // `app.start_provisioned_organization_trial()` — не отдельная дверь, а второй шаг ЭТОЙ выдачи:
+      // прямых вызовов из кода нет, а его собственный первый оператор берёт человека из
+      // `app.current_patient_user_id()`. Аттестованный гейт при этом требовал контекст роли
+      // `app_platform_settings` — принятая строка контекста в транзакции ровно одна, поэтому пара
+      // «нужен пациент И нужен платформенный админ» недостижима ни при каком вызове, и регистрация
+      // клиники умирала здесь `42501`. Делегирование расширяет допустимые роли делегата ролями
+      // вызывающей двери (`app_patient`), НЕ делая его исполнимым этой ролью напрямую.
+      delegatesTo: [
+        'app.require_staff_security_self_user_id()',
+        'app.start_provisioned_organization_trial()',
+      ],
       relationSurfaces: BUSINESS_SEAM_FUNCTIONS['app.provision_specialist_owner(uuid)'].relationSurfaces
         ?.map((surface) => surface.relation === 'public.be_organizations'
           ? { ...surface, operations: ['INSERT' as const] }
-          : surface) ?? [],
+          // Триггер `clinic_public_directory_current_slug_guard` на
+          // `public.clinic_public_directory_entries` — SECURITY INVOKER, значит его SELECT по
+          // `organization_slug_claims` идёт от владельца ЭТОЙ definer-функции. Одного INSERT телу
+          // не хватало: вставка карточки каталога отказывала `42501 permission denied for table
+          // organization_slug_claims`. Чтение узкое — ровно три колонки условия триггера.
+          : surface.relation === 'public.organization_slug_claims'
+            ? {
+              ...surface,
+              operations: ['SELECT' as const, ...surface.operations],
+              operationColumns: {
+                ...surface.operationColumns,
+                SELECT: ['kind', 'organization_id', 'slug'],
+              },
+            }
+            : surface) ?? [],
+    },
+    // Второй шаг выдачи, продолжение того же delegatesTo-хвоста: свою организацию он находит по
+    // `app.current_patient_user_id()`, то есть исполним только в контексте пациента, а гейт называл
+    // одну лишь `app_platform_settings`. Прямых вызовов из кода нет — это внутренний резолвер.
+    'app.start_provisioned_organization_trial()': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.start_provisioned_organization_trial()'],
+      delegatesTo: ['app.current_provisioned_owner_organization()'],
     },
     'app.replace_pending_specialist_signup_challenge(uuid,text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.replace_pending_specialist_signup_challenge(uuid,text)'],
