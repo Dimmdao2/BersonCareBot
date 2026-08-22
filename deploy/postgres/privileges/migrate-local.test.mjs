@@ -182,14 +182,20 @@ test('normal legacy execution still accepts migration, backfill and post files',
 // Selection is by name now: pending is every file the ledger does not name, in file-name order.
 // The fake psql answers three different questions the wrapper asks — prepare the ledger, read it,
 // probe the catalog — so a run can be driven without a database.
-function createLedgerRuntime({ appliedTags, absentObject = false, foreignRow = null, migrationSql = {} }) {
+function createLedgerRuntime({
+  appliedTags,
+  absentObject = false,
+  foreignRow = null,
+  migrationSql = {},
+  migrationTags = null,
+}) {
   const root = mkdtempSync(join(tmpdir(), 'bcb-migrate-local-ledger-'));
   const bin = join(root, 'bin');
   const migrations = join(root, 'migrations');
   const capture = join(root, 'transaction.sql');
   mkdirSync(bin);
   mkdirSync(join(migrations, 'meta'), { recursive: true });
-  const tags = ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'];
+  const tags = migrationTags ?? ['20260820T000100_first', '20260820T000000_late_arrival', '20260820T000200_third'];
   const journal = JSON.stringify({
     entries: tags.map((tag, idx) => ({ idx, version: '7', when: 1800000000100 + idx * 100, tag })),
   });
@@ -328,7 +334,7 @@ test('an applied later migration can retire an object promised by an earlier mig
   assert.doesNotMatch(result.stderr, /--reapply/u);
 });
 
-test('a pending later drop does not retire an object promised by an applied migration', () => {
+test('a pending later drop retires an object promised by an applied migration in this run', () => {
   const runtime = createLedgerRuntime({
     appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival'],
     absentObject: true,
@@ -339,9 +345,29 @@ test('a pending later drop does not retire an object promised by an applied migr
 
   const result = runLedgerMigrator(runtime);
 
+  assert.equal(result.status, 0, result.stderr);
+  const transaction = readFileSync(runtime.capture, 'utf8');
+  assert.match(transaction, /DROP FUNCTION IF EXISTS app\.door_20260820t000100_first\(\)/u);
+  assert.match(result.stdout, /pending=1 total=3/u);
+});
+
+test('a retirement migration outside this run does not hide an applied object missing from the catalog', () => {
+  const runtime = createLedgerRuntime({
+    appliedTags: ['20260820T000100_first', '20260820T000000_late_arrival'],
+    absentObject: true,
+    migrationTags: ['20260820T000100_first', '20260820T000000_late_arrival'],
+  });
+  writeFileSync(
+    join(runtime.root, '20260820T000200_third.sql'),
+    'DROP FUNCTION IF EXISTS app.door_20260820t000100_first();\n',
+  );
+
+  const result = runLedgerMigrator(runtime);
+
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /objects are not in the catalog/u);
   assert.match(result.stderr, /--reapply 20260820T000100_first/u);
+  assert.equal(existsSync(runtime.capture), false, 'the absent object must stop the run before its transaction');
 });
 
 test('a drop ordered before the creator does not retire the object created later', () => {
