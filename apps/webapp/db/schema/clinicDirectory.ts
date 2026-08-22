@@ -148,11 +148,23 @@ export const organizationSlugClaims = pgTable(
     ),
     check(
       'organization_slug_claims_slug_reserved_check',
-      sql`${table.slug} <> ALL (ARRAY[
-        'account', 'admin', 'api', 'app', 'auth', 'book', 'booking', 'doctor', 'favicon',
-        'health', 'help', 'join', 'legal', 'login', 'manage', 'manifest', 'patient', 'privacy',
-        'register', 'robots', 'settings', 'sign-in', 'signup', 'sitemap', 'status', 'support',
-        'terms', 'widget', '_next'
+      sql`lower(${table.slug}) <> ALL (ARRAY[
+        '_next', 'about', 'abuse', 'account', 'admin', 'alpha', 'api', 'app', 'assets', 'auth',
+        'autoconfig', 'autodiscover', 'beta', 'billing', 'blog', 'book', 'booking', 'cache', 'catalog',
+        'careers', 'cdn', 'checkout', 'clinic', 'clinics', 'contact', 'dashboard', 'default', 'demo',
+        'dev', 'dkim', 'dmarc', 'dns', 'docs', 'doctor', 'download', 'downloads', 'edge', 'embed',
+        'error', 'false', 'favicon', 'file', 'files', 'fonts', 'ftp', 'gateway', 'git', 'health',
+        'help', 'hostmaster', 'icons', 'images', 'imap', 'img', 'info', 'internal', 'invoice',
+        'invoices', 'join', 'landing', 'legal', 'legal-notice', 'local', 'localhost', 'login', 'logout',
+        'mail', 'maintenance', 'manage', 'manifest', 'marketing', 'media', 'messages', 'nan', 'new',
+        'news', 'nil', 'noc', 'none', 'notifications', 'ns1', 'ns2', 'ns3', 'null', 'origin', 'patient', 'pay', 'payment',
+        'payments', 'platform', 'pop', 'pop3', 'postmaster', 'press', 'preview', 'pricing', 'private',
+        'prod', 'production', 'profile', 'proxy', 'public', 'register', 'robots', 'root', 'sales',
+        'sandbox', 'search', 'security', 'service', 'settings', 'shop', 'sign-in', 'sign-out', 'privacy', 'sign-up',
+        'signup', 'sitemap', 'smtp', 'specialist', 'specialists', 'spf', 'stage', 'staging', 'static',
+        'status', 'store', 'styles', 'support', 'system', 'terms', 'test', 'test-fixtures', 'true',
+        'undefined', 'upload', 'uploads', 'usenet', 'uucp', 'unknown', 'void', 'vpn', 'webmaster',
+        'well-known', 'widget', 'www'
       ]::text[])`,
     ),
     check(
@@ -163,8 +175,7 @@ export const organizationSlugClaims = pgTable(
 );
 
 export const ORGANIZATION_SLUG_RENAME_INITIATORS = ['clinic', 'platform_admin'] as const;
-export type OrganizationSlugRenameInitiator =
-  (typeof ORGANIZATION_SLUG_RENAME_INITIATORS)[number];
+export type OrganizationSlugRenameInitiator = (typeof ORGANIZATION_SLUG_RENAME_INITIATORS)[number];
 
 /** Append-only proof of every owner-directed slug rename. */
 export const organizationSlugRenameEvents = pgTable(
