@@ -14,7 +14,10 @@ function fixture(sudoExit = 0) {
   const bin = resolve(root, 'bin');
   mkdirSync(bin);
   const log = resolve(root, 'sudo.log');
-  writeFileSync(resolve(bin, 'sudo'), `#!/bin/bash\nprintf '%s\\n' "$*" >> "${log}"\nexit ${sudoExit}\n`);
+  writeFileSync(
+    resolve(bin, 'sudo'),
+    `#!/bin/bash\nprintf '%s\\n' "$*" >> "${log}"\nexit ${sudoExit}\n`,
+  );
   chmodSync(resolve(bin, 'sudo'), 0o755);
   writeFileSync(resolve(root, 'webapp.test'), 'PLACEHOLDER=1\n');
   return { root, bin, log };
@@ -37,7 +40,10 @@ echo "CALLER_CONTINUED"
 test('the gate produces coverage for the marked window with the caller-stated check count', () => {
   const entry = fixture();
   const before = new Date().toISOString();
-  const result = runGate(entry, 'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate 9');
+  const result = runGate(
+    entry,
+    'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate 9',
+  );
   assert.equal(result.status, 0, result.stderr);
   const call = readFileSync(entry.log, 'utf8').trim();
   assert.match(call, /diagnostics:saas-isolation -- post-runtime-gate/);
@@ -50,14 +56,20 @@ test('the gate produces coverage for the marked window with the caller-stated ch
 
 test('each caller states its own check count instead of inheriting a hardcoded one', () => {
   const entry = fixture();
-  const result = runGate(entry, 'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate 14');
+  const result = runGate(
+    entry,
+    'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate 14',
+  );
   assert.equal(result.status, 0, result.stderr);
   assert.match(readFileSync(entry.log, 'utf8'), /--checks 14/);
 });
 
 test('a red diagnostic gate warns and leaves the running TEST deploy alive', () => {
   const entry = fixture(1);
-  const result = runGate(entry, 'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate 9');
+  const result = runGate(
+    entry,
+    'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate 9',
+  );
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stderr, /TEST deploy CONTINUES/);
   assert.match(result.stdout, /CALLER_CONTINUED/);
@@ -73,7 +85,10 @@ test('coverage is refused when no window start was marked before the restart', (
 
 test('coverage is refused when the caller states no check count', () => {
   const entry = fixture();
-  const result = runGate(entry, 'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate');
+  const result = runGate(
+    entry,
+    'mark_e1_runtime_coverage_start\nrun_e1_post_runtime_coverage_gate',
+  );
   assert.equal(result.status, 1);
   assert.match(result.stderr, /needs the performed check count/);
   assert.throws(() => readFileSync(entry.log, 'utf8'));
