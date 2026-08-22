@@ -52,6 +52,15 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
 const CONTRACT = readFileSync(
   fileURLToPath(new URL('../port-context/contract.sql', import.meta.url)), 'utf8');
 
+// Ш8-аудит лежит в pending migration, а предмет этой пробы — резолверы Ш3–Ш7.  Заглушка сохраняет
+// их исполнимость в rollback-only candidate, не подменяя поведение самого аудита (его проверяет
+// identity-boundary-audit.devDbProof.test.mjs).
+const AUDIT_STUB = `CREATE OR REPLACE FUNCTION app.record_collapsing_audit_event(
+  text, uuid, uuid, text, text, text
+) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+GRANT EXECUTE ON FUNCTION app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)
+  TO app_seam_identity_lookup_owner;`;
+
 /** Точный кусок продукта между двумя его же якорями — иначе проба доказывала бы свой пересказ. */
 function contractSlice(startsWith, endsWith) {
   const from = CONTRACT.indexOf(startsWith);
@@ -61,27 +70,20 @@ function contractSlice(startsWith, endsWith) {
   return CONTRACT.slice(from, to + endsWith.length);
 }
 
-/** Целевая форма карты (шаги 1-2) и тела четырёх резолверов (шаг 3), дословно из контракта. */
+/** Целевая форма карты и двух kind-aware резолверов, дословно из контракта. */
 const CONTRACT_SHAPE = [
   contractSlice('CREATE TABLE IF NOT EXISTS app_ext.variant_a_identity_refs (', '$variant_a_kind$;'),
   contractSlice(
     'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid, p_ref_kind text)',
     'END $$;'),
   contractSlice(
-    'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)\n',
-    'END $$;'),
-  contractSlice(
     'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid, p_expected_ref_kind text)',
     'END $$;'),
+  // Владелец — часть предмета проверки, а не декорация: функция исполняется его правами.
   contractSlice(
-    'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)\n',
-    'END $$;'),
-  // Владелец — часть предмета проверки, а не декорация: делегат исполняется ПРАВАМИ ВЛАДЕЛЬЦА
-  // (SECURITY DEFINER), и если новая сигнатура достанется другой роли, делегат упрётся в
-  // `42501 permission denied for function` — ровно то, что увидел бы живой вход.
-  contractSlice(
-    'ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;',
+    'ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid,text) OWNER TO app_seam_identity_lookup_owner;',
     'ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid,text) OWNER TO app_seam_identity_lookup_owner;'),
+  AUDIT_STUB,
 ].join('\n');
 
 function psql(sql) {
@@ -109,43 +111,38 @@ ROLLBACK;
   return raw.split('|');
 }
 
-test('тот же человек: делегат и новая сигнатура выдают ОДНУ И ТУ ЖЕ ссылку',
+test('тот же человек: kind-aware акторская сигнатура выдаёт одну и ту же ссылку',
   { skip: !ENABLED }, () => {
     const parts = probe(`
-  DECLARE person uuid; legacy uuid; kinded uuid;
+  DECLARE person uuid; first_ref uuid; second_ref uuid;
   BEGIN
     person := (SELECT physical_user_id FROM app_ext.variant_a_identity_refs ORDER BY created_at LIMIT 1);
-    legacy := app_ext.resolve_variant_a_identity(person);
-    kinded := app_ext.resolve_variant_a_identity(person, 'actor');
-    PERFORM set_config('bcb.probe', legacy::text || '|' || kinded::text, false);
+    first_ref := app_ext.resolve_variant_a_identity(person, 'actor');
+    second_ref := app_ext.resolve_variant_a_identity(person, 'actor');
+    PERFORM set_config('bcb.probe', first_ref::text || '|' || second_ref::text, false);
   END;`);
     assert.equal(parts.length, 2, `круг не прошёл: ${parts.join('|')}`);
     assert.equal(parts[1], parts[0],
-      'старая сигнатура и новая разошлись — один человек получил две разные ссылки');
+      'повторный kind-aware вызов выдал человеку другую ссылку');
   });
 
-test('новый человек: путь ВСТАВКИ жив обеими сигнатурами и вид доезжает до строки карты',
+test('новый человек: путь ВСТАВКИ жив, а вид доезжает до строки карты',
   { skip: !ENABLED }, () => {
     // Человека, которого в карте нет, ловит именно путь вставки: арбитр `ON CONFLICT`, список
     // колонок INSERT и CHECK вида проверяются только здесь.
     const parts = probe(`
-  DECLARE fresh uuid := gen_random_uuid(); legacy_person uuid := gen_random_uuid();
-          minted uuid; stored_kind text; legacy_ref uuid; back uuid;
+  DECLARE fresh uuid := gen_random_uuid(); minted uuid; stored_kind text; back uuid;
   BEGIN
     minted := app_ext.resolve_variant_a_identity(fresh, 'subject');
     stored_kind := (SELECT ref_kind FROM app_ext.variant_a_identity_refs WHERE opaque_ref = minted);
-    legacy_ref := app_ext.resolve_variant_a_identity(legacy_person);
     back := app_ext.resolve_variant_a_physical(minted, 'subject');
     PERFORM set_config('bcb.probe',
-      minted::text || '|' || stored_kind || '|' ||
-      (SELECT ref_kind FROM app_ext.variant_a_identity_refs WHERE opaque_ref = legacy_ref) || '|' ||
-      back::text || '|' || fresh::text, false);
+      minted::text || '|' || stored_kind || '|' || back::text || '|' || fresh::text, false);
   END;`);
-    assert.equal(parts.length, 5, `путь вставки не прошёл: ${parts.join('|')}`);
+    assert.equal(parts.length, 4, `путь вставки не прошёл: ${parts.join('|')}`);
     assert.equal(parts[1], 'subject',
       'запрошенный вид не доехал до строки карты — резолвер записал не то, о чём его просили');
-    assert.equal(parts[2], 'actor', 'делегат завёл строку не акторского вида');
-    assert.equal(parts[3], parts[4], 'ссылка нового человека разрешилась не в него');
+    assert.equal(parts[2], parts[3], 'ссылка нового человека разрешилась не в него');
   });
 
 test('вид — закрытый список: неизвестное значение отвергает сама карта, а не резолвер',
@@ -179,17 +176,15 @@ test('Ш5: обратный резолвер СРАВНИВАЕТ вид, а н�
       `акторская ссылка разрешилась субъектной: ${parts.join('|')}`);
   });
 
-test('выдуманная ссылка отвергается 42501 обеими сигнатурами, а не отдаёт чужой физический id',
+test('выдуманная ссылка отвергается 42501, а не отдаёт чужой физический id',
   { skip: !ENABLED }, () => {
     const parts = probe(`
-  DECLARE invented uuid := '11111111-2222-4333-8444-555555555555'; legacy text; kinded text;
+  DECLARE invented uuid := '11111111-2222-4333-8444-555555555555'; kinded text;
   BEGIN
-    BEGIN PERFORM app_ext.resolve_variant_a_physical(invented); legacy := 'accepted';
-    EXCEPTION WHEN OTHERS THEN legacy := SQLSTATE; END;
     BEGIN PERFORM app_ext.resolve_variant_a_physical(invented, 'actor'); kinded := 'accepted';
     EXCEPTION WHEN OTHERS THEN kinded := SQLSTATE; END;
-    PERFORM set_config('bcb.probe', legacy || '|' || kinded, false);
+    PERFORM set_config('bcb.probe', kinded, false);
   END;`);
-    assert.deepEqual(parts, ['42501', '42501'],
-      `выдуманная ссылка не была отвергнута обеими сигнатурами: ${parts.join('|')}`);
+    assert.deepEqual(parts, ['42501'],
+      `выдуманная ссылка не была отвергнута: ${parts.join('|')}`);
   });

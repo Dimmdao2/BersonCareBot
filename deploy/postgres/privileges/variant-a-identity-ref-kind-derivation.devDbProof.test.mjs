@@ -58,6 +58,12 @@ if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
 const CONTRACT = readFileSync(
   fileURLToPath(new URL('../port-context/contract.sql', import.meta.url)), 'utf8');
 
+const AUDIT_STUB = `CREATE OR REPLACE FUNCTION app.record_collapsing_audit_event(
+  text, uuid, uuid, text, text, text
+) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+GRANT EXECUTE ON FUNCTION app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)
+  TO app_seam_identity_lookup_owner;`;
+
 /** Точный кусок продукта между двумя его же якорями — иначе проба доказывала бы свой пересказ. */
 function contractSlice(startsWith, endsWith) {
   const from = CONTRACT.indexOf(startsWith);
@@ -74,21 +80,16 @@ const CONTRACT_SHAPE = [
     'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid, p_ref_kind text)',
     'END $$;'),
   contractSlice(
-    'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)\n',
-    'END $$;'),
-  contractSlice(
     'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid, p_expected_ref_kind text)',
-    'END $$;'),
-  contractSlice(
-    'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)\n',
     'END $$;'),
   // Приёмный шов — часть предмета проверки: именно он сравнивает актора и субъекта, и именно его
   // проверка `actor_id IS DISTINCT FROM subject_id` обязана продолжать пропускать пациента, у
   // которого ссылки РАЗНЫЕ, а человек один.
   contractSlice('CREATE OR REPLACE FUNCTION app_ext.assert_port_context_claim(', 'END $$;'),
   contractSlice(
-    'ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid) OWNER TO app_seam_identity_lookup_owner;',
+    'ALTER FUNCTION app_ext.resolve_variant_a_identity(uuid,text) OWNER TO app_seam_identity_lookup_owner;',
     'ALTER FUNCTION app_ext.resolve_variant_a_physical(uuid,text) OWNER TO app_seam_identity_lookup_owner;'),
+  AUDIT_STUB,
 ].join('\n');
 
 function psql(sql) {

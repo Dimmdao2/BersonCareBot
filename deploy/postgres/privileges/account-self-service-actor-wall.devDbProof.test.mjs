@@ -72,6 +72,12 @@ const CONTRACT = readFileSync(
 const ARTIFACT = readFileSync(
   fileURLToPath(new URL(`../generated/privileges.${DATABASE}.sql`, import.meta.url)), 'utf8');
 
+const AUDIT_STUB = `CREATE OR REPLACE FUNCTION app.record_collapsing_audit_event(
+  text, uuid, uuid, text, text, text
+) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
+GRANT EXECUTE ON FUNCTION app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)
+  TO app_seam_identity_lookup_owner;`;
+
 /** Точный кусок продукта между двумя его же якорями — иначе проба доказывала бы свой пересказ. */
 function contractSlice(startsWith, endsWith) {
   const from = CONTRACT.indexOf(startsWith);
@@ -92,17 +98,12 @@ const CONTRACT_SHAPE = [
     'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid, p_ref_kind text)',
     'END $$;'),
   contractSlice(
-    'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_identity(p_platform_user_id uuid)\n',
-    'END $$;'),
-  contractSlice(
     'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid, p_expected_ref_kind text)',
-    'END $$;'),
-  contractSlice(
-    'CREATE OR REPLACE FUNCTION app_ext.resolve_variant_a_physical(p_opaque_ref uuid)\n',
     'END $$;'),
   contractSlice('CREATE OR REPLACE FUNCTION app.current_actor_user_id()', 'END $$;'),
   contractSlice('CREATE OR REPLACE FUNCTION app.current_patient_user_id()', 'END $$;'),
   contractSlice('CREATE OR REPLACE FUNCTION app_ext.assert_port_context_claim(', 'END $$;'),
+  AUDIT_STUB,
 ].join('\n');
 
 /**
