@@ -90,7 +90,6 @@ TEST_STRICT_RLS_FINALIZER=deploy/postgres/test-strict-rls-finalizer.sql
 SAAS_ISOLATION_TELEMETRY=deploy/postgres/saas-isolation-telemetry.sql
 SAAS_SYSTEM_HEALTH_DIAGNOSTICS=deploy/postgres/saas-system-health-diagnostics.sql
 INTEGRATOR_SERVER_RUNTIME_CONFIG=deploy/postgres/integrator-server-runtime-config.sql
-INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS=deploy/postgres/integrator-login-public-identity-grants.sql
 E1_WEBAPP_RUNTIME_CONFIG=deploy/postgres/e1-webapp-runtime-config.sql
 C4_OPERATIONAL_RUNTIME=deploy/postgres/c4-operational-runtime.sql
 C4_OPERATIONAL_PROVISIONER=deploy/host/provision-c4-operational-runtime.sh
@@ -830,21 +829,6 @@ install_integrator_server_runtime_config_overlay(){
     -v integrator_runtime_config_role="$api_runtime_role" \
     -f "$DEPLOY_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"
   echo "   integrator server-runtime config API: OK"
-}
-
-# Fixes: integrator login role (bootstrap/infra technical principals never SET ROLE, see
-# apps/integrator/src/infra/db/withClient.ts) has zero public.* table grants beyond
-# 20260413_0002/0003's narrow SELECT/USAGE -> 42501 on the very first pre-routing read, breaking
-# inbound Telegram/Max and blocking Track D1 direct writes. See
-# deploy/postgres/integrator-login-public-identity-grants.sql header for the full trace.
-install_integrator_login_public_identity_grants_overlay(){
-  local api_runtime_role
-  api_runtime_role="$(discover_api_runtime_role)"
-  validate_pg_identifier "api.test login public identity grants role" "$api_runtime_role"
-  sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 \
-    -v integrator_login_public_identity_grants_role="$api_runtime_role" \
-    -f "$DEPLOY_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"
-  echo "   integrator login public identity grants: OK"
 }
 
 assert_integrator_server_runtime_config_ready(){
@@ -1959,8 +1943,6 @@ run_strict_post_migration_closure(){
   install_saas_isolation_telemetry_overlay
   install_saas_system_health_diagnostics_overlay
   install_integrator_server_runtime_config_overlay
-  log "strict closure: integrator login public identity grants"
-  install_integrator_login_public_identity_grants_overlay
   if [ "$P2_B_CONTEXT_INSTALLED" = "1" ]; then
     assert_api_runtime_can_release_principal_context
   fi
@@ -2116,7 +2098,6 @@ run_strict_closure_catalog_self_test(){
       install_saas_isolation_telemetry_overlay \
       install_saas_system_health_diagnostics_overlay \
       install_integrator_server_runtime_config_overlay \
-      install_integrator_login_public_identity_grants_overlay \
       grant_webapp_bootstrap_base_login_d3_4 \
       sudo apply_test_strict_rls_finalizer bootstrap_and_provision_c4_operational_runtime \
       install_port_context_login_roles; do
@@ -2426,7 +2407,6 @@ assert_hash_bound_protected_input "FIO manifest" "$FIO_MANIFEST" "$FIO_MANIFEST_
 [ -r "$SRC_REPO/$SAAS_ISOLATION_TELEMETRY" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_ISOLATION_TELEMETRY"; exit 1; }
 [ -r "$SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$SAAS_SYSTEM_HEALTH_DIAGNOSTICS"; exit 1; }
 [ -r "$SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_SERVER_RUNTIME_CONFIG"; exit 1; }
-[ -r "$SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$INTEGRATOR_LOGIN_PUBLIC_IDENTITY_GRANTS"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_RUNTIME" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_RUNTIME"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_PROVISIONER" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_PROVISIONER"; exit 1; }
 [ -r "$SRC_REPO/$C4_OPERATIONAL_READINESS" ] || { echo "FATAL: missing repo file: $SRC_REPO/$C4_OPERATIONAL_READINESS"; exit 1; }
