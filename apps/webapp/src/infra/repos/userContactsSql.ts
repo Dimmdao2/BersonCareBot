@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { sql } from 'drizzle-orm';
+import { getTableName, sql } from 'drizzle-orm';
 import { mutateCanonicalUserContacts, type CanonicalContactMutation, type MergeSqlExecutor } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
@@ -82,33 +82,59 @@ export async function mutateCanonicalUserContactsWebapp(
   await mutateCanonicalUserContacts(webappMergeSqlExecutor(db), platformUserId, mutations);
 }
 
+/**
+ * Первичный контакт человека — ОДИН подзапрос с параметрами (вид контакта и колонка), а не четыре
+ * похожих текста: варианты одного действия — параметры одной точки (AGENTS.md §5).
+ *
+ * Обе стороны корреляции пишутся ЯВНО и с квалификацией, и это не стиль, а условие корректности.
+ * Внутренняя таблица получает псевдоним, внешняя ссылка несёт имя таблицы. Прежняя редакция
+ * подставляла drizzle-колонки (`${userContacts.platformUserId} = ${platformUsers.id}`), а drizzle
+ * печатает колонку БЕЗ имени таблицы, когда фрагмент стоит в списке выборки `.select({…})` (в
+ * `WHERE` — с именем). В списке выборки получалось `WHERE "platform_user_id" = "id"`, и `"id"`
+ * связывался с `user_contacts.id` — СОБСТВЕННЫМ ключом подзапроса, а не с человеком снаружи.
+ * Условие ложно всегда, ошибки нет: подзапрос молча возвращает NULL. Замерено 22.08.2026 на
+ * `bcb_webapp_dev`: у владельца строка почты есть и подтверждена, а `getProfileEmailFields`
+ * отдавал `{email:null, emailVerifiedAt:null}` — «почта не подтверждена» в интерфейсе после
+ * цутовера `20260821T040000` вместо отказа прав, который было бы видно.
+ *
+ * Внешняя ссылка — `"platform_users"."id"`, поэтому вызывающий обязан держать `platform_users` БЕЗ
+ * псевдонима (drizzle-построители так и делают). Псевдоним теперь ломает запрос ГРОМКО (42P01
+ * «invalid reference to FROM-clause entry»), а не тихо, — это и требуется: тихий NULL и был дефектом.
+ * Для сырого SQL с псевдонимом `pu` в файле есть отдельная форма — {@link USER_CONTACTS_PRIMARY_LATERALS}.
+ */
+const PLATFORM_USERS_ID = sql.raw(`"${getTableName(platformUsers)}"."${platformUsers.id.name}"`);
+
+function drizzlePrimaryContactCol(
+  contactKind: 'phone' | 'email',
+  column: typeof userContacts.valueNormalized | typeof userContacts.confirmedAt,
+) {
+  const contact = sql.raw('primary_contact');
+  return sql<string | null>`(
+  SELECT ${contact}.${sql.raw(column.name)} FROM ${userContacts} AS ${contact}
+   WHERE ${contact}.${sql.raw(userContacts.platformUserId.name)} = ${PLATFORM_USERS_ID}
+     AND ${contact}.${sql.raw(userContacts.contactKind.name)} = ${contactKind}
+     AND ${contact}.${sql.raw(userContacts.isPrimary.name)} = true
+   LIMIT 1
+)`;
+}
+
 /** Drizzle primary phone for the user (reads `user_contacts` only). */
-export const drizzlePrimaryPhoneCol = sql<string | null>`(
-  SELECT ${userContacts.valueNormalized} FROM ${userContacts}
-   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
-     AND ${userContacts.contactKind} = 'phone'
-     AND ${userContacts.isPrimary} = true
-   LIMIT 1
-)`;
+export const drizzlePrimaryPhoneCol = drizzlePrimaryContactCol(
+  'phone',
+  userContacts.valueNormalized,
+);
 
-export const drizzlePrimaryPhoneConfirmedAtCol = sql<string | null>`(
-  SELECT ${userContacts.confirmedAt} FROM ${userContacts}
-   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
-     AND ${userContacts.contactKind} = 'phone' AND ${userContacts.isPrimary} = true
-   LIMIT 1
-)`;
+export const drizzlePrimaryPhoneConfirmedAtCol = drizzlePrimaryContactCol(
+  'phone',
+  userContacts.confirmedAt,
+);
 
-export const drizzlePrimaryEmailCol = sql<string | null>`(
-  SELECT ${userContacts.valueNormalized} FROM ${userContacts}
-   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
-     AND ${userContacts.contactKind} = 'email'
-     AND ${userContacts.isPrimary} = true
-   LIMIT 1
-)`;
+export const drizzlePrimaryEmailCol = drizzlePrimaryContactCol(
+  'email',
+  userContacts.valueNormalized,
+);
 
-export const drizzlePrimaryEmailConfirmedAtCol = sql<string | null>`(
-  SELECT ${userContacts.confirmedAt} FROM ${userContacts}
-   WHERE ${userContacts.platformUserId} = ${platformUsers.id}
-     AND ${userContacts.contactKind} = 'email' AND ${userContacts.isPrimary} = true
-   LIMIT 1
-)`;
+export const drizzlePrimaryEmailConfirmedAtCol = drizzlePrimaryContactCol(
+  'email',
+  userContacts.confirmedAt,
+);
