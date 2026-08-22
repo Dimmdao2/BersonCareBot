@@ -6,6 +6,7 @@ import {
   userHourlyPageKeyForEvent,
 } from '@/modules/product-analytics/aggregateKeys';
 import {
+  aggregateProductAnalyticsUserHourly,
   buildAdminDashboard,
   productAnalyticsWindowStartHour,
 } from '@/modules/product-analytics/buildAdminDashboard';
@@ -194,12 +195,17 @@ export function createInMemoryProductAnalyticsPort(): ProductAnalyticsPort {
           sloganKey: p.warmupSloganKey!,
           sampleText: p.warmupSloganText ?? null,
         }));
+      // Строки пользователей здесь остаются В ПАМЯТИ процесса и наружу не уезжают: сборщик
+      // получает от них тот же СЧЁТ, что на боевом пути считает именованный корень.
       return buildAdminDashboard({
         windowHours,
         displayTimezone: 'Europe/Moscow',
         startHourInclusive: startHour,
         hourlyRows,
-        userHourlyRows,
+        userAggregates: aggregateProductAnalyticsUserHourly(userHourlyRows, {
+          displayTimezone: 'Europe/Moscow',
+          startHourInclusive: startHour,
+        }),
         warmupSloganSamples,
       });
     },

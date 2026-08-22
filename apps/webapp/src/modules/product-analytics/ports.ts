@@ -1,3 +1,4 @@
+import type { AnalyticsTestAccountSpec } from '@/modules/analytics/analyticsAudience';
 import type {
   CreatePushNotificationInput,
   ListRegistrationEventsParams,
@@ -17,8 +18,12 @@ export type ProductAnalyticsPort = {
   recordPushOpen(input: RecordPushOpenInput): Promise<{ deduped: boolean }>;
   getAdminDashboard(params: {
     windowHours: number;
-    /** When true (dev_mode), test accounts stay in aggregates. */
-    includeTestAccounts?: boolean;
+    /**
+     * Служебные учётки приезжают СПИСКОМ идентификаторов, а не готовым списком id: принципал
+     * экрана (`app_platform_settings`) резолвить их в id не может — прав на `platform_users` и
+     * `user_channel_bindings` у него нет. Отсев делает уже тело именованного корня.
+     */
+    audience: AnalyticsTestAccountSpec;
   }): Promise<ProductAnalyticsAdminDashboard>;
   purgeRecentOlderThan(
     days: number,

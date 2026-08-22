@@ -6,23 +6,19 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudience';
 
-/** Doctor-facing analytics: exclude test users unless dev_mode; do not exclude staff as clients. */
+/**
+ * Doctor-facing analytics: exclude test users unless dev_mode; do not exclude staff as clients.
+ *
+ * Второго загрузчика здесь больше нет. `loadProductAnalyticsAudience()` (он резолвил ещё и
+ * сотрудников) обслуживал только экран «Приложение», а тот перешёл на именованный корень и
+ * получает спецификацию через `loadPlatformAnalyticsAudienceSpec()`: под платформенным принципалом
+ * резолв id по `platform_users` — это 42501.
+ */
 export async function loadDoctorAnalyticsAudience() {
   const deps = buildAppDeps();
   return loadAnalyticsAudienceContext({
     systemSettings: deps.systemSettings,
     loadExcludedUserIds: (input) => resolveAnalyticsExcludedUserIds(getDrizzle(), input),
-    excludeStaffRoles: false,
-  });
-}
-
-/** Product usage analytics: exclude staff + test users (unless dev_mode). */
-export async function loadProductAnalyticsAudience() {
-  const deps = buildAppDeps();
-  return loadAnalyticsAudienceContext({
-    systemSettings: deps.systemSettings,
-    loadExcludedUserIds: (input) => resolveAnalyticsExcludedUserIds(getDrizzle(), input),
-    excludeStaffRoles: true,
   });
 }
 

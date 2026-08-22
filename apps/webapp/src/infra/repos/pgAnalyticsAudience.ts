@@ -31,10 +31,13 @@ export function platformAudienceJson(
   });
 }
 
+/**
+ * Отсев сотрудников здесь больше не делается: он был нужен только экрану «Приложение», а тот ушёл
+ * за именованный корень — там персонал убирает тело SQL по присланному `p_audience_json`. Врачебные
+ * поверхности сотрудников из клиентов не вычитали никогда.
+ */
 export type ResolveExcludedUserIdsOptions = {
   includeTestAccounts: boolean;
-  /** Product analytics: always exclude staff roles. Doctor KPIs: false. */
-  excludeStaffRoles?: boolean;
   testAccountIdentifiers?: TestAccountIdentifiers | null;
 };
 
@@ -43,14 +46,6 @@ export async function resolveAnalyticsExcludedUserIds(
   options: ResolveExcludedUserIdsOptions,
 ): Promise<string[]> {
   const excluded = new Set<string>();
-
-  if (options.excludeStaffRoles !== false) {
-    const staffRows = await db
-      .select({ id: platformUsers.id })
-      .from(platformUsers)
-      .where(inArray(platformUsers.role, [...STAFF_ANALYTICS_ROLES]));
-    for (const row of staffRows) excluded.add(row.id);
-  }
 
   const alwaysExcludedPhoneRows = await db
     .select({ id: platformUsers.id })

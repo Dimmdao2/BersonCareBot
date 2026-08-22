@@ -148,25 +148,18 @@ export type ProductAnalyticsActiveUsersDailyRow = {
   activeUsers: number;
 };
 
-export type ProductAnalyticsClientChannelStatsRow = {
-  entryChannel: ProductAnalyticsEntryChannel;
-  appOpens: number;
-  pageViews: number;
-  pushOpens: number;
-  activeMinutes: number;
-  totalActivity: number;
-};
-
-export type ProductAnalyticsClientActivityRow = {
-  userId: string;
-  displayName: string;
-  lastSeenAt: string | null;
-  appOpens: number;
-  pageViews: number;
-  pushOpens: number;
-  activeMinutes: number;
-  totalActivity: number;
-  channels: ProductAnalyticsClientChannelStatsRow[];
+/**
+ * Всё, что экран «Приложение» знает про людей, — СЧЁТ. Именной таблицы «Клиент» здесь больше нет
+ * (решение владельца Р-АДМИН 22.08.2026 и условие #1019-Q1 от 26.07): ни одного идентификатора
+ * человека в этих величинах не остаётся, поэтому и переходить с экрана некуда.
+ */
+export type ProductAnalyticsUserAggregates = {
+  totalActiveMinutes: number;
+  uniqueActiveUsers: number;
+  activeUsersDaily: ProductAnalyticsActiveUsersDailyRow[];
+  /** Ключ уже СХЛОПНУТ правилами группировки: считать distinct после схлопывания — единственный способ не задвоить человека. */
+  pageUniqueUsers: Array<{ pageKey: string; uniqueUsers: number }>;
+  pageUniqueUsersHourly: Array<{ bucket: string; pageKey: string; uniqueUsers: number }>;
 };
 
 export type ProductAnalyticsAdminDashboard = {
@@ -182,5 +175,4 @@ export type ProductAnalyticsAdminDashboard = {
   pushByTopic: ProductAnalyticsPushByTopicRow[];
   warmupSlogans: ProductAnalyticsWarmupSloganRow[];
   activeUsersDaily: ProductAnalyticsActiveUsersDailyRow[];
-  clientActivity: ProductAnalyticsClientActivityRow[];
 };

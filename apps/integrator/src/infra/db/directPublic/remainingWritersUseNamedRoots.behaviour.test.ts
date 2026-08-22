@@ -191,7 +191,7 @@ describe('D17 шаг 2b — метка «бот заблокирован»', () 
 
 describe('D17 шаг 2b — разбор конфликта привязки номера', () => {
   it('уходит одним корнем под организацией вызывающего, без транзакции отношений', async () => {
-    const { db, executed } = recordingDb({ inserted_first: true });
+    const { db, executed } = recordingDb({ recorded: { inserted_first: true } });
 
     await runWithOrganizationPrincipal(ORG_ROW, () =>
       writeDirectPublic('admin-audit-write', () =>
@@ -206,23 +206,27 @@ describe('D17 шаг 2b — разбор конфликта привязки н�
 
     const call = expectOnlyNamedRootTouches(
       executed,
-      'app.integrator_record_messenger_phone_bind_audit',
+      'app.record_collapsing_audit_event',
       'admin_audit_log',
     );
     expect(call.principalKind).toBe('organization');
     expect(call.principalOrganizationId).toBe(ORG_ROW);
-    expect(call.params[0]).toBe(ORG_ROW);
-    expect(call.params[1]).toBe(PLATFORM_USER);
+    // D15b/7a Ш8: вид события — ПЕРВЫЙ аргумент общей двери, а не вывод из «ключ пуст или нет».
+    expect(call.params[0]).toBe('messenger_phone_bind_blocked');
+    expect(call.params[1]).toBe(ORG_ROW);
+    // Актора у события нет: его пишет сервер по вебхуку, а не человек.
+    expect(call.params[2]).toBeNull();
+    expect(call.params[3]).toBe(PLATFORM_USER);
     // Ключ схлопывания — sha256 отсортированных кандидатов: 64 шестнадцатеричных знака.
-    expect(call.params[2]).toMatch(/^[0-9a-f]{64}$/);
-    const details = JSON.parse(String(call.params[3])) as Record<string, unknown>;
+    expect(call.params[4]).toMatch(/^[0-9a-f]{64}$/);
+    const details = JSON.parse(String(call.params[5])) as Record<string, unknown>;
     expect(details.reason).toBe('phone_taken_by_other_account');
     expect(details.source).toBe('integrator.user.phone.link');
     expect(details.candidateIds).toEqual([PLATFORM_USER, OTHER_PLATFORM_USER]);
   });
 
   it('аномалия без кандидатов идёт той же дверью и ключа схлопывания не несёт', async () => {
-    const { db, executed } = recordingDb({ inserted_first: true });
+    const { db, executed } = recordingDb({ recorded: { inserted_first: true } });
 
     await runWithOrganizationPrincipal(ORG_ROW, () =>
       writeDirectPublic('admin-audit-write', () =>
@@ -237,15 +241,16 @@ describe('D17 шаг 2b — разбор конфликта привязки н�
 
     const call = expectOnlyNamedRootTouches(
       executed,
-      'app.integrator_record_messenger_phone_bind_audit',
+      'app.record_collapsing_audit_event',
       'admin_audit_log',
     );
-    expect(call.params[1]).toBeNull();
-    expect(call.params[2]).toBeNull();
+    expect(call.params[0]).toBe('messenger_phone_bind_anomaly');
+    expect(call.params[3]).toBeNull();
+    expect(call.params[4]).toBeNull();
   });
 
   it('чужой организации не достаётся: организация — окружающая, а не из деталей случая', async () => {
-    const { db, executed } = recordingDb({ inserted_first: false });
+    const { db, executed } = recordingDb({ recorded: { inserted_first: false } });
 
     await runWithOrganizationPrincipal(ORG_OTHER, () =>
       writeDirectPublic('admin-audit-write', () =>
@@ -259,19 +264,19 @@ describe('D17 шаг 2b — разбор конфликта привязки н�
     );
 
     const call = executed.find((executedCall) =>
-      executedCall.text.includes('app.integrator_record_messenger_phone_bind_audit'),
+      executedCall.text.includes('app.record_collapsing_audit_event'),
     )!;
-    expect(call.params[0]).toBe(ORG_OTHER);
-    expect(call.params[0]).toBe(call.principalOrganizationId);
+    expect(call.params[1]).toBe(ORG_OTHER);
+    expect(call.params[1]).toBe(call.principalOrganizationId);
     // `organizationId` из деталей случая в аргумент корня не попадает ни при каких условиях:
     // подстановка её туда и была бы межарендной утечкой, потому что корень сверяет аргумент с
     // принятым контекстом и сужает им КАЖДЫЙ поиск строки.
-    expect(call.params[0]).not.toBe(ORG_ROW);
+    expect(call.params[1]).not.toBe(ORG_ROW);
   });
 
   it('дверь сама говорит, первый ли это случай: false — администратора не будят', async () => {
     const relay = vi.fn();
-    const { db, executed } = recordingDb({ inserted_first: false });
+    const { db, executed } = recordingDb({ recorded: { inserted_first: false } });
 
     await runWithOrganizationPrincipal(ORG_ROW, () =>
       writeDirectPublic('admin-audit-write', () =>
@@ -288,7 +293,7 @@ describe('D17 шаг 2b — разбор конфликта привязки н�
     expect(relay).not.toHaveBeenCalled();
     expectOnlyNamedRootTouches(
       executed,
-      'app.integrator_record_messenger_phone_bind_audit',
+      'app.record_collapsing_audit_event',
       'admin_audit_log',
     );
   });

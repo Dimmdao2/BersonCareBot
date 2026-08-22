@@ -1981,6 +1981,9 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)': {
     contacts: ['SELECT'],
   },
+  'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)': {
+    contacts: ['SELECT'],
+  },
   'app.redeem_patient_invite_email(text)': {
     contacts: ['SELECT', 'UPDATE'], operations: { 'public.platform_users': ['SELECT'] },
   },
@@ -2608,7 +2611,46 @@ const REV10_CONTEXT = {
       runtimeName: 'messenger_phone_bind_audit_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.messenger-phone-bind-audit.record',
-      functionIdentity: 'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)' },
+      functionIdentity: 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)' },
+    // D17 финал: реляционные ЧИТАТЕЛИ `public.*` из интегратора. Ключ двери порта интегратора
+    // начинается с `integrator_port_…` по той же причине, что у шага 2b: каталог возможностей — ОДИН
+    // объектный литерал, и одинаковый ключ вытесняет соседа молча.
+    // Класс контекста у обеих дверей — `tenant_service`: живой маршрут читает получателя внутри
+    // организационного принципала, и тело корня повторяет ту же стену арендатора, которой сегодня
+    // сужает эти чтения RLS роли `app_tenant_service`.
+    integrator_port_channel_binding_identity_read: { port: 'integrator',
+      runtimeName: 'channel_binding_identity_read', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
+      purpose: 'integrator.channel-binding-identity.read',
+      functionIdentity: 'app.integrator_read_channel_binding_identity(text,text,text)' },
+    integrator_port_platform_user_delivery_identity_read: { port: 'integrator',
+      runtimeName: 'platform_user_delivery_identity_read', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
+      purpose: 'integrator.platform-user-delivery-identity.read',
+      functionIdentity: 'app.integrator_read_platform_user_delivery_identity(text)' },
+    // ВТОРАЯ дверь в тот же корень опознания получателя — для ИНТЕГРАТОРСКОГО принципала.
+    // Вебхук выбирает принципал тройкой `integrator` → `organization` → `bootstrap`
+    // (`telegram/webhook.ts:372,377,378`), а дверь была одна, класса `tenant_service`; под
+    // интеграторским рантайм порта не находил возможности, бросок доходил до `eventGateway` и
+    // человек не получал НИ ОДНОГО ответа. Роль та же, `app_integrator_request`: обе двери —
+    // порта интегратора, чужой роли ни одна не называет. Гейт корня ветвится по двери
+    // (миграция `20260822T190000_the_incoming_recipient_door_opens_for_the_integrator_principal.sql`).
+    // Третьей двери, bootstrap-класса, здесь нет и быть не может: этот класс по контракту не несёт
+    // организации, а без неё стена арендатора в теле не выполнима — дверь была бы ШИРЕ чтения.
+    integrator_port_channel_binding_identity_read_integrator_context: { port: 'integrator',
+      runtimeName: 'channel_binding_identity_read_integrator_context',
+      sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_request', contextClass: 'integrator',
+      purpose: 'integrator.channel-binding-identity.read',
+      functionIdentity: 'app.integrator_read_channel_binding_identity(text,text,text)' },
+    // Пред-маршрутизация ищет клинику ДО того, как принципал её знает, поэтому её дверь — не
+    // `tenant_service`, а тот же bootstrap-класс, которым уже ходят два соседних резолвера
+    // (`integrator_user_organization_resolve`, `integrator_dedicated_bot_organization_resolve`).
+    integrator_channel_organization_resolve: { port: 'integrator',
+      runtimeName: 'integrator_channel_organization_resolve', sessionRole: 'app_integrator_request',
+      targetRole: 'app_integrator_resolver', contextClass: 'integrator',
+      purpose: 'integrator.channel-organization.resolve',
+      functionIdentity: 'app.resolve_active_organization_for_channel_binding(text,text)' },
     integrator_auth_channel_setting_read: { port: 'integrator', runtimeName: 'auth_channel_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-auth-channel.read',
@@ -2662,6 +2704,15 @@ const REV10_CONTEXT = {
       targetRole: 'app_platform_settings', contextClass: 'platform',
       purpose: 'analytics.platform-user-stats.read',
       functionIdentity: 'app.read_platform_user_stats(timestamp with time zone,timestamp with time zone,text,text)' },
+    // Экран «Приложение» (`/app/doctor/usage`). Именная таблица «Клиент» с него снята целиком
+    // (Р-АДМИН 22.08 + условие #1019-Q1 от 26.07), а всё, что осталось, — агрегат: KPI, суточные
+    // активные, заходы по каналу, топ страниц, push по темам. Роль экрана получает EXECUTE и ни
+    // одного табличного гранта на телеметрию.
+    webapp_product_analytics_dashboard: { port: 'webapp',
+      runtimeName: 'product_analytics_dashboard', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'analytics.product-dashboard.read',
+      functionIdentity: 'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)' },
     list_platform_registration_analytics_events: { port: 'webapp',
       runtimeName: 'list_platform_registration_analytics_events', sessionRole: 'app_platform_settings',
       targetRole: 'app_platform_settings', contextClass: 'platform',
@@ -2920,6 +2971,22 @@ const REV10_CONTEXT = {
     webapp_pre_session_audit_event_append: { port: 'webapp', runtimeName: 'pre_session_audit_event_append',
       sessionRole: 'app_patient', targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'platform.audit-event.append', functionIdentity: 'app.append_platform_audit_event(text,text,text)' },
+    // D15b/7a Ш8: две веб-возможности ОДНОЙ двери журнала пересечения границы. Дверь одна на все
+    // четыре точки (акт связывания, вход, карточка, список) — вид события её ПАРАМЕТР, а не вторая
+    // функция (AGENTS.md §5). Классов два, потому что и точки две по природе: вход человек делает
+    // до установки своего принципала (`pre_session`), карточку и список открывает персонал
+    // (`staff`). Цель у обеих одна — тело двери сверяет пару «роль/класс» по действию, и подменить
+    // одну точку другой нечем: под контекстом персонала действие входа не пройдёт гейт.
+    webapp_staff_identity_boundary_audit_record: { port: 'webapp',
+      runtimeName: 'staff_identity_boundary_audit_record', sessionRole: 'app_staff',
+      targetRole: 'app_staff', contextClass: 'staff',
+      purpose: 'identity.boundary-crossing.record',
+      functionIdentity: 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)' },
+    webapp_pre_session_identity_boundary_audit_record: { port: 'webapp',
+      runtimeName: 'pre_session_identity_boundary_audit_record', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'identity.boundary-crossing.record',
+      functionIdentity: 'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)' },
     webapp_platform_incidents_acknowledge: { port: 'webapp', runtimeName: 'platform_incidents_acknowledge',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.operator-incidents.acknowledge',
@@ -3656,6 +3723,38 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_bindings',
           columns: ['user_id', 'channel_code', 'external_id', 'created_at', 'bot_blocked_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Единственная дверь экрана «Приложение». Прежде экран читал ОТНОШЕНИЕМ три таблицы
+    // телеметрии и `platform_users ⋈ user_identity` ради ФИО в таблице «Клиент»; таблица снята
+    // решением владельца, а у `app_platform_settings` на все три телеметрические таблицы прав нет
+    // вовсе, поэтому маршрут отдавал 500 с 42501. Дверь отдаёт СЧЁТ и ни одного идентификатора
+    // человека: `pageUniqueUsers`/`activeUsersDaily` — это `count(DISTINCT user_id)` внутри тела.
+    // Владелец шва существующий: `app_seam_platform_analytics_owner` уже владеет обоими соседними
+    // корнями платформенной аналитики и уже читает `product_analytics_user_hourly`.
+    'app.read_product_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text,text)': rev10Function({
+      owner: 'app_seam_platform_analytics_owner', security: 'DEFINER', returns: 'jsonb',
+      returnsSet: false, execute: ['app_platform_settings'],
+      purpose: 'return only the aggregated product analytics dashboard snapshot',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone', 'text', 'text', 'text'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'role'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_events_recent',
+          columns: ['occurred_at', 'event_type', 'entry_channel', 'page_key', 'topic_code',
+            'push_kind', 'warmup_slogan_key', 'user_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_push_notifications',
+          columns: ['created_at', 'user_id', 'topic_code', 'push_kind', 'warmup_slogan_key',
+            'warmup_slogan_text'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.product_analytics_user_hourly',
+          columns: ['bucket_hour', 'user_id', 'page_key', 'app_opens', 'page_views', 'push_opens',
+            'active_minutes'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -6224,6 +6323,63 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // D17 финал: три корня на семь живых реляционных читателей `public.*` из интегратора.
+    // `be_organization_members` и `org_enrollments` в переписи первого и третьего — не расширение
+    // доступа, а СТЕНА: тело повторяет предикат `rev10_tenant_select_*`, которым RLS сужает те же
+    // чтения под ролью вебаппа сегодня. `SECURITY DEFINER` обходит RLS, поэтому без этих двух
+    // отношений корень был бы ШИРЕ прежнего чтения.
+    'app.integrator_read_channel_binding_identity(text,text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_integrator_request'], purpose: 'integrator.channel-binding-identity.read',
+      typedArgs: ['text', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'display_handle'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.integrator_read_platform_user_delivery_identity(text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_integrator_request'], purpose: 'integrator.platform-user-delivery-identity.read',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'integrator_user_id', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Сосед `app.resolve_active_organization_for_integrator_user_id(bigint)` делает то же дело по
+    // ДРУГОМУ ключу — по integrator_user_id, а не по привязке канала; поэтому это второй корень, а
+    // не вторая дверь в первый. Стены арендатора здесь нет и быть не может: дверь как раз и ищет
+    // организацию, и отдаёт наружу ровно один uuid, ни одной колонки о человеке.
+    'app.resolve_active_organization_for_channel_binding(text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
+      execute: ['app_integrator_resolver'], purpose: 'integrator.channel-organization.resolve',
+      typedArgs: ['text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.integrator_upsert_channel_identity(text,text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.channel-identity.upsert',
@@ -6411,12 +6567,26 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // ОДНА дверь записи схлопывающегося события в `admin_audit_log`. До D15b/7a Ш8 она называлась
+    // `app.integrator_record_messenger_phone_bind_audit` и знала ровно один случай — разбор
+    // конфликта привязки номера. Ш8 не завёл вторую: вид события стал ПАРАМЕТРОМ этой точки
+    // (AGENTS.md §5), и та же дверь пишет четыре точки пересечения границы «личность↔медицина».
+    // Имя перестало описывать работу — точка переименована тем же изменением, как §5 и требует.
+    //
+    // Три возможности с тремя парами «роль/класс» переводят генератор в режим `exact_existing`:
+    // гейт в теле рукописный (CASE по действию), reconcile сверяет в нём токены каждой тройки,
+    // а не переписывает его. Четвёртая ветка гейта — внутренний вызов из
+    // `app_ext.resolve_variant_a_identity`: акт связывания рождается внутри разрешения ссылки, и
+    // ветка требует контекст ИМЕННО того разрешения, поэтому своей возможности у неё нет.
+    //
     // `SELECT … FOR UPDATE` по открытой строке случая — право класса UPDATE, а не SELECT; оно у
     // этого владельца шва уже объявлено, и тело всё равно обновляет ту же таблицу по существу дела.
-    'app.integrator_record_messenger_phone_bind_audit(uuid,text,text,text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_integrator_request'], purpose: 'integrator.messenger-phone-bind-audit.record',
-      typedArgs: ['uuid', 'text', 'text', 'text'],
+    // `created_at` в поверхности нет: строку рождает DEFAULT, тело её не называет.
+    'app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_integrator_request', 'app_staff', 'app_pre_session', 'app_seam_identity_lookup_owner'],
+      purpose: 'integrator.messenger-phone-bind-audit.record',
+      typedArgs: ['text', 'uuid', 'uuid', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.admin_audit_log',
@@ -6584,6 +6754,10 @@ const REV10_CONTEXT = {
       // ever reads an existing reference or inserts a missing one. It never rewrites a row.
       // Вид ссылки — аргумент с Ш3 (22.08): тело читает `ref_kind` в предикате, пишет его
       // вставкой и называет арбитром `ON CONFLICT` — все три операции лежат в одной поверхности.
+      // D15b/7a Ш8: рождение subject-ссылки — это и есть акт связывания, и он уходит в ОДНУ дверь
+      // журнала. Своей поверхности на `admin_audit_log` у резолвера от этого не появляется: пишет
+      // дверь, у неё эта поверхность и объявлена.
+      delegatesTo: ['app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)'],
       relationSurfaces: [{ relation: 'app_ext.variant_a_identity_refs', columns: ['physical_user_id', 'opaque_ref', 'ref_kind'], operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }] }),
     // Совместимая сигнатура D15b/7a Ш3–Ш6: тонкий делегат без собственного тела, снимается Ш7.
     // Своей поверхности у него нет и быть не может: карту читает и пишет тот, кому он передаёт.
@@ -8134,9 +8308,12 @@ function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
 
 function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
   return [
+    // D15b/7a Ш6 (22.08): корень учётки — АКТОРСКАЯ вещь, и гейтится акторской ссылкой. До Ш4 обе
+    // ссылки резолвились в один физический id, поэтому субъектный аксессор тут «работал»; после
+    // разделения он означал бы, что личность человека открывается медицинской ссылкой.
     { name: `rev10_platform_users_patient_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
-      to: ['app_patient'], using: '(id = app.current_patient_user_id())',
-      note: 'patient may read only its own explicitly granted profile columns' },
+      to: ['app_patient'], using: '(id = app.current_actor_user_id())',
+      note: 'identity-self may read only its own explicitly granted profile columns' },
     { name: `rev10_platform_users_staff_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff'],
       using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
@@ -8197,7 +8374,10 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   const relationName = tableKey.slice('public.'.length);
   const userColumn = REV10_PATIENT_SELF_MANAGED_COLUMN[tableKey];
   if (!userColumn) throw new Error(`missing patient self-managed column for ${tableKey}`);
-  const patientWall = `(${userColumn} = app.current_patient_user_id())`;
+  // D15b/7a Ш6 (22.08): восемь таблиц этой семьи — контакты, каналы, предпочтения доставки и ФИО, то
+  // есть самообслуживание человека по СВОЕЙ учётке, а не данные о пациенте. Гейт — акторская ссылка.
+  // `app_patient` уже несёт EXECUTE на `app.current_actor_user_id()` (REV10_RUNTIME), новых грантов нет.
+  const patientWall = `(${userColumn} = app.current_actor_user_id())`;
   const staffWall = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
     + ` WHERE access_member.platform_user_id = ${relationName}.${userColumn}`
     + ' AND access_member.organization_id = (SELECT app.current_org_id())'
@@ -8209,7 +8389,7 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_patient'], using: patientWall, withCheck: patientWall,
-      note: `patient manages only its own rows in ${tableKey}` },
+      note: `identity-self manages only its own rows in ${tableKey}` },
     { name: `rev10_staff_member_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: staffWall, withCheck: staffWall,
       note: `staff manages ${tableKey} only for current-clinic members and enrolled patients` },

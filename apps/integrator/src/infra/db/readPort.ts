@@ -9,7 +9,6 @@ import { createDbPort } from './client.js';
 import { getAdminStats } from './repos/adminStats.js';
 import { getChannelBindingLinkData } from './repos/platformUserByChannel.js';
 import {
-  getReminderRuleById,
   getReminderOccurrencesForRuleRange,
   getReminderOccurrenceOwnerUserId,
   getStaleReminderMessengerMessageIdForResend,
@@ -118,11 +117,6 @@ export function createDbReadPort(
             throw new Error('reminders product reads require remindersReadsPort');
           }
           return (await remindersReadsPort.getRuleForUserAndCategory(userId, category)) as T;
-        }
-        case 'reminders.rule.byId': {
-          const ruleId = asNonEmptyString(query.params.ruleId);
-          if (!ruleId) return null as T;
-          return (await getReminderRuleById(db, ruleId)) as T;
         }
         case 'reminders.occurrences.forRuleRange': {
           const ruleId = asNonEmptyString(query.params.ruleId);

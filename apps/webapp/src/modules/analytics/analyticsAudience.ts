@@ -100,10 +100,8 @@ export async function loadAnalyticsAudienceContext(deps: {
   systemSettings: SettingsReader;
   loadExcludedUserIds: (input: {
     includeTestAccounts: boolean;
-    excludeStaffRoles?: boolean;
     testAccountIdentifiers?: TestAccountIdentifiers | null;
   }) => Promise<string[]>;
-  excludeStaffRoles?: boolean;
 }): Promise<AnalyticsAudienceContext> {
   const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
   const testAccountIdentifiers = includeTestAccounts
@@ -111,7 +109,6 @@ export async function loadAnalyticsAudienceContext(deps: {
     : await readAnalyticsTestAccountIdentifiers(deps);
   const excludedUserIds = await deps.loadExcludedUserIds({
     includeTestAccounts,
-    excludeStaffRoles: deps.excludeStaffRoles,
     testAccountIdentifiers,
   });
   return { includeTestAccounts, excludedUserIds };
