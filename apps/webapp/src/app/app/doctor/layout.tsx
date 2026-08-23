@@ -29,6 +29,7 @@ export default async function DoctorSectionLayout({ children }: { children: Reac
       promoEnabled={shell.promoEnabled}
       cmsEnabled={shell.cmsEnabled}
       patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
+      specialistTasksEnabled={shell.specialistTasksEnabled}
       brand={shell.shellBrand}
     >
       {shell.accessWarnings.length > 0 ? (

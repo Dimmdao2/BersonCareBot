@@ -1,4 +1,5 @@
 import type { SpecialistTaskRow } from './types';
+import { DateTime } from 'luxon';
 
 function isOverdue(task: SpecialistTaskRow, nowMs: number): boolean {
   if (task.completedAt || !task.dueAt) return false;
@@ -27,4 +28,15 @@ export function pickNextImportantOrOverdue(
 
 export function isSpecialistTaskOverdue(task: SpecialistTaskRow, nowMs = Date.now()): boolean {
   return isOverdue(task, nowMs);
+}
+
+/** Calendar-day match in the doctor's configured display timezone. */
+export function isSpecialistTaskDueOnDate(
+  task: SpecialistTaskRow,
+  dateIso: string,
+  displayIana: string,
+): boolean {
+  if (task.completedAt || !task.dueAt) return false;
+  const due = DateTime.fromISO(task.dueAt, { setZone: true }).setZone(displayIana);
+  return due.isValid && due.toISODate() === dateIso;
 }

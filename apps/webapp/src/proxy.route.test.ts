@@ -11,6 +11,13 @@ import {
   readResolvedSurface,
   type TenantSurfaceLookup,
 } from '@/shared/lib/surface/requestSurface';
+import {
+  createOrgBrandingService,
+  DEFAULT_PATIENT_ACCENT_TOKEN,
+} from '@/modules/org-branding/service';
+import type { OrgBrandRevision, OrgBrandingPort } from '@/modules/org-branding/ports';
+import type { MechanicAccessState } from '@/modules/org-entitlements/types';
+import { resolvePatientSubdomainOrganization } from '@/modules/clinic-directory/patientSubdomainOrganization';
 
 const STAFF_ORIGIN = new URL(STAFF_SURFACE.origin);
 
@@ -542,6 +549,34 @@ describe('resolved surface request choke point', () => {
     expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
   });
 
+  it('keeps an active clinic without paid branding on its live core-name surface', async () => {
+    const organizationId = '33333333-3333-4333-8333-333333333333';
+    const response = await proxy(
+      requestFor(new URL('https://clinic-without-branding.therapygo.ru'), '/app/patient/login'),
+      async () => ({
+        status: 'active' as const,
+        organizationId,
+        effectivePatientBrandOrganizationId: organizationId,
+        effectivePatientBrand: {
+          effectiveDisplayName: 'Клиника без брендинга',
+          patientAppName: 'Клиника без брендинга',
+          accentToken: '#284da0',
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      organizationId,
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Клиника без брендинга',
+        patientAppName: 'Клиника без брендинга',
+        accentToken: '#284da0',
+      },
+    });
+  });
+
   it.each([
     ['an invalid accent token', '#123456; background:url(https://attacker.example)'],
     ['a missing patient app name', ''],
@@ -585,4 +620,301 @@ describe('resolved surface request choke point', () => {
       expect(middlewareRequestSurface(response)).toBeNull();
     },
   );
+});
+
+/**
+ * Независимый аудит `B4a` (23.08.2026). Оракул — `IMPLEMENTATION_PLAN.md` §1.2b-1 и пункт `B4a`:
+ * «известная активная метка → поверхность резолвится с `core.displayName` и брендом платформы;
+ * `404` остаётся только для неизвестной метки, неактивной и удалённой организации».
+ *
+ * Отдельные проверки `B4`-проекции и `B3`-резолвера кормят друг друга РУЧНЫМИ значениями, поэтому ни
+ * одна из них не видит рассогласования контрактов на стыке. Здесь стык собран из настоящих кусков:
+ * реальный `resolvePatientSubdomainOrganization` (B1) → реальный `createOrgBrandingService`
+ * (B4, audience `anonymous`) → реальный `proxy`/`resolveRequestSurface` (B3). Заглушены только
+ * порт БД и резолвер тарифа, то есть внешние границы.
+ */
+describe('B4a: адрес клиники на нашем поддомене живёт без купленного брендинга', () => {
+  const UNBRANDED_ORGANIZATION_ID = '77777777-7777-4777-8777-777777777777';
+  const PAID_ORGANIZATION_ID = '88888888-8888-4888-8888-888888888888';
+  const CLOSED_ORGANIZATION_ID = '99999999-9999-4999-8999-999999999999';
+  const PAID_LOGO_MEDIA_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+  type Tenant = {
+    organizationId: string;
+    title: string;
+    isActive: boolean;
+    accessState: MechanicAccessState;
+    published: OrgBrandRevision | null;
+  };
+
+  const paidRevision: OrgBrandRevision = {
+    id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+    organizationId: PAID_ORGANIZATION_ID,
+    status: 'published',
+    displayName: 'Кедр Premium',
+    patientAppName: 'Кедр для пациента',
+    accentToken: '#0F766E',
+    logoMediaId: PAID_LOGO_MEDIA_ID,
+    logoMediaReady: true,
+    createdByPlatformUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    publishedByPlatformUserId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+    archivedByPlatformUserId: null,
+    publishedAt: '2026-08-20T00:00:00.000Z',
+    archivedAt: null,
+    createdAt: '2026-08-20T00:00:00.000Z',
+    updatedAt: '2026-08-20T00:00:00.000Z',
+  };
+
+  const TENANTS: Readonly<Record<string, Tenant>> = {
+    // Активная клиника, брендинг не покупала: тариф выключил механику.
+    sosny: {
+      organizationId: UNBRANDED_ORGANIZATION_ID,
+      title: 'Реабилитационный центр «Сосны»',
+      isActive: true,
+      accessState: 'disabled',
+      published: null,
+    },
+    // Активная клиника с тарифом, но ещё ничего не опубликовала.
+    berezy: {
+      organizationId: UNBRANDED_ORGANIZATION_ID,
+      title: 'Клиника «Берёзы»',
+      isActive: true,
+      accessState: 'full_access',
+      published: null,
+    },
+    // Купленный и опубликованный бренд — фолбэк `B4` обязан проиграть ему.
+    kedr: {
+      organizationId: PAID_ORGANIZATION_ID,
+      title: 'Кедр core',
+      isActive: true,
+      accessState: 'full_access',
+      published: paidRevision,
+    },
+    // Неактивная организация: `404` по оракулу.
+    zakryta: {
+      organizationId: CLOSED_ORGANIZATION_ID,
+      title: 'Закрытая клиника',
+      isActive: false,
+      accessState: 'full_access',
+      published: paidRevision,
+    },
+  };
+
+  function brandingPortFor(tenant: Tenant | null): OrgBrandingPort {
+    return {
+      // `null` = строки организации нет (удалённая организация).
+      getCoreContext: async () =>
+        tenant
+          ? {
+              organizationId: tenant.organizationId,
+              displayName: tenant.title,
+              isActive: tenant.isActive,
+            }
+          : null,
+      getPublishedRevision: async () => tenant?.published ?? null,
+      getDraftRevision: async () => null,
+      saveDraft: async () => paidRevision,
+      publishDraft: async () => paidRevision,
+      unpublish: async () => true,
+    };
+  }
+
+  /** Тот самый стык, которого сегодня нет в продуктовом коде: B1 → B4 → результат для B3. */
+  function tenantSeam(directory: Readonly<Record<string, Tenant>> = TENANTS): TenantSurfaceLookup {
+    return async (hostname) => {
+      const label = hostname.split('.')[0] ?? '';
+      const resolution = await resolvePatientSubdomainOrganization(
+        {
+          resolveOrganizationIdBySlug: async (slug) => directory[slug]?.organizationId ?? null,
+        },
+        label,
+      );
+      if (resolution.kind !== 'resolved') return { status: 'unknown' };
+      const tenant = directory[resolution.slug]!;
+      const brand = await createOrgBrandingService({
+        port: brandingPortFor(tenant),
+        resolveBrandingAccess: async () => ({
+          mechanic: 'branding',
+          state: tenant.accessState,
+          policySource: 'mechanic',
+          warning: null,
+        }),
+      }).resolveEffectiveOrgBranding(resolution.organizationId, 'anonymous');
+      if (!brand) return { status: 'inactive' };
+      return {
+        status: 'active',
+        organizationId: resolution.organizationId,
+        effectivePatientBrandOrganizationId: resolution.organizationId,
+        effectivePatientBrand: brand,
+      };
+    };
+  }
+
+  function get(label: string, seam: TenantSurfaceLookup = tenantSeam()) {
+    return proxy(requestFor(new URL(`https://${label}.therapygo.ru`), '/app/patient/login'), seam);
+  }
+
+  it.each([
+    ['механика брендинга выключена тарифом', 'sosny', 'Реабилитационный центр «Сосны»'],
+    ['тариф есть, но ничего не опубликовано', 'berezy', 'Клиника «Берёзы»'],
+  ])('отдаёт живую поверхность с именем организации, когда %s', async (_case, label, title) => {
+    const response = await get(label);
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      organizationId: UNBRANDED_ORGANIZATION_ID,
+      authPolicy: 'patient',
+      effectivePatientBrand: {
+        effectiveDisplayName: title,
+        patientAppName: title,
+        // Платформенное оформление, а не купленный акцент.
+        accentToken: DEFAULT_PATIENT_ACCENT_TOKEN,
+      },
+    });
+    // Плашки «на Therapygo» и любых платформенных диагностик в проекции нет.
+    expect(middlewareRequestSurface(response)?.effectivePatientBrand).toEqual({
+      effectiveDisplayName: title,
+      patientAppName: title,
+      accentToken: DEFAULT_PATIENT_ACCENT_TOKEN,
+    });
+  });
+
+  it('оставляет купленный бренд победителем над фолбэком ядра', async () => {
+    const response = await get('kedr');
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      organizationId: PAID_ORGANIZATION_ID,
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Кедр Premium',
+        patientAppName: 'Кедр для пациента',
+        accentToken: '#0f766e',
+        logoUrl: `/api/media/${PAID_LOGO_MEDIA_ID}`,
+      },
+    });
+  });
+
+  it('держит `404` для неизвестной метки', async () => {
+    const response = await get('takoy-kliniki-net');
+
+    expect(response.status).toBe(404);
+    expect(middlewareRequestSurface(response)).toBeNull();
+  });
+
+  it('держит `404` для неактивной организации, даже с опубликованным брендом', async () => {
+    const response = await get('zakryta');
+
+    expect(response.status).toBe(404);
+    expect(middlewareRequestSurface(response)).toBeNull();
+  });
+
+  it('держит `404` для удалённой организации: метки в каталоге больше нет', async () => {
+    const withoutSosny = { ...TENANTS };
+    delete (withoutSosny as Record<string, Tenant>).sosny;
+
+    const response = await get('sosny', tenantSeam(withoutSosny));
+
+    expect(response.status).toBe(404);
+    expect(middlewareRequestSurface(response)).toBeNull();
+  });
+
+  it('не выдаёт поверхность, если организация исчезла между резолвом метки и чтением ядра', async () => {
+    const seam: TenantSurfaceLookup = async () => {
+      const brand = await createOrgBrandingService({
+        port: brandingPortFor(null),
+        resolveBrandingAccess: async () => ({
+          mechanic: 'branding',
+          state: 'full_access',
+          policySource: 'mechanic',
+          warning: null,
+        }),
+      })
+        .resolveEffectiveOrgBranding(UNBRANDED_ORGANIZATION_ID, 'anonymous')
+        .catch(() => null);
+      return brand
+        ? {
+            status: 'active',
+            organizationId: UNBRANDED_ORGANIZATION_ID,
+            effectivePatientBrandOrganizationId: UNBRANDED_ORGANIZATION_ID,
+            effectivePatientBrand: brand,
+          }
+        : { status: 'unknown' };
+    };
+
+    const response = await get('sosny', seam);
+
+    expect(response.status).toBe(404);
+    expect(middlewareRequestSurface(response)).toBeNull();
+  });
+
+  it('не пускает бренд ЧУЖОЙ организации на брендированный хост', async () => {
+    const crossTenant: TenantSurfaceLookup = async (hostname) => {
+      const resolved = await tenantSeam()(hostname);
+      if (resolved.status !== 'active') return resolved;
+      return { ...resolved, organizationId: PAID_ORGANIZATION_ID };
+    };
+
+    const response = await get('sosny', crossTenant);
+
+    expect(response.status).toBe(404);
+    expect(middlewareRequestSurface(response)).toBeNull();
+  });
+
+  it.each([119, 120, 121, 199, 200])(
+    'оставляет живой адрес клинике с названием из %i знаков',
+    async (titleLength) => {
+      const title = 'К'.repeat(titleLength);
+      const response = await get('sosny', tenantSeam({
+        ...TENANTS,
+        sosny: { ...TENANTS.sosny!, title },
+      }));
+
+      expect(response.status).toBe(200);
+      expect(middlewareRequestSurface(response)).toMatchObject({
+        surface: 'patient_branded',
+        effectivePatientBrand: {
+          effectiveDisplayName: title.slice(0, 120),
+          patientAppName: title.slice(0, 120),
+        },
+      });
+    },
+  );
+
+  it('оставляет живой адрес, когда тариф есть и опубликована только палитра, а имя ядра длинное', async () => {
+    // Ветка `applied` берёт имя ядра ДРУГОЙ строкой, чем платформенный фолбэк: без своего случая
+    // возврат обхода нормализации здесь остаётся зелёным.
+    const title = 'Ю'.repeat(200);
+    const response = await get('kedr', tenantSeam({
+      ...TENANTS,
+      kedr: {
+        ...TENANTS.kedr!,
+        title,
+        published: { ...paidRevision, displayName: null, patientAppName: null, logoMediaId: null },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      effectivePatientBrand: {
+        effectiveDisplayName: title.slice(0, 120),
+        patientAppName: title.slice(0, 120),
+        accentToken: '#0f766e',
+      },
+    });
+  });
+
+  it('оставляет живой адрес клинике с эмодзи в названии: срез не рвёт поверхность', async () => {
+    // 200 UTF-16 единиц: срез по 120 попадает в середину суррогатной пары.
+    const title = '🌿'.repeat(100);
+    const response = await get('sosny', tenantSeam({
+      ...TENANTS,
+      sosny: { ...TENANTS.sosny!, title },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)?.surface).toBe('patient_branded');
+  });
 });

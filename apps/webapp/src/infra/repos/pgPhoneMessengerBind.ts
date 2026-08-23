@@ -8,12 +8,14 @@ import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra
 import { channelToBindingKey } from '@/modules/auth/channelContext';
 import type {
   PhoneMessengerBindChannel,
+  PhoneMessengerBindClaimRow,
   PhoneMessengerBindPort,
   PhoneMessengerBindPreOtpFailure,
   PhoneMessengerBindPurpose,
 } from '@/modules/auth/phoneMessengerBind.ports';
 import {
   mapPhoneMessengerBindSecretRow,
+  mapPhoneMessengerBindClaimRow,
   parseIdentityRow,
   preSessionMessengerChannelResolveSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
@@ -97,6 +99,40 @@ async function runPhoneMessengerBindCompletionStateRoot(params: {
     ],
     webappSqlFromPgText(
       `SELECT * FROM app.phone_messenger_bind_completion_state($1::text, $2::text, $3::text, $4::text)`,
+      args,
+    ),
+  );
+}
+
+async function runPhoneMessengerBindClaimRoot(params: {
+  tokenHash: string;
+  channelCode: PhoneMessengerBindChannel;
+  externalId: string;
+}) {
+  const args = [params.tokenHash, params.channelCode, params.externalId] as const;
+  return runWebappNamedRoot<{ code: string }>(
+    getWebappSqlDb(),
+    'app.phone_messenger_bind_claim(text,text,text)',
+    args,
+    webappSqlFromPgText(
+      'SELECT app.phone_messenger_bind_claim($1::text, $2::text, $3::text) AS code',
+      args,
+    ),
+  );
+}
+
+async function runPhoneMessengerBindClaimedSecretRoot(params: {
+  tokenHash?: string;
+  channelCode: PhoneMessengerBindChannel;
+  externalId: string;
+}) {
+  const args = [params.tokenHash ?? null, params.channelCode, params.externalId] as const;
+  return runWebappNamedRoot<PhoneMessengerBindClaimRow>(
+    getWebappSqlDb(),
+    'app.phone_messenger_bind_claimed_secret(text,text,text)',
+    args,
+    webappSqlFromPgText(
+      'SELECT * FROM app.phone_messenger_bind_claimed_secret($1::text, $2::text, $3::text)',
       args,
     ),
   );
@@ -191,6 +227,17 @@ export function createPgPhoneMessengerBindPort(_pool: Pool = getPool()): PhoneMe
         null,
       );
       return r.rows[0] ? mapPhoneMessengerBindSecretRow(r.rows[0]) : null;
+    },
+
+    async claimToken(params) {
+      const result = await runPhoneMessengerBindClaimRoot(params);
+      const code = result.rows[0]?.code;
+      return { ok: code === 'claimed', code: typeof code === 'string' ? code : 'claim_failed' };
+    },
+
+    async findLiveClaim(params) {
+      const result = await runPhoneMessengerBindClaimedSecretRoot(params);
+      return result.rows[0] ? mapPhoneMessengerBindClaimRow(result.rows[0]) : null;
     },
 
     async startSecret(params) {

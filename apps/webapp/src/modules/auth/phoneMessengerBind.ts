@@ -165,9 +165,38 @@ export type CompletePhoneMessengerBindResult =
   | { ok: true; purpose: 'profile_bind'; replay?: boolean }
   | { ok: false; code: string };
 
-export async function completePhoneMessengerBindFromIntegrator(
+/**
+ * The signed integrator request is allowed to associate a deep-link secret with exactly one
+ * provider identity.  It intentionally does not resolve a person, contact, or channel binding.
+ */
+export async function claimPhoneMessengerBindFromIntegrator(
   params: {
     setupToken: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+  },
+  bindPort?: PhoneMessengerBindPort,
+): Promise<{ ok: true } | { ok: false; code: string }> {
+  const setupToken = params.setupToken.trim();
+  const externalId = params.externalId.trim();
+  if (!/^auth_[A-Za-z0-9_-]+$/.test(setupToken)) return { ok: false, code: 'invalid_token' };
+  if (!externalId) return { ok: false, code: 'invalid_external_id' };
+  if (webappReposAreInMemory()) return { ok: false, code: 'database_unavailable' };
+  const port = resolveBindPort(bindPort);
+  if (!port) return { ok: false, code: 'database_unavailable' };
+
+  const result = await port.claimToken({
+    tokenHash: hashToken(setupToken),
+    channelCode: params.channelCode,
+    externalId,
+  });
+  return result.ok ? { ok: true } : { ok: false, code: result.code };
+}
+
+export async function completePhoneMessengerBindFromIntegrator(
+  params: {
+    /** Present only for the deprecated signed endpoint; active content completes by live claim. */
+    setupToken?: string;
     channelCode: PhoneMessengerBindChannel;
     externalId: string;
     contactPhoneNormalized: string;
@@ -175,8 +204,8 @@ export async function completePhoneMessengerBindFromIntegrator(
   phoneAuthDeps: PhoneAuthDeps,
   bindPort?: PhoneMessengerBindPort,
 ): Promise<CompletePhoneMessengerBindResult> {
-  const trimmed = params.setupToken.trim();
-  if (!/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
+  const trimmed = params.setupToken?.trim();
+  if (trimmed !== undefined && !/^auth_[A-Za-z0-9_-]+$/.test(trimmed)) {
     return { ok: false, code: 'invalid_token' };
   }
 
@@ -194,22 +223,25 @@ export async function completePhoneMessengerBindFromIntegrator(
     return { ok: false, code: 'database_unavailable' };
   }
 
-  const row = await port.findByTokenHash(hashToken(trimmed));
+  const externalId = params.externalId.trim();
+  if (!externalId) return { ok: false, code: 'invalid_external_id' };
+  const tokenHash = trimmed ? hashToken(trimmed) : undefined;
+  const row = await port.findLiveClaim({
+    ...(tokenHash ? { tokenHash } : {}),
+    channelCode: params.channelCode,
+    externalId,
+  });
   if (!row) {
-    return { ok: false, code: 'unknown_or_expired' };
+    return { ok: false, code: 'no_live_claim' };
   }
-
-  if (row.consumed_at || row.status === 'consumed') {
-    return { ok: false, code: 'used_token' };
-  }
-
+  if (row.consumed_at || row.status === 'consumed') return { ok: false, code: 'used_token' };
   if (new Date(row.expires_at).getTime() < Date.now()) {
     await port.updateExpired(row.id);
     return { ok: false, code: 'expired' };
   }
-
-  if (row.channel_code !== params.channelCode) {
-    return { ok: false, code: 'channel_mismatch' };
+  if (row.channel_code !== params.channelCode) return { ok: false, code: 'channel_mismatch' };
+  if (row.claimed_external_id !== externalId || row.claimed_at === null) {
+    return { ok: false, code: 'no_live_claim' };
   }
 
   if (contactPhone !== row.phone_normalized) {
@@ -219,52 +251,16 @@ export async function completePhoneMessengerBindFromIntegrator(
 
   const bindPurpose = row.purpose as PhoneMessengerBindPurpose;
 
-  if (row.status === 'otp_ready' && row.challenge_id) {
-    if (bindPurpose === 'profile_bind') {
-      await port.markConsumed(row.id);
-      logger.info({
-        event: 'phone_messenger_bind_complete_ok',
-        metric: 'phone_messenger_bind_complete_ok',
-        channelCode: params.channelCode,
-        purpose: bindPurpose,
-        replay: true,
-        phoneSuffix: phoneSuffixForLog(contactPhone),
-      });
-      return { ok: true, purpose: 'profile_bind', replay: true };
-    }
-    const stored = await phoneAuthDeps.challengeStore.get(row.challenge_id);
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (!stored?.code || stored.expiresAt < nowSec) {
-      return { ok: false, code: 'challenge_expired' };
-    }
-    logger.info({
-      event: 'phone_messenger_bind_complete_ok',
-      metric: 'phone_messenger_bind_complete_ok',
-      channelCode: params.channelCode,
-      purpose: bindPurpose,
-      replay: true,
-      phoneSuffix: phoneSuffixForLog(contactPhone),
-    });
-    return {
-      ok: true,
-      purpose: 'login',
-      otpCode: stored.code,
-      accountCreated: false,
-      challengeId: row.challenge_id,
-      replay: true,
-    };
-  }
-
   const context: ChannelContext = {
     channel: params.channelCode,
-    chatId: params.externalId.trim(),
+    chatId: externalId,
   };
 
   try {
     const completionState = await port.verifyCompletionState({
-      tokenHash: hashToken(trimmed),
+      tokenHash: row.token_hash,
       channelCode: params.channelCode,
-      externalId: params.externalId.trim(),
+      externalId,
       contactPhoneNormalized: contactPhone,
     });
 
@@ -278,7 +274,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       const preOtp = await port.applyMessengerContactPreOtp({
         phoneNormalized: contactPhone,
         channelCode: params.channelCode,
-        externalId: params.externalId.trim(),
+        externalId,
         purpose: bindPurpose,
         sessionUserId: row.user_id,
       });
@@ -316,7 +312,7 @@ export async function completePhoneMessengerBindFromIntegrator(
     }
 
     const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
-      registrationAttemptId: trimmed,
+      registrationAttemptId: row.id,
       isRegistrationIntent: accountCreated,
     });
     if (!challenge.ok) {

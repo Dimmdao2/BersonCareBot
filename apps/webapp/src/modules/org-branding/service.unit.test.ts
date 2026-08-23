@@ -109,7 +109,7 @@ describe('organization branding entitlement ladder', () => {
     });
   });
 
-  it('projects only published and entitled safe fields to an anonymous patient surface', async () => {
+  it('keeps an active anonymous patient surface on the core identity until paid branding applies', async () => {
     let currentAccess = access('full_access');
     let currentPublished: OrgBrandRevision | null = published;
     const port = brandingPort();
@@ -131,16 +131,24 @@ describe('organization branding entitlement ladder', () => {
     currentAccess = access('disabled');
     await expect(
       service.resolveEffectiveOrgBranding(organizationId, 'anonymous'),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      effectiveDisplayName: 'Клиника без тарифа',
+      patientAppName: 'Клиника без тарифа',
+      accentToken: '#284da0',
+    });
 
     currentAccess = access('full_access');
     currentPublished = null;
     await expect(
       service.resolveEffectiveOrgBranding(organizationId, 'anonymous'),
-    ).resolves.toBeNull();
+    ).resolves.toEqual({
+      effectiveDisplayName: 'Клиника без тарифа',
+      patientAppName: 'Клиника без тарифа',
+      accentToken: '#284da0',
+    });
   });
 
-  it('never projects a retained draft to an anonymous patient surface', async () => {
+  it('does not project a retained draft but keeps the active core surface', async () => {
     const port = brandingPort();
     port.getPublishedRevision = vi.fn(async () => null);
     port.getDraftRevision = vi.fn(async () => published);
@@ -149,7 +157,11 @@ describe('organization branding entitlement ladder', () => {
       resolveBrandingAccess: async () => access('full_access'),
     });
 
-    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toBeNull();
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toEqual({
+      effectiveDisplayName: 'Клиника без тарифа',
+      patientAppName: 'Клиника без тарифа',
+      accentToken: '#284da0',
+    });
   });
 
   it('withholds a published brand from an anonymous surface when its organization is inactive', async () => {
