@@ -125,12 +125,10 @@ classified AS (
          END AS access_status
     FROM catalog
 ),
-rolled AS (
-  SELECT owner_name, relation_name, operation, requires_table,
-         string_agg(DISTINCT function_identity, ', ' ORDER BY function_identity) AS roots,
-         min(access_status) AS access_status
+requirements AS (
+  SELECT owner_name, function_identity, relation_name, operation, columns, requires_table,
+         access_status
     FROM classified
-   GROUP BY owner_name, relation_name, operation, requires_table
 ),
 root_counts AS (
   SELECT owner_name, count(DISTINCT function_identity) AS root_count
@@ -157,14 +155,16 @@ SELECT jsonb_build_object(
                ORDER BY relation_name || ':' || operation || '[' || access_status || ']')
                FILTER (WHERE operation <> 'SELECT'), '') AS writes,
              count(*) FILTER (WHERE access_status IN ('missing', 'partial')) AS missing
-        FROM rolled
+        FROM requirements
         JOIN root_counts USING (owner_name)
        GROUP BY owner_name, root_counts.root_count
     ) AS owners
     JOIN membership_summary AS memberships USING (owner_name)
   ),
   'requirements', (
-    SELECT jsonb_agg(to_jsonb(rolled) ORDER BY owner_name, relation_name, operation) FROM rolled
+    SELECT jsonb_agg(to_jsonb(requirements)
+      ORDER BY owner_name, function_identity, relation_name, operation)
+      FROM requirements
   )
 )::text;
 ROLLBACK;
@@ -184,6 +184,15 @@ for (const row of census.owners) {
   const escape = (value) => String(value || '—').replaceAll('|', '\\|');
   console.log(`| ${escape(row.owner)} | ${row.roots} | ${escape(row.memberships)} | ${escape(row.reads)} | ${escape(row.writes)} | ${row.missing} |`);
 }
+const gaps = census.requirements.filter((row) => ['missing', 'partial'].includes(row.access_status));
+if (gaps.length > 0) {
+  console.log('\n## root-level gaps');
+  console.log('| owner | root | relation | operation | status |');
+  console.log('|---|---|---|---|---|');
+  for (const row of gaps) {
+    console.log(`| ${row.owner_name} | ${row.function_identity} | ${row.relation_name} | ${row.operation} | ${row.access_status} |`);
+  }
+}
 console.log(`\nowners=${census.owners.length}`);
 console.log(`requirements=${census.requirements.length}`);
-console.log(`missing_or_partial=${census.requirements.filter((row) => ['missing', 'partial'].includes(row.access_status)).length}`);
+console.log(`missing_or_partial=${gaps.length}`);

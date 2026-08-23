@@ -5238,7 +5238,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts', columns: [
           'platform_user_id', 'contact_kind', 'value_normalized', 'confirmed_at', 'is_primary',
-        ], operations: ['SELECT' as const], tableOperations: ['SELECT' as const],
+        ], operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id', 'bot_blocked_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -5246,7 +5246,7 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_preferences', columns: ['platform_user_id', 'channel_code',
           'is_enabled_for_messages', 'is_enabled_for_notifications', 'is_preferred_for_auth'],
-          operations: ['SELECT' as const], tableOperations: ['SELECT' as const],
+          operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_notification_topic_channels', columns: ['user_id', 'topic_code', 'channel_code', 'is_enabled'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },

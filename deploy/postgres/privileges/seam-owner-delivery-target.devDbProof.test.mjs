@@ -1,10 +1,11 @@
 /**
  * D17 rollback-only proof on the named DEV database.
  *
- * Failure caught: a SECURITY DEFINER delivery root reached user_contacts and
- * user_channel_preferences while its owner had no complete table SELECT. The live call failed
- * with 42501 even though the webapp principal had valid context. Both candidate SELECT grants are
- * revoked independently; each mutation must turn the successful root call into 42501.
+ * Failure caught: a SECURITY DEFINER delivery root reads user_contacts.confirmed_at and
+ * user_contacts.is_primary while its owner had SELECT only on the three older contact columns.
+ * The live call failed with 42501 even though the webapp principal had valid context. Restoring
+ * exactly that old column set must make the candidate fail; restoring the two missing columns must
+ * make the same call succeed again.
  *
  * Run:
  *   RUN_D17_SEAM_OWNER_DB=1 node --test \
@@ -40,12 +41,11 @@ function parsed(output) {
 
 function proofSql() {
   const generatedGrants = readFileSync(PRIVILEGES, 'utf8').split('\n').filter((line) =>
-    line.includes('GRANT SELECT ON TABLE "public"."user_')
+    line.startsWith('GRANT SELECT ')
+      && (line.includes('ON TABLE "public"."user_contacts"')
+        || line.includes('ON TABLE "public"."user_channel_preferences"'))
       && line.endsWith('TO "app_seam_delivery_scope_owner";'));
-  assert.deepEqual(generatedGrants, [
-    'GRANT SELECT ON TABLE "public"."user_channel_preferences" TO "app_seam_delivery_scope_owner";',
-    'GRANT SELECT ON TABLE "public"."user_contacts" TO "app_seam_delivery_scope_owner";',
-  ]);
+  assert.equal(generatedGrants.length, 2);
   return String.raw`
 BEGIN;
 ${generatedGrants.join('\n')}
@@ -141,22 +141,22 @@ END $call$;
 
 INSERT INTO probe_out(key, value) VALUES ('baseline', pg_temp.call_delivery_target());
 
-REVOKE SELECT ON TABLE public.user_contacts FROM app_seam_delivery_scope_owner;
-INSERT INTO probe_out(key, value) VALUES ('without_user_contacts', pg_temp.call_delivery_target());
-GRANT SELECT ON TABLE public.user_contacts TO app_seam_delivery_scope_owner;
-
-REVOKE SELECT ON TABLE public.user_channel_preferences FROM app_seam_delivery_scope_owner;
-INSERT INTO probe_out(key, value) VALUES ('without_user_channel_preferences', pg_temp.call_delivery_target());
+REVOKE SELECT (confirmed_at, is_primary)
+  ON TABLE public.user_contacts FROM app_seam_delivery_scope_owner;
+INSERT INTO probe_out(key, value) VALUES ('old_contact_columns_only', pg_temp.call_delivery_target());
+GRANT SELECT (confirmed_at, is_primary)
+  ON TABLE public.user_contacts TO app_seam_delivery_scope_owner;
+INSERT INTO probe_out(key, value) VALUES ('restored_contact_columns', pg_temp.call_delivery_target());
 
 SELECT key || '=' || value FROM probe_out ORDER BY ord;
 ROLLBACK;
 `;
 }
 
-test('delivery target root reads both relations and each revoked owner SELECT fails with 42501',
+test('delivery target root needs exactly the two added user_contacts columns',
   { skip: !ENABLED }, () => {
     const result = parsed(psql(proofSql()));
     assert.match(result.baseline ?? '', /"ok"\s*:/u);
-    assert.equal(result.without_user_contacts, '42501');
-    assert.equal(result.without_user_channel_preferences, '42501');
+    assert.equal(result.old_contact_columns_only, '42501');
+    assert.match(result.restored_contact_columns ?? '', /"ok"\s*:/u);
   });

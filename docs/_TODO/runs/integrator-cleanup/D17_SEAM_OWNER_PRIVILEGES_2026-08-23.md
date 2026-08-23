@@ -2,11 +2,14 @@
 
 Дата замера: 2026-08-23. Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`, D17 — «узкая роль интегратора не мешает доставке».
 
+> **Коррекция круга 2:** независимый аудит опроверг табличные гранты и свёртку требований. Актуальный
+> результат и команды: `D17_SEAM_OWNER_FIX2_2026-08-23.md`.
+
 ## Итог
 
-В текущей декларации 43 роли `app_seam_*_owner` владеют 43 группами из 1–54 SECURITY DEFINER-корней. Перепись нашла ровно два неполных требования, оба у `app_seam_delivery_scope_owner`: `SELECT` на `public.user_contacts` отсутствовал как table grant, а на `public.user_channel_preferences` был только column grant. Ни одна из 43 ролей не получает права через членство.
+В текущей декларации 43 роли `app_seam_*_owner` владеют 43 группами из 1–54 SECURITY DEFINER-корней. Исправленная перепись считает 1389 требований уровня `корень × отношение × операция`, не сворачивая разные наборы колонок соседних корней. Ни одна из 43 ролей не получает права через членство.
 
-Исправление находится только в `deploy/postgres/privileges/declaration.ts`: двум читаемым отношениям назначен table-level `SELECT`, а generated artifacts пересобраны. Миграции не менялись. В теле `app.read_integrator_delivery_target_snapshot` осталась арендная стена: принятая организация берётся из контекста, аргумент только сверяется, затем проверяется активное членство пользователя в этой организации.
+Исправление находится только в `deploy/postgres/privileges/declaration.ts`: `user_channel_preferences` сохраняет прежние пять читаемых колонок, а `user_contacts` добавляет только `confirmed_at` и `is_primary` к прежним трём. Оба гранта колоночные; generated artifacts пересобраны. Миграции не менялись. В теле `app.read_integrator_delivery_target_snapshot` осталась арендная стена: принятая организация берётся из контекста, аргумент только сверяется, затем проверяется активное членство пользователя в этой организации.
 
 ## Воспроизводимый метод переписи
 
@@ -27,7 +30,7 @@ node deploy/postgres/privileges/seam-owner-access-census.mjs --db bcb_webapp_dev
 
 ```text
 owners=43
-requirements=631
+requirements=1389
 missing_or_partial=2
 ```
 
@@ -43,9 +46,9 @@ missing_or_partial=2
 | app_seam_catalog_public_owner | 2 | none | 0 |
 | app_seam_context_owner | 4 | none | 0 |
 | app_seam_dedicated_bot_owner | 2 | none | 0 |
-| app_seam_delivery_scope_owner | 16 | none | 2 |
+| app_seam_delivery_scope_owner | 16 | none | 1 |
 | app_seam_email_otp_owner | 25 | none | 0 |
-| app_seam_identity_lookup_owner | 16 | none | 0 |
+| app_seam_identity_lookup_owner | 16 | none | 1 |
 | app_seam_login_token_owner | 5 | none | 0 |
 | app_seam_oauth_owner | 5 | none | 0 |
 | app_seam_org_commerce_owner | 10 | none | 0 |
@@ -83,14 +86,14 @@ missing_or_partial=2
 | app_seam_telemetry_operator_owner | 24 | none | 0 |
 | app_seam_telemetry_patient_owner | 2 | none | 0 |
 
-## Два найденных разрыва и исправление
+## Найденный продуктовый разрыв и исправление
 
 Оба отношения читает `app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)`, владелец — `app_seam_delivery_scope_owner`.
 
-- `public.user_contacts`: корень читает `platform_user_id`, `contact_kind`, `value_normalized`, `confirmed_at`, `is_primary` и выполняет `count(*)`; до исправления у владельца был column-level `SELECT` только на `contact_kind`, `platform_user_id`, `value_normalized`. Generated результат: `GRANT SELECT ON TABLE public.user_contacts TO app_seam_delivery_scope_owner`.
-- `public.user_channel_preferences`: корень читает `platform_user_id`, `channel_code`, `is_enabled_for_messages`, `is_enabled_for_notifications`, `is_preferred_for_auth`; до исправления существовал только column-level `SELECT`. Generated результат: `GRANT SELECT ON TABLE public.user_channel_preferences TO app_seam_delivery_scope_owner`.
+- `public.user_contacts`: корень читает `platform_user_id`, `contact_kind`, `value_normalized`, `confirmed_at`, `is_primary`; до исправления у владельца был column-level `SELECT` только на первые три. Generated результат — колоночный `SELECT` ровно на эти пять колонок.
+- `public.user_channel_preferences`: корень читает ровно прежние пять колонок; существующий column-level `SELECT` уже был достаточен и сохранён без расширения.
 
-Других missing/partial требований в текущей DEV-переписи нет. Права записи не добавлялись. Роли, членства, политики и тела функций не менялись.
+Второй разрыв текущей DEV-переписи — `app.pre_session_get_default_auth_otp_channel` → `user_channel_bindings.created_at`; declaration/generated уже несут колонку, а живой DEV-каталог ещё не догнан reconcile. Это не продуктовая правка круга 2. Права записи не добавлялись. Роли, членства, политики и тела функций не менялись.
 
 ## Поведенческое доказательство
 
@@ -98,11 +101,12 @@ missing_or_partial=2
 
 - берёт реально существующего пользователя с активным `org_enrollments`;
 - устанавливает принятый tenant-service context и вызывает настоящий корень под `SET LOCAL ROLE app_tenant_service`;
-- применяет ровно две строки `GRANT SELECT`, извлечённые из generated artifact, и получает JSON snapshot с `"ok"`;
-- независимо отзывает право на `user_contacts` и `user_channel_preferences`; каждый вызов краснеет с SQLSTATE `42501`;
+- применяет две колоночные строки `GRANT SELECT`, извлечённые из generated artifact, и получает JSON snapshot с `"ok"`;
+- отзывает ровно `user_contacts.confirmed_at` и `user_contacts.is_primary`, восстанавливая прежний набор, и получает SQLSTATE `42501`;
+- возвращает только эти две колонки и снова получает JSON snapshot с `"ok"`;
 - откатывает всю транзакцию.
 
-Результат: 1 test, 1 pass. Инъекция обязательного нового права доказана для обоих отношений.
+Результат: 1 test, 1 pass. Инъекция доказывает необходимость ровно двух новых колонок `user_contacts`; нового права на `user_channel_preferences` нет.
 
 ## Проверки
 
