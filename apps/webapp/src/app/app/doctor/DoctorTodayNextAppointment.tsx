@@ -121,25 +121,9 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
           </div>
 
           <div className="grid w-full min-w-0 grid-cols-3 items-center gap-1.5">
-            {patientHref ? (
-              <Link
-                className={buttonVariants({
-                  size: 'sm',
-                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
-                })}
-                href={patientHref}
-              >
-                Открыть карточку
-              </Link>
-            ) : (
-              <Button size="sm" className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm" disabled>
-                Открыть карточку
-              </Button>
-            )}
             {createVisitHref ? (
               <Link
                 className={buttonVariants({
-                  variant: 'outline',
                   size: 'sm',
                   className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
                 })}
@@ -148,13 +132,29 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
                 Создать визит
               </Link>
             ) : (
+              <Button size="sm" className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm" disabled>
+                Создать визит
+              </Button>
+            )}
+            {patientHref ? (
+              <Link
+                className={buttonVariants({
+                  variant: 'outline',
+                  size: 'sm',
+                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
+                })}
+                href={patientHref}
+              >
+                Открыть карточку
+              </Link>
+            ) : (
               <Button
                 size="sm"
                 variant="outline"
                 className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
                 disabled
               >
-                Создать визит
+                Открыть карточку
               </Button>
             )}
             <Button
