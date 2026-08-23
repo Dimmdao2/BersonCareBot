@@ -240,15 +240,19 @@ export function createDbWritePort(
           // `display_name` derived from them) is no longer autofilled from the channel's own profile —
           // the person types it at registration. The messenger profile contributes only its channel
           // display handle; no integrator-local identity or user row is created.
-          // D25: one exact named root (`app.integrator_upsert_channel_identity`), entered through the
-          // one direct-public principal chokepoint (`writeDirectPublic`), which re-installs the
-          // bootstrap principal the root's declared capability accepts — the webhook itself runs under
+          // D25 correction (owner decision 23.08.2026): one exact named root
+          // (`app.integrator_upsert_channel_identity`), entered through the one direct-public
+          // principal chokepoint (`writeDirectPublic`), which re-installs the bootstrap principal the
+          // root's declared capability accepts — the webhook itself runs under
           // `runWithIntegratorPrincipal`/`runWithOrganizationPrincipal` whenever the clinic is already
           // resolved (telegram/webhook.ts), and the root is unreachable from those (audit K5, 22.08).
-          // It never opens a relation transaction and its lookup is channel-binding-only (no
-          // phone-based candidate widening), so the ambiguity this used to defer via
-          // `writeIdentityAndPreferencesDirect`'s injected merge cascade cannot occur here; see D26
-          // (`mergeCandidatesDirect.ts`, removed) — the integrator does not decide merges.
+          // It never opens a relation transaction. LOOKUP-ONLY: an unknown `externalId` resolves to
+          // `null` and creates nothing — a generic webhook proves no phone ownership, so it must never
+          // create `platform_users`/`user_identity`/`user_channel_bindings`/`user_channel_preferences`.
+          // Account creation is exclusively webapp-owned completion of the token-bound
+          // phone-messenger-bind flow. The return value is intentionally discarded here: whether the
+          // identity already existed or stayed unresolved, there is nothing further for `user.upsert`
+          // to do — see `writeIdentityAndPreferencesDirect.ts` module header.
           await writeDirectPublic('identity-upsert', () =>
             upsertBootstrapChannelIdentity(db, {
               channelCode,
