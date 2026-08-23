@@ -278,7 +278,7 @@ export function validateOrganizationSlugCandidate(raw: string): OrganizationSlug
   }
   const slug = lowered.replace(/[ _-]+/g, '-').replace(/^-+|-+$/g, '');
   if (slug.length < 3) return { ok: false, code: 'slug_too_short' };
-  if (slug.length > 63) return { ok: false, code: 'slug_too_long' };
+  if (slug.length > 30) return { ok: false, code: 'slug_too_long' };
   if (!ORGANIZATION_SLUG_PATTERN.test(slug)) {
     return { ok: false, code: 'slug_invalid_characters' };
   }

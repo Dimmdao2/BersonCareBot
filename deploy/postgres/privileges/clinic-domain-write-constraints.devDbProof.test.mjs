@@ -44,7 +44,15 @@ function psql(sql) {
   ).trim();
 }
 
-test('database write rejects a service label as an organization slug', { skip: !ENABLED }, () => {
+function proveRejectedSlug({ slug, expectedConstraints, resultMarker }) {
+  assert.match(slug, /^[a-z0-9-]+$/u);
+  assert.ok(expectedConstraints.length > 0);
+  for (const constraint of expectedConstraints) {
+    assert.match(constraint, /^[a-z0-9_]+$/u);
+  }
+  const expectedConstraintSql = expectedConstraints
+    .map((constraint) => `'${constraint}'`)
+    .join(', ');
   const result = psql(`
 BEGIN;
 DO $$
@@ -61,62 +69,57 @@ BEGIN
   BEGIN
     INSERT INTO public.organization_slug_claims
       (slug, kind, organization_id, created_by_platform_user_id)
-    VALUES ('www', 'reservation', v_org, v_actor);
+    VALUES ('${slug}', 'reservation', v_org, v_actor);
   EXCEPTION WHEN check_violation THEN
     GET STACKED DIAGNOSTICS v_constraint = CONSTRAINT_NAME;
-    IF v_constraint <> 'organization_slug_claims_slug_reserved_check' THEN
+    IF v_constraint <> ALL (ARRAY[${expectedConstraintSql}]::text[]) THEN
       RAISE;
     END IF;
-    PERFORM set_config('bcb.result', 'reserved_slug_rejected', false);
+    PERFORM set_config('bcb.result', '${resultMarker}', false);
   END;
-  IF current_setting('bcb.result', true) IS DISTINCT FROM 'reserved_slug_rejected' THEN
-    RAISE EXCEPTION 'reserved slug write unexpectedly succeeded';
+  IF current_setting('bcb.result', true) IS DISTINCT FROM '${resultMarker}' THEN
+    RAISE EXCEPTION 'invalid slug write unexpectedly succeeded';
   END IF;
 END $$;
 SELECT current_setting('bcb.result');
 ROLLBACK;
 `);
-  assert.equal(result, 'reserved_slug_rejected');
-});
+  assert.equal(result, resultMarker);
+}
 
-test(
-  'database write rejects an all-numeric label reserved by the application policy',
-  { skip: !ENABLED },
-  () => {
-    const result = psql(`
-BEGIN;
-DO $$
-DECLARE
-  v_org uuid;
-  v_actor uuid;
-  v_constraint text;
-BEGIN
-  SELECT id INTO v_org FROM public.be_organizations ORDER BY id LIMIT 1;
-  SELECT id INTO v_actor FROM public.platform_users ORDER BY id LIMIT 1;
-  IF v_org IS NULL OR v_actor IS NULL THEN
-    RAISE EXCEPTION 'DEV fixture requires one organization and one platform user';
-  END IF;
-  BEGIN
-    INSERT INTO public.organization_slug_claims
-      (slug, kind, organization_id, created_by_platform_user_id)
-    VALUES ('123', 'reservation', v_org, v_actor);
-  EXCEPTION WHEN check_violation THEN
-    GET STACKED DIAGNOSTICS v_constraint = CONSTRAINT_NAME;
-    IF v_constraint <> 'organization_slug_claims_slug_numeric_check' THEN
-      RAISE;
-    END IF;
-    PERFORM set_config('bcb.result', 'numeric_slug_rejected', false);
-  END;
-  IF current_setting('bcb.result', true) IS DISTINCT FROM 'numeric_slug_rejected' THEN
-    RAISE EXCEPTION 'all-numeric reserved slug write unexpectedly succeeded';
-  END IF;
-END $$;
-SELECT current_setting('bcb.result');
-ROLLBACK;
-`);
-    assert.equal(result, 'numeric_slug_rejected');
+for (const scenario of [
+  {
+    name: 'a newly reserved infrastructure label',
+    slug: 'webmail',
+    expectedConstraints: ['organization_slug_claims_slug_reserved_check'],
+    resultMarker: 'reserved_slug_rejected',
   },
-);
+  {
+    name: 'a label shorter than three characters',
+    slug: 'ab',
+    expectedConstraints: [
+      'organization_slug_claims_slug_format_check',
+      'organization_slug_claims_slug_length_check',
+    ],
+    resultMarker: 'short_slug_rejected',
+  },
+  {
+    name: 'a label longer than thirty characters',
+    slug: 'a'.repeat(31),
+    expectedConstraints: ['organization_slug_claims_slug_length_check'],
+    resultMarker: 'long_slug_rejected',
+  },
+  {
+    name: 'an all-numeric label reserved by the application policy',
+    slug: '123',
+    expectedConstraints: ['organization_slug_claims_slug_numeric_check'],
+    resultMarker: 'numeric_slug_rejected',
+  },
+]) {
+  test(`database write rejects ${scenario.name}`, { skip: !ENABLED }, () => {
+    proveRejectedSlug(scenario);
+  });
+}
 
 test(
   'database write rejects a custom hostname already claimed by another organization',

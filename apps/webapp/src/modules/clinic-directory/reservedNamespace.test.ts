@@ -119,6 +119,21 @@ describe('корневое пространство имён клиник', () =
     });
   });
 
+  it('адрес клиники занимает от 3 до 30 знаков по решению владельца', () => {
+    expect(validateOrganizationSlugCandidate('ab')).toEqual({
+      ok: false,
+      code: 'slug_too_short',
+    });
+    expect(validateOrganizationSlugCandidate('a'.repeat(30))).toEqual({
+      ok: true,
+      slug: 'a'.repeat(30),
+    });
+    expect(validateOrganizationSlugCandidate('a'.repeat(31))).toEqual({
+      ok: false,
+      code: 'slug_too_long',
+    });
+  });
+
   it('живые адреса клиник на TEST под расширенный резерв не попали', () => {
     // Замер 19.08 на bersoncarebot_test: две опубликованные клиники.
     for (const slug of ['saas-test-clinic-a', 'saas-test-clinic-b']) {
