@@ -30,7 +30,6 @@
     "purge-placeholder-bookings": "tsx scripts/purge-placeholder-bookings.ts",
     "purge-placeholder-bookings:test": "vitest run --config scripts/purge-placeholder-bookings.vitest.config.ts",
     "realign-webapp-integrator-user": "tsx scripts/realign-webapp-integrator-user-projection.ts",
-    "integrator-push-outbox-tick": "tsx scripts/integrator-push-outbox-tick.ts",
     "media-preview:tick": "tsx scripts/media-preview-process-tick.ts",
     "video-hls-backfill-legacy": "tsx scripts/video-hls-backfill-legacy.ts",
     "backfill-treatment-program-editor-draft-snapshots": "tsx scripts/backfill-treatment-program-editor-draft-snapshots.ts",

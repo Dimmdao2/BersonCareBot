@@ -11,7 +11,6 @@ import type {
 } from '../../kernel/contracts/index.js';
 import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
-import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createDbPort } from './client.js';
 import { appendMessageLog } from './repos/messageLogs.js';
 import { writeOperatorDeliveryAttempt } from './repos/operatorDeliveryAttempts.js';
@@ -28,7 +27,6 @@ import {
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
-import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
@@ -37,16 +35,12 @@ import {
   type DirectPublicChannelCode,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
-import { upsertReminderRuleDirect } from './directPublic/writeReminderRulesDirect.js';
 import {
   appendReminderDeliveryEventDirect,
   recordReminderOccurrenceFinalizedDirect,
   type ReminderDeliveryLoggedDirectInput,
   type ReminderOccurrenceFinalizedDirectInput,
 } from './directPublic/writeReminderProjectionDirect.js';
-import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js';
-import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
-import { runWithIntegratorPrincipal } from '../principal/organizationPrincipal.js';
 import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
@@ -389,122 +383,6 @@ export function createDbWritePort(
               phoneLinkReason: 'db_transient_failure',
             };
           }
-        }
-        case 'reminders.rule.upsert': {
-          const userId = asNonEmptyString(mutation.params.userId);
-          const category = asNonEmptyString(mutation.params.category);
-          const id = asNonEmptyString(mutation.params.id);
-          const timezone = asNonEmptyString(mutation.params.timezone);
-          const scheduleType = asNonEmptyString(mutation.params.scheduleType);
-          const intervalMinutes = asFiniteNumber(mutation.params.intervalMinutes);
-          const windowStartMinute = asFiniteNumber(mutation.params.windowStartMinute);
-          const windowEndMinute = asFiniteNumber(mutation.params.windowEndMinute);
-          const daysMask = asNonEmptyString(mutation.params.daysMask);
-          const contentMode = asNonEmptyString(mutation.params.contentMode);
-          if (
-            !userId ||
-            !category ||
-            !id ||
-            !timezone ||
-            !scheduleType ||
-            intervalMinutes === null ||
-            windowStartMinute === null ||
-            windowEndMinute === null ||
-            !daysMask ||
-            !contentMode
-          ) {
-            return;
-          }
-          const isEnabled = mutation.params.isEnabled === true;
-          const linkedObjectType = asNullableString(mutation.params.linkedObjectType);
-          const linkedObjectId = asNullableString(mutation.params.linkedObjectId);
-          const customTitle = asNullableString(mutation.params.customTitle);
-          const customText = asNullableString(mutation.params.customText);
-          const reminderIntent = asNullableString(mutation.params.reminderIntent);
-          const quietHoursStartMinute = asNullableIntegerMinute(
-            mutation.params.quietHoursStartMinute,
-          );
-          const quietHoursEndMinute = asNullableIntegerMinute(mutation.params.quietHoursEndMinute);
-          const notificationTopicCodeProvided = Object.prototype.hasOwnProperty.call(
-            mutation.params,
-            'notificationTopicCode',
-          );
-          const notificationTopicCodeRaw = notificationTopicCodeProvided
-            ? asNullableString(mutation.params.notificationTopicCode)
-            : undefined;
-          const resolvedPlatformUserId = asNonEmptyString(mutation.params.resolvedPlatformUserId);
-          const resolvedOrganizationId = asNonEmptyString(mutation.params.resolvedOrganizationId);
-          const canonicalUserId = userId;
-          // D5 canonical write: the scheduler reads this same public row. A failed write retains its
-          // complete direct-write input in the durable retry queue, so a later retry does not regress
-          // to the retired narrow HTTP projection payload.
-          const directInput = {
-            integratorUserId: canonicalUserId,
-            integratorRuleId: id,
-            category,
-            isEnabled,
-            scheduleType,
-            timezone,
-            intervalMinutes,
-            windowStartMinute,
-            windowEndMinute,
-            daysMask,
-            contentMode,
-            linkedObjectType,
-            linkedObjectId,
-            customTitle,
-            customText,
-            scheduleData: mutation.params.scheduleData,
-            reminderIntent,
-            quietHoursStartMinute,
-            quietHoursEndMinute,
-            notificationTopicCode: notificationTopicCodeRaw,
-            resolvedPlatformUserId,
-            resolvedOrganizationId,
-          };
-          try {
-            await writeDirectPublic('reminder-rule-upsert', () =>
-              upsertReminderRuleDirect(db, directInput),
-            );
-          } catch (err) {
-            const fallbackOrganizationId =
-              resolvedOrganizationId ?? getCurrentDbPrincipalOrganizationId();
-            if (!fallbackOrganizationId) throw err;
-            await runWithIntegratorPrincipal(
-              {
-                organizationId: fallbackOrganizationId,
-                integratorUserId: canonicalUserId,
-                source: 'reminder-rule-direct-write-retry',
-              },
-              () =>
-                enqueueDirectPublicWriteRetry(db, {
-                  operation: 'reminder_rule_upsert',
-                  organizationId: fallbackOrganizationId,
-                  idempotencyKey: projectionIdempotencyKey(
-                    'direct-public-write.reminder-rule-upsert',
-                    id,
-                    hashPayload(directInput),
-                  ),
-                  payload: { ...directInput, organizationId: fallbackOrganizationId },
-                }),
-            );
-            logger.warn(
-              { err, mutationType: mutation.type, id, userId: canonicalUserId },
-              'reminders.rule.upsert: direct public write failed, queued durable direct retry',
-            );
-            await recordOperatorFailureIncident({
-              direction: 'db_write',
-              integration: 'reminder_rules',
-              errorClass: 'reminder_rule_upsert_direct_write_fallback',
-              errorDetail: err instanceof Error ? err.message : String(err),
-            }).catch((incidentErr: unknown) => {
-              logger.error(
-                { err: incidentErr, mutationType: mutation.type, id },
-                'reminders.rule.upsert: failed to record operator incident for direct-write fallback',
-              );
-            });
-          }
-          return;
         }
         case 'reminders.occurrence.markSent': {
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
