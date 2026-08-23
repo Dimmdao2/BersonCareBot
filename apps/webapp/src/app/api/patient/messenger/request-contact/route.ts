@@ -7,6 +7,7 @@ import {
   AUTH_CHANNEL_DISABLED_ERROR,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 const RATE_LIMIT_MS = 60_000;
 const lastRequestContactByUserId = new Map<string, number>();
@@ -36,6 +37,7 @@ function resolveMessengerContactTarget(input: {
  * Только при tier onboarding и привязке к мессенджеру.
  */
 export async function POST(request: NextRequest) {
+  const resolvedSurface = requireResolvedSurface(request.headers);
   const gate = await requirePatientApiSession();
   if (!gate.ok) return gate.response;
   const session = gate.session;
@@ -79,6 +81,9 @@ export async function POST(request: NextRequest) {
   const result = await requestMessengerContactViaIntegrator({
     channel: target.channel,
     recipientId: target.recipientId,
+    ...(resolvedSurface.surface === 'patient_branded' && resolvedSurface.organizationId
+      ? { clinicRequiredOrganizationId: resolvedSurface.organizationId }
+      : {}),
   });
   if (!result.ok) {
     const status =

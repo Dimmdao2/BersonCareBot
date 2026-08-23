@@ -61,6 +61,7 @@ describe('пациент узнаёт о созданной записи', () =>
       expect((row.content as { text: string }).text).toBe(
         'Запись подтверждена: 10 мар. 2027 г., 12:00\nОнлайн',
       );
+      expect((row.content as { senderScope?: string }).senderScope).toBe('clinic_required');
     }
   });
 

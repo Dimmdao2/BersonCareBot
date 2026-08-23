@@ -170,6 +170,7 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
           recipient,
           text: messengerBody(notificationText, openUrl),
           userId: platformUserId,
+          senderScope: 'clinic_required',
         },
         deps,
       );

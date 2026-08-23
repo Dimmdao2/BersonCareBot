@@ -25,6 +25,7 @@ import {
   getClientVisibleAuthChannelPolicy,
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 const PUBLIC_LOGIN_START_MIN_RESPONSE_MS = 500;
 const PUBLIC_LOGIN_DECOY_USER_ID = '00000000-0000-4000-8000-000000000000';
@@ -78,6 +79,9 @@ export async function POST(request: Request) {
   }
 
   const { phone, displayName } = parsed.data;
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  const clinicRequiredOrganizationId =
+    resolvedSurface.surface === 'patient_branded' ? resolvedSurface.organizationId : undefined;
   const channel = parsed.data.channel ?? 'web';
   const purpose = parsed.data.purpose ?? 'login';
   const publicLogin = purpose === 'login';
@@ -247,7 +251,11 @@ export async function POST(request: Request) {
           );
         }
       } else {
-        delivery = { channel: 'telegram', recipientId };
+        delivery = {
+          channel: 'telegram',
+          recipientId,
+          ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
+        };
       }
     } else if (deliveryChannel === 'max') {
       const recipientId = user?.bindings?.maxId;
@@ -263,7 +271,11 @@ export async function POST(request: Request) {
           );
         }
       } else {
-        delivery = { channel: 'max', recipientId };
+        delivery = {
+          channel: 'max',
+          recipientId,
+          ...(clinicRequiredOrganizationId ? { clinicRequiredOrganizationId } : {}),
+        };
       }
     } else {
       const email = user || publicLogin ? primaryConfirmedContactValue(user, 'email') : null;

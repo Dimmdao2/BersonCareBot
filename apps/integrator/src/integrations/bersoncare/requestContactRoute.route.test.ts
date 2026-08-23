@@ -80,4 +80,28 @@ describe('POST /api/bersoncare/request-contact', () => {
       },
     });
   });
+
+  it('marks a branded contact confirmation clinic-required before it reaches dispatch', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = Fastify({ logger: false });
+    apps.push(app);
+    await registerBersoncareRequestContactRoute(app, {
+      dispatchPort: { dispatchOutgoing },
+      sharedSecret: SHARED_SECRET,
+      idempotencyPort: idempotencyPort(),
+    });
+
+    const response = await injectSigned(app, {
+      channel: 'max',
+      recipientId: '123456789',
+      idempotencyKey: 'request-contact-branded',
+      organizationId: '11111111-1111-4111-8111-111111111111',
+      senderScope: 'clinic_required',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(dispatchOutgoing.mock.calls[0]?.[0].payload).toMatchObject({
+      delivery: { channels: ['max'], senderScope: 'clinic_required' },
+    });
+  });
 });

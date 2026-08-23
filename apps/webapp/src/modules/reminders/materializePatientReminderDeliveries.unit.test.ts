@@ -58,7 +58,13 @@ describe('patient reminder ready-delivery materializer', () => {
       expect(Number.isNaN(Date.parse(delivery.intent.meta.occurredAt))).toBe(false);
       expect(delivery.intent.payload).toMatchObject({
         message: { text: expect.any(String) },
-        delivery: { channels: [delivery.channel], maxAttempts: 1 },
+        delivery: {
+          channels: [delivery.channel],
+          maxAttempts: 1,
+          ...(delivery.channel === 'telegram' || delivery.channel === 'max'
+            ? { senderScope: 'clinic_required' }
+            : {}),
+        },
       });
       const recipient = delivery.intent.payload.recipient as Record<string, unknown>;
       const recipientKey = {

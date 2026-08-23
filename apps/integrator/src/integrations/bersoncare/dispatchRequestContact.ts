@@ -35,6 +35,7 @@ export type DispatchRequestContactParams = {
   channel: 'telegram' | 'max';
   /** Личка: Telegram chat id; MAX platform user id. */
   recipientId: string;
+  senderScope?: 'clinic_required';
   /** Для корреляции в meta (не дедуп внутри этой функции). */
   correlationId?: string;
 };
@@ -52,7 +53,7 @@ export type DispatchRequestContactParams = {
 export async function dispatchRequestContactToUser(
   params: DispatchRequestContactParams,
 ): Promise<void> {
-  const { dispatchPort, writePort, channel, recipientId, correlationId } = params;
+  const { dispatchPort, writePort, channel, recipientId, correlationId, senderScope } = params;
 
   if (channel === 'telegram' && writePort) {
     const id = recipientId.trim();
@@ -81,7 +82,7 @@ export async function dispatchRequestContactToUser(
       recipient,
       message: { text: BERSONCARE_REQUEST_CONTACT_CONFIRM_TEXT },
       replyMarkup,
-      delivery: { channels: [channel] },
+      delivery: { channels: [channel], ...(senderScope ? { senderScope } : {}) },
     },
   });
 }

@@ -92,6 +92,25 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
     });
   });
 
+  it('marks a branded Telegram OTP clinic-required before it reaches the dispatch port', async () => {
+    const { app, dispatchOutgoing } = await buildApp();
+
+    const response = await injectSigned(app, {
+      channel: 'telegram',
+      recipientId: 'tg-1',
+      code: '123456',
+      mailProfile,
+      idempotencyKey: 'otp:tg:branded',
+      organizationId: '11111111-1111-4111-8111-111111111111',
+      senderScope: 'clinic_required',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(dispatchOutgoing.mock.calls[0]?.[0].payload).toMatchObject({
+      delivery: { channels: ['telegram'], senderScope: 'clinic_required' },
+    });
+  });
+
   it('same signed request is a no-op, while an explicit resend key dispatches again', async () => {
     const { app, dispatchOutgoing } = await buildApp();
     const first = {
