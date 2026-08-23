@@ -669,12 +669,12 @@ identity seam, а не набор getters.
   `clinic-domain-write-constraints.devDbProof.test.mjs`; rollback на DEV — снять
   `system_settings_org_custom_domain_hostname_uidx` отдельной timestamped follow-up migration и вернуть
   предшествующую редакцию `organization_slug_claims_slug_reserved_check` той же migration.
-- [ ] `B3` Реализовать один `RequestSurfaceResolver` и подключить к существующему request choke point. Результат
+- [x] `B3` Реализовать один `RequestSurfaceResolver` и подключить к существующему request choke point. Результат
   резолва переиспользуется routing, metadata/manifest и absolute links. **Установка приложения (манифест,
   иконки, `start_url`) идёт из этого же резолва по Host** — решение владельца 22.08.2026, см. §1.3.
   Таблица «путь → поверхность» из этапа `A` после этого остаётся только для маршрутов, общих для двух
   хостов, и не дублирует host-резолв.
-- [ ] `B4` Расширить существующий org branding service: optional patient app name и один accent token; anonymous
+- [x] `B4` Расширить существующий org branding service: optional patient app name и один accent token; anonymous
   branded projection отдаёт только published/entitled safe fields. Public card/contacts читаются через существующий
   clinic-public-card port.
 - [ ] `B4a` Клиника без купленного брендинга получает живую страницу, а не `404` (§1.2b-1, решение владельца
@@ -689,7 +689,7 @@ identity seam, а не набор getters.
   Флаг живёт в существующих настройках организации, отдельного store не заводится; конструктора страниц и
   выбора типа страницы НЕ делается. Согласовать с
   `docs/_TODO/CLINIC_PUBLIC_PAGE_AND_URL_FLIP_2026-08-19.md`, чтобы две работы не разъехались.
-- [ ] `B6` Оставить cookies host-only и текущий CSRF request-origin seam; добавить только regression tests для
+- [x] `B6` Оставить cookies host-only и текущий CSRF request-origin seam; добавить только regression tests для
   нескольких Host. Unknown Host и cross-org попытки fail closed.
 - [ ] `B7` Выпустить и продлевать сертификат, который явно содержит `therapygo.ru` и `*.therapygo.ru`;
   wildcard сам по себе apex не покрывает. Описать rollback; UI/lifecycle automation не строить.
