@@ -8,6 +8,9 @@ Read `AGENTS.md` header map first, then §1 migrations/DB, §5, §10a/10b and §
 decision recorded in `docs/OWNER_DECISIONS.md` under «Роль бота после появления приложения» and the D15b/2 +
 D25 checkboxes in `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`:
 
+Источник оракула: `docs/OWNER_DECISIONS.md` §«Роль бота после появления приложения» — «никакая команда от
+бота не должна создавать пользователей сама по себе»; «бот подтверждает телефон средствами мессенджера».
+
 - no generic Telegram/MAX `/start`, message, callback or contact creates `platform_users`, trusts a phone or
   decides a merge;
 - registration/login begins in webapp, produces a token-bound `auth_<token>` attempt, the bot confirms a matching
