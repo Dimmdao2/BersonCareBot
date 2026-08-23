@@ -1,5 +1,4 @@
 batch	table	org_resolution	implementation_note
-P0.4.I3	integrator.user_reminder_delivery_logs	parent_denorm_copy	copy organization_id from integrator.user_reminder_occurrences after I3 occurrence backfill; quarantine orphan child rows
 P0.4.I3	integrator.user_reminder_occurrences	parent_denorm_copy	copy organization_id from canonical public.reminder_rules after D5 re-key; quarantine orphan child rows
 P0.4.P8	public.admin_audit_log	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
 P0.4.P8	public.broadcast_audit	audit_actor_org	add nullable organization_id; backfill from actor_id membership/enrollment where possible, otherwise current single org with explicit count check
@@ -74,7 +73,6 @@ P0.4.P8	public.recommendation_regions	catalog_org	add nullable organization_id; 
 P0.4.P8	public.recommendations	catalog_org	add nullable organization_id; current recommendation catalog rows single-org backfill
 P0.4.RC	public.reference_categories	reference_category_org	add nullable organization_id and make it authoritative; document/retire stale tenant_id/owner_id use
 P0.4.P8	public.reference_items	reference_parent_denorm	copy organization_id from public.reference_categories; quarantine orphan items
-P0.4.P7	public.reminder_delivery_events	parent_denorm_copy	copy organization_id from reminder rule/occurrence/journal parent; quarantine orphan events
 P0.4.P7	public.reminder_journal	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P7	public.reminder_occurrence_history	parent_denorm_copy	copy organization_id from reminder occurrence/rule parent; quarantine orphan history rows
 P0.4.P7	public.reminder_rules	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment

@@ -326,11 +326,11 @@ const patientOwnedColumns = new Map([
   ['public.program_item_discussion_messages', { column: 'patient_user_id' }],
   ['public.program_item_discussion_reads', { column: 'patient_user_id' }],
   ['public.symptom_entries', { column: 'platform_user_id' }],
-  ['public.reminder_delivery_events', { column: 'integrator_user_id', castType: 'bigint' }],
   // public.reminder_occurrence_history is NOT registered here (as a direct integrator_user_id/bigint
-  // column reading app.current_integrator_user_id()) even though its column shape matches
-  // reminder_delivery_events above. Corrected 2026-07-26 (taskdb #1018, live 404 on all three patient
-  // reminder actions): packages/db-principal/src/index.ts applyDbPrincipal's "patient" branch
+  // column reading app.current_integrator_user_id()), even though its column shape once matched the
+  // now-retired public.reminder_delivery_events (Track D final cutover #987, 2026-08-23). Corrected
+  // 2026-07-26 (taskdb #1018, live 404 on all three patient reminder actions):
+  // packages/db-principal/src/index.ts applyDbPrincipal's "patient" branch
   // (:845-849) ALWAYS clears APP_INTEGRATOR_USER_CONFIG_KEY to "" and only ever populates
   // APP_PATIENT_USER_CONFIG_KEY — a patient session's app.integrator_user_id GUC is never set, so a
   // direct-column predicate reading app.current_integrator_user_id() can never admit a patient's own
@@ -386,27 +386,6 @@ const patientChainOwnedTables = new Map([
     'integrator.user_reminder_occurrences',
     {
       hops: [
-        {
-          table: 'public.reminder_rules',
-          alias: 'b4f_rule',
-          parentPk: 'integrator_rule_id',
-          localFk: 'rule_id',
-        },
-      ],
-      terminalColumn: 'integrator_user_id',
-      castType: 'bigint',
-    },
-  ],
-  [
-    'integrator.user_reminder_delivery_logs',
-    {
-      hops: [
-        {
-          table: 'integrator.user_reminder_occurrences',
-          alias: 'b4f_occ',
-          parentPk: 'id',
-          localFk: 'occurrence_id',
-        },
         {
           table: 'public.reminder_rules',
           alias: 'b4f_rule',

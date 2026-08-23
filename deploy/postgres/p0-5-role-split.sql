@@ -87,7 +87,6 @@ CREATE TEMP TABLE p0_5_app_grant_tables (
 
 INSERT INTO p0_5_app_grant_tables (schema_name, table_name, tier)
 VALUES
-  ('integrator', 'user_reminder_delivery_logs', 'SCOPED'),
   ('integrator', 'user_reminder_occurrences', 'SCOPED'),
   ('public', 'admin_audit_log', 'SCOPED'),
   ('public', 'be_appointment_cancellations', 'SCOPED'),
@@ -211,7 +210,6 @@ VALUES
   ('public', 'recommendations', 'SCOPED'),
   ('public', 'reference_categories', 'SCOPED'),
   ('public', 'reference_items', 'SCOPED'),
-  ('public', 'reminder_delivery_events', 'SCOPED'),
   ('public', 'reminder_journal', 'SCOPED'),
   ('public', 'reminder_occurrence_history', 'SCOPED'),
   ('public', 'reminder_rules', 'SCOPED'),

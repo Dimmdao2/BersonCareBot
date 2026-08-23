@@ -26,15 +26,6 @@ SELECT 1 / (:'phase4_enforce_locked_context' IN ('0', '1'))::int AS phase4_enfor
 
 BEGIN;
 
--- integrator.user_reminder_delivery_logs (saas_org_dormant_p0_8_5)
-ALTER TABLE "integrator"."user_reminder_delivery_logs" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_delivery_logs";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_delivery_logs" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "public"."reminder_rules" AS "b4f_rule" ON "b4f_rule"."integrator_rule_id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."integrator_user_id" = app.current_integrator_user_id() )))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "public"."reminder_rules" AS "b4f_rule" ON "b4f_rule"."integrator_rule_id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."integrator_user_id" = app.current_integrator_user_id() ))));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_delivery_logs" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "public"."reminder_rules" AS "b4f_rule" ON "b4f_rule"."integrator_rule_id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."integrator_user_id" = app.current_integrator_user_id() ))))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND EXISTS ( SELECT 1 FROM "integrator"."user_reminder_occurrences" AS "b4f_occ" JOIN "public"."reminder_rules" AS "b4f_rule" ON "b4f_rule"."integrator_rule_id" = "b4f_occ"."rule_id" WHERE "b4f_occ"."id" = "occurrence_id" AND "b4f_rule"."integrator_user_id" = app.current_integrator_user_id() )))));
-\endif
-
 -- integrator.user_reminder_occurrences (saas_org_dormant_p0_8_5)
 ALTER TABLE "integrator"."user_reminder_occurrences" ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "saas_org_dormant_p0_8_5" ON "integrator"."user_reminder_occurrences";
@@ -1079,15 +1070,6 @@ DROP POLICY IF EXISTS "saas_org_dormant_p0_8_4" ON "public"."reference_items";
 CREATE POLICY "saas_org_dormant_p0_8_4" ON "public"."reference_items" FOR ALL USING ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))) WITH CHECK ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())));
 \else
 CREATE POLICY "saas_org_dormant_p0_8_4" ON "public"."reference_items" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR (app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()))));
-\endif
-
--- public.reminder_delivery_events (saas_org_dormant_p0_8_4)
-ALTER TABLE "public"."reminder_delivery_events" ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "saas_org_dormant_p0_8_4" ON "public"."reminder_delivery_events";
-\if :phase4_enforce_locked_context
-CREATE POLICY "saas_org_dormant_p0_8_4" ON "public"."reminder_delivery_events" FOR ALL USING (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id()))) WITH CHECK (((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id())));
-\else
-CREATE POLICY "saas_org_dormant_p0_8_4" ON "public"."reminder_delivery_events" FOR ALL USING (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id())))) WITH CHECK (((app.current_org_id() IS NULL AND app.current_patient_user_id() IS NULL AND app.current_integrator_user_id() IS NULL AND NOT app.is_staff()) OR ((app.is_staff() AND (app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id())) OR (app.current_integrator_user_id() IS NOT NULL AND "integrator_user_id" = app.current_integrator_user_id()))));
 \endif
 
 -- public.reminder_journal (saas_org_dormant_p0_8_3)

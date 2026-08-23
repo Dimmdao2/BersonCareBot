@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
  * Reconciliation for reminders domain: compare integrator user_reminder_rules,
- * user_reminder_occurrences (sent/failed), user_reminder_delivery_logs, content_access_grants
- * with webapp reminder_rules, reminder_occurrence_history, reminder_delivery_events,
- * content_access_grants_webapp. Exit 0 when within threshold for each table-pair.
+ * user_reminder_occurrences (sent/failed), content_access_grants with webapp
+ * reminder_rules, reminder_occurrence_history, content_access_grants_webapp.
+ * Exit 0 when within threshold for each table-pair. Delivery events live only in
+ * outgoing_delivery_queue (no separate journal to reconcile, retired 2026-08-23).
  *
  * Usage: node scripts/reconcile-reminders-domain.mjs [--max-mismatch-percent=N] [--sample-size=N]
  * Requires: DATABASE_URL (webapp), INTEGRATOR_DATABASE_URL (integrator).
@@ -59,7 +60,6 @@ async function main() {
   const report = {
     reminder_rules: null,
     reminder_occurrence_history: null,
-    reminder_delivery_events: null,
     content_access_grants: null,
   };
 
@@ -92,20 +92,6 @@ async function main() {
       missingInWebappSample: missingOcc.slice(0, sampleSize),
     };
 
-    const srcLogs = await integratorClient.query('SELECT id FROM user_reminder_delivery_logs');
-    const tgtLogs = await webappClient.query(
-      'SELECT integrator_delivery_log_id FROM reminder_delivery_events',
-    );
-    const srcLogIds = new Set(srcLogs.rows.map((r) => r.id));
-    const tgtLogIds = new Set(tgtLogs.rows.map((r) => r.integrator_delivery_log_id));
-    const missingLogs = [...srcLogIds].filter((id) => !tgtLogIds.has(id));
-    report.reminder_delivery_events = {
-      sourceCount: srcLogs.rowCount ?? 0,
-      targetCount: tgtLogs.rowCount ?? 0,
-      missingInWebappCount: missingLogs.length,
-      missingInWebappSample: missingLogs.slice(0, sampleSize),
-    };
-
     const srcGrants = await integratorClient.query('SELECT id FROM content_access_grants');
     const tgtGrants = await webappClient.query(
       'SELECT integrator_grant_id FROM content_access_grants_webapp',
@@ -129,7 +115,6 @@ async function main() {
   const tables = [
     { name: 'reminder_rules', ...report.reminder_rules },
     { name: 'reminder_occurrence_history', ...report.reminder_occurrence_history },
-    { name: 'reminder_delivery_events', ...report.reminder_delivery_events },
     { name: 'content_access_grants', ...report.content_access_grants },
   ];
   for (const t of tables) {

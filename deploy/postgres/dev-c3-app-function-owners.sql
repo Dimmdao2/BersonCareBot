@@ -216,7 +216,6 @@ GRANT SELECT ON TABLE public.operator_health_alert_sent TO saas_system_health_ow
 GRANT SELECT ON TABLE public.operator_incidents TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.operator_job_status TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.outgoing_delivery_queue TO saas_system_health_owner; -- read_curated_system_health_pre_0196
-GRANT SELECT ON TABLE public.reminder_delivery_events TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.reminder_occurrence_history TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.system_settings TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.user_web_push_subscriptions TO saas_system_health_owner; -- read_curated_system_health_pre_0196

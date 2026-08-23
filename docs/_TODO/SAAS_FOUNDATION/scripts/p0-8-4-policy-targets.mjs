@@ -33,7 +33,6 @@ export const expectedP084PublicDenormTargets = Object.freeze([
   'public.program_item_discussion_messages',
   'public.program_item_discussion_reads',
   'public.reference_items',
-  'public.reminder_delivery_events',
   'public.reminder_occurrence_history',
   'public.support_conversation_messages',
   'public.support_delivery_events',
@@ -131,9 +130,9 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
   const actualTables = targets.map((descriptor) => descriptor.table);
   const actualSet = new Set(actualTables);
 
-  if (actualTables.length !== 37) {
+  if (actualTables.length !== 36) {
     throw new Error(
-      `Expected 37 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`,
+      `Expected 36 P0.8.4 public FK/denorm/polymorphic path targets, got ${actualTables.length}`,
     );
   }
 
@@ -167,8 +166,8 @@ export function assertP084PublicPathTargets(targets, blockedPolymorphic) {
     throw new Error(`Expected 2 P0.8.4 FK-path targets, got ${fkTargets.length}`);
   }
 
-  if (denormTargets.length !== 34) {
-    throw new Error(`Expected 34 P0.8.4 denorm-org targets, got ${denormTargets.length}`);
+  if (denormTargets.length !== 33) {
+    throw new Error(`Expected 33 P0.8.4 denorm-org targets, got ${denormTargets.length}`);
   }
 
   if (polymorphicTargets.length !== 1) {

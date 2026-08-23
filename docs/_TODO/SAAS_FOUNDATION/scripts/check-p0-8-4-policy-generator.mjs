@@ -18,16 +18,16 @@ const descriptors = getP084PublicPathDescriptors();
 const statements = renderP084PolicyStatements({ descriptors });
 const sql = statements.join('\n');
 
-if (descriptors.length !== 37) {
-  fail(`Expected 37 P0.8.4 descriptors, got ${descriptors.length}`);
+if (descriptors.length !== 36) {
+  fail(`Expected 36 P0.8.4 descriptors, got ${descriptors.length}`);
 }
 
 if (expectedP084PublicFkPathTargets.length !== 2) {
   fail(`Expected 2 explicit FK-path targets, got ${expectedP084PublicFkPathTargets.length}`);
 }
 
-if (expectedP084PublicDenormTargets.length !== 34) {
-  fail(`Expected 34 explicit denorm targets, got ${expectedP084PublicDenormTargets.length}`);
+if (expectedP084PublicDenormTargets.length !== 33) {
+  fail(`Expected 33 explicit denorm targets, got ${expectedP084PublicDenormTargets.length}`);
 }
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): P0.12.1 is
@@ -117,13 +117,15 @@ for (const table of expectedP084PublicFkPathTargets) {
 //
 // Corrected 2026-07-26 (taskdb #1018): public.reminder_occurrence_history moved OUT of this direct
 // count (11 -> 10) into the patient-chain-owned count below (15 -> 16). D21 then retired
-// public.webapp_reminder_occurrences, reducing this direct count once more. It kept the same
-// integrator_user_id/bigint column shape as its sibling public.reminder_delivery_events (still
-// counted here), but a direct column predicate reading app.current_integrator_user_id() can never
-// admit a patient session — packages/db-principal/src/index.ts applyDbPrincipal always clears that
-// GUC for kind "patient". Proven live: all three patient reminder actions (done/snooze/skip) 404'd.
+// public.webapp_reminder_occurrences, reducing this direct count once more (10 -> 9). Track D
+// final cutover (#987, 2026-08-23) then retired its sibling public.reminder_delivery_events
+// entirely (duplicate delivery journal, folded into public.outgoing_delivery_queue), reducing this
+// direct count once more (9 -> 8): it had kept the same integrator_user_id/bigint column shape,
+// but a direct column predicate reading app.current_integrator_user_id() can never admit a patient
+// session — packages/db-principal/src/index.ts applyDbPrincipal always clears that GUC for kind
+// "patient". Proven live: all three patient reminder actions (done/snooze/skip) 404'd.
 // See rls-descriptor-model.mjs patientOwnedColumns/patientChainOwnedTables for the full note.
-const expectedPatientOwnedTargets = 9;
+const expectedPatientOwnedTargets = 8;
 const patientOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientColumn);
 
 if (patientOwnedDescriptors.length !== expectedPatientOwnedTargets) {
@@ -357,5 +359,5 @@ for (const descriptor of patientPolymorphicOwnedDescriptors) {
 }
 
 console.log(
-  `P0.8.4 policy generator OK: 37 targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${expectedP084PublicPolymorphicTargets.length} polymorphic, ${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalChainOwnedDescriptors.length} patient-conditional-chain-owned, ${patientPolymorphicOwnedDescriptors.length} patient-polymorphic-owned), public.comments resolved (P0.12.1 complete).`,
+  `P0.8.4 policy generator OK: ${descriptors.length} targets (${expectedP084PublicFkPathTargets.length} FK-path, ${expectedP084PublicDenormTargets.length} denorm, ${expectedP084PublicPolymorphicTargets.length} polymorphic, ${patientOwnedDescriptors.length} patient-owned, ${patientChainOwnedDescriptors.length} patient-chain-owned, ${patientConditionalChainOwnedDescriptors.length} patient-conditional-chain-owned, ${patientPolymorphicOwnedDescriptors.length} patient-polymorphic-owned), public.comments resolved (P0.12.1 complete).`,
 );

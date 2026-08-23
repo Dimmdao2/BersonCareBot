@@ -55,7 +55,6 @@ INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy
 LEGACY|public.booking_cities
 LEGACY|public.patient_bookings
-SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|public.admin_audit_log
 SCOPED|public.be_appointment_cancellations
@@ -170,7 +169,6 @@ SCOPED|public.recommendation_regions
 SCOPED|public.recommendations
 SCOPED|public.reference_categories
 SCOPED|public.reference_items
-SCOPED|public.reminder_delivery_events
 SCOPED|public.reminder_journal
 SCOPED|public.reminder_occurrence_history
 SCOPED|public.reminder_rules

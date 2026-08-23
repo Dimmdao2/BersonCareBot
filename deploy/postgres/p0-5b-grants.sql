@@ -57,7 +57,6 @@ INSERT INTO p0_5b_staff_grant_tables (schema_name, table_name)
 VALUES
   ('integrator', 'idempotency_keys'),
   ('integrator', 'integration_data_quality_incidents'),
-  ('integrator', 'user_reminder_delivery_logs'),
   ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),
   ('public', 'auth_rate_limit_events'),
@@ -194,7 +193,6 @@ VALUES
   ('public', 'recommendations'),
   ('public', 'reference_categories'),
   ('public', 'reference_items'),
-  ('public', 'reminder_delivery_events'),
   ('public', 'reminder_journal'),
   ('public', 'reminder_occurrence_history'),
   ('public', 'reminder_rules'),
@@ -242,7 +240,6 @@ CREATE TEMP TABLE p0_5b_patient_grant_tables (
 
 INSERT INTO p0_5b_patient_grant_tables (schema_name, table_name, privileges)
 VALUES
-  ('integrator', 'user_reminder_delivery_logs', 'SELECT'),
   ('integrator', 'user_reminder_occurrences', 'SELECT'),
   ('public', 'be_appointment_cancellations', 'SELECT, INSERT'),
   ('public', 'be_appointment_history_events', 'SELECT, INSERT'),
@@ -309,7 +306,6 @@ VALUES
   ('public', 'program_action_log', 'SELECT, INSERT'),
   ('public', 'program_item_discussion_messages', 'SELECT, INSERT'),
   ('public', 'program_item_discussion_reads', 'SELECT, INSERT, UPDATE'),
-  ('public', 'reminder_delivery_events', 'SELECT'),
   ('public', 'reminder_journal', 'SELECT'),
   ('public', 'reminder_occurrence_history', 'SELECT'),
   ('public', 'reminder_rules', 'SELECT, INSERT, UPDATE'),

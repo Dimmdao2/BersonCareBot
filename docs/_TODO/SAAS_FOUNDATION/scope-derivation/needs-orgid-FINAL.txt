@@ -1,4 +1,3 @@
-integrator.user_reminder_delivery_logs
 integrator.user_reminder_occurrences
 public.admin_audit_log
 public.broadcast_audit
@@ -73,7 +72,6 @@ public.recommendation_regions
 public.recommendations
 public.reference_categories
 public.reference_items
-public.reminder_delivery_events
 public.reminder_journal
 public.reminder_occurrence_history
 public.reminder_rules
