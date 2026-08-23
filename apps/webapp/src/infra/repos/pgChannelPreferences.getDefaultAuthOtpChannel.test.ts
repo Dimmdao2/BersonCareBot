@@ -2,9 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
+  getCurrentDbPrincipal: vi.fn(),
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: vi.fn(),
   runWebappPgText: vi.fn(),
+}));
+
+vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipal: fakes.getCurrentDbPrincipal,
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
@@ -21,6 +26,7 @@ import { pgChannelPreferencesPort } from '@/infra/repos/pgChannelPreferences';
 describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.getCurrentDbPrincipal.mockReturnValue(null);
     fakes.getWebappSqlDb.mockReturnValue(fakes.db);
   });
 
@@ -99,6 +105,23 @@ describe('pgChannelPreferencesPort.getPreferredAuthChannelCode', () => {
     expect(db).toBe(fakes.db);
     expect(identity).toBe('app.get_preferred_auth_channel_code(uuid)');
     expect(args).toEqual(['00000000-0000-4000-8000-000000000001']);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+  });
+
+  it('uses the patient self door when the profile already has a patient principal', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'patient' });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ channel_code: 'max' }] });
+
+    await expect(
+      pgChannelPreferencesPort.getPreferredAuthChannelCode(
+        '00000000-0000-4000-8000-000000000001',
+      ),
+    ).resolves.toBe('max');
+
+    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
+    expect(db).toBe(fakes.db);
+    expect(identity).toBe('app.get_current_patient_preferred_auth_channel_code()');
+    expect(args).toEqual([]);
     expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 });

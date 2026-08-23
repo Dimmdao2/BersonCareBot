@@ -42,6 +42,30 @@ $function$
 ;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app_ext
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
+-- BCB-MIGRATION-VERIFY: SELECT to_regprocedure('app_ext.read_preferred_auth_channel_code(uuid)') IS NOT NULL
+--
+-- Единственный SELECT предпочтительного канала. Обе публичные двери ниже делегируют сюда, поэтому
+-- pre-session и patient пути не могут разъехаться по семантике чтения.
+CREATE FUNCTION app_ext.read_preferred_auth_channel_code(p_user_id uuid)
+ RETURNS text
+ LANGUAGE sql
+ STABLE SECURITY DEFINER PARALLEL UNSAFE
+ SET search_path TO 'pg_catalog'
+AS $function$
+  SELECT preference.channel_code
+  FROM public.user_channel_preferences AS preference
+  WHERE (
+      preference.platform_user_id = p_user_id
+      OR (preference.platform_user_id IS NULL AND preference.user_id = p_user_id::text)
+    )
+    AND preference.is_preferred_for_auth = true
+  LIMIT 1
+$function$
+;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.strpos(p.prosrc, 'auth.phone-login.preferred-channel') > 0 FROM pg_catalog.pg_proc p WHERE p.oid = pg_catalog.to_regprocedure('app.get_preferred_auth_channel_code(uuid)')
@@ -59,16 +83,28 @@ AS $function$
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-login.preferred-channel', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.get_preferred_auth_channel_code(uuid)'::regprocedure);
 
-  RETURN (
-    SELECT preference.channel_code
-    FROM public.user_channel_preferences AS preference
-    WHERE (
-        preference.platform_user_id = p_user_id
-        OR (preference.platform_user_id IS NULL AND preference.user_id = p_user_id::text)
-      )
-      AND preference.is_preferred_for_auth = true
-    LIMIT 1
-  );
+  RETURN app_ext.read_preferred_auth_channel_code(p_user_id);
+END
+$function$
+;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-VERIFY: SELECT pg_catalog.strpos(p.prosrc, 'patient.preferred-auth-channel.read') > 0 FROM pg_catalog.pg_proc p WHERE p.oid = pg_catalog.to_regprocedure('app.get_current_patient_preferred_auth_channel_code()')
+--
+-- Страница профиля уже несёт принятую личность пациента. Её дверь не принимает user id из кода:
+-- субъект берётся только из принятого patient-контекста, а чтение делегируется общему helper выше.
+CREATE FUNCTION app.get_current_patient_preferred_auth_channel_code()
+ RETURNS text
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER PARALLEL UNSAFE
+ SET search_path TO 'pg_catalog'
+AS $function$
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_patient'::name, 'patient'::app.port_context_class, 'patient.preferred-auth-channel.read', app.hash_port_typed_args(ARRAY[]::app.port_typed_arg[]), 'app.get_current_patient_preferred_auth_channel_code()'::regprocedure);
+
+  RETURN app_ext.read_preferred_auth_channel_code(app.current_patient_user_id());
 END
 $function$
 ;

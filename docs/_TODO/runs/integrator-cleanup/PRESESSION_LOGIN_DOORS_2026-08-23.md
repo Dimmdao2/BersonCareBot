@@ -189,3 +189,126 @@ migrate-dev preflight: PASS (post-cutover DEV; rollback-only webapp DDL validati
 ```
 
 `--execute` не запускался. TEST/PROD не изменялись, push не выполнялся, галочка D15b/6 не ставилась.
+
+## Коррекция: patient caller preferred-channel
+
+### Исходный замер
+
+Candidate-тело `app.get_preferred_auth_channel_code(uuid)` и сгенерированные для него права были
+установлены на DEV только внутри транзакции теста с `ROLLBACK`. Затем тест принял настоящий relation
+context класса `patient` и вызвал pre-session-корень.
+
+Команда:
+
+```bash
+RUN_PRESESSION_LOGIN_DOORS_DB=1 node --test --test-concurrency=1 \
+  deploy/postgres/privileges/pre-session-login-doors.devDbProof.test.mjs
+```
+
+Вывод отказавшей пробы дословно:
+
+```text
+psql:<stdin>:138: ERROR:  42501: accepted port context required
+CONTEXT:  PL/pgSQL function require_accepted_context(name,name,port_context_class,text,bytea,regprocedure) line 23 at RAISE
+SQL statement "SELECT app.require_accepted_context('app_seam_identity_lookup_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'auth.phone-login.preferred-channel', app.hash_port_typed_args(ARRAY[ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg]), 'app.get_preferred_auth_channel_code(uuid)'::regprocedure)"
+PL/pgSQL function app.get_preferred_auth_channel_code(uuid) line 3 at PERFORM
+LOCATION:  exec_stmt_raise, pl_exec.c:3897
+```
+
+Итог исходного запуска: `tests 5`, `pass 4`, `fail 1`. Риск `500` был реальным: принятый
+patient-context не удовлетворял exact pre-session capability.
+
+### Исправление
+
+- Единственный SELECT чтения предпочтительного auth-канала перенесён в приватный
+  `app_ext.read_preferred_auth_channel_code(uuid)`.
+- `app.get_preferred_auth_channel_code(uuid)` сохранил прежний exact pre-session gate без изменения
+  формы и делегирует чтение helper-у.
+- Для вошедшего пациента добавлена отдельная дверь
+  `app.get_current_patient_preferred_auth_channel_code()` с target/session role `app_patient`, классом
+  `patient`, purpose `patient.preferred-auth-channel.read` и identity самой patient-двери. User id берётся
+  через `app.current_patient_user_id()`, а чтение делегируется тому же helper-у.
+- `pgChannelPreferences` выбирает patient-дверь только при principal `patient`; pre-session путь продолжает
+  вызывать исходную дверь с `userId`.
+
+Одна публичная дверь для обоих классов не использована: exact capability связывает target, class,
+purpose, typed args и function identity. Разветвление двух классов внутри неё ослабило бы заданную форму
+pre-session-гейта; общий приватный helper оставляет две двери, но одну реализацию SELECT.
+
+Права и capability добавлены в `declaration.ts`, затем выполнено:
+
+```bash
+node deploy/postgres/privileges/generate-cli.mjs --all
+node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only
+node deploy/postgres/privileges/generate-cli.mjs --all --check
+```
+
+Финальная строка: `--check: артефакты соответствуют декларации побайтно.`
+
+Проверка migration-файла:
+
+```bash
+rg -n "\\b(GRANT|REVOKE|CREATE[[:space:]]+ROLE|CREATE[[:space:]]+POLICY)\\b" \
+  apps/webapp/db/drizzle-migrations/20260823T002500_pre_session_login_uses_two_named_doors.sql
+```
+
+Вывод пустой.
+
+### Поведенческое доказательство коррекции
+
+Healthy DEV-proof после исправления:
+
+```text
+tests 7
+pass 7
+fail 0
+```
+
+Он доказывает обе exact-двери, отказ pre-session-двери под принятым чужим patient-context и отказ
+patient-двери без её собственного exact context.
+
+Fault injection запускался отдельно для каждой двери той же командой с переменной
+`PRESESSION_LOGIN_DOORS_FAULT`:
+
+```text
+FAULT=email       EXIT=1  not ok 2 - почтовая дверь с exact context возвращает id, email_verified и has_password
+FAULT=pre_session EXIT=1  not ok 4 - preferred-channel дверь с exact context возвращает настроенный канал
+FAULT=patient     EXIT=1  not ok 7 - patient preferred-channel дверь с exact context возвращает канал самого пациента
+```
+
+Каждый красный запуск: `tests 7`, `pass 6`, `fail 1`. После отключения fault healthy-команда повторно:
+`tests 7`, `pass 7`, `fail 0`.
+
+Unit-тест выбора двери:
+
+```bash
+pnpm --dir apps/webapp exec vitest --run \
+  src/infra/repos/pgChannelPreferences.getDefaultAuthOtpChannel.test.ts
+```
+
+Результат: `Test Files 1 passed (1)`, `Tests 6 passed (6)`.
+
+### Финальные гейты коррекции
+
+```bash
+pnpm run typecheck
+pnpm run lint
+```
+
+Обе команды завершились с exit 0. Lint показал 0 errors и 2 существующих warning в
+`AppointmentPaymentSection.tsx`, который не входит в diff; все chokepoint, migration и door self-checks
+зелёные.
+
+```bash
+bash deploy/host/migrate-dev.sh --preflight
+```
+
+DEV env-файлы были временно установлены из основного DEV workspace и удалены trap после команды.
+
+```text
+ROLLBACK
+Drizzle owner-ordered migration validated and rolled back for "bcb_webapp_dev": pending=1 total=53 reapplied=0 foreign-ledger-rows=3 relabeled=0 dropped-foreign=0 dropped-foreign-by-hash=0 unapplied=0
+migrate-dev preflight: PASS (post-cutover DEV; rollback-only webapp DDL validation complete)
+```
+
+`--execute` не запускался. TEST/PROD не затрагивались, push не выполнялся, галочка D15b/6 не ставилась.

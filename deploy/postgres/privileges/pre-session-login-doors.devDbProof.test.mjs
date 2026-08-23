@@ -4,8 +4,9 @@
  * ROLLBACK; migration runner и `--execute` этот тест не вызывает.
  *
  * Ловит две живые регрессии D15b/6: опознание почты снова пытается читать отношения напрямую либо
- * телефонный вход вызывает preferred-channel root без его exact capability. Каждая дверь обязана
- * отказать без принятого контекста и вернуть продуктовый результат с точным контекстом.
+ * телефонный вход вызывает preferred-channel root без его exact capability либо
+ * профиль пациента вызывает pre-session root. Каждая дверь обязана отказать с чужим
+ * контекстом и вернуть тот же продуктовый результат со своим exact-контекстом.
  *
  * Запуск:
  *   RUN_PRESESSION_LOGIN_DOORS_DB=1 node --test \
@@ -29,7 +30,7 @@ const FAULT = process.env.PRESESSION_LOGIN_DOORS_FAULT ?? '';
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
   throw new Error(`unsafe database identifier '${DATABASE}'`);
 }
-if (FAULT !== '' && FAULT !== 'email') {
+if (!['', 'email', 'pre_session', 'patient'].includes(FAULT)) {
   throw new Error(`unknown PRESESSION_LOGIN_DOORS_FAULT '${FAULT}'`);
 }
 
@@ -50,6 +51,8 @@ const EMAIL_IDENTITY = 'app.pre_session_load_email_auth_state(text)';
 const EMAIL_PURPOSE = 'auth.email-password.account-state';
 const CHANNEL_IDENTITY = 'app.get_preferred_auth_channel_code(uuid)';
 const CHANNEL_PURPOSE = 'auth.phone-login.preferred-channel';
+const PATIENT_CHANNEL_IDENTITY = 'app.get_current_patient_preferred_auth_channel_code()';
+const PATIENT_CHANNEL_PURPOSE = 'patient.preferred-auth-channel.read';
 const EMAIL = 'presession-login-door-proof@example.test';
 const USER_ID = '00000000-0000-4000-8000-0000000000d6';
 
@@ -79,8 +82,20 @@ function candidateBlocks() {
     assert.ok(source.includes(healthy), 'fault injection не нашла выражение has_password');
     source = source.replace(healthy, broken);
   }
+  if (FAULT === 'pre_session') {
+    const healthy = "'auth.phone-login.preferred-channel', app.hash_port_typed_args";
+    const broken = "'auth.phone-login.preferred-channel.broken', app.hash_port_typed_args";
+    assert.ok(source.includes(healthy), 'fault injection не нашла pre-session purpose');
+    source = source.replace(healthy, broken);
+  }
+  if (FAULT === 'patient') {
+    const healthy = "'patient.preferred-auth-channel.read', app.hash_port_typed_args";
+    const broken = "'patient.preferred-auth-channel.read.broken', app.hash_port_typed_args";
+    assert.ok(source.includes(healthy), 'fault injection не нашла patient purpose');
+    source = source.replace(healthy, broken);
+  }
   const blocks = source.split('--> statement-breakpoint');
-  assert.equal(blocks.length, 2, 'кандидатная миграция должна содержать две owner-секции');
+  assert.equal(blocks.length, 4, 'кандидатная миграция должна содержать четыре owner-секции');
   return blocks;
 }
 
@@ -90,7 +105,7 @@ function capabilityValue(identity) {
 }
 
 function generatedSetup() {
-  const [emailBlock, channelBlock] = candidateBlocks();
+  const [emailBlock, ...identityBlocks] = candidateBlocks();
   const grants = [
     generatedLine(PRIVILEGES,
       `GRANT EXECUTE ON FUNCTION app.find_platform_user_ids_by_any_confirmed_email(text)`,
@@ -110,25 +125,33 @@ function generatedSetup() {
     generatedLine(PRIVILEGES,
       `GRANT EXECUTE ON FUNCTION ${CHANNEL_IDENTITY}`,
       'EXECUTE preferred-channel двери'),
+    generatedLine(PRIVILEGES,
+      `GRANT EXECUTE ON FUNCTION ${PATIENT_CHANNEL_IDENTITY} TO "app_patient"`,
+      'EXECUTE patient preferred-channel двери'),
+    generatedLine(PRIVILEGES,
+      `GRANT SELECT ("channel_code", "is_preferred_for_auth", "platform_user_id", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_identity_lookup_owner"`,
+      'SELECT общему preferred-channel helper'),
   ];
   const emailCapability = capabilityValue(EMAIL_IDENTITY);
   const channelCapability = capabilityValue(CHANNEL_IDENTITY);
+  const patientChannelCapability = capabilityValue(PATIENT_CHANNEL_IDENTITY);
 
   return `BEGIN;
-GRANT CREATE ON SCHEMA app TO app_seam_password_auth_owner, app_seam_identity_lookup_owner;
-GRANT USAGE ON LANGUAGE plpgsql TO app_seam_password_auth_owner, app_seam_identity_lookup_owner;
+GRANT CREATE ON SCHEMA app, app_ext TO app_seam_password_auth_owner, app_seam_identity_lookup_owner;
+GRANT USAGE ON LANGUAGE plpgsql, sql TO app_seam_password_auth_owner, app_seam_identity_lookup_owner;
 SET LOCAL ROLE app_seam_password_auth_owner;
 ${emailBlock}
 RESET ROLE;
 SET LOCAL ROLE app_seam_identity_lookup_owner;
-${channelBlock}
+${identityBlocks.join('\n')}
 RESET ROLE;
 ${grants.join('\n')}
 INSERT INTO app_ext.port_context_capabilities
   (capability_id, port, session_login, target_role, context_class, purpose, function_identity)
 VALUES
   ${emailCapability},
-  ${channelCapability}
+  ${channelCapability},
+  ${patientChannelCapability}
 ON CONFLICT (capability_id) DO UPDATE SET
   port = EXCLUDED.port,
   session_login = EXCLUDED.session_login,
@@ -194,12 +217,100 @@ SELECT app.begin_port_context(
 );`;
 }
 
+function patientContextFixture() {
+  const row = psql(`
+WITH candidate AS (
+  SELECT patient.id AS patient_id,
+         enrollment.organization_id,
+         actor_ref.opaque_ref AS actor_ref,
+         subject_ref.opaque_ref AS subject_ref
+  FROM public.platform_users AS patient
+  INNER JOIN public.org_enrollments AS enrollment
+    ON enrollment.platform_user_id = patient.id
+   AND enrollment.status = 'active'
+  INNER JOIN app_ext.variant_a_identity_refs AS actor_ref
+    ON actor_ref.physical_user_id = patient.id
+   AND actor_ref.ref_kind = 'actor'
+  INNER JOIN app_ext.variant_a_identity_refs AS subject_ref
+    ON subject_ref.physical_user_id = patient.id
+   AND subject_ref.ref_kind = 'subject'
+  WHERE patient.role = 'client'
+  ORDER BY patient.id
+  LIMIT 1
+), capability AS (
+  SELECT capability_id, session_login
+  FROM app_ext.port_context_capabilities
+  WHERE context_class = 'patient'::app.port_context_class
+    AND target_role = 'app_patient'::name
+    AND purpose = 'relation'
+    AND function_identity IS NULL
+    AND active_until IS NULL
+  ORDER BY session_login
+  LIMIT 1
+)
+SELECT candidate.patient_id::text || '|' || candidate.organization_id::text || '|'
+       || candidate.actor_ref::text || '|' || candidate.subject_ref::text || '|'
+       || capability.capability_id::text || '|' || capability.session_login::text
+FROM candidate CROSS JOIN capability;`);
+  const parts = row.split('|');
+  assert.equal(parts.length, 6, 'DEV needs an enrolled patient and active relation capability');
+  return {
+    userId: parts[0],
+    organizationId: parts[1],
+    actorRef: parts[2],
+    subjectRef: parts[3],
+    capabilityId: parts[4],
+    login: parts[5],
+  };
+}
+
+function openPatientRelationContext(fixture) {
+  return `SET LOCAL SESSION AUTHORIZATION ${fixture.login};
+SELECT app.begin_port_context(
+  '${fixture.capabilityId}'::uuid,
+  ROW(
+    1::smallint,
+    'patient'::app.port_context_class,
+    'app_patient'::name,
+    'relation',
+    NULL::regprocedure,
+    decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex'),
+    '${fixture.actorRef}'::uuid,
+    '${fixture.subjectRef}'::uuid,
+    '${fixture.organizationId}'::uuid,
+    NULL::bigint,
+    NULL::uuid
+  )::app.port_context_claims
+);`;
+}
+
+function openPatientNamedContext(fixture) {
+  return `SET LOCAL SESSION AUTHORIZATION ${fixture.login};
+SELECT app.begin_port_context(
+  '${capabilityId(PATIENT_CHANNEL_IDENTITY)}'::uuid,
+  ROW(
+    1::smallint,
+    'patient'::app.port_context_class,
+    'app_patient'::name,
+    '${PATIENT_CHANNEL_PURPOSE}',
+    '${PATIENT_CHANNEL_IDENTITY}'::regprocedure,
+    decode('0355fd5ea0ae72a2f99fa916e9a78d189b3a69ab6f41dc412201df48313f6f5a', 'hex'),
+    '${fixture.actorRef}'::uuid,
+    '${fixture.subjectRef}'::uuid,
+    '${fixture.organizationId}'::uuid,
+    NULL::bigint,
+    NULL::uuid
+  )::app.port_context_claims
+);`;
+}
+
 function withoutContext(identity, callSql) {
   const login = loginFromCapability(identity);
+  const targetRole = identity === PATIENT_CHANNEL_IDENTITY ? 'app_patient' : 'app_pre_session';
   try {
     psql(`${generatedSetup()}
 SET LOCAL SESSION AUTHORIZATION ${login};
-SET LOCAL ROLE app_pre_session;
+SET LOCAL ROLE ${targetRole};
 ${callSql}
 ROLLBACK;`);
   } catch (error) {
@@ -247,4 +358,38 @@ ${openContext(
 SELECT app.get_preferred_auth_channel_code('${USER_ID}'::uuid);
 ROLLBACK;`);
     assert.equal(out, 'telegram');
+  });
+
+test('pre-session preferred-channel дверь отказывает с принятым patient-контекстом',
+  { skip: !ENABLED, concurrency: false }, () => {
+    const patient = patientContextFixture();
+    assert.throws(
+      () => psql(`${generatedSetup()}
+${openPatientRelationContext(patient)}
+SELECT app.get_preferred_auth_channel_code('${patient.userId}'::uuid);
+ROLLBACK;`),
+      /accepted port context required/u,
+    );
+  });
+
+test('patient preferred-channel дверь отказывает без своего exact-контекста',
+  { skip: !ENABLED, concurrency: false }, () => {
+    withoutContext(PATIENT_CHANNEL_IDENTITY,
+      'SELECT app.get_current_patient_preferred_auth_channel_code();');
+  });
+
+test('patient preferred-channel дверь с exact context возвращает канал самого пациента',
+  { skip: !ENABLED, concurrency: false }, () => {
+    const patient = patientContextFixture();
+    const out = psql(`${generatedSetup()}
+INSERT INTO public.user_channel_preferences(
+  user_id, platform_user_id, channel_code, is_preferred_for_auth)
+VALUES ('${patient.userId}', '${patient.userId}'::uuid, 'max', true)
+ON CONFLICT (user_id, channel_code) DO UPDATE SET
+  platform_user_id = EXCLUDED.platform_user_id,
+  is_preferred_for_auth = true;
+${openPatientNamedContext(patient)}
+SELECT app.get_current_patient_preferred_auth_channel_code();
+ROLLBACK;`);
+    assert.equal(out, 'max');
   });
