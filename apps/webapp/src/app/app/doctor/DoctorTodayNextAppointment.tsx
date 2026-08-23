@@ -94,7 +94,9 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
         <DoctorSectionTitle>
           {appointment?.isCurrent
             ? 'Сейчас на приеме'
-            : `Следующий прием: ${appointment?.relativeLabel || 'нет записей'}`}
+            : appointment
+              ? `Следующий прием${appointment.relativeLabel ? `: ${appointment.relativeLabel}` : ''}`
+              : 'Следующий прием: нет записей'}
         </DoctorSectionTitle>
       </DoctorSectionHeader>
 

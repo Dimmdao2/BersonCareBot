@@ -227,9 +227,16 @@ function pluralRu(value: number, one: string, few: string, many: string): string
   return many;
 }
 
+function parseAppointmentDateTime(value: string): DateTime {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp)
+    ? DateTime.invalid('Invalid appointment date')
+    : DateTime.fromMillis(timestamp);
+}
+
 export function formatNextAppointmentRelative(startAt: string, nowIso: string): string {
-  const start = DateTime.fromISO(startAt, { setZone: true });
-  const now = DateTime.fromISO(nowIso, { setZone: true });
+  const start = parseAppointmentDateTime(startAt);
+  const now = parseAppointmentDateTime(nowIso);
   if (!start.isValid || !now.isValid) return '';
   const diffHours = Math.max(0, start.diff(now, 'hours').hours);
   if (diffHours < 24) {
@@ -246,8 +253,8 @@ function mapNextAppointment(
   now: DateTime,
   displayIana: string,
 ): TodayNextAppointmentItem {
-  const start = DateTime.fromISO(event.startAt, { setZone: true });
-  const end = DateTime.fromISO(event.endAt, { setZone: true });
+  const start = parseAppointmentDateTime(event.startAt);
+  const end = parseAppointmentDateTime(event.endAt);
   const isCurrent =
     start.isValid &&
     end.isValid &&
