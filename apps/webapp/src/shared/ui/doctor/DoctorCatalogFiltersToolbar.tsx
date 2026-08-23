@@ -8,7 +8,7 @@ import { DoctorCatalogToolbarMainRow } from '@/shared/ui/doctor/DoctorCatalogToo
 
 export const doctorCatalogToolbarPrimaryActionClassName = cn(
   buttonVariants({ size: 'sm' }),
-  'box-border h-[32px] min-h-[32px] inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5 text-center',
+  'box-border h-9 min-h-9 inline-flex shrink-0 gap-1 px-3 py-1 text-sm leading-5 text-center',
 );
 
 export type DoctorCatalogFiltersToolbarProps = {

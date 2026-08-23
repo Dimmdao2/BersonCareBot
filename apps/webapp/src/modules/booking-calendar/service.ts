@@ -215,6 +215,10 @@ async function listWorkingAndBreakEvents(
 
 export function createBookingCalendarService(deps: Deps): BookingCalendarService {
   return {
+    listAppointmentsInRange(filters: CalendarFilters) {
+      return deps.calendarPort.listAppointmentsInRange(filters);
+    },
+
     async getCalendar(filters: CalendarFilters): Promise<CalendarAggregate> {
       const timeZone = filters.timeZone ?? (await getAppDisplayTimeZone());
       const effectiveFilters = { ...filters, timeZone };

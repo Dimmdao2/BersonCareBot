@@ -714,6 +714,8 @@ brief или заменять одним общим пунктом.
       только с attention-задачами, на desktop ведёт на `/app/doctor/tasks`. Mobile сохраняет исключение
       label/value в одной строке; desktop — label сверху, value снизу. (✓ candidate `fb242aefa`: live
       `390×844` modal → details, `800×900` → standalone page; horizontal overflow отсутствует.)
+- [x] **Owner correction 2026-08-23 — убрать блок задач с «Сегодня»:** встроенный список задач удалён на всех
+      ширинах; KPI «Задачи», его mobile modal и standalone `/app/doctor/tasks` сохранены.
 - [x] **Owner delta 2026-08-23 — страница «Задачи»:** выбран стандартный master-detail как у упражнений,
       desktop строго `50/50`, слева все открытые задачи, справа детали/создание; mobile list → details/create →
       Back. Строка содержит ФИО/заголовок/описание слева и статус/срок справа; вся строка открывает детали,

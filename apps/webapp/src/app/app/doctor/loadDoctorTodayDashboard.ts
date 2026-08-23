@@ -3,6 +3,9 @@ import type {
   DoctorAppointmentsAudience,
   DoctorAppointmentsListFilter,
 } from '@/modules/doctor-appointments/ports';
+import type { BookingCalendarService } from '@/modules/booking-calendar/ports';
+import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types';
+import type { ClientHistoryService } from '@/modules/client-history/service';
 import type {
   ClientListItem,
   DoctorClientsFilters,
@@ -61,6 +64,8 @@ export type DoctorTodayDashboardDeps = {
       audience?: DoctorAppointmentsAudience,
     ): Promise<AppointmentRow[]>;
   };
+  bookingCalendar?: Pick<BookingCalendarService, 'listAppointmentsInRange'>;
+  clientHistory?: Pick<ClientHistoryService, 'listAppointmentComments'>;
   /** Optional loader for calendar-month appointments (deferred to avoid extra audience-filtered call). */
   loadMonthAppointments?: () => Promise<AppointmentRow[]>;
   doctorClients: {
@@ -139,6 +144,20 @@ export type TodayAppointmentItem = {
   ctaLabel: string;
 };
 
+export type TodayNextAppointmentItem = {
+  id: string;
+  startAt: string;
+  endAt: string;
+  visitDate: string;
+  dateTimeLabel: string;
+  relativeLabel: string;
+  isCurrent: boolean;
+  clientLabel: string;
+  clientUserId: string | null;
+  comment: string | null;
+  wasRescheduled: boolean;
+};
+
 export type TodayUnreadConversationItem = {
   conversationId: string;
   displayName: string;
@@ -165,6 +184,7 @@ export type TodayPeopleItem = {
 
 export type TodayDashboardData = {
   todayAppointments: TodayAppointmentItem[];
+  nextAppointment: TodayNextAppointmentItem | null;
   /** All appointments this week (incl. today) for SEG-04 week modal. */
   weekAppointments: TodayAppointmentItem[];
   /** All appointments in calendar month for SEG-04 month modal. */
@@ -176,6 +196,9 @@ export type TodayDashboardData = {
   peopleCount: number;
   people: TodayPeopleItem[];
   peopleListTruncated: boolean;
+  onSupportPeopleCount: number;
+  onSupportPeople: TodayPeopleItem[];
+  onSupportPeopleListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
   /** Patient FIO for task rows, resolved through the scoped doctor-clients read path. */
   globalTaskPatientNames: Record<string, string>;
@@ -188,6 +211,129 @@ export type TodayDashboardData = {
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
 };
+
+const NEXT_APPOINTMENT_ACTIVE_STATUSES = new Set([
+  'created',
+  'awaiting_payment',
+  'paid',
+  'confirmed',
+  'rescheduled',
+  'manual_review_required',
+]);
+
+function pluralRu(value: number, one: string, few: string, many: string): string {
+  const mod100 = value % 100;
+  const mod10 = value % 10;
+  if (mod100 >= 11 && mod100 <= 14) return many;
+  if (mod10 === 1) return one;
+  if (mod10 >= 2 && mod10 <= 4) return few;
+  return many;
+}
+
+function parseAppointmentDateTime(value: string): DateTime {
+  const timestamp = Date.parse(value);
+  return Number.isNaN(timestamp)
+    ? DateTime.invalid('Invalid appointment date')
+    : DateTime.fromMillis(timestamp);
+}
+
+export function formatNextAppointmentRelative(startAt: string, nowIso: string): string {
+  const start = parseAppointmentDateTime(startAt);
+  const now = parseAppointmentDateTime(nowIso);
+  if (!start.isValid || !now.isValid) return '';
+  const diffHours = Math.max(0, start.diff(now, 'hours').hours);
+  if (diffHours < 24) {
+    const hours = Math.max(1, Math.ceil(diffHours));
+    return `через ${hours} ${pluralRu(hours, 'час', 'часа', 'часов')}`;
+  }
+  const days = Math.max(1, Math.ceil(diffHours / 24));
+  return `через ${days} ${pluralRu(days, 'день', 'дня', 'дней')}`;
+}
+
+function mapNextAppointment(
+  event: CalendarAppointmentEvent,
+  comment: string | null,
+  now: DateTime,
+  displayIana: string,
+): TodayNextAppointmentItem {
+  const start = parseAppointmentDateTime(event.startAt);
+  const end = parseAppointmentDateTime(event.endAt);
+  const isCurrent =
+    start.isValid &&
+    end.isValid &&
+    start.toMillis() <= now.toMillis() &&
+    now.toMillis() < end.toMillis();
+  const fallbackComment = event.formComments
+    .map((item) => `${item.label}: ${item.value}`)
+    .join(' · ')
+    .trim();
+  return {
+    id: event.id,
+    startAt: event.startAt,
+    endAt: event.endAt,
+    visitDate: start.isValid
+      ? (start.setZone(displayIana).toISODate() ?? event.startAt.slice(0, 10))
+      : event.startAt.slice(0, 10),
+    dateTimeLabel: start.isValid
+      ? start.setZone(displayIana).setLocale('ru').toFormat('d MMMM, HH:mm')
+      : '—',
+    relativeLabel: isCurrent ? '' : formatNextAppointmentRelative(event.startAt, now.toISO()!),
+    isCurrent,
+    clientLabel: event.patientName?.trim() || event.patientPhone?.trim() || 'Клиент не указан',
+    clientUserId: event.platformUserId,
+    comment: comment?.trim() || fallbackComment || null,
+    wasRescheduled: event.rescheduleCount > 0,
+  };
+}
+
+async function loadCurrentOrNextAppointment(
+  deps: DoctorTodayDashboardDeps,
+  futureRows: AppointmentRow[],
+  excludedUserIds: readonly string[],
+): Promise<TodayNextAppointmentItem | null> {
+  if (!deps.bookingCalendar) return null;
+
+  const now = DateTime.now().toUTC();
+  const nowIso = now.toISO();
+  if (!nowIso) return null;
+  const specialistId = deps.visibilityActor.canManageAllSpecialists
+    ? null
+    : deps.visibilityActor.specialistId;
+
+  const readEvents = (rangeStart: string, rangeEnd: string) =>
+    deps.bookingCalendar!.listAppointmentsInRange({
+      organizationId: deps.organizationId,
+      rangeStart,
+      rangeEnd,
+      timeZone: deps.displayIana,
+      specialistId,
+    });
+
+  const excludedUsers = new Set(excludedUserIds);
+  const activeEvents = await readEvents(nowIso, nowIso);
+  let selected = activeEvents.find(
+    (event) =>
+      (!event.platformUserId || !excludedUsers.has(event.platformUserId)) &&
+      NEXT_APPOINTMENT_ACTIVE_STATUSES.has(event.status) &&
+      Date.parse(event.startAt) <= now.toMillis() &&
+      now.toMillis() < Date.parse(event.endAt),
+  );
+
+  if (!selected) {
+    const nextRow = futureRows.find((row) => row.recordAtIso != null);
+    if (!nextRow?.recordAtIso) return null;
+    const events = await readEvents(nextRow.recordAtIso, nextRow.recordAtIso);
+    selected = events.find(
+      (event) => event.id === nextRow.id && NEXT_APPOINTMENT_ACTIVE_STATUSES.has(event.status),
+    );
+  }
+
+  if (!selected) return null;
+  const comments = deps.clientHistory
+    ? await deps.clientHistory.listAppointmentComments(deps.organizationId, selected.id)
+    : [];
+  return mapNextAppointment(selected, comments[0]?.body ?? null, now, deps.displayIana);
+}
 
 export {
   ON_SUPPORT_LIST_HREF,
@@ -372,32 +518,37 @@ export async function loadDoctorTodayDashboard(
     visibilityActor: deps.visibilityActor,
   };
   const clientAudience = scopedAudience;
-  const [todayRaw, unreadConversations, unreadTotal, onSupportListRaw] = await Promise.all([
-    // #9: use statsRange so cancelled appointments are included in today lists
-    deps.doctorAppointments.listAppointmentsForSpecialist(
-      { kind: 'statsRange', range: 'today' },
-      scopedAudience,
-    ),
-    deps.messaging.doctorSupport.listOpenConversations({
-      unreadOnly: true,
-      limit: 3,
-      organizationId: deps.organizationId,
-      visibilityActor: deps.visibilityActor,
-    }),
-    deps.messaging.doctorSupport.unreadFromUsers({
-      organizationId: deps.organizationId,
-      visibilityActor: deps.visibilityActor,
-    }),
-    deps.doctorClients.listClients(
-      {
-        supportStatus: 'on',
+  const [todayRaw, futureRaw, unreadConversations, unreadTotal, onSupportListRaw] =
+    await Promise.all([
+      // #9: use statsRange so cancelled appointments are included in today lists
+      deps.doctorAppointments.listAppointmentsForSpecialist(
+        { kind: 'statsRange', range: 'today' },
+        scopedAudience,
+      ),
+      deps.doctorAppointments.listAppointmentsForSpecialist(
+        { kind: 'futureActive' },
+        scopedAudience,
+      ),
+      deps.messaging.doctorSupport.listOpenConversations({
+        unreadOnly: true,
+        limit: 3,
         organizationId: deps.organizationId,
         visibilityActor: deps.visibilityActor,
-        ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
-      },
-      clientAudience,
-    ),
-  ]);
+      }),
+      deps.messaging.doctorSupport.unreadFromUsers({
+        organizationId: deps.organizationId,
+        visibilityActor: deps.visibilityActor,
+      }),
+      deps.doctorClients.listClients(
+        {
+          supportStatus: 'on',
+          organizationId: deps.organizationId,
+          visibilityActor: deps.visibilityActor,
+          ...(deps.doctorUserId ? { viewerUserId: deps.doctorUserId } : {}),
+        },
+        clientAudience,
+      ),
+    ]);
 
   // Week/month lists are only needed for the owner-deferred right KPI row.
   // Keep empty arrays on the first-screen path to avoid extra appointment scans.
@@ -432,45 +583,57 @@ export async function loadDoctorTodayDashboard(
   const people = peoplePreviewRaw.map(mapClientToTodayItem);
   const peopleCount = peopleSorted.length;
   const peopleListTruncated = peopleCount > people.length;
+  const onSupportSorted = [...onSupportListRaw].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, 'ru', { sensitivity: 'base' }),
+  );
+  const onSupportPreviewRaw = onSupportSorted.slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT);
+  const onSupportPeople = onSupportPreviewRaw.map(mapClientToTodayItem);
+  const onSupportPeopleCount = onSupportSorted.length;
+  const onSupportPeopleListTruncated = onSupportPeopleCount > onSupportPeople.length;
 
-  const [openTasksData, pendingTestsResult, exerciseCommentAttention] = await Promise.all([
-    // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
-    // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
-    // привязанные к пациенту, отсюда полностью).
-    loadDoctorOpenTasks({
-      specialistTasks: deps.specialistTasks,
-      ownerUserId: deps.specialistOwnerUserId,
-      doctorClients: deps.doctorClients,
-      doctorUserId: deps.doctorUserId,
-      organizationId: deps.organizationId,
-      visibilityActor: deps.visibilityActor,
-      audience,
-    }),
-    deps.treatmentProgramProgress
-      ? Promise.all([
-          deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(
-            deps.organizationId,
-          ),
-          deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(
-            deps.organizationId,
-            DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
-          ),
-        ])
-      : Promise.resolve([0, []] as const),
-    loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
-  ]);
+  const [openTasksData, pendingTestsResult, exerciseCommentAttention, nextAppointment] =
+    await Promise.all([
+      // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
+      // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
+      // привязанные к пациенту, отсюда полностью).
+      loadDoctorOpenTasks({
+        specialistTasks: deps.specialistTasks,
+        ownerUserId: deps.specialistOwnerUserId,
+        doctorClients: deps.doctorClients,
+        doctorUserId: deps.doctorUserId,
+        organizationId: deps.organizationId,
+        visibilityActor: deps.visibilityActor,
+        audience,
+      }),
+      deps.treatmentProgramProgress
+        ? Promise.all([
+            deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(
+              deps.organizationId,
+            ),
+            deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(
+              deps.organizationId,
+              DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
+            ),
+          ])
+        : Promise.resolve([0, []] as const),
+      loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
+      loadCurrentOrNextAppointment(deps, futureRaw, scopedAudience.excludedUserIds ?? []),
+    ]);
 
   const unreadExerciseCommentsByPatientId = new Map<string, number>();
   for (const row of exerciseCommentAttention.items) {
     const prev = unreadExerciseCommentsByPatientId.get(row.patientUserId) ?? 0;
     unreadExerciseCommentsByPatientId.set(row.patientUserId, prev + 1);
   }
+  const realtimePreviewRows = Array.from(
+    new Map([...peoplePreviewRaw, ...onSupportPreviewRaw].map((row) => [row.userId, row])).values(),
+  );
   const peopleRealtimeStats = await loadPeopleRealtimeStats(
     deps,
-    peoplePreviewRaw,
+    realtimePreviewRows,
     unreadExerciseCommentsByPatientId,
   );
-  const peopleWithStats = people.map((client) => {
+  const attachRealtimeStats = (client: TodayPeopleItem): TodayPeopleItem => {
     const stats = peopleRealtimeStats.get(client.userId);
     if (!stats) return client;
     return {
@@ -479,7 +642,9 @@ export async function loadDoctorTodayDashboard(
       exerciseDoneTodayCount: stats.exerciseDoneTodayCount,
       newExerciseCommentsCount: stats.newExerciseCommentsCount,
     };
-  });
+  };
+  const peopleWithStats = people.map(attachRealtimeStats);
+  const onSupportPeopleWithStats = onSupportPeople.map(attachRealtimeStats);
 
   const globalOpenTasks = openTasksData.tasks;
   const globalTaskPatientNames = openTasksData.patientNames;
@@ -492,6 +657,7 @@ export async function loadDoctorTodayDashboard(
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
+    nextAppointment,
     weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
     monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
     unreadConversations: unreadConversations.map((row) =>
@@ -503,6 +669,9 @@ export async function loadDoctorTodayDashboard(
     peopleCount,
     people: peopleWithStats,
     peopleListTruncated,
+    onSupportPeopleCount,
+    onSupportPeople: onSupportPeopleWithStats,
+    onSupportPeopleListTruncated,
     globalOpenTasks,
     globalTaskPatientNames,
     globalOpenTasksTotal: globalOpenTasks.length,

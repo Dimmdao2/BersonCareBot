@@ -6,6 +6,7 @@
  */
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
+import '@fontsource-variable/manrope';
 import './styles/local-fonts.css';
 import './styles/tailwind-engine.css';
 import { ClientToaster } from '@/components/ClientToaster';

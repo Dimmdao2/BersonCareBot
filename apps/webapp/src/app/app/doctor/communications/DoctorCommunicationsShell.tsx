@@ -224,6 +224,7 @@ export function DoctorCommunicationsShell({
       <DoctorPageHeader
         id="doctor-communications-header"
         title="Коммуникации"
+        showTabsOnMobile
         info={
           activeTab === 'broadcasts' ? (
             <Link

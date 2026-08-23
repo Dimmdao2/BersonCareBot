@@ -11,5 +11,6 @@ export type BookingCalendarPort = {
 };
 
 export type BookingCalendarService = {
+  listAppointmentsInRange(filters: CalendarFilters): Promise<CalendarAppointmentEvent[]>;
   getCalendar(filters: CalendarFilters): Promise<CalendarAggregate>;
 };

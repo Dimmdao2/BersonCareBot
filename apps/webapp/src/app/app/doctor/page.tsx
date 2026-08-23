@@ -11,7 +11,6 @@ import {
   requireEntitlementForReadAction,
 } from '@/app-layer/guards/requireEntitlement';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { deriveWorkingBounds, pickWorkingHours } from '@/modules/booking-scheduling/computeSlots';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import {
   DOCTOR_TODAY_PREFERENCES_KEY,
@@ -28,64 +27,9 @@ import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { doctorSectionCardClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
-import {
-  DoctorTodayDashboard,
-  type DoctorTodayCalendarSnapshot,
-} from './DoctorTodayDashboard';
+import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
-
-/**
- * §1.2 (S4): Вычисляет рабочие границы текущего дня через scheduling-порт.
- * Вызывается в RSC, т.к. scheduling — сервер-side dep (clean-arch: БД через порт).
- * Возвращает `null` если scheduling недоступен или день закрыт.
- */
-async function loadTodayWorkingBounds(
-  deps: ReturnType<typeof buildAppDeps>,
-  displayIana: string,
-  organizationId: string,
-): Promise<{ startMinute: number; endMinute: number } | null> {
-  const scheduling = deps.bookingScheduling;
-  if (!scheduling) return null;
-
-  try {
-    const todayKey = DateTime.now().setZone(displayIana).toISODate();
-    if (!todayKey) return null;
-
-    const [workingHoursRowsRaw, perDayRows] = await Promise.all([
-      // listWorkingHoursAdmin returns all (active+inactive); filter to isActive=true to match port behaviour
-      scheduling.listWorkingHoursAdmin({
-        organizationId,
-        specialistId: null,
-        branchId: null,
-        roomId: null,
-      }),
-      scheduling.listWorkingDays({
-        organizationId,
-        specialistId: null,
-        dateFrom: todayKey,
-        dateTo: todayKey,
-      }),
-    ]);
-
-    const workingHoursRows = workingHoursRowsRaw.filter((r) => r.isActive);
-    const effectiveRows = pickWorkingHours(workingHoursRows);
-    const perDayRecord = perDayRows.find((r: { workDate: string }) => r.workDate === todayKey);
-    const perDayRow = perDayRecord
-      ? {
-          workDate: perDayRecord.workDate,
-          startMinute: perDayRecord.startMinute,
-          endMinute: perDayRecord.endMinute,
-          breaks: perDayRecord.breaks,
-          isClosed: perDayRecord.isClosed,
-        }
-      : undefined;
-
-    return deriveWorkingBounds(todayKey, displayIana, effectiveRows, perDayRow);
-  } catch {
-    // Не блокируем страницу если scheduling недоступен
-    return null;
-  }
-}
+import { parseCalendarDoctorSettings } from './schedule/scheduleCalendarSettings';
 
 function DoctorTodayDashboardFallback() {
   return (
@@ -108,16 +52,28 @@ async function DoctorTodayDashboardSection({
   const session = workspace.session;
   const deps = buildAppDeps();
 
-  const [displayIana, audience, todayPreferencesRow, specialistTasksAvailability, specialistTasksRead] =
-    await Promise.all([
-      getAppDisplayTimeZone(),
-      loadDoctorAnalyticsAudience(),
-      deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
+  const [
+    displayIana,
+    audience,
+    todayPreferencesRow,
+    calendarSettings,
+    specialistTasksAvailability,
+    specialistTasksRead,
+  ] = await Promise.all([
+    getAppDisplayTimeZone(),
+    loadDoctorAnalyticsAudience(),
+    deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
+      organizationId: workspace.organizationId,
+    }),
+    deps.systemSettings
+      .listSettingsByScope('doctor', {
         organizationId: workspace.organizationId,
-      }),
-      getMechanicMutationAvailability(workspace, 'specialist_tasks'),
-      requireEntitlementForReadAction(workspace, 'specialist_tasks'),
-    ]);
+      })
+      .then(parseCalendarDoctorSettings)
+      .catch(() => parseCalendarDoctorSettings([])),
+    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+  ]);
 
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
   const snapshotDateTime = DateTime.now().setZone(displayIana);
@@ -134,37 +90,39 @@ async function DoctorTodayDashboardSection({
     organizationId: workspace.organizationId,
   };
 
-  const [data, todayWorkingBounds] = await Promise.all([
-    withDoctorWorkspacePrincipal(workspace, () =>
-      loadDoctorTodayDashboard(
-        {
-          doctorAppointments: deps.doctorAppointments,
-          doctorClients: deps.doctorClientsPort,
-          messaging: deps.messaging,
-          specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,
-          specialistOwnerUserId: specialistTasksReadable ? session.user.userId : undefined,
-          doctorUserId: session.user.userId,
-          organizationId: workspace.organizationId,
-          visibilityActor: workspace,
-          treatmentProgramProgress: deps.treatmentProgramProgress,
-          treatmentProgramInstance: deps.treatmentProgramInstance,
-          programItemDiscussion: deps.programItemDiscussion,
-          programActionLog: deps.programActionLog,
-          displayIana,
-        },
-        workspaceAudience,
-        todayPreferences,
-      ),
+  const data = await withDoctorWorkspacePrincipal(workspace, () =>
+    loadDoctorTodayDashboard(
+      {
+        doctorAppointments: deps.doctorAppointments,
+        bookingCalendar: deps.bookingCalendar ?? undefined,
+        clientHistory: deps.clientHistory,
+        doctorClients: deps.doctorClientsPort,
+        messaging: deps.messaging,
+        specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,
+        specialistOwnerUserId: specialistTasksReadable ? session.user.userId : undefined,
+        doctorUserId: session.user.userId,
+        organizationId: workspace.organizationId,
+        visibilityActor: workspace,
+        treatmentProgramProgress: deps.treatmentProgramProgress,
+        treatmentProgramInstance: deps.treatmentProgramInstance,
+        programItemDiscussion: deps.programItemDiscussion,
+        programActionLog: deps.programActionLog,
+        displayIana,
+      },
+      workspaceAudience,
+      todayPreferences,
     ),
-    loadTodayWorkingBounds(deps, displayIana, workspace.organizationId),
-  ]);
+  );
 
   return (
     <DoctorTodayDashboard
       data={data}
       displayIana={displayIana}
       calendarSnapshot={calendarSnapshot}
-      todayWorkingBounds={todayWorkingBounds}
+      calendarDefaultWindow={{
+        startMinute: calendarSettings.defaultWindowStartMinute,
+        endMinute: calendarSettings.defaultWindowEndMinute,
+      }}
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}
     />

@@ -187,6 +187,7 @@ export function DoctorAnalyticsShell({
       <DoctorPageHeader
         id="doctor-analytics-header"
         title="Аналитика"
+        showTabsOnMobile
         tabs={
           <AnalyticsTabsNav
             activeTab={activeTab}
