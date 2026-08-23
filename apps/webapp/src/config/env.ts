@@ -36,8 +36,11 @@ const envSchema = z.object({
    * never the retired platform name (TPB-15).
    */
   PATIENT_APP_NAME: z.string().min(1).default(PATIENT_DEFAULT_SURFACE_NAME),
-  /** Standard patient app origin (TPB-03, TPB-04) — full owner-selected domain, distinct from staff origin. */
-  PATIENT_APP_ORIGIN: z.string().url().default('https://therapygo.ru'),
+  /**
+   * Standard patient app origin (TPB-03, TPB-04). Until a distinct patient domain is configured,
+   * the patient app shares the staff origin; an explicit value enables separate Hosts.
+   */
+  PATIENT_APP_ORIGIN: z.string().url().optional(),
   /** In test env use "" unless USE_REAL_DATABASE=1 (then use .env / dev DB for e2e). */
   DATABASE_URL: z
     .string()
@@ -214,9 +217,19 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? '').trim()),
-});
+}).transform((config) => ({
+  ...config,
+  PATIENT_APP_ORIGIN: config.PATIENT_APP_ORIGIN ?? config.APP_BASE_URL,
+}));
 
-const parsed = envSchema.parse({
+export type EnvParsed = z.output<typeof envSchema>;
+
+/** Parses the runtime environment; keep deploy-origin fallback in this single config seam. */
+export function parseWebappEnv(input: unknown): EnvParsed {
+  return envSchema.parse(input);
+}
+
+const parsed = parseWebappEnv({
   NODE_ENV: process.env.NODE_ENV,
   HOST: process.env.HOST,
   PORT: process.env.PORT,
@@ -281,8 +294,6 @@ assertDevAuthBypassConfiguration({
   nodeEnv: parsed.NODE_ENV,
   allowDevAuthBypass: parsed.ALLOW_DEV_AUTH_BYPASS,
 });
-
-export type EnvParsed = z.infer<typeof envSchema>;
 
 /** CMS media: S3 presign + PutObject when endpoint, keys, and private bucket are set. */
 export function isS3MediaEnabled(e: EnvParsed): boolean {

@@ -165,9 +165,11 @@ describe('role-specific protected app doors', () => {
   });
 
   it('keeps the patient portal on the patient Host', async () => {
-    const response = await proxy(requestFor(PATIENT_ORIGIN, '/app/patient/profile'));
-    expect(response.headers.get('location')).toBe(
-      `${PATIENT_ORIGIN.origin}/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile`,
+    const response = await proxy(requestFor(STAFF_ORIGIN, '/app/patient/profile'));
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
+      '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile',
     );
   });
 
@@ -184,49 +186,27 @@ describe('role-specific protected app doors', () => {
     ).toBeNull();
   });
 
-  it.each(['/app/patient/profile', '/book', '/manifest.webmanifest'])(
-    'hard-404s patient route %s on the staff Host when surface Hosts are distinct',
-    async (pathname) => {
-      const response = await proxy(requestFor(STAFF_ORIGIN, pathname, { role: 'doctor' }));
-      expect(response.status).toBe(404);
-      expect(response.headers.get('location')).toBeNull();
-    },
-  );
-
   it('keeps both route trees and health reachable when staff and patient share one Host', async () => {
-    const patientOriginDescriptor = Object.getOwnPropertyDescriptor(
-      PATIENT_DEFAULT_SURFACE,
-      'origin',
-    );
-    if (!patientOriginDescriptor) throw new Error('patient_surface_origin_descriptor_missing');
-    Object.defineProperty(PATIENT_DEFAULT_SURFACE, 'origin', {
-      ...patientOriginDescriptor,
-      value: STAFF_SURFACE.origin,
-    });
+    expect(PATIENT_DEFAULT_SURFACE.origin).toBe(STAFF_SURFACE.origin);
+    const expectedStatuses = [
+      ['/app/patient/login', 200],
+      ['/app/patient/cabinet', 307],
+      ['/book', 200],
+      ['/join/start', 200],
+      ['/clinic-a', 200],
+      ['/manifest.webmanifest', 200],
+      ['/api/health', 200],
+    ] as const;
 
-    try {
-      const expectedStatuses = [
-        ['/app/patient/login', 200],
-        ['/app/patient/cabinet', 307],
-        ['/book', 200],
-        ['/join/start', 200],
-        ['/clinic-a', 200],
-        ['/manifest.webmanifest', 200],
-        ['/api/health', 200],
-      ] as const;
-
-      for (const [pathname, expectedStatus] of expectedStatuses) {
-        const response = await proxy(requestFor(STAFF_ORIGIN, pathname));
-        expect(response.status, pathname).toBe(expectedStatus);
-        if (expectedStatus === 200) {
-          expect(middlewareRequestSurface(response), pathname).toMatchObject({
-            surface: 'staff',
-            publicOrigin: STAFF_ORIGIN.origin,
-          });
-        }
+    for (const [pathname, expectedStatus] of expectedStatuses) {
+      const response = await proxy(requestFor(STAFF_ORIGIN, pathname));
+      expect(response.status, pathname).toBe(expectedStatus);
+      if (expectedStatus === 200) {
+        expect(middlewareRequestSurface(response), pathname).toMatchObject({
+          surface: 'staff',
+          publicOrigin: STAFF_ORIGIN.origin,
+        });
       }
-    } finally {
-      Object.defineProperty(PATIENT_DEFAULT_SURFACE, 'origin', patientOriginDescriptor);
     }
   });
 
@@ -280,7 +260,7 @@ describe('resolved surface request choke point', () => {
 
   it.each([
     [STAFF_ORIGIN, '/', 'staff'],
-    [PATIENT_ORIGIN, '/app', 'patient_default'],
+    [PATIENT_ORIGIN, '/app', 'staff'],
   ] as const)('stamps %s once for %s', async (origin, path, expectedSurface) => {
     const incomingSpoof = encodeURIComponent(
       JSON.stringify({

@@ -15,6 +15,9 @@ export async function GET() {
   // On the transitional single Host the resolver deliberately keeps staff identity, but this
   // legacy URL still belongs to already-installed patient PWAs. Preserve that contract without
   // teaching the Host resolver about pathname.
+  if (resolved.surface === 'platform_admin') {
+    return new Response(null, { status: 404 });
+  }
   const manifestSurface: ResolvedSurface =
     resolved.surface === 'staff' && !arePlatformSurfaceHostsDistinct()
       ? {

@@ -11,6 +11,19 @@ vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
 import { GET } from './route';
 
 describe('GET /manifest.webmanifest on the transitional shared Host', () => {
+  it('returns 404 instead of throwing on the platform-admin surface', async () => {
+    const resolved: ResolvedSurface = {
+      surface: 'platform_admin',
+      publicOrigin: 'https://admin.staff.example.test',
+      authPolicy: 'platform_admin',
+    };
+    fakes.getResolvedSurface.mockResolvedValue(resolved);
+
+    const response = await GET();
+
+    expect(response.status).toBe(404);
+  });
+
   it('keeps the installed patient PWA contract reachable while the resolver identifies staff', async () => {
     const patientOriginDescriptor = Object.getOwnPropertyDescriptor(
       PATIENT_DEFAULT_SURFACE,
