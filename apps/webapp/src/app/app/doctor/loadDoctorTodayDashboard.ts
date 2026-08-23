@@ -36,6 +36,7 @@ import {
   loadDoctorExerciseCommentAttention,
   type TodayExerciseCommentAttentionItem,
 } from './loadDoctorExerciseCommentAttention';
+import { loadDoctorOpenTasks } from './loadDoctorOpenTasks';
 
 export { formatDateTimeRu, truncateText } from './doctorTodayFormat';
 export type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseCommentAttention';
@@ -176,6 +177,8 @@ export type TodayDashboardData = {
   people: TodayPeopleItem[];
   peopleListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
+  /** Patient FIO for task rows, resolved through the scoped doctor-clients read path. */
+  globalTaskPatientNames: Record<string, string>;
   /** Общее количество открытых задач (§1.3). */
   globalOpenTasksTotal: number;
   pendingProgramTests: TodayPendingProgramTestItem[];
@@ -369,12 +372,7 @@ export async function loadDoctorTodayDashboard(
     visibilityActor: deps.visibilityActor,
   };
   const clientAudience = scopedAudience;
-  const [
-    todayRaw,
-    unreadConversations,
-    unreadTotal,
-    onSupportListRaw,
-  ] = await Promise.all([
+  const [todayRaw, unreadConversations, unreadTotal, onSupportListRaw] = await Promise.all([
     // #9: use statsRange so cancelled appointments are included in today lists
     deps.doctorAppointments.listAppointmentsForSpecialist(
       { kind: 'statsRange', range: 'today' },
@@ -435,30 +433,32 @@ export async function loadDoctorTodayDashboard(
   const peopleCount = peopleSorted.length;
   const peopleListTruncated = peopleCount > people.length;
 
-  const [globalOpenTasks, pendingTestsResult, exerciseCommentAttention] =
-    await Promise.all([
-      // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
-      // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
-      // привязанные к пациенту, отсюда полностью).
-      deps.specialistTasks && deps.specialistOwnerUserId
-        ? deps.specialistTasks.listForOwner({
-            ownerUserId: deps.specialistOwnerUserId,
-            includeCompleted: false,
-          })
-        : Promise.resolve([] as SpecialistTaskRow[]),
-      deps.treatmentProgramProgress
-        ? Promise.all([
-            deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(
-              deps.organizationId,
-            ),
-            deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(
-              deps.organizationId,
-              DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
-            ),
-          ])
-        : Promise.resolve([0, []] as const),
-      loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
-    ]);
+  const [openTasksData, pendingTestsResult, exerciseCommentAttention] = await Promise.all([
+    // §1.3: грузим ВСЕ открытые задачи владельца (без лимита, без фильтра по patientUserId —
+    // owner punch-list 2026-07-25 item 1: раньше `patientUserId: null` скрывал задачи,
+    // привязанные к пациенту, отсюда полностью).
+    loadDoctorOpenTasks({
+      specialistTasks: deps.specialistTasks,
+      ownerUserId: deps.specialistOwnerUserId,
+      doctorClients: deps.doctorClients,
+      doctorUserId: deps.doctorUserId,
+      organizationId: deps.organizationId,
+      visibilityActor: deps.visibilityActor,
+      audience,
+    }),
+    deps.treatmentProgramProgress
+      ? Promise.all([
+          deps.treatmentProgramProgress.countPendingTestEvaluationAttemptsGlobal(
+            deps.organizationId,
+          ),
+          deps.treatmentProgramProgress.listPendingTestEvaluationsGlobal(
+            deps.organizationId,
+            DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT,
+          ),
+        ])
+      : Promise.resolve([0, []] as const),
+    loadDoctorExerciseCommentAttention(deps, onSupportListRaw),
+  ]);
 
   const unreadExerciseCommentsByPatientId = new Map<string, number>();
   for (const row of exerciseCommentAttention.items) {
@@ -481,6 +481,9 @@ export async function loadDoctorTodayDashboard(
     };
   });
 
+  const globalOpenTasks = openTasksData.tasks;
+  const globalTaskPatientNames = openTasksData.patientNames;
+
   const [pendingProgramTestsTotal, pendingRows] = pendingTestsResult;
   const appDisplayTimeZone = await getAppDisplayTimeZone();
   const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows, appDisplayTimeZone);
@@ -501,6 +504,7 @@ export async function loadDoctorTodayDashboard(
     people: peopleWithStats,
     peopleListTruncated,
     globalOpenTasks,
+    globalTaskPatientNames,
     globalOpenTasksTotal: globalOpenTasks.length,
     pendingProgramTests,
     pendingProgramTestsTotal,

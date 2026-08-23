@@ -1,15 +1,19 @@
 'use client';
 
-import { useCallback, useState, useTransition } from 'react';
+import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
-import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
+import {
+  isSpecialistTaskDueOnDate,
+  isSpecialistTaskOverdue,
+} from '@/modules/specialist-tasks/taskPriority';
 import { cn } from '@/lib/utils';
 import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
+import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
 
 /** How many non-overdue tasks to show in the compact preview before collapsing into "Все задачи". */
 const NEAREST_UPCOMING_PREVIEW_LIMIT = 3;
@@ -40,20 +44,19 @@ function sortTasksForDisplay(tasks: SpecialistTaskRow[]): SpecialistTaskRow[] {
 }
 
 export function DoctorGlobalTasksSection({
-  initialTasks,
-  initialTasksTotal,
+  tasks,
+  taskPatientNames,
   todayIso,
   displayIana,
   className,
   available,
   readable = available,
+  busy = false,
+  onComplete,
+  onTaskSaved,
 }: {
-  initialTasks: SpecialistTaskRow[];
-  /**
-   * Общее количество открытых задач (§1.3).
-   * Если не передано — считается по initialTasks.length.
-   */
-  initialTasksTotal?: number;
+  tasks: SpecialistTaskRow[];
+  taskPatientNames: Record<string, string>;
   /** Дата сегодня в формате YYYY-MM-DD (из сервера) — используется только для quick-filter «Сегодня» в модалке. */
   todayIso: string;
   /** IANA timezone for display — threads from parent instead of hardcoding Europe/Moscow. */
@@ -61,40 +64,19 @@ export function DoctorGlobalTasksSection({
   className?: string;
   available: boolean;
   readable?: boolean;
+  busy?: boolean;
+  onComplete: (taskId: string) => Promise<boolean>;
+  onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
 }) {
-  const [tasks, setTasks] = useState(initialTasks);
-  const [tasksTotal, setTasksTotal] = useState(initialTasksTotal ?? initialTasks.length);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editOpen, setEditOpen] = useState(false);
-  const [editing, setEditing] = useState<SpecialistTaskRow | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
   const [taskModalOpen, setTaskModalOpen] = useState(false);
-
-  const reload = useCallback(() => {
-    startTransition(async () => {
-      setLoadError(null);
-      // limit=100 достаточно для практических нужд; SSR грузит без лимита (§1.3)
-      const res = await fetch('/api/doctor/tasks?limit=100');
-      if (!res.ok) {
-        setLoadError('Не удалось загрузить задачи');
-        return;
-      }
-      const data = (await res.json()) as { tasks?: SpecialistTaskRow[] };
-      const loaded = data.tasks ?? [];
-      setTasks(loaded);
-      setTasksTotal(loaded.length);
-    });
-  }, []);
-
-  function handleComplete(taskId: string) {
-    startTransition(async () => {
-      await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, { method: 'POST' });
-      reload();
-    });
-  }
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const sortedTasks = sortTasksForDisplay(tasks);
+  const tasksTotal = tasks.length;
+  const selectedTask = selectedTaskId
+    ? (tasks.find((task) => task.id === selectedTaskId) ?? null)
+    : null;
   const overdueCount = sortedTasks.filter((t) => isSpecialistTaskOverdue(t)).length;
   // Owner punch-list item 1: ALL overdue tasks pinned at top (red, via SpecialistTaskRow) +
   // the nearest N upcoming; everything else is reachable via the "Все задачи" button/modal.
@@ -115,8 +97,7 @@ export function DoctorGlobalTasksSection({
           </Button>
         ) : null}
       </div>
-      {loadError ? <p className="text-sm text-destructive">{loadError}</p> : null}
-      {tasks.length === 0 && !loadError ? (
+      {tasks.length === 0 ? (
         <DoctorEmptyState>
           <p>Нет открытых задач</p>
         </DoctorEmptyState>
@@ -127,14 +108,15 @@ export function DoctorGlobalTasksSection({
               <TaskRow
                 key={task.id}
                 task={task}
-                busy={isPending}
                 displayIana={displayIana}
+                patientDisplayName={
+                  task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
+                }
+                dueToday={
+                  displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false
+                }
                 canMutate={available}
-                onComplete={handleComplete}
-                onEdit={(t) => {
-                  setEditing(t);
-                  setEditOpen(true);
-                }}
+                onOpen={(selected) => setSelectedTaskId(selected.id)}
               />
             ))}
           </ul>
@@ -164,17 +146,16 @@ export function DoctorGlobalTasksSection({
         renderItem={(task) => (
           <TaskRow
             task={task}
-            busy={isPending}
+            as="div"
             displayIana={displayIana}
+            patientDisplayName={
+              task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
+            }
+            dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
             canMutate={available}
-            onComplete={(id) => {
-              handleComplete(id);
+            onOpen={(selected) => {
               setTaskModalOpen(false);
-            }}
-            onEdit={(t) => {
-              setEditing(t);
-              setEditOpen(true);
-              setTaskModalOpen(false);
+              setSelectedTaskId(selected.id);
             }}
           />
         )}
@@ -190,7 +171,8 @@ export function DoctorGlobalTasksSection({
           },
           {
             label: 'Сегодня',
-            predicate: (task) => task.dueAt != null && task.dueAt.slice(0, 10) <= todayIso,
+            predicate: (task) =>
+              displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false,
           },
           {
             label: 'Важные',
@@ -208,21 +190,22 @@ export function DoctorGlobalTasksSection({
           onOpenChange={setCreateOpen}
           patientUserId=""
           editing={null}
-          onSaved={reload}
+          onSaved={onTaskSaved}
         />
       ) : null}
-      {available && editing ? (
-        <SpecialistTaskFormDialog
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          patientUserId=""
-          editing={editing}
-          onSaved={() => {
-            reload();
-            setEditing(null);
-          }}
-        />
-      ) : null}
+      <SpecialistTaskDetailsDialog
+        open={selectedTask != null}
+        onClose={() => setSelectedTaskId(null)}
+        task={selectedTask}
+        patientDisplayName={
+          selectedTask?.patientUserId ? taskPatientNames[selectedTask.patientUserId] : undefined
+        }
+        displayIana={displayIana}
+        canMutate={available}
+        busy={busy}
+        onComplete={onComplete}
+        onTaskSaved={onTaskSaved}
+      />
     </DoctorSection>
   );
 }

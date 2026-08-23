@@ -4,14 +4,17 @@ import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
-import { getDoctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorCatalogRowActiveClass,
+  getDoctorSectionItemClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 
-function formatWhen(iso: string | null, displayIana?: string): string | null {
+export function formatSpecialistTaskWhen(iso: string | null, displayIana?: string): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -24,11 +27,16 @@ function formatWhen(iso: string | null, displayIana?: string): string | null {
 
 type Props = {
   task: Task;
-  onComplete: (taskId: string) => void;
-  onEdit: (task: Task) => void;
+  onComplete?: (taskId: string) => void;
+  onEdit?: (task: Task) => void;
   busy?: boolean;
   displayIana?: string;
   canMutate?: boolean;
+  patientDisplayName?: string;
+  dueToday?: boolean;
+  onOpen?: (task: Task) => void;
+  as?: 'li' | 'div';
+  active?: boolean;
 };
 
 export function SpecialistTaskRow({
@@ -38,12 +46,66 @@ export function SpecialistTaskRow({
   busy,
   displayIana,
   canMutate = true,
+  patientDisplayName,
+  dueToday = false,
+  onOpen,
+  as = 'li',
+  active = false,
 }: Props) {
   const overdue = isSpecialistTaskOverdue(task);
-  const dueLabel = formatWhen(task.dueAt, displayIana);
+  const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana);
+  const Container = as;
+
+  if (onOpen) {
+    return (
+      <Container>
+        <button
+          type="button"
+          className={cn(
+            'grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+            getDoctorSectionItemClass(
+              overdue || dueToday || task.isImportant ? 'urgent' : 'neutral',
+            ),
+            active && doctorCatalogRowActiveClass,
+          )}
+          aria-current={active ? 'true' : undefined}
+          onClick={() => onOpen(task)}
+        >
+          <span className="flex min-w-0 flex-col gap-0.5">
+            {task.patientUserId ? (
+              <span className="truncate text-xs font-medium text-foreground">
+                {patientDisplayName?.trim() || 'Пациент'}
+              </span>
+            ) : null}
+            <span className="text-base font-normal text-foreground">{task.title}</span>
+            {task.description?.trim() ? (
+              <span className="line-clamp-2 text-xs text-muted-foreground">
+                {task.description.trim()}
+              </span>
+            ) : null}
+          </span>
+          <span className="flex shrink-0 flex-col items-end gap-0.5 text-right text-xs">
+            <span
+              className={cn(
+                'font-medium',
+                overdue || dueToday ? 'text-destructive' : 'text-muted-foreground',
+              )}
+            >
+              {overdue ? 'Просрочено' : 'Открыта'}
+            </span>
+            {dueLabel ? (
+              <span className={overdue || dueToday ? 'text-destructive' : 'text-muted-foreground'}>
+                {dueLabel}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      </Container>
+    );
+  }
 
   return (
-    <li
+    <Container
       className={cn(
         'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between',
         getDoctorSectionItemClass(overdue || task.isImportant ? 'urgent' : 'neutral'),
@@ -75,9 +137,9 @@ export function SpecialistTaskRow({
             </Link>
           </p>
         ) : null}
-        {formatWhen(task.createdAt, displayIana) ? (
+        {formatSpecialistTaskWhen(task.createdAt, displayIana) ? (
           <p className="text-xs text-muted-foreground">
-            Поставлена: {formatWhen(task.createdAt, displayIana)}
+            Поставлена: {formatSpecialistTaskWhen(task.createdAt, displayIana)}
           </p>
         ) : null}
         {dueLabel ? <p className="text-xs text-muted-foreground">Срок: {dueLabel}</p> : null}
@@ -85,7 +147,7 @@ export function SpecialistTaskRow({
           <p className="line-clamp-2 text-xs text-muted-foreground">{task.description.trim()}</p>
         ) : null}
       </div>
-      {canMutate ? (
+      {canMutate && onComplete && onEdit ? (
         <div className="flex shrink-0 gap-2">
           <Button
             type="button"
@@ -101,6 +163,6 @@ export function SpecialistTaskRow({
           </Button>
         </div>
       ) : null}
-    </li>
+    </Container>
   );
 }
