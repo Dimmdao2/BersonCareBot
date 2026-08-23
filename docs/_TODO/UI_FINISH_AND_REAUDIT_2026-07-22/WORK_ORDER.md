@@ -755,6 +755,19 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             как writer-path запрещено. Бокс остаётся `[ ]` только потому, что двухвебхуковый TEST-гейт не выполнен;
             evidence: `runs/integrator-cleanup/D25_WRITER_REMOVAL_INDEPENDENT_AUDIT_2026-08-22.md` и
             `apps/integrator/src/infra/db/writePort.ts` (`user.upsert` / `user.phone.link`).
+            **Почему двухвебхуковый гейт до сих пор не прогнан — замер 23.08, решение владельца.** На TEST
+            нет ни `telegram_mode`, ни `telegram_webhook_secret`, поэтому вебхук-маршруты не регистрируются
+            вовсе (`apps/integrator/src/app/routes.ts:203-209`). Дальше — то, ради чего это записано:
+            **в `system_settings` TEST лежит НАСТОЯЩИЙ `telegram_bot_token`** (пришёл с прод-дампом).
+            Отсюда два разных по опасности пути. `telegram_mode=long_polling` **трогает прод**: Telegram
+            отдаёт каждое обновление ровно один раз, то есть TEST начнёт забирать сообщения живого бота у
+            прода, а `longPolling.ts` ещё и зовёт `deleteWebhook` на переключении. Этого я не делаю —
+            прод неприкосновенен. `telegram_mode=webhook` локально безопасен: `setWebhook` в коде не
+            вызывается нигде, Telegram про адрес TEST не узнает, и крафченые апдейты можно слать самому.
+            Остаточный риск в этом варианте один: ОТВЕТЫ пойдут через тот же настоящий токен, и их
+            удержит только send-safety redirect. **Нужно ваше слово по одному пункту:** ставим на TEST
+            `telegram_mode=webhook` + свой секрет и гоняем гейт крафчеными апдейтами (прод не трогается,
+            ответы уходят на ваш адрес через redirect) — или ждём отдельного тестового бота.
       - [x] **D15b/3 — один порт идентичности в вебаппе.** ✅ 03.08, ветка `wt/d15b3-identity-port`,
             отчёт `runs/integrator-cleanup/D15B3_IDENTITY_PORT_2026-08-03.md`. Новый модуль
             `apps/webapp/src/modules/identity/` (`ports.ts` + `service.ts`): `IdentityPort` — один тип,
