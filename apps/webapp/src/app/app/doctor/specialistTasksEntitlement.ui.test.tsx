@@ -12,7 +12,16 @@ afterEach(() => {
 
 describe('specialist task tariff UI', () => {
   it('removes Today task controls when specialist tasks are unavailable', () => {
-    render(<DoctorGlobalTasksSection available={false} initialTasks={[]} todayIso="2026-08-02" />);
+    render(
+      <DoctorGlobalTasksSection
+        available={false}
+        tasks={[]}
+        taskPatientNames={{}}
+        todayIso="2026-08-02"
+        onComplete={vi.fn()}
+        onTaskSaved={vi.fn()}
+      />,
+    );
 
     expect(screen.queryByRole('button', { name: 'Новая' })).not.toBeInTheDocument();
     expect(screen.queryByText('Нет открытых задач')).not.toBeInTheDocument();
@@ -22,7 +31,7 @@ describe('specialist task tariff UI', () => {
     render(
       <DoctorGlobalTasksSection
         available={false}
-        initialTasks={[
+        tasks={[
           {
             id: '00000000-0000-4000-8000-000000004069',
             ownerUserId: '00000000-0000-4000-8000-000000002069',
@@ -39,6 +48,9 @@ describe('specialist task tariff UI', () => {
           },
         ]}
         todayIso="2026-08-02"
+        taskPatientNames={{}}
+        onComplete={vi.fn()}
+        onTaskSaved={vi.fn()}
         readable
       />,
     );

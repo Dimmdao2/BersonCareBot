@@ -2,6 +2,8 @@
 
 import { CircleHelp, Dumbbell, MessageSquare } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
+import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
   doctorDnaFlatListClass,
@@ -70,6 +72,41 @@ export function DoctorTodayDashboard({
 }: Props) {
   const peopleListIsOnSupport = data.peopleListMode === 'on_support';
   const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
+  const [tasks, setTasks] = useState(data.globalOpenTasks);
+  const [taskPatientNames, setTaskPatientNames] = useState(data.globalTaskPatientNames);
+  const [taskMutationPending, setTaskMutationPending] = useState(false);
+
+  const handleTaskSaved = (task: SpecialistTaskRow, patientDisplayName?: string) => {
+    setTasks((current) => {
+      const exists = current.some((item) => item.id === task.id);
+      return exists
+        ? current.map((item) => (item.id === task.id ? task : item))
+        : [task, ...current];
+    });
+    if (task.patientUserId && patientDisplayName?.trim()) {
+      const patientUserId = task.patientUserId;
+      setTaskPatientNames((current) => ({
+        ...current,
+        [patientUserId]: patientDisplayName.trim(),
+      }));
+    }
+  };
+
+  const handleTaskComplete = async (taskId: string): Promise<boolean> => {
+    setTaskMutationPending(true);
+    try {
+      const response = await fetch(`/api/doctor/tasks/${encodeURIComponent(taskId)}/complete`, {
+        method: 'POST',
+      });
+      if (!response.ok) return false;
+      setTasks((current) => current.filter((task) => task.id !== taskId));
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setTaskMutationPending(false);
+    }
+  };
 
   return (
     <div id="doctor-today-dashboard" className={doctorPageStackClass}>
@@ -89,16 +126,29 @@ export function DoctorTodayDashboard({
             exerciseCommentAttentionItems={data.exerciseCommentAttentionItems}
             exerciseCommentAttentionTotal={data.exerciseCommentAttentionTotal}
             exerciseCommentAttentionTruncated={data.exerciseCommentAttentionTruncated}
+            tasks={tasks}
+            taskPatientNames={taskPatientNames}
+            tasksTotal={tasks.length}
+            todayIso={calendarSnapshot.todayIso}
+            displayIana={displayIana}
+            tasksAvailable={specialistTasksAvailable}
+            tasksReadable={specialistTasksReadable}
+            taskMutationPending={taskMutationPending}
+            onTaskComplete={handleTaskComplete}
+            onTaskSaved={handleTaskSaved}
           />
 
           <DoctorGlobalTasksSection
-            initialTasks={data.globalOpenTasks}
-            initialTasksTotal={data.globalOpenTasksTotal}
+            tasks={tasks}
+            taskPatientNames={taskPatientNames}
             todayIso={calendarSnapshot.todayIso}
             displayIana={displayIana}
             className="flex-1"
             available={specialistTasksAvailable}
             readable={specialistTasksReadable}
+            busy={taskMutationPending}
+            onComplete={handleTaskComplete}
+            onTaskSaved={handleTaskSaved}
           />
 
           <DoctorSection id="doctor-today-section-people">

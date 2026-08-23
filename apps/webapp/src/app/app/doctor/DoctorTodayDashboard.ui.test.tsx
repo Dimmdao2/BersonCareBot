@@ -19,9 +19,7 @@ vi.mock('./TodayMiniCalendarWithModal', () => ({
     calendarSnapshot,
   }: {
     calendarSnapshot: { todayDateLabel: string };
-  }) => (
-    <p data-testid="today-mini-calendar-label">{calendarSnapshot.todayDateLabel}</p>
-  ),
+  }) => <p data-testid="today-mini-calendar-label">{calendarSnapshot.todayDateLabel}</p>,
 }));
 
 vi.mock('@/shared/ui/doctor/shell/DoctorPageHeader', () => ({
@@ -40,6 +38,7 @@ const emptyDashboardData: TodayDashboardData = {
   people: [],
   peopleListTruncated: false,
   globalOpenTasks: [],
+  globalTaskPatientNames: {},
   globalOpenTasksTotal: 0,
   pendingProgramTests: [],
   pendingProgramTestsTotal: 0,
