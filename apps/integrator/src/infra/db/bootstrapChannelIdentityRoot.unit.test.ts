@@ -50,6 +50,33 @@ describe('user.upsert bootstrap boundary', () => {
     expect(calls[0]?.params).toEqual(['telegram', '777', 'test_handle']);
   });
 
+  it('D25: an unknown/unresolved channel identity (root returns zero rows) creates nothing and does not fail the write', async () => {
+    const calls: Array<{ text: string; params: unknown[] }> = [];
+    const db: DbPort = {
+      async query<T>(text: string, params: unknown[] = []): Promise<DbQueryResult<T>> {
+        calls.push({ text, params });
+        // Lookup-only root: unknown externalId → zero rows, no INSERT branch left in the SQL body.
+        return { rows: [] as T[], rowCount: 0 };
+      },
+      async tx(): Promise<never> {
+        throw new Error('bootstrap user.upsert must not receive a relation transaction');
+      },
+    };
+    const port = createDbWritePort({ db });
+
+    await expect(
+      runWithDbBootstrapPrincipal({ source: 'bootstrap-unknown-actor-test' }, () =>
+        port.writeDb({
+          type: 'user.upsert',
+          params: { resource: 'telegram', externalId: 'unknown-999', username: '@stranger' },
+        }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.text).toContain('app.integrator_upsert_channel_identity');
+  });
+
   it('binds the second-webhook phone through an exact root, not a relation transaction', async () => {
     const calls: Array<{ text: string; params: unknown[] }> = [];
     const db: DbPort = {

@@ -7,7 +7,7 @@ import { normalizePhone } from '@/modules/auth/phoneNormalize';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
 
 const bodySchema = z.object({
-  setupToken: z.string().min(4).max(500),
+  setupToken: z.string().min(4).max(500).optional(),
   channelCode: z.enum(['telegram', 'max']),
   externalId: z.string().min(1).max(64),
   phoneNormalized: z.string().min(1).max(32),
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   }
 
   const result = await buildAppDeps().phoneMessengerBind.completeFromIntegrator({
-    setupToken: parsed.data.setupToken,
+    ...(parsed.data.setupToken ? { setupToken: parsed.data.setupToken } : {}),
     channelCode: parsed.data.channelCode,
     externalId: parsed.data.externalId,
     contactPhoneNormalized: normalizePhone(parsed.data.phoneNormalized),

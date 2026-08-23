@@ -319,26 +319,19 @@ function buildLinkedPhoneMessageMenuGatePlan(input: OrchestratorInput): Orchestr
             mode: 'async',
             params: {
               recipient: { chatId: '{{actor.chatId}}' },
-              templateKey: 'max:confirmPhoneForBooking',
+              templateKey: 'max:phoneAuthFailed',
               delivery: { channels: ['max'], maxAttempts: 1 },
-              inlineKeyboard: [
-                [{ textTemplateKey: 'max:requestContact.button', requestPhone: true }],
-              ],
             },
           },
         ]
       : [
           {
-            action: 'message.replyKeyboard.show',
+            action: 'message.send',
             mode: 'async',
             params: {
-              chatId: '{{actor.chatId}}',
-              templateKey: 'telegram:confirmPhoneForBooking',
-              keyboard: [
-                [{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }],
-              ],
-              resizeKeyboard: true,
-              oneTimeKeyboard: true,
+              recipient: { chatId: '{{actor.chatId}}' },
+              templateKey: 'telegram:phoneAuthFailed',
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
             },
           },
         ];
@@ -370,11 +363,8 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
             mode: 'async',
             params: {
               recipient: { chatId: '{{actor.chatId}}' },
-              templateKey: 'max:confirmPhoneForBooking',
+              templateKey: 'max:phoneAuthFailed',
               delivery: { channels: ['max'], maxAttempts: 1 },
-              inlineKeyboard: [
-                [{ textTemplateKey: 'max:requestContact.button', requestPhone: true }],
-              ],
             },
           },
           {
@@ -385,17 +375,13 @@ function buildLinkedPhoneCallbackGatePlan(input: OrchestratorInput): Orchestrato
         ]
       : source === 'telegram'
         ? [
-            {
-              action: 'message.replyKeyboard.show',
-              mode: 'async',
-              params: {
-                chatId: '{{actor.chatId}}',
-                templateKey: 'telegram:confirmPhoneForBooking',
-                keyboard: [
-                  [{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }],
-                ],
-                resizeKeyboard: true,
-                oneTimeKeyboard: true,
+          {
+            action: 'message.send',
+            mode: 'async',
+            params: {
+              recipient: { chatId: '{{actor.chatId}}' },
+              templateKey: 'telegram:phoneAuthFailed',
+              delivery: { channels: ['telegram'], maxAttempts: 1 },
               },
             },
             {
