@@ -43,9 +43,10 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
       await runWebappTransaction(async (tx) => {
         await tx.execute(sql`
         INSERT INTO broadcast_drafts
-          (doctor_user_id, category, audience, channels, title, body, media_url, media_type, updated_at)
+          (doctor_user_id, organization_id, category, audience, channels, title, body, media_url, media_type, updated_at)
         VALUES (
           ${doctorUserId},
+          app.current_org_id(),
           ${draft.category ?? null},
           ${draft.audience ?? null},
           ${JSON.stringify(draft.channels)}::jsonb,

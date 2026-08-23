@@ -7143,6 +7143,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     codePaths: ['apps/webapp/src/infra/repos/pgBookingEngine.ts'],
     grants: [{ role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' }],
   },
+  'public.broadcast_drafts': {
+    kind: 'direct',
+    purpose: 'staff saves a broadcast draft with the accepted organization written into the tenant discriminator',
+    codePaths: ['apps/webapp/src/infra/repos/pgBroadcastDrafts.ts#saveDraft'],
+    grants: [
+      { role: 'app_staff', operations: ['INSERT'], columns: ['organization_id'] },
+    ],
+  },
   'public.saas_org_entitlement_overrides': {
     kind: 'direct', purpose: 'platform operations manages explicit commercial overrides for a clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
