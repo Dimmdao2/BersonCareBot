@@ -135,7 +135,9 @@ export function DoctorTodayLeftKpiRow({
 }: Props) {
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
   const router = useRouter();
-  const isDesktopViewport = useViewportMinWidth(1024);
+  // DoctorTodayDashboard switches to its two-column desktop workspace at `md` (768px).
+  // Keep KPI navigation on the same boundary so tablet widths do not open the mobile modal.
+  const isDesktopViewport = useViewportMinWidth(768);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   // SEG-07: items сохраняем локально (список в KpiPreviewModal);
   // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
