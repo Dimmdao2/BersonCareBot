@@ -55,6 +55,13 @@ const patientOrganizationResolveCapability: PortCapabilityDescriptor = {
   purpose: 'patient.organization.resolve',
   functionIdentity: 'app.read_current_patient_active_organizations()',
 };
+const patientVapidPublicKeyCapability: PortCapabilityDescriptor = {
+  capabilityId: '00000000-0000-0000-0000-000000000124',
+  targetRole: 'app_patient',
+  contextClass: 'patient',
+  purpose: 'patient.web-push.vapid-public-key.read',
+  functionIdentity: 'app.get_web_push_vapid_public_key()',
+};
 
 type FakeQueryInput = string | { text: string; values?: readonly unknown[] };
 
@@ -368,6 +375,32 @@ describe('webapp port-context runtime', () => {
       subjectRef: OPAQUE_SUBJECT,
     });
     expect(relation.principal).not.toHaveProperty('organizationId');
+  });
+
+  it('allows the public VAPID-key root for identity-self without inventing a clinic relationship', () => {
+    const selected = runWithWebappPortOperation(
+      {
+        functionIdentity: patientVapidPublicKeyCapability.functionIdentity!,
+        typedArgs: [],
+      },
+      () =>
+        webappPortContextPrincipal(
+          { kind: 'patient', platformUserId: USER },
+          { get_web_push_vapid_public_key: patientVapidPublicKeyCapability },
+          { actor: OPAQUE_USER, subject: OPAQUE_SUBJECT },
+        ),
+    );
+
+    expect(selected).toMatchObject({
+      pool: 'patient',
+      principal: {
+        targetRole: 'app_patient',
+        functionIdentity: 'app.get_web_push_vapid_public_key()',
+        actorRef: OPAQUE_USER,
+        subjectRef: OPAQUE_SUBJECT,
+      },
+    });
+    expect(selected.principal).not.toHaveProperty('organizationId');
   });
 
   it('installs a no-organization patient relation context for DB-enforced self/global policies', async () => {
