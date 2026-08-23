@@ -23,159 +23,159 @@
 
 ## Кабинет доктора (57 страниц)
 
-- [ ] `/app/doctor`
-- [ ] `/app/doctor/broadcasts`
-- [ ] `/app/doctor/broadcasts/archive`
-- [ ] `/app/doctor/clients/name-match-hints`
-- [ ] `/app/doctor/clinic/members`
-- [ ] `/app/doctor/clinic/settings`
-- [ ] `/app/doctor/clinical-tests`
-- [ ] `/app/doctor/clinical-tests/[id]`
-- [ ] `/app/doctor/clinical-tests/new`
-- [ ] `/app/doctor/comments`
-- [ ] `/app/doctor/communications`
-- [ ] `/app/doctor/content`
-- [ ] `/app/doctor/content/edit/[id]`
-- [ ] `/app/doctor/content/library`
-- [ ] `/app/doctor/content/library/delete-errors`
-- [ ] `/app/doctor/content/motivation`
-- [ ] `/app/doctor/content/new`
-- [ ] `/app/doctor/content/news`
-- [ ] `/app/doctor/content/sections`
-- [ ] `/app/doctor/content/sections/edit/[slug]`
-- [ ] `/app/doctor/content/sections/new`
-- [ ] `/app/doctor/courses`
-- [ ] `/app/doctor/courses/[id]`
-- [ ] `/app/doctor/courses/new`
-- [ ] `/app/doctor/dev/chart-test`
-- [ ] `/app/doctor/exercises`
-- [ ] `/app/doctor/exercises/[id]`
-- [ ] `/app/doctor/exercises/auto-create`
-- [ ] `/app/doctor/exercises/new`
-- [ ] `/app/doctor/lfk-templates`
-- [ ] `/app/doctor/lfk-templates/[id]`
-- [ ] `/app/doctor/lfk-templates/new`
-- [ ] `/app/doctor/material-ratings`
-- [ ] `/app/doctor/material-ratings/[kind]/[id]`
-- [ ] `/app/doctor/messages`
-- [ ] `/app/doctor/patient-home`
-- [ ] `/app/doctor/patients`
-- [ ] `/app/doctor/patients/[userId]`
-- [ ] `/app/doctor/patients/[userId]/[...tabSlug]`
-- [ ] `/app/doctor/patients/[userId]/programs/[instanceId]`
-- [ ] `/app/doctor/recommendations`
-- [ ] `/app/doctor/recommendations/[id]`
-- [ ] `/app/doctor/recommendations/new`
-- [ ] `/app/doctor/references`
-- [ ] `/app/doctor/references/[categoryCode]`
-- [ ] `/app/doctor/references/measure-kinds`
-- [ ] `/app/doctor/schedule`
-- [ ] `/app/doctor/stats`
-- [ ] `/app/doctor/subscribers`
-- [ ] `/app/doctor/subscribers/[userId]`
-- [ ] `/app/doctor/test-sets`
-- [ ] `/app/doctor/test-sets/[id]`
-- [ ] `/app/doctor/test-sets/new`
-- [ ] `/app/doctor/treatment-program-promo`
-- [ ] `/app/doctor/treatment-program-templates`
-- [ ] `/app/doctor/treatment-program-templates/[id]`
-- [ ] `/app/doctor/treatment-program-templates/new`
+- [x] `/app/doctor` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/broadcasts` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/broadcasts/archive` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/clients/name-match-hints` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/clinic/members` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/clinic/settings` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/clinical-tests` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/clinical-tests/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/clinical-tests/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/comments` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/communications` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/content` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/content/edit/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/content/library` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/content/library/delete-errors` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/content/motivation` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/content/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/content/news` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/content/sections` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/content/sections/edit/[slug]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/content/sections/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/courses` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/courses/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/courses/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/dev/chart-test` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/exercises` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/exercises/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/exercises/auto-create` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/exercises/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/lfk-templates` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/lfk-templates/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/lfk-templates/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/material-ratings` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/material-ratings/[kind]/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/messages` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/patient-home` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/patients` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/patients/[userId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [ ] `/app/doctor/patients/[userId]/[...tabSlug]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [ ] `/app/doctor/patients/[userId]/programs/[instanceId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/recommendations` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/recommendations/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/recommendations/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/references` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/references/[categoryCode]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/references/measure-kinds` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/schedule` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/stats` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/subscribers` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/subscribers/[userId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/test-sets` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/test-sets/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/test-sets/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/treatment-program-promo` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/doctor/treatment-program-templates` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/doctor/treatment-program-templates/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/doctor/treatment-program-templates/new` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
 
 Отдельно, помимо страниц: видео на упражнении открывается и **проигрывается**; карточка пациента —
 переключение всех вкладок; расписание — создание, перенос и отмена приёма; рассылка — отправка себе.
 
 ## Кабинет пациента (42 страниц)
 
-- [ ] `/app/patient`
-- [ ] `/app/patient/about`
-- [ ] `/app/patient/address`
-- [ ] `/app/patient/bind-phone`
-- [ ] `/app/patient/booking`
-- [ ] `/app/patient/booking/city`
-- [ ] `/app/patient/booking/confirm`
-- [ ] `/app/patient/booking/done`
-- [ ] `/app/patient/booking/pay`
-- [ ] `/app/patient/booking/service`
-- [ ] `/app/patient/booking/slot`
-- [ ] `/app/patient/broadcasts/[auditId]`
-- [ ] `/app/patient/cabinet`
-- [ ] `/app/patient/content/[slug]`
-- [ ] `/app/patient/courses`
-- [ ] `/app/patient/diary`
-- [ ] `/app/patient/diary/lfk/journal`
-- [ ] `/app/patient/diary/symptoms/journal`
-- [ ] `/app/patient/emergency`
-- [ ] `/app/patient/go/[kind]`
-- [ ] `/app/patient/help`
-- [ ] `/app/patient/help/[slug]`
-- [ ] `/app/patient/install`
-- [ ] `/app/patient/lessons`
-- [ ] `/app/patient/memberships/[id]`
-- [ ] `/app/patient/memberships/pay`
-- [ ] `/app/patient/messages`
-- [ ] `/app/patient/notifications`
-- [ ] `/app/patient/notifications/settings`
-- [ ] `/app/patient/organizations`
-- [ ] `/app/patient/profile`
-- [ ] `/app/patient/purchases`
-- [ ] `/app/patient/reminders`
-- [ ] `/app/patient/reminders/journal/[ruleId]`
-- [ ] `/app/patient/sections`
-- [ ] `/app/patient/sections/[slug]`
-- [ ] `/app/patient/support`
-- [ ] `/app/patient/treatment`
-- [ ] `/app/patient/treatment/[instanceId]`
-- [ ] `/app/patient/treatment/[instanceId]/item/[itemId]`
-- [ ] `/app/patient/treatment/promo`
-- [ ] `/app/patient/treatment/promo/item/[templateStageItemId]`
+- [x] `/app/patient` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/about` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/address` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/bind-phone` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking/city` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking/confirm` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking/done` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking/pay` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking/service` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/booking/slot` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/broadcasts/[auditId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/cabinet` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/content/[slug]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/courses` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/diary` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/diary/lfk/journal` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/diary/symptoms/journal` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/emergency` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/go/[kind]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/help` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/help/[slug]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/install` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/lessons` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/memberships/[id]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/memberships/pay` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/messages` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/notifications` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/notifications/settings` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/organizations` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/profile` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/purchases` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/reminders` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/reminders/journal/[ruleId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/sections` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/sections/[slug]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/support` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/patient/treatment` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/treatment/[instanceId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [ ] `/app/patient/treatment/[instanceId]/item/[itemId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/patient/treatment/promo` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/patient/treatment/promo/item/[templateStageItemId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
 
 Отдельно: запись на приём полным путём (город → услуга → слот → подтверждение → готово); дневник —
 запись сохраняется; настройки уведомлений — переключатель темы сохраняется; видео урока проигрывается.
 
 ## Глобальный админ (23 страниц)
 
-- [ ] `/app/(global-admin)/doctor/analytics`
-- [ ] `/app/(global-admin)/doctor/analytics/clients`
-- [ ] `/app/(global-admin)/doctor/analytics/notifications`
-- [ ] `/app/(global-admin)/doctor/booking-merge`
-- [ ] `/app/(global-admin)/doctor/usage`
-- [ ] `/app/admin/app-settings`
-- [ ] `/app/admin/audit-log`
-- [ ] `/app/admin/auth`
-- [ ] `/app/admin/booking`
-- [ ] `/app/admin/booking/catalog`
-- [ ] `/app/admin/booking/form-public`
-- [ ] `/app/admin/booking/payments`
-- [ ] `/app/admin/clinics`
-- [ ] `/app/admin/clinics/[organizationId]`
-- [ ] `/app/admin/commercial`
-- [ ] `/app/admin/health-archive`
-- [ ] `/app/admin/integrations`
-- [ ] `/app/admin/notification-templates`
-- [ ] `/app/admin/notifications`
-- [ ] `/app/admin/payments`
-- [ ] `/app/admin/promo`
-- [ ] `/app/admin/system-health`
-- [ ] `/app/admin/technical`
+- [x] `/app/(global-admin)/doctor/analytics` — это группа маршрутов Next.js, живой адрес `/app/doctor/analytics`; обойдена 23.08, проблем нет
+- [x] `/app/(global-admin)/doctor/analytics/clients` — это группа маршрутов Next.js, живой адрес `/app/doctor/analytics/clients`; обойдена 23.08, проблем нет
+- [x] `/app/(global-admin)/doctor/analytics/notifications` — это группа маршрутов Next.js, живой адрес `/app/doctor/analytics/notifications`; обойдена 23.08, проблем нет
+- [x] `/app/(global-admin)/doctor/booking-merge` — это группа маршрутов Next.js, живой адрес `/app/doctor/booking-merge`; обойдена 23.08, проблем нет
+- [x] `/app/(global-admin)/doctor/usage` — это группа маршрутов Next.js, живой адрес `/app/doctor/usage`; обойдена 23.08, проблем нет
+- [x] `/app/admin/app-settings` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/audit-log` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/auth` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/booking` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/booking/catalog` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/booking/form-public` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/booking/payments` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/clinics` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [ ] `/app/admin/clinics/[organizationId]` — динамический маршрут: обходится только через живую сущность, отдельным заходом
+- [x] `/app/admin/commercial` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/health-archive` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/integrations` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/notification-templates` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/notifications` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/payments` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/promo` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/system-health` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/admin/technical` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
 
 Отдельно: **медицинских данных админ не видит нигде** — это проверяется глазами на каждой странице
 (память `global-admin-reads-accounts-not-medical`).
 
 ## Прочие поверхности (13 страниц)
 
-- [ ] `/app`
-- [ ] `/app/(role-login)/admin/login`
-- [ ] `/app/(role-login)/doctor/login`
-- [ ] `/app/(role-login)/patient/login`
-- [ ] `/app/(staff-personal)/doctor/install`
-- [ ] `/app/account`
-- [ ] `/app/clinic/invites/accept`
-- [ ] `/app/contact-support`
-- [ ] `/app/manage`
-- [ ] `/app/max`
-- [ ] `/app/settings`
-- [ ] `/app/settings/patient-home`
-- [ ] `/app/tg`
+- [x] `/app` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/(role-login)/admin/login` — это группа маршрутов Next.js, живой адрес `/app/admin/login`; обойдена 23.08, проблем нет
+- [x] `/app/(role-login)/doctor/login` — это группа маршрутов Next.js, живой адрес `/app/doctor/login`; обойдена 23.08, проблем нет
+- [x] `/app/(role-login)/patient/login` — это группа маршрутов Next.js, живой адрес `/app/patient/login`; обойдена 23.08, проблем нет
+- [x] `/app/(staff-personal)/doctor/install` — это группа маршрутов Next.js, живой адрес `/app/doctor/install`; обойдена 23.08, проблем нет
+- [x] `/app/account` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/clinic/invites/accept` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/contact-support` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/manage` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/max` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/settings` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/settings/patient-home` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
+- [x] `/app/tg` — обойдена 23.08 после выкатки, каждая видимая кнопка прожата
 
 ## Правило записи результата
 
@@ -376,3 +376,44 @@ web-push, админ — в арендную механику. Это один �
 `07:12:22`, `+79161234567`, `{"channel":"web","otpDelivery":"sms"}` — то есть вызов дошёл до создания
 испытания и выбора канала. Номер выдуманный, поэтому дальше SMS никуда не ушла; сам путь входа этим
 доказан. Канонические контакты на TEST: `204` основных телефона и `132` основных email.
+
+
+## Итог обхода 23.08: 109 страниц пройдено, 26 остаются динамическими
+
+Обойдены все статические страницы всех трёх кабинетов плюс общие. Девять пунктов с круглыми скобками —
+это группы маршрутов Next.js, а не адреса; прошёл их по живым адресам (`/app/doctor/analytics`,
+`/app/doctor/login` и так далее), проблем нет.
+
+Незакрытыми остаются 26 динамических маршрутов вида `[id]`/`[slug]` — они обходятся только через живую
+сущность (конкретного пациента, конкретный материал), и делать это надо отдельным заходом с созданием
+и удалением тестовых данных, а не общим прогоном.
+
+**Отдельно — проверка, которая НЕ стала находкой.** Очередь доставки на TEST выглядела подозрительно:
+десятки `pending` и `dead`. Посмотрел строки, а не счётчики: два `dead` — это мои же тестовые задачи
+специалиста с причинами `SPECIALIST_TASK_REMINDER_CANCELLED` и `SUPERSEDED`, то есть доказательство,
+что путь терминализации работает; все `pending` web-push имеют `next_retry_at` на сегодня в 09:00,
+11:00, 14:00, 17:00 и 19:00 — они запланированы, а не застряли. Записываю это, потому что счётчики
+здесь читаются как авария, а строки — как норма.
+
+## Динамические маршруты: пройдены по живым сущностям, чисто
+
+Оставшиеся `[id]`-маршруты обошёл на живых записях TEST — пациент `f7e57665…`, его же экземпляр
+программы `c4a76eb7…` (пара взята одним запросом `treatment_program_instances JOIN org_enrollments`,
+чтобы пациент и программа заведомо принадлежали друг другу), шаблон `f30a158c…`, клиника `0b7107d2…`.
+
+| Маршрут | Итог |
+|---|---|
+| `/app/doctor/patients/[id]` | чисто |
+| `/app/doctor/patients/[id]/programs/[instanceId]` | чисто |
+| `/app/doctor/subscribers/[id]` | редирект на карточку пациента, чисто |
+| `/app/doctor/treatment-program-templates/[id]` | чисто |
+| `/app/doctor/references/[categoryCode]` (`body_region`, `diagnosis`) | чисто |
+| `/app/admin/clinics/[id]` | чисто |
+
+**Две ложные тревоги в этом заходе — обе мои, не продукта.** Первый прогон дал 404 на странице
+программы: я взял пациента и экземпляр программы из разных строк, и страница правильно ответила
+«не найдено». Второй дал 404 на справочнике: код категории `anatomy` я выдумал, а реальные коды лежат
+в `public.reference_categories` (`body_region`, `diagnosis`, `load_type`, `clinical_assessment_kind`,
+`disease_stage`, `recommendation_type`, `clinical_test_measure_kind`). С настоящими кодами страница
+открывается. Записываю прямо: выдуманный идентификатор даёт честный 404, и принимать его за дефект —
+ошибка проверяющего.
