@@ -135,9 +135,8 @@ Whole-repo проход нашёл **2** user-visible литерала в standa
 - `admin/index.html`: `<title>Berson Care Admin</title>`;
 - `admin/src/App.tsx`: `<h1>Berson Care Admin</h1>`.
 
-Оба заменены на `Therapysto Admin`. `admin/` нельзя объявить мёртвым только по отсутствию в
-`pnpm-workspace.yaml`: root `package.json` содержит `build:admin`, а оба активных host-runbook документа
-фиксируют nginx `/admin/` → `127.0.0.1:8080`.
+Оба были заменены на `Therapysto Admin` в первом проходе. После решения владельца удалить legacy surface
+каталог `admin/`, root-скрипт `build:admin` и его repo/runbook references удалены 23.08.2026.
 
 После правки webapp-периметр по-прежнему содержит только allowlist/отложенные строки:
 
@@ -314,11 +313,9 @@ issuer = 'BersonCare'` исключены владельцем 22.08 («паск
 привязка к домену живёт в `rpId` (`appUrl.hostname`), так что смена `rpName` уже заведённые ключи не
 ломает. Ничего не менял и не предлагаю менять до команды.
 
-**`Q3` — статус отдельного `admin/`.** Это Vite-заглушка с текстом про `admin.bersonservices.ru`, которого
-нет в новой карте имён. Однако считать каталог мёртвым нельзя: root `package.json` содержит `build:admin`,
-а `deploy/HOST_DEPLOY_README.md:376` и `SERVER CONVENTIONS.md:349` фиксируют nginx route `/admin/` на
-`127.0.0.1:8080`. Поэтому каталог не удалён; два видимых старых имени исправлены и build проверен. Владельцу
-остаётся решить, нужен ли отдельный legacy admin surface и его домен.
+**`Q3` — статус отдельного `admin/`: закрыт 23.08.2026.** Владелец распорядился удалить Vite-заглушку.
+Каталог, root-скрипт `build:admin`, ignore/ESLint entries и два активных runbook references удалены; отдельного
+legacy admin surface и домена больше нет в репозитории.
 
 **`Q4` — `A1`: defaults или обязательные deploy inputs.** Канонический checkbox требует обязательные
 `PATIENT_APP_NAME`/`PATIENT_APP_ORIGIN` без default, но `env.ts` и прежний fixer-brief оставляют defaults

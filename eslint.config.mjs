@@ -60,8 +60,6 @@ export default [
       // не линтуем (иначе вложенный apps/webapp-копия даёт тысячи ложных ошибок).
       '.claude/**',
       '_old/**',
-      'admin/dist/**',
-      'admin/node_modules/**',
       'apps/webapp/**',
       'apps/integrator/dist/**',
       'apps/media-worker/dist/**',

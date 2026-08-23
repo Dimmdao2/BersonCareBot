@@ -30,8 +30,6 @@ logs/
 dist/
 build/
 **/.next/
-admin/dist/
-admin/node_modules/
 apps/webapp/.next/
 apps/webapp/next-env.d.ts
 apps/webapp/node_modules/

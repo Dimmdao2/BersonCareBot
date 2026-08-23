@@ -371,10 +371,6 @@ B0-forward миграциями; schema guardrail остаётся read-only п�
 - host: `tgcarebot.bersonservices.ru`
 - upstream: `http://127.0.0.1:3200`
 
-Дополнительно в этом vhost есть legacy route:
-
-- `/admin/` -> `http://127.0.0.1:8080/`
-
 ### Webapp
 
 - host: `bersoncare.ru`
