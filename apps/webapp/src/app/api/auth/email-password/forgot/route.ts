@@ -9,11 +9,7 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
-import {
-  platformMailProfile,
-  platformMailProfileForRecipientRole,
-} from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 
 const bodySchema = z.object({
@@ -92,7 +88,7 @@ export async function POST(request: Request) {
       state.userId,
       emailNorm,
       'password_setup',
-      platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+      platformMailProfileForRecipientRole('client'),
     );
     if (challenge.ok) {
       return NextResponse.json({

@@ -11,8 +11,7 @@ import {
 import { startPublicEmailOtpRegistration } from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
   FIO_LATIN_REJECTED_TEXT,
@@ -95,7 +94,7 @@ export async function POST(request: Request) {
   const result = await startPublicEmailOtpRegistration(
     parsed.data,
     buildAppDeps().emailOtpPublicDb,
-    platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+    platformMailProfileForRecipientRole('client'),
   );
   if (result.ok) {
     return NextResponse.json({

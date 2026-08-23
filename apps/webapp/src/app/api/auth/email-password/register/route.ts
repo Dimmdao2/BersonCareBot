@@ -14,8 +14,7 @@ import {
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 import {
   isPasswordEligibleRole,
   PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
@@ -133,7 +132,7 @@ export async function POST(request: Request) {
       userId,
       emailNorm,
       'password_register',
-      platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+      platformMailProfileForRecipientRole('client'),
     );
     if (!challenge.ok) {
       if (rollbackOnSendFail) {
@@ -181,7 +180,7 @@ export async function POST(request: Request) {
         state.userId,
         emailNorm,
         'password_register',
-        platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+        platformMailProfileForRecipientRole('client'),
       );
       if (!challenge.ok) {
         await recordAuthRegistrationFailure({

@@ -4,8 +4,7 @@ import type {
   RequestContactEmailSetupResult,
 } from '@/modules/auth/emailSetupAccess/ports';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 /** Contact email setup uses the live one-time-code flow; legacy setup-link tokens are retired. */
 export function createPgEmailSetupAccessPort(): EmailSetupAccessPort {
@@ -21,7 +20,7 @@ export function createPgEmailSetupAccessPort(): EmailSetupAccessPort {
         params.userId,
         params.emailNormalized,
         'password_setup',
-        platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+        platformMailProfileForRecipientRole('client'),
       );
       if (!started.ok) {
         return { ok: false, reason: 'not_configured' };

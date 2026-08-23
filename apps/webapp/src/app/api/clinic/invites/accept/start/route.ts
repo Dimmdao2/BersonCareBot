@@ -7,8 +7,7 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { startEmailChallenge, normalizeEmail } from '@/modules/auth/emailAuth';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { STAFF_SURFACE } from '@/config/productSurfaces';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 const bodySchema = z.object({
   token: z.string().trim().min(16),
@@ -42,7 +41,7 @@ export async function POST(request: Request) {
     user.userId,
     lookup.invite.invitedEmail,
     'clinic_invite',
-    platformMailProfile(STAFF_SURFACE.name),
+    platformMailProfileForRecipientRole('doctor'),
   );
   if (!challenge.ok) {
     const status =
