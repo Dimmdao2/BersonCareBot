@@ -120,7 +120,7 @@ export function PatientHomeCreateSectionInlineDialog({
                 value={slug}
                 className="min-w-[10rem] flex-1 font-mono text-xs"
                 placeholder="например home"
-                pattern="[a-z0-9-]+"
+                pattern="[a-z0-9\-]+"
                 onChange={(e) => {
                   slugManualRef.current = true;
                   setSlug(e.target.value);
