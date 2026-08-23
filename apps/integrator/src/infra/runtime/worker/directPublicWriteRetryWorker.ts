@@ -1,9 +1,5 @@
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import {
-  appendSupportDeliveryEventDirect,
-  type AppendSupportDeliveryEventDirectInput,
-} from '../../db/directPublic/writeSupportQuestionsDirect.js';
-import {
   recordReminderOccurrenceFinalizedDirect,
   type ReminderOccurrenceFinalizedDirectInput,
 } from '../../db/directPublic/writeReminderProjectionDirect.js';
@@ -49,19 +45,6 @@ export async function executeDirectPublicWriteRetry(
       retry.organizationId,
       payloadOrganizationId,
     );
-  }
-  if (retry.operation === 'support_delivery_attempt_append') {
-    await writeDirectPublic(
-      'support-delivery-append',
-      async () => {
-        await appendSupportDeliveryEventDirect(
-          db,
-          retry.payload as AppendSupportDeliveryEventDirectInput,
-        );
-      },
-      { organizationId: retry.organizationId },
-    );
-    return;
   }
   if (
     retry.operation === 'reminder_occurrence_sent_record' ||

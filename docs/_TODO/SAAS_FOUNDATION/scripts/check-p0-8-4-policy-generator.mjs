@@ -18,16 +18,16 @@ const descriptors = getP084PublicPathDescriptors();
 const statements = renderP084PolicyStatements({ descriptors });
 const sql = statements.join('\n');
 
-if (descriptors.length !== 36) {
-  fail(`Expected 36 P0.8.4 descriptors, got ${descriptors.length}`);
+if (descriptors.length !== 35) {
+  fail(`Expected 35 P0.8.4 descriptors, got ${descriptors.length}`);
 }
 
 if (expectedP084PublicFkPathTargets.length !== 2) {
   fail(`Expected 2 explicit FK-path targets, got ${expectedP084PublicFkPathTargets.length}`);
 }
 
-if (expectedP084PublicDenormTargets.length !== 33) {
-  fail(`Expected 33 explicit denorm targets, got ${expectedP084PublicDenormTargets.length}`);
+if (expectedP084PublicDenormTargets.length !== 32) {
+  fail(`Expected 32 explicit denorm targets, got ${expectedP084PublicDenormTargets.length}`);
 }
 
 // B4-core-4 (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #660): P0.12.1 is
@@ -188,7 +188,7 @@ for (const descriptor of patientOwnedDescriptors) {
 // from the direct patient-owned count above — bridged through platform_users.integrator_user_id
 // (UNIQUE) instead of reading app.current_integrator_user_id() directly, which a patient session
 // never populates. See rls-descriptor-model.mjs for the full note.
-const expectedPatientChainOwnedTargets = 16;
+const expectedPatientChainOwnedTargets = 15;
 const patientChainOwnedDescriptors = descriptors.filter((descriptor) => descriptor.patientChain);
 
 if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
@@ -199,7 +199,6 @@ if (patientChainOwnedDescriptors.length !== expectedPatientChainOwnedTargets) {
 
 const expectedChainTables = [
   'public.support_conversation_messages',
-  'public.support_delivery_events',
   'public.support_question_messages',
   'public.online_intake_answers',
   'public.online_intake_attachments',

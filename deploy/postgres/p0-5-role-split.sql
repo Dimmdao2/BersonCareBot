@@ -219,7 +219,6 @@ VALUES
   ('public', 'specialist_tasks', 'SCOPED'),
   ('public', 'support_conversation_messages', 'SCOPED'),
   ('public', 'support_conversations', 'SCOPED'),
-  ('public', 'support_delivery_events', 'SCOPED'),
   ('public', 'support_question_messages', 'SCOPED'),
   ('public', 'support_questions', 'SCOPED'),
   ('public', 'symptom_entries', 'SCOPED'),

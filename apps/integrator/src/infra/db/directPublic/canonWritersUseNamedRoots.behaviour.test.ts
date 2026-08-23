@@ -23,8 +23,6 @@
 import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
 import { getCurrentDatabasePrincipal } from '../../principal/organizationPrincipal.js';
-import { writeDirectPublic } from './writePort.js';
-import { appendSupportDeliveryEventDirect } from './writeSupportQuestionsDirect.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../repos/notificationDeliveryAttempts.js';
 
 const ORG_ROW = 'a0000000-0000-4000-8000-0000000000a1';
@@ -69,76 +67,6 @@ function expectOnlyNamedRoot(executed: Executed[], root: string, relation: strin
   expect(call.text).not.toMatch(new RegExp(`UPDATE\\s+public\\.${relation}`, 'i'));
   return call;
 }
-
-describe('D17 — событие доставки поддержки', () => {
-  it('переиспользует уже существующий корень канона поддержки, второй двери не заводит', async () => {
-    const { db, executed } = recordingDb({ payload: { ok: true, id: 'evt-1', created: true } });
-
-    const result = await writeDirectPublic(
-      'support-delivery-append',
-      () =>
-        appendSupportDeliveryEventDirect(db, {
-          organizationId: ORG_ROW,
-          conversationMessageId: null,
-          integratorIntentEventId: 'intent-1',
-          correlationId: 'corr-1',
-          channelCode: 'telegram',
-          status: 'success',
-          attempt: 1,
-          reason: null,
-          payloadJson: { text: 'ок' },
-          occurredAt: OCCURRED_AT,
-        }),
-      { organizationId: ORG_ROW },
-    );
-
-    const call = expectOnlyNamedRoot(
-      executed,
-      'app.record_integrator_support_delivery_attempt',
-      'support_delivery_events',
-    );
-    expect(call.principalKind).toBe('organization');
-    expect(call.principalOrganizationId).toBe(ORG_ROW);
-    expect(call.params).toEqual([
-      ORG_ROW,
-      'intent-1',
-      'corr-1',
-      'telegram',
-      'success',
-      1,
-      null,
-      '{"text":"ок"}',
-      OCCURRED_AT,
-    ]);
-    expect(result).toEqual({ id: 'evt-1' });
-  });
-
-  it('отказ корня по организации снова становится ошибкой, то есть долговечным повтором', async () => {
-    const { db } = recordingDb({
-      payload: { ok: false, code: 'organization_context_required' },
-    });
-
-    await expect(
-      writeDirectPublic(
-        'support-delivery-append',
-        () =>
-          appendSupportDeliveryEventDirect(db, {
-            organizationId: ORG_ROW,
-            conversationMessageId: null,
-            integratorIntentEventId: 'intent-2',
-            correlationId: null,
-            channelCode: 'telegram',
-            status: 'failed',
-            attempt: 2,
-            reason: 'provider_rejected',
-            payloadJson: {},
-            occurredAt: OCCURRED_AT,
-          }),
-        { organizationId: ORG_ROW },
-      ),
-    ).rejects.toThrow('organization_context_required');
-  });
-});
 
 describe('D17 — попытка доставки уведомления', () => {
   it('уходит корнем под организацией вызывающего, и лишний UUID вхождения отбрасывается как прежде', async () => {

@@ -35,6 +35,7 @@ import {
   createDefaultDispatchPort,
   type DispatchPlatformIntegrationId,
 } from '../infra/adapters/dispatchPort.js';
+import { createOperatorAwareDeliveryAttemptWritePort } from '../infra/runtime/worker/operatorDeliveryAttemptWritePort.js';
 import { createUnifiedSender } from '../infra/adapters/sendUnified.js';
 import type { UnifiedSender } from '../infra/adapters/sendUnified.js';
 import { createActorResolutionPort } from '../infra/adapters/actorResolutionPort.js';
@@ -244,11 +245,21 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createWebPushDeliveryAdapter({ webPushAccessPort }),
   ];
 
+  // dispatchPort's own real-failure attempt write (Track D F5/F6 follow-up) targets only the
+  // operator journal (`app.record_operator_delivery_attempt`), never the generic writePort.ts
+  // switch — the same operator-aware port the queue worker uses, so a non-queue-backed failure
+  // never fans out into unrelated per-mutation-type side effects (support-conversation projection
+  // etc.) that belong to a different producer's write path.
+  const dispatchAttemptWritePort = createOperatorAwareDeliveryAttemptWritePort({
+    db: dbPort,
+    tenantWritePort: dbWritePort,
+  });
   const dispatchPort =
     input.dispatchPort ??
     createDefaultDispatchPort({
       adapters,
       readPort: dbReadPort,
+      writePort: dispatchAttemptWritePort,
       isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
         isPlatformIntegrationAvailable(dbPort, integrationId),
       resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(dbPort),

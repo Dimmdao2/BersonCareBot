@@ -27,7 +27,6 @@ import {
   supportQuestions,
   supportQuestionMessages,
   supportConversationMessages,
-  supportDeliveryEvents,
   symptomEntries,
   symptomTrackings,
   contentAccessGrantsWebapp,
@@ -189,17 +188,9 @@ export const supportQuestionMessagesRelations = relations(supportQuestionMessage
   }),
 }));
 
-export const supportDeliveryEventsRelations = relations(supportDeliveryEvents, ({ one }) => ({
-  supportConversationMessage: one(supportConversationMessages, {
-    fields: [supportDeliveryEvents.conversationMessageId],
-    references: [supportConversationMessages.id],
-  }),
-}));
-
 export const supportConversationMessagesRelations = relations(
   supportConversationMessages,
-  ({ one, many }) => ({
-    supportDeliveryEvents: many(supportDeliveryEvents),
+  ({ one }) => ({
     supportConversation: one(supportConversations, {
       fields: [supportConversationMessages.conversationId],
       references: [supportConversations.id],

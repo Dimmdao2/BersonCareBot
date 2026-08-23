@@ -638,51 +638,6 @@ export const supportQuestionMessages = pgTable(
   ],
 );
 
-export const supportDeliveryEvents = pgTable(
-  'support_delivery_events',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    conversationMessageId: uuid('conversation_message_id'),
-    integratorIntentEventId: text('integrator_intent_event_id'),
-    correlationId: text('correlation_id'),
-    channelCode: text('channel_code').notNull(),
-    status: text().notNull(),
-    attempt: integer().notNull(),
-    reason: text(),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }).notNull(),
-  },
-  (table) => [
-    index('idx_support_delivery_events_channel_occurred').using(
-      'btree',
-      table.channelCode.asc().nullsLast().op('timestamptz_ops'),
-      table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    index('idx_support_delivery_events_conversation_message')
-      .using('btree', table.conversationMessageId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`(conversation_message_id IS NOT NULL)`),
-    index('idx_support_delivery_events_correlation')
-      .using('btree', table.correlationId.asc().nullsLast().op('text_ops'))
-      .where(sql`(correlation_id IS NOT NULL)`),
-    uniqueIndex('idx_support_delivery_events_integrator_intent_uniq')
-      .using('btree', table.integratorIntentEventId.asc().nullsLast().op('text_ops'))
-      .where(sql`(integrator_intent_event_id IS NOT NULL)`),
-    index('idx_support_delivery_events_intent_event')
-      .using('btree', table.integratorIntentEventId.asc().nullsLast().op('text_ops'))
-      .where(sql`(integrator_intent_event_id IS NOT NULL)`),
-    index('idx_support_delivery_events_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    foreignKey({
-      columns: [table.conversationMessageId],
-      foreignColumns: [supportConversationMessages.id],
-      name: 'support_delivery_events_conversation_message_id_fkey',
-    }).onDelete('set null'),
-  ],
-);
-
 export const symptomEntries = pgTable(
   'symptom_entries',
   {

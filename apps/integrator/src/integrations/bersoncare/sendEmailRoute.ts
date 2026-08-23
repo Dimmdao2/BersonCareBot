@@ -9,9 +9,10 @@
  * email_not_configured: pre-checked via resolveSmtpOutboundConfig + isResolvedMailerConfigured
  * before dispatch, so callers still receive a 503 synchronously when SMTP is not set up.
  *
- * OTP safety (PLAN S9 DoD): Track D F5/F6 removed dispatchPort's delivery-attempt-log write (and
- * its sanitizePayloadForLogs redaction step) entirely — dispatchPort no longer persists any
- * attempt row, so there is no canonical delivery journal entry here to redact the code from.
+ * OTP safety (PLAN S9 DoD): Track D F5/F6 follow-up — dispatchPort records a real attempt row for
+ * a real provider failure here (this route has no outgoing_delivery_queue row of its own), but the
+ * write carries only classification fields (channel/status/attempt/reason), never the message
+ * payload, so the OTP code is never persisted into the attempt row.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';

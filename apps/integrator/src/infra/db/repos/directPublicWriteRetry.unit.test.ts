@@ -9,7 +9,6 @@ const ORGANIZATION_ID = 'a0000000-0000-4000-8000-000000000001';
 
 describe('enqueueDirectPublicWriteRetry', () => {
   it.each([
-    'support_delivery_attempt_append',
     'reminder_occurrence_sent_record',
     'reminder_occurrence_failed_record',
     'reminder_occurrence_expired_record',

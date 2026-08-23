@@ -2,10 +2,7 @@ import type {
   IntegratorSupportOwnershipPort,
   IntegratorSupportQuestionOwnershipPort,
 } from '@/modules/messaging/ports';
-import type {
-  IntegratorSupportDeliveryAttemptWriteBody,
-  IntegratorSupportQuestionWriteBody,
-} from '@/modules/messaging/integratorSupportHttp';
+import type { IntegratorSupportQuestionWriteBody } from '@/modules/messaging/integratorSupportHttp';
 import {
   parseWebappConversationId,
   webappOrganizationConversationId,
@@ -51,11 +48,6 @@ export type IntegratorSupportCanonicalWrite = {
 export type IntegratorSupportQuestionCanonicalWrite = {
   questionId: string;
   questionMessageId?: string;
-  organizationId: string;
-};
-
-export type IntegratorSupportDeliveryCanonicalWrite = {
-  deliveryAttemptId: string;
   organizationId: string;
 };
 
@@ -308,31 +300,6 @@ export function createIntegratorSupportBridge(deps: {
           organizationId: organization.organizationId,
         },
       };
-    },
-
-    async syncDeliveryAttempt(
-      input: IntegratorSupportDeliveryAttemptWriteBody,
-    ): Promise<
-      | { ok: true; canonicalWrite: IntegratorSupportDeliveryCanonicalWrite }
-      | { ok: false; error: string }
-    > {
-      try {
-        const result = await deps.withOrganizationPrincipal(input.organizationId, () =>
-          deps.questionPort.recordDeliveryAttempt(input),
-        );
-        return {
-          ok: true,
-          canonicalWrite: {
-            deliveryAttemptId: input.integratorIntentEventId ?? input.correlationId ?? result.id,
-            organizationId: input.organizationId,
-          },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: error instanceof Error ? error.message : 'delivery_attempt_write_failed',
-        };
-      }
     },
   };
 }

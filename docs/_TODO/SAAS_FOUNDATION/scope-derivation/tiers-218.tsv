@@ -40,7 +40,6 @@ INFRA|public.email_otp_locks
 INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status
-INFRA|public.integrator_push_outbox
 INFRA|public.operator_health_alert_sent
 INFRA|public.operator_incidents
 INFRA|public.operator_job_status
@@ -177,7 +176,6 @@ SCOPED|public.saas_organization_trials
 SCOPED|public.specialist_tasks
 SCOPED|public.support_conversation_messages
 SCOPED|public.support_conversations
-SCOPED|public.support_delivery_events
 SCOPED|public.support_question_messages
 SCOPED|public.support_questions
 SCOPED|public.symptom_entries

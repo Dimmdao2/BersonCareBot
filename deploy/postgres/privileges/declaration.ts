@@ -1394,8 +1394,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'сотрудников', wallWhy: W_AUTH_DEFINER, defect: ['I1-definer-plus-force'] },
   { t: 'public.support_conversation_messages', cls: 'P', why: 'сообщения диалога — тело переписки' },
   { t: 'public.support_conversations', cls: 'P', why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
-  { t: 'public.support_delivery_events', cls: 'P', why: 'журнал доставки сообщений — без него не видно, дошло ли '
-    + 'сообщение' },
   { t: 'public.support_question_messages', cls: 'P', why: 'реплики внутри вопроса — тело вопроса' },
   { t: 'public.support_questions', cls: 'P', why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
   { t: 'public.symptom_entries', cls: 'P', why: 'замеры — динамика самочувствия' },
@@ -2697,20 +2695,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.bootstrap-phone-bind',
       functionIdentity: 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)' },
-    // Корень уже есть и делает ровно это (`integrator_support_delivery_attempt_record` на порту
-    // вебаппа) — второй не заводим, добавляем этой же функции дверь с порта интегратора.
-    // Ключ обязан отличаться от ключа двери вебаппа: каталог — один объектный литерал, и одинаковый
-    // ключ не «дополняет», а вытесняет соседа молча. Префикс `integrator_port_` — тот же, которым
-    // уже отличается вторая дверь `record_reminder_occurrence_finalized_projection` (см. выше).
-    // Роль — своя, `app_integrator_request`, по той же причине и той же формой, что у второй двери
-    // `record_reminder_occurrence_finalized_projection` выше: одно тело, две двери, у каждой ветки
-    // гейта ровно одна роль. Дверь вебаппа `integrator_support_delivery_attempt_record` остаётся на
-    // `app_tenant_service`.
-    integrator_port_support_delivery_attempt_record: { port: 'integrator',
-      runtimeName: 'support_delivery_attempt_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
-      purpose: 'integrator.support-delivery-attempt.record',
-      functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     integrator_notification_delivery_attempt_record: { port: 'integrator',
       runtimeName: 'notification_delivery_attempt_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
@@ -3387,10 +3371,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.web-push-delivery-settings.read',
       functionIdentity: 'app.read_integrator_web_push_delivery_settings(uuid)' },
-    integrator_support_delivery_attempt_record: { port: 'webapp', sessionRole: 'app_staff',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-      purpose: 'integrator.support-delivery-attempt.record',
-      functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     auth_oauth_find_user: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.find-binding',
       functionIdentity: 'app.auth_oauth_find_user(text,text)' },
@@ -5798,23 +5778,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
-      // Две двери — две роли: `app_tenant_service` открывает дверь вебаппа, `app_integrator_request`
-      // дверь порта интегратора. EXECUTE принадлежит функции целиком, поэтому здесь их обе; какая
-      // роль ходит какой дверью, решает гейт тела, и каждая его ветка называет ровно одну.
-      execute: ['app_integrator_request', 'app_tenant_service'],
-      purpose: 'idempotently record one delivery result inside the attested organization',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'integer', 'text', 'text', 'timestamp with time zone'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.support_delivery_events', columns: [
-          'id', 'organization_id', 'conversation_message_id', 'integrator_intent_event_id',
-          'correlation_id', 'channel_code', 'status', 'attempt', 'reason', 'payload_json', 'occurred_at',
-        ], operations: ['SELECT' as const, 'INSERT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
     'app.read_current_patient_booking_row(uuid,text)': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only the current patient own booking projection by booking or canonical appointment id',
@@ -7949,7 +7912,7 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
   'public.program_action_log',
   'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
-  'public.support_conversations', 'public.support_delivery_events', 'public.support_question_messages',
+  'public.support_conversations', 'public.support_question_messages',
   'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
   'public.treatment_program_events', 'public.treatment_program_instance_stage_items',
   'public.treatment_program_instance_stages', 'public.treatment_program_instances',
@@ -8089,12 +8052,6 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
     return `EXISTS (SELECT 1 FROM public.support_conversations tenant_conversation`
       + ` WHERE tenant_conversation.id = support_conversation_messages.conversation_id`
       + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`;
-  }
-  if (tableKey === 'public.support_delivery_events' && operation === 'INSERT') {
-    return nullableParent('conversation_message_id', `EXISTS (SELECT 1 FROM public.support_conversation_messages tenant_message`
-      + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_message.conversation_id`
-      + ` WHERE tenant_message.id = support_delivery_events.conversation_message_id`
-      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`);
   }
   if (tableKey === 'public.support_question_messages' && operation === 'INSERT') {
     return `EXISTS (SELECT 1 FROM public.support_questions tenant_question`

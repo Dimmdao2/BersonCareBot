@@ -217,7 +217,6 @@ VALUES
   ('"public"."reference_items"'),
   ('"public"."reminder_occurrence_history"'),
   ('"public"."support_conversation_messages"'),
-  ('"public"."support_delivery_events"'),
   ('"public"."support_question_messages"'),
   ('"public"."symptom_entries"'),
   ('"public"."test_results"'),

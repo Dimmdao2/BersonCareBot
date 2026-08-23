@@ -80,7 +80,6 @@ P0.4.P8	public.saas_org_entitlement_overrides	already_direct_org	already has org
 P0.4.P6	public.specialist_tasks	assignee_or_patient_org	add nullable organization_id; backfill from specialist/member org and validate patient org where present
 P0.4.P6	public.support_conversation_messages	parent_denorm_copy	copy organization_id from public.support_conversations; quarantine orphan messages
 P0.4.P6	public.support_conversations	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
-P0.4.P6	public.support_delivery_events	parent_denorm_copy	copy organization_id from support conversation/question parent; quarantine orphan events
 P0.4.P6	public.support_question_messages	parent_denorm_copy	copy organization_id from public.support_questions; quarantine orphan messages
 P0.4.P6	public.support_questions	patient_org	add nullable organization_id; backfill from patient/platform user membership/enrollment
 P0.4.P4	public.symptom_entries	parent_denorm_copy	copy organization_id from public.symptom_trackings; quarantine orphan entries

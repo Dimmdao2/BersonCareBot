@@ -404,8 +404,7 @@ const patientChainOwnedTables = new Map([
   // support_conversations.integrator_user_id (its bigint bridge column): that column is not yet
   // part of any registered patient-owner predicate for support_conversations itself, so adding it
   // only here would be an inconsistent, narrower-than-parent wall. conversation_id/question_id/
-  // conversation_message_id hops are nullable on some of these child tables (e.g. support_questions
-  // .conversation_id, support_delivery_events.conversation_message_id) — a NULL hop simply fails
+  // conversation_id/question_id hops are nullable on some of these child tables — a NULL hop simply fails
   // the INNER JOIN and denies for patient sessions (fail-closed), same as staff-unaffected/org-wide
   // visibility is preserved via the staff-actor bypass.
   [
@@ -447,27 +446,6 @@ const patientChainOwnedTables = new Map([
           alias: 'b4f_question',
           parentPk: 'id',
           localFk: 'question_id',
-        },
-        {
-          table: 'public.support_conversations',
-          alias: 'b4f_conv',
-          parentPk: 'id',
-          localFk: 'conversation_id',
-        },
-      ],
-      terminalColumn: 'platform_user_id',
-      castType: 'uuid',
-    },
-  ],
-  [
-    'public.support_delivery_events',
-    {
-      hops: [
-        {
-          table: 'public.support_conversation_messages',
-          alias: 'b4f_msg',
-          parentPk: 'id',
-          localFk: 'conversation_message_id',
         },
         {
           table: 'public.support_conversations',

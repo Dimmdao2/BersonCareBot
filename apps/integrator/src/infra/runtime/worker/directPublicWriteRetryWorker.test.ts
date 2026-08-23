@@ -47,7 +47,7 @@ describe('direct public write retry worker', () => {
     fakes.claim.mockResolvedValue([
       {
         id: 8,
-        operation: 'support_delivery_attempt_append',
+        operation: 'reminder_occurrence_sent_record',
         organizationId: 'a0000000-0000-4000-8000-000000000001',
         idempotencyKey: 'direct-public-write:delivery-8',
         payload: { organizationId: 'a0000000-0000-4000-8000-000000000001' },

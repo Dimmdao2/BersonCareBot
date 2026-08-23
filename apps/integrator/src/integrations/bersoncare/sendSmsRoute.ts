@@ -5,9 +5,10 @@
  * S6 (PLAN): no longer calls smsClient.sendSms directly — instead builds a `smsc`-channel
  * UnifiedOutgoingMessage and dispatches via dispatchPort (redirect-covered; smsc adapter delivers).
  * Track D F5/F6 (docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md):
- * dispatchPort no longer writes any delivery-attempt row (only the outgoing-delivery-queue worker
- * does, tied to a real queue row), so the OTP-redaction concern this comment used to describe is
- * moot — no code/payload content from this route is ever persisted into an attempt row.
+ * dispatchPort writes a real attempt row for a real provider failure (this route has no
+ * outgoing_delivery_queue row of its own), but that write carries only classification fields
+ * (channel/status/attempt/reason) — never the message payload — so the SMS code is never
+ * persisted into the attempt row regardless.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';

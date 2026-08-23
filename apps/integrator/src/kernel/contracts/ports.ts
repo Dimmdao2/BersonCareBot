@@ -132,9 +132,21 @@ export type DeliverySendResult = {
   };
 };
 
+export type DispatchOutgoingOpts = {
+  /**
+   * The queue-backed outgoing-delivery worker sets this: it already has the real
+   * `outgoing_delivery_queue` row id and its real attempt count, and records the one real
+   * failed-attempt row itself (`recordDeliveryFailureAttempt` in outgoingDeliveryWorker.ts) —
+   * a second, cruder write from this generic chokepoint would duplicate the operator journal
+   * entry for the same failure. Every other (non-queue-backed) caller omits this, so a real
+   * provider failure there still reaches the operator journal (Track D F5/F6 follow-up).
+   */
+  skipAttemptLog?: boolean;
+};
+
 /** Порт отправки исходящих намерений во внешний транспорт. */
 export type DispatchPort = {
-  dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult>;
+  dispatchOutgoing(intent: OutgoingIntent, opts?: DispatchOutgoingOpts): Promise<DeliverySendResult>;
 };
 
 /** Универсальный адаптер доставки для infra dispatcher. */
@@ -329,11 +341,6 @@ export type SupportQuestionCanonicalWrite = {
   questionMessageId?: string;
 };
 
-export type SupportDeliveryCanonicalWrite = {
-  organizationId: string;
-  deliveryAttemptId: string;
-};
-
 /** Port for signed integrator-to-webapp operations. */
 export type WebappEventsPort = {
   wakeOperatorHealthDigest?(input: {
@@ -409,13 +416,6 @@ export type WebappEventsPort = {
     status: number;
     error?: string;
     canonicalWrite?: SupportQuestionCanonicalWrite;
-  }>;
-  /** Канонический журнал доставки поддержки принадлежит webapp. */
-  syncSupportDeliveryAttempt?(input: { body: string; idempotencyKey: string }): Promise<{
-    ok: boolean;
-    status: number;
-    error?: string;
-    canonicalWrite?: SupportDeliveryCanonicalWrite;
   }>;
   /** Начало ответа на наблюдение пациента по упражнению (POST /api/integrator/program-note/reply-begin). */
   beginProgramNoteReply?(input: { stageItemId: string; idempotencyKey: string }): Promise<{

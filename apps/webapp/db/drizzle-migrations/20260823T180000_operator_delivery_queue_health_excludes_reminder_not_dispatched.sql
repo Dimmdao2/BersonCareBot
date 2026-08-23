@@ -14,7 +14,8 @@
 -- unchanged.
 
 CREATE OR REPLACE FUNCTION app.read_operator_delivery_queue_health() RETURNS jsonb
-    LANGUAGE plpgsql STABLE SECURITY DEFINER
+    LANGUAGE plpgsql
+    STABLE SECURITY DEFINER
     SET search_path TO 'pg_catalog'
     AS $function$
 DECLARE

@@ -88,25 +88,81 @@ function queuedClinicBroadcastIntent(): OutgoingIntent {
   } as OutgoingIntent;
 }
 
-describe('Track D F5/F6: dispatchPort writes no delivery-attempt row of its own', () => {
+describe('Track D F5/F6: dispatchPort never writes success/skip pseudo-attempts', () => {
   // Supersedes the former "D20 item 17" suite. Owner decision
   // (docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md, F5/F6): a
-  // delivery-attempt row is allowed only after a real failed provider call, tied to the real
-  // delivery id (the outgoing_delivery_queue row) and a real increasing attempt number. Success is
-  // never an attempt row, and only the queue worker (handleDispatchFailure /
-  // recordDeliveryFailureAttempt in outgoingDeliveryWorker.ts) has that real row to attach a
-  // failure attempt to — dispatchPort itself no longer accepts a write port at all.
-  it('returns the real send result on success and never touches any write port', async () => {
+  // delivery-attempt row is allowed only after a real failed provider call. Success is never an
+  // attempt row.
+  it('returns the real send result on success and never touches the write port', async () => {
     const send = vi.fn(async () => ({ telegramMessageId: 42 }));
-    const port = createDefaultDispatchPort({ adapters: [{ canHandle: () => true, send }] });
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      writePort: { writeDb },
+    });
 
     const result = await port.dispatchOutgoing(messageSendIntent());
 
     expect(result).toEqual({ telegramMessageId: 42 });
     expect(send).toHaveBeenCalledTimes(1);
+    expect(writeDb).not.toHaveBeenCalled();
+  });
+});
+
+describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-queue-backed failures', () => {
+  // The operator journal is "deliberately shared by all producers" (operatorDeliveryAttempts.ts).
+  // A queue-backed caller (the outgoing-delivery worker) passes opts.skipAttemptLog and records its
+  // own better attempt (real queue row id + real attempt count) in handleDispatchFailure. Every
+  // other caller (OTP/booking/admin relay routes) has no queue row, so dispatchPort itself records
+  // the one real attempt — attempt: 1 is a true fact for these single-shot, non-retried sends.
+  it('rejects with the original provider error and records exactly one failed attempt', async () => {
+    const providerError = new Error('provider_rejected');
+    const send = vi.fn(async () => {
+      throw providerError;
+    });
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({ adapters: [adapter], writePort: { writeDb } });
+
+    await expect(port.dispatchOutgoing(messageSendIntent())).rejects.toBe(providerError);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(writeDb).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({ channel: 'telegram', status: 'failed', attempt: 1 }),
+      }),
+    );
   });
 
-  it('rejects with the original provider error and calls the adapter exactly once', async () => {
+  it('does not record an attempt for a recipient_blocked_bot rejection', async () => {
+    const blockedError = new Error('bot was blocked by the user');
+    const send = vi.fn(async () => {
+      throw blockedError;
+    });
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({ adapters: [adapter], writePort: { writeDb } });
+
+    await expect(port.dispatchOutgoing(messageSendIntent())).rejects.toBe(blockedError);
+    expect(writeDb).not.toHaveBeenCalled();
+  });
+
+  it('skips its own attempt write when the caller passes opts.skipAttemptLog (queue-backed worker)', async () => {
+    const providerError = new Error('provider_rejected');
+    const send = vi.fn(async () => {
+      throw providerError;
+    });
+    const adapter: DeliveryAdapter = { canHandle: () => true, send };
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({ adapters: [adapter], writePort: { writeDb } });
+
+    await expect(
+      port.dispatchOutgoing(messageSendIntent(), { skipAttemptLog: true }),
+    ).rejects.toBe(providerError);
+    expect(writeDb).not.toHaveBeenCalled();
+  });
+
+  it('rethrows the provider error unchanged when no write port is configured (test-only omission)', async () => {
     const providerError = new Error('provider_rejected');
     const send = vi.fn(async () => {
       throw providerError;
@@ -115,7 +171,6 @@ describe('Track D F5/F6: dispatchPort writes no delivery-attempt row of its own'
     const port = createDefaultDispatchPort({ adapters: [adapter] });
 
     await expect(port.dispatchOutgoing(messageSendIntent())).rejects.toBe(providerError);
-    expect(send).toHaveBeenCalledTimes(1);
   });
 });
 

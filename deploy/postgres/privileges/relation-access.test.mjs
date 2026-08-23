@@ -1443,8 +1443,8 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  assert.equal(expectedEdges.size, 132, 'measured exact tenant operation census changed');
-  assert.equal(tenantRelations.size, 62, 'measured exact tenant relation census changed');
+  assert.equal(expectedEdges.size, 130, 'measured exact tenant operation census changed');
+  assert.equal(tenantRelations.size, 61, 'measured exact tenant relation census changed');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 

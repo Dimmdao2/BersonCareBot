@@ -36,16 +36,13 @@ import {
   normalizeChannelDisplayHandle,
   type DirectPublicChannelCode,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
-import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import {
   recordReminderOccurrenceFinalizedDirect,
   type ReminderOccurrenceFinalizedDirectInput,
 } from './directPublic/writeReminderProjectionDirect.js';
-import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
 import { writeDirectPublic } from './directPublic/writePort.js';
-import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -536,19 +533,27 @@ export function createDbWritePort(
           return;
         }
         case 'delivery.attempt.log': {
-          const dalParams = mutation.params as {
-            intentType?: unknown;
-            intentEventId?: unknown;
-            correlationId?: unknown;
-            channel?: unknown;
-            status?: unknown;
-            attempt?: unknown;
-            reason?: unknown;
-            organizationId?: unknown;
-            payload?: unknown;
-            occurredAt?: unknown;
-          };
+          // Track D final cutover (#987), section C: this case used to ALSO fan out into
+          // public.support_delivery_events (a separate support-conversation delivery timeline).
+          // That fan-out's only production trigger was this exact case, but the sole production
+          // producer of a 'delivery.attempt.log' mutation (outgoingDeliveryWorker.ts's
+          // recordDeliveryFailureAttempt) never reaches it — it goes through
+          // operatorDeliveryAttemptWritePort.ts's operator-aware port, which intercepts this
+          // mutation type and returns before this generic switch. dispatchPort.ts's own
+          // non-queue-backed attempt write (F5/F6 follow-up) uses the SAME operator-aware port for
+          // the same reason: a reminder/OTP/booking delivery attempt is not a support-conversation
+          // event. support_delivery_events, its named root, and this fan-out were removed together
+          // (20260823T200000 migration); only the canonical operator-journal write remains here.
           if (await getOperationalVerboseLogEnabled(db)) {
+            const dalParams = mutation.params as {
+              intentType?: unknown;
+              intentEventId?: unknown;
+              correlationId?: unknown;
+              channel?: unknown;
+              status?: unknown;
+              attempt?: unknown;
+              reason?: unknown;
+            };
             logger.info(
               {
                 intentType: asNullableString(dalParams.intentType),
@@ -565,137 +570,10 @@ export function createDbWritePort(
               'delivery attempt log',
             );
           }
-          const intentEventId = asNullableString(dalParams.intentEventId);
-          const correlationId = asNullableString(dalParams.correlationId);
-          const channel = asNonEmptyString(dalParams.channel);
-          const status = asNonEmptyString(dalParams.status);
-          const attemptRaw =
-            typeof dalParams.attempt === 'number' && Number.isFinite(dalParams.attempt)
-              ? Math.trunc(dalParams.attempt)
-              : null;
-          const reason = asNullableString(dalParams.reason);
-          const organizationId = asNullableString(dalParams.organizationId);
-          const payloadJson =
-            typeof dalParams.payload === 'object' && dalParams.payload !== null
-              ? (dalParams.payload as Record<string, unknown>)
-              : {};
-          const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
           // The canonical operator-journal root is an exact named-root capability. Its attested
           // transaction must begin before a physical client is checked out; the shared writer installs
           // the existing delivery-worker principal when this path has another ambient principal.
           await writeOperatorDeliveryAttempt(db, mutation);
-          // D4: replaces the `support.delivery.attempt.logged` HTTP projection fanout. Own transaction
-          // after the canonical operator-journal write above; see writeSupportQuestionsDirect.ts header
-          // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,
-          // no incident) — the retired webapp consumer ALSO rejected this case non-retryably
-          // (`support.delivery.attempt.logged: organizationId required`, `retryable: false`), so skipping
-          // both the direct write and retry enqueue changes nothing about the eventual outcome.
-          // Anything else (row not written for an unexpected reason) enters the durable direct retry queue.
-          const deliveryFallbackPayload: Record<string, unknown> = {
-            intentEventId: intentEventId ?? null,
-            correlationId: correlationId ?? null,
-            channelCode: channel ?? 'unknown',
-            status: status ?? 'failed',
-            attempt: attemptRaw ?? 1,
-            reason: reason ?? null,
-            organizationId,
-            payloadJson,
-            occurredAt,
-          };
-          if (!organizationId) {
-            // Global/pre-login delivery has no clinic support timeline by design. The mandatory
-            // operational audit was already persisted above; this optional organization projection
-            // is simply not applicable. Unexpected failures with a known organization stay loud below.
-            return;
-          }
-          const deliveryAttemptId =
-            intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
-          const directInput = {
-            organizationId,
-            conversationMessageId: null,
-            integratorIntentEventId: intentEventId,
-            correlationId,
-            channelCode: channel ?? 'unknown',
-            status: status ?? 'failed',
-            attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-            reason,
-            payloadJson,
-            occurredAt,
-          };
-          const recordDeliveryAttemptFailureIncident = async (
-            errorClass: string,
-            errorDetail: string,
-          ): Promise<void> => {
-            await recordOperatorFailureIncident({
-              direction: 'db_write',
-              integration: 'support_delivery_events',
-              errorClass,
-              errorDetail,
-            }).catch((incidentErr: unknown) => {
-              logger.error(
-                { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
-                'delivery.attempt.log: failed to record operator incident',
-              );
-            });
-          };
-          await executeCanonicalWriteOrLegacy({
-            sync: webappEventsPort?.syncSupportDeliveryAttempt
-              ? () =>
-                  webappEventsPort.syncSupportDeliveryAttempt!({
-                    body: JSON.stringify({
-                      organizationId,
-                      integratorIntentEventId: intentEventId,
-                      correlationId,
-                      channelCode: channel ?? 'unknown',
-                      status: status ?? 'failed',
-                      attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-                      reason,
-                      payloadJson,
-                      occurredAt,
-                    }),
-                    idempotencyKey: `support-delivery-attempt:${deliveryAttemptId}`,
-                  })
-              : undefined,
-            accepts: (canonicalWrite) =>
-              canonicalWrite.deliveryAttemptId === deliveryAttemptId &&
-              canonicalWrite.organizationId === organizationId,
-            onHandoffFailure: async (failure) =>
-              recordDeliveryAttemptFailureIncident(
-                'delivery_attempt_log_canonical_handoff_failure',
-                failure,
-              ),
-            legacyWrite: async () => {
-              try {
-                // organizationId is already a known, validated value here (guarded above) — wrap with it
-                // directly rather than relying on the ambient principal (this mutation can also be reached
-                // from delivery/retry paths without an ambient organization principal at all).
-                await writeDirectPublic(
-                  'support-delivery-append',
-                  () => appendSupportDeliveryEventDirect(db, directInput),
-                  { organizationId },
-                );
-              } catch (err) {
-                await enqueueDirectPublicWriteRetry(db, {
-                  operation: 'support_delivery_attempt_append',
-                  organizationId,
-                  idempotencyKey: projectionIdempotencyKey(
-                    'direct-public-write.support-delivery-attempt-append',
-                    String(deliveryAttemptId),
-                    hashPayload(directInput),
-                  ),
-                  payload: directInput,
-                });
-                logger.warn(
-                  { err, mutationType: mutation.type, intentEventId, correlationId, channel },
-                  'delivery.attempt.log: direct public write failed, queued durable direct retry',
-                );
-                await recordDeliveryAttemptFailureIncident(
-                  'delivery_attempt_log_direct_write_fallback',
-                  'direct_write_unexpected_error',
-                );
-              }
-            },
-          });
           return;
         }
         case 'message.retry.enqueue': {

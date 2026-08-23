@@ -85,7 +85,10 @@ async function startResident(): Promise<void> {
   // Two independent DI graphs, exactly as when scheduler and worker were separate processes: the
   // scheduler graph feeds organization ticks/health probes/wakes, the worker graph passes its own
   // operator-aware delivery-attempt write port directly to the outgoing-delivery tick (below) — the
-  // real failed-provider-attempt write now happens there, tied to the queue row, not in dispatchPort.
+  // real failed-provider-attempt write for a queue-backed reminder/broadcast/alert happens there,
+  // tied to the queue row (skipAttemptLog: true below opts dispatchPort's own write out for exactly
+  // this call). Every other (non-queue-backed) dispatchOutgoing caller still gets a real attempt
+  // row written by dispatchPort itself.
   const schedulerDeps = buildDeps();
   const schedulerDb = createDbPort();
 
@@ -117,7 +120,11 @@ async function startResident(): Promise<void> {
       runOutgoingDeliveryWorkerTick({
         db: deliveryDb,
         writePort: deliveryWritePort,
-        dispatchOutgoing: (intent) => workerDeps.dispatchPort.dispatchOutgoing(intent),
+        // skipAttemptLog: this tick already records the one real failed attempt itself
+        // (handleDispatchFailure, with the real queue row id and real attempt count) — dispatchPort
+        // recording its own cruder attempt too would duplicate the operator journal entry.
+        dispatchOutgoing: (intent) =>
+          workerDeps.dispatchPort.dispatchOutgoing(intent, { skipAttemptLog: true }),
         batchSize,
         doctorBroadcastMenu: {
           templatePort: workerDeps.templatePort,

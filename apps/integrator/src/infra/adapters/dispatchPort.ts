@@ -1,6 +1,8 @@
 import type {
+  DbWritePort,
   DeliveryAdapter,
   DeliverySendResult,
+  DispatchOutgoingOpts,
   DispatchPort,
   OutgoingIntent,
 } from '../../kernel/contracts/index.js';
@@ -14,6 +16,7 @@ import {
 import { logger } from '../observability/logger.js';
 import { readChannel } from './channelRouting.js';
 import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
+import { classifyRecipientBlockedBotError } from '../delivery/recipientBotBlocked.js';
 import type {
   ClinicDeliveryChannel,
   ClinicDeliveryCredential,
@@ -223,21 +226,63 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
 }
 
 /**
+ * A real failed provider call, outside `opts.skipAttemptLog` (the queue-backed worker's own
+ * better-informed write — see below). Track D F5/F6 follow-up: the operator journal is
+ * "deliberately shared by all producers" (`operatorDeliveryAttempts.ts`) — a non-queue-backed
+ * caller (OTP/booking/admin relay routes) has no `outgoing_delivery_queue` row, but each such
+ * call is itself exactly one real, non-retried provider attempt, so `attempt: 1` and
+ * `id: eventId` are true facts here, not placeholders. `recipient_blocked_bot` stays excluded
+ * (F5: an expected terminal state, not a delivery attempt), matching the queue worker's own
+ * classification.
+ */
+async function recordGenericDispatchFailureAttempt(
+  writePort: DbWritePort,
+  intent: OutgoingIntent,
+  channel: string,
+  err: unknown,
+): Promise<void> {
+  const blocked = classifyRecipientBlockedBotError(err, channel);
+  if (blocked) return;
+  try {
+    await writePort.writeDb({
+      type: 'delivery.attempt.log',
+      params: {
+        intentType: intent.type,
+        intentEventId: intent.meta.eventId,
+        correlationId: intent.meta.correlationId ?? null,
+        channel,
+        status: 'failed',
+        attempt: 1,
+        reason: 'provider_rejected',
+        occurredAt: new Date().toISOString(),
+      },
+    });
+  } catch (auditError) {
+    logger.warn(
+      { err: auditError, eventId: intent.meta.eventId, channel },
+      'dispatch_generic_attempt_log_failed',
+    );
+  }
+}
+
+/**
  * Builds unified dispatch pipeline with retries and fallback channels.
  * Channel order comes from domain-provided `payload.delivery.channels`.
  *
- * This port does not write a delivery-attempt record for any outcome (success, dev-redirect
- * suppression, or provider failure). Track D final cutover (#987), audit F5/F6: a delivery-attempt
- * row is allowed only after a real failed provider call, tied to the real
- * `outgoing_delivery_queue` row id, with a real increasing attempt number — none of which this
- * generic per-call chokepoint has (it is called for non-queue-backed sends too: OTP/booking/admin
- * relay routes). The queue-backed worker owns that row and records the one real failed attempt
- * itself, at the existing seam where it already has both facts —
- * see `handleDispatchFailure` in outgoingDeliveryWorker.ts.
+ * Success, dev-redirect suppression, and `recipient_blocked_bot` never write a delivery-attempt
+ * record (Track D final cutover #987, audit F5): a duplicate success/skip journal entry is
+ * exactly the second journal Track D retired. A real failed provider call DOES write one real
+ * operator-journal attempt row (F5/F6 follow-up) — unless the caller passes
+ * `opts.skipAttemptLog`, which the queue-backed outgoing-delivery worker does, because it already
+ * has the real queue row id and real attempt count and records a better attempt itself at
+ * `handleDispatchFailure` in outgoingDeliveryWorker.ts (writing both here and there would
+ * duplicate the same failure).
  */
 export function createDefaultDispatchPort(deps: {
   adapters: DeliveryAdapter[];
   readPort?: unknown;
+  /** Omitted only in tests that don't exercise a real failure path; di.ts always provides it. */
+  writePort?: DbWritePort;
   isPlatformIntegrationEnabled?: (integrationId: DispatchPlatformIntegrationId) => Promise<boolean>;
   /** Exact-org tariff + credential resolver. It never returns a platform fallback credential. */
   resolveClinicDeliveryCredential?: (
@@ -245,7 +290,10 @@ export function createDefaultDispatchPort(deps: {
   ) => Promise<ClinicDeliveryCredential | null>;
 }): DispatchPort {
   return {
-    async dispatchOutgoing(intent: OutgoingIntent): Promise<DeliverySendResult> {
+    async dispatchOutgoing(
+      intent: OutgoingIntent,
+      opts?: DispatchOutgoingOpts,
+    ): Promise<DeliverySendResult> {
       // Policy is the first egress operation: denied payloads cannot be redirected, logged,
       // adapter-selected, or passed to a provider.
       assertOutboundMessagePolicy(intent);
@@ -274,12 +322,15 @@ export function createDefaultDispatchPort(deps: {
       const intentForChannel = withChannel(safeIntent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
-      // A thrown providerError here is a real failed provider call. The caller (queue worker) is
-      // the one that knows the real outgoing_delivery_queue row id and its current attempt count
-      // — it records the one real attempt itself in handleDispatchFailure, after classifying
-      // recipient_blocked_bot the same way this port used to (F5: a blocked-bot rejection is not a
-      // delivery attempt either, it is an expected terminal state, same treatment as dev-redirect
-      // suppression). This port propagates the error unchanged and writes nothing.
+      // A thrown providerError here is a real failed provider call. When the caller is the
+      // queue-backed worker (opts.skipAttemptLog), it already knows the real
+      // outgoing_delivery_queue row id and its current attempt count and records the one real
+      // attempt itself in handleDispatchFailure. Every other caller has no such row, so this
+      // chokepoint records the one real attempt itself (recordGenericDispatchFailureAttempt),
+      // after classifying recipient_blocked_bot the same way the queue worker does (F5: a
+      // blocked-bot rejection is not a delivery attempt either, it is an expected terminal state,
+      // same treatment as dev-redirect suppression). Either way the original error is rethrown
+      // unchanged.
       let sendResult: DeliverySendResult | void;
       const clinicChannel = asClinicDeliveryChannel(channel);
       const senderScope = clinicSenderScope(intentForChannel);
@@ -290,17 +341,24 @@ export function createDefaultDispatchPort(deps: {
       if (senderScope === 'clinic_required' && !clinicCredential) {
         throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
       }
-      if (clinicCredential) {
-        try {
-          sendResult = await adapter.send(withClinicCredential(intentForChannel, clinicCredential));
-        } catch (clinicError) {
-          // Essential traffic remains deliverable through the platform. Clinic-required flows
-          // (broadcasts and bot support) must never silently assume the platform sender.
-          if (senderScope === 'clinic_required') throw clinicError;
+      try {
+        if (clinicCredential) {
+          try {
+            sendResult = await adapter.send(withClinicCredential(intentForChannel, clinicCredential));
+          } catch (clinicError) {
+            // Essential traffic remains deliverable through the platform. Clinic-required flows
+            // (broadcasts and bot support) must never silently assume the platform sender.
+            if (senderScope === 'clinic_required') throw clinicError;
+            sendResult = await adapter.send(intentForChannel);
+          }
+        } else {
           sendResult = await adapter.send(intentForChannel);
         }
-      } else {
-        sendResult = await adapter.send(intentForChannel);
+      } catch (providerError) {
+        if (!opts?.skipAttemptLog && deps.writePort) {
+          await recordGenericDispatchFailureAttempt(deps.writePort, intent, channel, providerError);
+        }
+        throw providerError;
       }
       // Success, or a completed-but-skipped webPushOutcome, is not a delivery attempt (F5): the
       // surviving outgoing_delivery_queue row's own status/sent_at/failure_class is the lifecycle

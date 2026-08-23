@@ -26,7 +26,6 @@ describe('integrator support ownership bridge', () => {
       createQuestion: vi.fn(),
       appendQuestionMessage: vi.fn(),
       markQuestionAnswered: vi.fn(),
-      recordDeliveryAttempt: vi.fn(),
     };
     const bridge = createIntegratorSupportBridge({
       port,
@@ -122,7 +121,6 @@ describe('integrator support ownership bridge', () => {
         createQuestion,
         appendQuestionMessage,
         markQuestionAnswered,
-        recordDeliveryAttempt: vi.fn(),
       },
       resolvePatientOrganization: vi.fn().mockResolvedValue({ ok: true, organizationId }),
       withOrganizationPrincipal: async (_organizationId, fn) => fn(),
@@ -197,7 +195,6 @@ describe('integrator support ownership bridge', () => {
       createQuestion: vi.fn(),
       appendQuestionMessage: vi.fn(),
       markQuestionAnswered: vi.fn(),
-      recordDeliveryAttempt: vi.fn(),
     };
     const bridge = createIntegratorSupportBridge({
       port: {
@@ -227,50 +224,6 @@ describe('integrator support ownership bridge', () => {
     expect(questionPort.createQuestion).not.toHaveBeenCalled();
   });
 
-  it('records a delivery attempt in the webapp-owned audit port', async () => {
-    const recordDeliveryAttempt = vi.fn().mockResolvedValue({
-      id: 'delivery-db-id',
-      created: true,
-    });
-    const bridge = createIntegratorSupportBridge({
-      port: {
-        ensureWebappConversationForUser: vi.fn(),
-        appendWebappMessage: vi.fn(),
-        setConversationStatusFromProjection: vi.fn(),
-      },
-      questionPort: {
-        createQuestion: vi.fn(),
-        appendQuestionMessage: vi.fn(),
-        markQuestionAnswered: vi.fn(),
-        recordDeliveryAttempt,
-      },
-      resolvePatientOrganization: vi.fn(),
-      withOrganizationPrincipal: async (_organizationId, fn) => fn(),
-    });
-    const input = {
-      organizationId: '11111111-1111-4111-8111-111111111111',
-      integratorIntentEventId: 'intent-1',
-      correlationId: 'correlation-1',
-      channelCode: 'telegram',
-      status: 'success',
-      attempt: 1,
-      reason: null,
-      payloadJson: { kind: 'support' },
-      occurredAt: '2026-07-31T09:00:00.000Z',
-    };
-
-    const result = await bridge.syncDeliveryAttempt(input);
-
-    expect(result).toEqual({
-      ok: true,
-      canonicalWrite: {
-        deliveryAttemptId: 'intent-1',
-        organizationId: input.organizationId,
-      },
-    });
-    expect(recordDeliveryAttempt).toHaveBeenCalledWith(input);
-  });
-
   it('applyAdminReply delivers the doctor reply to the patient encoded in integratorConversationId, not another patient', async () => {
     const targetPlatformUserId = '22222222-2222-4222-8222-222222222222';
     const otherPlatformUserId = '33333333-3333-4333-8333-333333333333';
@@ -293,7 +246,6 @@ describe('integrator support ownership bridge', () => {
         createQuestion: vi.fn(),
         appendQuestionMessage: vi.fn(),
         markQuestionAnswered: vi.fn(),
-        recordDeliveryAttempt: vi.fn(),
       },
       resolvePatientOrganization,
       withOrganizationPrincipal: async (_organizationId, fn) => fn(),
