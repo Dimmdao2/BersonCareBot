@@ -1,4 +1,5 @@
 import { LEGAL_DOCUMENT_OPERATOR } from '@/config/legalDocumentOperator';
+import { LegalDocumentOperatorRequisites } from '../LegalDocumentOperatorRequisites';
 
 /** Публичная политика конфиденциальности (URL для OAuth consent screen и магазинов). */
 export default function PrivacyPolicyPage() {
@@ -72,6 +73,7 @@ export default function PrivacyPolicyPage() {
           периодически просматривать документ.
         </p>
       </section>
+      <LegalDocumentOperatorRequisites />
       <p className="text-xs text-muted-foreground">
         Дата публикации: 8 апреля 2026 г. Обновлено: 3 июня 2026 г. При необходимости юридически
         полного текста замените этот шаблон на утверждённую редакцию.

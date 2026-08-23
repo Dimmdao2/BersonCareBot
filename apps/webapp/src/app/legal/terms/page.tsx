@@ -1,4 +1,5 @@
 import { LEGAL_DOCUMENT_OPERATOR } from '@/config/legalDocumentOperator';
+import { LegalDocumentOperatorRequisites } from '../LegalDocumentOperatorRequisites';
 
 /** Публичная страница условий использования (URL для OAuth consent screen и магазинов). */
 export default function TermsOfServicePage() {
@@ -48,6 +49,7 @@ export default function TermsOfServicePage() {
           использования Сервиса после изменений означает согласие с обновлёнными условиями.
         </p>
       </section>
+      <LegalDocumentOperatorRequisites />
       <p className="text-xs text-muted-foreground">
         Дата публикации: 8 апреля 2026 г. При необходимости юридически полного текста замените этот
         шаблон на утверждённую редакцию.
