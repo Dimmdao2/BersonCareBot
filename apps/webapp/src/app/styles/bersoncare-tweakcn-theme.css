@@ -50,7 +50,7 @@
   --bc-shadow-micro: 0 1px 2px rgb(40 35 25 / 2.8%), 0 4px 14px rgb(40 35 25 / 3%);
   --bc-shadow-raised: 0 2px 4px rgb(40 35 25 / 6%), 0 16px 34px rgb(40 35 25 / 10%);
   --bc-ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-  --bc-font-sans: var(--font-sans), 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bc-font-sans: var(--font-manrope), Arial, sans-serif;
 }
 
 @theme inline {
