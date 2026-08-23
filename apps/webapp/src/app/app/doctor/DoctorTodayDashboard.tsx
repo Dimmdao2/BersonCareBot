@@ -26,6 +26,7 @@ import { formatDoctorFio } from '@/shared/lib/fio';
 import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
 import { DoctorTodayNextAppointment } from './DoctorTodayNextAppointment';
 import { DoctorTodayQuickActions } from './DoctorTodayQuickActions';
+import { DoctorTodayWeeklyAppointmentsChart } from './DoctorTodayWeeklyAppointmentsChart';
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
@@ -269,24 +270,30 @@ export function DoctorTodayDashboard({
           <DoctorTodayNextAppointment appointment={data.nextAppointment} />
 
           {isMobile ? (
-            <DoctorMetricList className="grid-cols-2" aria-label="Сводка дня">
-              <DoctorStatCard
-                id="doctor-today-mobile-kpi-support"
-                title="Сопровождение"
-                value={data.peopleCount}
-                layout="today-mobile-grid"
-                onClick={data.peopleCount > 0 ? () => setMobileModal('support') : undefined}
+            <>
+              <DoctorMetricList className="grid-cols-2" aria-label="Сводка дня">
+                <DoctorStatCard
+                  id="doctor-today-mobile-kpi-support"
+                  title="Сопровождение"
+                  value={data.peopleCount}
+                  layout="today-mobile-grid"
+                  onClick={data.peopleCount > 0 ? () => setMobileModal('support') : undefined}
+                />
+                <DoctorStatCard
+                  id="doctor-today-mobile-kpi-appointments"
+                  title="Записей сегодня"
+                  value={data.todayAppointments.length}
+                  layout="today-mobile-grid"
+                  onClick={
+                    data.todayAppointments.length > 0 ? () => setMobileModal('calendar') : undefined
+                  }
+                />
+              </DoctorMetricList>
+              <DoctorTodayWeeklyAppointmentsChart
+                todayIso={calendarSnapshot.todayIso}
+                displayIana={displayIana}
               />
-              <DoctorStatCard
-                id="doctor-today-mobile-kpi-appointments"
-                title="Записей сегодня"
-                value={data.todayAppointments.length}
-                layout="today-mobile-grid"
-                onClick={
-                  data.todayAppointments.length > 0 ? () => setMobileModal('calendar') : undefined
-                }
-              />
-            </DoctorMetricList>
+            </>
           ) : (
             <DoctorTodayPeopleSection data={data} />
           )}
