@@ -1,4 +1,5 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_SURFACE_AUTH_POLICY_CONFIG } from '@/shared/lib/surface/requestSurface';
 
 const fakes = vi.hoisted(() => ({
   headers: vi.fn(),
@@ -29,8 +30,12 @@ vi.mock('@/modules/system-settings/patientMaintenance', () => ({
   patientMaintenanceReplacesPatientShell: vi.fn(() => false),
   patientMaintenanceSkipsPath: vi.fn(() => true),
 }));
-vi.mock('@/modules/auth/authChannelPolicy', () => ({ getAuthChannelPolicy: vi.fn(async () => ({})) }));
-vi.mock('@/app-layer/guards/cabinetAccessGate', () => ({ isCabinetEntryBlocked: vi.fn(() => false) }));
+vi.mock('@/modules/auth/authChannelPolicy', () => ({
+  getAuthChannelPolicy: vi.fn(async () => ({})),
+}));
+vi.mock('@/app-layer/guards/cabinetAccessGate', () => ({
+  isCabinetEntryBlocked: vi.fn(() => false),
+}));
 vi.mock('@/app-layer/patient-organization/requestContext', () => ({
   resolvePatientOrganizationRequestContext: fakes.resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext: fakes.stampPatientOrganizationRequestContext,
@@ -80,7 +85,7 @@ beforeEach(() => {
   fakes.getResolvedSurface.mockResolvedValue({
     surface: 'patient_default',
     publicOrigin: 'https://therapygo.ru',
-    authPolicy: 'patient',
+    authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
   });
 });
 
@@ -106,7 +111,7 @@ describe('patient layout branding fallback', () => {
       surface: 'patient_branded',
       publicOrigin: 'https://clinic-a.therapygo.ru',
       organizationId,
-      authPolicy: 'patient',
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
       effectivePatientBrand: {
         effectiveDisplayName: 'Клиника на Host',
         patientAppName: 'Приложение клиники',

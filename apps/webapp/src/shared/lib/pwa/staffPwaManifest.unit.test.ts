@@ -2,26 +2,26 @@ import { describe, expect, it } from 'vitest';
 import { metadata as legalLayoutMetadata } from '@/app/legal/layout';
 import { buildPatientPwaManifest } from './patientPwaManifest';
 import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
-import {
-  LEGAL_DOCUMENT_OPERATOR,
-  legalDocumentMetadata,
-} from '@/config/legalDocumentOperator';
+import { LEGAL_DOCUMENT_OPERATOR, legalDocumentMetadata } from '@/config/legalDocumentOperator';
 import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
 import { buildStaffPwaManifest, STAFF_PWA_MANIFEST_PATH } from './staffPwaManifest';
-import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
-import { surfaceAccentToken } from '@/shared/lib/surface/requestSurface';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  surfaceAccentToken,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 import { surfaceLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
 const STAFF_RESOLVED: ResolvedSurface = {
   surface: 'staff',
   publicOrigin: STAFF_SURFACE.origin,
-  authPolicy: 'staff',
+  authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.staff,
 };
 
 const PATIENT_RESOLVED: ResolvedSurface = {
   surface: 'patient_default',
   publicOrigin: PATIENT_DEFAULT_SURFACE.origin,
-  authPolicy: 'patient',
+  authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
 };
 
 const BRANDED_RESOLVED: ResolvedSurface = {
@@ -33,7 +33,7 @@ const BRANDED_RESOLVED: ResolvedSurface = {
     patientAppName: 'Clinic A Care',
     accentToken: '#7a3cc2',
   },
-  authPolicy: 'patient',
+  authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
 };
 
 describe('staff PWA identity', () => {

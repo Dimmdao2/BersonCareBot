@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
-import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 const fakes = vi.hoisted(() => ({ getResolvedSurface: vi.fn() }));
 
@@ -15,7 +18,7 @@ describe('GET /manifest.webmanifest on the transitional shared Host', () => {
     const resolved: ResolvedSurface = {
       surface: 'platform_admin',
       publicOrigin: 'https://admin.staff.example.test',
-      authPolicy: 'platform_admin',
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.platform_admin,
     };
     fakes.getResolvedSurface.mockResolvedValue(resolved);
 
@@ -39,7 +42,7 @@ describe('GET /manifest.webmanifest on the transitional shared Host', () => {
       const resolved: ResolvedSurface = {
         surface: 'staff',
         publicOrigin: STAFF_SURFACE.origin,
-        authPolicy: 'staff',
+        authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.staff,
       };
       fakes.getResolvedSurface.mockResolvedValue(resolved);
 
