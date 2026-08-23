@@ -128,24 +128,6 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     expect(runWebappSqlMock).not.toHaveBeenCalled();
   });
 
-  it('appendDeliveryEventFromProjection uses ON CONFLICT on integrator_delivery_log_id', async () => {
-    const port = createPgReminderProjectionPort();
-    await port.appendDeliveryEventFromProjection({
-      integratorDeliveryLogId: 'del-1',
-      integratorOccurrenceId: 'occ-1',
-      integratorRuleId: 'rule-1',
-      integratorUserId: '99',
-      channel: 'telegram',
-      status: 'sent',
-      errorCode: null,
-      payloadJson: {},
-      createdAt: '2026-01-01T12:00:00.000Z',
-    });
-    const sql = lastApproxSql();
-    expect(sql).toContain('reminder_delivery_events');
-    expect(sql).toContain('ON CONFLICT (integrator_delivery_log_id) DO NOTHING');
-  });
-
   it('listHistoryByIntegratorUserId filters by integrator_user_id (no canonical rewrite)', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [

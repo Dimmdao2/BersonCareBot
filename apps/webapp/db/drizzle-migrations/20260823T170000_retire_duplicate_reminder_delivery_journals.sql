@@ -1,7 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_telemetry_operator_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
--- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.reminder_delivery_events') IS NULL AND to_regclass('integrator.user_reminder_delivery_logs') IS NULL
+-- BCB-MIGRATION-VERIFY: SELECT to_regclass('public.reminder_delivery_events') IS NULL AND to_regclass('integrator.user_reminder_delivery_logs') IS NULL AND to_regprocedure('app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)') IS NULL
 -- Track D final cutover (#987), Class B: a reminder_dispatch queue row that reaches a terminal
 -- decision without a real provider dispatch (stale materialization / rate-limited / web-push
 -- skipped) is now archived-dead under failure_class 'reminder_not_dispatched' instead of being
@@ -501,6 +501,14 @@ FROM runtime_config, restricted_config, transcode, media_readiness, safe_jobs,
   webhook_status, digest
 $_$;
 --> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
+-- Track D final cutover (#987): the ONLY purpose of this named root was appending to
+-- public.reminder_delivery_events, dropped below. No other caller remains (writePort.ts's
+-- 'reminders.delivery.log' mutation type and the integrator worker's direct-write call were both
+-- retired in the same change; see outgoingDeliveryWorker.ts / writePort.ts).
+
+DROP FUNCTION app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone);
+--> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 -- Track D final cutover (#987): integrator.user_reminder_delivery_logs and
 -- public.reminder_delivery_events were a full 1:1 mirror pair (1735 rows each, one writer each,
@@ -516,3 +524,23 @@ DROP TABLE public.reminder_delivery_events;
 -- BCB-MIGRATION-OWNER: app_object_owner
 
 DROP TABLE integrator.user_reminder_delivery_logs;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+-- Track D final cutover (#987): 'reminder_delivery_log_append' was the durable-retry operation for
+-- the named root dropped above; no producer enqueues it anymore (writePort.ts's queueDirectPublicRetry
+-- narrowed its operation union in the same change). The other five values are untouched — three
+-- (reminder_occurrence_*_record) stay live, and 'support_delivery_attempt_append' /
+-- 'content_access_grant_upsert' are a separate, pre-existing surface out of this cutover's scope.
+
+ALTER TABLE integrator.direct_public_write_retries
+  DROP CONSTRAINT IF EXISTS direct_public_write_retries_operation_check;
+ALTER TABLE integrator.direct_public_write_retries
+  ADD CONSTRAINT direct_public_write_retries_operation_check CHECK (
+    operation IN (
+      'support_delivery_attempt_append',
+      'reminder_occurrence_sent_record',
+      'reminder_occurrence_failed_record',
+      'reminder_occurrence_expired_record',
+      'content_access_grant_upsert'
+    )
+  );

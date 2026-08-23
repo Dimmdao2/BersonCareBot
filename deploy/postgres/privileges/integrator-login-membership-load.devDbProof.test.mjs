@@ -64,7 +64,6 @@ const TENANT_SERVICE_READS = [
   ['public.reminder_rules', 'integrator_rule_id', 'repos/reminders.ts:323'],
   ['public.broadcast_audit', 'organization_id', 'repos/broadcastAudit.ts'],
   ['integrator.user_reminder_occurrences', 'organization_id', 'repos/reminders.ts'],
-  ['integrator.user_reminder_delivery_logs', 'organization_id', 'repos/reminders.ts'],
 ];
 
 /** Очередь доставки: без этих операций воркер не двигает ни одной строки. */

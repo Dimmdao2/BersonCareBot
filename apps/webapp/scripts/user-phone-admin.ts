@@ -28,7 +28,7 @@
  *
  *   webapp-cleanup-by-integrator-id <bigint>
  *                         — только webapp: строки проекций, где нет привязки к platform_users UUID, а есть integrator_user_id
- *                           (reminder_occurrence_history, reminder_delivery_events, reminder_rules, content_access_grants_webapp,
+ *                           (reminder_occurrence_history, reminder_rules, content_access_grants_webapp,
  *                           support_* по integrator_user_id).
  *                           Нужно, если platform_users уже удалили, а в журналах/подписках остались хвосты по id из integrator.
  *
@@ -424,12 +424,6 @@ async function deleteWebappProjectionByIntegratorUserId(
   };
 
   let r = await client.query(
-    `DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  log('Удалено из reminder_delivery_events (integrator_user_id)', r.rowCount ?? 0);
-
-  r = await client.query(
     `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`,
     [id],
   );

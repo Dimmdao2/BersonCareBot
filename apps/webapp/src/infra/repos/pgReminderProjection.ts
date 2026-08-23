@@ -95,22 +95,6 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
       );
     },
 
-    async appendDeliveryEventFromProjection(params) {
-      await runWebappSql(
-        getWebappSqlDb(),
-        sql`
-        INSERT INTO reminder_delivery_events (
-          integrator_delivery_log_id, integrator_occurrence_id, integrator_rule_id, integrator_user_id,
-          channel, status, error_code, payload_json, created_at
-        ) VALUES (
-          ${params.integratorDeliveryLogId}, ${params.integratorOccurrenceId}, ${params.integratorRuleId},
-          ${params.integratorUserId}::bigint, ${params.channel}, ${params.status}, ${params.errorCode ?? null},
-          ${JSON.stringify(params.payloadJson ?? {})}::jsonb, ${params.createdAt}::timestamptz
-        )
-        ON CONFLICT (integrator_delivery_log_id) DO NOTHING`,
-      );
-    },
-
     async upsertContentAccessGrantFromProjection(params) {
       const pool = getPool();
       const platformUserId = await resolvePlatformUserId(params.integratorUserId);

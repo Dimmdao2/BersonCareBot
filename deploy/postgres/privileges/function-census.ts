@@ -7469,23 +7469,10 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "status",
           "next_retry_at",
           "sent_at",
+          "dead_at",
           "created_at",
           "updated_at",
           "failure_class",
-          "organization_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.reminder_delivery_events",
-        "columns": [
-          "id",
-          "channel",
-          "status",
-          "created_at",
           "organization_id"
         ],
         "operations": [

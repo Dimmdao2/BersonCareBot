@@ -17,20 +17,6 @@ const occurrenceHistory: Array<{
   errorCode: string | null;
   occurredAt: string;
 }> = [];
-const deliveryEventsByIntegratorLogId = new Map<
-  string,
-  {
-    integratorDeliveryLogId: string;
-    integratorOccurrenceId: string;
-    integratorRuleId: string;
-    integratorUserId: string;
-    channel: string;
-    status: string;
-    errorCode: string | null;
-    payloadJson: Record<string, unknown>;
-    createdAt: string;
-  }
->();
 const contentGrantsByIntegratorGrantId = new Map<string, unknown>();
 
 export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
@@ -82,21 +68,6 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
       deliveryChannel: params.deliveryChannel ?? null,
       errorCode: params.errorCode ?? null,
       occurredAt: params.occurredAt,
-    });
-  },
-
-  async appendDeliveryEventFromProjection(params) {
-    if (deliveryEventsByIntegratorLogId.has(params.integratorDeliveryLogId)) return;
-    deliveryEventsByIntegratorLogId.set(params.integratorDeliveryLogId, {
-      integratorDeliveryLogId: params.integratorDeliveryLogId,
-      integratorOccurrenceId: params.integratorOccurrenceId,
-      integratorRuleId: params.integratorRuleId,
-      integratorUserId: params.integratorUserId,
-      channel: params.channel,
-      status: params.status,
-      errorCode: params.errorCode ?? null,
-      payloadJson: params.payloadJson ?? {},
-      createdAt: params.createdAt,
     });
   },
 

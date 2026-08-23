@@ -882,9 +882,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'персонала', defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало public.support_questions '
       + '16/16' } },
-  { t: 'integrator.user_reminder_delivery_logs', cls: 'P', org: true, why: 'журнал доставки напоминаний — не видно, '
-    + 'почему напоминание не дошло', pol: '⚠ evidence/18 §6: полная проекция в public.reminder_delivery_events '
-    + '(1735/1735 в обе стороны) — одна из двух таблиц уходит; какая, решает evidence/15' },
   { t: 'integrator.user_reminder_occurrences', cls: 'P', org: true, why: 'конкретные срабатывания напоминаний — '
     + 'напоминания не ставятся в очередь и дублируются', pol: 'опирается на reminder_rules; после волны 3 проверить, '
     + 'на что смотрит ветка' },
@@ -1340,9 +1337,6 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.reference_items', cls: 'C', org: true, wall: 'reference-org-copy', why: 'элементы справочников '
     + 'клиники — без них выпадающие списки каталогов пусты', wallWhy: W_REF_COPY, pol: 'та же эталонная форма D3, '
     + 'что у reference_categories' },
-  { t: 'public.reminder_delivery_events', cls: 'P', org: true, why: 'события доставки напоминаний из интегратора — '
-    + 'без неё не видно, дошло ли напоминание, и не считается здоровье конвейера', pol: '⚠ evidence/18 §6: дубль '
-    + 'integrator.user_reminder_delivery_logs 1735/1735 — одна из двух уходит' },
   { t: 'public.reminder_journal', cls: 'P', org: true, why: 'действия пациента с напоминанием — без неё пациент не '
     + 'видит истории «отложил/пропустил»', defect: ['D27-empty-org-discriminator'],
     gate: ['O3-empty-tenant-discriminator'] },
@@ -2703,11 +2697,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.bootstrap-phone-bind',
       functionIdentity: 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)' },
-    integrator_delivery_reminder_delivery_event_append: { port: 'integrator',
-      runtimeName: 'delivery_reminder_delivery_event_append', sessionRole: 'app_integrator_request',
-      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
-      purpose: 'integrator.reminder-delivery-event.append',
-      functionIdentity: 'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)' },
     // Корень уже есть и делает ровно это (`integrator_support_delivery_attempt_record` на порту
     // вебаппа) — второй не заводим, добавляем этой же функции дверь с порта интегратора.
     // Ключ обязан отличаться от ключа двери вебаппа: каталог — один объектный литерал, и одинаковый
@@ -6672,26 +6661,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_operational_delivery_worker'],
-      purpose: 'integrator.reminder-delivery-event.append',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'bigint', 'text', 'text', 'text', 'text',
-        'timestamp with time zone'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.reminder_delivery_events',
-          columns: ['organization_id', 'integrator_delivery_log_id', 'integrator_occurrence_id',
-            'integrator_rule_id', 'integrator_user_id', 'channel', 'status', 'error_code',
-            'payload_json', 'created_at'],
-          // Тело вставляет с `ON CONFLICT (<арбитр>) DO NOTHING`: указанный арбитр заставляет PostgreSQL
-          // ПРОЧИТАТЬ конфликтующую строку, поэтому одного INSERT для исполнения тела не хватает.
-          operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'integrator.direct_public_write_retries',
-          columns: ['status', 'operation', 'organization_id', 'payload'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
     'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
       execute: ['app_integrator_request'], purpose: 'integrator.notification-delivery-attempt.record',
@@ -7964,7 +7933,6 @@ const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
  * (active staff OR patient enrollment), or P (an exact current-org parent).
  */
 const REV10_TENANT_DIRECT_ORG = new Set([
-  'integrator.user_reminder_delivery_logs',
   'integrator.user_reminder_occurrences',
   'public.be_appointment_staff_comments', 'public.be_appointments', 'public.be_organization_members',
   'public.be_organizations', 'public.be_package_usages', 'public.be_patient_booking_profiles',
@@ -8250,31 +8218,6 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = (SELECT app.current_org_id()) AND access_member.status = 'active'))`;
   if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
   return `(${rolePredicate})`;
-}
-
-function revision10DeliveryReplayPolicies(tableKey: string, index: number): PolicyDecl[] | undefined {
-  const deliveryRole = 'app_operational_delivery_worker';
-  const staffRole = 'app_staff';
-  if (tableKey === 'public.reminder_delivery_events') {
-    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
-      + ` WHERE claimed_retry.status = 'processing'`
-      + ` AND claimed_retry.operation = 'reminder_delivery_log_append'`
-      + ' AND claimed_retry.organization_id = reminder_delivery_events.organization_id'
-      + ` AND claimed_retry.payload ->> 'organizationId' = reminder_delivery_events.organization_id::text`
-      + ` AND claimed_retry.payload ->> 'integratorDeliveryLogId' = reminder_delivery_events.integrator_delivery_log_id))`;
-    const staffWall = '(organization_id = (SELECT app.current_org_id())'
-      + ' OR (app.current_integrator_user_id() IS NOT NULL'
-      + ' AND integrator_user_id = app.current_integrator_user_id()))';
-    return [
-      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
-        to: [deliveryRole], using: workerWall, withCheck: workerWall,
-        note: 'delivery replay may append only the organization and event named by a claimed retry' },
-      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
-        to: [staffRole], using: staffWall, withCheck: staffWall,
-        note: 'staff reaches delivery events only inside its accepted organization context' },
-    ];
-  }
-  return undefined;
 }
 
 function revision10CoursesPolicies(index: number): PolicyDecl[] {
@@ -8602,14 +8545,11 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       'public.be_patient_booking_profiles', 'public.content_access_grants_webapp', 'public.content_pages',
       'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
-      'public.reminder_delivery_events', 'public.reminder_occurrence_history',
+      'public.reminder_occurrence_history',
       'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
-    const deliveryReplayPolicies = access?.kind === 'direct'
-      ? revision10DeliveryReplayPolicies(key, index)
-      : undefined;
-    const directBusiness: PolicyDecl[] = deliveryReplayPolicies
-      ?? (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
+    const directBusiness: PolicyDecl[] =
+      (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
         using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
         note: `exact direct role business wall for ${key}`,

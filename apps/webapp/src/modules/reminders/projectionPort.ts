@@ -25,17 +25,6 @@ export type ReminderProjectionPort = {
     errorCode: string | null;
     occurredAt: string;
   }): Promise<void>;
-  appendDeliveryEventFromProjection(params: {
-    integratorDeliveryLogId: string;
-    integratorOccurrenceId: string;
-    integratorRuleId: string;
-    integratorUserId: string;
-    channel: string;
-    status: string;
-    errorCode: string | null;
-    payloadJson: Record<string, unknown>;
-    createdAt: string;
-  }): Promise<void>;
   upsertContentAccessGrantFromProjection(params: {
     integratorGrantId: string;
     integratorUserId: string;
