@@ -1,5 +1,14 @@
 # D25 focused re-audit — token-bound claim → provider contact (#984)
 
+## Тест или взгляд
+
+- **Новое повторяемое поведение → тест + одна инъекция на независимый класс:** signed claim,
+  exact claim/contact match, replacement/concurrency, provider proof and retry/code delivery.
+- **Разовое качество изменения → взгляд + catalog/generated inspection:** migration markers,
+  owners, index, exact relation/body/capability privileges, generated artifacts and removal of active generic
+  contact writers/fallbacks.
+- **Граница scope → взгляд:** no Therapysto initiative/branding changes and no broadcast/relay broadening.
+
 Role: independent `auditor-live` on `/home/dev/dev-projects/bcb-wt-d25-token-bound-bot-20260823`, branch
 `wt/d25-token-bound-bot-20260823`. Candidate implementation is `06165b670`; evidence commit is `92a31d944`.
 Return exactly `PASS, FOR LAND` or `FAIL, NOT FOR LAND`, commit the audit artifact and queue row, and leave a
@@ -70,4 +79,3 @@ Classify each item under §24.4. A finding needs a reachable scenario, impact an
   verdict row in `docs/_TODO/NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`. No product fix. Stage explicit paths only;
   never `git add -A`. Commit message contains `#984` and leave the tree clean.
 - No deploy, push, TEST/PROD, real bot token read/output, outbound delivery or taskdb edit.
-
