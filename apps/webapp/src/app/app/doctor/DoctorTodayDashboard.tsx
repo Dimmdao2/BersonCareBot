@@ -25,6 +25,7 @@ import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileVi
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
 import { DoctorTodayNextAppointment } from './DoctorTodayNextAppointment';
+import { DoctorTodayQuickActions } from './DoctorTodayQuickActions';
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
@@ -236,7 +237,7 @@ export function DoctorTodayDashboard({
   };
 
   return (
-    <div id="doctor-today-dashboard" className={doctorPageStackClass}>
+    <div id="doctor-today-dashboard" className={`${doctorPageStackClass} pb-12 md:pb-0`}>
       <DoctorPageHeader id="doctor-today-header" title="Сегодня" />
 
       <div
@@ -342,6 +343,10 @@ export function DoctorTodayDashboard({
             />
           </DoctorModal>
         </>
+      ) : null}
+
+      {isMobile ? (
+        <DoctorTodayQuickActions todayIso={calendarSnapshot.todayIso} displayIana={displayIana} />
       ) : null}
     </div>
   );
