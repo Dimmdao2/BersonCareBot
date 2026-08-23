@@ -2,8 +2,9 @@
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.email_auth_start_challenge(uuid,text,text,bigint,text,text)'::regprocedure), 'RAISE EXCEPTION ''email_auth_start_challenge: mail_profile_required''') > 0 AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.email_auth_start_challenge(uuid,text,text,bigint,text,text)'::regprocedure), 'public.email_challenges') = 0 AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)'::regprocedure), '''mailProfile''') > 0 AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.read_integrator_clinic_delivery_credential(text,uuid)'::regprocedure), 'clinic_transactional_mail_template') > 0 AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.read_integrator_clinic_delivery_credential(text,uuid)'::regprocedure), 'AND setting.organization_id = app.current_org_id()') > 0;
--- C4: the six-argument entry can no longer invent a sender. It remains as a fail-closed trap so a
--- stale caller cannot enqueue a platform-branded message after the profile-aware overload lands.
+-- C4 delivery correction: the original tag was already present in live ledgers. Replacing both
+-- email-start overloads and the tenant-bound template reader delivers the accepted bodies to
+-- existing databases.
 CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
   p_user_id uuid, p_email text, p_code_hash text, p_expires_at bigint, p_purpose text, p_code text
 )
@@ -167,12 +168,6 @@ END
 $function$;
 
 --> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
-COMMENT ON FUNCTION app.email_auth_start_challenge(
-  uuid, text, text, bigint, text, text, text, text, uuid, text, text
-) IS 'Exact pre-session root that requires surface-resolved mail profile data before enqueue.';
-
---> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: sql
@@ -186,6 +181,8 @@ STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
+  SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_tenant_service'::name]::name[]);
+
   SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE p_organization_id IS NOT NULL

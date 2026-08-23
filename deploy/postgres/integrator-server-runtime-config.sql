@@ -315,6 +315,8 @@ STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog
 AS $function$
+  SELECT app.require_attested_context_for_roles('app_seam_settings_integrator_owner'::name, ARRAY['app_tenant_service'::name]::name[]);
+
   SELECT setting.value_json
   FROM public.system_settings AS setting
   WHERE p_organization_id IS NOT NULL
@@ -323,11 +325,13 @@ AS $function$
       'clinic_smsc_api_key',
       'clinic_telegram_bot_token',
       'clinic_max_bot_api_key',
+      'clinic_vk_community_access_token',
       'clinic_transactional_mail_template'
     )
     AND setting.key = p_key
     AND setting.scope = 'admin'
     AND setting.organization_id = p_organization_id
+    AND setting.organization_id = app.current_org_id()
   LIMIT 1
 $function$;
 
