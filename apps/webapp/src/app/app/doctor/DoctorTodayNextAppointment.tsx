@@ -56,6 +56,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
         visitDate: appointment.visitDate,
       })
     : null;
+  const appointmentComment = appointment?.comment?.trim() || null;
 
   function cancelAppointment() {
     if (!appointment) return;
@@ -92,16 +93,23 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
     <DoctorSection id="doctor-today-next-appointment">
       <DoctorSectionHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
         <DoctorSectionTitle>
-          {appointment?.isCurrent
-            ? 'Сейчас на приеме'
-            : appointment
-              ? `Следующий прием${appointment.relativeLabel ? `: ${appointment.relativeLabel}` : ''}`
-              : 'Следующий прием: нет записей'}
+          {appointment?.isCurrent ? (
+            'Сейчас на приеме'
+          ) : appointment ? (
+            appointment.relativeLabel ? (
+              <>
+                Следующий прием:{' '}
+                <span className="block md:inline">{appointment.relativeLabel}</span>
+              </>
+            ) : (
+              'Следующий прием'
+            )
+          ) : (
+            'Следующий прием: нет записей'
+          )}
         </DoctorSectionTitle>
         {appointment ? (
-          <p className="shrink-0 text-sm font-medium tabular-nums">
-            {appointment.dateTimeLabel}
-          </p>
+          <p className="shrink-0 text-sm font-medium tabular-nums">{appointment.dateTimeLabel}</p>
         ) : null}
       </DoctorSectionHeader>
 
@@ -113,10 +121,12 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
                 <dt className="text-muted-foreground">Клиент</dt>
                 <dd className="min-w-0 truncate">{appointment.clientLabel}</dd>
               </div>
-              <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
-                <dt className="text-muted-foreground">Комментарий</dt>
-                <dd className="min-w-0 whitespace-pre-wrap">{appointment.comment ?? '—'}</dd>
-              </div>
+              {appointmentComment ? (
+                <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
+                  <dt className="text-muted-foreground">Комментарий</dt>
+                  <dd className="min-w-0 whitespace-pre-wrap">{appointmentComment}</dd>
+                </div>
+              ) : null}
             </dl>
           </div>
 

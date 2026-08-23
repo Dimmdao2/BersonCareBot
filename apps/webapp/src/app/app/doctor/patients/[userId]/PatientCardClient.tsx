@@ -360,13 +360,14 @@ export function PatientCardClient({
       <DoctorPageHeader
         id="doctor-patient-card-header"
         title="Карточка пациента"
+        showTabsOnMobile
         tabs={
           <div className="flex min-w-0 items-center gap-2">
             <Link
               href={patientListHref}
               className={cn(
                 buttonVariants({ size: 'sm', variant: 'outline' }),
-                'h-8 shrink-0 rounded-[var(--doctor-control-radius,24px)] px-3',
+                'hidden h-8 shrink-0 rounded-[var(--doctor-control-radius,24px)] px-3 md:inline-flex',
               )}
             >
               К клиентам
