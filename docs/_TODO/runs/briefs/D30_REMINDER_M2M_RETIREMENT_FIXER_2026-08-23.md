@@ -7,13 +7,7 @@
 коммита: старый webapp → integrator канал `reminder_rule_upsert` и его `public.integrator_push_outbox` полностью
 удалены из активного runtime/deploy/privilege/health-контура, а канонические напоминания и доставка не сломаны.
 
-## Источник оракула
-
-`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` фиксирует решение владельца
-«интегратору остаётся только доставка входа, а создание учётки, доверие к телефону и синхронизация личности — вебаппу»
-и D5 «`public.reminder_rules` — единственный бизнес-источник и для CRUD, и для чтения планировщиком»;
-`docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` называет точное следствие
-«Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом `reminder_rule_upsert`».
+**Источник оракула:** `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — «интегратору остаётся только доставка входа, а создание учётки, доверие к телефону и синхронизация личности — вебаппу»; `docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` — «Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом `reminder_rule_upsert`».
 
 Repo-rule `AGENTS.md` §5 требует один общий проход: не заводи новую очередь, второй health-root, новый wrapper или
 compat-путь; расширяй/сохраняй существующий `outgoing_delivery_queue` и общий maintenance tick.
