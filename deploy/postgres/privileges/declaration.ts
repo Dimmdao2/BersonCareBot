@@ -5243,6 +5243,11 @@ const REV10_CONTEXT = {
     // отмычкой ко всей базе. Незнакомая метка не выполняется, а отказывает (22023).
     // Владелец 19.08: «уборка — это одинаковое действие, и не хочется плодить дубли»,
     // «закрытый список — супер».
+    // Track D final cutover (#987), §C: 5 branches added on top of the owner's 08-08 four —
+    // docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md "Правила хранения",
+    // the still-live, still-unpruned journals (context_nonce_ledger excluded — separate root below,
+    // its ACL grants nothing but its own owner; delivery_attempt_logs/message_retry_jobs/
+    // projection_outbox excluded — already dropped by earlier Track D migrations).
     'app.prune_retention_target(text,integer,boolean)': rev10Function({
       owner: 'app_seam_retention_sweep_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_operational_maintenance'],
@@ -5260,6 +5265,36 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.product_push_notifications', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.idempotency_keys', columns: ['expires_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'integrator.idempotency_keys', columns: ['expires_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['status', 'sent_at', 'dead_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.notification_delivery_attempts', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Track D final cutover (#987), §C: app.context_nonce_ledger cannot join prune_retention_target
+    // above — its ACL (p2-b:356-359) grants nothing but its own owner, and its window is minutes, not
+    // days. Owner-owns-target: function owner = table owner, no relationSurface grant needed (same
+    // shape as app.install_signed_context in the legacy map — kept here as rev10Function so it types
+    // against this map's DeclaredFunction, with an empty relationSurfaces for the same reason).
+    'app.prune_context_nonce_ledger(integer,integer,boolean)': rev10Function({
+      owner: 'app_object_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
+      execute: ['app_operational_maintenance'],
+      purpose: 'реестр nonce закрыт от всех ролей (p2-b:356-359); прунер — единственный легальный вход, '
+        + 'владелец функции = владелец таблицы',
+      typedArgs: ['integer', 'integer', 'boolean'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'app.context_nonce_ledger', columns: ['nonce', 'expires_epoch'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],

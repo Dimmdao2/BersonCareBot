@@ -1,7 +1,9 @@
 import {
   OPERATOR_ANALYTICS_JOB_FAMILY,
   OPERATOR_BACKUP_JOB_FAMILY,
+  OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY,
   OPERATOR_HEALTH_JOB_FAMILY,
+  OPERATOR_MAINTENANCE_JOB_FAMILY,
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB_KEY,
   OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
@@ -137,6 +139,16 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     staleAfterSec: 8 * 24 * 60 * 60,
     kind: 'internal_http',
     internalPath: '/api/internal/product-analytics/retention',
+  },
+  {
+    id: 'db_journal_retention',
+    jobFamily: OPERATOR_MAINTENANCE_JOB_FAMILY,
+    jobKey: OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY,
+    label: 'Retention служебных журналов БД',
+    scheduleHint: 'ежечасно',
+    staleAfterSec: 3 * 60 * 60,
+    kind: 'internal_http',
+    internalPath: '/api/internal/db-journal-retention/tick',
   },
   {
     id: 'saas_billing_renewal_tick',
