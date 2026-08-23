@@ -82,7 +82,6 @@ export type DbReadPort = {
 
 /** Семантический отказ привязки телефона (TX `public` + integrator); не смешивать с конфликтом номера в UI. */
 export type PhoneLinkFailureReason =
-  | 'auth_channel_disabled'
   | 'no_channel_binding'
   | 'phone_owned_by_other_user'
   | 'integrator_id_mismatch'

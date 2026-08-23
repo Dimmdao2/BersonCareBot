@@ -65,7 +65,6 @@ export type BersoncareSendOtpDeps = {
   db: DbPort;
   dispatchPort: DispatchPort;
   sharedSecret: string;
-  isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
   idempotencyPort: IdempotencyPort;
 };
 
@@ -73,7 +72,7 @@ export async function registerBersoncareSendOtpRoute(
   app: FastifyInstance,
   deps: BersoncareSendOtpDeps,
 ): Promise<void> {
-  const { db, dispatchPort, sharedSecret, isAuthChannelEnabled, idempotencyPort } = deps;
+  const { db, dispatchPort, sharedSecret, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -110,9 +109,6 @@ export async function registerBersoncareSendOtpRoute(
     }
 
     const { channel, recipientId, code, idempotencyKey, mailProfile } = parsed.data;
-    if (!(await isAuthChannelEnabled(channel))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
-    }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }

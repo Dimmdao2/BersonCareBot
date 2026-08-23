@@ -214,22 +214,21 @@ export const SYSTEM_SETTING_REGISTRY = {
     'boolean',
     'false',
   ),
+  /**
+   * Legacy declarations retain the defaults copied into the surface matrix on F4 migration.
+   * Keep the matrix/live DEV set (email + passkey) because F4 must preserve today's login set;
+   * these rows are compatibility data only and no longer decide login availability.
+   */
   auth_email_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
   auth_sms_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
-  auth_telegram_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
-  auth_max_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
-  /**
-   * Independent admin toggles for OAuth login providers — decoupled from credential presence.
-   * `oauth_google_enabled` / `oauth_yandex_enabled` (below, restricted-derived) remain the
-   * "configured" signal (all required credentials present); the effective client-visible /
-   * server-enforced state is `auth_oauth_*_enabled AND oauth_*_enabled`. No Apple toggle
-   * (owner ruling 2026-07-24) — Apple OAuth stays purely credential-derived.
-   */
-  auth_oauth_google_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
-  auth_oauth_yandex_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
-  auth_oauth_vk_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
+  auth_telegram_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  auth_max_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  /** Legacy OAuth declarations; surface toggles are the effective admin controls. */
+  auth_oauth_google_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  auth_oauth_yandex_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  auth_oauth_vk_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
   auth_oauth_apple_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
-  auth_passkey_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  auth_passkey_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
   ...surfaceAuthSettingDefinitions,
   /**
    * Platform-wide availability of clinic-facing integrations. This is deliberately one

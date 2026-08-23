@@ -23,7 +23,6 @@ import {
   runWithOrganizationPrincipal,
 } from '../infra/principal/organizationPrincipal.js';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
-import { isAuthChannelEnabled } from '../infra/db/authChannelPolicy.js';
 import { recordOperatorFailureIncident } from '../infra/operatorIncident/reportOperatorFailure.js';
 import { getSmscRuntimeConfig, getTelegramRuntimeConfig } from '../infra/adapters/integrationRuntimeConfig.js';
 
@@ -89,9 +88,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   const resolveDedicatedTelegramBotOrganization =
     createResolveDedicatedClinicBotOrganization('telegram');
   const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
-  const authChannelPolicyDb = createDbPort();
-  const authChannelPolicy = (channel: 'email' | 'sms' | 'telegram' | 'max') =>
-    isAuthChannelEnabled(authChannelPolicyDb, channel);
   const recordOutboundProviderFailure = async (
     integration: 'email' | 'smsc',
     errorClass: OutboundProviderErrorClass,
@@ -113,7 +109,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareSendSmsRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    isAuthChannelEnabled: authChannelPolicy,
     recordProviderFailure: (reason) => recordOutboundProviderFailure('smsc', reason),
     idempotencyPort: deps.idempotencyPort,
   });
@@ -122,7 +117,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     sharedSecret: integratorWebhookSecret(),
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
-    isAuthChannelEnabled: authChannelPolicy,
     recordProviderFailure: (reason) => recordOutboundProviderFailure('email', reason),
     idempotencyPort: deps.idempotencyPort,
   });
@@ -143,7 +137,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   await registerBersoncareRequestContactRoute(app, {
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    isAuthChannelEnabled: authChannelPolicy,
     idempotencyPort: deps.idempotencyPort,
   });
 
@@ -151,7 +144,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     db: createDbPort(),
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
-    isAuthChannelEnabled: authChannelPolicy,
     idempotencyPort: deps.idempotencyPort,
   });
 

@@ -41,7 +41,6 @@ describe('webapp delivery seams idempotency', () => {
     await registerBersoncareSendSmsRoute(app, {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: secret,
-      isAuthChannelEnabled: async () => true,
       recordProviderFailure: async () => {},
       idempotencyPort: port(),
     });

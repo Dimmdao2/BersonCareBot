@@ -56,7 +56,6 @@ describe('POST /api/bersoncare/request-contact', () => {
     await registerBersoncareRequestContactRoute(app, {
       dispatchPort: { dispatchOutgoing },
       sharedSecret: SHARED_SECRET,
-      isAuthChannelEnabled: async () => true,
       idempotencyPort: idempotencyPort(),
     });
 

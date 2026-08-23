@@ -86,7 +86,6 @@ export type BersoncareSendEmailDeps = {
   db: DbPort;
   /** The single chokepoint for email delivery (PLAN S9). */
   dispatchPort: DispatchPort;
-  isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
   recordProviderFailure: (reason: OutboundProviderErrorClass) => Promise<void>;
   idempotencyPort: IdempotencyPort;
 };
@@ -109,14 +108,7 @@ export async function registerBersoncareSendEmailRoute(
   app: FastifyInstance,
   deps: BersoncareSendEmailDeps,
 ): Promise<void> {
-  const {
-    sharedSecret,
-    db,
-    dispatchPort,
-    isAuthChannelEnabled,
-    recordProviderFailure,
-    idempotencyPort,
-  } = deps;
+  const { sharedSecret, db, dispatchPort, recordProviderFailure, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -159,10 +151,6 @@ export async function registerBersoncareSendEmailRoute(
 
     const payload = parsed.data;
     const isAuthCode = Boolean(payload.code?.trim());
-    if (isAuthCode && !(await isAuthChannelEnabled('email'))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
-    }
-
     // Provider readiness follows policy so a disabled channel cannot probe provider state.
     const resolved = await resolveSmtpOutboundConfig(db);
     if (!isResolvedMailerConfigured(resolved)) {

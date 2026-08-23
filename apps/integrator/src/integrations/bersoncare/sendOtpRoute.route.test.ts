@@ -37,7 +37,6 @@ async function buildApp(dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent)
     db: {} as never,
     dispatchPort: { dispatchOutgoing },
     sharedSecret: SHARED_SECRET,
-    isAuthChannelEnabled: async () => true,
     idempotencyPort,
   });
   return { app, dispatchOutgoing };

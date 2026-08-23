@@ -31,7 +31,6 @@ import type { FinalizedReminderOccurrenceProjectionContext } from './repos/remin
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
 import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
-import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   upsertBootstrapChannelIdentity,
   normalizeChannelDisplayHandle,
@@ -119,8 +118,6 @@ export function createDbWritePort(
     webappEventsPort?: WebappEventsPort;
     /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
     getDispatchPort?: () => DispatchPort | undefined;
-    /** Injectable for deterministic tests; production reads canonical public.system_settings. */
-    authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
     /** Injectable boundary for the scheduler's orphan-expiry maintenance mutation. */
     expireOrphanedReminderOccurrences?: (
       db: DbPort,
@@ -134,9 +131,6 @@ export function createDbWritePort(
   const db = input.db ?? createDbPort();
   const webappEventsPort = input.webappEventsPort;
   const getDispatchPort = input.getDispatchPort;
-  const authChannelPolicy =
-    input.authChannelPolicy ??
-    ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
   const expireOrphanedReminderOccurrences =
     input.expireOrphanedReminderOccurrences ?? expireOrphanedPendingReminderOccurrences;
   const queuePort: QueuePort =
@@ -179,7 +173,6 @@ export function createDbWritePort(
       db: txDb,
       ...(webappEventsPort !== undefined ? { webappEventsPort } : {}),
       ...(getDispatchPort !== undefined ? { getDispatchPort } : {}),
-      authChannelPolicy,
       expireOrphanedReminderOccurrences,
     });
   }
@@ -269,10 +262,6 @@ export function createDbWritePort(
           if (!channelUserId || !phoneNormalized) {
             logger.warn({ ...bindLogBase, reason: 'missing_input' }, 'bind_tx_fail');
             return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
-          }
-          if (!(await authChannelPolicy(resource))) {
-            logger.warn({ ...bindLogBase, reason: 'auth_channel_disabled' }, 'bind_tx_fail');
-            return { userPhoneLinkApplied: false, phoneLinkReason: 'auth_channel_disabled' };
           }
           const phoneSuffix = phoneLogSuffix(phoneNormalized);
           // D25: one exact named root (`app.integrator_bind_bootstrap_channel_phone`), entered through

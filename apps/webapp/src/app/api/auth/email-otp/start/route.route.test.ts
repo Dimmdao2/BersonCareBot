@@ -24,7 +24,9 @@ const fakes = vi.hoisted(() => ({
   ensureAuthModulePortsBound: vi.fn(),
   buildAppDeps: vi.fn(),
   isEmailOtpStartRateLimitedByKey: vi.fn(),
-  isAuthChannelEnabled: vi.fn(),
+  publicValues: new Map<string, boolean>(),
+  requestSurface: { value: 'staff' as 'staff' | 'patient_default' },
+  getPublicRuntimeBool: vi.fn<(key: string) => Promise<boolean>>(),
   startPublicEmailOtpChallenge: vi.fn<(email: string, db: object) => Promise<StartResult>>(),
   resolveRealIpRateLimitClientKey: vi.fn(),
 }));
@@ -40,9 +42,23 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps
 vi.mock('@/modules/auth/authRateLimits', () => ({
   isEmailOtpStartRateLimitedByKey: fakes.isEmailOtpStartRateLimitedByKey,
 }));
-vi.mock('@/modules/auth/authChannelPolicy', () => ({
-  AUTH_CHANNEL_DISABLED_ERROR: 'auth_channel_disabled',
-  isAuthChannelEnabled: fakes.isAuthChannelEnabled,
+vi.mock('@/modules/system-settings/configAdapter', () => ({
+  getPublicRuntimeBool: fakes.getPublicRuntimeBool,
+}));
+vi.mock('next/headers', () => ({
+  headers: async () =>
+    new Headers({
+      'x-bc-resolved-surface': encodeURIComponent(
+        JSON.stringify({
+          surface: fakes.requestSurface.value,
+          publicOrigin: 'https://surface.example.test',
+          authPolicy: {
+            availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
+            enabledMethods: ['email_code'],
+          },
+        }),
+      ),
+    }),
 }));
 vi.mock('@/modules/auth/emailOtpPublic', () => ({
   startPublicEmailOtpChallenge: fakes.startPublicEmailOtpChallenge,
@@ -71,7 +87,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-03T09:00:00.000Z'));
-  fakes.isAuthChannelEnabled.mockResolvedValue(true);
+  fakes.publicValues.clear();
+  fakes.requestSurface.value = 'staff';
+  fakes.publicValues.set('auth_surface_staff_email_enabled', true);
+  fakes.getPublicRuntimeBool.mockImplementation(async (key) => {
+    const value = fakes.publicValues.get(key);
+    if (value === undefined) throw new Error(`missing public projection: ${key}`);
+    return value;
+  });
   fakes.resolveRealIpRateLimitClientKey.mockReturnValue({ ok: true, key: '203.0.113.12' });
   fakes.isEmailOtpStartRateLimitedByKey.mockResolvedValue(false);
   fakes.buildAppDeps.mockReturnValue({ emailOtpPublicDb: {} });
@@ -87,6 +110,33 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
+  it('uses the resolved-surface header as the sole delivery gate in both directions', async () => {
+    fakes.publicValues.set('auth_surface_staff_email_enabled', true);
+    fakes.publicValues.set('auth_surface_patient_email_enabled', false);
+
+    fakes.requestSurface.value = 'patient_default';
+    const patientDenied = await resolveAfterPublicFloor(POST(request()));
+    fakes.requestSurface.value = 'staff';
+    const staffAllowed = await resolveAfterPublicFloor(POST(request()));
+
+    expect(patientDenied.status).toBe(503);
+    expect(staffAllowed.status).toBe(200);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
+
+    fakes.startPublicEmailOtpChallenge.mockClear();
+    fakes.publicValues.set('auth_surface_staff_email_enabled', false);
+    fakes.publicValues.set('auth_surface_patient_email_enabled', true);
+
+    fakes.requestSurface.value = 'staff';
+    const staffDenied = await resolveAfterPublicFloor(POST(request()));
+    fakes.requestSurface.value = 'patient_default';
+    const patientAllowed = await resolveAfterPublicFloor(POST(request()));
+
+    expect(staffDenied.status).toBe(503);
+    expect(patientAllowed.status).toBe(200);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {
     const results: StartResult[] = [
       { ok: true, challengeId: '00000000-0000-4000-8000-000000000101', retryAfterSeconds: 60 },

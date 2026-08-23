@@ -17,31 +17,25 @@ export type AuthChannelPolicy = Readonly<Record<AuthChannel, boolean>>;
 
 export const AUTH_CHANNEL_DISABLED_ERROR = 'auth_channel_disabled' as const;
 
-const SETTING_BY_CHANNEL = {
-  email: 'auth_email_enabled',
-  sms: 'auth_sms_enabled',
-  telegram: 'auth_telegram_enabled',
-  max: 'auth_max_enabled',
-} as const;
-
 async function currentSurfacePolicyName(
   explicit?: SurfaceAuthPolicyName,
 ): Promise<SurfaceAuthPolicyName | null> {
   if (explicit) return explicit;
-  const resolved = await getOptionalResolvedSurface();
-  return resolved ? authPolicyNameForRequestSurface(resolved.surface) : null;
+  try {
+    const resolved = await getOptionalResolvedSurface();
+    return resolved ? authPolicyNameForRequestSurface(resolved.surface) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function getSurfaceAwareToggle(
   control: SurfaceAuthControl,
-  legacyKey: Parameters<typeof getPublicRuntimeBool>[0],
   explicitSurface?: SurfaceAuthPolicyName,
 ): Promise<boolean> {
   const surface = await currentSurfacePolicyName(explicitSurface);
-  return getPublicRuntimeBool(
-    surface ? surfaceAuthSettingKey(surface, control) : legacyKey,
-    'public_auth_config',
-  );
+  if (!surface) return false;
+  return getPublicRuntimeBool(surfaceAuthSettingKey(surface, control), 'public_auth_config');
 }
 
 /** Admin toggle only — unchanged contract (pre-existing, ~30 server-enforcing routes rely on this). */
@@ -49,7 +43,7 @@ export async function isAuthChannelEnabled(
   channel: AuthChannel,
   surface?: SurfaceAuthPolicyName,
 ): Promise<boolean> {
-  return getSurfaceAwareToggle(channel, SETTING_BY_CHANNEL[channel], surface);
+  return getSurfaceAwareToggle(channel, surface);
 }
 
 export async function getAuthChannelPolicy(
@@ -96,13 +90,6 @@ export type { OAuthProvider };
 export type OAuthProviderDetail = Readonly<{ enabled: boolean; configured: boolean }>;
 export type OAuthProviderPolicyDetail = Readonly<Record<OAuthProvider, OAuthProviderDetail>>;
 
-const OAUTH_TOGGLE_SETTING_BY_PROVIDER = {
-  google: 'auth_oauth_google_enabled',
-  yandex: 'auth_oauth_yandex_enabled',
-  apple: 'auth_oauth_apple_enabled',
-  vk: 'auth_oauth_vk_enabled',
-} as const;
-
 const OAUTH_CONFIGURED_SETTING_BY_PROVIDER = {
   google: 'oauth_google_enabled',
   yandex: 'oauth_yandex_enabled',
@@ -120,7 +107,7 @@ export async function isOAuthProviderEnabled(
   surface?: SurfaceAuthPolicyName,
 ): Promise<boolean> {
   const [enabled, configured] = await Promise.all([
-    getSurfaceAwareToggle(`oauth_${provider}`, OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider], surface),
+    getSurfaceAwareToggle(`oauth_${provider}`, surface),
     isOAuthProviderConfigured(provider),
   ]);
   return enabled && configured;
@@ -133,11 +120,7 @@ export async function getOAuthProviderPolicyDetail(
   const entries = await Promise.all(
     OAUTH_PROVIDERS.map(async (provider) => {
       const [enabled, configured] = await Promise.all([
-        getSurfaceAwareToggle(
-          `oauth_${provider}`,
-          OAUTH_TOGGLE_SETTING_BY_PROVIDER[provider],
-          surface,
-        ),
+        getSurfaceAwareToggle(`oauth_${provider}`, surface),
         isOAuthProviderConfigured(provider),
       ]);
       return [provider, { enabled, configured }] as const;
@@ -148,14 +131,10 @@ export async function getOAuthProviderPolicyDetail(
 
 export type IndependentAuthMethod = 'passkey';
 
-const AUTH_METHOD_TOGGLE_SETTING = {
-  passkey: 'auth_passkey_enabled',
-} as const;
-
 /** Server-side gate for independent login methods; false is the safe default for both. */
 export async function isIndependentAuthMethodEnabled(
   method: IndependentAuthMethod,
   surface?: SurfaceAuthPolicyName,
 ): Promise<boolean> {
-  return getSurfaceAwareToggle(method, AUTH_METHOD_TOGGLE_SETTING[method], surface);
+  return getSurfaceAwareToggle(method, surface);
 }

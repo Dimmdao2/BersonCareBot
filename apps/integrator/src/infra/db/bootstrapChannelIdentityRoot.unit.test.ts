@@ -97,7 +97,7 @@ describe('user.upsert bootstrap boundary', () => {
         throw new Error('bootstrap user.phone.link must not receive a relation transaction');
       },
     };
-    const port = createDbWritePort({ db, authChannelPolicy: async () => true });
+    const port = createDbWritePort({ db });
 
     const result = await runWithDbBootstrapPrincipal({ source: 'bootstrap-phone-root-test' }, () =>
       port.writeDb({
@@ -134,7 +134,7 @@ describe('user.upsert bootstrap boundary', () => {
         throw new Error('bootstrap user.phone.link must not receive a relation transaction');
       },
     };
-    const port = createDbWritePort({ db, authChannelPolicy: async () => true });
+    const port = createDbWritePort({ db });
 
     const result = await runWithDbBootstrapPrincipal(
       { source: 'bootstrap-phone-conflict-test' },
@@ -225,7 +225,7 @@ describe('user.upsert / user.phone.link under organization/integrator principal'
         );
       },
     };
-    const port = createDbWritePort({ db, authChannelPolicy: async () => true });
+    const port = createDbWritePort({ db });
 
     const result = await runWithIntegratorPrincipal(
       {
@@ -267,7 +267,7 @@ describe('user.upsert / user.phone.link under organization/integrator principal'
         );
       },
     };
-    const port = createDbWritePort({ db, authChannelPolicy: async () => true });
+    const port = createDbWritePort({ db });
 
     const result = await runWithIntegratorPrincipal(
       {

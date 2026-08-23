@@ -46,7 +46,6 @@ function verifySignature(
 export type BersoncareRequestContactDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
-  isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
   /** Durable dedup store (`integrator.idempotency_keys`) — survives process restarts/replicas. */
   idempotencyPort: IdempotencyPort;
 };
@@ -55,12 +54,7 @@ export async function registerBersoncareRequestContactRoute(
   app: FastifyInstance,
   deps: BersoncareRequestContactDeps,
 ): Promise<void> {
-  const {
-    dispatchPort,
-    sharedSecret,
-    isAuthChannelEnabled,
-    idempotencyPort,
-  } = deps;
+  const { dispatchPort, sharedSecret, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -97,9 +91,6 @@ export async function registerBersoncareRequestContactRoute(
     }
 
     const { channel, recipientId, idempotencyKey } = parsed.data;
-    if (!(await isAuthChannelEnabled(channel))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
-    }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, DEDUP_TTL_MS / 1000))) {
       logger.info({ idempotencyKey }, 'request-contact: duplicate, skipping');
       return reply.code(200).send({ ok: true, status: 'duplicate' });

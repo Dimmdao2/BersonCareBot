@@ -8,6 +8,8 @@ const fakes = vi.hoisted(() => ({
   getConfigValue: vi.fn<(key: string) => Promise<string>>(),
   getTelegramBotToken: vi.fn<() => Promise<string>>(),
   getMaxBotApiKey: vi.fn<() => Promise<string>>(),
+  resolvedSurfaceHeaderPresent: { value: true },
+  requestSurface: { value: 'staff' as 'staff' | 'platform_admin' | 'patient_default' },
 }));
 
 vi.mock('@/modules/system-settings/configAdapter', () => ({
@@ -19,9 +21,27 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getTelegramBotToken: fakes.getTelegramBotToken,
   getMaxBotApiKey: fakes.getMaxBotApiKey,
 }));
+vi.mock('next/headers', () => ({
+  headers: async () => {
+    if (!fakes.resolvedSurfaceHeaderPresent.value) return new Headers();
+    return new Headers({
+      'x-bc-resolved-surface': encodeURIComponent(
+        JSON.stringify({
+          surface: fakes.requestSurface.value,
+          publicOrigin: 'https://surface.example.test',
+          authPolicy: {
+            availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
+            enabledMethods: ['email_code'],
+          },
+        }),
+      ),
+    });
+  },
+}));
 
 import { getAnonymousClientVisibleAuthChannelPolicy } from './anonymousAuthChannelPolicy';
 import {
+  isAuthChannelEnabled,
   getAuthChannelPolicy,
   isIndependentAuthMethodEnabled,
   isOAuthProviderEnabled,
@@ -33,11 +53,14 @@ import {
   SURFACE_AUTH_POLICY_NAMES,
   surfaceAuthSettingKey,
 } from './surfaceAuthSettings';
+import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
 
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.publicValues.clear();
   fakes.configuredChannels.clear();
+  fakes.resolvedSurfaceHeaderPresent.value = true;
+  fakes.requestSurface.value = 'staff';
   fakes.getPublicRuntimeBool.mockImplementation(async (key) => {
     const value = fakes.publicValues.get(key);
     if (value === undefined) throw new Error(`missing public projection: ${key}`);
@@ -66,6 +89,10 @@ beforeEach(() => {
   fakes.getMaxBotApiKey.mockResolvedValue('fixture-max-key');
 });
 
+function selectPolicySurface(surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]): void {
+  fakes.requestSurface.value = surface === 'patient' ? 'patient_default' : surface;
+}
+
 describe('public auth policy', () => {
   it('preserves every login toggle on all three surfaces after the legacy-value migration', async () => {
     const migratedValues = {
@@ -90,15 +117,16 @@ describe('public auth policy', () => {
     }
 
     for (const surface of SURFACE_AUTH_POLICY_NAMES) {
-      await expect(getAuthChannelPolicy(surface)).resolves.toEqual({
+      selectPolicySurface(surface);
+      await expect(getAuthChannelPolicy()).resolves.toEqual({
         email: true,
         sms: false,
         telegram: false,
         max: false,
       });
-      await expect(isIndependentAuthMethodEnabled('passkey', surface)).resolves.toBe(true);
+      await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(true);
       for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
-        await expect(isOAuthProviderEnabled(provider, surface)).resolves.toBe(false);
+        await expect(isOAuthProviderEnabled(provider)).resolves.toBe(false);
       }
     }
   });
@@ -111,16 +139,48 @@ describe('public auth policy', () => {
     }
     fakes.publicValues.set(surfaceAuthSettingKey('patient', 'email'), false);
 
-    await expect(getAuthChannelPolicy('staff')).resolves.toMatchObject({ email: true });
-    await expect(getAuthChannelPolicy('platform_admin')).resolves.toMatchObject({ email: true });
-    await expect(getAuthChannelPolicy('patient')).resolves.toMatchObject({ email: false });
+    selectPolicySurface('staff');
+    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+    selectPolicySurface('platform_admin');
+    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: true });
+    selectPolicySurface('patient');
+    await expect(getAuthChannelPolicy()).resolves.toMatchObject({ email: false });
+  });
+
+  it('fails closed when the trusted resolved-surface header is missing', async () => {
+    fakes.resolvedSurfaceHeaderPresent.value = false;
+    fakes.publicValues.set('auth_email_enabled', true);
+
+    await expect(isAuthChannelEnabled('email')).resolves.toBe(false);
+    expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
+  });
+
+  it('declares the same fresh-environment defaults for legacy and all surface keys', () => {
+    const legacyKeyByControl = {
+      email: 'auth_email_enabled',
+      sms: 'auth_sms_enabled',
+      telegram: 'auth_telegram_enabled',
+      max: 'auth_max_enabled',
+      oauth_google: 'auth_oauth_google_enabled',
+      oauth_yandex: 'auth_oauth_yandex_enabled',
+      oauth_vk: 'auth_oauth_vk_enabled',
+      oauth_apple: 'auth_oauth_apple_enabled',
+      passkey: 'auth_passkey_enabled',
+    } as const;
+
+    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+      for (const control of SURFACE_AUTH_CONTROLS) {
+        expect(SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue).toBe(
+          SYSTEM_SETTING_REGISTRY[legacyKeyByControl[control]].defaultValue,
+        );
+      }
+    }
   });
 
   it('uses only boolean capabilities to hide an unconfigured channel from anonymous login', async () => {
-    fakes.publicValues.set('auth_email_enabled', true);
-    fakes.publicValues.set('auth_sms_enabled', true);
-    fakes.publicValues.set('auth_telegram_enabled', true);
-    fakes.publicValues.set('auth_max_enabled', true);
+    for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
+      fakes.publicValues.set(surfaceAuthSettingKey('staff', channel), true);
+    }
     fakes.configuredChannels.set('email', true);
     fakes.configuredChannels.set('sms', false);
     fakes.configuredChannels.set('telegram', true);
@@ -135,13 +195,13 @@ describe('public auth policy', () => {
   });
 
   it('hides a configured channel when its global admin toggle is disabled', async () => {
-    for (const [key, value] of [
-      ['auth_email_enabled', true],
-      ['auth_sms_enabled', true],
-      ['auth_telegram_enabled', true],
-      ['auth_max_enabled', false],
+    for (const [control, value] of [
+      ['email', true],
+      ['sms', true],
+      ['telegram', true],
+      ['max', false],
     ] as const) {
-      fakes.publicValues.set(key, value);
+      fakes.publicValues.set(surfaceAuthSettingKey('staff', control), value);
     }
     for (const channel of ['email', 'sms', 'telegram', 'max']) {
       fakes.configuredChannels.set(channel, true);
@@ -156,14 +216,14 @@ describe('public auth policy', () => {
   });
 
   it.each([
-    ['google', 'auth_oauth_google_enabled', 'oauth_google_enabled'],
-    ['yandex', 'auth_oauth_yandex_enabled', 'oauth_yandex_enabled'],
-    ['apple', 'auth_oauth_apple_enabled', 'oauth_apple_enabled'],
-    ['vk', 'auth_oauth_vk_enabled', 'oauth_vk_enabled'],
+    ['google', 'oauth_google', 'oauth_google_enabled'],
+    ['yandex', 'oauth_yandex', 'oauth_yandex_enabled'],
+    ['apple', 'oauth_apple', 'oauth_apple_enabled'],
+    ['vk', 'oauth_vk', 'oauth_vk_enabled'],
   ] as const)(
     'uses the %s public configured projection as the OAuth availability answer',
-    async (provider, toggleKey, configuredKey) => {
-      fakes.publicValues.set(toggleKey, true);
+    async (provider, toggleControl, configuredKey) => {
+      fakes.publicValues.set(surfaceAuthSettingKey('staff', toggleControl), true);
       fakes.publicValues.set(configuredKey, false);
 
       await expect(isOAuthProviderEnabled(provider as OAuthProvider)).resolves.toBe(false);
@@ -171,13 +231,8 @@ describe('public auth policy', () => {
   );
 
   it('keeps credential-backed configured detail on the authenticated admin accessor', async () => {
-    for (const key of [
-      'auth_email_enabled',
-      'auth_sms_enabled',
-      'auth_telegram_enabled',
-      'auth_max_enabled',
-    ]) {
-      fakes.publicValues.set(key, true);
+    for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
+      fakes.publicValues.set(surfaceAuthSettingKey('staff', channel), true);
     }
 
     await expect(getAuthChannelPolicyDetail()).resolves.toEqual({
