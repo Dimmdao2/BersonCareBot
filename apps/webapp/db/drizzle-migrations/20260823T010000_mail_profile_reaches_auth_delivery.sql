@@ -197,5 +197,6 @@ AS $function$
     AND setting.key = p_key
     AND setting.scope = 'admin'
     AND setting.organization_id = p_organization_id
+    AND setting.organization_id = app.current_org_id()
   LIMIT 1
 $function$;
