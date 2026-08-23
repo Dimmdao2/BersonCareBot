@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const runWebappPgTextMock = vi.hoisted(() => vi.fn());
-const runWebappTransactionMock = vi.hoisted(() => vi.fn());
+const fakes = vi.hoisted(() => ({
+  db: { execute: vi.fn() },
+  getWebappSqlDb: vi.fn(),
+  runWebappNamedRoot: vi.fn(),
+  runWebappPgText: vi.fn(),
+  runWebappTransaction: vi.fn(),
+}));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: runWebappPgTextMock,
-  runWebappTransaction: runWebappTransactionMock,
+  getWebappSqlDb: fakes.getWebappSqlDb,
+  runWebappNamedRoot: fakes.runWebappNamedRoot,
+  runWebappPgText: fakes.runWebappPgText,
+  runWebappTransaction: fakes.runWebappTransaction,
 }));
 vi.mock('@/infra/db/client', () => ({ getPool: vi.fn() }));
 vi.mock('@/infra/adminAuditLog', () => ({ upsertOpenConflictLog: vi.fn() }));
@@ -27,25 +34,28 @@ describe('createPgEmailPasswordLookupPort().resolveAuthState — equal-rights lo
   const port = createPgEmailPasswordLookupPort();
 
   beforeEach(() => {
-    runWebappPgTextMock.mockReset();
+    vi.clearAllMocks();
+    fakes.getWebappSqlDb.mockReturnValue(fakes.db);
   });
 
   it('a confirmed OAuth-linked secondary contact resolves to verified_with_password (equal-rights login)', async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
       rows: [{ id: 'user-1', email_verified: true, has_password: true }],
     });
 
     const result = await port.resolveAuthState('secondary@mail.ru');
 
     expect(result).toEqual({ kind: 'verified_with_password', userId: 'user-1' });
-    expect(runWebappPgTextMock).toHaveBeenCalledWith(
-      expect.stringContaining('app.find_platform_user_ids_by_any_confirmed_email'),
-      ['secondary@mail.ru'],
-    );
+    expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(1);
+    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
+    expect(db).toBe(fakes.db);
+    expect(identity).toBe('app.pre_session_load_email_auth_state(text)');
+    expect(args).toEqual(['secondary@mail.ru']);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
   it('an email nobody has confirmed (not the primary, not any OAuth-linked secondary) resolves to free', async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({ rows: [] });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [] });
 
     const result = await port.resolveAuthState('nobody@mail.ru');
 
@@ -53,7 +63,7 @@ describe('createPgEmailPasswordLookupPort().resolveAuthState — equal-rights lo
   });
 
   it('a primary email that exists but was never verified stays gated (needs_email_setup), unaffected by the secondary-contact widening', async () => {
-    runWebappPgTextMock.mockResolvedValueOnce({
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
       rows: [{ id: 'user-2', email_verified: false, has_password: false }],
     });
 
