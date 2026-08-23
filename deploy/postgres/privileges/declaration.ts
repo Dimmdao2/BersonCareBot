@@ -4308,7 +4308,6 @@ const REV10_CONTEXT = {
       execute: [], purpose: 'legacy-mail-profile-required-trap',
       typedArgs: ['uuid', 'text', 'text', 'bigint', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [],
     }),
     'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)': rev10Function({
       owner: 'app_seam_email_otp_owner', security: 'DEFINER', returns: 'record', returnsSet: true,

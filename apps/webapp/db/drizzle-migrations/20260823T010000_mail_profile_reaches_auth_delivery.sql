@@ -1,4 +1,5 @@
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.to_regprocedure('app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)') IS NOT NULL AND pg_catalog.strpos(pg_catalog.pg_get_functiondef('app.read_integrator_clinic_delivery_credential(text,uuid)'::regprocedure), 'clinic_transactional_mail_template') > 0;
 -- C4: the six-argument entry can no longer invent a sender. It remains as a fail-closed trap so a
@@ -16,6 +17,7 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
   p_user_id uuid,
@@ -164,6 +166,8 @@ COMMENT ON FUNCTION app.email_auth_start_challenge(
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(
   p_key text,
   p_organization_id uuid
