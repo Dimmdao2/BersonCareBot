@@ -469,7 +469,7 @@ export function ContentForm({
                       slugManualRef.current = true;
                       setSlugValue(e.target.value);
                     }}
-                    pattern="[a-z0-9-]+"
+                    pattern="[a-z0-9\-]+"
                   />
                   <Button
                     type="button"
@@ -493,7 +493,7 @@ export function ContentForm({
                   required
                   value={slugValue}
                   onChange={(e) => setSlugValue(e.target.value)}
-                  pattern="[a-z0-9-]+"
+                  pattern="[a-z0-9\-]+"
                 />
               )}
             </div>

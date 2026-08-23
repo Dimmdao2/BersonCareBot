@@ -2152,8 +2152,13 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_contacts': 'опознание по подтверждённой почте на входе: клиника ещё не выбрана, организации в контексте нет',
     'public.platform_users': 'та же дверь отбрасывает слитые записи опознанного человека; клиники на этом шаге нет',
   },
-  'app.get_preferred_auth_channel_code(uuid)': {
-    'public.user_channel_preferences': 'выбор канала для отправки кода входа: человек ещё не в клинике, организации в контексте нет',
+  'app.pre_session_load_email_auth_state(text)': {
+    'public.platform_users': 'опознание состояния учётки по подтверждённой почте до выбора клиники; слитая запись не является живым владельцем',
+    'public.user_contacts': 'признак подтверждения почты считается до человеческой сессии и возвращается только как boolean',
+    'public.user_password_credentials': 'наличие пароля считается до человеческой сессии и возвращается только как boolean',
+  },
+  'app_ext.read_preferred_auth_channel_code(uuid)': {
+    'public.user_channel_preferences': 'единый внутренний SELECT за двумя exact-дверями: pre-session читает опознанного владельца, patient подставляет только current_patient_user_id()',
   },
 
   'app.list_active_booking_cities()': {
@@ -2896,6 +2901,14 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.phone-login.session-lookup',
       functionIdentity: 'app.pre_session_find_session_user_by_phone(text)' },
+    pre_session_preferred_auth_channel: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-login.preferred-channel',
+      functionIdentity: 'app.get_preferred_auth_channel_code(uuid)' },
+    patient_preferred_auth_channel_read: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.preferred-auth-channel.read',
+      functionIdentity: 'app.get_current_patient_preferred_auth_channel_code()' },
     // D15b/6 confirm-path correction: after OTP verification `createOrBind` still ran its whole
     // resolve/create/contact-write transaction under the bootstrap principal, which (like the
     // `/start` read above) has no unnamed relation door — same failure, on the write that follows a
@@ -3276,6 +3289,10 @@ const REV10_CONTEXT = {
     email_password_find_login_candidate: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.password.reset-candidate',
       functionIdentity: 'app.email_password_find_reset_candidate(text)' },
+    pre_session_load_email_auth_state: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.email-password.account-state',
+      functionIdentity: 'app.pre_session_load_email_auth_state(text)' },
     email_auth_find_email_challenge_for_confirm: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.email-otp.challenge.find-for-confirm',
@@ -4265,8 +4282,49 @@ const REV10_CONTEXT = {
       execute: [
         ...BUSINESS_SEAM_FUNCTIONS['app.find_platform_user_ids_by_any_confirmed_email(text)'].execute,
         'app_seam_email_otp_owner',
+        'app_seam_password_auth_owner',
       ],
     },
+    'app.pre_session_load_email_auth_state(text)': rev10Function({
+      owner: 'app_seam_password_auth_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_pre_session'], purpose: 'auth.email-password.account-state', typedArgs: ['text'],
+      volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id'],
+          operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.user_contacts',
+          columns: ['platform_user_id', 'contact_kind', 'is_primary', 'confirmed_at'],
+          operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.user_password_credentials', columns: ['user_id'],
+          operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
+      delegatesTo: ['app.find_platform_user_ids_by_any_confirmed_email(text)'],
+    }),
+    'app_ext.read_preferred_auth_channel_code(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: [], purpose: 'private shared preferred-channel read behind exact pre-session and patient roots',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'internal' as const,
+      relationSurfaces: [{ relation: 'public.user_channel_preferences',
+        columns: ['user_id', 'channel_code', 'is_preferred_for_auth', 'platform_user_id'],
+        operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
+    }),
+    'app.get_preferred_auth_channel_code(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_pre_session'], purpose: 'auth.phone-login.preferred-channel', typedArgs: ['uuid'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app_ext.read_preferred_auth_channel_code(uuid)'],
+    }),
+    'app.get_current_patient_preferred_auth_channel_code()': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_patient'], purpose: 'patient.preferred-auth-channel.read', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: [
+        'app.current_patient_user_id()',
+        'app_ext.read_preferred_auth_channel_code(uuid)',
+      ],
+    }),
     'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.email_auth_find_email_challenge_for_confirm(uuid,uuid)'],
       execute: ['app_pre_session'], purpose: 'auth.email-otp.challenge.find-for-confirm',
