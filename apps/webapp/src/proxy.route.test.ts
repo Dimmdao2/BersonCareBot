@@ -1027,7 +1027,12 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)).toMatchObject({
       surface: 'patient_branded',
       organizationId: UNBRANDED_ORGANIZATION_ID,
-      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
+      // Значения выписаны буквально намеренно: сверка с той же константой, из которой
+      // политика и собирается, тавтологична и не заметит её дрейфа.
+      authPolicy: {
+        availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
+        enabledMethods: ['email_code', 'passkey'],
+      },
       effectivePatientBrand: {
         effectiveDisplayName: title,
         patientAppName: title,
