@@ -8,8 +8,7 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { getCurrentSession } from '@/modules/auth/service';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 const bodySchema = z.object({
   email: z.string().trim().max(320).email({ message: 'Некорректный email' }),
@@ -43,9 +42,7 @@ export async function POST(request: Request) {
     session.user.userId,
     parsed.data.email,
     'email_verify',
-    platformMailProfile(
-      session.user.role === 'client' ? PATIENT_DEFAULT_SURFACE.name : STAFF_SURFACE.name,
-    ),
+    platformMailProfileForRecipientRole(session.user.role),
   );
   if (!result.ok) {
     const status =

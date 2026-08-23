@@ -10,8 +10,6 @@
  */
 import { createHash, createHmac } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
 export type SmsCodeDeliveryResult =
   | { ok: true }
@@ -73,7 +71,6 @@ export async function deliverSmsCodeViaIntegrator(
   const body = JSON.stringify({
     phone,
     code,
-    mailProfile: platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
     idempotencyKey: otpDeliveryIdempotencyKey('sms', phone, code),
   });
   const signature = signIntegratorPayload(timestamp, body, deps.sharedSecret);

@@ -9,8 +9,12 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
-import { platformMailProfile } from '@/modules/auth/mailProfile';
-import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import {
+  platformMailProfile,
+  platformMailProfileForRecipientRole,
+} from '@/modules/auth/mailProfile';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -46,11 +50,23 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (userId) {
+    // The reset candidate root deliberately exposes only an id.  Adopt that exact user's
+    // self-scoped principal to load its role, then restore the pre-session bootstrap before
+    // issuing the challenge.  Sender identity follows the actual recipient, not this route.
+    enterStaffSecuritySelfPrincipal(
+      userId,
+      'api/auth/email-password/forgot:reset-candidate-profile',
+    );
+    const recipient = await deps.userByPhone.findByUserId(userId);
+    stampBootstrapPrincipal('api/auth/email-password/forgot:POST:challenge');
+    if (!recipient) {
+      return forgotPasswordNeutralResponse();
+    }
     void startEmailChallenge(
       userId,
       emailNorm,
       'password_reset',
-      platformMailProfile(STAFF_SURFACE.name),
+      platformMailProfileForRecipientRole(recipient.role),
     ).then(
       (result) => {
         if (!result.ok && result.code === 'email_send_failed') {
