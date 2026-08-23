@@ -75,9 +75,9 @@ export function DoctorStatCard({
       <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_3.25ch_4.25ch] items-baseline gap-x-1.5 md:block">
         {label}
         <div className="contents md:mt-0.5 md:flex md:w-full md:items-baseline md:justify-start md:gap-1">
-          <div className="col-start-2 text-left">{valueNode}</div>
+          <div className="col-start-2 text-right">{valueNode}</div>
           {secondaryValue !== undefined ? (
-            <div className="col-start-3 flex items-baseline justify-start gap-0.5 font-semibold tabular-nums text-foreground/75">
+            <div className="col-start-3 flex items-baseline justify-end gap-0.5 font-semibold tabular-nums text-foreground/75">
               <span aria-hidden className="text-sm font-normal text-muted-foreground">
                 /
               </span>
