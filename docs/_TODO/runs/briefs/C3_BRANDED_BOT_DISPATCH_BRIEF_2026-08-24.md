@@ -4,7 +4,7 @@ Repo canon: read `AGENTS.md` first (`grep -n "^## \|^### " AGENTS.md`, then your
 Plan file (owner's, the only source of "todo" and "done"):
 `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`.
 
-Источник оракула: `IMPLEMENTATION_PLAN.md`, пункт `C3`, дословно — «Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.» Полностью:
+Источник оракула: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`, пункт `C3`, дословно: «удалить любой достижимый platform fallback для них.». Полностью:
 
 > `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
 > существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.
