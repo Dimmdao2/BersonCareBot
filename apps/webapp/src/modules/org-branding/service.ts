@@ -54,9 +54,10 @@ export type EffectiveOrgBranding = {
 };
 
 /**
- * The only brand shape allowed across the anonymous request-surface boundary. Absence is represented
- * by the projection itself being `null`; optional safe fields are omitted, never exposed as nulls or
- * accompanied by management diagnostics.
+ * The only brand shape allowed across the anonymous request-surface boundary. An active organization
+ * always projects its core identity; paid fields either override it or fall back to platform defaults.
+ * `null` is reserved for an inactive organization. Optional safe fields are omitted, never exposed as
+ * nulls or accompanied by management diagnostics.
  */
 export type AnonymousPatientBrand = Readonly<{
   effectiveDisplayName: string;
@@ -174,7 +175,7 @@ function platformOnly(
 }
 
 function anonymousPatientBrand(effective: EffectiveOrgBranding): AnonymousPatientBrand | null {
-  if (effective.resolution !== 'applied' || !effective.core.isActive) return null;
+  if (!effective.core.isActive) return null;
   return {
     effectiveDisplayName: effective.effectiveDisplayName,
     patientAppName: effective.effectivePatientAppName,

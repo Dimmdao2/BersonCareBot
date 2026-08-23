@@ -542,6 +542,34 @@ describe('resolved surface request choke point', () => {
     expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
   });
 
+  it('keeps an active clinic without paid branding on its live core-name surface', async () => {
+    const organizationId = '33333333-3333-4333-8333-333333333333';
+    const response = await proxy(
+      requestFor(new URL('https://clinic-without-branding.therapygo.ru'), '/app/patient/login'),
+      async () => ({
+        status: 'active' as const,
+        organizationId,
+        effectivePatientBrandOrganizationId: organizationId,
+        effectivePatientBrand: {
+          effectiveDisplayName: 'Клиника без брендинга',
+          patientAppName: 'Клиника без брендинга',
+          accentToken: '#284da0',
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      organizationId,
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Клиника без брендинга',
+        patientAppName: 'Клиника без брендинга',
+        accentToken: '#284da0',
+      },
+    });
+  });
+
   it.each([
     ['an invalid accent token', '#123456; background:url(https://attacker.example)'],
     ['a missing patient app name', ''],
