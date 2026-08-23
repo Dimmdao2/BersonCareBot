@@ -122,7 +122,7 @@ export function DoctorWorkspaceShell({
           />
           <div
             className={cn(
-              'flex min-h-0 flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] md:pb-0',
+              'flex min-h-0 flex-1 pb-[calc(3.25rem+env(safe-area-inset-bottom,0px))] md:pb-0',
               DOCTOR_WORKSPACE_TOP_PADDING_CLASS,
             )}
           >

@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, ClipboardList, Home, MessageCircle, Users } from 'lucide-react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
@@ -11,13 +10,14 @@ import {
   isDoctorNavItemActive,
   type DoctorMenuAccess,
 } from '@/shared/ui/doctor/doctorNavLinks';
+import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 
 const items = [
-  { label: 'Сегодня', href: routePaths.doctor, icon: Home },
-  { label: 'Расписание', href: routePaths.doctorSchedule, icon: CalendarDays },
-  { label: 'Задачи', href: routePaths.doctorTasks, icon: ClipboardList },
-  { label: 'Клиенты', href: routePaths.doctorPatients, icon: Users },
-  { label: 'Коммуникации', href: routePaths.doctorCommunications, icon: MessageCircle },
+  { id: 'today', label: 'Сегодня', href: routePaths.doctor },
+  { id: 'schedule', label: 'Расписание', href: routePaths.doctorSchedule },
+  { id: 'tasks', label: 'Задачи', href: routePaths.doctorTasks },
+  { id: 'patients', label: 'Клиенты', href: routePaths.doctorPatients },
+  { id: 'communications', label: 'Коммуникации', href: routePaths.doctorCommunications },
 ] as const;
 
 export function DoctorBottomNav({
@@ -40,7 +40,8 @@ export function DoctorBottomNav({
     >
       {visibleItems.map((item) => {
         const active = isDoctorNavItemActive(item.href, pathname);
-        const Icon = item.icon;
+        const Icon = getDoctorMenuIcon(item.id);
+        if (!Icon) return null;
         return (
           <Link
             key={item.href}
@@ -50,7 +51,7 @@ export function DoctorBottomNav({
             aria-current={active ? 'page' : undefined}
             title={item.label}
             className={cn(
-              'flex min-h-14 min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+              'flex min-h-[52px] min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
               active && 'bg-primary/10 text-primary',
             )}
           >

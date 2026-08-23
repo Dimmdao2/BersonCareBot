@@ -1,36 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import {
-  ArrowLeft,
-  ChevronRight,
-  LayoutDashboard,
-  Users,
-  Calendar,
-  MessageCircle,
-  BookOpen,
-  FileText,
-  BarChart3,
-  Settings,
-  Server,
-  FolderOpen,
-  BriefcaseBusiness,
-  UserRound,
-  CreditCard,
-  KeyRound,
-  Plug,
-  Wrench,
-  Activity,
-  Archive,
-  ScrollText,
-  Shield,
-  Building2,
-  Wallet,
-  Bell,
-  ListTodo,
-  HouseHeart,
-  GraduationCap,
-} from 'lucide-react';
+import { ArrowLeft, ChevronRight } from 'lucide-react';
 import type { ElementType } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -49,6 +20,7 @@ import {
 import { getPlatformMenuItems } from '@/shared/ui/doctor/platformNavLinks';
 import { hasLaunchCapability } from '@/app-layer/guards/workspaceCapabilities';
 import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
+import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
@@ -82,72 +54,6 @@ function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
   return 'inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground';
 }
 
-function getIconForMenuId(id: string): ElementType | null {
-  switch (id) {
-    case 'today':
-      return LayoutDashboard;
-    case 'tasks':
-      return ListTodo;
-    case 'patient-home':
-      return HouseHeart;
-    case 'patients':
-      return Users;
-    case 'clients':
-      return Users;
-    case 'schedule':
-      return Calendar;
-    case 'communications':
-      return MessageCircle;
-    case 'library':
-      return BookOpen;
-    case 'content':
-      return FileText;
-    case 'files-and-media':
-      return FolderOpen;
-    case 'courses':
-      return GraduationCap;
-    case 'analytics':
-      return BarChart3;
-    case 'management':
-      return BriefcaseBusiness;
-    case 'account':
-      return UserRound;
-    case 'settings':
-      return Settings;
-    case 'system':
-      return Server;
-    // Platform (global admin) flat menu — former "system" cluster sub-items, now top-level.
-    case 'account-security':
-      return Shield;
-    case 'clinics':
-      return Building2;
-    case 'commercial':
-      return CreditCard;
-    case 'payments':
-      return Wallet;
-    case 'admin-app-settings':
-      return Settings;
-    case 'admin-auth':
-      return KeyRound;
-    case 'admin-booking':
-      return Calendar;
-    case 'admin-integrations':
-      return Plug;
-    case 'admin-notifications':
-      return Bell;
-    case 'admin-technical':
-      return Wrench;
-    case 'system-health':
-      return Activity;
-    case 'health-archive':
-      return Archive;
-    case 'audit-log':
-      return ScrollText;
-    default:
-      return null;
-  }
-}
-
 const SIDEBAR_LINK_CLASS = cn(
   buttonVariants({ variant: 'ghost' }),
   DOCTOR_MENU_ITEM_RADIUS_CLASS,
@@ -165,6 +71,8 @@ const FLYOUT_LINK_CLASS = cn(
   DOCTOR_MENU_ITEM_RADIUS_CLASS,
   'h-auto w-full justify-start px-3 py-2 text-sm font-normal',
 );
+
+const MOBILE_SHELL_NAV_IDS = new Set(['today', 'schedule', 'tasks', 'patients', 'communications']);
 
 /**
  * Renders a menu icon from a stable Lucide component reference.
@@ -226,7 +134,7 @@ function SidebarGroupFlyout({
   const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const Icon = getIconForMenuId(item.id);
+  const Icon = getDoctorMenuIcon(item.id);
   const iconSize = 16;
 
   const cancelClose = useCallback(() => {
@@ -460,11 +368,11 @@ function SheetTwoLevelMenu({
       {items.map((item) => {
         if (!item.items) {
           // Simple top-level link
-          return renderLink(item, getIconForMenuId(item.id) ?? undefined);
+          return renderLink(item, getDoctorMenuIcon(item.id) ?? undefined);
         }
 
         // Group trigger — tap opens second level
-        const Icon = getIconForMenuId(item.id);
+        const Icon = getDoctorMenuIcon(item.id);
         const anySubActive = item.items.some(
           (sub) => sub.href && isDoctorNavItemActive(sub.href, pathname),
         );
@@ -515,13 +423,15 @@ export function DoctorMenuAccordion({
   enableBadgePolling = true,
   menuKind = 'doctor',
 }: DoctorMenuAccordionProps) {
-  const items = useMemo(
-    () =>
+  const items = useMemo(() => {
+    const menuItems =
       menuKind === 'platform'
         ? getPlatformMenuItems(menuAccess)
-        : getDoctorMenuItems(menuAccess, patientLabel),
-    [menuKind, menuAccess, patientLabel],
-  );
+        : getDoctorMenuItems(menuAccess, patientLabel);
+
+    if (variant !== 'sheet' || menuKind !== 'doctor') return menuItems;
+    return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
+  }, [menuKind, menuAccess, patientLabel, variant]);
 
   const messagesUnread = useDoctorSupportUnreadCount();
   const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
@@ -538,11 +448,7 @@ export function DoctorMenuAccordion({
         todayAttention: pendingProgramTests,
         communicationsTotal: messagesUnread,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [
-      messagesUnread,
-      registrationSystemFailures,
-      pendingProgramTests,
-    ],
+    [messagesUnread, registrationSystemFailures, pendingProgramTests],
   );
 
   if (variant === 'sheet') {
@@ -563,7 +469,7 @@ export function DoctorMenuAccordion({
         if (!item.items) {
           // Simple top-level link with icon
           if (!item.href) return null;
-          const Icon = getIconForMenuId(item.id);
+          const Icon = getDoctorMenuIcon(item.id);
           const rawCount = item.badgeKey ? badgeCounts[item.badgeKey] : 0;
           const badgeText = item.badgeKey ? formatNavBadgeCount(rawCount) : null;
           const aria = badgeText ? linkAriaLabelWhenBadged(item, badgeText) : undefined;

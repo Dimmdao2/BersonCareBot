@@ -16,6 +16,8 @@ type Props = {
   id: string;
   title: string;
   value: ReactNode;
+  secondaryValue?: ReactNode;
+  layout?: 'default' | 'today-mobile-grid';
   tone?: 'neutral' | 'warning';
   hint?: string;
   tooltip?: string;
@@ -30,6 +32,8 @@ export function DoctorStatCard({
   id,
   title,
   value,
+  secondaryValue,
+  layout = 'default',
   tone = 'neutral',
   hint,
   tooltip,
@@ -47,19 +51,46 @@ export function DoctorStatCard({
     className,
   );
 
-  const inner = (
-    <>
-      <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>{title}</p>
-      <div
-        className={cn('mt-0.5', doctorMetricValueClass, selected && 'text-primary', valueClassName)}
-      >
-        {value}
-      </div>
-      {hint ? (
-        <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
-      ) : null}
-    </>
+  const label = (
+    <p
+      className={cn(
+        doctorMetricLabelClass,
+        layout === 'today-mobile-grid' && 'text-foreground/75',
+        selected && 'text-primary',
+      )}
+    >
+      {title}
+    </p>
   );
+  const valueNode = (
+    <div className={cn(doctorMetricValueClass, selected && 'text-primary', valueClassName)}>
+      {value}
+    </div>
+  );
+  const hintNode = hint ? (
+    <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
+  ) : null;
+  const inner =
+    layout === 'today-mobile-grid' ? (
+      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_3ch_3ch] items-baseline gap-x-2 md:block">
+        {label}
+        <div className="contents md:mt-0.5 md:flex md:w-full md:items-baseline md:justify-between">
+          <div className="col-start-2 text-right">{valueNode}</div>
+          {secondaryValue !== undefined ? (
+            <div className="col-start-3 text-right text-base font-semibold tabular-nums text-foreground/75">
+              {secondaryValue}
+            </div>
+          ) : null}
+        </div>
+        {hint ? <div className="col-span-full">{hintNode}</div> : null}
+      </div>
+    ) : (
+      <>
+        {label}
+        <div className="mt-0.5">{valueNode}</div>
+        {hintNode}
+      </>
+    );
 
   let trigger: ReactElement;
 
