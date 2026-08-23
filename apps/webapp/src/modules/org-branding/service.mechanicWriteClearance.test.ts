@@ -17,6 +17,8 @@ function buildService() {
     organizationId,
     status: 'draft' as const,
     displayName: 'Клиника',
+    patientAppName: null,
+    accentToken: null,
     logoMediaId: null,
     logoMediaReady: false,
     createdByPlatformUserId: actorPlatformUserId,

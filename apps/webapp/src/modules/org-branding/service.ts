@@ -31,16 +31,39 @@ export type OrgBrandingManagementContext = Readonly<{
 /** Why the paid additions are (not) applied. Diagnostics for management UI; never an authorization input. */
 export type OrgBrandingResolution = 'applied' | 'entitlement_disabled' | 'no_published_revision';
 
+export const DEFAULT_PATIENT_ACCENT_TOKEN = '#284da0';
+
 export type EffectiveOrgBranding = {
   organizationId: string;
   /** Always present (§3.3): the canonical organization identification, not branding. */
   core: { displayName: string; isActive: boolean };
   /** Paid additions. Every field is independently `null` when its readiness fails (§5.1). */
-  paid: { displayName: string | null; logoUrl: string | null };
+  paid: {
+    displayName: string | null;
+    patientAppName: string | null;
+    accentToken: string | null;
+    logoUrl: string | null;
+  };
   /** The name a surface should render: paid override when applied, else the core name. */
   effectiveDisplayName: string;
+  /** Installed/header patient-app name: its override, then the effective organization name. */
+  effectivePatientAppName: string;
+  /** One safe CSS color token, with the platform patient accent as the fallback. */
+  effectiveAccentToken: string;
   resolution: OrgBrandingResolution;
 };
+
+/**
+ * The only brand shape allowed across the anonymous request-surface boundary. Absence is represented
+ * by the projection itself being `null`; optional safe fields are omitted, never exposed as nulls or
+ * accompanied by management diagnostics.
+ */
+export type AnonymousPatientBrand = Readonly<{
+  effectiveDisplayName: string;
+  patientAppName: string;
+  accentToken: string;
+  logoUrl?: string;
+}>;
 
 export type OrgBrandingManagementState = {
   effective: EffectiveOrgBranding;
@@ -56,6 +79,10 @@ export type OrgBrandingManagementState = {
 export type OrgBrandDraftInput = {
   displayName: string | null;
   logoMediaId: string | null;
+  /** Omission preserves the retained draft/published value for the existing two-field settings UI. */
+  patientAppName?: string | null;
+  /** Omission preserves the retained draft/published value for the existing two-field settings UI. */
+  accentToken?: string | null;
 };
 
 export type OrgBrandMutationFailure =
@@ -66,6 +93,7 @@ export type OrgBrandMutationFailure =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_DISPLAY_NAME_LENGTH = 120;
+const ACCENT_TOKEN_RE = /^#[0-9a-f]{6}$/i;
 
 /**
  * Keys a caller must never be able to smuggle into a branding mutation. `organizationId` and
@@ -118,6 +146,18 @@ function normalizeLogoMediaId(value: string | null | undefined): string | null {
   return trimmed.toLowerCase();
 }
 
+function normalizePatientAppName(value: string | null | undefined): string | null {
+  return normalizeDisplayNameOverride(value);
+}
+
+function normalizeAccentToken(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (trimmed === '') return null;
+  if (!ACCENT_TOKEN_RE.test(trimmed)) throw new Error('org_brand_accent_token_invalid');
+  return trimmed.toLowerCase();
+}
+
 function platformOnly(
   core: CoreOrganizationContext,
   resolution: OrgBrandingResolution,
@@ -125,9 +165,21 @@ function platformOnly(
   return {
     organizationId: core.organizationId,
     core: { displayName: core.displayName, isActive: core.isActive },
-    paid: { displayName: null, logoUrl: null },
+    paid: { displayName: null, patientAppName: null, accentToken: null, logoUrl: null },
     effectiveDisplayName: core.displayName,
+    effectivePatientAppName: core.displayName,
+    effectiveAccentToken: DEFAULT_PATIENT_ACCENT_TOKEN,
     resolution,
+  };
+}
+
+function anonymousPatientBrand(effective: EffectiveOrgBranding): AnonymousPatientBrand | null {
+  if (effective.resolution !== 'applied' || !effective.core.isActive) return null;
+  return {
+    effectiveDisplayName: effective.effectiveDisplayName,
+    patientAppName: effective.effectivePatientAppName,
+    accentToken: effective.effectiveAccentToken,
+    ...(effective.paid.logoUrl ? { logoUrl: effective.paid.logoUrl } : {}),
   };
 }
 
@@ -186,6 +238,8 @@ export function createOrgBrandingService(deps: {
     if (!published) return platformOnly(core, 'no_published_revision');
 
     const paidDisplayName = normalizeDisplayNameOverride(published.displayName);
+    const paidPatientAppName = normalizePatientAppName(published.patientAppName);
+    const paidAccentToken = normalizeAccentToken(published.accentToken);
     // Readiness per asset: an unowned / unready / non-image logo collapses to null and the rest of
     // the paid layer still applies. `logoMediaReady` is computed by the port from the media row.
     const logoUrl =
@@ -196,21 +250,35 @@ export function createOrgBrandingService(deps: {
     return {
       organizationId: core.organizationId,
       core: { displayName: core.displayName, isActive: core.isActive },
-      paid: { displayName: paidDisplayName, logoUrl },
+      paid: {
+        displayName: paidDisplayName,
+        patientAppName: paidPatientAppName,
+        accentToken: paidAccentToken,
+        logoUrl,
+      },
       effectiveDisplayName: paidDisplayName ?? core.displayName,
+      effectivePatientAppName: paidPatientAppName ?? paidDisplayName ?? core.displayName,
+      effectiveAccentToken: paidAccentToken ?? DEFAULT_PATIENT_ACCENT_TOKEN,
       resolution: 'applied',
     };
   }
 
+  async function resolveEffectiveOrgBranding(organizationId: string): Promise<EffectiveOrgBranding>;
   async function resolveEffectiveOrgBranding(
     organizationId: string,
-  ): Promise<EffectiveOrgBranding> {
+    audience: 'anonymous',
+  ): Promise<AnonymousPatientBrand | null>;
+  async function resolveEffectiveOrgBranding(
+    organizationId: string,
+    audience?: 'anonymous',
+  ): Promise<EffectiveOrgBranding | AnonymousPatientBrand | null> {
     const [core, access, published] = await Promise.all([
       requireCoreContext(organizationId),
       deps.resolveBrandingAccess(organizationId),
       deps.port.getPublishedRevision(organizationId),
     ]);
-    return resolveEffectiveWithAccess(core, access, published);
+    const effective = resolveEffectiveWithAccess(core, access, published);
+    return audience === 'anonymous' ? anonymousPatientBrand(effective) : effective;
   }
 
   return {
@@ -246,11 +314,27 @@ export function createOrgBrandingService(deps: {
       );
       if (failure) return failure;
       deps.assertWriteClearance?.('branding');
+      const preservesPatientAppName = !Object.prototype.hasOwnProperty.call(
+        input,
+        'patientAppName',
+      );
+      const preservesAccentToken = !Object.prototype.hasOwnProperty.call(input, 'accentToken');
+      const retained =
+        preservesPatientAppName || preservesAccentToken
+          ? ((await deps.port.getDraftRevision(ctx.organizationId)) ??
+            (await deps.port.getPublishedRevision(ctx.organizationId)))
+          : null;
       const draft = await deps.port.saveDraft({
         // The trusted context is the ONLY source of the organization id.
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,
         displayName: normalizeDisplayNameOverride(input.displayName),
+        patientAppName: preservesPatientAppName
+          ? normalizePatientAppName(retained?.patientAppName)
+          : normalizePatientAppName(input.patientAppName),
+        accentToken: preservesAccentToken
+          ? normalizeAccentToken(retained?.accentToken)
+          : normalizeAccentToken(input.accentToken),
         logoMediaId: normalizeLogoMediaId(input.logoMediaId),
       });
       return { ok: true, draft };

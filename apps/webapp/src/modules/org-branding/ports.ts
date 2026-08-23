@@ -25,6 +25,10 @@ export type OrgBrandRevision = {
   status: OrgBrandRevisionStatus;
   /** Paid override of the displayed organization name; `null` = keep the core name. */
   displayName: string | null;
+  /** Optional installed patient-app name; `null` = use the effective organization display name. */
+  patientAppName: string | null;
+  /** One patient accent token; `null` = use the platform patient accent. */
+  accentToken: string | null;
   logoMediaId: string | null;
   /**
    * Server-computed readiness of `logoMediaId`: the media row exists, is owned by THIS organization,
@@ -44,6 +48,8 @@ export type SaveOrgBrandDraftInput = {
   organizationId: string;
   actorPlatformUserId: string;
   displayName: string | null;
+  patientAppName: string | null;
+  accentToken: string | null;
   logoMediaId: string | null;
 };
 

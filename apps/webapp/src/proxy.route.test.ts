@@ -498,33 +498,65 @@ describe('resolved surface request choke point', () => {
     const seenHostnames: string[] = [];
     const tenantLookup: TenantSurfaceLookup = async (hostname) => {
       seenHostnames.push(hostname);
+      const safeBrandWithInternalExtras = {
+        effectiveDisplayName: 'Clinic A Plus',
+        patientAppName: 'Clinic A Care',
+        accentToken: '#7A3CC2',
+        core: { displayName: 'must not cross the anonymous boundary', isActive: true },
+        resolution: 'applied',
+      };
       return {
         status: 'active',
         organizationId,
-        effectivePatientBrand: {
-          organizationId,
-          core: { displayName: 'Clinic A', isActive: true },
-          paid: { displayName: 'Clinic A Plus', logoUrl: null },
-          effectiveDisplayName: 'Clinic A Plus',
-          resolution: 'applied',
-        },
+        effectivePatientBrand: safeBrandWithInternalExtras,
       };
     };
     const brandedOrigin = new URL('https://clinic-a.therapygo.ru:8443');
-    const response = await proxy(
-      requestFor(brandedOrigin, '/app/patient/login'),
-      tenantLookup,
-    );
+    const response = await proxy(requestFor(brandedOrigin, '/app/patient/login'), tenantLookup);
 
     expect(middlewareRequestSurface(response)).toMatchObject({
       surface: 'patient_branded',
       publicOrigin: brandedOrigin.origin,
       organizationId,
       authPolicy: 'patient',
-      effectivePatientBrand: { effectiveDisplayName: 'Clinic A Plus' },
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Clinic A Plus',
+        patientAppName: 'Clinic A Care',
+        accentToken: '#7a3cc2',
+      },
+    });
+    expect(middlewareRequestSurface(response)?.effectivePatientBrand).toEqual({
+      effectiveDisplayName: 'Clinic A Plus',
+      patientAppName: 'Clinic A Care',
+      accentToken: '#7a3cc2',
     });
     expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
   });
+
+  it.each([
+    ['an invalid accent token', '#123456; background:url(https://attacker.example)'],
+    ['a missing patient app name', ''],
+  ] as const)(
+    'returns hard 404 when an active tenant seam supplies %s instead of a safe brand',
+    async (_case, invalidValue) => {
+      const organizationId = '11111111-1111-4111-8111-111111111111';
+      const response = await proxy(
+        requestFor(new URL('https://clinic-a.therapygo.ru'), '/app/patient/login'),
+        async () => ({
+          status: 'active' as const,
+          organizationId,
+          effectivePatientBrand: {
+            effectiveDisplayName: 'Clinic A Plus',
+            patientAppName: invalidValue === '' ? invalidValue : 'Clinic A Care',
+            accentToken: invalidValue === '' ? '#7a3cc2' : invalidValue,
+          },
+        }),
+      );
+
+      expect(response.status).toBe(404);
+      expect(middlewareRequestSurface(response)).toBeNull();
+    },
+  );
 
   it('returns hard 404 for an unknown Host without platform fallback', async () => {
     const response = await proxy(requestFor(new URL('https://untrusted.example'), '/app'));
