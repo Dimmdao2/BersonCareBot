@@ -6613,6 +6613,12 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // D25 correction (owner decision 23.08.2026): the root became LOOKUP-ONLY (migration
+    // `20260823T093000_channel_identity_root_becomes_lookup_only.sql`) — the create branch (INSERT
+    // into `platform_users`/`user_identity`/`user_channel_bindings`/`user_channel_preferences`) was
+    // removed from the function body entirely. Narrowed to the operations the body actually performs:
+    // SELECT the existing binding, and — only when one is found — UPDATE its `display_handle`.
+    // `user_identity`/`user_channel_preferences` are no longer touched at all.
     'app.integrator_upsert_channel_identity(text,text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.channel-identity.upsert',
@@ -6620,21 +6626,12 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
         { relation: 'public.platform_users',
-          columns: ['id', 'display_name', 'merged_into_id'],
-          operations: ['SELECT' as const, 'INSERT' as const],
+          columns: ['id', 'merged_into_id'],
+          operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_bindings',
           columns: ['user_id', 'channel_code', 'external_id', 'display_handle'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_identity',
-          columns: ['platform_user_id', 'display_name', 'updated_at'],
-          operations: ['INSERT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_channel_preferences',
-          columns: ['user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
-            'is_enabled_for_notifications', 'updated_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operations: ['SELECT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

@@ -3249,10 +3249,8 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id', 'bot_blocked_at', 'bot_blocked_reason']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)', 'public.be_organization_members', ARRAY['platform_user_id', 'organization_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)', 'public.org_enrollments', ARRAY['platform_user_id', 'organization_id', 'status']::text[], ARRAY['SELECT']::text[]),
-  ('app.integrator_upsert_channel_identity(text,text,text)', 'public.platform_users', ARRAY['id', 'display_name', 'merged_into_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
-  ('app.integrator_upsert_channel_identity(text,text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id', 'display_handle']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
-  ('app.integrator_upsert_channel_identity(text,text,text)', 'public.user_identity', ARRAY['platform_user_id', 'display_name', 'updated_at']::text[], ARRAY['INSERT']::text[]),
-  ('app.integrator_upsert_channel_identity(text,text,text)', 'public.user_channel_preferences', ARRAY['user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages', 'is_enabled_for_notifications', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
+  ('app.integrator_upsert_channel_identity(text,text,text)', 'public.platform_users', ARRAY['id', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
+  ('app.integrator_upsert_channel_identity(text,text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id', 'display_handle']::text[], ARRAY['SELECT', 'UPDATE']::text[]),
   ('app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)', 'public.reminder_rules', ARRAY['integrator_rule_id', 'platform_user_id', 'organization_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'schedule_data', 'reminder_intent', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)', 'public.be_organization_members', ARRAY['platform_user_id', 'organization_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)', 'public.org_enrollments', ARRAY['platform_user_id', 'organization_id', 'status']::text[], ARRAY['SELECT']::text[]),
@@ -4068,7 +4066,7 @@ BEGIN
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=421 rows=1010 special_contracts=8 trigger_sources=1';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=421 rows=1008 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 
@@ -16713,11 +16711,9 @@ GRANT SELECT ("id", "integrator_user_id", "merged_into_id", "role") ON TABLE "pu
 GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("id", "integrator_user_id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
-GRANT SELECT ("display_name", "id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("id", "is_archived", "merged_into_id", "role", "session_epoch") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("id", "integrator_user_id") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
-GRANT INSERT ("display_name", "id", "merged_into_id") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT INSERT ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT UPDATE ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("created_at", "display_name", "id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_org_directory_owner";
@@ -19554,7 +19550,6 @@ GRANT UPDATE ("bot_blocked_at", "bot_blocked_reason", "channel_code", "external_
 GRANT SELECT ("channel_code", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("channel_code", "display_handle", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("channel_code", "created_at", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
-GRANT INSERT ("channel_code", "display_handle", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
 GRANT INSERT ("channel_code", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
 GRANT UPDATE ("channel_code", "display_handle", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
 GRANT UPDATE ("channel_code", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner";
@@ -19810,7 +19805,6 @@ GRANT DELETE ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owne
 GRANT SELECT ("display_name", "platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
-GRANT INSERT ("display_name", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
 GRANT INSERT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
 GRANT UPDATE ("display_name", "first_name", "last_name", "patronymic", "platform_user_id", "updated_at") ON TABLE "public"."user_identity" TO "app_seam_identity_lookup_owner";
 GRANT SELECT ("display_name", "first_name", "last_name", "patronymic", "platform_user_id") ON TABLE "public"."user_identity" TO "app_seam_patient_lfk_media_owner";

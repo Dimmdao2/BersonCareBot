@@ -40,9 +40,11 @@ export type DispatchRequestContactParams = {
 };
 
 /**
- * Во входящем channel-link flow Telegram может сначала создать канонический channel binding через `writePort`.
- * Подписанный исходящий request-contact не передаёт `writePort`: отправка pre-login handshake сама по себе не
- * создаёт человека, не угадывает организацию и не меняет channel binding.
+ * Во входящем channel-link flow Telegram может сначала пройти по `writePort` `user.upsert` — D25:
+ * этот путь теперь LOOKUP-ONLY (см. `writeIdentityAndPreferencesDirect.ts`), он никого не создаёт,
+ * только обновляет display handle у УЖЕ существующей привязки. Подписанный исходящий request-contact
+ * не передаёт `writePort`: отправка pre-login handshake сама по себе не создаёт человека, не угадывает
+ * организацию и не меняет channel binding.
  * MAX: inline-кнопка `request_contact` в том же сообщении (см. `max/user/scripts.json`, API — `type: request_contact` в `deliveryAdapter`).
  *
  * Сохранённого диалогового состояния нет: следующий contact event определяется самим типом события.
