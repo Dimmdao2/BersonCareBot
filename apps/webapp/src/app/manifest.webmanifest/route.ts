@@ -1,4 +1,8 @@
 import { buildPatientPwaManifest } from '@/shared/lib/pwa/patientPwaManifest';
+import {
+  arePlatformSurfaceHostsDistinct,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 
 /**
@@ -8,7 +12,18 @@ import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
  */
 export async function GET() {
   const resolved = await getResolvedSurface();
-  return Response.json(buildPatientPwaManifest(resolved), {
+  // On the transitional single Host the resolver deliberately keeps staff identity, but this
+  // legacy URL still belongs to already-installed patient PWAs. Preserve that contract without
+  // teaching the Host resolver about pathname.
+  const manifestSurface: ResolvedSurface =
+    resolved.surface === 'staff' && !arePlatformSurfaceHostsDistinct()
+      ? {
+          surface: 'patient_default',
+          publicOrigin: resolved.publicOrigin,
+          authPolicy: 'patient',
+        }
+      : resolved;
+  return Response.json(buildPatientPwaManifest(manifestSurface), {
     headers: {
       'Content-Type': 'application/manifest+json; charset=utf-8',
       'Cache-Control': 'public, max-age=0, must-revalidate',

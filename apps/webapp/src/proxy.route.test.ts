@@ -184,12 +184,50 @@ describe('role-specific protected app doors', () => {
     ).toBeNull();
   });
 
-  it('hard-404s a patient tree on the staff Host before role logic', async () => {
-    const response = await proxy(
-      requestFor(STAFF_ORIGIN, '/app/patient/profile', { role: 'doctor' }),
+  it.each(['/app/patient/profile', '/book', '/manifest.webmanifest'])(
+    'hard-404s patient route %s on the staff Host when surface Hosts are distinct',
+    async (pathname) => {
+      const response = await proxy(requestFor(STAFF_ORIGIN, pathname, { role: 'doctor' }));
+      expect(response.status).toBe(404);
+      expect(response.headers.get('location')).toBeNull();
+    },
+  );
+
+  it('keeps both route trees and health reachable when staff and patient share one Host', async () => {
+    const patientOriginDescriptor = Object.getOwnPropertyDescriptor(
+      PATIENT_DEFAULT_SURFACE,
+      'origin',
     );
-    expect(response.status).toBe(404);
-    expect(response.headers.get('location')).toBeNull();
+    if (!patientOriginDescriptor) throw new Error('patient_surface_origin_descriptor_missing');
+    Object.defineProperty(PATIENT_DEFAULT_SURFACE, 'origin', {
+      ...patientOriginDescriptor,
+      value: STAFF_SURFACE.origin,
+    });
+
+    try {
+      const expectedStatuses = [
+        ['/app/patient/login', 200],
+        ['/app/patient/cabinet', 307],
+        ['/book', 200],
+        ['/join/start', 200],
+        ['/clinic-a', 200],
+        ['/manifest.webmanifest', 200],
+        ['/api/health', 200],
+      ] as const;
+
+      for (const [pathname, expectedStatus] of expectedStatuses) {
+        const response = await proxy(requestFor(STAFF_ORIGIN, pathname));
+        expect(response.status, pathname).toBe(expectedStatus);
+        if (expectedStatus === 200) {
+          expect(middlewareRequestSurface(response), pathname).toMatchObject({
+            surface: 'staff',
+            publicOrigin: STAFF_ORIGIN.origin,
+          });
+        }
+      }
+    } finally {
+      Object.defineProperty(PATIENT_DEFAULT_SURFACE, 'origin', patientOriginDescriptor);
+    }
   });
 
   it('does not interrupt an authenticated doctor at their portal', async () => {

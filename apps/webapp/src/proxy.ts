@@ -24,6 +24,7 @@ import {
 import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
 import { canSurfaceEnterRoute } from '@/config/surfaceRoutes';
 import {
+  arePlatformSurfaceHostsDistinct,
   RESOLVED_SURFACE_HEADER,
   resolveRequestSurface,
   serializeResolvedSurface,
@@ -54,7 +55,11 @@ export async function proxy(
     protocol: forwardedProtocol || request.nextUrl.protocol,
     resolveTenantSurface,
   });
-  if (!resolvedSurface || !canSurfaceEnterRoute(resolvedSurface.surface, request.nextUrl.pathname)) {
+  if (
+    !resolvedSurface ||
+    (arePlatformSurfaceHostsDistinct() &&
+      !canSurfaceEnterRoute(resolvedSurface.surface, request.nextUrl.pathname))
+  ) {
     const response = new NextResponse(null, { status: 404 });
     response.headers.set('Cache-Control', 'no-store');
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);

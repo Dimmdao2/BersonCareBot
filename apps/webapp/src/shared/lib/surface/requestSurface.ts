@@ -47,6 +47,23 @@ function normalizedOrigin(value: string): URL | null {
   }
 }
 
+function configuredPlatformOrigins(): Readonly<{
+  staff: URL;
+  patient: URL;
+}> | null {
+  const staff = normalizedOrigin(STAFF_SURFACE.origin);
+  const patient = normalizedOrigin(PATIENT_DEFAULT_SURFACE.origin);
+  return staff && patient ? { staff, patient } : null;
+}
+
+/** Route audiences are enforceable only when Host can distinguish staff from patient requests. */
+export function arePlatformSurfaceHostsDistinct(): boolean {
+  const origins = configuredPlatformOrigins();
+  return Boolean(
+    origins && origins.staff.host.toLowerCase() !== origins.patient.host.toLowerCase(),
+  );
+}
+
 function normalizeRequestOrigin(host: string | null, protocol: string): URL | null {
   const normalizedProtocol = protocol.replace(/:$/, '').toLowerCase();
   if (!host || (normalizedProtocol !== 'http' && normalizedProtocol !== 'https')) return null;
@@ -71,20 +88,22 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   resolveTenantSurface,
 }) => {
   const requestOrigin = normalizeRequestOrigin(host, protocol);
-  const staffOrigin = normalizedOrigin(STAFF_SURFACE.origin);
-  const patientOrigin = normalizedOrigin(PATIENT_DEFAULT_SURFACE.origin);
-  if (!requestOrigin || !staffOrigin || !patientOrigin) return null;
+  const platformOrigins = configuredPlatformOrigins();
+  if (!requestOrigin || !platformOrigins) return null;
 
   const requestHost = requestOrigin.host.toLowerCase();
-  const staffHost = staffOrigin.host.toLowerCase();
-  const patientHost = patientOrigin.host.toLowerCase();
-  const adminHost = platformAdminHost(staffOrigin).toLowerCase();
+  const staffHost = platformOrigins.staff.host.toLowerCase();
+  const patientHost = platformOrigins.patient.host.toLowerCase();
+  const adminHost = platformAdminHost(platformOrigins.staff).toLowerCase();
   const matchingPlatformSurfaces = [staffHost, patientHost, adminHost].filter(
     (candidate) => candidate === requestHost,
   );
 
-  // A duplicated deploy input is ambiguous in exactly the same way as a duplicated tenant host.
-  if (matchingPlatformSurfaces.length !== 1 && matchingPlatformSurfaces.length !== 0) return null;
+  const isSharedStaffAndPatientHost =
+    staffHost === patientHost && requestHost === staffHost && requestHost !== adminHost;
+  // The deliberate transitional single-Host deployment keeps staff identity while the route gate
+  // is disabled. Every other duplicated platform Host remains ambiguous and fails closed.
+  if (matchingPlatformSurfaces.length > 1 && !isSharedStaffAndPatientHost) return null;
 
   const publicOrigin = requestOrigin.origin;
   if (requestHost === staffHost) {
