@@ -1,6 +1,7 @@
 import { buildPatientPwaManifest } from '@/shared/lib/pwa/patientPwaManifest';
 import {
   arePlatformSurfaceHostsDistinct,
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
   type ResolvedSurface,
 } from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
@@ -23,7 +24,7 @@ export async function GET() {
       ? {
           surface: 'patient_default',
           publicOrigin: resolved.publicOrigin,
-          authPolicy: 'patient',
+          authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
         }
       : resolved;
   return Response.json(buildPatientPwaManifest(manifestSurface), {

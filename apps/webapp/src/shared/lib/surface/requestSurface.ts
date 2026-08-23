@@ -6,13 +6,51 @@ import {
 
 export const RESOLVED_SURFACE_HEADER = 'x-bc-resolved-surface';
 
-export type RequestSurface =
-  | 'staff'
-  | 'platform_admin'
-  | 'patient_default'
-  | 'patient_branded';
+export type RequestSurface = 'staff' | 'platform_admin' | 'patient_default' | 'patient_branded';
 
-export type SurfaceAuthPolicy = 'staff' | 'platform_admin' | 'patient';
+export const SURFACE_AUTH_METHODS = [
+  'password',
+  'email_code',
+  'phone_bot',
+  'totp',
+  'oauth',
+  'passkey',
+] as const;
+
+export type SurfaceAuthMethod = (typeof SURFACE_AUTH_METHODS)[number];
+export type SurfaceAuthPolicyName = 'staff' | 'platform_admin' | 'patient';
+
+/**
+ * `availableMethods` answers which implemented mechanics belong to the surface. `enabledMethods`
+ * is the independently configurable subset that is active there. Provider/channel readiness is
+ * still resolved by the existing auth capability ports; it is not a second surface decision.
+ */
+export type SurfaceAuthPolicy = Readonly<{
+  availableMethods: readonly SurfaceAuthMethod[];
+  enabledMethods: readonly SurfaceAuthMethod[];
+}>;
+
+export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, SurfaceAuthPolicy>>;
+
+/**
+ * The only surface -> auth-method matrix (TPB-16). These F1 defaults describe today's behavior:
+ * staff/admin can reach every implemented primary path except globally-disabled passkey; patients
+ * have no password/TOTP path and passkey remains disabled. F2-F5 may change values, not this type.
+ */
+export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
+  staff: {
+    availableMethods: SURFACE_AUTH_METHODS,
+    enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth'],
+  },
+  platform_admin: {
+    availableMethods: SURFACE_AUTH_METHODS,
+    enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth'],
+  },
+  patient: {
+    availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
+    enabledMethods: ['email_code', 'phone_bot', 'oauth'],
+  },
+} as const satisfies SurfaceAuthPolicyConfig;
 
 export type EffectivePatientBrand = AnonymousPatientBrand;
 
@@ -36,11 +74,49 @@ export type TenantSurfaceLookupResult =
 
 export type TenantSurfaceLookup = (normalizedHost: string) => Promise<TenantSurfaceLookupResult>;
 
-export type RequestSurfaceResolver = (input: Readonly<{
-  host: string | null;
-  protocol: string;
-  resolveTenantSurface: TenantSurfaceLookup;
-}>) => Promise<ResolvedSurface | null>;
+export type RequestSurfaceResolver = (
+  input: Readonly<{
+    host: string | null;
+    protocol: string;
+    resolveTenantSurface: TenantSurfaceLookup;
+    authPolicyConfig?: SurfaceAuthPolicyConfig;
+  }>,
+) => Promise<ResolvedSurface | null>;
+
+const SURFACE_AUTH_METHOD_SET = new Set<SurfaceAuthMethod>(SURFACE_AUTH_METHODS);
+
+function sanitizeSurfaceAuthPolicy(value: unknown): SurfaceAuthPolicy | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<SurfaceAuthPolicy>;
+  if (!Array.isArray(candidate.availableMethods) || !Array.isArray(candidate.enabledMethods)) {
+    return null;
+  }
+  const availableMethods = candidate.availableMethods.filter(
+    (method): method is SurfaceAuthMethod =>
+      typeof method === 'string' && SURFACE_AUTH_METHOD_SET.has(method as SurfaceAuthMethod),
+  );
+  const enabledMethods = candidate.enabledMethods.filter(
+    (method): method is SurfaceAuthMethod =>
+      typeof method === 'string' && SURFACE_AUTH_METHOD_SET.has(method as SurfaceAuthMethod),
+  );
+  if (
+    availableMethods.length !== candidate.availableMethods.length ||
+    enabledMethods.length !== candidate.enabledMethods.length ||
+    new Set(availableMethods).size !== availableMethods.length ||
+    new Set(enabledMethods).size !== enabledMethods.length ||
+    enabledMethods.some((method) => !availableMethods.includes(method))
+  ) {
+    return null;
+  }
+  return { availableMethods, enabledMethods };
+}
+
+function policyFor(
+  name: SurfaceAuthPolicyName,
+  config: SurfaceAuthPolicyConfig,
+): SurfaceAuthPolicy | null {
+  return sanitizeSurfaceAuthPolicy(config[name]);
+}
 
 function normalizedOrigin(value: string): URL | null {
   try {
@@ -125,6 +201,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   host,
   protocol,
   resolveTenantSurface,
+  authPolicyConfig = DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
 }) => {
   const requestOrigin = normalizeRequestOrigin(host, protocol);
   const platformOrigins = configuredPlatformOrigins();
@@ -146,13 +223,16 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
 
   const publicOrigin = requestOrigin.origin;
   if (requestHost === staffHost) {
-    return { surface: 'staff', publicOrigin, authPolicy: 'staff' };
+    const authPolicy = policyFor('staff', authPolicyConfig);
+    return authPolicy ? { surface: 'staff', publicOrigin, authPolicy } : null;
   }
   if (requestHost === patientHost) {
-    return { surface: 'patient_default', publicOrigin, authPolicy: 'patient' };
+    const authPolicy = policyFor('patient', authPolicyConfig);
+    return authPolicy ? { surface: 'patient_default', publicOrigin, authPolicy } : null;
   }
   if (requestHost === adminHost) {
-    return { surface: 'platform_admin', publicOrigin, authPolicy: 'platform_admin' };
+    const authPolicy = policyFor('platform_admin', authPolicyConfig);
+    return authPolicy ? { surface: 'platform_admin', publicOrigin, authPolicy } : null;
   }
 
   // Persistence/domain seams store a hostname, never an HTTP authority with a development port.
@@ -165,14 +245,15 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     return null;
   }
   const effectivePatientBrand = sanitizeEffectivePatientBrand(tenant.effectivePatientBrand);
-  if (!effectivePatientBrand) return null;
+  const authPolicy = policyFor('patient', authPolicyConfig);
+  if (!effectivePatientBrand || !authPolicy) return null;
 
   return {
     surface: 'patient_branded',
     publicOrigin,
     organizationId: tenant.organizationId,
     effectivePatientBrand,
-    authPolicy: 'patient',
+    authPolicy,
   };
 };
 
@@ -206,10 +287,6 @@ function isRequestSurface(value: unknown): value is RequestSurface {
   );
 }
 
-function isAuthPolicy(value: unknown): value is SurfaceAuthPolicy {
-  return value === 'staff' || value === 'platform_admin' || value === 'patient';
-}
-
 export function serializeResolvedSurface(surface: ResolvedSurface): string {
   return encodeURIComponent(JSON.stringify(surface));
 }
@@ -222,9 +299,10 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
     const parsed: unknown = JSON.parse(decodeURIComponent(encoded));
     if (!parsed || typeof parsed !== 'object') return null;
     const candidate = parsed as Partial<ResolvedSurface>;
+    const authPolicy = sanitizeSurfaceAuthPolicy(candidate.authPolicy);
     if (
       !isRequestSurface(candidate.surface) ||
-      !isAuthPolicy(candidate.authPolicy) ||
+      !authPolicy ||
       typeof candidate.publicOrigin !== 'string' ||
       normalizedOrigin(candidate.publicOrigin)?.origin !== candidate.publicOrigin
     ) {
@@ -235,11 +313,11 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       if (typeof candidate.organizationId !== 'string' || !effectivePatientBrand) {
         return null;
       }
-      return { ...candidate, effectivePatientBrand } as ResolvedSurface;
+      return { ...candidate, authPolicy, effectivePatientBrand } as ResolvedSurface;
     } else if (candidate.organizationId || candidate.effectivePatientBrand) {
       return null;
     }
-    return candidate as ResolvedSurface;
+    return { ...candidate, authPolicy } as ResolvedSurface;
   } catch {
     return null;
   }

@@ -7,8 +7,10 @@ import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import type { AppSession, UserRole } from '@/shared/types/session';
 import { STAFF_SURFACE } from '@/config/productSurfaces';
 import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
   RESOLVED_SURFACE_HEADER,
   readResolvedSurface,
+  type SurfaceAuthPolicyConfig,
   type TenantSurfaceLookup,
 } from '@/shared/lib/surface/requestSurface';
 
@@ -110,6 +112,7 @@ async function loadProxyForSurfaceConfiguration({
     staffOrigin: new URL(productSurfaces.STAFF_SURFACE.origin),
     patientOrigin: new URL(productSurfaces.PATIENT_DEFAULT_SURFACE.origin),
     readResolvedSurface: requestSurface.readResolvedSurface,
+    resolveRequestSurface: requestSurface.resolveRequestSurface,
     resolvedSurfaceHeader: requestSurface.RESOLVED_SURFACE_HEADER,
   };
 }
@@ -117,6 +120,71 @@ async function loadProxyForSurfaceConfiguration({
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
+});
+
+describe('surface auth policy', () => {
+  it('carries the current behavior as separate available and enabled sets for all three rows', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const resolve = (origin: URL) =>
+      runtime.resolveRequestSurface({
+        host: origin.host,
+        protocol: origin.protocol,
+        resolveTenantSurface: async () => ({ status: 'unknown' }),
+      });
+
+    const [staff, platformAdmin, patient] = await Promise.all([
+      resolve(runtime.staffOrigin),
+      resolve(new URL(`https://admin.${runtime.staffOrigin.hostname}`)),
+      resolve(runtime.patientOrigin),
+    ]);
+
+    expect(staff?.authPolicy).toEqual({
+      availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
+      enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth'],
+    });
+    expect(platformAdmin?.authPolicy).toEqual({
+      availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
+      enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth'],
+    });
+    expect(patient?.authPolicy).toEqual({
+      availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
+      enabledMethods: ['email_code', 'phone_bot', 'oauth'],
+    });
+  });
+
+  it('enables OAuth and passkey by policy setting without changing the resolver or method type', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const disabledConfig: SurfaceAuthPolicyConfig = {
+      ...DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+      staff: {
+        ...DEFAULT_SURFACE_AUTH_POLICY_CONFIG.staff,
+        enabledMethods: ['password', 'email_code', 'phone_bot', 'totp'],
+      },
+    };
+    const enabledConfig: SurfaceAuthPolicyConfig = {
+      ...disabledConfig,
+      staff: {
+        ...disabledConfig.staff,
+        enabledMethods: [...disabledConfig.staff.enabledMethods, 'oauth', 'passkey'],
+      },
+    };
+    const resolveWith = (authPolicyConfig: SurfaceAuthPolicyConfig) =>
+      runtime.resolveRequestSurface({
+        host: runtime.staffOrigin.host,
+        protocol: runtime.staffOrigin.protocol,
+        resolveTenantSurface: async () => ({ status: 'unknown' }),
+        authPolicyConfig,
+      });
+
+    await expect(resolveWith(disabledConfig)).resolves.toMatchObject({
+      authPolicy: { enabledMethods: ['password', 'email_code', 'phone_bot', 'totp'] },
+    });
+    await expect(resolveWith(enabledConfig)).resolves.toMatchObject({
+      authPolicy: {
+        enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
+      },
+    });
+  });
 });
 
 function requestFor(
@@ -318,7 +386,10 @@ describe('B6 host matrix — browser session and CSRF boundaries', () => {
   it('fails closed when a branded Host resolves organization A with organization B resources', async () => {
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const response = await runtime.proxy(
-      requestFor(new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`), '/app/patient/login'),
+      requestFor(
+        new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`),
+        '/app/patient/login',
+      ),
       async () => {
         const resolved = await activeTenantSurface(OTHER_ORGANIZATION_ID)('clinic-a');
         return { ...resolved, organizationId: BRANDED_ORGANIZATION_ID };
@@ -362,9 +433,7 @@ describe('role-specific protected app doors', () => {
   it('does not redirect a role login route', async () => {
     expect(
       (
-        await proxy(
-          requestFor(STAFF_ORIGIN, '/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients'),
-        )
+        await proxy(requestFor(STAFF_ORIGIN, '/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients'))
       ).headers.get('location'),
     ).toBeNull();
   });
@@ -382,49 +451,85 @@ describe('request-surface host matrix at the proxy choke point', () => {
     ['/app/patient/login', 200],
     ['/book', 200],
     ['/manifest.webmanifest', 200],
-  ] as const)('keeps the patient route %s reachable on one shared origin', async (pathname, status) => {
-    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[0]);
+  ] as const)(
+    'keeps the patient route %s reachable on one shared origin',
+    async (pathname, status) => {
+      const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[0]);
 
-    const response = await runtime.proxy(requestFor(runtime.staffOrigin, pathname));
+      const response = await runtime.proxy(requestFor(runtime.staffOrigin, pathname));
 
-    expect(response.status).toBe(status);
-    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
-      .toMatchObject({
+      expect(response.status).toBe(status);
+      expect(
+        runtime.readResolvedSurface({
+          get: (name) => response.headers.get(`x-middleware-request-${name}`),
+        }),
+      ).toMatchObject({
         surface: 'staff',
         publicOrigin: runtime.staffOrigin.origin,
       });
-  });
+    },
+  );
 
   it.each([
     ['/app/patient/login', 'staff host'],
     ['/book', 'staff host'],
     ['/manifest.webmanifest', 'staff host'],
     ['/app/doctor/login', 'patient host'],
-  ] as const)('hard-404s %s on the wrong %s when origins are distinct', async (pathname, wrongHost) => {
-    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
-    const origin = wrongHost === 'staff host' ? runtime.staffOrigin : runtime.patientOrigin;
+  ] as const)(
+    'hard-404s %s on the wrong %s when origins are distinct',
+    async (pathname, wrongHost) => {
+      const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+      const origin = wrongHost === 'staff host' ? runtime.staffOrigin : runtime.patientOrigin;
 
-    const response = await runtime.proxy(requestFor(origin, pathname));
+      const response = await runtime.proxy(requestFor(origin, pathname));
 
-    expect(response.status).toBe(404);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
-      .toBeNull();
-  });
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(
+        runtime.readResolvedSurface({
+          get: (name) => response.headers.get(`x-middleware-request-${name}`),
+        }),
+      ).toBeNull();
+    },
+  );
 
   it.each([
-    ['staff', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => runtime.staffOrigin, '/', 'staff'],
-    ['patient default', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => runtime.patientOrigin, '/app/patient/login', 'patient_default'],
-    ['platform admin', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => new URL(`https://admin.${runtime.staffOrigin.hostname}`), '/app/doctor/login', 'platform_admin'],
-  ] as const)('resolves %s through the proxy choke point', async (_name, originFor, pathname, surface) => {
-    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    [
+      'staff',
+      (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) =>
+        runtime.staffOrigin,
+      '/',
+      'staff',
+    ],
+    [
+      'patient default',
+      (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) =>
+        runtime.patientOrigin,
+      '/app/patient/login',
+      'patient_default',
+    ],
+    [
+      'platform admin',
+      (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) =>
+        new URL(`https://admin.${runtime.staffOrigin.hostname}`),
+      '/app/doctor/login',
+      'platform_admin',
+    ],
+  ] as const)(
+    'resolves %s through the proxy choke point',
+    async (_name, originFor, pathname, surface) => {
+      const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
 
-    const response = await runtime.proxy(requestFor(originFor(runtime), pathname));
+      const response = await runtime.proxy(requestFor(originFor(runtime), pathname));
 
-    expect(response.status).toBe(200);
-    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
-      .toMatchObject({ surface });
-  });
+      expect(response.status).toBe(200);
+      expect(
+        runtime.readResolvedSurface({
+          get: (name) => response.headers.get(`x-middleware-request-${name}`),
+        }),
+      ).toMatchObject({ surface });
+    },
+  );
 });
 
 describe('global admin reaching platform pages under the doctor portal prefix', () => {
@@ -460,9 +565,7 @@ describe('resolved surface request choke point', () => {
       }),
     );
 
-    expect(response.headers.get('x-middleware-request-x-bc-pathname')).toBe(
-      '/app/patient/login',
-    );
+    expect(response.headers.get('x-middleware-request-x-bc-pathname')).toBe('/app/patient/login');
     expect(response.headers.get('x-middleware-request-x-bc-search')).toBe(
       '?next=%2Fapp%2Fpatient%2Fprofile',
     );
@@ -477,7 +580,7 @@ describe('resolved surface request choke point', () => {
         JSON.stringify({
           surface: 'patient_branded',
           publicOrigin: 'https://attacker.example',
-          authPolicy: 'patient',
+          authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
         }),
       );
       const response = await runtime.proxy(
@@ -490,14 +593,13 @@ describe('resolved surface request choke point', () => {
         runtime.readResolvedSurface({
           get: (name) => response.headers.get(`x-middleware-request-${name}`),
         }),
-      )
-        .toMatchObject({
-          surface:
-            surfaceConfiguration.staffOrigin === surfaceConfiguration.patientOrigin
-              ? 'staff'
-              : 'patient_default',
-          publicOrigin: origin.origin,
-        });
+      ).toMatchObject({
+        surface:
+          surfaceConfiguration.staffOrigin === surfaceConfiguration.patientOrigin
+            ? 'staff'
+            : 'patient_default',
+        publicOrigin: origin.origin,
+      });
     },
   );
 
@@ -527,7 +629,7 @@ describe('resolved surface request choke point', () => {
       surface: 'patient_branded',
       publicOrigin: brandedOrigin.origin,
       organizationId,
-      authPolicy: 'patient',
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
       effectivePatientBrand: {
         effectiveDisplayName: 'Clinic A Plus',
         patientAppName: 'Clinic A Care',
