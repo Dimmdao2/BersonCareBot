@@ -34,16 +34,24 @@ const BRANDED_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const OTHER_ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
 
 function activeTenantSurface(organizationId = BRANDED_ORGANIZATION_ID): TenantSurfaceLookup {
+  const effectivePatientBrand =
+    organizationId === BRANDED_ORGANIZATION_ID
+      ? {
+          effectiveDisplayName: 'Clinic A Plus',
+          patientAppName: 'Clinic A Care',
+          accentToken: '#7a3cc2',
+        }
+      : {
+          effectiveDisplayName: 'Clinic B Plus',
+          patientAppName: 'Clinic B Care',
+          accentToken: '#166534',
+        };
+
   return async () => ({
     status: 'active',
     organizationId,
-    effectivePatientBrand: {
-      organizationId,
-      core: { displayName: 'Clinic A', isActive: true },
-      paid: { displayName: 'Clinic A Plus', logoUrl: null },
-      effectiveDisplayName: 'Clinic A Plus',
-      resolution: 'applied',
-    },
+    effectivePatientBrandOrganizationId: organizationId,
+    effectivePatientBrand,
   });
 }
 
@@ -508,6 +516,7 @@ describe('resolved surface request choke point', () => {
       return {
         status: 'active',
         organizationId,
+        effectivePatientBrandOrganizationId: organizationId,
         effectivePatientBrand: safeBrandWithInternalExtras,
       };
     };
@@ -545,6 +554,7 @@ describe('resolved surface request choke point', () => {
         async () => ({
           status: 'active' as const,
           organizationId,
+          effectivePatientBrandOrganizationId: organizationId,
           effectivePatientBrand: {
             effectiveDisplayName: 'Clinic A Plus',
             patientAppName: invalidValue === '' ? invalidValue : 'Clinic A Care',

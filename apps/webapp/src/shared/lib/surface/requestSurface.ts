@@ -28,6 +28,8 @@ export type TenantSurfaceLookupResult =
   | Readonly<{
       status: 'active';
       organizationId: string;
+      /** Trusted organization provenance of the projected brand before its id is stripped. */
+      effectivePatientBrandOrganizationId: string;
       effectivePatientBrand: EffectivePatientBrand;
     }>
   | Readonly<{ status: 'unknown' | 'duplicate' | 'inactive' }>;
@@ -155,7 +157,13 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
 
   // Persistence/domain seams store a hostname, never an HTTP authority with a development port.
   const tenant = await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
-  if (tenant.status !== 'active' || !tenant.organizationId) return null;
+  if (
+    tenant.status !== 'active' ||
+    !tenant.organizationId ||
+    tenant.effectivePatientBrandOrganizationId !== tenant.organizationId
+  ) {
+    return null;
+  }
   const effectivePatientBrand = sanitizeEffectivePatientBrand(tenant.effectivePatientBrand);
   if (!effectivePatientBrand) return null;
 
