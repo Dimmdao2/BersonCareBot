@@ -8,7 +8,11 @@ CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
   p_user_id uuid, p_email text, p_code_hash text, p_expires_at bigint, p_purpose text, p_code text
 )
 RETURNS TABLE (challenge_id uuid, retry_after_seconds integer)
-LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE SECURITY DEFINER SET search_path = pg_catalog
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+PARALLEL UNSAFE
+SET search_path = pg_catalog
 AS $function$
 BEGIN
   RAISE EXCEPTION 'email_auth_start_challenge: mail_profile_required';
@@ -33,7 +37,11 @@ CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
   p_platform_name text
 )
 RETURNS TABLE (challenge_id uuid, retry_after_seconds integer)
-LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE SECURITY DEFINER SET search_path = pg_catalog
+LANGUAGE plpgsql
+VOLATILE
+SECURITY DEFINER
+PARALLEL UNSAFE
+SET search_path = pg_catalog
 AS $function$
 DECLARE
   v_challenge_id uuid;
@@ -173,7 +181,10 @@ CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(
   p_organization_id uuid
 )
 RETURNS jsonb
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog
 AS $function$
   SELECT setting.value_json
   FROM public.system_settings AS setting
