@@ -107,3 +107,93 @@ Exit `1`: `FATAL: DEV API env path guard failed`. Это ожидаемое ог
 проверил бы другой checkout без этой правки, поэтому не подменял им доказательство candidate-кода.
 
 TEST и PROD не затрагивались. `--execute`, deploy и push не запускались. Галочки плана не менялись.
+
+## Круг 2
+
+### Итог
+
+Владелец строки и ключ теперь совпадают: `broadcast_drafts` хранит отдельный черновик для пары
+`(doctor_user_id, organization_id)`, а production-upsert целится в этот составной ключ. Миграция сначала
+разрешает legacy `NULL` только при ровно одном активном членстве врача, удаляет неразрешимые расходные черновики,
+затем ставит `organization_id NOT NULL` и заменяет старый уникальный ключ составным.
+
+Миграция меняет только данные, nullability и уникальный constraint существующей таблицы
+`public.broadcast_drafts`. Backfill исполняется мигратором, DDL — владельцем `app_object_owner`. Новых runtime-
+прав не требуется: `app_staff` сохраняет прежние `SELECT`, колонковый `INSERT` с `organization_id` и `UPDATE`
+только payload-колонок; tenant discriminator через `UPDATE` не выдаётся. Политики и роли не меняются.
+
+Точный поиск запрещённых правовых команд выполнен только в новом файле миграции:
+
+```bash
+rg -n "\b(GRANT|REVOKE|CREATE[[:space:]]+POLICY|CREATE[[:space:]]+ROLE|ALTER[[:space:]]+DEFAULT[[:space:]]+PRIVILEGES)\b" apps/webapp/db/drizzle-migrations/20260823T021426_broadcast_drafts_belong_to_doctor_and_clinic.sql
+```
+
+Exit `1`, вывод пуст: в указанном файле нет ни одной из запрещённых команд.
+
+### Живое rollback-only доказательство на DEV
+
+Тест читает точный кандидатный файл миграции, исполняет его backfill/owner-блоки внутри одной транзакции на
+именованной `bcb_webapp_dev`, затем проходит все шесть состояний без удаления строки между первым и повторным
+сохранением:
+
+- строки нет: в клинике B создана новая строка;
+- своя клиника: два последовательных save дают одну строку, второй title и тот же `id`, то есть исполнена ветка
+  `ON CONFLICT DO UPDATE`;
+- legacy `NULL`: строка врача с одним членством получила клинику; строки с нулём и двумя членствами удалены;
+  после backfill `NULL`-строк нет, каталог показывает `NOT NULL`;
+- чужая клиника: до save клиника B читает ноль строк, после save её строка живёт рядом, строка A не изменена;
+- врач в двух клиниках: физически живут две строки, а в контексте A и B читается ровно своя;
+- чтение чужого черновика: ноль строк.
+
+```bash
+RUN_BROADCAST_DRAFT_SAVE_DB=1 node --test deploy/postgres/privileges/broadcast-draft-save.devDbProof.test.mjs
+```
+
+Exit `0`: `2`/`2` теста прошли, включая rollback-postcheck. Внутренние утверждения измерили
+`legacy_backfilled=1`, `ambiguous_removed=0`, `zero_removed=0`, `null_rows=0`,
+`clinic_a_repeat=1|...clinic-a-second|true`, `foreign_before=0`, `physical_rows=2`,
+`clinic_a_untouched=1`, `clinic_b_created=1`. После `ROLLBACK`: пробных строк `0`, кандидатного гранта нет,
+живая схема и старый constraint не изменены.
+
+Три независимых fault injection дали красный результат и также прошли rollback-postcheck:
+
+```bash
+BROADCAST_DRAFT_SAVE_FAULT=omit-backfill RUN_BROADCAST_DRAFT_SAVE_DB=1 node --test deploy/postgres/privileges/broadcast-draft-save.devDbProof.test.mjs
+```
+
+Exit `1`: `SET NOT NULL` остановлен PostgreSQL, потому что `organization_id` содержит `NULL`.
+
+```bash
+BROADCAST_DRAFT_SAVE_FAULT=omit-not-null RUN_BROADCAST_DRAFT_SAVE_DB=1 node --test deploy/postgres/privileges/broadcast-draft-save.devDbProof.test.mjs
+```
+
+Exit `1`: каталог вернул `not_null=false` вместо обязательного `true`.
+
+```bash
+BROADCAST_DRAFT_SAVE_FAULT=weaken-org-policy RUN_BROADCAST_DRAFT_SAVE_DB=1 node --test deploy/postgres/privileges/broadcast-draft-save.devDbProof.test.mjs
+```
+
+Exit `1`: клиника B прочитала чужую строку (`foreign_before=1` вместо `0`).
+
+### Генерация и статические проверки
+
+```bash
+node deploy/postgres/privileges/generate-cli.mjs --all
+node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only
+node deploy/postgres/privileges/generate-cli.mjs --all --check
+```
+
+Все три команды завершились с exit `0`; `--check` подтвердил побайтовое совпадение четырёх privilege/allowlist-
+артефактов с `declaration.ts`. Смыслового diff после генерации нет.
+
+```bash
+node --test --test-reporter=dot deploy/postgres/privileges/migration-order.test.mjs deploy/postgres/privileges/migrate-local-parse.test.mjs deploy/postgres/privileges/relation-access.test.mjs
+pnpm --dir apps/webapp typecheck
+pnpm --dir apps/webapp lint
+```
+
+Все команды завершились с exit `0`. Node runner прошёл `73` теста (ровно `73` точки в выводе команды).
+TypeScript завершил `tsc --noEmit`. Lint — без ошибок; остались `2` существующих warning в
+`AppointmentPaymentSection.tsx`, измеренные этой же командой lint.
+
+`--execute`, TEST, PROD, deploy и push не запускались. Галочки планов не менялись.

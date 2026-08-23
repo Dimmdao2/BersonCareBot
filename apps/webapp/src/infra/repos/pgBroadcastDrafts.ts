@@ -1,5 +1,5 @@
 /**
- * Broadcast draft persistence — one draft per doctor, last-write-wins.
+ * Broadcast draft persistence — one draft per doctor and clinic, last-write-wins.
  * Wave 3 phase 15G — migrated from pool.query to Drizzle db.execute(sql).
  */
 import { sql } from 'drizzle-orm';
@@ -56,7 +56,7 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
           ${draft.mediaType ?? null},
           NOW()
         )
-        ON CONFLICT (doctor_user_id)
+        ON CONFLICT (doctor_user_id, organization_id)
         DO UPDATE SET
           category   = EXCLUDED.category,
           audience   = EXCLUDED.audience,
