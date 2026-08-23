@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME, STAFF_SURFACE } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { PATIENT_PWA_MANIFEST_PATH } from '@/shared/lib/pwa/patientPwaManifest';
 import type { ProductSurface } from '@/config/surfaceRoutes';
@@ -34,6 +34,17 @@ export const patientLayoutMetadata: Metadata = {
     title: PATIENT_DEFAULT_SURFACE.name,
     statusBarStyle: 'default',
   },
+};
+
+/**
+ * Browser metadata for the platform-admin subtree. The owner ruled that platform admins do not
+ * install an app, so this child layout clears the root layout's PWA metadata during Next merge.
+ */
+export const platformAdminLayoutMetadata: Metadata = {
+  title: PLATFORM_NAME,
+  description: `Панель платформенного администратора ${PLATFORM_NAME}.`,
+  manifest: null,
+  appleWebApp: null,
 };
 
 /** Метаданные документа для поверхности запроса. */

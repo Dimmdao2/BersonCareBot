@@ -344,10 +344,6 @@ sudo nginx -T 2>/dev/null | grep -n "configuration file.*bersoncarebot-webapp"
 `docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` (вердикт B4). Rubitime probe удалён вместе с
 provider runtime 2026-07-27.
 
-Дополнительно в `tgcarebot` vhost есть legacy-path:
-
-- `/admin/` -> `http://127.0.0.1:8080/`
-
 Примечания:
 
 - сайт `default` в nginx всё ещё включен;
