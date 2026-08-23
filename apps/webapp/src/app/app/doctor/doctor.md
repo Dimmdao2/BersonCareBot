@@ -6,6 +6,11 @@
 
 **Главная** (`page.tsx`): только пользователи с ролью врач или админ. Экран «Сегодня» — двухколоночная раскладка (левое полотно: поток + сопровождение + задачи; правое: KPI записей + карточка приёма + мини-календарь). Компоненты: `DoctorTodayDashboard`, `DoctorTodayLeftKpiRow`, `DoctorTodayRightKpiRow`, `DoctorCurrentAppointmentCard`, `DoctorTodayMiniCalendar`, `DoctorGlobalTasksSection`.
 
+**Задачи** (`tasks/page.tsx`): все открытые задачи специалиста. На desktop стандартный `CatalogSplitLayout`
+50/50: список слева, детали/создание справа; на mobile список сменяется деталями с возвратом назад. Механика
+`specialist_tasks`: read-only оставляет просмотр, но скрывает создание/изменение/выполнение; disabled скрывает
+пункт меню и закрывает route.
+
 ---
 
 ## TODO: недостающие данные для «Сегодня»
@@ -25,9 +30,10 @@
 - Нужна функция `getAppWorkingHours(): Promise<{ startHour: number; endHour: number }>`
 - Передать как проп `workingHoursRange` в `DoctorTodayMiniCalendar`
 
-### TODO#3: «Все задачи» и лимит в DoctorGlobalTasksSection
+### TODO#3: закрыт — полный список задач
 
-`loadDoctorTodayDashboard.ts` запрашивает не более 8 задач (`listGlobalOpen(userId, 8)`). Если задач больше — врач не увидит остальные.
+`loadDoctorOpenTasks.ts` без лимита загружает все открытые задачи и batch-резолвит ФИО пациентов для «Сегодня»
+и самостоятельной страницы «Задачи».
 
 - Вариант A: добавить `globalOpenTasksTruncated: boolean` в `TodayDashboardData` (fetch N+1, truncate при необходимости)
 - Вариант B: создать страницу `/app/doctor/tasks` и добавить ссылку в `DoctorGlobalTasksSection` при `tasks.length >= 8`
