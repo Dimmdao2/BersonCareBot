@@ -1,5 +1,5 @@
 /**
- * Broadcast draft persistence — one draft per doctor, last-write-wins.
+ * Broadcast draft persistence — one draft per doctor and clinic, last-write-wins.
  * Wave 3 phase 15G — migrated from pool.query to Drizzle db.execute(sql).
  */
 import { sql } from 'drizzle-orm';
@@ -43,9 +43,10 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
       await runWebappTransaction(async (tx) => {
         await tx.execute(sql`
         INSERT INTO broadcast_drafts
-          (doctor_user_id, category, audience, channels, title, body, media_url, media_type, updated_at)
+          (doctor_user_id, organization_id, category, audience, channels, title, body, media_url, media_type, updated_at)
         VALUES (
           ${doctorUserId},
+          app.current_org_id(),
           ${draft.category ?? null},
           ${draft.audience ?? null},
           ${JSON.stringify(draft.channels)}::jsonb,
@@ -55,7 +56,7 @@ export function createPgBroadcastDraftPort(): BroadcastDraftPort {
           ${draft.mediaType ?? null},
           NOW()
         )
-        ON CONFLICT (doctor_user_id)
+        ON CONFLICT (doctor_user_id, organization_id)
         DO UPDATE SET
           category   = EXCLUDED.category,
           audience   = EXCLUDED.audience,
