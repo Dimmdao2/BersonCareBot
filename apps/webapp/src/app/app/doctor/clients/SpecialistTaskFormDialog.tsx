@@ -29,18 +29,23 @@ function fromLocalInput(value: string): string | null {
   return d.toISOString();
 }
 
-type FormFieldsProps = {
+export type SpecialistTaskFormContentProps = {
   /**
    * If non-empty, the task is pinned to this patient (e.g. from patient card).
    * If empty string, a patient picker is shown so the doctor can optionally link the task to a patient.
    */
   patientUserId: string;
   editing: SpecialistTaskRow | null;
-  onSaved: () => void;
+  onSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
   onClose: () => void;
 };
 
-function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }: FormFieldsProps) {
+export function SpecialistTaskFormContent({
+  patientUserId,
+  editing,
+  onSaved,
+  onClose,
+}: SpecialistTaskFormContentProps) {
   const [title, setTitle] = useState(editing?.title ?? '');
   const [description, setDescription] = useState(editing?.description ?? '');
   const [dueAt, setDueAt] = useState(() => toLocalInput(editing?.dueAt ?? null));
@@ -121,7 +126,18 @@ function SpecialistTaskFormContent({ patientUserId, editing, onSaved, onClose }:
           setError('Не удалось сохранить');
           return;
         }
-        onSaved();
+        const data = (await res.json()) as { task?: SpecialistTaskRow };
+        if (!data.task) {
+          setError('Не удалось сохранить');
+          return;
+        }
+        const linkedPatientDisplayName = linkedPatient?.displayName.trim();
+        onSaved(
+          data.task,
+          isGlobal && linkedPatientDisplayName && linkedPatientDisplayName !== 'Загрузка…'
+            ? linkedPatientDisplayName
+            : undefined,
+        );
         onClose();
       } catch {
         setError('Ошибка сети');
@@ -183,7 +199,7 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   patientUserId: string;
   editing: SpecialistTaskRow | null;
-  onSaved: () => void;
+  onSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
 };
 
 export function SpecialistTaskFormDialog({
