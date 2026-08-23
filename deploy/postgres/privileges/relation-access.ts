@@ -8205,9 +8205,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/app/app/doctor/page.tsx",
       "apps/webapp/src/app/app/doctor/patients/loadDoctorPatientCardPageBootstrap.ts",
       "apps/webapp/src/infra/repos/pgSpecialistTasks.ts",
-      "apps/webapp/src/modules/operator-health/reconcileJobKeys.ts",
       "apps/webapp/src/modules/org-entitlements/types.ts",
-      "apps/webapp/src/modules/specialist-tasks/dispatchDueReminders.ts",
       "apps/webapp/src/modules/specialist-tasks/service.ts"
     ],
     "grants": [
