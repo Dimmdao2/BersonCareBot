@@ -8,7 +8,6 @@ import type { VideoDefaultDeliveryUi } from './VideoSystemSettingsSection';
 import type { EmailSmtpSectionProps } from './EmailSmtpSection';
 import type { AuthProvidersSectionProps } from './AuthProvidersSection';
 import {
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
   type HealthFailureArchiveProbe,
@@ -182,7 +181,6 @@ export function parseHealthArchiveProbeParam(
   if (!s) return undefined;
   if (
     s === HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE ||
-    s === HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE ||
     s === HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE
   ) {
     return s;

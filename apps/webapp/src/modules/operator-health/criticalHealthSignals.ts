@@ -1,7 +1,5 @@
 import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from './adminHealthThresholds';
-import { classifyIntegratorPushOutboxSystemHealthStatus } from './integratorPushOutboxHealth';
 import type {
-  IntegratorPushOutboxHealthSnapshot,
   OperatorIncidentOpenRow,
   OutgoingDeliveryQueueHealthSnapshot,
   WebhookBurstRow,
@@ -56,7 +54,6 @@ export type CriticalHealthSignalsInput = {
     /** Server-only cadence rows; never exposed by the classifier or UI API. */
     openIncidents?: OperatorIncidentOpenRow[];
   };
-  integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   /** Из `operator_job_status.meta_json.consecutiveFailRuns` (outbound probe). */
   probeConsecutiveFailRuns: number;
@@ -126,8 +123,6 @@ export function classifyOperatorHealthBannerSignals(input: OperatorHealthBannerI
     countActiveOutgoingDeliveryDead(od) > 0 ||
     od.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
   )
-    return true;
-  if (classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox) !== 'ok')
     return true;
   if (classifyTenantIsolationSignals(input.tenantIsolation).length > 0) return true;
   if (classifyProviderQuotaSignals(input.outboundDeliveryProvider?.openIncidents).length > 0)
@@ -344,20 +339,6 @@ export function classifyCriticalHealthSignals(
               `Всего за историю: ${input.outgoingDelivery.deadTotal}`,
             ]
           : []),
-      ],
-    });
-  }
-
-  const ipoStatus = classifyIntegratorPushOutboxSystemHealthStatus(input.integratorPushOutbox);
-  if (ipoStatus === 'error') {
-    const hourKey = new Date().toISOString().slice(0, 13);
-    out.push({
-      topic: 'integrator_push_outbox',
-      dedupKey: `ipo:${hourKey}:error`,
-      pushTitle: 'Критичный сбой: очередь синка integrator',
-      lines: [
-        `Очередь integrator_push_outbox: ${ipoStatus}`,
-        `Ждут (due): ${input.integratorPushOutbox.dueBacklog}, dead: ${input.integratorPushOutbox.deadTotal}`,
       ],
     });
   }

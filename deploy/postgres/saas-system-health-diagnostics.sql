@@ -229,7 +229,6 @@ GRANT SELECT ON TABLE
   public.operator_job_status,
   public.operator_incidents,
   public.outgoing_delivery_queue,
-  public.integrator_push_outbox,
   public.reminder_occurrence_history,
   public.reminder_delivery_events,
   public.idempotency_keys,

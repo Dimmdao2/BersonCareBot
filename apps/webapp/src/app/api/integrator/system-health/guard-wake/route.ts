@@ -3,7 +3,7 @@ import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { z } from 'zod';
 import { isKeyValid } from '@/app-layer/idempotency/idempotencyStore';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
-import { runIntegratorPushOutboxHealthGuardTick } from '@/app-layer/health/runIntegratorPushOutboxHealthGuardTick';
+import { runOperatorHealthMaintenanceTick } from '@/app-layer/health/runOperatorHealthMaintenanceTick';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
@@ -37,16 +37,16 @@ export async function POST(request: Request) {
   const startedAt = Date.now();
   const startedAtIso = new Date(startedAt).toISOString();
   try {
-    const result = await runIntegratorPushOutboxHealthGuardTick();
+    await runOperatorHealthMaintenanceTick();
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
       jobKey: OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
       startedAtIso,
       durationMs: Date.now() - startedAt,
       success: true,
-      metaJson: result,
+      metaJson: {},
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_HEALTH_JOB_FAMILY,

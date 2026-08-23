@@ -10,7 +10,6 @@
 #   recommendations.domain
 #   media_files.video_processing_status, video_processing_error, preview_status
 #   media_transcode_jobs.media_id, status
-#   integrator_push_outbox.idempotency_key
 #   system_settings.key
 #   platform_users.calendar_timezone
 #   platform_users.session_epoch   (session revocation, migration 0243 — see below)
@@ -47,7 +46,6 @@ missing_columns="$(
         ('media_files', 'preview_status'),
         ('media_transcode_jobs', 'media_id'),
         ('media_transcode_jobs', 'status'),
-        ('integrator_push_outbox', 'idempotency_key'),
         ('system_settings', 'key'),
         ('platform_users', 'calendar_timezone'),
         ('platform_users', 'session_epoch')
