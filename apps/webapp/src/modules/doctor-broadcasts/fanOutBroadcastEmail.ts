@@ -21,6 +21,7 @@ export function buildBroadcastEmailHtml(input: {
   title: string;
   body: string;
   unsubscribeUrl: string;
+  unsubscribeTopicTitle: string;
   mediaUrl?: string | null;
 }): string {
   const img = input.mediaUrl
@@ -31,7 +32,8 @@ export function buildBroadcastEmailHtml(input: {
     : '';
   const text = `<div style="white-space:pre-wrap">${escapeHtml(input.body)}</div>`;
   const unsubscribeUrl = escapeHtml(input.unsubscribeUrl);
-  const unsubscribe = `<div style="margin-top:20px"><a href="${unsubscribeUrl}" style="display:inline-block;padding:8px 14px;border:1px solid #d8d8d8;border-radius:18px;color:#555;text-decoration:none">Отписаться от темы</a></div>`;
+  const unsubscribeTopicTitle = escapeHtml(input.unsubscribeTopicTitle);
+  const unsubscribe = `<div style="margin-top:20px"><a href="${unsubscribeUrl}" style="display:inline-block;padding:8px 14px;border:1px solid #d8d8d8;border-radius:18px;color:#555;text-decoration:none">Отписаться от «${unsubscribeTopicTitle}»</a></div>`;
   return `${img}${head}${text}${unsubscribe}`;
 }
 
@@ -54,6 +56,7 @@ export type FanOutBroadcastEmailInput = {
   mediaUrl?: string | null;
   eligibleClients: readonly ClientListItem[];
   unsubscribeUrlByUserId: ReadonlyMap<string, string>;
+  unsubscribeTopicTitle: string;
 };
 
 export type FanOutBroadcastEmailDeps = RelayOutboundDeps & {
@@ -117,7 +120,7 @@ export async function fanOutBroadcastEmail(
           organizationId: input.organizationId,
           channel: 'email',
           recipient: emailAddress,
-          text: `${input.broadcastTitle}\n\n${input.broadcastBody}\n\nОтписаться от темы: ${unsubscribeUrl}`,
+          text: `${input.broadcastTitle}\n\n${input.broadcastBody}\n\nОтписаться от «${input.unsubscribeTopicTitle}»: ${unsubscribeUrl}`,
           metadata: {
             subject: input.broadcastTitle,
             listUnsubscribe: `<${unsubscribeUrl}>`,
@@ -128,6 +131,7 @@ export async function fanOutBroadcastEmail(
             body: input.broadcastBody,
             mediaUrl: input.mediaUrl,
             unsubscribeUrl,
+            unsubscribeTopicTitle: input.unsubscribeTopicTitle,
           }),
         },
         deps,

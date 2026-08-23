@@ -643,15 +643,26 @@ install_port_context_capability_catalog(){
   fi
   sudo -u postgres psql -d "$DB" -X -1 -v ON_ERROR_STOP=1 \
     -f "$DEPLOY_REPO/$PORT_CONTEXT_CAPABILITY_SEED" >/dev/null
+  # Ожидаемое число берётся ИЗ САМОЙ декларации (генерируемый seed), а не из константы: 12.08.2026
+  # сюда было вписано «10», а декларация с тех пор выросла — фиксированное число превращает гейт в
+  # мину под `--post-migration-closure` и full-reset. Сверяем каталог в БД с тем, что объявил seed:
+  # расхождение по-прежнему валит выкатку, но ловит РЕАЛЬНОЕ (лишние DB-local строки или неприменённый
+  # seed), а не устаревание константы.
+  local expected
+  expected="$(grep -cE "'(bcb_test_webapp_staff|bcb_test_integrator)'::name" "$DEPLOY_REPO/$PORT_CONTEXT_CAPABILITY_SEED")"
+  [ "${expected:-0}" -gt 0 ] || {
+    echo "FATAL: declaration seed $PORT_CONTEXT_CAPABILITY_SEED declares no staff/integrator capabilities" >&2
+    exit 1
+  }
   count="$(sudo -u postgres psql -d "$DB" -X -v ON_ERROR_STOP=1 -tAc \
     "SELECT count(*) FROM app_ext.port_context_capabilities
       WHERE active_until IS NULL
         AND session_login IN ('bcb_test_webapp_staff','bcb_test_integrator');")"
-  [ "$count" = "10" ] || {
-    echo "FATAL: expected 10 active declaration-owned TEST port-context capabilities, got $count" >&2
+  [ "$count" = "$expected" ] || {
+    echo "FATAL: expected $expected active declaration-owned TEST port-context capabilities, got $count" >&2
     exit 1
   }
-  echo "   port-context capability catalog: OK (10 exact declaration-owned rows)"
+  echo "   port-context capability catalog: OK ($expected exact declaration-owned rows)"
 }
 
 reapply_c4_operational_runtime_overlays(){
