@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Предпочтительный порт repo-work агентов с гейтами. Простой bounded spawn допустим напрямую;
-# действующие правила выбора режима находятся только в AGENTS.md §24.
+# Порт цельных делегируемых repo-work этапов с гейтами; гейт полезности делегирования и выбор режима находятся
+# только в AGENTS.md §24.
 set -euo pipefail
 
 MAIN=/home/dev/dev-projects/BersonCareBot
@@ -22,7 +22,7 @@ tools/orch-launch.sh worker       <clone> <run-id> <model> <effort> <brief> <sco
 tools/orch-launch.sh auditor-live <clone> <run-id> <model> <effort> <brief> <scope>
 tools/orch-launch.sh land         <clone> <branch>
 
-This port is preferred for gated/stateful repo-work. Simple bounded work may use direct spawn.
+This port is for delegated gated/stateful repo-work whose scope justifies a separate executor.
 Environment: ORCH_WAIT=1, ORCH_OPS="reason", ORCH_NO_TESTS="reason", ORCH_ISOLATE=1, ORCH_DRY=1.
 Canon: AGENTS.md §24. Operational paths: docs/ORCHESTRATION_BINDINGS.md.
 USAGE
@@ -148,15 +148,15 @@ if ! git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/
 fi
 AHEAD=$(git -C "$CLONE" rev-list --count "$HEAD_MAIN".."$HEAD_CLONE")
 
-# 3. Бриф: есть, непустой. Для tracked workstream authority — существующий plan/checklist. Для любой bounded
-#    работы без plan-файла authority = сам brief, а ORCH_OPS="<почему brief достаточен>" фиксирует выбор.
+# 3. Бриф: есть, непустой. Для tracked workstream authority — существующий plan/checklist. Для цельного
+#    делегируемого bounded-этапа без plan-файла authority = сам brief, а ORCH_OPS фиксирует выбор.
 [ -s "$BRIEF" ] || die "бриф $BRIEF не найден или пуст"
 grep -q "AGENTS.md" "$BRIEF" || die "в брифе нет AGENTS.md — агент не получил единственный канон правил"
 if [ -n "${ORCH_OPS:-}" ]; then
   echo "  bounded-режим: authority = сам бриф; причина: $ORCH_OPS (plan-файл не требуется)"
 else
   grep -q "docs/_TODO/" "$BRIEF" || die "в брифе нет ссылки на authority/checklist в docs/_TODO/ — исполнителю нечего сдавать, аудитору нечего проверять (AGENTS.md §24.2).
-  Для tracked workstream добавь существующий plan. Для bounded-задачи без плана запускай с
+  Для tracked workstream добавь существующий plan. Для цельного делегируемого bounded-этапа без плана запускай с
   ORCH_OPS=\"<почему brief достаточен>\", тогда authority = сам brief."
 fi
 
