@@ -1248,7 +1248,18 @@ booking/event gateway) в том же источнике помечены «за
 > 443 и ни одного ICMP за 20 секунд активных попыток — нет, то есть маршрут теряется на стороне клиента).
 > Бэкап прежнего конфига — `/root/nginx-test-allowlist-backup-20260822.conf`, вернуть после починки маршрута.
 
-- [x] **D17 — узкая роль в базе.** ✅ **ЗАКРЫТО 23.08.2026:** `da5d1107a` снял у логина интегратора широкое
+- [ ] **D17 — узкая роль в базе.** ⛔ **ПЕРЕОТКРЫТО 23.08.2026 — живой прогон на TEST показал, что сужение
+      сломало доставку.** Пациент записывается (`POST /api/booking/create` → `confirmed`), а подтверждение и
+      напоминания не создаются: журнал вебаппа на `booking.created` и `booking.cancelled` даёт
+      `APPOINTMENT_REMINDER_MATERIALIZATION_FAILED:403`, журнал Postgres в тот же момент —
+      `bcb_test_integrator … 42501 ERROR: permission denied for function read_integrator_google_calendar_setting`.
+      Причина названа: у корня и грант, и список принимаемых ролей в attested-гейте написаны на широкую
+      `app_tenant_service`, членство в которой D17 у интегратора и снял. Перепись живого каталога TEST
+      (`has_function_privilege('app_tenant_service',…) AND NOT has_function_privilege('app_integrator_tenant_service',…)`)
+      даёт **15 таких корней**, включая всю цепочку напоминаний и доставки. Фикс-бриф —
+      `runs/briefs/D17_INTEGRATOR_LOST_EXECUTE_BRIEF_2026-08-23.md`. Галочка возвращается только после живой
+      записи на TEST, у которой в очереди появились подтверждение и напоминания.
+      Прежняя запись (замер на DEV, теперь опровергнута живым TEST): ~~✅ ЗАКРЫТО 23.08.2026~~ — `da5d1107a` снял у логина интегратора широкое
       членство `app_tenant_service` и перевёл организационный relation-доступ на
       `app_integrator_tenant_service`. Текущая декларация даёт `old_memberships=0`, `narrow_memberships=1`,
       `old_capabilities=0`, `narrow_capabilities=1`, `relations=8`, `forced_relations=8`; точная команда и
