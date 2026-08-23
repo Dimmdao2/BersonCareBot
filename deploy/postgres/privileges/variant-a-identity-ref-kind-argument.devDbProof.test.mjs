@@ -55,8 +55,13 @@ const CONTRACT = readFileSync(
 // Ш8-аудит лежит в pending migration, а предмет этой пробы — резолверы Ш3–Ш7.  Заглушка сохраняет
 // их исполнимость в rollback-only candidate, не подменяя поведение самого аудита (его проверяет
 // identity-boundary-audit.devDbProof.test.mjs).
+// Имена параметров — РОВНО те, что у живой двери Ш8: `CREATE OR REPLACE` не умеет переименовывать
+// входной параметр и отвечает «cannot change name of input parameter "p_action"». Пока дверь лежала
+// в неприменённой миграции, безымянная заглушка создавалась с нуля и вопрос не вставал; после Ш8
+// она роняет КАЖДУЮ пробу этого файла, то есть резолвер остаётся без единой живой проверки.
 const AUDIT_STUB = `CREATE OR REPLACE FUNCTION app.record_collapsing_audit_event(
-  text, uuid, uuid, text, text, text
+  p_action text, p_organization_id uuid, p_actor_id uuid,
+  p_target_id text, p_conflict_key text, p_details text
 ) RETURNS jsonb LANGUAGE sql AS $$ SELECT '{}'::jsonb $$;
 GRANT EXECUTE ON FUNCTION app.record_collapsing_audit_event(text,uuid,uuid,text,text,text)
   TO app_seam_identity_lookup_owner;`;
