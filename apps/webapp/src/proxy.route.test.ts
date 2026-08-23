@@ -862,7 +862,7 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)).toBeNull();
   });
 
-  it.each([120, 121, 200])(
+  it.each([119, 120, 121, 199, 200])(
     'оставляет живой адрес клинике с названием из %i знаков',
     async (titleLength) => {
       const title = 'К'.repeat(titleLength);
@@ -881,4 +881,40 @@ describe('B4a: адрес клиники на нашем поддомене жи
       });
     },
   );
+
+  it('оставляет живой адрес, когда тариф есть и опубликована только палитра, а имя ядра длинное', async () => {
+    // Ветка `applied` берёт имя ядра ДРУГОЙ строкой, чем платформенный фолбэк: без своего случая
+    // возврат обхода нормализации здесь остаётся зелёным.
+    const title = 'Ю'.repeat(200);
+    const response = await get('kedr', tenantSeam({
+      ...TENANTS,
+      kedr: {
+        ...TENANTS.kedr!,
+        title,
+        published: { ...paidRevision, displayName: null, patientAppName: null, logoMediaId: null },
+      },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      effectivePatientBrand: {
+        effectiveDisplayName: title.slice(0, 120),
+        patientAppName: title.slice(0, 120),
+        accentToken: '#0f766e',
+      },
+    });
+  });
+
+  it('оставляет живой адрес клинике с эмодзи в названии: срез не рвёт поверхность', async () => {
+    // 200 UTF-16 единиц: срез по 120 попадает в середину суррогатной пары.
+    const title = '🌿'.repeat(100);
+    const response = await get('sosny', tenantSeam({
+      ...TENANTS,
+      sosny: { ...TENANTS.sosny!, title },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(middlewareRequestSurface(response)?.surface).toBe('patient_branded');
+  });
 });
