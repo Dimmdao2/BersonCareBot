@@ -8,8 +8,6 @@ import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendO
 import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersoncare/bookingLifecycleRoute.js';
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
-import { resolveActiveTenantForIntegratorUserId } from '../infra/db/repos/channelUsers.js';
-import type { ResolvedIntegratorUserTenant } from '../infra/db/repos/channelUsers.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
@@ -44,22 +42,6 @@ function createResolveOrganizationIdForMessengerIdentity(): (
       const db = createDbPort();
       return await runWithBootstrapPrincipal({ source: `${resource}-webhook:pre-routing` }, () =>
         resolveActiveOrganizationIdForChannel(db, { channelCode: resource, externalId }),
-      );
-    } catch (error) {
-      reportIntegratorIsolationFailure(error);
-      return null;
-    }
-  };
-}
-
-function createResolveTenantForIntegratorUserId(): (
-  integratorUserId: string,
-) => Promise<ResolvedIntegratorUserTenant | null> {
-  return async (integratorUserId) => {
-    try {
-      const db = createDbPort();
-      return await runWithBootstrapPrincipal({ source: 'integrator-user-org-resolution' }, () =>
-        resolveActiveTenantForIntegratorUserId(db, integratorUserId),
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
@@ -104,7 +86,6 @@ function createResolveDedicatedClinicMaxApiKey(): (
 export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promise<void> {
   const resolveOrganizationIdForMessengerIdentity =
     createResolveOrganizationIdForMessengerIdentity();
-  const resolveTenantForIntegratorUserId = createResolveTenantForIntegratorUserId();
   const resolveDedicatedTelegramBotOrganization =
     createResolveDedicatedClinicBotOrganization('telegram');
   const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
