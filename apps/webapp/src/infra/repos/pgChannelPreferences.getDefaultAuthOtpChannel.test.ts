@@ -31,58 +31,46 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
   });
 
   it('prefers the channel that confirmed the current phone over the earliest-linked binding', async () => {
-    // Reproduces the reachable F1 case: Telegram linked in 2024 without a phone, the phone later
-    // confirmed via Max in 2026 — the earliest-linked query alone would wrongly pick Telegram.
-    fakes.runWebappPgText.mockResolvedValueOnce({
-      rows: [{ confirming_channel: 'max' }],
-    });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ channel_code: 'max' }] });
 
     const result = await pgChannelPreferencesPort.getDefaultAuthOtpChannel('user-1');
 
     expect(result).toBe('max');
-    expect(fakes.runWebappPgText).toHaveBeenCalledOnce();
-    expect(fakes.runWebappPgText).toHaveBeenCalledWith(
-      expect.stringContaining('FROM user_phone_history'),
-      ['user-1'],
-    );
+    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
+    expect(db).toBe(fakes.db);
+    expect(identity).toBe('app.pre_session_get_default_auth_otp_channel(uuid)');
+    expect(args).toEqual(['user-1']);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
   it('falls back to the earliest-linked binding when confirming_channel is NULL (historical row)', async () => {
-    fakes.runWebappPgText
-      .mockResolvedValueOnce({ rows: [{ confirming_channel: null }] })
-      .mockResolvedValueOnce({ rows: [{ code: 'telegram' }] });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ channel_code: 'telegram' }] });
 
     const result = await pgChannelPreferencesPort.getDefaultAuthOtpChannel('user-1');
 
     expect(result).toBe('telegram');
-    expect(fakes.runWebappPgText).toHaveBeenCalledTimes(2);
-    expect(fakes.runWebappPgText).toHaveBeenNthCalledWith(
-      2,
-      expect.stringContaining('FROM user_channel_bindings'),
-      ['user-1'],
-    );
+    expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
   it('falls back to the earliest-linked binding when no active phone-history row exists', async () => {
-    fakes.runWebappPgText
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ code: 'email' }] });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ channel_code: 'email' }] });
 
     const result = await pgChannelPreferencesPort.getDefaultAuthOtpChannel('user-1');
 
     expect(result).toBe('email');
-    expect(fakes.runWebappPgText).toHaveBeenCalledTimes(2);
+    expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 
   it('never returns SMS as a default even when SMS is the recorded confirming channel', async () => {
-    fakes.runWebappPgText
-      .mockResolvedValueOnce({ rows: [{ confirming_channel: 'sms' }] })
-      .mockResolvedValueOnce({ rows: [] });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ channel_code: null }] });
 
     const result = await pgChannelPreferencesPort.getDefaultAuthOtpChannel('user-1');
 
     expect(result).toBeNull();
-    expect(fakes.runWebappPgText).toHaveBeenCalledTimes(2);
+    expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
 });
 
