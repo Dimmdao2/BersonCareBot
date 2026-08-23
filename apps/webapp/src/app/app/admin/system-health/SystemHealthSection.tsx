@@ -754,6 +754,7 @@ const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, strin
   webapp_admin_system_health: 'страница здоровья системы',
   public_auth_config: 'публичная конфигурация входа',
   auth_role_config: 'конфигурация ролей входа',
+  clinic_platform_integration_availability: 'доступность интеграций клиники',
   patient_runtime_config: 'конфигурация кабинета пациента',
   public_booking_config: 'публичная конфигурация записи',
   patient_identity_exception_check: 'проверка тестового пациента',

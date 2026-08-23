@@ -71,7 +71,6 @@ import {
 import { normalizeDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
   isPlatformIntegrationAvailable,
-  parsePlatformIntegrationAvailabilityEnvelope,
   type PlatformIntegrationId,
 } from '@/modules/system-settings/platformIntegrationAvailability';
 
@@ -291,21 +290,21 @@ const CLINIC_DELIVERY_SETTING_INTEGRATIONS = new Map<string, PlatformIntegration
   ['clinic_vk_community_access_token', 'vk'],
 ]);
 
-async function isClinicDeliveryIntegrationEnabled(
-  getSetting: ReturnType<typeof buildAppDeps>['systemSettings']['getSetting'],
+async function readClinicDeliveryIntegrationState(
+  systemSettings: ReturnType<typeof buildAppDeps>['systemSettings'],
   integration: PlatformIntegrationId,
-): Promise<boolean> {
+  organizationId: string,
+): Promise<'enabled' | 'disabled' | 'unavailable'> {
   try {
-    const setting = await getSetting('platform_integration_availability', 'admin', {
-      organizationId: null,
-    });
-    return isPlatformIntegrationAvailable(
-      parsePlatformIntegrationAvailabilityEnvelope(setting?.valueJson),
+    const availability = await systemSettings.getClinicPlatformIntegrationAvailability();
+    return isPlatformIntegrationAvailable(availability, integration) ? 'enabled' : 'disabled';
+  } catch (error) {
+    console.error('[clinic-delivery] platform integration availability read failed', {
+      organizationId,
       integration,
-    );
-  } catch {
-    // An unreadable global switch is not permission to configure a tenant sender.
-    return false;
+      error,
+    });
+    return 'unavailable';
   }
 }
 
@@ -587,9 +586,32 @@ export async function PATCH(request: Request) {
       );
     }
     const integration = CLINIC_DELIVERY_SETTING_INTEGRATIONS.get(parsed.data.key)!;
-    if (!(await isClinicDeliveryIntegrationEnabled(deps.systemSettings.getSetting, integration))) {
+    const integrationState = await readClinicDeliveryIntegrationState(
+      deps.systemSettings,
+      integration,
+      gate.ctx.organizationId,
+    );
+    if (integrationState === 'unavailable') {
       return NextResponse.json(
-        { ok: false, error: 'integration_disabled', integration },
+        {
+          ok: false,
+          error: 'integration_availability_unavailable',
+          message: 'Сервер не смог проверить доступность интеграции. Повторите позже.',
+        },
+        { status: 503 },
+      );
+    }
+    if (integrationState === 'disabled') {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: 'integration_disabled',
+          integration,
+          message:
+            integration === 'email'
+              ? 'SMTP отключён платформой.'
+              : 'Интеграция отключена платформой.',
+        },
         { status: 403 },
       );
     }

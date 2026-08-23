@@ -33,6 +33,10 @@ import {
 } from './testAccounts';
 import { mergeBookingPaymentProvidersSecretsRetain } from '@/modules/payments/bookingPaymentSettings';
 import { mergeSaasBillingPaymentProviderSecretsRetain } from '@/modules/saas-billing/settings';
+import {
+  parsePlatformIntegrationAvailabilityEnvelope,
+  type PlatformIntegrationAvailability,
+} from './platformIntegrationAvailability';
 
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
@@ -391,6 +395,11 @@ export function createSystemSettingsService(
   }
 
   return {
+    async getClinicPlatformIntegrationAvailability(): Promise<PlatformIntegrationAvailability> {
+      const row = await dependencies.runtimeRepository?.getClinicPlatformIntegrationAvailability();
+      return parsePlatformIntegrationAvailabilityEnvelope(row?.valueJson);
+    },
+
     getSetting(
       key: SystemSettingKey,
       scope: SystemSettingScope,

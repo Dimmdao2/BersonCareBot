@@ -64,10 +64,7 @@ function valueOf<T>(valueJson: unknown, fallback: T): T {
     : fallback;
 }
 
-function dedicatedBotWebhookPath(
-  channel: 'telegram' | 'max',
-  valueJson: unknown,
-): string | null {
+function dedicatedBotWebhookPath(channel: 'telegram' | 'max', valueJson: unknown): string | null {
   const credential = String(valueOf(valueJson, '') ?? '').trim();
   if (!credential) return null;
   const fingerprint = createHash('sha256').update(credential).digest('hex');
@@ -206,12 +203,13 @@ export default async function SettingsPage({
       doctorSettings.find((setting) => setting.key === 'patient_label')?.valueJson,
       'пациент',
     );
-    const appointmentReminderSettings: AppointmentReminderSpecialistSettings = workspace.specialistId
-      ? ((await deps.bookingEngine?.getSpecialistAppointmentReminderSettings({
-          organizationId: workspace.organizationId,
-          specialistId: workspace.specialistId,
-        })) ?? { allowedPresetIds: [], defaultPresetId: null })
-      : { allowedPresetIds: [], defaultPresetId: null };
+    const appointmentReminderSettings: AppointmentReminderSpecialistSettings =
+      workspace.specialistId
+        ? ((await deps.bookingEngine?.getSpecialistAppointmentReminderSettings({
+            organizationId: workspace.organizationId,
+            specialistId: workspace.specialistId,
+          })) ?? { allowedPresetIds: [], defaultPresetId: null })
+        : { allowedPresetIds: [], defaultPresetId: null };
     const todayPreferences = parseDoctorTodayPreferences(
       doctorSettings.find((setting) => setting.key === 'doctor_today_preferences')?.valueJson,
     );
@@ -248,7 +246,10 @@ export default async function SettingsPage({
       platformSettings.find((setting) => setting.key === 'platform_integration_availability')
         ?.valueJson,
     );
-    const externalCalendarEnabled = await isMechanicIncluded(workspace, 'external_calendar');
+    const [clinicSmtpEnabled, externalCalendarEnabled] = await Promise.all([
+      isMechanicIncluded(workspace, 'clinic_smtp'),
+      isMechanicIncluded(workspace, 'external_calendar'),
+    ]);
     const clinicAdminSetting = (key: string) =>
       clinicAdminSettings.find(
         (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
@@ -348,7 +349,11 @@ export default async function SettingsPage({
         {workspace.specialistId ? (
           <AppointmentReminderSettingsSection initialSettings={appointmentReminderSettings} />
         ) : null}
-        <ClinicDeliveryChannelsSection initial={clinicDelivery} />
+        <ClinicDeliveryChannelsSection
+          initial={clinicDelivery}
+          platformAvailability={integrationAvailability}
+          smtpEntitled={clinicSmtpEnabled}
+        />
         {shouldShowGoogleCalendarSettings(
           isPlatformIntegrationAvailable(integrationAvailability, 'google_calendar'),
           externalCalendarEnabled,
@@ -372,10 +377,7 @@ export default async function SettingsPage({
     const [members, invites, seats, mutationAvailability] = await Promise.all([
       deps.organizationMembership.listOrganizationMembers(workspace.organizationId),
       deps.organizationInvites.listPending(workspace.organizationId),
-      deps.clinicSeats.getSeatStatus(
-        workspace.organizationId,
-        workspace.session.user.userId,
-      ),
+      deps.clinicSeats.getSeatStatus(workspace.organizationId, workspace.session.user.userId),
       getMechanicMutationAvailability({ organizationId: workspace.organizationId }, 'clinic_team'),
     ]);
     return (
