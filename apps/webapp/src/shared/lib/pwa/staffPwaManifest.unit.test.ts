@@ -23,7 +23,6 @@ describe('staff PWA identity', () => {
 
   it('gives both legal documents one complete platform identity', () => {
     expect(LEGAL_DOCUMENT_OPERATOR.requisites).toEqual({
-      status: 'awaiting-owner-input',
       legalEntityName: '',
       registeredAddress: '',
       inn: '',
