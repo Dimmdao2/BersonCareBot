@@ -229,41 +229,16 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async getDefaultAuthOtpChannel(userId) {
-    // IDENTITY_AND_MERGE_SCHEME.md §3.1: default is the channel that confirmed the CURRENT phone,
-    // recorded on the active user_phone_history row's confirming_channel (migration 0341) at the
-    // moment of confirmation. Only telegram/max/email are eligible (SMS is bootstrap-only, never a
-    // default — mirrors the historical fallback below).
-    const confirmed = await runWebappPgText<{ confirming_channel: string | null }>(
-      `SELECT confirming_channel FROM user_phone_history
-       WHERE platform_user_id = $1::uuid AND valid_to IS NULL
-       LIMIT 1`,
+    // Both the active phone provenance and the historical earliest-linked fallback are needed
+    // before a human session exists. Keep that relation-backed decision inside one exact
+    // pre-session door instead of granting the bootstrap principal an unnamed relation capability.
+    const result = await runWebappNamedRoot<{ channel_code: string | null }>(
+      getWebappSqlDb(),
+      'app.pre_session_get_default_auth_otp_channel(uuid)',
       [userId],
+      sql`SELECT app.pre_session_get_default_auth_otp_channel(${userId}::uuid) AS channel_code`,
     );
-    const confirmedChannel = confirmed.rows[0]?.confirming_channel;
-    if (confirmedChannel === 'telegram' || confirmedChannel === 'max' || confirmedChannel === 'email') {
-      return confirmedChannel;
-    }
-
-    // Historical fallback: rows written before migration 0341, or whose source isn't a channel
-    // confirmation (merge/admin/projection), have confirming_channel = NULL — approximate with the
-    // previous heuristic (earliest-linked Telegram/Max binding or verified email) rather than
-    // inventing a provenance value for them.
-    const result = await runWebappPgText<{ code: string }>(
-      `SELECT code FROM (
-         SELECT channel_code AS code, created_at AS at
-         FROM user_channel_bindings
-         WHERE user_id = $1::uuid AND channel_code IN ('telegram', 'max')
-         UNION ALL
-         SELECT 'email' AS code, confirmed_at AS at
-         FROM user_contacts
-         WHERE platform_user_id = $1::uuid AND contact_kind = 'email'
-           AND is_primary = true AND confirmed_at IS NOT NULL
-       ) first_verified
-       ORDER BY at ASC
-       LIMIT 1`,
-      [userId],
-    );
-    const code = result.rows[0]?.code;
+    const code = result.rows[0]?.channel_code;
     return code === 'telegram' || code === 'max' || code === 'email' ? code : null;
   },
 };
