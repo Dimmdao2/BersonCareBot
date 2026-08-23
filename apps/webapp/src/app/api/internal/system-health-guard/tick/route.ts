@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
-import { runIntegratorPushOutboxHealthGuardTick } from '@/app-layer/health/runIntegratorPushOutboxHealthGuardTick';
+import { runOperatorHealthMaintenanceTick } from '@/app-layer/health/runOperatorHealthMaintenanceTick';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_HEALTH_JOB_FAMILY,
@@ -20,8 +20,8 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 }
 
 /**
- * POST — классификация `integrator_push_outbox` + TTL purge архива сбоев.
- * Critical push по ipo **error** — в `operator-health-critical/tick`. Bearer: `INTERNAL_JOB_SECRET`.
+ * POST — TTL purge операторского архива и событий ошибок вебхуков.
+ * Bearer: `INTERNAL_JOB_SECRET`.
  */
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
@@ -40,16 +40,16 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const { status, alerted } = await runIntegratorPushOutboxHealthGuardTick();
+    await runOperatorHealthMaintenanceTick();
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
       jobKey: OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
       startedAtIso,
       durationMs: Date.now() - startedAt,
       success: true,
-      metaJson: { status, alerted },
+      metaJson: {},
     });
-    return NextResponse.json({ ok: true, status, alerted });
+    return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await recordOperatorCronJobTickBestEffort({

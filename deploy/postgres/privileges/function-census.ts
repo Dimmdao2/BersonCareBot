@@ -7368,21 +7368,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
-        "relation": "public.integrator_push_outbox",
-        "columns": [
-          "id",
-          "kind",
-          "status",
-          "next_try_at",
-          "created_at",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
         "relation": "public.media_files",
         "columns": [
           "id",

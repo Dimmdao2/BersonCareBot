@@ -2,7 +2,6 @@ import { and, desc, eq, lt, or, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { operatorHealthFailureArchive } from '../../../db/schema/operatorHealthFailureArchive';
 import {
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
@@ -64,13 +63,6 @@ export const pgHealthFailureArchivePort: HealthFailureArchivePort = {
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult> {
     return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE, input);
-  },
-
-  async archiveIntegratorPushOutboxDeadBatch(input: {
-    limit: number;
-    archivedByUserId: string;
-  }): Promise<HealthFailureArchiveClearBatchResult> {
-    return archivePlatformBatch(HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE, input);
   },
 
   async archiveOutgoingReminderDeadBatch(input: {

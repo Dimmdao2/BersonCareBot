@@ -19,11 +19,7 @@ import {
   type IntegrationsHealthSnapshot,
 } from '@/modules/operator-health/integrationHealthSnapshot';
 import { readProbeConsecutiveFailRuns } from '@/modules/operator-health/probeOutboundMeta';
-import type {
-  IntegratorPushOutboxHealthSnapshot,
-  OperatorJobStatusTickRow,
-} from '@/modules/operator-health/ports';
-import { classifyIntegratorPushOutboxSystemHealthStatus } from '@/modules/operator-health/integratorPushOutboxHealth';
+import type { OperatorJobStatusTickRow } from '@/modules/operator-health/ports';
 import {
   collectCronJobsHealth,
   type CronJobsHealthPayload,
@@ -215,9 +211,6 @@ export type OutgoingDeliveryHealthPayload = {
   lastQueueActivityAt: string | null;
 };
 
-/** Очередь `integrator_push_outbox` (счётчики без payload). */
-export type IntegratorPushOutboxHealthPayload = IntegratorPushOutboxHealthSnapshot;
-
 export type SystemHealthResponse = {
   webappDb: DbStatus;
   integratorApi: { status: IntegratorApiStatus; db?: DbStatus };
@@ -247,8 +240,6 @@ export type SystemHealthResponse = {
   backupJobs: Record<string, OperatorBackupJobPayload>;
   /** Очередь исходящей доставки уведомлений (`public.outgoing_delivery_queue`). */
   outgoingDelivery: OutgoingDeliveryHealthPayload;
-  /** Очередь синка настроек/напоминаний в integrator (`public.integrator_push_outbox`). */
-  integratorPushOutbox: IntegratorPushOutboxHealthPayload;
   /** Напоминания: срез очереди `reminder_dispatch` + факты projection за 24 ч. */
   remindersPipeline: RemindersPipelineHealthPayload;
   /** Web Push: VAPID + активные подписки `user_web_push_subscriptions` (без агрегатов provider в БД). */
@@ -277,7 +268,6 @@ export type SystemHealthResponse = {
       operatorIncidents: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs: { status: string; durationMs: number; errorCode?: string };
       outgoingDelivery: { status: string; durationMs: number; errorCode?: string };
-      integratorPushOutbox: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline: { status: string; durationMs: number; errorCode?: string };
       webPush: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery: { status: string; durationMs: number; errorCode?: string };
@@ -739,7 +729,6 @@ function logProbe(
     | 'operator_incidents'
     | 'operator_backup_jobs'
     | 'outgoing_delivery'
-    | 'integrator_push_outbox'
     | 'reminders_pipeline'
     | 'web_push'
     | 'notification_delivery'
@@ -772,17 +761,6 @@ const emptyOutgoingDeliveryHealthPayload = (): OutgoingDeliveryHealthPayload => 
   deadByKind: {},
   processingCount: 0,
   lastSentAt: null,
-  lastQueueActivityAt: null,
-});
-
-const emptyIntegratorPushOutboxHealthPayload = (): IntegratorPushOutboxHealthPayload => ({
-  dueBacklog: 0,
-  deadTotal: 0,
-  oldestDueAgeSeconds: null,
-  dueByKind: {},
-  deadByKind: {},
-  processingCount: 0,
-  oldestProcessingAgeSeconds: null,
   lastQueueActivityAt: null,
 });
 
@@ -1021,20 +999,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
       }
     : emptyOutgoingDeliveryHealthPayload();
 
-  const integratorPushOutboxPayload: IntegratorPushOutboxHealthPayload = curatedSnapshot
-    ? {
-        dueBacklog: curatedSnapshot.integratorPushOutbox.dueBacklog,
-        deadTotal: curatedSnapshot.integratorPushOutbox.deadTotal,
-        oldestDueAgeSeconds: curatedSnapshot.integratorPushOutbox.oldestDueAgeSeconds,
-        dueByKind: curatedSnapshot.integratorPushOutbox.dueByKind,
-        deadByKind: curatedSnapshot.integratorPushOutbox.deadByKind,
-        processingCount: curatedSnapshot.integratorPushOutbox.processingCount,
-        oldestProcessingAgeSeconds:
-          curatedSnapshot.integratorPushOutbox.oldestProcessingAgeSeconds ?? null,
-        lastQueueActivityAt: curatedSnapshot.integratorPushOutbox.lastQueueActivityAt,
-      }
-    : emptyIntegratorPushOutboxHealthPayload();
-
   const outboundProbeJob = curatedSnapshot
     ? findCuratedJob(curatedSnapshot, OPERATOR_HEALTH_JOB_FAMILY, OPERATOR_OUTBOUND_PROBE_JOB_KEY)
     : undefined;
@@ -1126,10 +1090,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     : { ok: false as const, errorCode: curatedResult.errorCode };
   const notificationDeliveryDurationMs = curatedResult.durationMs;
 
-  const integratorPushOutboxClassified = classifyIntegratorPushOutboxSystemHealthStatus(
-    integratorPushOutboxPayload,
-  );
-
   const operatorIncidentsProbeStatus = !curatedResult.ok
     ? curatedResult.status
     : outboundProviderIncidents.openCount > 0
@@ -1150,14 +1110,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
         outgoingDeliveryPayload.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING
       ? 'degraded'
       : 'ok';
-
-  const integratorPushOutboxProbeStatus = !curatedResult.ok
-    ? curatedResult.status
-    : integratorPushOutboxClassified === 'error'
-      ? 'error'
-      : integratorPushOutboxClassified === 'degraded'
-        ? 'degraded'
-        : 'ok';
 
   const operatorHealthDigestLastSentAt = curatedSnapshot?.operatorHealthDigestLastSentAt ?? null;
 
@@ -1186,7 +1138,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     operatorIncidents: operatorIncidentsPayload,
     backupJobs,
     outgoingDelivery: outgoingDeliveryPayload,
-    integratorPushOutbox: integratorPushOutboxPayload,
     remindersPipeline: remindersPipelinePayload,
     webPush: webPushPayload,
     notificationDelivery: notificationDeliveryPayload,
@@ -1259,11 +1210,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
           durationMs: curatedResult.durationMs,
           ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
         },
-        integratorPushOutbox: {
-          status: integratorPushOutboxProbeStatus,
-          durationMs: curatedResult.durationMs,
-          ...(!curatedResult.ok ? { errorCode: curatedResult.errorCode } : {}),
-        },
         remindersPipeline: {
           status: remindersPipelineResult.ok ? 'ok' : 'error',
           durationMs: remindersPipelineDurationMs,
@@ -1306,7 +1252,6 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   logProbe('operator_incidents', curatedResult, operatorIncidentsProbeStatus);
   logProbe('operator_backup_jobs', curatedResult, backupJobsProbeStatus);
   logProbe('outgoing_delivery', curatedResult, outgoingDeliveryProbeStatus);
-  logProbe('integrator_push_outbox', curatedResult, integratorPushOutboxProbeStatus);
   logProbe(
     'reminders_pipeline',
     remindersPipelineResult.ok

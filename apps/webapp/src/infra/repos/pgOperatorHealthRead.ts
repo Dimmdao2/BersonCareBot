@@ -1,23 +1,19 @@
 import { z } from 'zod';
 import {
   and,
-  asc,
   count,
   desc,
   eq,
   gte,
   inArray,
   isNull,
-  lte,
   max,
-  min,
   ne,
   or,
   sql,
 } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
-import { integratorPushOutbox } from '../../../db/schema/schema';
 import {
   integrationWebhookLastStatus,
   operatorIncidents,
@@ -27,7 +23,6 @@ import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue'
 import { beOrganizationMembers, beOrganizations } from '../../../db/schema/bookingEngine';
 import {
   TENANT_ISOLATION_CANARY_MAX_ORGANIZATIONS,
-  type IntegratorPushOutboxHealthSnapshot,
   type IntegrationWebhookLastStatusRow,
   type OperatorBackupJobStatusRow,
   type OperatorHealthReadPort,
@@ -270,96 +265,6 @@ export const pgOperatorHealthReadPort: OperatorHealthReadPort = {
       sql`SELECT app.read_operator_delivery_queue_health() AS snapshot`,
     );
     return parseOutgoingDeliveryQueueHealthSnapshot(result.rows[0]?.snapshot);
-  },
-
-  async getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot> {
-    const db = getDrizzle();
-    const dueWh = and(
-      eq(integratorPushOutbox.status, 'pending'),
-      lte(integratorPushOutbox.nextTryAt, sql`now()`),
-    );
-    const [
-      dueRows,
-      deadRows,
-      processingRows,
-      oldestNextTryRows,
-      activityRows,
-      kindDueRows,
-      kindDeadRows,
-      oldestProcessingRows,
-    ] = await Promise.all([
-      db.select({ c: count() }).from(integratorPushOutbox).where(dueWh),
-      db
-        .select({ c: count() })
-        .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, 'dead')),
-      db
-        .select({ c: count() })
-        .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, 'processing')),
-      db
-        .select({ nextTryAt: integratorPushOutbox.nextTryAt })
-        .from(integratorPushOutbox)
-        .where(dueWh)
-        .orderBy(asc(integratorPushOutbox.nextTryAt))
-        .limit(1),
-      db.select({ mx: max(integratorPushOutbox.updatedAt) }).from(integratorPushOutbox),
-      db
-        .select({ kind: integratorPushOutbox.kind, n: count() })
-        .from(integratorPushOutbox)
-        .where(dueWh)
-        .groupBy(integratorPushOutbox.kind),
-      db
-        .select({ kind: integratorPushOutbox.kind, n: count() })
-        .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, 'dead'))
-        .groupBy(integratorPushOutbox.kind),
-      db
-        .select({ mn: min(integratorPushOutbox.updatedAt) })
-        .from(integratorPushOutbox)
-        .where(eq(integratorPushOutbox.status, 'processing')),
-    ]);
-
-    const dueRow = dueRows[0];
-    const deadRow = deadRows[0];
-    const oldestNext = oldestNextTryRows[0]?.nextTryAt;
-    let oldestDueAgeSeconds: number | null = null;
-    if (oldestNext) {
-      const t = new Date(oldestNext).getTime();
-      if (!Number.isNaN(t)) {
-        oldestDueAgeSeconds = Math.max(0, Math.floor((Date.now() - t) / 1000));
-      }
-    }
-
-    const procCount = Number(processingRows[0]?.c ?? 0);
-    const procMin = oldestProcessingRows[0]?.mn;
-    let oldestProcessingAgeSeconds: number | null = null;
-    if (procCount > 0 && procMin) {
-      const t = new Date(procMin).getTime();
-      if (!Number.isNaN(t)) {
-        oldestProcessingAgeSeconds = Math.max(0, Math.floor((Date.now() - t) / 1000));
-      }
-    }
-
-    const dueByKind: Record<string, number> = {};
-    for (const r of kindDueRows) {
-      dueByKind[r.kind] = Number(r.n ?? 0);
-    }
-    const deadByKind: Record<string, number> = {};
-    for (const r of kindDeadRows) {
-      deadByKind[r.kind] = Number(r.n ?? 0);
-    }
-
-    return {
-      dueBacklog: Number(dueRow?.c ?? 0),
-      deadTotal: Number(deadRow?.c ?? 0),
-      oldestDueAgeSeconds,
-      dueByKind,
-      deadByKind,
-      processingCount: procCount,
-      oldestProcessingAgeSeconds,
-      lastQueueActivityAt: activityRows[0]?.mx ?? null,
-    };
   },
 
   async getTenantIsolationCanarySnapshot() {

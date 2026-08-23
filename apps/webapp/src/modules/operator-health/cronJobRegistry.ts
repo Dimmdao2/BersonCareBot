@@ -82,7 +82,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     id: 'system_health_guard',
     jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
     jobKey: OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
-    label: 'Health guard (outbox)',
+    label: 'System health maintenance',
     scheduleHint: 'каждые 15 мин',
     staleAfterSec: 35 * 60,
     kind: 'internal_http',

@@ -4,7 +4,6 @@ import {
 } from './criticalHealthSignals';
 import { extractDigestDegradedLines } from './extractDigestDegradedLines';
 import type { CronJobsHealthPayload } from '@/app-layer/health/collectCronJobsHealth';
-import type { IntegratorPushOutboxHealthSnapshot } from './ports';
 import type { VideoTranscodeHealthStatus } from './criticalHealthSignals';
 
 export type DigestHealthSnapshotInput = {
@@ -17,7 +16,6 @@ export type DigestHealthSnapshotInput = {
     deadRecent?: number;
   };
   outboundDeliveryProvider: { recentIncidentCount: number; openIncidentCount?: number };
-  integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   backupJobs: Record<string, { lastStatus: string }>;
   probeConsecutiveFailRuns: number;
   probeIncidentsOpenCount: number;
@@ -35,7 +33,6 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
     integratorApi: input.integratorApi,
     outgoingDelivery: input.outgoingDelivery,
     outboundDeliveryProvider: input.outboundDeliveryProvider,
-    integratorPushOutbox: input.integratorPushOutbox,
     backupJobs: input.backupJobs,
     probeConsecutiveFailRuns: input.probeConsecutiveFailRuns,
     probeIncidentsOpenCount: input.probeIncidentsOpenCount,
@@ -45,7 +42,6 @@ export function buildDigestHealthSnapshotLines(input: DigestHealthSnapshotInput)
   const skipOpenIncidentsLine = input.probeIncidentsOpenCount > 0;
   const degradedLines = extractDigestDegradedLines({
     outgoingDelivery: input.outgoingDelivery,
-    integratorPushOutbox: input.integratorPushOutbox,
     videoTranscodeStatus: input.videoTranscodeStatus,
     cronJobs: input.cronJobs,
     operatorIncidentsOpenCount: skipOpenIncidentsLine ? 0 : input.operatorIncidentsOpenCount,

@@ -5,12 +5,9 @@ import { registerBersoncareRelayOutboundRoute } from '../integrations/bersoncare
 import { registerOperatorAlertRelayRoute } from '../integrations/bersoncare/operatorAlertRelayRoute.js';
 import { registerBersoncareRequestContactRoute } from '../integrations/bersoncare/requestContactRoute.js';
 import { registerBersoncareSendOtpRoute } from '../integrations/bersoncare/sendOtpRoute.js';
-import { registerBersoncareReminderRulesRoute } from '../integrations/bersoncare/reminderRulesRoute.js';
 import { registerBersoncareBookingLifecycleRoute } from '../integrations/bersoncare/bookingLifecycleRoute.js';
 import { createDbPort } from '../infra/db/client.js';
 import { createMessengerStaffIdsResolver } from '../infra/db/messengerStaffIds.js';
-import { resolveActiveTenantForIntegratorUserId } from '../infra/db/repos/channelUsers.js';
-import type { ResolvedIntegratorUserTenant } from '../infra/db/repos/channelUsers.js';
 import { resolveActiveOrganizationIdForChannel } from '../infra/db/repos/platformUserByChannel.js';
 import { resolveDedicatedClinicBotOrganization } from '../infra/db/clinicDedicatedBotBindings.js';
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
@@ -45,22 +42,6 @@ function createResolveOrganizationIdForMessengerIdentity(): (
       const db = createDbPort();
       return await runWithBootstrapPrincipal({ source: `${resource}-webhook:pre-routing` }, () =>
         resolveActiveOrganizationIdForChannel(db, { channelCode: resource, externalId }),
-      );
-    } catch (error) {
-      reportIntegratorIsolationFailure(error);
-      return null;
-    }
-  };
-}
-
-function createResolveTenantForIntegratorUserId(): (
-  integratorUserId: string,
-) => Promise<ResolvedIntegratorUserTenant | null> {
-  return async (integratorUserId) => {
-    try {
-      const db = createDbPort();
-      return await runWithBootstrapPrincipal({ source: 'integrator-user-org-resolution' }, () =>
-        resolveActiveTenantForIntegratorUserId(db, integratorUserId),
       );
     } catch (error) {
       reportIntegratorIsolationFailure(error);
@@ -105,7 +86,6 @@ function createResolveDedicatedClinicMaxApiKey(): (
 export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promise<void> {
   const resolveOrganizationIdForMessengerIdentity =
     createResolveOrganizationIdForMessengerIdentity();
-  const resolveTenantForIntegratorUserId = createResolveTenantForIntegratorUserId();
   const resolveDedicatedTelegramBotOrganization =
     createResolveDedicatedClinicBotOrganization('telegram');
   const resolveDedicatedMaxBotOrganization = createResolveDedicatedClinicBotOrganization('max');
@@ -172,13 +152,6 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,
-    idempotencyPort: deps.idempotencyPort,
-  });
-
-  await registerBersoncareReminderRulesRoute(app, {
-    writePort: deps.dbWritePort,
-    sharedSecret: integratorWebhookSecret(),
-    resolveTenantForIntegratorUserId,
     idempotencyPort: deps.idempotencyPort,
   });
 

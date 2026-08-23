@@ -475,14 +475,11 @@ test('full-body overdeclaration corrections preserve only executable operations'
   // UPDATE. Оплачена она одной колонкой `updated_at` — тело в эти таблицы не пишет, см.
   // `ROW_LOCK_SURFACES` в декларации и `row-lock-privileges.test.mjs`.
   const archive = functions['app.archive_operator_health_failures(text,integer,uuid)'];
-  for (const relation of [
-    'public.outgoing_delivery_queue',
-    'public.integrator_push_outbox',
-  ]) {
-    const surface = archive.relationSurfaces.find((candidate) => candidate.relation === relation);
-    assert.deepEqual(surface.operations, ['SELECT', 'DELETE', 'UPDATE'], relation);
-    assert.deepEqual(surface.operationColumns?.UPDATE, ['updated_at'], relation);
-  }
+  const outgoingArchive = archive.relationSurfaces.find(
+    (candidate) => candidate.relation === 'public.outgoing_delivery_queue',
+  );
+  assert.deepEqual(outgoingArchive.operations, ['SELECT', 'DELETE', 'UPDATE']);
+  assert.deepEqual(outgoingArchive.operationColumns?.UPDATE, ['updated_at']);
   assert.deepEqual(functions['app.start_provisioned_organization_trial()'].relationSurfaces
     .find((surface) => surface.relation === 'public.saas_organization_trials').operations,
   ['SELECT', 'INSERT']);

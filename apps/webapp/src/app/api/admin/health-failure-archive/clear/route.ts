@@ -5,7 +5,6 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { logger } from '@/app-layer/logging/logger';
 import {
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
@@ -13,7 +12,6 @@ import {
 const bodySchema = z.object({
   probe: z.enum([
     HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
-    HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
     HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
   ]),
 });
