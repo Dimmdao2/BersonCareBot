@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server';
 import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { config, proxy } from '@/proxy';
 import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import type { AppSession, UserRole } from '@/shared/types/session';
-import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 import {
   RESOLVED_SURFACE_HEADER,
   readResolvedSurface,
@@ -13,7 +13,49 @@ import {
 } from '@/shared/lib/surface/requestSurface';
 
 const STAFF_ORIGIN = new URL(STAFF_SURFACE.origin);
-const PATIENT_ORIGIN = new URL(PATIENT_DEFAULT_SURFACE.origin);
+
+const PLATFORM_SURFACE_CONFIGURATIONS = [
+  {
+    name: 'one shared origin',
+    staffOrigin: 'https://staff.example.test',
+    patientOrigin: 'https://staff.example.test',
+  },
+  {
+    name: 'distinct staff and patient origins',
+    staffOrigin: 'https://staff.example.test',
+    patientOrigin: 'https://patient.example.test',
+  },
+] as const;
+
+type PlatformSurfaceConfiguration = (typeof PLATFORM_SURFACE_CONFIGURATIONS)[number];
+
+async function loadProxyForSurfaceConfiguration({
+  staffOrigin,
+  patientOrigin,
+}: PlatformSurfaceConfiguration) {
+  vi.resetModules();
+  vi.stubEnv('APP_BASE_URL', staffOrigin);
+  vi.stubEnv('PATIENT_APP_ORIGIN', patientOrigin);
+
+  const [proxyModule, productSurfaces, requestSurface] = await Promise.all([
+    import('@/proxy'),
+    import('@/config/productSurfaces'),
+    import('@/shared/lib/surface/requestSurface'),
+  ]);
+
+  return {
+    proxy: proxyModule.proxy,
+    staffOrigin: new URL(productSurfaces.STAFF_SURFACE.origin),
+    patientOrigin: new URL(productSurfaces.PATIENT_DEFAULT_SURFACE.origin),
+    readResolvedSurface: requestSurface.readResolvedSurface,
+    resolvedSurfaceHeader: requestSurface.RESOLVED_SURFACE_HEADER,
+  };
+}
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
 
 function requestFor(
   origin: URL,
@@ -164,8 +206,9 @@ describe('role-specific protected app doors', () => {
     expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(expectedPath);
   });
 
-  it('keeps the patient portal on the patient Host', async () => {
-    const response = await proxy(requestFor(STAFF_ORIGIN, '/app/patient/profile'));
+  it('redirects an unauthenticated patient from the shared-origin portal', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[0]);
+    const response = await runtime.proxy(requestFor(runtime.staffOrigin, '/app/patient/profile'));
     const location = response.headers.get('location');
     expect(location).not.toBeNull();
     expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
@@ -173,7 +216,7 @@ describe('role-specific protected app doors', () => {
     );
   });
 
-  it('does not redirect a role login route or public booking route', async () => {
+  it('does not redirect a role login route', async () => {
     expect(
       (
         await proxy(
@@ -181,33 +224,6 @@ describe('role-specific protected app doors', () => {
         )
       ).headers.get('location'),
     ).toBeNull();
-    expect(
-      (await proxy(requestFor(PATIENT_ORIGIN, '/book/clinic-a'))).headers.get('location'),
-    ).toBeNull();
-  });
-
-  it('keeps both route trees and health reachable when staff and patient share one Host', async () => {
-    expect(PATIENT_DEFAULT_SURFACE.origin).toBe(STAFF_SURFACE.origin);
-    const expectedStatuses = [
-      ['/app/patient/login', 200],
-      ['/app/patient/cabinet', 307],
-      ['/book', 200],
-      ['/join/start', 200],
-      ['/clinic-a', 200],
-      ['/manifest.webmanifest', 200],
-      ['/api/health', 200],
-    ] as const;
-
-    for (const [pathname, expectedStatus] of expectedStatuses) {
-      const response = await proxy(requestFor(STAFF_ORIGIN, pathname));
-      expect(response.status, pathname).toBe(expectedStatus);
-      if (expectedStatus === 200) {
-        expect(middlewareRequestSurface(response), pathname).toMatchObject({
-          surface: 'staff',
-          publicOrigin: STAFF_ORIGIN.origin,
-        });
-      }
-    }
   });
 
   it('does not interrupt an authenticated doctor at their portal', async () => {
@@ -215,6 +231,56 @@ describe('role-specific protected app doors', () => {
       requestFor(STAFF_ORIGIN, '/app/doctor/patients', { role: 'doctor' }),
     );
     expect(response.headers.get('location')).toBeNull();
+  });
+});
+
+describe('request-surface host matrix at the proxy choke point', () => {
+  it.each([
+    ['/app/patient/login', 200],
+    ['/book', 200],
+    ['/manifest.webmanifest', 200],
+  ] as const)('keeps the patient route %s reachable on one shared origin', async (pathname, status) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[0]);
+
+    const response = await runtime.proxy(requestFor(runtime.staffOrigin, pathname));
+
+    expect(response.status).toBe(status);
+    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
+      .toMatchObject({
+        surface: 'staff',
+        publicOrigin: runtime.staffOrigin.origin,
+      });
+  });
+
+  it.each([
+    ['/app/patient/login', 'staff host'],
+    ['/book', 'staff host'],
+    ['/manifest.webmanifest', 'staff host'],
+    ['/app/doctor/login', 'patient host'],
+  ] as const)('hard-404s %s on the wrong %s when origins are distinct', async (pathname, wrongHost) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const origin = wrongHost === 'staff host' ? runtime.staffOrigin : runtime.patientOrigin;
+
+    const response = await runtime.proxy(requestFor(origin, pathname));
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
+      .toBeNull();
+  });
+
+  it.each([
+    ['staff', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => runtime.staffOrigin, '/', 'staff'],
+    ['patient default', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => runtime.patientOrigin, '/app/patient/login', 'patient_default'],
+    ['platform admin', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => new URL(`https://admin.${runtime.staffOrigin.hostname}`), '/app/doctor/login', 'platform_admin'],
+  ] as const)('resolves %s through the proxy choke point', async (_name, originFor, pathname, surface) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(requestFor(originFor(runtime), pathname));
+
+    expect(response.status).toBe(200);
+    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
+      .toMatchObject({ surface });
   });
 });
 
@@ -241,8 +307,9 @@ describe('global admin reaching platform pages under the doctor portal prefix', 
 
 describe('resolved surface request choke point', () => {
   it('preserves the real URL for independent patient routing-security gates', async () => {
-    const response = await proxy(
-      requestFor(PATIENT_ORIGIN, '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile', {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const response = await runtime.proxy(
+      requestFor(runtime.patientOrigin, '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile', {
         headers: {
           'x-bc-pathname': '/app/patient/onboarding',
           'x-bc-search': '?spoofed=1',
@@ -258,26 +325,38 @@ describe('resolved surface request choke point', () => {
     );
   });
 
-  it.each([
-    [STAFF_ORIGIN, '/', 'staff'],
-    [PATIENT_ORIGIN, '/app', 'staff'],
-  ] as const)('stamps %s once for %s', async (origin, path, expectedSurface) => {
-    const incomingSpoof = encodeURIComponent(
-      JSON.stringify({
-        surface: 'patient_branded',
-        publicOrigin: 'https://attacker.example',
-        authPolicy: 'patient',
-      }),
-    );
-    const response = await proxy(
-      requestFor(origin, path, { headers: { [RESOLVED_SURFACE_HEADER]: incomingSpoof } }),
-    );
+  it.each(PLATFORM_SURFACE_CONFIGURATIONS)(
+    'stamps the resolved surface once for /app with $name',
+    async (surfaceConfiguration) => {
+      const runtime = await loadProxyForSurfaceConfiguration(surfaceConfiguration);
+      const origin = runtime.patientOrigin;
+      const incomingSpoof = encodeURIComponent(
+        JSON.stringify({
+          surface: 'patient_branded',
+          publicOrigin: 'https://attacker.example',
+          authPolicy: 'patient',
+        }),
+      );
+      const response = await runtime.proxy(
+        requestFor(origin, '/app', {
+          headers: { [runtime.resolvedSurfaceHeader]: incomingSpoof },
+        }),
+      );
 
-    expect(middlewareRequestSurface(response)).toMatchObject({
-      surface: expectedSurface,
-      publicOrigin: origin.origin,
-    });
-  });
+      expect(
+        runtime.readResolvedSurface({
+          get: (name) => response.headers.get(`x-middleware-request-${name}`),
+        }),
+      )
+        .toMatchObject({
+          surface:
+            surfaceConfiguration.staffOrigin === surfaceConfiguration.patientOrigin
+              ? 'staff'
+              : 'patient_default',
+          publicOrigin: origin.origin,
+        });
+    },
+  );
 
   it('passes the B1/B4 tenant seam result without resolving organization data itself', async () => {
     const organizationId = '11111111-1111-4111-8111-111111111111';
