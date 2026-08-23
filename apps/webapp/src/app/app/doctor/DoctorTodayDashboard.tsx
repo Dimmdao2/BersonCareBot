@@ -64,15 +64,20 @@ function peopleItemName(client: TodayDashboardData['people'][number]): string {
 function DoctorTodayPeopleSection({
   data,
   showHeader = true,
+  flush = false,
 }: {
   data: TodayDashboardData;
   showHeader?: boolean;
+  flush?: boolean;
 }) {
   const peopleListIsOnSupport = data.peopleListMode === 'on_support';
   const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
 
   return (
-    <DoctorSection id="doctor-today-section-people">
+    <DoctorSection
+      id="doctor-today-section-people"
+      className={flush ? 'rounded-none border-0 bg-transparent p-0' : undefined}
+    >
       {showHeader ? (
         <DoctorSectionHeader>
           <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
@@ -312,8 +317,9 @@ export function DoctorTodayDashboard({
               </span>
             }
             size="lg"
+            bodyClassName="px-0"
           >
-            <DoctorTodayPeopleSection data={data} showHeader={false} />
+            <DoctorTodayPeopleSection data={data} showHeader={false} flush />
           </DoctorModal>
           <DoctorModal
             open={mobileModal === 'calendar'}
