@@ -4,7 +4,7 @@ Repo canon: read `AGENTS.md` first (`grep -n "^## \|^### " AGENTS.md`, then your
 Plan file (owner's, the only source of "todo" and "done"):
 `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`.
 
-Источник оракула: `IMPLEMENTATION_PLAN.md`, пункты `F2` и `F2b`, дословно — «Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI, start/callback и provider config остаются в коде, но при выключенной механике путь недоступен на уровне резолвера, а не только скрыт в UI. Включение настройкой возвращает его в строй без правки кода.» и «Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).» Полностью:
+Источник оракула: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`, пункты `F2` и `F2b`, дословно: «Выключить OAuth-вход на staff/admin surface значением в матрице механик.» и «Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию». Полностью:
 
 > `F2` Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI,
 > start/callback и provider config остаются в коде, но при выключенной механике путь недоступен на уровне
