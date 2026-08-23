@@ -90,7 +90,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
 
   return (
     <DoctorSection id="doctor-today-next-appointment">
-      <DoctorSectionHeader>
+      <DoctorSectionHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
         <DoctorSectionTitle>
           {appointment?.isCurrent
             ? 'Сейчас на приеме'
@@ -98,12 +98,16 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
               ? `Следующий прием${appointment.relativeLabel ? `: ${appointment.relativeLabel}` : ''}`
               : 'Следующий прием: нет записей'}
         </DoctorSectionTitle>
+        {appointment ? (
+          <p className="shrink-0 text-sm font-medium tabular-nums">
+            {appointment.dateTimeLabel}
+          </p>
+        ) : null}
       </DoctorSectionHeader>
 
       {appointment ? (
         <div className="flex min-w-0 flex-col gap-3">
           <div className="grid min-w-0 gap-2 text-sm">
-            <p className="text-base font-medium tabular-nums">{appointment.dateTimeLabel}</p>
             <dl className="grid min-w-0 gap-1.5">
               <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
                 <dt className="text-muted-foreground">Клиент</dt>
@@ -112,10 +116,6 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
               <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
                 <dt className="text-muted-foreground">Комментарий</dt>
                 <dd className="min-w-0 whitespace-pre-wrap">{appointment.comment ?? '—'}</dd>
-              </div>
-              <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
-                <dt className="text-muted-foreground">Перенос</dt>
-                <dd>{appointment.wasRescheduled ? 'Да' : 'Нет'}</dd>
               </div>
             </dl>
           </div>
