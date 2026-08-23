@@ -4,7 +4,7 @@
 
 **Каркас UI:** фиксированная шапка `DoctorHeader`, отступ контента `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`, страницы оборачиваются в `AppShell` с `variant="doctor"`. Контейнер страницы (`DOCTOR_PAGE_CONTAINER_CLASS`): `max-w-7xl px-3 pt-3 pb-6`; вертикальный ритм между корневыми блоками внутри `#app-shell-content` — `gap-3`. Ширина внутреннего ряда шапки — `DOCTOR_HEADER_INNER_CLASS` (`px-4` / `md:px-6`). Подробнее: `docs/ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md` (подраздел «Единый каркас страниц»).
 
-**Главная** (`page.tsx`): только пользователи с ролью врач или админ. Экран «Сегодня» — двухколоночная раскладка (левое полотно: поток + сопровождение + задачи; правое: KPI записей + карточка приёма + мини-календарь). Компоненты: `DoctorTodayDashboard`, `DoctorTodayLeftKpiRow`, `DoctorTodayRightKpiRow`, `DoctorCurrentAppointmentCard`, `DoctorTodayMiniCalendar`, `DoctorGlobalTasksSection`.
+**Главная** (`page.tsx`): только пользователи с ролью врач или админ. Экран «Сегодня» — двухколоночная раскладка (левое полотно: KPI входящего потока + сопровождение; правое: KPI записей + карточка приёма + мини-календарь). Задачи доступны через KPI: на mobile он открывает attention-список в модалке, на desktop — самостоятельную страницу. Встроенного блока задач на «Сегодня» нет. Компоненты: `DoctorTodayDashboard`, `DoctorTodayLeftKpiRow`, `DoctorTodayRightKpiRow`, `DoctorCurrentAppointmentCard`, `DoctorTodayMiniCalendar`.
 
 **Задачи** (`tasks/page.tsx`): все открытые задачи специалиста. На desktop стандартный `CatalogSplitLayout`
 50/50: список слева, детали/создание справа; на mobile список сменяется деталями с возвратом назад. Механика
@@ -32,11 +32,8 @@
 
 ### TODO#3: закрыт — полный список задач
 
-`loadDoctorOpenTasks.ts` без лимита загружает все открытые задачи и batch-резолвит ФИО пациентов для «Сегодня»
-и самостоятельной страницы «Задачи».
-
-- Вариант A: добавить `globalOpenTasksTruncated: boolean` в `TodayDashboardData` (fetch N+1, truncate при необходимости)
-- Вариант B: создать страницу `/app/doctor/tasks` и добавить ссылку в `DoctorGlobalTasksSection` при `tasks.length >= 8`
+`loadDoctorOpenTasks.ts` без лимита загружает все открытые задачи и batch-резолвит ФИО пациентов для KPI/модалки
+«Сегодня» и самостоятельной страницы «Задачи». Старый встроенный блок задач на «Сегодня» удалён.
 
 ### TODO#4: длительность записи в DoctorCurrentAppointmentCard и DoctorTodayMiniCalendar
 

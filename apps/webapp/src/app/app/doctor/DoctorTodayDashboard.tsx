@@ -20,7 +20,6 @@ import {
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorInlineLinkClass, doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 import { formatDoctorFio } from '@/shared/lib/fio';
-import { DoctorGlobalTasksSection } from './DoctorGlobalTasksSection';
 import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
@@ -135,19 +134,6 @@ export function DoctorTodayDashboard({
             tasksReadable={specialistTasksReadable}
             taskMutationPending={taskMutationPending}
             onTaskComplete={handleTaskComplete}
-            onTaskSaved={handleTaskSaved}
-          />
-
-          <DoctorGlobalTasksSection
-            tasks={tasks}
-            taskPatientNames={taskPatientNames}
-            todayIso={calendarSnapshot.todayIso}
-            displayIana={displayIana}
-            className="flex-1 max-md:hidden"
-            available={specialistTasksAvailable}
-            readable={specialistTasksReadable}
-            busy={taskMutationPending}
-            onComplete={handleTaskComplete}
             onTaskSaved={handleTaskSaved}
           />
 
