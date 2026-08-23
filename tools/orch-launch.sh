@@ -43,7 +43,11 @@ if [ "$1" = land ]; then
 
   MAIN_BRANCH=$(git -C "$MAIN" symbolic-ref --short -q HEAD || true)
   [ "$MAIN_BRANCH" = "$FEAT" ] || die "главное дерево $MAIN сейчас не на $FEAT (на '$MAIN_BRANCH') — land мержит именно в $FEAT, переключи главное дерево сначала."
-  [ -z "$(git -C "$MAIN" status --porcelain)" ] || die "дерево главного репо $MAIN грязное — land на грязном дереве не запускается, сначала закоммить или сбрось."
+  # Markdown is not part of the executable integration artifact and never blocks orchestration.
+  # Keep foreign staged docs intact; only non-document dirt can make a merge unsafe.
+  MAIN_NON_DOCUMENT_PATHSPEC=(. ':(exclude,glob)**/*.md' ':(exclude,glob)*.md')
+  [ -z "$(git -C "$MAIN" status --porcelain -- "${MAIN_NON_DOCUMENT_PATHSPEC[@]}")" ] ||
+    die "дерево главного репо $MAIN содержит незакоммиченные изменения вне Markdown — land не запускается, сначала закоммить или сбрось их."
 
   git -C "$MAIN" fetch -q "$CLONE" "$BRANCH" 2>/dev/null || die "не удалось выкачать ветку $BRANCH из клона $CLONE_NAME"
   HEAD_FEAT=$(git -C "$MAIN" rev-parse "$FEAT")
