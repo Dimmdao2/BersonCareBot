@@ -862,7 +862,7 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)).toBeNull();
   });
 
-  it.each([119, 120, 121, 199, 200])(
+  it.each([100, 101, 200])(
     'оставляет живой адрес клинике с названием из %i знаков',
     async (titleLength) => {
       const title = 'К'.repeat(titleLength);
@@ -875,8 +875,8 @@ describe('B4a: адрес клиники на нашем поддомене жи
       expect(middlewareRequestSurface(response)).toMatchObject({
         surface: 'patient_branded',
         effectivePatientBrand: {
-          effectiveDisplayName: title.slice(0, 120),
-          patientAppName: title.slice(0, 120),
+          effectiveDisplayName: title,
+          patientAppName: title,
         },
       });
     },
@@ -899,15 +899,14 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)).toMatchObject({
       surface: 'patient_branded',
       effectivePatientBrand: {
-        effectiveDisplayName: title.slice(0, 120),
-        patientAppName: title.slice(0, 120),
+        effectiveDisplayName: title,
+        patientAppName: title,
         accentToken: '#0f766e',
       },
     });
   });
 
-  it('оставляет живой адрес клинике с эмодзи в названии: срез не рвёт поверхность', async () => {
-    // 200 UTF-16 единиц: срез по 120 попадает в середину суррогатной пары.
+  it('оставляет живой адрес клинике с эмодзи в устаревшем длинном названии', async () => {
     const title = '🌿'.repeat(100);
     const response = await get('sosny', tenantSeam({
       ...TENANTS,

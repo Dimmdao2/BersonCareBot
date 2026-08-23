@@ -21,6 +21,7 @@ import {
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
 import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
+import { validateOrganizationName } from '@/shared/lib/organizationName';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -43,7 +44,7 @@ const bodySchema = z.object({
     .max(100)
     .refine(isCyrillicFioInputOrEmpty, { message: FIO_LATIN_REJECTED_MESSAGE })
     .optional(),
-  organizationTitle: z.string().trim().min(1).max(200),
+  organizationTitle: z.string().trim().min(1),
   organizationSlug: z.string().max(512),
 });
 
@@ -76,7 +77,15 @@ export async function POST(request: Request) {
   const lastName = normalizeFioPart(parsed.data.lastName);
   const firstName = normalizeFioPart(parsed.data.firstName);
   const patronymic = normalizeFioPart(parsed.data.patronymic);
-  const organizationTitle = parsed.data.organizationTitle.trim();
+  const organizationTitleResult = validateOrganizationName(parsed.data.organizationTitle);
+  if (!organizationTitleResult.ok) {
+    return jsonError(
+      organizationTitleResult.code,
+      { message: organizationTitleResult.message },
+      { status: 400 },
+    );
+  }
+  const organizationTitle = organizationTitleResult.value;
   const organizationSlug = validateOrganizationSlugCandidate(parsed.data.organizationSlug);
   if (!lastName || !firstName) {
     return jsonError('invalid_body', {}, { status: 400 });

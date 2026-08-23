@@ -18,6 +18,10 @@
  */
 import type { CoreOrganizationContext, OrgBrandRevision, OrgBrandingPort } from './ports';
 import type { MechanicAccessResolution, MechanicAccessState } from '../org-entitlements/types';
+import {
+  ORGANIZATION_NAME_TOO_LONG_CODE,
+  validateOrganizationName,
+} from '@/shared/lib/organizationName';
 
 /** Trusted staff context. Only `requireOrganizationManagementContext()` may produce this. */
 export type OrgBrandingManagementContext = Readonly<{
@@ -93,7 +97,6 @@ export type OrgBrandMutationFailure =
   | { ok: false; code: 'nothing_published' };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_DISPLAY_NAME_LENGTH = 120;
 const ACCENT_TOKEN_RE = /^#[0-9a-f]{6}$/i;
 
 /**
@@ -135,8 +138,14 @@ function normalizeDisplayName(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (trimmed === '') return null;
-  if (trimmed.length > MAX_DISPLAY_NAME_LENGTH) return trimmed.slice(0, MAX_DISPLAY_NAME_LENGTH);
   return trimmed;
+}
+
+/** Only new user-supplied branding names are bounded; legacy projections stay lossless. */
+function assertValidOrganizationNameInput(value: string | null | undefined): void {
+  if (typeof value !== 'string' || value.trim() === '') return;
+  const validated = validateOrganizationName(value);
+  if (!validated.ok) throw new Error(ORGANIZATION_NAME_TOO_LONG_CODE);
 }
 
 function normalizeLogoMediaId(value: string | null | undefined): string | null {
@@ -318,6 +327,10 @@ export function createOrgBrandingService(deps: {
         'patientAppName',
       );
       const preservesAccentToken = !Object.prototype.hasOwnProperty.call(input, 'accentToken');
+      assertValidOrganizationNameInput(input.displayName);
+      if (!preservesPatientAppName) {
+        assertValidOrganizationNameInput(input.patientAppName);
+      }
       const retained =
         preservesPatientAppName || preservesAccentToken
           ? ((await deps.port.getDraftRevision(ctx.organizationId)) ??
