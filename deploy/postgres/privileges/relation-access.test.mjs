@@ -647,7 +647,9 @@ test('clinic-owner mutation grants include every default column emitted by Drizz
     'visible_to_staff',
   ]);
   exactColumns('public.clinic_public_directory_entries', 'app_staff', 'INSERT', [
-    'created_at', 'display_name', 'is_published', 'organization_id', 'published_at', 'slug',
+    'card_is_published', 'created_at', 'description', 'display_name', 'is_published',
+    'locations_json', 'logo_media_id', 'organization_id', 'photo_media_ids',
+    'public_contact_email', 'public_contact_phone', 'public_website_url', 'published_at', 'slug',
     'updated_at',
   ]);
   exactColumns('public.organization_slug_claims', 'app_staff', 'INSERT', [

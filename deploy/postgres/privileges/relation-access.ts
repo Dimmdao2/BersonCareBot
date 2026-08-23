@@ -2384,9 +2384,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "channels",
           "delivery_jobs_total",
           "error_count",
+          "executed_at",
           "id",
           "message_body",
           "message_title",
+          "organization_id",
           "preview_only",
           "sent_count"
         ]
@@ -2439,6 +2441,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "audit_id",
+          "organization_id",
           "platform_user_id"
         ]
       },
@@ -2547,10 +2550,18 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "card_is_published",
           "created_at",
+          "description",
           "display_name",
           "is_published",
+          "locations_json",
+          "logo_media_id",
           "organization_id",
+          "photo_media_ids",
+          "public_contact_email",
+          "public_contact_phone",
+          "public_website_url",
           "published_at",
           "slug",
           "updated_at"
