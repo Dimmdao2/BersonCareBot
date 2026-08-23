@@ -219,13 +219,26 @@ test(
     const seen = answers(
       psql(`
 BEGIN;
+-- Проба поднимает целевую форму Ш9 идемпотентно: она писалась против ЕЩЁ НЕ ПРИМЕНЁННОЙ миграции,
+-- а после её наката простой ADD COLUMN отвечает «column already exists» и роняет весь файл — то есть
+-- клиническая стена демографии остаётся без живой проверки ровно тогда, когда она уже работает.
 ALTER TABLE public.doctor_patient_support
-  ADD COLUMN height_cm integer,
-  ADD COLUMN weight_kg integer,
-  ADD COLUMN gender text,
-  ADD COLUMN birth_date date,
-  ADD CONSTRAINT doctor_patient_support_gender_check
-    CHECK (gender IS NULL OR gender IN ('male', 'female'));
+  ADD COLUMN IF NOT EXISTS height_cm integer,
+  ADD COLUMN IF NOT EXISTS weight_kg integer,
+  ADD COLUMN IF NOT EXISTS gender text,
+  ADD COLUMN IF NOT EXISTS birth_date date;
+DO $gender_check$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'public.doctor_patient_support'::regclass
+       AND conname = 'doctor_patient_support_gender_check'
+  ) THEN
+    ALTER TABLE public.doctor_patient_support
+      ADD CONSTRAINT doctor_patient_support_gender_check
+        CHECK (gender IS NULL OR gender IN ('male', 'female'));
+  END IF;
+END $gender_check$;
 ${STAFF_COLUMN_GRANTS}
 DELETE FROM public.doctor_patient_support WHERE patient_user_id = '${state.patient}'::uuid;
 ${installStaffContext(state, state.staffARef, state.organizationA)}
