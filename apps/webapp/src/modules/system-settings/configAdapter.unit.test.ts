@@ -24,7 +24,12 @@ const {
 } = await import('./configAdapter');
 
 bindConfigAdapterPort({
-  runtimeSettings: { getEffective, getSnapshotRows, upsert },
+  runtimeSettings: {
+    getClinicPlatformIntegrationAvailability: vi.fn(),
+    getEffective,
+    getSnapshotRows,
+    upsert,
+  },
   readAdminSystemSettingString,
   readExactOrganizationAdminSystemSettingString,
   readPublicAuthChannelConfigured,
@@ -86,9 +91,7 @@ describe('configAdapter DB-only legacy reads', () => {
   it('reads a zero min notice from the requested organization runtime setting', async () => {
     getEffective.mockResolvedValueOnce({ valueJson: { value: 0 } });
 
-    await expect(
-      getServerRuntimeInteger('booking_min_notice_hours', 'clinic-1'),
-    ).resolves.toBe(0);
+    await expect(getServerRuntimeInteger('booking_min_notice_hours', 'clinic-1')).resolves.toBe(0);
     expect(getEffective).toHaveBeenCalledWith(
       expect.objectContaining({
         key: 'booking_min_notice_hours',
@@ -108,13 +111,16 @@ describe('configAdapter DB-only legacy reads', () => {
 
   it.each([
     ['missing value', () => readAdminSystemSettingString.mockResolvedValueOnce(null)],
-    ['database error', () => readAdminSystemSettingString.mockRejectedValueOnce(new Error('db unavailable'))],
+    [
+      'database error',
+      () => readAdminSystemSettingString.mockRejectedValueOnce(new Error('db unavailable')),
+    ],
     ['malformed JSON', () => readAdminSystemSettingString.mockResolvedValueOnce('{not-json')],
   ])('fails closed for structured server configuration with %s', async (_caseName, arrange) => {
     arrange();
 
-    await expect(
-      getServerConfigStructuredValue('test_account_identifiers'),
-    ).rejects.toBeInstanceOf(RuntimeSettingUnavailableError);
+    await expect(getServerConfigStructuredValue('test_account_identifiers')).rejects.toBeInstanceOf(
+      RuntimeSettingUnavailableError,
+    );
   });
 });
