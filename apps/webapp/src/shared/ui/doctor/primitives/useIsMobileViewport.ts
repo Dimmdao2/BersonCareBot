@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from 'react';
 
-/** Телефон/таблет: узкий экран ИЛИ тач-устройство. */
-const MOBILE_QUERY = '(max-width: 767px), (pointer: coarse)';
+/** Совпадает с Tailwind `md`: mobile-shell действует только до ширины 768px. */
+const MOBILE_QUERY = '(max-width: 767px)';
 
 function subscribe(onStoreChange: () => void) {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {

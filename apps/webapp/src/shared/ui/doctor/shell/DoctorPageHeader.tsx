@@ -16,6 +16,8 @@ export type DoctorPageHeaderProps = {
   info?: ReactNode;
   /** Вкладки раздела (право): для секций с табами (S2/S5/S6). */
   tabs?: ReactNode;
+  /** Показывать настоящий tab-nav отдельной строкой под мобильной шапкой. */
+  showTabsOnMobile?: boolean;
   /** Classes for the tabs/right-slot wrapper (for example a full-width search surface). */
   tabsClassName?: string;
   /**
@@ -45,6 +47,7 @@ export function DoctorPageHeader({
   title,
   info,
   tabs,
+  showTabsOnMobile = false,
   tabsClassName,
   toolbar,
   className,
@@ -66,17 +69,22 @@ export function DoctorPageHeader({
         className,
       )}
     >
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border/70 px-[var(--doctor-block-padding,18px)] py-2">
-        <div className="flex min-w-0 flex-1 flex-col">
+      <div
+        className={cn(
+          'min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-border/70 px-[var(--doctor-block-padding,18px)] py-2 md:flex',
+          tabs && showTabsOnMobile ? 'flex' : 'hidden',
+        )}
+      >
+        <div className="hidden min-w-0 flex-1 flex-col md:flex">
           {typeof title === 'string' ? <h1 className={doctorPageTitleClass}>{title}</h1> : title}
         </div>
         {info || tabs ? (
-          <div className="flex min-w-0 basis-full flex-wrap items-center justify-end gap-x-3 gap-y-1.5 md:flex-1 md:basis-auto">
-            {info ? <div className="flex min-w-0 items-center gap-2">{info}</div> : null}
+          <div className="flex min-w-0 basis-full flex-wrap items-center gap-x-3 gap-y-1.5 md:flex-1 md:basis-auto md:justify-end">
+            {info ? <div className="hidden min-w-0 items-center gap-2 md:flex">{info}</div> : null}
             {tabs ? (
               <div
                 data-doctor-page-header-tabs=""
-                className={cn('flex min-w-0 items-center', tabsClassName)}
+                className={cn('flex min-w-0 flex-1 items-center md:flex-initial', tabsClassName)}
               >
                 {tabs}
               </div>

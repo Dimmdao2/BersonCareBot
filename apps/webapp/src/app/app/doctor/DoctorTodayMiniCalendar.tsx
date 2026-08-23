@@ -10,7 +10,10 @@ import ruLocale from '@fullcalendar/core/locales/ru';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
-import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types';
+import type {
+  CalendarAppointmentEvent,
+  WorkingBounds,
+} from '@/modules/booking-calendar/types';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import {
@@ -103,10 +106,12 @@ type Props = {
   /** IANA-таймзона для корректного маппинга записей на временную ось. */
   displayIana: string;
   /**
-   * Рабочие границы дня в минутах от полуночи (§1.2, S4).
-   * Вычисляются на сервере через deriveWorkingBounds; `null` = день закрыт/нет данных.
+   * Канонические границы календарного API, уже расширенные на час вокруг рабочего окна.
+   * `null` = рабочих интервалов нет.
    */
-  workingBounds?: { startMinute: number; endMinute: number } | null;
+  workingBounds?: WorkingBounds | null;
+  showWorkingHours?: boolean;
+  defaultWindow?: { startMinute: number; endMinute: number };
   /**
    * Called when a canonical CalendarAppointmentEvent is clicked.
    * Use this (not onEventClick) when calendarEvents are provided — it passes the full
@@ -127,6 +132,8 @@ export function DoctorTodayMiniCalendar({
   todayIso,
   displayIana,
   workingBounds,
+  showWorkingHours,
+  defaultWindow,
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
@@ -147,21 +154,15 @@ export function DoctorTodayMiniCalendar({
                   .toISO() ?? startAt,
             };
           });
-    // `workingBounds` are the exact wall-clock bounds from deriveWorkingBounds.
-    // Keep them exact here: the shared visible-window helper already owns the
-    // one-hour appointment buffer. Pre-padding both inputs made the Today grid
-    // start two hours before the first appointment in an early-shift case.
-    const bounds =
-      workingBounds == null
-        ? null
-        : {
-            minMinute: workingBounds.startMinute,
-            maxMinute: workingBounds.endMinute,
-          };
-    const result = deriveCalendarVisibleTimeWindow(bounds, visibleEvents, displayIana, {
-      startMinute: DEFAULT_CALENDAR_WINDOW_MIN,
-      endMinute: DEFAULT_CALENDAR_WINDOW_MAX,
-    });
+    const result = deriveCalendarVisibleTimeWindow(
+      workingBounds,
+      visibleEvents,
+      displayIana,
+      defaultWindow ?? {
+        startMinute: DEFAULT_CALENDAR_WINDOW_MIN,
+        endMinute: DEFAULT_CALENDAR_WINDOW_MAX,
+      },
+    );
     return {
       slotMinTime: result.slotMinTime,
       slotMaxTime: result.slotMaxTime,
@@ -174,7 +175,7 @@ export function DoctorTodayMiniCalendar({
   // paint the whole visible column grey. When workingBounds is undefined (not yet known)
   // we leave the calendar white — same as before.
   const bgFillEvent =
-    workingBounds === null
+    showWorkingHours !== false && workingBounds === null
       ? [
           {
             id: 'nonwork:today:all',
@@ -298,8 +299,7 @@ export function DoctorTodayMiniCalendar({
           eventClick={(info) => {
             // Prefer canonical event (has be_appointments.id, works with DoctorCalendarEventPanel).
             const canonicalAppt = info.event.extendedProps?.canonicalAppt as
-              | CalendarAppointmentEvent
-              | undefined;
+              CalendarAppointmentEvent | undefined;
             if (onCanonicalEventClick && canonicalAppt) {
               onCanonicalEventClick(canonicalAppt);
               return;

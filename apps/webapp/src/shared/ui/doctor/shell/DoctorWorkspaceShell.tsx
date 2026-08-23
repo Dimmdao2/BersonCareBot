@@ -8,6 +8,8 @@ import { canAccessDoctor } from '@/modules/roles/service';
 import { resolveLaunchCapabilities } from '@/app-layer/guards/workspaceCapabilities';
 import { DoctorAdminSidebar } from '@/shared/ui/doctor/shell/DoctorAdminSidebar';
 import { DoctorHeader } from '@/shared/ui/doctor/shell/DoctorHeader';
+import { DoctorBottomNav } from '@/shared/ui/doctor/shell/DoctorBottomNav';
+import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
 import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
@@ -107,33 +109,41 @@ export function DoctorWorkspaceShell({
       <StaffPwaBootstrap />
       <StaffWebPushBootstrap />
       <StaffCalendarTimezoneBootstrap />
-      <div className="flex min-h-screen flex-col bg-background">
-        <DoctorHeader
-          userDisplayName={userDisplayName}
-          isPlatformOperator={isPlatformOperator}
-          menuAccess={menuAccess}
-          patientLabel={patientLabel}
-          hideMenuOnDesktop={showDoctorDesktopNav}
-          enableBadgePolling={clinicalRuntimeEnabled}
-          homeHref={homeHref}
-          showClinicalShortcuts={showClinicalShortcuts}
-          menuKind={menuKind}
-        />
-        <div className={cn('flex min-h-0 flex-1', DOCTOR_WORKSPACE_TOP_PADDING_CLASS)}>
-          {showDoctorDesktopNav ? (
-            <DoctorAdminSidebar
-              userDisplayName={userDisplayName}
-              menuAccess={menuAccess}
-              patientLabel={patientLabel}
-              enableBadgePolling={clinicalRuntimeEnabled}
-              homeHref={homeHref}
-              brand={brand}
-              menuKind={menuKind}
-            />
+      <DoctorShellChromeProvider>
+        <div className="flex min-h-screen flex-col bg-background">
+          <DoctorHeader
+            userDisplayName={userDisplayName}
+            isPlatformOperator={isPlatformOperator}
+            menuAccess={menuAccess}
+            patientLabel={patientLabel}
+            hideMenuOnDesktop={showDoctorDesktopNav}
+            enableBadgePolling={clinicalRuntimeEnabled}
+            menuKind={menuKind}
+          />
+          <div
+            className={cn(
+              'flex min-h-0 flex-1 pb-[calc(3.25rem+env(safe-area-inset-bottom,0px))] md:pb-0',
+              DOCTOR_WORKSPACE_TOP_PADDING_CLASS,
+            )}
+          >
+            {showDoctorDesktopNav ? (
+              <DoctorAdminSidebar
+                userDisplayName={userDisplayName}
+                menuAccess={menuAccess}
+                patientLabel={patientLabel}
+                enableBadgePolling={clinicalRuntimeEnabled}
+                homeHref={homeHref}
+                brand={brand}
+                menuKind={menuKind}
+              />
+            ) : null}
+            <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+          </div>
+          {showClinicalShortcuts ? (
+            <DoctorBottomNav menuAccess={menuAccess} patientLabel={patientLabel} />
           ) : null}
-          <div className="flex min-w-0 flex-1 flex-col">{children}</div>
         </div>
-      </div>
+      </DoctorShellChromeProvider>
     </DoctorSupportUnreadProvider>
   );
 }

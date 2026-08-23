@@ -12,6 +12,7 @@ import type {
   CalendarAppointmentEvent,
   CalendarFilterMeta,
   CalendarEvent,
+  WorkingBounds,
 } from '@/modules/booking-calendar/types';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
@@ -73,8 +74,7 @@ const DoctorTodayMiniCalendar = dynamic(
 
 /** Event panel — только после клика по записи. */
 const DoctorCalendarEventPanel = dynamic(
-  () =>
-    import('./calendar/DoctorCalendarEventPanel').then((mod) => mod.DoctorCalendarEventPanel),
+  () => import('./calendar/DoctorCalendarEventPanel').then((mod) => mod.DoctorCalendarEventPanel),
   { ssr: false },
 );
 
@@ -83,6 +83,9 @@ type CalendarApiResponse = {
   events?: CalendarEvent[];
   filters?: CalendarFilterMeta;
   resolvedScope?: ResolvedDoctorScheduleScope;
+  timeZone?: string;
+  showWorkingHours?: boolean;
+  workingBounds?: WorkingBounds | null;
   error?: string;
 };
 
@@ -92,7 +95,7 @@ type Props = {
   /** Fixed on the RSC render so fallback and loaded calendar use one calendar day. */
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   displayIana: string;
-  workingBounds?: { startMinute: number; endMinute: number } | null;
+  defaultWindow?: { startMinute: number; endMinute: number };
 };
 
 /**
@@ -106,13 +109,16 @@ export function TodayMiniCalendarWithModal({
   appointments,
   calendarSnapshot,
   displayIana,
-  workingBounds,
+  defaultWindow,
 }: Props) {
   const [calendarEvents, setCalendarEvents] = useState<CalendarAppointmentEvent[]>([]);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
   const [showFc, setShowFc] = useState(false);
+  const [workingBounds, setWorkingBounds] = useState<WorkingBounds | null | undefined>(undefined);
+  const [showWorkingHours, setShowWorkingHours] = useState<boolean | undefined>(undefined);
+  const [calendarTimeZone, setCalendarTimeZone] = useState(displayIana);
 
   const { todayIso, nowMinutes, todayDateLabel } = calendarSnapshot;
 
@@ -128,6 +134,9 @@ export function TodayMiniCalendarWithModal({
           setCalendarEvents(appts);
         }
         if (data.filters) setFilterMeta(data.filters);
+        setWorkingBounds(data.workingBounds);
+        setShowWorkingHours(data.showWorkingHours);
+        if (data.timeZone) setCalendarTimeZone(data.timeZone);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
         onDone?.();
       })
@@ -150,6 +159,9 @@ export function TodayMiniCalendarWithModal({
           setCalendarEvents(appts);
         }
         if (data.filters) setFilterMeta(data.filters);
+        setWorkingBounds(data.workingBounds);
+        setShowWorkingHours(data.showWorkingHours);
+        if (data.timeZone) setCalendarTimeZone(data.timeZone);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
       })
       .catch(() => {
@@ -180,8 +192,10 @@ export function TodayMiniCalendarWithModal({
           calendarEvents={calendarEvents}
           nowMinutes={nowMinutes}
           todayDateLabel={todayDateLabel}
-          displayIana={displayIana}
+          displayIana={calendarTimeZone}
           workingBounds={workingBounds}
+          showWorkingHours={showWorkingHours}
+          defaultWindow={defaultWindow}
           onCanonicalEventClick={(appt) => setSelected(appt)}
         />
       ) : (
@@ -203,7 +217,7 @@ export function TodayMiniCalendarWithModal({
               <DoctorCalendarEventPanel
                 apiBase={API_BASE}
                 selected={selected}
-                timeZone={displayIana}
+                timeZone={calendarTimeZone}
                 filterMeta={filterMeta}
                 activeFilters={EMPTY_ACTIVE_FILTERS}
                 ownSpecialistId={ownSpecialistId}

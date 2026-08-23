@@ -120,14 +120,14 @@
 | Контрол                                     | Высота         | Радиус |
 | ------------------------------------------- | -------------- | ------ |
 | Input / Select / база тулбара               | `h-8` (32)     | `24px` |
-| Button база doctor (`sm`)                   | `h-8` (32)     | `24px` |
+| Button база doctor (`sm`)                   | `h-9` (36)     | `24px` |
 | Button главный CTA (`lg`, редко)            | `h-10` (40)    | `24px` |
 | Header icon-кнопки (исключение, тач-таргет) | `size-10` (40) | —      |
 
-- В одной строке формы/тулбара поле и кнопка совпадают по высоте (32) и радиусу (24px).
+- В одной строке формы/тулбара поле и select совпадают по высоте (32px); стандартная doctor-кнопка — 36px.
 - Фактическая поверхность `input` белая; декоративный фон внешней области не должен просвечивать через поле.
-- `default`-кнопку (36px) в doctor-зоне не плодить: основное действие — `size="sm"` либо `doctorCatalogToolbarPrimaryActionClassName` (тоже 32px).
-- Эталон 32px-контролов: тулбар и view-toggle в каталоге упражнений (`DoctorCatalogMasterListHeader`, `doctorCatalogToolbarPrimaryActionClassName`).
+- Основное действие — `size="sm"` либо `doctorCatalogToolbarPrimaryActionClassName`; оба используют стандартную высоту 36px.
+- Эталон doctor-кнопки: `Button size="sm"`; высота задаётся doctor primitive, а не локальным `h-*`.
 
 ### B.3. Плотность — один ритм
 

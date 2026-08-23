@@ -3,8 +3,7 @@ import type { CSSProperties } from 'react';
 
 /** Тот же каркас и стили, что у встроенной 404 Next.js (`HTTPAccessErrorFallback`). */
 const outer: CSSProperties = {
-  fontFamily:
-    'system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji"',
+  fontFamily: '"Manrope Variable", Manrope, Arial, sans-serif',
   height: '100vh',
   textAlign: 'center',
   display: 'flex',
