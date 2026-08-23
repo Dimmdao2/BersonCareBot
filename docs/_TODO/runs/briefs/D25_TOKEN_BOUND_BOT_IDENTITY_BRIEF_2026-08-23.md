@@ -11,7 +11,8 @@ D25 checkboxes in `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`:
 - no generic Telegram/MAX `/start`, message, callback or contact creates `platform_users`, trusts a phone or
   decides a merge;
 - registration/login begins in webapp, produces a token-bound `auth_<token>` attempt, the bot confirms a matching
-  contact and delivers the code, and webapp-owned completion owns any account creation/binding;
+  phone by accepting only a self-owned messenger contact, webapp matches it to the attempt, and only then the bot
+  delivers the code; webapp-owned completion owns any account creation/binding;
 - the old “two arbitrary webhooks” gate is cancelled;
 - branded-bot work and the Therapysto rename/branding initiative are not part of this pass.
 
@@ -34,8 +35,11 @@ The correct token-bound path already exists:
    It may remain unresolved and receive only behavior allowed to an unresolved actor.
 2. Existing bound messenger users continue to resolve and use the bot. Updating an already-existing binding's
    non-identity display handle is allowed only if existing behavior genuinely requires it; no create fallback.
-3. Signed/token-bound phone-messenger login and profile-bind remain working. Only that webapp-owned completion may
-   create/bind the canonical account/contact after token, channel and matching phone validation.
+3. Signed/token-bound phone-messenger login and profile-bind remain working. Telegram must prove
+   `contact.user_id === message.from.id`; MAX must verify the provider HMAC over `vcf_info` using the configured
+   bot token. Then webapp must match the normalized phone to the token-bound attempt. The bot is the
+   phone-ownership factor, not merely a code courier;
+   only webapp-owned completion may create/bind the canonical account/contact after that proof.
 4. Remove the misleading/obsolete generic creator capability. Prefer deleting or narrowing the existing
    `user.upsert`/`app.integrator_upsert_channel_identity` path; do not introduce a new wrapper, second identity
    service, HTTP hop, store or relation grant. Search all callers before choosing delete vs lookup-only.

@@ -746,7 +746,8 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             не называл; два из четырёх файлов, названных здесь прежде (`channelUsers.ts`, `mergeIntegratorUsers.ts`),
             идентичность не пишут вообще. По уточнению владельца 23.08 прежний двухвебхуковый gate отменён:
             произвольный апдейт бота не создаёт человека и не привязывает канал. Живая проверка обязана начать
-            попытку в webapp, передать token в бота, подтвердить совпадающий контакт и завершить кодом в webapp;
+            попытку в webapp, передать token в бота, доказать владение номером self-owned contact средствами
+            мессенджера, сверить его с номером попытки и завершить кодом в webapp;
             отдельный отрицательный gate доказывает, что generic webhook не добавил `platform_users`.
             ⛔ **УСТАРЕЛО 23.08.2026:** предложение «оба пути всё ещё записывают канон реляционно» выше заменено
             более новым состоянием [D25](#пункты-d20d39): `ef42f0129` + `f7d4a090f`, land `31c01bb86`.
@@ -757,7 +758,7 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
             `app.integrator_upsert_channel_identity` при неизвестном messenger id само вставляет пустые
             `platform_users`, `user_identity`, binding и preferences, поэтому generic webhook всё ещё создаёт
             учётку, хотя запись спрятана за webapp-owned seam. Бокс `[ ]` до удаления этой ветки создания и
-            зелёного token-bound gate `webapp start → bot contact → webapp complete → code confirm`; обычный
+            зелёного token-bound gate `webapp start → messenger-owned contact proof → webapp complete → code confirm`; обычный
             `/start`/message/contact без действующей попытки обязан оставить число аккаунтов неизменным.
       - [x] **D15b/3 — один порт идентичности в вебаппе.** ✅ 03.08, ветка `wt/d15b3-identity-port`,
             отчёт `runs/integrator-cleanup/D15B3_IDENTITY_PORT_2026-08-03.md`. Новый модуль
@@ -1598,8 +1599,8 @@ booking/event gateway) в том же источнике помечены «за
       generic `user.upsert` вызывает `app.integrator_upsert_channel_identity`, а функция создаёт пустого
       канонического человека по одному Telegram/MAX id. «Webapp-owned seam» не делает это webapp-регистрацией,
       потому что действующей попытки webapp и подтверждённого контакта нет. Готовность D25 теперь бинарна:
-      generic webhook не создаёт аккаунт; token-bound webapp flow с совпадающим контактом доставляет код и
-      завершает вход; интегратор не доверяет телефон и не решает merge.
+      generic webhook не создаёт аккаунт; token-bound webapp flow принимает только self-owned messenger contact,
+      сверяет номер, фиксирует подтверждение и доставляет код; интегратор не создаёт аккаунт и не решает merge.
       D15b/5 закрыт. **D15b/6 не закрыт:** код/миграция/привилегийная часть physical cutover `#987` задеплоены
       на TEST в merge `92cf34ffa4bf4f277e7f3e67bd548c3805815ee2` (full CI PASS, `push:checked` OK,
       `deploy-test.sh` PASS, TEST migration verification webapp `25/25` + integrator `1/1`, детали — чекбокс
