@@ -618,13 +618,25 @@ identity seam, а не набор getters.
 
 ### B — Единый surface/brand path (`TPB-05`, `07`, `08`, `09`, `11`, `14`, `16`)
 
-- [ ] `B1` Резолвить организацию по метке поддомена нашего patient-домена через существующий slug-резолвер и
-  approved DB seam; не из route/proxy напрямую. Неизвестная метка — hard 404.
-- [ ] `B1a` Зарезервировать служебные метки (`www`, `app`, `api`, `mail`, `admin` и т.п.), чтобы slug клиники не
-  мог их занять. Проверка — на записи slug, а не только на чтении.
-- [ ] `B2` **Возвращён в этап 22.08.2026** вместе с расконсервацией своего домена (§1.2): защита от дубля
+- [x] `B1` Резолвить организацию по метке поддомена нашего patient-домена через существующий slug-резолвер и
+  approved DB seam; не из route/proxy напрямую. Неизвестная метка — hard 404. Доказательство:
+  `patientSubdomainOrganization.unit.test.ts` (`resolved` через `ClinicDirectoryService`, unknown → `{ status: 404 }`).
+- [x] `B1a` Зарезервировать служебные метки (`www`, `app`, `api`, `mail`, `admin` и т.п.), чтобы slug клиники не
+  мог их занять. Проверка — на записи slug, а не только на чтении. Доказательство:
+  `selfRenameAllowance.unit.test.ts` не вызывает write port; живой rollback-only proof отвергает `www` DB constraint.
+  Дополнение 23.08: `20260823T011000_reject_numeric_organization_slug_claims.sql` добавляет DB CHECK для
+  `^[0-9]+$` без второй копии списка меток; `RUN_CLINIC_DOMAIN_WRITE_CONSTRAINTS_DB=1 node --test
+  deploy/postgres/privileges/clinic-domain-write-constraints.devDbProof.test.mjs` → 3 pass. Отчёт:
+  `docs/REPORTS/CLINIC_DOMAIN_WRITE_CONSTRAINTS_FIX_2026-08-23.md`.
+
+  **OWNER QUESTION (не задача):** входит ли в фразу «и т.п.» также `mta-sts`, `mx`, `mta`, `relay`, `webmail`,
+  `ns`, `www1`, `www2`? В текущий список они не добавлены.
+- [x] `B2` **Возвращён в этап 22.08.2026** вместе с расконсервацией своего домена (§1.2): защита от дубля
   `org_custom_domain_hostname` на записи — узкий partial unique expression index, новой таблицы нет.
-  Два арендатора не должны суметь объявить один и тот же хост.
+  Два арендатора не должны суметь объявить один и тот же хост. Доказательство:
+  `clinic-domain-write-constraints.devDbProof.test.mjs`; rollback на DEV — снять
+  `system_settings_org_custom_domain_hostname_uidx` отдельной timestamped follow-up migration и вернуть
+  предшествующую редакцию `organization_slug_claims_slug_reserved_check` той же migration.
 - [ ] `B3` Реализовать один `RequestSurfaceResolver` и подключить к существующему request choke point. Результат
   резолва переиспользуется routing, metadata/manifest и absolute links. **Установка приложения (манифест,
   иконки, `start_url`) идёт из этого же резолва по Host** — решение владельца 22.08.2026, см. §1.3.

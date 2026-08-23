@@ -2184,8 +2184,11 @@ export const mediaPlaybackStatsHourly = pgTable(
     fallbackCount: integer('fallback_count').default(0).notNull(),
   },
   (table) => [
-    uniqueIndex('media_playback_stats_hourly_org_bucket_delivery_uidx')
-      .on(table.organizationId, table.bucketHour, table.delivery),
+    uniqueIndex('media_playback_stats_hourly_org_bucket_delivery_uidx').on(
+      table.organizationId,
+      table.bucketHour,
+      table.delivery,
+    ),
     index('idx_media_playback_stats_hourly_organization_id').on(table.organizationId),
     index('idx_media_playback_stats_hourly_bucket').using(
       'btree',
@@ -3928,5 +3931,13 @@ export const systemSettings = pgTable(
       'system_settings_scope_check',
       sql`scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])`,
     ),
+    uniqueIndex('system_settings_org_custom_domain_hostname_uidx')
+      .using('btree', sql`lower(btrim(${table.valueJson} ->> 'value'))`)
+      .where(
+        sql`${table.key} = 'org_custom_domain_hostname'
+          AND ${table.organizationId} IS NOT NULL
+          AND jsonb_typeof(${table.valueJson} -> 'value') = 'string'
+          AND btrim(${table.valueJson} ->> 'value') <> ''`,
+      ),
   ],
 );
