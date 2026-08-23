@@ -1,5 +1,5 @@
 /**
- * Поведенческое доказательство двух pre-session дверей на именованной DEV-базе.
+ * Поведенческое доказательство pre-session дверей входа на именованной DEV-базе.
  * Кандидатные тела, сгенерированные права и capability применяются только внутри транзакции с
  * ROLLBACK; migration runner и `--execute` этот тест не вызывает.
  *
@@ -14,6 +14,10 @@
  *
  * Fault injection нового почтового корня:
  *   RUN_PRESESSION_LOGIN_DOORS_DB=1 PRESESSION_LOGIN_DOORS_FAULT=email node --test \
+ *     deploy/postgres/privileges/pre-session-login-doors.devDbProof.test.mjs
+ *
+ * Fault injection корня default-channel:
+ *   RUN_PRESESSION_LOGIN_DOORS_DB=1 PRESESSION_LOGIN_DOORS_FAULT=default_channel node --test \
  *     deploy/postgres/privileges/pre-session-login-doors.devDbProof.test.mjs
  */
 import assert from 'node:assert/strict';
@@ -30,15 +34,19 @@ const FAULT = process.env.PRESESSION_LOGIN_DOORS_FAULT ?? '';
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
   throw new Error(`unsafe database identifier '${DATABASE}'`);
 }
-if (!['', 'email', 'pre_session', 'patient'].includes(FAULT)) {
+if (!['', 'email', 'pre_session', 'patient', 'default_channel'].includes(FAULT)) {
   throw new Error(`unknown PRESESSION_LOGIN_DOORS_FAULT '${FAULT}'`);
 }
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
-const MIGRATION = path.join(
+const LOGIN_MIGRATION = path.join(
   repoRoot,
   'apps/webapp/db/drizzle-migrations/20260823T002500_pre_session_login_uses_two_named_doors.sql',
+);
+const DEFAULT_CHANNEL_MIGRATION = path.join(
+  repoRoot,
+  'apps/webapp/db/drizzle-migrations/20260823T023138_pre_session_default_auth_otp_channel.sql',
 );
 const PRIVILEGES = path.join(repoRoot, 'deploy/postgres/generated', `privileges.${DATABASE}.sql`);
 const CAPABILITIES = path.join(
@@ -53,6 +61,8 @@ const CHANNEL_IDENTITY = 'app.get_preferred_auth_channel_code(uuid)';
 const CHANNEL_PURPOSE = 'auth.phone-login.preferred-channel';
 const PATIENT_CHANNEL_IDENTITY = 'app.get_current_patient_preferred_auth_channel_code()';
 const PATIENT_CHANNEL_PURPOSE = 'patient.preferred-auth-channel.read';
+const DEFAULT_CHANNEL_IDENTITY = 'app.pre_session_get_default_auth_otp_channel(uuid)';
+const DEFAULT_CHANNEL_PURPOSE = 'auth.phone-login.default-channel';
 const EMAIL = 'presession-login-door-proof@example.test';
 const USER_ID = '00000000-0000-4000-8000-0000000000d6';
 
@@ -64,7 +74,7 @@ function psql(sql) {
       '-h', '/var/run/postgresql', '-p', '5432', '-d', DATABASE,
       '-v', 'ON_ERROR_STOP=1', '-f', '-',
     ],
-    { input: sql, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
+    { input: `\\set VERBOSITY verbose\n${sql}`, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 },
   ).trim();
 }
 
@@ -75,7 +85,15 @@ function generatedLine(file, needle, what) {
 }
 
 function candidateBlocks() {
-  let source = fs.readFileSync(MIGRATION, 'utf8');
+  let source = fs.readFileSync(LOGIN_MIGRATION, 'utf8');
+  let defaultChannelSource = fs.readFileSync(DEFAULT_CHANNEL_MIGRATION, 'utf8');
+  // The named DEV may already contain the earlier doors. Candidate proof must replace their bodies
+  // inside its rollback-only transaction instead of failing before any principal assertion.
+  source = source.replaceAll('CREATE FUNCTION ', 'CREATE OR REPLACE FUNCTION ');
+  defaultChannelSource = defaultChannelSource.replaceAll(
+    'CREATE FUNCTION ',
+    'CREATE OR REPLACE FUNCTION ',
+  );
   if (FAULT === 'email') {
     const healthy = ') AS has_password\n  FROM public.platform_users AS users';
     const broken = ') AND false AS has_password\n  FROM public.platform_users AS users';
@@ -94,9 +112,20 @@ function candidateBlocks() {
     assert.ok(source.includes(healthy), 'fault injection не нашла patient purpose');
     source = source.replace(healthy, broken);
   }
+  if (FAULT === 'default_channel') {
+    const healthy = "'auth.phone-login.default-channel', app.hash_port_typed_args";
+    const broken = "'auth.phone-login.default-channel.broken', app.hash_port_typed_args";
+    assert.ok(defaultChannelSource.includes(healthy), 'fault injection не нашла default-channel purpose');
+    defaultChannelSource = defaultChannelSource.replace(healthy, broken);
+  }
   const blocks = source.split('--> statement-breakpoint');
   assert.equal(blocks.length, 4, 'кандидатная миграция должна содержать четыре owner-секции');
-  return blocks;
+  assert.equal(
+    defaultChannelSource.split('--> statement-breakpoint').length,
+    1,
+    'default-channel миграция должна содержать одну owner-секцию',
+  );
+  return { blocks, defaultChannelSource };
 }
 
 function capabilityValue(identity) {
@@ -105,7 +134,8 @@ function capabilityValue(identity) {
 }
 
 function generatedSetup() {
-  const [emailBlock, ...identityBlocks] = candidateBlocks();
+  const { blocks, defaultChannelSource } = candidateBlocks();
+  const [emailBlock, ...identityBlocks] = blocks;
   const grants = [
     generatedLine(PRIVILEGES,
       `GRANT EXECUTE ON FUNCTION app.find_platform_user_ids_by_any_confirmed_email(text)`,
@@ -131,10 +161,23 @@ function generatedSetup() {
     generatedLine(PRIVILEGES,
       `GRANT SELECT ("channel_code", "is_preferred_for_auth", "platform_user_id", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_identity_lookup_owner"`,
       'SELECT общему preferred-channel helper'),
+    generatedLine(PRIVILEGES,
+      `GRANT EXECUTE ON FUNCTION ${DEFAULT_CHANNEL_IDENTITY} TO "app_pre_session"`,
+      'EXECUTE default-channel двери'),
+    generatedLine(PRIVILEGES,
+      `GRANT SELECT ("confirming_channel", "platform_user_id", "valid_to") ON TABLE "public"."user_phone_history" TO "app_seam_identity_lookup_owner"`,
+      'SELECT user_phone_history default-channel двери'),
+    generatedLine(PRIVILEGES,
+      `GRANT SELECT ("channel_code", "created_at", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_identity_lookup_owner"`,
+      'SELECT user_channel_bindings default-channel двери'),
+    generatedLine(PRIVILEGES,
+      `GRANT SELECT ("confirmed_at", "contact_kind", "is_primary", "platform_user_id") ON TABLE "public"."user_contacts" TO "app_seam_identity_lookup_owner"`,
+      'SELECT user_contacts default-channel двери'),
   ];
   const emailCapability = capabilityValue(EMAIL_IDENTITY);
   const channelCapability = capabilityValue(CHANNEL_IDENTITY);
   const patientChannelCapability = capabilityValue(PATIENT_CHANNEL_IDENTITY);
+  const defaultChannelCapability = capabilityValue(DEFAULT_CHANNEL_IDENTITY);
 
   return `BEGIN;
 GRANT CREATE ON SCHEMA app, app_ext TO app_seam_password_auth_owner, app_seam_identity_lookup_owner;
@@ -144,6 +187,7 @@ ${emailBlock}
 RESET ROLE;
 SET LOCAL ROLE app_seam_identity_lookup_owner;
 ${identityBlocks.join('\n')}
+${defaultChannelSource}
 RESET ROLE;
 ${grants.join('\n')}
 INSERT INTO app_ext.port_context_capabilities
@@ -151,7 +195,8 @@ INSERT INTO app_ext.port_context_capabilities
 VALUES
   ${emailCapability},
   ${channelCapability},
-  ${patientChannelCapability}
+  ${patientChannelCapability},
+  ${defaultChannelCapability}
 ON CONFLICT (capability_id) DO UPDATE SET
   port = EXCLUDED.port,
   session_login = EXCLUDED.session_login,
@@ -176,7 +221,10 @@ INSERT INTO public.user_password_credentials(user_id, password_hash)
 SELECT id, 'argon2-proof-hash' FROM presession_probe_user;
 INSERT INTO public.user_channel_preferences(
   user_id, platform_user_id, channel_code, is_preferred_for_auth)
-SELECT id::text, id, 'telegram', true FROM presession_probe_user;`;
+SELECT id::text, id, 'telegram', true FROM presession_probe_user;
+INSERT INTO public.user_phone_history(
+  platform_user_id, phone_normalized, source, confirming_channel)
+SELECT id, '+799900000d6', 'otp', 'max' FROM presession_probe_user;`;
 }
 
 function loginFromCapability(identity) {
@@ -392,4 +440,29 @@ ${openPatientNamedContext(patient)}
 SELECT app.get_current_patient_preferred_auth_channel_code();
 ROLLBACK;`);
     assert.equal(out, 'max');
+  });
+
+test('default-channel дверь с exact pre-session context возвращает канал текущего телефона',
+  { skip: !ENABLED, concurrency: false }, () => {
+    const out = psql(`${generatedSetup()}
+${openContext(
+    DEFAULT_CHANNEL_IDENTITY,
+    DEFAULT_CHANNEL_PURPOSE,
+    `ARRAY[ROW('uuid@1', pg_catalog.uuid_send('${USER_ID}'::uuid))::app.port_typed_arg]`,
+  )}
+SELECT app.pre_session_get_default_auth_otp_channel('${USER_ID}'::uuid);
+ROLLBACK;`);
+    assert.equal(out, 'max');
+  });
+
+test('default-channel дверь отказывает 42501 с принятым patient-контекстом',
+  { skip: !ENABLED, concurrency: false }, () => {
+    const patient = patientContextFixture();
+    assert.throws(
+      () => psql(`${generatedSetup()}
+${openPatientRelationContext(patient)}
+SELECT app.pre_session_get_default_auth_otp_channel('${patient.userId}'::uuid);
+ROLLBACK;`),
+      /42501/u,
+    );
   });
