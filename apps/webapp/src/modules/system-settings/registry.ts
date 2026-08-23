@@ -1,3 +1,11 @@
+import {
+  defaultSurfaceAuthControlEnabled,
+  SURFACE_AUTH_CONTROLS,
+  SURFACE_AUTH_POLICY_NAMES,
+  surfaceAuthSettingKey,
+  type SurfaceAuthSettingKey,
+} from '@/modules/auth/surfaceAuthSettings';
+
 /**
  * S5-0 settings reality lock.
  *
@@ -70,6 +78,21 @@ const runtime = (
     defaultValue,
     clientSerialization: audience === 'server' ? 'none' : 'raw',
   }) as const;
+
+const surfaceAuthSettingDefinitions = Object.fromEntries(
+  SURFACE_AUTH_POLICY_NAMES.flatMap((surface) =>
+    SURFACE_AUTH_CONTROLS.map((control) => [
+      surfaceAuthSettingKey(surface, control),
+      runtime(
+        'admin',
+        'global',
+        'public',
+        'boolean',
+        String(defaultSurfaceAuthControlEnabled(surface, control)),
+      ),
+    ]),
+  ),
+) as Readonly<Record<SurfaceAuthSettingKey, SystemSettingDefinition>>;
 
 /** Every legacy SystemSettingKey is classified here; no fallback entry exists. */
 export const SYSTEM_SETTING_REGISTRY = {
@@ -207,6 +230,7 @@ export const SYSTEM_SETTING_REGISTRY = {
   auth_oauth_vk_enabled: runtime('admin', 'global', 'public', 'boolean', 'true'),
   auth_oauth_apple_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
   auth_passkey_enabled: runtime('admin', 'global', 'public', 'boolean', 'false'),
+  ...surfaceAuthSettingDefinitions,
   /**
    * Platform-wide availability of clinic-facing integrations. This is deliberately one
    * structured setting: the platform decides whether an integration exists, while any

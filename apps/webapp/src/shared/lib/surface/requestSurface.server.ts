@@ -12,3 +12,17 @@ export async function getResolvedSurface(): Promise<ResolvedSurface> {
   if (!surface) notFound();
   return surface;
 }
+
+/** Optional request-context read for shared server policies that also run in non-request jobs/tests. */
+export async function getOptionalResolvedSurface(): Promise<ResolvedSurface | null> {
+  let requestHeaders: Headers;
+  try {
+    requestHeaders = await headers();
+  } catch {
+    return null;
+  }
+
+  const surface = readResolvedSurface(requestHeaders);
+  if (!surface) throw new Error('resolved_surface_header_missing_or_invalid');
+  return surface;
+}

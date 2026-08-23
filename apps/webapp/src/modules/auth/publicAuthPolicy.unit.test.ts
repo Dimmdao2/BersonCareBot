@@ -21,8 +21,18 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
 }));
 
 import { getAnonymousClientVisibleAuthChannelPolicy } from './anonymousAuthChannelPolicy';
-import { isOAuthProviderEnabled, type OAuthProvider } from './authChannelPolicy';
+import {
+  getAuthChannelPolicy,
+  isIndependentAuthMethodEnabled,
+  isOAuthProviderEnabled,
+  type OAuthProvider,
+} from './authChannelPolicy';
 import { getAuthChannelPolicyDetail } from './authChannelPolicyAdmin';
+import {
+  SURFACE_AUTH_CONTROLS,
+  SURFACE_AUTH_POLICY_NAMES,
+  surfaceAuthSettingKey,
+} from './surfaceAuthSettings';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -57,6 +67,55 @@ beforeEach(() => {
 });
 
 describe('public auth policy', () => {
+  it('preserves every login toggle on all three surfaces after the legacy-value migration', async () => {
+    const migratedValues = {
+      email: true,
+      sms: false,
+      telegram: false,
+      max: false,
+      oauth_google: false,
+      oauth_yandex: false,
+      oauth_vk: false,
+      oauth_apple: false,
+      passkey: true,
+    } as const;
+
+    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+      for (const control of SURFACE_AUTH_CONTROLS) {
+        fakes.publicValues.set(surfaceAuthSettingKey(surface, control), migratedValues[control]);
+      }
+    }
+    for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
+      fakes.publicValues.set(`oauth_${provider}_enabled`, true);
+    }
+
+    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+      await expect(getAuthChannelPolicy(surface)).resolves.toEqual({
+        email: true,
+        sms: false,
+        telegram: false,
+        max: false,
+      });
+      await expect(isIndependentAuthMethodEnabled('passkey', surface)).resolves.toBe(true);
+      for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
+        await expect(isOAuthProviderEnabled(provider, surface)).resolves.toBe(false);
+      }
+    }
+  });
+
+  it('isolates a changed surface toggle from the other two surfaces', async () => {
+    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+      for (const channel of ['email', 'sms', 'telegram', 'max'] as const) {
+        fakes.publicValues.set(surfaceAuthSettingKey(surface, channel), true);
+      }
+    }
+    fakes.publicValues.set(surfaceAuthSettingKey('patient', 'email'), false);
+
+    await expect(getAuthChannelPolicy('staff')).resolves.toMatchObject({ email: true });
+    await expect(getAuthChannelPolicy('platform_admin')).resolves.toMatchObject({ email: true });
+    await expect(getAuthChannelPolicy('patient')).resolves.toMatchObject({ email: false });
+  });
+
   it('uses only boolean capabilities to hide an unconfigured channel from anonymous login', async () => {
     fakes.publicValues.set('auth_email_enabled', true);
     fakes.publicValues.set('auth_sms_enabled', true);

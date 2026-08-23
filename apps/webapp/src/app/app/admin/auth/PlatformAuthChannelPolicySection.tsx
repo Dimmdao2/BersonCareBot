@@ -17,79 +17,68 @@ import {
 } from '@/shared/ui/primitives/tooltip';
 import type { AuthChannelUiPolicy } from '@/modules/auth/otpChannelUi';
 import { OAUTH_PROVIDER_REGISTRY, type OAuthProvider } from '@/modules/auth/oauthProviderRegistry';
+import {
+  SURFACE_AUTH_CONTROLS,
+  SURFACE_AUTH_POLICY_NAMES,
+  surfaceAuthSettingKey,
+  type SurfaceAuthControl,
+} from '@/modules/auth/surfaceAuthSettings';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/requestSurface';
 
 type PolicyKey = keyof AuthChannelUiPolicy;
-type SettingKey = `auth_${PolicyKey}_enabled`;
-type OAuthProviderKey = OAuthProvider;
-type OAuthSettingKey = `auth_oauth_${OAuthProviderKey}_enabled`;
-type IndependentMethodKey = 'passkey';
-type IndependentSettingKey = `auth_${IndependentMethodKey}_enabled`;
 const UNSUPPORTED_CLIENT_FALLBACK_KEY = 'patient_unsupported_client_fallback_enabled' as const;
-type SavingKey =
-  | PolicyKey
-  | OAuthProviderKey
-  | IndependentMethodKey
-  | typeof UNSUPPORTED_CLIENT_FALLBACK_KEY;
-
 type ConfigurationStatus = Readonly<{ enabled: boolean; configured: boolean }>;
 type ChannelConfigurationStatus = Readonly<Record<PolicyKey, ConfigurationStatus>>;
-type OAuthConfigurationStatus = Readonly<Record<OAuthProviderKey, ConfigurationStatus>>;
+type OAuthConfigurationStatus = Readonly<Record<OAuthProvider, ConfigurationStatus>>;
+type SurfacePolicy = Record<SurfaceAuthControl, boolean>;
+type SurfacePolicies = Record<SurfaceAuthPolicyName, SurfacePolicy>;
 
-const CHANNELS: ReadonlyArray<{ channel: PolicyKey; label: string; hint: string }> = [
-  {
-    channel: 'email',
-    label: 'Email-коды',
-    hint: 'Разрешить вход и регистрацию по одноразовому коду из письма.',
-  },
-  {
-    channel: 'sms',
-    label: 'SMS-коды',
-    hint: 'Разрешить подтверждение номера и одноразовые коды по SMS.',
-  },
-  { channel: 'telegram', label: 'Telegram', hint: 'Разрешить вход и привязку через Telegram.' },
-  { channel: 'max', label: 'MAX', hint: 'Разрешить вход и привязку через MAX.' },
-];
+const SURFACE_LABELS: Readonly<Record<SurfaceAuthPolicyName, string>> = {
+  staff: 'Персонал клиник',
+  platform_admin: 'Админ платформы',
+  patient: 'Пациенты',
+};
 
-const OAUTH_PROVIDERS: ReadonlyArray<{ provider: OAuthProviderKey; label: string; hint: string }> =
-  OAUTH_PROVIDER_REGISTRY.map((meta) => ({
-    provider: meta.provider,
-    label: meta.adminLabel,
-    hint: meta.adminHint,
-  }));
-
-const INDEPENDENT_METHODS: ReadonlyArray<{
-  method: IndependentMethodKey;
+const CONTROL_LABELS: ReadonlyArray<{
+  control: SurfaceAuthControl;
   label: string;
   hint: string;
 }> = [
+  { control: 'email', label: 'Email-коды', hint: 'Разрешить вход по одноразовому коду из письма.' },
+  { control: 'sms', label: 'SMS-коды', hint: 'Разрешить вход по коду из SMS.' },
+  { control: 'telegram', label: 'Telegram', hint: 'Разрешить вход через Telegram.' },
+  { control: 'max', label: 'MAX', hint: 'Разрешить вход через MAX.' },
+  ...OAUTH_PROVIDER_REGISTRY.map((meta) => ({
+    control: `oauth_${meta.provider}` as const,
+    label: meta.adminLabel,
+    hint: meta.adminHint,
+  })),
   {
-    method: 'passkey',
+    control: 'passkey',
     label: 'Ключ доступа (passkey)',
-    hint: 'Разрешить добровольное добавление ключей доступа и вход по ним.',
+    hint: 'Разрешить вход по ключу доступа.',
   },
 ];
 
-const EMPTY_POLICY: AuthChannelUiPolicy = { email: false, sms: false, telegram: false, max: false };
+function emptyPolicies(): SurfacePolicies {
+  return Object.fromEntries(
+    SURFACE_AUTH_POLICY_NAMES.map((surface) => [
+      surface,
+      Object.fromEntries(SURFACE_AUTH_CONTROLS.map((control) => [control, false])),
+    ]),
+  ) as SurfacePolicies;
+}
+
 const EMPTY_CHANNEL_STATUS: ChannelConfigurationStatus = {
   email: { enabled: false, configured: false },
   sms: { enabled: false, configured: false },
   telegram: { enabled: false, configured: false },
   max: { enabled: false, configured: false },
 };
-const EMPTY_OAUTH_POLICY: Record<OAuthProviderKey, boolean> = Object.fromEntries(
-  OAUTH_PROVIDER_REGISTRY.map((meta) => [meta.provider, false]),
-) as Record<OAuthProviderKey, boolean>;
-const EMPTY_OAUTH_STATUS: OAuthConfigurationStatus = Object.fromEntries(
+const EMPTY_OAUTH_STATUS = Object.fromEntries(
   OAUTH_PROVIDER_REGISTRY.map((meta) => [meta.provider, { enabled: false, configured: false }]),
 ) as OAuthConfigurationStatus;
-const EMPTY_INDEPENDENT_POLICY: Record<IndependentMethodKey, boolean> = {
-  passkey: false,
-};
 
-/**
- * Owner ruling 2026-07-31 (`IDENTITY_AND_MERGE_SCHEME.md` §4): пока канал не настроен, включить
- * его нельзя — флажок недоступен, рядом иконка с подсказкой «канал не настроен».
- */
 function NotConfiguredHint() {
   return (
     <TooltipProvider>
@@ -111,18 +100,29 @@ function readBoolean(valueJson: unknown): boolean {
   return false;
 }
 
+function isConfigured(
+  control: SurfaceAuthControl,
+  channels: ChannelConfigurationStatus,
+  oauth: OAuthConfigurationStatus,
+): boolean {
+  if (control.startsWith('oauth_')) {
+    return oauth[control.slice('oauth_'.length) as OAuthProvider].configured;
+  }
+  if (control === 'passkey') return true;
+  if (control === 'email' || control === 'sms' || control === 'telegram' || control === 'max') {
+    return channels[control].configured;
+  }
+  return false;
+}
+
 export function PlatformAuthChannelPolicySection() {
-  const [policy, setPolicy] = useState<AuthChannelUiPolicy>(EMPTY_POLICY);
+  const [policies, setPolicies] = useState<SurfacePolicies>(emptyPolicies);
   const [channelStatus, setChannelStatus] =
     useState<ChannelConfigurationStatus>(EMPTY_CHANNEL_STATUS);
-  const [oauthPolicy, setOauthPolicy] =
-    useState<Record<OAuthProviderKey, boolean>>(EMPTY_OAUTH_POLICY);
   const [oauthStatus, setOauthStatus] = useState<OAuthConfigurationStatus>(EMPTY_OAUTH_STATUS);
-  const [independentPolicy, setIndependentPolicy] =
-    useState<Record<IndependentMethodKey, boolean>>(EMPTY_INDEPENDENT_POLICY);
   const [unsupportedClientFallbackEnabled, setUnsupportedClientFallbackEnabled] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState<SavingKey | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -137,33 +137,18 @@ export function PlatformAuthChannelPolicySection() {
         if (!active || !response.ok || !data.ok || !Array.isArray(data.settings)) {
           throw new Error('settings_unavailable');
         }
-        const next = { ...EMPTY_POLICY };
-        for (const channel of CHANNELS) {
-          const setting = data.settings.find(
-            (item) => item.key === `auth_${channel.channel}_enabled`,
-          );
-          next[channel.channel] = readBoolean(setting?.valueJson);
+        const next = emptyPolicies();
+        for (const surface of SURFACE_AUTH_POLICY_NAMES) {
+          for (const control of SURFACE_AUTH_CONTROLS) {
+            const key = surfaceAuthSettingKey(surface, control);
+            next[surface][control] = readBoolean(
+              data.settings.find((item) => item.key === key)?.valueJson,
+            );
+          }
         }
-        setPolicy(next);
+        setPolicies(next);
         setChannelStatus(data.channelPolicy ?? EMPTY_CHANNEL_STATUS);
-
-        const nextOauth = { ...EMPTY_OAUTH_POLICY };
-        for (const { provider } of OAUTH_PROVIDERS) {
-          const setting = data.settings.find(
-            (item) => item.key === `auth_oauth_${provider}_enabled`,
-          );
-          nextOauth[provider] = readBoolean(setting?.valueJson);
-        }
-        setOauthPolicy(nextOauth);
         setOauthStatus(data.oauthProviderPolicy ?? EMPTY_OAUTH_STATUS);
-
-        const nextIndependent = { ...EMPTY_INDEPENDENT_POLICY };
-        for (const { method } of INDEPENDENT_METHODS) {
-          const setting = data.settings.find((item) => item.key === `auth_${method}_enabled`);
-          nextIndependent[method] = readBoolean(setting?.valueJson);
-        }
-        setIndependentPolicy(nextIndependent);
-
         setUnsupportedClientFallbackEnabled(
           readBoolean(
             data.settings.find((item) => item.key === UNSUPPORTED_CLIENT_FALLBACK_KEY)?.valueJson,
@@ -179,57 +164,19 @@ export function PlatformAuthChannelPolicySection() {
     };
   }, []);
 
-  async function updateChannel(channel: PolicyKey, enabled: boolean): Promise<void> {
-    const previous = policy[channel];
-    setPolicy((current) => ({ ...current, [channel]: enabled }));
-    setSaving(channel);
-    try {
-      const key: SettingKey = `auth_${channel}_enabled`;
-      const response = await fetch('/api/platform/settings', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ key, value: enabled }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
-      if (!response.ok || !data.ok) throw new Error('save_failed');
-    } catch {
-      setPolicy((current) => ({ ...current, [channel]: previous }));
-      toast.error('Не удалось сохранить настройку');
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  async function updateOAuthProvider(provider: OAuthProviderKey, enabled: boolean): Promise<void> {
-    const previous = oauthPolicy[provider];
-    setOauthPolicy((current) => ({ ...current, [provider]: enabled }));
-    setSaving(provider);
-    try {
-      const key: OAuthSettingKey = `auth_oauth_${provider}_enabled`;
-      const response = await fetch('/api/platform/settings', {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ key, value: enabled }),
-      });
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
-      if (!response.ok || !data.ok) throw new Error('save_failed');
-    } catch {
-      setOauthPolicy((current) => ({ ...current, [provider]: previous }));
-      toast.error('Не удалось сохранить настройку');
-    } finally {
-      setSaving(null);
-    }
-  }
-
-  async function updateIndependentMethod(
-    method: IndependentMethodKey,
+  async function updateSurfaceControl(
+    surface: SurfaceAuthPolicyName,
+    control: SurfaceAuthControl,
     enabled: boolean,
   ): Promise<void> {
-    const previous = independentPolicy[method];
-    setIndependentPolicy((current) => ({ ...current, [method]: enabled }));
-    setSaving(method);
+    const key = surfaceAuthSettingKey(surface, control);
+    const previous = policies[surface][control];
+    setPolicies((current) => ({
+      ...current,
+      [surface]: { ...current[surface], [control]: enabled },
+    }));
+    setSaving(key);
     try {
-      const key: IndependentSettingKey = `auth_${method}_enabled`;
       const response = await fetch('/api/platform/settings', {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
@@ -238,7 +185,10 @@ export function PlatformAuthChannelPolicySection() {
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean };
       if (!response.ok || !data.ok) throw new Error('save_failed');
     } catch {
-      setIndependentPolicy((current) => ({ ...current, [method]: previous }));
+      setPolicies((current) => ({
+        ...current,
+        [surface]: { ...current[surface], [control]: previous },
+      }));
       toast.error('Не удалось сохранить настройку');
     } finally {
       setSaving(null);
@@ -271,63 +221,35 @@ export function PlatformAuthChannelPolicySection() {
         <DoctorSectionHeader>
           <DoctorSectionTitle>Доступные способы входа</DoctorSectionTitle>
         </DoctorSectionHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          {CHANNELS.map(({ channel, label, hint }) => (
-            <div key={channel} className="flex items-start gap-1.5">
-              <LabeledSwitch
-                label={label}
-                hint={hint}
-                checked={policy[channel]}
-                disabled={
-                  !loaded || saving !== null || (!policy[channel] && !channelStatus[channel].configured)
-                }
-                onCheckedChange={(enabled) => void updateChannel(channel, enabled)}
-              />
-              {!channelStatus[channel].configured ? <NotConfiguredHint /> : null}
+        <div className="divide-y divide-border">
+          {SURFACE_AUTH_POLICY_NAMES.map((surface) => (
+            <div
+              key={surface}
+              className="grid gap-3 py-4 first:pt-0 last:pb-0 lg:grid-cols-[180px_1fr]"
+            >
+              <div className="text-sm font-medium">{SURFACE_LABELS[surface]}</div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {CONTROL_LABELS.map(({ control, label, hint }) => {
+                  const configured = isConfigured(control, channelStatus, oauthStatus);
+                  return (
+                    <div key={control} className="flex items-start gap-1.5">
+                      <LabeledSwitch
+                        label={label}
+                        hint={hint}
+                        checked={policies[surface][control]}
+                        disabled={
+                          !loaded || saving !== null || (!policies[surface][control] && !configured)
+                        }
+                        onCheckedChange={(enabled) =>
+                          void updateSurfaceControl(surface, control, enabled)
+                        }
+                      />
+                      {!configured ? <NotConfiguredHint /> : null}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          ))}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Парольный вход по email остаётся доступен независимо от переключателя email-кодов.
-        </p>
-      </DoctorSection>
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Вход через OAuth</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          {OAUTH_PROVIDERS.map(({ provider, label, hint }) => (
-            <div key={provider} className="flex items-start gap-1.5">
-              <LabeledSwitch
-                label={label}
-                hint={hint}
-                checked={oauthPolicy[provider]}
-                disabled={
-                  !loaded ||
-                  saving !== null ||
-                  (!oauthPolicy[provider] && !oauthStatus[provider].configured)
-                }
-                onCheckedChange={(enabled) => void updateOAuthProvider(provider, enabled)}
-              />
-              {!oauthStatus[provider].configured ? <NotConfiguredHint /> : null}
-            </div>
-          ))}
-        </div>
-      </DoctorSection>
-      <DoctorSection>
-        <DoctorSectionHeader>
-          <DoctorSectionTitle>Другие способы входа</DoctorSectionTitle>
-        </DoctorSectionHeader>
-        <div className="grid gap-4 md:grid-cols-2">
-          {INDEPENDENT_METHODS.map(({ method, label, hint }) => (
-            <LabeledSwitch
-              key={method}
-              label={label}
-              hint={hint}
-              checked={independentPolicy[method]}
-              disabled={!loaded || saving !== null}
-              onCheckedChange={(enabled) => void updateIndependentMethod(method, enabled)}
-            />
           ))}
         </div>
       </DoctorSection>
