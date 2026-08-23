@@ -9,10 +9,10 @@
 
 ## Источник оракула
 
-`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` фиксирует решение владельца:
-«интегратору остаётся только доставка входа, а создание учётки, доверие к телефону и синхронизация личности — вебаппу».
-Там же D5: «`public.reminder_rules` — единственный бизнес-источник и для CRUD, и для чтения планировщиком».
-`docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` называет точное следствие:
+`docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` фиксирует решение владельца
+«интегратору остаётся только доставка входа, а создание учётки, доверие к телефону и синхронизация личности — вебаппу»
+и D5 «`public.reminder_rules` — единственный бизнес-источник и для CRUD, и для чтения планировщиком»;
+`docs/_TODO/runs/integrator-cleanup/D30_SCHEDULER_REVERSAL_PLAN.md` называет точное следствие
 «Дренаж `integrator_push_outbox` исчезает вместе с M2M-каналом `reminder_rule_upsert`».
 
 Repo-rule `AGENTS.md` §5 требует один общий проход: не заводи новую очередь, второй health-root, новый wrapper или
