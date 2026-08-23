@@ -17,12 +17,16 @@ import {
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
+import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorInlineLinkClass, doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
 import { DoctorTodayNextAppointment } from './DoctorTodayNextAppointment';
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
+import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 import {
   ON_SUPPORT_LIST_HREF,
@@ -57,6 +61,129 @@ function peopleItemName(client: TodayDashboardData['people'][number]): string {
   );
 }
 
+function DoctorTodayPeopleSection({
+  data,
+  showHeader = true,
+}: {
+  data: TodayDashboardData;
+  showHeader?: boolean;
+}) {
+  const peopleListIsOnSupport = data.peopleListMode === 'on_support';
+  const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
+
+  return (
+    <DoctorSection id="doctor-today-section-people">
+      {showHeader ? (
+        <DoctorSectionHeader>
+          <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
+          {data.peopleCount > 0 ? (
+            <p className="text-xs text-muted-foreground" id="doctor-today-people-count">
+              Клиентов: {data.peopleCount}
+            </p>
+          ) : null}
+        </DoctorSectionHeader>
+      ) : null}
+      {data.peopleCount === 0 ? (
+        <DoctorEmptyState>
+          <p>
+            {peopleListIsOnSupport ? 'Клиентов на сопровождении нет' : 'Клиентов с визитами нет'}
+          </p>
+          <div className="flex flex-col gap-1">
+            <Link
+              href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
+              className={`${doctorInlineLinkClass} w-fit`}
+            >
+              Список клиентов
+            </Link>
+            {peopleListIsOnSupport ? (
+              <Link
+                href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
+                className={`${doctorInlineLinkClass} w-fit text-xs`}
+              >
+                Программа без сопровождения
+              </Link>
+            ) : null}
+          </div>
+        </DoctorEmptyState>
+      ) : (
+        <>
+          <ul className={doctorDnaFlatListClass}>
+            {data.people.map((client, index) => (
+              <li key={client.userId}>
+                <Link
+                  id={`doctor-today-person-${client.userId}`}
+                  href={client.href}
+                  aria-label={peopleItemName(client)}
+                  className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? ' border-t-0' : ''}`}
+                >
+                  <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
+                    <span className="block truncate">{peopleItemName(client)}</span>
+                  </span>
+                  <div
+                    className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}
+                  >
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title="Новые сообщения"
+                      aria-label={`Новые сообщения: ${client.unreadMessagesCount}`}
+                    >
+                      <MessageSquare className="size-3.5" aria-hidden />
+                      {client.unreadMessagesCount > 0 ? (
+                        <span className="tabular-nums">{client.unreadMessagesCount}</span>
+                      ) : null}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title="Отметки упражнений за сегодня"
+                      aria-label={`Отметки упражнений за сегодня: ${client.exerciseDoneTodayCount}`}
+                    >
+                      <Dumbbell className="size-3.5" aria-hidden />
+                      {client.exerciseDoneTodayCount > 0 ? (
+                        <span className="tabular-nums">{client.exerciseDoneTodayCount}</span>
+                      ) : null}
+                    </span>
+                    <span
+                      className="inline-flex items-center gap-1"
+                      title="Новые комментарии по упражнениям"
+                      aria-label={`Новые комментарии по упражнениям: ${client.newExerciseCommentsCount}`}
+                    >
+                      <span className="inline-flex size-4 items-center justify-center rounded-full border border-border/70">
+                        <CircleHelp className="size-3" aria-hidden />
+                      </span>
+                      {client.newExerciseCommentsCount > 0 ? (
+                        <span className="tabular-nums">{client.newExerciseCommentsCount}</span>
+                      ) : null}
+                    </span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <p className="flex flex-col gap-1">
+            {data.peopleListTruncated ? (
+              <Link
+                href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
+                className={`${doctorInlineLinkClass} text-sm`}
+                id="doctor-today-people-all"
+              >
+                {peopleListIsOnSupport ? 'Все на сопровождении' : 'Открыть клиентов'}
+              </Link>
+            ) : null}
+            {peopleListIsOnSupport ? (
+              <Link
+                href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
+                className={`${doctorInlineLinkClass} w-fit text-xs`}
+              >
+                Программа без сопровождения
+              </Link>
+            ) : null}
+          </p>
+        </>
+      )}
+    </DoctorSection>
+  );
+}
+
 export function DoctorTodayDashboard({
   data,
   displayIana,
@@ -65,8 +192,8 @@ export function DoctorTodayDashboard({
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
-  const peopleListIsOnSupport = data.peopleListMode === 'on_support';
-  const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
+  const isMobile = useIsMobileViewport();
+  const [mobileModal, setMobileModal] = useState<'support' | 'calendar' | null>(null);
   const [tasks, setTasks] = useState(data.globalOpenTasks);
   const [taskPatientNames, setTaskPatientNames] = useState(data.globalTaskPatientNames);
   const [taskMutationPending, setTaskMutationPending] = useState(false);
@@ -135,126 +262,81 @@ export function DoctorTodayDashboard({
 
           <DoctorTodayNextAppointment appointment={data.nextAppointment} />
 
-          <DoctorSection id="doctor-today-section-people">
-            <DoctorSectionHeader>
-              <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
-              {data.peopleCount > 0 ? (
-                <p className="text-xs text-muted-foreground" id="doctor-today-people-count">
-                  Клиентов: {data.peopleCount}
-                </p>
-              ) : null}
-            </DoctorSectionHeader>
-            {data.peopleCount === 0 ? (
-              <DoctorEmptyState>
-                <p>
-                  {peopleListIsOnSupport
-                    ? 'Клиентов на сопровождении нет'
-                    : 'Клиентов с визитами нет'}
-                </p>
-                <div className="flex flex-col gap-1">
-                  <Link
-                    href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
-                    className={`${doctorInlineLinkClass} w-fit`}
-                  >
-                    Список клиентов
-                  </Link>
-                  {peopleListIsOnSupport ? (
-                    <Link
-                      href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                      className={`${doctorInlineLinkClass} w-fit text-xs`}
-                    >
-                      Программа без сопровождения
-                    </Link>
-                  ) : null}
-                </div>
-              </DoctorEmptyState>
-            ) : (
-              <>
-                <ul className={doctorDnaFlatListClass}>
-                  {data.people.map((c, index) => (
-                    <li key={c.userId}>
-                      <Link
-                        id={`doctor-today-person-${c.userId}`}
-                        href={c.href}
-                        aria-label={peopleItemName(c)}
-                        className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-2${index === 0 ? ' border-t-0' : ''}`}
-                      >
-                        <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
-                          <span className="block truncate">{peopleItemName(c)}</span>
-                        </span>
-                        <div
-                          className={`ml-auto flex shrink-0 items-center gap-2 ${doctorDnaFlatListMetaClass}`}
-                        >
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title="Новые сообщения"
-                            aria-label={`Новые сообщения: ${c.unreadMessagesCount}`}
-                          >
-                            <MessageSquare className="size-3.5" aria-hidden />
-                            {c.unreadMessagesCount > 0 ? (
-                              <span className="tabular-nums">{c.unreadMessagesCount}</span>
-                            ) : null}
-                          </span>
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title="Отметки упражнений за сегодня"
-                            aria-label={`Отметки упражнений за сегодня: ${c.exerciseDoneTodayCount}`}
-                          >
-                            <Dumbbell className="size-3.5" aria-hidden />
-                            {c.exerciseDoneTodayCount > 0 ? (
-                              <span className="tabular-nums">{c.exerciseDoneTodayCount}</span>
-                            ) : null}
-                          </span>
-                          <span
-                            className="inline-flex items-center gap-1"
-                            title="Новые комментарии по упражнениям"
-                            aria-label={`Новые комментарии по упражнениям: ${c.newExerciseCommentsCount}`}
-                          >
-                            <span className="inline-flex size-4 items-center justify-center rounded-full border border-border/70">
-                              <CircleHelp className="size-3" aria-hidden />
-                            </span>
-                            {c.newExerciseCommentsCount > 0 ? (
-                              <span className="tabular-nums">{c.newExerciseCommentsCount}</span>
-                            ) : null}
-                          </span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                <p className="flex flex-col gap-1">
-                  {data.peopleListTruncated ? (
-                    <Link
-                      href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
-                      className={`${doctorInlineLinkClass} text-sm`}
-                      id="doctor-today-people-all"
-                    >
-                      {peopleListIsOnSupport ? 'Все на сопровождении' : 'Открыть клиентов'}
-                    </Link>
-                  ) : null}
-                  {peopleListIsOnSupport ? (
-                    <Link
-                      href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                      className={`${doctorInlineLinkClass} w-fit text-xs`}
-                    >
-                      Программа без сопровождения
-                    </Link>
-                  ) : null}
-                </p>
-              </>
-            )}
-          </DoctorSection>
+          {isMobile ? (
+            <DoctorMetricList className="grid-cols-2" aria-label="Сводка дня">
+              <DoctorStatCard
+                id="doctor-today-mobile-kpi-support"
+                title="Сопровождение"
+                value={data.peopleCount}
+                layout="today-mobile-grid"
+                onClick={data.peopleCount > 0 ? () => setMobileModal('support') : undefined}
+              />
+              <DoctorStatCard
+                id="doctor-today-mobile-kpi-appointments"
+                title="Записей сегодня"
+                value={data.todayAppointments.length}
+                layout="today-mobile-grid"
+                onClick={
+                  data.todayAppointments.length > 0 ? () => setMobileModal('calendar') : undefined
+                }
+              />
+            </DoctorMetricList>
+          ) : (
+            <DoctorTodayPeopleSection data={data} />
+          )}
         </div>
 
-        <div id="doctor-today-right-pane" className="flex min-w-0 flex-col gap-3">
-          <TodayMiniCalendarWithModal
-            appointments={data.todayAppointments}
-            calendarSnapshot={calendarSnapshot}
-            displayIana={displayIana}
-            defaultWindow={calendarDefaultWindow}
-          />
-        </div>
+        {!isMobile ? (
+          <div id="doctor-today-right-pane" className="flex min-w-0 flex-col gap-3">
+            <TodayMiniCalendarWithModal
+              appointments={data.todayAppointments}
+              calendarSnapshot={calendarSnapshot}
+              displayIana={displayIana}
+              defaultWindow={calendarDefaultWindow}
+            />
+          </div>
+        ) : null}
       </div>
+
+      {isMobile ? (
+        <>
+          <DoctorModal
+            open={mobileModal === 'support'}
+            onClose={() => setMobileModal(null)}
+            title={
+              <span>
+                Сопровождение
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {data.peopleCount}
+                </span>
+              </span>
+            }
+            size="lg"
+          >
+            <DoctorTodayPeopleSection data={data} showHeader={false} />
+          </DoctorModal>
+          <DoctorModal
+            open={mobileModal === 'calendar'}
+            onClose={() => setMobileModal(null)}
+            title={
+              <span>
+                Записей сегодня
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  {data.todayAppointments.length}
+                </span>
+              </span>
+            }
+            size="lg"
+          >
+            <TodayMiniCalendarWithModal
+              appointments={data.todayAppointments}
+              calendarSnapshot={calendarSnapshot}
+              displayIana={displayIana}
+              defaultWindow={calendarDefaultWindow}
+            />
+          </DoctorModal>
+        </>
+      ) : null}
     </div>
   );
 }
