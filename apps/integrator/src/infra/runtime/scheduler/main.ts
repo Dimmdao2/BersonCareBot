@@ -83,8 +83,9 @@ async function startResident(): Promise<void> {
 
   const { buildDeps } = await import('../../../app/di.js');
   // Two independent DI graphs, exactly as when scheduler and worker were separate processes: the
-  // scheduler graph feeds organization ticks/health probes/wakes, the worker graph keeps its own
-  // operator-aware delivery-attempt write port for outgoing delivery and direct-write retries.
+  // scheduler graph feeds organization ticks/health probes/wakes, the worker graph passes its own
+  // operator-aware delivery-attempt write port directly to the outgoing-delivery tick (below) — the
+  // real failed-provider-attempt write now happens there, tied to the queue row, not in dispatchPort.
   const schedulerDeps = buildDeps();
   const schedulerDb = createDbPort();
 
@@ -95,7 +96,7 @@ async function startResident(): Promise<void> {
     db: deliveryDb,
     tenantWritePort: deliveryTenantWritePort,
   });
-  const workerDeps = buildDeps({ dispatchAttemptWritePort: deliveryWritePort });
+  const workerDeps = buildDeps();
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));
 
   const digestWakeState = { completedBucket: null as number | null };

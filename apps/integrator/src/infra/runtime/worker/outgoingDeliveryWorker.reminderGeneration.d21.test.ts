@@ -240,7 +240,7 @@ describe('D21 reminder delivery generation gate', () => {
     expect(h.queueDead).toEqual([{ id: 'queue-web_push-2', error: 'web_push_skipped' }]);
   });
 
-  it('a failed Web Push provider outcome enters the isolated retry path', async () => {
+  it('a failed Web Push provider outcome enters the isolated retry path and records exactly one real attempt', async () => {
     const h = harness(allowedGate, {
       deliveryResult: {
         webPushOutcome: {
@@ -255,7 +255,19 @@ describe('D21 reminder delivery generation gate', () => {
       },
     });
     await processOutgoingDeliveryRow(row('web_push'), h as never);
-    expect(h.writes).toEqual([]);
+    // Track D F5/F6: a real failed provider call is the only case that gets an attempt row, with
+    // the real queue row id and a real increasing attempt number (row.attemptCount + 1).
+    expect(h.writes).toEqual([
+      expect.objectContaining({
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({
+          channel: 'web_push',
+          status: 'failed',
+          attempt: 2,
+          payload: { deliveryQueueId: 'queue-web_push-2' },
+        }),
+      }),
+    ]);
     expect(h.queueSent).toEqual([]);
     expect(h.queueRetryable).toEqual(['queue-web_push-2']);
   });

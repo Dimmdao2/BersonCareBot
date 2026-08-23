@@ -9,8 +9,9 @@
  * email_not_configured: pre-checked via resolveSmtpOutboundConfig + isResolvedMailerConfigured
  * before dispatch, so callers still receive a 503 synchronously when SMTP is not set up.
  *
- * OTP safety: when a `code` is present the eventId is prefixed with `otp:email:` so that
- * sanitizePayloadForLogs (dispatchPort) redacts the code from the canonical delivery journal (PLAN S9 DoD).
+ * OTP safety (PLAN S9 DoD): Track D F5/F6 removed dispatchPort's delivery-attempt-log write (and
+ * its sanitizePayloadForLogs redaction step) entirely — dispatchPort no longer persists any
+ * attempt row, so there is no canonical delivery journal entry here to redact the code from.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -161,8 +162,8 @@ export async function registerBersoncareSendEmailRoute(
     const subject = isAuthCode ? 'Код подтверждения BersonCare' : (payload.subject ?? 'BersonCare');
     const text = isAuthCode ? `Ваш код BersonCare: ${payload.code}` : (payload.text?.trim() ?? '');
 
-    // OTP safety: prefix eventId with 'otp:email:' when a code is present so that
-    // sanitizePayloadForLogs (dispatchPort) redacts it from the canonical delivery journal.
+    // See module header OTP safety note: dispatchPort never persists an attempt row for this
+    // route, so there is nothing here left to redact.
     const eventId = payload.idempotencyKey;
 
     const msg: UnifiedOutgoingMessage = {

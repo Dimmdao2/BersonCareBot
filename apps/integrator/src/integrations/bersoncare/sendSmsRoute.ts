@@ -4,7 +4,10 @@
  *
  * S6 (PLAN): no longer calls smsClient.sendSms directly — instead builds a `smsc`-channel
  * UnifiedOutgoingMessage and dispatches via dispatchPort (redirect-covered; smsc adapter delivers).
- * OTP redaction is preserved via the `otp:`-prefixed eventId (dispatchPort.ts::isOtpIntent).
+ * Track D F5/F6 (docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md):
+ * dispatchPort no longer writes any delivery-attempt row (only the outgoing-delivery-queue worker
+ * does, tied to a real queue row), so the OTP-redaction concern this comment used to describe is
+ * moot — no code/payload content from this route is ever persisted into an attempt row.
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -121,8 +124,8 @@ export async function registerBersoncareSendSmsRoute(
     }
 
     // Build smsc-channel UnifiedOutgoingMessage and dispatch via the single chokepoint.
-    // The `otp:` eventId prefix triggers OTP-redaction in dispatchPort::isOtpIntent,
-    // so the SMS code is never logged. (PLAN S6, D3, D7)
+    // (PLAN S6, D3, D7) Track D F5/F6: dispatchPort no longer writes a delivery-attempt row at
+    // all, so there is no attempt-log payload to redact the code from here.
     const intent = messageToIntent({
       kind: 'message.send',
       channel: 'smsc',

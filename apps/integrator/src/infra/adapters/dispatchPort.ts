@@ -2,7 +2,6 @@ import type {
   DeliveryAdapter,
   DeliverySendResult,
   DispatchPort,
-  DbWritePort,
   OutgoingIntent,
 } from '../../kernel/contracts/index.js';
 import {
@@ -13,19 +12,12 @@ import {
   resolveDevRedirect,
 } from '../../shared/devDeliveryRedirect.js';
 import { logger } from '../observability/logger.js';
-import { classifyRecipientBlockedBotError } from '../delivery/recipientBotBlocked.js';
-import {
-  getCurrentOrganizationPrincipalId,
-} from '../principal/organizationPrincipal.js';
 import { readChannel } from './channelRouting.js';
 import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
 import type {
   ClinicDeliveryChannel,
   ClinicDeliveryCredential,
 } from '../db/clinicDeliveryCredentials.js';
-
-const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
-let deliveryAttemptAuditPersistFailureCount = 0;
 
 export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
 
@@ -77,21 +69,6 @@ function withClinicCredential(
   };
 }
 
-function isOtpIntent(intent: OutgoingIntent): boolean {
-  return typeof intent.meta.eventId === 'string' && intent.meta.eventId.startsWith('otp:');
-}
-
-function sanitizePayloadForLogs(intent: OutgoingIntent): Record<string, unknown> {
-  if (!isOtpIntent(intent)) {
-    return intent.payload as Record<string, unknown>;
-  }
-  // OTP-код не должен попадать в canonical notification delivery metadata.
-  return {
-    kind: 'otp_redacted',
-    channel: readChannel(intent),
-  };
-}
-
 function withChannel(intent: OutgoingIntent, channel: string): OutgoingIntent {
   if (intent.type !== 'message.send') return intent;
   const payload = (intent.payload ?? {}) as DeliveryPayload;
@@ -117,80 +94,6 @@ function platformIntegrationIdForChannel(channel: string): DispatchPlatformInteg
     return channel;
   }
   return null;
-}
-
-async function logDeliveryAttempt(
-  writePort: DbWritePort | undefined,
-  intent: OutgoingIntent,
-  channel: string,
-  status: 'success' | 'failed' | 'skipped',
-  attempt: number,
-  reason?: string,
-): Promise<void> {
-  if (!writePort) return;
-  const safeCorrelationId = isOtpIntent(intent) ? null : (intent.meta.correlationId ?? null);
-  const organizationId = getCurrentOrganizationPrincipalId();
-  const writeAttempt = () =>
-    writePort.writeDb({
-      type: 'delivery.attempt.log',
-      params: {
-        intentType: intent.type,
-        intentEventId: intent.meta.eventId,
-        correlationId: safeCorrelationId,
-        channel,
-        status,
-        attempt,
-        reason: reason ?? null,
-        organizationId,
-        payload: sanitizePayloadForLogs(intent),
-        occurredAt: new Date().toISOString(),
-      },
-    });
-
-  await writeAttempt();
-}
-
-function reportDeliveryAttemptAuditPersistFailure(
-  auditError: unknown,
-  intent: OutgoingIntent,
-  channel: string,
-  status: 'success' | 'failed' | 'skipped',
-): void {
-  deliveryAttemptAuditPersistFailureCount += 1;
-  const fields = {
-    auditError,
-    code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
-    deliveryAttemptAuditPersistFailureCount,
-    channel,
-    status,
-    intentType: intent.type,
-  };
-  const message =
-    status === 'success'
-      ? 'Delivery succeeded but its attempt audit could not be persisted'
-      : 'Delivery provider failed and its attempt audit could not be persisted';
-  try {
-    logger.error(fields, message);
-  } catch {
-    // Delivery remains authoritative even if the structured logger transport is degraded.
-    // The fallback deliberately excludes the original error and intent payload.
-    try {
-      console.error(message, {
-        code: DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED,
-        deliveryAttemptAuditPersistFailureCount,
-        channel,
-        status,
-        intentType: intent.type,
-      });
-    } catch {
-      /* observability failure must never replace the provider outcome */
-    }
-  }
-}
-
-/** @internal Test-only reset for the process-local observability counter. */
-export function resetDeliveryAttemptAuditPersistFailureCountForTests(): void {
-  deliveryAttemptAuditPersistFailureCount = 0;
 }
 
 /** Sentinel returned by the pre-fork redirect when a send must be suppressed. */
@@ -322,10 +225,18 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
 /**
  * Builds unified dispatch pipeline with retries and fallback channels.
  * Channel order comes from domain-provided `payload.delivery.channels`.
+ *
+ * This port does not write a delivery-attempt record for any outcome (success, dev-redirect
+ * suppression, or provider failure). Track D final cutover (#987), audit F5/F6: a delivery-attempt
+ * row is allowed only after a real failed provider call, tied to the real
+ * `outgoing_delivery_queue` row id, with a real increasing attempt number — none of which this
+ * generic per-call chokepoint has (it is called for non-queue-backed sends too: OTP/booking/admin
+ * relay routes). The queue-backed worker owns that row and records the one real failed attempt
+ * itself, at the existing seam where it already has both facts —
+ * see `handleDispatchFailure` in outgoingDeliveryWorker.ts.
  */
 export function createDefaultDispatchPort(deps: {
   adapters: DeliveryAdapter[];
-  writePort?: DbWritePort;
   readPort?: unknown;
   isPlatformIntegrationEnabled?: (integrationId: DispatchPlatformIntegrationId) => Promise<boolean>;
   /** Exact-org tariff + credential resolver. It never returns a platform fallback credential. */
@@ -343,18 +254,10 @@ export function createDefaultDispatchPort(deps: {
       const safeIntent = applyPreForkDevRedirect(intent);
 
       // SUPPRESS: the test user has no binding for this channel (or unknown channel).
-      // No-op success — never reach an adapter, never a real client (D7).
+      // No-op success — never reach an adapter, never a real client (D7). No provider was ever
+      // called, so this is not a delivery attempt (F5) — the suppression itself is still fully
+      // observable via the PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS warning above.
       if (safeIntent === SUPPRESS) {
-        if (intent.type === 'message.send') {
-          await logDeliveryAttempt(
-            deps.writePort,
-            intent,
-            readChannel(intent) ?? 'unknown',
-            'success',
-            1,
-            'dev_redirect_suppressed',
-          );
-        }
         return {};
       }
 
@@ -371,81 +274,37 @@ export function createDefaultDispatchPort(deps: {
       const intentForChannel = withChannel(safeIntent, channel);
       const adapter = deps.adapters.find((item) => item.canHandle(intentForChannel));
       if (!adapter) throw new Error(`CHANNEL_NOT_SUPPORTED:${channel}`);
+      // A thrown providerError here is a real failed provider call. The caller (queue worker) is
+      // the one that knows the real outgoing_delivery_queue row id and its current attempt count
+      // — it records the one real attempt itself in handleDispatchFailure, after classifying
+      // recipient_blocked_bot the same way this port used to (F5: a blocked-bot rejection is not a
+      // delivery attempt either, it is an expected terminal state, same treatment as dev-redirect
+      // suppression). This port propagates the error unchanged and writes nothing.
       let sendResult: DeliverySendResult | void;
-      try {
-        const clinicChannel = asClinicDeliveryChannel(channel);
-        const senderScope = clinicSenderScope(intentForChannel);
-        const clinicCredential =
-          senderScope !== 'platform_required' && clinicChannel && deps.resolveClinicDeliveryCredential
-            ? await deps.resolveClinicDeliveryCredential(clinicChannel)
-            : null;
-        if (senderScope === 'clinic_required' && !clinicCredential) {
-          throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
-        }
-        if (clinicCredential) {
-          try {
-            sendResult = await adapter.send(
-              withClinicCredential(intentForChannel, clinicCredential),
-            );
-          } catch (clinicError) {
-            // Essential traffic remains deliverable through the platform. Clinic-required flows
-            // (broadcasts and bot support) must never silently assume the platform sender.
-            if (senderScope === 'clinic_required') throw clinicError;
-            sendResult = await adapter.send(intentForChannel);
-          }
-        } else {
+      const clinicChannel = asClinicDeliveryChannel(channel);
+      const senderScope = clinicSenderScope(intentForChannel);
+      const clinicCredential =
+        senderScope !== 'platform_required' && clinicChannel && deps.resolveClinicDeliveryCredential
+          ? await deps.resolveClinicDeliveryCredential(clinicChannel)
+          : null;
+      if (senderScope === 'clinic_required' && !clinicCredential) {
+        throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
+      }
+      if (clinicCredential) {
+        try {
+          sendResult = await adapter.send(withClinicCredential(intentForChannel, clinicCredential));
+        } catch (clinicError) {
+          // Essential traffic remains deliverable through the platform. Clinic-required flows
+          // (broadcasts and bot support) must never silently assume the platform sender.
+          if (senderScope === 'clinic_required') throw clinicError;
           sendResult = await adapter.send(intentForChannel);
         }
-      } catch (providerError) {
-        if (intent.type === 'message.send') {
-          const blocked = classifyRecipientBlockedBotError(providerError, channel);
-          try {
-            await logDeliveryAttempt(
-              deps.writePort,
-              intent,
-              channel,
-              blocked ? 'skipped' : 'failed',
-              1,
-              blocked ? 'recipient_blocked_bot' : 'provider_rejected',
-            );
-          } catch (auditError) {
-            reportDeliveryAttemptAuditPersistFailure(
-              auditError,
-              intent,
-              channel,
-              blocked ? 'skipped' : 'failed',
-            );
-          }
-        }
-        throw providerError;
+      } else {
+        sendResult = await adapter.send(intentForChannel);
       }
-      if (intent.type === 'message.send') {
-        const outcome = sendResult?.webPushOutcome;
-        const auditStatus: 'success' | 'failed' | 'skipped' =
-          outcome?.status === 'skipped'
-            ? 'skipped'
-            : outcome?.status === 'failed'
-              ? 'failed'
-              : 'success';
-        const auditReason =
-          auditStatus === 'skipped'
-            ? (outcome?.reason ?? 'provider_skipped')
-            : auditStatus === 'failed'
-              ? 'provider_rejected'
-              : undefined;
-        try {
-          await logDeliveryAttempt(
-            deps.writePort,
-            intent,
-            channel,
-            auditStatus,
-            1,
-            auditReason,
-          );
-        } catch (auditError) {
-          reportDeliveryAttemptAuditPersistFailure(auditError, intent, channel, auditStatus);
-        }
-      }
+      // Success, or a completed-but-skipped webPushOutcome, is not a delivery attempt (F5): the
+      // surviving outgoing_delivery_queue row's own status/sent_at/failure_class is the lifecycle
+      // fact; a duplicate success/skip journal entry is exactly the second journal Track D retired.
       return sendResult ?? {};
     },
   };

@@ -116,7 +116,6 @@ export type VkRoutesRegistrar = (app: FastifyInstance, deps: {
 export type BuildDepsInput = {
   dbReadPort?: DbReadPort;
   dbWritePort?: DbWritePort;
-  dispatchAttemptWritePort?: DbWritePort;
   queuePort?: QueuePort;
   dispatchPort?: DispatchPort;
   idempotencyPort?: IdempotencyPort;
@@ -250,7 +249,6 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
     createDefaultDispatchPort({
       adapters,
       readPort: dbReadPort,
-      writePort: input.dispatchAttemptWritePort ?? dbWritePort,
       isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
         isPlatformIntegrationAvailable(dbPort, integrationId),
       resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(dbPort),

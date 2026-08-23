@@ -5,7 +5,7 @@ vi.mock('../../shared/devDeliveryRedirect.js', () => ({
 }));
 
 import { createDefaultDispatchPort } from './dispatchPort.js';
-import type { DbWritePort, DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
+import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
 
 function messageSendIntent(): OutgoingIntent {
@@ -88,35 +88,17 @@ function queuedClinicBroadcastIntent(): OutgoingIntent {
   } as OutgoingIntent;
 }
 
-describe('D20 item 17: a failed delivery-attempt audit write must not cause a duplicate send', () => {
-  it('records the successful provider attempt once', async () => {
+describe('Track D F5/F6: dispatchPort writes no delivery-attempt row of its own', () => {
+  // Supersedes the former "D20 item 17" suite. Owner decision
+  // (docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md, F5/F6): a
+  // delivery-attempt row is allowed only after a real failed provider call, tied to the real
+  // delivery id (the outgoing_delivery_queue row) and a real increasing attempt number. Success is
+  // never an attempt row, and only the queue worker (handleDispatchFailure /
+  // recordDeliveryFailureAttempt in outgoingDeliveryWorker.ts) has that real row to attach a
+  // failure attempt to — dispatchPort itself no longer accepts a write port at all.
+  it('returns the real send result on success and never touches any write port', async () => {
     const send = vi.fn(async () => ({ telegramMessageId: 42 }));
-    const writeDb = vi.fn(async () => undefined);
-    const port = createDefaultDispatchPort({
-      adapters: [{ canHandle: () => true, send }],
-      writePort: { writeDb },
-    });
-
-    await port.dispatchOutgoing(messageSendIntent());
-
-    expect(writeDb).toHaveBeenCalledTimes(1);
-    expect(writeDb).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'delivery.attempt.log',
-        params: expect.objectContaining({ channel: 'telegram', status: 'success', attempt: 1 }),
-      }),
-    );
-  });
-
-  it('returns the real send result even when the audit write throws (send is not retried, outcome is not swallowed)', async () => {
-    const send = vi.fn(async () => ({ telegramMessageId: 42 }));
-    const adapter: DeliveryAdapter = { canHandle: () => true, send };
-    const writePort: DbWritePort = {
-      writeDb: vi.fn(async () => {
-        throw new Error('audit_write_failed');
-      }),
-    };
-    const port = createDefaultDispatchPort({ adapters: [adapter], writePort });
+    const port = createDefaultDispatchPort({ adapters: [{ canHandle: () => true, send }] });
 
     const result = await port.dispatchOutgoing(messageSendIntent());
 
@@ -124,18 +106,13 @@ describe('D20 item 17: a failed delivery-attempt audit write must not cause a du
     expect(send).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects with the original provider error (not the audit error) when both the send and its audit write fail, and calls the adapter exactly once', async () => {
+  it('rejects with the original provider error and calls the adapter exactly once', async () => {
     const providerError = new Error('provider_rejected');
     const send = vi.fn(async () => {
       throw providerError;
     });
     const adapter: DeliveryAdapter = { canHandle: () => true, send };
-    const writePort: DbWritePort = {
-      writeDb: vi.fn(async () => {
-        throw new Error('audit_write_failed');
-      }),
-    };
-    const port = createDefaultDispatchPort({ adapters: [adapter], writePort });
+    const port = createDefaultDispatchPort({ adapters: [adapter] });
 
     await expect(port.dispatchOutgoing(messageSendIntent())).rejects.toBe(providerError);
     expect(send).toHaveBeenCalledTimes(1);
@@ -258,12 +235,10 @@ describe('clinic-owned delivery routing', () => {
 });
 
 describe('D31 VK common dispatch acceptance', () => {
-  it('passes an authorized VK delivery through the shared adapter and attempt journal', async () => {
+  it('passes an authorized VK delivery through the shared adapter', async () => {
     const send = vi.fn(async () => ({ vkMessageId: '77' }));
-    const writeDb = vi.fn(async () => undefined);
     const port = createDefaultDispatchPort({
       adapters: [{ canHandle: () => true, send }],
-      writePort: { writeDb },
       isPlatformIntegrationEnabled: async () => true,
     });
 
@@ -271,11 +246,5 @@ describe('D31 VK common dispatch acceptance', () => {
       vkMessageId: '77',
     });
     expect(send).toHaveBeenCalledOnce();
-    expect(writeDb).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'delivery.attempt.log',
-        params: expect.objectContaining({ channel: 'vk', status: 'success', attempt: 1 }),
-      }),
-    );
   });
 });

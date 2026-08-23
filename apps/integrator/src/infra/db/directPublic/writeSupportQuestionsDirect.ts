@@ -13,9 +13,12 @@
  * именованным корнем `app.record_integrator_support_delivery_attempt` (шаг 1; тот же корень, что уже
  * зовёт вебапп, — второй двери к одной записи не заводили).
  *
- * СТЕНА АРЕНДАТОРА. `organization_id` сюда приходит уже разрешённым — вызывающий
- * (`dispatchPort.ts`, `logDeliveryAttempt`) берёт его из `getCurrentOrganizationPrincipalId()`, то
- * есть из принципала, залоченного на текущий запрос. Тело корня само отказывает, если значение
+ * СТЕНА АРЕНДАТОРА. `organization_id` сюда приходит уже разрешённым — вызывающий берёт его из
+ * `getCurrentOrganizationPrincipalId()` (Track D F5/F6: единственный производитель
+ * `delivery.attempt.log`-мутации теперь `outgoingDeliveryWorker.ts`'s `recordDeliveryFailureAttempt`,
+ * `dispatchPort.ts` больше не пишет попытки — см. `docs/_TODO/runs/integrator-cleanup/
+ * TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md`), то есть из принципала, залоченного на текущий
+ * запрос. Тело корня само отказывает, если значение
  * разошлось с `app.current_org_id()` (`rev10_tenant_insert_195`), — проверку не дублируем.
  *
  * ДОЛГОВЕЧНОСТЬ. `writePort.ts` не зовёт эту функцию вовсе, когда организации нет (изъятый ныне
@@ -51,12 +54,12 @@ export type AppendSupportDeliveryEventDirectResult = { id: string };
  * D4 entrypoint replacing the `support.delivery.attempt.logged` HTTP projection.
  *
  * Unlike the question/conversation writes above, this one takes an ALREADY-RESOLVED `organizationId` —
- * the caller (`dispatchPort.ts`'s `logDeliveryAttempt`) reads it via
- * `getCurrentOrganizationPrincipalId()` (the runtime principal locked for the current send/webhook
- * request), the SAME value RLS's `WITH CHECK` re-verifies against (module header "TENANT MISMATCH
- * DENIED"). `writePort.ts` is responsible for NOT calling this function at all when `organizationId` is
- * absent (module header "DURABILITY" bucket 1) — mirroring the retired webapp consumer's own
- * non-retryable rejection of an org-less delivery event.
+ * the caller (`outgoingDeliveryWorker.ts`'s `recordDeliveryFailureAttempt`, via `writePort.writeDb`'s
+ * `delivery.attempt.log` case) reads it via `getCurrentOrganizationPrincipalId()` (the runtime
+ * principal locked for the current queue tick), the SAME value RLS's `WITH CHECK` re-verifies against
+ * (module header "TENANT MISMATCH DENIED"). `writePort.ts` is responsible for NOT calling this
+ * function at all when `organizationId` is absent (module header "DURABILITY" bucket 1) — mirroring
+ * the retired webapp consumer's own non-retryable rejection of an org-less delivery event.
  */
 export async function appendSupportDeliveryEventDirect(
   db: DbPort,

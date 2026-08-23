@@ -509,10 +509,19 @@ async function finalizeOutgoingDeliveryDead(
   // already recorded last_error/failure_class on this row, the sole surviving evidence.
 }
 
-async function logQueueDeliveryAttemptBestEffort(
+/**
+ * Records the ONE real failed-provider-call attempt for this queue row (Track D final cutover
+ * #987, audit F5/F6). Only handleDispatchFailure's generic (non recipient_blocked_bot) branch
+ * calls this — it is the existing seam that already has both the real queue row (`row.id`,
+ * `row.attemptCount`) and the real provider error, for every queue-backed dispatch kind
+ * (operator_alert, inbound_reply, reminder_dispatch, doctor_broadcast_intent). Pre-provider skips
+ * (stale materialization, rate-limited, web_push skipped) and recipient_blocked_bot are expected
+ * terminal states, not delivery attempts, and never reach this function.
+ */
+async function recordDeliveryFailureAttempt(
   writePort: DbWritePort,
+  row: OutgoingDeliveryQueueRow,
   intent: OutgoingIntent,
-  channel: string,
   reason: string,
 ): Promise<void> {
   try {
@@ -521,18 +530,19 @@ async function logQueueDeliveryAttemptBestEffort(
       params: {
         intentType: intent.type,
         intentEventId: intent.meta.eventId,
-        correlationId: null,
-        channel,
-        status: 'skipped',
-        attempt: 1,
+        correlationId: intent.meta.correlationId ?? null,
+        channel: row.channel,
+        status: 'failed',
+        attempt: row.attemptCount + 1,
         reason,
+        payload: { deliveryQueueId: row.id },
         occurredAt: new Date().toISOString(),
       },
     });
   } catch (err) {
     logger.warn(
-      { err, eventId: intent.meta.eventId, channel, reason },
-      'queue_delivery_attempt_log_failed',
+      { err, rowId: row.id, eventId: intent.meta.eventId, channel: row.channel },
+      'delivery_attempt_log_failed',
     );
   }
 }
@@ -597,6 +607,9 @@ async function handleDispatchFailure(
   }
   const msg = err instanceof Error ? err.message : String(err);
   const safe = truncateDeliveryErrorMessage(msg);
+  if (intent) {
+    await recordDeliveryFailureAttempt(writePort, row, intent, safe);
+  }
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
   if (!retryable || attempts >= row.maxAttempts) {
@@ -706,12 +719,8 @@ export async function processOutgoingDeliveryRow(
       row.id,
     );
     if (!materializationCurrent) {
-      await logQueueDeliveryAttemptBestEffort(
-        writePort,
-        intent,
-        row.channel,
-        'stale_materialization',
-      );
+      // F5/F6, docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md:
+      // stale work before any provider call is not a failed provider attempt — no attempt row.
       await queueMarkDead(db, row.id, 'stale_materialization', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
       return;
     }
@@ -725,7 +734,7 @@ export async function processOutgoingDeliveryRow(
         return;
       }
       if (await isReminderTransactionalEmailRateLimited(db, platformUserId)) {
-        await logQueueDeliveryAttemptBestEffort(writePort, intent, row.channel, 'rate_limited');
+        // F5/F6: rate-limit before any provider call is not a failed provider attempt — no attempt row.
         await queueMarkDead(db, row.id, 'rate_limited', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
         return;
       }
