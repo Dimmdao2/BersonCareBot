@@ -5,14 +5,14 @@ import {
   listPasskeyCredentials,
 } from '@/app-layer/auth/passkeyRuntime';
 import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
-import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 
 const deleteSchema = z.object({ credentialId: z.string().min(16).max(1024) });
 
 async function authorize() {
   const gate = await requireAuthenticatedIdentitySelfApiSession();
   if (!gate.ok) return gate;
-  if (!(await isIndependentAuthMethodEnabled('passkey'))) {
+  if (!(await isAuthMechanicEnabled('passkey'))) {
     return {
       ok: false as const,
       response: NextResponse.json(

@@ -1,7 +1,7 @@
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
 import { NextResponse } from 'next/server';
 import { beginPatientPasskeyAuthentication } from '@/app-layer/auth/passkeyRuntime';
-import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 import {
   isOAuthStartRateLimitedByKey,
   resolveOAuthStartRateLimitClientKey,
@@ -9,7 +9,7 @@ import {
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/passkey/login/options:POST', request);
-  if (!(await isIndependentAuthMethodEnabled('passkey'))) {
+  if (!(await isAuthMechanicEnabled('passkey'))) {
     return NextResponse.json(
       { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
       { status: 403 },

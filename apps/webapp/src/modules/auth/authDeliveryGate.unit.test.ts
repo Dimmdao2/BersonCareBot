@@ -4,14 +4,20 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const fakes = vi.hoisted(() => ({ isAuthChannelEnabled: vi.fn() }));
+const fakes = vi.hoisted(() => ({
+  isAuthChannelEnabled: vi.fn(),
+  isIndependentAuthMethodEnabled: vi.fn(),
+  isOAuthProviderEnabled: vi.fn(),
+}));
 
 vi.mock('./authChannelPolicy', () => ({
   AUTH_CHANNEL_DISABLED_ERROR: 'auth_channel_disabled',
   isAuthChannelEnabled: fakes.isAuthChannelEnabled,
+  isIndependentAuthMethodEnabled: fakes.isIndependentAuthMethodEnabled,
+  isOAuthProviderEnabled: fakes.isOAuthProviderEnabled,
 }));
 
-import { withAuthDeliveryChannelGate } from './authDeliveryGate';
+import { isAuthMechanicEnabled, withAuthDeliveryChannelGate } from './authDeliveryGate';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -49,5 +55,23 @@ describe('withAuthDeliveryChannelGate', () => {
       marker: 'sent',
     });
     expect(deliver).toHaveBeenCalledOnce();
+  });
+});
+
+describe('isAuthMechanicEnabled', () => {
+  it('refuses disabled OAuth and passkey through the resolver-backed mechanic gate', async () => {
+    fakes.isOAuthProviderEnabled.mockResolvedValue(false);
+    fakes.isIndependentAuthMethodEnabled.mockResolvedValue(false);
+
+    await expect(isAuthMechanicEnabled('oauth_yandex')).resolves.toBe(false);
+    await expect(isAuthMechanicEnabled('passkey')).resolves.toBe(false);
+    expect(fakes.isOAuthProviderEnabled).toHaveBeenCalledWith('yandex');
+    expect(fakes.isIndependentAuthMethodEnabled).toHaveBeenCalledWith('passkey');
+  });
+
+  it('fails closed when the surface policy resolver throws', async () => {
+    fakes.isOAuthProviderEnabled.mockRejectedValue(new Error('missing resolved surface'));
+
+    await expect(isAuthMechanicEnabled('oauth_google')).resolves.toBe(false);
   });
 });

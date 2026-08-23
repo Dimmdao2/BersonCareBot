@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { finishSelfPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
 import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
-import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 
 const responseSchema = z
   .object({
@@ -30,7 +30,7 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const gate = await requireAuthenticatedIdentitySelfApiSession();
   if (!gate.ok) return gate.response;
-  if (!(await isIndependentAuthMethodEnabled('passkey'))) {
+  if (!(await isAuthMechanicEnabled('passkey'))) {
     return NextResponse.json(
       { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
       { status: 403 },

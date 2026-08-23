@@ -94,7 +94,7 @@ function selectPolicySurface(surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]
 }
 
 describe('public auth policy', () => {
-  it('preserves every login toggle on all three surfaces after the legacy-value migration', async () => {
+  it('applies the surface matrix independently for each login mechanic', async () => {
     const migratedValues = {
       email: true,
       sms: false,
@@ -109,7 +109,10 @@ describe('public auth policy', () => {
 
     for (const surface of SURFACE_AUTH_POLICY_NAMES) {
       for (const control of SURFACE_AUTH_CONTROLS) {
-        fakes.publicValues.set(surfaceAuthSettingKey(surface, control), migratedValues[control]);
+        fakes.publicValues.set(
+          surfaceAuthSettingKey(surface, control),
+          control === 'passkey' && surface === 'staff' ? false : migratedValues[control],
+        );
       }
     }
     for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
@@ -124,7 +127,7 @@ describe('public auth policy', () => {
         telegram: false,
         max: false,
       });
-      await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(true);
+      await expect(isIndependentAuthMethodEnabled('passkey')).resolves.toBe(surface !== 'staff');
       for (const provider of ['google', 'yandex', 'vk', 'apple'] as const) {
         await expect(isOAuthProviderEnabled(provider)).resolves.toBe(false);
       }
@@ -155,7 +158,7 @@ describe('public auth policy', () => {
     expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 
-  it('declares the same fresh-environment defaults for legacy and all surface keys', () => {
+  it('declares passkey off by default for staff while preserving independent surface settings', () => {
     const legacyKeyByControl = {
       email: 'auth_email_enabled',
       sms: 'auth_sms_enabled',
@@ -170,9 +173,11 @@ describe('public auth policy', () => {
 
     for (const surface of SURFACE_AUTH_POLICY_NAMES) {
       for (const control of SURFACE_AUTH_CONTROLS) {
-        expect(SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue).toBe(
-          SYSTEM_SETTING_REGISTRY[legacyKeyByControl[control]].defaultValue,
-        );
+        const expected =
+          control === 'passkey' && surface === 'staff'
+            ? 'false'
+            : SYSTEM_SETTING_REGISTRY[legacyKeyByControl[control]].defaultValue;
+        expect(SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue).toBe(expected);
       }
     }
   });

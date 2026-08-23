@@ -22,7 +22,7 @@ import {
   completeOAuthWebLoginRedirectUrls,
   oauthWebLoginErrorRedirect,
 } from '@/modules/auth/oauthWebSession';
-import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 
 /**
  * GET /api/auth/oauth/callback/google — веб-логин Google (не календарь). Refresh token не сохраняем.
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   // Defense in depth: closes the race window between /oauth/start (which already gates on this
   // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
   // 2026-07-24, R2 fail-closed server-side).
-  const googleOAuthEnabled = await isOAuthProviderEnabled('google');
+  const googleOAuthEnabled = await isAuthMechanicEnabled('oauth_google');
   const clientId = (await getGoogleClientId()).trim();
   const clientSecret = (await getGoogleClientSecret()).trim();
   const redirectUri = (await getGoogleOauthLoginRedirectUri()).trim();

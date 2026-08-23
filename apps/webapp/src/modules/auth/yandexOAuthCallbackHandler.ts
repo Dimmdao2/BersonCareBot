@@ -21,7 +21,7 @@ import {
 import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 
 const LOG_BASE = {
   authMethod: 'oauth_yandex' as const,
@@ -81,7 +81,7 @@ export async function handleYandexOAuthCallbackGet(
   // Defense in depth: closes the race window between /oauth/start (which already gates on this
   // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
   // 2026-07-24, R2 fail-closed server-side).
-  const yandexOAuthEnabled = await isOAuthProviderEnabled('yandex');
+  const yandexOAuthEnabled = await isAuthMechanicEnabled('oauth_yandex');
   const clientId = (await getYandexOauthClientId()).trim();
   const redirectUri = (await getYandexOauthRedirectUri()).trim();
   const secret = (await getYandexOauthClientSecret()).trim();

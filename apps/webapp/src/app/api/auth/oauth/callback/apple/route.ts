@@ -26,7 +26,7 @@ import {
   completeOAuthWebLoginRedirectUrls,
   oauthWebLoginErrorRedirect,
 } from '@/modules/auth/oauthWebSession';
-import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 
 /**
  * POST /api/auth/oauth/callback/apple — Sign in with Apple (`response_mode=form_post`).
@@ -34,7 +34,7 @@ import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/oauth/callback/apple:POST', request);
   const appBase = env.APP_BASE_URL;
-  if (!(await isOAuthProviderEnabled('apple'))) {
+  if (!(await isAuthMechanicEnabled('oauth_apple'))) {
     return NextResponse.redirect(new URL(oauthWebLoginErrorRedirect('oauth_disabled'), appBase));
   }
   const ct = request.headers.get('content-type') ?? '';

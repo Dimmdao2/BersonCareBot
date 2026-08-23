@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
   isOAuthProviderEnabled: vi.fn<(provider: 'google' | 'yandex' | 'apple' | 'vk') => Promise<boolean>>(),
+  isAuthMechanicEnabled: vi.fn<() => Promise<boolean>>(),
   resolveRateLimitClientKey: vi.fn(),
   isRateLimited: vi.fn<() => Promise<boolean>>(),
   recordFailure: vi.fn(),
@@ -22,6 +23,9 @@ vi.mock('@/app-layer/product-analytics/recordAuthRegistration', () => ({
 }));
 vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isOAuthProviderEnabled: fakes.isOAuthProviderEnabled,
+}));
+vi.mock('@/modules/auth/authDeliveryGate', () => ({
+  isAuthMechanicEnabled: fakes.isAuthMechanicEnabled,
 }));
 vi.mock('@/modules/auth/authRouteObservability', () => ({
   logAuthRouteTiming: vi.fn(),
@@ -58,13 +62,14 @@ import { getYandexOauthClientId } from '@/modules/system-settings/integrationRun
 beforeEach(() => {
   vi.clearAllMocks();
   fakes.isOAuthProviderEnabled.mockImplementation(async (provider) => provider !== 'apple');
+  fakes.isAuthMechanicEnabled.mockImplementation(async () => false);
   fakes.resolveRateLimitClientKey.mockReturnValue({ ok: true, key: 'client-993' });
   fakes.isRateLimited.mockResolvedValue(false);
   fakes.recordFailure.mockResolvedValue(undefined);
 });
 
 describe('public OAuth provider boundary', () => {
-  it('rejects Apple in both public entry points when its independent toggle is off', async () => {
+  it('rejects Apple in both public entry points when the surface matrix disables it', async () => {
     const providersResponse = await listProviders(
       new Request('https://app.example.test/api/auth/oauth/providers'),
     );
@@ -91,6 +96,7 @@ describe('public OAuth provider boundary', () => {
       ok: false,
       error: 'oauth_disabled',
     });
+    expect(fakes.isAuthMechanicEnabled).toHaveBeenCalledWith('oauth_apple');
   });
 
   it('returns a typed our-side failure instead of an empty body when reading provider config throws', async () => {

@@ -35,13 +35,13 @@ export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, Sur
 
 /**
  * The only surface -> auth-method matrix (TPB-16). Values snapshot live production settings from
- * `deploy/postgres/generated/prod-to-target/runtime-settings.sql` on 2026-08-17: passkey is on;
- * OAuth and phone/bot are off. F2-F5 may change values, not this type.
+ * `deploy/postgres/generated/prod-to-target/runtime-settings.sql` on 2026-08-17. F2 disables
+ * OAuth for staff/admin and passkey for doctors by default; settings can re-enable either.
  */
 export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
   staff: {
     availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
+    enabledMethods: ['password', 'email_code', 'totp'],
   },
   platform_admin: {
     availableMethods: SURFACE_AUTH_METHODS,

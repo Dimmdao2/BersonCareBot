@@ -38,7 +38,7 @@ import {
   resolveOAuthStartRateLimitClientKey,
 } from '@/modules/auth/oauthStartRateLimit';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
-import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
 import { isSafeRolePortalNext } from '@/modules/auth/roleLogin';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
@@ -150,7 +150,7 @@ export async function POST(request: Request) {
   try {
     if (provider === 'yandex') {
       const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
-        isOAuthProviderEnabled('yandex'),
+        isAuthMechanicEnabled('oauth_yandex'),
         getYandexOauthClientId().then((v) => v.trim()),
         getYandexOauthRedirectUri().then((v) => v.trim()),
         getYandexOauthClientSecret().then((v) => v.trim()),
@@ -175,7 +175,7 @@ export async function POST(request: Request) {
 
     if (provider === 'google') {
       const [googleOAuthEnabled, clientId, clientSecret, redirectUri] = await Promise.all([
-        isOAuthProviderEnabled('google'),
+        isAuthMechanicEnabled('oauth_google'),
         getGoogleClientId().then((v) => v.trim()),
         getGoogleClientSecret().then((v) => v.trim()),
         getGoogleOauthLoginRedirectUri().then((v) => v.trim()),
@@ -203,7 +203,7 @@ export async function POST(request: Request) {
 
     if (provider === 'vk') {
       const [vkOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
-        isOAuthProviderEnabled('vk'),
+        isAuthMechanicEnabled('oauth_vk'),
         getVkIdApplicationId().then((v) => v.trim()),
         getVkIdRedirectUri().then((v) => v.trim()),
         getVkIdClientSecret().then((v) => v.trim()),
@@ -228,7 +228,7 @@ export async function POST(request: Request) {
     }
 
     const [appleEnabled, clientId, redirectUri, teamId, keyId, privateKey] = await Promise.all([
-      isOAuthProviderEnabled('apple'),
+      isAuthMechanicEnabled('oauth_apple'),
       getAppleOauthClientId().then((value) => value.trim()),
       getAppleOauthRedirectUri().then((value) => value.trim()),
       getAppleOauthTeamId().then((value) => value.trim()),

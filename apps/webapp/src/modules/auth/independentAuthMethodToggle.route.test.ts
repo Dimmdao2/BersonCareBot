@@ -25,8 +25,8 @@ vi.mock('@/modules/auth/verifiedStaffPrimaryLogin', () => ({
 vi.mock('@/shared/platform-user/isPlatformUserUuid', () => ({
   isPlatformUserUuid: vi.fn(() => true),
 }));
-vi.mock('@/modules/auth/authChannelPolicy', () => ({
-  isIndependentAuthMethodEnabled: fakes.enabled,
+vi.mock('@/modules/auth/authDeliveryGate', () => ({
+  isAuthMechanicEnabled: fakes.enabled,
 }));
 vi.mock('@/modules/auth/passkeyAuth', () => ({
   beginPasskeyAuthentication: fakes.beginPasskeyAuthentication,
@@ -45,12 +45,13 @@ beforeEach(() => {
 });
 
 describe('independent login method server gates', () => {
-  it('rejects passkey options before creating a challenge when the global toggle is off', async () => {
+  it('rejects passkey options before creating a challenge when the surface matrix disables it', async () => {
     const response = await requestPasskeyOptions(
       new Request('https://app.example.test/api/auth/passkey/login/options', { method: 'POST' }),
     );
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'auth_method_disabled' });
+    expect(fakes.enabled).toHaveBeenCalledWith('passkey');
     expect(fakes.beginPasskeyAuthentication).not.toHaveBeenCalled();
   });
 });
