@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
 import { verifyIntegratorSignature } from '@/app-layer/integrator/verifyIntegratorSignature';
 import { claimPhoneMessengerBindFromIntegrator } from '@/modules/auth/phoneMessengerBind';
@@ -13,6 +14,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   ensureSystemSettingsConfigAdapterBound();
+  buildAppDeps();
   const timestamp = request.headers.get('x-bersoncare-timestamp');
   const signature = request.headers.get('x-bersoncare-signature');
   const rawBody = await request.text();

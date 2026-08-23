@@ -242,6 +242,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
     externalId: string;
     templateKey: string;
     actionIdSuffix: string;
+    vars?: Record<string, unknown>;
     menuOnly?: boolean;
     showLoginUrlButton?: boolean;
   },
@@ -269,6 +270,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
       params: {
         chatId: tgChatId,
         templateKey: opts.menuOnly ? 'telegram:chooseMenu' : opts.templateKey,
+        ...(opts.vars ? { vars: opts.vars } : {}),
         keyboard: [[{ textTemplateKey: 'telegram:menu.book' }]],
         resizeKeyboard: true,
       },
@@ -286,6 +288,7 @@ async function buildPhoneMessengerBindMainMenuIntents(
     params: {
       chatId: chatIdResolved,
       templateKey: opts.menuOnly ? 'max:chooseMenu' : opts.templateKey,
+      ...(opts.vars ? { vars: opts.vars } : {}),
       menu: 'main',
       delivery: { channels: ['max'], maxAttempts: 1 },
     },
@@ -484,6 +487,7 @@ export async function executeAction(
               externalId,
               templateKey: loginTemplateKey,
               actionIdSuffix: 'phone-auth-code',
+              vars: { code: result.otpCode },
               showLoginUrlButton: bindPurpose === 'login',
             })),
           );
