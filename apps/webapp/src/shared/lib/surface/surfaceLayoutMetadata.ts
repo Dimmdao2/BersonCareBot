@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { PATIENT_PWA_MANIFEST_PATH } from '@/shared/lib/pwa/patientPwaManifest';
-import type { ResolvedSurface } from './requestSurface';
+import { surfaceDisplayName, type ResolvedSurface } from './requestSurface';
 
 /**
  * Идентичность поверхности в двух видах, которые её выражают: метаданные документа (заголовок,
@@ -53,18 +53,4 @@ export function surfaceLayoutMetadata(resolved: ResolvedSurface): Metadata {
       statusBarStyle: 'default',
     },
   };
-}
-
-/** Видимое имя продукта для поверхности запроса (шапка, тексты экранов входа). */
-export function surfaceDisplayName(resolved: ResolvedSurface): string {
-  if (resolved.surface === 'staff' || resolved.surface === 'platform_admin') {
-    return STAFF_SURFACE.name;
-  }
-  if (resolved.surface === 'patient_branded') {
-    if (!resolved.effectivePatientBrand) {
-      throw new Error('branded_surface_requires_effective_patient_brand');
-    }
-    return resolved.effectivePatientBrand.effectiveDisplayName;
-  }
-  return PATIENT_DEFAULT_SURFACE.name;
 }

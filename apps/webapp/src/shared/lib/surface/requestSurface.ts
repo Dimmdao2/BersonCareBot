@@ -97,7 +97,8 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     return { surface: 'platform_admin', publicOrigin, authPolicy: 'platform_admin' };
   }
 
-  const tenant = await resolveTenantSurface(requestHost);
+  // Persistence/domain seams store a hostname, never an HTTP authority with a development port.
+  const tenant = await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
   if (
     tenant.status !== 'active' ||
     !tenant.organizationId ||
@@ -115,6 +116,20 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     authPolicy: 'patient',
   };
 };
+
+/** Pure presentation projection of the already-resolved request value; never reads Host or state. */
+export function surfaceDisplayName(resolved: ResolvedSurface): string {
+  if (resolved.surface === 'staff' || resolved.surface === 'platform_admin') {
+    return STAFF_SURFACE.name;
+  }
+  if (resolved.surface === 'patient_branded') {
+    if (!resolved.effectivePatientBrand) {
+      throw new Error('branded_surface_requires_effective_patient_brand');
+    }
+    return resolved.effectivePatientBrand.effectiveDisplayName;
+  }
+  return PATIENT_DEFAULT_SURFACE.name;
+}
 
 function isRequestSurface(value: unknown): value is RequestSurface {
   return (

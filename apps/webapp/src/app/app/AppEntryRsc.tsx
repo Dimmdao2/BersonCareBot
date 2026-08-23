@@ -14,8 +14,8 @@ import { buildPrefetchedPublicAuthConfig } from '@/modules/auth/publicAuthSnapsh
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getMessengerSurfaceHint, getPlatformEntry } from '@/shared/lib/platformCookie.server';
+import { surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
-import { surfaceDisplayName } from '@/shared/lib/surface/surfaceLayoutMetadata';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { AppEntryLoginContent } from './AppEntryLoginContent';

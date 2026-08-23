@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
 import { describe, expect, it } from 'vitest';
-import { proxy } from '@/proxy';
+import { config, proxy } from '@/proxy';
 import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import type { AppSession, UserRole } from '@/shared/types/session';
@@ -51,6 +52,48 @@ function middlewareRequestSurface(response: Response) {
     },
   });
 }
+
+describe('Next proxy matcher boundary', () => {
+  it.each([
+    '/',
+    '/clinic-a',
+    '/legal/terms',
+    '/book/clinic-a',
+    '/book/embed.js',
+    '/join/invite-a',
+    '/setup',
+    '/app',
+    '/app/patient/login',
+    '/api/auth/logout',
+    '/manifest.webmanifest',
+    '/manifest-staff.webmanifest',
+    '/sw.js',
+  ])('makes proxy the request choke point for %s', (pathname) => {
+    expect(
+      unstable_doesMiddlewareMatch({
+        config,
+        url: new URL(pathname, STAFF_ORIGIN).href,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    '/_next/static/chunks/app.js',
+    '/_next/image?url=%2Fpwa-icon-192.png&w=256&q=75',
+    '/favicon.ico',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/pwa-icon-192.png',
+    '/fonts/app.woff2',
+  ])('keeps immutable/static request %s outside the resolver', (pathname) => {
+    expect(
+      unstable_doesMiddlewareMatch({
+        config,
+        url: new URL(pathname, STAFF_ORIGIN).href,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('HTTP CSRF origin boundary', () => {
   it('rejects a cross-origin browser mutation with a non-cacheable 403 response', async () => {
@@ -179,6 +222,24 @@ describe('global admin reaching platform pages under the doctor portal prefix', 
 });
 
 describe('resolved surface request choke point', () => {
+  it('preserves the real URL for independent patient routing-security gates', async () => {
+    const response = await proxy(
+      requestFor(PATIENT_ORIGIN, '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile', {
+        headers: {
+          'x-bc-pathname': '/app/patient/onboarding',
+          'x-bc-search': '?spoofed=1',
+        },
+      }),
+    );
+
+    expect(response.headers.get('x-middleware-request-x-bc-pathname')).toBe(
+      '/app/patient/login',
+    );
+    expect(response.headers.get('x-middleware-request-x-bc-search')).toBe(
+      '?next=%2Fapp%2Fpatient%2Fprofile',
+    );
+  });
+
   it.each([
     [STAFF_ORIGIN, '/', 'staff'],
     [PATIENT_ORIGIN, '/app', 'patient_default'],
@@ -202,18 +263,22 @@ describe('resolved surface request choke point', () => {
 
   it('passes the B1/B4 tenant seam result without resolving organization data itself', async () => {
     const organizationId = '11111111-1111-4111-8111-111111111111';
-    const tenantLookup: TenantSurfaceLookup = async (host) => ({
-      status: 'active',
-      organizationId,
-      effectivePatientBrand: {
+    const seenHostnames: string[] = [];
+    const tenantLookup: TenantSurfaceLookup = async (hostname) => {
+      seenHostnames.push(hostname);
+      return {
+        status: 'active',
         organizationId,
-        core: { displayName: 'Clinic A', isActive: true },
-        paid: { displayName: 'Clinic A Plus', logoUrl: null },
-        effectiveDisplayName: 'Clinic A Plus',
-        resolution: 'applied',
-      },
-    });
-    const brandedOrigin = new URL('https://clinic-a.therapygo.ru');
+        effectivePatientBrand: {
+          organizationId,
+          core: { displayName: 'Clinic A', isActive: true },
+          paid: { displayName: 'Clinic A Plus', logoUrl: null },
+          effectiveDisplayName: 'Clinic A Plus',
+          resolution: 'applied',
+        },
+      };
+    };
+    const brandedOrigin = new URL('https://clinic-a.therapygo.ru:8443');
     const response = await proxy(
       requestFor(brandedOrigin, '/app/patient/login'),
       tenantLookup,
@@ -226,6 +291,7 @@ describe('resolved surface request choke point', () => {
       authPolicy: 'patient',
       effectivePatientBrand: { effectiveDisplayName: 'Clinic A Plus' },
     });
+    expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
   });
 
   it('returns hard 404 for an unknown Host without platform fallback', async () => {

@@ -143,9 +143,11 @@ export async function proxy(
   // Incoming internal context is never trusted. Every downstream consumer reads this exact value;
   // none of them re-resolves Host/path or falls back to a platform surface (TPB-16).
   requestHeaders.delete(RESOLVED_SURFACE_HEADER);
-  requestHeaders.delete('x-bc-pathname');
-  requestHeaders.delete('x-bc-search');
   requestHeaders.set(RESOLVED_SURFACE_HEADER, serializeResolvedSurface(resolvedSurface));
+  // These remain routing-security inputs for the patient layout/server-action gates. They no
+  // longer resolve product surface, but must still overwrite caller values with the real URL.
+  requestHeaders.set('x-bc-pathname', pathname);
+  requestHeaders.set('x-bc-search', request.nextUrl.search);
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
@@ -168,7 +170,6 @@ export async function proxy(
  */
 export const config = {
   matcher: [
-    '/book/embed.js',
     '/((?!_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|woff|woff2)$).*)',
   ],
 };

@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next';
-import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
-import { surfaceDisplayName } from '@/shared/lib/surface/surfaceLayoutMetadata';
+import {
+  surfaceDisplayName,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 export const PATIENT_PWA_MANIFEST_PATH = '/manifest.webmanifest';
 

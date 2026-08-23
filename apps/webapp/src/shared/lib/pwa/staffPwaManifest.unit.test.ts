@@ -4,6 +4,7 @@ import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces
 import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
 import { buildStaffPwaManifest } from './staffPwaManifest';
 import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { surfaceLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
 const STAFF_RESOLVED: ResolvedSurface = {
   surface: 'staff',
@@ -66,6 +67,15 @@ describe('installed PWA contract survives the surface rename', () => {
       name: 'Clinic A Plus — забота о твоём здоровье',
       short_name: 'Clinic A Plus',
       start_url: '/app/patient',
+    });
+    expect(surfaceLayoutMetadata(BRANDED_RESOLVED)).toMatchObject({
+      title: 'Clinic A Plus',
+      manifest: '/manifest.webmanifest',
+      icons: {
+        icon: [{ url: '/pwa-icon-192.png' }, { url: '/pwa-icon-512.png' }],
+        apple: [{ url: '/apple-touch-icon.png' }],
+      },
+      appleWebApp: { title: 'Clinic A Plus' },
     });
   });
 

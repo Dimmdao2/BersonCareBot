@@ -16,19 +16,15 @@ import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
 import { PWA_APP_ROOT_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
+import { surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
-import {
-  surfaceDisplayName,
-  surfaceLayoutMetadata,
-} from '@/shared/lib/surface/surfaceLayoutMetadata';
+import { surfaceLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
 /**
  * ЕДИНСТВЕННАЯ точка, где поверхность запроса превращается в идентичность документа (TPB-08).
  * Ни один маршрут больше не объявляет `title`/`description`/`manifest`/`icons`/`appleWebApp` сам:
- * какому пути какая поверхность — решает таблица `config/surfaceRoutes.ts`, и новая страница внутри
- * классифицированного поддерева получает верную идентичность, ничего не объявляя. Раньше это был
- * пациентский fallback, который staff-зоны перекрывали каждая у себя, и забытый маршрут молча
- * представлялся пациентским продуктом.
+ * Host один раз резолвит `proxy.ts`, а layout только читает его проверенный `ResolvedSurface`.
+ * Pathname-таблица осталась лишь ограничителем routing и не выбирает surface.
  */
 export async function generateMetadata(): Promise<Metadata> {
   return surfaceLayoutMetadata(await getResolvedSurface());
