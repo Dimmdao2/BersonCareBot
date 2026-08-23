@@ -220,7 +220,7 @@ export function SectionForm({
                 slugManualRef.current = true;
                 setSlugValue(e.target.value);
               }}
-              pattern="[a-z0-9-]+"
+              pattern="[a-z0-9\-]+"
             />
             <Button
               type="button"
