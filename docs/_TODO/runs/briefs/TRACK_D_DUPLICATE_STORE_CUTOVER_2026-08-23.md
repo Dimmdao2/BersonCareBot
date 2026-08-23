@@ -21,6 +21,10 @@
 6. `docs/_TODO/runs/integrator-cleanup/D30_REMINDER_M2M_RETIREMENT_INDEPENDENT_AUDIT_2026-08-23.md` как
    уже принятое соседнее конечное состояние, не как новый scope.
 
+Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — «generic webhook не создаёт
+аккаунт; token-bound webapp flow принимает только self-owned messenger contact, сверяет номер, фиксирует
+подтверждение и доставляет код; интегратор не создаёт аккаунт и не решает merge.»
+
 Перед реализацией проверь более поздние owner-регистры и обратные ссылки по каждому D-ID. Плановая проза проигрывает
 более позднему решению владельца.
 
