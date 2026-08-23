@@ -1,0 +1,272 @@
+/**
+ * D17 regression proof on the named DEV database.
+ *
+ * Failure caught: after the integrator login stopped carrying `app_tenant_service`, booking and
+ * delivery code entered `app_integrator_tenant_service` but could neither EXECUTE nor pass the
+ * body gate of three shared roots. A booking was created while its confirmation/reminders were
+ * lost behind 42501.
+ *
+ * The candidate migration and generated privilege artifact are materialized inside one transaction
+ * and the transaction is rolled back. No disposable database and no persistent DEV data are used.
+ *
+ * Run:
+ *   RUN_D17_INTEGRATOR_ROOTS_DB=1 node --test \
+ *     deploy/postgres/privileges/integrator-narrow-delivery-roots.devDbProof.test.mjs
+ */
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const ENABLED = process.env.RUN_D17_INTEGRATOR_ROOTS_DB === '1';
+const DATABASE = process.env.D17_INTEGRATOR_ROOTS_PROOF_DB ?? 'bcb_webapp_dev';
+const MIGRATION = new URL(
+  '../../../apps/webapp/db/drizzle-migrations/20260823T030000_integrator_tenant_role_reaches_delivery_roots.sql',
+  import.meta.url,
+);
+const PRIVILEGES = new URL('../generated/privileges.bcb_webapp_dev.sql', import.meta.url);
+
+if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
+  throw new Error(`unsafe database identifier '${DATABASE}'`);
+}
+
+function psql(sql) {
+  return execFileSync(
+    'sudo',
+    ['-n', '-u', 'postgres', 'psql', '-X', '-A', '-t', '-q',
+      '-h', '/var/run/postgresql', '-p', '5432', '-d', DATABASE,
+      '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+    { input: sql, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+  ).trim();
+}
+
+function parsed(output) {
+  return Object.fromEntries(
+    output.split('\n').filter((line) => line.includes('=')).map((line) => {
+      const at = line.indexOf('=');
+      return [line.slice(0, at), line.slice(at + 1)];
+    }),
+  );
+}
+
+const ACCEPT_CONTEXT_HELPER = String.raw`
+CREATE OR REPLACE FUNCTION pg_temp.accept_context(
+  p_capability_id uuid,
+  p_target_role name,
+  p_context_class app.port_context_class,
+  p_purpose text,
+  p_function_identity regprocedure,
+  p_organization_id uuid,
+  p_typed_args app.port_typed_arg[] DEFAULT ARRAY[]::app.port_typed_arg[]
+) RETURNS void LANGUAGE plpgsql AS $accept$
+BEGIN
+  DELETE FROM app_ext.accepted_port_contexts
+   WHERE database_oid = (SELECT oid FROM pg_database WHERE datname = current_database())
+     AND backend_pid = pg_backend_pid()
+     AND transaction_id = pg_current_xact_id();
+  DELETE FROM app_ext.port_context_capabilities WHERE capability_id = p_capability_id;
+
+  INSERT INTO app_ext.port_context_capabilities
+    (capability_id, port, session_login, target_role, context_class, purpose, function_identity)
+  SELECT p_capability_id, declared.port, session_user, declared.target_role,
+         declared.context_class, declared.purpose, declared.function_identity
+    FROM app_ext.port_context_capabilities AS declared
+   WHERE declared.target_role = p_target_role
+     AND declared.context_class = p_context_class
+     AND declared.purpose = p_purpose
+     AND declared.function_identity IS NOT DISTINCT FROM p_function_identity
+   LIMIT 1;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'no declared capability for % / % / % / %',
+      p_target_role, p_context_class, p_purpose, p_function_identity;
+  END IF;
+
+  INSERT INTO app_ext.accepted_port_contexts (
+    database_oid, backend_pid, transaction_id, capability_id, session_login, port, target_role,
+    context_class, purpose, function_identity, typed_args_hash, organization_id
+  )
+  SELECT database.oid, pg_backend_pid(), pg_current_xact_id(), capability.capability_id,
+         capability.session_login, capability.port, capability.target_role,
+         capability.context_class, capability.purpose, capability.function_identity,
+         app.hash_port_typed_args(p_typed_args), p_organization_id
+    FROM pg_database AS database, app_ext.port_context_capabilities AS capability
+   WHERE database.datname = current_database()
+     AND capability.capability_id = p_capability_id;
+END $accept$;
+`;
+
+function proofSql() {
+  const migration = readFileSync(MIGRATION, 'utf8');
+  const privileges = readFileSync(PRIVILEGES, 'utf8');
+  return String.raw`
+BEGIN;
+${migration}
+${privileges}
+${ACCEPT_CONTEXT_HELPER}
+
+CREATE TEMP TABLE probe_fixture AS
+SELECT appointment.id AS appointment_id, appointment.organization_id, appointment.start_at
+  FROM public.be_appointments AS appointment
+ WHERE appointment.status IN (
+   'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',
+   'visit_confirmed', 'charged_to_package'
+ )
+   AND appointment.deleted_at IS NULL
+ ORDER BY appointment.start_at DESC
+ LIMIT 1;
+DO $fixture$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM probe_fixture) THEN
+    RAISE EXCEPTION 'named DEV has no active appointment for D17 materialization proof';
+  END IF;
+END $fixture$;
+
+CREATE TEMP TABLE probe_out(ord serial PRIMARY KEY, key text NOT NULL, value text NOT NULL);
+
+-- Both walls matter. Candidate EXECUTE is already installed, so each old gate must still refuse
+-- the narrow role when there is no accepted context.
+DO $no_context$
+DECLARE fixture probe_fixture%ROWTYPE; clinic_result text; calendar_result text; mechanic_result text;
+BEGIN
+  SELECT * INTO fixture FROM probe_fixture;
+  EXECUTE 'SET LOCAL ROLE app_integrator_tenant_service';
+  BEGIN
+    PERFORM app.read_integrator_clinic_delivery_credential(
+      'clinic_smtp_outbound', fixture.organization_id);
+    clinic_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN clinic_result := SQLSTATE; END;
+
+  BEGIN
+    PERFORM app.read_integrator_google_calendar_setting(
+      'google_calendar_id', fixture.organization_id);
+    calendar_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN calendar_result := SQLSTATE; END;
+
+  BEGIN
+    PERFORM app.resolve_organization_mechanic_access(fixture.organization_id, 'booking');
+    mechanic_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN mechanic_result := SQLSTATE; END;
+  EXECUTE 'RESET ROLE';
+  INSERT INTO probe_out(key, value) VALUES
+    ('clinic_without_context', clinic_result),
+    ('calendar_without_context', calendar_result),
+    ('mechanic_without_context', mechanic_result);
+END $no_context$;
+
+SELECT pg_temp.accept_context(
+  '00000000-0000-4000-8000-0000000000d7'::uuid,
+  'app_integrator_tenant_service', 'tenant_service', 'relation', NULL,
+  (SELECT organization_id FROM probe_fixture)
+);
+DO $narrow$
+DECLARE fixture probe_fixture%ROWTYPE; result text;
+BEGIN
+  SELECT * INTO fixture FROM probe_fixture;
+  EXECUTE 'SET LOCAL ROLE app_integrator_tenant_service';
+  PERFORM app.read_integrator_clinic_delivery_credential(
+    'clinic_smtp_outbound', fixture.organization_id);
+
+  PERFORM app.read_integrator_google_calendar_setting(
+    'google_calendar_id', fixture.organization_id);
+
+  SELECT count(*)::text INTO result
+    FROM app.resolve_organization_mechanic_access(fixture.organization_id, 'booking');
+  EXECUTE 'RESET ROLE';
+  INSERT INTO probe_out(key, value) VALUES
+    ('clinic_with_context', 'ALLOWED'),
+    ('calendar_with_context', 'ALLOWED'),
+    ('mechanic_with_context', result);
+END $narrow$;
+
+-- The narrow role still has no direct read/write privilege on medical product relations.
+INSERT INTO probe_out(key, value)
+SELECT 'medical_relation_privileges', count(*)::text
+  FROM unnest(ARRAY[
+    'public.patient_bookings', 'public.treatment_program_instances', 'public.symptom_entries'
+  ]) AS relation_name
+ WHERE has_table_privilege('app_integrator_tenant_service', relation_name, 'SELECT')
+    OR has_table_privilege('app_integrator_tenant_service', relation_name, 'INSERT')
+    OR has_table_privilege('app_integrator_tenant_service', relation_name, 'UPDATE')
+    OR has_table_privilege('app_integrator_tenant_service', relation_name, 'DELETE');
+
+-- Separate end-to-end DB materialization: the real webapp door receives one transport-ready
+-- appointment reminder, replaces the generation, and leaves a pending queue row. Everything is
+-- rolled back with the candidate privilege/gate materialization.
+SELECT pg_temp.accept_context(
+  '00000000-0000-4000-8000-0000000000d8'::uuid,
+  'app_tenant_service', 'tenant_service', 'reminder.appointment-generation.replace',
+  'app.replace_appointment_reminder_generation(uuid,uuid,timestamp with time zone,text,text)'::regprocedure,
+  fixture.organization_id,
+  ARRAY[
+    ROW('uuid@1', pg_catalog.uuid_send(fixture.organization_id))::app.port_typed_arg,
+    ROW('uuid@1', pg_catalog.uuid_send(fixture.appointment_id))::app.port_typed_arg,
+    ROW('timestamptz@1', pg_catalog.timestamptz_send(fixture.start_at))::app.port_typed_arg,
+    ROW('text@1', pg_catalog.textsend(jsonb_build_array(jsonb_build_object(
+      'eventId', 'd17-materialization:' || fixture.appointment_id::text,
+      'channel', 'web_push',
+      'payloadJson', jsonb_build_object(
+        'appointmentId', fixture.appointment_id::text,
+        'generationStartAt', fixture.start_at,
+        'dueAt', fixture.start_at - interval '1 hour',
+        'intent', jsonb_build_object('type', 'message.send')
+      ),
+      'maxAttempts', 1,
+      'nextRetryAt', fixture.start_at - interval '1 hour'
+    ))::text))::app.port_typed_arg,
+    ROW('text@1', pg_catalog.textsend('d17_rollback_proof'))::app.port_typed_arg
+  ]
+)
+FROM probe_fixture AS fixture;
+
+DO $materialize$
+DECLARE fixture probe_fixture%ROWTYPE; deliveries text; result jsonb;
+BEGIN
+  SELECT * INTO fixture FROM probe_fixture;
+  deliveries := jsonb_build_array(jsonb_build_object(
+    'eventId', 'd17-materialization:' || fixture.appointment_id::text,
+    'channel', 'web_push',
+    'payloadJson', jsonb_build_object(
+      'appointmentId', fixture.appointment_id::text,
+      'generationStartAt', fixture.start_at,
+      'dueAt', fixture.start_at - interval '1 hour',
+      'intent', jsonb_build_object('type', 'message.send')
+    ),
+    'maxAttempts', 1,
+    'nextRetryAt', fixture.start_at - interval '1 hour'
+  ))::text;
+  EXECUTE 'SET LOCAL ROLE app_tenant_service';
+  result := app.replace_appointment_reminder_generation(
+    fixture.organization_id, fixture.appointment_id, fixture.start_at,
+    deliveries, 'd17_rollback_proof');
+  EXECUTE 'RESET ROLE';
+  INSERT INTO probe_out(key, value) VALUES ('materialization_result', result::text);
+END $materialize$;
+
+INSERT INTO probe_out(key, value)
+SELECT 'materialized_queue_rows', count(*)::text
+  FROM public.outgoing_delivery_queue AS queue
+  JOIN probe_fixture AS fixture ON fixture.organization_id = queue.organization_id
+ WHERE queue.event_id = 'd17-materialization:' || fixture.appointment_id::text
+   AND queue.kind = 'appointment_reminder'
+   AND queue.status = 'pending'
+   AND queue.payload_json ->> 'appointmentId' = fixture.appointment_id::text;
+
+SELECT key || '=' || value FROM probe_out ORDER BY ord;
+ROLLBACK;
+`;
+}
+
+test('narrow integrator role reaches only the three required roots and still needs context',
+  { skip: !ENABLED }, () => {
+    const result = parsed(psql(proofSql()));
+    assert.equal(result.clinic_without_context, '42501');
+    assert.equal(result.calendar_without_context, '42501');
+    assert.equal(result.mechanic_without_context, '42501');
+    assert.equal(result.clinic_with_context, 'ALLOWED');
+    assert.equal(result.calendar_with_context, 'ALLOWED');
+    assert.equal(result.mechanic_with_context, '1');
+    assert.equal(result.medical_relation_privileges, '0');
+    assert.match(result.materialization_result ?? '', /"current"\s*:\s*true/u);
+    assert.match(result.materialization_result ?? '', /"inserted"\s*:\s*1/u);
+    assert.equal(result.materialized_queue_rows, '1');
+  });
