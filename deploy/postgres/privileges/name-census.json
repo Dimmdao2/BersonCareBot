@@ -253,7 +253,6 @@
     "app.exchange_patient_invite(text,text,timestamp with time zone) -> public.patient_invites",
     "app.find_platform_user_ids_by_any_confirmed_email(text) -> public.platform_users",
     "app.find_platform_user_ids_by_any_confirmed_email(text) -> public.user_contacts",
-    "app.get_preferred_auth_channel_code(uuid) -> public.user_channel_preferences",
     "app.list_active_booking_cities() -> public.booking_cities",
     "app.lookup_patient_invite_continuation(text) -> public.be_organizations",
     "app.lookup_patient_invite_continuation(text) -> public.org_enrollments",
