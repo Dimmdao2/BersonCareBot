@@ -172,11 +172,13 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     // principal/role is established, so this goes through the narrow SECURITY DEFINER accessor
     // (migration 0357) rather than a direct table SELECT -- the bootstrap login has no table grant
     // on `user_channel_preferences` and a direct SELECT raises 42501 there.
-    const result = await runWebappPgText<{ get_preferred_auth_channel_code: string | null }>(
-      `SELECT app.get_preferred_auth_channel_code($1::uuid)`,
+    const result = await runWebappNamedRoot<{ channel_code: string | null }>(
+      getWebappSqlDb(),
+      'app.get_preferred_auth_channel_code(uuid)',
       [userId],
+      sql`SELECT app.get_preferred_auth_channel_code(${userId}::uuid) AS channel_code`,
     );
-    const code = result.rows[0]?.get_preferred_auth_channel_code as ChannelCode | undefined;
+    const code = result.rows[0]?.channel_code as ChannelCode | undefined;
     if (code != null && !isChannelAllowedForPreferredAuth(code)) return null;
     return code ?? null;
   },
