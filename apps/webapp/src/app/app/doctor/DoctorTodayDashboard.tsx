@@ -237,7 +237,7 @@ export function DoctorTodayDashboard({
   };
 
   return (
-    <div id="doctor-today-dashboard" className={`${doctorPageStackClass} pb-12 md:pb-0`}>
+    <div id="doctor-today-dashboard" className={`${doctorPageStackClass} pb-14 md:pb-0`}>
       <DoctorPageHeader id="doctor-today-header" title="Сегодня" />
 
       <div
