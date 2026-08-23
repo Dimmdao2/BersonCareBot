@@ -10,6 +10,10 @@ Current clean candidate branch is `wt/track-d-final-cutover-20260823` at salvage
 pass. Earlier commit `4d1380339` removes duplicate overlay bodies but is incomplete until a forward migration
 restores the canonical gated D17 function on already-overwritten DEV/TEST databases.
 
+Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — «generic webhook не создаёт
+аккаунт; token-bound webapp flow принимает только self-owned messenger contact, сверяет номер, фиксирует
+подтверждение и доставляет код; интегратор не создаёт аккаунт и не решает merge».
+
 ## Already closed elsewhere — verify, do not redo
 
 - D25 generic bot lookup-only and token-bound webapp flow are already accepted in the branch ancestry.
@@ -50,4 +54,3 @@ restores the canonical gated D17 function on already-overwritten DEV/TEST databa
   delete branches/worktrees, or finish with uncommitted files.
 - If the entire authority scope cannot safely finish in this single run, still commit coherent progress and report
   the exact remaining owner-impact and blocker. Do not claim candidate-ready.
-
