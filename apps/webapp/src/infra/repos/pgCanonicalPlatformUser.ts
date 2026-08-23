@@ -1,6 +1,7 @@
 import { and, asc, eq, isNotNull, isNull, ne, or, sql } from 'drizzle-orm';
 import type { WebappSqlExecutor } from '@/infra/db/runWebappSql';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
+import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import {
   platformUsers,
   userChannelBindings,
@@ -76,11 +77,14 @@ export async function selectPlatformUserById(
       phone_normalized: drizzlePrimaryPhoneCol,
       integrator_user_id: sql<string | null>`${platformUsers.integratorUserId}::text`,
       merged_into_id: platformUsers.mergedIntoId,
-      display_name: sql<string>`COALESCE(${userIdentity.displayName}, ${platformUsers.displayName})`,
+      // Track D: user_identity is the sole FIO source of truth (D15b/5, see
+      // userIdentityFioSql.ts header) — no fallback to the legacy platform_users.display_name
+      // column. A missing mirror row is a defect that must surface as NULL, not be hidden.
+      display_name: drizzleFioCols.displayName,
       role: platformUsers.role,
     })
     .from(platformUsers)
-    .leftJoin(userIdentity, eq(userIdentity.platformUserId, platformUsers.id))
+    .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
     .where(eq(platformUsers.id, userId))
     .limit(1);
   return rows[0] ?? null;
