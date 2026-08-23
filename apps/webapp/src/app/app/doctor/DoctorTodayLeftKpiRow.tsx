@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
@@ -21,6 +22,7 @@ import {
 } from '@/modules/specialist-tasks/taskPriority';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 
 type Props = Pick<
   TodayDashboardData,
@@ -132,6 +134,8 @@ export function DoctorTodayLeftKpiRow({
   onTaskSaved,
 }: Props) {
   const [kpiModal, setKpiModal] = useState<KpiModal>(null);
+  const router = useRouter();
+  const isDesktopViewport = useViewportMinWidth(1024);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   // SEG-07: items сохраняем локально (список в KpiPreviewModal);
   // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
@@ -201,7 +205,13 @@ export function DoctorTodayLeftKpiRow({
             }
             tooltip="Открытые задачи."
             tone={attentionTasks.length > 0 ? 'warning' : 'neutral'}
-            onClick={tasksTotal > 0 ? () => setKpiModal('tasks') : undefined}
+            onClick={() => {
+              if (isDesktopViewport) {
+                router.push(routePaths.doctorTasks);
+                return;
+              }
+              setKpiModal('tasks');
+            }}
             className={todayKpiCardClass}
             valueClassName={attentionTasks.length > 0 ? 'w-full' : undefined}
           />

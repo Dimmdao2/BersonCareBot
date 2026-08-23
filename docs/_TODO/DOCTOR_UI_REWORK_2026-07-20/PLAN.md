@@ -709,6 +709,15 @@ brief или заменять одним общим пунктом.
 
 #### UI-6 — Today (`#850`, residual `#963`)
 
+- [~] **Owner delta 2026-08-23 — задачи:** KPI «Задачи» показывает общее число открытых задач; при наличии
+      просроченных/сегодняшних отдельно выделяет attention count красным. На mobile карточка открывает modal
+      только с attention-задачами, на desktop ведёт на `/app/doctor/tasks`. Mobile сохраняет исключение
+      label/value в одной строке; desktop — label сверху, value снизу. Реализовано, ожидает live/audit.
+- [~] **Owner delta 2026-08-23 — страница «Задачи»:** выбран стандартный master-detail как у упражнений,
+      desktop строго `50/50`, слева все открытые задачи, справа детали/создание; mobile list → details/create →
+      Back. Строка содержит ФИО/заголовок/описание слева и статус/срок справа; вся строка открывает детали,
+      «Изменить»/«Выполнить» находятся только в деталях. Read-only показывает страницу без mutation controls,
+      disabled скрывает навигацию и route. Реализовано, ожидает live/audit.
 - [~] KPI на «Сегодня» имеют compact presentation без искусственной пустой высоты. (code may be in place; awaiting owner live visual acceptance)
 - [x] Дата и «Открыть календарь» находятся в compact calendar header, ссылка расположена справа.
       (✓ DoctorTodayMiniCalendar.tsx:226-236 single `justify-between` row)

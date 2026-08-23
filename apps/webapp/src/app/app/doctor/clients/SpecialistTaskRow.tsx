@@ -4,7 +4,10 @@ import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
-import { getDoctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorCatalogRowActiveClass,
+  getDoctorSectionItemClass,
+} from '@/shared/ui/doctor/doctorVisual';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
@@ -33,6 +36,7 @@ type Props = {
   dueToday?: boolean;
   onOpen?: (task: Task) => void;
   as?: 'li' | 'div';
+  active?: boolean;
 };
 
 export function SpecialistTaskRow({
@@ -46,6 +50,7 @@ export function SpecialistTaskRow({
   dueToday = false,
   onOpen,
   as = 'li',
+  active = false,
 }: Props) {
   const overdue = isSpecialistTaskOverdue(task);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana);
@@ -61,7 +66,9 @@ export function SpecialistTaskRow({
             getDoctorSectionItemClass(
               overdue || dueToday || task.isImportant ? 'urgent' : 'neutral',
             ),
+            active && doctorCatalogRowActiveClass,
           )}
+          aria-current={active ? 'true' : undefined}
           onClick={() => onOpen(task)}
         >
           <span className="flex min-w-0 flex-col gap-0.5">

@@ -171,7 +171,8 @@ export function DoctorGlobalTasksSection({
           },
           {
             label: 'Сегодня',
-            predicate: (task) => task.dueAt != null && task.dueAt.slice(0, 10) <= todayIso,
+            predicate: (task) =>
+              displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false,
           },
           {
             label: 'Важные',

@@ -44,6 +44,7 @@ export type DoctorWorkspaceShellData = {
   promoEnabled: boolean;
   cmsEnabled: boolean;
   patientHomeTodayEnabled: boolean;
+  specialistTasksEnabled: boolean;
   canRenderClinicalChildren: boolean;
 };
 
@@ -70,6 +71,7 @@ export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceS
     promoVisibility,
     cmsVisibility,
     patientHomeTodayVisibility,
+    specialistTasksVisibility,
     entitlementSnapshot,
     cabinetAccess,
     lifecycleAnchors,
@@ -78,6 +80,7 @@ export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceS
     getMechanicSurfaceVisibility(workspaceAccess, 'promo'),
     getMechanicSurfaceVisibility(workspaceAccess, 'cms_pages'),
     getMechanicSurfaceVisibility(workspaceAccess, 'patient_home_today'),
+    getMechanicSurfaceVisibility(workspaceAccess, 'specialist_tasks'),
     deps.orgEntitlements.getSnapshot(organizationId).catch(() => null),
     resolveCabinetAccessRequestLocal(organizationId).catch(() => null),
     deps.orgEntitlements.prepareLifecycleNotificationContext(organizationId).catch(() => null),
@@ -175,6 +178,7 @@ export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceS
     promoEnabled: promoVisibility.specialistNavigation,
     cmsEnabled: cmsVisibility.specialistNavigation,
     patientHomeTodayEnabled: patientHomeTodayVisibility.specialistNavigation,
+    specialistTasksEnabled: specialistTasksVisibility.specialistNavigation,
     canRenderClinicalChildren,
   };
 });
