@@ -155,7 +155,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
                 })}
                 href={patientHref}
               >
-                Открыть карточку
+                Карточка
               </Link>
             ) : (
               <Button
@@ -164,7 +164,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
                 className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
                 disabled
               >
-                Открыть карточку
+                Карточка
               </Button>
             )}
             <Button
