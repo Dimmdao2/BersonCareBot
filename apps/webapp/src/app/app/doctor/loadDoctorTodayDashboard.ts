@@ -196,6 +196,9 @@ export type TodayDashboardData = {
   peopleCount: number;
   people: TodayPeopleItem[];
   peopleListTruncated: boolean;
+  onSupportPeopleCount: number;
+  onSupportPeople: TodayPeopleItem[];
+  onSupportPeopleListTruncated: boolean;
   globalOpenTasks: SpecialistTaskRow[];
   /** Patient FIO for task rows, resolved through the scoped doctor-clients read path. */
   globalTaskPatientNames: Record<string, string>;
@@ -580,6 +583,13 @@ export async function loadDoctorTodayDashboard(
   const people = peoplePreviewRaw.map(mapClientToTodayItem);
   const peopleCount = peopleSorted.length;
   const peopleListTruncated = peopleCount > people.length;
+  const onSupportSorted = [...onSupportListRaw].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName, 'ru', { sensitivity: 'base' }),
+  );
+  const onSupportPreviewRaw = onSupportSorted.slice(0, DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT);
+  const onSupportPeople = onSupportPreviewRaw.map(mapClientToTodayItem);
+  const onSupportPeopleCount = onSupportSorted.length;
+  const onSupportPeopleListTruncated = onSupportPeopleCount > onSupportPeople.length;
 
   const [openTasksData, pendingTestsResult, exerciseCommentAttention, nextAppointment] =
     await Promise.all([
@@ -615,12 +625,15 @@ export async function loadDoctorTodayDashboard(
     const prev = unreadExerciseCommentsByPatientId.get(row.patientUserId) ?? 0;
     unreadExerciseCommentsByPatientId.set(row.patientUserId, prev + 1);
   }
+  const realtimePreviewRows = Array.from(
+    new Map([...peoplePreviewRaw, ...onSupportPreviewRaw].map((row) => [row.userId, row])).values(),
+  );
   const peopleRealtimeStats = await loadPeopleRealtimeStats(
     deps,
-    peoplePreviewRaw,
+    realtimePreviewRows,
     unreadExerciseCommentsByPatientId,
   );
-  const peopleWithStats = people.map((client) => {
+  const attachRealtimeStats = (client: TodayPeopleItem): TodayPeopleItem => {
     const stats = peopleRealtimeStats.get(client.userId);
     if (!stats) return client;
     return {
@@ -629,7 +642,9 @@ export async function loadDoctorTodayDashboard(
       exerciseDoneTodayCount: stats.exerciseDoneTodayCount,
       newExerciseCommentsCount: stats.newExerciseCommentsCount,
     };
-  });
+  };
+  const peopleWithStats = people.map(attachRealtimeStats);
+  const onSupportPeopleWithStats = onSupportPeople.map(attachRealtimeStats);
 
   const globalOpenTasks = openTasksData.tasks;
   const globalTaskPatientNames = openTasksData.patientNames;
@@ -654,6 +669,9 @@ export async function loadDoctorTodayDashboard(
     peopleCount,
     people: peopleWithStats,
     peopleListTruncated,
+    onSupportPeopleCount,
+    onSupportPeople: onSupportPeopleWithStats,
+    onSupportPeopleListTruncated,
     globalOpenTasks,
     globalTaskPatientNames,
     globalOpenTasksTotal: globalOpenTasks.length,

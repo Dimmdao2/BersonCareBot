@@ -67,12 +67,20 @@ function DoctorTodayPeopleSection({
   data,
   showHeader = true,
   flush = false,
+  peopleListMode = data.peopleListMode,
+  peopleCount = data.peopleCount,
+  people = data.people,
+  peopleListTruncated = data.peopleListTruncated,
 }: {
   data: TodayDashboardData;
   showHeader?: boolean;
   flush?: boolean;
+  peopleListMode?: TodayDashboardData['peopleListMode'];
+  peopleCount?: number;
+  people?: TodayDashboardData['people'];
+  peopleListTruncated?: boolean;
 }) {
-  const peopleListIsOnSupport = data.peopleListMode === 'on_support';
+  const peopleListIsOnSupport = peopleListMode === 'on_support';
   const peopleListTitle = peopleListIsOnSupport ? 'На сопровождении' : 'Недавние с визитами';
 
   return (
@@ -83,14 +91,14 @@ function DoctorTodayPeopleSection({
       {showHeader ? (
         <DoctorSectionHeader>
           <DoctorSectionTitle>{peopleListTitle}</DoctorSectionTitle>
-          {data.peopleCount > 0 ? (
+          {peopleCount > 0 ? (
             <p className="text-xs text-muted-foreground" id="doctor-today-people-count">
-              Клиентов: {data.peopleCount}
+              Клиентов: {peopleCount}
             </p>
           ) : null}
         </DoctorSectionHeader>
       ) : null}
-      {data.peopleCount === 0 ? (
+      {peopleCount === 0 ? (
         <DoctorEmptyState>
           <p>
             {peopleListIsOnSupport ? 'Клиентов на сопровождении нет' : 'Клиентов с визитами нет'}
@@ -115,7 +123,7 @@ function DoctorTodayPeopleSection({
       ) : (
         <>
           <ul className={doctorDnaFlatListClass}>
-            {data.people.map((client, index) => (
+            {people.map((client, index) => (
               <li key={client.userId}>
                 <Link
                   id={`doctor-today-person-${client.userId}`}
@@ -167,7 +175,7 @@ function DoctorTodayPeopleSection({
             ))}
           </ul>
           <p className="flex flex-col gap-1">
-            {data.peopleListTruncated ? (
+            {peopleListTruncated ? (
               <Link
                 href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
                 className={`${doctorInlineLinkClass} text-sm`}
@@ -275,9 +283,11 @@ export function DoctorTodayDashboard({
                 <DoctorStatCard
                   id="doctor-today-mobile-kpi-support"
                   title="Сопровождение"
-                  value={data.peopleCount}
+                  value={data.onSupportPeopleCount}
                   layout="today-mobile-grid"
-                  onClick={data.peopleCount > 0 ? () => setMobileModal('support') : undefined}
+                  onClick={
+                    data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined
+                  }
                 />
                 <DoctorStatCard
                   id="doctor-today-mobile-kpi-appointments"
@@ -320,14 +330,22 @@ export function DoctorTodayDashboard({
               <span>
                 Сопровождение
                 <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {data.peopleCount}
+                  {data.onSupportPeopleCount}
                 </span>
               </span>
             }
             size="lg"
             bodyClassName="px-0"
           >
-            <DoctorTodayPeopleSection data={data} showHeader={false} flush />
+            <DoctorTodayPeopleSection
+              data={data}
+              showHeader={false}
+              flush
+              peopleListMode="on_support"
+              peopleCount={data.onSupportPeopleCount}
+              people={data.onSupportPeople}
+              peopleListTruncated={data.onSupportPeopleListTruncated}
+            />
           </DoctorModal>
           <DoctorModal
             open={mobileModal === 'calendar'}
