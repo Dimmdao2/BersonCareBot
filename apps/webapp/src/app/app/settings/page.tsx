@@ -46,7 +46,10 @@ import type { SettingsTabId } from './settingsTabs';
 import { TeamSection } from './TeamSection';
 import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
-import { isPlatformIntegrationAvailable } from '@/modules/system-settings/platformIntegrationAvailability';
+import {
+  isPlatformIntegrationAvailable,
+  parsePlatformIntegrationAvailabilityEnvelope,
+} from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
@@ -239,21 +242,14 @@ export default async function SettingsPage({
       'google_client_secret',
       'google_redirect_uri',
     ].every((key) => platformAdminValue(key) !== '');
-    const [clinicIntegrationAvailability, clinicSmtpEnabled, externalCalendarEnabled] =
-      await Promise.all([
-        deps.systemSettings
-          .getClinicPlatformIntegrationAvailability()
-          .then((availability) => ({ ok: true as const, availability }))
-          .catch((error: unknown) => {
-            console.error('[clinic-settings] platform integration availability read failed', {
-              organizationId: workspace.organizationId,
-              error,
-            });
-            return { ok: false as const };
-          }),
-        isMechanicIncluded(workspace, 'clinic_smtp'),
-        isMechanicIncluded(workspace, 'external_calendar'),
-      ]);
+    const integrationAvailability = parsePlatformIntegrationAvailabilityEnvelope(
+      platformSettings.find((setting) => setting.key === 'platform_integration_availability')
+        ?.valueJson,
+    );
+    const [clinicSmtpEnabled, externalCalendarEnabled] = await Promise.all([
+      isMechanicIncluded(workspace, 'clinic_smtp'),
+      isMechanicIncluded(workspace, 'external_calendar'),
+    ]);
     const clinicAdminSetting = (key: string) =>
       clinicAdminSettings.find(
         (setting) => setting.key === key && setting.organizationId === workspace.organizationId,
@@ -355,17 +351,11 @@ export default async function SettingsPage({
         ) : null}
         <ClinicDeliveryChannelsSection
           initial={clinicDelivery}
-          platformAvailability={
-            clinicIntegrationAvailability.ok ? clinicIntegrationAvailability.availability : null
-          }
+          platformAvailability={integrationAvailability}
           smtpEntitled={clinicSmtpEnabled}
         />
         {shouldShowGoogleCalendarSettings(
-          clinicIntegrationAvailability.ok &&
-            isPlatformIntegrationAvailable(
-              clinicIntegrationAvailability.availability,
-              'google_calendar',
-            ),
+          isPlatformIntegrationAvailable(integrationAvailability, 'google_calendar'),
           externalCalendarEnabled,
         ) ? (
           <GoogleCalendarSection

@@ -12,7 +12,7 @@ import {
 } from '@/modules/system-settings/platformIntegrationAvailability';
 
 type ClinicDeliveryChannelsSectionProps = {
-  platformAvailability: PlatformIntegrationAvailability | null;
+  platformAvailability: PlatformIntegrationAvailability;
   smtpEntitled: boolean;
   initial: {
     smtp: {
@@ -60,13 +60,7 @@ export function ClinicDeliveryChannelsSection({
           Рассылки используют только подключённый канал клиники. Коды, напоминания и уведомления
           сначала используют его, затем канал платформы.
         </p>
-        {platformAvailability === null ? (
-          <p className="text-sm text-destructive">
-            Сервер не смог загрузить доступные каналы. Повторите позже.
-          </p>
-        ) : null}
-        {platformAvailability !== null &&
-        isPlatformIntegrationAvailable(platformAvailability, 'email') ? (
+        {isPlatformIntegrationAvailable(platformAvailability, 'email') ? (
           <section className="flex flex-col gap-2">
             <p className="text-sm font-semibold">SMTP</p>
             {!smtpEntitled ? (
@@ -152,8 +146,7 @@ export function ClinicDeliveryChannelsSection({
             )}
           </section>
         ) : null}
-        {platformAvailability !== null &&
-        isPlatformIntegrationAvailable(platformAvailability, 'smsc') ? (
+        {isPlatformIntegrationAvailable(platformAvailability, 'smsc') ? (
           <SecretSettingInput
             title="SMS"
             description="API-ключ SMSC клиники."
@@ -162,8 +155,7 @@ export function ClinicDeliveryChannelsSection({
             saveSetting={saveSetting}
           />
         ) : null}
-        {platformAvailability !== null &&
-        isPlatformIntegrationAvailable(platformAvailability, 'telegram') ? (
+        {isPlatformIntegrationAvailable(platformAvailability, 'telegram') ? (
           <SecretSettingInput
             title="Telegram-бот"
             description="Токен dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у Telegram."
@@ -173,8 +165,7 @@ export function ClinicDeliveryChannelsSection({
             webhookPath={initial.telegramWebhookPath}
           />
         ) : null}
-        {platformAvailability !== null &&
-        isPlatformIntegrationAvailable(platformAvailability, 'max') ? (
+        {isPlatformIntegrationAvailable(platformAvailability, 'max') ? (
           <SecretSettingInput
             title="MAX-бот"
             description="API-ключ dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у MAX."
@@ -184,8 +175,7 @@ export function ClinicDeliveryChannelsSection({
             webhookPath={initial.maxWebhookPath}
           />
         ) : null}
-        {platformAvailability !== null &&
-        isPlatformIntegrationAvailable(platformAvailability, 'vk') ? (
+        {isPlatformIntegrationAvailable(platformAvailability, 'vk') ? (
           <SecretSettingInput
             title="Сообщество VK"
             description="Токен сообщества для исходящих сообщений от имени клиники. Входящий Callback API остаётся у сообщества платформы."

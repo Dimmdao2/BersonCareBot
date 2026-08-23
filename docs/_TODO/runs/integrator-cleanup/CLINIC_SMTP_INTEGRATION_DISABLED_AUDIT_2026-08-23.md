@@ -226,3 +226,100 @@ platform disabled email» проверяет и отсутствие загол�
   существовала. Это та же механика, что у всех прежних именованных дверей, поэтому я счёл риск
   унаследованным и не разбирал; отдельного доказательства не привожу.
 - **Full CI не гонялся** — прогнаны только затронутые тесты (route/ui/unit) и `typecheck`. `lint` не гонял.
+
+---
+
+## Круг 2 — каталоги исправлены, связность сужена; живая DEV-проверка заблокирована границей брифа
+
+### Сгенерированные артефакты — PASS
+
+Выполнены команды из брифа:
+
+```text
+$ node deploy/postgres/privileges/generate-cli.mjs --all
+записаны privileges + org-allowlist для bcb_webapp_dev и bersoncarebot_test
+
+$ node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only
+записаны port-context-capabilities.bcb_webapp_dev.sql (78153 байт)
+и port-context-capabilities.bersoncarebot_test.sql (78430 байт)
+
+$ node deploy/postgres/privileges/generate-cli.mjs --all --check
+4/4 privileges/allowlist совпадают побайтно
+
+$ node deploy/postgres/privileges/generate-cli.mjs --all --check --port-context-only
+2/2 portContext совпадают побайтно
+```
+
+В обоих точных каталогах появилась единственная требуемая строка
+`config.clinic-platform-integration-availability.read` →
+`app.read_clinic_platform_integration_availability()`.
+
+### Fault injection старого каталога — PASS
+
+Из обоих `port-context-capabilities.*.sql` временно удалена только новая строка, после чего выполнено:
+
+```text
+$ node deploy/postgres/privileges/generate-cli.mjs --all --check --port-context-only
+КРАСНЫЙ bcb_webapp_dev/portContext: строка 17 — отсутствует новая способность
+КРАСНЫЙ bersoncarebot_test/portContext: строка 17 — отсутствует новая способность
+--check: расхождений 2
+exit 1
+```
+
+То есть инъекция покраснела именно на старом точном каталоге, а не «упала вообще». Затем оба файла повторно
+перегенерированы; та же побайтовая проверка снова зелёная.
+
+### Связность — исправлена
+
+Отказ новой двери не обязан гасить весь блок каналов. Экран уже получает платформенный реестр через разрешённый
+ему snapshot `listSettingsByScope('admin', { organizationId: null })`; новая дверь нужна только серверной
+мутации, где старый `system_settings`-fallback не видел глобальную admin-строку.
+
+Поэтому `page.tsx` снова строит видимость SMTP/SMS/Telegram/MAX/VK из уже загруженного snapshot, а
+`getClinicPlatformIntegrationAvailability()` остаётся только в серверном write-gate. При отказе двери врач
+видит каналы и их сохранённое состояние; падает конкретная попытка сохранить канал с человеческим `503`.
+Платформенно выключенный канал по-прежнему не предлагается, а маршрут независимо от UI повторяет этот гейт.
+
+### Проверки кода — PASS
+
+```text
+$ pnpm --dir apps/webapp exec vitest run \
+    src/app/app/settings/ClinicDeliveryChannelsSection.ui.test.tsx \
+    src/app/app/settings/page.unit.test.ts \
+    src/app/api/tariffMechanics.route.test.ts \
+    src/modules/system-settings/clinicDeliverySettings.unit.test.ts \
+    src/modules/system-settings/configAdapter.unit.test.ts
+Test Files 5 passed (5); Tests 61 passed (61)
+
+$ pnpm --dir apps/webapp typecheck
+PASS
+
+$ pnpm --dir apps/webapp lint
+exit 0; 2 прежних warning в doctor/calendar/AppointmentPaymentSection.tsx, ошибок 0
+```
+
+### Именованный blocker живого DEV-доказательства
+
+Текущая именованная DEV ещё не содержит ни миграцию двери, ни строку точного каталога, ни runtime-дескриптор:
+
+```text
+$ sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev \
+    -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT
+      to_regprocedure('app.read_clinic_platform_integration_availability()') IS NOT NULL AS door_exists,
+      (SELECT count(*) FROM app_ext.port_context_capabilities
+       WHERE function_identity::text = 'app.read_clinic_platform_integration_availability()') AS catalog_rows;
+      ROLLBACK;"
+door_exists=f, catalog_rows=0
+
+$ set -a && source /home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev && set +a && \
+  node -e '<проверка наличия ключа без печати значения env>'
+runtime_descriptor_present=false
+```
+
+Канонический путь, который атомарно применяет pending migration, reconcile каталога и runtime env, —
+`bash deploy/host/migrate-dev.sh --execute`; флаг `--execute` этим брифом прямо запрещён. Обходить запрет
+ручным `psql -f`, голым migrator или прямой правкой каталога нельзя. Поэтому живой вызов двери под врачом,
+живое сохранение SMTP и DB-инъекция удаления строки каталога не запускались: до разрешённого применения baseline
+они покраснеют раньше на `door_exists=false`, а не на проверяемом `accepted port context required`.
+
+TEST, PROD, deploy, push и `--execute` не выполнялись.

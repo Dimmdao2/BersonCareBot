@@ -10,7 +10,6 @@ const fakes = vi.hoisted(() => ({
   isMechanicIncluded: vi.fn(),
   getManagementState: vi.fn(),
   listSettingsByScope: vi.fn(),
-  getClinicPlatformIntegrationAvailability: vi.fn(),
   withDoctorWorkspacePrincipal: vi.fn(),
 }));
 
@@ -32,7 +31,6 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
     },
     systemSettings: {
       listSettingsByScope: fakes.listSettingsByScope,
-      getClinicPlatformIntegrationAvailability: fakes.getClinicPlatformIntegrationAvailability,
     },
   }),
 }));
@@ -91,10 +89,6 @@ describe('settings organization branding read', () => {
     fakes.requireEntitlementForReadAction.mockResolvedValue({ ok: false });
     fakes.isMechanicIncluded.mockResolvedValue(false);
     fakes.listSettingsByScope.mockResolvedValue([]);
-    fakes.getClinicPlatformIntegrationAvailability.mockResolvedValue({
-      version: 1,
-      integrations: { email: true, google_calendar: false },
-    });
     fakes.withDoctorWorkspacePrincipal.mockImplementation(
       async (
         workspace: { organizationId: string },
