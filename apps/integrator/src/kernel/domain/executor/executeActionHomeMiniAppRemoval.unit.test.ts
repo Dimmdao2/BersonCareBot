@@ -12,7 +12,7 @@ import { executeAction } from './executeAction.js';
 
 const HOME_SCRIPT_IDS = [
   'telegram.start',
-  'telegram.contact.link.confirm',
+  'telegram.contact.phone_messenger_bind.complete',
   'telegram.cabinet.open',
   'telegram.cabinet.open.callback',
 ] as const;
@@ -251,4 +251,33 @@ describe('main menu mini-app retirement', () => {
       expect(writes).toEqual([]);
     },
   );
+
+  it('D25: a token start claims through the signed webapp port, then asks for self-contact without an integrator write', async () => {
+    const contentPort = createContentPort({ rootDir: path.resolve(process.cwd(), 'src/content') });
+    const templatePort = createTemplatePort({ contentPort });
+    let claimCalls = 0;
+    const result = await executeAction(
+      {
+        id: 'phone-bind-claim-telegram',
+        type: 'webapp.phoneMessengerBind.claim',
+        mode: 'sync',
+        params: { setupToken: 'auth_993', channelCode: 'telegram', externalId: '99311' },
+      },
+      context('telegram'),
+      {
+        contentPort,
+        templatePort,
+        webappEventsPort: {
+          claimPhoneMessengerBind: async () => {
+            claimCalls += 1;
+            return { ok: true };
+          },
+        },
+      },
+    );
+
+    expect(result.status).toBe('success');
+    expect(claimCalls).toBe(1);
+    expect(JSON.stringify(result.intents)).toContain('request_contact');
+  });
 });

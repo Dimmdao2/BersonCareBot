@@ -204,7 +204,6 @@ GRANT SELECT ON TABLE public.user_channel_bindings TO app_owner; -- is_current_p
 -- saas_system_health_owner (curated ops/health dashboard accessors, NOT BYPASSRLS):
 GRANT SELECT ON TABLE public.idempotency_keys TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.integration_webhook_last_status TO saas_system_health_owner; -- read_curated_system_health_pre_0196
-GRANT SELECT ON TABLE public.integrator_push_outbox TO saas_system_health_owner; -- read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.media_files TO saas_system_health_owner; -- read_curated_system_health, read_curated_system_health_pre_0196
 GRANT SELECT ON TABLE public.media_hls_proxy_error_events TO saas_system_health_owner; -- read_curated_playback_health
 GRANT SELECT ON TABLE public.media_playback_client_events TO saas_system_health_owner; -- read_curated_system_health

@@ -32,7 +32,6 @@ import {
 import { cn } from '@/lib/utils';
 import { CopyForAiButton } from '@/app/app/settings/CopyForAiButton';
 import {
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
@@ -99,16 +98,6 @@ type SystemHealthPayload = {
     deadByKind: Record<string, number>;
     processingCount: number;
     lastSentAt: string | null;
-    lastQueueActivityAt: string | null;
-  };
-  integratorPushOutbox?: {
-    dueBacklog: number;
-    deadTotal: number;
-    oldestDueAgeSeconds: number | null;
-    dueByKind: Record<string, number>;
-    deadByKind: Record<string, number>;
-    processingCount: number;
-    oldestProcessingAgeSeconds: number | null;
     lastQueueActivityAt: string | null;
   };
   remindersPipeline?: {
@@ -288,7 +277,6 @@ type SystemHealthPayload = {
       operatorIncidents?: { status: string; durationMs: number; errorCode?: string };
       operatorBackupJobs?: { status: string; durationMs: number; errorCode?: string };
       outgoingDelivery?: { status: string; durationMs: number; errorCode?: string };
-      integratorPushOutbox?: { status: string; durationMs: number; errorCode?: string };
       remindersPipeline?: { status: string; durationMs: number; errorCode?: string };
       webPush?: { status: string; durationMs: number; errorCode?: string };
       notificationDelivery?: { status: string; durationMs: number; errorCode?: string };
@@ -701,21 +689,6 @@ function formatOutgoingByKind(counts: Record<string, number>): string {
   return entries
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([kind, n]) => `${outgoingDeliveryKindHuman(kind)}: ${n}`)
-    .join(', ');
-}
-
-function integratorPushOutboxKindHuman(kind: string): string {
-  const k = kind.trim();
-  if (k === 'reminder_rule_upsert') return 'Правила напоминаний';
-  return k || 'Прочее';
-}
-
-function formatIntegratorPushOutboxByKind(counts: Record<string, number>): string {
-  const entries = Object.entries(counts).filter(([, n]) => n > 0);
-  if (entries.length === 0) return '—';
-  return entries
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([kind, n]) => `${integratorPushOutboxKindHuman(kind)}: ${n}`)
     .join(', ');
 }
 
@@ -2105,72 +2078,6 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
               />
             </HealthAccordionItem>
 
-            <HealthAccordionItem
-              name="Очередь синка в integrator"
-              status={data?.meta?.probes?.integratorPushOutbox?.status ?? 'error'}
-            >
-              <DetailRow label="Итог" value="Очередь signed POST в integrator (ретраи)" />
-              <ProbeInfo probe={data?.meta?.probes?.integratorPushOutbox} />
-              <DetailRow
-                label="Ждут (due)"
-                value={String(data?.integratorPushOutbox?.dueBacklog ?? 0)}
-              />
-              <DetailRow label="Dead" value={String(data?.integratorPushOutbox?.deadTotal ?? 0)} />
-              <DetailRow
-                label="Processing"
-                value={String(data?.integratorPushOutbox?.processingCount ?? 0)}
-              />
-              <DetailRow
-                label="Ждут по типу"
-                value={formatIntegratorPushOutboxByKind(
-                  data?.integratorPushOutbox?.dueByKind ?? {},
-                )}
-              />
-              <DetailRow
-                label="Dead по типу"
-                value={formatIntegratorPushOutboxByKind(
-                  data?.integratorPushOutbox?.deadByKind ?? {},
-                )}
-              />
-              <DetailRow
-                label="Последнее изменение в очереди"
-                value={formatDateTime(data?.integratorPushOutbox?.lastQueueActivityAt ?? null)}
-              />
-              <DetailRow
-                label="Старейший due (с)"
-                value={
-                  data?.integratorPushOutbox?.oldestDueAgeSeconds == null
-                    ? '—'
-                    : String(data.integratorPushOutbox.oldestDueAgeSeconds)
-                }
-              />
-              <DetailRow
-                label="Старейший processing (с)"
-                value={
-                  data?.integratorPushOutbox?.oldestProcessingAgeSeconds == null
-                    ? '—'
-                    : String(data.integratorPushOutbox.oldestProcessingAgeSeconds)
-                }
-              />
-              {(data?.integratorPushOutbox?.deadTotal ?? 0) > 0 ? (
-                <div className="pt-3">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      setClearError(null);
-                      setOperatorAction({
-                        kind: 'archive',
-                        probe: HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
-                      });
-                    }}
-                  >
-                    Заархивировать и сбросить dead
-                  </Button>
-                </div>
-              ) : null}
-            </HealthAccordionItem>
           </div>
         </CardContent>
       </Card>
@@ -2226,12 +2133,6 @@ export function SystemHealthSection({ displayTimeZone }: { displayTimeZone: stri
               className="text-foreground underline underline-offset-2"
             >
               Архив: очередь доставки уведомлений
-            </Link>
-            <Link
-              href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}`}
-              className="text-foreground underline underline-offset-2"
-            >
-              Архив: очередь синка в integrator
             </Link>
             <Link
               href={`/app/settings?adminTab=health-archive&probe=${HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}`}

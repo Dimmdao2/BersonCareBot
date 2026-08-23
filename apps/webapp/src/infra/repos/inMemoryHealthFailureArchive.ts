@@ -8,9 +8,6 @@ export const inMemoryHealthFailureArchivePort: HealthFailureArchivePort = {
   async archiveOutgoingDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {
     return { inserted: 0, deleted: 0 };
   },
-  async archiveIntegratorPushOutboxDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {
-    return { inserted: 0, deleted: 0 };
-  },
   async archiveOutgoingReminderDeadBatch(): Promise<HealthFailureArchiveClearBatchResult> {
     return { inserted: 0, deleted: 0 };
   },

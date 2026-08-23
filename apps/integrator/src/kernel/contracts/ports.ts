@@ -35,7 +35,6 @@ export type DbReadQueryType =
 export type DbWriteMutationType =
   | 'user.upsert'
   | 'user.phone.link'
-  | 'reminders.rule.upsert'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'
   | 'reminders.occurrence.expireOrphanedPending'
@@ -224,6 +223,12 @@ export type ActorResolutionRequest = {
   };
 };
 
+/**
+ * D25 correction (owner decision 23.08.2026): despite the name, `ensureActor` no longer ensures
+ * (creates) anything — it is a best-effort LOOKUP against the existing channel identity, delegated to
+ * `app.integrator_upsert_channel_identity` (now lookup-only, see `writeIdentityAndPreferencesDirect.ts`
+ * module header). An unresolved actor stays unresolved; the caller must not treat that as a failure.
+ */
 export type ActorResolutionPort = {
   ensureActor(input: ActorResolutionRequest): Promise<void>;
 };
@@ -349,7 +354,7 @@ export type WebappEventsPort = {
     externalId: string;
   }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean; phoneNormalized?: string }>;
   completePhoneMessengerBind?(params: {
-    setupToken: string;
+    setupToken?: string;
     channelCode: string;
     externalId: string;
     phoneNormalized: string;
@@ -364,6 +369,11 @@ export type WebappEventsPort = {
     replay?: boolean;
     syncTargetUserId?: string | null;
   }>;
+  claimPhoneMessengerBind?(params: {
+    setupToken: string;
+    channelCode: string;
+    externalId: string;
+  }): Promise<{ ok: boolean; error?: string }>;
   /** Web Push для записи на приём / рассылок (POST /api/integrator/patient-notifications/web-push). */
   notifyPatientWebPush?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;

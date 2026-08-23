@@ -56,7 +56,6 @@ export async function collectOperatorHealthDigestInput(params: {
         (incident) => incident.direction === 'outbound_delivery_provider',
       ).length,
     },
-    integratorPushOutbox: health.integratorPushOutbox,
     backupJobs: Object.fromEntries(
       Object.entries(health.backupJobs).map(([jobKey, row]) => [
         jobKey,

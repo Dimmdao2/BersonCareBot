@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import {
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
 } from '@/modules/operator-health/healthFailureArchiveConstants';
@@ -11,7 +10,6 @@ import type { HealthFailureArchiveProbe } from '@/modules/operator-health/health
 
 const probeEnum = z.enum([
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
 ]);
 

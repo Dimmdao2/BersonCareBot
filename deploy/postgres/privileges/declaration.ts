@@ -1105,10 +1105,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'здоровья интеграций',
     revoke: { app_staff: 'D19: платформенная телеметрия входящих вебхуков.' },
     defect: ['D19-operator-tables'] },
-  { t: 'public.integrator_push_outbox', cls: 'S', org: false, why: 'Очередь исходящих push к integrator — без неё '
-    + 'webapp не дотолкает событие до integrator при сбое',
-    revoke: { app_staff: 'D19: межсервисная очередь событий — стена своей роли; арендной роли здесь не место.' },
-    defect: ['D19-operator-tables'] },
   { t: 'public.lfk_complex_exercises', cls: 'P', org: true, why: 'Строки комплекса пациента — сам состав назначения '
     + '(что и сколько делать)' },
   { t: 'public.lfk_complex_template_exercises', cls: 'C', org: true, wall: 'reference-org-copy', why: 'Строки '
@@ -1593,7 +1589,6 @@ const db_bersoncarebot_test: DatabaseDecl = {
       + 'SCHEME §A.4). Исключения — явными записями. Следствие отзывов выше: USAGE на последовательность уходит '
       + 'вместе с табличным грантом — оставшийся грант на последовательность есть §F-красный.',
     examples: { // evidence/13 §2.5 (подтверждено)
-      'public.integrator_push_outbox_id_seq': { app_staff: ['USAGE', 'SELECT'] },
       'public.be_patient_packages_display_number_seq': { app_staff: ['USAGE', 'SELECT'] },
     },
   },
@@ -2048,7 +2043,6 @@ function applyCanonicalContactSurfaceCorrections(
  */
 const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'app.archive_operator_health_failures(text,integer,uuid)': {
-    'public.integrator_push_outbox': 'updated_at',
     'public.outgoing_delivery_queue': 'updated_at',
   },
   'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)': {
@@ -2709,14 +2703,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.bootstrap-phone-bind',
       functionIdentity: 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)' },
-    // D17 шаг 1: именованные корни вместо реляционной записи продуктового канона из интегратора.
-    // Класс контекста у каждого — тот же, под которым идёт ЖИВОЙ маршрут: `tenant_service` там, где
-    // запись сегодня исполняется организационным принципалом, и `service` там, где её приземляет
-    // долговечный повтор доставки.
-    integrator_reminder_rule_upsert: { port: 'integrator', runtimeName: 'reminder_rule_upsert',
-      sessionRole: 'app_integrator_request', targetRole: 'app_integrator_request',
-      contextClass: 'tenant_service', purpose: 'integrator.reminder-rule.upsert',
-      functionIdentity: 'app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)' },
     integrator_delivery_reminder_delivery_event_append: { port: 'integrator',
       runtimeName: 'delivery_reminder_delivery_event_append', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
@@ -3448,6 +3434,14 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.phone-messenger-bind.completion-state',
       functionIdentity: 'app.phone_messenger_bind_completion_state(text,text,text,text)' },
+    phone_messenger_bind_claim: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-messenger-bind.claim',
+      functionIdentity: 'app.phone_messenger_bind_claim(text,text,text)' },
+    phone_messenger_bind_claimed_secret: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-messenger-bind.claimed-secret.read',
+      functionIdentity: 'app.phone_messenger_bind_claimed_secret(text,text,text)' },
     phone_auth_register_otp_lockout: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'auth.phone-otp.lock.register',
       functionIdentity: 'app.phone_auth_register_otp_lockout(text,bigint)' },
@@ -3803,25 +3797,6 @@ const REV10_CONTEXT = {
           'capability_id', 'port', 'session_login', 'target_role', 'context_class', 'purpose',
           'function_identity', 'active_from', 'active_until',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
-    'app.enqueue_current_reminder_rule_push(text)': rev10Function({
-      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
-      execute: ['app_patient', 'app_staff'], purpose: 'enqueue only the current patient or staff-org reminder retry',
-      typedArgs: ['text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
-      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
-      relationSurfaces: [
-        { relation: 'public.reminder_rules', columns: [
-          'integrator_rule_id', 'organization_id', 'platform_user_id', 'integrator_user_id', 'category',
-          'is_enabled', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask',
-          'timezone', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'schedule_type',
-          'schedule_data', 'reminder_intent', 'display_title', 'display_description', 'quiet_hours_start_minute',
-          'quiet_hours_end_minute', 'notification_topic_code', 'updated_at'], operations: ['SELECT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.integrator_push_outbox', columns: [
-          'kind', 'idempotency_key', 'payload', 'status', 'attempts_done', 'next_try_at', 'last_error', 'updated_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app_ext.digest(text,text)': rev10Function({
@@ -4692,6 +4667,26 @@ const REV10_CONTEXT = {
         { relation: 'public.platform_users', columns: ['id', 'merged_into_id', 'created_at'],
           operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
       ],
+    }),
+    'app.phone_messenger_bind_claim(text,text,text)': rev10Function({
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.claim',
+      typedArgs: ['text', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.phone_messenger_bind_secrets',
+        columns: ['id', 'token_hash', 'channel_code', 'status', 'failure_code', 'expires_at',
+          'claimed_external_id', 'claimed_at', 'created_at'],
+        operations: ['SELECT', 'UPDATE'], evidence: 'pg16-function-body-lexical-upper-bound' }],
+    }),
+    'app.phone_messenger_bind_claimed_secret(text,text,text)': rev10Function({
+      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_pre_session'], purpose: 'auth.phone-messenger-bind.claimed-secret.read',
+      typedArgs: ['text', 'text', 'text'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.phone_messenger_bind_secrets',
+        columns: ['id', 'token_hash', 'phone_normalized', 'channel_code', 'purpose', 'user_id', 'status',
+          'challenge_id', 'failure_code', 'expires_at', 'consumed_at', 'claimed_external_id', 'claimed_at'],
+        operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.auth_oauth_find_user(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.auth_oauth_find_user(text,text)'],
@@ -6613,6 +6608,12 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // D25 correction (owner decision 23.08.2026): the root became LOOKUP-ONLY (migration
+    // `20260823T093000_channel_identity_root_becomes_lookup_only.sql`) — the create branch (INSERT
+    // into `platform_users`/`user_identity`/`user_channel_bindings`/`user_channel_preferences`) was
+    // removed from the function body entirely. Narrowed to the operations the body actually performs:
+    // SELECT the existing binding, and — only when one is found — UPDATE its `display_handle`.
+    // `user_identity`/`user_channel_preferences` are no longer touched at all.
     'app.integrator_upsert_channel_identity(text,text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.channel-identity.upsert',
@@ -6620,21 +6621,12 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
         { relation: 'public.platform_users',
-          columns: ['id', 'display_name', 'merged_into_id'],
-          operations: ['SELECT' as const, 'INSERT' as const],
+          columns: ['id', 'merged_into_id'],
+          operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_channel_bindings',
           columns: ['user_id', 'channel_code', 'external_id', 'display_handle'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_identity',
-          columns: ['platform_user_id', 'display_name', 'updated_at'],
-          operations: ['INSERT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_channel_preferences',
-          columns: ['user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
-            'is_enabled_for_notifications', 'updated_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
+          operations: ['SELECT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -6678,38 +6670,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_organization_members', columns: ['platform_user_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
-    // D17 шаг 1: шесть реляционных писателей продуктового канона в интеграторе переведены на
-    // именованные корни. Каждое тело повторяет ту стену, которую сегодня даёт RLS роли рантайма
-    // (ссылка на конкретную политику — в шапке миграции корня).
-    'app.integrator_upsert_reminder_rule(text,text,uuid,bigint,text,boolean,text,text,integer,integer,integer,text,text,text,text,text,text,text,text,integer,integer,text,boolean)': rev10Function({
-      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
-      execute: ['app_integrator_request'], purpose: 'integrator.reminder-rule.upsert',
-      typedArgs: ['text', 'text', 'uuid', 'bigint', 'text', 'boolean', 'text', 'text', 'integer',
-        'integer', 'integer', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'text',
-        'integer', 'integer', 'text', 'boolean'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.reminder_rules',
-          columns: ['integrator_rule_id', 'platform_user_id', 'organization_id', 'integrator_user_id',
-            'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes',
-            'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode',
-            'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'schedule_data',
-            'reminder_intent', 'quiet_hours_start_minute', 'quiet_hours_end_minute',
-            'notification_topic_code', 'updated_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_organization_members',
-          columns: ['platform_user_id', 'organization_id', 'status'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.org_enrollments',
-          columns: ['platform_user_id', 'organization_id', 'status'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'integrator.user_reminder_occurrences',
-          columns: ['rule_id', 'status', 'organization_id'],
-          operations: ['SELECT' as const, 'DELETE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)': rev10Function({
@@ -6950,9 +6910,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users', columns: ['id', 'display_name', 'first_name', 'last_name'],
           operations: ['SELECT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.integrator_push_outbox', columns: ['id', 'kind', 'status', 'last_error',
-          'created_at'], operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.operator_health_failure_archive', columns: ['organization_id', 'archived_by_user_id',
           'health_probe', 'source_kind', 'source_id', 'severity_at_archive', 'doctor_user_id', 'summary_json',

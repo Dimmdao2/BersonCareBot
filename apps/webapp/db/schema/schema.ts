@@ -1250,6 +1250,8 @@ export const phoneMessengerBindSecrets = pgTable(
     status: text().default('pending_contact').notNull(),
     challengeId: text('challenge_id'),
     failureCode: text('failure_code'),
+    claimedExternalId: text('claimed_external_id'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true, mode: 'string' }),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -1265,6 +1267,11 @@ export const phoneMessengerBindSecrets = pgTable(
       'btree',
       table.phoneNormalized.asc().nullsLast().op('text_ops'),
       table.status.asc().nullsLast().op('text_ops'),
+    ),
+    index('idx_phone_messenger_bind_secrets_live_claim').using(
+      'btree',
+      table.channelCode.asc().nullsLast().op('text_ops'),
+      table.claimedExternalId.asc().nullsLast().op('text_ops'),
     ),
     foreignKey({
       columns: [table.userId],
@@ -3087,43 +3094,6 @@ export const reminderJournal = pgTable(
     check(
       'reminder_journal_skip_reason_check',
       sql`(skip_reason IS NULL) OR (length(skip_reason) <= 500)`,
-    ),
-  ],
-);
-
-export const integratorPushOutbox = pgTable(
-  'integrator_push_outbox',
-  {
-    id: bigserial({ mode: 'bigint' }).primaryKey().notNull(),
-    kind: text().notNull(),
-    idempotencyKey: text('idempotency_key').notNull(),
-    payload: jsonb().default({}).notNull(),
-    status: text().default('pending').notNull(),
-    attemptsDone: integer('attempts_done').default(0).notNull(),
-    maxAttempts: integer('max_attempts').default(8).notNull(),
-    nextTryAt: timestamp('next_try_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    lastError: text('last_error'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_integrator_push_outbox_due')
-      .using(
-        'btree',
-        table.status.asc().nullsLast().op('text_ops'),
-        table.nextTryAt.asc().nullsLast().op('text_ops'),
-      )
-      .where(sql`(status = 'pending'::text)`),
-    unique('integrator_push_outbox_idempotency_key_key').on(table.idempotencyKey),
-    check(
-      'integrator_push_outbox_status_check',
-      sql`status = ANY (ARRAY['pending'::text, 'processing'::text, 'done'::text, 'dead'::text])`,
     ),
   ],
 );

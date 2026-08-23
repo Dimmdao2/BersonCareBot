@@ -138,7 +138,6 @@ export async function PATCH(req: Request, context: { params: Promise<{ id: strin
       res.data,
       await getAppDisplayTimeZone(),
     ),
-    ...(res.syncWarning ? { syncWarning: res.syncWarning } : {}),
   });
 }
 

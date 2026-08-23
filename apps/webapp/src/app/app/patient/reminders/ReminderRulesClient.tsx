@@ -94,16 +94,13 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
   const refresh = () => router.refresh();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const handleToggle = (checked: boolean) => {
     setError(null);
-    setSyncWarning(null);
     startTransition(async () => {
       const res = await toggleReminderCategory(rule.category, checked);
       if (!res.ok) setError(res.error);
-      else if (res.syncWarning) setSyncWarning(res.syncWarning);
     });
   };
 
@@ -150,9 +147,6 @@ function LegacyCategoryRuleCard({ rule }: { rule: ReminderRule }) {
           />
 
           {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
-          {syncWarning && !error && (
-            <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{syncWarning}</p>
-          )}
         </CardContent>
       )}
     </Card>

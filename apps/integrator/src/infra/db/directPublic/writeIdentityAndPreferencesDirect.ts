@@ -1,11 +1,21 @@
 /**
- * D25 — live write path for `user.upsert` (Telegram/MAX webhooks).
+ * D25 correction (owner decision 23.08.2026, "Роль бота после появления приложения"): `user.upsert`
+ * (Telegram/MAX webhooks) is now LOOKUP-ONLY.
  *
  * `upsertBootstrapChannelIdentity` is the single exact named root
  * (`app.integrator_upsert_channel_identity`) for canonical `public.platform_users` /
- * `public.user_channel_bindings` channel-identity upsert, used for every principal (bootstrap and
+ * `public.user_channel_bindings` channel-identity RESOLUTION, used for every principal (bootstrap and
  * organization/integrator alike — see `writePort.ts` `user.upsert`). It never opens a relation
- * transaction; the SECURITY DEFINER root does the whole resolve-or-create + channel-binding write.
+ * transaction. A generic Telegram/MAX webhook proves nothing about phone ownership — an unresolved
+ * `externalId` returns `null` and creates NOTHING (no `platform_users`, no `user_identity`, no
+ * `user_channel_bindings`, no `user_channel_preferences` row). The root's own SQL body
+ * (`app.integrator_upsert_channel_identity`, migration
+ * `20260823T093000_channel_identity_root_becomes_lookup_only.sql`) removed the INSERT branch entirely
+ * — this is not a TS-side filter around a still-creating root. Canonical account creation/binding
+ * belongs exclusively to webapp-owned completion of the token-bound
+ * `POST /api/auth/phone/messenger-bind/start` → `webapp.phoneMessengerBind.complete` flow
+ * (`applyMessengerContactPreOtp`, `app.phone_messenger_bind_completion_state`) — never to a bare
+ * webhook.
  *
  * `collectPlatformUserCandidates` remains a thin wrapper over the shared
  * `@bersoncare/platform-merge` candidate lookup, used by other bounded direct-public writers
@@ -29,6 +39,12 @@ export type WriteIdentityAndPreferencesResult = {
   topicsWritten: number;
 };
 
+/**
+ * Lookup-only: resolves an EXISTING `platform_users` row bound to this channel identity. Returns
+ * `null` when no such binding exists — the root does not create one (see module header). Callers
+ * MUST treat `null` as "unresolved actor", never as an error: a generic webhook from an unknown
+ * messenger id is an expected, ordinary case, not a failure.
+ */
 export async function upsertBootstrapChannelIdentity(
   db: DbPort,
   input: {
@@ -36,11 +52,10 @@ export async function upsertBootstrapChannelIdentity(
     externalId: string;
     displayHandle?: string | null;
   },
-): Promise<WriteIdentityAndPreferencesResult> {
+): Promise<WriteIdentityAndPreferencesResult | null> {
   const displayHandle = normalizeChannelDisplayHandle(input.displayHandle);
   const result = await runIntegratorNamedRoot<{
     platform_user_id: string;
-    account_created: boolean;
     channel_binding_inserted: boolean;
   }>(
     db,
@@ -53,7 +68,7 @@ export async function upsertBootstrapChannelIdentity(
     )`,
   );
   const row = result.rows[0];
-  if (!row) throw new DirectPublicWriteError('platform_user_write_failed');
+  if (!row) return null;
   return {
     platformUserId: row.platform_user_id,
     channelBindingInserted: row.channel_binding_inserted,

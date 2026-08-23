@@ -46,7 +46,6 @@ function mapSystemHealthToBannerInput(s: SystemHealthResponse): OperatorHealthBa
       deadTotal: s.outgoingDelivery.deadTotal,
       dueBacklog: s.outgoingDelivery.dueBacklog,
     },
-    integratorPushOutbox: s.integratorPushOutbox,
     backupJobs,
     probeConsecutiveFailRuns: s.probeOutbound?.consecutiveFailRuns ?? 0,
     videoTranscodeStatus: s.videoTranscode.status,

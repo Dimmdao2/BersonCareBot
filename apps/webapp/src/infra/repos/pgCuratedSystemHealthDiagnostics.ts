@@ -172,7 +172,6 @@ export const curatedSystemHealthSnapshotSchema = z
       .strict()
       .default({ openCount: 0, acknowledgedCount: 0, unacknowledgedCount: 0 }),
     outgoingDelivery: queueSchema,
-    integratorPushOutbox: queueSchema,
     remindersPipeline: z
       .object({
         windowHours: z.literal(24),
