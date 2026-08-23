@@ -16,6 +16,12 @@ where PROD will eventually differ.
 
 ## 0. Summary
 
+⚠️ **ФАКТ УСТАРЕЛ 2026-08-23 — не запускать как runbook.** Документ предшествует port-context cutover:
+текущий TEST deploy требует `DB_PRINCIPAL_CONTEXT_MODE=port-context`
+(`deploy/host/deploy-test.sh`) и именованные runtime logins описаны в
+`deploy/postgres/privileges/declaration.ts`. Новая mTLS boundary имеет отдельный канонический маршрут в
+`deploy/HOST_DEPLOY_README.md`; ниже сохранён исторический план, а не подтверждённая инструкция для хоста.
+
 - Both services run `User=deploy Group=deploy` (`systemctl cat`, confirmed). `deploy` is root-equivalent
   today (unrestricted `sudo systemctl/sed/apt-get`, plus a NOPASSWD `bash` as the unrelated `tgcarebot`
   project's OS account) — a webapp/api compromise inherits all of it.

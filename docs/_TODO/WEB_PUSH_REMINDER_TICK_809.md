@@ -1,7 +1,7 @@
 # #809 — Web Push reminder tick: patient-policy conflict
 
-Status: Opus + Sol plan review completed; source implementation may resume. Live TEST tick and cron follow only
-after audited integration.
+~~Status: Opus + Sol plan review completed; source implementation may resume. Live TEST tick and cron follow only
+after audited integration.~~ ✅ **СДЕЛАНО 2026-07-31:** пункты 809-P1…P5 ниже уже закрыты.
 
 Taskdb: `#809` — `WebPush reminder tick: починить TEST job и установить cron`.
 
@@ -20,6 +20,11 @@ engineering practice and should not be returned to the owner as a database-desig
 The DB/RLS test freeze in `TEST_SUITE_AUDIT_2026-07-29.md` remains active. This task does not create a new DB test
 framework, a `*.postgres.integration.test.ts`, or shared-DEV proof. It extends the existing private C4 shell smoke
 on its disposable `/tmp` PostgreSQL cluster. PROD remains completely outside scope.
+
+⚠️ **ФАКТ УСТАРЕЛ 2026-08-23 — не воспроизводить этот способ проверки.** После cutover права и RLS
+производятся из `deploy/postgres/privileges/declaration.ts` генератором; миграция не содержит
+`GRANT`/`REVOKE`/`CREATE POLICY`, а одноразовые базы запрещены `AGENTS.md` §1b. Актуальная запись policy для
+`content_sections`/`content_pages` находится в generated privileges и использует named seam owners.
 
 Authority package:
 
