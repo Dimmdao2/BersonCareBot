@@ -8,6 +8,7 @@
  */
 
 export const SMS_ERROR_CODES = [
+  'auth_channel_disabled',
   'invalid_phone',
   'delivery_failed',
   'rate_limited',

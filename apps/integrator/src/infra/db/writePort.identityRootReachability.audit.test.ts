@@ -185,7 +185,7 @@ describe('D25 audit — identity/phone roots must be reachable under the webhook
 
   it('user.phone.link binds the confirmed contact when the clinic AND integrator user are resolved', async () => {
     const { db, productQueries } = portContextHarness(BIND_OK_ROW);
-    const port = createDbWritePort({ db });
+    const port = createDbWritePort({ db, authChannelPolicy: async () => true });
 
     const result = await runWithIntegratorPrincipal(
       { organizationId: ORG, integratorUserId: '42', source: 'telegram-webhook' },
@@ -203,7 +203,7 @@ describe('D25 audit — identity/phone roots must be reachable under the webhook
 
   it('user.phone.link binds the confirmed contact when only the clinic is resolved', async () => {
     const { db, productQueries } = portContextHarness(BIND_OK_ROW);
-    const port = createDbWritePort({ db });
+    const port = createDbWritePort({ db, authChannelPolicy: async () => true });
 
     const result = await runWithOrganizationPrincipal(ORG, () =>
       port.writeDb({

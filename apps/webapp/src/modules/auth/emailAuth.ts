@@ -10,6 +10,7 @@ import {
 import type { EmailAuthDbPort, EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
 import type { MailProfileRequest } from '@/modules/auth/mailProfile';
+import { AUTH_CHANNEL_DISABLED_ERROR } from '@/modules/auth/authChannelPolicy';
 
 export type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 
@@ -182,7 +183,12 @@ export type EmailStartResult =
   | { ok: true; challengeId: string; retryAfterSeconds?: number }
   | {
       ok: false;
-      code: 'invalid_email' | 'rate_limited' | 'too_many_attempts' | 'email_send_failed';
+      code:
+        | 'auth_channel_disabled'
+        | 'invalid_email'
+        | 'rate_limited'
+        | 'too_many_attempts'
+        | 'email_send_failed';
       retryAfterSeconds?: number;
     };
 
@@ -305,7 +311,13 @@ export async function startEmailChallenge(
     const sent = await sendEmailAuthCode(email, code, mailProfile);
     if (!sent.ok) {
       memEmailChallenges.delete(challengeId);
-      return { ok: false, code: 'email_send_failed' };
+      return {
+        ok: false,
+        code:
+          sent.error === AUTH_CHANNEL_DISABLED_ERROR
+            ? AUTH_CHANNEL_DISABLED_ERROR
+            : 'email_send_failed',
+      };
     }
     return { ok: true, challengeId, retryAfterSeconds: OTP_RESEND_COOLDOWN_SEC };
   }

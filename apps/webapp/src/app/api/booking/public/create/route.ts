@@ -35,6 +35,7 @@ import {
 } from '@/modules/patient-booking/inPersonBookingResolve';
 import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { logger } from '@/app-layer/logging/logger';
+import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 import {
   jsonError,
   jsonOk,
@@ -175,8 +176,18 @@ export async function POST(request: Request) {
       return jsonError('identity_not_verified', {}, { status: 403 });
     }
 
+    const deliveryGate = await withAuthDeliveryChannelGate('sms', async () => ({
+      ok: true as const,
+    }));
+    if (!deliveryGate.ok) {
+      return jsonError(deliveryGate.reason, {}, { status: 403 });
+    }
+
     const issued = await issuePublicBookingVerification(deps.publicBookingVerification, intent);
     if (!issued.ok) {
+      if (issued.code === 'auth_channel_disabled') {
+        return jsonError(issued.code, {}, { status: 403 });
+      }
       if (issued.code === 'invalid_phone') {
         return jsonError('invalid_phone', {}, { status: 400 });
       }

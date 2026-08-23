@@ -8,6 +8,7 @@ import {
   getIntegratorApiUrl,
   getIntegratorWebhookSecret,
 } from '@/modules/system-settings/integrationRuntime';
+import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 
 /** Окно идемпотентности: повторные нажатия в Mini App не шлют новое сообщение в чат до смены окна. */
 const IDEMPOTENCY_WINDOW_MS = 5 * 60 * 1000;
@@ -21,6 +22,16 @@ function signPayload(timestamp: string, rawBody: string, secret: string): string
 }
 
 export async function requestMessengerContactViaIntegrator(input: {
+  channel: 'telegram' | 'max';
+  recipientId: string;
+}): Promise<RequestMessengerContactResult> {
+  const gated = await withAuthDeliveryChannelGate(input.channel, () =>
+    requestMessengerContactUnchecked(input),
+  );
+  return gated.ok ? gated : { ok: false, reason: gated.reason };
+}
+
+async function requestMessengerContactUnchecked(input: {
   channel: 'telegram' | 'max';
   recipientId: string;
 }): Promise<RequestMessengerContactResult> {

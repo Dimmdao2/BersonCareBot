@@ -82,7 +82,11 @@ export async function POST(request: NextRequest) {
   });
   if (!result.ok) {
     const status =
-      result.reason === 'no_integrator_url' || result.reason === 'no_webhook_secret' ? 503 : 502;
+      result.reason === AUTH_CHANNEL_DISABLED_ERROR
+        ? 403
+        : result.reason === 'no_integrator_url' || result.reason === 'no_webhook_secret'
+          ? 503
+          : 502;
     return NextResponse.json({ ok: false, error: result.reason }, { status });
   }
 

@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import { env, integratorWebhookSecret } from '@/config/env';
+import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 type SendEmailResult = { ok: true } | { ok: false; error: string };
@@ -69,10 +70,16 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
       mailProfile: MailProfileRequest,
     ): Promise<SendEmailResult> {
       const mailProfileJson = JSON.stringify(mailProfile);
-      return postSendEmail(
-        { to, code, mailProfile: mailProfileJson },
-        emailIdempotencyKey({ to, code, mailProfile: mailProfileJson }),
+      const gated = await withAuthDeliveryChannelGate('email', () =>
+        postSendEmail(
+          { to, code, mailProfile: mailProfileJson },
+          emailIdempotencyKey({ to, code, mailProfile: mailProfileJson }),
+        ),
       );
+      if (!gated.ok && 'reason' in gated) {
+        return { ok: false, error: gated.reason };
+      }
+      return gated;
     },
 
     async sendTransactionalEmail(

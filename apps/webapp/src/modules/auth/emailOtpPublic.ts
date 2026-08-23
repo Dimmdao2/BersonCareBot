@@ -42,7 +42,12 @@ export type StartPublicEmailOtpRegistrationResult =
   | StartPublicEmailOtpResult
   | {
       ok: false;
-      code: 'duplicate_email' | 'invalid_fio' | 'email_send_failed' | 'too_many_attempts';
+      code:
+        | 'auth_channel_disabled'
+        | 'duplicate_email'
+        | 'invalid_fio'
+        | 'email_send_failed'
+        | 'too_many_attempts';
     };
 
 export type ConfirmPublicEmailOtpResult =

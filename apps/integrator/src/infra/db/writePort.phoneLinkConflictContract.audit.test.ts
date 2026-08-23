@@ -47,7 +47,7 @@ function rowDb(row: Record<string, unknown>): DbPort {
 
 const linkPhone = (db: DbPort): Promise<unknown> =>
   runWithOrganizationPrincipal(ORG, () =>
-    createDbWritePort({ db }).writeDb({
+    createDbWritePort({ db, authChannelPolicy: async () => true }).writeDb({
       type: 'user.phone.link',
       params: {
         resource: 'telegram',
