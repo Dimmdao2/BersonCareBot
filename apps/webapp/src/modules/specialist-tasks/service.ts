@@ -87,16 +87,8 @@ export function createSpecialistTasksService(
       return port.getByIdForOwner(taskId, ownerUserId);
     },
 
-    listDueReminders(nowIso: string, limit: number) {
-      return port.listDueReminders(nowIso, limit);
-    },
-
     markReminderSent(taskId: string, sentAtIso: string) {
       return port.markReminderSent(taskId, sentAtIso);
-    },
-
-    enqueueDueReminders(nowIso: string, limit: number) {
-      return port.enqueueDueReminders(nowIso, limit);
     },
 
     async buildPatientSummaryFromTasks(

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNotNull, isNull, lte } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
@@ -233,24 +233,6 @@ export function createPgSpecialistTasksPort(
       return summary;
     },
 
-    async listDueReminders(nowIso, limit) {
-      const db = getDrizzle();
-      const rows = await db
-        .select()
-        .from(specialistTasks)
-        .where(
-          and(
-            isNull(specialistTasks.completedAt),
-            isNotNull(specialistTasks.remindAt),
-            lte(specialistTasks.remindAt, nowIso),
-            isNull(specialistTasks.reminderSentAt),
-          ),
-        )
-        .orderBy(asc(specialistTasks.remindAt))
-        .limit(limit);
-      return rows.map(mapRow);
-    },
-
     async markReminderSent(taskId, sentAtIso) {
       await runDrizzleMutationTransaction(async (tx) => {
         const existing = await tx.query.specialistTasks.findFirst({
@@ -266,31 +248,6 @@ export function createPgSpecialistTasksPort(
           })
           .where(and(eq(specialistTasks.id, taskId), isNull(specialistTasks.reminderSentAt)));
       });
-    },
-
-    async enqueueDueReminders(nowIso, limit) {
-      const due = await this.listDueReminders(nowIso, limit);
-      let enqueued = 0;
-      for (const task of due) {
-        await runDrizzleMutationTransaction(async (tx) => {
-          const fresh = await tx.query.specialistTasks.findFirst({
-            where: and(
-              eq(specialistTasks.id, task.id),
-              isNull(specialistTasks.completedAt),
-              isNotNull(specialistTasks.remindAt),
-            ),
-          });
-          if (!fresh) return;
-          const deliveries = await prepareReminderDeliveries(mapRow(fresh));
-          await queueWriter.replaceSpecialistTaskReminderGeneration(tx, {
-            taskId: task.id,
-            deliveries,
-            reason: 'SPECIALIST_TASK_REMINDER_SUPERSEDED',
-          });
-          enqueued += deliveries.length;
-        });
-      }
-      return { processed: due.length, enqueued };
     },
   };
 }
