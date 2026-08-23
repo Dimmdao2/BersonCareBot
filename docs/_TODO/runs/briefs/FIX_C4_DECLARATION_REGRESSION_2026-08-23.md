@@ -1,8 +1,7 @@
 # Бриф: C4 уронил два гейта прав БД в интеграционной ветке — починить и доказать
 
 **Источник оракула:** `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`, пункт `C4` —
-«Отправитель определяется ролью получателя: персоналу — Therapysto, пациенту — Therapygo или бренд клиники.»
-Плюс `AGENTS.md`, раздел про декларацию прав: каждая функция и каждое чтение стенованной таблицы объявлены.
+«`C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template».
 
 **Клон:** `/home/dev/dev-projects/bcb-wt-therapysto-night-20260823`, ветка `wt/therapysto-night-20260823`
 (интеграционная ветка ночи; слайс `C4` в неё уже сведён коммитом `208f24990`).
