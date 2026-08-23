@@ -355,7 +355,7 @@ export type WebappEventsPort = {
     externalId: string;
   }): Promise<{ ok: boolean; error?: string; needsPhone?: boolean; phoneNormalized?: string }>;
   completePhoneMessengerBind?(params: {
-    setupToken: string;
+    setupToken?: string;
     channelCode: string;
     externalId: string;
     phoneNormalized: string;
@@ -370,6 +370,11 @@ export type WebappEventsPort = {
     replay?: boolean;
     syncTargetUserId?: string | null;
   }>;
+  claimPhoneMessengerBind?(params: {
+    setupToken: string;
+    channelCode: string;
+    externalId: string;
+  }): Promise<{ ok: boolean; error?: string }>;
   /** Web Push для записи на приём / рассылок (POST /api/integrator/patient-notifications/web-push). */
   notifyPatientWebPush?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;

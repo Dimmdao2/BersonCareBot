@@ -37,7 +37,7 @@ vi.mock('@/config/env', async (importOriginal) => {
   return { ...actual, webappReposAreInMemory: () => false };
 });
 
-const { completePhoneMessengerBindFromIntegrator } = await import('./phoneMessengerBind');
+const { claimPhoneMessengerBindFromIntegrator, completePhoneMessengerBindFromIntegrator } = await import('./phoneMessengerBind');
 
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000e0001';
 const ATTEMPT_PHONE = '+79180000011';
@@ -54,6 +54,8 @@ function baseRow(overrides: Partial<PhoneMessengerBindSecretRow> = {}): PhoneMes
     status: 'pending_contact',
     challenge_id: null,
     failure_code: null,
+    claimed_external_id: 'tg-1',
+    claimed_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 60_000).toISOString(),
     consumed_at: null,
     ...overrides,
@@ -66,6 +68,8 @@ function buildFakePort(
 ): PhoneMessengerBindPort {
   return {
     findByTokenHash: vi.fn(async () => row),
+    claimToken: vi.fn(async () => ({ ok: true, code: 'claimed' })),
+    findLiveClaim: vi.fn(async () => (row ? { ...row, token_hash: 'token-hash' } : null)),
     startSecret: vi.fn(async () => {}),
     updateExpired: vi.fn(async () => {}),
     updateFailed: vi.fn(async () => {}),
@@ -103,13 +107,37 @@ function complete(
 }
 
 describe('D25 — token-bound completion refuses every unproven combination and writes nothing', () => {
+  it('a valid signed start claims only the existing attempt and never enters the canonical contact door', async () => {
+    const port = buildFakePort(baseRow());
+
+    const result = await claimPhoneMessengerBindFromIntegrator(
+      { setupToken: TOKEN, channelCode: 'telegram', externalId: 'tg-1' },
+      port,
+    );
+
+    expect(result).toEqual({ ok: true });
+    expect(port.claimToken).toHaveBeenCalledWith({
+      tokenHash: expect.any(String), channelCode: 'telegram', externalId: 'tg-1',
+    });
+    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
+  });
+
+  it('a provider-owned contact without the matching live claim is rejected before canonical contact handling', async () => {
+    const port = buildFakePort(baseRow(), { findLiveClaim: vi.fn(async () => null) });
+
+    const result = await complete(port, { setupToken: undefined });
+
+    expect(result).toEqual({ ok: false, code: 'no_live_claim' });
+    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
+  });
+
   it('a token that is not an auth_ setup token is refused before the port is touched', async () => {
     const port = buildFakePort(baseRow());
 
     const result = await complete(port, { setupToken: 'link_abc123' });
 
     expect(result).toEqual({ ok: false, code: 'invalid_token' });
-    expect(port.findByTokenHash).not.toHaveBeenCalled();
+    expect(port.findLiveClaim).not.toHaveBeenCalled();
     expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
@@ -118,7 +146,7 @@ describe('D25 — token-bound completion refuses every unproven combination and 
 
     const result = await complete(port);
 
-    expect(result).toEqual({ ok: false, code: 'unknown_or_expired' });
+    expect(result).toEqual({ ok: false, code: 'no_live_claim' });
     expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
@@ -171,24 +199,25 @@ describe('D25 — token-bound completion refuses every unproven combination and 
     const result = await complete(port, { contactPhoneNormalized: 'not-a-phone' });
 
     expect(result).toEqual({ ok: false, code: 'invalid_contact_phone' });
-    expect(port.findByTokenHash).not.toHaveBeenCalled();
+    expect(port.findLiveClaim).not.toHaveBeenCalled();
     expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
   });
 
-  it('profile_bind replay on an already otp_ready attempt is idempotent: consumes the token, writes nothing new', async () => {
+  it('a consumed/otp-ready attempt has no live claim and cannot re-enter canonical completion', async () => {
     const port = buildFakePort(
       baseRow({ status: 'otp_ready', challenge_id: 'challenge-1', purpose: 'profile_bind' }),
+      { findLiveClaim: vi.fn(async () => null) },
     );
 
     const result = await complete(port);
 
-    expect(result).toEqual({ ok: true, purpose: 'profile_bind', replay: true });
-    expect(port.markConsumed).toHaveBeenCalledWith('secret-1');
+    expect(result).toEqual({ ok: false, code: 'no_live_claim' });
+    expect(port.markConsumed).not.toHaveBeenCalled();
     expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
     expect(port.verifyCompletionState).not.toHaveBeenCalled();
   });
 
-  it('a replay still has to pass the phone match — a different proven phone cannot ride an otp_ready attempt', async () => {
+  it('a replay with a different phone cannot ride an otp-ready attempt', async () => {
     const port = buildFakePort(
       baseRow({ status: 'otp_ready', challenge_id: 'challenge-1', purpose: 'profile_bind' }),
     );

@@ -13,9 +13,13 @@ export type PhoneMessengerBindSecretRow = {
   status: string;
   challenge_id: string | null;
   failure_code: string | null;
+  claimed_external_id: string | null;
+  claimed_at: string | null;
   expires_at: string;
   consumed_at: string | null;
 };
+
+export type PhoneMessengerBindClaimRow = PhoneMessengerBindSecretRow & { token_hash: string };
 
 export type PhoneMessengerBindPreOtpFailure = {
   ok: false;
@@ -25,6 +29,16 @@ export type PhoneMessengerBindPreOtpFailure = {
 
 export interface PhoneMessengerBindPort {
   findByTokenHash(tokenHash: string): Promise<PhoneMessengerBindSecretRow | null>;
+  claimToken(params: {
+    tokenHash: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+  }): Promise<{ ok: boolean; code: string }>;
+  findLiveClaim(params: {
+    tokenHash?: string;
+    channelCode: PhoneMessengerBindChannel;
+    externalId: string;
+  }): Promise<PhoneMessengerBindClaimRow | null>;
   startSecret(params: {
     tokenHash: string;
     phoneNormalized: string;

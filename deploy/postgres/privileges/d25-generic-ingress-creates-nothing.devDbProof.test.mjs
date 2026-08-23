@@ -50,10 +50,12 @@ import { parseOwnerStatements } from './migrate-local-parse.mjs';
 const ENABLED = process.env.RUN_D25_GENERIC_INGRESS_DB === '1';
 const DATABASE = process.env.D25_GENERIC_INGRESS_PROOF_DB ?? 'bcb_webapp_dev';
 const MIGRATOR = process.env.D25_GENERIC_INGRESS_PROOF_MIGRATOR ?? 'bcb_dev_migrator';
-const MIGRATION_TAG = '20260823T093000_channel_identity_root_becomes_lookup_only';
-const MIGRATION = new URL(
-  `../../../apps/webapp/db/drizzle-migrations/${MIGRATION_TAG}.sql`,
-  import.meta.url,
+const MIGRATION_TAGS = [
+  '20260823T093000_channel_identity_root_becomes_lookup_only',
+  '20260823T110000_phone_messenger_bind_claims_are_token_bound',
+];
+const MIGRATIONS = MIGRATION_TAGS.map(
+  (tag) => new URL(`../../../apps/webapp/db/drizzle-migrations/${tag}.sql`, import.meta.url),
 );
 const SCHEMA_PRE = new URL('../generated/prod-to-target/schema-pre.sql', import.meta.url);
 const ROOT = 'app.integrator_upsert_channel_identity(text,text,text)';
@@ -86,7 +88,7 @@ function parsed(output) {
   );
 }
 
-const candidateSource = readFileSync(fileURLToPath(MIGRATION), 'utf8');
+const candidateSource = MIGRATIONS.map((migration) => readFileSync(fileURLToPath(migration), 'utf8')).join('\n--> statement-breakpoint\n');
 
 /** The creating body as the generated schema-B snapshot still records it — the pre-candidate state. */
 function preCandidateBodySql() {
@@ -323,7 +325,7 @@ ROLLBACK;
  * owner holds USAGE on schema app and nothing more.
  */
 function armCsql() {
-  const steps = parseOwnerStatements(candidateSource, MIGRATION_TAG);
+  const steps = parseOwnerStatements(candidateSource, MIGRATION_TAGS.join(','));
   const owned = steps.filter((step) => !step.backfill);
   const owners = [...new Set(owned.map((step) => step.owner))];
   const schemaCreates = [
@@ -460,7 +462,7 @@ test(
     } catch (error) {
       const stderr = String(error.stderr ?? error.message ?? '');
       assert.fail(
-        `owner-aware rollback-only preflight of ${MIGRATION_TAG} failed — the migration cannot be `
+        `owner-aware rollback-only preflight of ${MIGRATION_TAGS.join(', ')} failed — the migration cannot be `
           + 'applied by the owner its own marker block declares, so the DEV/TEST deploy would abort '
           + `on it:\n${stderr.trim()}\n\nCompare the marker block with every other migration that `
           + 'does CREATE OR REPLACE FUNCTION app.*: a seam owner holds USAGE on schema app and '

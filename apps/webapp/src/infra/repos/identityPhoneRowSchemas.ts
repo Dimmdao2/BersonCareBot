@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import type { PhoneMessengerBindSecretRow } from '@/modules/auth/phoneMessengerBind.ports';
+import type { PhoneMessengerBindClaimRow, PhoneMessengerBindSecretRow } from '@/modules/auth/phoneMessengerBind.ports';
 import type { MessengerIdentityResolutionHints } from '@/modules/auth/identityResolutionPort';
 import type { ChannelContext } from '@/modules/auth/channelContext';
 import type { ChannelBindings, SessionIdentityContact } from '@/shared/types/session';
@@ -230,6 +230,8 @@ const phoneMessengerBindSecretRowSchema = z.object({
   status: messengerBindStatusSchema,
   challenge_id: z.string().nullable(),
   failure_code: z.string().nullable(),
+  claimed_external_id: z.union([z.string(), z.null()]).optional().default(null),
+  claimed_at: z.union([z.coerce.date(), z.string(), z.null()]).optional().default(null),
   expires_at: z.union([z.coerce.date(), z.string()]),
   consumed_at: z.union([z.coerce.date(), z.string()]).nullable(),
 });
@@ -323,7 +325,21 @@ export function mapPhoneMessengerBindSecretRow(row: unknown): PhoneMessengerBind
     status: parsed.status,
     challenge_id: parsed.challenge_id,
     failure_code: parsed.failure_code,
+    claimed_external_id: parsed.claimed_external_id,
+    claimed_at: parsed.claimed_at == null ? null : isoOrString(parsed.claimed_at),
     expires_at: isoOrString(parsed.expires_at),
     consumed_at: parsed.consumed_at == null ? null : isoOrString(parsed.consumed_at),
+  };
+}
+
+export function mapPhoneMessengerBindClaimRow(row: unknown): PhoneMessengerBindClaimRow {
+  const parsed = parseIdentityRow(
+    phoneMessengerBindSecretRowSchema.extend({ token_hash: z.string().min(1) }),
+    row,
+    'phone_messenger_bind_claimed_secret',
+  );
+  return {
+    ...mapPhoneMessengerBindSecretRow(parsed),
+    token_hash: parsed.token_hash,
   };
 }

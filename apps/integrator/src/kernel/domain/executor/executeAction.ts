@@ -321,17 +321,81 @@ export async function executeAction(
       return { actionId: action.id, status: 'success', writes };
     }
 
+    case 'webapp.phoneMessengerBind.claim': {
+      const port = deps.webappEventsPort;
+      const setupToken = asString(action.params.setupToken);
+      const channelCode = asString(action.params.channelCode) ?? ctx.event.meta.source;
+      const externalId = asString(action.params.externalId) ?? ctx.event.meta.userId;
+      if (!setupToken || !externalId || !port?.claimPhoneMessengerBind) {
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: 'webapp.phoneMessengerBind.claim: setupToken, externalId and signed port required',
+        };
+      }
+      const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
+      const result = await port.claimPhoneMessengerBind({ setupToken, channelCode: messengerChannel, externalId });
+      if (!result.ok) {
+        const intents: OutgoingIntent[] = [];
+        if (ctx.event.meta.source === 'telegram' || ctx.event.meta.source === 'max') {
+          await appendPhoneMessengerBindFailureRecovery(intents, action, ctx, fullDeps, {
+            source: ctx.event.meta.source,
+            externalId,
+            menuActionIdSuffix: 'phone-auth-claim-failed-menu',
+            ...(fullDeps.templatePort
+              ? {
+                  failureText: {
+                    templateKey: phoneMessengerBindCompleteFailureTemplateKey(
+                      ctx.event.meta.source,
+                      result.error ?? 'claim_failed',
+                    ),
+                    intentIdSuffix: 'phone-auth-claim-failed',
+                  },
+                }
+              : {}),
+          });
+        }
+        return {
+          actionId: action.id,
+          status: 'failed',
+          error: result.error ?? 'phone messenger bind claim failed',
+          ...(intents.length > 0 ? { intents } : {}),
+        };
+      }
+      const prompt: Action =
+        messengerChannel === 'telegram'
+          ? {
+              id: `${action.id}:request-self-contact`, type: 'message.replyKeyboard.show', mode: 'async',
+              params: {
+                chatId: resolveChannelLinkFailureChatId(ctx, externalId),
+                templateKey: 'telegram:phoneAuthWelcome',
+                keyboard: [[{ textTemplateKey: 'telegram:requestContact.button', requestPhone: true }]],
+                resizeKeyboard: true, oneTimeKeyboard: true,
+              },
+            }
+          : {
+              id: `${action.id}:request-self-contact`, type: 'message.send', mode: 'async',
+              params: {
+                recipient: { chatId: resolveChannelLinkFailureChatId(ctx, externalId) },
+                templateKey: 'max:phoneAuthWelcome', delivery: { channels: ['max'], maxAttempts: 1 },
+                inlineKeyboard: [[{ textTemplateKey: 'max:requestContact.button', requestPhone: true }]],
+              },
+            };
+      const promptResult = await executeAction(prompt, ctx, fullDeps);
+      return { actionId: action.id, status: 'success', values: { phoneMessengerBind: { ok: true, claimed: true } }, ...(promptResult.intents ? { intents: promptResult.intents } : {}) };
+    }
+
     case 'webapp.phoneMessengerBind.complete': {
       const port = deps.webappEventsPort;
       const setupToken = asString(action.params.setupToken);
       const channelCode = asString(action.params.channelCode) ?? ctx.event.meta.source;
       const externalId = asString(action.params.externalId) ?? ctx.event.meta.userId;
       const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
-      if (!setupToken || !externalId || !phoneNormalized) {
+      if (!externalId || !phoneNormalized) {
         return {
           actionId: action.id,
           status: 'failed',
-          error: 'webapp.phoneMessengerBind.complete: setupToken, externalId and phone required',
+          error: 'webapp.phoneMessengerBind.complete: externalId and provider-proven phone required',
         };
       }
       if (!port?.completePhoneMessengerBind) {
@@ -345,7 +409,7 @@ export async function executeAction(
       }
       const messengerChannel = channelCode === 'max' ? 'max' : 'telegram';
       const result = await port.completePhoneMessengerBind({
-        setupToken,
+        ...(setupToken ? { setupToken } : {}),
         channelCode: messengerChannel,
         externalId,
         phoneNormalized,

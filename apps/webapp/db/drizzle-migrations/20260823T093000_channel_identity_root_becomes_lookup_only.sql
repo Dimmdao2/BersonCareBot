@@ -1,4 +1,5 @@
 -- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('app.integrator_upsert_channel_identity(text,text,text)')::oid) !~ 'INSERT INTO public[.]platform_users'
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef(pg_catalog.to_regprocedure('app.integrator_upsert_channel_identity(text,text,text)')::oid) ~ 'unknown channel identity is a lookup miss'

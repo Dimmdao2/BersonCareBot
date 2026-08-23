@@ -44,6 +44,8 @@ function baseRow(overrides: Partial<PhoneMessengerBindSecretRow> = {}): PhoneMes
     status: 'pending_contact',
     challenge_id: null,
     failure_code: null,
+    claimed_external_id: 'tg-1',
+    claimed_at: new Date().toISOString(),
     expires_at: new Date(Date.now() + 60_000).toISOString(),
     consumed_at: null,
     ...overrides,
@@ -53,6 +55,8 @@ function baseRow(overrides: Partial<PhoneMessengerBindSecretRow> = {}): PhoneMes
 function buildFakePort(overrides: Partial<PhoneMessengerBindPort> = {}): PhoneMessengerBindPort {
   return {
     findByTokenHash: vi.fn(async () => baseRow()),
+    claimToken: vi.fn(async () => ({ ok: true, code: 'claimed' })),
+    findLiveClaim: vi.fn(async () => ({ ...baseRow(), token_hash: 'token-hash' })),
     startSecret: vi.fn(async () => {}),
     updateExpired: vi.fn(async () => {}),
     updateFailed: vi.fn(async () => {}),
