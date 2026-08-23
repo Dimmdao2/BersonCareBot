@@ -20,7 +20,6 @@ import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js
 import {
   createContentAccessGrant,
   getReminderOccurrenceContextForProjection,
-  insertReminderDeliveryLog,
   markReminderOccurrenceFailed,
   markReminderOccurrenceSent,
   expireOrphanedPendingReminderOccurrences,
@@ -39,9 +38,7 @@ import {
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
 import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
 import {
-  appendReminderDeliveryEventDirect,
   recordReminderOccurrenceFinalizedDirect,
-  type ReminderDeliveryLoggedDirectInput,
   type ReminderOccurrenceFinalizedDirectInput,
 } from './directPublic/writeReminderProjectionDirect.js';
 import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
@@ -154,13 +151,10 @@ export function createDbWritePort(
     operation:
       | 'reminder_occurrence_sent_record'
       | 'reminder_occurrence_failed_record'
-      | 'reminder_occurrence_expired_record'
-      | 'reminder_delivery_log_append',
+      | 'reminder_occurrence_expired_record',
     organizationId: string,
     stableId: string,
-    payload:
-      | ReminderOccurrenceFinalizedDirectInput
-      | ReminderDeliveryLoggedDirectInput,
+    payload: ReminderOccurrenceFinalizedDirectInput,
   ): Promise<void> {
     await enqueueDirectPublicWriteRetry(db, {
       operation,
@@ -517,62 +511,6 @@ export function createDbWritePort(
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           if (!occurrenceId) return;
           await markReminderOccurrenceSkippedLocal(db, occurrenceId);
-          return;
-        }
-        case 'reminders.delivery.log': {
-          const id = asNonEmptyString(mutation.params.id);
-          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
-          const channel = asNonEmptyString(mutation.params.channel);
-          const status = asNonEmptyString(mutation.params.status);
-          if (!id || !occurrenceId || !channel || (status !== 'success' && status !== 'failed'))
-            return;
-          const payloadJson =
-            typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
-              ? (mutation.params.payloadJson as Record<string, unknown>)
-              : {};
-          const directInput = await db.tx(
-            async (txDb): Promise<ReminderDeliveryLoggedDirectInput | null> => {
-              const createdAt = await insertReminderDeliveryLog(txDb, {
-                id,
-                occurrenceId,
-                channel,
-                status,
-                errorCode: asNullableString(mutation.params.errorCode),
-                payloadJson,
-              });
-              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-              if (ctx) {
-                const canonicalUserId = ctx.userId;
-                return {
-                  organizationId: ctx.organizationId,
-                  integratorDeliveryLogId: id,
-                  integratorOccurrenceId: occurrenceId,
-                  integratorRuleId: ctx.ruleId,
-                  integratorUserId: canonicalUserId,
-                  channel,
-                  status,
-                  errorCode: asNullableString(mutation.params.errorCode),
-                  payloadJson,
-                  createdAt,
-                };
-              }
-              return null;
-            },
-          );
-          if (!directInput) return;
-          try {
-            await writeDirectPublic('reminder-delivery-append', () =>
-              appendReminderDeliveryEventDirect(db, directInput!),
-            );
-          } catch (err) {
-            await queueDirectPublicRetry(
-              'reminder_delivery_log_append',
-              directInput.organizationId,
-              id,
-              directInput,
-            );
-            logger.warn({ err, id }, 'reminder delivery log direct write failed, queued retry');
-          }
           return;
         }
         case 'content.access.grant.create': {

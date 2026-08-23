@@ -69,7 +69,6 @@ import {
   userQuestions,
   questionMessages,
   userReminderOccurrences,
-  userReminderDeliveryLogs,
   contentAccessGrants,
   emailSendCooldowns,
   userNotificationTopics,
@@ -638,21 +637,10 @@ export const questionMessagesRelations = relations(questionMessages, ({ one }) =
   }),
 }));
 
-export const userReminderOccurrencesRelations = relations(
-  userReminderOccurrences,
-  ({ one, many }) => ({
-    reminderRule: one(reminderRules, {
-      fields: [userReminderOccurrences.ruleId],
-      references: [reminderRules.integratorRuleId],
-    }),
-    userReminderDeliveryLogs: many(userReminderDeliveryLogs),
-  }),
-);
-
-export const userReminderDeliveryLogsRelations = relations(userReminderDeliveryLogs, ({ one }) => ({
-  userReminderOccurrence: one(userReminderOccurrences, {
-    fields: [userReminderDeliveryLogs.occurrenceId],
-    references: [userReminderOccurrences.id],
+export const userReminderOccurrencesRelations = relations(userReminderOccurrences, ({ one }) => ({
+  reminderRule: one(reminderRules, {
+    fields: [userReminderOccurrences.ruleId],
+    references: [reminderRules.integratorRuleId],
   }),
 }));
 

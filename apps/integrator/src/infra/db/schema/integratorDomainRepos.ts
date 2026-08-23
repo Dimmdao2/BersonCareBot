@@ -52,29 +52,6 @@ export const userReminderOccurrences = integratorSchema.table(
   ],
 );
 
-export const userReminderDeliveryLogs = integratorSchema.table(
-  'user_reminder_delivery_logs',
-  {
-    id: text().primaryKey().notNull(),
-    occurrenceId: text('occurrence_id').notNull(),
-    channel: text().notNull(),
-    status: text().notNull(),
-    errorCode: text('error_code'),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('user_reminder_delivery_logs_occurrence_idx').using(
-      'btree',
-      table.occurrenceId.asc().nullsLast().op('text_ops'),
-      table.createdAt.desc().nullsFirst().op('text_ops'),
-    ),
-  ],
-);
-
 export const contentAccessGrants = pgTable(
   'content_access_grants',
   {

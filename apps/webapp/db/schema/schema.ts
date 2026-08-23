@@ -683,48 +683,6 @@ export const supportDeliveryEvents = pgTable(
   ],
 );
 
-export const reminderDeliveryEvents = pgTable(
-  'reminder_delivery_events',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    integratorDeliveryLogId: text('integrator_delivery_log_id').notNull(),
-    integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
-    integratorRuleId: text('integrator_rule_id').notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
-    platformUserId: uuid('platform_user_id'),
-    channel: text().notNull(),
-    status: text().notNull(),
-    errorCode: text('error_code'),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_reminder_delivery_events_created_at').using(
-      'btree',
-      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    uniqueIndex('idx_reminder_delivery_events_integrator_log_id').using(
-      'btree',
-      table.integratorDeliveryLogId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_reminder_delivery_events_integrator_user_id').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
-    ),
-    index('idx_reminder_delivery_events_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    unique('reminder_delivery_events_integrator_delivery_log_id_key').on(
-      table.integratorDeliveryLogId,
-    ),
-  ],
-);
-
 export const symptomEntries = pgTable(
   'symptom_entries',
   {
@@ -3613,33 +3571,6 @@ export const userReminderOccurrences = integratorSchema.table(
       name: 'user_reminder_occurrences_platform_user_id_fkey',
     }).onDelete('restrict'),
     unique('user_reminder_occurrences_occurrence_key_key').on(table.occurrenceKey),
-  ],
-);
-
-export const userReminderDeliveryLogs = pgTable(
-  'user_reminder_delivery_logs',
-  {
-    id: text().primaryKey().notNull(),
-    occurrenceId: text('occurrence_id').notNull(),
-    channel: text().notNull(),
-    status: text().notNull(),
-    errorCode: text('error_code'),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('user_reminder_delivery_logs_occurrence_idx').using(
-      'btree',
-      table.occurrenceId.asc().nullsLast().op('text_ops'),
-      table.createdAt.desc().nullsFirst().op('text_ops'),
-    ),
-    foreignKey({
-      columns: [table.occurrenceId],
-      foreignColumns: [userReminderOccurrences.id],
-      name: 'user_reminder_delivery_logs_occurrence_id_fkey',
-    }).onDelete('cascade'),
   ],
 );
 

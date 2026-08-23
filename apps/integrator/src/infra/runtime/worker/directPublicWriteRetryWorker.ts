@@ -4,9 +4,7 @@ import {
   type AppendSupportDeliveryEventDirectInput,
 } from '../../db/directPublic/writeSupportQuestionsDirect.js';
 import {
-  appendReminderDeliveryEventDirect,
   recordReminderOccurrenceFinalizedDirect,
-  type ReminderDeliveryLoggedDirectInput,
   type ReminderOccurrenceFinalizedDirectInput,
 } from '../../db/directPublic/writeReminderProjectionDirect.js';
 import {
@@ -75,12 +73,6 @@ export async function executeDirectPublicWriteRetry(
         db,
         retry.payload as ReminderOccurrenceFinalizedDirectInput,
       ),
-    );
-    return;
-  }
-  if (retry.operation === 'reminder_delivery_log_append') {
-    await writeDirectPublic('reminder-delivery-append', () =>
-      appendReminderDeliveryEventDirect(db, retry.payload as ReminderDeliveryLoggedDirectInput),
     );
     return;
   }

@@ -22,23 +22,12 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
-import {
-  getCurrentDatabasePrincipal,
-  runWithInfraPrincipal,
-  runWithOrganizationPrincipal,
-} from '../../principal/organizationPrincipal.js';
-import {
-  integratorPortContextPrincipal,
-  runWithIntegratorPortOperation,
-  type IntegratorPortCapabilityDescriptor,
-} from '../portContextRuntime.js';
+import { getCurrentDatabasePrincipal } from '../../principal/organizationPrincipal.js';
 import { writeDirectPublic } from './writePort.js';
-import { appendReminderDeliveryEventDirect } from './writeReminderProjectionDirect.js';
 import { appendSupportDeliveryEventDirect } from './writeSupportQuestionsDirect.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../repos/notificationDeliveryAttempts.js';
 
 const ORG_ROW = 'a0000000-0000-4000-8000-0000000000a1';
-const ORG_OTHER = 'b0000000-0000-4000-8000-0000000000b2';
 const PLATFORM_USER = 'c0000000-0000-4000-8000-0000000000c3';
 const OCCURRED_AT = '2026-08-22T10:00:00.000Z';
 
@@ -80,52 +69,6 @@ function expectOnlyNamedRoot(executed: Executed[], root: string, relation: strin
   expect(call.text).not.toMatch(new RegExp(`UPDATE\\s+public\\.${relation}`, 'i'));
   return call;
 }
-
-describe('D17 — событие доставки напоминания', () => {
-  it('уходит корнем под инфра-принципалом воркера повторов, без транзакции отношений', async () => {
-    const { db, executed } = recordingDb();
-
-    await runWithInfraPrincipal(
-      { source: 'worker:direct-public-write-retry-tick', portCapability: 'delivery' },
-      async () => {
-        await writeDirectPublic('reminder-delivery-append', () =>
-          appendReminderDeliveryEventDirect(db, {
-            organizationId: ORG_ROW,
-            integratorDeliveryLogId: 'log-1',
-            integratorOccurrenceId: 'occ-1',
-            integratorRuleId: 'rule-d17',
-            integratorUserId: '42',
-            channel: 'telegram',
-            status: 'success',
-            errorCode: null,
-            payloadJson: { chatId: '777' },
-            createdAt: OCCURRED_AT,
-          }),
-        );
-      },
-    );
-
-    const call = expectOnlyNamedRoot(
-      executed,
-      'app.integrator_append_reminder_delivery_event',
-      'reminder_delivery_events',
-    );
-    expect(call.principalKind).toBe('infra');
-    expect(call.params).toEqual([
-      ORG_ROW,
-      'log-1',
-      'occ-1',
-      'rule-d17',
-      '42',
-      'telegram',
-      'success',
-      null,
-      '{"chatId":"777"}',
-      OCCURRED_AT,
-    ]);
-  });
-
-});
 
 describe('D17 — событие доставки поддержки', () => {
   it('переиспользует уже существующий корень канона поддержки, второй двери не заводит', async () => {
@@ -249,38 +192,5 @@ describe('D17 — попытка доставки уведомления', () =>
     const call = executed[0]!;
     expect(call.principalKind).toBeUndefined();
     expect(call.params[0]).toBeNull();
-  });
-});
-
-describe('D17 — выбор возможности под корень', () => {
-  const ROOT = 'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)';
-  const serviceCapability: IntegratorPortCapabilityDescriptor = {
-    capabilityId: '00000000-0000-4000-8000-000000000902',
-    targetRole: 'app_operational_delivery_worker',
-    contextClass: 'service',
-    purpose: 'integrator.reminder-delivery-event.append',
-    functionIdentity: ROOT,
-  };
-  const caps = { serviceCapability };
-
-  it('корень service-класса выбирается инфраструктурным принципалом', () => {
-    const selected = runWithIntegratorPortOperation({ functionIdentity: ROOT, typedArgs: [] }, () =>
-      integratorPortContextPrincipal(
-        { kind: 'infra', source: 'worker:direct-public-write-retry-tick' },
-        caps,
-      ),
-    );
-    expect(selected).toMatchObject({
-      targetRole: 'app_operational_delivery_worker',
-      contextClass: 'service',
-    });
-  });
-
-  it('и не выбирается никаким другим видом принципала — корень остаётся недостижим', () => {
-    expect(() =>
-      runWithIntegratorPortOperation({ functionIdentity: ROOT, typedArgs: [] }, () =>
-        integratorPortContextPrincipal({ kind: 'organization', organizationId: ORG_ROW }, caps),
-      ),
-    ).toThrow(/Missing unique declared integrator port capability/);
   });
 });

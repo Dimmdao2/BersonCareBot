@@ -277,14 +277,28 @@ export async function claimDueOutgoingDeliveries(
   }));
 }
 
-export async function markOutgoingDeliverySent(db: DbPort, id: string): Promise<void> {
+/**
+ * `sentMessagePayload` merges into `payload_json` (e.g. the messenger message id the provider
+ * returned) — the sole surviving record of what a `reminder_dispatch` row actually sent, replacing
+ * the retired `user_reminder_delivery_logs`/`reminder_delivery_events` journals.
+ */
+export async function markOutgoingDeliverySent(
+  db: DbPort,
+  id: string,
+  sentMessagePayload?: Record<string, unknown>,
+): Promise<void> {
+  const mergeJson = sentMessagePayload ? JSON.stringify(sentMessagePayload) : null;
   await runIntegratorSql(
     db,
     sql`UPDATE public.outgoing_delivery_queue
      SET status = 'sent',
          sent_at = now(),
          updated_at = now(),
-         last_error = NULL
+         last_error = NULL,
+         payload_json = CASE
+           WHEN ${mergeJson}::jsonb IS NULL THEN payload_json
+           ELSE payload_json || ${mergeJson}::jsonb
+         END
      WHERE id = ${id}
        AND status = 'processing'`,
   );

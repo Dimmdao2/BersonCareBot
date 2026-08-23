@@ -22,7 +22,6 @@ import {
 } from '../../delivery/deliveryContract.js';
 import {
   classifyRecipientBlockedBotError,
-  RECIPIENT_BLOCKED_BOT,
   RECIPIENT_BLOCKED_BOT_FAILURE_CLASS,
 } from '../../delivery/recipientBotBlocked.js';
 import { logger } from '../../observability/logger.js';
@@ -70,7 +69,7 @@ import {
   markUserChannelBotBlocked,
   resolvePlatformUserIdForBotBlockedMarker,
 } from '../../db/repos/userChannelBotBlocked.js';
-import { runIntegratorNamedRoot, runIntegratorSql } from '../../db/runIntegratorSql.js';
+import { runIntegratorNamedRoot } from '../../db/runIntegratorSql.js';
 import {
   runWithInfraPrincipal,
   runWithOptionalOrganizationPrincipal,
@@ -114,6 +113,14 @@ function runWithDeliveryQueueCapability<T>(fn: () => T): T {
   );
 }
 
+/**
+ * `reminder_dispatch` rows that never reach the provider (stale materialization, transactional-email
+ * rate limit, web-push provider skip) are not a delivery failure — they read the same as
+ * `recipient_blocked_bot` (D30): excluded from the "dead"/degradation counts by
+ * `read_curated_system_health_pre_0196` (see 20260823T170000_retire_duplicate_reminder_delivery_journals.sql).
+ */
+const REMINDER_NOT_DISPATCHED_FAILURE_CLASS = 'reminder_not_dispatched';
+
 function queueMarkDead(
   db: DbPort,
   id: string,
@@ -127,8 +134,14 @@ function queueMarkDead(
   );
 }
 
-function queueMarkSent(db: DbPort, id: string): Promise<void> {
-  return runWithDeliveryQueueCapability(() => markOutgoingDeliverySent(db, id));
+function queueMarkSent(
+  db: DbPort,
+  id: string,
+  sentMessagePayload?: Record<string, unknown>,
+): Promise<void> {
+  return runWithDeliveryQueueCapability(() =>
+    markOutgoingDeliverySent(db, id, sentMessagePayload),
+  );
 }
 
 function queueReschedule(
@@ -221,15 +234,6 @@ function parseIntentFromPayload(payload: Record<string, unknown>): OutgoingInten
     },
     payload: pl as Record<string, unknown>,
   };
-}
-
-function isMissingReminderOccurrenceFk(err: unknown): boolean {
-  if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: unknown; cause?: { code?: unknown; constraint?: unknown } };
-  const code =
-    typeof e.code === 'string' ? e.code : typeof e.cause?.code === 'string' ? e.cause.code : '';
-  const constraint = typeof e.cause?.constraint === 'string' ? e.cause.constraint : '';
-  return code === '23503' && constraint === 'user_reminder_delivery_logs_occurrence_id_fkey';
 }
 
 function maskRecipientForDoctorBroadcastLog(channel: string, intent: OutgoingIntent): string {
@@ -328,17 +332,6 @@ export async function retrySentSpecialistTaskReminderBotMarker(
   await runWithOrganizationPrincipal(scope.organizationId, () =>
     completeSpecialistTaskReminderBotMarkerBookkeeping(db, row, intent),
   );
-}
-
-async function readReminderOccurrenceStatus(
-  db: DbPort,
-  occurrenceId: string,
-): Promise<string | null> {
-  const res = await runIntegratorSql<{ status: string }>(
-    db,
-    sql`SELECT status::text AS status FROM user_reminder_occurrences WHERE id = ${occurrenceId} LIMIT 1`,
-  );
-  return typeof res.rows[0]?.status === 'string' ? res.rows[0]!.status : null;
 }
 
 async function runWithReminderOccurrenceOrganization<T>(
@@ -492,7 +485,6 @@ async function finalizeOutgoingDeliveryDead(
   db: DbPort,
   row: OutgoingDeliveryQueueRow,
   safeError: string,
-  writePort: DbWritePort,
 ): Promise<void> {
   await queueMarkDead(db, row.id, safeError);
   await recordInboundReplyDeliveryDeadIncident(row, safeError);
@@ -513,50 +505,8 @@ async function finalizeOutgoingDeliveryDead(
       'doctor_broadcast_delivery.dead',
     );
   }
-  if (row.kind === 'reminder_dispatch') {
-    const p = row.payloadJson;
-    const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
-    const channel = typeof p.channel === 'string' ? p.channel : null;
-    const deliveryLogId = typeof p.deliveryLogId === 'string' ? p.deliveryLogId : null;
-    const externalId = typeof p.externalId === 'string' ? p.externalId : '';
-    const text = typeof p.logText === 'string' ? p.logText : '';
-    if (occurrenceId && channel && deliveryLogId) {
-      const occStatus = await readReminderOccurrenceStatus(db, occurrenceId);
-      if (!occStatus) {
-        logger.warn(
-          { occurrenceId, rowId: row.id, eventId: row.eventId },
-          'finalize_delivery_dead_skip_missing_occurrence',
-        );
-        return;
-      }
-      try {
-        await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
-          await writePort.writeDb({
-            type: 'reminders.delivery.log',
-            params: {
-              id: deliveryLogId,
-              occurrenceId,
-              channel,
-              status: 'failed',
-              errorCode: 'DELIVERY_DEAD',
-              payloadJson: { chatId: externalId, text },
-            },
-          });
-          // A dead provider leg must not poison sibling channels of this occurrence/generation.
-          // Per-channel failure evidence lives in the delivery log and queue row.
-        });
-      } catch (err) {
-        if (isMissingReminderOccurrenceFk(err)) {
-          logger.warn(
-            { occurrenceId, rowId: row.id, eventId: row.eventId },
-            'finalize_delivery_dead_skip_missing_occurrence_fk',
-          );
-          return;
-        }
-        throw err;
-      }
-    }
-  }
+  // A dead reminder_dispatch leg needs no separate per-channel journal entry: queueMarkDead above
+  // already recorded last_error/failure_class on this row, the sole surviving evidence.
 }
 
 async function logQueueDeliveryAttemptBestEffort(
@@ -592,7 +542,6 @@ async function finalizeRecipientBlockedBotDelivery(
   row: OutgoingDeliveryQueueRow,
   intent: OutgoingIntent,
   safeError: string,
-  writePort: DbWritePort,
 ): Promise<void> {
   await markUserChannelBotBlocked(db, {
     platformUserId: resolvePlatformUserIdForBotBlockedMarker({
@@ -619,50 +568,8 @@ async function finalizeRecipientBlockedBotDelivery(
       'doctor_broadcast_delivery.blocked',
     );
   }
-
-  if (row.kind === 'reminder_dispatch') {
-    const p = row.payloadJson;
-    const occurrenceId = typeof p.occurrenceId === 'string' ? p.occurrenceId : null;
-    const channel = typeof p.channel === 'string' ? p.channel : null;
-    const deliveryLogId = typeof p.deliveryLogId === 'string' ? p.deliveryLogId : null;
-    const externalId = typeof p.externalId === 'string' ? p.externalId : '';
-    const text = typeof p.logText === 'string' ? p.logText : '';
-    if (occurrenceId && channel && deliveryLogId) {
-      const occStatus = await readReminderOccurrenceStatus(db, occurrenceId);
-      if (!occStatus) {
-        logger.warn(
-          { occurrenceId, rowId: row.id, eventId: row.eventId },
-          'finalize_delivery_blocked_skip_missing_occurrence',
-        );
-        return;
-      }
-      try {
-        await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
-          await writePort.writeDb({
-            type: 'reminders.delivery.log',
-            params: {
-              id: deliveryLogId,
-              occurrenceId,
-              channel,
-              status: 'failed',
-              errorCode: RECIPIENT_BLOCKED_BOT,
-              payloadJson: { chatId: externalId, text },
-            },
-          });
-          // Recipient blocking is channel-local; another selected channel may still deliver.
-        });
-      } catch (err) {
-        if (isMissingReminderOccurrenceFk(err)) {
-          logger.warn(
-            { occurrenceId, rowId: row.id, eventId: row.eventId },
-            'finalize_delivery_blocked_skip_missing_occurrence_fk',
-          );
-          return;
-        }
-        throw err;
-      }
-    }
-  }
+  // A blocked reminder_dispatch leg needs no separate per-channel journal entry: queueMarkDead
+  // above already recorded RECIPIENT_BLOCKED_BOT_FAILURE_CLASS on this row.
 }
 
 async function handleDispatchFailure(
@@ -684,7 +591,6 @@ async function handleDispatchFailure(
         row,
         intent,
         truncateDeliveryErrorMessage(blocked.message),
-        writePort,
       );
       return;
     }
@@ -694,7 +600,7 @@ async function handleDispatchFailure(
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
   if (!retryable || attempts >= row.maxAttempts) {
-    await finalizeOutgoingDeliveryDead(db, row, safe, writePort);
+    await finalizeOutgoingDeliveryDead(db, row, safe);
     return;
   }
   const delay = retryDelaySecondsAfterFailure(attempts, row.kind);
@@ -784,8 +690,6 @@ export async function processOutgoingDeliveryRow(
         ? p.deliveryGeneration
         : null;
     const topicCode = typeof p.topicCode === 'string' && p.topicCode.trim() ? p.topicCode : null;
-    const externalId = typeof p.externalId === 'string' ? p.externalId : '';
-    const text = typeof p.logText === 'string' ? p.logText : '';
     if (
       !occurrenceId ||
       !channel ||
@@ -808,7 +712,7 @@ export async function processOutgoingDeliveryRow(
         row.channel,
         'stale_materialization',
       );
-      await queueMarkSent(db, row.id);
+      await queueMarkDead(db, row.id, 'stale_materialization', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
       return;
     }
     const platformUserId =
@@ -822,7 +726,7 @@ export async function processOutgoingDeliveryRow(
       }
       if (await isReminderTransactionalEmailRateLimited(db, platformUserId)) {
         await logQueueDeliveryAttemptBestEffort(writePort, intent, row.channel, 'rate_limited');
-        await queueMarkSent(db, row.id);
+        await queueMarkDead(db, row.id, 'rate_limited', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
         return;
       }
     }
@@ -905,7 +809,7 @@ export async function processOutgoingDeliveryRow(
           return;
         }
         if (outcome.status === 'skipped') {
-          await queueMarkSent(db, row.id);
+          await queueMarkDead(db, row.id, 'web_push_skipped', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
           return;
         }
       }
@@ -933,29 +837,17 @@ export async function processOutgoingDeliveryRow(
           : undefined;
       await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
         await writePort.writeDb({
-          type: 'reminders.delivery.log',
-          params: {
-            id: deliveryLogId,
-            occurrenceId,
-            channel,
-            status: 'success',
-            payloadJson: {
-              chatId: externalId,
-              text,
-              ...(telegramMessageId !== undefined
-                ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
-                : {}),
-              ...(maxMessageId !== undefined ? { maxMessageId } : {}),
-            },
-          },
-        });
-        await writePort.writeDb({
           type: 'reminders.occurrence.markSent',
           params: { occurrenceId, channel },
         });
       });
       await maybeClearMessengerBotBlockedMarker(db, row, intent);
-      await queueMarkSent(db, row.id);
+      await queueMarkSent(db, row.id, {
+        ...(telegramMessageId !== undefined
+          ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
+          : {}),
+        ...(maxMessageId !== undefined ? { maxMessageId } : {}),
+      });
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);

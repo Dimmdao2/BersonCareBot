@@ -8,7 +8,6 @@ import {
 } from './schema/integratorPublicProduct.js';
 import {
   contentAccessGrants,
-  userReminderDeliveryLogs,
   userReminderOccurrences,
 } from './schema/integratorDomainRepos.js';
 
@@ -21,6 +20,5 @@ export const integratorDrizzleSchema = {
   userChannelBindings,
   reminderRules,
   userReminderOccurrences,
-  userReminderDeliveryLogs,
   contentAccessGrants,
 } as const;

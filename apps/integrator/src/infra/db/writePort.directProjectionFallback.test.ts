@@ -6,11 +6,9 @@ const fakes = vi.hoisted(() => ({
   markSent: vi.fn(),
   markFailed: vi.fn(),
   expire: vi.fn(),
-  insertDeliveryLog: vi.fn(),
   createGrant: vi.fn(),
   context: vi.fn(),
   occurrenceDirect: vi.fn(),
-  deliveryDirect: vi.fn(),
   runOrganization: vi.fn(async (_organizationId: string, fn: () => Promise<unknown>) => fn()),
 }));
 
@@ -21,7 +19,6 @@ vi.mock('./repos/reminders.js', () => ({
   markReminderOccurrenceSent: fakes.markSent,
   markReminderOccurrenceFailed: fakes.markFailed,
   expireOrphanedPendingReminderOccurrences: fakes.expire,
-  insertReminderDeliveryLog: fakes.insertDeliveryLog,
   createContentAccessGrant: fakes.createGrant,
   getReminderOccurrenceContextForProjection: fakes.context,
   markReminderOccurrenceSkippedLocal: vi.fn(),
@@ -33,7 +30,6 @@ vi.mock('./directPublic/writeIdentityAndPreferencesDirect.js', () => ({
 }));
 vi.mock('./directPublic/writeReminderProjectionDirect.js', () => ({
   recordReminderOccurrenceFinalizedDirect: fakes.occurrenceDirect,
-  appendReminderDeliveryEventDirect: fakes.deliveryDirect,
 }));
 vi.mock('../principal/organizationPrincipal.js', () => ({
   runWithOrganizationPrincipal: fakes.runOrganization,
@@ -72,13 +68,11 @@ describe('direct reminder projection durability', () => {
     vi.clearAllMocks();
     fakes.context.mockResolvedValue(CONTEXT);
     fakes.expire.mockResolvedValue([{ ...CONTEXT, occurrenceId: 'expired-1' }]);
-    fakes.insertDeliveryLog.mockResolvedValue('2026-08-20T10:01:00.000Z');
     fakes.createGrant.mockResolvedValue({
       createdAt: '2026-08-20T10:01:00.000Z',
       organizationId: ORGANIZATION_ID,
     });
     fakes.occurrenceDirect.mockRejectedValue(new Error('synthetic direct failure'));
-    fakes.deliveryDirect.mockRejectedValue(new Error('synthetic direct failure'));
     fakes.enqueue.mockResolvedValue(undefined);
   });
 
@@ -135,24 +129,6 @@ describe('direct reminder projection durability', () => {
         deliveryChannel: CONTEXT.deliveryChannel,
         errorCode: CONTEXT.errorCode,
         occurredAt: CONTEXT.occurredAt,
-      },
-    ],
-    [
-      'reminders.delivery.log',
-      { id: 'log-1', occurrenceId: 'delivery-1', channel: 'telegram', status: 'failed' },
-      'reminder_delivery_log_append',
-      'log-1',
-      {
-        organizationId: ORGANIZATION_ID,
-        integratorDeliveryLogId: 'log-1',
-        integratorOccurrenceId: 'delivery-1',
-        integratorRuleId: CONTEXT.ruleId,
-        integratorUserId: CONTEXT.userId,
-        channel: 'telegram',
-        status: 'failed',
-        errorCode: null,
-        payloadJson: {},
-        createdAt: '2026-08-20T10:01:00.000Z',
       },
     ],
   ] as const)(

@@ -4,11 +4,7 @@ import type {
   ReminderOccurrenceRecord,
 } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
-import {
-  contentAccessGrants,
-  userReminderDeliveryLogs,
-  userReminderOccurrences,
-} from '../schema/integratorDomainRepos.js';
+import { contentAccessGrants, userReminderOccurrences } from '../schema/integratorDomainRepos.js';
 import { reminderRules } from '../schema/integratorPublicProduct.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
@@ -286,35 +282,6 @@ export async function markReminderOccurrenceFailed(
     .where(eq(userReminderOccurrences.id, occurrenceId));
 }
 
-/** Inserts delivery log; returns DB `created_at` for projection idempotency payload. */
-export async function insertReminderDeliveryLog(
-  db: DbPort,
-  input: {
-    id: string;
-    occurrenceId: string;
-    channel: string;
-    status: 'success' | 'failed';
-    errorCode?: string | null;
-    payloadJson?: Record<string, unknown>;
-  },
-): Promise<string> {
-  const d = getIntegratorDrizzleSession(db);
-  const rows = await d
-    .insert(userReminderDeliveryLogs)
-    .values({
-      id: input.id,
-      occurrenceId: input.occurrenceId,
-      channel: input.channel,
-      status: input.status,
-      errorCode: input.errorCode ?? null,
-      payloadJson: input.payloadJson ?? {},
-      organizationId: sql`(SELECT organization_id FROM user_reminder_occurrences WHERE id = ${input.occurrenceId} LIMIT 1)`,
-      createdAt: sql`now()`,
-    })
-    .returning({ created_at: userReminderDeliveryLogs.createdAt });
-  return rows[0]?.created_at ?? new Date().toISOString();
-}
-
 /** Context for projection reminder.occurrence.finalized / reminder.delivery.logged. */
 export async function getReminderOccurrenceContextForProjection(
   db: DbPort,
@@ -466,7 +433,10 @@ export async function markReminderOccurrenceSkippedLocal(
 /**
  * Last successfully delivered messenger message id for another occurrence of the same rule
  * that is still `sent` (user did not skip/snooze/finalize via bot) — candidate for delete-before-resend.
- * Uses `telegramMessageId` or `maxMessageId` in `payload_json` depending on `channel`.
+ * `public.outgoing_delivery_queue` is the sole surviving per-delivery record (the retired
+ * `user_reminder_delivery_logs` journal used to carry this); `telegramMessageId`/`maxMessageId` are
+ * merged into the sent row's `payload_json` by `outgoingDeliveryWorker.ts`'s `queueMarkSent`, and the
+ * dispatching row's `payload_json.occurrenceId` is how it ties back to the reminder occurrence.
  */
 export async function getStaleReminderMessengerMessageIdForResend(
   db: DbPort,
@@ -476,22 +446,23 @@ export async function getStaleReminderMessengerMessageIdForResend(
   const res = await d.execute(sql`
     SELECT (
        CASE WHEN ${input.channel} = 'max'
-         THEN l.payload_json->>'maxMessageId'
-         ELSE l.payload_json->>'telegramMessageId'
+         THEN q.payload_json->>'maxMessageId'
+         ELSE q.payload_json->>'telegramMessageId'
        END
      ) AS mid
-     FROM user_reminder_delivery_logs l
-     INNER JOIN user_reminder_occurrences o ON o.id = l.occurrence_id
-     WHERE l.channel = ${input.channel}
-       AND l.status = 'success'
+     FROM public.outgoing_delivery_queue q
+     INNER JOIN user_reminder_occurrences o ON o.id = q.payload_json->>'occurrenceId'
+     WHERE q.kind = 'reminder_dispatch'
+       AND q.channel = ${input.channel}
+       AND q.status = 'sent'
        AND o.rule_id = ${input.ruleId}
        AND o.id <> ${input.excludeOccurrenceId}
        AND o.status = 'sent'
        AND (
-         (${input.channel} = 'max' AND (l.payload_json ? 'maxMessageId'))
-         OR (${input.channel} <> 'max' AND (l.payload_json ? 'telegramMessageId'))
+         (${input.channel} = 'max' AND (q.payload_json ? 'maxMessageId'))
+         OR (${input.channel} <> 'max' AND (q.payload_json ? 'telegramMessageId'))
        )
-     ORDER BY l.created_at DESC
+     ORDER BY q.sent_at DESC
      LIMIT 1
   `);
   const raw = (res.rows[0] as { mid: string | null } | undefined)?.mid;

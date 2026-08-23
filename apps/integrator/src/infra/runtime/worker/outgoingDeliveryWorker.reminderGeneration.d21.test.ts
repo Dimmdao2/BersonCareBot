@@ -196,17 +196,15 @@ describe('D21 reminder delivery generation gate', () => {
     const h = harness(gate);
     await processOutgoingDeliveryRow(row('telegram'), h as never);
     expect(h.dispatchOutgoing).not.toHaveBeenCalled();
-    expect(h.queueSent).toEqual(['queue-telegram-2']);
+    expect(h.queueSent).toEqual([]);
+    expect(h.queueDead).toEqual([{ id: 'queue-telegram-2', error: 'stale_materialization' }]);
   });
 
   it('a sent occurrence does not suppress the sibling channel in the same generation', async () => {
     const h = harness(allowedGate);
     await processOutgoingDeliveryRow(row('max'), h as never);
     expect(h.dispatchOutgoing).toHaveBeenCalledTimes(1);
-    expect(h.writes.map((write) => write.type)).toEqual([
-      'reminders.delivery.log',
-      'reminders.occurrence.markSent',
-    ]);
+    expect(h.writes.map((write) => write.type)).toEqual(['reminders.occurrence.markSent']);
     expect(h.queueSent).toEqual(['queue-max-2']);
   });
 
@@ -238,7 +236,8 @@ describe('D21 reminder delivery generation gate', () => {
     await processOutgoingDeliveryRow(row('web_push'), h as never);
     expect(h.dispatchOutgoing).toHaveBeenCalledTimes(1);
     expect(h.writes).toEqual([]);
-    expect(h.queueSent).toEqual(['queue-web_push-2']);
+    expect(h.queueSent).toEqual([]);
+    expect(h.queueDead).toEqual([{ id: 'queue-web_push-2', error: 'web_push_skipped' }]);
   });
 
   it('a failed Web Push provider outcome enters the isolated retry path', async () => {
@@ -278,6 +277,7 @@ describe('D21 reminder delivery generation gate', () => {
     const h = harness(allowedGate, { emailRateLimited: true });
     await processOutgoingDeliveryRow(row('email'), h as never);
     expect(h.dispatchOutgoing).not.toHaveBeenCalled();
-    expect(h.queueSent).toEqual(['queue-email-2']);
+    expect(h.queueSent).toEqual([]);
+    expect(h.queueDead).toEqual([{ id: 'queue-email-2', error: 'rate_limited' }]);
   });
 });

@@ -10,7 +10,6 @@ const fakes = vi.hoisted(() => ({
   runInfra: vi.fn(async (_input: unknown, fn: () => Promise<unknown>) => fn()),
   runOrg: vi.fn(async (_organizationId: string, fn: () => Promise<unknown>) => fn()),
   occurrence: vi.fn(),
-  delivery: vi.fn(),
 }));
 
 vi.mock('../../db/repos/directPublicWriteRetry.js', () => ({
@@ -26,7 +25,6 @@ vi.mock('../../principal/organizationPrincipal.js', () => ({
 }));
 vi.mock('../../db/directPublic/writeReminderProjectionDirect.js', () => ({
   recordReminderOccurrenceFinalizedDirect: fakes.occurrence,
-  appendReminderDeliveryEventDirect: fakes.delivery,
 }));
 
 import {
@@ -95,25 +93,8 @@ describe('direct public write retry worker', () => {
         occurredAt: '2026-08-20T10:00:00.000Z',
       },
     });
-    await executeDirectPublicWriteRetry(unusedDb, {
-      ...common,
-      operation: 'reminder_delivery_log_append',
-      payload: {
-        organizationId,
-        integratorDeliveryLogId: 'delivery-9',
-        integratorOccurrenceId: 'occurrence-9',
-        integratorRuleId: 'rule-9',
-        integratorUserId: '9',
-        channel: 'telegram',
-        status: 'success',
-        errorCode: null,
-        payloadJson: {},
-        createdAt: '2026-08-20T10:00:00.000Z',
-      },
-    });
     expect(fakes.runOrg).not.toHaveBeenCalled();
     expect(fakes.occurrence).toHaveBeenCalledOnce();
-    expect(fakes.delivery).toHaveBeenCalledOnce();
   });
 
   it.each([
@@ -133,23 +114,6 @@ describe('direct public write retry worker', () => {
         occurredAt: '2026-08-20T10:00:00.000Z',
       },
       fakes.occurrence,
-    ],
-    [
-      'reminder delivery event',
-      'reminder_delivery_log_append' as const,
-      {
-        organizationId: 'a0000000-0000-4000-8000-000000000002',
-        integratorDeliveryLogId: 'delivery-foreign',
-        integratorOccurrenceId: 'occurrence-foreign',
-        integratorRuleId: 'rule-foreign',
-        integratorUserId: '91',
-        channel: 'telegram',
-        status: 'success' as const,
-        errorCode: null,
-        payloadJson: {},
-        createdAt: '2026-08-20T10:00:00.000Z',
-      },
-      fakes.delivery,
     ],
   ])('rejects a %s replay whose payload names a foreign organization', async (
     _label,

@@ -1,23 +1,18 @@
 import { sql } from 'drizzle-orm';
 import type { DbPort } from '../../../kernel/contracts/index.js';
 import type { AppendSupportDeliveryEventDirectInput } from '../directPublic/writeSupportQuestionsDirect.js';
-import type {
-  ReminderDeliveryLoggedDirectInput,
-  ReminderOccurrenceFinalizedDirectInput,
-} from '../directPublic/writeReminderProjectionDirect.js';
+import type { ReminderOccurrenceFinalizedDirectInput } from '../directPublic/writeReminderProjectionDirect.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 
 export type DirectPublicWriteRetryOperation =
   | 'support_delivery_attempt_append'
   | 'reminder_occurrence_sent_record'
   | 'reminder_occurrence_failed_record'
-  | 'reminder_occurrence_expired_record'
-  | 'reminder_delivery_log_append';
+  | 'reminder_occurrence_expired_record';
 
 export type DirectPublicWriteRetryPayload = (
   | AppendSupportDeliveryEventDirectInput
   | ReminderOccurrenceFinalizedDirectInput
-  | ReminderDeliveryLoggedDirectInput
 ) & { organizationId: string };
 
 export type DirectPublicWriteRetryRow = {
