@@ -827,12 +827,28 @@ $$;
 -- fresh PROD-dump cutover receives the same atomic challenge+queue operation without replaying the
 -- historical migration chain.
 CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
+  p_user_id uuid, p_email text, p_code_hash text, p_expires_at bigint, p_purpose text, p_code text
+)
+RETURNS TABLE (challenge_id uuid, retry_after_seconds integer)
+LANGUAGE plpgsql VOLATILE PARALLEL UNSAFE SECURITY DEFINER SET search_path = pg_catalog
+AS $function$
+BEGIN
+  RAISE EXCEPTION 'email_auth_start_challenge: mail_profile_required';
+END
+$function$;
+
+CREATE OR REPLACE FUNCTION app.email_auth_start_challenge(
   p_user_id uuid,
   p_email text,
   p_code_hash text,
   p_expires_at bigint,
   p_purpose text,
-  p_code text
+  p_code text,
+  p_mail_profile_kind text,
+  p_sender_display_name text,
+  p_organization_id uuid,
+  p_clinic_name text,
+  p_platform_name text
 )
 RETURNS TABLE (challenge_id uuid, retry_after_seconds integer)
 LANGUAGE plpgsql
@@ -859,9 +875,14 @@ BEGIN
       ROW('text@3', textsend(p_code_hash))::app.port_typed_arg,
       ROW('bigint@4', int8send(p_expires_at))::app.port_typed_arg,
       ROW('text@5', textsend(p_purpose))::app.port_typed_arg,
-      ROW('text@6', textsend(p_code))::app.port_typed_arg
+      ROW('text@6', textsend(p_code))::app.port_typed_arg,
+      ROW('text@7', textsend(p_mail_profile_kind))::app.port_typed_arg,
+      ROW('text@8', textsend(p_sender_display_name))::app.port_typed_arg,
+      ROW('uuid@9', uuid_send(p_organization_id))::app.port_typed_arg,
+      ROW('text@10', textsend(p_clinic_name))::app.port_typed_arg,
+      ROW('text@11', textsend(p_platform_name))::app.port_typed_arg
     ]),
-    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)'::regprocedure
+    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)'::regprocedure
   );
 
   IF p_user_id IS NULL OR p_email IS NULL OR p_email <> lower(btrim(p_email))
@@ -880,6 +901,19 @@ BEGIN
     'patient_email_change'
   ) THEN
     RAISE EXCEPTION 'email_auth_start_challenge: invalid purpose';
+  END IF;
+  IF p_mail_profile_kind = 'platform' THEN
+    IF p_sender_display_name IS NULL OR btrim(p_sender_display_name) = ''
+       OR p_organization_id IS NOT NULL OR p_clinic_name IS NOT NULL OR p_platform_name IS NOT NULL THEN
+      RAISE EXCEPTION 'email_auth_start_challenge: invalid platform mail profile';
+    END IF;
+  ELSIF p_mail_profile_kind = 'branded' THEN
+    IF p_sender_display_name IS NOT NULL OR p_organization_id IS NULL
+       OR btrim(coalesce(p_clinic_name, '')) = '' OR btrim(coalesce(p_platform_name, '')) = '' THEN
+      RAISE EXCEPTION 'email_auth_start_challenge: invalid branded mail profile';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'email_auth_start_challenge: mail_profile_required';
   END IF;
 
   PERFORM pg_advisory_xact_lock(hashtextextended(p_user_id::text, 0));
@@ -913,7 +947,7 @@ BEGIN
     organization_id, event_id, kind, channel, payload_json,
     status, attempt_count, max_attempts, next_retry_at, priority
   ) VALUES (
-    NULL, v_event_id, 'auth_email_otp', 'email',
+    p_organization_id, v_event_id, 'auth_email_otp', 'email',
     jsonb_build_object(
       'intent', jsonb_build_object(
         'type', 'message.send',
@@ -926,9 +960,19 @@ BEGIN
         ),
         'payload', jsonb_build_object(
           'recipient', jsonb_build_object('email', p_email),
-          'message', jsonb_build_object('text', 'Ваш код BersonCare: ' || p_code),
           'delivery', jsonb_build_object('channels', jsonb_build_array('email')),
-          'subject', 'Код подтверждения BersonCare'
+          'authCode', p_code,
+          'mailProfile', CASE p_mail_profile_kind
+            WHEN 'platform' THEN jsonb_build_object(
+              'kind', 'platform', 'senderDisplayName', p_sender_display_name
+            )
+            ELSE jsonb_build_object(
+              'kind', 'branded',
+              'organizationId', p_organization_id,
+              'clinicName', p_clinic_name,
+              'platformName', p_platform_name
+            )
+          END
         )
       )
     ),
@@ -946,7 +990,7 @@ BEGIN
 END
 $function$;
 
-COMMENT ON FUNCTION app.email_auth_start_challenge(uuid, text, text, bigint, text, text) IS
+COMMENT ON FUNCTION app.email_auth_start_challenge(uuid, text, text, bigint, text, text, text, text, uuid, text, text) IS
   'Exact pre-session root that atomically replaces one email challenge, records cooldown and enqueues its auth-code delivery.';
 
 -- C-2 step 4 (0249): adds `purpose` to the output. Argument signature is unchanged (only the

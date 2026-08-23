@@ -27,6 +27,7 @@ import {
   otpDeliveryIdempotencyKey,
   signIntegratorPayload as signPayload,
 } from '@/infra/integrations/sms/integratorSmsDelivery';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 function generateChallengeId(): string {
   return randomBytes(16).toString('base64url');
@@ -107,7 +108,11 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
           if (!to) {
             return { ok: false, code: 'invalid_phone' };
           }
-          const sent = await sendEmailCodeViaIntegrator(to, code);
+          const sent = await sendEmailCodeViaIntegrator(
+            to,
+            code,
+            platformMailProfileForRecipientRole('client'),
+          );
           const phoneMask = maskPhoneForOpsLog(phone);
           if (!sent.ok) {
             logPhoneOtpDeliveryEvent({ channel: 'email', outcome: 'delivery_failed', phoneMask });
@@ -131,6 +136,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
               channel: deliveryChannel,
               recipientId,
               code,
+              mailProfile: platformMailProfileForRecipientRole('client'),
               idempotencyKey: otpDeliveryIdempotencyKey(deliveryChannel, recipientId, code),
             });
             const signature = signPayload(timestamp, body, sharedSecret);

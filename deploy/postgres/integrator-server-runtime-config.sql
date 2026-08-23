@@ -322,7 +322,8 @@ AS $function$
       'clinic_smtp_outbound',
       'clinic_smsc_api_key',
       'clinic_telegram_bot_token',
-      'clinic_max_bot_api_key'
+      'clinic_max_bot_api_key',
+      'clinic_transactional_mail_template'
     )
     AND setting.key = p_key
     AND setting.scope = 'admin'

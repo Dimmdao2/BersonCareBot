@@ -25,6 +25,7 @@ import {
   normalizeEmail,
   getPendingEmailChallenge,
 } from '@/modules/auth/emailAuth';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 const bodySchema = z.object({
   email: z.string().trim().min(1).max(320).email({ message: 'Некорректный email' }),
@@ -82,7 +83,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ use
   }
 
   const result = await withDoctorWorkspacePrincipal(gate.ctx, () =>
-    startEmailChallenge(identity.userId, parsed.data.email, 'patient_email_change'),
+    startEmailChallenge(
+      identity.userId,
+      parsed.data.email,
+      'patient_email_change',
+      platformMailProfileForRecipientRole('client'),
+    ),
   );
   if (!result.ok) {
     const status =

@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
 import { env, integratorWebhookSecret } from '@/config/env';
+import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 type SendEmailResult = { ok: true } | { ok: false; error: string };
 
@@ -62,8 +63,16 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
   }
 
   return {
-    async sendEmailCode(to: string, code: string): Promise<SendEmailResult> {
-      return postSendEmail({ to, code }, emailIdempotencyKey({ to, code }));
+    async sendEmailCode(
+      to: string,
+      code: string,
+      mailProfile: MailProfileRequest,
+    ): Promise<SendEmailResult> {
+      const mailProfileJson = JSON.stringify(mailProfile);
+      return postSendEmail(
+        { to, code, mailProfile: mailProfileJson },
+        emailIdempotencyKey({ to, code, mailProfile: mailProfileJson }),
+      );
     },
 
     async sendTransactionalEmail(
@@ -79,12 +88,13 @@ export function createIntegratorEmailAdapter(deps: IntegratorEmailAdapterDeps) {
 export async function sendEmailCodeViaIntegrator(
   to: string,
   code: string,
+  mailProfile: MailProfileRequest,
 ): Promise<SendEmailResult> {
   const adapter = createIntegratorEmailAdapter({
     integratorBaseUrl: env.INTEGRATOR_API_URL,
     sharedSecret: integratorWebhookSecret(),
   });
-  return adapter.sendEmailCode(to, code);
+  return adapter.sendEmailCode(to, code, mailProfile);
 }
 
 export async function sendEmailSetupLinkViaIntegrator(

@@ -1,7 +1,9 @@
+import type { MailProfileRequest } from './mailProfile';
+
 export type EmailSendResult = { ok: true } | { ok: false; error: string };
 
 export type EmailSendPort = {
-  sendCode: (to: string, code: string) => Promise<EmailSendResult>;
+  sendCode: (to: string, code: string, mailProfile: MailProfileRequest) => Promise<EmailSendResult>;
 };
 
 let emailSendPort: EmailSendPort | undefined;
@@ -19,6 +21,10 @@ function requireEmailSendPort(): EmailSendPort {
   return emailSendPort;
 }
 
-export async function sendEmailAuthCode(to: string, code: string): Promise<EmailSendResult> {
-  return requireEmailSendPort().sendCode(to, code);
+export async function sendEmailAuthCode(
+  to: string,
+  code: string,
+  mailProfile: MailProfileRequest,
+): Promise<EmailSendResult> {
+  return requireEmailSendPort().sendCode(to, code, mailProfile);
 }

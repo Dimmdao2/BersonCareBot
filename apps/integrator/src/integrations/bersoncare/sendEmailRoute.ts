@@ -26,20 +26,35 @@ import {
   classifyOutboundProviderErrorClass,
   type OutboundProviderErrorClass,
 } from '@bersoncare/operator-db-schema';
+import { mailProfileRequestSchema } from '../email/mailProfile.js';
 
 const WINDOW_SECONDS = 300;
+
+const encodedMailProfileSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}, mailProfileRequestSchema);
 
 const sendEmailBodySchema = z
   .object({
     to: z.string().email(),
     subject: z.string().optional(),
     code: z.string().optional(),
+    mailProfile: encodedMailProfileSchema.optional(),
     text: z.string().optional(),
     templateId: z.string().optional(),
     idempotencyKey: z.string().min(1),
   })
   .refine((data) => Boolean(data.code?.trim() || data.text?.trim()), {
     message: 'code_or_text_required',
+  })
+  .refine((data) => !data.code?.trim() || data.mailProfile !== undefined, {
+    message: 'mail_profile_required_for_auth_code',
+    path: ['mailProfile'],
   });
 
 type SendEmailBody = z.infer<typeof sendEmailBodySchema>;
@@ -158,8 +173,8 @@ export async function registerBersoncareSendEmailRoute(
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
 
-    const subject = isAuthCode ? 'Код подтверждения BersonCare' : (payload.subject ?? 'BersonCare');
-    const text = isAuthCode ? `Ваш код BersonCare: ${payload.code}` : (payload.text?.trim() ?? '');
+    const subject = payload.subject ?? 'BersonCare';
+    const text = payload.text?.trim() ?? '';
 
     // OTP safety: prefix eventId with 'otp:email:' when a code is present so that
     // sanitizePayloadForLogs (dispatchPort) redacts it from the canonical delivery journal.
@@ -185,8 +200,16 @@ export async function registerBersoncareSendEmailRoute(
 
     // Dispatch through the single chokepoint — the pre-fork dev redirect inside
     // dispatchOutgoing applies automatically (PLAN D7).
+    const intent = messageToIntent(msg);
+    if (isAuthCode) {
+      intent.payload = {
+        ...intent.payload,
+        authCode: payload.code,
+        mailProfile: payload.mailProfile,
+      };
+    }
     try {
-      await dispatchPort.dispatchOutgoing(messageToIntent(msg));
+      await dispatchPort.dispatchOutgoing(intent);
     } catch (error) {
       await idempotencyPort.release?.(payload.idempotencyKey);
       if (isOutboundMessagePolicyDenied(error)) {

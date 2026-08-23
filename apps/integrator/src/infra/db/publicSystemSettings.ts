@@ -122,7 +122,8 @@ export type IntegratorClinicDeliveryCredentialKey =
   | 'clinic_smsc_api_key'
   | 'clinic_telegram_bot_token'
   | 'clinic_max_bot_api_key'
-  | 'clinic_vk_community_access_token';
+  | 'clinic_vk_community_access_token'
+  | 'clinic_transactional_mail_template';
 
 /**
  * Clinic-owned delivery credential (tariff branding) for the EXACT current organization.

@@ -27,6 +27,7 @@ import { resolveSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import type { ResolvedSmtpOutboundConfig } from '../../config/smtpOutbound.js';
 import { sendMail } from './mailer.js';
 import type { MailAttachment } from './mailer.js';
+import { resolveAndRenderAuthCodeMailProfile } from './mailProfile.js';
 
 type EmailDeliveryPayload = {
   recipient?: { email?: unknown };
@@ -37,6 +38,8 @@ type EmailDeliveryPayload = {
   /** payload.title: legacy path — used when content.subject was not set (backwards compat). */
   title?: unknown;
   fromOverride?: unknown;
+  authCode?: unknown;
+  mailProfile?: unknown;
   delivery?: {
     channels?: unknown;
     clinicCredential?: { channel?: unknown; smtp?: ResolvedSmtpOutboundConfig };
@@ -74,10 +77,19 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         throw err;
       }
 
-      // content.subject maps to payload.subject (S9 contract fix); fall back to payload.title
-      // for backward compat with call sites that predated the subject field, then a final fallback.
-      const subject = asString(payload.subject) ?? asString(payload.title) ?? 'BersonCare';
-      const text = asString(payload.message?.text);
+      const db = deps.getDb();
+      const authCode = asString(payload.authCode);
+      const renderedProfile = authCode
+        ? await resolveAndRenderAuthCodeMailProfile({
+            db,
+            profile: payload.mailProfile,
+            code: authCode,
+          })
+        : null;
+      // Non-auth transactional/broadcast mail keeps its existing subject/text behavior.
+      const subject =
+        renderedProfile?.subject ?? asString(payload.subject) ?? asString(payload.title) ?? 'BersonCare';
+      const text = renderedProfile?.text ?? asString(payload.message?.text);
       const html = asString(payload.html);
 
       // N2: per-specialist fromOverride > system SMTP from.
@@ -96,7 +108,6 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
           ]
         : [];
 
-      const db = deps.getDb();
       const clinicSmtp =
         payload.delivery?.clinicCredential?.channel === 'email'
           ? payload.delivery.clinicCredential.smtp
@@ -113,6 +124,7 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         ...(text !== undefined ? { text } : {}),
         ...(html !== undefined ? { html } : {}),
         ...(fromOverride !== undefined ? { from: fromOverride } : {}),
+        ...(renderedProfile ? { fromName: renderedProfile.senderDisplayName } : {}),
         ...(attachments.length > 0 ? { attachments } : {}),
       });
 

@@ -28,6 +28,7 @@ export type SendMailParams = {
   text?: string;
   html?: string;
   from?: string;
+  fromName?: string;
   replyTo?: string;
   /** Опциональные вложения (например, .ics-файл). */
   attachments?: MailAttachment[];
@@ -78,9 +79,11 @@ export async function sendMail(
 ): Promise<SendMailResult> {
   const transport = getOrCreateTransport(resolved);
   const toList = Array.isArray(params.to) ? params.to : [params.to];
-  const from = params.from ?? resolved.fromAddress;
+  const fromAddress = params.from ?? resolved.fromAddress;
+  const fromName = params.fromName ?? resolved.senderDisplayName;
+  const from = fromName ? { name: fromName, address: fromAddress } : fromAddress;
 
-  if (!transport || !from) {
+  if (!transport || !fromAddress) {
     return { accepted: [], rejected: [] };
   }
 

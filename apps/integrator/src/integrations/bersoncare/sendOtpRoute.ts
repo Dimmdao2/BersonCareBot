@@ -12,6 +12,11 @@ import type {
   OutgoingIntent,
 } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import {
+  mailProfileRequestSchema,
+  resolveAndRenderAuthCodeMailProfile,
+} from '../email/mailProfile.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -20,6 +25,7 @@ const bodySchema = z
     channel: z.enum(['telegram', 'max']),
     recipientId: z.string().min(1),
     code: z.string().min(4).max(8),
+    mailProfile: mailProfileRequestSchema,
     idempotencyKey: z.string().min(1),
   })
   .superRefine((value, ctx) => {
@@ -56,6 +62,7 @@ function verifySignature(
 }
 
 export type BersoncareSendOtpDeps = {
+  db: DbPort;
   dispatchPort: DispatchPort;
   sharedSecret: string;
   isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
@@ -66,7 +73,7 @@ export async function registerBersoncareSendOtpRoute(
   app: FastifyInstance,
   deps: BersoncareSendOtpDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, isAuthChannelEnabled, idempotencyPort } = deps;
+  const { db, dispatchPort, sharedSecret, isAuthChannelEnabled, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -102,14 +109,15 @@ export async function registerBersoncareSendOtpRoute(
       return reply.code(400).send({ ok: false, error: 'invalid_payload' });
     }
 
-    const { channel, recipientId, code, idempotencyKey } = parsed.data;
+    const { channel, recipientId, code, idempotencyKey, mailProfile } = parsed.data;
     if (!(await isAuthChannelEnabled(channel))) {
       return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
     }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
-    const text = `Код для входа в BersonCare: ${code}`;
+    const rendered = await resolveAndRenderAuthCodeMailProfile({ db, profile: mailProfile, code });
+    const text = rendered.text;
     const eventId = idempotencyKey;
     const recipient = channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
     const intent: OutgoingIntent = {

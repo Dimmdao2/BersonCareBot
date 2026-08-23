@@ -7,6 +7,7 @@ import { registerBersoncareSendOtpRoute } from './sendOtpRoute.js';
 const SHARED_SECRET = 'send-otp-route-test-secret';
 const ROUTE = '/api/bersoncare/send-otp';
 const apps: FastifyInstance[] = [];
+const mailProfile = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
 
 function protocolHeaders(rawBody: string): Record<string, string> {
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -33,6 +34,7 @@ async function buildApp(dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent)
   const app = Fastify({ logger: false });
   apps.push(app);
   await registerBersoncareSendOtpRoute(app, {
+    db: {} as never,
     dispatchPort: { dispatchOutgoing },
     sharedSecret: SHARED_SECRET,
     isAuthChannelEnabled: async () => true,
@@ -63,6 +65,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'max',
       recipientId: 'not-a-platform-user-id',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:max:one',
     });
 
@@ -78,6 +81,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'max',
       recipientId: '123456789',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:max:one',
     });
 
@@ -95,6 +99,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'telegram',
       recipientId: 'tg-1',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:tg:1',
     };
 

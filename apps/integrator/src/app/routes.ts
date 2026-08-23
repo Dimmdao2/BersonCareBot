@@ -168,6 +168,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
   });
 
   await registerBersoncareSendOtpRoute(app, {
+    db: createDbPort(),
     dispatchPort: deps.dispatchPort,
     sharedSecret: integratorWebhookSecret(),
     isAuthChannelEnabled: authChannelPolicy,

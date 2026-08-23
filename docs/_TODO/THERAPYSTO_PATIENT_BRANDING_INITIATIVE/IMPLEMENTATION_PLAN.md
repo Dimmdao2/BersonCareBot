@@ -676,9 +676,13 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   callback allowlist исключают подмену host/org/provider.
 - [ ] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
   существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.
-- [ ] `C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
+- [x] `C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
   setting и один mail-profile resolver/renderer. Не трогать doctor broadcasts/mass mailing кроме сохранения текущего
-  поведения.
+  поведения. Доказательство: `apps/integrator/src/integrations/email/mailProfile.unit.test.ts` (Therapysto,
+  Therapygo, branded pair and fail-closed owner-copy absence); `pnpm typecheck`; scoped integrator/webapp lint;
+  `bash deploy/host/migrate-dev.sh --preflight` и `--execute` на DEV. Формулировка branded-пары остаётся значением
+  `clinic_transactional_mail_template`, которое должен написать владелец; без него доставка намеренно не подменяет
+  клинику платформенным именем.
 - [ ] `C5` Добавить readiness check: branded domain не активируется, пока обязательные branded channels не
   сконфигурированы. Global patient OAuth не является per-org readiness condition. Неактивный branded hostname
   не ухудшает standard patient path.

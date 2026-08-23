@@ -19,6 +19,7 @@ import type {
   ClaimVerifiedEmailResult,
   EmailChallengePurpose,
 } from '@/modules/auth/emailAuthPort';
+import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 export type EmailChallengeRow = {
   id: string;
@@ -46,31 +47,37 @@ export async function startEmailChallengeInDb(params: {
   expiresAt: number;
   purpose: EmailChallengePurpose;
   code: string;
+  mailProfile: MailProfileRequest;
 }): Promise<{ challengeId: string | null; retryAfterSeconds: number }> {
+  const profileArgs =
+    params.mailProfile.kind === 'platform'
+      ? [params.mailProfile.kind, params.mailProfile.senderDisplayName, null, null, null]
+      : [
+          params.mailProfile.kind,
+          null,
+          params.mailProfile.organizationId,
+          params.mailProfile.clinicName,
+          params.mailProfile.platformName,
+        ];
+  const args = [
+    params.userId,
+    params.email,
+    params.codeHash,
+    params.expiresAt,
+    params.purpose,
+    params.code,
+    ...profileArgs,
+  ];
   const query = `SELECT challenge_id::text, retry_after_seconds
-    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6)`;
+    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6, $7, $8, $9::uuid, $10, $11)`;
   const result = await runWebappNamedRoot<{
     challenge_id: string | null;
     retry_after_seconds: number | string;
   }>(
     getWebappSqlDb(),
-    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)',
-    [
-      params.userId,
-      params.email,
-      params.codeHash,
-      params.expiresAt,
-      params.purpose,
-      params.code,
-    ],
-    webappSqlFromPgText(query, [
-      params.userId,
-      params.email,
-      params.codeHash,
-      params.expiresAt,
-      params.purpose,
-      params.code,
-    ]),
+    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
+    args,
+    webappSqlFromPgText(query, args),
   );
   const row = result.rows[0];
   if (!row) throw new Error('email_auth_start_challenge_empty_result');

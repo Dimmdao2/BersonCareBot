@@ -37,6 +37,7 @@ describe('email challenge exact pre-session root', () => {
       expiresAt: 1_800_000_000,
       purpose: 'password_reset' as const,
       code: '123456',
+      mailProfile: { kind: 'platform', senderDisplayName: 'Therapysto' } as const,
     };
     await expect(startEmailChallengeInDb(params)).resolves.toEqual({
       challengeId: 'challenge-1',
@@ -47,7 +48,7 @@ describe('email challenge exact pre-session root', () => {
     const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
     expect(db).toBe(fakes.db);
     expect(identity).toBe(
-      'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)',
+      'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
     );
     expect(args).toEqual([
       params.userId,
@@ -56,6 +57,11 @@ describe('email challenge exact pre-session root', () => {
       params.expiresAt,
       params.purpose,
       params.code,
+      'platform',
+      'Therapysto',
+      null,
+      null,
+      null,
     ]);
   });
 
@@ -72,6 +78,7 @@ describe('email challenge exact pre-session root', () => {
         expiresAt: 1_800_000_000,
         purpose: 'login',
         code: '654321',
+        mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
       }),
     ).resolves.toEqual({ challengeId: null, retryAfterSeconds: 23 });
   });
