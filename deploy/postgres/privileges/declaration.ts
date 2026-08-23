@@ -2597,7 +2597,6 @@ const WEBAPP_WORKER_SOURCES = [
   // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
   // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
   'api/internal/saas-billing/renewal/tick:POST',
-  'api/internal/specialist-task-reminders/tick:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
   'api/internal/heartbeat/digest:POST',

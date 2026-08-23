@@ -84,19 +84,8 @@ export const inMemorySpecialistTasksPort: SpecialistTasksPort = {
     };
   },
 
-  async listDueReminders(nowIso, limit) {
-    return store
-      .filter((t) => !t.completedAt && t.remindAt && t.remindAt <= nowIso && !t.reminderSentAt)
-      .slice(0, limit);
-  },
-
   async markReminderSent(taskId, sentAtIso) {
     const idx = store.findIndex((t) => t.id === taskId);
     if (idx >= 0) store[idx] = { ...store[idx]!, reminderSentAt: sentAtIso, updatedAt: sentAtIso };
-  },
-
-  async enqueueDueReminders(nowIso, limit) {
-    const processed = (await this.listDueReminders(nowIso, limit)).length;
-    return { processed, enqueued: 0 };
   },
 };
