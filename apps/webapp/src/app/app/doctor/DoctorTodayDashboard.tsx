@@ -143,7 +143,7 @@ export function DoctorTodayDashboard({
             taskPatientNames={taskPatientNames}
             todayIso={calendarSnapshot.todayIso}
             displayIana={displayIana}
-            className="flex-1"
+            className="flex-1 max-md:hidden"
             available={specialistTasksAvailable}
             readable={specialistTasksReadable}
             busy={taskMutationPending}
