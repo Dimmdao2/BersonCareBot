@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
-import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME, STAFF_SURFACE } from '@/config/productSurfaces';
+import { PATIENT_DEFAULT_SURFACE, PLATFORM_NAME } from '@/config/productSurfaces';
 import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { PATIENT_PWA_MANIFEST_PATH } from '@/shared/lib/pwa/patientPwaManifest';
-import type { ProductSurface } from '@/config/surfaceRoutes';
+import { surfaceDisplayName, type ResolvedSurface } from './requestSurface';
 
 /**
  * Идентичность поверхности в двух видах, которые её выражают: метаданные документа (заголовок,
  * описание, манифест, иконки, apple-web-app) и видимое имя в интерфейсе.
  *
  * Обе функции вызываются ровно из одного места — корневого layout (`app/layout.tsx`), который берёт
- * поверхность у `resolveRequestSurface` (`config/surfaceRoutes.ts`). Отдельного «имени для шапки»
+ * уже вычисленный proxy результат. Отдельного «имени для шапки»
  * или «метаданных для staff-зоны» на маршрутах больше нет (TPB-16).
  */
 
@@ -48,11 +48,20 @@ export const platformAdminLayoutMetadata: Metadata = {
 };
 
 /** Метаданные документа для поверхности запроса. */
-export function surfaceLayoutMetadata(surface: ProductSurface): Metadata {
-  return surface === 'staff' ? staffPwaLayoutMetadata : patientLayoutMetadata;
-}
-
-/** Видимое имя продукта для поверхности запроса (шапка, тексты экранов входа). */
-export function surfaceDisplayName(surface: ProductSurface): string {
-  return surface === 'staff' ? STAFF_SURFACE.name : PATIENT_DEFAULT_SURFACE.name;
+export function surfaceLayoutMetadata(resolved: ResolvedSurface): Metadata {
+  if (resolved.surface === 'staff' || resolved.surface === 'platform_admin') {
+    return staffPwaLayoutMetadata;
+  }
+  const displayName = surfaceDisplayName(resolved);
+  if (resolved.surface === 'patient_default') return patientLayoutMetadata;
+  return {
+    ...patientLayoutMetadata,
+    title: displayName,
+    description: `Patient web application for ${displayName}.`,
+    appleWebApp: {
+      capable: true,
+      title: displayName,
+      statusBarStyle: 'default',
+    },
+  };
 }

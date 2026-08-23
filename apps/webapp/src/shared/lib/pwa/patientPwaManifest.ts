@@ -1,5 +1,8 @@
 import type { MetadataRoute } from 'next';
-import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
+import {
+  surfaceDisplayName,
+  type ResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 export const PATIENT_PWA_MANIFEST_PATH = '/manifest.webmanifest';
 
@@ -17,11 +20,15 @@ export const PATIENT_PWA_MANIFEST_PATH = '/manifest.webmanifest';
  * URL, `id`, `scope`, `start_url` и тексты — байт в байт прежние: контракт уже установленных
  * приложений переезд не трогает.
  */
-export function buildPatientPwaManifest(): MetadataRoute.Manifest {
+export function buildPatientPwaManifest(resolved: ResolvedSurface): MetadataRoute.Manifest {
+  if (resolved.surface !== 'patient_default' && resolved.surface !== 'patient_branded') {
+    throw new Error('patient_manifest_requires_patient_surface');
+  }
+  const displayName = surfaceDisplayName(resolved);
   return {
     id: '/app',
-    name: `${PATIENT_DEFAULT_SURFACE.name} — забота о твоём здоровье`,
-    short_name: PATIENT_DEFAULT_SURFACE.name,
+    name: `${displayName} — забота о твоём здоровье`,
+    short_name: displayName,
     description:
       'Мобильный помощник для восстановления и реабилитации: разминки, упражнения, дневник самочувствия, напоминания и полезные материалы.',
     start_url: '/app/patient',

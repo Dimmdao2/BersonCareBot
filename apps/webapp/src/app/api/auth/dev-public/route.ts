@@ -2,7 +2,7 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env } from '@/config/env';
 import { isDevAuthBypassEnabled } from '@/modules/auth/devBypassPolicy';
-import { getRequestOrigin } from '@/shared/lib/http/getRequestOrigin';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import { MESSENGER_SURFACE_COOKIE_NAME, PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
 import { NextResponse } from 'next/server';
 
@@ -16,7 +16,7 @@ const REGISTRATION_VIEWS = new Set([
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/auth/dev-public:GET', request);
   const requestUrl = new URL(request.url);
-  const origin = getRequestOrigin(request, requestUrl);
+  const origin = requireResolvedSurface(request.headers).publicOrigin;
 
   if (
     !isDevAuthBypassEnabled({

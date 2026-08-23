@@ -8,9 +8,8 @@ import { STAFF_SURFACE_NAME } from './productSurfaceNames';
  * (TPB-01, TPB-03, TPB-04, TPB-09, TPB-16). Любое место, которому нужно имя платформы или origin
  * поверхности, импортирует значение отсюда — второй геттер/константу/store не заводить (TPB-16).
  *
- * Клиничный (branded) patient surface — отдельная третья поверхность, которую резолвит
- * `RequestSurfaceResolver` из этапа B по `EffectivePatientBrand`; этот модуль её не строит и
- * не предвосхищает.
+ * Branded patient surface строит `RequestSurfaceResolver` по `EffectivePatientBrand`;
+ * этот deploy-config модуль её не дублирует.
  */
 
 /** Специалисты, админы клиники, платформенные админы. Имя фиксировано владельцем (TPB-01). */

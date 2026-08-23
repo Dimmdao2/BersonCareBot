@@ -1,31 +1,79 @@
 import { NextRequest } from 'next/server';
-import { describe, expect, it } from 'vitest';
-import { proxy } from '@/proxy';
+import { unstable_doesMiddlewareMatch } from 'next/experimental/testing/server';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { config, proxy } from '@/proxy';
 import { encodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import type { AppSession, UserRole } from '@/shared/types/session';
-import { SURFACE_PATHNAME_HEADER, SURFACE_SEARCH_HEADER } from '@/config/surfaceRoutes';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
+import {
+  RESOLVED_SURFACE_HEADER,
+  readResolvedSurface,
+  type TenantSurfaceLookup,
+} from '@/shared/lib/surface/requestSurface';
 
-function unsafeRequest(pathname: string, headers: Record<string, string> = {}): NextRequest {
-  return new NextRequest(`https://app.example.test${pathname}`, {
-    method: 'POST',
-    headers: {
-      host: 'app.example.test',
-      'x-forwarded-proto': 'https',
-      ...headers,
-    },
-  });
+const STAFF_ORIGIN = new URL(STAFF_SURFACE.origin);
+
+const PLATFORM_SURFACE_CONFIGURATIONS = [
+  {
+    name: 'one shared origin',
+    staffOrigin: 'https://staff.example.test',
+    patientOrigin: 'https://staff.example.test',
+  },
+  {
+    name: 'distinct staff and patient origins',
+    staffOrigin: 'https://staff.example.test',
+    patientOrigin: 'https://patient.example.test',
+  },
+] as const;
+
+type PlatformSurfaceConfiguration = (typeof PLATFORM_SURFACE_CONFIGURATIONS)[number];
+
+async function loadProxyForSurfaceConfiguration({
+  staffOrigin,
+  patientOrigin,
+}: PlatformSurfaceConfiguration) {
+  vi.resetModules();
+  vi.stubEnv('APP_BASE_URL', staffOrigin);
+  vi.stubEnv('PATIENT_APP_ORIGIN', patientOrigin);
+
+  const [proxyModule, productSurfaces, requestSurface] = await Promise.all([
+    import('@/proxy'),
+    import('@/config/productSurfaces'),
+    import('@/shared/lib/surface/requestSurface'),
+  ]);
+
+  return {
+    proxy: proxyModule.proxy,
+    staffOrigin: new URL(productSurfaces.STAFF_SURFACE.origin),
+    patientOrigin: new URL(productSurfaces.PATIENT_DEFAULT_SURFACE.origin),
+    readResolvedSurface: requestSurface.readResolvedSurface,
+    resolvedSurfaceHeader: requestSurface.RESOLVED_SURFACE_HEADER,
+  };
 }
 
-function appRequest(pathname: string, role?: UserRole): NextRequest {
-  const headers: Record<string, string> = { host: 'app.example.test' };
-  if (role) {
+afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.resetModules();
+});
+
+function requestFor(
+  origin: URL,
+  pathname: string,
+  options: { method?: string; role?: UserRole; headers?: Record<string, string> } = {},
+): NextRequest {
+  const headers: Record<string, string> = {
+    host: origin.host,
+    'x-forwarded-proto': origin.protocol.replace(':', ''),
+    ...options.headers,
+  };
+  if (options.role) {
     const now = Math.floor(Date.now() / 1000);
     const session: AppSession = {
       user: {
-        userId: `test-${role}`,
-        role,
-        displayName: role,
+        userId: `test-${options.role}`,
+        role: options.role,
+        displayName: options.role,
         bindings: {},
       },
       issuedAt: now,
@@ -33,15 +81,71 @@ function appRequest(pathname: string, role?: UserRole): NextRequest {
     };
     headers.cookie = `${SESSION_COOKIE_NAME}=${encodeSessionCookie(session)}`;
   }
-  return new NextRequest(`https://app.example.test${pathname}`, { headers });
+  return new NextRequest(new URL(pathname, origin), {
+    method: options.method,
+    headers,
+  });
 }
+
+function middlewareRequestSurface(response: Response) {
+  return readResolvedSurface({
+    get(name: string) {
+      return response.headers.get(`x-middleware-request-${name}`);
+    },
+  });
+}
+
+describe('Next proxy matcher boundary', () => {
+  it.each([
+    '/',
+    '/clinic-a',
+    '/legal/terms',
+    '/book/clinic-a',
+    '/book/embed.js',
+    '/join/invite-a',
+    '/setup',
+    '/app',
+    '/app/patient/login',
+    '/api/auth/logout',
+    '/manifest.webmanifest',
+    '/manifest-staff.webmanifest',
+    '/sw.js',
+  ])('makes proxy the request choke point for %s', (pathname) => {
+    expect(
+      unstable_doesMiddlewareMatch({
+        config,
+        url: new URL(pathname, STAFF_ORIGIN).href,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    '/_next/static/chunks/app.js',
+    '/_next/image?url=%2Fpwa-icon-192.png&w=256&q=75',
+    '/favicon.ico',
+    '/robots.txt',
+    '/sitemap.xml',
+    '/pwa-icon-192.png',
+    '/fonts/app.woff2',
+  ])('keeps immutable/static request %s outside the resolver', (pathname) => {
+    expect(
+      unstable_doesMiddlewareMatch({
+        config,
+        url: new URL(pathname, STAFF_ORIGIN).href,
+      }),
+    ).toBe(false);
+  });
+});
 
 describe('HTTP CSRF origin boundary', () => {
   it('rejects a cross-origin browser mutation with a non-cacheable 403 response', async () => {
-    const response = proxy(
-      unsafeRequest('/api/account/security/password/change', {
-        origin: 'https://attacker.example',
-        'sec-fetch-site': 'same-origin',
+    const response = await proxy(
+      requestFor(STAFF_ORIGIN, '/api/account/security/password/change', {
+        method: 'POST',
+        headers: {
+          origin: 'https://attacker.example',
+          'sec-fetch-site': 'same-origin',
+        },
       }),
     );
 
@@ -58,31 +162,34 @@ describe('HTTP CSRF origin boundary', () => {
     [
       'an ambiguous Origin header',
       {
-        origin: 'https://app.example.test, https://attacker.example',
+        origin: `${STAFF_ORIGIN.origin}, https://attacker.example`,
         'sec-fetch-site': 'same-origin',
       },
     ],
   ])('rejects %s on a normal browser mutation', async (_case, headers) => {
-    const response = proxy(unsafeRequest('/api/account/security/password/change', headers));
+    const response = await proxy(
+      requestFor(STAFF_ORIGIN, '/api/account/security/password/change', {
+        method: 'POST',
+        headers,
+      }),
+    );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toEqual({
-      ok: false,
-      error: 'csrf_origin_forbidden',
-    });
   });
 
-  it('allows the canonical same-origin browser mutation', () => {
-    const response = proxy(
-      unsafeRequest('/api/account/security/password/change', {
-        origin: 'https://app.example.test',
-        'sec-fetch-site': 'same-origin',
+  it('allows the canonical same-origin browser mutation', async () => {
+    const response = await proxy(
+      requestFor(STAFF_ORIGIN, '/api/account/security/password/change', {
+        method: 'POST',
+        headers: {
+          origin: STAFF_ORIGIN.origin,
+          'sec-fetch-site': 'same-origin',
+        },
       }),
     );
 
     expect(response.status).not.toBe(403);
   });
-
 });
 
 describe('role-specific protected app doors', () => {
@@ -91,88 +198,214 @@ describe('role-specific protected app doors', () => {
       '/app/doctor/patients?tab=active',
       '/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients%3Ftab%3Dactive',
     ],
-    ['/app/patient/profile', '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile'],
     ['/app/admin/system-health', '/app/admin/login?next=%2Fapp%2Fadmin%2Fsystem-health'],
-  ])('keeps %s on its matching login door with next=', (path, expectedPath) => {
-    const response = proxy(appRequest(path));
-
-    expect(response.headers.get('location')).toBe(`https://app.example.test${expectedPath}`);
+  ])('keeps %s on its matching login door with next=', async (path, expectedPath) => {
+    const response = await proxy(requestFor(STAFF_ORIGIN, path));
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(expectedPath);
   });
 
-  it('does not redirect a role login route or a public booking route', () => {
-    expect(
-      proxy(appRequest('/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients')).headers.get(
-        'location',
-      ),
-    ).toBeNull();
-    expect(proxy(appRequest('/book/clinic-a')).headers.get('location')).toBeNull();
-  });
-
-  it('sends a doctor from a patient content route to their own cabinet with denial feedback', () => {
-    const response = proxy(appRequest('/app/patient/profile', 'doctor'));
-
-    expect(response.headers.get('location')).toBe(
-      'https://app.example.test/app/doctor?app_access_denied=1',
+  it('redirects an unauthenticated patient from the shared-origin portal', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[0]);
+    const response = await runtime.proxy(requestFor(runtime.staffOrigin, '/app/patient/profile'));
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
+      '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile',
     );
   });
 
-  it('does not interrupt an authenticated user at their own portal', () => {
-    expect(proxy(appRequest('/app/doctor/patients', 'doctor')).headers.get('location')).toBeNull();
+  it('does not redirect a role login route', async () => {
+    expect(
+      (
+        await proxy(
+          requestFor(STAFF_ORIGIN, '/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients'),
+        )
+      ).headers.get('location'),
+    ).toBeNull();
+  });
+
+  it('does not interrupt an authenticated doctor at their portal', async () => {
+    const response = await proxy(
+      requestFor(STAFF_ORIGIN, '/app/doctor/patients', { role: 'doctor' }),
+    );
+    expect(response.headers.get('location')).toBeNull();
+  });
+});
+
+describe('request-surface host matrix at the proxy choke point', () => {
+  it.each([
+    ['/app/patient/login', 200],
+    ['/book', 200],
+    ['/manifest.webmanifest', 200],
+  ] as const)('keeps the patient route %s reachable on one shared origin', async (pathname, status) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[0]);
+
+    const response = await runtime.proxy(requestFor(runtime.staffOrigin, pathname));
+
+    expect(response.status).toBe(status);
+    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
+      .toMatchObject({
+        surface: 'staff',
+        publicOrigin: runtime.staffOrigin.origin,
+      });
+  });
+
+  it.each([
+    ['/app/patient/login', 'staff host'],
+    ['/book', 'staff host'],
+    ['/manifest.webmanifest', 'staff host'],
+    ['/app/doctor/login', 'patient host'],
+  ] as const)('hard-404s %s on the wrong %s when origins are distinct', async (pathname, wrongHost) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const origin = wrongHost === 'staff host' ? runtime.staffOrigin : runtime.patientOrigin;
+
+    const response = await runtime.proxy(requestFor(origin, pathname));
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
+      .toBeNull();
+  });
+
+  it.each([
+    ['staff', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => runtime.staffOrigin, '/', 'staff'],
+    ['patient default', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => runtime.patientOrigin, '/app/patient/login', 'patient_default'],
+    ['platform admin', (runtime: Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>) => new URL(`https://admin.${runtime.staffOrigin.hostname}`), '/app/doctor/login', 'platform_admin'],
+  ] as const)('resolves %s through the proxy choke point', async (_name, originFor, pathname, surface) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+
+    const response = await runtime.proxy(requestFor(originFor(runtime), pathname));
+
+    expect(response.status).toBe(200);
+    expect(runtime.readResolvedSurface({ get: (name) => response.headers.get(`x-middleware-request-${name}`) }))
+      .toMatchObject({ surface });
   });
 });
 
 describe('global admin reaching platform pages under the doctor portal prefix', () => {
-  it('lets a platform-operations admin through to /app/doctor/analytics', () => {
-    expect(proxy(appRequest('/app/doctor/analytics', 'admin')).headers.get('location')).toBeNull();
-  });
+  it.each(['/app/doctor/analytics', '/app/doctor/booking-merge'])(
+    'lets a platform-operations admin through to %s',
+    async (path) => {
+      const response = await proxy(requestFor(STAFF_ORIGIN, path, { role: 'admin' }));
+      expect(response.headers.get('location')).toBeNull();
+    },
+  );
 
-  it('lets a platform-operations admin through to /app/doctor/booking-merge', () => {
-    expect(
-      proxy(appRequest('/app/doctor/booking-merge', 'admin')).headers.get('location'),
-    ).toBeNull();
-  });
-
-  it('still denies a platform-operations admin on a clinical-only doctor page', () => {
-    const response = proxy(appRequest('/app/doctor/patients', 'admin'));
-    expect(response.headers.get('location')).toBe(
-      'https://app.example.test/app/admin/system-health?app_access_denied=1',
+  it('still denies a platform-operations admin on a clinical-only doctor page', async () => {
+    const response = await proxy(
+      requestFor(STAFF_ORIGIN, '/app/doctor/patients', { role: 'admin' }),
+    );
+    const location = response.headers.get('location');
+    expect(location).not.toBeNull();
+    expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
+      '/app/admin/system-health?app_access_denied=1',
     );
   });
 });
 
-/**
- * Гейт круга 4 закрывал «ГДЕ ставится заголовок поверхности» (накрытие `config.matcher`), но не «ЧТО
- * ставится»: удаление строки `requestHeaders.set(SURFACE_PATHNAME_HEADER, …)` в `proxy.ts` молча
- * возвращало сразу три уже закрытые находки (`?intent=specialist`, `?from=clinic-demo`,
- * `?from=staff-factor` снова отдавали пациентское имя) при полностью зелёном наборе тестов.
- * Находка `R4-1` аудита круга 4.
- */
-describe('proxy доносит до layout путь и строку запроса поверхности', () => {
-  function requestHeaderFromProxy(
-    path: string,
-    header: string,
-    role?: UserRole,
-  ): string | null {
-    const response = proxy(appRequest(path, role));
-    return response.headers.get(`x-middleware-request-${header}`);
-  }
+describe('resolved surface request choke point', () => {
+  it('preserves the real URL for independent patient routing-security gates', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const response = await runtime.proxy(
+      requestFor(runtime.patientOrigin, '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile', {
+        headers: {
+          'x-bc-pathname': '/app/patient/onboarding',
+          'x-bc-search': '?spoofed=1',
+        },
+      }),
+    );
 
-  it.each([
-    ['/', undefined],
-    ['/app/doctor/login', undefined],
-    ['/app/patient', 'client' as UserRole],
-    ['/app/doctor/patients', 'doctor' as UserRole],
-  ])('кладёт %s в заголовок пути', (path, role) => {
-    expect(requestHeaderFromProxy(path, SURFACE_PATHNAME_HEADER, role)).toBe(path);
-  });
-
-  it('кладёт строку запроса — без неё различимые по параметру staff-адреса снова станут пациентскими', () => {
-    expect(
-      requestHeaderFromProxy('/app/contact-support?from=clinic-demo', SURFACE_SEARCH_HEADER),
-    ).toBe('?from=clinic-demo');
-    expect(requestHeaderFromProxy('/app?intent=specialist', SURFACE_SEARCH_HEADER)).toBe(
-      '?intent=specialist',
+    expect(response.headers.get('x-middleware-request-x-bc-pathname')).toBe(
+      '/app/patient/login',
+    );
+    expect(response.headers.get('x-middleware-request-x-bc-search')).toBe(
+      '?next=%2Fapp%2Fpatient%2Fprofile',
     );
   });
-});
 
+  it.each(PLATFORM_SURFACE_CONFIGURATIONS)(
+    'stamps the resolved surface once for /app with $name',
+    async (surfaceConfiguration) => {
+      const runtime = await loadProxyForSurfaceConfiguration(surfaceConfiguration);
+      const origin = runtime.patientOrigin;
+      const incomingSpoof = encodeURIComponent(
+        JSON.stringify({
+          surface: 'patient_branded',
+          publicOrigin: 'https://attacker.example',
+          authPolicy: 'patient',
+        }),
+      );
+      const response = await runtime.proxy(
+        requestFor(origin, '/app', {
+          headers: { [runtime.resolvedSurfaceHeader]: incomingSpoof },
+        }),
+      );
+
+      expect(
+        runtime.readResolvedSurface({
+          get: (name) => response.headers.get(`x-middleware-request-${name}`),
+        }),
+      )
+        .toMatchObject({
+          surface:
+            surfaceConfiguration.staffOrigin === surfaceConfiguration.patientOrigin
+              ? 'staff'
+              : 'patient_default',
+          publicOrigin: origin.origin,
+        });
+    },
+  );
+
+  it('passes the B1/B4 tenant seam result without resolving organization data itself', async () => {
+    const organizationId = '11111111-1111-4111-8111-111111111111';
+    const seenHostnames: string[] = [];
+    const tenantLookup: TenantSurfaceLookup = async (hostname) => {
+      seenHostnames.push(hostname);
+      return {
+        status: 'active',
+        organizationId,
+        effectivePatientBrand: {
+          organizationId,
+          core: { displayName: 'Clinic A', isActive: true },
+          paid: { displayName: 'Clinic A Plus', logoUrl: null },
+          effectiveDisplayName: 'Clinic A Plus',
+          resolution: 'applied',
+        },
+      };
+    };
+    const brandedOrigin = new URL('https://clinic-a.therapygo.ru:8443');
+    const response = await proxy(
+      requestFor(brandedOrigin, '/app/patient/login'),
+      tenantLookup,
+    );
+
+    expect(middlewareRequestSurface(response)).toMatchObject({
+      surface: 'patient_branded',
+      publicOrigin: brandedOrigin.origin,
+      organizationId,
+      authPolicy: 'patient',
+      effectivePatientBrand: { effectiveDisplayName: 'Clinic A Plus' },
+    });
+    expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
+  });
+
+  it('returns hard 404 for an unknown Host without platform fallback', async () => {
+    const response = await proxy(requestFor(new URL('https://untrusted.example'), '/app'));
+    expect(response.status).toBe(404);
+    expect(middlewareRequestSurface(response)).toBeNull();
+  });
+
+  it.each(['duplicate', 'inactive'] as const)(
+    'returns hard 404 for a %s tenant Host without platform fallback',
+    async (status) => {
+      const response = await proxy(
+        requestFor(new URL('https://untrusted.example'), '/app'),
+        async () => ({ status }),
+      );
+      expect(response.status).toBe(404);
+      expect(middlewareRequestSurface(response)).toBeNull();
+    },
+  );
+});

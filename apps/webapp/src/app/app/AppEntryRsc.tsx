@@ -14,8 +14,8 @@ import { buildPrefetchedPublicAuthConfig } from '@/modules/auth/publicAuthSnapsh
 import { getPostAuthRedirectTarget } from '@/modules/auth/redirectPolicy';
 import { routePaths } from '@/app-layer/routes/paths';
 import { getMessengerSurfaceHint, getPlatformEntry } from '@/shared/lib/platformCookie.server';
-import { getRequestSurface } from '@/shared/lib/surface/requestSurface.server';
-import { surfaceDisplayName } from '@/shared/lib/surface/surfaceLayoutMetadata';
+import { surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
+import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import type { MessengerSurfaceHint } from '@/shared/lib/platform';
 import { PatientAppShell } from '@/shared/ui/patient/PatientAppShell';
 import { AppEntryLoginContent } from './AppEntryLoginContent';
@@ -79,11 +79,7 @@ export async function AppEntryRsc({
       : routeBoundMessengerSurface === 'max' || entryClassification === 'max_miniapp'
         ? 'max'
         : 'browser';
-  // TPB-08: этот RSC обслуживает и staff-, и patient-входы (`/app/doctor/login`,
-  // `/app/admin/login`, `/app?intent=specialist` — staff; `/app`, `/app/patient/login`, `/app/tg`,
-  // `/app/max` — пациент), поэтому имя в шапке берётся у той же таблицы маршрутов, что и метаданные
-  // документа, а не перечислением порталов здесь.
-  const shellTitle = surfaceDisplayName(await getRequestSurface());
+  const shellTitle = surfaceDisplayName(await getResolvedSurface());
 
   return (
     <PatientAppShell

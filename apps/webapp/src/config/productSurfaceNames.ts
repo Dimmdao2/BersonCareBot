@@ -16,8 +16,8 @@
  *   `'use client'` components must NOT import it directly for display — that would show the
  *   build-time literal instead of the deploy-config value, AND it would show the patient name on a
  *   staff route. Use `useSurfaceName()`/`SurfaceNameContext` from `@/shared/ui/PlatformProvider`
- *   instead: it threads down the name of the surface `config/surfaceRoutes.ts` resolved for THIS
- *   request, already env-applied by `RootLayout`. This literal remains the context's no-provider
+ *   instead: it threads down the name from the proxy-produced `ResolvedSurface` for THIS request,
+ *   already env-applied by `RootLayout`. This literal remains the context's no-provider
  *   fallback and `env.ts`'s default.
  */
 export const STAFF_SURFACE_NAME = 'Therapysto';

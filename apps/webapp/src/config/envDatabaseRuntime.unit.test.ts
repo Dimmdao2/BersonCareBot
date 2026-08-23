@@ -1,7 +1,24 @@
 import { describe, expect, it } from 'vitest';
-import { webappRuntimeDatabaseIsConfigured } from './env';
+import { parseWebappEnv, webappRuntimeDatabaseIsConfigured } from './env';
 
 describe('webappRuntimeDatabaseIsConfigured', () => {
+  it('uses APP_BASE_URL for the patient origin when PATIENT_APP_ORIGIN is absent', () => {
+    expect(
+      parseWebappEnv({
+        APP_BASE_URL: 'https://staff.example.test',
+      }).PATIENT_APP_ORIGIN,
+    ).toBe('https://staff.example.test');
+  });
+
+  it('keeps an explicitly configured patient origin', () => {
+    expect(
+      parseWebappEnv({
+        APP_BASE_URL: 'https://staff.example.test',
+        PATIENT_APP_ORIGIN: 'https://patient.example.test',
+      }).PATIENT_APP_ORIGIN,
+    ).toBe('https://patient.example.test');
+  });
+
   it('recognizes port-context without the removed aggregate DATABASE_URL', () => {
     expect(
       webappRuntimeDatabaseIsConfigured({
