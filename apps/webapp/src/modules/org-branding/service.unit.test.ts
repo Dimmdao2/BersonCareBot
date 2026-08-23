@@ -140,6 +140,33 @@ describe('organization branding entitlement ladder', () => {
     ).resolves.toBeNull();
   });
 
+  it('never projects a retained draft to an anonymous patient surface', async () => {
+    const port = brandingPort();
+    port.getPublishedRevision = vi.fn(async () => null);
+    port.getDraftRevision = vi.fn(async () => published);
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toBeNull();
+  });
+
+  it('withholds a published brand from an anonymous surface when its organization is inactive', async () => {
+    const port = brandingPort();
+    port.getCoreContext = vi.fn(async () => ({
+      organizationId,
+      displayName: 'Деактивированная клиника',
+      isActive: false,
+    }));
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toBeNull();
+  });
+
   it('uses the existing patient name and accent defaults when a published brand omits both', async () => {
     const service = createOrgBrandingService({
       port: {

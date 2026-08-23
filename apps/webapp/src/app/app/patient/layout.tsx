@@ -29,6 +29,7 @@ import {
   resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext,
 } from '@/app-layer/patient-organization/requestContext';
+import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
@@ -126,18 +127,32 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
-    // Host branding was resolved once in proxy. The clinic context title may consume that value
-    // only when the branded Host and the enrollment-selected organization are the same tenant.
+    // A branded Host is the final surface authority. Until the tenant-host seam is connected,
+    // platform patient requests carry no brand, so preserve the existing patient-principal read.
+    // This fallback disappears from the request path as soon as the Host supplies this tenant's
+    // safe brand; never resolve the same brand twice.
     const resolvedPatientBrand =
       resolvedSurface.surface === 'patient_branded' &&
       resolvedSurface.organizationId === patientOrganizationId
         ? resolvedSurface.effectivePatientBrand
         : null;
+    const effectiveDisplayName = resolvedPatientBrand
+      ? resolvedPatientBrand.effectiveDisplayName
+      : await withPatientOrganizationPrincipal(
+          {
+            organizationId: patientOrganizationId,
+            platformUserId: session.user.userId,
+            source: 'app.patient.layout.org-branding',
+          },
+          () => deps.orgBranding.resolveEffectiveOrgBranding(patientOrganizationId),
+        )
+          .then((branding) => branding.effectiveDisplayName)
+          .catch(() => null);
     const patientBrandingContext = {
       ...patientContext,
       organization: {
         ...patientContext.organization,
-        title: resolvedPatientBrand?.effectiveDisplayName ?? patientContext.organization.title,
+        title: effectiveDisplayName ?? patientContext.organization.title,
       },
     };
     if (!patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {

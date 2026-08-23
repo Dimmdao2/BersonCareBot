@@ -398,6 +398,31 @@ describe('resolved surface request choke point', () => {
     expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
   });
 
+  it.each([
+    ['an invalid accent token', '#123456; background:url(https://attacker.example)'],
+    ['a missing patient app name', ''],
+  ] as const)(
+    'returns hard 404 when an active tenant seam supplies %s instead of a safe brand',
+    async (_case, invalidValue) => {
+      const organizationId = '11111111-1111-4111-8111-111111111111';
+      const response = await proxy(
+        requestFor(new URL('https://clinic-a.therapygo.ru'), '/app/patient/login'),
+        async () => ({
+          status: 'active' as const,
+          organizationId,
+          effectivePatientBrand: {
+            effectiveDisplayName: 'Clinic A Plus',
+            patientAppName: invalidValue === '' ? invalidValue : 'Clinic A Care',
+            accentToken: invalidValue === '' ? '#7a3cc2' : invalidValue,
+          },
+        }),
+      );
+
+      expect(response.status).toBe(404);
+      expect(middlewareRequestSurface(response)).toBeNull();
+    },
+  );
+
   it('returns hard 404 for an unknown Host without platform fallback', async () => {
     const response = await proxy(requestFor(new URL('https://untrusted.example'), '/app'));
     expect(response.status).toBe(404);
