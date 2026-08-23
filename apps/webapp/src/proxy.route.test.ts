@@ -50,6 +50,7 @@ function activeTenantSurface(organizationId = BRANDED_ORGANIZATION_ID): TenantSu
   return async () => ({
     status: 'active',
     organizationId,
+    effectivePatientBrandOrganizationId: organizationId,
     effectivePatientBrand,
   });
 }
@@ -515,6 +516,7 @@ describe('resolved surface request choke point', () => {
       return {
         status: 'active',
         organizationId,
+        effectivePatientBrandOrganizationId: organizationId,
         effectivePatientBrand: safeBrandWithInternalExtras,
       };
     };
@@ -552,6 +554,7 @@ describe('resolved surface request choke point', () => {
         async () => ({
           status: 'active' as const,
           organizationId,
+          effectivePatientBrandOrganizationId: organizationId,
           effectivePatientBrand: {
             effectiveDisplayName: 'Clinic A Plus',
             patientAppName: invalidValue === '' ? invalidValue : 'Clinic A Care',
