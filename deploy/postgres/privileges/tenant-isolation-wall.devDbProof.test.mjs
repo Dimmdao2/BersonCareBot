@@ -193,12 +193,19 @@ function provableAgainst(subject, organizationA) {
  * оставляет БОЛЬШЕ ВСЕГО доказуемых таблиц. Иначе выбор «первого попавшегося» мог бы молча
  * обнулить проверку на самых наполненных таблицах.
  */
+// Ссылка берётся ТОЛЬКО вида `actor`: слот действующего лица в `begin_port_context` резолвится
+// через `resolve_variant_a_physical(ref, 'actor')`, и subject-ссылка там отказывает тем же `42501`,
+// что и несуществующая — по построению, чтобы не выдавать факт существования ссылки. Без этого
+// фильтра `MIN(opaque_ref)` выбирал ссылку по случайному порядку uuid: на DEV попадалась actor и
+// доказательство шло, на TEST 23.08 попалась subject — и выкатка легла на «законный контекст не
+// устанавливается», хотя стена вела себя правильно.
 function chooseActor(state) {
   const candidates = rows(psql(`
 SELECT m.organization_id::text || '|' || MIN(ref.opaque_ref::text)
   FROM public.be_organization_members m
   JOIN app_ext.variant_a_identity_refs ref ON ref.physical_user_id = m.platform_user_id
  WHERE m.status = 'active'
+   AND ref.ref_kind = 'actor'
  GROUP BY m.organization_id
  ORDER BY m.organization_id;`).stdout);
   assert.notEqual(candidates.length, 0, `${DATABASE}: нет ни одного действующего сотрудника — доказывать нечего`);

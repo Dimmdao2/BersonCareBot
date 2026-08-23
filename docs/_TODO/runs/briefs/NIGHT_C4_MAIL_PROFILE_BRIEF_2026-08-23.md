@@ -1,5 +1,15 @@
 # Ночь C4: имя отправителя приходит от поверхности, а не зашито строкой
 
+> **ПРОДОЛЖЕНИЕ ПРЕРВАННОГО ПРОГОНА.** Первый заход (`night-c4-20260823`, Codex `sol`/high, 28 минут) был
+> остановлен портом в фазе `blocked_system` без отчёта и без ошибки в потоке. Его правки сохранены ведущим
+> коммитом `7b1ef9ba6` — 37 файлов, +351/−76: маршруты интегратора (`sendEmailRoute`, `sendOtpRoute`,
+> `sendSmsRoute`, `routes.ts`), `smtpOutbound.ts`, `mailer.ts`, `deliveryAdapter.ts`, девять auth-маршрутов
+> webapp, `deploy/postgres/privileges/declaration.ts`. **Проверки на них НЕ гонялись ни разу.**
+>
+> Твоя работа: разобраться в заделе, довести до конца и доказать проверками. Первым делом прогони typecheck и
+> затронутые тесты, чтобы понять состояние дерева. Задел выбран неверно — скажи прямо и переделай, назвав
+> причину в отчёте.
+
 **Источник оракула:** `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`, пункт `C4` —
 «Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
 setting и один mail-profile resolver/renderer.»
