@@ -17,7 +17,6 @@ export const WEBAPP_LOCKED_INFRA_CRON_SOURCES = new Set<string>([
   'api/internal/media-transcode/reconcile:POST',
   'api/internal/product-analytics/retention:POST',
   'api/internal/saas-billing/renewal/tick:POST',
-  'api/internal/specialist-task-reminders/tick:POST',
   'api/internal/heartbeat/pipeline_delivery:POST',
   'api/internal/heartbeat/pipeline_delivery:GET',
   'api/internal/heartbeat/digest:POST',

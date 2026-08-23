@@ -31,9 +31,7 @@ function buildService() {
     complete: vi.fn(async () => null),
     delete: vi.fn(async () => true),
     getByIdForOwner: vi.fn(async () => null),
-    listDueReminders: vi.fn(async () => []),
     markReminderSent: vi.fn(async () => undefined),
-    enqueueDueReminders: vi.fn(async () => ({ processed: 0, enqueued: 0 })),
   } as unknown as SpecialistTasksPort;
   const service = createSpecialistTasksService(port, {
     assertWriteClearance: assertMechanicWriteClearance,
