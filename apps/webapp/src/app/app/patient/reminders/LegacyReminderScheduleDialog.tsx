@@ -104,14 +104,12 @@ export function LegacyReminderScheduleDialog({
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>('weekdays');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
 
   const errorAnchorRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setSyncWarning(null);
     const json: PatientReminderRuleJson = reminderRuleToPatientJson(rule);
     const isSlots = json.scheduleType === 'slots_v1';
     setScheduleMode(isSlots ? 'slots_v1' : 'interval_window');
@@ -175,7 +173,6 @@ export function LegacyReminderScheduleDialog({
 
   const handleSubmit = async () => {
     setError(null);
-    setSyncWarning(null);
 
     if (!/^[01]{7}$/.test(daysMask)) {
       setError('Неверная маска дней.');
@@ -259,7 +256,6 @@ export function LegacyReminderScheduleDialog({
         scrollToError();
         return;
       }
-      if (res.syncWarning) setSyncWarning(res.syncWarning);
       onOpenChange(false);
       onSaved();
     } finally {
@@ -292,7 +288,6 @@ export function LegacyReminderScheduleDialog({
         previewBadgeLabel={categoryLabel}
         previewText={previewText}
         error={error}
-        syncWarning={syncWarning}
         fieldInvalid={scheduleFieldInvalid}
       />
     </div>

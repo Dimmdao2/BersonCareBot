@@ -168,9 +168,11 @@ $function$
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: saas_system_health_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 
 CREATE OR REPLACE FUNCTION app.read_curated_system_health_pre_0196() RETURNS jsonb
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE sql
+    STABLE SECURITY DEFINER PARALLEL UNSAFE
     SET search_path TO 'pg_catalog'
     AS $_$SELECT app.require_attested_context_for_roles('saas_system_health_owner'::name, ARRAY['saas_telemetry_operator'::name]::name[]);
 WITH

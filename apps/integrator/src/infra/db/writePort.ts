@@ -9,12 +9,14 @@ import type {
   QueuePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { appSettings } from '../../config/appSettings.js';
 import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
 import { createDbPort } from './client.js';
 import { appendMessageLog } from './repos/messageLogs.js';
 import { writeOperatorDeliveryAttempt } from './repos/operatorDeliveryAttempts.js';
 import { recordMessengerPhoneBindBlocked } from './repos/messengerPhoneBindAudit.js';
+import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js';
 import {
   createContentAccessGrant,
   getReminderOccurrenceContextForProjection,
@@ -27,6 +29,7 @@ import {
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
+import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
@@ -45,6 +48,7 @@ import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWrite
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
 import { writeDirectPublic } from './directPublic/writePort.js';
+import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -76,20 +80,6 @@ function asNonEmptyString(value: unknown): string | null {
 
 function asNullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
-}
-
-function asNullableIntegerMinute(value: unknown): number | null {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number' && Number.isInteger(value)) return value;
-  return null;
-}
-
-function asFiniteNumber(value: unknown): number | null {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
-  const stringValue = asNonEmptyString(value);
-  if (!stringValue) return null;
-  const parsed = Number(stringValue);
-  return Number.isFinite(parsed) ? Math.trunc(parsed) : null;
 }
 
 function readChannelUserId(params: Record<string, unknown>): string | null {

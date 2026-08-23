@@ -33,7 +33,6 @@ import {
   type IntegratorPortCapabilityDescriptor,
 } from '../portContextRuntime.js';
 import { writeDirectPublic } from './writePort.js';
-import { upsertReminderRuleDirect } from './writeReminderRulesDirect.js';
 import { appendReminderDeliveryEventDirect } from './writeReminderProjectionDirect.js';
 import { appendSupportDeliveryEventDirect } from './writeSupportQuestionsDirect.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../repos/notificationDeliveryAttempts.js';
@@ -81,82 +80,6 @@ function expectOnlyNamedRoot(executed: Executed[], root: string, relation: strin
   expect(call.text).not.toMatch(new RegExp(`UPDATE\\s+public\\.${relation}`, 'i'));
   return call;
 }
-
-function reminderRuleInput(resolvedOrganizationId: string) {
-  return {
-    integratorUserId: '42',
-    integratorRuleId: 'rule-d17',
-    category: 'custom',
-    isEnabled: true,
-    scheduleType: 'daily',
-    timezone: 'Europe/Moscow',
-    intervalMinutes: 60,
-    windowStartMinute: 540,
-    windowEndMinute: 1200,
-    daysMask: '1111111',
-    contentMode: 'text',
-    linkedObjectType: null,
-    linkedObjectId: null,
-    customTitle: null,
-    customText: 'пора на разминку',
-    scheduleData: { kind: 'daily' },
-    reminderIntent: null,
-    quietHoursStartMinute: null,
-    quietHoursEndMinute: null,
-    notificationTopicCode: undefined,
-    resolvedPlatformUserId: PLATFORM_USER,
-    resolvedOrganizationId,
-  };
-}
-
-describe('D17 — правило напоминаний', () => {
-  it('уходит одним именованным корнем под организационным принципалом живого маршрута', async () => {
-    const { db, executed } = recordingDb({ updated_at: '2026-08-22T10:00:00+00:00' });
-
-    const result = await runWithOrganizationPrincipal(ORG_ROW, () =>
-      writeDirectPublic('reminder-rule-upsert', () =>
-        upsertReminderRuleDirect(db, reminderRuleInput(ORG_ROW)),
-      ),
-    );
-
-    const call = expectOnlyNamedRoot(executed, 'app.integrator_upsert_reminder_rule', 'reminder_rules');
-    expect(call.principalKind).toBe('organization');
-    expect(call.principalOrganizationId).toBe(ORG_ROW);
-    expect(call.params.slice(0, 6)).toEqual([
-      'rule-d17',
-      PLATFORM_USER,
-      ORG_ROW,
-      '42',
-      'custom',
-      true,
-    ]);
-    // Последние два аргумента несут «код темы не передан → сохранить прежний», а не «очистить».
-    expect(call.params.slice(-2)).toEqual([null, false]);
-    expect(result).toEqual({
-      platformUserId: PLATFORM_USER,
-      organizationId: ORG_ROW,
-      updatedAt: '2026-08-22T10:00:00+00:00',
-    });
-  });
-
-  it('чужой организации не достаётся: корень получает организацию СТРОКИ, а не принятый контекст', async () => {
-    const { db, executed } = recordingDb({ updated_at: '2026-08-22T10:00:00+00:00' });
-
-    await runWithOrganizationPrincipal(ORG_OTHER, () =>
-      writeDirectPublic('reminder-rule-upsert', () =>
-        upsertReminderRuleDirect(db, reminderRuleInput(ORG_ROW)),
-      ),
-    );
-
-    const call = executed[0]!;
-    expect(call.params[2]).toBe(ORG_ROW);
-    expect(call.principalOrganizationId).toBe(ORG_OTHER);
-    // Ровно это расхождение корень и отвергает (`p_organization_id IS DISTINCT FROM
-    // app.current_org_id()` → 42501). Если бы писатель подставил принятый контекст, строка чужой
-    // клиники приземлилась бы под видом своей.
-    expect(call.params[2]).not.toBe(call.principalOrganizationId);
-  });
-});
 
 describe('D17 — событие доставки напоминания', () => {
   it('уходит корнем под инфра-принципалом воркера повторов, без транзакции отношений', async () => {
@@ -330,34 +253,33 @@ describe('D17 — попытка доставки уведомления', () =>
 });
 
 describe('D17 — выбор возможности под корень', () => {
-  const ROOT = 'app.integrator_upsert_reminder_rule(text)';
-  const tenantCapability: IntegratorPortCapabilityDescriptor = {
-    capabilityId: '00000000-0000-4000-8000-000000000901',
-    targetRole: 'app_tenant_service',
-    contextClass: 'tenant_service',
-    purpose: 'integrator.reminder-rule.upsert',
+  const ROOT = 'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)';
+  const serviceCapability: IntegratorPortCapabilityDescriptor = {
+    capabilityId: '00000000-0000-4000-8000-000000000902',
+    targetRole: 'app_operational_delivery_worker',
+    contextClass: 'service',
+    purpose: 'integrator.reminder-delivery-event.append',
     functionIdentity: ROOT,
   };
-  const caps = { tenantCapability };
+  const caps = { serviceCapability };
 
-  it('корень tenant-класса выбирается организационным принципалом', () => {
+  it('корень service-класса выбирается инфраструктурным принципалом', () => {
     const selected = runWithIntegratorPortOperation({ functionIdentity: ROOT, typedArgs: [] }, () =>
-      integratorPortContextPrincipal({ kind: 'organization', organizationId: ORG_ROW }, caps),
+      integratorPortContextPrincipal(
+        { kind: 'infra', source: 'worker:direct-public-write-retry-tick' },
+        caps,
+      ),
     );
     expect(selected).toMatchObject({
-      targetRole: 'app_tenant_service',
-      contextClass: 'tenant_service',
-      organizationId: ORG_ROW,
+      targetRole: 'app_operational_delivery_worker',
+      contextClass: 'service',
     });
   });
 
   it('и не выбирается никаким другим видом принципала — корень остаётся недостижим', () => {
     expect(() =>
       runWithIntegratorPortOperation({ functionIdentity: ROOT, typedArgs: [] }, () =>
-        integratorPortContextPrincipal(
-          { kind: 'infra', source: 'worker:outgoing-delivery-tick' },
-          caps,
-        ),
+        integratorPortContextPrincipal({ kind: 'organization', organizationId: ORG_ROW }, caps),
       ),
     ).toThrow(/Missing unique declared integrator port capability/);
   });
