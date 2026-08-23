@@ -55,9 +55,6 @@ type Props = Pick<
 
 type KpiModal = 'messages' | 'comments' | 'tests' | 'tasks' | null;
 
-const todayKpiCardClass =
-  'flex flex-row items-center justify-between gap-2 md:flex-col md:items-start [&>p]:text-foreground/75 [&>div]:mt-0 md:[&>div]:mt-0.5';
-
 function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
   return (
     <div className={doctorSectionItemClass}>
@@ -169,7 +166,7 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Непрочитанные сообщения от клиентов."
           tone={unreadTotal > 0 ? 'warning' : 'neutral'}
           onClick={unreadTotal > 0 ? () => setKpiModal('messages') : undefined}
-          className={todayKpiCardClass}
+          layout="today-mobile-grid"
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -179,7 +176,7 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Новые комментарии клиентов к упражнениям."
           tone={displayTotal > 0 ? 'warning' : 'neutral'}
           onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
-          className={todayKpiCardClass}
+          layout="today-mobile-grid"
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -189,22 +186,14 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Тесты по программам, ожидающие проверки."
           tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
           onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
-          className={todayKpiCardClass}
+          layout="today-mobile-grid"
         />
         {tasksReadable ? (
           <DoctorStatCard
             id="doctor-today-left-kpi-tasks"
             title="Задачи"
-            value={
-              attentionTasks.length > 0 ? (
-                <span className="flex w-full items-baseline justify-between gap-3">
-                  <span className="text-destructive">{attentionTasks.length}</span>
-                  <span className="text-base text-foreground/75">{tasksTotal}</span>
-                </span>
-              ) : (
-                <span className="text-foreground/75">{tasksTotal}</span>
-              )
-            }
+            value={attentionTasks.length > 0 ? attentionTasks.length : tasksTotal}
+            secondaryValue={attentionTasks.length > 0 ? tasksTotal : undefined}
             tooltip="Открытые задачи."
             tone={attentionTasks.length > 0 ? 'warning' : 'neutral'}
             onClick={() => {
@@ -214,8 +203,8 @@ export function DoctorTodayLeftKpiRow({
               }
               setKpiModal('tasks');
             }}
-            className={todayKpiCardClass}
-            valueClassName={attentionTasks.length > 0 ? 'w-full' : undefined}
+            layout="today-mobile-grid"
+            valueClassName={attentionTasks.length > 0 ? 'text-destructive' : 'text-foreground/75'}
           />
         ) : null}
       </DoctorMetricList>

@@ -31,7 +31,11 @@ export default async function DoctorTreatmentProgramPromoPage() {
   ]);
 
   return (
-    <DoctorAppShell title="Промо-программа" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Промо-программа по умолчанию"
+      user={session.user}
+      backHref="/app/doctor"
+    >
       <DoctorPageHeader
         id="doctor-treatment-program-promo-header"
         title="Промо-программа по умолчанию"

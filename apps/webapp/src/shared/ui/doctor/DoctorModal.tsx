@@ -3,7 +3,13 @@
 import { type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from './primitives/drawer';
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
@@ -80,24 +86,17 @@ export function DoctorModal({
   };
 
   if (isMobile) {
-    // `data-[side=bottom]:rounded-t-2xl` below (not a plain `rounded-t-*`) matches the
-    // modifier the base Sheet primitive uses for its own default radius, so this override
-    // reliably wins the class merge instead of racing it via unrelated CSS cascade order.
     return (
-      <Sheet open={open} onOpenChange={handleOpenChange}>
-        <SheetContent
-          side="bottom"
-          showCloseButton
-          className="flex max-h-[92dvh] flex-col gap-0 overflow-hidden p-0 data-[side=bottom]:rounded-t-2xl"
-        >
-          <SheetHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
-            <SheetTitle>{title}</SheetTitle>
-            {description && <p className="text-sm text-muted-foreground">{description}</p>}
-          </SheetHeader>
+      <Drawer open={open} onOpenChange={handleOpenChange}>
+        <DrawerContent showCloseButton={false} className="gap-0 p-0">
+          <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-3 pb-3">
+            <DrawerTitle>{title}</DrawerTitle>
+            {description && <DrawerDescription>{description}</DrawerDescription>}
+          </DrawerHeader>
           {body}
           {footerNode}
-        </SheetContent>
-      </Sheet>
+        </DrawerContent>
+      </Drawer>
     );
   }
 

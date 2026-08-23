@@ -249,6 +249,7 @@ export function DoctorScheduleShell({
       <DoctorPageHeader
         id="doctor-schedule-header"
         title="Расписание"
+        showTabsOnMobile
         tabs={
           <ScheduleTabsNav
             activeTab={activeTab}
