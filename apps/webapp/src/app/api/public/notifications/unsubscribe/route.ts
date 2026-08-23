@@ -1,8 +1,21 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipal';
+import { routePaths } from '@/app-layer/routes/paths';
+import { patientNotificationTopicDisplayTitle } from '@/modules/patient-notifications/topicDisplayTitles';
+import { escapeHtml } from '@/shared/lib/escapeHtml';
 
-const RESPONSE_HTML = `<!doctype html>
+export function buildTopicUnsubscribeResponseHtml(input: {
+  topicCode: string | null;
+  topicTitle: string | null;
+}): string {
+  const title = (
+    input.topicTitle ?? patientNotificationTopicDisplayTitle(input.topicCode ?? '', '')
+  ).trim();
+  const topicCopy = title
+    ? `Вы отписались от темы «${escapeHtml(title)}». Остальные уведомления продолжат приходить.`
+    : 'Настройки уведомлений обновлены.';
+  return `<!doctype html>
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
@@ -12,20 +25,26 @@ const RESPONSE_HTML = `<!doctype html>
   <body style="margin:0;background:#f6f4ef;color:#1f2937;font-family:system-ui,sans-serif">
     <main style="max-width:520px;margin:64px auto;padding:24px">
       <h1 style="font-size:20px;margin:0 0 12px">Настройки уведомлений обновлены</h1>
-      <p style="font-size:16px;line-height:1.5;margin:0">Сообщения этой темы больше не будут приходить.</p>
+      <p style="font-size:16px;line-height:1.5;margin:0">${topicCopy}</p>
+      <p style="font-size:16px;line-height:1.5;margin:12px 0 0">Другие темы можно изменить в <a href="${routePaths.notificationSettings}">настройках уведомлений</a>.</p>
     </main>
   </body>
 </html>`;
+}
 
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/public/notifications/unsubscribe:GET', request);
   const token = new URL(request.url).searchParams.get('token') ?? '';
+  let result: { topicCode: string | null; topicTitle: string | null } = {
+    topicCode: null,
+    topicTitle: null,
+  };
   try {
-    await buildAppDeps().topicUnsubscribe.unsubscribeByToken(token);
+    result = await buildAppDeps().topicUnsubscribe.unsubscribeByToken(token);
   } catch {
-    // Identical body/status for invalid, stale and unknown recipients: no enumeration oracle.
+    // A signed link keeps its title even when its recipient no longer exists, so that fact is never exposed.
   }
-  return new NextResponse(RESPONSE_HTML, {
+  return new NextResponse(buildTopicUnsubscribeResponseHtml(result), {
     status: 200,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',

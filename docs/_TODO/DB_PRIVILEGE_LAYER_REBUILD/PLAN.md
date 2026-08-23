@@ -105,6 +105,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   SHA-256 `364cb1c35778fe5b7fca8ab0134545dfd2b1aae1bc5a12ac02d0c2aea64fceeb`; archive list читается.
 - [ ] Вернуть именованную TEST из этого pre-error backup и проверить данные/ledger/catalog. Это ремонт инцидента,
   не репетиция production dump и не доказательство целевого cutover.
+  ⛔ **УСТАРЕЛО 23.08.2026:** восстановление старого snapshot больше не является действием. Именованная TEST уже
+  ушла вперёд: physical cutover D15b/6 задеплоен merge `92cf34ffa4`, migration verification webapp `25/25` +
+  integrator `1/1` — см. [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md). Возврат
+  pre-error backup сегодня откатил бы работающее состояние; новый порядок — текущая named DEV → текущая TEST,
+  без restore/replay (`AGENTS.md` §1b/3a, taskdb `#1085`). Галочка намеренно не поставлена.
 - [x] Коммиты `5a01acf81..cad14a1c6` проверены: empty-TEST-specific обходы и совместный DEV+TEST installer удалены;
   переносимые schema/cutover исправления сведены в target-neutral механизм для существующей БД.
 
@@ -143,6 +148,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   `public.outgoing_delivery_queue`; соответствующие callers старой очереди удалены.
 - [x] DEV: 11 legacy integrator tables, `telegram_state` и `appointment_records` отсутствуют.
 - [ ] TEST: проверять legacy-drop только после восстановления pre-error TEST; не создавать ради этого пустую БД.
+  ⛔ **УСТАРЕЛО 23.08.2026:** зависимость от восстановления pre-error TEST заменена текущим состоянием named TEST;
+  выполнять старый restore нельзя. Проверка отсутствия legacy остаётся частью живого TEST gate Ф8 ниже и
+  [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md), поэтому галочка не ставится.
 - [ ] Классифицировать оставшуюся аналитику: владелец данных, видимость и точная стена; лишнее удалить.
 
 ## Ф3 — точка ноль
@@ -424,6 +432,11 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   authentication/identity and has no complete patient/global-admin artifacts; booking lifecycle evidence is also
   incomplete. The previous readiness statement is superseded. TEST remains untouched until the full role/page/action,
   worker, scheduler and delivery matrix is green.
+  ⛔ **УСТАРЕЛО 23.08.2026 КАК ТЕКУЩИЙ СТАТУС:** TEST уже не untouched — D15b/6 и privilege repair выкачены
+  merge `92cf34ffa4`, `deploy-test.sh` PASS, migration verification webapp `25/25` + integrator `1/1` (см.
+  [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md)). Сам бокс остаётся `[ ]`, потому
+  что полный existing-owner login/bind/delivery и остальные live acceptance gates не пройдены; возвращаться к
+  запрету «TEST не трогать вообще» из статуса 17.08 нельзя.
 
 ### Состояние на 17.08 вечер — передача работы после смерти оркестратора
 
@@ -552,6 +565,10 @@ OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полн�
 
 - [ ] Только после зелёных DEV и TEST подготовить и отрепетировать для SaaS prod test deploy одну атомарную
   миграцию чистого PROD-дампа из состояния `A` в `B0`, без historical replay и промежуточных состояний.
+  ⛔ **УСТАРЕЛО 23.08.2026:** репетиция на свежем/чистом PROD dump заменена owner-каноном named DEV → named TEST
+  без production dump, disposable/A0 базы и historical replay (`AGENTS.md` §1b/3a; taskdb `#1085`: «No
+  production dump and no local BCB PROD»). Возвращать dump/full-reset путь из старого плана запрещено; галочка
+  намеренно не поставлена.
 - [ ] После принятой репетиции отдельно подготовить production operation/rollback.
 - [ ] Ничего на PROD не выполнять без нового явного разрешения владельца и подтверждения host `135.106.162.170`.
 

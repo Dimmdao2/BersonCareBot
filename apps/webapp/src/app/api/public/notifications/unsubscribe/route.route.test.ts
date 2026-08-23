@@ -20,11 +20,16 @@ describe('public topic unsubscribe response', () => {
     fakes.stampBootstrapPrincipal.mockReset();
   });
 
-  it('returns the same non-cacheable response for applied and invalid/unknown recipients', async () => {
-    fakes.unsubscribeByToken.mockResolvedValueOnce('applied').mockRejectedValueOnce(new Error('unknown'));
+  it('returns the same non-cacheable response for existing and unknown recipients with one signed topic', async () => {
+    const signedTopic = { topicCode: 'patient_news', topicTitle: 'Новости и уведомления' };
+    fakes.unsubscribeByToken.mockResolvedValueOnce(signedTopic).mockResolvedValueOnce(signedTopic);
 
-    const applied = await GET(new Request('https://example.test/api/public/notifications/unsubscribe?token=ok'));
-    const unknown = await GET(new Request('https://example.test/api/public/notifications/unsubscribe?token=bad'));
+    const applied = await GET(
+      new Request('https://example.test/api/public/notifications/unsubscribe?token=ok'),
+    );
+    const unknown = await GET(
+      new Request('https://example.test/api/public/notifications/unsubscribe?token=unknown'),
+    );
 
     expect(applied.status).toBe(200);
     expect(unknown.status).toBe(200);
