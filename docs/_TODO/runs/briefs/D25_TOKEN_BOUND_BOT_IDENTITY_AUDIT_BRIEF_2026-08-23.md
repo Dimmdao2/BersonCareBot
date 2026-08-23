@@ -1,5 +1,14 @@
 # Independent audit — D25 token-bound bot identity
 
+## Тест или взгляд
+
+- **Повторяемое поведение → тест + fault injection + bounded live proof:** generic ingress не создаёт аккаунт;
+  known binding продолжает работать; Telegram sender-owned contact, MAX HMAC, token/phone match, mismatch,
+  expiry/replay/profile-bind сохраняют контракт.
+- **Разовое качество изменения → взгляд + catalog/generated inspection:** SQL-root действительно lookup-only,
+  B0-forward migration/owner/grants/order точны, широких relation rights и второго writer-path нет.
+- **Граница scope → взгляд:** Therapysto initiative и роли ботов вне точной owner-коррекции не изменены.
+
 Role: independent `auditor-live`, not the implementation author. Produce a binary `PASS, FOR LAND` or
 `FAIL, NOT FOR LAND`, commit the report and audit-queue row, then leave a clean tree.
 
