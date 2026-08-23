@@ -81,6 +81,9 @@ type SystemSettingsWriteOptionsLike = {
   allowPlatformGlobalFallbackWrite?: true;
 };
 
+export type ManagedNotifWriteTarget =
+  { owner: 'platform' } | { owner: 'organization'; organizationId: string };
+
 type SystemSettingsLike = {
   getSetting(
     key: SystemSettingKey,
@@ -273,11 +276,20 @@ export function createNotifTemplatesService(
     };
   }
 
-  function writeOptions(options: SystemSettingsWriteOptionsLike): SystemSettingsWriteOptionsLike {
-    const organizationId = options.organizationId?.trim() || null;
-    return organizationId
+  function organizationIdForWriteTarget(target: ManagedNotifWriteTarget): string | null {
+    if (target.owner === 'platform') return null;
+    return target.organizationId.trim();
+  }
+
+  function writeOptions(target: ManagedNotifWriteTarget): SystemSettingsWriteOptionsLike {
+    const organizationId = organizationIdForWriteTarget(target);
+    return target.owner === 'organization'
       ? { organizationId }
       : { organizationId: null, allowPlatformGlobalFallbackWrite: true };
+  }
+
+  function assertTargetWriteClearance(target: ManagedNotifWriteTarget): void {
+    if (target.owner === 'organization') assertWriteClearance?.('branding');
   }
 
   return {
@@ -337,16 +349,17 @@ export function createNotifTemplatesService(
       channels: ManagedNotifTemplateChannels,
       userId: string,
       expectedUpdatedAt: string | null,
-      options: SystemSettingsWriteOptionsLike = {},
+      target: ManagedNotifWriteTarget,
     ): Promise<ManagedNotifTemplateEntry> {
-      assertWriteClearance?.('branding');
+      assertTargetWriteClearance(target);
+      const organizationId = organizationIdForWriteTarget(target);
       const validatedChannels = validateManagedNotifTemplateChannels(event, audience, channels);
       const key = notifTemplateSettingKey(event, audience);
       const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(
         key,
-        options.organizationId,
+        organizationId,
       );
-      const targetRow = options.organizationId?.trim() ? exactOrgRow : globalRow;
+      const targetRow = target.owner === 'organization' ? exactOrgRow : globalRow;
       const previous = targetRow
         ? parseManagedNotifTemplateFor(event, audience, targetRow.valueJson)
         : null;
@@ -369,10 +382,10 @@ export function createNotifTemplatesService(
         { ...existingRecord, value: legacyText, managed },
         userId,
         expectedUpdatedAt,
-        writeOptions(options),
+        writeOptions(target),
       );
       if (!saved) throw new NotifTemplateConflictError();
-      const source = options.organizationId?.trim() ? 'organization' : 'platform';
+      const source = target.owner;
       const legacyCompatibility = adaptLegacyNotifTemplate(
         event,
         audience,
@@ -393,9 +406,10 @@ export function createNotifTemplatesService(
       input: Pick<ManagedNotifPresentation, 'layout' | 'signature' | 'contacts'>,
       userId: string,
       expectedUpdatedAt: string | null,
-      options: SystemSettingsWriteOptionsLike = {},
+      target: ManagedNotifWriteTarget,
     ): Promise<ManagedNotifPresentationEntry> {
-      assertWriteClearance?.('branding');
+      assertTargetWriteClearance(target);
+      const organizationId = organizationIdForWriteTarget(target);
       const signature = input.signature.trim();
       const contacts = input.contacts.trim();
       if (
@@ -407,9 +421,9 @@ export function createNotifTemplatesService(
       }
       const { globalRow, effectiveRow, exactOrgRow } = await readResolutionRows(
         presentationCarrierKey,
-        options.organizationId,
+        organizationId,
       );
-      const targetRow = options.organizationId?.trim() ? exactOrgRow : globalRow;
+      const targetRow = target.owner === 'organization' ? exactOrgRow : globalRow;
       const previous = targetRow ? parseManagedNotifPresentation(targetRow.valueJson) : null;
       const presentation: ManagedNotifPresentation = {
         version: MANAGED_NOTIF_TEMPLATE_VERSION,
@@ -434,10 +448,10 @@ export function createNotifTemplatesService(
         { ...existingRecord, value: legacyText, presentation },
         userId,
         expectedUpdatedAt,
-        writeOptions(options),
+        writeOptions(target),
       );
       if (!saved) throw new NotifTemplateConflictError();
-      const source = options.organizationId?.trim() ? 'organization' : 'platform';
+      const source = target.owner;
       return { presentation, metadata: metadataFor(saved, source, presentation.revision, saved) };
     },
   };

@@ -6,6 +6,7 @@ const fakes = vi.hoisted(() => ({
   getCurrentSessionForIdentitySelf: vi.fn(),
   redirect: vi.fn(),
   enterWithDbPlatformPrincipal: vi.fn(),
+  enterWithDbPatientPrincipal: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -21,13 +22,17 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => {
     ...actual,
     ensureDbPrincipalContext: vi.fn(),
     enterWithDbPlatformPrincipal: fakes.enterWithDbPlatformPrincipal,
-    enterWithDbPatientPrincipal: vi.fn(),
+    enterWithDbPatientPrincipal: fakes.enterWithDbPatientPrincipal,
     enterWithDbStaffPrincipal: vi.fn(),
     getCurrentDbPrincipal: vi.fn(),
   };
 });
 
-import { requirePlatformOperationsApiContext, requirePlatformOperationsPage } from './requireRole';
+import {
+  requireAccountWebPushSelfApiSession,
+  requirePlatformOperationsApiContext,
+  requirePlatformOperationsPage,
+} from './requireRole';
 
 const adminSession: AppSession = {
   user: {
@@ -47,6 +52,26 @@ beforeEach(() => {
     throw new Error(`unexpected redirect: ${path}`);
   });
   fakes.getCurrentSession.mockResolvedValue(adminSession);
+  fakes.getCurrentSessionForIdentitySelf.mockResolvedValue(adminSession);
+});
+
+describe('account web-push identity-self boundary', () => {
+  it('turns an injected identity-self principal failure into an explained 403', async () => {
+    fakes.enterWithDbPatientPrincipal.mockImplementationOnce(() => {
+      throw new Error('injected identity-self failure');
+    });
+
+    const result = await requireAccountWebPushSelfApiSession();
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected identity-self refusal');
+    expect(result.response.status).toBe(403);
+    await expect(result.response.json()).resolves.toEqual({
+      ok: false,
+      error: 'identity_self_unavailable',
+      message: 'Не удалось подтвердить доступ к вашим личным Push-уведомлениям.',
+    });
+  });
 });
 
 describe('platform operations 2FA boundary', () => {
