@@ -29,7 +29,17 @@ function head() {
   return shown.stdout.trim();
 }
 
-const freezeMarker = resolve(repoRoot, '.git/bcb-feat-freeze');
+// Маркер обязан лежать в ОБЩЕМ каталоге git, а не в `<дерево>/.git`: в worktree-клоне `.git` —
+// файл-указатель, и запись в него падала с ENOTDIR, то есть полный CI не запускался из клона вообще.
+// Тот же путь вычисляет hook (он берёт главный клон от своего собственного расположения), поэтому
+// заморозка одна на все деревья.
+function gitCommonDir() {
+  const shown = spawnSync('git', ['-C', repoRoot, 'rev-parse', '--git-common-dir'], { encoding: 'utf8' });
+  if (shown.status !== 0) throw new Error(`ci-record: git rev-parse --git-common-dir отказал: ${shown.stderr}`);
+  return resolve(repoRoot, shown.stdout.trim());
+}
+
+const freezeMarker = resolve(gitCommonDir(), 'bcb-feat-freeze');
 
 function freeze(sha) {
   writeFileSync(freezeMarker, `полный CI измеряет ${sha} (pid ${process.pid})\n`);
