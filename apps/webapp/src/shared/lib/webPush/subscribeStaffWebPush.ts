@@ -19,6 +19,7 @@ export type SubscribeStaffWebPushResult =
       ok: false;
       reason:
         | 'unsupported'
+        | 'access_denied'
         | 'vapid_unavailable'
         | 'permission_denied'
         | 'permission_default'
@@ -45,6 +46,7 @@ export async function subscribeStaffWebPush(): Promise<SubscribeStaffWebPushResu
   if (!(await probePushSupported())) return { ok: false, reason: 'unsupported' };
 
   const status = await fetchStaffWebPushStatus();
+  if (status.ok === false && status.error) return { ok: false, reason: 'access_denied' };
   if (!status.vapidConfigured || !status.publicKey) {
     return { ok: false, reason: 'vapid_unavailable' };
   }
@@ -78,6 +80,7 @@ export async function restoreStaffWebPushSubscription(): Promise<SubscribeStaffW
   }
 
   const status = await fetchStaffWebPushStatus();
+  if (status.ok === false && status.error) return { ok: false, reason: 'access_denied' };
   if (!status.vapidConfigured || !status.publicKey) {
     return { ok: false, reason: 'vapid_unavailable' };
   }

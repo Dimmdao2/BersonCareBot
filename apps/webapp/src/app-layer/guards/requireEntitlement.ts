@@ -16,6 +16,7 @@ import { MECHANIC_REGISTRY } from '@/modules/org-entitlements/types';
 import {
   ensureMechanicWriteClearanceContext,
   enterWithMechanicWriteClearance,
+  MechanicWriteClearanceRequiredError,
 } from '@/app-layer/entitlements/mechanicWriteClearance';
 
 /** A route/action may pass only an already-authorized, server-derived organization. */
@@ -72,6 +73,23 @@ export function entitlementMutationRefusalResponse(
       error: 'entitlement_required',
       mechanic,
       message: entitlementMutationRefusalMessage(action),
+    },
+    { status: 403 },
+  );
+}
+
+/** Converts a physical-door refusal into an intentional API refusal instead of an unhandled 500. */
+export function mechanicWriteClearanceRefusalResponse(
+  error: unknown,
+  message: string,
+): NextResponse | null {
+  if (!(error instanceof MechanicWriteClearanceRequiredError)) return null;
+  return NextResponse.json(
+    {
+      ok: false,
+      error: 'mechanic_write_clearance_required',
+      mechanic: error.mechanic,
+      message,
     },
     { status: 403 },
   );

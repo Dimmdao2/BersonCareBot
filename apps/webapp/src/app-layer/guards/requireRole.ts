@@ -619,17 +619,24 @@ export async function requirePatientApiSession(): Promise<
  *
  * A platform operator may create, read, or remove a subscription only for the
  * platform user in its authenticated session. This is deliberately not a
- * general `/api/doctor` grant and has no organization-membership resolution.
+ * doctor/workspace grant and has no organization-membership resolution.
  */
-export async function requireStaffWebPushSelfApiSession(): Promise<
+export async function requireAccountWebPushSelfApiSession(): Promise<
   { ok: true; session: AppSession } | { ok: false; response: NextResponse }
 > {
-  ensureDbPrincipalContext({ source: 'requireStaffWebPushSelfApiSession:pending' });
+  ensureDbPrincipalContext({ source: 'requireAccountWebPushSelfApiSession:pending' });
   const session = await getCurrentSessionForIdentitySelf();
   if (!session) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 }),
+      response: NextResponse.json(
+        {
+          ok: false,
+          error: 'unauthorized',
+          message: 'Войдите в аккаунт, чтобы управлять личными Push-уведомлениями.',
+        },
+        { status: 401 },
+      ),
     };
   }
 
@@ -644,16 +651,33 @@ export async function requireStaffWebPushSelfApiSession(): Promise<
   ) {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+      response: NextResponse.json(
+        {
+          ok: false,
+          error: 'account_self_forbidden',
+          message: 'Личные Push-уведомления недоступны для этой учётной записи.',
+        },
+        { status: 403 },
+      ),
     };
   }
 
   try {
-    enterStaffSecuritySelfPrincipal(session.user.userId, 'requireStaffWebPushSelfApiSession:self');
+    enterStaffSecuritySelfPrincipal(
+      session.user.userId,
+      'requireAccountWebPushSelfApiSession:self',
+    );
   } catch {
     return {
       ok: false,
-      response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+      response: NextResponse.json(
+        {
+          ok: false,
+          error: 'identity_self_unavailable',
+          message: 'Не удалось подтвердить доступ к вашим личным Push-уведомлениям.',
+        },
+        { status: 403 },
+      ),
     };
   }
   return { ok: true, session };

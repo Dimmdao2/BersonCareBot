@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import {
   getMechanicMutationAvailability,
+  mechanicWriteClearanceRefusalResponse,
   requireEntitlementForMutation,
   requireEntitlementForRead,
 } from '@/app-layer/guards/requireEntitlement';
@@ -110,14 +111,14 @@ export async function PUT(request: Request) {
   if (!parsed.success)
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   const deps = buildAppDeps();
-  const options = { organizationId: gate.ctx.organizationId };
+  const target = { owner: 'organization' as const, organizationId: gate.ctx.organizationId };
   try {
     if (parsed.data.kind === 'presentation') {
       const presentation = await deps.notifTemplates.saveManagedPresentation(
         parsed.data.presentation,
         gate.ctx.session.user.userId,
         parsed.data.expectedUpdatedAt,
-        options,
+        target,
       );
       return NextResponse.json({ ok: true, presentation });
     }
@@ -127,7 +128,7 @@ export async function PUT(request: Request) {
       parsed.data.channels,
       gate.ctx.session.user.userId,
       parsed.data.expectedUpdatedAt,
-      options,
+      target,
     );
     return NextResponse.json({ ok: true, template });
   } catch (error) {
@@ -135,6 +136,11 @@ export async function PUT(request: Request) {
       return NextResponse.json({ ok: false, error: 'template_conflict' }, { status: 409 });
     }
     if (isInvalidTemplateError(error)) return invalidTemplateResponse();
+    const clearanceRefusal = mechanicWriteClearanceRefusalResponse(
+      error,
+      'Невозможно сохранить шаблон: тарифная механика клиники не разрешила запись.',
+    );
+    if (clearanceRefusal) return clearanceRefusal;
     throw error;
   }
 }
