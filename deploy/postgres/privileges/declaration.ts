@@ -4068,7 +4068,8 @@ const REV10_CONTEXT = {
     // организацией в руках. Корень был недостижим для КАЖДОГО живого вызывающего, и пустой
     // `catch` в `readConfigFromDb` превращал 42501 в «календарь у клиники не подключён».
     // Форма — как у близнеца `app.read_integrator_clinic_delivery_credential(text,uuid)`: тот же
-    // точный org-скоуп в теле, тот же `app_tenant_service`. Прав на таблицу никому не добавлено.
+    // точный org-скоуп в теле, тот же `app_integrator_tenant_service`. Прав на таблицу никому не
+    // добавлено.
     'app.read_integrator_google_calendar_setting(text,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_google_calendar_setting(text,uuid)'],
       execute: ['app_integrator_tenant_service'],
