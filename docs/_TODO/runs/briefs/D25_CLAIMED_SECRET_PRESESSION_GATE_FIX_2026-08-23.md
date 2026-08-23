@@ -10,8 +10,9 @@
 - Named TEST deploy of integration commit `423f9d03a` applied all pending migrations, then
   `reconcile-access.mjs` stopped with:
   `pre-session exact gate missing or mismatched: app.phone_messenger_bind_claimed_secret(text,text,text)`.
-- Source of oracle: `deploy/postgres/privileges/generate.mjs`,
-  `generatePreSessionGateAssertionLines()`. A declared `pre_session` root must be PL/pgSQL and its first
+- Источник оракула: `deploy/postgres/privileges/generate.mjs`,
+  `generatePreSessionGateAssertionLines()` — «IF bad IS NOT NULL THEN RAISE EXCEPTION 'pre-session exact gate missing or mismatched: %',bad; END IF;».
+  A declared `pre_session` root must be PL/pgSQL and its first
   executable statement after `BEGIN` must be the exact `app.require_accepted_context(...)` call with
   the declared purpose, typed argument hash, and its own `regprocedure` identity.
 
