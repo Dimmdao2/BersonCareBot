@@ -120,19 +120,19 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
             </dl>
           </div>
 
-          <div className="grid w-full min-w-0 grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_minmax(0,0.75fr)] items-center gap-1.5">
+          <div className="grid w-full min-w-0 grid-cols-3 items-center gap-1.5">
             {patientHref ? (
               <Link
                 className={buttonVariants({
                   size: 'sm',
-                  className: 'min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
+                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
                 })}
                 href={patientHref}
               >
                 Открыть карточку
               </Link>
             ) : (
-              <Button size="sm" className="min-w-0 px-1 text-xs sm:px-3 sm:text-sm" disabled>
+              <Button size="sm" className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm" disabled>
                 Открыть карточку
               </Button>
             )}
@@ -141,7 +141,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
                 className={buttonVariants({
                   variant: 'outline',
                   size: 'sm',
-                  className: 'min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
+                  className: 'w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm',
                 })}
                 href={createVisitHref}
               >
@@ -151,7 +151,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
               <Button
                 size="sm"
                 variant="outline"
-                className="min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
+                className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
                 disabled
               >
                 Создать визит
@@ -161,7 +161,7 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
               type="button"
               size="sm"
               variant="outline"
-              className="min-w-0 px-1 text-xs text-destructive sm:px-3 sm:text-sm"
+              className="w-full min-w-0 px-1 text-xs text-destructive sm:px-3 sm:text-sm"
               onClick={() => setCancelOpen(true)}
             >
               Отменить
