@@ -27,6 +27,9 @@ import {
   Building2,
   Wallet,
   Bell,
+  ListTodo,
+  HouseHeart,
+  GraduationCap,
 } from 'lucide-react';
 import type { ElementType } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -83,6 +86,10 @@ function getIconForMenuId(id: string): ElementType | null {
   switch (id) {
     case 'today':
       return LayoutDashboard;
+    case 'tasks':
+      return ListTodo;
+    case 'patient-home':
+      return HouseHeart;
     case 'patients':
       return Users;
     case 'clients':
@@ -97,6 +104,8 @@ function getIconForMenuId(id: string): ElementType | null {
       return FileText;
     case 'files-and-media':
       return FolderOpen;
+    case 'courses':
+      return GraduationCap;
     case 'analytics':
       return BarChart3;
     case 'management':
