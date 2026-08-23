@@ -36,14 +36,10 @@ describe('notif-templates service — 3.2 physical door (branding)', () => {
     const { service, updateSettingIfUnchanged } = buildService();
     await runWithoutMechanicWriteClearance(async () => {
       await expect(
-        service.saveManagedTemplate(
-          'created',
-          'patient',
-          defaultChannels,
-          'user-1',
-          null,
-          { organizationId: 'org-1' },
-        ),
+        service.saveManagedTemplate('created', 'patient', defaultChannels, 'user-1', null, {
+          owner: 'organization',
+          organizationId: 'org-1',
+        }),
       ).rejects.toBeInstanceOf(MechanicWriteClearanceRequiredError);
     });
     expect(updateSettingIfUnchanged).not.toHaveBeenCalled();
@@ -59,10 +55,33 @@ describe('notif-templates service — 3.2 physical door (branding)', () => {
         defaultChannels,
         'user-1',
         null,
-        { organizationId: 'org-1' },
+        { owner: 'organization', organizationId: 'org-1' },
       );
       expect(entry.event).toBe('created');
     });
     expect(updateSettingIfUnchanged).toHaveBeenCalledOnce();
+  });
+
+  it('writes platform defaults through the platform target without borrowing clinic branding', async () => {
+    const { service, updateSettingIfUnchanged } = buildService();
+    await runWithoutMechanicWriteClearance(async () => {
+      const entry = await service.saveManagedTemplate(
+        'created',
+        'patient',
+        defaultChannels,
+        'admin-1',
+        null,
+        { owner: 'platform' },
+      );
+      expect(entry.metadata.effectiveSource).toBe('platform');
+    });
+    expect(updateSettingIfUnchanged).toHaveBeenCalledWith(
+      'notif_template:created:patient',
+      'admin',
+      expect.any(Object),
+      'admin-1',
+      null,
+      { organizationId: null, allowPlatformGlobalFallbackWrite: true },
+    );
   });
 });

@@ -2,7 +2,7 @@ import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireStaffWebPushSelfApiSession } from '@/app-layer/guards/requireRole';
+import { requireAccountWebPushSelfApiSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { logger } from '@/infra/logging/logger';
 import { enableStaffWebPushNotificationDefaults } from '@/modules/doctor-notifications/enableStaffWebPushNotificationDefaults';
@@ -20,9 +20,9 @@ const bodySchema = z.object({
   platform: platformSchema.optional(),
 });
 
-/** POST /api/doctor/web-push/subscribe */
+/** POST /api/account/web-push/subscribe — writes only the authenticated person's rows. */
 export async function POST(request: Request) {
-  const gate = await requireStaffWebPushSelfApiSession();
+  const gate = await requireAccountWebPushSelfApiSession();
   if (!gate.ok) return gate.response;
 
   let json: unknown;
@@ -55,12 +55,11 @@ export async function POST(request: Request) {
     { userAgent: ua },
   );
 
-  const endpointHash = hashWebPushEndpoint(parsed.data.endpoint);
   logger.info(
     {
       event: 'staff_web_push_subscription_registered',
       userId: uid,
-      endpointHash,
+      endpointHash: hashWebPushEndpoint(parsed.data.endpoint),
       platform: platform ?? null,
     },
     'staff web push subscription registered',
@@ -68,7 +67,7 @@ export async function POST(request: Request) {
 
   const card = (
     await deps.channelPreferences.getChannelCards(uid, gate.session.user.bindings, {})
-  ).find((c) => c.code === 'web_push');
+  ).find((candidate) => candidate.code === 'web_push');
   await deps.channelPreferences.updatePreference(uid, 'web_push', {
     isEnabledForMessages: card?.isEnabledForMessages ?? false,
     isEnabledForNotifications: true,

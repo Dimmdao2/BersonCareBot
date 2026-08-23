@@ -2,9 +2,11 @@ import toast from 'react-hot-toast';
 import type { SubscribePatientWebPushResult } from '@/shared/lib/webPush/subscribePatientWebPush';
 
 export function webPushSubscribeFailureMessage(
-  reason: Extract<SubscribePatientWebPushResult, { ok: false }>['reason'],
+  reason: Extract<SubscribePatientWebPushResult, { ok: false }>['reason'] | 'access_denied',
 ): string {
   switch (reason) {
+    case 'access_denied':
+      return 'Не удалось подтвердить доступ к вашим личным Push-уведомлениям';
     case 'permission_denied':
       return 'Разрешение не выдано. Включите уведомления в настройках устройства.';
     case 'permission_default':

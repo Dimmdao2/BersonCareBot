@@ -2,6 +2,8 @@ import type { WebPushClientPlatform } from '@/shared/lib/webPush/pushPlatform';
 
 export type StaffWebPushStatusResponse = {
   ok?: boolean;
+  error?: string;
+  message?: string;
   vapidConfigured?: boolean;
   publicKey?: string | null;
   hasSubscription?: boolean;
@@ -9,7 +11,7 @@ export type StaffWebPushStatusResponse = {
 };
 
 export async function unsubscribeAllStaffWebPush(): Promise<boolean> {
-  const res = await fetch('/api/doctor/web-push/unsubscribe', {
+  const res = await fetch('/api/account/web-push/unsubscribe', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -19,9 +21,11 @@ export async function unsubscribeAllStaffWebPush(): Promise<boolean> {
 }
 
 export async function fetchStaffWebPushStatus(): Promise<StaffWebPushStatusResponse> {
-  const res = await fetch('/api/doctor/web-push/status', { credentials: 'include' });
+  const res = await fetch('/api/account/web-push/status', { credentials: 'include' });
   if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as StaffWebPushStatusResponse | null;
     return {
+      ...body,
       ok: false,
       vapidConfigured: false,
       publicKey: null,
@@ -36,7 +40,7 @@ export async function registerStaffWebPushSubscription(
   subscription: PushSubscriptionJSON,
   platform: WebPushClientPlatform,
 ): Promise<boolean> {
-  const res = await fetch('/api/doctor/web-push/subscribe', {
+  const res = await fetch('/api/account/web-push/subscribe', {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },

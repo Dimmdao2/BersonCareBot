@@ -265,9 +265,12 @@ export function createWebappPortContextRuntimeConfig(
  * (owner correction 2026-07-12), and both roots read their subject from
  * `app.current_patient_user_id()` rather than from an argument.
  */
-const PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM = new Set<string>([
+const IDENTITY_ONLY_PATIENT_ROOTS = new Set<string>([
   'app.read_current_patient_active_organizations()',
   'app.enroll_current_patient_in_public_booking_clinic(uuid,text)',
+  // Public configuration for the current person's browser subscription. It has no clinic
+  // relationship to resolve and exposes no private VAPID material.
+  'app.get_web_push_vapid_public_key()',
 ]);
 
 function capabilityFor(
@@ -364,7 +367,7 @@ export function webappPortContextPrincipal(
         principal.kind !== 'patient' ||
         (!principal.organizationId &&
           descriptor.purpose !== 'relation' &&
-          !PATIENT_ROOTS_BEFORE_A_TENANT_CLAIM.has(descriptor.functionIdentity ?? ''))
+          !IDENTITY_ONLY_PATIENT_ROOTS.has(descriptor.functionIdentity ?? ''))
       )
         throw new Error('Patient port context requires an organization-scoped patient principal');
       return {

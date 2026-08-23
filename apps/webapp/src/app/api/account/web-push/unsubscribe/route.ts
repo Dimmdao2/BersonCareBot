@@ -2,7 +2,7 @@ import { revalidatePath } from 'next/cache';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { requireStaffWebPushSelfApiSession } from '@/app-layer/guards/requireRole';
+import { requireAccountWebPushSelfApiSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 
 const bodySchema = z.union([
@@ -10,9 +10,9 @@ const bodySchema = z.union([
   z.object({ all: z.literal(true) }),
 ]);
 
-/** POST /api/doctor/web-push/unsubscribe */
+/** POST /api/account/web-push/unsubscribe — removes only the authenticated person's rows. */
 export async function POST(request: Request) {
-  const gate = await requireStaffWebPushSelfApiSession();
+  const gate = await requireAccountWebPushSelfApiSession();
   if (!gate.ok) return gate.response;
 
   let json: unknown;
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
   if (!remaining) {
     const card = (
       await deps.channelPreferences.getChannelCards(uid, gate.session.user.bindings, {})
-    ).find((c) => c.code === 'web_push');
+    ).find((candidate) => candidate.code === 'web_push');
     await deps.channelPreferences.updatePreference(uid, 'web_push', {
       isEnabledForMessages: card?.isEnabledForMessages ?? false,
       isEnabledForNotifications: false,
