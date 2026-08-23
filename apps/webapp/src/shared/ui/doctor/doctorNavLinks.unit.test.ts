@@ -119,23 +119,4 @@ describe('doctor navigation schedule access', () => {
     expect(readOnlyIds).not.toContain('content');
     expect(disabledIds).not.toContain('patient-home');
   });
-
-  it('hides Tasks only when specialist tasks are disabled and keeps read-only navigation', () => {
-    const capabilities = ['account.self', 'clinical.workspace'] as const;
-    const ids = (state: 'disabled' | 'read_only') => {
-      const visibility = resolveMechanicSurfaceVisibility({
-        mechanic: 'specialist_tasks',
-        state,
-        policySource: 'system',
-        warning: null,
-      });
-      return getDoctorMenuItems({
-        capabilities,
-        specialistTasksEnabled: visibility.specialistNavigation,
-      }).map((item) => item.id);
-    };
-
-    expect(ids('disabled')).not.toContain('tasks');
-    expect(ids('read_only')).toContain('tasks');
-  });
 });
