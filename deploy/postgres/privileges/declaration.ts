@@ -2897,6 +2897,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_pre_session', contextClass: 'pre_session',
       purpose: 'auth.phone-login.preferred-channel',
       functionIdentity: 'app.get_preferred_auth_channel_code(uuid)' },
+    pre_session_default_auth_otp_channel: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_pre_session', contextClass: 'pre_session',
+      purpose: 'auth.phone-login.default-channel',
+      functionIdentity: 'app.pre_session_get_default_auth_otp_channel(uuid)' },
     patient_preferred_auth_channel_read: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.preferred-auth-channel.read',
@@ -4307,6 +4311,22 @@ const REV10_CONTEXT = {
       execute: ['app_pre_session'], purpose: 'auth.phone-login.preferred-channel', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       delegatesTo: ['app_ext.read_preferred_auth_channel_code(uuid)'],
+    }),
+    'app.pre_session_get_default_auth_otp_channel(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_pre_session'], purpose: 'auth.phone-login.default-channel', typedArgs: ['uuid'],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.user_phone_history',
+          columns: ['platform_user_id', 'valid_to', 'confirming_channel'],
+          operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.user_channel_bindings',
+          columns: ['user_id', 'channel_code', 'created_at'],
+          operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+        { relation: 'public.user_contacts',
+          columns: ['platform_user_id', 'contact_kind', 'is_primary', 'confirmed_at'],
+          operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
     }),
     'app.get_current_patient_preferred_auth_channel_code()': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
@@ -7198,6 +7218,14 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     kind: 'direct', purpose: 'platform operations reads the non-clinical clinic service catalog',
     codePaths: ['apps/webapp/src/infra/repos/pgBookingEngine.ts'],
     grants: [{ role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' }],
+  },
+  'public.broadcast_drafts': {
+    kind: 'direct',
+    purpose: 'staff saves a broadcast draft with the accepted organization written into the tenant discriminator',
+    codePaths: ['apps/webapp/src/infra/repos/pgBroadcastDrafts.ts#saveDraft'],
+    grants: [
+      { role: 'app_staff', operations: ['INSERT'], columns: ['organization_id'] },
+    ],
   },
   'public.saas_org_entitlement_overrides': {
     kind: 'direct', purpose: 'platform operations manages explicit commercial overrides for a clinic',
