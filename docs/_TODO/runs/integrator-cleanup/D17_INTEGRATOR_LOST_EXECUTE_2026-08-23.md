@@ -118,3 +118,98 @@ app.read_integrator_clinic_delivery_credential(text,uuid): missing EXECUTE app_i
 ```
 
 Временная поломка возвращена. Повторный `node deploy/postgres/privileges/generate-cli.mjs --all --check` — PASS побайтово; `git diff --check` — PASS.
+
+## Круг 4 — calendar-root привязан к принятой клинике
+
+Повторный аудит `D17_REAUDIT_2026-08-23.md` дал FAIL по предсуществующей дыре
+`app.read_integrator_google_calendar_setting(text,uuid)`: арендная ветка выбирала строку по
+`p_organization_id`, не сверяя его с принятым port-context. В этом круге тело приведено к форме
+соседнего credential-root:
+
+- attested-gate остаётся первым оператором;
+- `app.current_org_id()` читается после гейта;
+- ненулевой аргумент только сверяется с принятой организацией, несовпадение даёт `42501`;
+- арендная строка выбирается по переменной из контекста, а не по аргументу;
+- глобальная ветка `p_organization_id IS NULL` сохранена и по-прежнему читает только три глобальных
+  OAuth-ключа с `organization_id IS NULL`.
+
+Права не менялись: `declaration.ts` по-прежнему выдаёт узкой роли ровно три входные двери, а
+`app.saas_billing_effective_tariff(uuid,uuid)` остаётся только делегатом mechanic-root без прямого
+`EXECUTE` для `app_integrator_tenant_service`. В миграции нет `GRANT`, `REVOKE`, role/policy DDL.
+
+### Повторная проверка всех четырёх тел другим способом
+
+Вместо ещё одного построчного чтения тел выполнена поведенческая матрица на именованной DEV внутри
+одной транзакции `BEGIN … ROLLBACK`. Команда:
+
+```bash
+RUN_D17_INTEGRATOR_ROOTS_DB=1 node --test deploy/postgres/privileges/integrator-narrow-delivery-roots.devDbProof.test.mjs
+```
+
+Итог: `tests=1, pass=1, fail=0`, `exit=0`. Матрица доказала:
+
+- credential-root: контекст клиники A + аргумент клиники B → `42501`;
+- calendar-root: контекст клиники A + аргумент клиники B → `42501`, посаженная строка B не возвращена;
+- mechanic-root: контекст клиники A + аргумент клиники B → `42501`;
+- tariff-helper: `has_function_privilege('app_integrator_tenant_service',
+  'app.saas_billing_effective_tariff(uuid,uuid)', 'EXECUTE') = false`; доступ идёт только через
+  объявленное делегирование mechanic-root;
+- без принятого контекста все три входные двери отвечают `42501`, а со своим контекстом узкая роль
+  проходит каждую из трёх;
+- команда измерила `medical_relation_privileges=0` на трёх контрольных медицинских отношениях и
+  сохранила зелёной прежнюю materialization-проверку (`current=true`, `inserted=1`, pending rows=`1`).
+
+DB-proof теперь берёт канонический список миграций через `readMigrationFolder` /
+`selectPendingMigrations` и подмешивает все pending-файлы до D17 в ту же rollback-транзакцию. Поэтому
+он больше не падает на отсутствующей предшествующей функции
+`app.pre_session_get_default_auth_otp_channel(uuid)`, как было отмечено повторным аудитом.
+
+### Инъекция
+
+Временно удалена сверка аргумента с контекстом и арендная выборка возвращена на
+`setting.organization_id = p_organization_id`. Та же команда завершилась `exit=1`; покрасневшее
+утверждение получило фактическую чужую строку:
+
+```text
+actual:   {"value": "D17_FOREIGN_GOOGLE_REFRESH_TOKEN"}
+expected: 42501
+```
+
+Временная поломка снята, после чего тот же DB-proof снова дал `tests=1, pass=1, fail=0`, `exit=0`.
+
+### Генерация и статические проверки
+
+Команды выполнены в требуемом порядке:
+
+```bash
+node deploy/postgres/privileges/generate-cli.mjs --all
+node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only
+node deploy/postgres/privileges/generate-cli.mjs --all --check
+git diff --exit-code -- deploy/postgres/generated
+```
+
+Итог: `exit=0`; `--all --check` сообщил четыре побайтовых совпадения, а последний `git diff`
+подтвердил отсутствие изменений во всех generated-артефактах. Значит права круга 3 не откатились и
+не расширились.
+
+```bash
+node --test deploy/postgres/privileges/definer-tenant-predicate.test.mjs deploy/postgres/privileges/migration-order.test.mjs deploy/postgres/privileges/migrate-local-parse.test.mjs
+```
+
+Итог: `tests=44, pass=44, fail=0`, `exit=0`.
+
+```bash
+pnpm run typecheck
+pnpm run lint
+```
+
+Обе команды дали `exit=0`. Lint сохранил два прежних warning вне D17 в
+`AppointmentPaymentSection.tsx`, ошибок нет.
+
+Owner-aware wrapper дополнительно запрошен точной командой
+`bash deploy/host/migrate-dev.sh --preflight`, но остановился **до обращения к БД** с
+`FATAL: DEV API env path guard failed`: в изолированном worktree нет канонического `.env`, а переносить
+или копировать секретный env в рабочее дерево нельзя. Это не заменяет зелёный DB-proof выше и не
+объявляется PASS preflight.
+
+TEST, PROD, `--execute`, push и галочки плана не затрагивались.

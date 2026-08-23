@@ -50,36 +50,48 @@ $function$;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_integrator_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
--- BCB-MIGRATION-LANGUAGE-USAGE: sql
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.pg_get_functiondef('app.read_integrator_google_calendar_setting(text,uuid)'::regprocedure) LIKE '%app_integrator_tenant_service%'
 CREATE OR REPLACE FUNCTION app.read_integrator_google_calendar_setting(
   p_key text,
   p_organization_id uuid DEFAULT NULL::uuid
 ) RETURNS jsonb
-LANGUAGE sql
+LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path TO 'pg_catalog'
 AS $function$
-  SELECT app.require_attested_context_for_roles(
+DECLARE
+  v_organization_id uuid;
+  v_value jsonb;
+BEGIN
+  PERFORM app.require_attested_context_for_roles(
     'app_seam_settings_integrator_owner'::name,
     ARRAY['app_integrator_tenant_service'::name]::name[]
   );
 
+  v_organization_id := app.current_org_id();
+  IF p_organization_id IS NOT NULL AND p_organization_id <> v_organization_id THEN
+    RAISE EXCEPTION 'google calendar organization context denied' USING ERRCODE = '42501';
+  END IF;
+
   SELECT setting.value_json
-  FROM public.system_settings AS setting
-  WHERE (
-      (p_organization_id IS NULL
-        AND p_key IN ('google_client_id', 'google_client_secret', 'google_redirect_uri')
-        AND setting.organization_id IS NULL)
-      OR
-      (p_organization_id IS NOT NULL
-        AND p_key IN ('google_calendar_enabled', 'google_calendar_id', 'google_refresh_token')
-        AND setting.organization_id = p_organization_id)
-    )
-    AND setting.key = p_key
-    AND setting.scope = 'admin'
-  LIMIT 1
+    INTO v_value
+    FROM public.system_settings AS setting
+   WHERE (
+       (p_organization_id IS NULL
+         AND p_key IN ('google_client_id', 'google_client_secret', 'google_redirect_uri')
+         AND setting.organization_id IS NULL)
+       OR
+       (p_organization_id IS NOT NULL
+         AND p_key IN ('google_calendar_enabled', 'google_calendar_id', 'google_refresh_token')
+         AND setting.organization_id = v_organization_id)
+     )
+     AND setting.key = p_key
+     AND setting.scope = 'admin'
+   LIMIT 1;
+  RETURN v_value;
+END;
 $function$;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_org_commerce_owner

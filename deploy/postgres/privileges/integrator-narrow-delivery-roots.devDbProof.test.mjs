@@ -18,14 +18,18 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+
+import {
+  readMigrationFolder,
+  selectPendingMigrations,
+} from './migration-order.mjs';
 
 const ENABLED = process.env.RUN_D17_INTEGRATOR_ROOTS_DB === '1';
 const DATABASE = process.env.D17_INTEGRATOR_ROOTS_PROOF_DB ?? 'bcb_webapp_dev';
-const MIGRATION = new URL(
-  '../../../apps/webapp/db/drizzle-migrations/20260823T030000_integrator_tenant_role_reaches_delivery_roots.sql',
-  import.meta.url,
-);
+const MIGRATION_TAG = '20260823T030000_integrator_tenant_role_reaches_delivery_roots';
+const MIGRATIONS_FOLDER = new URL('../../../apps/webapp/db/drizzle-migrations/', import.meta.url);
 const PRIVILEGES = new URL('../generated/privileges.bcb_webapp_dev.sql', import.meta.url);
 
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
@@ -49,6 +53,20 @@ function parsed(output) {
       return [line.slice(0, at), line.slice(at + 1)];
     }),
   );
+}
+
+function pendingCandidateMigrationSql() {
+  const ledgerRows = psql('SELECT tag FROM drizzle.__drizzle_migrations ORDER BY tag')
+    .split('\n')
+    .filter(Boolean)
+    .map((tag) => ({ tag }));
+  return selectPendingMigrations(
+    readMigrationFolder(fileURLToPath(MIGRATIONS_FOLDER)),
+    ledgerRows,
+  )
+    .filter((migration) => migration.tag <= MIGRATION_TAG)
+    .map((migration) => readFileSync(migration.path, 'utf8'))
+    .join('\n');
 }
 
 const ACCEPT_CONTEXT_HELPER = String.raw`
@@ -98,11 +116,11 @@ END $accept$;
 `;
 
 function proofSql() {
-  const migration = readFileSync(MIGRATION, 'utf8');
+  const migrations = pendingCandidateMigrationSql();
   const privileges = readFileSync(PRIVILEGES, 'utf8');
   return String.raw`
 BEGIN;
-${migration}
+${migrations}
 ${privileges}
 ${ACCEPT_CONTEXT_HELPER}
 
@@ -127,6 +145,15 @@ BEGIN
     RAISE EXCEPTION 'named DEV needs an active appointment and a second organization for D17 proof';
   END IF;
 END $fixture$;
+
+INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
+SELECT 'google_refresh_token', 'admin', fixture.foreign_organization_id,
+       '{"value":"D17_FOREIGN_GOOGLE_REFRESH_TOKEN"}'::jsonb, statement_timestamp(), NULL
+  FROM probe_fixture AS fixture
+ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
+SET value_json = EXCLUDED.value_json,
+    updated_at = EXCLUDED.updated_at,
+    updated_by = EXCLUDED.updated_by;
 
 CREATE TEMP TABLE probe_out(ord serial PRIMARY KEY, key text NOT NULL, value text NOT NULL);
 
@@ -166,15 +193,32 @@ SELECT pg_temp.accept_context(
   (SELECT organization_id FROM probe_fixture)
 );
 DO $narrow$
-DECLARE fixture probe_fixture%ROWTYPE; result text; cross_org_result text;
+DECLARE
+  fixture probe_fixture%ROWTYPE;
+  result text;
+  clinic_cross_org_result text;
+  calendar_cross_org_result text;
+  mechanic_cross_org_result text;
 BEGIN
   SELECT * INTO fixture FROM probe_fixture;
   EXECUTE 'SET LOCAL ROLE app_integrator_tenant_service';
   BEGIN
     PERFORM app.read_integrator_clinic_delivery_credential(
       'clinic_smtp_outbound', fixture.foreign_organization_id);
-    cross_org_result := 'ALLOWED';
-  EXCEPTION WHEN OTHERS THEN cross_org_result := SQLSTATE; END;
+    clinic_cross_org_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN clinic_cross_org_result := SQLSTATE; END;
+
+  BEGIN
+    SELECT app.read_integrator_google_calendar_setting(
+      'google_refresh_token', fixture.foreign_organization_id)::text
+      INTO calendar_cross_org_result;
+  EXCEPTION WHEN OTHERS THEN calendar_cross_org_result := SQLSTATE; END;
+
+  BEGIN
+    PERFORM app.resolve_organization_mechanic_access(
+      fixture.foreign_organization_id, 'booking');
+    mechanic_cross_org_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN mechanic_cross_org_result := SQLSTATE; END;
 
   PERFORM app.read_integrator_clinic_delivery_credential(
     'clinic_smtp_outbound', fixture.organization_id);
@@ -186,7 +230,9 @@ BEGIN
     FROM app.resolve_organization_mechanic_access(fixture.organization_id, 'booking');
   EXECUTE 'RESET ROLE';
   INSERT INTO probe_out(key, value) VALUES
-    ('clinic_cross_org', cross_org_result),
+    ('clinic_cross_org', clinic_cross_org_result),
+    ('calendar_cross_org', calendar_cross_org_result),
+    ('mechanic_cross_org', mechanic_cross_org_result),
     ('clinic_with_context', 'ALLOWED'),
     ('calendar_with_context', 'ALLOWED'),
     ('mechanic_with_context', result);
@@ -202,6 +248,16 @@ SELECT 'medical_relation_privileges', count(*)::text
     OR has_table_privilege('app_integrator_tenant_service', relation_name, 'INSERT')
     OR has_table_privilege('app_integrator_tenant_service', relation_name, 'UPDATE')
     OR has_table_privilege('app_integrator_tenant_service', relation_name, 'DELETE');
+
+INSERT INTO probe_out(key, value)
+VALUES (
+  'tariff_helper_direct_execute',
+  has_function_privilege(
+    'app_integrator_tenant_service',
+    'app.saas_billing_effective_tariff(uuid,uuid)',
+    'EXECUTE'
+  )::text
+);
 
 -- Separate end-to-end DB materialization: the real webapp door receives one transport-ready
 -- appointment reminder, replaces the generation, and leaves a pending queue row. Everything is
@@ -277,10 +333,13 @@ test('narrow integrator role reaches only the three required roots and still nee
     assert.equal(result.calendar_without_context, '42501');
     assert.equal(result.mechanic_without_context, '42501');
     assert.equal(result.clinic_cross_org, '42501');
+    assert.equal(result.calendar_cross_org, '42501');
+    assert.equal(result.mechanic_cross_org, '42501');
     assert.equal(result.clinic_with_context, 'ALLOWED');
     assert.equal(result.calendar_with_context, 'ALLOWED');
     assert.equal(result.mechanic_with_context, '1');
     assert.equal(result.medical_relation_privileges, '0');
+    assert.equal(result.tariff_helper_direct_execute, 'false');
     assert.match(result.materialization_result ?? '', /"current"\s*:\s*true/u);
     assert.match(result.materialization_result ?? '', /"inserted"\s*:\s*1/u);
     assert.equal(result.materialized_queue_rows, '1');
