@@ -4,8 +4,11 @@
  * `upsertOpenConflictLog` in `adminAuditLog` (P14C).
  */
 import type { QueryResultRow } from 'pg';
+import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
   runWebappPgText,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
@@ -81,20 +84,12 @@ async function recordEmailAuthConflict(params: {
  * `user_oauth_bindings` row only ever exists because the provider already vouched for it.
  */
 async function loadEmailAuthStateRows(emailNormalized: string): Promise<EmailAuthStateRow[]> {
-  const r = await runWebappPgText<EmailAuthStateRow>(
-    `SELECT pu.id::text AS id,
-            (EXISTS (
-              SELECT 1 FROM user_contacts uc
-              WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'email'
-                AND uc.is_primary = true AND uc.confirmed_at IS NOT NULL
-            ) OR fpu.matched_primary = false) AS email_verified,
-            EXISTS (
-              SELECT 1 FROM user_password_credentials upc WHERE upc.user_id = pu.id
-            ) AS has_password
-     FROM platform_users pu
-     INNER JOIN app.find_platform_user_ids_by_any_confirmed_email($1) AS fpu ON fpu.user_id = pu.id
-     WHERE pu.merged_into_id IS NULL`,
+  const r = await runWebappNamedRoot<EmailAuthStateRow>(
+    getWebappSqlDb(),
+    'app.pre_session_load_email_auth_state(text)',
     [emailNormalized],
+    sql`SELECT state.id::text AS id, state.email_verified, state.has_password
+        FROM app.pre_session_load_email_auth_state(${emailNormalized}::text) AS state`,
   );
   return r.rows;
 }
