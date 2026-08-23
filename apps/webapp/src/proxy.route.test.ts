@@ -123,7 +123,7 @@ afterEach(() => {
 });
 
 describe('surface auth policy', () => {
-  it('carries the current behavior as separate available and enabled sets for all three rows', async () => {
+  it('matches the 2026-08-17 live runtime-settings snapshot on all three surfaces', async () => {
     const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
     const resolve = (origin: URL) =>
       runtime.resolveRequestSurface({
@@ -140,15 +140,15 @@ describe('surface auth policy', () => {
 
     expect(staff?.authPolicy).toEqual({
       availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth'],
+      enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
     });
     expect(platformAdmin?.authPolicy).toEqual({
       availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      enabledMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth'],
+      enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
     });
     expect(patient?.authPolicy).toEqual({
       availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-      enabledMethods: ['email_code', 'phone_bot', 'oauth'],
+      enabledMethods: ['email_code', 'passkey'],
     });
   });
 
