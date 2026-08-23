@@ -232,6 +232,15 @@ export default async function SettingsPage({
         false,
       ),
     );
+    const skipPublicCardAtRoot =
+      valueOf<unknown>(
+        clinicAdminSettings.find(
+          (setting) =>
+            setting.key === 'clinic_root_skip_public_card' &&
+            setting.organizationId === workspace.organizationId,
+        )?.valueJson,
+        false,
+      ) === true;
     const platformAdminValue = (key: string, fallback = '') =>
       String(
         valueOf(platformSettings.find((setting) => setting.key === key)?.valueJson, fallback) ??
@@ -327,6 +336,7 @@ export default async function SettingsPage({
         {cardSettings ? (
           <ClinicPublicCardSection
             initialSettings={cardSettings}
+            skipPublicCardAtRoot={skipPublicCardAtRoot}
             publicUrl={
               slugState?.currentSlug
                 ? `${env.APP_BASE_URL.replace(/\/$/, '')}/${encodeURIComponent(slugState.currentSlug)}`

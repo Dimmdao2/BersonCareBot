@@ -18,9 +18,11 @@ import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MediaPickerShell } from '@/shared/ui/doctor/media/MediaPickerShell';
 import { MediaPickerPanel } from '@/shared/ui/doctor/media/MediaPickerPanel';
 import type { MediaListItem } from '@/shared/ui/doctor/media/MediaPickerList';
+import { patchAdminSettingWithResult } from './patchAdminSetting';
 
 type Props = {
   initialSettings: ClinicPublicCardSettings;
+  skipPublicCardAtRoot: boolean;
   /** Live page address, or `null` while the clinic has no slug yet. */
   publicUrl: string | null;
 };
@@ -56,17 +58,24 @@ export function clinicPublicCardErrorMessage(code: string): string {
  * not a form field either — they are snapshotted from the branches the clinic already maintains,
  * so an address never gets a second home that drifts from the first.
  */
-export function ClinicPublicCardSection({ initialSettings, publicUrl }: Props) {
+export function ClinicPublicCardSection({
+  initialSettings,
+  skipPublicCardAtRoot: initialSkipPublicCardAtRoot,
+  publicUrl,
+}: Props) {
   const descriptionId = useId();
   const phoneId = useId();
   const emailId = useId();
   const websiteId = useId();
   const publishId = useId();
+  const rootEntryId = useId();
 
   const [settings, setSettings] = useState(initialSettings);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [skipPublicCardAtRoot, setSkipPublicCardAtRoot] = useState(initialSkipPublicCardAtRoot);
+  const [savingRootEntry, setSavingRootEntry] = useState(false);
   const [logoPickerOpen, setLogoPickerOpen] = useState(false);
   const [photoPickerOpen, setPhotoPickerOpen] = useState(false);
 
@@ -98,6 +107,19 @@ export function ClinicPublicCardSection({ initialSettings, publicUrl }: Props) {
     } finally {
       setPending(false);
     }
+  }
+
+  async function saveRootEntry(next: boolean) {
+    const previous = skipPublicCardAtRoot;
+    setSkipPublicCardAtRoot(next);
+    setSavingRootEntry(true);
+    setError(null);
+    const result = await patchAdminSettingWithResult('clinic_root_skip_public_card', next);
+    if (!result.ok) {
+      setSkipPublicCardAtRoot(previous);
+      setError('Не удалось сохранить настройку входа. Повторите попытку.');
+    }
+    setSavingRootEntry(false);
   }
 
   const photosFull = settings.photoMediaIds.length >= CLINIC_PUBLIC_CARD_LIMITS.maxPhotos;
@@ -231,6 +253,17 @@ export function ClinicPublicCardSection({ initialSettings, publicUrl }: Props) {
             className="mt-0.5"
           />
           <span>Показывать страницу клиники</span>
+        </label>
+
+        <label className="flex items-start gap-2 text-sm" htmlFor={rootEntryId}>
+          <Checkbox
+            id={rootEntryId}
+            checked={skipPublicCardAtRoot}
+            onCheckedChange={(checked) => void saveRootEntry(checked === true)}
+            disabled={pending || savingRootEntry}
+            className="mt-0.5"
+          />
+          <span>Сразу открывать вход на брендированном адресе</span>
         </label>
 
         {error ? (

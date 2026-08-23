@@ -41,11 +41,16 @@ afterEach(() => {
   vi.resetModules();
 });
 
-function tenantFor(slug: string, organizationId: string): TenantSurfaceLookup {
+function tenantFor(
+  slug: string,
+  organizationId: string,
+  skipPublicCardAtRoot = false,
+): TenantSurfaceLookup {
   return async () => ({
     status: 'active',
     organizationId,
     clinicSlug: slug,
+    skipPublicCardAtRoot,
     effectivePatientBrandOrganizationId: organizationId,
     effectivePatientBrand: {
       effectiveDisplayName: `Клиника ${slug}`,
@@ -57,6 +62,7 @@ function tenantFor(slug: string, organizationId: string): TenantSurfaceLookup {
 
 const TENANT_ONE = tenantFor(CLINIC_ONE, ORG_ONE);
 const TENANT_TWO = tenantFor(CLINIC_TWO, ORG_TWO);
+const TENANT_ONE_DIRECT_LOGIN = tenantFor(CLINIC_ONE, ORG_ONE, true);
 
 function brandedHost(slug: string): string {
   return `${slug}.${new URL(PATIENT_ORIGIN).hostname}`;
@@ -179,6 +185,38 @@ describe('B5 · визитка на корне — та же реализаци�
       response.headers.get('x-middleware-request-x-bc-resolved-surface');
     expect(surfaceOf(root)).toBe(surfaceOf(canonical));
     expect(canonical.headers.get('x-middleware-rewrite')).toBeNull();
+  });
+});
+
+/**
+ * Ловит: новый org-scoped флаг либо меняет дефолт для клиник, которые его не задавали, либо
+ * применяется к чужому branded host. Последствие — пациент видит не ту стартовую поверхность.
+ */
+describe('B5a · один org-scoped выбор корня брендированного адреса', () => {
+  it('отсутствующий или выключенный флаг сохраняет визитку, а включённый ведёт на общий вход', async () => {
+    const runtime = await loadRuntime();
+    const [unset, disabled, enabled, patientDefault] = await Promise.all([
+      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), tenantFor(CLINIC_ONE, ORG_ONE)),
+      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), TENANT_ONE),
+      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), TENANT_ONE_DIRECT_LOGIN),
+      runtime.proxy(requestFor(new URL(PATIENT_ORIGIN).host, '/')),
+    ]);
+
+    expect(routedPath(unset, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ONE));
+    expect(routedPath(disabled, '/')).toBe(runtime.publicClinicCardPath(CLINIC_ONE));
+    expect(routedPath(enabled, '/')).toBe('/app');
+    expect(routedPath(patientDefault, '/')).toBe('/app');
+  });
+
+  it('флаг одной организации не перенаправляет корень другой', async () => {
+    const runtime = await loadRuntime();
+    const [first, second] = await Promise.all([
+      runtime.proxy(requestFor(brandedHost(CLINIC_ONE), '/'), TENANT_ONE_DIRECT_LOGIN),
+      runtime.proxy(requestFor(brandedHost(CLINIC_TWO), '/'), TENANT_TWO),
+    ]);
+
+    expect(routedPath(first, '/')).toBe('/app');
+    expect(routedPath(second, '/')).toBe(runtime.publicClinicCardPath(CLINIC_TWO));
   });
 });
 

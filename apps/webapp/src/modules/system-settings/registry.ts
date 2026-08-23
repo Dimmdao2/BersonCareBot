@@ -254,6 +254,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   video_presign_ttl_seconds: runtime('admin', 'global', 'server', 'integer', '3600'),
   video_watermark_enabled: runtime('admin', 'global', 'server', 'boolean', 'false'),
   patient_booking_url: runtime('admin', 'per_org', 'authenticated_client', 'url', ''),
+  /** Branded clinic root normally renders the public card; an organization may opt into /app. */
+  clinic_root_skip_public_card: runtime('admin', 'per_org', 'server', 'boolean', 'false'),
   booking_default_organization_id: restricted('admin', 'global', 'uuid'),
   booking_calendar_show_working_hours: runtime(
     'admin',

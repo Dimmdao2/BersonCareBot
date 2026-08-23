@@ -60,6 +60,8 @@ export type ResolvedSurface = Readonly<{
   publicOrigin: string;
   organizationId?: string;
   clinicSlug?: string;
+  /** One org setting decides whether its branded root opens the common patient entry immediately. */
+  skipPublicCardAtRoot?: boolean;
   effectivePatientBrand?: EffectivePatientBrand;
   authPolicy: SurfaceAuthPolicy;
 }>;
@@ -69,6 +71,8 @@ export type TenantSurfaceLookupResult =
       status: 'active';
       organizationId: string;
       clinicSlug: string;
+      /** Derived from `clinic_root_skip_public_card`; absence stays on the public-card default. */
+      skipPublicCardAtRoot?: boolean;
       /** Trusted organization provenance of the projected brand before its id is stripped. */
       effectivePatientBrandOrganizationId: string;
       effectivePatientBrand: EffectivePatientBrand;
@@ -262,6 +266,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     publicOrigin,
     organizationId: tenant.organizationId,
     clinicSlug: clinicSlug.slug,
+    skipPublicCardAtRoot: tenant.skipPublicCardAtRoot === true,
     effectivePatientBrand,
     authPolicy,
   };
@@ -336,9 +341,15 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
         ...candidate,
         authPolicy,
         clinicSlug: clinicSlug.slug,
+        skipPublicCardAtRoot: candidate.skipPublicCardAtRoot === true,
         effectivePatientBrand,
       } as ResolvedSurface;
-    } else if (candidate.organizationId || candidate.clinicSlug || candidate.effectivePatientBrand) {
+    } else if (
+      candidate.organizationId ||
+      candidate.clinicSlug ||
+      candidate.skipPublicCardAtRoot !== undefined ||
+      candidate.effectivePatientBrand
+    ) {
       return null;
     }
     return { ...candidate, authPolicy } as ResolvedSurface;

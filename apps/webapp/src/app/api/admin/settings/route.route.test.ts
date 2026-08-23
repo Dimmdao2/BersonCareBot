@@ -41,6 +41,7 @@ const platformSession = {
 
 const CLINIC_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
 const CLINIC_BOOLEAN_KEY = 'booking_allow_doctor_unlink_past_package_sessions';
+const CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY = 'clinic_root_skip_public_card';
 
 function patch(body: unknown) {
   return PATCH(
@@ -239,6 +240,38 @@ describe('global-admin settings HTTP boundary', () => {
       'patient_booking_url',
       'admin',
       { value: 'https://clinic-booking.example.test' },
+      doctorSession.user.userId,
+      { organizationId },
+    );
+  });
+
+  it('writes the branded-root flag only for the organization from the trusted gate', async () => {
+    const doctorSession = {
+      ...platformSession,
+      user: { ...platformSession.user, role: 'doctor' },
+    };
+    const organizationId = '00000000-0000-4000-8000-000000000118';
+    fakes.getCurrentSession.mockResolvedValue(doctorSession);
+    fakes.requireClinic.mockResolvedValue({
+      ok: true,
+      ctx: { session: doctorSession, organizationId, membershipRole: 'owner' },
+    });
+    fakes.updateSetting.mockResolvedValue({
+      key: CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY,
+      scope: 'admin',
+      organizationId,
+      valueJson: { value: true },
+      updatedAt: '2026-08-23T00:00:00.000Z',
+      updatedBy: doctorSession.user.userId,
+    });
+
+    const response = await patch({ key: CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY, value: true });
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      CLINIC_ROOT_SKIP_PUBLIC_CARD_KEY,
+      'admin',
+      { value: true },
       doctorSession.user.userId,
       { organizationId },
     );

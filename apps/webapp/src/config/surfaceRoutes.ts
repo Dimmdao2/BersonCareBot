@@ -177,7 +177,11 @@ export function patientTreeRewritePath(
     return path === '/' ? '/app' : null;
   }
   if (resolved.surface !== 'patient_branded' || !resolved.clinicSlug) return null;
-  if (path === '/') return publicClinicCardPath(resolved.clinicSlug);
+  // This is the sole root projection for both branded-root choices. The flag arrives only in the
+  // already-resolved tenant context, so no second Host/settings lookup can drift from B5's seam.
+  if (path === '/') {
+    return resolved.skipPublicCardAtRoot ? '/app' : publicClinicCardPath(resolved.clinicSlug);
+  }
   if (path === '/booking') return publicBookPaths.forSlug(resolved.clinicSlug);
   return null;
 }
