@@ -15,6 +15,8 @@ Read before action:
 
 ## Owner oracle — do not soften
 
+Источник оракула: `docs/OWNER_DECISIONS.md`, «Роль бота после появления приложения» (23.08.2026) — «никакая команда от бота не должна создавать пользователей сама по себе».
+
 The webapp starts registration/login/profile binding and owns persistent account/contact/merge decisions.
 The common Therapysto bot proves phone ownership using messenger mechanisms, binds the phone for that
 webapp-started attempt, delivers login codes, and delivers opted-in notifications. An arbitrary `/start`,
@@ -110,4 +112,3 @@ Commit all task files explicitly (never `git add -A`) on `wt/d25-token-bound-bot
 contain `#984`. Add a concise implementation report under `docs/_TODO/runs/integrator-cleanup/` with exact commands
 and results, migration privilege analysis, candidate SHA and explicit NOT DONE. Leave the tree clean. Do not end
 the turn while a foreground test is still running.
-
