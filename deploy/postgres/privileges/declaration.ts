@@ -2152,14 +2152,6 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.user_contacts': 'опознание по подтверждённой почте на входе: клиника ещё не выбрана, организации в контексте нет',
     'public.platform_users': 'та же дверь отбрасывает слитые записи опознанного человека; клиники на этом шаге нет',
   },
-  'app.pre_session_load_email_auth_state(text)': {
-    'public.platform_users': 'опознание состояния учётки по подтверждённой почте до выбора клиники; слитая запись не является живым владельцем',
-    'public.user_contacts': 'признак подтверждения почты считается до человеческой сессии и возвращается только как boolean',
-    'public.user_password_credentials': 'наличие пароля считается до человеческой сессии и возвращается только как boolean',
-  },
-  'app_ext.read_preferred_auth_channel_code(uuid)': {
-    'public.user_channel_preferences': 'единый внутренний SELECT за двумя exact-дверями: pre-session читает опознанного владельца, patient подставляет только current_patient_user_id()',
-  },
 
   'app.list_active_booking_cities()': {
     'public.booking_cities': 'глобальный справочник городов публичной записи: строки платформенные, клинике не принадлежат',
