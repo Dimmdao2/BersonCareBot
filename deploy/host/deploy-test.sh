@@ -238,8 +238,13 @@ migrator_state="$(db_call 'проверка роли мигратора' "$DB_CA
 [[ "$migrator_state" == false\|false\|false\|false\|false\|false\|true\|0 ]] ||
   fail "$MIGRATOR_ROLE is not the stationary declaration migrator"
 
-git -C "$SRC_REPO" diff --quiet --ignore-submodules -- || fail 'tracked source changes must be committed before TEST deploy'
-git -C "$SRC_REPO" diff --cached --quiet --ignore-submodules -- || fail 'staged source changes must be committed before TEST deploy'
+# Documentation is not part of the executable branch artifact and must never hold a deploy hostage.
+# Keep foreign staged docs intact; only uncommitted non-Markdown changes fail the source-integrity gate.
+SOURCE_NON_DOCUMENT_PATHSPEC=(. ':(exclude,glob)**/*.md' ':(exclude,glob)*.md')
+git -C "$SRC_REPO" diff --quiet --ignore-submodules -- "${SOURCE_NON_DOCUMENT_PATHSPEC[@]}" ||
+  fail 'tracked non-document source changes must be committed before TEST deploy'
+git -C "$SRC_REPO" diff --cached --quiet --ignore-submodules -- "${SOURCE_NON_DOCUMENT_PATHSPEC[@]}" ||
+  fail 'staged non-document source changes must be committed before TEST deploy'
 git -C "$SRC_REPO" show-ref --verify --quiet "refs/heads/$BRANCH" || fail "local branch does not exist: $BRANCH"
 
 rm -f -- "$BUNDLE"
