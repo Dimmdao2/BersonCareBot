@@ -13,8 +13,7 @@ export function LegalDocumentOperatorRequisites() {
   const missingLabels = REQUISITE_FIELDS.filter(({ key }) => !requisites[key]).map(
     ({ label }) => label,
   );
-  const awaitingOwnerInput =
-    requisites.status === 'awaiting-owner-input' || missingLabels.length > 0;
+  const awaitingOwnerInput = missingLabels.length > 0;
 
   return (
     <section className="space-y-2" aria-labelledby="legal-document-operator">

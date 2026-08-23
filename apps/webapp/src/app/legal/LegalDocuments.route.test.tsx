@@ -5,7 +5,6 @@ import PrivacyPolicyPage from './privacy/page';
 import TermsOfServicePage from './terms/page';
 
 type MutableRequisites = {
-  status: 'awaiting-owner-input';
   legalEntityName: string;
   registeredAddress: string;
   inn: string;
@@ -46,5 +45,21 @@ describe.each(LEGAL_PAGES)('$path', ({ renderPage }) => {
     for (const marker of Object.values(sourceMarkers)) {
       expect(html).toContain(marker);
     }
+    expect(html).not.toContain('Реквизиты оператора ожидают уточнения владельцем.');
+  });
+
+  it('источник заполнен частично → страница перечисляет только недостающие реквизиты', () => {
+    Object.assign(requisites, {
+      legalEntityName: '__from_source_legal_entity_name__',
+      registeredAddress: '',
+      inn: '',
+      ogrn: '',
+    });
+
+    const html = renderToStaticMarkup(renderPage());
+
+    expect(html).toContain('Реквизиты оператора ожидают уточнения владельцем.');
+    expect(html).toContain('Не указаны: Адрес, ИНН, ОГРН.');
+    expect(html).not.toContain('Не указаны: Наименование юридического лица');
   });
 });

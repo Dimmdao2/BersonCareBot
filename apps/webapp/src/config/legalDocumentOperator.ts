@@ -11,7 +11,6 @@ import { PLATFORM_NAME } from './productSurfaces';
 export const LEGAL_DOCUMENT_OPERATOR = {
   productName: PLATFORM_NAME,
   requisites: {
-    status: 'awaiting-owner-input',
     legalEntityName: '',
     registeredAddress: '',
     inn: '',
