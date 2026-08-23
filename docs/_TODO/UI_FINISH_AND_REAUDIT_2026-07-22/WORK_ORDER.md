@@ -744,17 +744,22 @@ Rubitime выведен из эксплуатации 2026-07-27, архивир
       - [ ] **D15b/2 — D25: интегратор перестаёт писать идентичность.** Частично 03.08, `5137e8c68`, land `2c1cd63fb`: одна реализация записи в `packages/platform-merge/src/identityProjectionWrite.ts`, её зовут оба приложения; каскад слияния кандидатов тоже сведён с двух копий к одной; мёртвый `writeNotificationTopicsDirect` удалён. Но требование не закрыто: достижимые `writePort.ts` `user.upsert` → `writeIdentityAndPreferencesDirect` и `user.phone.link` → `applyMessengerPhonePublicBind` всё ещё записывают каноническую идентичность/контакты из интегратора. Место общего пакета — §2d схемы: это write-engine, не порт. ⚠️ ЧИСЛО ИСПРАВЛЕНО ПЕРЕПИСЬЮ D15b/1:
             не «11 файлов», а **3 места записи**, и они в пакете `packages/platform-merge/*`, которого этот план
             не называл; два из четырёх файлов, названных здесь прежде (`channelUsers.ts`, `mergeIntegratorUsers.ts`),
-            идентичность не пишут вообще. После удаления двух оставшихся writer-путей живая проверка обязана
-            гонять ДВА вебхука, а не один: первый доставляет вход и привязывает канал через webapp-owned seam,
-            второй передаёт подтверждённый контакт; интегратор сам не создаёт учётку и не доверяет телефону.
+            идентичность не пишут вообще. По уточнению владельца 23.08 прежний двухвебхуковый gate отменён:
+            произвольный апдейт бота не создаёт человека и не привязывает канал. Живая проверка обязана начать
+            попытку в webapp, передать token в бота, доказать владение номером self-owned contact средствами
+            мессенджера, сверить его с номером попытки и завершить кодом в webapp;
+            отдельный отрицательный gate доказывает, что generic webhook не добавил `platform_users`.
             ⛔ **УСТАРЕЛО 23.08.2026:** предложение «оба пути всё ещё записывают канон реляционно» выше заменено
             более новым состоянием [D25](#пункты-d20d39): `ef42f0129` + `f7d4a090f`, land `31c01bb86`.
             `user.upsert` и `user.phone.link` теперь вызывают именованные корни
             `app.integrator_upsert_channel_identity` / `app.integrator_bind_bootstrap_channel_phone` через единый
             `writeDirectPublic`; возвращать `writeIdentityAndPreferencesDirect` или `applyMessengerPhonePublicBind`
-            как writer-path запрещено. Бокс остаётся `[ ]` только потому, что двухвебхуковый TEST-гейт не выполнен;
-            evidence: `runs/integrator-cleanup/D25_WRITER_REMOVAL_INDEPENDENT_AUDIT_2026-08-22.md` и
-            `apps/integrator/src/infra/db/writePort.ts` (`user.upsert` / `user.phone.link`).
+            как writer-path запрещено. **CORRECTION владельца 23.08:** этого недостаточно. Тело
+            `app.integrator_upsert_channel_identity` при неизвестном messenger id само вставляет пустые
+            `platform_users`, `user_identity`, binding и preferences, поэтому generic webhook всё ещё создаёт
+            учётку, хотя запись спрятана за webapp-owned seam. Бокс `[ ]` до удаления этой ветки создания и
+            зелёного token-bound gate `webapp start → messenger-owned contact proof → webapp complete → code confirm`; обычный
+            `/start`/message/contact без действующей попытки обязан оставить число аккаунтов неизменным.
       - [x] **D15b/3 — один порт идентичности в вебаппе.** ✅ 03.08, ветка `wt/d15b3-identity-port`,
             отчёт `runs/integrator-cleanup/D15B3_IDENTITY_PORT_2026-08-03.md`. Новый модуль
             `apps/webapp/src/modules/identity/` (`ports.ts` + `service.ts`): `IdentityPort` — один тип,
@@ -1589,14 +1594,13 @@ booking/event gateway) в том же источнике помечены «за
 - [ ] **D25 — идентичность: интегратору остаётся только доставка входа.** Решение — **Р-D25** (§2.3). Это же
       закрывает 13 спорных сценариев переписи D12b. Реализуется по `IDENTITY_AND_MERGE_SCHEME.md` шагами D15b,
       до D17.
-      ✅ **ПО КОДУ ЗАКРЫТ 22.08.2026** (`ef42f0129` + коррекция K5/K8 `f7d4a090f`, land `31c01bb86`; независимый
-      Opus 5 аудит `docs/_TODO/runs/integrator-cleanup/D25_WRITER_REMOVAL_INDEPENDENT_AUDIT_2026-08-22.md`,
-      full CI PASS на `34b7908d2`, push сделан). Оба достижимых writer-пути интегратора — `user.upsert` и
-      `user.phone.link` — больше не пишут канон реляционно: каждый идёт через один именованный корень
-      (`app.integrator_upsert_channel_identity`, `app.integrator_bind_bootstrap_channel_phone`) внутри
-      существующего chokepoint `writeDirectPublic`, без своей транзакции и без решения о слиянии.
-      Осталась ОДНА незакрытая часть — живая двухвебхуковая проверка (ниже). Прежняя запись
-      «D25 по коду ещё не закрыт» устарела.
+      **ПЕРЕОТКРЫТО владельцем 23.08.2026.** Исправления `ef42f0129` + `f7d4a090f` (land `31c01bb86`) убрали
+      реляционные writer-пути интегратора и прошли независимый Opus 5 аудит, но сохранили запрещённый результат:
+      generic `user.upsert` вызывает `app.integrator_upsert_channel_identity`, а функция создаёт пустого
+      канонического человека по одному Telegram/MAX id. «Webapp-owned seam» не делает это webapp-регистрацией,
+      потому что действующей попытки webapp и подтверждённого контакта нет. Готовность D25 теперь бинарна:
+      generic webhook не создаёт аккаунт; token-bound webapp flow принимает только self-owned messenger contact,
+      сверяет номер, фиксирует подтверждение и доставляет код; интегратор не создаёт аккаунт и не решает merge.
       D15b/5 закрыт. **D15b/6 не закрыт:** код/миграция/привилегийная часть physical cutover `#987` задеплоены
       на TEST в merge `92cf34ffa4bf4f277e7f3e67bd548c3805815ee2` (full CI PASS, `push:checked` OK,
       `deploy-test.sh` PASS, TEST migration verification webapp `25/25` + integrator `1/1`, детали — чекбокс
@@ -1604,7 +1608,7 @@ booking/event gateway) в том же источнике помечены «за
       запись «D15b/5–6 закрыты» ложна. Остаётся также D15b/7 псевдоним (не отложен по решению владельца —
       очерёдность, не техническая невозможность параллельной работы; идёт после фактического TEST-закрытия
       D15b/6 — см. чекбокс D15b/7 выше). После удаления writer-путей D15b/2 требуется живая
-      двухвебхуковая проверка.
+      token-bound webapp→bot→webapp проверка и отрицательная проверка generic webhook.
 - [x] **D26 — слияние аккаунтов переписывается как ИНСТРУМЕНТ ПОДДЕРЖКИ, нынешний мерж вырезается.** Решение —
       **Р-D26** (§2.3). Правило конфликта — `IDENTITY_AND_MERGE_SCHEME.md` §5.2b (финальное, 20.08): блокирует
       автослияние ТОЛЬКО когда мед-данные есть с ОБЕИХ сторон одновременно; без конфликта история и переписка
