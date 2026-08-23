@@ -204,3 +204,95 @@ grep -rn "clinic_transactional_mail_template" --include='*.ts' --include='*.mjs'
 DEV не изменена: все прогоны — `BEGIN … ROLLBACK`, чужие файлы не трогались, `--execute` не
 запускался, TEST/PROD/push не касался. `lint`/`typecheck` автора заново не гонял — бриф аудита их не
 требовал; `--all --check` перегнал сам.
+
+---
+
+## Круг 3 — возвращена стена арендатора
+
+**Итог:** FAIL-блокер закрыт без отката прав D17. `read_integrator_clinic_delivery_credential`
+снова берёт организацию из принятого контекста, сверяет с ней аргумент и отказывает `42501` при
+несовпадении. Узкая `app_integrator_tenant_service` по-прежнему проходит три нужных корня. Этот
+раздел исправляет ошибочные утверждения предыдущего отчёта о сохранённой стене credential-root.
+
+### Все переписанные тела: построчно «было → стало»
+
+#### `app.read_integrator_clinic_delivery_credential(text,uuid)`
+
+| Было до исправления | Стало в круге 3 | Что сохранено / возвращено |
+| --- | --- | --- |
+| `LANGUAGE sql` | `LANGUAGE plpgsql` | Возвращена возможность явных проверок и `42501`. |
+| Сразу `SELECT require_attested_context_for_roles(... app_integrator_tenant_service ...)` | `DECLARE v_organization_id uuid; v_value jsonb; BEGIN`, затем первым оператором `PERFORM require_attested_context_for_roles(... app_integrator_tenant_service ...)` | Узкое право D17 сохранено; в `DECLARE` нет инициализаторов. |
+| Организация контекста не читалась | После гейта `v_organization_id := app.current_org_id()` | Организация снова берётся из принятого контекста. |
+| `p_organization_id IS NOT NULL` только фильтровал выборку | `p_organization_id IS NULL OR p_organization_id <> v_organization_id` → `42501` | Аргумент только сверяется с контекстом. |
+| Allowlist был расширен `clinic_transactional_mail_template` | Пять прежних credential-ключей: SMTP, SMSC, Telegram, MAX, VK | Неавторизованное расширение удалено. |
+| Запрещённый ключ давал тихий `NULL` | `p_key NOT IN (...)` → `42501` | Возвращён fail-closed отказ. |
+| `setting.organization_id = p_organization_id` | `setting.organization_id = v_organization_id` | Кросс-арендная выборка по аргументу устранена. |
+| SQL возвращал строку напрямую | `SELECT ... INTO v_value; RETURN v_value` | Семантика допустимого чтения сохранена. |
+
+#### `app.read_integrator_google_calendar_setting(text,uuid)`
+
+| Было | Стало в D17 / круге 3 | Что не потерялось |
+| --- | --- | --- |
+| `LANGUAGE sql`, без `DECLARE` и без контекстного гейта | `LANGUAGE sql`; первым оператором добавлен `SELECT require_attested_context_for_roles(... app_integrator_tenant_service ...)` | Переменных, которые могла потерять смена языка, не было. |
+| Две ветки: глобальные OAuth-ключи при `p_organization_id IS NULL` и clinic calendar-ключи при ненулевом аргументе | Те же две ветки и те же allowlist, `scope = 'admin'`, `LIMIT 1` | Кроме гейта тело не изменено. |
+
+Здесь по-прежнему используется `setting.organization_id = p_organization_id`. Как зафиксировал независимый
+аудит, это предсуществующее поведение, а не регрессия D17; исправление этого отдельного owner question в
+границы круга 3 не входило.
+
+#### `app.resolve_organization_mechanic_access(uuid,text)`
+
+Миграция получает всё установленное тело через `pg_get_functiondef` и меняет только точные якоря:
+
+| Было | Стало | Что не потерялось |
+| --- | --- | --- |
+| Gate-массив `app_patient, app_staff, app_tenant_service` | Тот же массив + `app_integrator_tenant_service` | Узкая роль D17 сохранена без удаления прежних ролей. |
+| `v_current_organization_id uuid := app.current_org_id()` | `v_current_organization_id uuid;` | Инициализация перенесена после гейта: `v_current_organization_id := app.current_org_id()`. |
+| `v_now timestamptz := statement_timestamp()` | `v_now timestamptz;` | Инициализация перенесена после гейта: `v_now := statement_timestamp()`. |
+
+Первым оператором после `BEGIN` остаётся gate. Все проверки совпадения организации, чтения,
+вычисления механика и `RETURN` остаются побайтово частью исходного `pg_get_functiondef`: миграция их
+не пересобирает и не заменяет.
+
+#### `app.saas_billing_effective_tariff(uuid,uuid)`
+
+| Было | Стало | Что не потерялось |
+| --- | --- | --- |
+| Gate-массив `app_clinic_billing, app_patient, app_platform_settings, app_staff` (либо тот же массив уже с `app_tenant_service`) | Полный generated execute-массив: `app_clinic_billing, app_integrator_tenant_service, app_patient, app_platform_settings, app_staff, app_tenant_service` | Названы обе добавленные роли; прежние роли сохранены. |
+| `v_now timestamptz := statement_timestamp()` | `v_now timestamptz;` | `v_now := statement_timestamp()` перенесён сразу после гейта. |
+
+Первым оператором после `BEGIN` остаётся gate. Проверка `p_tariff_id`, snapshot-запрос, fallback и
+возвращаемый тариф не меняются. Узкая роль не получает прямой `EXECUTE` на helper: принятый контекст
+доходит только по существующему `delegatesTo` от mechanic-root.
+
+### Права и объекты миграции
+
+Миграция меняет четыре существующие функции, новых таблиц/колонок/политик не создаёт. Владельцы
+остаются `app_seam_settings_integrator_owner` и `app_seam_org_commerce_owner`; требования к отношениям
+не расширены. Нужные `EXECUTE` и gate-массивы по-прежнему определяются только
+`deploy/postgres/privileges/declaration.ts` и генератором. В миграции нет `GRANT`, `REVOKE` или
+`CREATE POLICY`; новых строк декларации круг 3 не потребовал.
+
+### Доказательство круга 3
+
+- `RUN_D17_INTEGRATOR_ROOTS_DB=1 node --test deploy/postgres/privileges/integrator-narrow-delivery-roots.devDbProof.test.mjs`
+  → **PASS 1/1** на именованной DEV в `BEGIN … ROLLBACK`: чужой аргумент под принятым контекстом
+  клиники A дал `clinic_cross_org=42501`; своя организация прошла; без контекста все три корня дали
+  `42501`; mechanic вернул `1`; медицинских relation-прав узкой роли `0`; материализация оставила
+  `result=current`, `inserted=1` и одну pending `appointment_reminder` queue-row.
+- Fault injection: во временной копии тела mismatch-проверка была ослаблена до проверки `NULL`, а
+  выборка возвращена на `setting.organization_id = p_organization_id`. Та же команда теста выше
+  стала **RED**: assertion показал `'ALLOWED' !== '42501'` именно для `clinic_cross_org`. После
+  возврата исправления та же команда снова **PASS 1/1**.
+- `bash deploy/host/migrate-dev.sh --preflight` → **PASS**, rollback-only owner-ordered проверка:
+  `pending=2 total=55`, `reapplied=0`, `unapplied=0`. `--execute` не запускался.
+- `node deploy/postgres/privileges/generate-cli.mjs --all` → сгенерированы все privilege/allowlist
+  артефакты; `node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only` →
+  сгенерированы оба capability-артефакта; `node deploy/postgres/privileges/generate-cli.mjs --all --check`
+  → четыре privilege/allowlist-артефакта совпали побайтно.
+- `pnpm run typecheck` → **PASS**.
+- `pnpm run lint` → **PASS**, `0` ошибок; остались `2` предсуществующих warning в
+  `AppointmentPaymentSection.tsx`.
+- `node --test deploy/postgres/privileges/definer-tenant-predicate.test.mjs` → **PASS 14/14**.
+
+Границы соблюдены: TEST, PROD и push не трогались; галочки плана не менялись.

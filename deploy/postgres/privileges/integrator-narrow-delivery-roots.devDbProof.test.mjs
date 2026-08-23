@@ -4,7 +4,9 @@
  * Failure caught: after the integrator login stopped carrying `app_tenant_service`, booking and
  * delivery code entered `app_integrator_tenant_service` but could neither EXECUTE nor pass the
  * body gate of three shared roots. A booking was created while its confirmation/reminders were
- * lost behind 42501.
+ * lost behind 42501. The credential root must also reject an organization argument that differs
+ * from the organization already accepted in the port context, or one clinic can read another
+ * clinic's delivery secrets.
  *
  * The candidate migration and generated privilege artifact are materialized inside one transaction
  * and the transaction is rolled back. No disposable database and no persistent DEV data are used.
@@ -105,7 +107,12 @@ ${privileges}
 ${ACCEPT_CONTEXT_HELPER}
 
 CREATE TEMP TABLE probe_fixture AS
-SELECT appointment.id AS appointment_id, appointment.organization_id, appointment.start_at
+SELECT appointment.id AS appointment_id, appointment.organization_id, appointment.start_at,
+       (SELECT organization.id
+          FROM public.be_organizations AS organization
+         WHERE organization.id <> appointment.organization_id
+         ORDER BY organization.id
+         LIMIT 1) AS foreign_organization_id
   FROM public.be_appointments AS appointment
  WHERE appointment.status IN (
    'created', 'awaiting_payment', 'paid', 'confirmed', 'rescheduled',
@@ -116,8 +123,8 @@ SELECT appointment.id AS appointment_id, appointment.organization_id, appointmen
  LIMIT 1;
 DO $fixture$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM probe_fixture) THEN
-    RAISE EXCEPTION 'named DEV has no active appointment for D17 materialization proof';
+  IF NOT EXISTS (SELECT 1 FROM probe_fixture WHERE foreign_organization_id IS NOT NULL) THEN
+    RAISE EXCEPTION 'named DEV needs an active appointment and a second organization for D17 proof';
   END IF;
 END $fixture$;
 
@@ -159,10 +166,16 @@ SELECT pg_temp.accept_context(
   (SELECT organization_id FROM probe_fixture)
 );
 DO $narrow$
-DECLARE fixture probe_fixture%ROWTYPE; result text;
+DECLARE fixture probe_fixture%ROWTYPE; result text; cross_org_result text;
 BEGIN
   SELECT * INTO fixture FROM probe_fixture;
   EXECUTE 'SET LOCAL ROLE app_integrator_tenant_service';
+  BEGIN
+    PERFORM app.read_integrator_clinic_delivery_credential(
+      'clinic_smtp_outbound', fixture.foreign_organization_id);
+    cross_org_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN cross_org_result := SQLSTATE; END;
+
   PERFORM app.read_integrator_clinic_delivery_credential(
     'clinic_smtp_outbound', fixture.organization_id);
 
@@ -173,6 +186,7 @@ BEGIN
     FROM app.resolve_organization_mechanic_access(fixture.organization_id, 'booking');
   EXECUTE 'RESET ROLE';
   INSERT INTO probe_out(key, value) VALUES
+    ('clinic_cross_org', cross_org_result),
     ('clinic_with_context', 'ALLOWED'),
     ('calendar_with_context', 'ALLOWED'),
     ('mechanic_with_context', result);
@@ -262,6 +276,7 @@ test('narrow integrator role reaches only the three required roots and still nee
     assert.equal(result.clinic_without_context, '42501');
     assert.equal(result.calendar_without_context, '42501');
     assert.equal(result.mechanic_without_context, '42501');
+    assert.equal(result.clinic_cross_org, '42501');
     assert.equal(result.clinic_with_context, 'ALLOWED');
     assert.equal(result.calendar_with_context, 'ALLOWED');
     assert.equal(result.mechanic_with_context, '1');
