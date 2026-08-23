@@ -185,6 +185,45 @@ describe('surface auth policy', () => {
       },
     });
   });
+
+  // Self-tests for the two policy gates this surface introduced: break the input on purpose and
+  // make sure the resolver notices (AGENTS.md §10a).
+  it('refuses a surface whose enabled methods escape its available methods', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const escapedConfig = {
+      ...DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+      staff: {
+        availableMethods: ['password', 'email_code'],
+        enabledMethods: ['password', 'oauth'],
+      },
+    } as unknown as SurfaceAuthPolicyConfig;
+
+    await expect(
+      runtime.resolveRequestSurface({
+        host: runtime.staffOrigin.host,
+        protocol: runtime.staffOrigin.protocol,
+        resolveTenantSurface: async () => ({ status: 'unknown' }),
+        authPolicyConfig: escapedConfig,
+      }),
+    ).resolves.toBeNull();
+  });
+
+  it('rejects a resolved-surface header whose auth policy is invalid', () => {
+    const headerFor = (authPolicy: unknown) => {
+      const encoded = encodeURIComponent(
+        JSON.stringify({ surface: 'staff', publicOrigin: STAFF_ORIGIN.origin, authPolicy }),
+      );
+      return readResolvedSurface({ get: () => encoded });
+    };
+
+    expect(headerFor(DEFAULT_SURFACE_AUTH_POLICY_CONFIG.staff)).not.toBeNull();
+    expect(headerFor({ availableMethods: ['email_code'], enabledMethods: ['oauth'] })).toBeNull();
+    expect(
+      headerFor({ availableMethods: ['email_code', 'quantum'], enabledMethods: ['email_code'] }),
+    ).toBeNull();
+    expect(headerFor({ availableMethods: ['email_code', 'email_code'], enabledMethods: [] })).toBeNull();
+    expect(headerFor('password,email_code')).toBeNull();
+  });
 });
 
 function requestFor(
