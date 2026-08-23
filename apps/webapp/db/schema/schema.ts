@@ -1250,6 +1250,8 @@ export const phoneMessengerBindSecrets = pgTable(
     status: text().default('pending_contact').notNull(),
     challengeId: text('challenge_id'),
     failureCode: text('failure_code'),
+    claimedExternalId: text('claimed_external_id'),
+    claimedAt: timestamp('claimed_at', { withTimezone: true, mode: 'string' }),
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
     consumedAt: timestamp('consumed_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
@@ -1265,6 +1267,11 @@ export const phoneMessengerBindSecrets = pgTable(
       'btree',
       table.phoneNormalized.asc().nullsLast().op('text_ops'),
       table.status.asc().nullsLast().op('text_ops'),
+    ),
+    index('idx_phone_messenger_bind_secrets_live_claim').using(
+      'btree',
+      table.channelCode.asc().nullsLast().op('text_ops'),
+      table.claimedExternalId.asc().nullsLast().op('text_ops'),
     ),
     foreignKey({
       columns: [table.userId],

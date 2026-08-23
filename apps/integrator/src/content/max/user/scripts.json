@@ -1,6 +1,6 @@
 [
   {
-    "id": "max.contact.phone.link",
+    "id": "max.contact.phone_messenger_bind.complete",
     "source": "max",
     "event": "message.received",
     "priority": 10,
@@ -11,24 +11,30 @@
     },
     "steps": [
       {
-        "action": "user.phone.link",
+        "action": "webapp.phoneMessengerBind.complete",
         "mode": "sync",
         "params": {
-          "channelUserId": "{{actor.channelUserId}}",
+          "channelCode": "max",
+          "externalId": "{{meta.userId}}",
           "phoneNormalized": "{{input.phone}}"
         }
-      },
+      }
+    ]
+  },
+  {
+    "id": "max.start.phoneauth",
+    "source": "max",
+    "event": "message.received",
+    "priority": 100,
+    "match": { "input": { "action": "start.phoneauth" } },
+    "steps": [
       {
-        "action": "message.inlineKeyboard.show",
-        "mode": "async",
+        "action": "webapp.phoneMessengerBind.claim",
+        "mode": "sync",
         "params": {
-          "chatId": "{{actor.chatId}}",
-          "templateKey": "max:welcome",
-          "menu": "main",
-          "delivery": {
-            "channels": ["max"],
-            "maxAttempts": 1
-          }
+          "setupToken": "{{input.authSecret}}",
+          "channelCode": "max",
+          "externalId": "{{meta.userId}}"
         }
       }
     ]
@@ -79,19 +85,11 @@
           "recipient": {
             "chatId": "{{actor.chatId}}"
           },
-          "templateKey": "max:onboardingWelcome",
+          "templateKey": "max:phoneAuthFailed",
           "delivery": {
             "channels": ["max"],
             "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
+          }
         }
       }
     ]
@@ -186,19 +184,11 @@
           "recipient": {
             "chatId": "{{actor.chatId}}"
           },
-          "templateKey": "max:confirmPhoneForBooking",
+          "templateKey": "max:phoneAuthFailed",
           "delivery": {
             "channels": ["max"],
             "maxAttempts": 1
-          },
-          "inlineKeyboard": [
-            [
-              {
-                "textTemplateKey": "max:requestContact.button",
-                "requestPhone": true
-              }
-            ]
-          ]
+          }
         }
       }
     ]
