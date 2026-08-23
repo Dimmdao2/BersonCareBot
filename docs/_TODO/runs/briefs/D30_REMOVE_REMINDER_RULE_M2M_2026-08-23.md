@@ -6,7 +6,7 @@
 
 Сначала прочитай карту и применимые разделы `AGENTS.md`: «Как решать, что делать», §1 migrations, §5, §7, §9–§10b, §24. Затем прочитай полностью authority ниже и измерь текущий код через `code-search`, после чего делай минимальный coherent pass.
 
-## Источник оракула
+## Authority
 
 Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2.3, **Р-D30** — «владение решением (какие напоминания, сроки и тексты) — webapp; исполнение по расписанию — integrator»; «Повторы исполняются через единственную `public.outgoing_delivery_queue`».
 
@@ -101,4 +101,3 @@
 - точные команды и результаты проверок;
 - migration rights analysis;
 - что требует независимого аудита и rollback-only named DEV preflight перед landing.
-
