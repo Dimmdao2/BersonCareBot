@@ -28,10 +28,7 @@ import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { doctorSectionCardClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
-import {
-  DoctorTodayDashboard,
-  type DoctorTodayCalendarSnapshot,
-} from './DoctorTodayDashboard';
+import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
 /**
@@ -108,16 +105,21 @@ async function DoctorTodayDashboardSection({
   const session = workspace.session;
   const deps = buildAppDeps();
 
-  const [displayIana, audience, todayPreferencesRow, specialistTasksAvailability, specialistTasksRead] =
-    await Promise.all([
-      getAppDisplayTimeZone(),
-      loadDoctorAnalyticsAudience(),
-      deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
-        organizationId: workspace.organizationId,
-      }),
-      getMechanicMutationAvailability(workspace, 'specialist_tasks'),
-      requireEntitlementForReadAction(workspace, 'specialist_tasks'),
-    ]);
+  const [
+    displayIana,
+    audience,
+    todayPreferencesRow,
+    specialistTasksAvailability,
+    specialistTasksRead,
+  ] = await Promise.all([
+    getAppDisplayTimeZone(),
+    loadDoctorAnalyticsAudience(),
+    deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
+      organizationId: workspace.organizationId,
+    }),
+    getMechanicMutationAvailability(workspace, 'specialist_tasks'),
+    requireEntitlementForReadAction(workspace, 'specialist_tasks'),
+  ]);
 
   const todayPreferences = parseDoctorTodayPreferences(todayPreferencesRow?.valueJson);
   const snapshotDateTime = DateTime.now().setZone(displayIana);
@@ -139,6 +141,8 @@ async function DoctorTodayDashboardSection({
       loadDoctorTodayDashboard(
         {
           doctorAppointments: deps.doctorAppointments,
+          bookingCalendar: deps.bookingCalendar ?? undefined,
+          clientHistory: deps.clientHistory,
           doctorClients: deps.doctorClientsPort,
           messaging: deps.messaging,
           specialistTasks: specialistTasksReadable ? deps.specialistTasks : undefined,

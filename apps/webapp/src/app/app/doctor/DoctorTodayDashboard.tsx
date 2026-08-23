@@ -21,6 +21,7 @@ import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorInlineLinkClass, doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { DoctorTodayLeftKpiRow } from './DoctorTodayLeftKpiRow';
+import { DoctorTodayNextAppointment } from './DoctorTodayNextAppointment';
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
 import {
@@ -136,6 +137,8 @@ export function DoctorTodayDashboard({
             onTaskComplete={handleTaskComplete}
             onTaskSaved={handleTaskSaved}
           />
+
+          <DoctorTodayNextAppointment appointment={data.nextAppointment} />
 
           <DoctorSection id="doctor-today-section-people">
             <DoctorSectionHeader>
