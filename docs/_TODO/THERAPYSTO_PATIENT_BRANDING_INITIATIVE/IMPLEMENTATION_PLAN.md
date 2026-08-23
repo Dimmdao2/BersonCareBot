@@ -604,6 +604,10 @@ identity seam, а не набор getters.
 - [ ] `B4` Расширить существующий org branding service: optional patient app name и один accent token; anonymous
   branded projection отдаёт только published/entitled safe fields. Public card/contacts читаются через существующий
   clinic-public-card port.
+- [ ] `B4a` Клиника без купленного брендинга получает живую страницу, а не `404` (§1.2b-1, решение владельца
+  23.08.2026). Известная активная метка → поверхность резолвится с `core.displayName` и брендом платформы;
+  `404` остаётся только для неизвестной метки, неактивной и удалённой организации. Плашки «на Therapygo»
+  не делать. Проверка — на резолве поверхности, а не в отдельной ветке страницы.
 - [ ] `B5` Переподключить root/login/recovery/clinic card/booking/patient cabinet к одному patient tree с разным
   resolved context. Therapysto home и therapist directory недостижимы на patient origins.
   **Корень брендированного адреса показывает визитку клиники** (§1.2b) — переиспользуя существующий
