@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { env } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
-import { runDbJournalRetention } from '@/modules/db-retention/journalRetention';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY,
@@ -55,7 +55,8 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
 
   try {
-    const result = await runDbJournalRetention({ dryRun });
+    const deps = buildAppDeps();
+    const result = await deps.dbJournalRetention.runRetention({ dryRun });
 
     logger.info(
       { dryRun: result.dryRun, results: result.results },

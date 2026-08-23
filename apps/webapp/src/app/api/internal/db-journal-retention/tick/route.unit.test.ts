@@ -1,15 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { JournalRetentionRunResult } from '@/modules/db-retention/journalRetention';
 
 const mocks = vi.hoisted(() => ({
-  run: vi.fn(async () => {
+  run: vi.fn<() => Promise<JournalRetentionRunResult>>(async () => {
     throw new Error('database denied');
   }),
   recordTick: vi.fn(async () => undefined),
 }));
 
 vi.mock('@/config/env', () => ({ env: { INTERNAL_JOB_SECRET: 'test-secret' } }));
-vi.mock('@/modules/db-retention/journalRetention', () => ({
-  runDbJournalRetention: mocks.run,
+vi.mock('@/app-layer/di/buildAppDeps', () => ({
+  buildAppDeps: () => ({ dbJournalRetention: { runRetention: mocks.run } }),
 }));
 vi.mock('@/app-layer/operator-health/recordOperatorCronJobTick', () => ({
   recordOperatorCronJobTickBestEffort: mocks.recordTick,

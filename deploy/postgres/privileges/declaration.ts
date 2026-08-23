@@ -830,7 +830,9 @@ const RLS_OFF_MIGRATOR_LEDGER = 'ЯВНО объявленное отсутст�
 
 const TABLE_ROWS: TableRow[] = [
   { t: 'app.context_nonce_ledger', cls: 'T', owner: 'app_owner',
-    why: 'закрытый технический остаток DEV-схемы; transaction-bound port context не использует nonce ledger' },
+    why: 'закрытый технический остаток DEV-схемы; transaction-bound port context не использует nonce ledger. '
+      + 'Track D final cutover (#987): единственный рантайм-доступ — definer app.prune_context_nonce_ledger '
+      + '(владелец app_object_owner), больше никто не читает и не пишет' },
   { t: 'app.context_signing_secrets', cls: 'T', owner: 'app_owner',
     wall: 'definer-only', wallWhy: 'patient invite proof HMAC доступен только трём declared definer-функциям',
     why: 'HMAC-секрет короткоживущей авторизации start/verify/claim email-приглашения пациента' },
@@ -2569,6 +2571,10 @@ const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/product-analytics/retention:POST',
+  // Track D final cutover (#987), audit F1: this source was already a locked-infra cron source
+  // (packages/db-principal/webappLockedInfraCronSources.ts) but had no declared relation-capability,
+  // so `webappPortCapabilityForInfraSource` threw before the route could pick a cleanup root.
+  'api/internal/db-journal-retention/tick:POST',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -3193,6 +3199,16 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
       purpose: 'retention.locked-tenant-table.sweep',
       functionIdentity: 'app.prune_retention_target(text,integer,boolean)' },
+    // Track D final cutover (#987), audit F2: dedicated owner-owns-target root for the ACL-locked
+    // nonce ledger (`app.prune_retention_target` above cannot reach it, see the migration's own
+    // comment). Without this row the generator has no `functionIdentity` match for the function, so
+    // it falls back to gate mode `attested` and REWRITES the migration's hand-written
+    // `require_accepted_context(...)` call to `require_attested_context_for_roles(...)` on reconcile
+    // — target/context/purpose here must byte-match the migration body exactly so 'exact' mode wins.
+    webapp_context_nonce_ledger_sweep: { port: 'webapp', runtimeName: 'context_nonce_ledger_sweep',
+      sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
+      purpose: 'retention.context-nonce-ledger.sweep',
+      functionIdentity: 'app.prune_context_nonce_ledger(integer,integer,boolean)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -5267,16 +5283,20 @@ const REV10_CONTEXT = {
         { relation: 'public.product_push_notifications', columns: ['created_at'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.idempotency_keys', columns: ['expires_at'],
+        // F4 (batching, #987 audit): the LIMIT-then-join-delete pattern that bounds every branch at
+        // `batch_limit` rows needs to SELECT the row's own primary key inside the victims CTE (to join
+        // it back for the DELETE) — a plain unbounded `DELETE ... WHERE <window column> < cutoff` never
+        // needed that read, so the PK column is a genuinely new surface these 4 branches require now.
+        { relation: 'public.idempotency_keys', columns: ['expires_at', 'key'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'integrator.idempotency_keys', columns: ['expires_at'],
+        { relation: 'integrator.idempotency_keys', columns: ['expires_at', 'key'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.outgoing_delivery_queue', columns: ['status', 'sent_at', 'dead_at'],
+        { relation: 'public.outgoing_delivery_queue', columns: ['status', 'sent_at', 'dead_at', 'id'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.notification_delivery_attempts', columns: ['created_at'],
+        { relation: 'public.notification_delivery_attempts', columns: ['created_at', 'id'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -6763,7 +6783,14 @@ const REV10_CONTEXT = {
         'app.install_port_context(uuid,app.port_context_claims)',
       ] }),
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      // `app_object_owner` added by Track D final cutover (#987), audit F3: it owns
+      // `app.prune_context_nonce_ledger`, the first REV10 named root whose owner is the generic
+      // object-owner role rather than a dedicated `app_seam_*` owner (mirrors the table it prunes —
+      // p2-b:356-359 locks `app.context_nonce_ledger` to that same owner). Without this grant the
+      // definer body's own gate call fails with `permission denied for function
+      // require_accepted_context` before it can even check the caller's context.
+      execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS, 'app_object_owner'],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
@@ -6889,7 +6916,10 @@ const REV10_CONTEXT = {
     'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    // `app_object_owner` added by Track D final cutover (#987), audit F3 — see
+    // require_accepted_context above for why: called INVOKER from inside
+    // app.prune_context_nonce_ledger's DEFINER body, so it runs as that function's owner.
+    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS, 'app_object_owner'], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app_ext.resolve_variant_a_identity(uuid,text)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       // UPDATE dropped 19.08 with the no-op upsert: the map is append-only, so the resolver only
@@ -7785,10 +7815,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
 };
 
 const REV10_NO_RUNTIME_ACCESS: Record<string, Extract<RelationAccess, { kind: 'no-runtime-surface' }>> = {
-  'app.context_nonce_ledger': { kind: 'no-runtime-surface', purpose: 'obsolete custom signed-context nonce ledger replaced by app_ext accepted transaction contexts', evidence: [
-    'node /home/dev/brain/tools/code-search.mjs "context nonce ledger runtime" --repo bcb: migrations and the retired custom protocol only',
-    'deploy/postgres/port-context/contract.sql uses app_ext.accepted_port_contexts instead',
-  ] },
+  // `app.context_nonce_ledger` REMOVED from this map by Track D final cutover (#987), audit F3: it
+  // is no longer without a runtime accessor — `app.prune_context_nonce_ledger` now declares a
+  // relationSurface on it (REV10_CONTEXT.functions above). Leaving the stale entry here would keep
+  // short-circuiting `revision10RelationAccess` to 'no-runtime-surface' BEFORE it ever reaches the
+  // `seams.length > 0` fallback, which silently drops the one seam this table now has: no
+  // `rev10_seam_business_*` / `rev10_named_root_owner_gate_*` policy would ever be generated for
+  // `app_object_owner`, so the definer root would see zero rows under FORCE RLS forever (the exact
+  // "дорого И молча" failure the audit measured live — owner sees 0 of 6 expired nonce rows, no
+  // error). Table-level classification now falls through naturally to 'named-seams'.
   'app.principal_context': { kind: 'no-runtime-surface', purpose: 'obsolete session-row context replaced by transaction-bound app_ext.accepted_port_contexts', evidence: [
     'node /home/dev/brain/tools/code-search.mjs "principal_context runtime" --repo bcb: legacy migrations/tests only',
     'deploy/postgres/port-context/contract.sql installs accepted_port_contexts rows',

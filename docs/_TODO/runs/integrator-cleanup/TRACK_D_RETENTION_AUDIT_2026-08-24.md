@@ -190,3 +190,78 @@ sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -f 
 
 Миграция не применена ни к одной базе; TEST и PROD не затронуты; секреты и полезная нагрузка не читались и
 не печатались; доставок не было.
+
+## Addendum 2026-08-24: F1–F5 fix evidence (не переписывает вердикт FAIL выше)
+
+Коррекция поверх кандидата `0411d8a6c`, HEAD ветки на момент правки `868bf1258`. Правка НЕ переоткрывает
+исходный FAIL — он остаётся историческим фактом; ниже — что изменилось и чем это доказано.
+
+| # | Находка | Правка | Файлы |
+|---|---|---|---|
+| F1 | маршрут не в списке источников capability | `api/internal/db-journal-retention/tick:POST` добавлен в `WEBAPP_MAINTENANCE_SOURCES` | `deploy/postgres/privileges/declaration.ts` |
+| F2 | нет capability для nonce-корня → gate-mode падает на `attested` | добавлена `webapp_context_nonce_ledger_sweep` с `functionIdentity`, target/context/purpose побайтно совпадают с телом миграции | `deploy/postgres/privileges/declaration.ts` |
+| F3 | `app.context_nonce_ledger` в `REV10_NO_RUNTIME_ACCESS` глушит named-seams до RLS-генерации; `require_accepted_context`/`hash_port_typed_args` не исполняемы владельцем корня | запись убрана из `REV10_NO_RUNTIME_ACCESS`; `app_object_owner` добавлен в EXECUTE обеих функций | `deploy/postgres/privileges/declaration.ts` |
+| F4 | 5 новых веток `app.prune_retention_target` не ограничены | добавлена `batch_limit CONSTANT bigint := 200000`; все 5 веток переписаны на паттерн `victims CTE + LIMIT + join-delete` (тот же паттерн, что уже был у nonce-корня) | `apps/webapp/db/drizzle-migrations/20260823T210000_db_journal_retention_targets.sql` |
+| F5 | `journalRetention.ts` (модуль) импортирует `@/infra/db/pruneRetentionTarget` напрямую | новый порт `JournalRetentionPort` + `createDbJournalRetentionService` + `createPgJournalRetentionPort`, wiring через `buildAppDeps()`; маршрут зовёт `deps.dbJournalRetention.runRetention(...)`, импорт infra из модуля убран | `apps/webapp/src/modules/db-retention/{ports,service,journalRetention}.ts`, `apps/webapp/src/infra/repos/pgJournalRetention.ts`, `apps/webapp/src/app-layer/di/buildAppDeps.ts`, `apps/webapp/src/app/api/internal/db-journal-retention/tick/route.ts` |
+
+Побочный вывод при разработке F4: victims-CTE читает PK-колонку для join'а — то, что голый
+`DELETE ... WHERE <окно> < cutoff` никогда не требовал. Для 4 новых целей потребовалось расширить
+column-level SELECT на PK (`key`/`id`) в тех же `relationSurfaces`, иначе владелец получал
+`permission denied` при попытке реально удалить (а не просто посчитать). Учтено в декларации и
+регенерированных артефактах.
+
+### Красный старт → зелёный конец (auditor's own test)
+
+`apps/webapp/src/modules/db-retention/journalRetention.contract.test.ts` (файл аудитора) — второй тест
+(`gives every named root the journal retention tick calls a declared service capability`) сначала
+подтверждён красным на исходном состоянии (`git stash` восстанавливал только продуктовый код, тест
+аудитора не трогался): падал ровно на F1/F2 несоответствиях, которые он и должен ловить. После полного
+набора правок — зелёный, без ослабления утверждения (тест по-прежнему идёт по реальной цепочке до
+замоканной границы `runWebappNamedRoot`; изменилось только то, что DB-порт теперь приходит через
+`createPgJournalRetentionPort()`, а не напрямую).
+
+### Чем измерено (сверх уже перечисленного выше)
+
+```
+node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --all
+node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --all --port-context-only
+node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --all --check   # 4/4 побайтно
+node --experimental-strip-types deploy/postgres/privileges/generate-cli.mjs --all --gaps    # unresolved=0 gaps=0, обе БД
+node --test deploy/postgres/privileges/relation-access.test.mjs                             # 42/42 (из корня репо)
+node --test deploy/postgres/privileges/migration-order.test.mjs \
+            deploy/postgres/privileges/migrate-local-parse.test.mjs                         # 30/30
+pnpm --dir apps/webapp exec tsc --noEmit
+pnpm --dir apps/webapp run lint                                                              # exit 0
+pnpm --dir apps/webapp exec vitest --run src/modules/db-retention \
+            src/app/api/internal/db-journal-retention                                       # зелёные
+sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev -f <probe.sql>  # см. ниже
+```
+
+### Живой DEV, одна транзакция, гарантированный ROLLBACK (F2/F3/F4)
+
+Кандидатные DDL (обе функции) применены под их же statement-owner'ами, поверх смоделированного
+пост-reconcile diff'а (гранты/политики/capability-строка — дословно из регенерированных артефактов,
+byte-checked заранее). `app.context_nonce_ledger` на этом DEV нёс реальный бэклог в 2179 строк (сам
+симптом, ради которого затевался F2/F3) — он слит той же кандидатной функцией внутри той же транзакции
+перед синтетической частью, чтобы счёт был однозначным.
+
+| Проверка | Результат |
+|---|---|
+| реальный бэклог `context_nonce_ledger` (2179 просроченных) слит одним вызовом | ✅ deleted=2179, остаток=0 |
+| dry-run с `p_limit=2` при 3 просроченных синтетических строках — считает 2, не 3 (честная граница) | ✅ |
+| dry-run не меняет таблицу | ✅ |
+| реальный прогон удаляет ровно 2, живые (`expires_epoch` в будущем) не тронуты | ✅ |
+| второй прогон добирает оставшуюся 1 (catch-up) | ✅ |
+| третий прогон — идемпотентно 0 | ✅ |
+| живые синтетические строки пережили все 3 прогона | ✅ |
+| `public.idempotency_keys`: 200 010 просроченных + 5 живых + реальный бэклог (16) → 1-й прогон ровно 200 000 (граница F4 держит форму даже при бэклоге) | ✅ |
+| 2-й прогон добирает остаток; после него просроченных (мои + реальные) — 0 | ✅ |
+| `integrator.idempotency_keys`: моя просроченная строка исчезла, живая — нет | ✅ |
+| `outgoing_delivery_queue`: `sent`+31д и `dead`+181д удалены поимённо; `sent`+5д/`dead`+5д/`pending` — все 3 выжили | ✅ |
+| `notification_delivery_attempts`: строго 200-дневная строка удалена | ✅ |
+| неизвестная цель — отказ `22023`, закрытый список цел не пробит | ✅ |
+| в установленном теле функции: `LIMIT batch_limit` встречается 10 раз (5 веток × 2 places: dry-run count + victims CTE), константа = 200000 | ✅ |
+| после `ROLLBACK`: функция `app.prune_context_nonce_ledger(integer,integer,boolean)` не существует, `context_nonce_ledger` = 2179 строк (как до), синтетических `bcb-probe-*` строк нигде не осталось, временное членство `postgres` в owner-ролях снято (`pg_auth_members` — 0 строк) | ✅ |
+
+Миграция не применена ни к одной базе; TEST и PROD не затронуты; секреты и полезная нагрузка не читались и
+не печатались; доставок не было.

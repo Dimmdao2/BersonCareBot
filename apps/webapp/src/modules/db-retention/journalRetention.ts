@@ -1,16 +1,11 @@
-import {
-  clampContextNonceLedgerGraceSec,
-  clampContextNonceLedgerLimit,
-  clampRetentionDays,
-  pruneContextNonceLedger,
-  pruneRetentionTarget,
-} from '@/infra/db/pruneRetentionTarget';
+import type { JournalRetentionPort } from '@/modules/db-retention/ports';
 
 /**
  * Recorded windows: docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md
  * "Правила хранения". Every target here goes through the one existing chokepoint
  * (`app.prune_retention_target` / the dedicated `app.prune_context_nonce_ledger` root) — no parallel
- * prune mechanism, no per-table service.
+ * prune mechanism, no per-table service. The DB capability arrives via `JournalRetentionPort`
+ * (injected by the caller through `buildAppDeps()`), not by importing infra directly.
  */
 export const CONTEXT_NONCE_LEDGER_GRACE_SEC_DEFAULT = 60 * 60; // 1 hour (formal minimum is 300s)
 export const CONTEXT_NONCE_LEDGER_LIMIT_DEFAULT = 200_000;
@@ -39,12 +34,25 @@ export type JournalRetentionOverrides = {
   notificationDeliveryAttemptsRetentionDays?: number;
 };
 
+function clampContextNonceLedgerGraceSec(graceSec: number): number {
+  return Math.min(86400, Math.max(0, Math.trunc(graceSec)));
+}
+
+function clampContextNonceLedgerLimit(limit: number): number {
+  return Math.min(500_000, Math.max(1, Math.trunc(limit)));
+}
+
+function clampRetentionDays(retentionDays: number): number {
+  return Math.min(3650, Math.max(1, Math.trunc(retentionDays)));
+}
+
 /**
  * Runs every still-live, still-unpruned journal target in one tick. Each target is independent —
  * one target failing does not stop the others; failures are collected and rethrown together so the
  * caller can report a partial success accurately instead of losing which targets actually ran.
  */
 export async function runDbJournalRetention(
+  port: JournalRetentionPort,
   overrides: JournalRetentionOverrides = {},
 ): Promise<JournalRetentionRunResult> {
   const dryRun = overrides.dryRun === true;
@@ -70,31 +78,30 @@ export async function runDbJournalRetention(
       NOTIFICATION_DELIVERY_ATTEMPTS_RETENTION_DAYS_DEFAULT,
   );
 
-  const steps: Array<{ target: string; run: () => Promise<number> }> = [
+  const steps: Array<{ target: string; run: () => Promise<{ deleted: number }> }> = [
     {
       target: 'app.context_nonce_ledger',
-      run: () => pruneContextNonceLedger(graceSec, limit, { dryRun }),
+      run: () => port.pruneContextNonceLedger(graceSec, limit, { dryRun }),
     },
     {
       target: 'public_idempotency_keys',
-      run: () => pruneRetentionTarget('public_idempotency_keys', idempotencyDays, { dryRun }),
+      run: () => port.prunePublicIdempotencyKeys(idempotencyDays, { dryRun }),
     },
     {
       target: 'integrator_idempotency_keys',
-      run: () => pruneRetentionTarget('integrator_idempotency_keys', idempotencyDays, { dryRun }),
+      run: () => port.pruneIntegratorIdempotencyKeys(idempotencyDays, { dryRun }),
     },
     {
       target: 'outgoing_delivery_queue_sent',
-      run: () => pruneRetentionTarget('outgoing_delivery_queue_sent', sentDays, { dryRun }),
+      run: () => port.pruneOutgoingDeliveryQueueSent(sentDays, { dryRun }),
     },
     {
       target: 'outgoing_delivery_queue_dead',
-      run: () => pruneRetentionTarget('outgoing_delivery_queue_dead', deadDays, { dryRun }),
+      run: () => port.pruneOutgoingDeliveryQueueDead(deadDays, { dryRun }),
     },
     {
       target: 'notification_delivery_attempts',
-      run: () =>
-        pruneRetentionTarget('notification_delivery_attempts', notificationDays, { dryRun }),
+      run: () => port.pruneNotificationDeliveryAttempts(notificationDays, { dryRun }),
     },
   ];
 
@@ -102,7 +109,7 @@ export async function runDbJournalRetention(
   const errors: Array<{ target: string; error: unknown }> = [];
   for (const step of steps) {
     try {
-      const deleted = await step.run();
+      const { deleted } = await step.run();
       results.push({ target: step.target, deleted });
     } catch (error) {
       errors.push({ target: step.target, error });

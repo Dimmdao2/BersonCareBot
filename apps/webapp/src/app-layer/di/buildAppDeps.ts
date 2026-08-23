@@ -69,6 +69,8 @@ import { createAdminPlatformUserStatsService } from '@/modules/admin-platform-st
 import { createPlatformAnalyticsService } from '@/modules/platform-analytics/service';
 import { createProductAnalyticsService } from '@/modules/product-analytics/service';
 import { createPgProductAnalyticsPort } from '@/infra/repos/pgProductAnalytics';
+import { createDbJournalRetentionService } from '@/modules/db-retention/service';
+import { createPgJournalRetentionPort } from '@/infra/repos/pgJournalRetention';
 import { createInMemoryProductAnalyticsPort } from '@/infra/repos/inMemoryProductAnalytics';
 import { createDoctorNotesService } from '@/modules/doctor-notes/service';
 import type { ClientAppointmentHistoryItem } from '@/modules/doctor-clients/service';
@@ -482,6 +484,8 @@ const productAnalyticsPort = !inMemoryRepos
   ? createPgProductAnalyticsPort()
   : createInMemoryProductAnalyticsPort();
 const productAnalytics = createProductAnalyticsService(productAnalyticsPort);
+
+const dbJournalRetention = createDbJournalRetentionService(createPgJournalRetentionPort());
 
 const platformAnalyticsPort = !inMemoryRepos
   ? createPgPlatformAnalyticsPort()
@@ -1748,6 +1752,7 @@ function _buildAppDeps() {
     adminPlatformUserStats,
     platformAnalytics,
     productAnalytics,
+    dbJournalRetention,
     doctorBroadcasts: createDoctorBroadcastsService({
       assertWriteClearance: assertMechanicWriteClearance,
       resolveBroadcastAudience: async (filter, channels, category, context) => {

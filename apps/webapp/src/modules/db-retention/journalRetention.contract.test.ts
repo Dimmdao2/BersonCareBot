@@ -85,8 +85,14 @@ it('gives every named root the journal retention tick calls a declared service c
       return Promise.resolve({ rows: [{ affected_count: 0 }] });
     },
   }));
+  // Track D final cutover (#987), audit F5: the module no longer imports infra directly (clean
+  // architecture) — the DB capability now arrives through `JournalRetentionPort`, implemented by the
+  // real pg adapter. Exercising the real adapter here keeps the assertion exactly as strong: it still
+  // walks the full real chain down to the mocked `runWebappNamedRoot` boundary, and now also proves
+  // the DI wiring itself resolves.
   const { runDbJournalRetention } = await import('@/modules/db-retention/journalRetention');
-  await runDbJournalRetention({ dryRun: true });
+  const { createPgJournalRetentionPort } = await import('@/infra/repos/pgJournalRetention');
+  await runDbJournalRetention(createPgJournalRetentionPort(), { dryRun: true });
   vi.doUnmock('@/infra/db/runWebappSql');
 
   expect(calledRoots.length).toBeGreaterThan(0);

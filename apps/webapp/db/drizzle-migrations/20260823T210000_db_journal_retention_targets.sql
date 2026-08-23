@@ -15,7 +15,10 @@
 --   - public.notification_delivery_attempts: 180d by created_at
 -- Live statuses on outgoing_delivery_queue (pending/processing/failed_retryable) are never touched —
 -- the branch predicate always includes the terminal status, matching the "unfinished outbox rows are
--- never pruned" rule.
+-- never pruned" rule. Each of the 5 new branches caps its DELETE at `batch_limit` (200k) rows per call
+-- via a victims CTE with `LIMIT`, same reasoning as `app.prune_context_nonce_ledger`'s `p_limit`: a
+-- first catch-up run must not hold one long lock on a multi-million-row backlog; the hourly tick
+-- catches up over repeated calls instead (audit F4, TRACK_D_RETENTION_AUDIT_2026-08-24.md).
 --
 -- `integrator.delivery_attempt_logs`, `integrator.message_retry_jobs`, `integrator.projection_outbox`
 -- from the same evidence doc are already retired by earlier Track D migrations (20260821T003000,
@@ -38,6 +41,11 @@ CREATE OR REPLACE FUNCTION app.prune_retention_target(p_target text, p_retention
 DECLARE
   affected_count bigint;
   cutoff_at timestamptz;
+  -- A first catch-up run must not hold one long DELETE lock on a multi-million-row backlog (same
+  -- reasoning as app.prune_context_nonce_ledger's p_limit). Every branch added by Track D final
+  -- cutover (#987) below caps its DELETE at this many rows per invocation; the hourly tick catches
+  -- up over repeated calls instead of issuing one unbounded backlog DELETE.
+  batch_limit CONSTANT bigint := 200000;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_retention_sweep_owner'::name, 'app_operational_maintenance'::name, 'service'::app.port_context_class, 'retention.locked-tenant-table.sweep', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg, ROW('boolean@1', pg_catalog.boolsend($3))::app.port_typed_arg]), 'app.prune_retention_target(text,integer,boolean)'::regprocedure);
 
@@ -118,12 +126,22 @@ BEGIN
     WHEN 'public_idempotency_keys' THEN
       IF p_dry_run THEN
         SELECT count(*) INTO affected_count
-          FROM public.idempotency_keys AS expiring
-         WHERE expiring.expires_at < cutoff_at;
+          FROM (
+            SELECT 1 FROM public.idempotency_keys AS expiring
+             WHERE expiring.expires_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
       ELSE
-        WITH deleted AS (
-          DELETE FROM public.idempotency_keys AS expiring
+        WITH victims AS (
+          SELECT expiring.key
+            FROM public.idempotency_keys AS expiring
            WHERE expiring.expires_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.idempotency_keys AS target
+           USING victims
+           WHERE target.key = victims.key
           RETURNING 1
         )
         SELECT count(*) INTO affected_count FROM deleted;
@@ -132,12 +150,22 @@ BEGIN
     WHEN 'integrator_idempotency_keys' THEN
       IF p_dry_run THEN
         SELECT count(*) INTO affected_count
-          FROM integrator.idempotency_keys AS expiring
-         WHERE expiring.expires_at < cutoff_at;
+          FROM (
+            SELECT 1 FROM integrator.idempotency_keys AS expiring
+             WHERE expiring.expires_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
       ELSE
-        WITH deleted AS (
-          DELETE FROM integrator.idempotency_keys AS expiring
+        WITH victims AS (
+          SELECT expiring.key
+            FROM integrator.idempotency_keys AS expiring
            WHERE expiring.expires_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM integrator.idempotency_keys AS target
+           USING victims
+           WHERE target.key = victims.key
           RETURNING 1
         )
         SELECT count(*) INTO affected_count FROM deleted;
@@ -146,12 +174,22 @@ BEGIN
     WHEN 'outgoing_delivery_queue_sent' THEN
       IF p_dry_run THEN
         SELECT count(*) INTO affected_count
-          FROM public.outgoing_delivery_queue AS expiring
-         WHERE expiring.status = 'sent' AND expiring.sent_at < cutoff_at;
+          FROM (
+            SELECT 1 FROM public.outgoing_delivery_queue AS expiring
+             WHERE expiring.status = 'sent' AND expiring.sent_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
       ELSE
-        WITH deleted AS (
-          DELETE FROM public.outgoing_delivery_queue AS expiring
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.outgoing_delivery_queue AS expiring
            WHERE expiring.status = 'sent' AND expiring.sent_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.outgoing_delivery_queue AS target
+           USING victims
+           WHERE target.id = victims.id
           RETURNING 1
         )
         SELECT count(*) INTO affected_count FROM deleted;
@@ -160,12 +198,22 @@ BEGIN
     WHEN 'outgoing_delivery_queue_dead' THEN
       IF p_dry_run THEN
         SELECT count(*) INTO affected_count
-          FROM public.outgoing_delivery_queue AS expiring
-         WHERE expiring.status = 'dead' AND expiring.dead_at < cutoff_at;
+          FROM (
+            SELECT 1 FROM public.outgoing_delivery_queue AS expiring
+             WHERE expiring.status = 'dead' AND expiring.dead_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
       ELSE
-        WITH deleted AS (
-          DELETE FROM public.outgoing_delivery_queue AS expiring
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.outgoing_delivery_queue AS expiring
            WHERE expiring.status = 'dead' AND expiring.dead_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.outgoing_delivery_queue AS target
+           USING victims
+           WHERE target.id = victims.id
           RETURNING 1
         )
         SELECT count(*) INTO affected_count FROM deleted;
@@ -174,12 +222,22 @@ BEGIN
     WHEN 'notification_delivery_attempts' THEN
       IF p_dry_run THEN
         SELECT count(*) INTO affected_count
-          FROM public.notification_delivery_attempts AS expiring
-         WHERE expiring.created_at < cutoff_at;
+          FROM (
+            SELECT 1 FROM public.notification_delivery_attempts AS expiring
+             WHERE expiring.created_at < cutoff_at
+             LIMIT batch_limit
+          ) AS capped;
       ELSE
-        WITH deleted AS (
-          DELETE FROM public.notification_delivery_attempts AS expiring
+        WITH victims AS (
+          SELECT expiring.id
+            FROM public.notification_delivery_attempts AS expiring
            WHERE expiring.created_at < cutoff_at
+           LIMIT batch_limit
+        ),
+        deleted AS (
+          DELETE FROM public.notification_delivery_attempts AS target
+           USING victims
+           WHERE target.id = victims.id
           RETURNING 1
         )
         SELECT count(*) INTO affected_count FROM deleted;

@@ -11,6 +11,9 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 }));
 
 import { runDbJournalRetention } from '@/modules/db-retention/journalRetention';
+import { createPgJournalRetentionPort } from '@/infra/repos/pgJournalRetention';
+
+const port = createPgJournalRetentionPort();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -19,7 +22,7 @@ beforeEach(() => {
 it('sweeps every still-live Track D journal target in one tick, through the existing roots only', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '2' }] });
 
-  const result = await runDbJournalRetention();
+  const result = await runDbJournalRetention(port);
 
   expect(result.dryRun).toBe(false);
   expect(result.results).toEqual([
@@ -45,7 +48,7 @@ it('sweeps every still-live Track D journal target in one tick, through the exis
 it('carries dryRun into every target call', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '0' }] });
 
-  const result = await runDbJournalRetention({ dryRun: true });
+  const result = await runDbJournalRetention(port, { dryRun: true });
 
   expect(result.dryRun).toBe(true);
   for (const call of fakes.runWebappNamedRoot.mock.calls) {
@@ -64,7 +67,7 @@ it('keeps every target independent: one failing target does not stop the others,
     return Promise.resolve({ rows: [{ affected_count: '1' }] });
   });
 
-  await expect(runDbJournalRetention()).rejects.toThrow(/integrator_idempotency_keys.*boom/);
+  await expect(runDbJournalRetention(port)).rejects.toThrow(/integrator_idempotency_keys.*boom/);
   // all six targets were attempted even though the third one failed
   expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(6);
 });
