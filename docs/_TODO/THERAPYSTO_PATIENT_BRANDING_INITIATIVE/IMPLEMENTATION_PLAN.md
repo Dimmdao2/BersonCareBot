@@ -657,9 +657,12 @@ identity seam, а не набор getters.
   `^[0-9]+$` без второй копии списка меток; `RUN_CLINIC_DOMAIN_WRITE_CONSTRAINTS_DB=1 node --test
   deploy/postgres/privileges/clinic-domain-write-constraints.devDbProof.test.mjs` → 3 pass. Отчёт:
   `docs/REPORTS/CLINIC_DOMAIN_WRITE_CONSTRAINTS_FIX_2026-08-23.md`.
-
-  **OWNER QUESTION (не задача):** входит ли в фразу «и т.п.» также `mta-sts`, `mx`, `mta`, `relay`, `webmail`,
-  `ns`, `www1`, `www2`? В текущий список они не добавлены.
+  Круг 2, решение владельца 23.08: `20260823T101403_align_organization_slug_claims_with_address_policy.sql`
+  синхронизирует DB CHECK со всеми 225 принятыми метками и явно ставит длину `3..30`; приложение также
+  ограничено 30 знаками. До DDL на DEV: ниже 3 — `0`, выше 30 — `0`, максимум `24`. `migrate-dev.sh
+  --preflight` → PASS; `--execute` закоммитил migration и ledger, но последующий общий access reconcile остановлен
+  отдельным `pre-session exact gate missing or mismatched: app.email_auth_find_email_challenge_for_confirm`.
+  DB catalog подтверждает оба CHECK; rollback-only proof → 5 pass, `organization_slug_claims` до/после `5 → 5`.
 - [x] `B2` **Возвращён в этап 22.08.2026** вместе с расконсервацией своего домена (§1.2): защита от дубля
   `org_custom_domain_hostname` на записи — узкий partial unique expression index, новой таблицы нет.
   Два арендатора не должны суметь объявить один и тот же хост. Доказательство:
