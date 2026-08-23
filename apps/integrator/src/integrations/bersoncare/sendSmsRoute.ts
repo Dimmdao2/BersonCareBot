@@ -9,9 +9,14 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
 import { messageToIntent } from '../../infra/adapters/channelRouting.js';
 import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
 import { logger } from '../../infra/observability/logger.js';
+import {
+  mailProfileRequestSchema,
+  resolveAndRenderAuthCodeMailProfile,
+} from '../email/mailProfile.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -19,6 +24,7 @@ type SendSmsBody = {
   phone?: string;
   code?: string;
   idempotencyKey?: string;
+  mailProfile?: unknown;
 };
 
 type ReqWithRawBody = FastifyRequest<{
@@ -43,6 +49,7 @@ function verifySignature(
 }
 
 export type BersoncareSendSmsDeps = {
+  db: DbPort;
   dispatchPort: DispatchPort;
   sharedSecret: string;
   isAuthChannelEnabled: (channel: 'sms') => Promise<boolean>;
@@ -68,6 +75,7 @@ export async function registerBersoncareSendSmsRoute(
   deps: BersoncareSendSmsDeps,
 ): Promise<void> {
   const {
+    db,
     dispatchPort,
     sharedSecret,
     isAuthChannelEnabled,
@@ -112,6 +120,10 @@ export async function registerBersoncareSendSmsRoute(
     if (!phone || !code || !idempotencyKey) {
       return reply.code(400).send({ ok: false, error: 'phone, code and idempotencyKey required' });
     }
+    const mailProfile = mailProfileRequestSchema.safeParse(request.body?.mailProfile);
+    if (!mailProfile.success) {
+      return reply.code(400).send({ ok: false, error: 'mail_profile_required' });
+    }
 
     if (!(await isAuthChannelEnabled('sms'))) {
       return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
@@ -123,11 +135,16 @@ export async function registerBersoncareSendSmsRoute(
     // Build smsc-channel UnifiedOutgoingMessage and dispatch via the single chokepoint.
     // The `otp:` eventId prefix triggers OTP-redaction in dispatchPort::isOtpIntent,
     // so the SMS code is never logged. (PLAN S6, D3, D7)
+    const rendered = await resolveAndRenderAuthCodeMailProfile({
+      db,
+      profile: mailProfile.data,
+      code,
+    });
     const intent = messageToIntent({
       kind: 'message.send',
       channel: 'smsc',
       recipient: { phoneNormalized: phone },
-      content: { text: `Ваш код BersonCare: ${code}` },
+      content: { text: rendered.text },
       meta: {
         // Delivery attempt logs retain eventId, so do not derive it from phone or code.
         eventId: idempotencyKey,

@@ -20,6 +20,8 @@ import {
 } from '@/shared/lib/fio';
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
+import { platformMailProfile } from '@/modules/auth/mailProfile';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -103,7 +105,12 @@ export async function POST(request: Request) {
     if (!resend.ok) {
       return jsonError('duplicate_email', {}, { status: 409 });
     }
-    const challenge = await startEmailChallenge(resend.userId, emailNorm, 'specialist_signup');
+    const challenge = await startEmailChallenge(
+      resend.userId,
+      emailNorm,
+      'specialist_signup',
+      platformMailProfile(STAFF_SURFACE.name),
+    );
     if (!challenge.ok) {
       return jsonError(
         challenge.code,
@@ -133,7 +140,12 @@ export async function POST(request: Request) {
     });
   }
 
-  const challenge = await startEmailChallenge(reg.userId, emailNorm, 'specialist_signup');
+  const challenge = await startEmailChallenge(
+    reg.userId,
+    emailNorm,
+    'specialist_signup',
+    platformMailProfile(STAFF_SURFACE.name),
+  );
   if (!challenge.ok) {
     await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(reg.userId);
     return jsonError(

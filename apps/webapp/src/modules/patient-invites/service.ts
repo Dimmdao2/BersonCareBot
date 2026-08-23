@@ -4,6 +4,8 @@ import { normalizeEmail } from '@/modules/auth/emailAuth';
 import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
 import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
 import type { PatientInviteFailure, PatientInviteLifecycleCode, PatientInvitesPort } from './ports';
+import { platformMailProfile } from '@/modules/auth/mailProfile';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const CONTINUATION_TTL_MS = 10 * 60 * 1000;
@@ -171,7 +173,11 @@ export function createPatientInvitesService(deps: {
         }),
       });
       if (!started.ok) return started;
-      const sent = await sendEmailCode(emailNormalized, code);
+      const sent = await sendEmailCode(
+        emailNormalized,
+        code,
+        platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+      );
       if (!sent.ok) {
         await deps.port.cancelEmailProof({ continuationHash, codeHash });
         return { ok: false as const, code: 'email_send_failed' as const };

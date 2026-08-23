@@ -20,6 +20,7 @@ export type ResolvedSmtpOutboundConfig = {
   smtpUser: string;
   smtpPass: string;
   fromAddress: string;
+  senderDisplayName?: string;
 };
 
 const smtpPortInnerSchema = z.preprocess((v) => {
@@ -39,6 +40,7 @@ const smtpOutboundInnerReadSchema = z
     user: z.string().trim().min(1),
     password: z.string().min(1),
     from: z.string().trim().min(1),
+    senderDisplayName: z.string().trim().min(1).max(200).optional(),
     port: smtpPortInnerSchema.optional(),
     secure: smtpSecureInnerSchema.optional(),
   })
@@ -54,6 +56,7 @@ const smtpOutboundInnerReadSchema = z
       smtpUser: o.user,
       smtpPass: o.password.trim(),
       fromAddress: o.from,
+      ...(o.senderDisplayName ? { senderDisplayName: o.senderDisplayName } : {}),
     };
   });
 

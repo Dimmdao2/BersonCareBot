@@ -8,6 +8,8 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { getCurrentSession } from '@/modules/auth/service';
 import { startEmailChallenge } from '@/modules/auth/emailAuth';
+import { platformMailProfile } from '@/modules/auth/mailProfile';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 
 const bodySchema = z.object({
   email: z.string().trim().max(320).email({ message: 'Некорректный email' }),
@@ -37,7 +39,14 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await startEmailChallenge(session.user.userId, parsed.data.email, 'email_verify');
+  const result = await startEmailChallenge(
+    session.user.userId,
+    parsed.data.email,
+    'email_verify',
+    platformMailProfile(
+      session.user.role === 'client' ? PATIENT_DEFAULT_SURFACE.name : STAFF_SURFACE.name,
+    ),
+  );
   if (!result.ok) {
     const status =
       result.code === 'rate_limited' || result.code === 'too_many_attempts'

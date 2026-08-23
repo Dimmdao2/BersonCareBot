@@ -14,6 +14,8 @@ import {
 } from '@/app-layer/product-analytics/recordAuthRegistration';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { hashPin } from '@/modules/auth/pinHash';
+import { platformMailProfile } from '@/modules/auth/mailProfile';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 import {
   isPasswordEligibleRole,
   PASSWORD_NOT_ALLOWED_FOR_ROLE_ERROR,
@@ -127,7 +129,12 @@ export async function POST(request: Request) {
   });
 
   async function respondWithChallenge(userId: string, rollbackOnSendFail: boolean) {
-    const challenge = await startEmailChallenge(userId, emailNorm, 'password_register');
+    const challenge = await startEmailChallenge(
+      userId,
+      emailNorm,
+      'password_register',
+      platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+    );
     if (!challenge.ok) {
       if (rollbackOnSendFail) {
         await deps.userPasswordCredentials.deleteUnverifiedEmailPasswordRegistration(userId);
@@ -170,7 +177,12 @@ export async function POST(request: Request) {
     const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
 
     if (state.kind === 'needs_email_setup') {
-      const challenge = await startEmailChallenge(state.userId, emailNorm, 'password_register');
+      const challenge = await startEmailChallenge(
+        state.userId,
+        emailNorm,
+        'password_register',
+        platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+      );
       if (!challenge.ok) {
         await recordAuthRegistrationFailure({
           ...LOG_BASE,

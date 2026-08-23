@@ -14,6 +14,7 @@ import { startEmailChallenge, normalizeEmail, hashEmailChallengeCode } from './e
 import { OTP_RESEND_COOLDOWN_SEC } from './otpConstants';
 import type { EmailOtpPublicDbPort } from './emailOtpPublicPort';
 import { normalizeFioPart } from '@/shared/lib/fio';
+import type { MailProfileRequest } from './mailProfile';
 
 export type PublicEmailOtpStartSuppression =
   | 'email_otp_unknown_address'
@@ -67,6 +68,7 @@ export type ConfirmPublicEmailOtpResult =
 export async function startPublicEmailOtpChallenge(
   emailRaw: string,
   publicDb: EmailOtpPublicDbPort,
+  mailProfile: MailProfileRequest,
 ): Promise<StartPublicEmailOtpResult> {
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -98,7 +100,7 @@ export async function startPublicEmailOtpChallenge(
   }
 
   // Delegate to existing startEmailChallenge (handles code gen, hash, DB insert, send, per-user cooldown).
-  const result = await startEmailChallenge(user.userId, email, 'login');
+  const result = await startEmailChallenge(user.userId, email, 'login', mailProfile);
   if (result.ok) return result;
   if (result.code === 'rate_limited') {
     return {
@@ -125,6 +127,7 @@ export async function startPublicEmailOtpChallenge(
 export async function startPublicEmailOtpRegistration(
   input: { email: string; lastName: string; firstName: string; patronymic?: string | null },
   publicDb: EmailOtpPublicDbPort,
+  mailProfile: MailProfileRequest,
 ): Promise<StartPublicEmailOtpRegistrationResult> {
   const email = normalizeEmail(input.email);
   const lastName = normalizeFioPart(input.lastName);
@@ -159,7 +162,7 @@ export async function startPublicEmailOtpRegistration(
   // unverified structured client as a pending registration and returns the same identity on retry
   // without overwriting its FIO. Deleting here defeated that pending contract and forced the person
   // to enter identity data again after an infrastructure failure.
-  return startEmailChallenge(registration.userId, email, 'public_registration');
+  return startEmailChallenge(registration.userId, email, 'public_registration', mailProfile);
 }
 
 /**

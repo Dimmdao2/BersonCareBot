@@ -33,8 +33,8 @@ export function ensureAuthModulePortsBound(): void {
   bindSessionUserPort(pgUserByPhonePort);
   bindChannelLinkDbPort(pgChannelLinkDbPort);
   bindEmailSendPort({
-    sendCode: async (to, code) => {
-      const result = await sendEmailCodeViaIntegrator(to, code);
+    sendCode: async (to, code, mailProfile) => {
+      const result = await sendEmailCodeViaIntegrator(to, code, mailProfile);
       return result.ok ? { ok: true } : { ok: false, error: result.error };
     },
   });

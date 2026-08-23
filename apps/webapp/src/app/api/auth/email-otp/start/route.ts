@@ -17,6 +17,8 @@ import {
 } from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
+import { platformMailProfile } from '@/modules/auth/mailProfile';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
 const bodySchema = z.object({
   email: z.string().min(1),
@@ -80,7 +82,11 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   const deps = buildAppDeps();
-  const pending = startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
+  const pending = startPublicEmailOtpChallenge(
+    parsed.data.email,
+    deps.emailOtpPublicDb,
+    platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+  );
   const outcome = await raceAgainstPublicFloor(pending, startedAt);
 
   if (outcome.kind !== 'settled') {

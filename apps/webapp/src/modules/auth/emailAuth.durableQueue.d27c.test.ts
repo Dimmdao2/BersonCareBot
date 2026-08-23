@@ -28,6 +28,7 @@ import { bindEmailSendPort, type EmailSendResult } from './emailSendPort';
 
 const USER_ID = '00000000-0000-4000-8000-000000000042';
 const EMAIL = 'person@example.test';
+const MAIL_PROFILE = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
 
 function neverCalled(name: string) {
   return vi.fn(async () => {
@@ -68,7 +69,7 @@ describe('D27-C: startEmailChallenge enqueues onto the durable queue instead of 
   let sendCode: ReturnType<typeof vi.fn<(to: string, code: string) => Promise<EmailSendResult>>>;
 
   beforeEach(() => {
-    sendCode = vi.fn<(to: string, code: string) => Promise<EmailSendResult>>();
+    sendCode = vi.fn();
     sendCode.mockImplementation(async () => {
       throw new Error('EmailSendPort.sendCode must never be called from the DB-backed branch');
     });
@@ -78,7 +79,7 @@ describe('D27-C: startEmailChallenge enqueues onto the durable queue instead of 
   it('дано: очередь принимает задание → когда startEmailChallenge → тогда провайдер НЕ вызывается синхронно, challenge и cooldown сохраняются', async () => {
     const db = fakeDbPort();
     bindEmailAuthDbPort(db);
-    const result = await startEmailChallenge(USER_ID, EMAIL, 'login');
+    const result = await startEmailChallenge(USER_ID, EMAIL, 'login', MAIL_PROFILE);
 
     expect(result).toMatchObject({ ok: true, challengeId: 'challenge-1' });
     expect(sendCode).not.toHaveBeenCalled();
@@ -89,6 +90,7 @@ describe('D27-C: startEmailChallenge enqueues onto the durable queue instead of 
         code: expect.stringMatching(/^\d{6}$/),
         codeHash: expect.stringMatching(/^[a-f0-9]{64}$/),
         purpose: 'login',
+        mailProfile: MAIL_PROFILE,
       }),
     );
     expect(db.insertEmailChallenge).not.toHaveBeenCalled();
@@ -102,7 +104,7 @@ describe('D27-C: startEmailChallenge enqueues onto the durable queue instead of 
     });
     bindEmailAuthDbPort(db);
 
-    const result = await startEmailChallenge(USER_ID, EMAIL, 'login');
+    const result = await startEmailChallenge(USER_ID, EMAIL, 'login', MAIL_PROFILE);
 
     expect(result).toEqual({ ok: false, code: 'email_send_failed' });
     expect(sendCode).not.toHaveBeenCalled();

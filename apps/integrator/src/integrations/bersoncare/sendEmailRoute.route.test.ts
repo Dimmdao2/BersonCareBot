@@ -11,6 +11,7 @@ import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
 
 const SHARED_SECRET = 'send-email-route-test-secret';
 const ROUTE = '/api/bersoncare/send-email';
+const mailProfile = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
 
 const apps: FastifyInstance[] = [];
 
@@ -100,6 +101,7 @@ describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
     const response = await injectSigned(app, {
       to: 'patient@example.test',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:email:disabled',
     });
 
@@ -118,6 +120,7 @@ describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
     const response = await injectSigned(app, {
       to: 'patient@example.test',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:email:one',
     });
 
@@ -128,7 +131,12 @@ describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
   it('same email OTP request is a no-op, while a new resend key sends another code', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const app = await buildApp({ dispatchOutgoing, isAuthChannelEnabled: async () => true });
-    const first = { to: 'patient@example.test', code: '123456', idempotencyKey: 'otp:email:1' };
+    const first = {
+      to: 'patient@example.test',
+      code: '123456',
+      mailProfile,
+      idempotencyKey: 'otp:email:1',
+    };
 
     expect((await injectSigned(app, first)).json()).toEqual({ ok: true });
     expect((await injectSigned(app, first)).json()).toEqual({ ok: true, status: 'duplicate' });

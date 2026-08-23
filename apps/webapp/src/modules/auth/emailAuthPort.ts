@@ -1,3 +1,5 @@
+import type { MailProfileRequest } from './mailProfile';
+
 /**
  * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the intent an email challenge was minted
  * for. One purpose per `startEmailChallenge` caller, matching the confirm engine that legitimately
@@ -57,6 +59,7 @@ export type EmailAuthDbPort = {
     expiresAt: number;
     purpose: EmailChallengePurpose;
     code: string;
+    mailProfile: MailProfileRequest;
   }) => Promise<{ challengeId: string | null; retryAfterSeconds: number }>;
   findEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<Date | null>;
   deleteEmailChallengesForUser: (userId: string) => Promise<void>;

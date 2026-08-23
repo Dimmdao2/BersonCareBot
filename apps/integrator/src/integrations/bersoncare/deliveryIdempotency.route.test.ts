@@ -40,13 +40,19 @@ describe('webapp delivery seams idempotency', () => {
     apps.push(app);
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
     await registerBersoncareSendSmsRoute(app, {
+      db: {} as never,
       dispatchPort: { dispatchOutgoing },
       sharedSecret: secret,
       isAuthChannelEnabled: async () => true,
       recordProviderFailure: async () => {},
       idempotencyPort: port(),
     });
-    const first = { phone: '+79991234567', code: '123456', idempotencyKey: 'otp:sms:1' };
+    const first = {
+      phone: '+79991234567',
+      code: '123456',
+      mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
+      idempotencyKey: 'otp:sms:1',
+    };
     expect((await signed(app, '/api/bersoncare/send-sms', first)).json()).toEqual({ ok: true });
     expect((await signed(app, '/api/bersoncare/send-sms', first)).json()).toEqual({
       ok: true,

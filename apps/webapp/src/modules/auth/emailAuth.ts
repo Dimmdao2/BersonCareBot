@@ -9,6 +9,7 @@ import {
 } from '@/modules/auth/otpConstants';
 import type { EmailAuthDbPort, EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 import { sendEmailAuthCode } from '@/modules/auth/emailSendPort';
+import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 export type { EmailChallengePurpose } from '@/modules/auth/emailAuthPort';
 
@@ -278,7 +279,9 @@ export async function startEmailChallenge(
   userId: string,
   emailRaw: string,
   purpose: EmailChallengePurpose,
+  mailProfile: MailProfileRequest,
 ): Promise<EmailStartResult> {
+  if (!mailProfile) throw new Error('mail_profile_required');
   const email = normalizeEmail(emailRaw);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { ok: false, code: 'invalid_email' };
@@ -299,7 +302,7 @@ export async function startEmailChallenge(
     const challengeId = randomUUID();
     const expiresAt = Math.floor(Date.now() / 1000) + CHALLENGE_TTL_SEC;
     memEmailChallenges.set(challengeId, { userId, email, code, expiresAt, attempts: 0, purpose });
-    const sent = await sendEmailAuthCode(email, code);
+    const sent = await sendEmailAuthCode(email, code, mailProfile);
     if (!sent.ok) {
       memEmailChallenges.delete(challengeId);
       return { ok: false, code: 'email_send_failed' };
@@ -328,6 +331,7 @@ export async function startEmailChallenge(
       expiresAt,
       purpose,
       code,
+      mailProfile,
     });
     if (!started.challengeId) {
       return {

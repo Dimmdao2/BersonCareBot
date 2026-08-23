@@ -9,6 +9,8 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
 import { OTP_RESEND_COOLDOWN_SEC } from '@/modules/auth/otpConstants';
+import { platformMailProfile } from '@/modules/auth/mailProfile';
+import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -44,7 +46,12 @@ export async function POST(request: Request) {
   const deps = buildAppDeps();
   const userId = await deps.userPasswordCredentials.findVerifiedUserIdWithPassword(emailNorm);
   if (userId) {
-    void startEmailChallenge(userId, emailNorm, 'password_reset').then(
+    void startEmailChallenge(
+      userId,
+      emailNorm,
+      'password_reset',
+      platformMailProfile(STAFF_SURFACE.name),
+    ).then(
       (result) => {
         if (!result.ok && result.code === 'email_send_failed') {
           logger.warn(
@@ -65,7 +72,12 @@ export async function POST(request: Request) {
 
   const state = await deps.emailPasswordLookup.resolveAuthState(emailNorm);
   if (state.kind === 'needs_email_setup') {
-    const challenge = await startEmailChallenge(state.userId, emailNorm, 'password_setup');
+    const challenge = await startEmailChallenge(
+      state.userId,
+      emailNorm,
+      'password_setup',
+      platformMailProfile(PATIENT_DEFAULT_SURFACE.name),
+    );
     if (challenge.ok) {
       return NextResponse.json({
         ok: true,
