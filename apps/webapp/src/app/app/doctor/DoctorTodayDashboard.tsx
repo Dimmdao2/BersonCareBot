@@ -43,12 +43,7 @@ type Props = {
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
-  /**
-   * Рабочие границы дня (§1.2, S4): вычислены на сервере через deriveWorkingBounds.
-   * Прокидываются в мини-календарь как базовое окно рабочего дня.
-   * `null` = день закрыт или scheduling недоступен → fallback по записям.
-   */
-  todayWorkingBounds?: { startMinute: number; endMinute: number } | null;
+  calendarDefaultWindow?: { startMinute: number; endMinute: number };
 };
 
 function peopleItemName(client: TodayDashboardData['people'][number]): string {
@@ -66,7 +61,7 @@ export function DoctorTodayDashboard({
   data,
   displayIana,
   calendarSnapshot,
-  todayWorkingBounds,
+  calendarDefaultWindow,
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
@@ -256,7 +251,7 @@ export function DoctorTodayDashboard({
             appointments={data.todayAppointments}
             calendarSnapshot={calendarSnapshot}
             displayIana={displayIana}
-            workingBounds={todayWorkingBounds}
+            defaultWindow={calendarDefaultWindow}
           />
         </div>
       </div>
