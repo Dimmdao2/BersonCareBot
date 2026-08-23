@@ -3,6 +3,7 @@ import {
   DEFAULT_PATIENT_ACCENT_TOKEN,
   type AnonymousPatientBrand,
 } from '@/modules/org-branding/service';
+import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
 
 export const RESOLVED_SURFACE_HEADER = 'x-bc-resolved-surface';
 
@@ -58,6 +59,7 @@ export type ResolvedSurface = Readonly<{
   surface: RequestSurface;
   publicOrigin: string;
   organizationId?: string;
+  clinicSlug?: string;
   effectivePatientBrand?: EffectivePatientBrand;
   authPolicy: SurfaceAuthPolicy;
 }>;
@@ -66,6 +68,7 @@ export type TenantSurfaceLookupResult =
   | Readonly<{
       status: 'active';
       organizationId: string;
+      clinicSlug: string;
       /** Trusted organization provenance of the projected brand before its id is stripped. */
       effectivePatientBrandOrganizationId: string;
       effectivePatientBrand: EffectivePatientBrand;
@@ -243,13 +246,22 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
     return null;
   }
   const effectivePatientBrand = sanitizeEffectivePatientBrand(tenant.effectivePatientBrand);
+  const clinicSlug = validateOrganizationSlugCandidate(tenant.clinicSlug);
   const authPolicy = policyFor('patient', authPolicyConfig);
-  if (!effectivePatientBrand || !authPolicy) return null;
+  if (
+    !effectivePatientBrand ||
+    !clinicSlug.ok ||
+    tenant.clinicSlug !== clinicSlug.slug ||
+    !authPolicy
+  ) {
+    return null;
+  }
 
   return {
     surface: 'patient_branded',
     publicOrigin,
     organizationId: tenant.organizationId,
+    clinicSlug: clinicSlug.slug,
     effectivePatientBrand,
     authPolicy,
   };
@@ -308,11 +320,25 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
     }
     if (candidate.surface === 'patient_branded') {
       const effectivePatientBrand = sanitizeEffectivePatientBrand(candidate.effectivePatientBrand);
-      if (typeof candidate.organizationId !== 'string' || !effectivePatientBrand) {
+      const clinicSlug =
+        typeof candidate.clinicSlug === 'string'
+          ? validateOrganizationSlugCandidate(candidate.clinicSlug)
+          : null;
+      if (
+        typeof candidate.organizationId !== 'string' ||
+        !clinicSlug?.ok ||
+        candidate.clinicSlug !== clinicSlug.slug ||
+        !effectivePatientBrand
+      ) {
         return null;
       }
-      return { ...candidate, authPolicy, effectivePatientBrand } as ResolvedSurface;
-    } else if (candidate.organizationId || candidate.effectivePatientBrand) {
+      return {
+        ...candidate,
+        authPolicy,
+        clinicSlug: clinicSlug.slug,
+        effectivePatientBrand,
+      } as ResolvedSurface;
+    } else if (candidate.organizationId || candidate.clinicSlug || candidate.effectivePatientBrand) {
       return null;
     }
     return { ...candidate, authPolicy } as ResolvedSurface;

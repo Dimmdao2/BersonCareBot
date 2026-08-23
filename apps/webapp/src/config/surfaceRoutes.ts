@@ -1,4 +1,5 @@
-import type { RequestSurface } from '@/shared/lib/surface/requestSurface';
+import type { RequestSurface, ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { publicBookPaths, publicClinicCardPath } from '@/shared/publicBook/paths';
 
 /**
  * Route audience only. Host -> surface lives exclusively in `requestSurface.ts` (TPB-16).
@@ -97,6 +98,16 @@ export const SURFACE_ROUTE_RULES: readonly SurfaceRouteRule[] = [
     why: 'Clinic/specialist settings.',
   },
   {
+    match: { kind: 'exact', path: '/specialist' },
+    audience: 'staff',
+    why: 'Therapysto specialist directory must never fall through to a patient clinic card.',
+  },
+  {
+    match: { kind: 'exact', path: '/specialists' },
+    audience: 'staff',
+    why: 'Therapysto specialist directory must never fall through to a patient clinic card.',
+  },
+  {
     match: { kind: 'pattern', pattern: /^\/[^/]+\/media\/[^/]+$/ },
     audience: 'patient',
     why: 'Public clinic-card media response.',
@@ -151,4 +162,22 @@ export function canSurfaceEnterRoute(
     return audience === 'patient';
   }
   return audience === 'staff';
+}
+
+/**
+ * The single patient route projection. Both patient surfaces keep the same physical pages; only
+ * the already-resolved context changes which existing page owns a Host-short entry path.
+ */
+export function patientTreeRewritePath(
+  resolved: ResolvedSurface,
+  pathname: string,
+): string | null {
+  const path = normalizePathname(pathname);
+  if (resolved.surface === 'patient_default') {
+    return path === '/' ? '/app' : null;
+  }
+  if (resolved.surface !== 'patient_branded' || !resolved.clinicSlug) return null;
+  if (path === '/') return publicClinicCardPath(resolved.clinicSlug);
+  if (path === '/booking') return publicBookPaths.forSlug(resolved.clinicSlug);
+  return null;
 }

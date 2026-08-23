@@ -59,6 +59,7 @@ function activeTenantSurface(organizationId = BRANDED_ORGANIZATION_ID): TenantSu
   return async () => ({
     status: 'active',
     organizationId,
+    clinicSlug: organizationId === BRANDED_ORGANIZATION_ID ? 'clinic-a' : 'clinic-b',
     effectivePatientBrandOrganizationId: organizationId,
     effectivePatientBrand,
   });
@@ -269,6 +270,11 @@ function middlewareRequestSurface(response: Response) {
       return response.headers.get(`x-middleware-request-${name}`);
     },
   });
+}
+
+function middlewareRoutedPath(response: Response, requestedPath: string): string {
+  const rewrite = response.headers.get('x-middleware-rewrite');
+  return rewrite ? new URL(rewrite).pathname : requestedPath;
 }
 
 describe('Next proxy matcher boundary', () => {
@@ -578,6 +584,118 @@ describe('request-surface host matrix at the proxy choke point', () => {
   );
 });
 
+describe('B5: one patient tree with resolved context', () => {
+  const routes = [
+    {
+      name: 'root',
+      patientDefaultPath: '/',
+      patientDefaultTarget: '/app',
+      patientBrandedPath: '/',
+      patientBrandedTarget: '/clinic-a',
+    },
+    {
+      name: 'login',
+      patientDefaultPath: '/app/patient/login',
+      patientDefaultTarget: '/app/patient/login',
+      patientBrandedPath: '/app/patient/login',
+      patientBrandedTarget: '/app/patient/login',
+    },
+    {
+      // Password recovery is a state of the shared login UI; this is its public HTTP boundary.
+      name: 'recovery',
+      patientDefaultPath: '/api/auth/email-password/forgot',
+      patientDefaultTarget: '/api/auth/email-password/forgot',
+      patientBrandedPath: '/api/auth/email-password/forgot',
+      patientBrandedTarget: '/api/auth/email-password/forgot',
+    },
+    {
+      name: 'clinic card',
+      patientDefaultPath: '/clinic-a',
+      patientDefaultTarget: '/clinic-a',
+      patientBrandedPath: '/clinic-a',
+      patientBrandedTarget: '/clinic-a',
+    },
+    {
+      name: 'booking',
+      patientDefaultPath: '/clinic-a/booking',
+      patientDefaultTarget: '/clinic-a/booking',
+      patientBrandedPath: '/booking',
+      patientBrandedTarget: '/clinic-a/booking',
+    },
+    {
+      name: 'patient cabinet',
+      patientDefaultPath: '/app/patient/cabinet',
+      patientDefaultTarget: '/app/patient/cabinet',
+      patientBrandedPath: '/app/patient/cabinet',
+      patientBrandedTarget: '/app/patient/cabinet',
+    },
+  ] as const;
+
+  it.each(routes)('serves $name from the same route tree on both patient surfaces', async (route) => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const brandedOrigin = new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`);
+    const [patientDefault, patientBranded] = await Promise.all([
+      runtime.proxy(
+        requestFor(runtime.patientOrigin, route.patientDefaultPath, { role: 'client' }),
+      ),
+      runtime.proxy(
+        requestFor(brandedOrigin, route.patientBrandedPath, { role: 'client' }),
+        activeTenantSurface(),
+      ),
+    ]);
+
+    expect(patientDefault.status).toBe(200);
+    expect(patientBranded.status).toBe(200);
+    expect(middlewareRoutedPath(patientDefault, route.patientDefaultPath)).toBe(
+      route.patientDefaultTarget,
+    );
+    expect(middlewareRoutedPath(patientBranded, route.patientBrandedPath)).toBe(
+      route.patientBrandedTarget,
+    );
+    expect(
+      runtime.readResolvedSurface({
+        get: (name) => patientDefault.headers.get(`x-middleware-request-${name}`),
+      }),
+    ).toMatchObject({ surface: 'patient_default' });
+    expect(
+      runtime.readResolvedSurface({
+        get: (name) => patientBranded.headers.get(`x-middleware-request-${name}`),
+      }),
+    ).toMatchObject({ surface: 'patient_branded', clinicSlug: 'clinic-a' });
+  });
+
+  it('rewrites branded root to the exact existing app/[clinicSlug] clinic-card route', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const brandedOrigin = new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`);
+    const [root, canonicalCard] = await Promise.all([
+      runtime.proxy(requestFor(brandedOrigin, '/'), activeTenantSurface()),
+      runtime.proxy(requestFor(brandedOrigin, '/clinic-a'), activeTenantSurface()),
+    ]);
+
+    expect(middlewareRoutedPath(root, '/')).toBe('/clinic-a');
+    expect(canonicalCard.headers.get('x-middleware-rewrite')).toBeNull();
+    expect(middlewareRequestSurface(root)).toEqual(middlewareRequestSurface(canonicalCard));
+  });
+
+  it('keeps Therapysto home and its specialist directory unreachable on patient origins', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const brandedOrigin = new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`);
+    const [defaultRoot, brandedRoot, defaultDirectory, brandedDirectory] = await Promise.all([
+      runtime.proxy(requestFor(runtime.patientOrigin, '/')),
+      runtime.proxy(requestFor(brandedOrigin, '/'), activeTenantSurface()),
+      runtime.proxy(requestFor(runtime.patientOrigin, '/specialists')),
+      runtime.proxy(requestFor(brandedOrigin, '/specialists'), activeTenantSurface()),
+    ]);
+
+    expect(middlewareRoutedPath(defaultRoot, '/')).toBe('/app');
+    expect(middlewareRoutedPath(brandedRoot, '/')).toBe('/clinic-a');
+    for (const response of [defaultDirectory, brandedDirectory]) {
+      expect(response.status).toBe(404);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+    }
+  });
+});
+
 describe('global admin reaching platform pages under the doctor portal prefix', () => {
   it.each(['/app/doctor/analytics', '/app/doctor/booking-merge'])(
     'lets a platform-operations admin through to %s',
@@ -664,6 +782,7 @@ describe('resolved surface request choke point', () => {
       return {
         status: 'active',
         organizationId,
+        clinicSlug: 'clinic-a',
         effectivePatientBrandOrganizationId: organizationId,
         effectivePatientBrand: safeBrandWithInternalExtras,
       };
@@ -697,6 +816,7 @@ describe('resolved surface request choke point', () => {
       async () => ({
         status: 'active' as const,
         organizationId,
+        clinicSlug: 'clinic-without-branding',
         effectivePatientBrandOrganizationId: organizationId,
         effectivePatientBrand: {
           effectiveDisplayName: 'Клиника без брендинга',
@@ -730,6 +850,7 @@ describe('resolved surface request choke point', () => {
         async () => ({
           status: 'active' as const,
           organizationId,
+          clinicSlug: 'clinic-a',
           effectivePatientBrandOrganizationId: organizationId,
           effectivePatientBrand: {
             effectiveDisplayName: 'Clinic A Plus',
@@ -885,6 +1006,7 @@ describe('B4a: адрес клиники на нашем поддомене жи
       return {
         status: 'active',
         organizationId: resolution.organizationId,
+        clinicSlug: resolution.slug,
         effectivePatientBrandOrganizationId: resolution.organizationId,
         effectivePatientBrand: brand,
       };
@@ -905,7 +1027,7 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)).toMatchObject({
       surface: 'patient_branded',
       organizationId: UNBRANDED_ORGANIZATION_ID,
-      authPolicy: 'patient',
+      authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
       effectivePatientBrand: {
         effectiveDisplayName: title,
         patientAppName: title,
@@ -978,6 +1100,7 @@ describe('B4a: адрес клиники на нашем поддомене жи
         ? {
             status: 'active',
             organizationId: UNBRANDED_ORGANIZATION_ID,
+            clinicSlug: 'sosny',
             effectivePatientBrandOrganizationId: UNBRANDED_ORGANIZATION_ID,
             effectivePatientBrand: brand,
           }

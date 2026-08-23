@@ -81,11 +81,6 @@ export async function resolveClinicPublicCardMediaRsc(
   }
 }
 
-/** Canonical public path of a clinic card. */
-export function clinicCardPath(slug: string): string {
-  return `/${encodeURIComponent(slug)}`;
-}
-
 /** Public delivery path of one card image. Carries no internal identifier beyond the media id. */
 export function clinicCardMediaPath(slug: string, mediaId: string): string {
   return `/${encodeURIComponent(slug)}/media/${encodeURIComponent(mediaId)}`;
