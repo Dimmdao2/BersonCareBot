@@ -233,7 +233,6 @@ import { createPgReminderRulesPort } from '@/infra/repos/pgReminderRules';
 import { createInMemoryReminderRulesPort } from '@/infra/repos/inMemoryReminderRules';
 import { createPgReminderJournalPort } from '@/infra/repos/pgReminderJournal';
 import { createRemindersService } from '@/modules/reminders/service';
-import { notifyIntegratorRuleUpdated } from '@/modules/reminders/notifyIntegrator';
 import { createPgCanonicalAppointmentAccessPort } from '@/infra/repos/pgCanonicalAppointments';
 import { createPgDoctorNotesPort } from '@/infra/repos/pgDoctorNotes';
 import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
@@ -799,7 +798,6 @@ const contentSectionsPortForDeps = wrapContentSectionsPortWithWriteClearance(
   assertMechanicWriteClearance,
 );
 const remindersService = createRemindersService(reminderRulesPort, {
-  notifyIntegrator: notifyIntegratorRuleUpdated,
   journal: reminderJournalPort,
   webPushSubscriptions: webPushSubscriptionsPort,
   contentSections: contentSectionsPort,

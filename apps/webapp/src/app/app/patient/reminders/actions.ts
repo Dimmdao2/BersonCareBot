@@ -28,10 +28,8 @@ const updateScheduleSchema = z.object({
   daysMask: z.string().regex(DAYS_MASK_RE, 'Неверный формат маски дней'),
 });
 
-export type ToggleResult = { ok: true; syncWarning?: string } | { ok: false; error: string };
-export type UpdateScheduleResult =
-  | { ok: true; syncWarning?: string }
-  | { ok: false; error: string };
+export type ToggleResult = { ok: true } | { ok: false; error: string };
+export type UpdateScheduleResult = { ok: true } | { ok: false; error: string };
 
 export async function toggleReminderCategory(
   category: ReminderCategory,
@@ -48,7 +46,7 @@ export async function toggleReminderCategory(
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(routePaths.patientReminders);
-  return { ok: true, ...(result.syncWarning ? { syncWarning: result.syncWarning } : {}) };
+  return { ok: true };
 }
 
 export async function updateReminderRule(
@@ -91,7 +89,7 @@ export async function updateReminderRule(
   if (!result.ok) return { ok: false, error: result.error };
 
   revalidatePath(routePaths.patientReminders);
-  return { ok: true, ...(result.syncWarning ? { syncWarning: result.syncWarning } : {}) };
+  return { ok: true };
 }
 
 /** Полная замена расписания (interval_window / slots_v1, quiet hours) — как в REST PATCH с `schedule`. */
@@ -129,5 +127,5 @@ export async function patchPatientReminderScheduleBundle(input: {
 
   revalidatePath(routePaths.patientReminders);
   revalidatePath(routePaths.patient);
-  return { ok: true, ...(result.syncWarning ? { syncWarning: result.syncWarning } : {}) };
+  return { ok: true };
 }

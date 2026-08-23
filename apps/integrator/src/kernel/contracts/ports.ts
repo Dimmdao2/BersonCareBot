@@ -35,7 +35,6 @@ export type DbReadQueryType =
 export type DbWriteMutationType =
   | 'user.upsert'
   | 'user.phone.link'
-  | 'reminders.rule.upsert'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'
   | 'reminders.occurrence.expireOrphanedPending'

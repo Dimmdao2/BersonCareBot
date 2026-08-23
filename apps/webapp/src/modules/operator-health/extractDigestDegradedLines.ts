@@ -1,11 +1,8 @@
 import type { CronJobsHealthPayload } from '@/app-layer/health/collectCronJobsHealth';
 import { ADMIN_DELIVERY_DUE_BACKLOG_WARNING } from './adminHealthThresholds';
-import { classifyIntegratorPushOutboxSystemHealthStatus } from './integratorPushOutboxHealth';
-import type { IntegratorPushOutboxHealthSnapshot } from './ports';
 
 export type DigestDegradedSnapshot = {
   outgoingDelivery: { dueBacklog: number; deadTotal: number };
-  integratorPushOutbox: IntegratorPushOutboxHealthSnapshot;
   videoTranscodeStatus: 'ok' | 'degraded' | 'error';
   cronJobs: CronJobsHealthPayload;
   operatorIncidentsOpenCount: number;
@@ -19,11 +16,6 @@ export function extractDigestDegradedLines(snapshot: DigestDegradedSnapshot): st
 
   if (snapshot.outgoingDelivery.dueBacklog >= ADMIN_DELIVERY_DUE_BACKLOG_WARNING) {
     lines.push(`Очередь доставки: due backlog ${snapshot.outgoingDelivery.dueBacklog}`);
-  }
-
-  const ipoStatus = classifyIntegratorPushOutboxSystemHealthStatus(snapshot.integratorPushOutbox);
-  if (ipoStatus === 'degraded') {
-    lines.push('Очередь синка integrator: деградация');
   }
 
   if (snapshot.videoTranscodeStatus === 'degraded') {

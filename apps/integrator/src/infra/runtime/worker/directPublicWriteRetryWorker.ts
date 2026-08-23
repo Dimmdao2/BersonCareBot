@@ -4,10 +4,6 @@ import {
   type AppendSupportDeliveryEventDirectInput,
 } from '../../db/directPublic/writeSupportQuestionsDirect.js';
 import {
-  upsertReminderRuleDirect,
-  type UpsertReminderRuleDirectInput,
-} from '../../db/directPublic/writeReminderRulesDirect.js';
-import {
   appendReminderDeliveryEventDirect,
   recordReminderOccurrenceFinalizedDirect,
   type ReminderDeliveryLoggedDirectInput,
@@ -56,19 +52,10 @@ export async function executeDirectPublicWriteRetry(
       payloadOrganizationId,
     );
   }
-  if (
-    retry.operation === 'reminder_rule_upsert' ||
-    retry.operation === 'support_delivery_attempt_append'
-  ) {
+  if (retry.operation === 'support_delivery_attempt_append') {
     await writeDirectPublic(
-      retry.operation === 'reminder_rule_upsert'
-        ? 'reminder-rule-upsert'
-        : 'support-delivery-append',
+      'support-delivery-append',
       async () => {
-        if (retry.operation === 'reminder_rule_upsert') {
-          await upsertReminderRuleDirect(db, retry.payload as UpsertReminderRuleDirectInput);
-          return;
-        }
         await appendSupportDeliveryEventDirect(
           db,
           retry.payload as AppendSupportDeliveryEventDirectInput,

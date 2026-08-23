@@ -74,7 +74,6 @@ type ReminderApiResponse = {
   ok?: boolean;
   error?: string;
   message?: string;
-  syncWarning?: string;
 };
 
 async function parseReminderApiResponse(res: Response): Promise<ReminderApiResponse> {
@@ -137,7 +136,6 @@ export function ReminderCreateDialog({
   const [slotsDayFilter, setSlotsDayFilter] = useState<ReminderDayFilter>('weekdays');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [syncWarning, setSyncWarning] = useState<string | null>(null);
 
   const errorAnchorRef = useRef<HTMLParagraphElement | null>(null);
 
@@ -146,7 +144,6 @@ export function ReminderCreateDialog({
   useEffect(() => {
     if (!open) return;
     setError(null);
-    setSyncWarning(null);
     if (existingRule) {
       const isSlots = existingRule.scheduleType === 'slots_v1';
       setScheduleMode(isSlots ? 'slots_v1' : 'interval_window');
@@ -237,7 +234,6 @@ export function ReminderCreateDialog({
 
   const handleSubmit = async () => {
     setError(null);
-    setSyncWarning(null);
 
     if (!/^[01]{7}$/.test(daysMask)) {
       setError('Неверная маска дней.');
@@ -328,7 +324,6 @@ export function ReminderCreateDialog({
           scrollToError();
           return;
         }
-        if (data.syncWarning) setSyncWarning(data.syncWarning);
       } else {
         const body: Record<string, unknown> = {
           linkedObjectType,
@@ -347,7 +342,6 @@ export function ReminderCreateDialog({
           scrollToError();
           return;
         }
-        if (data.syncWarning) setSyncWarning(data.syncWarning);
       }
       onOpenChange(false);
       onSaved();
@@ -383,7 +377,6 @@ export function ReminderCreateDialog({
       previewBadgeLabel={contextTitle}
       previewText={previewText}
       error={error}
-      syncWarning={syncWarning}
       fieldInvalid={scheduleFieldInvalid}
     />
   );

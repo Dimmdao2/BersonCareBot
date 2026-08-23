@@ -189,7 +189,6 @@ export async function POST(req: Request) {
         res.data,
         await getAppDisplayTimeZone(),
       ),
-      ...(res.syncWarning ? { syncWarning: res.syncWarning } : {}),
     },
     { status: 201 },
   );

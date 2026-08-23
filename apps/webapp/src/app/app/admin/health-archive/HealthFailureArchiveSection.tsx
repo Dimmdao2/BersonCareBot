@@ -21,7 +21,6 @@ import {
   SelectValue,
 } from '@/shared/ui/doctor/primitives/select';
 import {
-  HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE,
   HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE,
   HEALTH_FAILURE_ARCHIVE_RETENTION_DAYS,
@@ -135,9 +134,6 @@ export function HealthFailureArchiveSection({
                 <SelectItem value="all">Все</SelectItem>
                 <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_PROBE}>
                   Очередь доставки
-                </SelectItem>
-                <SelectItem value={HEALTH_FAILURE_ARCHIVE_INTEGRATOR_OUTBOX_PROBE}>
-                  Синк в integrator
                 </SelectItem>
                 <SelectItem value={HEALTH_FAILURE_ARCHIVE_OUTGOING_REMINDER_PROBE}>
                   Напоминания (reminder_dispatch)

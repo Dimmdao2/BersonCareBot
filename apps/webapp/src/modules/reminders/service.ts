@@ -87,14 +87,9 @@ export type UpdateRuleData = Partial<ReminderUpdateSchedule> & {
   };
 };
 
-/** Показываем пользователю, если БД обновлена, а relay к integrator не удался (D.3). */
-export const REMINDER_INTEGRATOR_SYNC_WARNING =
-  'Настройки сохранены локально, но синхронизация с ботом не удалась.';
-
-type ServiceResult<T> = { ok: true; data: T; syncWarning?: string } | { ok: false; error: string };
+type ServiceResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
 export type RemindersServiceDeps = {
-  notifyIntegrator?: (rule: ReminderRule) => Promise<void>;
   journal?: ReminderJournalPort;
   webPushSubscriptions?: WebPushSubscriptionsPort;
   contentSections?: ReminderIntentSectionLookup;
@@ -160,19 +155,6 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
     return subscriptions.length > 0;
   }
 
-  /** true = синхронизация ок или не настроена; false = relay пытались, но ошибка. */
-  async function tryNotifyIntegrator(rule: ReminderRule): Promise<boolean> {
-    if (!rule.integratorUserId) return true;
-    if (!deps?.notifyIntegrator) return true;
-    try {
-      await deps.notifyIntegrator(rule);
-      return true;
-    } catch (err) {
-      console.warn('[reminders] integrator notify failed:', err);
-      return false;
-    }
-  }
-
   return {
     async listRulesByUser(platformUserId: string): Promise<ReminderRule[]> {
       return port.listByPlatformUser(platformUserId);
@@ -187,12 +169,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       if (!rule) return { ok: false, error: 'not_found' };
       await port.updateEnabled(rule.id, enabled);
       const updated: ReminderRule = { ...rule, enabled };
-      const syncOk = await tryNotifyIntegrator(updated);
-      return {
-        ok: true,
-        data: updated,
-        ...(syncOk ? {} : { syncWarning: REMINDER_INTEGRATOR_SYNC_WARNING }),
-      };
+      return { ok: true, data: updated };
     },
 
     async updateRule(
@@ -318,12 +295,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       const refreshed = await reloadRule(port, platformUserId, ruleId);
       if (!refreshed) return { ok: false, error: 'not_found' };
 
-      const syncOk = await tryNotifyIntegrator(refreshed);
-      return {
-        ok: true,
-        data: refreshed,
-        ...(syncOk ? {} : { syncWarning: REMINDER_INTEGRATOR_SYNC_WARNING }),
-      };
+      return { ok: true, data: refreshed };
     },
 
     async createObjectReminder(
@@ -411,12 +383,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
           quietHoursStartMinute: null,
           quietHoursEndMinute: null,
         });
-        const syncOk = await tryNotifyIntegrator(rule);
-        return {
-          ok: true,
-          data: rule,
-          ...(syncOk ? {} : { syncWarning: REMINDER_INTEGRATOR_SYNC_WARNING }),
-        };
+        return { ok: true, data: rule };
       }
 
       const schedErr = validateSchedule(params.schedule);
@@ -438,12 +405,7 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         quietHoursStartMinute: null,
         quietHoursEndMinute: null,
       });
-      const syncOk = await tryNotifyIntegrator(rule);
-      return {
-        ok: true,
-        data: rule,
-        ...(syncOk ? {} : { syncWarning: REMINDER_INTEGRATOR_SYNC_WARNING }),
-      };
+      return { ok: true, data: rule };
     },
 
     async retargetContentPageLinkedSlug(

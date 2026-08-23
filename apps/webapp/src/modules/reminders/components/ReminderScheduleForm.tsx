@@ -55,7 +55,6 @@ export type ReminderScheduleFormProps = {
   previewBadgeLabel: string;
   previewText: string;
   error: string | null;
-  syncWarning: string | null;
   /** Подсветка полей после ошибки валидации (см. scheduleInvalidFromError). */
   fieldInvalid?: Partial<ReminderScheduleFieldInvalid>;
 };
@@ -81,7 +80,6 @@ export function ReminderScheduleForm({
   previewBadgeLabel,
   previewText,
   error,
-  syncWarning,
   fieldInvalid,
 }: ReminderScheduleFormProps) {
   const fi: ReminderScheduleFieldInvalid = {
@@ -397,9 +395,6 @@ export function ReminderScheduleForm({
         <p role="alert" className="text-sm text-destructive">
           {error}
         </p>
-      ) : null}
-      {syncWarning && !error ? (
-        <p className="text-sm text-amber-700 dark:text-amber-400">{syncWarning}</p>
       ) : null}
     </div>
   );

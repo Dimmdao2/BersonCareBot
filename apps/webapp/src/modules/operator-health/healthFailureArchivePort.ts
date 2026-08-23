@@ -29,10 +29,6 @@ export type HealthFailureArchivePort = {
     limit: number;
     archivedByUserId: string;
   }): Promise<HealthFailureArchiveClearBatchResult>;
-  archiveIntegratorPushOutboxDeadBatch(input: {
-    limit: number;
-    archivedByUserId: string;
-  }): Promise<HealthFailureArchiveClearBatchResult>;
   archiveOutgoingReminderDeadBatch(input: {
     limit: number;
     archivedByUserId: string;

@@ -1,5 +1,4 @@
 import type {
-  IntegratorPushOutboxHealthSnapshot,
   OperatorHealthReadPort,
   OperatorJobStatusTickRow,
   OutgoingDeliveryQueueHealthSnapshot,
@@ -35,18 +34,6 @@ export const inMemoryOperatorHealthReadPort: OperatorHealthReadPort = {
       processingCount: 0,
       lastSentAt: null,
       confirmedSentLast24h: 0,
-      lastQueueActivityAt: null,
-    };
-  },
-  async getIntegratorPushOutboxHealth(): Promise<IntegratorPushOutboxHealthSnapshot> {
-    return {
-      dueBacklog: 0,
-      deadTotal: 0,
-      oldestDueAgeSeconds: null,
-      dueByKind: {},
-      deadByKind: {},
-      processingCount: 0,
-      oldestProcessingAgeSeconds: null,
       lastQueueActivityAt: null,
     };
   },

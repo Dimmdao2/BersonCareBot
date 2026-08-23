@@ -2,7 +2,6 @@ import { createHmac } from 'node:crypto';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IdempotencyPort, OutgoingIntent } from '../../kernel/contracts/index.js';
-import { registerBersoncareReminderRulesRoute } from './reminderRulesRoute.js';
 import { registerBersoncareSendSmsRoute } from './sendSmsRoute.js';
 
 const secret = 'delivery-idempotency-test-secret';
@@ -62,50 +61,5 @@ describe('webapp delivery seams idempotency', () => {
       ).json(),
     ).toEqual({ ok: true });
     expect(dispatchOutgoing).toHaveBeenCalledTimes(2);
-  });
-
-  it('reminder outbox retry writes once; a new rule event writes again', async () => {
-    const app = Fastify({ logger: false });
-    apps.push(app);
-    const writeDb = vi.fn(async () => undefined);
-    await registerBersoncareReminderRulesRoute(app, {
-      writePort: { writeDb },
-      sharedSecret: secret,
-      idempotencyPort: port(),
-    });
-    const payload = {
-      integratorRuleId: 'rule-1',
-      integratorUserId: '42',
-      category: 'exercise',
-      isEnabled: true,
-      scheduleType: 'interval_window',
-      timezone: 'Europe/Moscow',
-      intervalMinutes: 60,
-      windowStartMinute: 540,
-      windowEndMinute: 600,
-      daysMask: '1111111',
-      contentMode: 'none',
-    };
-    const first = {
-      eventType: 'reminder.rule.upserted',
-      idempotencyKey: 'reminder_rule:1',
-      payload,
-    };
-    expect((await signed(app, '/api/integrator/reminders/rules', first)).json()).toEqual({
-      ok: true,
-    });
-    expect((await signed(app, '/api/integrator/reminders/rules', first)).json()).toEqual({
-      ok: true,
-      status: 'duplicate',
-    });
-    expect(
-      (
-        await signed(app, '/api/integrator/reminders/rules', {
-          ...first,
-          idempotencyKey: 'reminder_rule:2',
-        })
-      ).json(),
-    ).toEqual({ ok: true });
-    expect(writeDb).toHaveBeenCalledTimes(2);
   });
 });

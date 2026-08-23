@@ -45,31 +45,6 @@ describe('direct public write retry worker', () => {
     fakes.reschedule.mockResolvedValue(undefined);
   });
 
-  it('replays a durably claimed failed reminder write and marks it done', async () => {
-    fakes.claim.mockResolvedValue([
-      {
-        id: 7,
-        operation: 'reminder_rule_upsert',
-        organizationId: 'a0000000-0000-4000-8000-000000000001',
-        idempotencyKey: 'direct-public-write:rule-7',
-        payload: { integratorRuleId: 'rule-7', integratorUserId: '2' },
-        attemptCount: 1,
-        maxAttempts: 5,
-      },
-    ]);
-    const replay = vi.fn().mockResolvedValue(undefined);
-
-    await expect(runDirectPublicWriteRetryWorkerTick(unusedDb, 10, replay)).resolves.toBe(1);
-
-    expect(replay).toHaveBeenCalledWith(
-      unusedDb,
-      expect.objectContaining({ operation: 'reminder_rule_upsert', id: 7 }),
-    );
-    expect(fakes.complete).toHaveBeenCalledWith(unusedDb, 7);
-    expect(fakes.reclaim).toHaveBeenCalledWith(unusedDb);
-    expect(fakes.reschedule).not.toHaveBeenCalled();
-  });
-
   it('returns a failed replay to the durable queue instead of dropping it', async () => {
     fakes.claim.mockResolvedValue([
       {
