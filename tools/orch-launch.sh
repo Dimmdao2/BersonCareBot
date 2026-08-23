@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Предпочтительный порт repo-work агентов с гейтами. Простой bounded spawn допустим напрямую;
-# действующие правила выбора режима находятся только в AGENTS.md §24.
+# Порт цельных делегируемых repo-work этапов с гейтами; гейт полезности делегирования и выбор режима находятся
+# только в AGENTS.md §24.
 set -euo pipefail
 
 MAIN=/home/dev/dev-projects/BersonCareBot
@@ -22,7 +22,7 @@ tools/orch-launch.sh worker       <clone> <run-id> <model> <effort> <brief> <sco
 tools/orch-launch.sh auditor-live <clone> <run-id> <model> <effort> <brief> <scope>
 tools/orch-launch.sh land         <clone> <branch>
 
-This port is preferred for gated/stateful repo-work. Simple bounded work may use direct spawn.
+This port is for delegated gated/stateful repo-work whose scope justifies a separate executor.
 Environment: ORCH_WAIT=1, ORCH_OPS="reason", ORCH_NO_TESTS="reason", ORCH_ISOLATE=1, ORCH_DRY=1.
 Canon: AGENTS.md §24. Operational paths: docs/ORCHESTRATION_BINDINGS.md.
 USAGE
@@ -43,7 +43,11 @@ if [ "$1" = land ]; then
 
   MAIN_BRANCH=$(git -C "$MAIN" symbolic-ref --short -q HEAD || true)
   [ "$MAIN_BRANCH" = "$FEAT" ] || die "главное дерево $MAIN сейчас не на $FEAT (на '$MAIN_BRANCH') — land мержит именно в $FEAT, переключи главное дерево сначала."
-  [ -z "$(git -C "$MAIN" status --porcelain)" ] || die "дерево главного репо $MAIN грязное — land на грязном дереве не запускается, сначала закоммить или сбрось."
+  # Markdown is not part of the executable integration artifact and never blocks orchestration.
+  # Keep foreign staged docs intact; only non-document dirt can make a merge unsafe.
+  MAIN_NON_DOCUMENT_PATHSPEC=(. ':(exclude,glob)**/*.md' ':(exclude,glob)*.md')
+  [ -z "$(git -C "$MAIN" status --porcelain -- "${MAIN_NON_DOCUMENT_PATHSPEC[@]}")" ] ||
+    die "дерево главного репо $MAIN содержит незакоммиченные изменения вне Markdown — land не запускается, сначала закоммить или сбрось их."
 
   git -C "$MAIN" fetch -q "$CLONE" "$BRANCH" 2>/dev/null || die "не удалось выкачать ветку $BRANCH из клона $CLONE_NAME"
   HEAD_FEAT=$(git -C "$MAIN" rev-parse "$FEAT")
@@ -144,15 +148,15 @@ if ! git -C "$CLONE" merge-base --is-ancestor "$HEAD_MAIN" "$HEAD_CLONE" 2>/dev/
 fi
 AHEAD=$(git -C "$CLONE" rev-list --count "$HEAD_MAIN".."$HEAD_CLONE")
 
-# 3. Бриф: есть, непустой. Для tracked workstream authority — существующий plan/checklist. Для любой bounded
-#    работы без plan-файла authority = сам brief, а ORCH_OPS="<почему brief достаточен>" фиксирует выбор.
+# 3. Бриф: есть, непустой. Для tracked workstream authority — существующий plan/checklist. Для цельного
+#    делегируемого bounded-этапа без plan-файла authority = сам brief, а ORCH_OPS фиксирует выбор.
 [ -s "$BRIEF" ] || die "бриф $BRIEF не найден или пуст"
 grep -q "AGENTS.md" "$BRIEF" || die "в брифе нет AGENTS.md — агент не получил единственный канон правил"
 if [ -n "${ORCH_OPS:-}" ]; then
   echo "  bounded-режим: authority = сам бриф; причина: $ORCH_OPS (plan-файл не требуется)"
 else
   grep -q "docs/_TODO/" "$BRIEF" || die "в брифе нет ссылки на authority/checklist в docs/_TODO/ — исполнителю нечего сдавать, аудитору нечего проверять (AGENTS.md §24.2).
-  Для tracked workstream добавь существующий plan. Для bounded-задачи без плана запускай с
+  Для tracked workstream добавь существующий plan. Для цельного делегируемого bounded-этапа без плана запускай с
   ORCH_OPS=\"<почему brief достаточен>\", тогда authority = сам brief."
 fi
 
