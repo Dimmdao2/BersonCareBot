@@ -862,19 +862,23 @@ describe('B4a: адрес клиники на нашем поддомене жи
     expect(middlewareRequestSurface(response)).toBeNull();
   });
 
-  it('оставляет живой адрес клинике с длинным названием (регистрация принимает до 200 знаков)', async () => {
-    // `organizationTitle: z.string().trim().min(1).max(200)` — apps/webapp/src/app/api/auth/
-    // specialist-signup/start/route.ts:46; `be_organizations.title` — `text` без ограничения длины.
-    const longTitle = `Автономная некоммерческая организация реабилитации и восстановительного лечения «${'Сосны'.repeat(12)}»`;
-    expect(longTitle.length).toBeGreaterThan(120);
-    expect(longTitle.length).toBeLessThanOrEqual(200);
+  it.each([120, 121, 200])(
+    'оставляет живой адрес клинике с названием из %i знаков',
+    async (titleLength) => {
+      const title = 'К'.repeat(titleLength);
+      const response = await get('sosny', tenantSeam({
+        ...TENANTS,
+        sosny: { ...TENANTS.sosny!, title },
+      }));
 
-    const response = await get('sosny', tenantSeam({
-      ...TENANTS,
-      sosny: { ...TENANTS.sosny!, title: longTitle },
-    }));
-
-    expect(response.status).toBe(200);
-    expect(middlewareRequestSurface(response)?.surface).toBe('patient_branded');
-  });
+      expect(response.status).toBe(200);
+      expect(middlewareRequestSurface(response)).toMatchObject({
+        surface: 'patient_branded',
+        effectivePatientBrand: {
+          effectiveDisplayName: title.slice(0, 120),
+          patientAppName: title.slice(0, 120),
+        },
+      });
+    },
+  );
 });

@@ -131,7 +131,7 @@ function assertNoCallerSuppliedFields(input: unknown): void {
   }
 }
 
-function normalizeDisplayNameOverride(value: string | null | undefined): string | null {
+function normalizeDisplayName(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   if (trimmed === '') return null;
@@ -147,10 +147,6 @@ function normalizeLogoMediaId(value: string | null | undefined): string | null {
   return trimmed.toLowerCase();
 }
 
-function normalizePatientAppName(value: string | null | undefined): string | null {
-  return normalizeDisplayNameOverride(value);
-}
-
 function normalizeAccentToken(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
@@ -163,12 +159,13 @@ function platformOnly(
   core: CoreOrganizationContext,
   resolution: OrgBrandingResolution,
 ): EffectiveOrgBranding {
+  const effectiveDisplayName = normalizeDisplayName(core.displayName) ?? core.displayName;
   return {
     organizationId: core.organizationId,
     core: { displayName: core.displayName, isActive: core.isActive },
     paid: { displayName: null, patientAppName: null, accentToken: null, logoUrl: null },
-    effectiveDisplayName: core.displayName,
-    effectivePatientAppName: core.displayName,
+    effectiveDisplayName,
+    effectivePatientAppName: effectiveDisplayName,
     effectiveAccentToken: DEFAULT_PATIENT_ACCENT_TOKEN,
     resolution,
   };
@@ -238,8 +235,9 @@ export function createOrgBrandingService(deps: {
 
     if (!published) return platformOnly(core, 'no_published_revision');
 
-    const paidDisplayName = normalizeDisplayNameOverride(published.displayName);
-    const paidPatientAppName = normalizePatientAppName(published.patientAppName);
+    const coreDisplayName = normalizeDisplayName(core.displayName) ?? core.displayName;
+    const paidDisplayName = normalizeDisplayName(published.displayName);
+    const paidPatientAppName = normalizeDisplayName(published.patientAppName);
     const paidAccentToken = normalizeAccentToken(published.accentToken);
     // Readiness per asset: an unowned / unready / non-image logo collapses to null and the rest of
     // the paid layer still applies. `logoMediaReady` is computed by the port from the media row.
@@ -257,8 +255,8 @@ export function createOrgBrandingService(deps: {
         accentToken: paidAccentToken,
         logoUrl,
       },
-      effectiveDisplayName: paidDisplayName ?? core.displayName,
-      effectivePatientAppName: paidPatientAppName ?? paidDisplayName ?? core.displayName,
+      effectiveDisplayName: paidDisplayName ?? coreDisplayName,
+      effectivePatientAppName: paidPatientAppName ?? paidDisplayName ?? coreDisplayName,
       effectiveAccentToken: paidAccentToken ?? DEFAULT_PATIENT_ACCENT_TOKEN,
       resolution: 'applied',
     };
@@ -329,10 +327,10 @@ export function createOrgBrandingService(deps: {
         // The trusted context is the ONLY source of the organization id.
         organizationId: ctx.organizationId,
         actorPlatformUserId: ctx.actorPlatformUserId,
-        displayName: normalizeDisplayNameOverride(input.displayName),
+        displayName: normalizeDisplayName(input.displayName),
         patientAppName: preservesPatientAppName
-          ? normalizePatientAppName(retained?.patientAppName)
-          : normalizePatientAppName(input.patientAppName),
+          ? normalizeDisplayName(retained?.patientAppName)
+          : normalizeDisplayName(input.patientAppName),
         accentToken: preservesAccentToken
           ? normalizeAccentToken(retained?.accentToken)
           : normalizeAccentToken(input.accentToken),
