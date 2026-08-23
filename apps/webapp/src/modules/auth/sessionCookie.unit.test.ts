@@ -17,6 +17,22 @@ const clock = fixedClock(Date.UTC(2026, 6, 30, 12));
 const nowSeconds = clock.nowSeconds();
 const propertySettings = { seed: 10_074, numRuns: 80, endOnFailure: true } as const;
 const roles = ['client', 'doctor', 'admin'] as const satisfies readonly SessionUser['role'][];
+const SESSION_SURFACE_ORIGINS = [
+  'https://staff.example.test',
+  'https://patient.example.test',
+  'https://clinic-a.patient.example.test',
+] as const;
+
+function cookieHeaderForRequest(setCookie: string, issuedOrigin: string, requestOrigin: string): string | null {
+  const cookie = setCookie.split(';', 1)[0] ?? '';
+  const issuedHost = new URL(issuedOrigin).hostname;
+  const requestHost = new URL(requestOrigin).hostname;
+  const domain = /(?:^|;\s*)domain=([^;]+)/i.exec(setCookie)?.[1]?.trim().replace(/^\./, '');
+  const matchesDomain =
+    domain !== undefined && (requestHost === domain || requestHost.endsWith(`.${domain}`));
+
+  return matchesDomain || (domain === undefined && requestHost === issuedHost) ? cookie : null;
+}
 
 const sessionFactory = Factory.define<AppSession>(({ sequence }) => ({
   user: {
@@ -180,4 +196,29 @@ describe('session cookie unit behavior', () => {
 
     expect(unchangedResponse.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
   });
+
+  it.each(SESSION_SURFACE_ORIGINS)(
+    'issues a host-only session cookie on %s',
+    (origin) => {
+      const renewable = sessionFactory.build({
+        issuedAt: nowSeconds - 1,
+        expiresAt: nowSeconds + sessionTtlSecondsForRole('client') / 2 - 1,
+      });
+      const request = new NextRequest(origin, {
+        headers: { cookie: `${SESSION_COOKIE_NAME}=${encodeSessionCookie(renewable)}` },
+      });
+
+      const response = applySessionRenewalToResponse(request, NextResponse.next());
+      const setCookie = response.headers.get('set-cookie');
+
+      // A browser scopes a cookie without Domain to precisely the response host, so it cannot
+      // attach this session to staff, default-patient, or branded-patient siblings.
+      expect(setCookie).toContain(`${SESSION_COOKIE_NAME}=`);
+      expect(setCookie).not.toMatch(/(?:^|;\s*)domain=/i);
+      for (const otherOrigin of SESSION_SURFACE_ORIGINS) {
+        if (otherOrigin === origin) continue;
+        expect(cookieHeaderForRequest(setCookie ?? '', origin, otherOrigin)).toBeNull();
+      }
+    },
+  );
 });

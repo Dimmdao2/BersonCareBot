@@ -28,6 +28,60 @@ const PLATFORM_SURFACE_CONFIGURATIONS = [
 ] as const;
 
 type PlatformSurfaceConfiguration = (typeof PLATFORM_SURFACE_CONFIGURATIONS)[number];
+type ProxyRuntime = Awaited<ReturnType<typeof loadProxyForSurfaceConfiguration>>;
+
+const BRANDED_ORGANIZATION_ID = '11111111-1111-4111-8111-111111111111';
+const OTHER_ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222';
+
+function activeTenantSurface(organizationId = BRANDED_ORGANIZATION_ID): TenantSurfaceLookup {
+  return async () => ({
+    status: 'active',
+    organizationId,
+    effectivePatientBrand: {
+      organizationId,
+      core: { displayName: 'Clinic A', isActive: true },
+      paid: { displayName: 'Clinic A Plus', logoUrl: null },
+      effectiveDisplayName: 'Clinic A Plus',
+      resolution: 'applied',
+    },
+  });
+}
+
+type HostMatrixCase = Readonly<{
+  name: string;
+  surface: 'staff' | 'platform_admin' | 'patient_default' | 'patient_branded';
+  originFor: (runtime: ProxyRuntime) => URL;
+  foreignOriginFor: (runtime: ProxyRuntime) => URL;
+  tenantLookup?: TenantSurfaceLookup;
+}>;
+
+const HOST_MATRIX: readonly HostMatrixCase[] = [
+  {
+    name: 'staff',
+    surface: 'staff',
+    originFor: (runtime) => runtime.staffOrigin,
+    foreignOriginFor: (runtime) => runtime.patientOrigin,
+  },
+  {
+    name: 'platform admin',
+    surface: 'platform_admin',
+    originFor: (runtime) => new URL(`https://admin.${runtime.staffOrigin.hostname}`),
+    foreignOriginFor: (runtime) => runtime.patientOrigin,
+  },
+  {
+    name: 'patient default',
+    surface: 'patient_default',
+    originFor: (runtime) => runtime.patientOrigin,
+    foreignOriginFor: (runtime) => runtime.staffOrigin,
+  },
+  {
+    name: 'patient branded',
+    surface: 'patient_branded',
+    originFor: (runtime) => new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`),
+    foreignOriginFor: (runtime) => runtime.staffOrigin,
+    tenantLookup: activeTenantSurface(),
+  },
+];
 
 async function loadProxyForSurfaceConfiguration({
   staffOrigin,
@@ -189,6 +243,87 @@ describe('HTTP CSRF origin boundary', () => {
     );
 
     expect(response.status).not.toBe(403);
+  });
+});
+
+describe('B6 host matrix — browser session and CSRF boundaries', () => {
+  const sourceCases = [
+    {
+      name: 'a foreign Origin',
+      headersFor: (foreignOrigin: URL) => ({
+        origin: foreignOrigin.origin,
+        'sec-fetch-site': 'same-origin',
+      }),
+    },
+    {
+      name: 'a foreign Referer',
+      headersFor: (foreignOrigin: URL) => ({
+        referer: new URL('/app', foreignOrigin).href,
+        'sec-fetch-site': 'same-origin',
+      }),
+    },
+    {
+      name: 'no Origin or Referer',
+      headersFor: () => ({ 'sec-fetch-site': 'same-origin' }),
+    },
+  ] as const;
+
+  for (const hostCase of HOST_MATRIX) {
+    it.each(sourceCases)(
+      `rejects $name on the ${hostCase.name} surface`,
+      async ({ headersFor }) => {
+        const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+        const response = await runtime.proxy(
+          requestFor(hostCase.originFor(runtime), '/api/account/security/password/change', {
+            method: 'POST',
+            headers: headersFor(hostCase.foreignOriginFor(runtime)),
+          }),
+          hostCase.tenantLookup,
+        );
+
+        expect(response.status).toBe(403);
+        expect(response.headers.get('cache-control')).toBe('no-store');
+        await expect(response.json()).resolves.toEqual({
+          ok: false,
+          error: 'csrf_origin_forbidden',
+        });
+      },
+    );
+  }
+
+  it('does not issue or fall back to a platform session for an unknown Host', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const response = await runtime.proxy(
+      requestFor(new URL('https://untrusted.example'), '/app', { role: 'client' }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('location')).toBeNull();
+    expect(response.headers.get('set-cookie')).toBeNull();
+    expect(
+      runtime.readResolvedSurface({
+        get: (name) => response.headers.get(`x-middleware-request-${name}`),
+      }),
+    ).toBeNull();
+  });
+
+  it('fails closed when a branded Host resolves organization A with organization B resources', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration(PLATFORM_SURFACE_CONFIGURATIONS[1]);
+    const response = await runtime.proxy(
+      requestFor(new URL(`https://clinic-a.${runtime.patientOrigin.hostname}`), '/app/patient/login'),
+      async () => {
+        const resolved = await activeTenantSurface(OTHER_ORGANIZATION_ID)('clinic-a');
+        return { ...resolved, organizationId: BRANDED_ORGANIZATION_ID };
+      },
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+    expect(
+      runtime.readResolvedSurface({
+        get: (name) => response.headers.get(`x-middleware-request-${name}`),
+      }),
+    ).toBeNull();
   });
 });
 
