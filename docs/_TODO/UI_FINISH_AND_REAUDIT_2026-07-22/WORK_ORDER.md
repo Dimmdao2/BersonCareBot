@@ -1260,6 +1260,20 @@ booking/event gateway) в том же источнике помечены «за
       даёт **15 таких корней**, включая всю цепочку напоминаний и доставки. Фикс-бриф —
       `runs/briefs/D17_INTEGRATOR_LOST_EXECUTE_BRIEF_2026-08-23.md`. Галочка возвращается только после живой
       записи на TEST, у которой в очереди появились подтверждение и напоминания.
+
+      **Перемер 23.08 после выкатки `a3c5a4f40` (все четыре круга D17 внутри) — симптом ЖИВ, причина
+      другая.** Запись пациента прошла (`POST /api/booking/create` → `200`, `confirmed`), письмо-
+      подтверждение ушло (`outgoing_delivery_queue`: `outbound_message|email|sent`), но напоминания
+      снова не материализовались: `booking_lifecycle_step_failed step=appointment_reminders`, `502`
+      наружу, три повтора. Журнал Postgres в ту же секунду: `bcb_test_webapp_staff … 42501 permission
+      denied for table user_contacts` внутри `SELECT app.read_integrator_delivery_target_snapshot(…)`,
+      и минутой раньше `permission denied for table user_channel_preferences`. **Это не узкая роль
+      интегратора:** корень — `SECURITY DEFINER`, владелец `app_seam_delivery_scope_owner`, и у этой
+      роли нет ни одного гранта на `user_contacts` и нет членства ни в одной роли, то есть
+      `SECURITY DEFINER` не спасает — прав нет у самого владельца шва. Класс широкий: на TEST
+      **34 роли-владельца швов**, за каждой от 7 до 54 definer-корней. Бриф —
+      `runs/briefs/D17_SEAM_OWNER_PRIVILEGES_BRIEF_2026-08-23.md`, ветка `wt/d17-seam-owner-20260823`.
+      Галочка по-прежнему закрыта.
       Прежняя запись (замер на DEV, теперь опровергнута живым TEST): ~~✅ ЗАКРЫТО 23.08.2026~~ — `da5d1107a` снял у логина интегратора широкое
       членство `app_tenant_service` и перевёл организационный relation-доступ на
       `app_integrator_tenant_service`. Текущая декларация даёт `old_memberships=0`, `narrow_memberships=1`,
