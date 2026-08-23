@@ -5,7 +5,7 @@
  * пользователя (пациент/врач), и на любой странице.
  */
 import type { Metadata, Viewport } from 'next';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import './styles/local-fonts.css';
 import './styles/tailwind-engine.css';
 import { ClientToaster } from '@/components/ClientToaster';
@@ -16,7 +16,7 @@ import { PlatformProvider } from '@/shared/ui/PlatformProvider';
 import { BuildVersionWatcher } from '@/shared/ui/BuildVersionWatcher';
 import { HorizontalOverflowProbe } from '@/shared/ui/dev/HorizontalOverflowProbe';
 import { PWA_APP_ROOT_CLASS } from '@/shared/ui/patient/pwaLayoutClasses';
-import { surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
+import { surfaceAccentToken, surfaceDisplayName } from '@/shared/lib/surface/requestSurface';
 import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 import { surfaceLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
@@ -53,7 +53,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <meta name={BUILD_ID_META_NAME} content={buildId} />
       </head>
       <body>
-        <div id="app-root" className={PWA_APP_ROOT_CLASS}>
+        <div
+          id="app-root"
+          className={PWA_APP_ROOT_CLASS}
+          style={{ '--patient-brand-accent': surfaceAccentToken(surface) } as CSSProperties}
+        >
           <TooltipProvider>
             <ClientToaster />
             <PlatformProvider serverHint={platformEntry} surfaceName={surfaceDisplayName(surface)}>

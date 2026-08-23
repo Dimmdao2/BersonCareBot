@@ -124,6 +124,8 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
       );
       if (existing) {
         existing.displayName = input.displayName;
+        existing.patientAppName = input.patientAppName;
+        existing.accentToken = input.accentToken;
         existing.logoMediaId = input.logoMediaId;
         existing.updatedAt = now;
         return { ...existing, logoMediaReady: logoReady(existing) };
@@ -133,6 +135,8 @@ export function createInMemoryOrgBrandingPort(): OrgBrandingPort {
         organizationId: input.organizationId,
         status: 'draft',
         displayName: input.displayName,
+        patientAppName: input.patientAppName,
+        accentToken: input.accentToken,
         logoMediaId: input.logoMediaId,
         logoMediaReady: false,
         createdByPlatformUserId: input.actorPlatformUserId,

@@ -4865,10 +4865,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "accent_token",
           "created_by_platform_user_id",
           "display_name",
           "logo_media_id",
           "organization_id",
+          "patient_app_name",
           "status"
         ]
       },
@@ -4878,10 +4880,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "accent_token",
           "archived_at",
           "archived_by_platform_user_id",
           "display_name",
           "logo_media_id",
+          "patient_app_name",
           "published_at",
           "published_by_platform_user_id",
           "status",

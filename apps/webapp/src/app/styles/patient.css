@@ -107,7 +107,7 @@
   --patient-shadow-card-mobile: 0 4px 14px rgba(15, 23, 42, 0.04);
   --patient-shadow-card-desktop: 0 8px 24px rgba(15, 23, 42, 0.05);
   --patient-shadow-nav: 0 -4px 16px rgba(15, 23, 42, 0.04);
-  --patient-color-primary: #284da0;
+  --patient-color-primary: var(--patient-brand-accent, #284da0);
   --patient-color-primary-soft: #e8eefb;
   --patient-color-success: #16a34a;
   --patient-color-success-soft: #ecfdf3;

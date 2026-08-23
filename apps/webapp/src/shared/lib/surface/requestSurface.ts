@@ -1,5 +1,8 @@
 import { PATIENT_DEFAULT_SURFACE, STAFF_SURFACE } from '@/config/productSurfaces';
-import type { EffectiveOrgBranding } from '@/modules/org-branding/service';
+import {
+  DEFAULT_PATIENT_ACCENT_TOKEN,
+  type AnonymousPatientBrand,
+} from '@/modules/org-branding/service';
 
 export const RESOLVED_SURFACE_HEADER = 'x-bc-resolved-surface';
 
@@ -11,7 +14,7 @@ export type RequestSurface =
 
 export type SurfaceAuthPolicy = 'staff' | 'platform_admin' | 'patient';
 
-export type EffectivePatientBrand = EffectiveOrgBranding;
+export type EffectivePatientBrand = AnonymousPatientBrand;
 
 export type ResolvedSurface = Readonly<{
   surface: RequestSurface;
@@ -75,6 +78,40 @@ function platformAdminHost(staffOrigin: URL): string {
   return `admin.${staffOrigin.hostname}${staffOrigin.port ? `:${staffOrigin.port}` : ''}`;
 }
 
+/** Strip every management/internal field before a brand can enter the request header. */
+function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<EffectivePatientBrand>;
+  const effectiveDisplayName = candidate.effectiveDisplayName?.trim();
+  const patientAppName = candidate.patientAppName?.trim();
+  const accentToken = candidate.accentToken?.trim().toLowerCase();
+  if (
+    !effectiveDisplayName ||
+    effectiveDisplayName.length > 120 ||
+    !patientAppName ||
+    patientAppName.length > 120 ||
+    !accentToken ||
+    !/^#[0-9a-f]{6}$/.test(accentToken)
+  ) {
+    return null;
+  }
+  const logoUrl = candidate.logoUrl;
+  if (
+    logoUrl !== undefined &&
+    !/^\/api\/media\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      logoUrl,
+    )
+  ) {
+    return null;
+  }
+  return {
+    effectiveDisplayName,
+    patientAppName,
+    accentToken,
+    ...(logoUrl ? { logoUrl } : {}),
+  };
+}
+
 /**
  * The single Host -> surface resolver (TPB-16).
  *
@@ -118,20 +155,15 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
 
   // Persistence/domain seams store a hostname, never an HTTP authority with a development port.
   const tenant = await resolveTenantSurface(requestOrigin.hostname.toLowerCase());
-  if (
-    tenant.status !== 'active' ||
-    !tenant.organizationId ||
-    tenant.effectivePatientBrand.organizationId !== tenant.organizationId ||
-    !tenant.effectivePatientBrand.core.isActive
-  ) {
-    return null;
-  }
+  if (tenant.status !== 'active' || !tenant.organizationId) return null;
+  const effectivePatientBrand = sanitizeEffectivePatientBrand(tenant.effectivePatientBrand);
+  if (!effectivePatientBrand) return null;
 
   return {
     surface: 'patient_branded',
     publicOrigin,
     organizationId: tenant.organizationId,
-    effectivePatientBrand: tenant.effectivePatientBrand,
+    effectivePatientBrand,
     authPolicy: 'patient',
   };
 };
@@ -145,9 +177,16 @@ export function surfaceDisplayName(resolved: ResolvedSurface): string {
     if (!resolved.effectivePatientBrand) {
       throw new Error('branded_surface_requires_effective_patient_brand');
     }
-    return resolved.effectivePatientBrand.effectiveDisplayName;
+    return resolved.effectivePatientBrand.patientAppName;
   }
   return PATIENT_DEFAULT_SURFACE.name;
+}
+
+/** One patient accent selected by the already-resolved Host; every other surface keeps default. */
+export function surfaceAccentToken(resolved: ResolvedSurface): string {
+  return resolved.surface === 'patient_branded' && resolved.effectivePatientBrand
+    ? resolved.effectivePatientBrand.accentToken
+    : DEFAULT_PATIENT_ACCENT_TOKEN;
 }
 
 function isRequestSurface(value: unknown): value is RequestSurface {
@@ -184,13 +223,11 @@ export function readResolvedSurface(headers: Pick<Headers, 'get'>): ResolvedSurf
       return null;
     }
     if (candidate.surface === 'patient_branded') {
-      if (
-        typeof candidate.organizationId !== 'string' ||
-        !candidate.effectivePatientBrand ||
-        candidate.effectivePatientBrand.organizationId !== candidate.organizationId
-      ) {
+      const effectivePatientBrand = sanitizeEffectivePatientBrand(candidate.effectivePatientBrand);
+      if (typeof candidate.organizationId !== 'string' || !effectivePatientBrand) {
         return null;
       }
+      return { ...candidate, effectivePatientBrand } as ResolvedSurface;
     } else if (candidate.organizationId || candidate.effectivePatientBrand) {
       return null;
     }

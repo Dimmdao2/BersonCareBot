@@ -9,6 +9,7 @@ import {
 import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
 import { buildStaffPwaManifest, STAFF_PWA_MANIFEST_PATH } from './staffPwaManifest';
 import type { ResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { surfaceAccentToken } from '@/shared/lib/surface/requestSurface';
 import { surfaceLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
 const STAFF_RESOLVED: ResolvedSurface = {
@@ -28,11 +29,9 @@ const BRANDED_RESOLVED: ResolvedSurface = {
   publicOrigin: 'https://clinic-a.therapygo.ru',
   organizationId: '11111111-1111-4111-8111-111111111111',
   effectivePatientBrand: {
-    organizationId: '11111111-1111-4111-8111-111111111111',
-    core: { displayName: 'Clinic A', isActive: true },
-    paid: { displayName: 'Clinic A Plus', logoUrl: null },
     effectiveDisplayName: 'Clinic A Plus',
-    resolution: 'applied',
+    patientAppName: 'Clinic A Care',
+    accentToken: '#7a3cc2',
   },
   authPolicy: 'patient',
 };
@@ -84,19 +83,21 @@ describe('installed PWA contract survives the surface rename', () => {
 
   it('uses the branded Host resolve for the patient manifest identity', () => {
     expect(buildPatientPwaManifest(BRANDED_RESOLVED)).toMatchObject({
-      name: 'Clinic A Plus — забота о твоём здоровье',
-      short_name: 'Clinic A Plus',
+      name: 'Clinic A Care — забота о твоём здоровье',
+      short_name: 'Clinic A Care',
       start_url: '/app/patient',
     });
     expect(surfaceLayoutMetadata(BRANDED_RESOLVED)).toMatchObject({
-      title: 'Clinic A Plus',
+      title: 'Clinic A Care',
       manifest: '/manifest.webmanifest',
       icons: {
         icon: [{ url: '/pwa-icon-192.png' }, { url: '/pwa-icon-512.png' }],
         apple: [{ url: '/apple-touch-icon.png' }],
       },
-      appleWebApp: { title: 'Clinic A Plus' },
+      appleWebApp: { title: 'Clinic A Care' },
     });
+    expect(surfaceAccentToken(BRANDED_RESOLVED)).toBe('#7a3cc2');
+    expect(surfaceAccentToken(PATIENT_RESOLVED)).toBe('#284da0');
   });
 
   it('keeps the staff installation identity separate from the patient one', () => {

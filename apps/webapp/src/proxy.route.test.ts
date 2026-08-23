@@ -363,30 +363,37 @@ describe('resolved surface request choke point', () => {
     const seenHostnames: string[] = [];
     const tenantLookup: TenantSurfaceLookup = async (hostname) => {
       seenHostnames.push(hostname);
+      const safeBrandWithInternalExtras = {
+        effectiveDisplayName: 'Clinic A Plus',
+        patientAppName: 'Clinic A Care',
+        accentToken: '#7A3CC2',
+        core: { displayName: 'must not cross the anonymous boundary', isActive: true },
+        resolution: 'applied',
+      };
       return {
         status: 'active',
         organizationId,
-        effectivePatientBrand: {
-          organizationId,
-          core: { displayName: 'Clinic A', isActive: true },
-          paid: { displayName: 'Clinic A Plus', logoUrl: null },
-          effectiveDisplayName: 'Clinic A Plus',
-          resolution: 'applied',
-        },
+        effectivePatientBrand: safeBrandWithInternalExtras,
       };
     };
     const brandedOrigin = new URL('https://clinic-a.therapygo.ru:8443');
-    const response = await proxy(
-      requestFor(brandedOrigin, '/app/patient/login'),
-      tenantLookup,
-    );
+    const response = await proxy(requestFor(brandedOrigin, '/app/patient/login'), tenantLookup);
 
     expect(middlewareRequestSurface(response)).toMatchObject({
       surface: 'patient_branded',
       publicOrigin: brandedOrigin.origin,
       organizationId,
       authPolicy: 'patient',
-      effectivePatientBrand: { effectiveDisplayName: 'Clinic A Plus' },
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Clinic A Plus',
+        patientAppName: 'Clinic A Care',
+        accentToken: '#7a3cc2',
+      },
+    });
+    expect(middlewareRequestSurface(response)?.effectivePatientBrand).toEqual({
+      effectiveDisplayName: 'Clinic A Plus',
+      patientAppName: 'Clinic A Care',
+      accentToken: '#7a3cc2',
     });
     expect(seenHostnames).toEqual(['clinic-a.therapygo.ru']);
   });

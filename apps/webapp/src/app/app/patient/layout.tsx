@@ -29,10 +29,10 @@ import {
   resolvePatientOrganizationRequestContext,
   stampPatientOrganizationRequestContext,
 } from '@/app-layer/patient-organization/requestContext';
-import { withPatientOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
 import { PatientOrganizationRecoveryScreen } from '@/shared/ui/patient/organization/PatientOrganizationContext';
 import { getAuthChannelPolicy } from '@/modules/auth/authChannelPolicy';
 import { isCabinetEntryBlocked } from '@/app-layer/guards/cabinetAccessGate';
+import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
 
 function patientPathAllowsGlobalAccountWithoutCareContext(pathname: string): boolean {
   return [
@@ -53,6 +53,7 @@ export default async function PatientLayout({ children }: { children: ReactNode 
   // Next.js may compile instrumentation and route/layout chunks independently in dev.
   const deps = buildAppDeps();
   const h = await headers();
+  const resolvedSurface = await getResolvedSurface();
   const pathname = resolvePatientLayoutPathname((name) => h.get(name));
   const search = h.get('x-bc-search') ?? '';
   const session = await getCurrentSession();
@@ -125,22 +126,18 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       source: 'app.patient.layout',
     });
     const patientOrganizationId = patientContext.organizationId;
-    // The resolver receives only the enrollment-selected organization inside the patient principal;
-    // it never accepts a client-controlled organization or brand. When branding is disabled it
-    // returns the core title, which is the existing platform/default presentation of this context bar.
-    const effectiveBranding = await withPatientOrganizationPrincipal(
-      {
-        organizationId: patientOrganizationId,
-        platformUserId: session.user.userId,
-        source: 'app.patient.layout.org-branding',
-      },
-      () => deps.orgBranding.resolveEffectiveOrgBranding(patientOrganizationId),
-    ).catch(() => null);
+    // Host branding was resolved once in proxy. The clinic context title may consume that value
+    // only when the branded Host and the enrollment-selected organization are the same tenant.
+    const resolvedPatientBrand =
+      resolvedSurface.surface === 'patient_branded' &&
+      resolvedSurface.organizationId === patientOrganizationId
+        ? resolvedSurface.effectivePatientBrand
+        : null;
     const patientBrandingContext = {
       ...patientContext,
       organization: {
         ...patientContext.organization,
-        title: effectiveBranding?.effectiveDisplayName ?? patientContext.organization.title,
+        title: resolvedPatientBrand?.effectiveDisplayName ?? patientContext.organization.title,
       },
     };
     if (!patientPathAllowsGlobalAccountWithoutCareContext(pathname)) {
