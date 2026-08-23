@@ -18,8 +18,5 @@ export const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
 
 export const OPERATOR_BACKUP_JOB_FAMILY = 'backup';
 
-export const OPERATOR_SPECIALIST_TASKS_JOB_FAMILY = 'specialist_tasks';
-export const OPERATOR_SPECIALIST_TASK_REMINDERS_TICK_JOB_KEY = 'specialist_task_reminders.tick';
-
 export const OPERATOR_SAAS_BILLING_JOB_FAMILY = 'saas_billing';
 export const OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY = 'saas_billing_renewal.tick';

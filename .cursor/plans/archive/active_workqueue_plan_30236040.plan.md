@@ -114,7 +114,6 @@ isProject: false
 
 - Drizzle `specialist_tasks`, миграция `0102_specialist_tasks.sql`; модуль `apps/webapp/src/modules/specialist-tasks/`.
 - API: `GET/POST /api/doctor/tasks`, `PATCH/DELETE/POST …/complete`, `GET/POST …/clients/:userId/tasks`, `GET …/tasks/summary`.
-- Internal: `POST /api/internal/specialist-task-reminders/tick` (Bearer `INTERNAL_JOB_SECRET`); registry `cronJobRegistry`.
 - Настройки: `doctor_specialist_task_reminder_channels` (`ALLOWED_KEYS`, `/app/settings`, doctor-scope).
 - Доставка: telegram, max, email, web_push на `owner_user_id` (**SMS не используется**).
 - UI: `PatientSpecialistTasksSection`, `PatientCareBar` + `PatientActionStrip` (чип «Задачи»), `DoctorGlobalTasksSection` на «Сегодня».
