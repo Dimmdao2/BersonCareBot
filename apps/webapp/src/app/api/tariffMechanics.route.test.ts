@@ -47,8 +47,8 @@ vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
   checkAuthConfirmRateLimit: vi.fn().mockResolvedValue({ limited: false }),
 }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
-  withDoctorWorkspacePrincipal: vi.fn(
-    <T>(_ctx: unknown, _operation: string, fn: () => T): T => fn(),
+  withDoctorWorkspacePrincipal: vi.fn(<T>(_ctx: unknown, _operation: string, fn: () => T): T =>
+    fn(),
   ),
 }));
 vi.mock('@/app-layer/guards/doctorWorkspacePrincipal', () => ({
@@ -344,7 +344,9 @@ describe('tariff and platform mutation gates', () => {
 
     expect(response.status).toBe(403);
     expect(requireEntitlementForRead).toHaveBeenCalledWith(workspace, 'warmups');
-    expect(buildAppDeps().doctorClientsPort.getClientIdentityForOrganization).not.toHaveBeenCalled();
+    expect(
+      buildAppDeps().doctorClientsPort.getClientIdentityForOrganization,
+    ).not.toHaveBeenCalled();
   });
 
   it('keeps an existing warmup schedule readable in read-only access', async () => {
@@ -665,30 +667,19 @@ describe('tariff and platform mutation gates', () => {
 
   it('writes a clinic delivery credential only to the authenticated clinic organization and redacts the response', async () => {
     vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
-    const getSetting = vi.fn().mockImplementation(async (key: string) =>
-      key === 'platform_integration_availability'
-        ? {
-            key,
-            scope: 'admin',
-            organizationId: null,
-            valueJson: {
-              value: {
-                version: 1,
-                integrations: {
-                  telegram: true,
-                  max: true,
-                  vk: true,
-                  email: true,
-                  smsc: true,
-                  web_push: true,
-                  google_calendar: true,
-                  yandex_calendar: false,
-                },
-              },
-            },
-          }
-        : null,
-    );
+    const getClinicPlatformIntegrationAvailability = vi.fn().mockResolvedValue({
+      version: 1,
+      integrations: {
+        telegram: true,
+        max: true,
+        vk: true,
+        email: true,
+        smsc: true,
+        web_push: true,
+        google_calendar: true,
+        yandex_calendar: false,
+      },
+    });
     const updateSetting = vi.fn().mockResolvedValue({
       key: 'clinic_telegram_bot_token',
       scope: 'admin',
@@ -697,8 +688,9 @@ describe('tariff and platform mutation gates', () => {
       updatedAt: '2026-08-02T00:00:00.000Z',
       updatedBy: USER_ID,
     });
+    const getSetting = vi.fn().mockResolvedValue(null);
     vi.mocked(buildAppDeps).mockReturnValue({
-      systemSettings: { getSetting, updateSetting },
+      systemSettings: { getClinicPlatformIntegrationAvailability, getSetting, updateSetting },
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await updateAdminSetting(
@@ -744,29 +736,18 @@ describe('tariff and platform mutation gates', () => {
 
   it('does not configure a clinic channel while the platform integration is globally disabled', async () => {
     vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
-    const getSetting = vi.fn().mockImplementation(async (key: string) =>
-      key === 'platform_integration_availability'
-        ? {
-            key,
-            scope: 'admin',
-            organizationId: null,
-            valueJson: {
-              value: {
-                version: 1,
-                integrations: {
-                  telegram: false,
-                  max: true,
-                  email: true,
-                  smsc: true,
-                  web_push: true,
-                  google_calendar: true,
-                  yandex_calendar: false,
-                },
-              },
-            },
-          }
-        : null,
-    );
+    const getClinicPlatformIntegrationAvailability = vi.fn().mockResolvedValue({
+      version: 1,
+      integrations: {
+        telegram: false,
+        max: true,
+        email: true,
+        smsc: true,
+        web_push: true,
+        google_calendar: true,
+        yandex_calendar: false,
+      },
+    });
     const updateSetting = vi.fn().mockResolvedValue({
       key: 'clinic_telegram_bot_token',
       scope: 'admin',
@@ -776,7 +757,7 @@ describe('tariff and platform mutation gates', () => {
       updatedBy: USER_ID,
     });
     vi.mocked(buildAppDeps).mockReturnValue({
-      systemSettings: { getSetting, updateSetting },
+      systemSettings: { getClinicPlatformIntegrationAvailability, updateSetting },
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await updateAdminSetting(
@@ -787,7 +768,48 @@ describe('tariff and platform mutation gates', () => {
     );
 
     expect(response.status).toBe(403);
-    await expect(response.json()).resolves.toMatchObject({ error: 'integration_disabled' });
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'integration_disabled',
+      message: 'Интеграция отключена платформой.',
+    });
+    expect(updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('returns a logged server failure instead of pretending an unreadable switch is disabled', async () => {
+    vi.mocked(requireEntitlementForMutation).mockResolvedValue({ ok: true });
+    const readFailure = Object.assign(new Error('permission denied for function'), {
+      code: '42501',
+    });
+    const getClinicPlatformIntegrationAvailability = vi.fn().mockRejectedValue(readFailure);
+    const updateSetting = vi.fn();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.mocked(buildAppDeps).mockReturnValue({
+      systemSettings: { getClinicPlatformIntegrationAvailability, updateSetting },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    const response = await updateAdminSetting(
+      request('https://app.example.test/api/admin/settings', {
+        key: 'clinic_smtp_outbound',
+        value: {
+          host: 'smtp.clinic.test',
+          port: 587,
+          secure: false,
+          user: 'clinic',
+          password: 'secret',
+          from: 'clinic@example.test',
+        },
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'integration_availability_unavailable',
+      message: 'Сервер не смог проверить доступность интеграции. Повторите позже.',
+    });
+    expect(log).toHaveBeenCalledWith(
+      '[clinic-delivery] platform integration availability read failed',
+      expect.objectContaining({ organizationId: ORG_ID, integration: 'email', error: readFailure }),
+    );
     expect(updateSetting).not.toHaveBeenCalled();
   });
 
@@ -811,12 +833,11 @@ describe('tariff and platform mutation gates', () => {
   });
 
   it('refuses creating a CMS section in the warmups cluster', async () => {
-    vi.mocked(requireEntitlementForMutationAction)
-      .mockResolvedValueOnce({
-        ok: false,
-        reason: 'entitlement_required',
-        mechanic: 'warmups',
-      } as never);
+    vi.mocked(requireEntitlementForMutationAction).mockResolvedValueOnce({
+      ok: false,
+      reason: 'entitlement_required',
+      mechanic: 'warmups',
+    } as never);
     const form = new FormData();
     form.set('slug', 'daily-warmups');
     form.set('title', 'Разминки');
@@ -999,9 +1020,12 @@ describe('tariff and platform mutation gates', () => {
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await deletePatientFile(
-      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
-        method: 'DELETE',
-      }),
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
       { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
     );
 
@@ -1026,9 +1050,12 @@ describe('tariff and platform mutation gates', () => {
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await deletePatientFile(
-      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
-        method: 'DELETE',
-      }),
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
       { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
     );
 
@@ -1059,9 +1086,12 @@ describe('tariff and platform mutation gates', () => {
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await deletePatientFile(
-      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
-        method: 'DELETE',
-      }),
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
       { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
     );
 
@@ -1117,9 +1147,12 @@ describe('tariff and platform mutation gates', () => {
     } as unknown as ReturnType<typeof buildAppDeps>);
 
     const response = await deletePatientFile(
-      new Request('https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID, {
-        method: 'DELETE',
-      }),
+      new Request(
+        'https://app.example.test/api/doctor/patients/' + TARGET_ID + '/files/' + USER_ID,
+        {
+          method: 'DELETE',
+        },
+      ),
       { params: Promise.resolve({ userId: TARGET_ID, fileId: USER_ID }) },
     );
 
@@ -1244,9 +1277,10 @@ describe('tariff and platform mutation gates', () => {
       }),
     } as unknown as ReturnType<typeof buildAppDeps>);
 
-    await expect(
-      saveOrgBranding({ displayName: 'Клиника', logoMediaId: null }),
-    ).resolves.toEqual({ ok: false, error: 'entitlement_disabled' });
+    await expect(saveOrgBranding({ displayName: 'Клиника', logoMediaId: null })).resolves.toEqual({
+      ok: false,
+      error: 'entitlement_disabled',
+    });
     expect(brandingPort.saveDraft).not.toHaveBeenCalled();
     expect(brandingPort.publishDraft).not.toHaveBeenCalled();
   });
@@ -1284,7 +1318,11 @@ describe('tariff and platform mutation gates', () => {
       unarchiveDoctorExerciseCore(archiveForm),
     ]);
 
-    expect(createResult).toMatchObject({ ok: true, exerciseId: 'created-exercise', wasUpdate: false });
+    expect(createResult).toMatchObject({
+      ok: true,
+      exerciseId: 'created-exercise',
+      wasUpdate: false,
+    });
     expect(updateResult).toMatchObject({ ok: true, exerciseId: TARGET_ID, wasUpdate: true });
     expect(archiveResult).toMatchObject({ kind: 'archived', id: TARGET_ID });
     expect(unarchiveResult).toMatchObject({ kind: 'unarchived', id: TARGET_ID });

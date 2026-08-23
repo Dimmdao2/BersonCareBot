@@ -74,6 +74,11 @@ export type SystemSettingsPort = {
 export type RestrictedSettingsRepository = SystemSettingsPort;
 
 export type RuntimeSettingsRepository = {
+  /**
+   * Fixed clinic-facing projection of the global integration registry. The PostgreSQL
+   * implementation uses a staff-context named root and never exposes general platform settings.
+   */
+  getClinicPlatformIntegrationAvailability(): Promise<RuntimeSettingRow | null>;
   getEffective(input: {
     key: string;
     scope: string;

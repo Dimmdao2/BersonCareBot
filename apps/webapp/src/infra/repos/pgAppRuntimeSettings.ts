@@ -37,6 +37,24 @@ function toRuntimeSetting(row: RuntimeSettingDbRow): RuntimeSettingRow {
 
 export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
   return {
+    async getClinicPlatformIntegrationAvailability() {
+      const result = await runWithWebappDbOperationFamily(
+        'clinic_platform_integration_availability',
+        () =>
+          runWebappNamedRoot<RuntimeSettingDbRow>(
+            getWebappSqlDb(),
+            'app.read_clinic_platform_integration_availability()',
+            [],
+            sql`SELECT 'platform_integration_availability'::text AS key,
+                       'admin'::text AS scope,
+                       NULL::uuid AS organization_id,
+                       'server'::text AS audience,
+                       app.read_clinic_platform_integration_availability() AS value_json`,
+          ),
+      );
+      const row = result.rows[0];
+      return row?.value_json == null ? null : toRuntimeSetting(row);
+    },
     async getEffective(input) {
       if (
         input.organizationId === null &&

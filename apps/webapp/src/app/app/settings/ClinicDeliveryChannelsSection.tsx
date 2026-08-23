@@ -6,8 +6,14 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { SecretSettingInput } from './SecretSettingInput';
+import {
+  isPlatformIntegrationAvailable,
+  type PlatformIntegrationAvailability,
+} from '@/modules/system-settings/platformIntegrationAvailability';
 
 type ClinicDeliveryChannelsSectionProps = {
+  platformAvailability: PlatformIntegrationAvailability | null;
+  smtpEntitled: boolean;
   initial: {
     smtp: {
       configured: boolean;
@@ -34,7 +40,11 @@ async function saveSetting(key: string, value: unknown): Promise<void> {
   });
 }
 
-export function ClinicDeliveryChannelsSection({ initial }: ClinicDeliveryChannelsSectionProps) {
+export function ClinicDeliveryChannelsSection({
+  initial,
+  platformAvailability,
+  smtpEntitled,
+}: ClinicDeliveryChannelsSectionProps) {
   const [smtp, setSmtp] = useState({ ...initial.smtp, password: '' });
   const [smtpConfigured, setSmtpConfigured] = useState(initial.smtp.configured);
   const [error, setError] = useState<string | null>(null);
@@ -50,108 +60,140 @@ export function ClinicDeliveryChannelsSection({ initial }: ClinicDeliveryChannel
           Рассылки используют только подключённый канал клиники. Коды, напоминания и уведомления
           сначала используют его, затем канал платформы.
         </p>
-        <section className="flex flex-col gap-2">
-          <p className="text-sm font-semibold">SMTP</p>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <Input
-              value={smtp.host}
-              onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
-              placeholder="SMTP host"
-            />
-            <Input
-              value={smtp.port}
-              onChange={(e) => setSmtp({ ...smtp, port: e.target.value })}
-              placeholder="Порт"
-              inputMode="numeric"
-            />
-            <Input
-              value={smtp.user}
-              onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
-              placeholder="Пользователь"
-            />
-            <Input
-              value={smtp.from}
-              onChange={(e) => setSmtp({ ...smtp, from: e.target.value })}
-              placeholder="Адрес отправителя"
-              type="email"
-            />
-            <Input
-              value={smtp.password}
-              onChange={(e) => setSmtp({ ...smtp, password: e.target.value })}
-              placeholder={smtpConfigured ? 'Пароль — только для замены' : 'Пароль'}
-              type="password"
-            />
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={smtp.secure}
-                onChange={(e) => setSmtp({ ...smtp, secure: e.target.checked })}
-              />{' '}
-              TLS сразу
-            </label>
-          </div>
-          <Button
-            type="button"
-            size="sm"
-            className="w-fit"
-            disabled={pending}
-            onClick={() =>
-              startTransition(async () => {
-                setError(null);
-                try {
-                  await saveSetting('clinic_smtp_outbound', {
-                    host: smtp.host,
-                    port: smtp.port,
-                    secure: smtp.secure,
-                    user: smtp.user,
-                    password: smtp.password,
-                    from: smtp.from,
-                  });
-                  setSmtp({ ...smtp, password: '' });
-                  setSmtpConfigured(true);
-                } catch (cause) {
-                  setError(cause instanceof Error ? cause.message : 'Не удалось сохранить SMTP');
-                }
-              })
-            }
-          >
-            Сохранить SMTP
-          </Button>
-          <p className="text-xs text-muted-foreground">
-            {smtpConfigured ? 'Подключён' : 'Не подключён'}
+        {platformAvailability === null ? (
+          <p className="text-sm text-destructive">
+            Сервер не смог загрузить доступные каналы. Повторите позже.
           </p>
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
-        </section>
-        <SecretSettingInput
-          title="SMS"
-          description="API-ключ SMSC клиники."
-          settingKey="clinic_smsc_api_key"
-          configured={initial.smsConfigured}
-          saveSetting={saveSetting}
-        />
-        <SecretSettingInput
-          title="Telegram-бот"
-          description="Токен dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у Telegram."
-          settingKey="clinic_telegram_bot_token"
-          configured={initial.telegramConfigured}
-          saveSetting={saveSetting}
-          webhookPath={initial.telegramWebhookPath}
-        />
-        <SecretSettingInput
-          title="MAX-бот"
-          description="API-ключ dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у MAX."
-          settingKey="clinic_max_bot_api_key"
-          configured={initial.maxConfigured}
-          saveSetting={saveSetting}
-          webhookPath={initial.maxWebhookPath}
-        />
-        <SecretSettingInput
-          title="Сообщество VK"
-          description="Токен сообщества для исходящих сообщений от имени клиники. Входящий Callback API остаётся у сообщества платформы."
-          settingKey="clinic_vk_community_access_token"
-          configured={initial.vkConfigured}
-          saveSetting={saveSetting}
-        />
+        ) : null}
+        {platformAvailability !== null &&
+        isPlatformIntegrationAvailable(platformAvailability, 'email') ? (
+          <section className="flex flex-col gap-2">
+            <p className="text-sm font-semibold">SMTP</p>
+            {!smtpEntitled ? (
+              <p className="text-xs text-muted-foreground">
+                Собственный SMTP недоступен на вашем тарифе.
+              </p>
+            ) : (
+              <>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Input
+                    value={smtp.host}
+                    onChange={(e) => setSmtp({ ...smtp, host: e.target.value })}
+                    placeholder="SMTP host"
+                  />
+                  <Input
+                    value={smtp.port}
+                    onChange={(e) => setSmtp({ ...smtp, port: e.target.value })}
+                    placeholder="Порт"
+                    inputMode="numeric"
+                  />
+                  <Input
+                    value={smtp.user}
+                    onChange={(e) => setSmtp({ ...smtp, user: e.target.value })}
+                    placeholder="Пользователь"
+                  />
+                  <Input
+                    value={smtp.from}
+                    onChange={(e) => setSmtp({ ...smtp, from: e.target.value })}
+                    placeholder="Адрес отправителя"
+                    type="email"
+                  />
+                  <Input
+                    value={smtp.password}
+                    onChange={(e) => setSmtp({ ...smtp, password: e.target.value })}
+                    placeholder={smtpConfigured ? 'Пароль — только для замены' : 'Пароль'}
+                    type="password"
+                  />
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={smtp.secure}
+                      onChange={(e) => setSmtp({ ...smtp, secure: e.target.checked })}
+                    />{' '}
+                    TLS сразу
+                  </label>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-fit"
+                  disabled={pending}
+                  onClick={() =>
+                    startTransition(async () => {
+                      setError(null);
+                      try {
+                        await saveSetting('clinic_smtp_outbound', {
+                          host: smtp.host,
+                          port: smtp.port,
+                          secure: smtp.secure,
+                          user: smtp.user,
+                          password: smtp.password,
+                          from: smtp.from,
+                        });
+                        setSmtp({ ...smtp, password: '' });
+                        setSmtpConfigured(true);
+                      } catch (cause) {
+                        setError(
+                          cause instanceof Error && cause.message.trim()
+                            ? cause.message
+                            : 'Сервер не смог сохранить SMTP. Повторите позже.',
+                        );
+                      }
+                    })
+                  }
+                >
+                  Сохранить SMTP
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  {smtpConfigured ? 'Подключён' : 'Не подключён'}
+                </p>
+                {error ? <p className="text-xs text-destructive">{error}</p> : null}
+              </>
+            )}
+          </section>
+        ) : null}
+        {platformAvailability !== null &&
+        isPlatformIntegrationAvailable(platformAvailability, 'smsc') ? (
+          <SecretSettingInput
+            title="SMS"
+            description="API-ключ SMSC клиники."
+            settingKey="clinic_smsc_api_key"
+            configured={initial.smsConfigured}
+            saveSetting={saveSetting}
+          />
+        ) : null}
+        {platformAvailability !== null &&
+        isPlatformIntegrationAvailable(platformAvailability, 'telegram') ? (
+          <SecretSettingInput
+            title="Telegram-бот"
+            description="Токен dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у Telegram."
+            settingKey="clinic_telegram_bot_token"
+            configured={initial.telegramConfigured}
+            saveSetting={saveSetting}
+            webhookPath={initial.telegramWebhookPath}
+          />
+        ) : null}
+        {platformAvailability !== null &&
+        isPlatformIntegrationAvailable(platformAvailability, 'max') ? (
+          <SecretSettingInput
+            title="MAX-бот"
+            description="API-ключ dedicated bot клиники. Укажите endpoint ниже при регистрации webhook у MAX."
+            settingKey="clinic_max_bot_api_key"
+            configured={initial.maxConfigured}
+            saveSetting={saveSetting}
+            webhookPath={initial.maxWebhookPath}
+          />
+        ) : null}
+        {platformAvailability !== null &&
+        isPlatformIntegrationAvailable(platformAvailability, 'vk') ? (
+          <SecretSettingInput
+            title="Сообщество VK"
+            description="Токен сообщества для исходящих сообщений от имени клиники. Входящий Callback API остаётся у сообщества платформы."
+            settingKey="clinic_vk_community_access_token"
+            configured={initial.vkConfigured}
+            saveSetting={saveSetting}
+          />
+        ) : null}
       </CardContent>
     </Card>
   );
