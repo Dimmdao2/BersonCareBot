@@ -1,5 +1,14 @@
 # PROD vs TEST divergence — inventory (2026-07-26)
 
+> ⛔ **УСТАРЕЛО 23.08.2026 КАК ТЕКУЩИЙ ЗАМЕР.** Это историческая read-only опись 26.07, а не инструкция к
+> восстановлению старой схемы или fresh-dump/full-reset. На HEAD `c5195315d` команда
+> `git rev-list --count origin/main..HEAD` даёт `8251`, а `git diff --stat origin/main...HEAD` — `9112 files
+> changed, 1074998 insertions(+), 775120 deletions(-)`; прежние `1831 / 3729 / +540730 −51399` ниже больше нельзя
+> цитировать как текущие. Актуальный порядок DB/TEST —
+> [`DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` §Ф8](DB_PRIVILEGE_LAYER_REBUILD/PLAN.md) и taskdb `#1085`: named DEV →
+> named TEST, без production dump и local PROD. Фактический PROD-host по-прежнему нельзя утверждать по этому
+> документу: PROD не проверялся в проходе 23.08.
+
 > **Why this exists.** Owner asked when it's time to stand up the platform on a real production server —
 > new box, correct environment/roles/users/DB — so testing stops happening somewhere it no longer reflects
 > reality. This is a **read-only inventory** of exactly how far TEST has drifted from what PROD (135.x) can

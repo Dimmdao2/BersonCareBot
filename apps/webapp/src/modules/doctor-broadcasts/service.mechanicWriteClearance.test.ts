@@ -35,6 +35,7 @@ function buildService() {
     commitAuditAndDeliveryQueue,
   } satisfies DoctorBroadcastDeliveryCommitPort;
   const service = createDoctorBroadcastsService({
+    getTopicDisplayTitle: async (topicCode: string) => `тема ${topicCode}`,
     resolveBroadcastAudience: async () => ({
       audienceSize: 0,
       recipientsPreview: { names: [], total: 0, truncated: false },

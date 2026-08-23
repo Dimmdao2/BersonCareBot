@@ -118,6 +118,7 @@ function buildMessageSendIntent(input: {
   parseMode?: 'HTML';
   imageUrl?: string;
   unsubscribeUrl?: string;
+  unsubscribeTopicTitle?: string;
 }): Record<string, unknown> {
   const occurredAt = new Date().toISOString();
   const source = input.channel === 'sms' ? 'sms' : input.channel;
@@ -149,7 +150,16 @@ function buildMessageSendIntent(input: {
       ...(input.unsubscribeUrl
         ? {
             replyMarkup: {
-              inline_keyboard: [[{ text: 'Отписаться от темы', url: input.unsubscribeUrl }]],
+              inline_keyboard: [
+                [
+                  {
+                    text: input.unsubscribeTopicTitle
+                      ? `Отписаться от «${input.unsubscribeTopicTitle}»`
+                      : 'Отписаться от темы',
+                    url: input.unsubscribeUrl,
+                  },
+                ],
+              ],
             },
           }
         : {}),
@@ -172,6 +182,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   imageUrl?: string | null;
   /** Signed, recipient-specific topic-unsubscribe URL. Messenger channels only. */
   unsubscribeUrlByUserId?: ReadonlyMap<string, string>;
+  /** Human title of the one notification topic covered by every unsubscribe URL. */
+  unsubscribeTopicTitle?: string;
 };
 
 /**
@@ -227,6 +239,7 @@ export function buildDoctorBroadcastDeliveryJobs(
               parseMode: 'HTML',
               imageUrl: input.imageUrl ?? undefined,
               unsubscribeUrl,
+              unsubscribeTopicTitle: input.unsubscribeTopicTitle,
             }),
           },
         });
@@ -253,6 +266,7 @@ export function buildDoctorBroadcastDeliveryJobs(
               deliveryChannels: ['max'],
               parseMode: 'HTML',
               unsubscribeUrl,
+              unsubscribeTopicTitle: input.unsubscribeTopicTitle,
             }),
           },
         });
