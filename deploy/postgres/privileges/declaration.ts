@@ -3961,7 +3961,9 @@ const REV10_CONTEXT = {
       execute: [
         ...BUSINESS_SEAM_FUNCTIONS['app.resolve_organization_mechanic_access(uuid,text)'].execute,
         'app_tenant_service',
+        'app_integrator_tenant_service',
       ],
+      delegatesTo: ['app.saas_billing_effective_tariff(uuid,uuid)'],
     },
     'app.enqueue_integrator_outgoing_delivery(text,text,text,text,integer,timestamp with time zone,uuid,integer)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
@@ -4057,16 +4059,24 @@ const REV10_CONTEXT = {
           evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 20260822T121000' as const },
       ],
     }),
+    // These setting roots have no webapp caller: after D17 their only live organization principal
+    // is `app_integrator_tenant_service`. Both validate the exact current organization in their
+    // bodies, so the old broad role is removed rather than retained as an unused second door.
+    'app.read_integrator_clinic_delivery_credential(text,uuid)': {
+      ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_clinic_delivery_credential(text,uuid)'],
+      execute: ['app_integrator_tenant_service'],
+    },
     // Google-календарь клиники читается ТОЛЬКО под арендной ролью. До 19.08 EXECUTE держал
     // `app_integrator_request` — принципала этого класса на пути календаря не бывает вовсе: и шаг
     // записи (`bookingLifecycleRoute` → `sync.ts`), и проба оператора приходят сюда с
     // организацией в руках. Корень был недостижим для КАЖДОГО живого вызывающего, и пустой
     // `catch` в `readConfigFromDb` превращал 42501 в «календарь у клиники не подключён».
     // Форма — как у близнеца `app.read_integrator_clinic_delivery_credential(text,uuid)`: тот же
-    // точный org-скоуп в теле, тот же `app_tenant_service`. Прав на таблицу никому не добавлено.
+    // точный org-скоуп в теле, тот же `app_integrator_tenant_service`. Прав на таблицу никому не
+    // добавлено.
     'app.read_integrator_google_calendar_setting(text,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_google_calendar_setting(text,uuid)'],
-      execute: ['app_tenant_service'],
+      execute: ['app_integrator_tenant_service'],
     },
     'app.choose_organization_first_tariff(uuid,uuid)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.choose_organization_first_tariff(uuid,uuid)'],
