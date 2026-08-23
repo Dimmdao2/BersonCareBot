@@ -1,7 +1,11 @@
 # Бриф: фикс `B3`, круг 3 — однохостовость должна определяться реальностью, а не незаданной переменной
 
 **Ветка:** `wt/night-b3-20260823` (продолжаешь её, не заводишь новую)
-**Оракул:** `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`, пункт `B3`, `Gate B`
+**Источник оракула:** `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`, пункт `B3` —
+«Реализовать один `RequestSurfaceResolver` и подключить к существующему request choke point.»
+Плюс `Gate B` того же файла.
+
+**Клон:** `/home/dev/dev-projects/bcb-wt-night-b3-20260823`, ветка `wt/night-b3-20260823`.
 **Вход:** независимый аудит круга 2, Opus 5/high, `FAIL` —
 `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/REAUDIT_NIGHT_B3_2026-08-23.md`, коммит `23556cc44`
 в дереве `/home/dev/dev-projects/bcb-wt-reaudit-b3-20260823`. **Прочитай его целиком до первой правки.**
