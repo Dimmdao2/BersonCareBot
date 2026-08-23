@@ -168,6 +168,10 @@
          построитель; census и несколько Drizzle-конверсий приземлены. Current AST-команда из
          `runs/testsuite-v2/RAW_SQL_TEXT_CENSUS.md` даёт webapp
          `{candidateFiles:71, invocationFiles:70, semanticCalls:509}` против исходных `88/87/557`.
+         ⚠️ **ФАКТ УСТАРЕЛ 2026-08-23:** последняя зафиксированная независимая сверка этой же команды дала
+         `{candidateFiles:72, invocationFiles:71, semanticCalls:513}`
+         (`docs/_TODO/runs/single-entry/RAW_SQL_EMAIL_OTP_INDEPENDENT_AUDIT_2026-08-02.md`). Числа выше
+         исторические; перед любым новым slice census нужно измерить заново, не брать их как scope.
          Это другой большой объём; переводить небольшими целыми пользовательскими путями и не считать пункт 1
          закрытым, пока категория «чистить» не дошла до нуля.
 2. **Ч7 — ЗАКРЫТО** land `c6b844bbc`, migrations `0300`–`0303`: значения настроек живут в базе,

@@ -17,6 +17,12 @@ gates) — too many OR too few = deploy FATAL. That is what took TEST down on 20
 
 ## 1. Current TEST state
 
+⚠️ **ФАКТ УСТАРЕЛ 2026-08-23.** Имена `*_integrator_login`, overlay-файлы и перечисленные ручные
+гранты больше не являются источником прав. Текущий login — `bcb_dev_integrator` /
+`bcb_test_integrator` с `canonicalRole: 'app_integrator_request'`; tenant-доступ вынесен в узкую
+`app_integrator_tenant_service` (`deploy/postgres/privileges/declaration.ts`, `relation-access.ts`; D17,
+22–23.08). Точные права, membership и RLS теперь производит только генератор из декларации.
+
 - **No live violations** — the integrator role passes both assertions it's subject to; the incident's revokes
   stuck. TEST is deploy-stable now.
 - **Legitimate grants (KEEP)** — all traced to canonical overlays, already AUTOMATED for TEST:
@@ -29,12 +35,21 @@ gates) — too many OR too few = deploy FATAL. That is what took TEST down on 20
 
 ## 2. TEST cleanup (low-risk; does NOT touch the asserted surface, restores exact canonical)
 
+⚠️ **ФАКТ УСТАРЕЛ 2026-08-23 — НЕ ВЫПОЛНЯТЬ.** Шаги 1–3 предписывают ручные `GRANT`/`REVOKE`; после
+declaration cutover это запрещено. Любая правка прав или policy идёт только через
+`deploy/postgres/privileges/declaration.ts` / `relation-access.ts` и генерацию, не миграцией и не
+операторским SQL.
+
 1. `REVOKE ALL ON ALL TABLES/SEQUENCES IN SCHEMA integrator FROM bcb_test_integrator_login;`
 2. `REVOKE ALL ON ALL ROUTINES IN SCHEMA app FROM bcb_test_integrator_login;` then re-`GRANT EXECUTE` the 4 canonical app functions.
 3. Re-run `integrator-login-public-identity-grants.sql` (idempotent) + re-grant `USAGE ON SCHEMA integrator` + `SELECT ON integrator.schema_migrations`.
 4. Verify: the two integrator assertions still pass + api restarts clean + product smoke green + watch logs for any NEW 42501 (residual risk: a code path needing a revoked grant — audit found none in `apps/integrator/src`).
 
 ## 3. PROD-migration plan (the owner's core question: automate vs manual)
+
+⚠️ **ФАКТ УСТАРЕЛ 2026-08-23 — НЕ ИСПОЛЬЗОВАТЬ ДЛЯ CUTOVER.** Предложенная closure из overlay/inline
+GRANT не соответствует действующему declaration-owned механизму. PROD остаётся вне этого документа; его
+топология должна выводиться из текущей декларации и канонического deploy runbook, а не из этого плана.
 
 **Structural finding (PROVEN by grep):** `deploy/host/deploy-prod.sh` contains **ZERO** GRANT/REVOKE and calls
 **none** of the DB-provisioning overlays. There is currently **no prod-side equivalent** of `deploy-test-saas.sh`'s
