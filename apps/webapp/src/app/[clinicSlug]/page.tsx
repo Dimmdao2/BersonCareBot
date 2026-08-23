@@ -1,11 +1,10 @@
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { publicBookPaths } from '@/shared/publicBook/paths';
+import { publicBookPaths, publicClinicCardPath } from '@/shared/publicBook/paths';
 import { titleForBookingCityCode } from '@/modules/patient-booking/inPersonServicesCatalog';
 import { ClinicCardUnavailableError } from './clinicCardUnavailable';
 import {
   clinicCardMediaPath,
-  clinicCardPath,
   loadClinicPublicCardRsc,
 } from './publicClinicCard';
 
@@ -39,7 +38,7 @@ export default async function ClinicPublicCardPage({ params }: Props) {
 
   const { card } = result;
   if (card.disposition === 'redirect') {
-    permanentRedirect(clinicCardPath(card.canonicalSlug));
+    permanentRedirect(publicClinicCardPath(card.canonicalSlug));
   }
 
   const logo = card.media.find((item) => item.role === 'logo') ?? null;

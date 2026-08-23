@@ -22,7 +22,7 @@ import {
   handlePlatformContextRequest,
 } from '@/middleware/platformContext';
 import { decideCsrfOrigin } from '@/middleware/csrfOrigin';
-import { canSurfaceEnterRoute } from '@/config/surfaceRoutes';
+import { canSurfaceEnterRoute, patientTreeRewritePath } from '@/config/surfaceRoutes';
 import {
   arePlatformSurfaceHostsDistinct,
   RESOLVED_SURFACE_HEADER,
@@ -55,10 +55,16 @@ export async function proxy(
     protocol: forwardedProtocol || request.nextUrl.protocol,
     resolveTenantSurface,
   });
+  const pathname = request.nextUrl.pathname;
+  const surfaceHostsAreDistinct = arePlatformSurfaceHostsDistinct();
+  const patientRewritePath =
+    resolvedSurface && surfaceHostsAreDistinct
+      ? patientTreeRewritePath(resolvedSurface, pathname)
+      : null;
+  const routedPathname = patientRewritePath ?? pathname;
   if (
     !resolvedSurface ||
-    (arePlatformSurfaceHostsDistinct() &&
-      !canSurfaceEnterRoute(resolvedSurface.surface, request.nextUrl.pathname))
+    (surfaceHostsAreDistinct && !canSurfaceEnterRoute(resolvedSurface.surface, routedPathname))
   ) {
     const response = new NextResponse(null, { status: 404 });
     response.headers.set('Cache-Control', 'no-store');
@@ -106,7 +112,6 @@ export async function proxy(
     return response;
   }
 
-  const pathname = request.nextUrl.pathname;
   const portal = portalForAppPath(pathname);
   if (portal && !isRoleLoginPath(pathname)) {
     const session = decodeSessionCookie(request.cookies.get(SESSION_COOKIE_NAME)?.value ?? '');
@@ -153,9 +158,18 @@ export async function proxy(
   // longer resolve product surface, but must still overwrite caller values with the real URL.
   requestHeaders.set('x-bc-pathname', pathname);
   requestHeaders.set('x-bc-search', request.nextUrl.search);
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
+  const response = patientRewritePath
+    ? NextResponse.rewrite(
+        (() => {
+          const target = request.nextUrl.clone();
+          target.pathname = patientRewritePath;
+          return target;
+        })(),
+        { request: { headers: requestHeaders } },
+      )
+    : NextResponse.next({
+        request: { headers: requestHeaders },
+      });
   applyMessengerEntryPathCookies(request, response);
   const renewed = applySessionRenewalToResponse(request, response);
   renewed.headers.set(BC_CORRELATION_ID_HEADER, correlationId);

@@ -13,3 +13,8 @@ export const publicBookPaths = {
    */
   forSlug: (slug: string) => `/${encodeURIComponent(slug)}/booking`,
 } as const;
+
+/** Canonical clinic-card path shared by the slug page and Host-based patient routing. */
+export function publicClinicCardPath(slug: string): string {
+  return `/${encodeURIComponent(slug)}`;
+}

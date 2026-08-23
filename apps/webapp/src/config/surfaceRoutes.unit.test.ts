@@ -59,6 +59,7 @@ describe('surface route audience', () => {
     ['/app/contact-support', 'shared'],
     ['/app/doctor/login', 'staff'],
     ['/app/admin/system-health', 'staff'],
+    ['/specialists', 'staff'],
     ['/app/patient/login', 'patient'],
     ['/book/clinic-a', 'patient'],
     ['/clinic-a', 'patient'],
@@ -72,6 +73,8 @@ describe('surface route audience', () => {
     expect(canSurfaceEnterRoute('patient_default', '/')).toBe(true);
     expect(canSurfaceEnterRoute('patient_branded', '/')).toBe(true);
     expect(canSurfaceEnterRoute('staff', '/app/doctor/login')).toBe(true);
+    expect(canSurfaceEnterRoute('patient_default', '/specialists')).toBe(false);
+    expect(canSurfaceEnterRoute('patient_branded', '/specialists')).toBe(false);
     expect(canSurfaceEnterRoute('patient_default', '/app/doctor/login')).toBe(false);
     expect(canSurfaceEnterRoute('patient_branded', '/app/patient/login')).toBe(true);
     expect(canSurfaceEnterRoute('staff', '/app/patient/login')).toBe(false);
