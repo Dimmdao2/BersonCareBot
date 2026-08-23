@@ -28,6 +28,7 @@ vi.mock('@/shared/ui/doctor/shell/DoctorPageHeader', () => ({
 
 const emptyDashboardData: TodayDashboardData = {
   todayAppointments: [],
+  nextAppointment: null,
   weekAppointments: [],
   monthAppointments: [],
   unreadConversations: [],
@@ -37,6 +38,9 @@ const emptyDashboardData: TodayDashboardData = {
   peopleCount: 0,
   people: [],
   peopleListTruncated: false,
+  onSupportPeopleCount: 0,
+  onSupportPeople: [],
+  onSupportPeopleListTruncated: false,
   globalOpenTasks: [],
   globalTaskPatientNames: {},
   globalOpenTasksTotal: 0,

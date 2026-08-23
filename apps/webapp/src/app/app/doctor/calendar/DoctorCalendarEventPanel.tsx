@@ -56,21 +56,10 @@ import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { canUseOwnSpecialistAppointmentActions } from '@/modules/doctor-schedule/scope';
 import { AppointmentPaymentSection } from './AppointmentPaymentSection';
-
-// R21: причины отмены, отправляемые как reason в API.
-const CANCEL_REASONS = [
-  { value: 'Пациент перенёс', label: 'Пациент перенёс' },
-  { value: 'Пациент отменил', label: 'Пациент отменил' },
-  { value: 'Не пришёл', label: 'Не пришёл' },
-  { value: 'По состоянию здоровья', label: 'По состоянию здоровья' },
-  { value: 'Другая', label: 'Другая' },
-] as const;
-
-// R21: бесплатная/штрафная → decisionType API.
-const CANCEL_CHARGE = [
-  { value: 'free', label: 'Бесплатная' },
-  { value: 'penalized', label: 'Штрафная' },
-] as const;
+import {
+  APPOINTMENT_CANCEL_CHARGE_OPTIONS,
+  APPOINTMENT_CANCEL_REASONS,
+} from './appointmentCancellationOptions';
 
 // R20: классификация уже отменённой записи (бесплатная/платная) — пока нефункц. плейсхолдер.
 const POST_CANCEL_CLASS = [
@@ -753,13 +742,14 @@ function DoctorCalendarEventPanelInner({
           <Select value={cancelReason} onValueChange={(v) => setCancelReason(v ?? '')}>
             <SelectTrigger
               displayLabel={
-                CANCEL_REASONS.find((r) => r.value === cancelReason)?.label ?? 'Выберите причину'
+                APPOINTMENT_CANCEL_REASONS.find((r) => r.value === cancelReason)?.label ??
+                'Выберите причину'
               }
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CANCEL_REASONS.map((r) => (
+              {APPOINTMENT_CANCEL_REASONS.map((r) => (
                 <SelectItem key={r.value} value={r.value} label={r.label}>
                   {r.label}
                 </SelectItem>
@@ -779,7 +769,7 @@ function DoctorCalendarEventPanelInner({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {CANCEL_CHARGE.map((c) => (
+              {APPOINTMENT_CANCEL_CHARGE_OPTIONS.map((c) => (
                 <SelectItem key={c.value} value={c.value} label={c.label}>
                   {c.label}
                 </SelectItem>

@@ -279,13 +279,7 @@
 
 @layer base {
   :where(#app-shell-patient) :where(h1, h2, h3) {
-    font-family:
-      var(--font-roboto-heading),
-      var(--font-sans),
-      -apple-system,
-      BlinkMacSystemFont,
-      'Segoe UI',
-      sans-serif;
+    font-family: var(--font-manrope);
     font-weight: var(--patient-shell-heading-font-weight);
   }
 }

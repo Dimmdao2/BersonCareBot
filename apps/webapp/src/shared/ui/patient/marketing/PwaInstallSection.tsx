@@ -87,7 +87,7 @@ export function PwaInstallSection() {
     >
       <h2
         id="pwa-install-heading"
-        className="font-[family-name:var(--font-roboto-heading)] text-lg font-semibold text-[#284da0]"
+        className="font-sans text-lg font-semibold text-[#284da0]"
       >
         Установить приложение
       </h2>

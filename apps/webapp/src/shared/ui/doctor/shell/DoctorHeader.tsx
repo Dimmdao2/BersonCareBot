@@ -1,9 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
-import { ArrowLeft, Home, Menu, MessageCircle, Users } from 'lucide-react';
+import { ArrowLeft, Menu } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
 import { cn } from '@/lib/utils';
@@ -13,10 +12,11 @@ import {
   DOCTOR_HEADER_INNER_CLASS,
   DOCTOR_MOBILE_HEADER_HEIGHT_VAR,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import { routePaths } from '@/app-layer/routes/paths';
 import { getDoctorScreenTitle } from '@/shared/ui/doctorScreenTitles';
+import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
+import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
@@ -27,8 +27,6 @@ type DoctorHeaderProps = {
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
   enableBadgePolling?: boolean;
-  homeHref?: string;
-  showClinicalShortcuts?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
   menuKind?: 'doctor' | 'platform';
 };
@@ -46,16 +44,16 @@ export function DoctorHeader({
   patientLabel,
   hideMenuOnDesktop,
   enableBadgePolling,
-  homeHref = routePaths.doctor,
-  showClinicalShortcuts = true,
   menuKind = 'doctor',
 }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
-  const title = getDoctorScreenTitle(pathname);
+  const shellChrome = useDoctorShellChrome();
+  const title = shellChrome?.title ?? getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
   const headerRef = useRef<HTMLElement>(null);
-  const showBack = pathname !== homeHref && pathname !== `${homeHref}/`;
+  const backHref = shellChrome?.backHref;
+  const showBack = Boolean(backHref);
   // Глобальная шапка видна только на <md (на md+ — `md:hidden`, offsetHeight → 0),
   // поэтому пишем именно высоту мобильной шапки.
   useReportShellChromeHeight(headerRef, DOCTOR_MOBILE_HEADER_HEIGHT_VAR);
@@ -63,8 +61,8 @@ export function DoctorHeader({
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const goBack = useCallback(() => {
-    router.back();
-  }, [router]);
+    if (backHref) router.push(backHref);
+  }, [backHref, router]);
 
   return (
     <>
@@ -79,14 +77,14 @@ export function DoctorHeader({
         )}
       >
         <div className={DOCTOR_HEADER_INNER_CLASS}>
-          <div className="flex min-w-0 shrink-0 items-center gap-1">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
             {showBack ? (
               <Button
                 type="button"
                 variant="ghost"
                 size="icon"
                 className={HEADER_ICON_CLASS}
-                aria-label="Назад"
+                aria-label={shellChrome?.backLabel ?? 'Назад'}
                 onClick={goBack}
               >
                 <ArrowLeft
@@ -95,24 +93,8 @@ export function DoctorHeader({
                   aria-hidden
                 />
               </Button>
-            ) : (
-              <span className="inline-flex w-10 shrink-0" aria-hidden />
-            )}
-            <Link
-              href={homeHref}
-              prefetch={false}
-              aria-label="Дашборд"
-              className={HEADER_ICON_CLASS}
-            >
-              <Home className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-            </Link>
-          </div>
-
-          <div className="flex min-w-0 flex-1 items-center justify-center gap-1.5">
-            <p
-              className="min-w-0 truncate text-center text-sm font-normal text-muted-foreground"
-              title={title}
-            >
+            ) : null}
+            <p className={cn(doctorPageTitleClass, 'min-w-0 truncate text-left')} title={title}>
               {title}
             </p>
             {isPlatformOperator ? (
@@ -122,31 +104,7 @@ export function DoctorHeader({
             ) : null}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
-            {showClinicalShortcuts ? (
-              <>
-                <Link
-                  href={routePaths.doctorPatients}
-                  prefetch={false}
-                  aria-label={patientLabel ?? 'Пациенты'}
-                  className={HEADER_ICON_CLASS}
-                >
-                  <Users className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-                </Link>
-                <Link
-                  href={routePaths.doctorCommunications}
-                  prefetch={false}
-                  aria-label="Коммуникации"
-                  className={HEADER_ICON_CLASS}
-                >
-                  <MessageCircle
-                    className="size-[22px]"
-                    strokeWidth={NAV_STRIP_ICON_STROKE}
-                    aria-hidden
-                  />
-                </Link>
-              </>
-            ) : null}
+          <div className="flex shrink-0 items-center">
             <Button
               type="button"
               id="doctor-menu-toggle"
