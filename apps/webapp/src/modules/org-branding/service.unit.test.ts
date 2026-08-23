@@ -73,6 +73,24 @@ describe('organization branding entitlement ladder', () => {
     expect(port.publishDraft).toHaveBeenCalledWith({ organizationId, actorPlatformUserId });
   });
 
+  it('refuses a 101-character paid clinic-name override instead of shortening it', async () => {
+    const port = brandingPort();
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+    const ctx = {
+      organizationId,
+      actorPlatformUserId,
+      hasOrganizationManagementCapability: true as const,
+    };
+
+    await expect(
+      service.saveDraft(ctx, { displayName: 'К'.repeat(101), logoMediaId: null }),
+    ).rejects.toThrow('organization_name_too_long');
+    expect(port.saveDraft).not.toHaveBeenCalled();
+  });
+
   it('returns platform presentation to a patient/public consumer while disabled, then restores the retained brand after re-enable', async () => {
     let currentAccess = access('disabled');
     const service = createOrgBrandingService({

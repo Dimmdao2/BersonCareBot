@@ -165,9 +165,7 @@ function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | 
   const accentToken = candidate.accentToken?.trim().toLowerCase();
   if (
     !effectiveDisplayName ||
-    effectiveDisplayName.length > 120 ||
     !patientAppName ||
-    patientAppName.length > 120 ||
     !accentToken ||
     !/^#[0-9a-f]{6}$/.test(accentToken)
   ) {
