@@ -7,6 +7,7 @@ import { staffPwaLayoutMetadata } from './staffPwaLayoutMetadata';
 import { buildStaffPwaManifest, STAFF_PWA_MANIFEST_PATH } from './staffPwaManifest';
 import {
   DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  surfaceDisplayName,
   surfaceAccentToken,
   type ResolvedSurface,
 } from '@/shared/lib/surface/requestSurface';
@@ -110,5 +111,48 @@ describe('installed PWA contract survives the surface rename', () => {
       short_name: STAFF_SURFACE.name,
     });
     expect(staff.id).not.toBe(buildPatientPwaManifest(PATIENT_RESOLVED).id);
+  });
+});
+
+/**
+ * `TPB-08`: брендинг клиники влияет ТОЛЬКО на пациентскую поверхность. До этого блока обе
+ * staff-проверки выше читали константу `staffPwaLayoutMetadata` напрямую, поэтому подмена ветки
+ * в самом `surfaceLayoutMetadata`/`surfaceDisplayName` (staff уходит в пациентскую идентичность
+ * или подхватывает бренд арендатора) оставалась зелёной. Здесь спрашиваем именно резолвер.
+ */
+describe('TPB-08: бренд арендатора не пересекает границу поверхности', () => {
+  const PLATFORM_ADMIN_RESOLVED: ResolvedSurface = {
+    surface: 'platform_admin',
+    publicOrigin: STAFF_SURFACE.origin,
+    authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.platform_admin,
+  };
+
+  /** Брендированный арендатор «дотянулся» до staff-запроса — имя обязано остаться платформенным. */
+  const STAFF_WITH_TENANT_BRAND: ResolvedSurface = {
+    ...STAFF_RESOLVED,
+    organizationId: BRANDED_RESOLVED.organizationId,
+    effectivePatientBrand: BRANDED_RESOLVED.effectivePatientBrand,
+  };
+
+  it.each([
+    ['staff', STAFF_RESOLVED],
+    ['platform_admin', PLATFORM_ADMIN_RESOLVED],
+    ['staff с брендом арендатора в запросе', STAFF_WITH_TENANT_BRAND],
+  ])('%s видит Therapysto в метаданных документа и в имени поверхности', (_label, resolved) => {
+    expect(surfaceDisplayName(resolved)).toBe(STAFF_SURFACE.name);
+    expect(surfaceLayoutMetadata(resolved)).toMatchObject({
+      title: STAFF_SURFACE.name,
+      manifest: STAFF_PWA_MANIFEST_PATH,
+      appleWebApp: { title: STAFF_SURFACE.name },
+    });
+    const serialized = JSON.stringify(surfaceLayoutMetadata(resolved));
+    expect(serialized).not.toContain(PATIENT_DEFAULT_SURFACE.name);
+    expect(serialized).not.toContain('Clinic A Care');
+  });
+
+  it('пациентские поверхности при этом НЕ показывают имя staff-платформы', () => {
+    for (const resolved of [PATIENT_RESOLVED, BRANDED_RESOLVED]) {
+      expect(JSON.stringify(surfaceLayoutMetadata(resolved))).not.toContain(STAFF_SURFACE.name);
+    }
   });
 });
