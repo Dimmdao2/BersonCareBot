@@ -43,8 +43,7 @@ allowed_keys=(
   CLINIC_TLS_CERTIFICATE_PATH CLINIC_TLS_CERTIFICATE_KEY_PATH APP_BASE_URL PATIENT_APP_ORIGIN
   YANDEX_OAUTH_REDIRECT_URIS CERT_EXPIRY_WARN_DAYS
 )
-legacy_fixture_keys=(TLS_CERTIFICATE_PATH TLS_CERTIFICATE_KEY_PATH)
-is_allowed_key() { local key; for key in "${allowed_keys[@]}" "${legacy_fixture_keys[@]}"; do [[ "$key" == "$1" ]] && return 0; done; return 1; }
+is_allowed_key() { local key; for key in "${allowed_keys[@]}"; do [[ "$key" == "$1" ]] && return 0; done; return 1; }
 load_host_map() {
   local line key value
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -57,16 +56,6 @@ load_host_map() {
     [[ "$value" != *[[:space:]\'\"\`\\\$\;\&\|\(\)\<\>]* ]] || die "$key contains unsafe characters"
     map_values[$key]=$value
   done <"$HOST_MAP"
-  # The independent CLI oracle predates the split certificate model and uses a
-  # non-routable *.test.example fixture. Keep that fixture executable without
-  # accepting the legacy pair for any operator map.
-  if [[ -n ${map_values[TLS_CERTIFICATE_PATH]:-} && -n ${map_values[TLS_CERTIFICATE_KEY_PATH]:-} && -z ${map_values[PLATFORM_TLS_CERTIFICATE_PATH]:-} ]]; then
-    [[ ${map_values[STAFF_HOST]:-} == *.test.example && ${map_values[PLATFORM_ADMIN_HOST]:-} == *.test.example && ${map_values[PATIENT_DEFAULT_HOST]:-} == *.test.example && ${map_values[PATIENT_BRANDED_HOST]:-} == *.test.example && ${map_values[CLINIC_CUSTOM_HOST]:-} == *.test.example ]] || die "legacy TLS map fields are only accepted for the non-routable acceptance fixture"
-    map_values[PLATFORM_TLS_CERTIFICATE_PATH]=${map_values[TLS_CERTIFICATE_PATH]}
-    map_values[PLATFORM_TLS_CERTIFICATE_KEY_PATH]=${map_values[TLS_CERTIFICATE_KEY_PATH]}
-    map_values[CLINIC_TLS_CERTIFICATE_PATH]=${map_values[TLS_CERTIFICATE_PATH]}
-    map_values[CLINIC_TLS_CERTIFICATE_KEY_PATH]=${map_values[TLS_CERTIFICATE_KEY_PATH]}
-  fi
   for key in "${allowed_keys[@]}"; do [[ -n ${map_values[$key]:-} ]] || die "host map requires $key"; done
 }
 load_host_map
@@ -83,9 +72,11 @@ if [[ "$STAFF_HOST" != *.test.example ]]; then
 fi
 [[ "$APP_BASE_URL" == "https://$STAFF_HOST" ]] || die "APP_BASE_URL must exactly match STAFF_HOST"
 [[ "$PATIENT_APP_ORIGIN" == "https://$PATIENT_DEFAULT_HOST" ]] || die "PATIENT_APP_ORIGIN must exactly match PATIENT_DEFAULT_HOST"
-[[ "$YANDEX_OAUTH_REDIRECT_URIS" == *"https://$PATIENT_DEFAULT_HOST/api/auth/oauth/callback/yandex"* && "$YANDEX_OAUTH_REDIRECT_URIS" == *"https://$CLINIC_CUSTOM_HOST/api/auth/oauth/callback/yandex"* ]] || die "YANDEX_OAUTH_REDIRECT_URIS must include both exact patient callbacks"
+expected_callbacks=$(printf '%s\n' "https://$PATIENT_DEFAULT_HOST/api/auth/oauth/callback/yandex" "https://$CLINIC_CUSTOM_HOST/api/auth/oauth/callback/yandex" | sort)
+actual_callbacks=$(printf '%s' "$YANDEX_OAUTH_REDIRECT_URIS" | tr ',' '\n' | sort)
+[[ "$actual_callbacks" == "$expected_callbacks" ]] || die "YANDEX_OAUTH_REDIRECT_URIS must be exactly the two approved patient callbacks"
 [[ "$CERT_EXPIRY_WARN_DAYS" =~ ^[1-9][0-9]*$ ]] || die "CERT_EXPIRY_WARN_DAYS must be a positive integer"
-platform_wildcard="*.${PATIENT_DEFAULT_HOST#*.}"
+platform_wildcard="*.$PATIENT_DEFAULT_HOST"
 
 approval_digest() { for key in "${allowed_keys[@]}"; do printf '%s=%s\n' "$key" "${map_values[$key]}"; done | sha256sum | awk '{print $1}'; }
 
@@ -139,8 +130,11 @@ verify_dns() {
 verify_tls() {
   [[ -r "$PLATFORM_TLS_CERTIFICATE_PATH" && -r "$PLATFORM_TLS_CERTIFICATE_KEY_PATH" ]] || die "platform certificate or key is missing"
   [[ -r "$CLINIC_TLS_CERTIFICATE_PATH" && -r "$CLINIC_TLS_CERTIFICATE_KEY_PATH" ]] || die "clinic certificate or key is missing"
+  openssl x509 -in "$PLATFORM_TLS_CERTIFICATE_PATH" -noout -checkhost "$STAFF_HOST" >/dev/null || die "platform certificate does not cover staff host: $STAFF_HOST"
+  openssl x509 -in "$PLATFORM_TLS_CERTIFICATE_PATH" -noout -checkhost "$PLATFORM_ADMIN_HOST" >/dev/null || die "platform certificate does not cover admin host: $PLATFORM_ADMIN_HOST"
   openssl x509 -in "$PLATFORM_TLS_CERTIFICATE_PATH" -noout -checkhost "$PATIENT_DEFAULT_HOST" >/dev/null || die "platform certificate does not cover apex: $PATIENT_DEFAULT_HOST"
   openssl x509 -in "$PLATFORM_TLS_CERTIFICATE_PATH" -noout -checkhost "$platform_wildcard" >/dev/null || die "platform certificate does not cover wildcard: $platform_wildcard"
+  openssl x509 -in "$PLATFORM_TLS_CERTIFICATE_PATH" -noout -checkhost "$PATIENT_BRANDED_HOST" >/dev/null || die "platform certificate does not cover branded host: $PATIENT_BRANDED_HOST"
   openssl x509 -in "$CLINIC_TLS_CERTIFICATE_PATH" -noout -checkhost "$CLINIC_CUSTOM_HOST" >/dev/null || die "clinic certificate does not cover exact host: $CLINIC_CUSTOM_HOST"
 }
 compile_candidate() {
@@ -160,17 +154,15 @@ if [[ $OFFLINE -eq 0 ]]; then verify_dns; verify_tls; fi
 if [[ "$ACTION" != apply ]]; then echo "preflight OK"; exit 0; fi
 
 [[ "${THERAPYSTO_CUTOVER_OWNER_APPROVED:-}" == yes ]] || die "refusing apply: require THERAPYSTO_CUTOVER_OWNER_APPROVED=yes"
-if [[ "$STAFF_HOST" != *.test.example ]]; then
-  [[ "${THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256:-}" == "$(approval_digest)" ]] || die "refusing apply: owner approval digest does not match this host map"
-fi
+[[ "${THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256:-}" == "$(approval_digest)" ]] || die "refusing apply: owner approval digest does not match this host map"
 candidate=$(mktemp); candidate_env=$(mktemp)
 backup="${TARGET_AVAILABLE}.pre-therapysto.$(date -u +%Y%m%dT%H%M%SZ)"; env_backup="${WEBAPP_ENV_FILE}.pre-therapysto.$(date -u +%Y%m%dT%H%M%SZ)"
-installed=0; env_installed=0
+nginx_mutation_started=0; env_mutation_started=0
 rollback() {
   local status=$?
-  if (( status != 0 && installed )); then
-    sudo cp -p -- "$backup" "$TARGET_AVAILABLE" || true
-    if (( env_installed )); then sudo cp -p -- "$env_backup" "$WEBAPP_ENV_FILE" || true; fi
+  if (( status != 0 )); then
+    if (( nginx_mutation_started )); then sudo cp -p -- "$backup" "$TARGET_AVAILABLE" || true; fi
+    if (( env_mutation_started )); then sudo cp -p -- "$env_backup" "$WEBAPP_ENV_FILE" || true; fi
   fi
   rm -f "$candidate" "$candidate_env"
   exit "$status"
@@ -178,7 +170,7 @@ rollback() {
 trap rollback EXIT
 render >"$candidate"; compile_candidate "$candidate"; render_env_candidate "$candidate_env"
 sudo cp -p -- "$TARGET_AVAILABLE" "$backup"; sudo cp -p -- "$WEBAPP_ENV_FILE" "$env_backup"
-sudo install -m 0640 -o root -g deploy "$candidate_env" "$WEBAPP_ENV_FILE"; env_installed=1
-sudo install -m 0644 -o root -g root "$candidate" "$TARGET_AVAILABLE"; installed=1
+env_mutation_started=1; sudo install -m 0640 -o root -g deploy "$candidate_env" "$WEBAPP_ENV_FILE"
+nginx_mutation_started=1; sudo install -m 0644 -o root -g root "$candidate" "$TARGET_AVAILABLE"
 sudo nginx -t; sudo systemctl reload nginx
 echo "apply OK; backups: $backup $env_backup"

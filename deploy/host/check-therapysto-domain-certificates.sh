@@ -15,6 +15,7 @@ for host in "${hosts[@]}"; do
   [[ "$answers" == "$approved" ]] || { echo "FAIL DNS drift $host expected=$approved actual=${answers:-none}" >&2; exit 1; }
   cert=$(mktemp)
   if ! echo | openssl s_client -connect "$host:443" -servername "$host" 2>/dev/null | openssl x509 -out "$cert"; then echo "FAIL TLS $host" >&2; rm -f "$cert"; exit 1; fi
+  if ! openssl x509 -in "$cert" -noout -checkhost "$host" >/dev/null; then echo "FAIL certificate name $host" >&2; rm -f "$cert"; exit 1; fi
   expiry=$(openssl x509 -in "$cert" -noout -enddate)
   expiry_epoch=$(date -u -d "${expiry#notAfter=}" +%s 2>/dev/null) || { echo "FAIL certificate expiry parse $host" >&2; rm -f "$cert"; exit 1; }
   if (( expiry_epoch <= $(date -u +%s) + warn_seconds )); then echo "FAIL certificate expiry $host within ${warn_days}d" >&2; rm -f "$cert"; exit 1; fi

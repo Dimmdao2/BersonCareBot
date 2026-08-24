@@ -30,9 +30,13 @@ function fixture(extra = []) {
   mkdirSync(bin);
   const certPath = join(root, 'platform-fullchain.pem');
   const keyPath = join(root, 'platform-privkey.pem');
+  const clinicCertPath = join(root, 'clinic-fullchain.pem');
+  const clinicKeyPath = join(root, 'clinic-privkey.pem');
   const mapPath = join(root, 'hosts.env');
   writeFileSync(certPath, 'fixture certificate\n');
   writeFileSync(keyPath, 'fixture key\n');
+  writeFileSync(clinicCertPath, 'fixture clinic certificate\n');
+  writeFileSync(clinicKeyPath, 'fixture clinic key\n');
   writeFileSync(
     mapPath,
     [
@@ -41,8 +45,10 @@ function fixture(extra = []) {
       'PATIENT_DEFAULT_HOST=therapygo.test.example',
       'PATIENT_BRANDED_HOST=bersoncare.therapygo.test.example',
       'CLINIC_CUSTOM_HOST=app.bersoncare.test.example',
-      `TLS_CERTIFICATE_PATH=${certPath}`,
-      `TLS_CERTIFICATE_KEY_PATH=${keyPath}`,
+      `PLATFORM_TLS_CERTIFICATE_PATH=${certPath}`,
+      `PLATFORM_TLS_CERTIFICATE_KEY_PATH=${keyPath}`,
+      `CLINIC_TLS_CERTIFICATE_PATH=${clinicCertPath}`,
+      `CLINIC_TLS_CERTIFICATE_KEY_PATH=${clinicKeyPath}`,
       'EXPECTED_DNS_TARGET=192.0.2.10',
       'APP_BASE_URL=https://staff.test.example',
       'PATIENT_APP_ORIGIN=https://therapygo.test.example',
@@ -165,7 +171,14 @@ esac`,
     cutoverPath,
     ['--host-map', runtime.mapPath, '--apply'],
     runtime,
-    { THERAPYSTO_CUTOVER_OWNER_APPROVED: 'yes' },
+    {
+      THERAPYSTO_CUTOVER_OWNER_APPROVED: 'yes',
+      THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256: run(
+        cutoverPath,
+        ['--host-map', runtime.mapPath, '--approval-digest'],
+        runtime,
+      ).stdout.trim(),
+    },
   );
   assert.notEqual(result.status, 0, 'the injected nginx validation failure must abort apply');
   assert.equal(
