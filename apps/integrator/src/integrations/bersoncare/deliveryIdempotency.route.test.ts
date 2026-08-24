@@ -60,5 +60,8 @@ describe('webapp delivery seams idempotency', () => {
       ).json(),
     ).toEqual({ ok: true });
     expect(dispatchOutgoing).toHaveBeenCalledTimes(2);
+    expect(dispatchOutgoing.mock.calls[0]?.[0].payload).toMatchObject({
+      message: { text: 'Ваш код: 123456' },
+    });
   });
 });

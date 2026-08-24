@@ -79,6 +79,12 @@ describe('POST /api/auth/specialist-signup/start organization title', () => {
     expect(fakes.createSpecialistSignupIntent).toHaveBeenCalledWith(
       expect.objectContaining({ organizationTitle }),
     );
+    expect(fakes.startEmailChallenge).toHaveBeenCalledWith(
+      'user-1',
+      'doctor@example.test',
+      'specialist_signup',
+      { kind: 'platform', senderDisplayName: 'Therapysto' },
+    );
   });
 
   it('returns a typed, human-readable error for 101 characters', async () => {

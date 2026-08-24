@@ -104,6 +104,20 @@ describe('POST /api/bersoncare/send-email', () => {
     expect(dispatchOutgoing).toHaveBeenCalledOnce();
   });
 
+  it('rejects an auth code when the caller omitted its mail profile', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp({ dispatchOutgoing });
+
+    const response = await injectSigned(app, {
+      to: 'patient@example.test',
+      code: '123456',
+      idempotencyKey: 'otp:email:missing-profile',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
   it('same email OTP request is a no-op, while a new resend key sends another code', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const app = await buildApp({ dispatchOutgoing });

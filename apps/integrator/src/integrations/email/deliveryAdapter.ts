@@ -88,7 +88,12 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
         : null;
       // Non-auth transactional/broadcast mail keeps its existing subject/text behavior.
       const subject =
-        renderedProfile?.subject ?? asString(payload.subject) ?? asString(payload.title) ?? 'BersonCare';
+        renderedProfile?.subject ?? asString(payload.subject) ?? asString(payload.title);
+      if (!subject) {
+        const err = new Error('EMAIL_PAYLOAD_INVALID: subject is required');
+        (err as { code?: number }).code = 400;
+        throw err;
+      }
       const text = renderedProfile?.text ?? asString(payload.message?.text);
       const html = asString(payload.html);
 

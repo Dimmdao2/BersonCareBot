@@ -1117,25 +1117,6 @@ ALTER FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) OWNER TO :o
 ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
--- D27-C correction (migration 0370): resurrection check for the narrow bootstrap-reachable enqueue
--- accessor, same class as the email_auth_*/email_otp_public_* set above. Signature tracks 0370's
--- final (challenge_id uuid, delivery_token uuid) shape -- stale here since 0369/0370 replaced the
--- original (text, jsonb, integer, timestamptz, smallint) form; this line was never updated to match,
--- so `--post-migration-closure` failed live on TEST with "function ... does not exist" (2026-08-04).
---
--- OWNER: app_owner, NOT the migrator role. Migration 0370 ends with an explicit
--- `ALTER FUNCTION ... OWNER TO app_owner` for this function and its `set_email_challenge_delivery_code`
--- sibling; pinning the migrator role here would silently override the migration on every deploy --
--- the exact regression shape that `assert_login_fix_definer_owners_pinned` was added to catch earlier
--- the same day for eight sibling accessors. Two consequences, both wanted: the pair stays owned by one
--- role instead of splitting (the sibling is already app_owner, nothing re-pins it), and the DB-owner
--- role does not gain a new anon-reachable SECURITY DEFINER function -- the open owner-plan item A-1
--- stage 2/3 is "the DB-owner role must own zero anon-reachable definers", so growing that count is
--- movement away from it, not book-keeping. app_owner already holds every privilege this body needs on
--- TEST (email_challenges SELECT/UPDATE/DELETE, outgoing_delivery_queue INSERT/SELECT/UPDATE, the last
--- one added by 0370 itself); email_challenges is not FORCE-RLS, so ownership carries no read risk here.
-ALTER FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) OWNER TO app_owner;
-
 REVOKE ALL ON FUNCTION app.email_otp_public_find_user_by_email(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_find_or_create_user(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_otp_public_register_patient(text, text, text, text) FROM PUBLIC;
@@ -1156,7 +1137,6 @@ REVOKE ALL ON FUNCTION app.email_auth_verify_user_email(uuid, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_user_by_email(text) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_otp_public_find_or_create_user(text) TO app_patient;
@@ -1178,7 +1158,6 @@ GRANT EXECUTE ON FUNCTION app.email_auth_verify_user_email(uuid, text) TO app_pa
 GRANT EXECUTE ON FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) TO app_patient;
 GRANT EXECUTE ON FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) TO app_patient;
-GRANT EXECUTE ON FUNCTION app.email_auth_enqueue_otp_delivery(uuid, uuid) TO app_patient;
 \endif
 
 COMMIT;
