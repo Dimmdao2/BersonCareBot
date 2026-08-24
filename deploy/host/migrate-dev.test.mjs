@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -105,8 +106,8 @@ esac
   return { bin, capture, root };
 }
 
-function runWrapper(runtime, mode) {
-  return spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), mode], {
+function runWrapper(runtime, mode, extraArgs = []) {
+  return spawnSync('bash', [join(runtime.root, 'deploy/host/migrate-dev.sh'), mode, ...extraArgs], {
     encoding: 'utf8',
     env: { ...process.env, PATH: `${runtime.bin}:${process.env.PATH ?? ''}` },
   });
@@ -217,6 +218,32 @@ test('migrate-dev preflight accepts only the stationary post-cutover migrator', 
     /migrate-integrator-local|reconcile-access|update-dev-port-context-env|pnpm/u,
   );
   assert.doesNotMatch(calls, /int-secret|staff-secret|patient-secret|global-secret/u);
+});
+
+test('candidate preflight reads runtime URLs from a separate regular checkout only', () => {
+  const runtime = createRuntime();
+  const runtimeEnvRoot = mkdtempSync(join(tmpdir(), 'bcb-dev-runtime-env-'));
+  mkdirSync(join(runtimeEnvRoot, 'apps/webapp'), { recursive: true });
+  copyFileSync(join(runtime.root, '.env'), join(runtimeEnvRoot, '.env'));
+  copyFileSync(
+    join(runtime.root, 'apps/webapp/.env.dev'),
+    join(runtimeEnvRoot, 'apps/webapp/.env.dev'),
+  );
+  writeFileSync(join(runtime.root, '.env'), 'not-a-runtime-url\n');
+  writeFileSync(join(runtime.root, 'apps/webapp/.env.dev'), 'not-a-runtime-url\n');
+
+  const result = runWrapper(runtime, '--preflight', ['--runtime-env-root', runtimeEnvRoot]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /preflight: PASS/u);
+  assert.match(readFileSync(runtime.capture, 'utf8'), /--rollback-only/u);
+});
+
+test('runtime env root override is rejected for execute', () => {
+  const runtime = createRuntime();
+  const result = runWrapper(runtime, '--execute', ['--runtime-env-root', runtime.root]);
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /preflight-only/u);
+  assert.equal(existsSync(runtime.capture), false);
 });
 
 test('migrate-dev preflight stops on rollback validation failure without execute side effects', () => {
