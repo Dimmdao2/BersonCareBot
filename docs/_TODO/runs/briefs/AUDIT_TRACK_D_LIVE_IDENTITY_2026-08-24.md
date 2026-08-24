@@ -1,5 +1,7 @@
 # Track D final live audit — identity/contact path (D15b/6 + D25)
 
+Тест или взгляд: DB root и token-bound/generic-ingress поведение — rollback-only named-TEST proof и реальный user journey; exact deployed SHA, cleanup и отсутствие legacy writes — inspection.
+
 ## Authority
 
 Read `AGENTS.md` sections 1, 1a, 1b, 5, 9, 10a, 10b, and 24, then the full relevant owner decision and
@@ -47,4 +49,3 @@ Exact deployed TEST source is `3745ae24c9de62afc85f6aaf602bfecb3ada5f69`, public
 - No product fixes, merge, push, deploy, config changes, or full CI.
 - Write and commit a concise audit artifact under `docs/_TODO/runs/integrator-cleanup/` with per-gate
   `PASS|FAIL|BLOCKED`, exact commands and sanitized measured results.
-
