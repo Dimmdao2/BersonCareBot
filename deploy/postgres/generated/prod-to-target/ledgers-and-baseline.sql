@@ -43,6 +43,7 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (636
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (643, '99098bff2eef013ff3b12ece21196820dbf3c544987bbd47406f75e550f0f708', 1800000083000, '20260821T002100_move_outgoing_delivery_retention_to_producer_root');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (645, 'ff3a4320be5e89f1a4c58a0ef77933e64a19729e399a3c3fbc5f9102ab7e4065', 1800000084000, '20260821T003000_cut_over_delivery_attempt_history');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (647, 'd2c07f2853a96dc0d5662b855bf0390c33f0f5ccc4ef2a11206bcb8a93afcbf9', 1800000085000, '20260821T025935_restore_reference_catalog_baselines');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1013, '061e9fe147b3aa6fcef557cb9bd63353a7bf9032325e1ab9873946934db9c90b', 1800000149000, '20260824T154700_derive_public_oauth_availability_at_read');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (791, '40069ca47c4a5bd05472d15e34c6256c80728022d4dc8a6df8754ba5df4f69b4', 1800000121000, '20260823T010000_patient_subdomain_slug_and_custom_domain_uniqueness');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (795, '369ae3b27840483769d4f6c584f6ffce2ce74a55f541bfb00516d042086ce864', 1800000123000, '20260823T010000_mail_profile_reaches_auth_delivery');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (753, '576063bd82ab82be3765a11111c3c1833ec0c2baf8b12aa2cdf6900e9a72ed2d', 1800000106000, '20260822T130000_the_integrator_roots_name_the_integrator_role');
@@ -165,7 +166,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1007, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1013, true);
 
 
 --
