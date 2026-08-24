@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  RESOLVED_SURFACE_HEADER,
+  serializeResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 const fakes = vi.hoisted(() => ({
   stampBootstrapPrincipal: vi.fn(),
@@ -53,6 +58,18 @@ const intent = {
   contactPhone: '+79990000000',
   contactName: 'Payer',
 };
+const resolvedPatientSurface = serializeResolvedSurface({
+  surface: 'patient_default',
+  publicOrigin: 'http://localhost',
+  authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
+});
+
+function requestHeaders() {
+  return {
+    'content-type': 'application/json',
+    [RESOLVED_SURFACE_HEADER]: resolvedPatientSurface,
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -88,7 +105,7 @@ describe('B1.2 SMS booking confirmation', () => {
     const response = await POST(
       new Request('http://localhost/api/booking/public/create/confirm', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: requestHeaders(),
         body: JSON.stringify({ challengeId: 'challenge-1', code: '123456' }),
       }),
     );
@@ -103,6 +120,7 @@ describe('B1.2 SMS booking confirmation', () => {
       intent,
       payer.userId,
       'public_booking_phone_otp',
+      expect.objectContaining({ kind: 'platform' }),
     );
     expect(fakes.getBookingPaymentStatus).toHaveBeenCalledWith('booking-1', payer.userId);
   });
@@ -114,7 +132,7 @@ describe('B1.2 SMS booking confirmation', () => {
     await POST(
       new Request('http://localhost/api/booking/public/create/confirm', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: requestHeaders(),
         body: JSON.stringify({ challengeId: 'challenge-1', code: '123456' }),
       }),
     );
@@ -134,7 +152,7 @@ describe('B1.2 SMS booking confirmation', () => {
     const response = await POST(
       new Request('http://localhost/api/booking/public/create/confirm', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: requestHeaders(),
         body: JSON.stringify({ challengeId: 'challenge-1', code: '123456' }),
       }),
     );

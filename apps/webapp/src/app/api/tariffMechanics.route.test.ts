@@ -704,7 +704,7 @@ describe('tariff and platform mutation gates', () => {
     expect(updateSetting).toHaveBeenCalledWith(
       'clinic_telegram_bot_token',
       'admin',
-      { value: 'secret-token' },
+      { value: 'secret-token', deliveryReadiness: { status: 'pending' } },
       USER_ID,
       { organizationId: ORG_ID },
     );

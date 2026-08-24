@@ -10,6 +10,11 @@
  * Оракул независим от реализации: он смотрит только на то, дошло ли дело до шва доставки.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  RESOLVED_SURFACE_HEADER,
+  serializeResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 const fakes = vi.hoisted(() => ({
   publicValues: new Map<string, boolean>(),
@@ -84,6 +89,11 @@ import { POST as publicBookingCreate } from '@/app/api/booking/public/create/rou
 
 const branchId = '00000000-0000-4000-8000-000000000301';
 const serviceId = '00000000-0000-4000-8000-000000000302';
+const resolvedPatientSurface = serializeResolvedSurface({
+  surface: 'patient_default',
+  publicOrigin: 'http://patient.example.test',
+  authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -141,7 +151,10 @@ describe('delivery seams behind a disabled channel', () => {
     const response = await publicBookingCreate(
       new Request('http://patient.example.test/api/booking/public/create', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          [RESOLVED_SURFACE_HEADER]: resolvedPatientSurface,
+        },
         body: JSON.stringify({
           type: 'in_person',
           orgSlug: 'clinic',

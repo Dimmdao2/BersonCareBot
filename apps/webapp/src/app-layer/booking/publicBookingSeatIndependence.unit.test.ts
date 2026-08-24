@@ -75,6 +75,7 @@ function sqlText(fragment: unknown): string {
 
 const ORGANIZATION_ID = '00000000-0000-4000-8000-000000000001';
 const PLATFORM_USER_ID = '00000000-0000-4000-8000-000000000002';
+const MAIL_PROFILE = { kind: 'platform' as const, senderDisplayName: 'Test patient app' };
 
 const intent = {
   v: 1 as const,
@@ -126,7 +127,13 @@ const deps = {
 
 describe('a visitor booking spends no paid client place (owner 19.08 §33.2)', () => {
   it('never reaches the patient_count ceiling on the public write path', async () => {
-    await createVerifiedPublicBooking(deps, intent, PLATFORM_USER_ID, 'public_booking_phone_otp');
+    await createVerifiedPublicBooking(
+      deps,
+      intent,
+      PLATFORM_USER_ID,
+      'public_booking_phone_otp',
+      MAIL_PROFILE,
+    );
 
     expect(recorded.roots).toContain(ENROL_DOOR);
     const everySqlSeen = [...recorded.roots, ...recorded.sql].join('\n');
@@ -159,6 +166,7 @@ describe('a visitor booking spends no paid client place (owner 19.08 §33.2)', (
       intent,
       PLATFORM_USER_ID,
       'public_booking_phone_otp',
+      MAIL_PROFILE,
     );
 
     expect(booking).toBeTruthy();
@@ -166,7 +174,13 @@ describe('a visitor booking spends no paid client place (owner 19.08 §33.2)', (
   });
 
   it('carries the phone and the e-mail of the form to the booking unchanged', async () => {
-    await createVerifiedPublicBooking(deps, intent, PLATFORM_USER_ID, 'public_booking_phone_otp');
+    await createVerifiedPublicBooking(
+      deps,
+      intent,
+      PLATFORM_USER_ID,
+      'public_booking_phone_otp',
+      MAIL_PROFILE,
+    );
 
     expect(fakes.createBooking).toHaveBeenCalledTimes(1);
     const written = fakes.createBooking.mock.calls[0][0] as {

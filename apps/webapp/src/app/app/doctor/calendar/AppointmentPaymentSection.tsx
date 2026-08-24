@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import Image from 'next/image';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { localQrCodeDataUri } from './localQrCode';
 
@@ -43,17 +44,20 @@ export function AppointmentPaymentSection({
   const [pending, startTransition] = useTransition();
   const requestVersion = useRef(0);
 
-  const load = async (targetAppointmentId: string, version: number) => {
-    const response = await fetch(
-      `${apiBase}/appointments/${encodeURIComponent(targetAppointmentId)}/payment`,
-    );
-    const json = (await response.json()) as Response;
-    if (!response.ok || !json.summary) throw new Error(json.error ?? 'not_found');
-    if (version !== requestVersion.current) return;
-    setSummary(json.summary);
-    setTotalMinor(json.totalMinor ?? null);
-    setManualPaidMinor(json.manualPaidMinor ?? 0);
-  };
+  const load = useCallback(
+    async (targetAppointmentId: string, version: number) => {
+      const response = await fetch(
+        `${apiBase}/appointments/${encodeURIComponent(targetAppointmentId)}/payment`,
+      );
+      const json = (await response.json()) as Response;
+      if (!response.ok || !json.summary) throw new Error(json.error ?? 'not_found');
+      if (version !== requestVersion.current) return;
+      setSummary(json.summary);
+      setTotalMinor(json.totalMinor ?? null);
+      setManualPaidMinor(json.manualPaidMinor ?? 0);
+    },
+    [apiBase],
+  );
 
   useEffect(() => {
     const version = requestVersion.current + 1;
@@ -69,7 +73,7 @@ export function AppointmentPaymentSection({
         setError(cause instanceof Error ? cause.message : 'not_found');
       }
     });
-  }, [apiBase, appointmentId]);
+  }, [appointmentId, load]);
 
   const run = (action: 'cash' | 'link') =>
     startTransition(async () => {
@@ -155,11 +159,12 @@ export function AppointmentPaymentSection({
           >
             {link}
           </a>
-          <img
-            width="144"
-            height="144"
+          <Image
+            width={144}
+            height={144}
             alt="QR-код платёжной ссылки"
             src={localQrCodeDataUri(link)}
+            unoptimized
           />
         </div>
       ) : null}

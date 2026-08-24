@@ -46,6 +46,7 @@ import { createVerifiedPublicBooking } from './createVerifiedPublicBooking';
 const PLATFORM_USER_ID = 'person-1';
 const CHANNEL = 'public_booking_phone_otp' as const;
 const ORGANIZATION_ID = 'org-1';
+const MAIL_PROFILE = { kind: 'platform' as const, senderDisplayName: 'Test patient app' };
 
 const intent = {
   v: 1 as const,
@@ -102,7 +103,7 @@ beforeEach(() => {
 
 describe('createVerifiedPublicBooking', () => {
   it('makes the visitor a client of the clinic before the booking is written', async () => {
-    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL);
+    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL, MAIL_PROFILE);
 
     expect(fakes.order).toEqual(['enroll', 'createBooking']);
     expect(fakes.enrollCurrentPatientInPublicBookingClinic).toHaveBeenCalledWith(
@@ -112,7 +113,7 @@ describe('createVerifiedPublicBooking', () => {
   });
 
   it('enrols under an identity-only patient principal and writes under the tenant-scoped one', async () => {
-    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL);
+    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL, MAIL_PROFILE);
 
     // Зачисление — до заявки на арендатора: заявку на клинику, где строки ещё нет, гейт отвергает.
     expect(fakes.withPatientIdentityPrincipal).toHaveBeenCalledWith(
@@ -142,7 +143,7 @@ describe('createVerifiedPublicBooking', () => {
     });
 
     await expect(
-      createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL),
+      createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL, MAIL_PROFILE),
     ).rejects.toThrow();
     expect(fakes.createBooking).not.toHaveBeenCalled();
     // Провалившаяся запись не оставляет человека клиентом клиники: зачисление коммитится своей
@@ -160,7 +161,13 @@ describe('createVerifiedPublicBooking', () => {
     });
     fakes.recordPublicBookingMergeCandidates.mockRejectedValue(new Error('capability denied'));
 
-    const booking = await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL);
+    const booking = await createVerifiedPublicBooking(
+      deps(),
+      intent,
+      PLATFORM_USER_ID,
+      CHANNEL,
+      MAIL_PROFILE,
+    );
 
     expect(booking).toMatchObject({ id: 'booking-1' });
   });

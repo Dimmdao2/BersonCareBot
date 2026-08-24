@@ -1,4 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  RESOLVED_SURFACE_HEADER,
+  serializeResolvedSurface,
+} from '@/shared/lib/surface/requestSurface';
 
 const fakes = vi.hoisted(() => ({
   stampBootstrapPrincipal: vi.fn(),
@@ -49,6 +54,11 @@ import { POST } from './route';
 
 const branchId = '00000000-0000-4000-8000-000000000301';
 const serviceId = '00000000-0000-4000-8000-000000000302';
+const resolvedPatientSurface = serializeResolvedSurface({
+  surface: 'patient_default',
+  publicOrigin: 'http://localhost',
+  authPolicy: DEFAULT_SURFACE_AUTH_POLICY_CONFIG.patient,
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -72,7 +82,10 @@ describe('B1.2 public email booking identity', () => {
     const response = await POST(
       new Request('http://localhost/api/booking/public/create', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          [RESOLVED_SURFACE_HEADER]: resolvedPatientSurface,
+        },
         body: JSON.stringify({
           type: 'in_person',
           orgSlug: 'clinic',
