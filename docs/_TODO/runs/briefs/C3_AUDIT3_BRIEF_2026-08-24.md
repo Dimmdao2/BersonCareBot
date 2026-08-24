@@ -14,7 +14,7 @@ Repo canon: `AGENTS.md` — §10a, §10b, §24.4, §24.5 целиком до к�
 `apps/webapp/src/modules/messaging/doctorSupportLegacyChannelScope.test.ts` (3 теста; при возврате
 `clinic_required` краснеют 2).
 
-## Что проверить (классификация §24.4)
+## Классификация «тест или взгляд» (§24.4)
 
 | Пункт | Природа | Способ |
 | --- | --- | --- |
