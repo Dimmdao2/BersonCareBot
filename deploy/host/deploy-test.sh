@@ -212,7 +212,7 @@ done
 # The Host-aware surface resolver deliberately rejects loopback as an unknown product surface.
 # Probe the webapp through the configured staff Host while keeping the socket on loopback.
 WEBAPP_HEALTH_HOST="$(sudo -n -u deploy bash -lc \
-  "set -a; . '$WEBAPP_ENV'; set +a; node '$DEPLOY_TEST_SCRIPT_DIR/webapp-health-host.mjs'")" ||
+  "set -a; . '$WEBAPP_ENV'; set +a; node -" < "$DEPLOY_TEST_SCRIPT_DIR/webapp-health-host.mjs")" ||
   fail 'cannot derive the TEST webapp health Host from APP_BASE_URL'
 
 for address in $(hostname -I 2>/dev/null || true); do
