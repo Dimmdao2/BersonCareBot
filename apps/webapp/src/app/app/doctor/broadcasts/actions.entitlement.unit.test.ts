@@ -31,6 +31,17 @@ function deniedEntitlements(state: Extract<MechanicAccessState, 'disabled' | 're
   };
 }
 
+function brandingDeniedEntitlements() {
+  return {
+    resolveMechanicAccess: async (_organizationId: string, mechanic: 'mailings' | 'branding') => ({
+      mechanic,
+      state: mechanic === 'branding' ? ('disabled' as const) : ('full_access' as const),
+      policySource: 'system' as const,
+      warning: null,
+    }),
+  };
+}
+
 describe('mailing mutation entitlement boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -83,5 +94,29 @@ describe('mailing mutation entitlement boundary', () => {
       },
       undefined,
     );
+  });
+
+  it('refuses a direct mailing send when the clinic has mailings but no branding', async () => {
+    const execute = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: brandingDeniedEntitlements(),
+      doctorBroadcasts: { execute },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await expect(executeBroadcastAction({} as never)).rejects.toThrow('Невозможно отправить рассылку');
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it('refuses a mailing draft when the clinic has mailings but no branding', async () => {
+    const saveDraft = vi.fn();
+    vi.mocked(buildAppDeps).mockReturnValue({
+      orgEntitlements: brandingDeniedEntitlements(),
+      doctorBroadcastComposer: { saveDraft },
+    } as unknown as ReturnType<typeof buildAppDeps>);
+
+    await expect(saveDraftAction({} as never)).rejects.toThrow(
+      'Невозможно сохранить черновик рассылки',
+    );
+    expect(saveDraft).not.toHaveBeenCalled();
   });
 });

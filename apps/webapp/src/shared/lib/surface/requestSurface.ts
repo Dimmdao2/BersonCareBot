@@ -49,7 +49,7 @@ export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
   },
   patient: {
     availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-    enabledMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
+    enabledMethods: ['email_code', 'phone_bot', 'oauth'],
   },
 } as const satisfies SurfaceAuthPolicyConfig;
 

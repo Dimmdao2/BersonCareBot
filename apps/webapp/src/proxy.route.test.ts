@@ -148,7 +148,7 @@ describe('surface auth policy', () => {
 
     expect(staff?.authPolicy).toEqual({
       availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-      enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
+      enabledMethods: ['password', 'email_code', 'totp'],
     });
     expect(platformAdmin?.authPolicy).toEqual({
       availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
@@ -156,7 +156,7 @@ describe('surface auth policy', () => {
     });
     expect(patient?.authPolicy).toEqual({
       availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-      enabledMethods: ['email_code', 'passkey'],
+      enabledMethods: ['email_code', 'phone_bot', 'oauth'],
     });
   });
 
@@ -1031,7 +1031,7 @@ describe('B4a: адрес клиники на нашем поддомене жи
       // политика и собирается, тавтологична и не заметит её дрейфа.
       authPolicy: {
         availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-        enabledMethods: ['email_code', 'passkey'],
+        enabledMethods: ['email_code', 'phone_bot', 'oauth'],
       },
       effectivePatientBrand: {
         effectiveDisplayName: title,

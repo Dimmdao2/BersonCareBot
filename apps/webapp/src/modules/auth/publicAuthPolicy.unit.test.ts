@@ -187,6 +187,7 @@ describe('public auth policy', () => {
       telegram: 'true',
       oauth_google: 'false',
       oauth_yandex: 'true',
+      passkey: 'false',
     });
   });
 

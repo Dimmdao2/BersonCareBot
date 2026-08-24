@@ -83,10 +83,7 @@ export async function executeBroadcastAction(
   command: Omit<BroadcastCommand, 'actorId'>,
 ): Promise<{ auditEntry: BroadcastAuditEntry }> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
-  if (!entitlement.ok) {
-    throw new Error(entitlementMutationRefusalMessage('отправить рассылку', entitlement.reason));
-  }
+  await requireBrandedMailingMutation(workspace, 'отправить рассылку');
   await assertClinicBroadcastChannels(workspace, command.channels);
   const deps = buildAppDeps();
   const result = await deps.doctorBroadcasts.execute(
@@ -176,10 +173,7 @@ export async function loadDraftAction(): Promise<BroadcastDraft | null> {
 
 export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
   const workspace = await requireDoctorWorkspaceContext();
-  const entitlement = await requireEntitlementForMutationAction(workspace, 'mailings');
-  if (!entitlement.ok) {
-    throw new Error(entitlementMutationRefusalMessage('сохранить черновик рассылки', entitlement.reason));
-  }
+  await requireBrandedMailingMutation(workspace, 'сохранить черновик рассылки');
   const parsed = draftSchema.safeParse(draft);
   if (!parsed.success) {
     throw new Error('draft_validation_error');
@@ -191,6 +185,18 @@ export async function saveDraftAction(draft: BroadcastDraft): Promise<void> {
       parsed.data as BroadcastDraft,
     ),
   );
+}
+
+async function requireBrandedMailingMutation(
+  workspace: Awaited<ReturnType<typeof requireDoctorWorkspaceContext>>,
+  action: string,
+): Promise<void> {
+  for (const mechanic of ['mailings', 'branding'] as const) {
+    const entitlement = await requireEntitlementForMutationAction(workspace, mechanic);
+    if (!entitlement.ok) {
+      throw new Error(entitlementMutationRefusalMessage(action, entitlement.reason));
+    }
+  }
 }
 
 export async function getChannelCountsAction(): Promise<BroadcastChannelCounts> {

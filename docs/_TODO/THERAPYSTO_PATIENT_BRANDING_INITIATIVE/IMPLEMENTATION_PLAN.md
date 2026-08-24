@@ -580,7 +580,11 @@ Checkbox закрывается только доказательством, у�
   **Закрыт 24.08.2026:** migration выключает все staff/platform-admin OAuth cells; `oauthAppleToggle.route.test.ts` проверяет start и callback: disabled → `oauth_disabled`, enabled → provider path.
 - [x] `TPB-18` Пациент входит по email и по номеру телефона с подтверждением через бота на обеих patient-поверхностях.
   Доказательство: одинаковые login behavior tests на standard и branded origin для обоих способов.
-  **Закрыт 24.08.2026:** patient defaults enable email + Telegram contact proof (SMS off); `email-otp/start/route.route.test.ts` executes both default and branded email paths, `phoneStartBrandedOtpSender.audit.test.ts` executes both phone origins, and `phoneMessengerBindSelfSufficient.unit.test.ts` proves no integrator identity write.
+  **Закрыт 24.08.2026:** patient defaults enable email + Telegram contact proof (SMS и passkey выключены);
+  `email-otp/start/route.route.test.ts` executes both default and branded email paths,
+  `phoneStartBrandedOtpSender.audit.test.ts` executes both phone origins, а
+  `phoneMessengerBindSelfSufficient.unit.test.ts` доказывает, что бот создаёт только challenge с кодом и не
+  создаёт/не привязывает аккаунт до завершения регистрации в webapp.
 - [x] `TPB-19` Механики входа настраиваются в админке матрицей «поверхность × механика», раздельно для staff,
   platform admin и пациентов, а не одним общим переключателем. Выключенная механика недоступна на уровне
   резолвера, а не только скрыта в UI. Доказательство: settings-тест раздельных значений для трёх политик + fault injection
@@ -905,17 +909,24 @@ tests; проверка, что секреты не попадают в public r
 - [x] `F2` Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI,
   start/callback и provider config остаются в коде, но при выключенной механике путь недоступен на уровне
   резолвера, а не только скрыт в UI. Включение настройкой возвращает его в строй без правки кода.
-  **Доказательство 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql`; targeted auth suite (57 tests), host-locked `pnpm --filter webapp lint && pnpm --filter webapp typecheck`, and `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` → PASS.
+  **Доказательство 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql` пишет envelope-значения
+  только в каноническую `system_settings`, штатная проекция обновляет runtime; targeted auth tests,
+  host-locked lint/typecheck и `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root
+  /home/dev/dev-projects/BersonCareBot` → PASS.
 - [x] `F2b` Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию
   выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается
   настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).
   **Доказательство 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` and `passkey/login/verify/route.test.ts` → PASS.
 - [ ] `F2c` Второй фактор докторского входа по умолчанию: код на email ИЛИ TOTP. Один общий выбор фактора, не два
   независимых пути входа.
-  **OWNER QUESTION 24.08.2026:** какой из двух факторов является значением по умолчанию для staff — email code или TOTP — и распространяется ли этот выбор на platform-admin? Сейчас email OTP — отдельный staff login path, а TOTP включается per-user после password; без выбранного значения нельзя заменить их одной policy без самовольного security/product решения.
+  **Отложено владельцем до переезда домена (§1.2g, `Q2`):** сейчас не реализуется и не является блокером Stage F;
+  целевой staff-вход после переезда — email + пароль + подтверждение кодом на почту.
 - [x] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
   переиспользуя существующие pre-session seams канонических контактов; второго пути входа не создавать.
-  **Доказательство 24.08.2026:** migration enables patient email + Telegram proof; `email-otp/start/route.route.test.ts`, `phoneStartBrandedOtpSender.audit.test.ts`, `phoneMessengerBindSelfSufficient.unit.test.ts`, and `PhoneMessengerAuthFlow.ui.test.tsx` → PASS.
+  **Доказательство 24.08.2026:** migration enables patient email + Telegram proof and disables patient passkey;
+  `email-otp/start/route.route.test.ts`, `phoneStartBrandedOtpSender.audit.test.ts`,
+  `phoneMessengerBindSelfSufficient.unit.test.ts`, `PhoneMessengerAuthFlow.ui.test.tsx` и
+  `proxy.route.test.ts` → PASS. Fault injection возврата bot-side account write красит защитный тест.
 - [x] `F4` Заменить единственный global-admin переключатель входа на политики `staff`, `platform_admin` и patient;
   миграция каждого существующего значения детерминированно копирует его на все три поверхности без изменения
   входа; дальнейшие значения владелец выставляет раздельными переключателями. Доказательство на DEV 23.08.2026:
@@ -930,6 +941,14 @@ tests; проверка, что секреты не попадают в public r
   **Доказательство 24.08.2026:** patient `oauth_yandex=true`, patient Google and all staff/admin OAuth false in `20260824T064008_apply_surface_auth_owner_defaults.sql`; `yandexOAuthConfig.unit.test.ts` → PASS.
 
 **Gate F:** targeted auth/settings tests, fault injection «staff + OAuth» отвечает отказом, lint+typecheck.
+
+**Закрывающая правка после независимого аудита Stage F, 24.08.2026.** Устранены пять достижимых нарушений:
+корректный JSON-envelope и единственная каноническая запись auth defaults; patient passkey выключен; бот только
+подтверждает телефон и отдаёт код, а аккаунт создаётся/привязывается webapp после регистрации; рассылка и её
+черновик требуют одновременно `mailings` и `branding`. Finding про новый staff-вход отклонён как противоречащий
+явному `Q2`. Проверки: 102/102 targeted tests, webapp typecheck, scoped ESLint, migration static gates и named DEV
+rollback-preflight → PASS; три fault injection (bot-side write, рассылка без branding, patient passkey) покрасили
+свои тесты и были восстановлены. Финальный независимый `E3` остаётся обязательным перед landing.
 
 ### E — Финальная приёмка (`TPB-01…19`)
 

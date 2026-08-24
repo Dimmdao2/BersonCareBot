@@ -151,7 +151,7 @@ export async function POST(request: Request) {
     await deps.patientCalendarTimezone.syncFromDevice(sessionUser.userId, tz);
   }
 
-  if (isRegistrationIntent) {
+  if (result.wasCreated) {
     await recordAuthRegistrationSuccess({
       attemptId,
       authMethod: 'messenger_bind',

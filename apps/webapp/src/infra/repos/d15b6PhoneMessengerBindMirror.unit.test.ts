@@ -24,7 +24,6 @@ vi.mock('@/infra/db/runWebappSql', () => ({
 import { createPgPhoneMessengerBindPort } from '@/infra/repos/pgPhoneMessengerBind';
 
 const SESSION_USER_ID = '00000000-0000-4000-8000-0000000d0001';
-const NEW_LOGIN_USER_ID = '00000000-0000-4000-8000-0000000d0003';
 const fakePool = {
   connect() {
     throw new Error('test unexpectedly requested a pool connection');
@@ -130,7 +129,6 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
       phoneNormalized: '+79001234567',
       channelCode: 'telegram',
       externalId: 'tg-1',
-      purpose: 'profile_bind',
       sessionUserId: SESSION_USER_ID,
     });
 
@@ -149,7 +147,6 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
       phoneNormalized: '+79001234567',
       channelCode: 'telegram',
       externalId: 'tg-1',
-      purpose: 'profile_bind',
       sessionUserId: null,
     });
 
@@ -157,68 +154,4 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     expect(runWebappNamedRootMock).not.toHaveBeenCalled();
   });
 
-  it('login: resolves the newly created account through the exact named root', async () => {
-    runWebappNamedRootMock.mockResolvedValueOnce({
-      rows: [
-        {
-          result: {
-            outcome: 'resolved',
-            was_created: true,
-            id: NEW_LOGIN_USER_ID,
-            display_name: '+79007654321',
-            role: 'client',
-            session_epoch: 1,
-            is_archived: false,
-            contacts: [],
-            bindings: [{ channel_code: 'telegram', external_id: 'tg-2' }],
-          },
-        },
-      ],
-    });
-
-    const port = createPgPhoneMessengerBindPort(fakePool);
-    const result = await port.applyMessengerContactPreOtp({
-      phoneNormalized: '+79007654321',
-      channelCode: 'telegram',
-      externalId: 'tg-2',
-      purpose: 'login',
-    });
-
-    expect(result).toEqual({ ok: true, accountCreated: true });
-    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
-    const [db, identity, args] = runWebappNamedRootMock.mock.calls[0]!;
-    expect(db).toEqual({ tag: 'root-db' });
-    expect(identity).toBe('app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)');
-    expect(args).toEqual(['telegram', 'tg-2', '+79007654321', null, 'telegram', null]);
-    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
-  });
-
-  it('login: fails closed on a channel/phone-owner conflict with the candidate ids for manual merge', async () => {
-    runWebappNamedRootMock.mockResolvedValueOnce({
-      rows: [{ result: { outcome: 'conflict', candidate_ids: [NEW_LOGIN_USER_ID, SESSION_USER_ID] } }],
-    });
-
-    const port = createPgPhoneMessengerBindPort(fakePool);
-    const result = await port.applyMessengerContactPreOtp({
-      phoneNormalized: '+79007654321',
-      channelCode: 'telegram',
-      externalId: 'tg-2',
-      purpose: 'login',
-    });
-
-    expect(result).toEqual({
-      ok: false,
-      code: 'merge_blocked_ambiguous_candidates',
-      candidateIds: [NEW_LOGIN_USER_ID, SESSION_USER_ID],
-    });
-    // D15b/6 conflict-audit correction: exactly one call, into the named root — the audit case
-    // (`messenger_phone_bind_blocked`) is produced by that SAME root, atomically with the conflict
-    // decision (see the migration). No caller-side transaction is attempted: `fakePool` throws if its
-    // `connect`/`query` is ever reached, and this port no longer exposes a `withTransaction`/
-    // `recordMessengerBindBlocked` pair to reach it through.
-    expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
-    expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
-    expect(port).not.toHaveProperty('withTransaction');
-    expect(port).not.toHaveProperty('recordMessengerBindBlocked');
-  });
 });

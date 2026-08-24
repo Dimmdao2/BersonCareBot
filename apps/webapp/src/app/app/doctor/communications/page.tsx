@@ -17,7 +17,10 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   const session = workspace.session;
   const params = await searchParams;
   const initialTab = communicationsTabFromQuery(params.tab ?? null);
-  const mailingsMutationAvailability = await getMechanicMutationAvailability(workspace, 'mailings');
+  const [mailingsMutationAvailability, brandingMutationAvailability] = await Promise.all([
+    getMechanicMutationAvailability(workspace, 'mailings'),
+    getMechanicMutationAvailability(workspace, 'branding'),
+  ]);
 
   const deps = buildAppDeps();
 
@@ -65,7 +68,9 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
   return (
     <DoctorCommunicationsShell
       initialTab={initialTab}
-      mailingsMutationAvailable={mailingsMutationAvailability.available}
+      mailingsMutationAvailable={
+        mailingsMutationAvailability.available && brandingMutationAvailability.available
+      }
       badges={badges}
       displayIana={displayIana}
       initialTabData={
