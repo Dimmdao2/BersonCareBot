@@ -52,6 +52,10 @@ const sendEmailBodySchema = z
   .refine((data) => Boolean(data.code?.trim() || data.text?.trim()), {
     message: 'code_or_text_required',
   })
+  .refine((data) => Boolean(data.code?.trim() || data.subject?.trim()), {
+    message: 'subject_required_for_transactional_email',
+    path: ['subject'],
+  })
   .refine((data) => !data.code?.trim() || data.mailProfile !== undefined, {
     message: 'mail_profile_required_for_auth_code',
     path: ['mailProfile'],
@@ -161,7 +165,7 @@ export async function registerBersoncareSendEmailRoute(
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
 
-    const subject = payload.subject ?? 'BersonCare';
+    const subject = payload.subject?.trim() ?? '';
     const text = payload.text?.trim() ?? '';
 
     // OTP safety: prefix eventId with 'otp:email:' when a code is present so that

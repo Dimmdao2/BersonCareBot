@@ -6,12 +6,15 @@ const fakes = vi.hoisted(() => ({
 
 vi.mock('../../infra/db/publicSystemSettings.js', () => ({
   fetchIntegratorClinicDeliveryCredentialValueJson: fakes.fetchClinicTemplate,
-  parseSystemSettingInnerWithSchema: (value: unknown, schema: { parse: (input: unknown) => unknown }) =>
-    schema.parse(value),
+  parseSystemSettingInnerWithSchema: (
+    value: unknown,
+    schema: { parse: (input: unknown) => unknown },
+  ) => schema.parse(value),
 }));
 
 vi.mock('../../infra/principal/organizationPrincipal.js', () => ({
-  runWithOrganizationPrincipal: async (_organizationId: string, callback: () => unknown) => callback(),
+  runWithOrganizationPrincipal: async (_organizationId: string, callback: () => unknown) =>
+    callback(),
 }));
 
 import { resolveAndRenderAuthCodeMailProfile } from './mailProfile.js';
@@ -26,19 +29,22 @@ describe('auth-code mail profile', () => {
   it.each([
     ['staff', 'Therapysto'],
     ['standard patient', 'Therapygo'],
-  ])('renders the configured %s platform name into the auth-code delivery', async (_surface, name) => {
-    await expect(
-      resolveAndRenderAuthCodeMailProfile({
-        db: {} as never,
-        profile: { kind: 'platform', senderDisplayName: name },
-        code: '123456',
-      }),
-    ).resolves.toEqual({
-      senderDisplayName: name,
-      subject: `Код подтверждения ${name}`,
-      text: `Ваш код ${name}: 123456`,
-    });
-  });
+  ])(
+    'renders the configured %s platform name into the auth-code delivery',
+    async (_surface, name) => {
+      await expect(
+        resolveAndRenderAuthCodeMailProfile({
+          db: {} as never,
+          profile: { kind: 'platform', senderDisplayName: name },
+          code: '123456',
+        }),
+      ).resolves.toEqual({
+        senderDisplayName: name,
+        subject: `Код подтверждения ${name}`,
+        text: `Ваш код ${name}: 123456`,
+      });
+    },
+  );
 
   it('renders a branded patient from the owner-provided template with both required names', async () => {
     fakes.fetchClinicTemplate.mockResolvedValueOnce({
@@ -54,20 +60,30 @@ describe('auth-code mail profile', () => {
           kind: 'branded',
           organizationId: ORGANIZATION_ID,
           clinicName: 'Клиника',
-          platformName: 'Therapysto',
+          platformName: 'Therapygo',
         },
         code: '654321',
       }),
     ).resolves.toEqual({
-      senderDisplayName: 'Клиника / Therapysto',
-      subject: 'Клиника / Therapysto',
-      text: 'Клиника / Therapysto 654321',
+      senderDisplayName: 'Клиника / Therapygo',
+      subject: 'Клиника / Therapygo',
+      text: 'Клиника / Therapygo 654321',
     });
     expect(fakes.fetchClinicTemplate).toHaveBeenCalledWith(
       expect.anything(),
       'clinic_transactional_mail_template',
       ORGANIZATION_ID,
     );
+  });
+
+  it('rejects an auth-code delivery without a caller-selected mail profile', async () => {
+    await expect(
+      resolveAndRenderAuthCodeMailProfile({
+        db: {} as never,
+        profile: undefined,
+        code: '123456',
+      }),
+    ).rejects.toThrow();
   });
 
   it('fails closed instead of substituting a platform name while branded owner copy is absent', async () => {

@@ -25,9 +25,33 @@ const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   isEmailOtpStartRateLimitedByKey: vi.fn(),
   publicValues: new Map<string, boolean>(),
-  requestSurface: { value: 'staff' as 'staff' | 'patient_default' },
+  requestSurface: {
+    value: {
+      surface: 'staff',
+      publicOrigin: 'https://therapysto.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    } as
+      | {
+          surface: 'staff' | 'patient_default';
+          publicOrigin: string;
+          authPolicy: { availableMethods: string[]; enabledMethods: string[] };
+        }
+      | {
+          surface: 'patient_branded';
+          publicOrigin: string;
+          organizationId: string;
+          clinicSlug: string;
+          effectivePatientBrand: {
+            effectiveDisplayName: string;
+            patientAppName: string;
+            accentToken: string;
+          };
+          authPolicy: { availableMethods: string[]; enabledMethods: string[] };
+        },
+  },
   getPublicRuntimeBool: vi.fn<(key: string) => Promise<boolean>>(),
-  startPublicEmailOtpChallenge: vi.fn<(email: string, db: object) => Promise<StartResult>>(),
+  startPublicEmailOtpChallenge:
+    vi.fn<(email: string, db: object, mailProfile: unknown) => Promise<StartResult>>(),
   resolveRealIpRateLimitClientKey: vi.fn(),
 }));
 
@@ -48,16 +72,7 @@ vi.mock('@/modules/system-settings/configAdapter', () => ({
 vi.mock('next/headers', () => ({
   headers: async () =>
     new Headers({
-      'x-bc-resolved-surface': encodeURIComponent(
-        JSON.stringify({
-          surface: fakes.requestSurface.value,
-          publicOrigin: 'https://surface.example.test',
-          authPolicy: {
-            availableMethods: ['password', 'email_code', 'phone_bot', 'totp', 'oauth', 'passkey'],
-            enabledMethods: ['email_code'],
-          },
-        }),
-      ),
+      'x-bc-resolved-surface': encodeURIComponent(JSON.stringify(fakes.requestSurface.value)),
     }),
 }));
 vi.mock('@/modules/auth/emailOtpPublic', () => ({
@@ -66,6 +81,13 @@ vi.mock('@/modules/auth/emailOtpPublic', () => ({
 vi.mock('@/modules/auth/realIpRateLimitClientKey', () => ({
   resolveRealIpRateLimitClientKey: fakes.resolveRealIpRateLimitClientKey,
 }));
+vi.mock('@/shared/lib/surface/requestSurface', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shared/lib/surface/requestSurface')>();
+  return {
+    ...actual,
+    requireResolvedSurface: () => fakes.requestSurface.value,
+  };
+});
 
 import { POST } from './route';
 
@@ -88,8 +110,13 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-03T09:00:00.000Z'));
   fakes.publicValues.clear();
-  fakes.requestSurface.value = 'staff';
+  fakes.requestSurface.value = {
+    surface: 'staff',
+    publicOrigin: 'https://therapysto.example.test',
+    authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+  };
   fakes.publicValues.set('auth_surface_staff_email_enabled', true);
+  fakes.publicValues.set('auth_surface_patient_email_enabled', true);
   fakes.getPublicRuntimeBool.mockImplementation(async (key) => {
     const value = fakes.publicValues.get(key);
     if (value === undefined) throw new Error(`missing public projection: ${key}`);
@@ -114,9 +141,17 @@ describe('public email OTP start anti-enumeration', () => {
     fakes.publicValues.set('auth_surface_staff_email_enabled', true);
     fakes.publicValues.set('auth_surface_patient_email_enabled', false);
 
-    fakes.requestSurface.value = 'patient_default';
+    fakes.requestSurface.value = {
+      surface: 'patient_default',
+      publicOrigin: 'https://therapygo.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
     const patientDenied = await resolveAfterPublicFloor(POST(request()));
-    fakes.requestSurface.value = 'staff';
+    fakes.requestSurface.value = {
+      surface: 'staff',
+      publicOrigin: 'https://therapysto.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
     const staffAllowed = await resolveAfterPublicFloor(POST(request()));
 
     expect(patientDenied.status).toBe(503);
@@ -127,14 +162,62 @@ describe('public email OTP start anti-enumeration', () => {
     fakes.publicValues.set('auth_surface_staff_email_enabled', false);
     fakes.publicValues.set('auth_surface_patient_email_enabled', true);
 
-    fakes.requestSurface.value = 'staff';
+    fakes.requestSurface.value = {
+      surface: 'staff',
+      publicOrigin: 'https://therapysto.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
     const staffDenied = await resolveAfterPublicFloor(POST(request()));
-    fakes.requestSurface.value = 'patient_default';
+    fakes.requestSurface.value = {
+      surface: 'patient_default',
+      publicOrigin: 'https://therapygo.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
     const patientAllowed = await resolveAfterPublicFloor(POST(request()));
 
     expect(staffDenied.status).toBe(503);
     expect(patientAllowed.status).toBe(200);
     expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the caller-selected Therapygo profile into default-patient challenge creation', async () => {
+    fakes.requestSurface.value = {
+      surface: 'patient_default',
+      publicOrigin: 'https://therapygo.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    await resolveAfterPublicFloor(POST(request('default@example.test')));
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenLastCalledWith(
+      'default@example.test',
+      {},
+      { kind: 'platform', senderDisplayName: 'Therapygo' },
+    );
+  });
+
+  it('passes the caller-selected clinic profile into branded-patient challenge creation', async () => {
+    fakes.requestSurface.value = {
+      surface: 'patient_branded',
+      publicOrigin: 'https://clinic.example.test',
+      organizationId: '00000000-0000-4000-8000-000000000042',
+      clinicSlug: 'clinic',
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Клиника Эталон',
+        patientAppName: 'Приложение клиники',
+        accentToken: '#123456',
+      },
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    await resolveAfterPublicFloor(POST(request('clinic@example.test')));
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenLastCalledWith(
+      'clinic@example.test',
+      {},
+      {
+        kind: 'branded',
+        organizationId: '00000000-0000-4000-8000-000000000042',
+        clinicName: 'Клиника Эталон',
+        platformName: 'Therapygo',
+      },
+    );
   });
 
   it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {

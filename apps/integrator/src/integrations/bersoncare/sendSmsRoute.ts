@@ -117,7 +117,7 @@ export async function registerBersoncareSendSmsRoute(
       kind: 'message.send',
       channel: 'smsc',
       recipient: { phoneNormalized: phone },
-      content: { text: `Ваш код BersonCare: ${code}` },
+      content: { text: `Ваш код: ${code}` },
       meta: {
         // Delivery attempt logs retain eventId, so do not derive it from phone or code.
         eventId: idempotencyKey,

@@ -539,18 +539,15 @@ Checkbox закрывается только доказательством, у�
 - [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
   history не переименованы. Доказательство: scoped exact inventory before/after с явным allowlist technical/history.
 
-  > **НЕ ЗАКРЫВАТЬ (находка `S-1`, 22.08.2026).** Инвентаризация по всему репозиторию закрыта (`A3`), но
-  > текст кода входа по e-mail и SMS до сих пор говорит «BersonCare» и его видит **ПЕРСОНАЛ**, а не только
-  > пациенты: регистрация специалиста (`api/auth/specialist-signup/start`) и приём приглашения персонала
-  > (`api/clinic/invites/accept/start`) идут через `startEmailChallenge`, а живой источник текста —
-  > definer-функция `app.email_auth_start_challenge`
-  > (`deploy/postgres/organization-member-invites-rls.sql:929,931`), плюс те же строки хардкодом в
-  > `apps/integrator/src/integrations/bersoncare/{sendEmailRoute,sendSmsRoute,sendOtpRoute}.ts`.
-  > Четыре круга это пропустили, потому что мерили идентичность СТРАНИЦЫ, а текст письма не страница и не в
-  > webapp. **Строкой не чинится:** один путь обслуживает три разных правильных имени (Therapysto персоналу,
-  > Therapygo пациенту общего входа, бренд клиники пациенту клиники) — подстановка «Therapysto» нарушит
-  > `TPB-06`/`TPB-08`. Нужен параметр от вызывающего, а не дефолт у получателя, то есть механизм этапа `C`.
-  > Развилка владельцу — `Q1` в `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §6.
+  > **Находка `S-1` закрыта 24.08.2026.** Caller-side `mailProfileForResolvedSurface` выбирает Therapysto для
+  > staff/admin, Therapygo для общего patient-входа и `kind='branded'` с именем клиники + Therapygo для clinic
+  > surface. Профиль проходит через существующие `startEmailChallenge` → 11-аргументную
+  > `app.email_auth_start_challenge` → durable queue → integrator mail-profile renderer; отсутствие профиля
+  > fail-closed, receiver-default отсутствует. Старый 6-аргументный overload уже отказывает
+  > `mail_profile_required` миграциями этапа `C`, поэтому новая миграция определения не понадобилась и
+  > `20260823T010000…`/`20260823T043206…` не изменялись. В `send-email` удалён subject fallback, SMS-код стал
+  > нейтральным «Ваш код: …», `send-otp` использует обязательный `mailProfile`. Доказательство: route/unit-тесты
+  > трёх имён, missing-profile и SMS text плюс fault injection каждого имени и receiver-default.
 - [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
   возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
   и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.
