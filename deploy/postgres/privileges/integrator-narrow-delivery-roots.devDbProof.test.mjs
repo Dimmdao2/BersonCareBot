@@ -1,5 +1,5 @@
 /**
- * D17 regression proof on the named DEV database.
+ * D17 regression proof on a named DEV/TEST database.
  *
  * Failure caught: after the integrator login stopped carrying `app_tenant_service`, booking and
  * delivery code entered `app_integrator_tenant_service` but could neither EXECUTE nor pass the
@@ -30,10 +30,17 @@ const ENABLED = process.env.RUN_D17_INTEGRATOR_ROOTS_DB === '1';
 const DATABASE = process.env.D17_INTEGRATOR_ROOTS_PROOF_DB ?? 'bcb_webapp_dev';
 const MIGRATION_TAG = '20260824T053353_reconcile_clinic_delivery_credential_root';
 const MIGRATIONS_FOLDER = new URL('../../../apps/webapp/db/drizzle-migrations/', import.meta.url);
-const PRIVILEGES = new URL('../generated/privileges.bcb_webapp_dev.sql', import.meta.url);
+const PRIVILEGE_ARTIFACTS = new Map([
+  ['bcb_webapp_dev', new URL('../generated/privileges.bcb_webapp_dev.sql', import.meta.url)],
+  ['bersoncarebot_test', new URL('../generated/privileges.bersoncarebot_test.sql', import.meta.url)],
+]);
 
 if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(DATABASE)) {
   throw new Error(`unsafe database identifier '${DATABASE}'`);
+}
+const PRIVILEGES = PRIVILEGE_ARTIFACTS.get(DATABASE);
+if (!PRIVILEGES) {
+  throw new Error(`D17 proof is allowed only on named DEV/TEST databases, got '${DATABASE}'`);
 }
 
 function psql(sql) {
