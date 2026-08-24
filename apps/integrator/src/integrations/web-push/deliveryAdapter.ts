@@ -130,7 +130,7 @@ export function createWebPushDeliveryAdapter(deps: {
       }
 
       const body = asString(payload.message?.text) ?? '';
-      const title = asString(payload.title) ?? 'BersonCare';
+      const title = asString(payload.title) ?? 'Therapygo';
       const url = asString(payload.url) ?? '/';
       const extras = payload.pushExtras ?? {};
 

@@ -49,6 +49,7 @@ import type {
 } from '@/modules/patient-booking/types';
 import type { PublicBookingIntent } from '@/modules/public-booking/publicBookingIntent';
 import type { BookingAttribution } from '@/modules/booking-attribution/types';
+import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 type CreateVerifiedPublicBookingDeps = InPersonBookingResolveDeps & {
   patientBooking: {
@@ -61,7 +62,9 @@ export async function createVerifiedPublicBooking(
   intent: PublicBookingIntent,
   platformUserId: string,
   confirmationChannel: PublicBookingConfirmationChannel,
+  mailProfile?: MailProfileRequest,
 ): Promise<PatientBookingRecord> {
+  if (!mailProfile) throw new Error('booking_mail_profile_required');
   // Identity-only principal: the visitor may not be a client of this clinic yet, and a principal
   // claiming an organisation the person has no enrolment row for is refused by the tenant-claim
   // gate. This step is what creates that row. It does NOT spend the clinic's paid client ceiling
@@ -112,6 +115,7 @@ export async function createVerifiedPublicBooking(
         contactPhone: intent.contactPhone,
         contactEmail: intent.contactEmail,
         formAnswers: intent.formAnswers,
+        mailProfile,
       });
       return { booking, userId: platformUserId };
     },

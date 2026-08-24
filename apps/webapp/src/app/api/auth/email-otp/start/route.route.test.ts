@@ -292,7 +292,7 @@ describe('public email OTP start anti-enumeration', () => {
   });
 
   // D27-C: delivery moved off this request onto the durable outgoing_delivery_queue (see
-  // emailAuth.ts / pgAuthEmailOtpDeliveryQueue.ts), and this route races startPublicEmailOtpChallenge
+  // emailAuth.ts / app.email_auth_start_challenge), and this route races startPublicEmailOtpChallenge
   // against the public floor so its own latency structurally cannot leak into the response either
   // way -- do not "fix" this with a fixed sleep, a constant delay only moves the delta.
   it('keeps a known address out of a slower response-time class when its provider exceeds the floor', async () => {

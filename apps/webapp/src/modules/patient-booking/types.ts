@@ -1,4 +1,5 @@
 import type { BookingAttribution } from '@/modules/booking-attribution/types';
+import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 export type PatientBookingChannel = 'app' | 'public_widget';
 
@@ -101,6 +102,8 @@ type CreatePatientBookingCommon = {
   organizationId?: string;
   bookingChannel?: PatientBookingChannel;
   attribution?: BookingAttribution;
+  /** Resolved at the request boundary; required for patient-visible transactional copy. */
+  mailProfile: MailProfileRequest;
   /** Number of adjacent per-service appointments to create; defaults to one. */
   slotCount?: number;
 };

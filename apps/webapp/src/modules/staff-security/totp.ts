@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const TOTP_STEP_SECONDS = 30;
@@ -48,7 +49,7 @@ export function verifyTotpCode(secret: string, code: string, nowMs = Date.now())
 }
 
 export function buildTotpUri(input: { secret: string; email: string }): string {
-  const issuer = 'BersonCare';
+  const issuer = STAFF_SURFACE.name;
   const label = `${issuer}:${input.email}`;
   return `otpauth://totp/${encodeURIComponent(label)}?secret=${input.secret}&issuer=${encodeURIComponent(issuer)}&digits=6&period=30`;
 }

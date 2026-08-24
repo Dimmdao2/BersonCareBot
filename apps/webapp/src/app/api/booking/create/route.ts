@@ -17,6 +17,8 @@ import {
   type ApiErrorLiteralRules,
 } from '@/shared/http/apiResponse';
 import { FIO_LATIN_REJECTED_TEXT, isFioLatinRejection } from '@/shared/lib/fio';
+import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 const formAnswerSchema = z.object({
   fieldKey: z.string().min(1),
@@ -99,6 +101,7 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const mailProfile = mailProfileForResolvedSurface(requireResolvedSurface(request.headers));
   const body = parsed.data;
   try {
     if (body.type === 'online') {
@@ -123,6 +126,7 @@ export async function POST(request: Request) {
           contactEmail: body.contactEmail,
           formAnswers: body.formAnswers,
           patientPackageId: body.patientPackageId,
+          mailProfile,
     });
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {
