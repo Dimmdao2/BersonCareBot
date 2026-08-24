@@ -41,10 +41,6 @@ const bootstrapHybridOrgGatedTables = new Set([
   'public.user_phone_history',
 ]);
 
-const bootstrapRuntimeAudienceTables = new Set(['public.app_runtime_settings']);
-
-const bootstrapRuntimeAuditTables = new Set(['public.app_runtime_settings_audit']);
-
 // Tenant-owned tables that already carry a direct organization_id but do not use the historical
 // public.be_* prefix and therefore do not belong in the P0.4 materialization batches.
 export const preScopedDirectOrgTables = new Set([
@@ -170,28 +166,6 @@ function scopedDescriptorForBeTable(table) {
 }
 
 function bootstrapDescriptor(table) {
-  if (bootstrapRuntimeAuditTables.has(table)) {
-    return {
-      tier: 'BOOTSTRAP',
-      scopingKind: 'bootstrap_runtime_audit',
-      predicateTemplate: 'staff_global_or_exact_org_audit',
-      orgColumn: 'organization_id',
-      source: 'runtime_config_staff_only_audit_history',
-    };
-  }
-
-  if (bootstrapRuntimeAudienceTables.has(table)) {
-    return {
-      tier: 'BOOTSTRAP',
-      scopingKind: 'bootstrap_runtime_audience',
-      predicateTemplate: 'safe_audience_global_or_tenant_row',
-      orgColumn: 'organization_id',
-      audienceColumn: 'audience',
-      safeAudiences: ['public', 'authenticated_client'],
-      source: 'runtime_config_safe_audience_global_or_tenant_row',
-    };
-  }
-
   if (bootstrapHybridOrgGatedTables.has(table)) {
     return {
       tier: 'BOOTSTRAP',

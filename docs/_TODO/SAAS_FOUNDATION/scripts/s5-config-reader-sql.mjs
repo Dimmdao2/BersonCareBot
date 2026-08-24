@@ -97,9 +97,7 @@ GRANT EXECUTE ON FUNCTION
 
 -- Explicitly keep every non-target settings surface closed.
 REVOKE ALL PRIVILEGES ON TABLE
-  public.system_settings_audit,
-  public.app_runtime_settings,
-  public.app_runtime_settings_audit
+  public.system_settings_audit
   FROM :"s5_config_reader_login_role", app_config_reader;
 
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
@@ -124,8 +122,6 @@ SELECT 1 / (
   has_table_privilege('app_config_reader', 'public.system_settings', 'SELECT')
   AND NOT has_table_privilege('app_config_reader', 'public.system_settings', 'INSERT,UPDATE,DELETE')
   AND NOT has_table_privilege('app_config_reader', 'public.system_settings_audit', 'SELECT,INSERT,UPDATE,DELETE')
-  AND NOT has_table_privilege('app_config_reader', 'public.app_runtime_settings', 'SELECT,INSERT,UPDATE,DELETE')
-  AND NOT has_table_privilege('app_config_reader', 'public.app_runtime_settings_audit', 'SELECT,INSERT,UPDATE,DELETE')
 )::int AS s5_config_reader_acl_closed;
 
 COMMIT;

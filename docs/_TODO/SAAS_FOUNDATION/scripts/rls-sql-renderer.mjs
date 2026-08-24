@@ -640,28 +640,6 @@ export function renderBootstrapHybridOrgGatedPredicate({ orgColumn = 'organizati
   return `((${orgContextSql} IS NOT NULL AND ${columnSql} = ${orgContextSql}) OR (${columnSql} IS NULL AND ${dormantCompatibilityPredicate}))`;
 }
 
-export function renderBootstrapRuntimeAudiencePredicate({
-  orgColumn = 'organization_id',
-  audienceColumn = 'audience',
-  safeAudiences = ['public', 'authenticated_client'],
-} = {}) {
-  if (
-    !Array.isArray(safeAudiences) ||
-    safeAudiences.length === 0 ||
-    safeAudiences.some((audience) => !['public', 'authenticated_client'].includes(audience))
-  ) {
-    throw new Error(
-      'Runtime audience predicate accepts only public/authenticated_client audiences',
-    );
-  }
-
-  const audienceSql = quoteSqlIdentifier(audienceColumn);
-  const safeAudienceSql = safeAudiences.map(quoteSqlLiteral).join(', ');
-  const orgPredicate = renderBootstrapHybridPredicate({ orgColumn });
-
-  return `(NOT pg_has_role(current_user, 'app_worker', 'member') AND ${audienceSql} IN (${safeAudienceSql}) AND ${orgPredicate})`;
-}
-
 export function renderPolicyTarget(table) {
   return quoteQualifiedName(table);
 }

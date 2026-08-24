@@ -463,8 +463,8 @@ WHERE attrelid = 'public.user_oauth_bindings'::regclass
   AND NOT attisdropped
 \gexec
 
--- S5-2: the safe runtime store is directly readable by app_patient, while every
--- restricted/audit surface stays physically unavailable. Re-running the UP path repairs stale ACLs.
+-- S5-2: canonical settings and their audit stay physically unavailable to app_patient.
+-- Re-running the UP path repairs stale ACLs.
 REVOKE ALL PRIVILEGES ON TABLE
   public.system_settings,
   public.system_settings_audit
