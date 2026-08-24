@@ -37,7 +37,7 @@ The brief names `docs/_TODO/INTEGRATOR_CLEANUP_AND_SIMPLIFICATION/IMPLEMENTATION
 | 1 | PASS | `rg -o "'auth_surface_[a-z0-9_]+_enabled'" apps/webapp/db/drizzle-migrations/20260824T120000_make_system_settings_single_root.sql | sort -u | wc -l` returned 27 explicit auth-surface keys. The UPSERT targets global rows (`organization_id IS NULL`). |
 | 2 | PASS | Migration values are explicit: staff/platform-admin email only; patient email/Telegram/MAX/Yandex; every other channel false. No legacy value appears in the VALUES matrix. |
 | 3 | PASS | The matrix is a literal `INSERT ... VALUES ... ON CONFLICT`; it does not select from either mirror table. |
-| 4 | PASS | `rg -l "app_runtime_settings" apps packages deploy scripts --glob '!apps/webapp/db/drizzle-migrations/**' --glob '!deploy/postgres/generated/prod-to-target/schema-*.sql' --glob '!**/*.test.*' --glob '!**/*.md' | sort` returned no active code path. `getSnapshotRows` has definitions only and no non-test callers. |
+| 4 | PASS | `rg -l "app_runtime_settings" apps packages deploy scripts --glob '!apps/webapp/db/drizzle-migrations/**' --glob '!deploy/postgres/generated/prod-to-target/schema-*.sql' --glob '!**/*.test.*' --glob '!**/*.md' | sort` returned no active code path. |
 | 5 | PASS | Added `pgAppRuntimeSettings.unit.test.ts`: secret and unregistered keys return `null` before SQL; public and authenticated registered keys use the declared resolver. Focused suite: 41/41. |
 | 6 | PASS | Rollback-only named-DEV proof `settings-single-root.devDbProof.test.mjs` returns the own-org value and zero rows for another organization. Its in-memory `org_guard` fault returns one other-org row and fails. |
 | 7 | PASS | Migration drops the mirror sync/audit triggers and functions and both mirror tables; code inspection found no dual write, fallback, mismatch telemetry, or second audit path. |
@@ -93,3 +93,12 @@ Uncaught test-class fault injections: **0**. The #2 matrix mutation is not count
 - `node --check deploy/postgres/privileges/settings-single-root.devDbProof.test.mjs` and `pnpm exec eslint deploy/postgres/privileges/settings-single-root.devDbProof.test.mjs` — PASS.
 - DEV preflight command above — three clean-candidate PASS runs in total; final pre/post rollback fingerprints identical.
 - Full CI intentionally not run per audit brief; landing lead owns that gate.
+
+## Lead acceptance correction
+
+After the independent PASS, the lead removed the unused `RuntimeSettingsRepository.getSnapshotRows`,
+`RuntimeSettingsRepository.upsert`, and write-unit-of-work `delete` declarations plus their dead implementations.
+They had no non-test callers, but keeping a direct unaudited write method beside the canonical
+`createSystemSettingsService().updateSetting` path contradicted the single-write-path rule. This correction only
+removes unreachable surface; it does not add or change runtime behavior and therefore does not require a new blind
+audit.

@@ -87,19 +87,6 @@ export type RuntimeSettingsRepository = {
     operationFamily: RuntimeConfigOperationFamily;
     allowGlobalFallback?: boolean;
   }): Promise<RuntimeSettingRow | null>;
-  getSnapshotRows(input: {
-    scope: string;
-    organizationId: string | null;
-    allowedAudiences: readonly RuntimeConfigAudience[];
-  }): Promise<RuntimeSettingRow[]>;
-  upsert(input: {
-    key: string;
-    scope: string;
-    organizationId: string | null;
-    audience: RuntimeConfigAudience;
-    valueJson: unknown;
-    updatedBy: string | null;
-  }): Promise<RuntimeSettingRow>;
 };
 
 export type SettingsWriteUnitOfWork = {
@@ -110,13 +97,6 @@ export type SettingsWriteUnitOfWork = {
     row: SystemSettingsUpsertRow;
     expectedUpdatedAt: string | null;
   }): Promise<SystemSetting | null>;
-  delete?(input: {
-    key: SystemSettingKey;
-    scope: SystemSettingScope;
-    organizationId: string | null;
-    updatedBy: string | null;
-    deleteRuntime: boolean;
-  }): Promise<boolean>;
 };
 
 /** Public-login capabilities derived in Postgres without exposing channel credentials. */

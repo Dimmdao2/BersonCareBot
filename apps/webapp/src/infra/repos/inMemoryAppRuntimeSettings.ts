@@ -7,10 +7,4 @@ export const inMemoryAppRuntimeSettingsPort: RuntimeSettingsRepository = {
   async getEffective() {
     return null;
   },
-  async getSnapshotRows() {
-    return [];
-  },
-  async upsert(input) {
-    return { ...input };
-  },
 };
