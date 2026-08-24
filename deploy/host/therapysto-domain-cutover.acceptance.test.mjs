@@ -94,6 +94,24 @@ test('offline render uses the declared certificate key path', () => {
   );
 });
 
+test('fixture-looking hosts cannot bypass the split TLS certificate boundary', () => {
+  const runtime = fixture();
+  const sharedPairMap = readFileSync(runtime.mapPath, 'utf8')
+    .replace(/^CLINIC_TLS_CERTIFICATE_PATH=.*$/mu, `CLINIC_TLS_CERTIFICATE_PATH=${runtime.certPath}`)
+    .replace(
+      /^CLINIC_TLS_CERTIFICATE_KEY_PATH=.*$/mu,
+      `CLINIC_TLS_CERTIFICATE_KEY_PATH=${runtime.keyPath}`,
+    );
+  writeFileSync(runtime.mapPath, sharedPairMap);
+
+  const result = run(cutoverPath, ['--host-map', runtime.mapPath, '--offline'], runtime);
+  assert.notEqual(
+    result.status,
+    0,
+    'a hostname suffix used by fixtures bypassed the operator contract requiring separate platform and clinic TLS pairs',
+  );
+});
+
 test('preflight rejects a resolved address different from the approved DNS target', () => {
   const runtime = fixture();
   executable(join(runtime.bin, 'getent'), "printf '%s\\n' '192.0.2.99 STREAM wrong-target'");
@@ -215,6 +233,29 @@ test('offline render does not call DNS, TLS, sudo or service binaries', () => {
   );
   assert.equal(result.status, 0, result.stderr);
   assert.equal(existsSync(marker), false, 'offline mode crossed a host boundary');
+});
+
+test('offline apply is rejected before reaching sudo even with a valid owner digest', () => {
+  const runtime = fixture();
+  const marker = join(runtime.root, 'sudo-reached');
+  executable(join(runtime.bin, 'sudo'), `printf reached > '${marker}'; exit 99`);
+  const digest = run(
+    cutoverPath,
+    ['--host-map', runtime.mapPath, '--approval-digest'],
+    runtime,
+  ).stdout.trim();
+
+  const result = run(
+    cutoverPath,
+    ['--host-map', runtime.mapPath, '--offline', '--apply'],
+    runtime,
+    {
+      THERAPYSTO_CUTOVER_OWNER_APPROVED: 'yes',
+      THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256: digest,
+    },
+  );
+  assert.notEqual(result.status, 0, 'offline and apply modes must be mutually exclusive');
+  assert.equal(existsSync(marker), false, 'offline apply reached a privileged host boundary');
 });
 
 test('host-map validation rejects duplicate host values', () => {
