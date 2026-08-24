@@ -465,8 +465,8 @@ export const SYSTEM_SETTING_REGISTRY = {
   yandex_oauth_redirect_uri: restricted(
     'admin',
     'global',
-    'url',
-    'absent',
+    'string_list',
+    '[]',
     'derived',
     'oauth_yandex_enabled',
   ),

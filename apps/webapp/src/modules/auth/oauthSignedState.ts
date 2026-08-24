@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { env } from '@/config/env';
 import type { RoleLoginPortal } from '@/modules/auth/roleLogin';
+import type { RequestSurface } from '@/shared/lib/surface/requestSurface';
 
 const VERSION = 'v1';
 
@@ -36,6 +37,8 @@ type Payload = {
   nonce?: string;
   tz?: string;
   org?: string;
+  surface?: RequestSurface;
+  origin?: string;
   next?: string;
   portal?: RoleLoginPortal;
 };
@@ -58,6 +61,8 @@ export function createSignedOAuthState(
   options?: {
     browserCalendarIana?: string | null;
     organizationId?: string | null;
+    surface?: RequestSurface | null;
+    publicOrigin?: string | null;
     next?: string | null;
     roleLoginPortal?: RoleLoginPortal | null;
   },
@@ -76,6 +81,17 @@ export function createSignedOAuthState(
     )
   ) {
     payload.org = organizationId;
+  }
+  const surface = options?.surface;
+  const publicOrigin = options?.publicOrigin;
+  if (
+    surface &&
+    publicOrigin &&
+    (surface === 'patient_default' || surface === 'patient_branded') &&
+    new URL(publicOrigin).origin === publicOrigin
+  ) {
+    payload.surface = surface;
+    payload.origin = publicOrigin;
   }
   const next = options?.next?.trim();
   if (next && next.length <= 2048 && options?.roleLoginPortal) {
@@ -163,6 +179,8 @@ export type VerifiedOAuthState = {
   nonce?: string;
   browserCalendarIana?: string;
   organizationId?: string;
+  surface?: RequestSurface;
+  publicOrigin?: string;
   next?: string;
   roleLoginPortal?: RoleLoginPortal;
 };
@@ -200,7 +218,7 @@ function verifyTokenInternal(
     return null;
   }
 
-  const { p, exp, n, nonce, tz, org, next, portal } = payloadRaw as Record<string, unknown>;
+  const { p, exp, n, nonce, tz, org, surface, origin, next, portal } = payloadRaw as Record<string, unknown>;
   if (p !== expectedPurpose || typeof exp !== 'number' || typeof n !== 'string' || !n) {
     return null;
   }
@@ -227,6 +245,24 @@ function verifyTokenInternal(
   )
     return null;
   if (
+    (surface !== undefined &&
+      surface !== 'staff' &&
+      surface !== 'platform_admin' &&
+      surface !== 'patient_default' &&
+      surface !== 'patient_branded') ||
+    (origin !== undefined &&
+      (typeof origin !== 'string' ||
+        (() => {
+          try {
+            return new URL(origin).origin !== origin;
+          } catch {
+            return true;
+          }
+        })())) ||
+    (surface === undefined) !== (origin === undefined)
+  )
+    return null;
+  if (
     (next !== undefined && (typeof next !== 'string' || next.length > 2048)) ||
     (portal !== undefined && portal !== 'doctor' && portal !== 'patient' && portal !== 'admin') ||
     (next === undefined) !== (portal === undefined)
@@ -239,6 +275,8 @@ function verifyTokenInternal(
     out.browserCalendarIana = tz.trim();
   }
   if (typeof org === 'string') out.organizationId = org;
+  if (typeof surface === 'string') out.surface = surface as RequestSurface;
+  if (typeof origin === 'string') out.publicOrigin = origin;
   if (
     typeof next === 'string' &&
     (portal === 'doctor' || portal === 'patient' || portal === 'admin')
