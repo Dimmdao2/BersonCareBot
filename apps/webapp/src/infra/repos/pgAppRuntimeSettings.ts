@@ -11,7 +11,10 @@ import type {
 import type { RuntimeSettingsRepository } from '@/modules/system-settings/ports';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
-import { SYSTEM_SETTING_REGISTRY } from '@/modules/system-settings/registry';
+import {
+  SYSTEM_SETTING_REGISTRY,
+  type SystemSettingScope,
+} from '@/modules/system-settings/registry';
 import type { SystemSettingKey } from '@/modules/system-settings/types';
 
 type RuntimeSettingDbRow = {
@@ -36,12 +39,25 @@ function toRuntimeSetting(row: RuntimeSettingDbRow): RuntimeSettingRow {
   };
 }
 
-function runtimeDefinition(key: string, allowedAudiences: readonly RuntimeConfigAudience[]) {
+function runtimeScope(
+  key: string,
+  allowedAudiences: readonly RuntimeConfigAudience[],
+): SystemSettingScope | null {
   const definition = SYSTEM_SETTING_REGISTRY[key as SystemSettingKey];
-  if (!definition || definition.storage !== 'runtime' || !allowedAudiences.includes(definition.audience)) {
-    return null;
+  if (
+    definition
+    && definition.storage === 'runtime'
+    && allowedAudiences.includes(definition.audience)
+  ) {
+    return definition.scope;
   }
-  return definition;
+
+  const projectionSource = Object.values(SYSTEM_SETTING_REGISTRY).find(
+    (candidate) =>
+      candidate.clientSerialization === 'derived'
+      && candidate.safeProjection === key,
+  );
+  return projectionSource && allowedAudiences.includes('public') ? 'admin' : null;
 }
 
 export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
@@ -65,8 +81,7 @@ export function createPgAppRuntimeSettingsPort(): RuntimeSettingsRepository {
       return row?.value_json == null ? null : toRuntimeSetting(row);
     },
     async getEffective(input) {
-      const definition = runtimeDefinition(input.key, input.allowedAudiences);
-      if (!definition || definition.scope !== input.scope) return null;
+      if (runtimeScope(input.key, input.allowedAudiences) !== input.scope) return null;
       if (
         input.organizationId === null &&
         input.allowedAudiences.length === 1 &&
