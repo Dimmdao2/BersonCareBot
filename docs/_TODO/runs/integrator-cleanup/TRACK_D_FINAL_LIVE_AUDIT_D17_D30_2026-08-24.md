@@ -263,3 +263,18 @@ SELECT count(*) FROM booking_calendar_map
 `auth_surface_staff_oauth_yandex_enabled` отсутствует в `system_settings`, а runtime требует этот ключ.
 Достижимое последствие: владелец не может войти и создать bounded TEST booking/task; обязательные D17 и
 D30 Ш1/Ш3/Ш4/Ш5 live proofs недоступны через нормальные application boundaries.
+
+## Lead verification after TEST recovery
+
+The startup finding above was fixed and independently audited by the public-setting seed, then deployed
+on TEST SHA `9902f0034`: `/app`, both login pages and `/api/health` return `200` on the unchanged old
+domain scheme, with no fresh `runtime_setting_unavailable` events.
+
+Commit `1320a15d9` also removed the proof-only obstacle recorded in §2: the canonical D17 proof now
+selects the generated privilege artifact for its named target instead of always loading the DEV
+artifact. The unchanged rollback-only command against `bersoncarebot_test` passed `1/1` in 47.5 seconds.
+It proved the narrow exact-organization credential/calendar/mechanic roots, cross-organization and broad-
+role `42501`, zero direct medical-relation privileges, and one pending appointment-reminder materialization;
+the transaction rolled back. Thus the D17 DB/runtime boundary is **PASS**. The checkbox remains open only
+for a normal owner-authenticated booking whose confirmation and reminder are observed through the resident
+delivery path; no fixture, token or synthetic account substitutes for that journey.
