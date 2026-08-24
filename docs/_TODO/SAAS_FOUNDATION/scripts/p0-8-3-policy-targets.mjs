@@ -96,7 +96,6 @@ export const expectedP083PublicDirectOrgTargets = Object.freeze([
   'public.recommendation_regions',
   'public.recommendations',
   'public.reference_categories',
-  'public.reminder_journal',
   'public.reminder_rules',
   'public.saas_org_entitlement_overrides',
   'public.saas_organization_trials',

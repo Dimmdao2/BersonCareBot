@@ -138,13 +138,10 @@ assertIncludes(
 
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656): a
 // chain-owned table (no direct patient column) must ALSO get the fail-closed staff-or-patient
-// branch in enforce mode, rendered as an EXISTS chain, terminating on the bigint integrator GUC.
-// Proof subject swapped 2026-08-23 (Track D final cutover #987): the original subject,
-// integrator.user_reminder_delivery_logs, was retired (duplicate delivery journal, folded into
-// public.outgoing_delivery_queue). integrator.user_reminder_occurrences has the identical
-// chain-owned shape (single hop to public.reminder_rules, terminalColumn integrator_user_id,
-// castType bigint) and remains live, so it proves the same regression.
-const chainScoped = getP09EnforceDescriptorByTable('integrator.user_reminder_occurrences');
+// branch in enforce mode, rendered as an EXISTS chain. Track D retired the duplicate integrator
+// occurrence and delivery journals; the surviving occurrence history proves the same renderer
+// contract through its platform-user bridge.
+const chainScoped = getP09EnforceDescriptorByTable('public.reminder_occurrence_history');
 const chainScopedSql = renderP09EnforcePolicyStatements(chainScoped).join('\n');
 
 assertIncludes(
@@ -159,13 +156,8 @@ assertIncludes(
 );
 assertIncludes(
   chainScopedSql,
-  '"integrator_user_id" = app.current_integrator_user_id()',
-  'P0.9 chain-owned enforce SQL must terminate on app.current_integrator_user_id(), not app.current_patient_user_id()',
-);
-assertNotIncludes(
-  chainScopedSql,
-  'app.current_patient_user_id()',
-  'P0.9 integrator chain-owned enforce SQL must not reference the uuid app.current_patient_user_id() helper',
+  '"id" = app.current_patient_user_id()',
+  'P0.9 chain-owned enforce SQL must terminate on the patient identity helper',
 );
 
 // B4-core-4: conditional ownership must also get a patient wall in P0.9 enforce mode. These

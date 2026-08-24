@@ -57,7 +57,6 @@ INSERT INTO p0_5b_staff_grant_tables (schema_name, table_name)
 VALUES
   ('integrator', 'idempotency_keys'),
   ('integrator', 'integration_data_quality_incidents'),
-  ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),
   ('public', 'auth_rate_limit_events'),
   ('public', 'be_appointment_cancellations'),
@@ -193,7 +192,6 @@ VALUES
   ('public', 'recommendations'),
   ('public', 'reference_categories'),
   ('public', 'reference_items'),
-  ('public', 'reminder_journal'),
   ('public', 'reminder_occurrence_history'),
   ('public', 'reminder_rules'),
   ('public', 'specialist_tasks'),
@@ -239,7 +237,6 @@ CREATE TEMP TABLE p0_5b_patient_grant_tables (
 
 INSERT INTO p0_5b_patient_grant_tables (schema_name, table_name, privileges)
 VALUES
-  ('integrator', 'user_reminder_occurrences', 'SELECT'),
   ('public', 'be_appointment_cancellations', 'SELECT, INSERT'),
   ('public', 'be_appointment_history_events', 'SELECT, INSERT'),
   ('public', 'be_appointment_no_shows', 'SELECT'),
@@ -305,7 +302,6 @@ VALUES
   ('public', 'program_action_log', 'SELECT, INSERT'),
   ('public', 'program_item_discussion_messages', 'SELECT, INSERT'),
   ('public', 'program_item_discussion_reads', 'SELECT, INSERT, UPDATE'),
-  ('public', 'reminder_journal', 'SELECT'),
   ('public', 'reminder_occurrence_history', 'SELECT'),
   ('public', 'reminder_rules', 'SELECT, INSERT, UPDATE'),
   ('public', 'support_conversation_messages', 'SELECT, INSERT'),
@@ -374,7 +370,6 @@ ORDER BY seq_ns.nspname, seq.relname
 SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_staff', 'integrator') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_staff') \gexec
 SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_staff', 'public') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_staff') \gexec
 
-SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_patient', 'integrator') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient') \gexec
 SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_patient', 'public') WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient') \gexec
 
 
@@ -385,7 +380,6 @@ SELECT format('REVOKE USAGE ON SCHEMA %I FROM app_patient', 'public') WHERE EXIS
 
 GRANT USAGE ON SCHEMA "integrator" TO app_staff;
 GRANT USAGE ON SCHEMA "public" TO app_staff;
-GRANT USAGE ON SCHEMA "integrator" TO app_patient;
 GRANT USAGE ON SCHEMA "public" TO app_patient;
 
 SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO app_staff', schema_name, table_name)
