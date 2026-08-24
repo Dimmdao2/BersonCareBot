@@ -1,5 +1,7 @@
 # Final independent audit — Therapysto future-domain cutover package
 
+Тест или взгляд: повторяемое fail-closed/apply/rollback поведение — существующие acceptance-тесты и точечные fault injections; разовая связность runbook, diff и отсутствие live effects — inspection.
+
 ## Authority and candidate
 
 Read `AGENTS.md` sections 1, 9, 10a, 10b, and 24 before acting. This is the final independent audit of
@@ -41,4 +43,3 @@ name a reachable break of the owner outcome or repo rule.
 - Write a concise final audit artifact under
   `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/` and commit only that artifact or necessary audit tests.
 - End with `PASS` or `FAIL`, exact SHA, exact checks, and confirmation that live state was untouched.
-

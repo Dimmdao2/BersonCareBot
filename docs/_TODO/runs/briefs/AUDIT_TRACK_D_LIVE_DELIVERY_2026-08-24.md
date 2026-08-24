@@ -1,5 +1,7 @@
 # Track D final live audit — delivery/scheduler path (D17 + D30)
 
+Тест или взгляд: booking/queue/scheduler/provider behavior — живой bounded TEST journey и runtime measurements; process topology, cron absence and cleanup — inspection.
+
 ## Authority
 
 Read `AGENTS.md` sections 1, 1a, 1b, 5, 9, 10a, 10b, and 24, then the complete D17/D30 checklist passages.
@@ -48,4 +50,3 @@ Use the normal existing-owner TEST boundaries and safe delivery redirect. Measur
 - No product fixes, merge, push, deploy, or full CI.
 - Write and commit a concise artifact under `docs/_TODO/runs/integrator-cleanup/` with each named gate
   `PASS|FAIL|BLOCKED`, exact sanitized measurements and cleanup evidence.
-
