@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { pipeline } from 'node:stream/promises';
 import { Readable } from 'node:stream';
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import ffmpeg from 'fluent-ffmpeg';
 import type { FfmpegCommand } from 'fluent-ffmpeg';
 import sharp from 'sharp';
@@ -31,7 +30,7 @@ import {
 } from '@/modules/media/imageStandardRendition';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
 
-const resolvedFfmpegPath = env.FFMPEG_PATH || ffmpegInstaller.path;
+const resolvedFfmpegPath = env.FFMPEG_PATH || 'ffmpeg';
 try {
   ffmpeg.setFfmpegPath(resolvedFfmpegPath);
   logger.info({ path: resolvedFfmpegPath }, '[mediaPreviewWorker] ffmpeg path set');

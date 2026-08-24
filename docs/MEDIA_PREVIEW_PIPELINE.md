@@ -81,11 +81,11 @@
 
 ## Зависимости
 
-В `apps/webapp`: `sharp`, `fluent-ffmpeg`, `@ffmpeg-installer/ffmpeg`. Для HEIC fallback в production нужен установленный `ImageMagick` (`magick` или `convert` в `PATH`, либо `MAGICK_PATH` в env).
+В `apps/webapp`: `sharp`, `fluent-ffmpeg` и системный `ffmpeg`. Для HEIC fallback в production нужен установленный `ImageMagick` (`magick` или `convert` в `PATH`, либо `MAGICK_PATH` в env).
 
-Для production runtime воркер сначала читает `FFMPEG_PATH` из env (рекомендуемо `/usr/bin/ffmpeg`) и только затем fallback на бинарь из `@ffmpeg-installer`. Для HEIC fallback можно задать `MAGICK_PATH` (например `/usr/bin/magick`).
+Воркер сначала читает `FFMPEG_PATH` из env (на сервере канонично `/usr/bin/ffmpeg`), иначе разрешает `ffmpeg` через `PATH`. Для HEIC fallback можно задать `MAGICK_PATH` (например `/usr/bin/magick`).
 
-**Next.js production build:** пакеты с динамическим `require` у `@ffmpeg-installer/*` не бандлятся Turbopack — в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) задано `serverExternalPackages` для `sharp`, `fluent-ffmpeg` и `@ffmpeg-installer/*`.
+**Next.js production build:** в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) нативные `sharp` и `fluent-ffmpeg` остаются в `serverExternalPackages`. Для preview-route исключены исходники и test/config-файлы, которые NFT ошибочно захватывал из-за динамических временных путей. Платформенный `@ffmpeg-installer` из webapp удалён отдельно: сервер использует системный ffmpeg, а bundled-бинарь уже давал `SIGSEGV` на хосте.
 
 ## Миграция
 
@@ -94,6 +94,6 @@
 ## Troubleshooting: ffmpeg SIGSEGV
 
 - Симптом: в логах webapp есть `ffmpeg was killed with signal SIGSEGV`.
-- Причина: бинарь `@ffmpeg-installer` несовместим с glibc хоста.
+- Причина: исторически это давал bundled-бинарь; после его удаления проверить системный `ffmpeg`, значение `FFMPEG_PATH` и конкретный входной файл.
 - Исправление: установить системный ffmpeg (`apt install ffmpeg`), задать `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`, затем перезапустить `bersoncarebot-webapp-prod.service`.
 - После фикса рантайма применить миграцию [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql), чтобы повторно поставить старые `skipped` MOV/HEIC в очередь воркера.

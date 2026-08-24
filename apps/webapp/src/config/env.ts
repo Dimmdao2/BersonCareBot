@@ -207,7 +207,7 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim() ? v.trim() : 'info')),
-  /** Optional path to system ffmpeg binary (overrides @ffmpeg-installer path). */
+  /** Optional path to the system ffmpeg binary; otherwise the worker resolves `ffmpeg` from PATH. */
   FFMPEG_PATH: z
     .string()
     .optional()

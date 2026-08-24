@@ -21,7 +21,6 @@ const claimedRow = {
 vi.mock('fluent-ffmpeg', () => ({
   default: Object.assign(vi.fn(), { setFfmpegPath: vi.fn(), ffprobe: vi.fn() }),
 }));
-vi.mock('@ffmpeg-installer/ffmpeg', () => ({ default: { path: '/bin/ffmpeg' } }));
 vi.mock('sharp', () => ({ default: vi.fn() }));
 vi.mock('@/config/env', () => ({ env: {} }));
 vi.mock('@/infra/logging/logger', () => ({

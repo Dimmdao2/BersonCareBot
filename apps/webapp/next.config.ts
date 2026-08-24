@@ -31,6 +31,16 @@ const nextConfig: NextConfig = {
       '../../node_modules/.pnpm/@img+sharp-libvips-linux-x64@1.3.2/node_modules/@img/sharp-libvips-linux-x64/**/*',
     ],
   },
+  outputFileTracingExcludes: {
+    '/api/internal/media-preview/process': [
+      './src/**/*',
+      './e2e/**/*',
+      './scripts/**/*',
+      './next.config.ts',
+      './vitest*.ts',
+      './tsconfig*.json',
+    ],
+  },
   async headers() {
     const frameAncestors = [
       "'self'",
@@ -98,16 +108,8 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  /** Native / dynamic-require deps: do not bundle for Turbopack (media preview worker). */
-  serverExternalPackages: [
-    'sharp',
-    'fluent-ffmpeg',
-    '@ffmpeg-installer/ffmpeg',
-    '@ffmpeg-installer/linux-x64',
-    '@ffmpeg-installer/linux-arm64',
-    '@ffmpeg-installer/darwin-x64',
-    '@ffmpeg-installer/darwin-arm64',
-  ],
+  /** Native dependencies used by the media preview worker stay external to the server bundle. */
+  serverExternalPackages: ['sharp', 'fluent-ffmpeg'],
   transpilePackages: ['react-phone-number-input', '@bersoncare/operator-db-schema'],
   experimental: {
     /** Allow importing canonical `normalizeToUtcInstant` from integrator shared (single source of truth). */
