@@ -368,6 +368,7 @@ describe('B1.4 catalog removal acceptance', () => {
         slotEnd: '2027-03-10T10:00:00.000Z',
         contactName: 'Пациент',
         contactPhone: '+79990000000',
+        mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
       }),
     ).rejects.toThrow('ambiguous_booking_tenant');
   });
@@ -384,6 +385,7 @@ describe('B1.4 catalog removal acceptance', () => {
       slotEnd: '2027-03-10T10:00:00.000Z',
       contactName: 'Пациент',
       contactPhone: '+79990000000',
+      mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
     });
 
     expect(booking).toMatchObject({

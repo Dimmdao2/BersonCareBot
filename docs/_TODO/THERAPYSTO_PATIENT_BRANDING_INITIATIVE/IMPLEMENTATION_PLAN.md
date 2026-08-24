@@ -547,7 +547,7 @@ Checkbox закрывается только доказательством, у�
   **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `REAUDIT_NIGHT_C4_2026-08-23.md` (PASS, FOR LAND) и `AUDIT2_C4_TENANT_LEAK_2026-08-23.md` (PASS, FOR LAND) — брендированное транзакционное письмо пациенту идёт через SMTP и профиль отправителя своей клиники, предикат арендатора доставлен в живые базы, массовая рассылка не изменена. Убитые инъекции покрывают потерю branded-пары с fail-closed и утечку чужой идентичности.
 - [ ] `TPB-14` Первичная domain activation остаётся ручной; self-service DNS/TLS, SEO automation и marketplace не
   построены. Доказательство: operator runbook и отсутствие таких product flows в diff.
-- [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
+- [x] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
   history не переименованы. Доказательство: scoped exact inventory before/after с явным allowlist technical/history.
 
   > **Находка `S-1` закрыта 24.08.2026.** Caller-side `mailProfileForResolvedSurface` выбирает Therapysto для
@@ -559,6 +559,22 @@ Checkbox закрывается только доказательством, у�
   > `20260823T010000…`/`20260823T043206…` не изменялись. В `send-email` удалён subject fallback, SMS-код стал
   > нейтральным «Ваш код: …», `send-otp` использует обязательный `mailProfile`. Доказательство: route/unit-тесты
   > трёх имён, missing-profile и SMS text плюс fault injection каждого имени и receiver-default.
+
+  > **Остаток `TPB-15` закрыт 24.08.2026, два круга.** Круг 1 (`e30e78522`): `rpName` passkey и `issuer` TOTP →
+  > `STAFF_SURFACE.name`, письмо подтверждения записи → обязательный `MailProfileRequest` через
+  > `mailProfileForResolvedSurface`, заголовок push по умолчанию → Therapygo; `rpId`, `expectedOrigin`, секрет и
+  > алгоритм TOTP не тронуты — выданные passkey и привязанные аутентификаторы живы. Закрывающий аудит круга 1
+  > (`AUDIT_TPB15_2026-08-24.md`, Opus 5, 5/5 инъекций) дал `FAIL` по не тронутому: fallback-литерал `'BersonCare'`
+  > в `relayOutboundRoute` (email+push) и `operatorAlertRelayRoute` (email+push) плюс единственный fallback
+  > `'Therapygo'` в общем `web-push/deliveryAdapter.ts`. Круг 2 (`a84e195eb`): имя отправителя стало обязательным
+  > непустым параметром вызывающего (иначе `400 invalid_payload`), fallback общего push-адаптера снят совсем
+  > (`WEB_PUSH_PAYLOAD_INVALID`), требование записано в `apps/webapp/INTEGRATOR_CONTRACT.md`. Закрывающий аудит
+  > круга 2 (`AUDIT2_TPB15_2026-08-24.md`, Opus 5): `PASS`, посажено 5 — убито 5 — не поймано 0, аудитор лично
+  > обошёл 10 вызывающих `relayOutbound`, 2 вызывающих `relayOperatorAlert` и продюсеров web_push мимо relay;
+  > вызывающих без имени не осталось. Единственное оставшееся «BersonCare» — ручной QA-скрипт `qa-test-send.ts`.
+  > Низкое следствие ужесточения (пустой заголовок рассылки давал бы `400` вместо письма) закрыто ведущим
+  > отдельно: `service.execute` отбивает пустой заголовок как `broadcast_title_required` до отбора аудитории,
+  > тест `service.titleRequired.test.ts`, снятие проверки краснит 2 из 3.
 - [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
   возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
   и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.

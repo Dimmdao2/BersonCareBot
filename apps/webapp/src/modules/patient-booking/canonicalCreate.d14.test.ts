@@ -94,6 +94,7 @@ const createInput: CreatePatientBookingInput = {
   slotEnd: '2027-03-10T09:30:00.000Z',
   contactName: 'Пациент',
   contactPhone: '+79990000000',
+  mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
 };
 
 describe('booking.created: пациентское сообщение ставит вебапп, а не событие интегратора', () => {
