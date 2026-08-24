@@ -14,6 +14,10 @@ vi.mock('./DoctorGlobalTasksSection', () => ({
   DoctorGlobalTasksSection: () => null,
 }));
 
+vi.mock('./DoctorTodayNextAppointment', () => ({
+  DoctorTodayNextAppointment: () => null,
+}));
+
 vi.mock('./TodayMiniCalendarWithModal', () => ({
   TodayMiniCalendarWithModal: ({
     calendarSnapshot,

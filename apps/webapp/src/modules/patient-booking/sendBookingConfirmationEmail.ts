@@ -24,6 +24,10 @@
 import { env } from '@/config/env';
 import { buildIcsContent } from '@/shared/lib/buildCalendarLinks';
 import { logger } from '@/infra/logging/logger';
+import {
+  patientVisibleNameForMailProfile,
+  type MailProfileRequest,
+} from '@/modules/auth/mailProfile';
 import type { OutboundMessageQueuePort } from '@/modules/messaging/outboundMessageQueuePort';
 
 /** Назначение сообщения. Идёт в `event_id`; ветки по нему не строит никто. */
@@ -46,6 +50,8 @@ export type BookingConfirmationEmailInput = {
   locationLabel?: string | null;
   /** Имя пациента (для обращения в теле письма). */
   contactName?: string | null;
+  /** Caller-owned surface identity; absence is a programming error, never a platform fallback. */
+  mailProfile: MailProfileRequest;
 };
 
 export type BookingConfirmationEmailDeps = {
@@ -102,7 +108,7 @@ export async function sendBookingConfirmationEmail(
       '',
       'Файл .ics во вложении — добавьте событие в свой календарь.',
       '',
-      'С уважением, BersonCare',
+      `С уважением, ${patientVisibleNameForMailProfile(input.mailProfile)}`,
     ].join('\n');
 
     const htmlBody = [
@@ -113,7 +119,7 @@ export async function sendBookingConfirmationEmail(
       `  <li>Место: ${escapeHtmlSimple(location)}</li>`,
       '</ul>',
       '<p>Файл <code>.ics</code> во вложении — добавьте событие в свой календарь.</p>',
-      '<p>С уважением, BersonCare</p>',
+      `<p>С уважением, ${escapeHtmlSimple(patientVisibleNameForMailProfile(input.mailProfile))}</p>`,
     ].join('\n');
 
     const enqueued = await deps.outboundMessageQueue.enqueue({

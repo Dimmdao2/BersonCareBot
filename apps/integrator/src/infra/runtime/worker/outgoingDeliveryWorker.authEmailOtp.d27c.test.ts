@@ -32,9 +32,9 @@ function authCodeIntent(eventId: string): OutgoingIntent {
     },
     payload: {
       recipient: { email: 'person@example.test' },
-      message: { text: 'Ваш код BersonCare: 123456' },
+      message: { text: 'Ваш код Therapysto: 123456' },
       delivery: { channels: ['email'] },
-      subject: 'Код подтверждения BersonCare',
+      subject: 'Код подтверждения Therapysto',
     },
   };
 }

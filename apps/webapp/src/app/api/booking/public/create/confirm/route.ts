@@ -25,6 +25,8 @@ import { withPatientIdentityPrincipal } from '@/app-layer/principal/withOrganiza
 import { logger } from '@/app-layer/logging/logger';
 import { redactPublicBookingRecord } from '@/modules/public-booking/publicBookingResponse';
 import { InPersonBookingResolveError } from '@/modules/patient-booking/inPersonBookingResolve';
+import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 import {
   jsonError,
   jsonOk,
@@ -87,6 +89,7 @@ export async function POST(request: Request) {
   }
 
   const deps = buildAppDeps();
+  const mailProfile = mailProfileForResolvedSurface(requireResolvedSurface(request.headers));
   const consumed = await consumePublicBookingVerification(
     deps.publicBookingVerification,
     parsed.data.challengeId,
@@ -128,6 +131,7 @@ export async function POST(request: Request) {
       consumed.verified.intent,
       payer.platformUserId,
       payer.channel,
+      mailProfile,
     );
     let checkoutUrl: string | null = null;
     if (booking.status === 'awaiting_payment') {

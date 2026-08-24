@@ -8,6 +8,7 @@ import {
   type RegistrationResponseJSON,
 } from '@simplewebauthn/server';
 import { env } from '@/config/env';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 import type { PasskeyStore } from '@/modules/auth/passkeyStore';
 
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -28,7 +29,7 @@ export function getPasskeyRpConfig(): PasskeyRpConfig {
     throw new Error('passkey_https_required');
   }
   return {
-    rpName: 'BersonCare',
+    rpName: STAFF_SURFACE.name,
     rpId: appUrl.hostname,
     expectedOrigin: appUrl.origin,
   };

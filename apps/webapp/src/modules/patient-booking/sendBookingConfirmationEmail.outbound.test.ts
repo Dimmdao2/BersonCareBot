@@ -32,6 +32,7 @@ const INPUT = {
   serviceTitle: 'Массаж',
   locationLabel: 'Филиал на Ленина',
   contactName: 'Иван',
+  mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' } as const,
 };
 
 function recordingQueue(result = true): {

@@ -27,6 +27,11 @@ export function brandedMailProfile(input: {
   return { kind: 'branded', ...input };
 }
 
+/** Patient-facing copy uses the caller-resolved profile; it never invents a platform fallback. */
+export function patientVisibleNameForMailProfile(profile: MailProfileRequest): string {
+  return profile.kind === 'platform' ? profile.senderDisplayName : profile.clinicName;
+}
+
 /** The proxy-resolved surface is the caller-owned source of patient sender identity. */
 export function mailProfileForResolvedSurface(surface: ResolvedSurface): MailProfileRequest {
   if (surface.surface === 'staff' || surface.surface === 'platform_admin') {

@@ -361,6 +361,11 @@ strip). Поэтому новое поле обязано появляться �
 `payload.icsFilename`, откуда их читает `createEmailDeliveryAdapter` и прикрепляет как
 `text/calendar; charset=utf-8`.
 
+Отображаемое имя выбирает вызывающий по поверхности сообщения: для `email` обязателен непустой
+`metadata.subject`, для `web_push` — непустой `metadata.title`. Relay и общий delivery adapter отклоняют
+запрос без этого поля и не подставляют бренд самостоятельно. Тот же контракт действует для dedicated
+operator-alert relay.
+
 `clinicCredentialProbe` принимает только literal `true`. Он используется экраном настроек клиники: dispatch
 разрешает прочитать ещё не включённый credential, выполняет отправку тем же channel adapter и запрещает fallback
 на канал платформы. Обычная доставка этого поля не передаёт.

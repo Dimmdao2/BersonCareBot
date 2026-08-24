@@ -380,24 +380,6 @@ const patientOwnedColumns = new Map([
 // INNER JOINs from the policy row down to the identity-bearing terminal table/column — a broken or
 // NULL hop anywhere denies (fail-closed), same as a direct column predicate.
 const patientChainOwnedTables = new Map([
-  // I3 parent-denorm (P0.4.I3, denorm_org_column): reminder technical rows walk to canonical
-  // public.reminder_rules via its stable integrator_rule_id and direct bigint integrator_user_id.
-  [
-    'integrator.user_reminder_occurrences',
-    {
-      hops: [
-        {
-          table: 'public.reminder_rules',
-          alias: 'b4f_rule',
-          parentPk: 'integrator_rule_id',
-          localFk: 'rule_id',
-        },
-      ],
-      terminalColumn: 'integrator_user_id',
-      castType: 'bigint',
-    },
-  ],
-
   // public.support_* family (webapp, uuid castType, apps/webapp/migrations/009_support_communication_history.sql):
   // chain to support_conversations.platform_user_id — the SAME column already registered DIRECTLY
   // on public.support_conversations above (patientOwnedColumns). Deliberately NOT also chaining to
@@ -811,20 +793,6 @@ const patientChainOwnedTables = new Map([
           parentPk: 'id',
           localFk: 'patient_package_id',
         },
-      ],
-      terminalColumn: 'platform_user_id',
-      castType: 'uuid',
-    },
-  ],
-
-  // reminder_journal (P0.8.3): rule_id NOT NULL -> reminder_rules.platform_user_id (already walled
-  // directly, nullable for integrator-only reminder rules — ordinary nullable-denies semantics).
-  // apps/webapp/migrations/050_reminder_rules_object_links_and_journal.sql.
-  [
-    'public.reminder_journal',
-    {
-      hops: [
-        { table: 'public.reminder_rules', alias: 'b4f_rule', parentPk: 'id', localFk: 'rule_id' },
       ],
       terminalColumn: 'platform_user_id',
       castType: 'uuid',
