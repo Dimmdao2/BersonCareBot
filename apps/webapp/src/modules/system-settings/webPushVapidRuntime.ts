@@ -103,7 +103,17 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
       s.key === 'clinic_max_bot_api_key' ||
       s.key === 'clinic_vk_community_access_token'
     ) {
-      return { ...s, valueJson: { value: '[REDACTED]' } };
+      const readiness =
+        s.valueJson !== null && typeof s.valueJson === 'object'
+          ? (s.valueJson as Record<string, unknown>).deliveryReadiness
+          : undefined;
+      return {
+        ...s,
+        valueJson: {
+          value: '[REDACTED]',
+          ...(readiness ? { deliveryReadiness: readiness } : {}),
+        },
+      };
     }
     if (
       s.key === 'vk_community_access_token' ||
@@ -129,7 +139,14 @@ export function redactAdminSettingsForClient(settings: SystemSetting[]): SystemS
         const hasStoredPassword =
           typeof redacted.password === 'string' && redacted.password.trim().length > 0;
         delete redacted.password;
-        return { ...s, valueJson: { value: { ...redacted, hasStoredPassword } } };
+        const readiness = (s.valueJson as Record<string, unknown>).deliveryReadiness;
+        return {
+          ...s,
+          valueJson: {
+            value: { ...redacted, hasStoredPassword },
+            ...(readiness ? { deliveryReadiness: readiness } : {}),
+          },
+        };
       }
     }
     if (s.key === 'vk_id_client_secret') {

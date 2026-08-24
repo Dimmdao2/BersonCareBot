@@ -21,10 +21,17 @@ const initial = {
     secure: false,
     user: '',
     from: '',
+    readiness: { status: 'pending' as const },
   },
   smsConfigured: true,
   telegramConfigured: true,
+  telegramReadiness: { status: 'enabled' as const, checkedAt: '2026-08-24T00:00:00.000Z' },
   maxConfigured: true,
+  maxReadiness: {
+    status: 'failed' as const,
+    checkedAt: '2026-08-24T00:00:00.000Z',
+    reason: 'Токен отклонён',
+  },
   vkConfigured: true,
   telegramWebhookPath: null,
   maxWebhookPath: null,
@@ -36,7 +43,7 @@ afterEach(() => {
 });
 
 describe('ClinicDeliveryChannelsSection', () => {
-  it('shows configured status for its shared write-only credential inputs', () => {
+  it('shows live-delivery readiness separately from saved credentials', () => {
     render(
       <ClinicDeliveryChannelsSection
         initial={initial}
@@ -45,7 +52,10 @@ describe('ClinicDeliveryChannelsSection', () => {
       />,
     );
 
-    expect(screen.getAllByText('Подключён')).toHaveLength(4);
+    expect(screen.getAllByText('Настройки сохранены')).toHaveLength(2);
+    expect(screen.getByText('Ждём проверочной отправки')).toBeInTheDocument();
+    expect(screen.getByText('Канал включён')).toBeInTheDocument();
+    expect(screen.getByText('Проверка не прошла: Токен отклонён')).toBeInTheDocument();
   });
 
   it('does not offer the SMTP form when the platform disabled email', () => {

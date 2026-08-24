@@ -39,8 +39,12 @@ beforeEach(() => {
             password: 'secret',
             from: 'clinic@example.test',
           },
+          deliveryReadiness: { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
         }
-      : { value: `${key}:secret` },
+      : {
+          value: `${key}:secret`,
+          deliveryReadiness: { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
+        },
   );
 });
 
@@ -51,12 +55,7 @@ describe('exact-organization clinic delivery credential resolution', () => {
       Promise.all([resolve('email'), resolve('smsc'), resolve('telegram'), resolve('max')]),
     );
 
-    expect(results.map((result) => result?.channel)).toEqual([
-      'email',
-      'smsc',
-      'telegram',
-      'max',
-    ]);
+    expect(results.map((result) => result?.channel)).toEqual(['email', 'smsc', 'telegram', 'max']);
     expect(mocks.resolveAccess.mock.calls.map((call) => call[1])).toEqual([
       { organizationId: ORG_A, mechanic: 'clinic_smtp' },
       { organizationId: ORG_A, mechanic: 'clinic_sms' },
@@ -83,6 +82,75 @@ describe('exact-organization clinic delivery credential resolution', () => {
     expect(mocks.readCredential).not.toHaveBeenCalled();
   });
 
+  it('keeps the default path on the platform until a live probe enables the saved channel', async () => {
+    mocks.readCredential.mockResolvedValue({ value: 'saved-but-unverified' });
+    const resolve = createClinicDeliveryCredentialResolver({} as never);
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const dispatch = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: resolve,
+    });
+
+    await runWithOrganizationPrincipal(ORG_A, () =>
+      dispatch.dispatchOutgoing({
+        type: 'message.send',
+        payload: {
+          recipient: { chatId: 42 },
+          message: { text: 'default path' },
+          delivery: { channels: ['telegram'] },
+        },
+        meta: {
+          eventId: 'default-path',
+          occurredAt: '2026-08-24T00:00:00.000Z',
+          source: 'telegram',
+          outboundMessageClass: 'routine_product',
+          outboundCapability: 'essential_delivery',
+        },
+      }),
+    );
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery
+        .clinicCredential,
+    ).toBeUndefined();
+  });
+
+  it('uses the saved unverified credential only for the live settings probe', async () => {
+    mocks.readCredential.mockResolvedValue({ value: 'saved-but-unverified' });
+    const resolve = createClinicDeliveryCredentialResolver({} as never);
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const dispatch = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: resolve,
+    });
+
+    await runWithOrganizationPrincipal(ORG_A, () =>
+      dispatch.dispatchOutgoing({
+        type: 'message.send',
+        payload: {
+          recipient: { chatId: 42 },
+          message: { text: 'probe' },
+          delivery: { channels: ['telegram'], clinicCredentialProbe: true },
+        },
+        meta: {
+          eventId: 'clinic-probe',
+          occurredAt: '2026-08-24T00:00:00.000Z',
+          source: 'telegram',
+          outboundMessageClass: 'routine_product',
+          outboundCapability: 'essential_delivery',
+        },
+      }),
+    );
+
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).toMatchObject({
+      clinicCredential: { channel: 'telegram', botToken: 'saved-but-unverified' },
+    });
+  });
+
   it('passes the resolved exact-org credential to a clinic-required dispatch instead of platform fallback', async () => {
     const resolve = createClinicDeliveryCredentialResolver({} as never);
     const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
@@ -92,19 +160,32 @@ describe('exact-organization clinic delivery credential resolution', () => {
       resolveClinicDeliveryCredential: resolve,
     });
 
-    await runWithOrganizationPrincipal(ORG_A, () => dispatch.dispatchOutgoing({
-      type: 'message.send',
-      payload: { recipient: { chatId: 42 }, message: { text: 'hello' }, delivery: {
-        channels: ['telegram'], senderScope: 'clinic_required',
-      } },
-      meta: {
-        eventId: 'clinic-credential-test', occurredAt: '2026-08-16T00:00:00.000Z', source: 'telegram',
-        outboundMessageClass: 'broadcast_event', outboundCapability: 'clinic_delivery',
-      },
-    }));
+    await runWithOrganizationPrincipal(ORG_A, () =>
+      dispatch.dispatchOutgoing({
+        type: 'message.send',
+        payload: {
+          recipient: { chatId: 42 },
+          message: { text: 'hello' },
+          delivery: {
+            channels: ['telegram'],
+            senderScope: 'clinic_required',
+          },
+        },
+        meta: {
+          eventId: 'clinic-credential-test',
+          occurredAt: '2026-08-16T00:00:00.000Z',
+          source: 'telegram',
+          outboundMessageClass: 'broadcast_event',
+          outboundCapability: 'clinic_delivery',
+        },
+      }),
+    );
 
     expect(send).toHaveBeenCalledTimes(1);
-    expect((send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery)
-      .toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic_telegram_bot_token:secret' } });
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).toMatchObject({
+      clinicCredential: { channel: 'telegram', botToken: 'clinic_telegram_bot_token:secret' },
+    });
   });
 });

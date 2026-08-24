@@ -49,6 +49,7 @@ const relayPayloadSchema = z
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
     senderScope: z.enum(['clinic_required', 'clinic_if_configured']).optional(),
+    clinicCredentialProbe: z.literal(true).optional(),
     purpose: z.never().optional(),
   })
   .superRefine((value, ctx) => {
@@ -129,6 +130,7 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         delivery: {
           channels: [parsed.channel],
           ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+          ...(parsed.clinicCredentialProbe ? { clinicCredentialProbe: true } : {}),
         },
       },
     };
@@ -171,6 +173,7 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
         delivery: {
           channels: ['email'],
           ...(parsed.senderScope ? { senderScope: parsed.senderScope } : {}),
+          ...(parsed.clinicCredentialProbe ? { clinicCredentialProbe: true } : {}),
         },
       },
     };

@@ -8,6 +8,8 @@ const fakes = vi.hoisted(() => ({
   getSetting: vi.fn(),
   updateSetting: vi.fn(),
   persistAdminModesBatch: vi.fn(),
+  getClinicPlatformIntegrationAvailability: vi.fn(),
+  requireEntitlementForMutation: vi.fn(),
 }));
 
 vi.mock('@/modules/auth/service', () => ({ getCurrentSession: fakes.getCurrentSession }));
@@ -15,6 +17,15 @@ vi.mock('@/app-layer/guards/requireRole', () => ({
   requirePlatformOperationsApiContext: fakes.requirePlatform,
   requireClinicManagementApiContext: fakes.requireClinic,
 }));
+vi.mock('@/app-layer/guards/requireEntitlement', async () => {
+  const actual = await vi.importActual<typeof import('@/app-layer/guards/requireEntitlement')>(
+    '@/app-layer/guards/requireEntitlement',
+  );
+  return {
+    ...actual,
+    requireEntitlementForMutation: fakes.requireEntitlementForMutation,
+  };
+});
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     systemSettings: {
@@ -22,6 +33,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
       getSetting: fakes.getSetting,
       updateSetting: fakes.updateSetting,
       persistAdminModesBatch: fakes.persistAdminModesBatch,
+      getClinicPlatformIntegrationAvailability: fakes.getClinicPlatformIntegrationAvailability,
     },
   }),
 }));
@@ -59,6 +71,11 @@ beforeEach(() => {
   fakes.requirePlatform.mockResolvedValue({ ok: true, session: platformSession });
   fakes.getSetting.mockResolvedValue(null);
   fakes.listSettingsByScope.mockResolvedValue([]);
+  fakes.requireEntitlementForMutation.mockResolvedValue({ ok: true });
+  fakes.getClinicPlatformIntegrationAvailability.mockResolvedValue({
+    version: 1,
+    integrations: { email: true, smsc: true, telegram: true, max: true, vk: true },
+  });
 });
 
 describe('global-admin settings HTTP boundary', () => {
@@ -337,5 +354,21 @@ describe('clinic-owner atomic settings readback', () => {
     expect(response.status).toBe(400);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'invalid_value' });
     expect(fakes.updateSetting).not.toHaveBeenCalled();
+  });
+
+  it('resets a saved clinic channel to pending until a new live probe succeeds', async () => {
+    const response = await patch({
+      key: 'clinic_telegram_bot_token',
+      value: { value: 'new-token' },
+    });
+
+    expect(response.status).toBe(200);
+    expect(fakes.updateSetting).toHaveBeenCalledWith(
+      'clinic_telegram_bot_token',
+      'admin',
+      { value: 'new-token', deliveryReadiness: { status: 'pending' } },
+      clinicSession.user.userId,
+      { organizationId: CLINIC_ORGANIZATION_ID },
+    );
   });
 });

@@ -40,7 +40,10 @@ const ORG = '11111111-1111-4111-8111-111111111111';
 const db = {} as DbPort;
 
 function storedToken(value: string): unknown {
-  return { value };
+  return {
+    value,
+    deliveryReadiness: { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
+  };
 }
 
 beforeEach(() => {
@@ -82,6 +85,17 @@ describe('C3 R2-4: clinic delivery credential needs tariff mechanic AND a stored
     const credential = await runWithOrganizationPrincipal(ORG, () => resolve('max'));
 
     expect(credential).toBeNull();
+  });
+
+  it('returns null before a live delivery has enabled the saved token', async () => {
+    resolveOrganizationMechanicLifecycleAccess.mockResolvedValue({ mutationAllowed: true });
+    fetchIntegratorClinicDeliveryCredentialValueJson.mockResolvedValue({ value: 'clinic-tg' });
+    const resolve = createClinicDeliveryCredentialResolver(db);
+
+    await expect(runWithOrganizationPrincipal(ORG, () => resolve('telegram'))).resolves.toBeNull();
+    await expect(
+      runWithOrganizationPrincipal(ORG, () => resolve('telegram', { allowUnverified: true })),
+    ).resolves.toEqual({ channel: 'telegram', botToken: 'clinic-tg' });
   });
 
   it('returns null when the stored value is present but empty', async () => {

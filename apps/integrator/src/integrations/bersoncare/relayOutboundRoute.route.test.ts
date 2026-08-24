@@ -67,6 +67,7 @@ type RelayPayload = {
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
   senderScope?: 'clinic_required';
+  clinicCredentialProbe?: true;
   html?: string;
   icsContent?: string;
   icsFilename?: string;
@@ -159,6 +160,26 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     expect(
       (dispatchOutgoing.mock.calls[0]?.[0].payload as { delivery?: unknown }).delivery,
     ).toEqual({ channels: ['telegram'], senderScope: 'clinic_required' });
+  });
+
+  it('carries the settings probe marker to the existing dispatch seam', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp(dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'telegram',
+        recipient: '12345',
+        clinicCredentialProbe: true,
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(
+      (dispatchOutgoing.mock.calls[0]?.[0].payload as { delivery?: unknown }).delivery,
+    ).toEqual({ channels: ['telegram'], clinicCredentialProbe: true });
   });
 
   it('delivers an essential notification through the real dispatch policy and platform fallback', async () => {
