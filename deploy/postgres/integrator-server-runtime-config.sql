@@ -27,7 +27,7 @@ REVOKE EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability
   FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
   FROM :"integrator_runtime_config_role";
--- These five are created by this file, so on a database that predates it they do not exist yet and
+-- These four are created by this file, so on a database that predates it they do not exist yet and
 -- an unguarded REVOKE would abort the DOWN path under \set ON_ERROR_STOP on.
 DO $integrator_runtime_new_capability_revoke$
 DECLARE
@@ -36,7 +36,6 @@ BEGIN
   FOREACH v_signature IN ARRAY ARRAY[
     'app.read_integrator_runtime_setting(text)',
     'app.read_integrator_google_calendar_setting(text,uuid)',
-    'app.read_integrator_clinic_delivery_credential(text,uuid)',
     'app.read_operator_health_probe_config()',
     'app.read_operational_verbose_log_flag()'
   ] LOOP
@@ -301,38 +300,6 @@ REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag() FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_operational_verbose_log_flag()
   FROM app_staff, app_patient, app_worker;
 
--- Clinic-owned delivery credentials (tariff branding: the clinic's own Telegram/MAX bot, SMTP or
--- SMSC key). Same 42501 as everything else above, and the caller swallows it, so a clinic that had
--- paid for branding silently kept sending through the platform sender. Exact organization row
--- only; the tariff-mechanic gate stays in the caller, which runs before this read.
-CREATE OR REPLACE FUNCTION app.read_integrator_clinic_delivery_credential(
-  p_key text,
-  p_organization_id uuid
-)
-RETURNS jsonb
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $function$
-  SELECT setting.value_json
-  FROM public.system_settings AS setting
-  WHERE p_organization_id IS NOT NULL
-    AND p_key IN (
-      'clinic_smtp_outbound',
-      'clinic_smsc_api_key',
-      'clinic_telegram_bot_token',
-      'clinic_max_bot_api_key'
-    )
-    AND setting.key = p_key
-    AND setting.scope = 'admin'
-    AND setting.organization_id = p_organization_id
-  LIMIT 1
-$function$;
-
-REVOKE ALL ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) FROM PUBLIC;
-REVOKE ALL ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid)
-  FROM app_staff, app_patient, app_worker;
 REVOKE ALL ON FUNCTION app.read_integrator_runtime_setting(text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_integrator_runtime_setting(text)
   FROM app_staff, app_patient, app_worker;
@@ -340,12 +307,11 @@ REVOKE ALL ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid) F
 REVOKE ALL ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
   FROM app_staff, app_patient, app_worker;
 
--- Ownership is pinned AFTER the bodies above exist. These five are created by THIS file, so an
+-- Ownership is pinned AFTER the bodies above exist. These four are created by THIS file, so an
 -- ALTER placed with the other ownership pins (which target functions the migration ledger already
 -- created) would run before the CREATE and abort the whole overlay under \set ON_ERROR_STOP on.
 ALTER FUNCTION app.read_integrator_runtime_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_google_calendar_setting(text, uuid) OWNER TO app_owner;
-ALTER FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid) OWNER TO app_owner;
 ALTER FUNCTION app.read_operator_health_probe_config() OWNER TO app_owner;
 ALTER FUNCTION app.read_operational_verbose_log_flag() OWNER TO app_owner;
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_provider_runtime_setting(text)
@@ -573,8 +539,6 @@ GRANT EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability(
 GRANT EXECUTE ON FUNCTION app.read_integrator_runtime_setting(text)
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_integrator_google_calendar_setting(text, uuid)
-  TO :"integrator_runtime_config_role";
-GRANT EXECUTE ON FUNCTION app.read_integrator_clinic_delivery_credential(text, uuid)
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_operator_health_probe_config()
   TO :"integrator_runtime_config_role";
