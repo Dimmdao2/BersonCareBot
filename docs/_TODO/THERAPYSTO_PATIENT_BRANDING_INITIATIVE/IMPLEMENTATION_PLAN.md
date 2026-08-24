@@ -516,8 +516,24 @@ Checkbox закрывается только доказательством, у�
   создаёт второго app/tree/store/dispatcher.
 - [x] `TPB-08` Branding влияет только на patient-facing surface; staff/admin видят Therapysto. Доказательство:
   cross-surface metadata/UI tests.
-- [ ] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
+- [x] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
   остаются org-scoped DB settings. Доказательство: config test и settings ownership tests.
+
+  > **Закрыт 24.08.2026 доказательством `E1`** (`E1_EVIDENCE_TPB09_2026-08-24.md`, Claude Opus 5/high по брифу
+  > `TPB09_CONFIG_OWNERSHIP_BRIEF_2026-08-24.md`): `PASS`, инъекций посажено `8` — убито `8` — не поймано `0`.
+  > Обе половины пункта — поведение, взгляда нет. Имя: тест подставляет `PATIENT_APP_NAME` в окружение,
+  > сбрасывает модульный граф и спрашивает потребителей, обойдённых самостоятельно — метаданные документа,
+  > PWA-манифест, профиль отправителя письма и реальный путь письма с `.ics`; литералов имени мимо
+  > `config/productSurfaceNames.ts` в `apps/webapp/src`/`public` не осталось. Origin: один `APP_BASE_URL` на обе
+  > поверхности, отдельный пациентский host — тем же механизмом (`PATIENT_APP_ORIGIN`), второй константы нет.
+  > Без миграции данных: оба теста идут с удалёнными `DATABASE_URL*`/`DB_PRINCIPAL*`, и в реестре
+  > `system_settings` нет ключа, дублирующего имя/origin платформенной пациентской поверхности. Владение:
+  > домен клиники — `per_org`, организация `B` не видит домен организации `A` и не получает значение из
+  > окружения; `clinic_smtp_outbound`/`clinic_smsc_api_key`/`clinic_max_bot_api_key`/`patient_booking_url`
+  > тоже `per_org`. Проверки дописаны в существующие файлы `config/envDatabaseRuntime.unit.test.ts` и
+  > `modules/system-settings/orgCustomDomainHostname.unit.test.ts`. Открытый вопрос владельцу (работой не
+  > становится): статический дубликат `'Therapygo'` в `public/sw.js:64` — сегодня недостижим, интегратор
+  > отбивает пустой заголовок push как `WEB_PUSH_PAYLOAD_INVALID`. Живая проверка имени на TEST — гейт `D`.
 - [ ] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
   противоречит более позднему решению о матрице. Требование теперь: на staff surface OAuth выключен по умолчанию,
   но включается настройкой; на patient surfaces Яндекс остаётся включённым одной глобальной регистрацией
