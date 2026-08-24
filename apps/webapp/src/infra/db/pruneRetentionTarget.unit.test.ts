@@ -15,7 +15,7 @@ vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: () => fakes.drizzle,
 }));
 
-import { pruneRetentionTarget } from '@/infra/db/pruneRetentionTarget';
+import { pruneContextNonceLedger, pruneRetentionTarget } from '@/infra/db/pruneRetentionTarget';
 import { purgeStaleMediaHlsProxyErrorEvents } from '@/app-layer/media/hlsProxyErrorEvents';
 
 beforeEach(() => {
@@ -75,6 +75,44 @@ it('routes the HLS proxy error retention tick through the same single root', asy
   expect(fakes.runWebappNamedRoot.mock.calls[0]?.slice(1, 3)).toEqual([
     'app.prune_retention_target(text,integer,boolean)',
     ['media_hls_proxy_error_events', 90, false],
+  ]);
+  expect(fakes.drizzle.delete).not.toHaveBeenCalled();
+});
+
+it('sweeps every Track D journal target through the same single root', async () => {
+  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '1' }] });
+
+  for (const target of [
+    'public_idempotency_keys',
+    'integrator_idempotency_keys',
+    'outgoing_delivery_queue_sent',
+    'outgoing_delivery_queue_dead',
+    'notification_delivery_attempts',
+  ] as const) {
+    await expect(pruneRetentionTarget(target, 30)).resolves.toBe(1);
+  }
+
+  expect(fakes.runWebappNamedRoot.mock.calls.map((call) => call[2])).toEqual([
+    ['public_idempotency_keys', 30, false],
+    ['integrator_idempotency_keys', 30, false],
+    ['outgoing_delivery_queue_sent', 30, false],
+    ['outgoing_delivery_queue_dead', 30, false],
+    ['notification_delivery_attempts', 30, false],
+  ]);
+  expect(fakes.drizzle.delete).not.toHaveBeenCalled();
+});
+
+it('sweeps app.context_nonce_ledger through its own dedicated root, clamping grace and limit', async () => {
+  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '42' }] });
+
+  await expect(pruneContextNonceLedger(3600, 200_000)).resolves.toBe(42);
+  await expect(pruneContextNonceLedger(-1, 999_999_999)).resolves.toBe(42);
+  await expect(pruneContextNonceLedger(999_999, 0)).resolves.toBe(42);
+
+  expect(fakes.runWebappNamedRoot.mock.calls.map((call) => call.slice(1, 3))).toEqual([
+    ['app.prune_context_nonce_ledger(integer,integer,boolean)', [3600, 200_000, false]],
+    ['app.prune_context_nonce_ledger(integer,integer,boolean)', [0, 500_000, false]],
+    ['app.prune_context_nonce_ledger(integer,integer,boolean)', [86400, 1, false]],
   ]);
   expect(fakes.drizzle.delete).not.toHaveBeenCalled();
 });

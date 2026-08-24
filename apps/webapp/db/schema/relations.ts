@@ -27,7 +27,6 @@ import {
   supportQuestions,
   supportQuestionMessages,
   supportConversationMessages,
-  supportDeliveryEvents,
   symptomEntries,
   symptomTrackings,
   contentAccessGrantsWebapp,
@@ -55,8 +54,6 @@ import {
   onlineIntakeAttachments,
   onlineIntakeStatusHistory,
   reminderRules,
-  reminderOccurrenceHistory,
-  reminderJournal,
   adminAuditLog,
   mediaUploadSessions,
   users,
@@ -68,8 +65,6 @@ import {
   conversationMessages,
   userQuestions,
   questionMessages,
-  userReminderOccurrences,
-  userReminderDeliveryLogs,
   contentAccessGrants,
   emailSendCooldowns,
   userNotificationTopics,
@@ -190,17 +185,9 @@ export const supportQuestionMessagesRelations = relations(supportQuestionMessage
   }),
 }));
 
-export const supportDeliveryEventsRelations = relations(supportDeliveryEvents, ({ one }) => ({
-  supportConversationMessage: one(supportConversationMessages, {
-    fields: [supportDeliveryEvents.conversationMessageId],
-    references: [supportConversationMessages.id],
-  }),
-}));
-
 export const supportConversationMessagesRelations = relations(
   supportConversationMessages,
-  ({ one, many }) => ({
-    supportDeliveryEvents: many(supportDeliveryEvents),
+  ({ one }) => ({
     supportConversation: one(supportConversations, {
       fields: [supportConversationMessages.conversationId],
       references: [supportConversations.id],
@@ -520,32 +507,12 @@ export const onlineIntakeStatusHistoryRelations = relations(
   }),
 );
 
-export const reminderRulesRelations = relations(reminderRules, ({ one, many }) => ({
+export const reminderRulesRelations = relations(reminderRules, ({ one }) => ({
   platformUser: one(platformUsers, {
     fields: [reminderRules.platformUserId],
     references: [platformUsers.id],
   }),
-  reminderJournals: many(reminderJournal),
-  userReminderOccurrences: many(userReminderOccurrences),
 }));
-
-export const reminderJournalRelations = relations(reminderJournal, ({ one }) => ({
-  reminderOccurrenceHistory: one(reminderOccurrenceHistory, {
-    fields: [reminderJournal.occurrenceId],
-    references: [reminderOccurrenceHistory.integratorOccurrenceId],
-  }),
-  reminderRule: one(reminderRules, {
-    fields: [reminderJournal.ruleId],
-    references: [reminderRules.id],
-  }),
-}));
-
-export const reminderOccurrenceHistoryRelations = relations(
-  reminderOccurrenceHistory,
-  ({ many }) => ({
-    reminderJournals: many(reminderJournal),
-  }),
-);
 
 export const adminAuditLogRelations = relations(adminAuditLog, ({ one }) => ({
   platformUser: one(platformUsers, {
@@ -635,24 +602,6 @@ export const questionMessagesRelations = relations(questionMessages, ({ one }) =
   userQuestion: one(userQuestions, {
     fields: [questionMessages.questionId],
     references: [userQuestions.id],
-  }),
-}));
-
-export const userReminderOccurrencesRelations = relations(
-  userReminderOccurrences,
-  ({ one, many }) => ({
-    reminderRule: one(reminderRules, {
-      fields: [userReminderOccurrences.ruleId],
-      references: [reminderRules.integratorRuleId],
-    }),
-    userReminderDeliveryLogs: many(userReminderDeliveryLogs),
-  }),
-);
-
-export const userReminderDeliveryLogsRelations = relations(userReminderDeliveryLogs, ({ one }) => ({
-  userReminderOccurrence: one(userReminderOccurrences, {
-    fields: [userReminderDeliveryLogs.occurrenceId],
-    references: [userReminderOccurrences.id],
   }),
 }));
 

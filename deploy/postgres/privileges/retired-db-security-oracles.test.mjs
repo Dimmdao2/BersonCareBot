@@ -39,8 +39,9 @@ test('patient reminder materialization roots stay owner-isolated and non-PUBLIC'
   );
   assert(materializers.length >= 4, 'materialization declaration set unexpectedly disappeared');
   for (const [signature] of materializers) declaredFunction(signature);
-  assert.deepEqual(privileges('integrator.user_reminder_occurrences', 'app_patient'), []);
-  assert.deepEqual(privileges('integrator.user_reminder_occurrences', 'PUBLIC'), []);
+  assert.equal(database.tables['integrator.user_reminder_occurrences'], undefined);
+  assert.equal(database.tables['public.reminder_journal'], undefined);
+  assert.equal(database.tables['integrator.direct_public_write_retries'], undefined);
 });
 
 test('patient reminder callbacks expose exact patient/integrator roots, never PUBLIC', () => {

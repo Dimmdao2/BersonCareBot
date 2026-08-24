@@ -180,104 +180,39 @@ test('patient reminder history is readable and its seen cursor mutates only thro
     ]);
     const policy = table.policies.find((candidate) =>
       candidate.name.startsWith('rev10_direct_business_'));
-    assert.deepEqual(policy?.to, ['app_patient', 'app_staff']);
+    assert.deepEqual(policy?.to, ['app_integrator_request', 'app_patient', 'app_staff']);
     assert.match(policy?.using ?? '', /platform_user_id = app\.current_patient_user_id\(\)/u);
     assert.match(policy?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/u);
     assertNoOperation('public.reminder_occurrence_history', 'app_tenant_service', 'INSERT');
     assertNoOperation('public.reminder_occurrence_history', 'app_staff', 'INSERT');
     assert.equal(table.policies.some((candidate) =>
       candidate.name.startsWith('rev10_tenant_insert_')), false);
-    const projection = declaration.portContext.functions[
+    assert.equal(declaration.portContext.functions[
       'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)'
-    ];
-    // Три двери — три роли, и EXECUTE у функции один на всех: `app_tenant_service` открывает дверь
-    // вебаппа, `app_integrator_request` — дверь порта интегратора, `app_operational_delivery_worker`
-    // — дверь долговечного повтора доставки. Какая роль ходит какой дверью, решает гейт тела:
-    // каждая его ветка называет РОВНО ОДНУ роль, поэтому право EXECUTE не даёт пройти чужой дверью.
-    assert.deepEqual(projection.execute, [
-      'app_integrator_request',
-      'app_operational_delivery_worker',
-      'app_tenant_service',
-    ]);
-    assert.deepEqual(projection.relationSurfaces, [
-      {
-        relation: 'public.org_enrollments',
-        columns: ['organization_id', 'platform_user_id', 'status'],
-        operations: ['SELECT'],
-        evidence: 'pg16-function-body-lexical-upper-bound',
-      },
-      {
-        relation: 'public.reminder_occurrence_history',
-        columns: [
-          'integrator_occurrence_id', 'integrator_rule_id', 'integrator_user_id', 'platform_user_id',
-          'organization_id', 'category', 'status', 'delivery_channel', 'error_code', 'occurred_at',
-        ],
-        operations: ['INSERT'],
-        evidence: 'pg16-function-body-lexical-upper-bound',
-      },
-    ]);
+    ], undefined);
   }
 });
 
-test('delivery replay capability has only the exact projection relation operations', () => {
-  const deliveryRole = 'app_operational_delivery_worker';
-  exactColumns('public.reminder_delivery_events', deliveryRole, 'INSERT', [
-    'channel', 'created_at', 'error_code', 'integrator_delivery_log_id',
-    'integrator_occurrence_id', 'integrator_rule_id', 'integrator_user_id',
-    'organization_id', 'payload_json', 'status',
-  ]);
-  assert.equal(
-    grantFor('public.reminder_delivery_events', deliveryRole, 'SELECT').columns,
-    'table',
-  );
-  for (const operation of ['UPDATE', 'DELETE']) {
-    assertNoOperation('public.reminder_delivery_events', deliveryRole, operation);
-  }
+
+test('patient reminder cancellation reaches the canonical occurrence only through its named root', () => {
   for (const operation of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
-    assertNoOperation('public.content_access_grants_webapp', deliveryRole, operation);
+    assertNoOperation('public.reminder_occurrence_history', 'app_tenant_service', operation);
   }
-
+  const cancel = declaration.portContext.functions[
+    'app.patient_cancel_pending_reminder_occurrences(text)'
+  ];
+  assert.deepEqual(cancel.execute, ['app_patient']);
+  const occurrence = cancel.relationSurfaces.find((surface) =>
+    surface.relation === 'public.reminder_occurrence_history');
+  assert.deepEqual(occurrence.operations, ['SELECT', 'DELETE']);
+  assert.deepEqual(occurrence.columns, [
+    'integrator_rule_id', 'status', 'organization_id', 'platform_user_id',
+  ]);
   for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
-    for (const relation of ['public.reminder_delivery_events']) {
-      const table = declaration.databases[dbName].tables[relation];
-      const contextGate = table.policies.find((candidate) =>
-        candidate.name.startsWith('rev10_context_gate_'));
-      const workerBusiness = table.policies.find((candidate) =>
-        candidate.name.startsWith('rev10_delivery_replay_worker_'));
-      const staffBusiness = table.policies.find((candidate) =>
-        candidate.name.startsWith('rev10_delivery_replay_staff_'));
-      assert.ok(contextGate?.to.includes(deliveryRole), `${dbName}:${relation}:context gate`);
-      assert.deepEqual(workerBusiness?.to, [deliveryRole], `${dbName}:${relation}:worker policy`);
-      assert.match(workerBusiness?.using ?? '', /claimed_retry\.organization_id =/u);
-      assert.match(workerBusiness?.using ?? '', /claimed_retry\.payload ->> 'organizationId'/u);
-      assert.doesNotMatch(workerBusiness?.using ?? '', /THEN true/u);
-      assert.deepEqual(staffBusiness?.to, ['app_staff'], `${dbName}:${relation}:staff policy`);
-      assert.match(staffBusiness?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/u);
-    }
-  }
-});
-
-test('tenant reminder-rule writer can cancel only pending integrator occurrences', () => {
-  exactColumns(
-    'integrator.user_reminder_occurrences',
-    'app_tenant_service',
-    'SELECT',
-    ['rule_id', 'status'],
-  );
-  const deleteGrant = grantFor(
-    'integrator.user_reminder_occurrences',
-    'app_tenant_service',
-    'DELETE',
-  );
-  assert.equal(deleteGrant.columns, 'table');
-  for (const operation of ['INSERT', 'UPDATE']) {
-    assertNoOperation('integrator.user_reminder_occurrences', 'app_tenant_service', operation);
-  }
-  for (const dbName of ['bcb_webapp_dev', 'bersoncarebot_test']) {
-    const table = declaration.databases[dbName].tables['integrator.user_reminder_occurrences'];
+    const table = declaration.databases[dbName].tables['public.reminder_occurrence_history'];
     const tenantPolicy = table.policies.find((candidate) =>
       candidate.name.startsWith('rev10_tenant_delete_'));
-    assert.deepEqual(tenantPolicy?.to, ['app_integrator_tenant_service', 'app_tenant_service']);
+    assert.deepEqual(tenantPolicy?.to, ['app_integrator_tenant_service']);
     assert.match(tenantPolicy?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/u);
   }
 });
@@ -1028,7 +963,6 @@ test('patient page relations have exact self/current-clinic access and published
     'public.patient_daily_warmup_presentations',
     'public.patient_diary_day_snapshots',
     'public.patient_practice_completions',
-    'public.reminder_journal',
     'public.reminder_rules',
     'public.program_action_log',
     'public.program_item_discussion_messages',
@@ -1480,8 +1414,8 @@ test('tenant service has one command-aware D/M/P policy for every exact relation
     }
   }
 
-  assert.equal(expectedEdges.size, 132, 'measured exact tenant operation census changed');
-  assert.equal(tenantRelations.size, 62, 'measured exact tenant relation census changed');
+  assert.equal(expectedEdges.size, 128, 'measured exact tenant operation census changed');
+  assert.equal(tenantRelations.size, 60, 'measured exact tenant relation census changed');
   assert.deepEqual(actualEdges, expectedEdges);
 });
 

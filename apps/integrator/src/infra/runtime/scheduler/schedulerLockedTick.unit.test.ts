@@ -19,9 +19,7 @@ function healthWakeDeps() {
 function deliveryBodyDeps() {
   return {
     runOutgoingDeliveryTick: vi.fn(async () => ({ claimed: 0, processed: 0, errors: 0 })),
-    runDirectPublicWriteRetryTick: vi.fn(async () => 0),
     onOutgoingDeliveryTickError: vi.fn(),
-    onDirectPublicWriteRetryTickError: vi.fn(),
   };
 }
 
@@ -44,7 +42,6 @@ describe('scheduler leader cadence', () => {
 
     expect(runOrganizationTicks).not.toHaveBeenCalled();
     expect(delivery.runOutgoingDeliveryTick).not.toHaveBeenCalled();
-    expect(delivery.runDirectPublicWriteRetryTick).not.toHaveBeenCalled();
     expect(wakes.runOperatorHealthDigestWake).not.toHaveBeenCalled();
     expect(wakes.runSystemHealthGuardWake).not.toHaveBeenCalled();
     expect(runOperatorHealthProbeTick).not.toHaveBeenCalled();
@@ -224,15 +221,13 @@ describe('scheduler leader cadence', () => {
     await coordinator.runTick();
     await coordinator.waitForOrganizationTick();
     await coordinator.waitForOutgoingDeliveryTick();
-    await coordinator.waitForDirectPublicWriteRetryTick();
     await expect(coordinator.runTick()).rejects.toThrow('lock lost');
 
     expect(runOrganizationTicks).toHaveBeenCalledTimes(1);
-    // D30 Ш9: before the merge, outgoing-delivery/direct-write-retry ran on their own unlocked
-    // loop and never observed the scheduler lock at all — losing it here must now stop them too,
-    // exactly like it already stops the organization sweep.
+    // D30 Ш9: before the merge, outgoing-delivery ran on its own unlocked loop and never observed
+    // the scheduler lock at all — losing it here must now stop it too, exactly like it already
+    // stops the organization sweep.
     expect(delivery.runOutgoingDeliveryTick).toHaveBeenCalledTimes(1);
-    expect(delivery.runDirectPublicWriteRetryTick).toHaveBeenCalledTimes(1);
     expect(wakes.runOperatorHealthDigestWake).toHaveBeenCalledTimes(1);
     expect(wakes.runSystemHealthGuardWake).toHaveBeenCalledTimes(1);
     expect(runOperatorHealthProbeTick).toHaveBeenCalledTimes(1);

@@ -757,15 +757,13 @@ AS $$
   LIMIT 1
 $$;
 
-CREATE OR REPLACE FUNCTION app.email_auth_delete_email_challenges_for_user(p_user_id uuid)
-RETURNS void
-LANGUAGE sql
-VOLATILE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $$
-  DELETE FROM public.email_challenges WHERE user_id = p_user_id
-$$;
+-- app.email_auth_delete_email_challenges_for_user(uuid) is a `pre_session` exact-gate root
+-- (`app.require_accepted_context`). Its sole body lives in migration
+-- 20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context.sql; this overlay
+-- previously carried a second, ungated `LANGUAGE sql` body for the same signature, and whichever ran
+-- last on a given database silently won (Track D final cutover, 23.08.2026 — same defect class as
+-- the find_email_challenge_for_confirm case below). Only ALTER OWNER/REVOKE/GRANT for this function
+-- remain below; the body is not redefined here.
 
 CREATE OR REPLACE FUNCTION app.email_auth_insert_email_challenge(
   p_user_id uuid,
@@ -949,89 +947,24 @@ $function$;
 COMMENT ON FUNCTION app.email_auth_start_challenge(uuid, text, text, bigint, text, text) IS
   'Exact pre-session root that atomically replaces one email challenge, records cooldown and enqueues its auth-code delivery.';
 
--- C-2 step 4 (0249): adds `purpose` to the output. Argument signature is unchanged (only the
--- RETURNS TABLE column list grows), so DROP + CREATE (not OR REPLACE, which refuses a return-type
--- change) is used, and no GRANT/REVOKE line anywhere needs to move.
-DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_confirm(uuid, uuid);
-
-CREATE FUNCTION app.email_auth_find_email_challenge_for_confirm(
-  p_challenge_id uuid,
-  p_user_id uuid
-)
-RETURNS TABLE (id uuid, email text, code_hash text, expires_at bigint, attempts integer, purpose text)
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $$
-  SELECT c.id, c.email, c.code_hash, c.expires_at, c.attempts::integer, c.purpose
-  FROM public.email_challenges AS c
-  WHERE c.id = p_challenge_id
-    AND c.user_id = p_user_id
-$$;
-
--- Keep this runtime overlay semantically aligned with migration 0247. The old absolute-set
--- accessor (`SET attempts = p_attempts`, the value computed by the CALLER from an earlier, separate
--- read) is the lost-update bug 0247 fixes: two concurrent wrong-code confirms against the same
--- challenge could both read attempts=N and both write N+1, losing an increment. It is dropped, not
--- left reachable, so a stale caller cannot reintroduce that bug; a fresh TEST provision that runs
--- this overlay after the migration must not resurrect it.
+-- app.email_auth_find_email_challenge_for_confirm(uuid,uuid), app.email_auth_increment_email_
+-- challenge_attempts(uuid), app.email_auth_find_email_owner_conflict(uuid,text) and
+-- app.email_auth_verify_user_email(uuid,text) are `pre_session` exact-gate roots
+-- (`app.require_accepted_context`). Their sole bodies live in migration
+-- 20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context.sql. This overlay
+-- used to carry a second, ungated body for each — `DROP FUNCTION IF EXISTS ...; CREATE FUNCTION ...
+-- LANGUAGE sql` for find_email_challenge_for_confirm, plain `CREATE OR REPLACE ... LANGUAGE plpgsql`
+-- without the gate call for the other three — so whichever of migration/overlay ran last on a given
+-- database silently decided whether the pre-session gate existed
+-- (`docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`). Removed here (Track D final cutover,
+-- 23.08.2026); only ALTER OWNER/REVOKE/GRANT for these four functions remain below.
+--
+-- The old absolute-set accessor `app.email_auth_update_email_challenge_attempts(uuid,integer)`
+-- (`SET attempts = p_attempts`, the value computed by the CALLER from an earlier, separate read) is
+-- the lost-update bug migration 0247 fixed by replacing it with the atomic increment root above; it
+-- is not a pre_session root and has no migration body of its own, so its DROP stays here to retire
+-- it from any database that still has it.
 DROP FUNCTION IF EXISTS app.email_auth_update_email_challenge_attempts(uuid, integer);
-
-CREATE OR REPLACE FUNCTION app.email_auth_increment_email_challenge_attempts(
-  p_challenge_id uuid
-)
-RETURNS TABLE (attempts integer)
-LANGUAGE plpgsql
-VOLATILE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $$
-#variable_conflict use_column
-BEGIN
-  PERFORM 1 FROM public.email_challenges WHERE id = p_challenge_id FOR UPDATE;
-  IF NOT FOUND THEN
-    RETURN;
-  END IF;
-
-  RETURN QUERY
-  UPDATE public.email_challenges
-  SET attempts = attempts + 1
-  WHERE id = p_challenge_id
-  RETURNING public.email_challenges.attempts::integer;
-END
-$$;
-
-CREATE OR REPLACE FUNCTION app.email_auth_find_email_owner_conflict(p_user_id uuid, p_email text)
-RETURNS boolean
-LANGUAGE sql
-STABLE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $$
-  SELECT EXISTS (
-    SELECT 1
-    FROM public.platform_users AS u
-    WHERE u.id <> p_user_id
-      AND u.merged_into_id IS NULL
-      AND u.email_normalized = lower(btrim(p_email))
-  )
-$$;
-
-CREATE OR REPLACE FUNCTION app.email_auth_verify_user_email(p_user_id uuid, p_email text)
-RETURNS void
-LANGUAGE sql
-VOLATILE
-SECURITY DEFINER
-SET search_path = pg_catalog
-AS $$
-  UPDATE public.platform_users
-  SET email = p_email,
-      email_normalized = lower(btrim(p_email)),
-      email_verified_at = now(),
-      updated_at = now()
-  WHERE id = p_user_id
-$$;
 
 DROP FUNCTION IF EXISTS app.email_auth_find_email_challenge_for_consume(uuid, uuid);
 
@@ -1123,17 +1056,20 @@ ALTER FUNCTION app.email_otp_public_find_latest_email_challenge_by_email(text, b
 ALTER FUNCTION app.email_otp_public_consume_latest_challenge(text, text) OWNER TO app_owner;
 ALTER FUNCTION app.email_otp_public_find_email_send_cooldown_by_email(text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_email_send_cooldown(uuid, text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_auth_delete_email_challenges_for_user(uuid) OWNER TO :organization_member_invites_owner_ident;
+-- app.email_auth_delete_email_challenges_for_user(uuid), app.email_auth_find_email_challenge_for_
+-- confirm(uuid,uuid), app.email_auth_increment_email_challenge_attempts(uuid),
+-- app.email_auth_find_email_owner_conflict(uuid,text) and app.email_auth_verify_user_email(uuid,text)
+-- are NOT re-created above any more (Track D final cutover, 23.08.2026 -- see the comment near their
+-- old bodies): their sole CREATE lives in migration
+-- 20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context.sql under
+-- `BCB-MIGRATION-OWNER: app_seam_email_otp_owner`, which is also their declared owner
+-- (function-census.ts). An ALTER OWNER here would have overridden that to
+-- :organization_member_invites_owner_ident (`app_object_owner`, live-verified) or bare `app_owner` --
+-- both wrong for these five -- so no ALTER OWNER line for them remains in this file.
 ALTER FUNCTION app.email_auth_insert_email_challenge(uuid, text, text, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_set_email_challenge_purpose(uuid, text) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_delete_email_challenge_by_id(uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_upsert_email_send_cooldown(uuid, text) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_auth_find_email_challenge_for_confirm(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_auth_increment_email_challenge_attempts(uuid) OWNER TO :organization_member_invites_owner_ident;
-ALTER FUNCTION app.email_auth_find_email_owner_conflict(uuid, text) OWNER TO :organization_member_invites_owner_ident;
--- Also migration 0356's canonical app_owner set -- same DROP+CREATE-resets-owner reasoning as the
--- four above.
-ALTER FUNCTION app.email_auth_verify_user_email(uuid, text) OWNER TO app_owner;
 ALTER FUNCTION app.email_auth_find_email_challenge_for_consume(uuid, uuid) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;
 ALTER FUNCTION app.email_auth_find_latest_pending_email_challenge_for_user(uuid, bigint) OWNER TO :organization_member_invites_owner_ident;

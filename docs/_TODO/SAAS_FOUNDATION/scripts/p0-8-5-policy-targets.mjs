@@ -12,7 +12,6 @@ export const expectedP085IntegratorIdentityBridgeTargets = Object.freeze([
 ]);
 
 export const expectedP085IntegratorParentDenormTargets = Object.freeze([
-  'integrator.user_reminder_delivery_logs',
   'integrator.user_reminder_occurrences',
 ]);
 

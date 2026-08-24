@@ -40,7 +40,6 @@ INFRA|public.email_otp_locks
 INFRA|public.idempotency_keys
 INFRA|public.integration_webhook_error_events
 INFRA|public.integration_webhook_last_status
-INFRA|public.integrator_push_outbox
 INFRA|public.operator_health_alert_sent
 INFRA|public.operator_incidents
 INFRA|public.operator_job_status
@@ -55,7 +54,6 @@ INFRA|public.saas_registration_tariff_policy
 INFRA|public.saas_paid_period_policy
 LEGACY|public.booking_cities
 LEGACY|public.patient_bookings
-SCOPED|integrator.user_reminder_delivery_logs
 SCOPED|integrator.user_reminder_occurrences
 SCOPED|public.admin_audit_log
 SCOPED|public.be_appointment_cancellations
@@ -170,7 +168,6 @@ SCOPED|public.recommendation_regions
 SCOPED|public.recommendations
 SCOPED|public.reference_categories
 SCOPED|public.reference_items
-SCOPED|public.reminder_delivery_events
 SCOPED|public.reminder_journal
 SCOPED|public.reminder_occurrence_history
 SCOPED|public.reminder_rules
@@ -179,7 +176,6 @@ SCOPED|public.saas_organization_trials
 SCOPED|public.specialist_tasks
 SCOPED|public.support_conversation_messages
 SCOPED|public.support_conversations
-SCOPED|public.support_delivery_events
 SCOPED|public.support_question_messages
 SCOPED|public.support_questions
 SCOPED|public.symptom_entries

@@ -397,6 +397,9 @@ Runner временно даёт мигратору ровно указанну�
 Если statement создаёт схему, `-- BCB-MIGRATION-SCHEMA-CREATE: <schema>` ставится сразу после owner-маркера. Если
 для DDL нужен procedural language, следующий маркер — `-- BCB-MIGRATION-LANGUAGE-USAGE: <language>`. Эти маркеры
 не самостоятельные statement и не ставятся после SQL: parser читает их только в указанном порядке в начале блока.
+Если `CREATE OR REPLACE FUNCTION` чинит уже существующую функцию с чужим владельцем, следом ставится
+`-- BCB-MIGRATION-REHOME-FUNCTION: <exact-regprocedure>`: runner внутри той же транзакции передаёт только эту
+существующую сигнатуру owner-роли блока до выполнения тела; для новой функции и обычной замены маркер не нужен.
 
 Новая таблица в `public` / `app` / `integrator` / `app_ext` сначала объявляется в
 `deploy/postgres/privileges/declaration.ts`, и только затем добавляется migration-файл. **До аудита и landing**

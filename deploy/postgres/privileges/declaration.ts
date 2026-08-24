@@ -830,7 +830,9 @@ const RLS_OFF_MIGRATOR_LEDGER = 'ЯВНО объявленное отсутст�
 
 const TABLE_ROWS: TableRow[] = [
   { t: 'app.context_nonce_ledger', cls: 'T', owner: 'app_owner',
-    why: 'закрытый технический остаток DEV-схемы; transaction-bound port context не использует nonce ledger' },
+    why: 'закрытый технический остаток DEV-схемы; transaction-bound port context не использует nonce ledger. '
+      + 'Track D final cutover (#987): единственный рантайм-доступ — definer app.prune_context_nonce_ledger '
+      + '(владелец app_object_owner), больше никто не читает и не пишет' },
   { t: 'app.context_signing_secrets', cls: 'T', owner: 'app_owner',
     wall: 'definer-only', wallWhy: 'patient invite proof HMAC доступен только трём declared definer-функциям',
     why: 'HMAC-секрет короткоживущей авторизации start/verify/claim email-приглашения пациента' },
@@ -853,11 +855,6 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало '
       + 'public.support_conversations 21/21; писатель ещё жив (пишется на каждое сообщение поддержки)' } },
-  { t: 'integrator.direct_public_write_retries', cls: 'S', org: false, why: 'durable retry прямой записи в public — '
-    + 'временный отказ RLS/сети не должен потерять правило напоминания или журнал доставки',
-    revoke: { app_staff: 'D10: очередь исполняется только integrator request и worker; payload содержит пациентские данные.' },
-    pol: 'не projection transport: повторяет тот же direct-public writer под явным org-принципалом.',
-    defect: ['D10-direct-write-durability'] },
   { t: 'integrator.idempotency_keys', cls: 'S', org: false, why: 'ключи идемпотентности API — повтор вебхука '
     + 'начинает дублировать записи и отправки',
     revoke: { app_staff: 'D14: очередь дедупа вебхуков — не место арендной роли.' },
@@ -882,12 +879,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'персонала', defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало public.support_questions '
       + '16/16' } },
-  { t: 'integrator.user_reminder_delivery_logs', cls: 'P', org: true, why: 'журнал доставки напоминаний — не видно, '
-    + 'почему напоминание не дошло', pol: '⚠ evidence/18 §6: полная проекция в public.reminder_delivery_events '
-    + '(1735/1735 в обе стороны) — одна из двух таблиц уходит; какая, решает evidence/15' },
-  { t: 'integrator.user_reminder_occurrences', cls: 'P', org: true, why: 'конкретные срабатывания напоминаний — '
-    + 'напоминания не ставятся в очередь и дублируются', pol: 'опирается на reminder_rules; после волны 3 проверить, '
-    + 'на что смотрит ветка' },
   { t: 'integrator.user_reminder_rules', cls: 'P', why: 'правила напоминаний пациента — пациент перестаёт получать '
     + 'напоминания',
     drop: { verdict: 'DROP', source: 'evidence/15 §4 — 27/27 уже в public.reminder_rules' } },
@@ -1340,14 +1331,13 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.reference_items', cls: 'C', org: true, wall: 'reference-org-copy', why: 'элементы справочников '
     + 'клиники — без них выпадающие списки каталогов пусты', wallWhy: W_REF_COPY, pol: 'та же эталонная форма D3, '
     + 'что у reference_categories' },
-  { t: 'public.reminder_delivery_events', cls: 'P', org: true, why: 'события доставки напоминаний из интегратора — '
-    + 'без неё не видно, дошло ли напоминание, и не считается здоровье конвейера', pol: '⚠ evidence/18 §6: дубль '
-    + 'integrator.user_reminder_delivery_logs 1735/1735 — одна из двух уходит' },
-  { t: 'public.reminder_journal', cls: 'P', org: true, why: 'действия пациента с напоминанием — без неё пациент не '
-    + 'видит истории «отложил/пропустил»', defect: ['D27-empty-org-discriminator'],
-    gate: ['O3-empty-tenant-discriminator'] },
-  { t: 'public.reminder_occurrence_history', cls: 'P', org: true, why: 'история срабатываний напоминаний — без неё '
-    + 'нет истории напоминаний и статистики соблюдения режима' },
+  { t: 'public.reminder_occurrence_history', cls: 'P', org: true, why: 'единственная физическая occurrence-таблица '
+    + '(Track D §987 cutover) — операционный жизненный цикл срабатывания (planned/queued/sent/failed/skipped, '
+    + 'claim-поля delivery_generation/occurrence_key) и пациентские факты (seen/snoozed/skipped/done) на одной '
+    + 'строке; без неё нет ни доставки напоминаний, ни истории/статистики соблюдения режима',
+    pol: 'слита из integrator.user_reminder_occurrences (операционная сторона) и public.reminder_journal '
+    + '(факт done) — обе таблицы дропнуты в той же миграции; см. '
+    + 'docs/_TODO/runs/integrator-cleanup/TRACK_D_DUPLICATE_STORE_CUTOVER_2026-08-23.md' },
   { t: 'public.reminder_rules', cls: 'P', org: true, why: 'правила напоминаний пациенту — без неё пациент перестаёт '
     + 'получать напоминания' },
   { t: 'public.saas_billing_accounts', cls: 'C', why: 'платёжный профиль клиники — без неё клиника не выставит счёт',
@@ -1400,8 +1390,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'сотрудников', wallWhy: W_AUTH_DEFINER, defect: ['I1-definer-plus-force'] },
   { t: 'public.support_conversation_messages', cls: 'P', why: 'сообщения диалога — тело переписки' },
   { t: 'public.support_conversations', cls: 'P', why: 'диалоги поддержки — без неё нет переписки врач↔пациент' },
-  { t: 'public.support_delivery_events', cls: 'P', why: 'журнал доставки сообщений — без него не видно, дошло ли '
-    + 'сообщение' },
   { t: 'public.support_question_messages', cls: 'P', why: 'реплики внутри вопроса — тело вопроса' },
   { t: 'public.support_questions', cls: 'P', why: 'вопросы пациента из бота — очередь «вопрос из мессенджера → врач»' },
   { t: 'public.symptom_entries', cls: 'P', why: 'замеры — динамика самочувствия' },
@@ -2296,11 +2284,9 @@ const PATIENT_REMINDER_CORE_SURFACES = [
     'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title',
     'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code',
   ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
-  patientSurface('public.reminder_journal', [
-    'id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at',
-  ], ['INSERT']),
   patientSurface('public.reminder_occurrence_history', [
-    'integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at',
+    'integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at', 'done_at', 'skipped_at',
+    'skip_reason', 'snoozed_at', 'snoozed_until', 'occurred_at', 'status', 'planned_at',
   ], ['SELECT', 'UPDATE']),
   patientSurface('public.platform_users', [
     'id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at',
@@ -2400,9 +2386,6 @@ const PATIENT_ROOT_OPERATIONS = {
   delete_current_patient_reminder_rule: {
     'public.reminder_occurrence_history': ['SELECT', 'DELETE'],
     'public.reminder_rules': ['SELECT', 'DELETE'],
-  },
-  record_current_patient_reminder_journal_action: {
-    'public.reminder_journal': ['SELECT', 'INSERT'], 'public.reminder_rules': ['SELECT'],
   },
   mark_current_patient_reminder_history_seen: {
     'public.reminder_occurrence_history': ['SELECT', 'UPDATE'],
@@ -2577,6 +2560,10 @@ const WEBAPP_MAINTENANCE_SOURCES = [
   'api/internal/media-hls-proxy-errors/retention:POST',
   'api/internal/media-playback-stats/retention:POST',
   'api/internal/product-analytics/retention:POST',
+  // Track D final cutover (#987), audit F1: this source was already a locked-infra cron source
+  // (packages/db-principal/webappLockedInfraCronSources.ts) but had no declared relation-capability,
+  // so `webappPortCapabilityForInfraSource` threw before the route could pick a cleanup root.
+  'api/internal/db-journal-retention/tick:POST',
 ] as const;
 const WEBAPP_WORKER_SOURCES = [
   'api/auth/channel-link/start:POST:authenticated',
@@ -2657,24 +2644,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
-    // Дверь ПОРТА ИНТЕГРАТОРА в общий с вебаппом корень. Роль — своя, `app_integrator_request`:
-    // до 22.08 эта дверь называла роль ВЕБАППА, и попасть в собственный корень интегратор мог
-    // только надев её вместе со всем арендаторским столом вебаппа. Дверь вебаппа в тот же корень
-    // (`integrator_reminder_occurrence_finalized_record`) свою роль сохраняет — соответствие
-    // «дверь → роль» один к одному, гейт корня ветвится по двери (миграция
-    // `20260822T140000_the_shared_roots_name_the_role_of_their_door.sql`).
-    // Класс контекста остаётся `tenant_service`: рантайм порта интегратора выбирает возможность по
-    // паре (function_identity, contextClass), а живой вызывающий держит организационный принципал.
-    integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
-      runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
-      purpose: 'integrator.reminder-occurrence-finalized.record',
-      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
-    integrator_delivery_reminder_occurrence_finalized_record: { port: 'integrator',
-      runtimeName: 'delivery_reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
-      purpose: 'integrator.reminder-occurrence-finalized.record',
-      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     integrator_outgoing_delivery_enqueue: { port: 'integrator', runtimeName: 'outgoing_delivery_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.outgoing.enqueue',
@@ -2703,25 +2672,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.bootstrap-phone-bind',
       functionIdentity: 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)' },
-    integrator_delivery_reminder_delivery_event_append: { port: 'integrator',
-      runtimeName: 'delivery_reminder_delivery_event_append', sessionRole: 'app_integrator_request',
-      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
-      purpose: 'integrator.reminder-delivery-event.append',
-      functionIdentity: 'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)' },
-    // Корень уже есть и делает ровно это (`integrator_support_delivery_attempt_record` на порту
-    // вебаппа) — второй не заводим, добавляем этой же функции дверь с порта интегратора.
-    // Ключ обязан отличаться от ключа двери вебаппа: каталог — один объектный литерал, и одинаковый
-    // ключ не «дополняет», а вытесняет соседа молча. Префикс `integrator_port_` — тот же, которым
-    // уже отличается вторая дверь `record_reminder_occurrence_finalized_projection` (см. выше).
-    // Роль — своя, `app_integrator_request`, по той же причине и той же формой, что у второй двери
-    // `record_reminder_occurrence_finalized_projection` выше: одно тело, две двери, у каждой ветки
-    // гейта ровно одна роль. Дверь вебаппа `integrator_support_delivery_attempt_record` остаётся на
-    // `app_tenant_service`.
-    integrator_port_support_delivery_attempt_record: { port: 'integrator',
-      runtimeName: 'support_delivery_attempt_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
-      purpose: 'integrator.support-delivery-attempt.record',
-      functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     integrator_notification_delivery_attempt_record: { port: 'integrator',
       runtimeName: 'notification_delivery_attempt_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
@@ -2977,8 +2927,6 @@ const REV10_CONTEXT = {
       'app.update_current_patient_reminder_rule(text,text)'),
     patient_reminder_rule_delete: patientSelfCapability('patient.reminder-rule.delete',
       'app.delete_current_patient_reminder_rule(text)'),
-    patient_reminder_journal_record: patientSelfCapability('patient.reminder-journal.record',
-      'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)'),
     patient_reminder_history_seen: patientSelfCapability('patient.reminder-history.seen',
       'app.mark_current_patient_reminder_history_seen(text)'),
     patient_reminder_history_seen_all: patientSelfCapability('patient.reminder-history.seen-all',
@@ -3220,6 +3168,16 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
       purpose: 'retention.locked-tenant-table.sweep',
       functionIdentity: 'app.prune_retention_target(text,integer,boolean)' },
+    // Track D final cutover (#987), audit F2: dedicated owner-owns-target root for the ACL-locked
+    // nonce ledger (`app.prune_retention_target` above cannot reach it, see the migration's own
+    // comment). Without this row the generator has no `functionIdentity` match for the function, so
+    // it falls back to gate mode `attested` and REWRITES the migration's hand-written
+    // `require_accepted_context(...)` call to `require_attested_context_for_roles(...)` on reconcile
+    // — target/context/purpose here must byte-match the migration body exactly so 'exact' mode wins.
+    webapp_context_nonce_ledger_sweep: { port: 'webapp', runtimeName: 'context_nonce_ledger_sweep',
+      sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
+      purpose: 'retention.context-nonce-ledger.sweep',
+      functionIdentity: 'app.prune_context_nonce_ledger(integer,integer,boolean)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -3357,10 +3315,6 @@ const REV10_CONTEXT = {
     integrator_event_idempotency_store: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'integrator.event-idempotency.store',
       functionIdentity: 'app.integrator_event_idempotency_store(text,text,integer,text,integer)' },
-    integrator_reminder_occurrence_finalized_record: { port: 'webapp', sessionRole: 'app_staff',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-      purpose: 'integrator.reminder-occurrence-finalized.record',
-      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     patient_reminder_materialization_snapshot_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'reminder.materialization.snapshot.read',
@@ -3398,10 +3352,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'integrator.web-push-delivery-settings.read',
       functionIdentity: 'app.read_integrator_web_push_delivery_settings(uuid)' },
-    integrator_support_delivery_attempt_record: { port: 'webapp', sessionRole: 'app_staff',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-      purpose: 'integrator.support-delivery-attempt.record',
-      functionIdentity: 'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)' },
     auth_oauth_find_user: { port: 'webapp', sessionRole: 'app_patient', targetRole: 'app_pre_session',
       contextClass: 'pre_session', purpose: 'auth.oauth.callback.find-binding',
       functionIdentity: 'app.auth_oauth_find_user(text,text)' },
@@ -5274,6 +5224,11 @@ const REV10_CONTEXT = {
     // отмычкой ко всей базе. Незнакомая метка не выполняется, а отказывает (22023).
     // Владелец 19.08: «уборка — это одинаковое действие, и не хочется плодить дубли»,
     // «закрытый список — супер».
+    // Track D final cutover (#987), §C: 5 branches added on top of the owner's 08-08 four —
+    // docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md "Правила хранения",
+    // the still-live, still-unpruned journals (context_nonce_ledger excluded — separate root below,
+    // its ACL grants nothing but its own owner; delivery_attempt_logs/message_retry_jobs/
+    // projection_outbox excluded — already dropped by earlier Track D migrations).
     'app.prune_retention_target(text,integer,boolean)': rev10Function({
       owner: 'app_seam_retention_sweep_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
       execute: ['app_operational_maintenance'],
@@ -5291,6 +5246,40 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.product_push_notifications', columns: ['created_at'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // F4 (batching, #987 audit): the LIMIT-then-join-delete pattern that bounds every branch at
+        // `batch_limit` rows needs to SELECT the row's own primary key inside the victims CTE (to join
+        // it back for the DELETE) — a plain unbounded `DELETE ... WHERE <window column> < cutoff` never
+        // needed that read, so the PK column is a genuinely new surface these 4 branches require now.
+        { relation: 'public.idempotency_keys', columns: ['expires_at', 'key'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'integrator.idempotency_keys', columns: ['expires_at', 'key'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.outgoing_delivery_queue', columns: ['status', 'sent_at', 'dead_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.notification_delivery_attempts', columns: ['created_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    // Track D final cutover (#987), §C: app.context_nonce_ledger cannot join prune_retention_target
+    // above — its ACL (p2-b:356-359) grants nothing but its own owner, and its window is minutes, not
+    // days. Owner-owns-target: function owner = table owner, no relationSurface grant needed (same
+    // shape as app.install_signed_context in the legacy map — kept here as rev10Function so it types
+    // against this map's DeclaredFunction, with an empty relationSurfaces for the same reason).
+    'app.prune_context_nonce_ledger(integer,integer,boolean)': rev10Function({
+      owner: 'app_object_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false,
+      execute: ['app_operational_maintenance'],
+      purpose: 'реестр nonce закрыт от всех ролей (p2-b:356-359); прунер — единственный легальный вход, '
+        + 'владелец функции = владелец таблицы',
+      typedArgs: ['integer', 'integer', 'boolean'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'app.context_nonce_ledger', columns: ['nonce', 'expires_epoch'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
@@ -5809,23 +5798,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
-      // Две двери — две роли: `app_tenant_service` открывает дверь вебаппа, `app_integrator_request`
-      // дверь порта интегратора. EXECUTE принадлежит функции целиком, поэтому здесь их обе; какая
-      // роль ходит какой дверью, решает гейт тела, и каждая его ветка называет ровно одну.
-      execute: ['app_integrator_request', 'app_tenant_service'],
-      purpose: 'idempotently record one delivery result inside the attested organization',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'integer', 'text', 'text', 'timestamp with time zone'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.support_delivery_events', columns: [
-          'id', 'organization_id', 'conversation_message_id', 'integrator_intent_event_id',
-          'correlation_id', 'channel_code', 'status', 'attempt', 'reason', 'payload_json', 'occurred_at',
-        ], operations: ['SELECT' as const, 'INSERT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
     'app.read_current_patient_booking_row(uuid,text)': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false, execute: ['app_patient'],
       purpose: 'return only the current patient own booking projection by booking or canonical appointment id',
@@ -6275,10 +6247,6 @@ const REV10_CONTEXT = {
     'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
       'boolean', false, ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
-    'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientSelfFunction(
-      'uuid', false, ['text', 'text', 'text', 'timestamp with time zone', 'text'],
-      'patient.reminder-journal.record', exactPatientSurfaces(
-        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_reminder_journal_action)),
     'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
       'integer', false, ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_reminder_history_seen)),
@@ -6672,26 +6640,6 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone)': rev10Function({
-      owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
-      execute: ['app_operational_delivery_worker'],
-      purpose: 'integrator.reminder-delivery-event.append',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'bigint', 'text', 'text', 'text', 'text',
-        'timestamp with time zone'],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [
-        { relation: 'public.reminder_delivery_events',
-          columns: ['organization_id', 'integrator_delivery_log_id', 'integrator_occurrence_id',
-            'integrator_rule_id', 'integrator_user_id', 'channel', 'status', 'error_code',
-            'payload_json', 'created_at'],
-          // Тело вставляет с `ON CONFLICT (<арбитр>) DO NOTHING`: указанный арбитр заставляет PostgreSQL
-          // ПРОЧИТАТЬ конфликтующую строку, поэтому одного INSERT для исполнения тела не хватает.
-          operations: ['INSERT' as const, 'SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'integrator.direct_public_write_retries',
-          columns: ['status', 'operation', 'organization_id', 'payload'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
     'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
       execute: ['app_integrator_request'], purpose: 'integrator.notification-delivery-attempt.record',
@@ -6796,7 +6744,14 @@ const REV10_CONTEXT = {
         'app.install_port_context(uuid,app.port_context_claims)',
       ] }),
     'app.require_accepted_context(name,name,app.port_context_class,text,bytea,regprocedure)': rev10Function({
-      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS],
+      owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      // `app_object_owner` added by Track D final cutover (#987), audit F3: it owns
+      // `app.prune_context_nonce_ledger`, the first REV10 named root whose owner is the generic
+      // object-owner role rather than a dedicated `app_seam_*` owner (mirrors the table it prunes —
+      // p2-b:356-359 locks `app.context_nonce_ledger` to that same owner). Without this grant the
+      // definer body's own gate call fails with `permission denied for function
+      // require_accepted_context` before it can even check the caller's context.
+      execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS, 'app_object_owner'],
       purpose: 'gate', typedArgs: ['name', 'name', 'class', 'text', 'bytea', 'regprocedure'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       bodyRelationSurfaceContract: 'port-context' as const }),
@@ -6922,7 +6877,10 @@ const REV10_CONTEXT = {
     'app.current_actor_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-actor', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_patient_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-patient', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
     'app.current_integrator_user_id()': rev10Function({ owner: 'app_seam_context_owner', security: 'DEFINER', returns: 'bigint', returnsSet: false, execute: [...REV10_RUNTIME, ...REV10_SEAM_OWNERS], purpose: 'current-integrator', typedArgs: [], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'], bodyRelationSurfaceContract: 'port-context' as const }),
-    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
+    // `app_object_owner` added by Track D final cutover (#987), audit F3 — see
+    // require_accepted_context above for why: called INVOKER from inside
+    // app.prune_context_nonce_ledger's DEFINER body, so it runs as that function's owner.
+    'app.hash_port_typed_args(app.port_typed_arg[])': rev10Function({ owner: 'app_seam_context_owner', security: 'INVOKER', returns: 'bytea', returnsSet: false, execute: ['app_seam_context_owner', ...REV10_SEAM_OWNERS, 'app_object_owner'], purpose: 'typed-args', typedArgs: ['app.port_typed_arg[]'], volatility: 'IMMUTABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app.is_staff()': rev10Function({ owner: 'app_object_owner', security: 'INVOKER', returns: 'boolean', returnsSet: false, execute: [...REV10_RUNTIME], purpose: 'staff-class', typedArgs: [], volatility: 'STABLE', parallel: 'SAFE', proconfig: ['search_path=pg_catalog'] }),
     'app_ext.resolve_variant_a_identity(uuid,text)': rev10Function({ owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false, execute: [], purpose: 'private variant-a map mutation behind the exact pre-session root', typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog, app, app_ext, pg_temp'],
       // UPDATE dropped 19.08 with the no-op upsert: the map is append-only, so the resolver only
@@ -7322,17 +7280,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
     ],
   },
-  'public.reminder_journal': {
-    kind: 'direct', purpose: 'patient reads and records actions only for its own reminder rules',
-    codePaths: ['apps/webapp/src/infra/repos/pgReminderJournal.ts'],
-    grants: [
-      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-    ],
-  },
   'public.reminder_occurrence_history': {
     kind: 'direct',
-    purpose: 'patient reads its own reminder history across clinic contexts and advances only its own seen cursor',
-    codePaths: ['apps/webapp/src/infra/repos/pgReminderProjection.ts'],
+    purpose: 'patient reads its own reminder history across clinic contexts and advances only its own seen '
+      + 'cursor; also read for actions/journal-shaped queries after Track D consolidation',
+    codePaths: ['apps/webapp/src/infra/repos/pgReminderProjection.ts', 'apps/webapp/src/infra/repos/pgReminderJournal.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
     ],
@@ -7765,17 +7717,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
     ],
   },
-  'integrator.direct_public_write_retries': {
-    kind: 'direct', purpose: 'persist and replay failed direct-public writes without returning to HTTP projection transport',
-    codePaths: ['apps/integrator/src/infra/db/repos/directPublicWriteRetry.ts', 'apps/integrator/src/infra/runtime/worker/directPublicWriteRetryWorker.ts'],
-    grants: [
-      { role: 'app_integrator_request', operations: ['INSERT'],
-        columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
-      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
-        columns: ['status', 'updated_at', 'attempt_count', 'next_try_at', 'last_error'] },
-    ],
-  },
   'public.saas_billing_periods': {
     kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
     codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
@@ -7818,10 +7759,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
 };
 
 const REV10_NO_RUNTIME_ACCESS: Record<string, Extract<RelationAccess, { kind: 'no-runtime-surface' }>> = {
-  'app.context_nonce_ledger': { kind: 'no-runtime-surface', purpose: 'obsolete custom signed-context nonce ledger replaced by app_ext accepted transaction contexts', evidence: [
-    'node /home/dev/brain/tools/code-search.mjs "context nonce ledger runtime" --repo bcb: migrations and the retired custom protocol only',
-    'deploy/postgres/port-context/contract.sql uses app_ext.accepted_port_contexts instead',
-  ] },
+  // `app.context_nonce_ledger` REMOVED from this map by Track D final cutover (#987), audit F3: it
+  // is no longer without a runtime accessor — `app.prune_context_nonce_ledger` now declares a
+  // relationSurface on it (REV10_CONTEXT.functions above). Leaving the stale entry here would keep
+  // short-circuiting `revision10RelationAccess` to 'no-runtime-surface' BEFORE it ever reaches the
+  // `seams.length > 0` fallback, which silently drops the one seam this table now has: no
+  // `rev10_seam_business_*` / `rev10_named_root_owner_gate_*` policy would ever be generated for
+  // `app_object_owner`, so the definer root would see zero rows under FORCE RLS forever (the exact
+  // "дорого И молча" failure the audit measured live — owner sees 0 of 6 expired nonce rows, no
+  // error). Table-level classification now falls through naturally to 'named-seams'.
   'app.principal_context': { kind: 'no-runtime-surface', purpose: 'obsolete session-row context replaced by transaction-bound app_ext.accepted_port_contexts', evidence: [
     'node /home/dev/brain/tools/code-search.mjs "principal_context runtime" --repo bcb: legacy migrations/tests only',
     'deploy/postgres/port-context/contract.sql installs accepted_port_contexts rows',
@@ -7964,8 +7910,7 @@ const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
  * (active staff OR patient enrollment), or P (an exact current-org parent).
  */
 const REV10_TENANT_DIRECT_ORG = new Set([
-  'integrator.user_reminder_delivery_logs',
-  'integrator.user_reminder_occurrences',
+  'public.reminder_occurrence_history',
   'public.be_appointment_staff_comments', 'public.be_appointments', 'public.be_organization_members',
   'public.be_organizations', 'public.be_package_usages', 'public.be_patient_booking_profiles',
   'public.be_patient_packages', 'public.be_patient_timeline_events', 'public.be_payment_history_events',
@@ -7981,7 +7926,7 @@ const REV10_TENANT_DIRECT_ORG = new Set([
   'public.platform_user_contacts', 'public.product_analytics_user_hourly', 'public.product_push_notifications',
   'public.program_action_log',
   'public.reminder_rules', 'public.specialist_tasks', 'public.support_conversation_messages',
-  'public.support_conversations', 'public.support_delivery_events', 'public.support_question_messages',
+  'public.support_conversations', 'public.support_question_messages',
   'public.support_questions', 'public.symptom_entries', 'public.symptom_trackings', 'public.test_attempts',
   'public.treatment_program_events', 'public.treatment_program_instance_stage_items',
   'public.treatment_program_instance_stages', 'public.treatment_program_instances',
@@ -8122,12 +8067,6 @@ function revision10TenantParentWritePredicate(tableKey: string, operation: 'INSE
       + ` WHERE tenant_conversation.id = support_conversation_messages.conversation_id`
       + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`;
   }
-  if (tableKey === 'public.support_delivery_events' && operation === 'INSERT') {
-    return nullableParent('conversation_message_id', `EXISTS (SELECT 1 FROM public.support_conversation_messages tenant_message`
-      + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_message.conversation_id`
-      + ` WHERE tenant_message.id = support_delivery_events.conversation_message_id`
-      + ` AND tenant_conversation.organization_id = (SELECT app.current_org_id()))`);
-  }
   if (tableKey === 'public.support_question_messages' && operation === 'INSERT') {
     return `EXISTS (SELECT 1 FROM public.support_questions tenant_question`
       + ` JOIN public.support_conversations tenant_conversation ON tenant_conversation.id = tenant_question.conversation_id`
@@ -8250,31 +8189,6 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = (SELECT app.current_org_id()) AND access_member.status = 'active'))`;
   if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
   return `(${rolePredicate})`;
-}
-
-function revision10DeliveryReplayPolicies(tableKey: string, index: number): PolicyDecl[] | undefined {
-  const deliveryRole = 'app_operational_delivery_worker';
-  const staffRole = 'app_staff';
-  if (tableKey === 'public.reminder_delivery_events') {
-    const workerWall = `(EXISTS (SELECT 1 FROM integrator.direct_public_write_retries AS claimed_retry`
-      + ` WHERE claimed_retry.status = 'processing'`
-      + ` AND claimed_retry.operation = 'reminder_delivery_log_append'`
-      + ' AND claimed_retry.organization_id = reminder_delivery_events.organization_id'
-      + ` AND claimed_retry.payload ->> 'organizationId' = reminder_delivery_events.organization_id::text`
-      + ` AND claimed_retry.payload ->> 'integratorDeliveryLogId' = reminder_delivery_events.integrator_delivery_log_id))`;
-    const staffWall = '(organization_id = (SELECT app.current_org_id())'
-      + ' OR (app.current_integrator_user_id() IS NOT NULL'
-      + ' AND integrator_user_id = app.current_integrator_user_id()))';
-    return [
-      { name: `rev10_delivery_replay_worker_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
-        to: [deliveryRole], using: workerWall, withCheck: workerWall,
-        note: 'delivery replay may append only the organization and event named by a claimed retry' },
-      { name: `rev10_delivery_replay_staff_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
-        to: [staffRole], using: staffWall, withCheck: staffWall,
-        note: 'staff reaches delivery events only inside its accepted organization context' },
-    ];
-  }
-  return undefined;
 }
 
 function revision10CoursesPolicies(index: number): PolicyDecl[] {
@@ -8602,14 +8516,11 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       'public.be_patient_booking_profiles', 'public.content_access_grants_webapp', 'public.content_pages',
       'public.content_sections',
       'public.content_section_slug_history', 'public.reference_categories', 'public.reference_items',
-      'public.reminder_delivery_events', 'public.reminder_occurrence_history',
+      'public.reminder_occurrence_history',
       'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
       'public.support_conversations']).has(key);
-    const deliveryReplayPolicies = access?.kind === 'direct'
-      ? revision10DeliveryReplayPolicies(key, index)
-      : undefined;
-    const directBusiness: PolicyDecl[] = deliveryReplayPolicies
-      ?? (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
+    const directBusiness: PolicyDecl[] =
+      (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
         using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
         note: `exact direct role business wall for ${key}`,

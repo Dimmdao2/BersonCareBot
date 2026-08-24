@@ -12,8 +12,6 @@ const expectedRows = new Map([
   ['public.admin_audit_log', 'details'],
   ['public.message_log', 'text,channel_bindings_used,error_message'],
   ['public.notification_delivery_attempts', 'metadata,error_message,recipient_ref'],
-  ['public.support_delivery_events', 'payload_json,reason'],
-  ['public.reminder_delivery_events', 'payload_json,error_code'],
   ['public.content_access_grants_webapp', 'meta_json'],
   ['public.operator_health_failure_archive', 'summary_json,raw_error_truncated'],
   ['public.product_analytics_events_recent', 'metadata'],
@@ -37,10 +35,8 @@ const expectedRows = new Map([
   ['public.be_schedule_templates', 'config'],
   ['public.be_working_days', 'breaks'],
   ['public.be_working_hours', 'breaks'],
-  ['integrator.user_reminder_delivery_logs', 'payload_json,error_code'],
   ['public.idempotency_keys', 'response_body'],
   ['integrator.idempotency_keys', 'response_body'],
-  ['public.integrator_push_outbox', 'payload,last_error'],
   ['public.outgoing_delivery_queue', 'payload_json,last_error'],
 ]);
 

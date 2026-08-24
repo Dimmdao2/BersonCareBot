@@ -29,151 +29,6 @@ export type Revision10ClinicalAccess =
  *   could not add a program exercise for exactly this reason on eight tables at once.
  */
 export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
-  "integrator.user_reminder_delivery_logs": {
-    "kind": "direct",
-    "purpose": "журнал доставки напоминаний — не видно, почему напоминание не дошло",
-    "codePaths": [
-      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
-      "apps/integrator/src/infra/db/repos/reminders.ts",
-      "apps/integrator/src/infra/db/schema/integratorDomainRepos.ts",
-      "apps/integrator/src/kernel/contracts/ports.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_integrator_tenant_service",
-        "operations": ["SELECT"],
-        "columns": ["channel", "created_at", "occurrence_id", "payload_json", "status"]
-      },
-      {
-        "role": "app_integrator_tenant_service",
-        "operations": ["INSERT"],
-        "columns": ["channel", "created_at", "error_code", "id", "occurrence_id", "organization_id", "payload_json", "status"]
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": [
-          "channel",
-          "created_at",
-          "occurrence_id",
-          "payload_json",
-          "status"
-        ]
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "channel",
-          "created_at",
-          "error_code",
-          "id",
-          "occurrence_id",
-          "organization_id",
-          "payload_json",
-          "status"
-        ]
-      }
-    ]
-  },
-  "integrator.user_reminder_occurrences": {
-    "kind": "direct",
-    "purpose": "конкретные срабатывания напоминаний — напоминания не ставятся в очередь и дублируются",
-    "codePaths": [
-      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
-      "apps/integrator/src/infra/db/repos/reminders.ts",
-      "apps/integrator/src/infra/db/schema/integratorDomainRepos.ts",
-      "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
-      "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_integrator_tenant_service",
-        "operations": ["SELECT"],
-        "columns": ["delivery_channel", "error_code", "failed_at", "id", "organization_id", "planned_at", "platform_user_id", "rule_id", "sent_at", "status", "updated_at"]
-      },
-      {
-        "role": "app_integrator_tenant_service",
-        "operations": ["UPDATE"],
-        "columns": ["delivery_channel", "delivery_job_id", "error_code", "failed_at", "planned_at", "queued_at", "sent_at", "status", "updated_at"]
-      },
-      {
-        "role": "app_integrator_tenant_service",
-        "operations": ["DELETE"],
-        "columns": "table"
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": [
-          "delivery_channel",
-          "error_code",
-          "failed_at",
-          "id",
-          "organization_id",
-          "planned_at",
-          "rule_id",
-          "sent_at",
-          "status",
-          "updated_at"
-        ]
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "delivery_channel",
-          "delivery_job_id",
-          "error_code",
-          "failed_at",
-          "planned_at",
-          "queued_at",
-          "sent_at",
-          "status",
-          "updated_at"
-        ]
-      },
-      {
-        "role": "app_integrator_request",
-        "operations": [
-          "DELETE"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_tenant_service",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": [
-          "rule_id",
-          "status"
-        ]
-      },
-      {
-        "role": "app_tenant_service",
-        "operations": [
-          "DELETE"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      }
-    ]
-  },
   "public.be_appointment_cancellations": {
     "kind": "direct",
     "purpose": "отмены визитов — ломается политика отмен и возвратов предоплаты",
@@ -7080,129 +6935,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       }
     ]
   },
-  "public.reminder_delivery_events": {
-    "kind": "direct",
-    "purpose": "события доставки напоминаний из интегратора — без неё не видно, дошло ли напоминание, и не считается здоровье конвейера",
-    "codePaths": [
-      "apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts",
-      "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
-      "apps/webapp/src/infra/platformUserFullPurge.ts",
-      "apps/webapp/src/infra/repos/pgReminderProjection.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "channel",
-          "created_at",
-          "error_code",
-          "integrator_delivery_log_id",
-          "integrator_occurrence_id",
-          "integrator_rule_id",
-          "integrator_user_id",
-          "organization_id",
-          "payload_json",
-          "status"
-        ]
-      },
-      {
-        "role": "app_operational_delivery_worker",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_operational_delivery_worker",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "channel",
-          "created_at",
-          "error_code",
-          "integrator_delivery_log_id",
-          "integrator_occurrence_id",
-          "integrator_rule_id",
-          "integrator_user_id",
-          "organization_id",
-          "payload_json",
-          "status"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "UPDATE"
-        ],
-        "columns": [
-          "integrator_user_id",
-          "organization_id"
-        ]
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "DELETE"
-        ],
-        "columns": "table"
-      }
-    ]
-  },
-  "public.reminder_journal": {
-    "kind": "direct",
-    "purpose": "действия пациента с напоминанием — без неё пациент не видит истории «отложил/пропустил»",
-    "codePaths": [
-      "apps/webapp/src/app-layer/di/buildAppDeps.ts",
-      "apps/webapp/src/app/app/patient/reminders/RemindersPageBody.tsx",
-      "apps/webapp/src/app/app/patient/reminders/journal/[ruleId]/page.tsx",
-      "apps/webapp/src/infra/repos/pgReminderJournal.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "action",
-          "occurrence_id",
-          "rule_id",
-          "skip_reason",
-          "snooze_until"
-        ]
-      }
-    ]
-  },
   "public.reminder_occurrence_history": {
     "kind": "direct",
-    "purpose": "история срабатываний напоминаний: подписанный tenant-scoped integrator event добавляет проекцию, человек только читает или обслуживает её",
+    "purpose": "Track D (#987) единственная физическая occurrence-таблица: операционный жизненный цикл срабатывания (integrator, прямой доступ) слит с историей/фактами пациента (staff обслуживает, пациент читает через именованные корни) на одной строке",
     "codePaths": [
-      "apps/integrator/src/infra/db/directPublic/writeReminderProjectionDirect.ts",
+      "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
+      "apps/integrator/src/infra/db/repos/reminders.ts",
+      "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
+      "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
       "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
       "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
       "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/repos/inMemoryReminderJournal.ts",
       "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
+      "apps/webapp/src/infra/repos/pgPatientReminderMaterialization.ts",
       "apps/webapp/src/infra/repos/pgReminderJournal.ts",
       "apps/webapp/src/infra/repos/pgReminderMessengerTopicDisable.ts",
       "apps/webapp/src/infra/repos/pgReminderProjection.ts",
@@ -7210,6 +6957,36 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/modules/reminders/reminderJournalPort.ts"
     ],
     "grants": [
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["SELECT"],
+        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["UPDATE"],
+        "columns": ["delivery_channel", "delivery_job_id", "error_code", "failed_at", "occurred_at", "planned_at", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_tenant_service",
+        "operations": ["DELETE"],
+        "columns": "table"
+      },
+      {
+        "role": "app_integrator_request",
+        "operations": ["SELECT"],
+        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_request",
+        "operations": ["UPDATE"],
+        "columns": ["delivery_channel", "delivery_job_id", "error_code", "failed_at", "occurred_at", "planned_at", "queued_at", "sent_at", "status", "updated_at"]
+      },
+      {
+        "role": "app_integrator_request",
+        "operations": ["DELETE"],
+        "columns": "table"
+      },
       {
         "role": "app_staff",
         "operations": [
@@ -8543,80 +8320,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "DELETE"
         ],
         "columns": "table"
-      }
-    ]
-  },
-  "public.support_delivery_events": {
-    "kind": "direct",
-    "purpose": "журнал доставки сообщений — без него не видно, дошло ли сообщение",
-    "codePaths": [
-      "apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts",
-      "apps/integrator/src/infra/db/writePort.ts",
-      "apps/webapp/src/infra/repos/pgIntegratorSupportQuestionOwnership.ts",
-      "apps/webapp/src/infra/repos/pgSupportCommunication.ts"
-    ],
-    "grants": [
-      {
-        "role": "app_staff",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": "table"
-      },
-      {
-        "role": "app_staff",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "attempt",
-          "channel_code",
-          "conversation_message_id",
-          "correlation_id",
-          "integrator_intent_event_id",
-          "occurred_at",
-          "organization_id",
-          "payload_json",
-          "reason",
-          "status"
-        ]
-      },
-      {
-        "role": "app_tenant_service",
-        "operations": [
-          "SELECT"
-        ],
-        "columns": [
-          "attempt",
-          "channel_code",
-          "conversation_message_id",
-          "correlation_id",
-          "id",
-          "integrator_intent_event_id",
-          "occurred_at",
-          "organization_id",
-          "payload_json",
-          "reason",
-          "status"
-        ]
-      },
-      {
-        "role": "app_tenant_service",
-        "operations": [
-          "INSERT"
-        ],
-        "columns": [
-          "attempt",
-          "channel_code",
-          "conversation_message_id",
-          "correlation_id",
-          "integrator_intent_event_id",
-          "occurred_at",
-          "organization_id",
-          "payload_json",
-          "reason",
-          "status"
-        ]
       }
     ]
   },

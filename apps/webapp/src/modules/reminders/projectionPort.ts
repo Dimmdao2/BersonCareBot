@@ -1,3 +1,10 @@
+/**
+ * Track D final cutover (#987) removed `appendFinalizedOccurrenceFromProjection` — its sole target,
+ * `app.record_reminder_occurrence_finalized_projection`, was a cross-schema finalize-projection
+ * root with zero live callers; the integrator now finalizes an occurrence with one write directly
+ * to the single physical occurrence store (`markReminderOccurrenceSent`/`Failed` in
+ * `apps/integrator/src/infra/db/repos/reminders.ts`), so there is nothing left to project.
+ */
 export type ReminderProjectionPort = {
   upsertRuleFromProjection(params: {
     integratorRuleId: string;
@@ -12,29 +19,6 @@ export type ReminderProjectionPort = {
     daysMask: string;
     contentMode: string;
     updatedAt: string;
-  }): Promise<void>;
-  appendFinalizedOccurrenceFromProjection(params: {
-    integratorOccurrenceId: string;
-    integratorRuleId: string;
-    integratorUserId: string;
-    platformUserId: string;
-    organizationId: string;
-    category: string;
-    status: 'sent' | 'failed';
-    deliveryChannel: string | null;
-    errorCode: string | null;
-    occurredAt: string;
-  }): Promise<void>;
-  appendDeliveryEventFromProjection(params: {
-    integratorDeliveryLogId: string;
-    integratorOccurrenceId: string;
-    integratorRuleId: string;
-    integratorUserId: string;
-    channel: string;
-    status: string;
-    errorCode: string | null;
-    payloadJson: Record<string, unknown>;
-    createdAt: string;
   }): Promise<void>;
   upsertContentAccessGrantFromProjection(params: {
     integratorGrantId: string;

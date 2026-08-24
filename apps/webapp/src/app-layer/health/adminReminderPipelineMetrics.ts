@@ -1,15 +1,14 @@
-import { and, count, eq, gt, like, sql } from 'drizzle-orm';
-import { getDrizzle } from '@/app-layer/db/drizzle';
-import {
-  reminderDeliveryEvents,
-  reminderOccurrenceHistory,
-  idempotencyKeys,
-} from '../../../db/schema/schema';
-import { outgoingDeliveryQueue } from '../../../db/schema/outgoingDeliveryQueue';
-
-/** Matches integrator `enqueueOutgoingDeliveryIfAbsent` kind for patient reminder pushes. */
-export const REMINDER_OUTGOING_KIND = 'reminder_dispatch';
-
+/**
+ * Payload shape for `curatedSnapshot.remindersPipeline`, filled by
+ * `app.read_curated_system_health_pre_0196()` (see
+ * `db/drizzle-migrations/20260823T170000_retire_duplicate_reminder_delivery_journals.sql`).
+ *
+ * D30/Track D: this module used to also hold `loadAdminReminderPipelineMetrics`, a second,
+ * never-called reader that queried `reminder_delivery_events`/`reminder_occurrence_history`
+ * directly from the app layer — the curated DB function above is the sole live producer of this
+ * shape. Removed with the `reminder_delivery_events`/`user_reminder_delivery_logs` retirement
+ * rather than rewired, since nothing called it.
+ */
 const WINDOW_HOURS = 24 as const;
 
 export type RemindersPipelineHealthPayload = {
@@ -22,115 +21,8 @@ export type RemindersPipelineHealthPayload = {
   };
   /** `reminder_occurrence_history` rows with `occurred_at` in rolling window (UTC `now()`). */
   occurrenceHistory: { sent: number; failed: number };
-  /** `reminder_delivery_events` rows with `created_at` in rolling window (UTC `now()`). */
+  /** `outgoing_delivery_queue` (kind = reminder_dispatch) rows in rolling window (UTC `now()`). */
   deliveryEvents: { sent: number; failed: number };
   /** Активные ключи idempotency `prn:*:channels` (ответ M2M web push + email ещё в TTL). */
   patientReminderM2mIdempotencyKeysActive: number;
 };
-
-export function emptyRemindersPipelineHealthPayload(): RemindersPipelineHealthPayload {
-  return {
-    windowHours: WINDOW_HOURS,
-    outgoingReminderDispatch: { due: 0, dead: 0, processing: 0 },
-    occurrenceHistory: { sent: 0, failed: 0 },
-    deliveryEvents: { sent: 0, failed: 0 },
-    patientReminderM2mIdempotencyKeysActive: 0,
-  };
-}
-
-function sumStatus(
-  rows: Array<{ status: string; n: unknown }>,
-  sentLabel: string,
-  failedLabel: string,
-): { sent: number; failed: number } {
-  let sent = 0;
-  let failed = 0;
-  for (const r of rows) {
-    const n = Number(r.n ?? 0);
-    if (r.status === sentLabel) sent += n;
-    if (r.status === failedLabel) failed += n;
-  }
-  return { sent, failed };
-}
-
-/**
- * Operator-facing reminder funnel: queue slice + 24h projection facts.
- * Best-effort; returns `{ ok: false }` only on unexpected DB errors.
- */
-export async function loadAdminReminderPipelineMetrics(outgoingDelivery: {
-  dueByKind: Record<string, number>;
-  deadByKind: Record<string, number>;
-}): Promise<
-  { ok: true; value: RemindersPipelineHealthPayload } | { ok: false; errorCode: string }
-> {
-  try {
-    const db = getDrizzle();
-    const due = outgoingDelivery.dueByKind[REMINDER_OUTGOING_KIND] ?? 0;
-    const dead = outgoingDelivery.deadByKind[REMINDER_OUTGOING_KIND] ?? 0;
-
-    const [processingRows, occRows, evRows, prnIdemRows] = await Promise.all([
-      db
-        .select({ c: count() })
-        .from(outgoingDeliveryQueue)
-        .where(
-          and(
-            eq(outgoingDeliveryQueue.kind, REMINDER_OUTGOING_KIND),
-            eq(outgoingDeliveryQueue.status, 'processing'),
-          ),
-        ),
-      db
-        .select({
-          status: reminderOccurrenceHistory.status,
-          n: count(),
-        })
-        .from(reminderOccurrenceHistory)
-        .where(sql`${reminderOccurrenceHistory.occurredAt} >= now() - interval '24 hours'`)
-        .groupBy(reminderOccurrenceHistory.status),
-      db
-        .select({
-          status: reminderDeliveryEvents.status,
-          n: count(),
-        })
-        .from(reminderDeliveryEvents)
-        .where(sql`${reminderDeliveryEvents.createdAt} >= now() - interval '24 hours'`)
-        .groupBy(reminderDeliveryEvents.status),
-      db
-        .select({ c: count() })
-        .from(idempotencyKeys)
-        .where(
-          and(
-            like(idempotencyKeys.key, 'prn:%:channels'),
-            gt(idempotencyKeys.expiresAt, sql`now()`),
-          ),
-        ),
-    ]);
-
-    const occurrenceHistory = sumStatus(
-      occRows.map((r) => ({ status: r.status, n: r.n })),
-      'sent',
-      'failed',
-    );
-    const deliveryEvents = sumStatus(
-      evRows.map((r) => ({ status: r.status, n: r.n })),
-      'sent',
-      'failed',
-    );
-
-    return {
-      ok: true,
-      value: {
-        windowHours: WINDOW_HOURS,
-        outgoingReminderDispatch: {
-          due,
-          dead,
-          processing: Number(processingRows[0]?.c ?? 0),
-        },
-        occurrenceHistory,
-        deliveryEvents,
-        patientReminderM2mIdempotencyKeysActive: Number(prnIdemRows[0]?.c ?? 0),
-      },
-    };
-  } catch {
-    return { ok: false, errorCode: 'reminder_pipeline_metrics_failed' };
-  }
-}

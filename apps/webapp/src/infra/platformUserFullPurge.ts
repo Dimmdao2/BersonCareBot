@@ -103,11 +103,6 @@ async function deleteWebappProjectionByIntegratorUserId(
 
   await runPurgeClientPgText(
     client,
-    `DELETE FROM reminder_delivery_events WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  await runPurgeClientPgText(
-    client,
     `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`,
     [id],
   );

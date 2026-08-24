@@ -128,7 +128,7 @@ test('aggregated runtime surface findings separate invoker triggers from exact d
     undefined);
   assert.deepEqual(surface('app.patient_cancel_pending_reminder_occurrences(text)', 'public.reminder_rules'), {
     relation: 'public.reminder_rules',
-    columns: ['integrator_rule_id', 'organization_id', 'platform_user_id'],
+    columns: ['integrator_rule_id', 'platform_user_id', 'organization_id'],
     operations: ['SELECT'],
     evidence: 'pg16-function-body-lexical-upper-bound',
   });

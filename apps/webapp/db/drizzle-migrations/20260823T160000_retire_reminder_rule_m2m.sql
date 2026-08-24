@@ -496,19 +496,3 @@ DROP FUNCTION IF EXISTS app.integrator_upsert_reminder_rule(text,text,uuid,bigin
 -- BCB-MIGRATION-OWNER: app_object_owner
 
 DROP TABLE IF EXISTS public.integrator_push_outbox;
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
-
-ALTER TABLE integrator.direct_public_write_retries
-  DROP CONSTRAINT IF EXISTS direct_public_write_retries_operation_check;
-ALTER TABLE integrator.direct_public_write_retries
-  ADD CONSTRAINT direct_public_write_retries_operation_check CHECK (
-    operation IN (
-      'support_delivery_attempt_append',
-      'reminder_occurrence_sent_record',
-      'reminder_occurrence_failed_record',
-      'reminder_occurrence_expired_record',
-      'reminder_delivery_log_append',
-      'content_access_grant_upsert'
-    )
-  );
