@@ -28,7 +28,7 @@ import {
 
 const ENABLED = process.env.RUN_D17_INTEGRATOR_ROOTS_DB === '1';
 const DATABASE = process.env.D17_INTEGRATOR_ROOTS_PROOF_DB ?? 'bcb_webapp_dev';
-const MIGRATION_TAG = '20260823T030000_integrator_tenant_role_reaches_delivery_roots';
+const MIGRATION_TAG = '20260824T053353_reconcile_clinic_delivery_credential_root';
 const MIGRATIONS_FOLDER = new URL('../../../apps/webapp/db/drizzle-migrations/', import.meta.url);
 const PRIVILEGES = new URL('../generated/privileges.bcb_webapp_dev.sql', import.meta.url);
 
@@ -157,6 +157,48 @@ SET value_json = EXCLUDED.value_json,
 
 CREATE TEMP TABLE probe_out(ord serial PRIMARY KEY, key text NOT NULL, value text NOT NULL);
 
+INSERT INTO public.system_settings (key, scope, organization_id, value_json, updated_at, updated_by)
+SELECT credential_key, 'admin', fixture.organization_id,
+       jsonb_build_object('auditMarker', credential_key), statement_timestamp(), NULL
+  FROM probe_fixture AS fixture
+ CROSS JOIN unnest(ARRAY[
+   'clinic_smtp_outbound', 'clinic_smsc_api_key', 'clinic_telegram_bot_token',
+   'clinic_max_bot_api_key', 'clinic_vk_community_access_token',
+   'clinic_transactional_mail_template'
+ ]) AS credential_key
+ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
+SET value_json = EXCLUDED.value_json,
+    updated_at = EXCLUDED.updated_at,
+    updated_by = EXCLUDED.updated_by;
+
+INSERT INTO probe_out(key, value)
+SELECT 'credential_function_owner', pg_catalog.pg_get_userbyid(function.proowner)
+  FROM pg_catalog.pg_proc AS function
+ WHERE function.oid = 'app.read_integrator_clinic_delivery_credential(text,uuid)'::regprocedure;
+INSERT INTO probe_out(key, value)
+SELECT 'credential_body_narrow_role',
+       (position(
+          'ARRAY[''app_integrator_tenant_service''::name]::name[]'
+          IN function.prosrc
+        ) > 0)::text
+  FROM pg_catalog.pg_proc AS function
+ WHERE function.oid = 'app.read_integrator_clinic_delivery_credential(text,uuid)'::regprocedure;
+INSERT INTO probe_out(key, value)
+SELECT 'credential_body_broad_role',
+       (position(
+          'ARRAY[''app_tenant_service''::name]::name[]'
+          IN function.prosrc
+        ) > 0)::text
+  FROM pg_catalog.pg_proc AS function
+ WHERE function.oid = 'app.read_integrator_clinic_delivery_credential(text,uuid)'::regprocedure;
+INSERT INTO probe_out(key, value) VALUES
+  ('credential_narrow_execute', has_function_privilege(
+    'app_integrator_tenant_service',
+    'app.read_integrator_clinic_delivery_credential(text,uuid)', 'EXECUTE')::text),
+  ('credential_broad_execute', has_function_privilege(
+    'app_tenant_service',
+    'app.read_integrator_clinic_delivery_credential(text,uuid)', 'EXECUTE')::text);
+
 -- Both walls matter. Candidate EXECUTE is already installed, so each old gate must still refuse
 -- the narrow role when there is no accepted context.
 DO $no_context$
@@ -196,6 +238,7 @@ DO $narrow$
 DECLARE
   fixture probe_fixture%ROWTYPE;
   result text;
+  allowed_key_count text;
   clinic_cross_org_result text;
   calendar_cross_org_result text;
   mechanic_cross_org_result text;
@@ -223,6 +266,15 @@ BEGIN
   PERFORM app.read_integrator_clinic_delivery_credential(
     'clinic_smtp_outbound', fixture.organization_id);
 
+  SELECT count(*)::text INTO allowed_key_count
+    FROM unnest(ARRAY[
+      'clinic_smtp_outbound', 'clinic_smsc_api_key', 'clinic_telegram_bot_token',
+      'clinic_max_bot_api_key', 'clinic_vk_community_access_token',
+      'clinic_transactional_mail_template'
+    ]) AS credential_key
+   WHERE app.read_integrator_clinic_delivery_credential(
+     credential_key, fixture.organization_id) ->> 'auditMarker' = credential_key;
+
   PERFORM app.read_integrator_google_calendar_setting(
     'google_calendar_id', fixture.organization_id);
 
@@ -234,9 +286,24 @@ BEGIN
     ('calendar_cross_org', calendar_cross_org_result),
     ('mechanic_cross_org', mechanic_cross_org_result),
     ('clinic_with_context', 'ALLOWED'),
+    ('credential_allowed_key_count', allowed_key_count),
     ('calendar_with_context', 'ALLOWED'),
     ('mechanic_with_context', result);
 END $narrow$;
+
+DO $broad$
+DECLARE fixture probe_fixture%ROWTYPE; broad_result text;
+BEGIN
+  SELECT * INTO fixture FROM probe_fixture;
+  EXECUTE 'SET LOCAL ROLE app_tenant_service';
+  BEGIN
+    PERFORM app.read_integrator_clinic_delivery_credential(
+      'clinic_smtp_outbound', fixture.organization_id);
+    broad_result := 'ALLOWED';
+  EXCEPTION WHEN OTHERS THEN broad_result := SQLSTATE; END;
+  EXECUTE 'RESET ROLE';
+  INSERT INTO probe_out(key, value) VALUES ('credential_broad_call', broad_result);
+END $broad$;
 
 -- The narrow role still has no direct read/write privilege on medical product relations.
 INSERT INTO probe_out(key, value)
@@ -326,9 +393,14 @@ ROLLBACK;
 `;
 }
 
-test('narrow integrator role reaches only the three required roots and still needs context',
+test('final D17 credential root is narrow, exact-org and usable by reminder delivery',
   { skip: !ENABLED }, () => {
     const result = parsed(psql(proofSql()));
+    assert.equal(result.credential_function_owner, 'app_seam_settings_integrator_owner');
+    assert.equal(result.credential_body_narrow_role, 'true');
+    assert.equal(result.credential_body_broad_role, 'false');
+    assert.equal(result.credential_narrow_execute, 'true');
+    assert.equal(result.credential_broad_execute, 'false');
     assert.equal(result.clinic_without_context, '42501');
     assert.equal(result.calendar_without_context, '42501');
     assert.equal(result.mechanic_without_context, '42501');
@@ -336,6 +408,8 @@ test('narrow integrator role reaches only the three required roots and still nee
     assert.equal(result.calendar_cross_org, '42501');
     assert.equal(result.mechanic_cross_org, '42501');
     assert.equal(result.clinic_with_context, 'ALLOWED');
+    assert.equal(result.credential_allowed_key_count, '6');
+    assert.equal(result.credential_broad_call, '42501');
     assert.equal(result.calendar_with_context, 'ALLOWED');
     assert.equal(result.mechanic_with_context, '1');
     assert.equal(result.medical_relation_privileges, '0');

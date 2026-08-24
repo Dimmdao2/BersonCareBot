@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -223,7 +224,13 @@ test('migrate-dev preflight accepts only the stationary post-cutover migrator', 
 test('candidate preflight reads runtime URLs from a separate regular checkout only', () => {
   const runtime = createRuntime();
   const runtimeEnvRoot = mkdtempSync(join(tmpdir(), 'bcb-dev-runtime-env-'));
-  mkdirSync(join(runtimeEnvRoot, 'apps/webapp'), { recursive: true });
+  for (const directory of [
+    join(runtimeEnvRoot, 'apps/webapp/db/drizzle-migrations'),
+    join(runtimeEnvRoot, 'deploy/host'),
+    join(runtimeEnvRoot, 'deploy/postgres/privileges'),
+  ]) {
+    mkdirSync(directory, { recursive: true });
+  }
   copyFileSync(join(runtime.root, '.env'), join(runtimeEnvRoot, '.env'));
   copyFileSync(
     join(runtime.root, 'apps/webapp/.env.dev'),
@@ -231,11 +238,74 @@ test('candidate preflight reads runtime URLs from a separate regular checkout on
   );
   writeFileSync(join(runtime.root, '.env'), 'not-a-runtime-url\n');
   writeFileSync(join(runtime.root, 'apps/webapp/.env.dev'), 'not-a-runtime-url\n');
+  writeFileSync(
+    join(runtimeEnvRoot, 'deploy/host/parse-dev-database-url.mjs'),
+    "throw new Error('runtime env root parser must not run');\n",
+  );
+  writeFileSync(
+    join(runtimeEnvRoot, 'deploy/postgres/privileges/migrate-local.mjs'),
+    "throw new Error('runtime env root migrator must not run');\n",
+  );
+  writeFileSync(
+    join(runtimeEnvRoot, 'apps/webapp/db/drizzle-migrations/0000_forbidden.sql'),
+    "DO $$ BEGIN RAISE EXCEPTION 'runtime env root migration must not run'; END $$;\n",
+  );
 
   const result = runWrapper(runtime, '--preflight', ['--runtime-env-root', runtimeEnvRoot]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /preflight: PASS/u);
-  assert.match(readFileSync(runtime.capture, 'utf8'), /--rollback-only/u);
+  const calls = readFileSync(runtime.capture, 'utf8');
+  assert.match(calls, /--rollback-only/u);
+  assert.ok(calls.includes(join(runtime.root, 'deploy/postgres/privileges/migrate-local.mjs')));
+  assert.ok(calls.includes(join(runtime.root, 'apps/webapp/db/drizzle-migrations')));
+  assert.ok(calls.includes(join(runtime.root, 'deploy/postgres/privileges/generate-cli.mjs')));
+  assert.doesNotMatch(calls, new RegExp(`${runtimeEnvRoot}.+(?:migrate|drizzle|generate)`, 'u'));
+  assert.doesNotMatch(
+    `${result.stdout}\n${result.stderr}\n${calls}`,
+    /int-secret|staff-secret|patient-secret|global-secret/u,
+  );
+});
+
+test('runtime env root and both env files reject symlinks', () => {
+  const rootRuntime = createRuntime();
+  const rootLink = join(mkdtempSync(join(tmpdir(), 'bcb-dev-runtime-link-parent-')), 'runtime');
+  symlinkSync(rootRuntime.root, rootLink, 'dir');
+  const linkedRootResult = runWrapper(rootRuntime, '--preflight', [
+    '--runtime-env-root', rootLink,
+  ]);
+  assert.notEqual(linkedRootResult.status, 0);
+  assert.match(linkedRootResult.stderr, /regular directory/u);
+  assert.equal(existsSync(rootRuntime.capture), false);
+
+  const fileRuntime = createRuntime();
+  const runtimeEnvRoot = mkdtempSync(join(tmpdir(), 'bcb-dev-runtime-env-link-'));
+  mkdirSync(join(runtimeEnvRoot, 'apps/webapp'), { recursive: true });
+  symlinkSync(join(fileRuntime.root, '.env'), join(runtimeEnvRoot, '.env'));
+  copyFileSync(
+    join(fileRuntime.root, 'apps/webapp/.env.dev'),
+    join(runtimeEnvRoot, 'apps/webapp/.env.dev'),
+  );
+  const linkedFileResult = runWrapper(fileRuntime, '--preflight', [
+    '--runtime-env-root', runtimeEnvRoot,
+  ]);
+  assert.notEqual(linkedFileResult.status, 0);
+  assert.match(linkedFileResult.stderr, /DEV API env path guard failed/u);
+  assert.equal(existsSync(fileRuntime.capture), false);
+
+  const webappFileRuntime = createRuntime();
+  const webappRuntimeEnvRoot = mkdtempSync(join(tmpdir(), 'bcb-dev-runtime-webapp-env-link-'));
+  mkdirSync(join(webappRuntimeEnvRoot, 'apps/webapp'), { recursive: true });
+  copyFileSync(join(webappFileRuntime.root, '.env'), join(webappRuntimeEnvRoot, '.env'));
+  symlinkSync(
+    join(webappFileRuntime.root, 'apps/webapp/.env.dev'),
+    join(webappRuntimeEnvRoot, 'apps/webapp/.env.dev'),
+  );
+  const linkedWebappFileResult = runWrapper(webappFileRuntime, '--preflight', [
+    '--runtime-env-root', webappRuntimeEnvRoot,
+  ]);
+  assert.notEqual(linkedWebappFileResult.status, 0);
+  assert.match(linkedWebappFileResult.stderr, /DEV webapp env path guard failed/u);
+  assert.equal(existsSync(webappFileRuntime.capture), false);
 });
 
 test('runtime env root override is rejected for execute', () => {
