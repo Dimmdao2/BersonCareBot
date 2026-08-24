@@ -850,39 +850,17 @@ test('system settings grants follow semantic clinic/global walls', () => {
   assert.match(policies[1].withCheck, /organization_id = \(SELECT app\.current_org_id\(\)\)/);
 });
 
-test('runtime settings and account email use semantic row walls without broad patient identity access', () => {
+test('canonical settings and account email use semantic row walls without broad patient identity access', () => {
   const tables = declaration.databases.bersoncarebot_test.tables;
-  const runtime = tables['public.app_runtime_settings'];
-  assert.equal(runtime.access.kind, 'direct');
-  assert.deepEqual(
-    runtime.access.grants.find((grant) => grant.role === 'app_patient')?.operations,
-    ['SELECT'],
-  );
-  const runtimeSelect = runtime.policies.find((policy) =>
-    policy.name.startsWith('rev10_app_runtime_settings_select_'));
-  assert.match(runtimeSelect?.using ?? '', /audience IN \('public','authenticated_client'\)/);
-  assert.match(runtimeSelect?.using ?? '', /CASE WHEN organization_id IS NULL THEN true/);
-  assert.match(runtimeSelect?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/);
-
-  const runtimeAudit = tables['public.app_runtime_settings_audit'];
-  assert.equal(runtimeAudit.access.kind, 'named-seams');
-  assert.equal(runtimeAudit.policies.some((policy) =>
-    policy.to.includes('app_platform_settings') && policy.cmd === 'SELECT'), false);
-  assert.ok(runtimeAudit.policies.some((policy) =>
-    policy.to.includes('app_object_owner') && policy.name.startsWith('rev10_seam_business_')));
-  const auditTrigger = declaration.portContext.functions[
-    'public.audit_app_runtime_settings_change()'
+  assert.equal(tables['public.app_runtime_settings'], undefined);
+  assert.equal(tables['public.app_runtime_settings_audit'], undefined);
+  const authenticatedResolver = declaration.portContext.functions[
+    'app.read_authenticated_runtime_setting(text,text,uuid,boolean)'
   ];
-  assert.equal(auditTrigger.security, 'DEFINER');
-  assert.equal(auditTrigger.owner, 'app_object_owner');
-  assert.deepEqual(auditTrigger.execute, []);
-  assert.deepEqual(auditTrigger.relationSurfaces, [{
-    relation: 'public.app_runtime_settings_audit',
-    columns: ['audience', 'key', 'new_value_json', 'old_value_json', 'organization_id', 'scope', 'source',
-      'updated_by'],
-    operations: ['INSERT'],
-    evidence: 'pg16-function-body-lexical-upper-bound',
-  }]);
+  assert.equal(authenticatedResolver.owner, 'app_seam_settings_runtime_owner');
+  assert.deepEqual(authenticatedResolver.execute, ['app_patient']);
+  assert.deepEqual(authenticatedResolver.relationSurfaces?.[0]?.columns,
+    ['key', 'scope', 'organization_id', 'value_json']);
 
   const users = tables['public.platform_users'];
   assert.equal(users.access.kind, 'direct');

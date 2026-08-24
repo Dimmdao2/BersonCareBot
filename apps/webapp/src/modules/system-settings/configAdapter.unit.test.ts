@@ -10,8 +10,6 @@ const readAdminSystemSettingString = vi.fn();
 const readExactOrganizationAdminSystemSettingString = vi.fn();
 const readPublicAuthChannelConfigured = vi.fn();
 const getEffective = vi.fn();
-const getSnapshotRows = vi.fn();
-const upsert = vi.fn();
 
 const {
   getConfigValue,
@@ -27,8 +25,6 @@ bindConfigAdapterPort({
   runtimeSettings: {
     getClinicPlatformIntegrationAvailability: vi.fn(),
     getEffective,
-    getSnapshotRows,
-    upsert,
   },
   readAdminSystemSettingString,
   readExactOrganizationAdminSystemSettingString,

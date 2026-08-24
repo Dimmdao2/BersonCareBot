@@ -10,7 +10,6 @@ import { sql, type SQL } from 'drizzle-orm';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   PublicAuthChannelCapability,
-  RuntimeWrite,
   SettingsWriteUnitOfWork,
   SystemSettingsPort,
   SystemSettingsReadOptions,
@@ -610,11 +609,6 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
             );
         if (!deleted.rows[0]) return false;
         await runWebappPgText(
-          `DELETE FROM public.app_runtime_settings WHERE key = $1 AND scope = $2 AND organization_id IS NOT DISTINCT FROM $3::uuid`,
-          [key, scope, organizationId],
-          tx,
-        );
-        await runWebappPgText(
           `INSERT INTO system_settings_audit (key, scope, organization_id, old_value_json, new_value_json, changed_by, source) VALUES ($1, $2, $3::uuid, $4::jsonb, NULL, $5, $6)`,
           [
             key,
@@ -632,102 +626,23 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
   };
 }
 
-type RuntimeSettingWriteRow = {
-  key: string;
-  scope: string;
-  organization_id: string | null;
-  audience: string;
-  value_json: unknown;
-  updated_at: Date | string;
-  updated_by: string | null;
-};
-
-async function upsertRuntimeInTransaction(row: RuntimeWrite, tx: WebappSqlExecutor): Promise<void> {
-  await runWebappPgText(
-    "SELECT set_config('app.runtime_settings_audit_source', 'system_settings_dual_write', true)",
-    [],
-    tx,
-  );
-  const result = row.organizationId
-    ? await runWebappPgText<RuntimeSettingWriteRow>(
-        `INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by)
-         VALUES ($1, $2, $3::uuid, $4, $5::jsonb, now(), $6)
-         ON CONFLICT (key, scope, organization_id) WHERE organization_id IS NOT NULL DO UPDATE
-           SET audience = EXCLUDED.audience, value_json = EXCLUDED.value_json, updated_at = now(), updated_by = EXCLUDED.updated_by
-         RETURNING key, scope, organization_id, audience, value_json, updated_at, updated_by`,
-        [
-          row.key,
-          row.scope,
-          row.organizationId,
-          row.audience,
-          JSON.stringify(row.valueJson),
-          row.updatedBy,
-        ],
-        tx,
-      )
-    : await runWebappPgText<RuntimeSettingWriteRow>(
-        `INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by)
-         VALUES ($1, $2, NULL, $3, $4::jsonb, now(), $5)
-         ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
-           SET audience = EXCLUDED.audience, value_json = EXCLUDED.value_json, updated_at = now(), updated_by = EXCLUDED.updated_by
-         RETURNING key, scope, organization_id, audience, value_json, updated_at, updated_by`,
-        [row.key, row.scope, row.audience, JSON.stringify(row.valueJson), row.updatedBy],
-        tx,
-      );
-  if (!result.rows[0]) throw new Error('runtime_settings_write_failed');
-}
-
-/**
- * S5-3 transaction boundary. Runtime rows are authoritative; their legacy rows are
- * written only for compatibility and carry a transaction-local trigger bypass. The
- * legacy trigger remains active for restricted/manual/ops writers and their derived projections.
- */
+/** One transaction for canonical system_settings writes and its canonical audit. */
 export function createPgSystemSettingsWriteUnitOfWork(): SettingsWriteUnitOfWork {
   return {
     async write(input) {
       return runWebappTransaction(async (tx) => {
-        const runtimeByIdentity = new Map(
-          input.authoritativeRuntimeRows.map((row) => [
-            `${row.organizationId ?? 'global'}:${row.scope}:${row.key}`,
-            row,
-          ]),
-        );
         const saved: SystemSetting[] = [];
-        for (const legacyRow of input.legacyRows) {
-          const organizationId = legacyRow.organizationId?.trim() || null;
-          const identity = `${organizationId ?? 'global'}:${legacyRow.scope}:${legacyRow.key}`;
-          const runtimeRow = runtimeByIdentity.get(identity);
-          if (runtimeRow) {
-            await upsertRuntimeInTransaction(runtimeRow, tx);
-            await runWebappPgText(
-              "SELECT set_config('app.runtime_settings_explicit_dual_write', 'on', true)",
-              [],
-              tx,
-            );
-          }
+        for (const row of input.rows) {
+          const organizationId = row.organizationId?.trim() || null;
           const persisted = await upsertWithAudit(
-            legacyRow.key,
-            legacyRow.scope,
+            row.key,
+            row.scope,
             organizationId,
-            legacyRow.valueJson,
-            legacyRow.updatedBy,
+            row.valueJson,
+            row.updatedBy,
             tx,
           );
           saved.push(rowToSetting(persisted));
-          if (runtimeRow) {
-            await runWebappPgText(
-              "SELECT set_config('app.runtime_settings_explicit_dual_write', 'off', true)",
-              [],
-              tx,
-            );
-            runtimeByIdentity.delete(identity);
-          }
-        }
-        // Only registry runtime rows reach this fallback path. Mixed/restricted
-        // envelopes never enter authoritativeRuntimeRows: their legacy trigger
-        // owns VAPID/payment/OAuth/SMS safe derived projections.
-        for (const row of runtimeByIdentity.values()) {
-          await upsertRuntimeInTransaction(row, tx);
         }
         return saved;
       });
@@ -735,39 +650,24 @@ export function createPgSystemSettingsWriteUnitOfWork(): SettingsWriteUnitOfWork
 
     async compareAndSwap(input) {
       return runWebappTransaction(async (tx) => {
-        const legacyRow = input.legacyRow;
-        const organizationId = legacyRow.organizationId?.trim() || null;
+        const row = input.row;
+        const organizationId = row.organizationId?.trim() || null;
         const currentToken = await exactRowUpdatedAtForCompareAndSwap(
-          legacyRow.key,
-          legacyRow.scope,
+          row.key,
+          row.scope,
           organizationId,
           tx,
         );
         if (currentToken !== input.expectedUpdatedAt) return null;
 
-        for (const runtimeRow of input.authoritativeRuntimeRows) {
-          await upsertRuntimeInTransaction(runtimeRow, tx);
-          await runWebappPgText(
-            "SELECT set_config('app.runtime_settings_explicit_dual_write', 'on', true)",
-            [],
-            tx,
-          );
-        }
         const persisted = await upsertWithAudit(
-          legacyRow.key,
-          legacyRow.scope,
+          row.key,
+          row.scope,
           organizationId,
-          legacyRow.valueJson,
-          legacyRow.updatedBy,
+          row.valueJson,
+          row.updatedBy,
           tx,
         );
-        if (input.authoritativeRuntimeRows.length > 0) {
-          await runWebappPgText(
-            "SELECT set_config('app.runtime_settings_explicit_dual_write', 'off', true)",
-            [],
-            tx,
-          );
-        }
         return rowToSetting(persisted);
       });
     },

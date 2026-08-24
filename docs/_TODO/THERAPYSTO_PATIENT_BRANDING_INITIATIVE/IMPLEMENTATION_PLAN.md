@@ -932,8 +932,9 @@ tests; проверка, что секреты не попадают в public r
   входа; дальнейшие значения владелец выставляет раздельными переключателями. Доказательство на DEV 23.08.2026:
   `bash deploy/host/migrate-dev.sh --preflight` → PASS; штатный `--execute` применил
   `20260823T173446_split_auth_settings_by_surface`; post-check — по 9 surface-строк на `staff`,
-  `platform_admin` и `patient` в каждой из `system_settings` и `app_runtime_settings`, все 27 значений
-  совпали с legacy в обеих таблицах (`0/0` расхождений). Включённые способы до и после на каждой
+  `platform_admin` и `patient` в тогда ещё действовавших canonical/runtime stores, все 27 значений
+  совпали с legacy (`0/0` расхождений). Forward repair 24.08 оставляет эти 27 строк только в
+  `system_settings`. Включённые способы до и после на каждой
   поверхности: `email`, `passkey`. Финальный общий reconcile остановлен известным чужим pre-session gate
   `app.email_auth_find_email_challenge_for_confirm`; см. `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
 - [x] `F5` Яндекс у пациентов остаётся включённым как есть (`OG-4` закрыт). Отдельных регистраций на клинику не

@@ -61,7 +61,6 @@ test('every \\ir include on the full-reset cutover path resolves', () => {
     'deploy/postgres/generated/prod-to-target/schema-pre.sql',
     'deploy/postgres/generated/prod-to-target/schema-post.sql',
     'deploy/postgres/generated/prod-to-target/ledgers-and-baseline.sql',
-    'deploy/postgres/generated/prod-to-target/runtime-settings.sql',
     'deploy/postgres/prod-to-target-cutover-start.sql',
     'deploy/postgres/prod-to-target-cutover-data.sql',
     'deploy/postgres/prod-to-target-cutover-finish.sql',

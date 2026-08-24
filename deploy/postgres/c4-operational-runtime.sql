@@ -162,7 +162,7 @@ REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_scheduler_login_role";
 REVOKE ALL ON TABLE integrator.idempotency_keys,
   public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents,
-  public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
+  public.media_transcode_jobs, public.media_files, public.system_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 REVOKE EXECUTE ON FUNCTION app.release_principal_context(), app.is_staff(), app.current_org_id(),
@@ -421,7 +421,7 @@ REVOKE ALL ON TABLE integrator.idempotency_keys,
   public.reminder_rules,
   public.outgoing_delivery_queue,
   public.broadcast_audit, public.operator_incidents, public.media_transcode_jobs,
-  public.media_files, public.app_runtime_settings FROM
+  public.media_files, public.system_settings FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role";
 REVOKE EXECUTE ON FUNCTION app.install_signed_context(text, integer, bigint, uuid, uuid, bigint, text),
@@ -449,7 +449,7 @@ REVOKE ALL ON TABLE integrator.idempotency_keys FROM
 REVOKE ALL ON TABLE public.outgoing_delivery_queue FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
-REVOKE ALL ON TABLE public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
+REVOKE ALL ON TABLE public.media_transcode_jobs, public.media_files, public.system_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 REVOKE ALL ON TABLE public.reminder_rules, public.broadcast_audit, public.operator_incidents FROM
@@ -461,7 +461,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE integrator.idempotency_keys TO app
 GRANT SELECT ON TABLE public.reminder_rules TO app_operational_scheduler;
 GRANT SELECT, UPDATE ON TABLE public.media_transcode_jobs, public.media_files TO app_operational_media_worker;
 GRANT USAGE ON SCHEMA integrator, public TO app_owner;
-GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
+GRANT SELECT ON TABLE public.system_settings TO app_owner;
 GRANT SELECT ON TABLE public.reminder_rules TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
 GRANT SELECT (id, organization_id, reminder_sent_at), UPDATE (reminder_sent_at)
@@ -994,7 +994,7 @@ SELECT 1 / (
       ('integrator.idempotency_keys'),
       ('public.reminder_rules'), ('public.outgoing_delivery_queue'),
       ('public.broadcast_audit'), ('public.operator_incidents'),
-      ('public.media_transcode_jobs'), ('public.media_files'), ('public.app_runtime_settings')
+      ('public.media_transcode_jobs'), ('public.media_files'), ('public.system_settings')
     ) target(relation_name)
     WHERE has_table_privilege(login.oid, target.relation_name, 'SELECT')
   )

@@ -22,8 +22,6 @@ $bcb$;
 
 WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'admin_audit_log'),
-  ('public', 'app_runtime_settings'),
-  ('public', 'app_runtime_settings_audit'),
   ('public', 'be_appointments'),
   ('public', 'be_availability_rules'),
   ('public', 'be_booking_form_fields'),

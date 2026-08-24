@@ -463,7 +463,7 @@ REVOKE SELECT, INSERT, UPDATE ON TABLE public.user_phone_history FROM :"d3_4_boo
 REVOKE SELECT, INSERT, UPDATE ON TABLE public.platform_user_contacts FROM :"d3_4_bootstrap_base_role";
 \if :d3_4_skip_media_worker
 \else
-REVOKE SELECT ON TABLE public.app_runtime_settings FROM :"d3_4_media_worker_runtime_role";
+REVOKE SELECT ON TABLE public.system_settings FROM :"d3_4_media_worker_runtime_role";
 \endif
 
 REVOKE USAGE ON SCHEMA app FROM :"d3_4_bootstrap_base_role";
@@ -500,7 +500,7 @@ REVOKE ADMIN OPTION FOR app_patient FROM :"d3_4_bootstrap_base_role";
 GRANT app_patient TO :"d3_4_bootstrap_base_role"
   WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;
 \endif
-REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
+REVOKE SELECT ON TABLE public.system_settings
   FROM :"d3_4_bootstrap_base_role";
 REVOKE SELECT ON TABLE public.be_payment_provider_events, public.be_payment_intents
   FROM :"d3_4_bootstrap_base_role";
@@ -615,11 +615,10 @@ GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_media_worker_runtime_role";
 \endif
 GRANT EXECUTE ON FUNCTION app.is_staff() TO :"d3_4_bootstrap_base_role";
 
--- Generic server-audience runtime config only. RLS in 0188 exposes global server rows to
--- app_worker members and hides authenticated-client rows; restricted system_settings stays denied.
+-- Runtime settings are exposed only through the media-worker SECURITY DEFINER reader.
 \if :d3_4_skip_media_worker
 \else
-GRANT SELECT ON TABLE public.app_runtime_settings TO :"d3_4_media_worker_runtime_role";
+REVOKE SELECT ON TABLE public.system_settings FROM :"d3_4_media_worker_runtime_role";
 \endif
 
 -- Narrow SECURITY DEFINER pre-auth surface. These functions own their validation and expose only
@@ -920,7 +919,6 @@ WITH RECURSIVE bootstrap_role AS (
   SELECT relation.relowner
   FROM pg_class relation
   WHERE relation.oid IN (
-    'public.app_runtime_settings'::regclass,
     'public.system_settings'::regclass,
     'public.be_payment_provider_events'::regclass,
     'public.be_payment_intents'::regclass
@@ -982,9 +980,6 @@ SELECT 1 / (
     FROM protected_tables protected
     CROSS JOIN bootstrap_role
     WHERE pg_has_role(bootstrap_role.oid, protected.relowner, 'MEMBER')
-  )
-  AND NOT has_table_privilege(
-    :'d3_4_bootstrap_base_role', 'public.app_runtime_settings', 'SELECT'
   )
   AND NOT has_table_privilege(
     :'d3_4_bootstrap_base_role', 'public.system_settings', 'SELECT'

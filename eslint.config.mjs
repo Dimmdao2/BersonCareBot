@@ -7,11 +7,11 @@ import prettier from 'eslint-config-prettier';
 import globals from 'globals';
 
 const SETTINGS_TABLE_SQL_RE =
-  '(from|join|into|update)\\s+("?public"?\\.)?"?(system_settings|app_runtime_settings)"?\\b';
+  '(from|join|into|update)\\s+("?public"?\\.)?"?system_settings"?\\b';
 const SETTINGS_TABLE_SQL_MESSAGE =
-  'Прямое обращение к public.system_settings / public.app_runtime_settings из integrator запрещено: ' +
-  'эти таблицы читаются только под staff-принципалом, а фоновые контуры приложения (bootstrap, infra, ' +
-  'операционные роли) прав на них не имеют — запрос падает 42501 и молча уходит в fail-safe. ' +
+  'Прямое обращение к public.system_settings из integrator запрещено: таблица читается только через ' +
+  'объявленные capability, а фоновые контуры приложения (bootstrap, infra, операционные роли) прямых ' +
+  'прав на неё не имеют — запрос падает 42501 и молча уходит в fail-safe. ' +
   'Используй capability из infra/db/publicSystemSettings.ts, а новый ключ добавляй в allow-list ' +
   'соответствующей SECURITY DEFINER функции в оверлее.';
 const settingsTableSqlBans = [

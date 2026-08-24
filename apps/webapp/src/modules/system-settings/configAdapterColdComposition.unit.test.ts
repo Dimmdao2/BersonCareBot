@@ -20,8 +20,6 @@ vi.mock('@/modules/system-settings/configAdapterPort', () => ({
     return {
       runtimeSettings: {
         getEffective: fakes.getEffective,
-        getSnapshotRows: vi.fn(),
-        upsert: vi.fn(),
       },
       readAdminSystemSettingString: vi.fn(),
       readExactOrganizationAdminSystemSettingString: vi.fn(),

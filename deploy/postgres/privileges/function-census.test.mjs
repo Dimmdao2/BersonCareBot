@@ -106,7 +106,6 @@ test('aggregated runtime surface findings separate invoker triggers from exact d
     'app.enforce_lfk_child_owner()',
     'app.guard_clinic_directory_current_slug()',
     'app.guard_org_brand_revision()',
-    'public.sync_registered_app_runtime_setting()',
   ];
   for (const signature of invokerTriggers) {
     const fn = declaration.portContext.functions[signature];
@@ -548,7 +547,7 @@ test('per-DB function SQL is deterministic and contains the bilateral metadata c
     assert.match(surfaceVerifier, /CREATE TEMP TABLE bcb_function_surface_special_contracts/);
     assert.ok(surfaceVerifier.includes("('app_control.enforce_relation_birth_wall()', 'relation-birth-wall')"));
     assert.ok(surfaceVerifier.includes("('app.install_port_context(uuid,app.port_context_claims)', 'port-context')"));
-    assert.ok(surfaceVerifier.includes("('public.audit_app_runtime_settings_change()')"));
+    assert.equal(surfaceVerifier.includes("('public.audit_app_runtime_settings_change()')"), false);
     assert.ok(surfaceVerifier.includes("('app.password_login_acquire_impl(text,text,uuid,text)')"));
     assert.ok(surfaceVerifier.includes("('app.assert_organization_slug_alias_complete()')"));
     assert.equal(surfaceVerifier.includes("('public.sync_registered_app_runtime_setting()')"), false);

@@ -45,7 +45,6 @@ export * from './patientPayments';
 export * from './saasEntitlements';
 export * from './saasBilling';
 export * from './orgBranding';
-export * from './appRuntimeSettings';
 export * from './doctorPatientSupport';
 export * from './saasIsolationDiagnostics';
 export * from './relations';

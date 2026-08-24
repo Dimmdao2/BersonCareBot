@@ -3962,12 +3962,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
           "organization_id",
-          "audience",
           "value_json"
         ],
         "operations": [
@@ -5644,7 +5643,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
@@ -5972,7 +5971,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
@@ -7026,7 +7025,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
@@ -7924,12 +7923,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
           "organization_id",
-          "audience",
           "value_json"
         ],
         "operations": [
@@ -8266,12 +8264,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
           "organization_id",
-          "audience",
           "value_json"
         ],
         "operations": [
@@ -8861,12 +8858,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
           "organization_id",
-          "audience",
           "value_json"
         ],
         "operations": [
@@ -9126,12 +9122,11 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "relationSurfaces": [
       {
-        "relation": "public.app_runtime_settings",
+        "relation": "public.system_settings",
         "columns": [
           "key",
           "scope",
           "organization_id",
-          "audience",
           "value_json"
         ],
         "operations": [
