@@ -23,7 +23,28 @@ import type {
   ClinicDeliveryCredentialResolveOptions,
 } from '../db/clinicDeliveryCredentials.js';
 
-export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
+const providerAttemptFailures = new WeakSet<object>();
+
+function markProviderAttemptFailure(error: unknown): unknown {
+  if ((typeof error === 'object' && error !== null) || typeof error === 'function') {
+    providerAttemptFailures.add(error);
+    return error;
+  }
+  const normalized = new Error(String(error));
+  providerAttemptFailures.add(normalized);
+  return normalized;
+}
+
+/** True only for an error thrown by an actual DeliveryAdapter.send provider call. */
+export function isProviderAttemptFailure(error: unknown): boolean {
+  return (
+    ((typeof error === 'object' && error !== null) || typeof error === 'function') &&
+    providerAttemptFailures.has(error)
+  );
+}
+
+export type DispatchPlatformIntegrationId =
+  'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -66,7 +87,8 @@ async function clinicSenderScope(
   }
   const requestedScope =
     intent.type === 'message.send'
-      ? ((intent.payload as DeliveryPayload).delivery?.senderScope as RequestedSenderScope | undefined)
+      ? ((intent.payload as DeliveryPayload).delivery?.senderScope as
+          RequestedSenderScope | undefined)
       : undefined;
   const clinicCredential = channel && resolveCredential ? await resolveCredential(channel) : null;
 
@@ -89,7 +111,11 @@ function isClinicCredentialProbe(intent: OutgoingIntent): boolean {
 }
 
 function asClinicDeliveryChannel(channel: string): ClinicDeliveryChannel | null {
-  return channel === 'email' || channel === 'smsc' || channel === 'telegram' || channel === 'max' || channel === 'vk'
+  return channel === 'email' ||
+    channel === 'smsc' ||
+    channel === 'telegram' ||
+    channel === 'max' ||
+    channel === 'vk'
     ? channel
     : null;
 }
@@ -385,7 +411,11 @@ export function createDefaultDispatchPort(deps: {
           : null;
       const resolved = probe
         ? { senderScope: 'clinic_required' as ClinicSenderScope, clinicCredential: probeCredential }
-        : await clinicSenderScope(intentForChannel, clinicChannel, deps.resolveClinicDeliveryCredential);
+        : await clinicSenderScope(
+            intentForChannel,
+            clinicChannel,
+            deps.resolveClinicDeliveryCredential,
+          );
       const senderScope = resolved.senderScope;
       const clinicCredential = resolved.clinicCredential;
       if (senderScope === 'clinic_required' && !clinicCredential) {
@@ -394,7 +424,9 @@ export function createDefaultDispatchPort(deps: {
       try {
         if (clinicCredential) {
           try {
-            sendResult = await adapter.send(withClinicCredential(intentForChannel, clinicCredential));
+            sendResult = await adapter.send(
+              withClinicCredential(intentForChannel, clinicCredential),
+            );
           } catch (clinicError) {
             // Essential traffic remains deliverable through the platform. Clinic-required flows
             // (broadcasts and bot support) must never silently assume the platform sender.
@@ -405,10 +437,16 @@ export function createDefaultDispatchPort(deps: {
           sendResult = await adapter.send(intentForChannel);
         }
       } catch (providerError) {
+        const attemptedFailure = markProviderAttemptFailure(providerError);
         if (!opts?.skipAttemptLog && deps.writePort) {
-          await recordGenericDispatchFailureAttempt(deps.writePort, intent, channel, providerError);
+          await recordGenericDispatchFailureAttempt(
+            deps.writePort,
+            intent,
+            channel,
+            attemptedFailure,
+          );
         }
-        throw providerError;
+        throw attemptedFailure;
       }
       // Success, or a completed-but-skipped webPushOutcome, is not a delivery attempt (F5): the
       // surviving outgoing_delivery_queue row's own status/sent_at/failure_class is the lifecycle
