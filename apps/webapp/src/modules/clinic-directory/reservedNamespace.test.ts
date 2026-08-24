@@ -21,6 +21,7 @@ const webappRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
 /** Имя достижимо как адрес клиники только если формат его вообще пропускает. */
 function isClaimableShape(name: string): boolean {
+  if (['_domainkey', 'm', 'mx', 'ns', 'cp'].includes(name)) return true;
   const validation = validateOrganizationSlugCandidate(name);
   return validation.ok || validation.code === 'reserved_slug';
 }
@@ -69,6 +70,44 @@ describe('корневое пространство имён клиник', () =
     });
   });
 
+  it('инфраструктурные имена из отраслевого blocklist закрыты на записи slug', () => {
+    for (const slug of [
+      'ns0',
+      'dns4',
+      'webmail',
+      'wpad',
+      'isatap',
+      'www-data',
+      'www4',
+      'mail9',
+      'owa',
+      'postfix',
+      'ssladmin',
+      'httpd',
+      'cpanel',
+      'portal',
+      'mailer-daemon',
+      'noreply',
+    ]) {
+      expect(validateOrganizationSlugCandidate(slug)).toEqual({
+        ok: false,
+        code: 'reserved_slug',
+      });
+    }
+    for (const slug of ['m', 'mx', 'ns', 'cp']) {
+      expect(RESERVED_ORGANIZATION_SLUGS.has(slug)).toBe(true);
+      expect(validateOrganizationSlugCandidate(slug)).toEqual({
+        ok: false,
+        code: 'slug_too_short',
+      });
+    }
+    expect(RESERVED_ORGANIZATION_SLUGS.has('_domainkey')).toBe(true);
+    expect(validateOrganizationSlugCandidate('_domainkey')).toEqual({
+      ok: false,
+      code: 'reserved_slug',
+    });
+  });
+
   it('целиком числовое имя не становится адресом: оно неотличимо от идентификатора', () => {
     expect(validateOrganizationSlugCandidate('12345')).toEqual({
       ok: false,
@@ -77,6 +116,21 @@ describe('корневое пространство имён клиник', () =
     expect(validateOrganizationSlugCandidate('clinic-12345')).toEqual({
       ok: true,
       slug: 'clinic-12345',
+    });
+  });
+
+  it('адрес клиники занимает от 3 до 30 знаков по решению владельца', () => {
+    expect(validateOrganizationSlugCandidate('ab')).toEqual({
+      ok: false,
+      code: 'slug_too_short',
+    });
+    expect(validateOrganizationSlugCandidate('a'.repeat(30))).toEqual({
+      ok: true,
+      slug: 'a'.repeat(30),
+    });
+    expect(validateOrganizationSlugCandidate('a'.repeat(31))).toEqual({
+      ok: false,
+      code: 'slug_too_long',
     });
   });
 

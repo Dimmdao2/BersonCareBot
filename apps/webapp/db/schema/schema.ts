@@ -814,18 +814,11 @@ export const emailChallenges = pgTable(
       .defaultNow()
       .notNull(),
     /**
-     * D27-C fix round 2: one-shot plaintext OTP for delivery composition only (never used for
-     * verification, which stays on codeHash). Written by startEmailChallenge right after insert,
-     * nulled by app.email_auth_enqueue_otp_delivery the moment it's queued. Format-locked to 6
-     * digits by a CHECK constraint (migration 0363).
+     * Legacy separate-insert field for a one-shot plaintext OTP. The active atomic start root leaves
+     * it null; the six-digit CHECK remains for compatibility with existing rows and helpers.
      */
     pendingDeliveryCode: text('pending_delivery_code'),
-    /**
-     * D27-C fix round 3: one-shot ownership secret minted by
-     * app.email_auth_set_email_challenge_delivery_code, required by
-     * app.email_auth_enqueue_otp_delivery to prove the caller owns this challenge. Nulled out
-     * together with pendingDeliveryCode the moment delivery is queued (migration 0370).
-     */
+    /** Legacy one-shot token paired with pendingDeliveryCode; the active atomic start root leaves it null. */
     deliveryToken: uuid('delivery_token'),
     /**
      * D27-C fix round 3: permanent (never cleared) marker set the moment delivery_token is first
@@ -2103,8 +2096,11 @@ export const mediaPlaybackStatsHourly = pgTable(
     fallbackCount: integer('fallback_count').default(0).notNull(),
   },
   (table) => [
-    uniqueIndex('media_playback_stats_hourly_org_bucket_delivery_uidx')
-      .on(table.organizationId, table.bucketHour, table.delivery),
+    uniqueIndex('media_playback_stats_hourly_org_bucket_delivery_uidx').on(
+      table.organizationId,
+      table.bucketHour,
+      table.delivery,
+    ),
     index('idx_media_playback_stats_hourly_organization_id').on(table.organizationId),
     index('idx_media_playback_stats_hourly_bucket').using(
       'btree',
@@ -3675,5 +3671,13 @@ export const systemSettings = pgTable(
       'system_settings_scope_check',
       sql`scope = ANY (ARRAY['global'::text, 'doctor'::text, 'admin'::text])`,
     ),
+    uniqueIndex('system_settings_org_custom_domain_hostname_uidx')
+      .using('btree', sql`lower(btrim(${table.valueJson} ->> 'value'))`)
+      .where(
+        sql`${table.key} = 'org_custom_domain_hostname'
+          AND ${table.organizationId} IS NOT NULL
+          AND jsonb_typeof(${table.valueJson} -> 'value') = 'string'
+          AND btrim(${table.valueJson} ->> 'value') <> ''`,
+      ),
   ],
 );

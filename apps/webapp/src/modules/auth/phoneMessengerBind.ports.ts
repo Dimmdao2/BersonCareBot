@@ -73,11 +73,11 @@ export interface PhoneMessengerBindPort {
    * same named root, atomically — the port no longer exposes a `withTransaction`/
    * `recordMessengerBindBlocked` pair for the caller to (fail to) do that itself.
    */
+  /** Authenticated profile bind only. Login proof must not create or bind an account before web finish. */
   applyMessengerContactPreOtp(params: {
     phoneNormalized: string;
     channelCode: PhoneMessengerBindChannel;
     externalId: string;
-    purpose: PhoneMessengerBindPurpose;
     sessionUserId?: string | null;
   }): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure>;
 }

@@ -40,11 +40,13 @@ type RelayOutboundBaseParams<C extends string> = {
    */
   icsContent?: string;
   /**
-   * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
+   * Имя файла .ics вложения (по умолчанию `booking.ics`).
    */
   icsFilename?: string;
-  /** Clinic-required traffic never falls back to the platform sender. */
-  senderScope?: 'clinic_required';
+  /** Clinic-required traffic never falls back; patient context requires it only when configured. */
+  senderScope?: 'clinic_required' | 'clinic_if_configured';
+  /** Settings-only live probe: force the saved clinic credential even before readiness is enabled. */
+  clinicCredentialProbe?: true;
 };
 
 export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &
@@ -162,6 +164,9 @@ export async function relayOutbound<C extends string>(
   }
   if (params.senderScope) {
     bodyObj.senderScope = params.senderScope;
+  }
+  if (params.clinicCredentialProbe) {
+    bodyObj.clinicCredentialProbe = true;
   }
   const rawBody = JSON.stringify(bodyObj);
 

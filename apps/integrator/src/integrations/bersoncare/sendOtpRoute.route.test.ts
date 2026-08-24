@@ -7,6 +7,7 @@ import { registerBersoncareSendOtpRoute } from './sendOtpRoute.js';
 const SHARED_SECRET = 'send-otp-route-test-secret';
 const ROUTE = '/api/bersoncare/send-otp';
 const apps: FastifyInstance[] = [];
+const mailProfile = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
 
 function protocolHeaders(rawBody: string): Record<string, string> {
   const timestamp = String(Math.floor(Date.now() / 1000));
@@ -33,9 +34,9 @@ async function buildApp(dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent)
   const app = Fastify({ logger: false });
   apps.push(app);
   await registerBersoncareSendOtpRoute(app, {
+    db: {} as never,
     dispatchPort: { dispatchOutgoing },
     sharedSecret: SHARED_SECRET,
-    isAuthChannelEnabled: async () => true,
     idempotencyPort,
   });
   return { app, dispatchOutgoing };
@@ -63,6 +64,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'max',
       recipientId: 'not-a-platform-user-id',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:max:one',
     });
 
@@ -78,6 +80,7 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
       channel: 'max',
       recipientId: '123456789',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:max:one',
     });
 
@@ -89,12 +92,32 @@ describe('POST /api/bersoncare/send-otp MAX recipient contract', () => {
     });
   });
 
+  it('marks a branded Telegram OTP clinic-required before it reaches the dispatch port', async () => {
+    const { app, dispatchOutgoing } = await buildApp();
+
+    const response = await injectSigned(app, {
+      channel: 'telegram',
+      recipientId: 'tg-1',
+      code: '123456',
+      mailProfile,
+      idempotencyKey: 'otp:tg:branded',
+      organizationId: '11111111-1111-4111-8111-111111111111',
+      senderScope: 'clinic_if_configured',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(dispatchOutgoing.mock.calls[0]?.[0].payload).toMatchObject({
+      delivery: { channels: ['telegram'], senderScope: 'clinic_if_configured' },
+    });
+  });
+
   it('same signed request is a no-op, while an explicit resend key dispatches again', async () => {
     const { app, dispatchOutgoing } = await buildApp();
     const first = {
       channel: 'telegram',
       recipientId: 'tg-1',
       code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:tg:1',
     };
 

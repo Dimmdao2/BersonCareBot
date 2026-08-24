@@ -7,10 +7,9 @@
  * boundary Р-D25 forbids: it left the canonical phone/binding write partly in the integrator's
  * hands and doubled the number of writes for one logical bind.
  *
- * These tests pin the fixed behavior directly against `completePhoneMessengerBindFromIntegrator`
- * with a fake `PhoneMessengerBindPort`: an unready completion state is resolved IN THIS CALL via
- * `applyMessengerContactPreOtp` (the existing canonical pre-OTP transaction), never surfaced back
- * to the caller as a status requiring another write.
+ * These tests pin the fixed behavior directly against `completePhoneMessengerBindFromIntegrator`:
+ * authenticated profile binding stays self-contained, while login completion only proves the
+ * phone and creates a challenge. Account creation is deferred to the browser finish.
  */
 import { describe, expect, it, vi } from 'vitest';
 import type {
@@ -28,6 +27,9 @@ vi.mock('@/config/env', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/config/env')>();
   return { ...actual, webappReposAreInMemory: () => false };
 });
+vi.mock('./phoneOtpLimits', () => ({
+  assertPhoneCanStartChallenge: vi.fn(async () => ({ ok: true as const })),
+}));
 
 const { completePhoneMessengerBindFromIntegrator } = await import('./phoneMessengerBind');
 
@@ -76,6 +78,23 @@ function buildFakePort(overrides: Partial<PhoneMessengerBindPort> = {}): PhoneMe
 
 const NOOP_PHONE_AUTH_DEPS = {} as PhoneAuthDeps;
 
+function phoneAuthDepsForChallenge(set: PhoneAuthDeps['challengeStore']['set']): PhoneAuthDeps {
+  return {
+    challengeStore: {
+      set,
+      get: vi.fn(async () => null),
+      delete: vi.fn(async () => {}),
+      deleteByPhone: vi.fn(async () => {}),
+      incrementVerifyAttempts: vi.fn(async () => null),
+    },
+    smsPort: {
+      sendCode: vi.fn(async () => ({ ok: false as const, code: 'delivery_failed' as const })),
+      verifyCode: vi.fn(async () => ({ ok: false as const, code: 'expired_code' as const })),
+    },
+    userByPhonePort: {} as PhoneAuthDeps['userByPhonePort'],
+  };
+}
+
 describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_sync_required round-trip)', () => {
   it('unready completion state → applies the canonical pre-OTP bind itself and succeeds, with no status field in the result', async () => {
     const port = buildFakePort();
@@ -95,7 +114,6 @@ describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_syn
       phoneNormalized: PHONE,
       channelCode: 'telegram',
       externalId: 'tg-1',
-      purpose: 'profile_bind',
       sessionUserId: SESSION_USER_ID,
     });
     expect(result).toEqual({ ok: true, purpose: 'profile_bind' });
@@ -159,5 +177,29 @@ describe('D25 — phone-messenger-bind/complete is self-sufficient (no phone_syn
     expect(result).toEqual({ ok: false, code: 'merge_blocked_medical_history' });
     expect(port.updateFailed).toHaveBeenCalledWith('secret-1', 'merge_blocked_medical_history');
     expect(port.markConsumed).not.toHaveBeenCalled();
+  });
+
+  it('login contact proof creates only the OTP challenge and never creates or binds an account', async () => {
+    const row = baseRow({ purpose: 'login', user_id: null });
+    const port = buildFakePort({
+      findLiveClaim: vi.fn(async () => ({ ...row, token_hash: 'token-hash' })),
+    });
+    const setChallenge = vi.fn(async () => {});
+
+    const result = await completePhoneMessengerBindFromIntegrator(
+      {
+        setupToken: 'auth_abc123',
+        channelCode: 'telegram',
+        externalId: 'tg-1',
+        contactPhoneNormalized: PHONE,
+      },
+      phoneAuthDepsForChallenge(setChallenge),
+      port,
+    );
+
+    expect(port.applyMessengerContactPreOtp).not.toHaveBeenCalled();
+    expect(setChallenge).toHaveBeenCalledOnce();
+    expect(port.updateOtpReady).toHaveBeenCalledWith('secret-1', expect.any(String));
+    expect(result).toMatchObject({ ok: true, purpose: 'login', accountCreated: false });
   });
 });

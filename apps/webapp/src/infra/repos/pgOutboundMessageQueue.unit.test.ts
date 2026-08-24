@@ -34,7 +34,7 @@ const CONTEXT = {
     html: '<p>ok</p>',
     subject: 'Запись подтверждена',
     icsContent: ICS,
-    icsFilename: 'bersoncare-booking-bk-1.ics',
+    icsFilename: 'booking-bk-1.ics',
   },
 };
 
@@ -71,7 +71,7 @@ describe('outbound message enqueue seam', () => {
 
     const contentArg = JSON.parse(String(fakes.runWebappNamedRoot.mock.calls[0]![2][5]));
     expect(contentArg.icsContent).toBe(ICS);
-    expect(contentArg.icsFilename).toBe('bersoncare-booking-bk-1.ics');
+    expect(contentArg.icsFilename).toBe('booking-bk-1.ics');
   });
 
   it('дано: строка уже стоит в очереди (ON CONFLICT DO NOTHING) → когда постановка → тогда false, а не «успешно отправлено»', async () => {

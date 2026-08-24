@@ -126,7 +126,7 @@ export function createDoctorSupportMessagingService(
       } else if (channelCode && channelExternalId) {
         // Legacy: диалог без platform_user_id — только канал из projection
         const senderScope =
-          channelCode === 'telegram' || channelCode === 'max' ? 'clinic_required' : undefined;
+          channelCode === 'telegram' || channelCode === 'max' ? 'clinic_if_configured' : undefined;
         relayOutbound(
           {
             messageId: integratorMessageId,

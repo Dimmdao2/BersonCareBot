@@ -4,6 +4,7 @@ import {
   getTelegramBotToken,
 } from '@/modules/system-settings/integrationRuntime';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
+import type { SurfaceAuthPolicyName } from '@/shared/lib/surface/requestSurface';
 import { isAuthChannelEnabled, type AuthChannel } from './authChannelPolicy';
 
 export type AuthChannelDetail = Readonly<{ enabled: boolean; configured: boolean }>;
@@ -39,12 +40,14 @@ async function isChannelConfigured(channel: AuthChannel): Promise<boolean> {
 }
 
 /** Credential-backed detail for the authenticated platform settings route only. */
-export async function getAuthChannelPolicyDetail(): Promise<AuthChannelPolicyDetail> {
+export async function getAuthChannelPolicyDetail(
+  surface?: SurfaceAuthPolicyName,
+): Promise<AuthChannelPolicyDetail> {
   const channels: readonly AuthChannel[] = ['email', 'sms', 'telegram', 'max'];
   const entries = await Promise.all(
     channels.map(async (channel) => {
       const [enabled, configured] = await Promise.all([
-        isAuthChannelEnabled(channel),
+        isAuthChannelEnabled(channel, surface),
         isChannelConfigured(channel),
       ]);
       return [channel, { enabled, configured }] as const;

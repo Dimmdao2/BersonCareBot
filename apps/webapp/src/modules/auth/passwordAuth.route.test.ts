@@ -11,6 +11,7 @@ type CheckRateLimit =
 type ConsumeChallenge = typeof import('@/modules/auth/emailAuth').consumeEmailChallengeCode;
 type ConsumeLatest =
   typeof import('@/modules/auth/emailAuth').consumeLatestEmailChallengeCodeForUser;
+type StartEmailChallenge = typeof import('@/modules/auth/emailAuth').startEmailChallenge;
 type HashPin = typeof import('@/modules/auth/pinHash').hashPin;
 type IssueStaffLoginContinuation =
   typeof import('@/modules/auth/staffLoginContinuation').issueStaffLoginContinuation;
@@ -36,6 +37,7 @@ const fakes = vi.hoisted(() => ({
   changePassword: vi.fn<PasswordChangeService['changePassword']>(),
   consumeChallenge: vi.fn<ConsumeChallenge>(),
   consumeLatest: vi.fn<ConsumeLatest>(),
+  startEmailChallenge: vi.fn<StartEmailChallenge>(),
   hashPassword: vi.fn<HashPin>(),
   issueStaffLoginContinuation: vi.fn<IssueStaffLoginContinuation>(),
   requireStaffSession: vi.fn<RequireStaffSession>(),
@@ -64,6 +66,7 @@ vi.mock('@/modules/auth/authConfirmRateLimit', () => ({
 vi.mock('@/modules/auth/emailAuth', () => ({
   consumeEmailChallengeCode: fakes.consumeChallenge,
   consumeLatestEmailChallengeCodeForUser: fakes.consumeLatest,
+  startEmailChallenge: fakes.startEmailChallenge,
   normalizeEmail: (value: string) => value.trim().toLowerCase(),
 }));
 vi.mock('@/modules/auth/pinHash', () => ({ hashPin: fakes.hashPassword }));
@@ -100,6 +103,7 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({
 }));
 
 import { POST as login } from '@/app/api/auth/email-password/login/route';
+import { POST as forgotPassword } from '@/app/api/auth/email-password/forgot/route';
 import { POST as resetPassword } from '@/app/api/auth/email-password/reset/route';
 import { POST as changePassword } from '@/app/api/account/security/password/change/route';
 import { GET as getSecurityStatus } from '@/app/api/account/security/status/route';
@@ -151,6 +155,29 @@ beforeEach(() => {
     telegramIds: [],
     maxIds: [],
     emails: [],
+  });
+  fakes.startEmailChallenge.mockResolvedValue({
+    ok: true,
+    challengeId: '00000000-0000-4000-8000-000000000209',
+  });
+});
+
+describe('email/password forgot HTTP boundary', () => {
+  it('sends a patient password-reset code with the Therapygo surface', async () => {
+    fakes.findPasswordUser.mockResolvedValue(userId);
+    fakes.findUser.mockResolvedValue({ ...user, role: 'client' });
+
+    const response = await forgotPassword(
+      jsonRequest('/api/auth/email-password/forgot', { email: 'person@example.test' }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.startEmailChallenge).toHaveBeenCalledWith(
+      userId,
+      'person@example.test',
+      'password_reset',
+      { kind: 'platform', senderDisplayName: 'Therapygo' },
+    );
   });
 });
 

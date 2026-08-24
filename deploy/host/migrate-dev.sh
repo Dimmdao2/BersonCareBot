@@ -16,8 +16,9 @@ OBJECT_OWNER_ROLE="app_object_owner"
 ADMIN_SOCKET="/var/run/postgresql"
 ADMIN_PORT="5432"
 REPO_ROOT="$(realpath "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)")"
-API_ENV="$REPO_ROOT/.env"
-WEBAPP_ENV="$REPO_ROOT/apps/webapp/.env.dev"
+RUNTIME_ENV_ROOT="$REPO_ROOT"
+API_ENV=""
+WEBAPP_ENV=""
 DEV_ENV_PARSER="$REPO_ROOT/deploy/host/parse-dev-database-url.mjs"
 OWNER_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs"
 INTEGRATOR_MIGRATOR="$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs"
@@ -31,12 +32,17 @@ ACTIVE_CHILD_PID=""
 usage() {
   cat <<'EOF'
 Usage: bash deploy/host/migrate-dev.sh --preflight|--execute
+         [--runtime-env-root <canonical-dev-checkout>]
          [--apply-out-of-order <tag>]... [--reapply <tag>]...
 
 Validates the exact existing local bcb_webapp_dev target. --preflight executes pending
 webapp Drizzle DDL through the NOLOGIN bcb_dev_migrator and its declared owners in a
 single transaction ending in ROLLBACK. --execute applies pending integrator and webapp
 migrations, then atomically reconciles and audits the declaration-owned access state.
+
+--runtime-env-root is preflight-only. It lets an exact candidate checkout use the ordinary
+DEV runtime URLs from another regular checkout without copying secret env files into the
+candidate. Migration source, parser and runners still come only from the candidate checkout.
 
 The two recovery options are forwarded verbatim to the owner-ordered migrator, which is the
 only thing that accepts them; they exist so a ledger that has drifted from the journal
@@ -131,6 +137,14 @@ shift
 RECOVERY_ARGS=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --runtime-env-root)
+      [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
+      [[ "$MODE" == "--preflight" ]] || fatal '--runtime-env-root is preflight-only'
+      [[ "$RUNTIME_ENV_ROOT" == "$REPO_ROOT" ]] || fatal '--runtime-env-root may be provided only once'
+      [[ -d "$2" && ! -L "$2" ]] || fatal 'DEV runtime env root must be a regular directory'
+      RUNTIME_ENV_ROOT="$(realpath "$2")"
+      shift 2
+      ;;
     --apply-out-of-order|--reapply)
       [[ $# -ge 2 && -n "${2:-}" && "${2:0:2}" != "--" ]] || { usage; exit 2; }
       [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ || "$2" =~ ^[0-9]{8}T[0-9]{6}_[a-z0-9_]+$ ]] \
@@ -144,6 +158,8 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+API_ENV="$RUNTIME_ENV_ROOT/.env"
+WEBAPP_ENV="$RUNTIME_ENV_ROOT/apps/webapp/.env.dev"
 if [[ "$MODE" == "--preflight" && ${#RECOVERY_ARGS[@]} -gt 0 ]]; then
   fatal 'a recovery option is not a validation: run it with --execute so the declaration reconcile follows'
 fi
@@ -154,8 +170,8 @@ export BCB_MIGRATION_ENTRYPOINT=migrate-dev.sh
 [[ "$EUID" -ne 0 ]] || fatal "run this wrapper as the non-root repository owner"
 [[ -d "$ADMIN_SOCKET" && ! -L "$ADMIN_SOCKET" ]] || fatal "local PostgreSQL socket guard failed"
 
-assert_canonical_file "$API_ENV" "$REPO_ROOT/.env" "DEV API env"
-assert_canonical_file "$WEBAPP_ENV" "$REPO_ROOT/apps/webapp/.env.dev" "DEV webapp env"
+assert_canonical_file "$API_ENV" "$RUNTIME_ENV_ROOT/.env" "DEV API env"
+assert_canonical_file "$WEBAPP_ENV" "$RUNTIME_ENV_ROOT/apps/webapp/.env.dev" "DEV webapp env"
 assert_canonical_file "$DEV_ENV_PARSER" "$REPO_ROOT/deploy/host/parse-dev-database-url.mjs" "DEV env parser"
 assert_canonical_file "$OWNER_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-local.mjs" "owner-ordered migrator"
 assert_canonical_file "$INTEGRATOR_MIGRATOR" "$REPO_ROOT/deploy/postgres/privileges/migrate-integrator-local.mjs" "integrator migrator"

@@ -3,15 +3,11 @@
  * Доступ как на странице: не клиент (клиент → свой hub + toast).
  */
 import type { ReactNode } from 'react';
-import type { Metadata } from 'next';
 import '../../styles/doctor.css';
 import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
-import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
-
-export const metadata: Metadata = staffPwaLayoutMetadata;
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (

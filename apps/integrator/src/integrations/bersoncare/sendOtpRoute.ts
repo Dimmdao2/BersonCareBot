@@ -12,6 +12,12 @@ import type {
   OutgoingIntent,
 } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
+import type { DbPort } from '../../kernel/contracts/index.js';
+import {
+  mailProfileRequestSchema,
+  resolveAndRenderAuthCodeMailProfile,
+} from '../email/mailProfile.js';
 
 const WINDOW_SECONDS = 300;
 
@@ -20,7 +26,10 @@ const bodySchema = z
     channel: z.enum(['telegram', 'max']),
     recipientId: z.string().min(1),
     code: z.string().min(4).max(8),
+    mailProfile: mailProfileRequestSchema,
     idempotencyKey: z.string().min(1),
+    organizationId: z.string().uuid().optional(),
+    senderScope: z.literal('clinic_if_configured').optional(),
   })
   .superRefine((value, ctx) => {
     if (value.channel === 'max' && !/^[1-9]\d*$/u.test(value.recipientId.trim())) {
@@ -56,9 +65,9 @@ function verifySignature(
 }
 
 export type BersoncareSendOtpDeps = {
+  db: DbPort;
   dispatchPort: DispatchPort;
   sharedSecret: string;
-  isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
   idempotencyPort: IdempotencyPort;
 };
 
@@ -66,7 +75,7 @@ export async function registerBersoncareSendOtpRoute(
   app: FastifyInstance,
   deps: BersoncareSendOtpDeps,
 ): Promise<void> {
-  const { dispatchPort, sharedSecret, isAuthChannelEnabled, idempotencyPort } = deps;
+  const { db, dispatchPort, sharedSecret, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -102,14 +111,16 @@ export async function registerBersoncareSendOtpRoute(
       return reply.code(400).send({ ok: false, error: 'invalid_payload' });
     }
 
-    const { channel, recipientId, code, idempotencyKey } = parsed.data;
-    if (!(await isAuthChannelEnabled(channel))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
+    const { channel, recipientId, code, idempotencyKey, mailProfile, organizationId, senderScope } =
+      parsed.data;
+    if (senderScope && !organizationId) {
+      return reply.code(400).send({ ok: false, error: 'organization_required' });
     }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
-    const text = `Код для входа в BersonCare: ${code}`;
+    const rendered = await resolveAndRenderAuthCodeMailProfile({ db, profile: mailProfile, code });
+    const text = rendered.text;
     const eventId = idempotencyKey;
     const recipient = channel === 'max' ? maxUserRecipient(recipientId) : { chatId: recipientId };
     const intent: OutgoingIntent = {
@@ -126,12 +137,15 @@ export async function registerBersoncareSendOtpRoute(
       payload: {
         recipient,
         message: { text },
-        delivery: { channels: [channel] },
+        delivery: {
+          channels: [channel],
+          ...(senderScope ? { senderScope } : {}),
+        },
       },
     };
 
     try {
-      await dispatchPort.dispatchOutgoing(intent);
+      await runWithOptionalOrganizationPrincipal(organizationId, () => dispatchPort.dispatchOutgoing(intent));
       return reply.code(200).send({ ok: true });
     } catch (err) {
       await idempotencyPort.release?.(idempotencyKey);

@@ -5,7 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="robots" content="noindex, nofollow" />
     <meta http-equiv="refresh" content="20" />
-    <title>BersonCare — обновление</title>
+    <!--
+      Статический дубль брендового имени (TPB-15): страницу отдаёт nginx по error_page
+      502/503/504 на PROD и TEST, `config/productSurfaceNames.ts` в неё не импортируется (не
+      JS-бандл). Общая для обеих поверхностей — хост здесь неизвестен, поэтому имя платформы
+      (Therapysto), не пациентского продукта. Следующий rename бренда обязан поправить это
+      вручную — файл ниже её не подхватит.
+    -->
+    <title>Therapysto — обновление</title>
     <style>
       :root {
         color-scheme: light;
@@ -72,7 +79,7 @@
   </head>
   <body>
     <main>
-      <div class="brand">BersonCare</div>
+      <div class="brand">Therapysto</div>
       <div class="card">
         <h1>Сервер обновляется</h1>
         <p>Сейчас идёт установка новой версии приложения. Обычно это занимает не больше минуты.</p>

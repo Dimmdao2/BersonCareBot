@@ -37,6 +37,8 @@ type RevisionRow = {
   organization_id: string;
   status: string;
   display_name: string | null;
+  patient_app_name: string | null;
+  accent_token: string | null;
   logo_media_id: string | null;
   logo_media_ready: boolean;
   created_by_platform_user_id: string;
@@ -61,6 +63,8 @@ function mapRevision(row: RevisionRow): OrgBrandRevision {
     organizationId: row.organization_id,
     status: parseStatus(row.status),
     displayName: row.display_name,
+    patientAppName: row.patient_app_name,
+    accentToken: row.accent_token,
     logoMediaId: row.logo_media_id,
     logoMediaReady: row.logo_media_ready === true,
     createdByPlatformUserId: row.created_by_platform_user_id,
@@ -84,6 +88,8 @@ const revisionSelectSql = `
     revision.organization_id::text AS organization_id,
     revision.status,
     revision.display_name,
+    revision.patient_app_name,
+    revision.accent_token,
     revision.logo_media_id::text AS logo_media_id,
     (logo.id IS NOT NULL) AS logo_media_ready,
     revision.created_by_platform_user_id::text AS created_by_platform_user_id,
@@ -160,14 +166,24 @@ export function createPgOrgBrandingPort(): OrgBrandingPort {
       // The 0238 trigger rejects a logo that is not owned by this organization.
       await runWebappPgText(
         `INSERT INTO public.org_brand_revisions (
-           organization_id, status, display_name, logo_media_id, created_by_platform_user_id
-         ) VALUES ($1::uuid, 'draft', $2::text, $3::uuid, $4::uuid)
+           organization_id, status, display_name, patient_app_name, accent_token, logo_media_id,
+           created_by_platform_user_id
+         ) VALUES ($1::uuid, 'draft', $2::text, $3::text, $4::text, $5::uuid, $6::uuid)
          ON CONFLICT (organization_id) WHERE status = 'draft'
          DO UPDATE SET
            display_name = EXCLUDED.display_name,
+           patient_app_name = EXCLUDED.patient_app_name,
+           accent_token = EXCLUDED.accent_token,
            logo_media_id = EXCLUDED.logo_media_id,
            updated_at = now()`,
-        [input.organizationId, input.displayName, input.logoMediaId, input.actorPlatformUserId],
+        [
+          input.organizationId,
+          input.displayName,
+          input.patientAppName,
+          input.accentToken,
+          input.logoMediaId,
+          input.actorPlatformUserId,
+        ],
       );
       const draft = await selectRevision(input.organizationId, 'draft');
       if (!draft) throw new Error('org_brand_draft_save_failed');

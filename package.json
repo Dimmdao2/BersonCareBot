@@ -12,7 +12,6 @@
     "dev:turbo": "bash scripts/kill-local-dev-ports.sh && pnpm --dir apps/webapp dev:turbo",
     "build": "pnpm --dir packages/operator-db-schema run build && pnpm --dir packages/db-principal run build && pnpm --dir packages/error-tracking run build && pnpm --dir apps/integrator build",
     "build:webapp": "pnpm --dir packages/error-tracking run build && pnpm --dir apps/webapp build",
-    "build:admin": "cd admin && pnpm install && pnpm run build",
     "start": "pnpm --dir apps/integrator start",
     "webapp:start": "pnpm --dir apps/webapp start",
     "webapp:typecheck": "pnpm --dir apps/webapp typecheck",

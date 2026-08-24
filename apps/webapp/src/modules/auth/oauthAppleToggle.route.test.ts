@@ -5,6 +5,7 @@ const fakes = vi.hoisted(() => ({
   resolveRateLimitClientKey: vi.fn(),
   isRateLimited: vi.fn<() => Promise<boolean>>(),
   recordFailure: vi.fn(),
+  resolveYandexOAuthConfig: vi.fn(),
 }));
 
 vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({
@@ -31,9 +32,19 @@ vi.mock('@/modules/auth/oauthStartRateLimit', () => ({
   isOAuthStartRateLimitedByKey: fakes.isRateLimited,
 }));
 vi.mock('@/modules/auth/oauthSignedState', () => ({
-  createAppleSignedOAuthState: vi.fn(),
+  createAppleSignedOAuthState: vi.fn(() => ({ state: 'signed-apple-state', nonce: 'apple-nonce' })),
   createSignedOAuthState: vi.fn(),
   parseVerifiedSignedOAuthState: vi.fn(),
+}));
+vi.mock('@/shared/lib/surface/requestSurface.server', () => ({
+  getResolvedSurface: vi.fn().mockResolvedValue({
+    surface: 'patient_default',
+    publicOrigin: 'https://app.example.test',
+    authPolicy: { availableMethods: ['oauth'], enabledMethods: ['oauth'] },
+  }),
+}));
+vi.mock('@/modules/auth/yandexOAuthConfig', () => ({
+  resolveYandexOAuthConfig: fakes.resolveYandexOAuthConfig,
 }));
 vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getGoogleClientId: vi.fn().mockResolvedValue('google-client'),
@@ -41,9 +52,6 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
   getGoogleOauthLoginRedirectUri: vi
     .fn()
     .mockResolvedValue('https://app.example.test/google-callback'),
-  getYandexOauthClientId: vi.fn().mockResolvedValue('yandex-client'),
-  getYandexOauthClientSecret: vi.fn().mockResolvedValue('yandex-secret'),
-  getYandexOauthRedirectUri: vi.fn().mockResolvedValue('https://app.example.test/yandex-callback'),
   getAppleOauthClientId: () => Promise.resolve('apple-client'),
   getAppleOauthRedirectUri: () => Promise.resolve('https://app.example.test/callback'),
   getAppleOauthTeamId: () => Promise.resolve('team'),
@@ -53,7 +61,7 @@ vi.mock('@/modules/system-settings/integrationRuntime', () => ({
 
 import { GET as listProviders } from '@/app/api/auth/oauth/providers/route';
 import { POST as startOAuth } from '@/app/api/auth/oauth/start/route';
-import { getYandexOauthClientId } from '@/modules/system-settings/integrationRuntime';
+import { POST as appleCallback } from '@/app/api/auth/oauth/callback/apple/route';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -61,6 +69,7 @@ beforeEach(() => {
   fakes.resolveRateLimitClientKey.mockReturnValue({ ok: true, key: 'client-993' });
   fakes.isRateLimited.mockResolvedValue(false);
   fakes.recordFailure.mockResolvedValue(undefined);
+  fakes.resolveYandexOAuthConfig.mockResolvedValue(null);
 });
 
 describe('public OAuth provider boundary', () => {
@@ -93,8 +102,41 @@ describe('public OAuth provider boundary', () => {
     });
   });
 
-  it('returns a typed our-side failure instead of an empty body when reading provider config throws', async () => {
-    vi.mocked(getYandexOauthClientId).mockRejectedValueOnce(
+  it('uses the same per-surface OAuth setting at start and callback boundaries', async () => {
+    const disabledStart = await startOAuth(
+      new Request('https://staff.example.test/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'apple' }),
+      }),
+    );
+    const disabledCallback = await appleCallback(
+      new Request('https://staff.example.test/api/auth/oauth/callback/apple', { method: 'POST' }),
+    );
+
+    expect(disabledStart.status).toBe(501);
+    await expect(disabledStart.json()).resolves.toMatchObject({ error: 'oauth_disabled' });
+    expect(disabledCallback.headers.get('location')).toContain('oauth=error&reason=oauth_disabled');
+
+    fakes.isOAuthProviderEnabled.mockResolvedValue(true);
+    const enabledStart = await startOAuth(
+      new Request('https://staff.example.test/api/auth/oauth/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'apple' }),
+      }),
+    );
+    const enabledCallback = await appleCallback(
+      new Request('https://staff.example.test/api/auth/oauth/callback/apple', { method: 'POST' }),
+    );
+
+    expect(enabledStart.status).toBe(200);
+    await expect(enabledStart.json()).resolves.toMatchObject({ ok: true, authUrl: expect.any(String) });
+    expect(enabledCallback.headers.get('location')).toContain('reason=invalid_content_type');
+  });
+
+  it('returns a typed our-side failure instead of an empty body when resolving provider config throws', async () => {
+    fakes.resolveYandexOAuthConfig.mockRejectedValueOnce(
       new Error('permission denied for table system_settings'),
     );
 

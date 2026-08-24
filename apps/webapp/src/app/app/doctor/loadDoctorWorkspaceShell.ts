@@ -16,6 +16,7 @@ import {
   organizationHasPaidSinceTrial,
 } from '@/modules/org-entitlements/accessNotifications';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
 
@@ -138,7 +139,7 @@ export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceS
   ];
 
   const shellBrand = {
-    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? 'Therapysto',
+    displayName: effectiveBranding?.effectiveDisplayName ?? organization?.title ?? STAFF_SURFACE.name,
     logoUrl: effectiveBranding?.paid.logoUrl ?? null,
   };
 

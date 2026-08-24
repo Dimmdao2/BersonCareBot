@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { PATIENT_DEFAULT_SURFACE } from '@/config/productSurfaces';
 
 /**
  * Информационный блок для разделов, включённых в блок главной `subscription_carousel`.
@@ -15,7 +16,7 @@ export function PatientSectionSubscriptionCallout() {
     >
       <p className="m-0 leading-snug">
         <strong>По подписке.</strong> Доступ ко всем материалам этого раздела включён в подписку
-        BersonCare. Совсем скоро!
+        {` ${PATIENT_DEFAULT_SURFACE.name}. Совсем скоро!`}
       </p>
     </div>
   );

@@ -7,6 +7,7 @@ import {
   isAuthChannelEnabled,
 } from '@/modules/auth/authChannelPolicy';
 import { normalizeEmail, startEmailChallenge } from '@/modules/auth/emailAuth';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 const bodySchema = z.object({
   email: z.string().email(),
@@ -32,7 +33,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'not_eligible' }, { status: 400 });
   }
 
-  const challenge = await startEmailChallenge(state.userId, emailNorm, 'password_setup');
+  const challenge = await startEmailChallenge(
+    state.userId,
+    emailNorm,
+    'password_setup',
+    platformMailProfileForRecipientRole('client'),
+  );
   if (!challenge.ok) {
     return NextResponse.json(
       { ok: false, error: challenge.code, retryAfterSeconds: challenge.retryAfterSeconds },

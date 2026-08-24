@@ -19,6 +19,7 @@ import type {
   ClaimVerifiedEmailResult,
   EmailChallengePurpose,
 } from '@/modules/auth/emailAuthPort';
+import type { MailProfileRequest } from '@/modules/auth/mailProfile';
 
 export type EmailChallengeRow = {
   id: string;
@@ -46,31 +47,37 @@ export async function startEmailChallengeInDb(params: {
   expiresAt: number;
   purpose: EmailChallengePurpose;
   code: string;
+  mailProfile: MailProfileRequest;
 }): Promise<{ challengeId: string | null; retryAfterSeconds: number }> {
+  const profileArgs =
+    params.mailProfile.kind === 'platform'
+      ? [params.mailProfile.kind, params.mailProfile.senderDisplayName, null, null, null]
+      : [
+          params.mailProfile.kind,
+          null,
+          params.mailProfile.organizationId,
+          params.mailProfile.clinicName,
+          params.mailProfile.platformName,
+        ];
+  const args = [
+    params.userId,
+    params.email,
+    params.codeHash,
+    params.expiresAt,
+    params.purpose,
+    params.code,
+    ...profileArgs,
+  ];
   const query = `SELECT challenge_id::text, retry_after_seconds
-    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6)`;
+    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6, $7, $8, $9::uuid, $10, $11)`;
   const result = await runWebappNamedRoot<{
     challenge_id: string | null;
     retry_after_seconds: number | string;
   }>(
     getWebappSqlDb(),
-    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)',
-    [
-      params.userId,
-      params.email,
-      params.codeHash,
-      params.expiresAt,
-      params.purpose,
-      params.code,
-    ],
-    webappSqlFromPgText(query, [
-      params.userId,
-      params.email,
-      params.codeHash,
-      params.expiresAt,
-      params.purpose,
-      params.code,
-    ]),
+    'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
+    args,
+    webappSqlFromPgText(query, args),
   );
   const row = result.rows[0];
   if (!row) throw new Error('email_auth_start_challenge_empty_result');
@@ -139,12 +146,9 @@ export async function insertEmailChallenge(params: {
     challengeId,
     params.purpose,
   ]);
-  // D27-C fix round 2: same idiom -- the plaintext code is stamped via its own accessor right after
-  // insert, so app.email_auth_enqueue_otp_delivery (migration 0363) can compose the delivery email
-  // from the row instead of accepting it as a caller-supplied payload.
-  // D27-C fix round 3: that accessor now also mints and returns the one-shot ownership token
-  // app.email_auth_enqueue_otp_delivery requires -- it is captured here and never leaves the server
-  // process except via the direct call into enqueueEmailOtpDelivery further up the same request.
+  // The legacy separate-insert helper still stamps the plaintext code and mints its ownership token.
+  // The active request path uses startEmailChallengeInDb, which creates the challenge and enqueues
+  // delivery atomically without these intermediate fields.
   const codeIns = await runWebappPgText<{ delivery_token: string }>(
     'SELECT app.email_auth_set_email_challenge_delivery_code($1::uuid, $2) AS delivery_token',
     [challengeId, params.code],

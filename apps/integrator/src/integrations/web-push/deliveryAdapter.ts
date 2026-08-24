@@ -74,6 +74,12 @@ export function createWebPushDeliveryAdapter(deps: {
         (err as { code?: number }).code = 400;
         throw err;
       }
+      const title = asString(payload.title);
+      if (!title) {
+        const err = new Error('WEB_PUSH_PAYLOAD_INVALID: title is required');
+        (err as { code?: number }).code = 400;
+        throw err;
+      }
       const organizationId = getCurrentOrganizationPrincipalId();
       if (!organizationId) {
         throw new Error('WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED');
@@ -130,7 +136,6 @@ export function createWebPushDeliveryAdapter(deps: {
       }
 
       const body = asString(payload.message?.text) ?? '';
-      const title = asString(payload.title) ?? 'BersonCare';
       const url = asString(payload.url) ?? '/';
       const extras = payload.pushExtras ?? {};
 

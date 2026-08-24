@@ -52,7 +52,16 @@ self.addEventListener('push', (event) => {
     notificationData.occurrenceId = data.occurrenceId;
   }
   event.waitUntil(
-    self.registration.showNotification(title || 'BersonCare', {
+    // Static duplicate (TPB-15): `public/sw.js` is a raw browser file, not part of the JS
+    // bundle, so it cannot import `config/productSurfaceNames.ts` and needs a manual literal.
+    // Registered by BOTH surfaces (`registerPatientServiceWorker.ts`, `StaffPwaBootstrap.tsx`,
+    // both scope `/app`), but only the patient leg (`patientWebPushNotify.ts`) can reach this
+    // fallback — it skips only when title AND body are both empty, so an empty title with a
+    // non-empty body still sends. Every staff-facing push (`notifyDoctorPatientMessageToStaff.ts`,
+    // `sendAdminIncidentStaffWebPush.ts`, `notifySpecialistTaskReminder.ts`) always sets a
+    // non-empty literal title, so this fallback is unreachable for staff — patient name, not
+    // platform name. Next rename must update this literal by hand.
+    self.registration.showNotification(title || 'Therapygo', {
       body,
       tag,
       data: notificationData,

@@ -1,5 +1,9 @@
+import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
+import { legalDocumentMetadata } from '@/config/legalDocumentOperator';
 import { LegalBackButton } from './LegalBackButton';
+
+export const metadata: Metadata = legalDocumentMetadata;
 
 /** Минимальная оболочка публичных правовых страниц: читаемый текст и возврат назад. */
 export default function LegalLayout({ children }: Readonly<{ children: ReactNode }>) {

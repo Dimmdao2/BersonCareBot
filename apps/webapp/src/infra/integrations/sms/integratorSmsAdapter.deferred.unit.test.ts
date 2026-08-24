@@ -6,6 +6,7 @@ const fakes = vi.hoisted(() => ({
   registerSend: vi.fn(),
   deliverSms: vi.fn(),
   sendEmail: vi.fn(),
+  authDeliveryGate: vi.fn(),
 }));
 
 vi.mock('@/modules/auth/phoneOtpLimits', () => ({
@@ -23,6 +24,9 @@ vi.mock('@/infra/integrations/sms/integratorSmsDelivery', () => ({
 }));
 vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
   sendEmailCodeViaIntegrator: fakes.sendEmail,
+}));
+vi.mock('@/modules/auth/authDeliveryGate', () => ({
+  withAuthDeliveryChannelGate: fakes.authDeliveryGate,
 }));
 
 import { createIntegratorSmsAdapter } from './integratorSmsAdapter';
@@ -42,6 +46,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   fakes.assertCanStart.mockResolvedValue({ ok: true });
   fakes.registerSend.mockResolvedValue(undefined);
+  fakes.authDeliveryGate.mockImplementation((_channel: string, deliver: () => Promise<unknown>) =>
+    deliver(),
+  );
   fakes.deliverSms.mockResolvedValue({
     ok: false,
     code: 'rate_limited',

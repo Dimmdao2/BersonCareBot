@@ -184,6 +184,10 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
       options: DoctorBroadcastExecutionOptions,
     ): Promise<{ auditEntry: BroadcastAuditEntry }> {
       deps.assertWriteClearance?.('mailings');
+      // TPB-15: заголовок теперь единственный источник темы письма — платформенного
+      // запасного имени больше нет, поэтому пустой заголовок отбиваем на входе,
+      // а не на 400 из relay уже после отбора аудитории.
+      if (!command.message.title.trim()) throw new Error('broadcast_title_required');
       const channels = resolvedChannels(command);
       const resolved = await resolveTopicSubscribedAudience(command, {
         organizationId: options.organizationId,

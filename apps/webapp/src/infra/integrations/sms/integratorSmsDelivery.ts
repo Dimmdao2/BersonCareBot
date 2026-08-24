@@ -10,10 +10,15 @@
  */
 import { createHash, createHmac } from 'node:crypto';
 import { getCurrentCorrelationIdHeader } from '@bersoncare/db-principal';
+import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 
 export type SmsCodeDeliveryResult =
   | { ok: true }
-  | { ok: false; code: 'rate_limited' | 'delivery_failed'; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      code: 'auth_channel_disabled' | 'rate_limited' | 'delivery_failed';
+      retryAfterSeconds?: number;
+    };
 
 export type IntegratorSmsDeliveryDeps = {
   integratorBaseUrl: string;
@@ -61,6 +66,20 @@ export function logPhoneOtpDeliveryEvent(payload: {
 
 /** POSTs the code to the integrator's send-sms endpoint. Performs no database work whatsoever. */
 export async function deliverSmsCodeViaIntegrator(
+  phone: string,
+  code: string,
+  deps: IntegratorSmsDeliveryDeps,
+): Promise<SmsCodeDeliveryResult> {
+  const gated = await withAuthDeliveryChannelGate('sms', () =>
+    deliverSmsCodeUnchecked(phone, code, deps),
+  );
+  if (!gated.ok && 'reason' in gated) {
+    return { ok: false, code: gated.reason };
+  }
+  return gated;
+}
+
+async function deliverSmsCodeUnchecked(
   phone: string,
   code: string,
   deps: IntegratorSmsDeliveryDeps,

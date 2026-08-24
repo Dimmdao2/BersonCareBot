@@ -1,6 +1,11 @@
 # BersonCareBot
 
-Монорепозиторий платформы BersonCare: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator (Telegram/MAX, webhook, доставка) и media-worker (HLS-транскод).
+Монорепозиторий платформы **Therapysto** — приложения специалистов, админов клиники и платформенных
+админов (`therapysto.ru`); общий вход пациентов называется **Therapygo** (`therapygo.ru`); пациенты
+конкретной клиники видят бренд своей клиники. `BersonCare` — имя первой клиники-арендатора, а не имя
+продукта; в идентификаторах (репозиторий, npm-пакеты, таблицы, роли, переменные окружения) оно остаётся
+как есть. Состав: PWA webapp (кабинеты пациента и врача, CMS, программы лечения, запись), integrator
+(Telegram/MAX, webhook, доставка) и media-worker (HLS-транскод).
 
 - **Стек:** TypeScript (ESM), Next.js, Fastify, PostgreSQL (Drizzle + SQL-migrations integrator), grammY, Vitest
 - **Каналы:** PWA (`/app`) — основной UI; **Web Push — основной канал уведомлений**; Telegram, MAX, SMS, email — дополнительные; запись — собственный движок (см. [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md))

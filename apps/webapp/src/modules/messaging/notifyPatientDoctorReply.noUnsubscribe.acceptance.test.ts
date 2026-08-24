@@ -76,5 +76,8 @@ describe('transactional doctor reply', () => {
       expect(call.text).not.toContain('Отписаться от темы');
       expect((call.metadata as Record<string, unknown> | undefined)?.listUnsubscribe).toBeUndefined();
     }
+    expect(calls.find((call) => call.channel === 'telegram')?.senderScope).toBe(
+      'clinic_if_configured',
+    );
   });
 });

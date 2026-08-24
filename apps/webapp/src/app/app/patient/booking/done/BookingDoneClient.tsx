@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import { Button } from '@/shared/ui/patient/primitives/button';
 import {
   patientButtonPrimaryClass,
@@ -56,9 +57,10 @@ export function BookingDoneClient({
   appDisplayTimeZone,
   appBaseUrl,
 }: BookingDoneParams) {
+  const surfaceName = useSurfaceName();
   const summary = buildSummary(serviceTitle, locationLabel);
   const location = locationLabel || undefined;
-  const description = 'Запись через BersonCare';
+  const description = `Запись через ${surfaceName}`;
 
   const calendarParams = useMemo(
     () => ({ startAt: slotStart, endAt: slotEnd, summary, location, description, bookingId }),
@@ -69,17 +71,18 @@ export function BookingDoneClient({
   const yandexUrl = buildYandexCalendarUrl(calendarParams);
 
   const handleDownloadIcs = useCallback(() => {
-    const ics = buildIcsContent(calendarParams, appBaseUrl);
+    const ics = buildIcsContent(calendarParams, appBaseUrl, surfaceName);
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bersoncare-booking-${bookingId}.ics`;
+    // TPB-01: имя скачиваемого файла видит пациент — имени платформы в нём нет.
+    a.download = `booking-${bookingId}.ics`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, [calendarParams, appBaseUrl, bookingId]);
+  }, [calendarParams, appBaseUrl, bookingId, surfaceName]);
 
   const dateLabel = formatBookingDateLongRu(slotStart, appDisplayTimeZone);
   const timeStart = formatBookingTimeShortRu(slotStart, appDisplayTimeZone);

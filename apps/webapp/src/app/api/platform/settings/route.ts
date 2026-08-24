@@ -15,6 +15,7 @@ import {
 } from '@/modules/auth/authChannelPolicy';
 import { getAuthChannelPolicyDetail } from '@/modules/auth/authChannelPolicyAdmin';
 import { normalizePlatformIntegrationAvailability } from '@/modules/system-settings/platformIntegrationAvailability';
+import { SURFACE_AUTH_SETTING_KEYS } from '@/modules/auth/surfaceAuthSettings';
 
 /**
  * The platform API is deliberately not a mirror of `/api/admin/settings`.
@@ -36,6 +37,7 @@ const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
   'auth_oauth_vk_enabled',
   'auth_oauth_apple_enabled',
   'auth_passkey_enabled',
+  ...SURFACE_AUTH_SETTING_KEYS,
   // admin_emails deliberately NOT here: the field was removed 2026-07-27 — it wrote a setting that the
   // global-admin login never read (elevation comes from PLATFORM_OWNER_IDENTITY), so it looked like a
   // security lever and was not one.

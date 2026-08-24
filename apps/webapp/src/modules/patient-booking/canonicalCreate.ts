@@ -673,6 +673,7 @@ export async function createBookingOnCanonicalEngine(
     locationLabel:
       pendingRow.branchTitleSnapshot ?? (pendingRow.bookingType === 'online' ? 'Онлайн' : null),
     contactName: createInput.contactName,
+    mailProfile: createInput.mailProfile,
   }, { outboundMessageQueue: deps.outboundMessageQueue });
 
   await persistBookingFormContacts(deps, createInput);

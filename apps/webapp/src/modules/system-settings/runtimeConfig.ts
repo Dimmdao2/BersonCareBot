@@ -1,3 +1,4 @@
+import { SURFACE_AUTH_SETTING_KEYS } from '@/modules/auth/surfaceAuthSettings';
 import { RUNTIME_FLAG_DEFINITIONS as S5_RUNTIME_FLAG_DEFINITIONS } from './registry';
 import { RuntimeSettingUnavailableError } from './runtimeSettingUnavailable';
 
@@ -103,6 +104,7 @@ export const PUBLIC_RUNTIME_BOOLEAN_KEYS = [
   'auth_oauth_vk_enabled',
   'auth_oauth_apple_enabled',
   'auth_passkey_enabled',
+  ...SURFACE_AUTH_SETTING_KEYS,
   'oauth_yandex_enabled',
   'oauth_google_enabled',
   'oauth_apple_enabled',

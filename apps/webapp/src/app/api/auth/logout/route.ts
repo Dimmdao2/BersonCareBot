@@ -2,12 +2,12 @@ import { stampBootstrapPrincipal } from '@/app-layer/principal/bootstrapPrincipa
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { getRequestOrigin } from '@/shared/lib/http/getRequestOrigin';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
 
 const LOGIN_PATH = '/app';
 
 function loginRedirectUrl(request: NextRequest): URL {
-  return new URL(LOGIN_PATH, getRequestOrigin(request));
+  return new URL(LOGIN_PATH, requireResolvedSurface(request.headers).publicOrigin);
 }
 
 /** Выход: POST очищает сессию и редирект на экран входа (форма из меню/профиля). */

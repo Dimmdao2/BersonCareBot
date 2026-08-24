@@ -12,6 +12,7 @@ import { z } from 'zod';
 import type { DispatchPort, IdempotencyPort } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
 import { dispatchRequestContactToUser } from './dispatchRequestContact.js';
+import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 
 const WINDOW_SECONDS = 300;
 const DEDUP_TTL_MS = 24 * 60 * 60 * 1000;
@@ -21,6 +22,8 @@ const bodySchema = z.object({
   /** Внешний id пользователя в канале (= chat id для лички TG/MAX). */
   recipientId: z.string().min(1),
   idempotencyKey: z.string().min(1),
+  organizationId: z.string().uuid().optional(),
+  senderScope: z.literal('clinic_if_configured').optional(),
 });
 
 type Body = z.infer<typeof bodySchema>;
@@ -46,7 +49,6 @@ function verifySignature(
 export type BersoncareRequestContactDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
-  isAuthChannelEnabled: (channel: 'telegram' | 'max') => Promise<boolean>;
   /** Durable dedup store (`integrator.idempotency_keys`) — survives process restarts/replicas. */
   idempotencyPort: IdempotencyPort;
 };
@@ -55,12 +57,7 @@ export async function registerBersoncareRequestContactRoute(
   app: FastifyInstance,
   deps: BersoncareRequestContactDeps,
 ): Promise<void> {
-  const {
-    dispatchPort,
-    sharedSecret,
-    isAuthChannelEnabled,
-    idempotencyPort,
-  } = deps;
+  const { dispatchPort, sharedSecret, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -96,9 +93,9 @@ export async function registerBersoncareRequestContactRoute(
       return reply.code(400).send({ ok: false, error: 'invalid_payload' });
     }
 
-    const { channel, recipientId, idempotencyKey } = parsed.data;
-    if (!(await isAuthChannelEnabled(channel))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
+    const { channel, recipientId, idempotencyKey, organizationId, senderScope } = parsed.data;
+    if (senderScope && !organizationId) {
+      return reply.code(400).send({ ok: false, error: 'organization_required' });
     }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, DEDUP_TTL_MS / 1000))) {
       logger.info({ idempotencyKey }, 'request-contact: duplicate, skipping');
@@ -106,12 +103,15 @@ export async function registerBersoncareRequestContactRoute(
     }
 
     try {
-      await dispatchRequestContactToUser({
-        dispatchPort,
-        channel,
-        recipientId,
-        correlationId: idempotencyKey,
-      });
+      await runWithOptionalOrganizationPrincipal(organizationId, () =>
+        dispatchRequestContactToUser({
+          dispatchPort,
+          channel,
+          recipientId,
+          correlationId: idempotencyKey,
+          ...(senderScope ? { senderScope } : {}),
+        }),
+      );
       logger.info({ channel }, 'request-contact: dispatched');
       return reply.code(200).send({ ok: true, status: 'accepted' });
     } catch (err) {

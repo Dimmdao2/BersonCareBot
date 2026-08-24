@@ -3,12 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const fakes = vi.hoisted(() => ({
   buildAppDeps: vi.fn(),
   requireClinicManagementApiContext: vi.fn(),
+  startEmailChallenge: vi.fn(),
 }));
 
+vi.mock('@/app-layer/principal/bootstrapPrincipal', () => ({ stampBootstrapPrincipal: vi.fn() }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps }));
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: fakes.requireClinicManagementApiContext,
 }));
+vi.mock('@/modules/auth/authChannelPolicy', () => ({
+  AUTH_CHANNEL_DISABLED_ERROR: 'auth_channel_disabled',
+  isAuthChannelEnabled: vi.fn().mockResolvedValue(true),
+}));
+vi.mock('@/modules/auth/emailAuth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/modules/auth/emailAuth')>();
+  return { ...actual, startEmailChallenge: fakes.startEmailChallenge };
+});
 vi.mock('@bersoncare/db-principal', () => ({
   runWithDbClinicBillingPrincipal: <T>(_principal: unknown, callback: () => T): T => callback(),
 }));
@@ -17,6 +27,7 @@ vi.mock('@/infra/integrations/email/integratorEmailAdapter', () => ({
 }));
 
 import { POST, GET } from './route';
+import { POST as startInviteAcceptance } from './accept/start/route';
 import { verifySeatOverageQuote } from '@/modules/saas-billing/seatOverageQuote';
 
 const organizationId = '11111111-1111-4111-8111-111111111111';
@@ -112,6 +123,49 @@ describe('POST /api/clinic/invites entitlement lifecycle', () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'entitlement_required' });
     expect(createInvite).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/clinic/invites/accept/start mail identity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.startEmailChallenge.mockResolvedValue({
+      ok: true,
+      challengeId: '00000000-0000-4000-8000-000000000209',
+    });
+  });
+
+  it('sends the staff invite code with the Therapysto sender', async () => {
+    const invitedEmail = 'invited-doctor@example.test';
+    fakes.buildAppDeps.mockReturnValue({
+      organizationInvites: {
+        lookupPendingByToken: vi.fn().mockResolvedValue({
+          ok: true,
+          invite: { invitedEmail },
+        }),
+      },
+      emailOtpPublicDb: {
+        findOrCreatePublicEmailUser: vi.fn().mockResolvedValue({
+          userId: '00000000-0000-4000-8000-000000000107',
+        }),
+      },
+    });
+
+    const response = await startInviteAcceptance(
+      new Request('https://therapysto.example.test/api/clinic/invites/accept/start', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: 'a'.repeat(16), email: invitedEmail }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.startEmailChallenge).toHaveBeenCalledWith(
+      '00000000-0000-4000-8000-000000000107',
+      invitedEmail,
+      'clinic_invite',
+      { kind: 'platform', senderDisplayName: 'Therapysto' },
+    );
   });
 });
 

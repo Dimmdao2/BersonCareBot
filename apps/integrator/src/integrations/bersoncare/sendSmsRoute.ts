@@ -49,7 +49,6 @@ function verifySignature(
 export type BersoncareSendSmsDeps = {
   dispatchPort: DispatchPort;
   sharedSecret: string;
-  isAuthChannelEnabled: (channel: 'sms') => Promise<boolean>;
   recordProviderFailure: (reason: 'provider_send_failed') => Promise<void>;
   idempotencyPort: IdempotencyPort;
 };
@@ -71,13 +70,7 @@ export async function registerBersoncareSendSmsRoute(
   app: FastifyInstance,
   deps: BersoncareSendSmsDeps,
 ): Promise<void> {
-  const {
-    dispatchPort,
-    sharedSecret,
-    isAuthChannelEnabled,
-    recordProviderFailure,
-    idempotencyPort,
-  } = deps;
+  const { dispatchPort, sharedSecret, recordProviderFailure, idempotencyPort } = deps;
 
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
     const raw: string = typeof body === 'string' ? body : (body as Buffer).toString('utf8');
@@ -117,9 +110,6 @@ export async function registerBersoncareSendSmsRoute(
       return reply.code(400).send({ ok: false, error: 'phone, code and idempotencyKey required' });
     }
 
-    if (!(await isAuthChannelEnabled('sms'))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
-    }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
@@ -131,7 +121,7 @@ export async function registerBersoncareSendSmsRoute(
       kind: 'message.send',
       channel: 'smsc',
       recipient: { phoneNormalized: phone },
-      content: { text: `Ваш код BersonCare: ${code}` },
+      content: { text: `Ваш код: ${code}` },
       meta: {
         // Delivery attempt logs retain eventId, so do not derive it from phone or code.
         eventId: idempotencyKey,

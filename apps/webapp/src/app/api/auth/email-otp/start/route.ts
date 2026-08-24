@@ -17,6 +17,9 @@ import {
 } from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
+import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { authPolicyNameForRequestSurface } from '@/modules/auth/surfaceAuthSettings';
 
 const bodySchema = z.object({
   email: z.string().min(1),
@@ -36,7 +39,10 @@ const PUBLIC_EMAIL_OTP_START_MIN_RESPONSE_MS = 500;
  */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-otp/start:POST', request);
-  if (!(await isAuthChannelEnabled('email'))) {
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  if (
+    !(await isAuthChannelEnabled('email', authPolicyNameForRequestSurface(resolvedSurface.surface)))
+  ) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   ensureAuthModulePortsBound();
@@ -80,7 +86,12 @@ export async function POST(request: Request) {
 
   const startedAt = Date.now();
   const deps = buildAppDeps();
-  const pending = startPublicEmailOtpChallenge(parsed.data.email, deps.emailOtpPublicDb);
+  const mailProfile = mailProfileForResolvedSurface(resolvedSurface);
+  const pending = startPublicEmailOtpChallenge(
+    parsed.data.email,
+    deps.emailOtpPublicDb,
+    mailProfile,
+  );
   const outcome = await raceAgainstPublicFloor(pending, startedAt);
 
   if (outcome.kind !== 'settled') {

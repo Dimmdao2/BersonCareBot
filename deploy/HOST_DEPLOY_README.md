@@ -371,10 +371,6 @@ B0-forward миграциями; schema guardrail остаётся read-only п�
 - host: `tgcarebot.bersonservices.ru`
 - upstream: `http://127.0.0.1:3200`
 
-Дополнительно в этом vhost есть legacy route:
-
-- `/admin/` -> `http://127.0.0.1:8080/`
-
 ### Webapp
 
 - host: `bersoncare.ru`
@@ -405,7 +401,7 @@ B0-forward миграциями; schema guardrail остаётся read-only п�
 
 **Решение (один раз на хосте):** `apps/webapp/public/maintenance.html` + фрагмент [`deploy/nginx/webapp-maintenance-pages.example.conf`](../nginx/webapp-maintenance-pages.example.conf) в **`/etc/nginx/sites-available/bersoncarebot-webapp`**. Только `error_page` на 502/503/504 — **без** флага на весь деплой; во время `pnpm build` старый webapp продолжает отвечать.
 
-Проверка: `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app | head -10` → HTML «BersonCare — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service`.
+Проверка: `sudo systemctl stop bersoncarebot-webapp-prod.service` → `curl -s https://bersoncare.ru/app | head -10` → HTML «Therapysto — обновление» → `sudo systemctl start bersoncarebot-webapp-prod.service`.
 
 Отдельно: **режим техработ пациента** (`patient_app_maintenance_enabled` в admin Settings) — in-app при работающем webapp.
 

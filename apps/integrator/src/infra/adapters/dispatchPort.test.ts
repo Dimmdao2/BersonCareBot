@@ -1,12 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+const devRedirect = vi.hoisted(() => ({ active: false }));
 
 vi.mock('../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => false,
+  isDevRedirectActive: () => devRedirect.active,
+  isDevRedirectPassthrough: () => false,
+  buildDevPrefix: () => '[DEV] ',
+  hasDevPrefix: () => false,
+  resolveDevRedirect: () => ({ kind: 'suppress', reason: 'test_binding_missing' }),
 }));
 
 import { createDefaultDispatchPort } from './dispatchPort.js';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
+
+afterEach(() => {
+  devRedirect.active = false;
+});
 
 function messageSendIntent(): OutgoingIntent {
   return {
@@ -71,6 +81,17 @@ function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): O
       delivery: { channels: [channel], senderScope: 'clinic_required' },
     },
   } as unknown as OutgoingIntent;
+}
+
+function clinicIfConfiguredIntent(channel: 'telegram' | 'max'): OutgoingIntent {
+  const intent = clinicRequiredIntent(channel);
+  return {
+    ...intent,
+    payload: {
+      ...intent.payload,
+      delivery: { channels: [channel], senderScope: 'clinic_if_configured' },
+    },
+  } as OutgoingIntent;
 }
 
 function queuedClinicBroadcastIntent(): OutgoingIntent {
@@ -208,6 +229,44 @@ describe('clinic-owned delivery routing', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('uses the platform sender for patient traffic when the clinic has no enabled credential', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({ telegramMessageId: 7 }));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => null,
+    });
+
+    await expect(port.dispatchOutgoing(clinicIfConfiguredIntent('telegram'))).resolves.toEqual({
+      telegramMessageId: 7,
+    });
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).not.toHaveProperty('clinicCredential');
+  });
+
+  it('does not fall back to the platform sender after an enabled clinic bot fails', async () => {
+    const clinicError = new Error('clinic_provider_failed');
+    const send = vi.fn(async (_intent: OutgoingIntent) => {
+      throw clinicError;
+    });
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'clinic-a-token',
+      }),
+    });
+
+    await expect(port.dispatchOutgoing(clinicIfConfiguredIntent('telegram'))).rejects.toBe(
+      clinicError,
+    );
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic-a-token' } });
+  });
+
   it('falls back to the platform credential only for clinic-preferred essential delivery', async () => {
     const send = vi
       .fn(async (_intent: OutgoingIntent) => ({ telegramMessageId: 0 }))
@@ -286,6 +345,26 @@ describe('clinic-owned delivery routing', () => {
 
     await expect(port.dispatchOutgoing(queuedClinicBroadcastIntent())).resolves.toEqual({});
     expect(send).toHaveBeenCalledOnce();
+  });
+
+  it('does not report a live clinic probe as delivered when the DEV redirect suppresses it', async () => {
+    devRedirect.active = true;
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'saved-clinic-token',
+      }),
+    });
+    const intent = essentialMessageSendIntent();
+    intent.payload = {
+      ...intent.payload,
+      delivery: { channels: ['telegram'], clinicCredentialProbe: true },
+    };
+
+    await expect(port.dispatchOutgoing(intent)).rejects.toThrow('CLINIC_CHANNEL_PROBE_SUPPRESSED');
+    expect(send).not.toHaveBeenCalled();
   });
 });
 

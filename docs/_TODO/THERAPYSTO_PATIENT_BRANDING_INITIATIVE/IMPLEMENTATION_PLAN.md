@@ -259,22 +259,6 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
   `PHONE_AUTH_CHANNELS_RESEARCH.md` остаётся справкой на момент включения телефонного канала.
 - Порог пересмотра назван владельцем ориентировочно — «первые сто человек».
 
-### 1.2j Этап `F` сужен до одного пункта (владелец, 23.08.2026)
-
-Владелец, разбирая список этапа `F`: «Выключить Яндекс у персонала и админа — так я это в настройках делаю…
-Passkey не удаляем — и это я уже выключил. Слушай, всё это здорово, но то, что реально надо, так это
-**разделить настройки входа для клиник и пациентов В НАСТРОЙКАХ ГЛОБАЛ АДМИНА — и всё**».
-
-Что это значит для работы:
-
-- **в объёме остаётся `F4`** — заменить единственный глобальный переключатель входа на раздельные политики;
-- `F2`, `F2b`, `F5` кодом НЕ делаем: это значения переключателей, владелец выставляет их сам в настройках.
-  Механики, маршруты и UI остаются на месте — вырезать по-прежнему нечего;
-- `F2c` (второй фактор доктора) и `F3` (сведение пациентского входа) в этот проход НЕ берём: владелец их
-  не назвал, а `F1` уже даёт типизированную политику, на которую они лягут позже без переделки;
-- инвариант `F1` в силе: значения по умолчанию описывают СЕГОДНЯШНЕЕ состояние, ничей вход не меняется
-  фактом появления раздельных настроек.
-
 ### 1.2i Длина названия клиники — 100 знаков (владелец, 23.08.2026)
 
 Владелец: «конечно же, сто знаков, конечно. Зачем больше?» — после разбора, откуда в коде взялись 200 и 120.
@@ -360,6 +344,20 @@ Passkey не удаляем — и это я уже выключил. Слуша
 
 Общий принцип, прозвучавший в этих ответах: **пока владелец единственный пользователь роли, обязательность
 механики не вводим** — она включается тем, кто её подключает, как принято в других продуктах.
+
+### 1.2k Смысловой конфликт с Track D по шву доставки — решение владельца 24.08.2026
+
+Две миграции переопределяют одну функцию `app.read_integrator_clinic_delivery_credential` с
+взаимоисключающими списками ролей: Track D (`20260823T030000_integrator_tenant_role_reaches_delivery_roots.sql`)
+допускает `app_integrator_tenant_service`, эта ветка (`20260823T043206_deliver_c4_mail_profile_tenant_binding.sql`)
+— `app_tenant_service`. Текстового конфликта при слиянии нет; побеждает более поздняя по времени, то есть
+брендинговая, и этим ломает требование D17.
+
+Актуальное решение владельца: Codex принимает ветку, доводит план до конца и может сводить ветки и исправлять
+пересечения. При сведении обе семантики должны сохраниться: данные и выбор отправителя из брендирования, журнал
+попыток Track D и доступ к delivery-root только узкой роли `app_integrator_tenant_service`; широкая
+`app_tenant_service` должна получать отказ. Доменные значения и инфраструктуру пока не переключать:
+`test.bersoncare.ru` продолжает работать на прежнем адресе.
 
 ### 1.3 Поверхности и маршруты
 
@@ -478,78 +476,140 @@ Passkey не удаляем — и это я уже выключил. Слуша
 
 Checkbox закрывается только доказательством, указанным в той же строке. ID не переименовываются.
 
-- [ ] `TPB-01` User-visible имя staff/platform surface — **Therapysto**. Доказательство: inventory diff + UI/
+- [x] `TPB-01` User-visible имя staff/platform surface — **Therapysto**. Доказательство: inventory diff + UI/
   metadata/auth issuer assertions без старого platform name.
 - [ ] `TPB-02` Specialists и clinic admins работают на `therapysto.ru`, platform admins — на
   `admin.therapysto.ru`; обе поверхности имеют identity Therapysto. Доказательство: host/role route tests для
   staff и platform-admin paths.
 - [ ] `TPB-03` Пациенты работают в отдельно названном standard patient app на отдельном полном owner-selected
   domain. Доказательство: typed config validation и runtime smoke обоих origins.
-- [ ] `TPB-04` Не созданы `staff.therapysto.ru` и `patient.therapysto.ru`; единственный отдельный поддомен
+- [x] `TPB-04` Не созданы `staff.therapysto.ru` и `patient.therapysto.ru`; единственный отдельный поддомен
   Therapysto — явно выбранный `admin.therapysto.ru`. Доказательство: deploy config и active docs не содержат
   запрещённых staff/patient поддоменов.
 - [ ] `TPB-05` Пациент клиники входит через standard patient domain или активный branded clinic domain.
   Доказательство: одинаковые login/booking/cabinet behavior tests на обоих surface.
 - [ ] `TPB-06` BersonCare активирован первой конфигурацией универсального механизма, без BersonCare-specific code.
   Доказательство: runtime settings/brand data + отсутствие BersonCare branching в product code.
-- [ ] `TPB-07` Остаются один repo, один webapp, одна DB и общие mechanics. Доказательство: architecture diff не
+- [x] `TPB-07` Остаются один repo, один webapp, одна DB и общие mechanics. Доказательство: architecture diff не
   создаёт второго app/tree/store/dispatcher.
-- [ ] `TPB-08` Branding влияет только на patient-facing surface; staff/admin видят Therapysto. Доказательство:
+- [x] `TPB-08` Branding влияет только на patient-facing surface; staff/admin видят Therapysto. Доказательство:
   cross-surface metadata/UI tests.
-- [ ] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
+- [x] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
   остаются org-scoped DB settings. Доказательство: config test и settings ownership tests.
-- [ ] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
+
+  > **Закрыт 24.08.2026 доказательством `E1`** (`E1_EVIDENCE_TPB09_2026-08-24.md`, Claude Opus 5/high по брифу
+  > `TPB09_CONFIG_OWNERSHIP_BRIEF_2026-08-24.md`): `PASS`, инъекций посажено `8` — убито `8` — не поймано `0`.
+  > Обе половины пункта — поведение, взгляда нет. Имя: тест подставляет `PATIENT_APP_NAME` в окружение,
+  > сбрасывает модульный граф и спрашивает потребителей, обойдённых самостоятельно — метаданные документа,
+  > PWA-манифест, профиль отправителя письма и реальный путь письма с `.ics`; литералов имени мимо
+  > `config/productSurfaceNames.ts` в `apps/webapp/src`/`public` не осталось. Origin: один `APP_BASE_URL` на обе
+  > поверхности, отдельный пациентский host — тем же механизмом (`PATIENT_APP_ORIGIN`), второй константы нет.
+  > Без миграции данных: оба теста идут с удалёнными `DATABASE_URL*`/`DB_PRINCIPAL*`, и в реестре
+  > `system_settings` нет ключа, дублирующего имя/origin платформенной пациентской поверхности. Владение:
+  > домен клиники — `per_org`, организация `B` не видит домен организации `A` и не получает значение из
+  > окружения; `clinic_smtp_outbound`/`clinic_smsc_api_key`/`clinic_max_bot_api_key`/`patient_booking_url`
+  > тоже `per_org`. Проверки дописаны в существующие файлы `config/envDatabaseRuntime.unit.test.ts` и
+  > `modules/system-settings/orgCustomDomainHostname.unit.test.ts`. Открытый вопрос владельцу (работой не
+  > становится): статический дубликат `'Therapygo'` в `public/sw.js:64` — сегодня недостижим, интегратор
+  > отбивает пустой заголовок push как `WEB_PUSH_PAYLOAD_INVALID`. Живая проверка имени на TEST — гейт `D`.
+- [x] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
   противоречит более позднему решению о матрице. Требование теперь: на staff surface OAuth выключен по умолчанию,
   но включается настройкой; на patient surfaces Яндекс остаётся включённым одной глобальной регистрацией
   (`OG-4` закрыт 22.08.2026).
   Отдельная consent identity на клинику НЕ делается (`W4`). Доказательство: config-selection/state/callback
   tests и operator smoke единственной зарегистрированной app identity.
+  **Закрыт 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql` оставляет включённым patient Yandex и выключает patient Google; `yandexOAuthConfig.unit.test.ts` подтверждает global config только на patient surface.
 
   Происхождение прежней редакции: owner-требование брифа №10 звучало как «OAuth доступен, без утечки чужой
   identity в consent». Формулировки «обязателен и не отключается» владелец не давал — она возникла при
   синтезе плана. Зафиксировано, чтобы не воспроизвелась.
-- [ ] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
+- [x] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
   booking и patient cabinet. Доказательство: branded-host page/navigation tests.
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `AUDIT_NIGHT_B5_2026-08-23.md` (PASS) и `AUDIT_NIGHT_B5A_2026-08-23.md` (PASS). Все шесть маршрутов пункта живут на обеих пациентских поверхностях из ОДНОГО дерева, корень брендированного адреса ведёт на визитку своей клиники и следует за контекстом, а `/specialists` на пациентских адресах — жёсткий `404`, то есть Therapysto home и каталог недостижимы. Тесты аудиторов: `proxy.b5Audit.route.test.ts` 22 passed, `proxy.b5aAudit.route.test.ts` 23 passed.
 - [ ] `TPB-12` Branded Telegram/MAX confirmations, codes и notifications идут только через clinic bot; SMS не
   считается branding. Доказательство: dispatch fault injection подтверждает `clinic_required` и отсутствие fallback.
-- [ ] `TPB-13` Branded transactional patient mail использует clinic SMTP/sender/template; mass mailing не изменён.
+
+  > **НЕ ЗАКРЫВАТЬ в этой редакции (ведущий, 24.08.2026).** Текст пункта («идут ТОЛЬКО через clinic bot»)
+  > перекрыт более поздним решением владельца §1.2h от 23.08.2026: «бот — по умолчанию наш, в тексте сообщения
+  > названа клиника-отправитель», свой бот — «опция для тех, кто дорос». Работа сделана и проверена в этой,
+  > более новой редакции: `AUDIT3_C3_2026-08-24.md` (PASS, 3/3 инъекции) и `AUDIT_C3_F1_2026-08-24.md`
+  > (PASS, 5/5) — брендированные интенты уходят `clinic_if_configured`, у клиники СО своим включённым ботом
+  > отката на платформенный нет ни на одном из восьми продюсеров и ни на SQL-корне очереди, у клиники БЕЗ
+  > своего бота пациент получает сообщение прежним путём. SMS брендингом не считается и выключен (§1.2e).
+  > Чтобы закрыть чекбокс, владельцу нужно переписать его текст под §1.2h — это его строка, не наша.
+- [x] `TPB-13` Branded transactional patient mail использует clinic SMTP/sender/template; mass mailing не изменён.
   Доказательство: template/profile selection tests и delivery fault injection.
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `REAUDIT_NIGHT_C4_2026-08-23.md` (PASS, FOR LAND) и `AUDIT2_C4_TENANT_LEAK_2026-08-23.md` (PASS, FOR LAND) — брендированное транзакционное письмо пациенту идёт через SMTP и профиль отправителя своей клиники, предикат арендатора доставлен в живые базы, массовая рассылка не изменена. Убитые инъекции покрывают потерю branded-пары с fail-closed и утечку чужой идентичности.
 - [ ] `TPB-14` Первичная domain activation остаётся ручной; self-service DNS/TLS, SEO automation и marketplace не
   построены. Доказательство: operator runbook и отсутствие таких product flows в diff.
-- [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
+- [x] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
   history не переименованы. Доказательство: scoped exact inventory before/after с явным allowlist technical/history.
 
-  > **НЕ ЗАКРЫВАТЬ (находка `S-1`, 22.08.2026).** Инвентаризация по всему репозиторию закрыта (`A3`), но
-  > текст кода входа по e-mail и SMS до сих пор говорит «BersonCare» и его видит **ПЕРСОНАЛ**, а не только
-  > пациенты: регистрация специалиста (`api/auth/specialist-signup/start`) и приём приглашения персонала
-  > (`api/clinic/invites/accept/start`) идут через `startEmailChallenge`, а живой источник текста —
-  > definer-функция `app.email_auth_start_challenge`
-  > (`deploy/postgres/organization-member-invites-rls.sql:929,931`), плюс те же строки хардкодом в
-  > `apps/integrator/src/integrations/bersoncare/{sendEmailRoute,sendSmsRoute,sendOtpRoute}.ts`.
-  > Четыре круга это пропустили, потому что мерили идентичность СТРАНИЦЫ, а текст письма не страница и не в
-  > webapp. **Строкой не чинится:** один путь обслуживает три разных правильных имени (Therapysto персоналу,
-  > Therapygo пациенту общего входа, бренд клиники пациенту клиники) — подстановка «Therapysto» нарушит
-  > `TPB-06`/`TPB-08`. Нужен параметр от вызывающего, а не дефолт у получателя, то есть механизм этапа `C`.
-  > Развилка владельцу — `Q1` в `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §6.
-- [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
+  > **Находка `S-1` закрыта 24.08.2026.** Caller-side `mailProfileForResolvedSurface` выбирает Therapysto для
+  > staff/admin, Therapygo для общего patient-входа и `kind='branded'` с именем клиники + Therapygo для clinic
+  > surface. Профиль проходит через существующие `startEmailChallenge` → 11-аргументную
+  > `app.email_auth_start_challenge` → durable queue → integrator mail-profile renderer; отсутствие профиля
+  > fail-closed, receiver-default отсутствует. Старый 6-аргументный overload уже отказывает
+  > `mail_profile_required` миграциями этапа `C`, поэтому новая миграция определения не понадобилась и
+  > `20260823T010000…`/`20260823T043206…` не изменялись. В `send-email` удалён subject fallback, SMS-код стал
+  > нейтральным «Ваш код: …», `send-otp` использует обязательный `mailProfile`. Доказательство: route/unit-тесты
+  > трёх имён, missing-profile и SMS text плюс fault injection каждого имени и receiver-default.
+
+  > **Остаток `TPB-15` закрыт 24.08.2026, два круга.** Круг 1 (`e30e78522`): `rpName` passkey и `issuer` TOTP →
+  > `STAFF_SURFACE.name`, письмо подтверждения записи → обязательный `MailProfileRequest` через
+  > `mailProfileForResolvedSurface`, заголовок push по умолчанию → Therapygo; `rpId`, `expectedOrigin`, секрет и
+  > алгоритм TOTP не тронуты — выданные passkey и привязанные аутентификаторы живы. Закрывающий аудит круга 1
+  > (`AUDIT_TPB15_2026-08-24.md`, Opus 5, 5/5 инъекций) дал `FAIL` по не тронутому: fallback-литерал `'BersonCare'`
+  > в `relayOutboundRoute` (email+push) и `operatorAlertRelayRoute` (email+push) плюс единственный fallback
+  > `'Therapygo'` в общем `web-push/deliveryAdapter.ts`. Круг 2 (`a84e195eb`): имя отправителя стало обязательным
+  > непустым параметром вызывающего (иначе `400 invalid_payload`), fallback общего push-адаптера снят совсем
+  > (`WEB_PUSH_PAYLOAD_INVALID`), требование записано в `apps/webapp/INTEGRATOR_CONTRACT.md`. Закрывающий аудит
+  > круга 2 (`AUDIT2_TPB15_2026-08-24.md`, Opus 5): `PASS`, посажено 5 — убито 5 — не поймано 0, аудитор лично
+  > обошёл 10 вызывающих `relayOutbound`, 2 вызывающих `relayOperatorAlert` и продюсеров web_push мимо relay;
+  > вызывающих без имени не осталось. Единственное оставшееся «BersonCare» — ручной QA-скрипт `qa-test-send.ts`.
+  > Низкое следствие ужесточения (пустой заголовок рассылки давал бы `400` вместо письма) закрыто ведущим
+  > отдельно: `service.execute` отбивает пустой заголовок как `broadcast_title_required` до отбора аудитории,
+  > тест `service.titleRequired.test.ts`, снятие проверки краснит 2 из 3.
+- [x] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
   возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
   и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.
-- [ ] `TPB-17` На staff/admin surface OAuth-вход выключен настройкой (`OG-5` (б)): механика присутствует в
+  **Закрыт 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` выполняет disabled → enabled на одном handler, `passkey/login/verify/route.test.ts` сохраняет existing-credential path.
+- [x] `TPB-17` На staff/admin surface OAuth-вход выключен настройкой (`OG-5` (б)): механика присутствует в
   матрице, значение по умолчанию — «выключено», путь недоступен на уровне резолвера, пока её не включат. Доказательство: UI-тест login-экрана без
   OAuth-элементов + route-тест, что OAuth start/callback следует политике: до включения отвечает отказом, после включения настройкой — редиректом к provider.
-- [ ] `TPB-18` Пациент входит по email и по номеру телефона с подтверждением через бота на обеих patient-поверхностях.
+  **Закрыт 24.08.2026:** migration выключает все staff/platform-admin OAuth cells; `oauthAppleToggle.route.test.ts` проверяет start и callback: disabled → `oauth_disabled`, enabled → provider path.
+- [x] `TPB-18` Пациент входит по email и по номеру телефона с подтверждением через бота на обеих patient-поверхностях.
   Доказательство: одинаковые login behavior tests на standard и branded origin для обоих способов.
-- [ ] `TPB-19` Механики входа настраиваются в админке матрицей «поверхность × механика», раздельно для staff,
+  **Закрыт 24.08.2026:** patient defaults enable email + Telegram contact proof (SMS и passkey выключены);
+  `email-otp/start/route.route.test.ts` executes both default and branded email paths,
+  `phoneStartBrandedOtpSender.audit.test.ts` executes both phone origins, а
+  `phoneMessengerBindSelfSufficient.unit.test.ts` доказывает, что бот создаёт только challenge с кодом и не
+  создаёт/не привязывает аккаунт до завершения регистрации в webapp.
+- [x] `TPB-19` Механики входа настраиваются в админке матрицей «поверхность × механика», раздельно для staff,
   platform admin и пациентов, а не одним общим переключателем. Выключенная механика недоступна на уровне
   резолвера, а не только скрыта в UI. Доказательство: settings-тест раздельных значений для трёх политик + fault injection
   «обратиться к выключенной механике напрямую» получает отказ.
+  **Закрыт 24.08.2026:** `publicAuthPolicy.unit.test.ts` доказывает независимые `staff`/`platform_admin`/`patient` cells; `oauthAppleToggle.route.test.ts` и `independentAuthMethodToggle.route.test.ts` — отказ прямого disabled route до provider/credential work.
 
   **`OG-5` ЗАКРЫТ владельцем 22.08.2026: вариант (б).** OAuth присутствует в списке механик и выключен по
   умолчанию у докторов — так же, как passkey. Ничего не удаляется и не блокируется архитектурно. Прежняя
   редакция требовала, чтобы OAuth на staff нельзя было включить в принципе; она отменена как противоречащая
   модели «все механики включаются в админке».
-- [ ] `TPB-16` Реализация расширяет перечисленные choke points и не создаёт параллельных getters/resolvers/stores.
+- [x] `TPB-16` Реализация расширяет перечисленные choke points и не создаёт параллельных getters/resolvers/stores.
   Доказательство: dependency/architecture audit по diff.
+
+  > **`TPB-01`, `TPB-04`, `TPB-07`, `TPB-08`, `TPB-16` закрыты 24.08.2026** проходом `E1`
+  > (`E1_EVIDENCE_TPB01_04_07_08_16_2026-08-24.md`, Opus 5/high, посажено 6 — убито 6 — не поймано 0).
+  > `TPB-04`/`TPB-07`/`TPB-16` — взгляд: запрещённых поддоменов в дереве нет (5 попаданий — текст самого
+  > запрета), `admin.` выводится из `APP_BASE_URL` и другого префикса из этого кода не получается; дифф не
+  > заводит второго приложения/стора/диспетчера, а один убирает (`build:admin`); резолвер поверхности один
+  > (`resolveRequestSurface`), все 8 потребителей импортируют его. `TPB-01` — оба класса: inventory diff
+  > 34 файла / 53 вхождения на `feat` → 4 / 5 на ветке, все в allowlist `TPB-15`, user-visible ноль.
+  > `TPB-08` — поведение, и до этого прохода доказан НЕ был: обе staff-проверки читали константу
+  > `staffPwaLayoutMetadata` напрямую, поэтому подмена ветки в `surfaceLayoutMetadata.ts:52` и выигрыш бренда
+  > арендатора в `requestSurface.ts:277` оставались зелёными. Дописан блок в `staffPwaManifest.unit.test.ts`
+  > (три случая через резолвер плюс обратная проверка пациентских поверхностей); продуктовый код не тронут.
+  > Инъекция проверена ведущим лично: отключение staff-ветки резолвера краснит 3 из 9, после отката дерево чистое.
 
 ### 2.1 Решения владельца 22.08.2026 по развилкам исследования
 
@@ -749,14 +809,16 @@ identity seam, а не набор getters.
   не делать. Проверка — на резолве поверхности, а не в отдельной ветке страницы. Доказательство:
   `apps/webapp/src/proxy.route.test.ts`, собранный шов B1→B4→proxy для 120/121/200 знаков;
   целевой прогон — `87 passed`, возврат обхода нормализации краснит 121/200 при зелёном 120.
-- [ ] `B5` Переподключить root/login/recovery/clinic card/booking/patient cabinet к одному patient tree с разным
+- [x] `B5` Переподключить root/login/recovery/clinic card/booking/patient cabinet к одному patient tree с разным
   resolved context. Therapysto home и therapist directory недостижимы на patient origins.
   **Корень брендированного адреса показывает визитку клиники** (§1.2b) — переиспользуя существующий
   `app/[clinicSlug]` и `modules/clinic-public-card`, без второго дерева страниц.
-- [ ] `B5a` Один org-scoped флаг «сразу вход, визитку не показывать» (§1.2b). Дефолт — показывать визитку.
+  **Закрыт 24.08.2026** (ведущий bersoncarebot-3d, приёмка по закрывающему аудиту): `AUDIT_NIGHT_B5_2026-08-23.md` — PASS, шесть маршрутов на обеих пациентских поверхностях, `proxy.b5Audit.route.test.ts` 22 passed.
+- [x] `B5a` Один org-scoped флаг «сразу вход, визитку не показывать» (§1.2b). Дефолт — показывать визитку.
   Флаг живёт в существующих настройках организации, отдельного store не заводится; конструктора страниц и
   выбора типа страницы НЕ делается. Согласовать с
   `docs/_TODO/CLINIC_PUBLIC_PAGE_AND_URL_FLIP_2026-08-19.md`, чтобы две работы не разъехались.
+  **Закрыт 24.08.2026** (ведущий bersoncarebot-3d, приёмка по закрывающему аудиту): `AUDIT_NIGHT_B5A_2026-08-23.md` — PASS, один org-scoped флаг, дефолт «показывать визитку», `proxy.b5aAudit.route.test.ts` 23 passed.
 - [x] `B6` Оставить cookies host-only и текущий CSRF request-origin seam; добавить только regression tests для
   нескольких Host. Unknown Host и cross-org попытки fail closed.
 - [ ] `B7` Выпустить и продлевать сертификат, который явно содержит `therapygo.ru` и `*.therapygo.ru`;
@@ -772,13 +834,22 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
 
 ### C — OAuth и branded delivery (`TPB-10`, `12`, `13`, `16`)
 
-- [ ] `C1` Сохранить одну global patient Yandex config в `system_settings` с secret envelope и существующим
+- [x] `C1` Сохранить одну global patient Yandex config в `system_settings` с secret envelope и существующим
   settings write service; per-org clinic Yandex config не создавать (`OG-4`, `W4`).
-- [ ] `C2` Параметризовать существующий Yandex start/callback одним OAuth-config resolver по `ResolvedSurface`;
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающему независимому аудиту): `AUDIT2_C1_C2_2026-08-24.md` — PASS круга 2, 5/5 инъекций; шов «форма → `system_settings` → резолвер» проверен целиком, круговой прогон «показали → сохранили обратно» даёт тот же список, прежнее одиночное значение живо.
+- [x] `C2` Параметризовать существующий Yandex start/callback одним OAuth-config resolver по `ResolvedSurface`;
   resolver допускает одну global config только на включённых patient-поверхностях, а signed state и exact
   callback allowlist исключают подмену host/org/provider.
-- [ ] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающему независимому аудиту): `AUDIT_C1_C2_2026-08-24.md` — PASS круга 1 по `C2`, 5/5 инъекций: точность allowlist, гейт пациентской поверхности, сверка origin в state, подмена host/org/provider отбивается.
+- [x] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
   существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.
+  Доказательство: route/producer fault injection краснит `sendOtpRoute.route.test.ts`,
+  `materializePatientReminderDeliveries.unit.test.ts` и `dispatchPort.test.ts`; целевой прогон —
+  16 integrator + 27 webapp tests, `pnpm --dir apps/{integrator,webapp} typecheck`.
+  **Приёмка ведущего 24.08.2026** по закрывающему аудиту `AUDIT3_C3_2026-08-24.md` — PASS круга 3, 3/3 инъекции.
+  Открытая находка другого слоя `F-1`: `app.enqueue_outbound_message` срезает маркер `clinic_if_configured`,
+  из-за чего у клиники СО своим ботом на одном продюсере остаётся откат на платформенного отправителя;
+  путь по умолчанию при этом не ломается. Вынесено отдельным кругом.
 - [x] `C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
   setting и один mail-profile resolver/renderer. Не трогать doctor broadcasts/mass mailing кроме сохранения текущего
   поведения. Доказательство: `apps/integrator/src/integrations/email/mailProfile.unit.test.ts` (Therapysto,
@@ -786,14 +857,19 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   `bash deploy/host/migrate-dev.sh --preflight` и `--execute` на DEV. Формулировка branded-пары остаётся значением
   `clinic_transactional_mail_template`, которое должен написать владелец; без него доставка намеренно не подменяет
   клинику платформенным именем.
-- [ ] `C5` **Переписан по решению владельца 23.08.2026 (§1.2h).** Гейт готовности встаёт ровно в двух местах,
-  а не на пути по умолчанию: (а) **свой домен клиники не включается**, пока не сделан CNAME на нас и не выпущен
-  сертификат — иначе пациент упирается в ошибку сертификата, что выглядит как взлом; (б) **свой канал клиники**
-  (своя почта или свой бот) не включается, пока не прошла успешная ЖИВАЯ отправка — не по галочке «настроил»,
-  а по факту доставки. **На пути по умолчанию не блокируется ничего**: адрес на нашем поддомене, почта с нашей
-  инфраструктуры под именем клиники и наш бот с именем клиники не требуют от клиники ни одной настройки.
-  Global patient OAuth не является per-org readiness condition. Неактивный branded hostname не ухудшает
-  standard patient path. Поломка канала ПОСЛЕ включения адрес не гасит — см. §1.2h.
+- `C5` **Переписан по решению владельца 23.08.2026 (§1.2h).** Гейт готовности встаёт ровно в двух местах, а не
+  на пути по умолчанию:
+  - [ ] `C5a` **Свой домен клиники не включается**, пока не сделан CNAME на нас и не выпущен сертификат — иначе
+    пациент упирается в ошибку сертификата, что выглядит как взлом. Отложено вместе с `B8`.
+  - [x] `C5b` **Свой канал клиники** (своя почта или свой бот) не включается, пока не прошла успешная ЖИВАЯ
+    отправка — не по галочке «настроил», а по факту доставки. **На пути по умолчанию не блокируется ничего**:
+    адрес на нашем поддомене, почта с нашей инфраструктуры под именем клиники и наш бот с именем клиники не требуют
+    от клиники ни одной настройки. Global patient OAuth не является per-org readiness condition. Неактивный
+    branded hostname не ухудшает standard patient path. Поломка канала ПОСЛЕ включения адрес не гасит — см.
+    §1.2h. Доказательство: `clinicDeliveryCredentials.unit.test.ts` (непроверенный credential оставляет platform
+    fallback), `clinic-delivery-test/route.route.test.ts` (только `accepted` включает, адресат — сотрудник),
+    `ClinicDeliveryChannelsSection.ui.test.tsx` (pending/enabled/failed видны на существующем экране); fault
+    injection 24.08.2026 краснила каждый из этих гейтов.
 
 **Gate C:** OAuth state/provider-selection tests; clinic-required dispatch fault injection; SMTP/template selection
 tests; проверка, что секреты не попадают в public runtime projection/logs; lint+typecheck.
@@ -826,25 +902,53 @@ tests; проверка, что секреты не попадают в public r
 
 Исполняется после A (есть typed product-surface config) и до D/runtime activation.
 
-- [ ] `F1` Расширить резолвер поверхности типизированной auth policy: набор доступных и включённых способов входа —
+- [x] `F1` Расширить резолвер поверхности типизированной auth policy: набор доступных и включённых способов входа —
   свойство поверхности, а не глобальная настройка. `staff`, `platform_admin` и patient получают отдельные строки
   политики; OAuth и passkey можно включить настройкой без правки типа или кода.
-- [ ] `F2` Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI,
+  **Закрыт 24.08.2026** (ведущий bersoncarebot-3d, приёмка по закрывающему аудиту): `AUDIT2_NIGHT_F1_2026-08-23.md` — PASS круга 2, блокер круга 1 закрыт, вход не изменился ни у одной роли.
+- [x] `F2` Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI,
   start/callback и provider config остаются в коде, но при выключенной механике путь недоступен на уровне
   резолвера, а не только скрыт в UI. Включение настройкой возвращает его в строй без правки кода.
-- [ ] `F2b` Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию
+  **Доказательство 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql` пишет envelope-значения
+  только в каноническую `system_settings`, штатная проекция обновляет runtime; targeted auth tests,
+  host-locked lint/typecheck и `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root
+  /home/dev/dev-projects/BersonCareBot` → PASS.
+- [x] `F2b` Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию
   выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается
   настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).
+  **Доказательство 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` and `passkey/login/verify/route.test.ts` → PASS.
 - [ ] `F2c` Второй фактор докторского входа по умолчанию: код на email ИЛИ TOTP. Один общий выбор фактора, не два
   независимых пути входа.
-- [ ] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
+  **Отложено владельцем до переезда домена (§1.2g, `Q2`):** сейчас не реализуется и не является блокером Stage F;
+  целевой staff-вход после переезда — email + пароль + подтверждение кодом на почту.
+- [x] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
   переиспользуя существующие pre-session seams канонических контактов; второго пути входа не создавать.
-- [ ] `F4` Заменить единственный global-admin переключатель входа на политики `staff`, `platform_admin` и patient;
-  миграция существующего значения детерминирована, OAuth по умолчанию выключен на двух staff-поверхностях.
-- [ ] `F5` Яндекс у пациентов остаётся включённым как есть (`OG-4` закрыт). Отдельных регистраций на клинику не
+  **Доказательство 24.08.2026:** migration enables patient email + Telegram proof and disables patient passkey;
+  `email-otp/start/route.route.test.ts`, `phoneStartBrandedOtpSender.audit.test.ts`,
+  `phoneMessengerBindSelfSufficient.unit.test.ts`, `PhoneMessengerAuthFlow.ui.test.tsx` и
+  `proxy.route.test.ts` → PASS. Fault injection возврата bot-side account write красит защитный тест.
+- [x] `F4` Заменить единственный global-admin переключатель входа на политики `staff`, `platform_admin` и patient;
+  миграция каждого существующего значения детерминированно копирует его на все три поверхности без изменения
+  входа; дальнейшие значения владелец выставляет раздельными переключателями. Доказательство на DEV 23.08.2026:
+  `bash deploy/host/migrate-dev.sh --preflight` → PASS; штатный `--execute` применил
+  `20260823T173446_split_auth_settings_by_surface`; post-check — по 9 surface-строк на `staff`,
+  `platform_admin` и `patient` в каждой из `system_settings` и `app_runtime_settings`, все 27 значений
+  совпали с legacy в обеих таблицах (`0/0` расхождений). Включённые способы до и после на каждой
+  поверхности: `email`, `passkey`. Финальный общий reconcile остановлен известным чужим pre-session gate
+  `app.email_auth_find_email_challenge_for_confirm`; см. `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
+- [x] `F5` Яндекс у пациентов остаётся включённым как есть (`OG-4` закрыт). Отдельных регистраций на клинику не
   заводить (`W4`). Ничего не вырезать — только значения переключателей.
+  **Доказательство 24.08.2026:** patient `oauth_yandex=true`, patient Google and all staff/admin OAuth false in `20260824T064008_apply_surface_auth_owner_defaults.sql`; `yandexOAuthConfig.unit.test.ts` → PASS.
 
 **Gate F:** targeted auth/settings tests, fault injection «staff + OAuth» отвечает отказом, lint+typecheck.
+
+**Закрывающая правка после независимого аудита Stage F, 24.08.2026.** Устранены пять достижимых нарушений:
+корректный JSON-envelope и единственная каноническая запись auth defaults; patient passkey выключен; бот только
+подтверждает телефон и отдаёт код, а аккаунт создаётся/привязывается webapp после регистрации; рассылка и её
+черновик требуют одновременно `mailings` и `branding`. Finding про новый staff-вход отклонён как противоречащий
+явному `Q2`. Проверки: 102/102 targeted tests, webapp typecheck, scoped ESLint, migration static gates и named DEV
+rollback-preflight → PASS; три fault injection (bot-side write, рассылка без branding, patient passkey) покрасили
+свои тесты и были восстановлены. Финальный независимый `E3` остаётся обязательным перед landing.
 
 ### E — Финальная приёмка (`TPB-01…19`)
 

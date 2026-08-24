@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { requirePatientApiBusinessAccess } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 
 // SECURITY: PIN removed as a login/re-auth method (owner, 2026-08-04, docs/ARCHITECTURE/AUTH_AND_IDENTITY_CANON.md §7).
 // Destructive purge is protected by single-factor OTP only (SMS challenge).
@@ -14,6 +15,12 @@ export async function POST() {
   if (!gate.ok) return gate.response;
   const session = gate.session;
   const phone = session.user.phone!.trim();
+  const deliveryGate = await withAuthDeliveryChannelGate('sms', async () => ({
+    ok: true as const,
+  }));
+  if (!deliveryGate.ok) {
+    return NextResponse.json({ ok: false, error: deliveryGate.reason }, { status: 403 });
+  }
   const deps = buildAppDeps();
   const result = await deps.auth.startPhoneAuth(
     phone,
@@ -23,11 +30,13 @@ export async function POST() {
 
   if (!result.ok) {
     const status =
-      result.code === 'rate_limited' || result.code === 'too_many_attempts'
-        ? 429
-        : result.code === 'delivery_failed'
-          ? 503
-          : 400;
+      result.code === 'auth_channel_disabled'
+        ? 403
+        : result.code === 'rate_limited' || result.code === 'too_many_attempts'
+          ? 429
+          : result.code === 'delivery_failed'
+            ? 503
+            : 400;
     return NextResponse.json(
       {
         ok: false,

@@ -11,7 +11,6 @@ import type {
   PhoneMessengerBindClaimRow,
   PhoneMessengerBindPort,
   PhoneMessengerBindPreOtpFailure,
-  PhoneMessengerBindPurpose,
 } from '@/modules/auth/phoneMessengerBind.ports';
 import {
   mapPhoneMessengerBindSecretRow,
@@ -163,7 +162,6 @@ async function applyMessengerContactPreOtpImpl(
     phoneNormalized: string;
     channelCode: PhoneMessengerBindChannel;
     externalId: string;
-    purpose: PhoneMessengerBindPurpose;
     sessionUserId?: string | null;
   },
 ): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure> {
@@ -171,11 +169,8 @@ async function applyMessengerContactPreOtpImpl(
   const key = channelToBindingKey(channelCode);
   if (!key) return { ok: false, code: 'unsupported_channel' };
 
-  let sessionUserId: string | null = null;
-  if (params.purpose === 'profile_bind') {
-    sessionUserId = params.sessionUserId?.trim() || null;
-    if (!sessionUserId) return { ok: false, code: 'session_required' };
-  }
+  const sessionUserId = params.sessionUserId?.trim() || null;
+  if (!sessionUserId) return { ok: false, code: 'session_required' };
 
   const result = await runWebappNamedRoot<{ result: unknown }>(
     getWebappSqlDb(),

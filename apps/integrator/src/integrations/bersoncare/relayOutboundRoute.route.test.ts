@@ -67,6 +67,7 @@ type RelayPayload = {
   idempotencyKey: string;
   metadata?: Record<string, unknown>;
   senderScope?: 'clinic_required';
+  clinicCredentialProbe?: true;
   html?: string;
   icsContent?: string;
   icsFilename?: string;
@@ -79,6 +80,7 @@ function relayPayload(overrides: Partial<RelayPayload> = {}): RelayPayload {
     recipient: 'patient@example.test',
     text: 'Appointment reminder',
     idempotencyKey: 'relay-test-1',
+    metadata: { subject: 'Therapygo' },
     ...overrides,
   };
 }
@@ -159,6 +161,26 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     expect(
       (dispatchOutgoing.mock.calls[0]?.[0].payload as { delivery?: unknown }).delivery,
     ).toEqual({ channels: ['telegram'], senderScope: 'clinic_required' });
+  });
+
+  it('carries the settings probe marker to the existing dispatch seam', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp(dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'telegram',
+        recipient: '12345',
+        clinicCredentialProbe: true,
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(
+      (dispatchOutgoing.mock.calls[0]?.[0].payload as { delivery?: unknown }).delivery,
+    ).toEqual({ channels: ['telegram'], clinicCredentialProbe: true });
   });
 
   it('delivers an essential notification through the real dispatch policy and platform fallback', async () => {
@@ -256,7 +278,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
         text: 'Файл .ics во вложении — добавьте событие в свой календарь.',
         metadata: { subject: 'Запись подтверждена' },
         icsContent: Buffer.from(icsText, 'utf-8').toString('base64'),
-        icsFilename: 'bersoncare-booking-77.ics',
+        icsFilename: 'booking-77.ics',
       }),
     );
 
@@ -265,7 +287,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     const attachments = sendMailMock.mock.calls[0]?.[1].attachments;
     expect(attachments).toHaveLength(1);
     expect(attachments?.[0]).toMatchObject({
-      filename: 'bersoncare-booking-77.ics',
+      filename: 'booking-77.ics',
       contentType: 'text/calendar; charset=utf-8',
     });
     expect(Buffer.from(attachments?.[0]?.content ?? '').toString('utf-8')).toBe(icsText);

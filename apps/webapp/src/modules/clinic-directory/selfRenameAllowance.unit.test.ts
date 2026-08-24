@@ -139,4 +139,22 @@ describe('единственная самостоятельная смена а�
     expect(log.claimed).toEqual(['novaya-klinika']);
     expect(log.renamed).toEqual([]);
   });
+
+  it.each(['www', 'app', 'api', 'mail', 'admin'])(
+    'служебная метка %s не доходит до записи slug',
+    async (slug) => {
+      const log = emptyLog();
+      const service = createClinicDirectoryService(
+        buildPort({ currentSlug: null, selfRenamesUsed: 0, selfRenameAllowed: true }, log),
+      );
+
+      await expect(service.setOrganizationSlug(setInput({ slug }))).resolves.toEqual({
+        ok: false,
+        code: 'reserved_slug',
+      });
+      expect(log.reserved).toEqual([]);
+      expect(log.claimed).toEqual([]);
+      expect(log.renamed).toEqual([]);
+    },
+  );
 });

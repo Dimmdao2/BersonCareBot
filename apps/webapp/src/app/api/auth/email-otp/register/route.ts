@@ -11,6 +11,9 @@ import {
 import { startPublicEmailOtpRegistration } from '@/modules/auth/emailOtpPublic';
 import { formatOtpRetryAfterMessage } from '@/modules/auth/otpConstants';
 import { resolveRealIpRateLimitClientKey } from '@/modules/auth/realIpRateLimitClientKey';
+import { mailProfileForResolvedSurface } from '@/modules/auth/mailProfile';
+import { requireResolvedSurface } from '@/shared/lib/surface/requestSurface';
+import { authPolicyNameForRequestSurface } from '@/modules/auth/surfaceAuthSettings';
 import {
   FIO_LATIN_REJECTED_MESSAGE,
   FIO_LATIN_REJECTED_TEXT,
@@ -46,7 +49,10 @@ const EMAIL_OTP_REGISTER_FALLBACK_CLIENT_KEY = 'email_otp_register:missing_x_rea
 /** Public structured patient registration. It creates no organization or clinical relationship. */
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/email-otp/register:POST', request);
-  if (!(await isAuthChannelEnabled('email'))) {
+  const resolvedSurface = requireResolvedSurface(request.headers);
+  if (
+    !(await isAuthChannelEnabled('email', authPolicyNameForRequestSurface(resolvedSurface.surface)))
+  ) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 503 });
   }
   ensureAuthModulePortsBound();
@@ -93,6 +99,7 @@ export async function POST(request: Request) {
   const result = await startPublicEmailOtpRegistration(
     parsed.data,
     buildAppDeps().emailOtpPublicDb,
+    mailProfileForResolvedSurface(resolvedSurface),
   );
   if (result.ok) {
     return NextResponse.json({

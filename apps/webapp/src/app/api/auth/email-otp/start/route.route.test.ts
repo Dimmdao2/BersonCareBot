@@ -24,8 +24,34 @@ const fakes = vi.hoisted(() => ({
   ensureAuthModulePortsBound: vi.fn(),
   buildAppDeps: vi.fn(),
   isEmailOtpStartRateLimitedByKey: vi.fn(),
-  isAuthChannelEnabled: vi.fn(),
-  startPublicEmailOtpChallenge: vi.fn<(email: string, db: object) => Promise<StartResult>>(),
+  publicValues: new Map<string, boolean>(),
+  requestSurface: {
+    value: {
+      surface: 'staff',
+      publicOrigin: 'https://therapysto.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    } as
+      | {
+          surface: 'staff' | 'patient_default';
+          publicOrigin: string;
+          authPolicy: { availableMethods: string[]; enabledMethods: string[] };
+        }
+      | {
+          surface: 'patient_branded';
+          publicOrigin: string;
+          organizationId: string;
+          clinicSlug: string;
+          effectivePatientBrand: {
+            effectiveDisplayName: string;
+            patientAppName: string;
+            accentToken: string;
+          };
+          authPolicy: { availableMethods: string[]; enabledMethods: string[] };
+        },
+  },
+  getPublicRuntimeBool: vi.fn<(key: string) => Promise<boolean>>(),
+  startPublicEmailOtpChallenge:
+    vi.fn<(email: string, db: object, mailProfile: unknown) => Promise<StartResult>>(),
   resolveRealIpRateLimitClientKey: vi.fn(),
 }));
 
@@ -40,9 +66,14 @@ vi.mock('@/app-layer/di/buildAppDeps', () => ({ buildAppDeps: fakes.buildAppDeps
 vi.mock('@/modules/auth/authRateLimits', () => ({
   isEmailOtpStartRateLimitedByKey: fakes.isEmailOtpStartRateLimitedByKey,
 }));
-vi.mock('@/modules/auth/authChannelPolicy', () => ({
-  AUTH_CHANNEL_DISABLED_ERROR: 'auth_channel_disabled',
-  isAuthChannelEnabled: fakes.isAuthChannelEnabled,
+vi.mock('@/modules/system-settings/configAdapter', () => ({
+  getPublicRuntimeBool: fakes.getPublicRuntimeBool,
+}));
+vi.mock('next/headers', () => ({
+  headers: async () =>
+    new Headers({
+      'x-bc-resolved-surface': encodeURIComponent(JSON.stringify(fakes.requestSurface.value)),
+    }),
 }));
 vi.mock('@/modules/auth/emailOtpPublic', () => ({
   startPublicEmailOtpChallenge: fakes.startPublicEmailOtpChallenge,
@@ -50,6 +81,13 @@ vi.mock('@/modules/auth/emailOtpPublic', () => ({
 vi.mock('@/modules/auth/realIpRateLimitClientKey', () => ({
   resolveRealIpRateLimitClientKey: fakes.resolveRealIpRateLimitClientKey,
 }));
+vi.mock('@/shared/lib/surface/requestSurface', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/shared/lib/surface/requestSurface')>();
+  return {
+    ...actual,
+    requireResolvedSurface: () => fakes.requestSurface.value,
+  };
+});
 
 import { POST } from './route';
 
@@ -71,7 +109,19 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-03T09:00:00.000Z'));
-  fakes.isAuthChannelEnabled.mockResolvedValue(true);
+  fakes.publicValues.clear();
+  fakes.requestSurface.value = {
+    surface: 'staff',
+    publicOrigin: 'https://therapysto.example.test',
+    authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+  };
+  fakes.publicValues.set('auth_surface_staff_email_enabled', true);
+  fakes.publicValues.set('auth_surface_patient_email_enabled', true);
+  fakes.getPublicRuntimeBool.mockImplementation(async (key) => {
+    const value = fakes.publicValues.get(key);
+    if (value === undefined) throw new Error(`missing public projection: ${key}`);
+    return value;
+  });
   fakes.resolveRealIpRateLimitClientKey.mockReturnValue({ ok: true, key: '203.0.113.12' });
   fakes.isEmailOtpStartRateLimitedByKey.mockResolvedValue(false);
   fakes.buildAppDeps.mockReturnValue({ emailOtpPublicDb: {} });
@@ -87,6 +137,89 @@ afterEach(() => {
 });
 
 describe('public email OTP start anti-enumeration', () => {
+  it('uses the resolved-surface header as the sole delivery gate in both directions', async () => {
+    fakes.publicValues.set('auth_surface_staff_email_enabled', true);
+    fakes.publicValues.set('auth_surface_patient_email_enabled', false);
+
+    fakes.requestSurface.value = {
+      surface: 'patient_default',
+      publicOrigin: 'https://therapygo.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    const patientDenied = await resolveAfterPublicFloor(POST(request()));
+    fakes.requestSurface.value = {
+      surface: 'staff',
+      publicOrigin: 'https://therapysto.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    const staffAllowed = await resolveAfterPublicFloor(POST(request()));
+
+    expect(patientDenied.status).toBe(503);
+    expect(staffAllowed.status).toBe(200);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
+
+    fakes.startPublicEmailOtpChallenge.mockClear();
+    fakes.publicValues.set('auth_surface_staff_email_enabled', false);
+    fakes.publicValues.set('auth_surface_patient_email_enabled', true);
+
+    fakes.requestSurface.value = {
+      surface: 'staff',
+      publicOrigin: 'https://therapysto.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    const staffDenied = await resolveAfterPublicFloor(POST(request()));
+    fakes.requestSurface.value = {
+      surface: 'patient_default',
+      publicOrigin: 'https://therapygo.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    const patientAllowed = await resolveAfterPublicFloor(POST(request()));
+
+    expect(staffDenied.status).toBe(503);
+    expect(patientAllowed.status).toBe(200);
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes the caller-selected Therapygo profile into default-patient challenge creation', async () => {
+    fakes.requestSurface.value = {
+      surface: 'patient_default',
+      publicOrigin: 'https://therapygo.example.test',
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    await resolveAfterPublicFloor(POST(request('default@example.test')));
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenLastCalledWith(
+      'default@example.test',
+      {},
+      { kind: 'platform', senderDisplayName: 'Therapygo' },
+    );
+  });
+
+  it('passes the caller-selected clinic profile into branded-patient challenge creation', async () => {
+    fakes.requestSurface.value = {
+      surface: 'patient_branded',
+      publicOrigin: 'https://clinic.example.test',
+      organizationId: '00000000-0000-4000-8000-000000000042',
+      clinicSlug: 'clinic',
+      effectivePatientBrand: {
+        effectiveDisplayName: 'Клиника Эталон',
+        patientAppName: 'Приложение клиники',
+        accentToken: '#123456',
+      },
+      authPolicy: { availableMethods: ['email_code'], enabledMethods: ['email_code'] },
+    };
+    await resolveAfterPublicFloor(POST(request('clinic@example.test')));
+    expect(fakes.startPublicEmailOtpChallenge).toHaveBeenLastCalledWith(
+      'clinic@example.test',
+      {},
+      {
+        kind: 'branded',
+        organizationId: '00000000-0000-4000-8000-000000000042',
+        clinicName: 'Клиника Эталон',
+        platformName: 'Therapygo',
+      },
+    );
+  });
+
   it('keeps the unknown-address body byte-identical to a known-address response and logs suppressed outcomes', async () => {
     const results: StartResult[] = [
       { ok: true, challengeId: '00000000-0000-4000-8000-000000000101', retryAfterSeconds: 60 },
@@ -159,7 +292,7 @@ describe('public email OTP start anti-enumeration', () => {
   });
 
   // D27-C: delivery moved off this request onto the durable outgoing_delivery_queue (see
-  // emailAuth.ts / pgAuthEmailOtpDeliveryQueue.ts), and this route races startPublicEmailOtpChallenge
+  // emailAuth.ts / app.email_auth_start_challenge), and this route races startPublicEmailOtpChallenge
   // against the public floor so its own latency structurally cannot leak into the response either
   // way -- do not "fix" this with a fixed sleep, a constant delay only moves the delta.
   it('keeps a known address out of a slower response-time class when its provider exceeds the floor', async () => {

@@ -29,6 +29,10 @@ export const orgBrandRevisions = pgTable(
     status: text().default('draft').notNull(),
     /** Paid display-name override; NULL means "use the canonical core organization name". */
     displayName: text('display_name'),
+    /** Optional patient-app name; NULL falls back to the effective organization display name. */
+    patientAppName: text('patient_app_name'),
+    /** One optional patient accent token; currently a normalized six-digit CSS hex color. */
+    accentToken: text('accent_token'),
     /** Paid logo as a `public.media_files` id; the effective `/api/media/<uuid>` URL is server-computed. */
     logoMediaId: uuid('logo_media_id'),
     createdByPlatformUserId: uuid('created_by_platform_user_id').notNull(),
@@ -90,6 +94,14 @@ export const orgBrandRevisions = pgTable(
     check(
       'org_brand_revisions_display_name_check',
       sql`${table.displayName} IS NULL OR (btrim(${table.displayName}) <> '' AND length(${table.displayName}) <= 120)`,
+    ),
+    check(
+      'org_brand_revisions_patient_app_name_check',
+      sql`${table.patientAppName} IS NULL OR (btrim(${table.patientAppName}) <> '' AND length(${table.patientAppName}) <= 120)`,
+    ),
+    check(
+      'org_brand_revisions_accent_token_check',
+      sql`${table.accentToken} IS NULL OR ${table.accentToken} ~ '^#[0-9a-f]{6}$'`,
     ),
   ],
 );

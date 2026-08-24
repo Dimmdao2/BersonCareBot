@@ -13,6 +13,7 @@ vi.mock('./emailAuth', async (importOriginal) => {
 import { startPublicEmailOtpChallenge } from './emailOtpPublic';
 
 const knownUserId = '00000000-0000-4000-8000-000000000027';
+const mailProfile = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
 
 function publicDb(options?: {
   userId?: string | null;
@@ -48,10 +49,11 @@ beforeEach(() => {
 
 describe('public email OTP start anti-enumeration', () => {
   it('marks the fabricated unknown-address success for server-side observability', async () => {
-    const known = await startPublicEmailOtpChallenge('known@example.test', publicDb());
+    const known = await startPublicEmailOtpChallenge('known@example.test', publicDb(), mailProfile);
     const unknown = await startPublicEmailOtpChallenge(
       'unknown@example.test',
       publicDb({ userId: null }),
+      mailProfile,
     );
 
     expect(known).toMatchObject({ ok: true, retryAfterSeconds: 60 });
@@ -70,8 +72,8 @@ describe('public email OTP start anti-enumeration', () => {
       .mockResolvedValueOnce({ ok: false, code: 'email_send_failed' })
       .mockResolvedValueOnce({ ok: false, code: 'too_many_attempts', retryAfterSeconds: 60 });
 
-    const providerFailure = await startPublicEmailOtpChallenge('known@example.test', publicDb());
-    const accountLockout = await startPublicEmailOtpChallenge('known@example.test', publicDb());
+    const providerFailure = await startPublicEmailOtpChallenge('known@example.test', publicDb(), mailProfile);
+    const accountLockout = await startPublicEmailOtpChallenge('known@example.test', publicDb(), mailProfile);
 
     expect(providerFailure).toMatchObject({
       ok: true,
@@ -92,10 +94,11 @@ describe('public email OTP start anti-enumeration', () => {
   });
 
   it('preserves invalid-email and per-email rate-limit results', async () => {
-    const invalid = await startPublicEmailOtpChallenge('not-an-email', publicDb());
+    const invalid = await startPublicEmailOtpChallenge('not-an-email', publicDb(), mailProfile);
     const limited = await startPublicEmailOtpChallenge(
       'known@example.test',
       publicDb({ cooldown: new Date(Date.now() - 5_000) }),
+      mailProfile,
     );
 
     expect(invalid).toEqual({ ok: false, code: 'invalid_email' });

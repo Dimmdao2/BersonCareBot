@@ -78,6 +78,7 @@ const createInput: CreatePatientBookingInput = {
   contactName: 'Пациент',
   contactPhone: '+79995550111',
   contactEmail: 'typed@example.test',
+  mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' },
 };
 
 describe('контакты из формы записи', () => {

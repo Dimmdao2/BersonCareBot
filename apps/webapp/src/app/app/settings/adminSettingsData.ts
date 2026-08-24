@@ -78,6 +78,20 @@ function buildAuthProvidersConfig(
     return typeof raw === 'string' ? raw.trim() : '';
   }
 
+  function adminStrList(key: string): string {
+    // `yandex_oauth_redirect_uri` — string_list: в базе лежит массив, а прежние установки
+    // помнят одиночную строку. Форма показывает по одному адресу в строке.
+    const raw = getValueJson<unknown>(adminSettingsList.find((x) => x.key === key)?.valueJson, '');
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .join('\n');
+    }
+    return typeof raw === 'string' ? raw.trim() : '';
+  }
+
   return {
     telegramLoginBotUsername: adminStr('telegram_login_bot_username'),
     maxLoginBotNickname: adminStr('max_login_bot_nickname'),
@@ -98,7 +112,7 @@ function buildAuthProvidersConfig(
     vkIdRedirectUri: adminStr('vk_id_redirect_uri'),
     yandexOauthClientId: adminStr('yandex_oauth_client_id'),
     yandexOauthClientSecret: adminStr('yandex_oauth_client_secret'),
-    yandexOauthRedirectUri: adminStr('yandex_oauth_redirect_uri'),
+    yandexOauthRedirectUri: adminStrList('yandex_oauth_redirect_uri'),
     googleClientId: adminStr('google_client_id'),
     googleClientSecret: adminStr('google_client_secret'),
     googleOauthLoginRedirectUri: adminStr('google_oauth_login_redirect_uri'),

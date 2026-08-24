@@ -73,10 +73,12 @@ import {
   isPlatformIntegrationAvailable,
   type PlatformIntegrationId,
 } from '@/modules/system-settings/platformIntegrationAvailability';
+import { withPendingClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
   'booking_allow_doctor_unlink_past_package_sessions',
+  'clinic_root_skip_public_card',
   'booking_calendar_show_working_hours',
   'booking_payment_enabled',
   'material_ratings_enabled',
@@ -128,6 +130,7 @@ const ADMIN_SCOPE_KEYS = [
   'video_presign_ttl_seconds',
   'video_watermark_enabled',
   'patient_booking_url',
+  'clinic_root_skip_public_card',
   'booking_default_organization_id',
   'booking_calendar_show_working_hours',
   'booking_allow_doctor_unlink_past_package_sessions',
@@ -896,6 +899,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: checked.value };
+  }
+
+  if (
+    parsed.data.key === 'clinic_smtp_outbound' ||
+    parsed.data.key === 'clinic_telegram_bot_token' ||
+    parsed.data.key === 'clinic_max_bot_api_key'
+  ) {
+    normalizedValue = withPendingClinicDeliveryReadiness(normalizedValue);
   }
 
   /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */

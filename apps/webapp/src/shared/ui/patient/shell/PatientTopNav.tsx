@@ -14,6 +14,7 @@ import {
   Stethoscope,
 } from 'lucide-react';
 import { routePaths } from '@/app-layer/routes/paths';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import {
   getPatientPrimaryNavActiveId,
   PATIENT_PRIMARY_NAV_ITEMS,
@@ -87,6 +88,7 @@ export type PatientTopNavProps = {
 
 /** Верхняя primary-навигация пациента: при скролле подписи скрываются, высота строки плавно уменьшается вместе с текстом; размеры иконок не меняются. */
 export function PatientTopNav(_props: PatientTopNavProps) {
+  const surfaceName = useSurfaceName();
   const pathname = usePathname() ?? '';
   const activeId = getPatientPrimaryNavActiveId(pathname);
   const chatUnread = usePatientSupportUnreadCount();
@@ -252,7 +254,7 @@ export function PatientTopNav(_props: PatientTopNavProps) {
                     : 'max-h-8 opacity-100',
                 )}
               >
-                BersonCare
+                {surfaceName}
               </span>
             </Link>
           </div>

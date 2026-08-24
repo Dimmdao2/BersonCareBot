@@ -280,7 +280,7 @@ origin/name/logo/manifest settings. Separate organization native app is outside 
 
 ### Platform public — desktop
 
-- Header hierarchy: BersonCare trust anchor → product/pricing → demo/signup. `Создать кабинет` / `Запросить демо`
+- Header hierarchy: Therapysto trust anchor → product/pricing → demo/signup. `Создать кабинет` / `Запросить демо`
   remains the primary action; `У меня есть приглашение` / `Войти` is a visually secondary patient/staff entry.
 - Landing sections preserve specialist-first order: operating value → solo/clinic paths → workflow/proof → package
   boundary → trust/legal → final signup/demo action. Patient care proof supports the buyer story and does not become
@@ -305,7 +305,7 @@ origin/name/logo/manifest settings. Separate organization native app is outside 
 - Booking preserves visible organization context across ORG-PUB-02 service, specialist/location, slot, identity,
   review and result states. Back navigation restores safe selections without permitting another organization.
 - Legal/support/recovery functions remain reachable. On a custom domain, degraded/unavailable recovery may offer the
-  stable platform alias; the fully branded surface does not thereby promise visible BersonCare/platform branding.
+  stable platform alias; the fully branded surface does not thereby promise visible Therapysto/Therapygo/platform branding.
   Exact legal/support/security identity, copy and placement follow later applicable law/contracts/security review.
 
 ### Published organization surface — mobile

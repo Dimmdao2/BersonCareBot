@@ -7,6 +7,7 @@ import { Menu, X } from 'lucide-react';
 import { landingContainer } from '@/components/landing/landingTypography';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { STAFF_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 const navItems = [
   { label: 'Продукт', href: '#product' },
@@ -78,7 +79,7 @@ export function LandingHeader() {
               className="h-8 w-8 rounded-xl sm:h-9 sm:w-9"
               priority
             />
-            <span className="hidden text-lg sm:inline">BersonCare</span>
+            <span className="hidden text-lg sm:inline">{STAFF_SURFACE_NAME}</span>
           </Link>
 
           <nav

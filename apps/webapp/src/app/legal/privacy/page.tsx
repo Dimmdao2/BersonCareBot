@@ -1,9 +1,5 @@
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'Политика конфиденциальности · BersonCare',
-  description: 'Политика конфиденциальности веб-приложения BersonCare.',
-};
+import { LEGAL_DOCUMENT_OPERATOR } from '@/config/legalDocumentOperator';
+import { LegalDocumentOperatorRequisites } from '../LegalDocumentOperatorRequisites';
 
 /** Публичная политика конфиденциальности (URL для OAuth consent screen и магазинов). */
 export default function PrivacyPolicyPage() {
@@ -12,7 +8,7 @@ export default function PrivacyPolicyPage() {
       <h1 className="text-xl font-semibold tracking-tight">Политика конфиденциальности</h1>
       <p className="text-muted-foreground">
         Настоящая политика описывает, как обрабатываются персональные данные при использовании
-        веб-приложения BersonCare Platform (далее — «Сервис»).
+        веб-приложения {LEGAL_DOCUMENT_OPERATOR.productName} (далее — «Сервис»).
       </p>
       <section className="space-y-2">
         <h2 className="text-base font-medium">1. Какие данные могут обрабатываться</h2>
@@ -31,7 +27,7 @@ export default function PrivacyPolicyPage() {
           настроек интерфейса. Эти данные не используются для рекламного таргетинга.
         </p>
         <p>
-          Публичный лендинг BersonCare не использует аналитические или маркетинговые cookie. Если в
+          Публичный лендинг {LEGAL_DOCUMENT_OPERATOR.productName} не использует аналитические или маркетинговые cookie. Если в
           будущем на лендинге появятся счётчики аналитики, рекламные пиксели или формы сбора данных,
           политика и интерфейс уведомления пользователя должны быть обновлены до запуска таких
           инструментов.
@@ -77,6 +73,7 @@ export default function PrivacyPolicyPage() {
           периодически просматривать документ.
         </p>
       </section>
+      <LegalDocumentOperatorRequisites />
       <p className="text-xs text-muted-foreground">
         Дата публикации: 8 апреля 2026 г. Обновлено: 3 июня 2026 г. При необходимости юридически
         полного текста замените этот шаблон на утверждённую редакцию.

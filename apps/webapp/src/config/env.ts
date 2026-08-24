@@ -4,6 +4,7 @@ import {
   assertDevAuthBypassConfiguration,
   parseDevAuthBypassFlag,
 } from '@/modules/auth/devBypassPolicy';
+import { PATIENT_DEFAULT_SURFACE_NAME } from './productSurfaceNames';
 
 /** Repo-known defaults that must never be used in production or development. */
 const INSECURE_SECRET_BLACKLIST = [
@@ -29,6 +30,17 @@ const envSchema = z.object({
   HOST: z.string().min(1).default('127.0.0.1'),
   PORT: z.coerce.number().int().positive().default(5200),
   APP_BASE_URL: z.string().url().default('http://127.0.0.1:5200'),
+  /**
+   * Standard patient app identity (TPB-03, TPB-09; single source is `config/productSurfaces.ts`).
+   * Override for other installations; the default is deliberately the new patient product name,
+   * never the retired platform name (TPB-15).
+   */
+  PATIENT_APP_NAME: z.string().min(1).default(PATIENT_DEFAULT_SURFACE_NAME),
+  /**
+   * Standard patient app origin (TPB-03, TPB-04). Until a distinct patient domain is configured,
+   * the patient app shares the staff origin; an explicit value enables separate Hosts.
+   */
+  PATIENT_APP_ORIGIN: z.string().url().optional(),
   /** In test env use "" unless USE_REAL_DATABASE=1 (then use .env / dev DB for e2e). */
   DATABASE_URL: z
     .string()
@@ -205,13 +217,25 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v ?? '').trim()),
-});
+}).transform((config) => ({
+  ...config,
+  PATIENT_APP_ORIGIN: config.PATIENT_APP_ORIGIN ?? config.APP_BASE_URL,
+}));
 
-const parsed = envSchema.parse({
+export type EnvParsed = z.output<typeof envSchema>;
+
+/** Parses the runtime environment; keep deploy-origin fallback in this single config seam. */
+export function parseWebappEnv(input: unknown): EnvParsed {
+  return envSchema.parse(input);
+}
+
+const parsed = parseWebappEnv({
   NODE_ENV: process.env.NODE_ENV,
   HOST: process.env.HOST,
   PORT: process.env.PORT,
   APP_BASE_URL: process.env.APP_BASE_URL,
+  PATIENT_APP_NAME: process.env.PATIENT_APP_NAME,
+  PATIENT_APP_ORIGIN: process.env.PATIENT_APP_ORIGIN,
   DATABASE_URL: process.env.DATABASE_URL,
   DB_PRINCIPAL_CONTEXT_MODE: process.env.DB_PRINCIPAL_CONTEXT_MODE,
   DB_PRINCIPAL_SIGNING_SECRET: process.env.DB_PRINCIPAL_SIGNING_SECRET,
@@ -270,8 +294,6 @@ assertDevAuthBypassConfiguration({
   nodeEnv: parsed.NODE_ENV,
   allowDevAuthBypass: parsed.ALLOW_DEV_AUTH_BYPASS,
 });
-
-export type EnvParsed = z.infer<typeof envSchema>;
 
 /** CMS media: S3 presign + PutObject when endpoint, keys, and private bucket are set. */
 export function isS3MediaEnabled(e: EnvParsed): boolean {

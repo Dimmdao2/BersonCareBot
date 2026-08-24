@@ -12,6 +12,11 @@ import {
 } from '@/shared/ui/doctor/DoctorSection';
 import { OrgBrandLogoControl, type OrgBrandLogoChange } from './OrgBrandLogoControl';
 import { saveOrgBranding } from './brandingActions';
+import {
+  ORGANIZATION_NAME_MAX_LENGTH,
+  ORGANIZATION_NAME_TOO_LONG_CODE,
+  ORGANIZATION_NAME_TOO_LONG_MESSAGE,
+} from '@/shared/lib/organizationName';
 
 type Props = {
   brandingMutationAvailable: boolean;
@@ -26,6 +31,7 @@ type Props = {
 const SAVE_ERROR_MESSAGES: Record<string, string> = {
   entitlement_disabled: 'Брендирование недоступно на текущем тарифе.',
   commercial_read_only: 'Брендирование доступно только для просмотра.',
+  [ORGANIZATION_NAME_TOO_LONG_CODE]: ORGANIZATION_NAME_TOO_LONG_MESSAGE,
 };
 
 /**
@@ -101,7 +107,7 @@ export function OrgBrandingSection({
               setJustSaved(false);
             }}
             disabled={!brandingMutationAvailable || saving}
-            maxLength={120}
+            maxLength={ORGANIZATION_NAME_MAX_LENGTH}
           />
         </DoctorField>
 

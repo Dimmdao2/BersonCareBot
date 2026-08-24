@@ -2,7 +2,8 @@
 
 ## Service Purpose
 
-`webapp` is the main product service of the BersonCare platform.
+`webapp` is the main product service, serving the Therapysto staff surface and the Therapygo
+patient surface (`src/config/productSurfaces.ts`; `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/IMPLEMENTATION_PLAN.md`).
 
 It provides:
 

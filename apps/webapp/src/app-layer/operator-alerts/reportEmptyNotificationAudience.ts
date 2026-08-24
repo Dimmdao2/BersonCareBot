@@ -9,6 +9,7 @@ import {
 } from '@/modules/operator-alerts/emptyAudience';
 import { parseOperatorAlertFallbackEmailSetting } from '@/modules/operator-alerts/operatorAlertFallbackEmail';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 /**
  * Единственная точка, куда обязан приходить КАЖДЫЙ случай пустой аудитории (design D-b).
@@ -26,7 +27,7 @@ import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
  * Функция никогда не бросает: она стоит на пути отправки и не имеет права его ломать.
  */
 
-const EMPTY_AUDIENCE_FALLBACK_SUBJECT = 'Therapysto: некому доставить служебное уведомление';
+const EMPTY_AUDIENCE_FALLBACK_SUBJECT = `${STAFF_SURFACE.name}: некому доставить служебное уведомление`;
 
 type FallbackEmailInput = {
   to: string;

@@ -347,7 +347,8 @@ Canonical linking rules:
   "html": "опц. HTML-тело письма (только email)",
   "icsContent": "опц. base64 .ics-вложения (только email)",
   "icsFilename": "опц. имя .ics-файла (только email); по умолчанию bersoncare-booking.ics",
-  "senderScope": "опц. clinic_required — отправка только через отправителя клиники"
+  "senderScope": "опц. clinic_required — отправка только через отправителя клиники",
+  "clinicCredentialProbe": "опц. true — проверка сохранённого канала клиники до его включения"
 }
 ```
 
@@ -359,6 +360,15 @@ strip). Поэтому новое поле обязано появляться �
 `icsContent` / `icsFilename` доходят только до email-ветки `buildIntent` и попадают в `payload.icsContent` /
 `payload.icsFilename`, откуда их читает `createEmailDeliveryAdapter` и прикрепляет как
 `text/calendar; charset=utf-8`.
+
+Отображаемое имя выбирает вызывающий по поверхности сообщения: для `email` обязателен непустой
+`metadata.subject`, для `web_push` — непустой `metadata.title`. Relay и общий delivery adapter отклоняют
+запрос без этого поля и не подставляют бренд самостоятельно. Тот же контракт действует для dedicated
+operator-alert relay.
+
+`clinicCredentialProbe` принимает только literal `true`. Он используется экраном настроек клиники: dispatch
+разрешает прочитать ещё не включённый credential, выполняет отправку тем же channel adapter и запрещает fallback
+на канал платформы. Обычная доставка этого поля не передаёт.
 
 **Idempotency key:** `${organizationId ?? "global"}:${messageId}:${channel}:${recipient}` — TTL 24 часа, хранится durable в `integrator.idempotency_keys` (через `IdempotencyPort`, тот же store, что и у event gateway / booking-lifecycle) и переживает рестарт процесса и смену реплики. Tenant входит в ключ; одновременный дубль в рамках одного процесса, пока первая отправка ещё не завершена, получает retryable `503 dispatch_in_flight` (in-memory guard, не переживает рестарт); после рестарта или на другой реплике повтор с тем же ключом получает `200 duplicate` сразу, без повторной доставки.
 

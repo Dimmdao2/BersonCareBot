@@ -222,7 +222,7 @@ describe('clinic credential handoff to provider adapters', () => {
 
     await expect(
       createEmailDeliveryAdapter({ getDb: () => ({}) as never }).send(
-        intent('email', { recipient: { email: 'patient@example.test' } }),
+        intent('email', { recipient: { email: 'patient@example.test' }, subject: 'Subject' }),
       ),
     ).rejects.toThrow('EMAIL_SMTP_RECIPIENT_REJECTED');
   });
@@ -232,7 +232,7 @@ describe('clinic credential handoff to provider adapters', () => {
 
     await expect(
       createEmailDeliveryAdapter({ getDb: () => ({}) as never }).send(
-        intent('email', { recipient: { email: 'patient@example.test' } }),
+        intent('email', { recipient: { email: 'patient@example.test' }, subject: 'Subject' }),
       ),
     ).rejects.toThrow('EMAIL_SMTP_RECIPIENT_NOT_ACCEPTED');
   });

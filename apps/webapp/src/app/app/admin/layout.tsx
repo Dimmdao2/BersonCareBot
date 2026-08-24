@@ -17,11 +17,12 @@ import type { ReactNode } from 'react';
 import type { Metadata } from 'next';
 import '../../styles/doctor.css';
 import { requirePlatformOperationsPage } from '@/app-layer/guards/requireRole';
-import { staffPwaLayoutMetadata } from '@/shared/lib/pwa/staffPwaLayoutMetadata';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { platformAdminLayoutMetadata } from '@/shared/lib/surface/surfaceLayoutMetadata';
 
-export const metadata: Metadata = staffPwaLayoutMetadata;
+/** Platform-admin is browser-only: it deliberately does not inherit staff PWA metadata. */
+export const metadata: Metadata = platformAdminLayoutMetadata;
 
 /** URL-preserving platform branch. It never resolves or renders a tenant workspace. */
 export default async function AdminLayout({ children }: { children: ReactNode }) {

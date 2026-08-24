@@ -19,6 +19,11 @@ export type ClinicDeliveryCredential =
   | { channel: 'max'; apiKey: string }
   | { channel: 'vk'; accessToken: string };
 
+export type ClinicDeliveryCredentialResolveOptions = {
+  /** Live settings probe may use a saved credential before normal traffic is enabled. */
+  allowUnverified?: boolean;
+};
+
 const SETTINGS: Record<
   ClinicDeliveryChannel,
   { key: IntegratorClinicDeliveryCredentialKey; mechanic: string }
@@ -42,6 +47,7 @@ function exactCurrentOrganization(): string | null {
 export function createClinicDeliveryCredentialResolver(db: DbPort) {
   return async function resolveClinicDeliveryCredential(
     channel: ClinicDeliveryChannel,
+    options: ClinicDeliveryCredentialResolveOptions = {},
   ): Promise<ClinicDeliveryCredential | null> {
     const organizationId = exactCurrentOrganization();
     if (!organizationId) return null;
@@ -57,6 +63,23 @@ export function createClinicDeliveryCredentialResolver(db: DbPort) {
         setting.key,
         organizationId,
       );
+      if (
+        (channel === 'email' || channel === 'telegram' || channel === 'max') &&
+        !options.allowUnverified
+      ) {
+        const readiness =
+          valueJson !== null && typeof valueJson === 'object' && !Array.isArray(valueJson)
+            ? (valueJson as Record<string, unknown>).deliveryReadiness
+            : null;
+        if (
+          readiness === null ||
+          typeof readiness !== 'object' ||
+          Array.isArray(readiness) ||
+          (readiness as Record<string, unknown>).status !== 'enabled'
+        ) {
+          return null;
+        }
+      }
       if (channel === 'email') {
         const smtp = valueJson === null ? null : parseSmtpOutboundValueJson(valueJson);
         return smtp?.configured ? { channel, smtp } : null;

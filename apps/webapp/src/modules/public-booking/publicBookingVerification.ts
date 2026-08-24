@@ -41,7 +41,10 @@ import {
 export const PUBLIC_BOOKING_CHALLENGE_TTL_SEC = 600;
 
 /** Delivery-only seam: "send this code to this number". Owns no storage. */
-export type PublicBookingCodeDelivery = (phone: string, code: string) => Promise<{ ok: boolean }>;
+export type PublicBookingCodeDelivery = (
+  phone: string,
+  code: string,
+) => Promise<{ ok: true } | { ok: false; code?: string }>;
 
 /**
  * Storage is the SECURITY DEFINER accessor port, delivery is a plain function.
@@ -61,7 +64,11 @@ export type PublicBookingVerificationDeps = {
 
 export type IssueVerificationResult =
   | { ok: true; challengeId: string; expiresInSeconds: number; retryAfterSeconds?: number }
-  | { ok: false; code: 'invalid_phone' | 'verification_unavailable'; retryAfterSeconds?: number };
+  | {
+      ok: false;
+      code: 'auth_channel_disabled' | 'invalid_phone' | 'verification_unavailable';
+      retryAfterSeconds?: number;
+    };
 
 function generateChallengeId(): string {
   return randomBytes(16).toString('base64url');
@@ -105,7 +112,15 @@ export async function issuePublicBookingVerification(
   if (!issued) return { ok: false, code: 'verification_unavailable' };
 
   const sent = await deps.deliverCode(phone, code);
-  if (!sent.ok) return { ok: false, code: 'verification_unavailable' };
+  if (!sent.ok) {
+    return {
+      ok: false,
+      code:
+        sent.code === 'auth_channel_disabled'
+          ? 'auth_channel_disabled'
+          : 'verification_unavailable',
+    };
+  }
 
   return {
     ok: true,

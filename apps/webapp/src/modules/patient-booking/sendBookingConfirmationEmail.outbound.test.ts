@@ -32,6 +32,7 @@ const INPUT = {
   serviceTitle: 'Массаж',
   locationLabel: 'Филиал на Ленина',
   contactName: 'Иван',
+  mailProfile: { kind: 'platform', senderDisplayName: 'Therapygo' } as const,
 };
 
 function recordingQueue(result = true): {
@@ -88,7 +89,7 @@ describe('booking confirmation email: одна постановка в очер�
     await sendBookingConfirmationEmail(INPUT, { outboundMessageQueue: q.port });
 
     const content = q.calls[0]!.content;
-    expect(content.icsFilename).toBe('bersoncare-booking-bk-1.ics');
+    expect(content.icsFilename).toBe('booking-bk-1.ics');
     const decoded = Buffer.from(String(content.icsContent), 'base64').toString('utf-8');
     // Байт в байт против той же сборки, а не «поле не пустое».
     const expectedIcs = buildIcsContent(
@@ -129,5 +130,20 @@ describe('booking confirmation email: одна постановка в очер�
     await expect(
       sendBookingConfirmationEmail(INPUT, { outboundMessageQueue: failing }),
     ).resolves.toBe(false);
+  });
+  it('дано: имя отправителя пришло из профиля → когда подтверждение → тогда PRODID в .ics несёт это имя, а не литерал по умолчанию (TPB-09)', async () => {
+    const q = recordingQueue();
+
+    await sendBookingConfirmationEmail(
+      { ...INPUT, mailProfile: { kind: 'platform', senderDisplayName: 'Другое имя' } },
+      { outboundMessageQueue: q.port },
+    );
+
+    const content = q.calls[0]!.content as { icsContent?: string; icsFilename?: string };
+    const ics = Buffer.from(content.icsContent!, 'base64').toString('utf-8');
+    expect(ics).toContain('PRODID:-//Другое имя//Patient Booking//RU');
+    expect(ics).not.toContain('Therapygo');
+    // TPB-01: имя вложения видит пациент — имени платформы в нём быть не должно.
+    expect(content.icsFilename).toBe('booking-bk-1.ics');
   });
 });

@@ -1,4 +1,5 @@
 import { CheckCircle2 } from 'lucide-react';
+import { STAFF_SURFACE } from '@/config/productSurfaces';
 
 const bullets = [
   'меньше хаоса в рекомендациях',
@@ -18,7 +19,7 @@ export function WhySection() {
             <p className="mt-5 text-base leading-7 text-[#667085]">
               После консультации пациент часто остаётся один на один с упражнениями, рекомендациями
               и вопросами: что делать сегодня, сколько раз, как понять прогресс, когда записаться
-              снова. BersonCare собирает это в понятный ежедневный маршрут.
+              снова. {STAFF_SURFACE.name} собирает это в понятный ежедневный маршрут.
             </p>
           </div>
           <div className="flex flex-col gap-3 lg:pt-2">

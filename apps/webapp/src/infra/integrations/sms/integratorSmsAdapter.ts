@@ -19,6 +19,7 @@ import type {
   SmsPort,
   VerifyCodeResult,
 } from '@/modules/auth/smsPort';
+import { withAuthDeliveryChannelGate } from '@/modules/auth/authDeliveryGate';
 import { sendEmailCodeViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
 import {
   deliverSmsCodeViaIntegrator,
@@ -27,6 +28,7 @@ import {
   otpDeliveryIdempotencyKey,
   signIntegratorPayload as signPayload,
 } from '@/infra/integrations/sms/integratorSmsDelivery';
+import { platformMailProfileForRecipientRole } from '@/modules/auth/mailProfile';
 
 function generateChallengeId(): string {
   return randomBytes(16).toString('base64url');
@@ -107,7 +109,11 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
           if (!to) {
             return { ok: false, code: 'invalid_phone' };
           }
-          const sent = await sendEmailCodeViaIntegrator(to, code);
+          const sent = await sendEmailCodeViaIntegrator(
+            to,
+            code,
+            platformMailProfileForRecipientRole('client'),
+          );
           const phoneMask = maskPhoneForOpsLog(phone);
           if (!sent.ok) {
             logPhoneOtpDeliveryEvent({ channel: 'email', outcome: 'delivery_failed', phoneMask });
@@ -125,73 +131,90 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
           if (!recipientId) {
             return { ok: false, code: 'invalid_phone' };
           }
-          try {
-            const timestamp = String(Math.floor(Date.now() / 1000));
-            const body = JSON.stringify({
-              channel: deliveryChannel,
-              recipientId,
-              code,
-              idempotencyKey: otpDeliveryIdempotencyKey(deliveryChannel, recipientId, code),
-            });
-            const signature = signPayload(timestamp, body, sharedSecret);
-            const res = await fetch(sendOtpUrl, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'X-Bersoncare-Timestamp': timestamp,
-                'X-Bersoncare-Signature': signature,
-                ...getCurrentCorrelationIdHeader(),
-              },
-              body,
-            });
-            const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-            const phoneMask = maskPhoneForOpsLog(phone);
-            if (!res.ok) {
-              const rateLimited = res.status === 429;
+          const gated = await withAuthDeliveryChannelGate(deliveryChannel, async () => {
+            try {
+              const timestamp = String(Math.floor(Date.now() / 1000));
+              const body = JSON.stringify({
+                channel: deliveryChannel,
+                recipientId,
+                code,
+                mailProfile: platformMailProfileForRecipientRole('client'),
+                idempotencyKey: otpDeliveryIdempotencyKey(deliveryChannel, recipientId, code),
+                ...((deliveryChannel === 'telegram' || deliveryChannel === 'max') &&
+                delivery?.channel === deliveryChannel && delivery.clinicRequiredOrganizationId
+                  ? {
+                      organizationId: delivery.clinicRequiredOrganizationId,
+                      senderScope: 'clinic_if_configured' as const,
+                    }
+                  : {}),
+              });
+              const signature = signPayload(timestamp, body, sharedSecret);
+              const res = await fetch(sendOtpUrl, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Bersoncare-Timestamp': timestamp,
+                  'X-Bersoncare-Signature': signature,
+                  ...getCurrentCorrelationIdHeader(),
+                },
+                body,
+              });
+              const data = (await res.json().catch(() => ({}))) as {
+                ok?: boolean;
+                error?: string;
+              };
+              const phoneMask = maskPhoneForOpsLog(phone);
+              if (!res.ok) {
+                const rateLimited = res.status === 429;
+                logPhoneOtpDeliveryEvent({
+                  channel: deliveryChannel,
+                  outcome: rateLimited ? 'rate_limited' : 'delivery_failed',
+                  phoneMask,
+                  httpStatus: res.status,
+                });
+                return {
+                  ok: false as const,
+                  code: rateLimited ? ('rate_limited' as const) : ('delivery_failed' as const),
+                  retryAfterSeconds: rateLimited ? 60 : undefined,
+                };
+              }
+              if (!data.ok) {
+                logPhoneOtpDeliveryEvent({
+                  channel: deliveryChannel,
+                  outcome: 'delivery_failed',
+                  phoneMask,
+                  httpStatus: res.status,
+                });
+                return {
+                  ok: false as const,
+                  code: 'delivery_failed' as const,
+                  retryAfterSeconds: 60,
+                };
+              }
               logPhoneOtpDeliveryEvent({
                 channel: deliveryChannel,
-                outcome: rateLimited ? 'rate_limited' : 'delivery_failed',
+                outcome: 'success',
                 phoneMask,
                 httpStatus: res.status,
               });
               return {
-                ok: false,
-                code: rateLimited ? 'rate_limited' : 'delivery_failed',
-                retryAfterSeconds: rateLimited ? 60 : undefined,
+                ok: true as const,
+                challengeId,
+                retryAfterSeconds: 60,
               };
-            }
-            if (!data.ok) {
+            } catch {
               logPhoneOtpDeliveryEvent({
                 channel: deliveryChannel,
                 outcome: 'delivery_failed',
-                phoneMask,
-                httpStatus: res.status,
+                phoneMask: maskPhoneForOpsLog(phone),
               });
-              return {
-                ok: false,
-                code: 'delivery_failed',
-                retryAfterSeconds: 60,
-              };
+              return { ok: false as const, code: 'delivery_failed' as const };
             }
-            logPhoneOtpDeliveryEvent({
-              channel: deliveryChannel,
-              outcome: 'success',
-              phoneMask,
-              httpStatus: res.status,
-            });
-            return {
-              ok: true,
-              challengeId,
-              retryAfterSeconds: 60,
-            };
-          } catch {
-            logPhoneOtpDeliveryEvent({
-              channel: deliveryChannel,
-              outcome: 'delivery_failed',
-              phoneMask: maskPhoneForOpsLog(phone),
-            });
-            return { ok: false, code: 'delivery_failed' };
+          });
+          if (!gated.ok && 'reason' in gated) {
+            return { ok: false, code: gated.reason };
           }
+          return gated;
         }
 
         return { ok: false, code: 'invalid_phone' };

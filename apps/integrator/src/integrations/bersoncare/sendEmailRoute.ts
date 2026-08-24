@@ -28,20 +28,39 @@ import {
   classifyOutboundProviderErrorClass,
   type OutboundProviderErrorClass,
 } from '@bersoncare/operator-db-schema';
+import { mailProfileRequestSchema } from '../email/mailProfile.js';
 
 const WINDOW_SECONDS = 300;
+
+const encodedMailProfileSchema = z.preprocess((value) => {
+  if (typeof value !== 'string') return value;
+  try {
+    return JSON.parse(value) as unknown;
+  } catch {
+    return value;
+  }
+}, mailProfileRequestSchema);
 
 const sendEmailBodySchema = z
   .object({
     to: z.string().email(),
     subject: z.string().optional(),
     code: z.string().optional(),
+    mailProfile: encodedMailProfileSchema.optional(),
     text: z.string().optional(),
     templateId: z.string().optional(),
     idempotencyKey: z.string().min(1),
   })
   .refine((data) => Boolean(data.code?.trim() || data.text?.trim()), {
     message: 'code_or_text_required',
+  })
+  .refine((data) => Boolean(data.code?.trim() || data.subject?.trim()), {
+    message: 'subject_required_for_transactional_email',
+    path: ['subject'],
+  })
+  .refine((data) => !data.code?.trim() || data.mailProfile !== undefined, {
+    message: 'mail_profile_required_for_auth_code',
+    path: ['mailProfile'],
   });
 
 type SendEmailBody = z.infer<typeof sendEmailBodySchema>;
@@ -73,7 +92,6 @@ export type BersoncareSendEmailDeps = {
   db: DbPort;
   /** The single chokepoint for email delivery (PLAN S9). */
   dispatchPort: DispatchPort;
-  isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
   recordProviderFailure: (reason: OutboundProviderErrorClass) => Promise<void>;
   idempotencyPort: IdempotencyPort;
 };
@@ -96,14 +114,7 @@ export async function registerBersoncareSendEmailRoute(
   app: FastifyInstance,
   deps: BersoncareSendEmailDeps,
 ): Promise<void> {
-  const {
-    sharedSecret,
-    db,
-    dispatchPort,
-    isAuthChannelEnabled,
-    recordProviderFailure,
-    idempotencyPort,
-  } = deps;
+  const { sharedSecret, db, dispatchPort, recordProviderFailure, idempotencyPort } = deps;
 
   if (!app.hasContentTypeParser('application/json')) {
     app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -146,10 +157,6 @@ export async function registerBersoncareSendEmailRoute(
 
     const payload = parsed.data;
     const isAuthCode = Boolean(payload.code?.trim());
-    if (isAuthCode && !(await isAuthChannelEnabled('email'))) {
-      return reply.code(403).send({ ok: false, error: 'auth_channel_disabled' });
-    }
-
     // Provider readiness follows policy so a disabled channel cannot probe provider state.
     const resolved = await resolveSmtpOutboundConfig(db);
     if (!isResolvedMailerConfigured(resolved)) {
@@ -160,8 +167,8 @@ export async function registerBersoncareSendEmailRoute(
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
 
-    const subject = isAuthCode ? 'Код подтверждения BersonCare' : (payload.subject ?? 'BersonCare');
-    const text = isAuthCode ? `Ваш код BersonCare: ${payload.code}` : (payload.text?.trim() ?? '');
+    const subject = payload.subject?.trim() ?? '';
+    const text = payload.text?.trim() ?? '';
 
     // See module header OTP safety note: dispatchPort never persists an attempt row for this
     // route, so there is nothing here left to redact.
@@ -187,8 +194,16 @@ export async function registerBersoncareSendEmailRoute(
 
     // Dispatch through the single chokepoint — the pre-fork dev redirect inside
     // dispatchOutgoing applies automatically (PLAN D7).
+    const intent = messageToIntent(msg);
+    if (isAuthCode) {
+      intent.payload = {
+        ...intent.payload,
+        authCode: payload.code,
+        mailProfile: payload.mailProfile,
+      };
+    }
     try {
-      await dispatchPort.dispatchOutgoing(messageToIntent(msg));
+      await dispatchPort.dispatchOutgoing(intent);
     } catch (error) {
       await idempotencyPort.release?.(payload.idempotencyKey);
       if (isOutboundMessagePolicyDenied(error)) {

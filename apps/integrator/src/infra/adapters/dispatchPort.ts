@@ -20,6 +20,7 @@ import { classifyRecipientBlockedBotError } from '../delivery/recipientBotBlocke
 import type {
   ClinicDeliveryChannel,
   ClinicDeliveryCredential,
+  ClinicDeliveryCredentialResolveOptions,
 } from '../db/clinicDeliveryCredentials.js';
 
 export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
@@ -32,23 +33,59 @@ type DeliveryPayload = {
     maxAttempts?: unknown;
     senderScope?: unknown;
     clinicCredential?: ClinicDeliveryCredential;
+    clinicCredentialProbe?: unknown;
   };
 } & Record<string, unknown>;
 
 type ClinicSenderScope = 'clinic_required' | 'clinic_preferred' | 'platform_required';
 
-function clinicSenderScope(intent: OutgoingIntent): ClinicSenderScope {
+type RequestedSenderScope = 'clinic_required' | 'clinic_if_configured';
+
+/**
+ * `C3` + §1.2h: на пути по умолчанию клиника не настраивает ничего, поэтому `clinic_if_configured`
+ * повышается до `clinic_required` ТОЛЬКО когда у организации действительно есть включённый канал.
+ * Без кредентиала это платформенный отправитель, а не отказ доставки.
+ */
+async function clinicSenderScope(
+  intent: OutgoingIntent,
+  channel: ClinicDeliveryChannel | null,
+  resolveCredential:
+    | ((
+        channel: ClinicDeliveryChannel,
+        opts?: ClinicDeliveryCredentialResolveOptions,
+      ) => Promise<ClinicDeliveryCredential | null>)
+    | undefined,
+): Promise<{ senderScope: ClinicSenderScope; clinicCredential: ClinicDeliveryCredential | null }> {
   // Platform/system traffic must never borrow a clinic credential merely because the request
   // happens to run under an organization principal.
   if (
     intent.meta.outboundMessageClass === 'operator_security' &&
     intent.meta.outboundCapability === 'operator_alert'
   ) {
-    return 'platform_required';
+    return { senderScope: 'platform_required', clinicCredential: null };
   }
-  if (intent.type !== 'message.send') return 'clinic_preferred';
-  const scope = (intent.payload as DeliveryPayload).delivery?.senderScope;
-  return scope === 'clinic_required' ? 'clinic_required' : 'clinic_preferred';
+  const requestedScope =
+    intent.type === 'message.send'
+      ? ((intent.payload as DeliveryPayload).delivery?.senderScope as RequestedSenderScope | undefined)
+      : undefined;
+  const clinicCredential = channel && resolveCredential ? await resolveCredential(channel) : null;
+
+  if (requestedScope === 'clinic_required') {
+    return { senderScope: 'clinic_required', clinicCredential };
+  }
+  if (requestedScope === 'clinic_if_configured') {
+    return {
+      senderScope: clinicCredential ? 'clinic_required' : 'platform_required',
+      clinicCredential,
+    };
+  }
+  return { senderScope: 'clinic_preferred', clinicCredential };
+}
+
+/** `C5(б)`: проверочная отправка, которой клиника включает свой канал. */
+function isClinicCredentialProbe(intent: OutgoingIntent): boolean {
+  if (intent.type !== 'message.send') return false;
+  return (intent.payload as DeliveryPayload).delivery?.clinicCredentialProbe === true;
 }
 
 function asClinicDeliveryChannel(channel: string): ClinicDeliveryChannel | null {
@@ -287,6 +324,7 @@ export function createDefaultDispatchPort(deps: {
   /** Exact-org tariff + credential resolver. It never returns a platform fallback credential. */
   resolveClinicDeliveryCredential?: (
     channel: ClinicDeliveryChannel,
+    options?: ClinicDeliveryCredentialResolveOptions,
   ) => Promise<ClinicDeliveryCredential | null>;
 }): DispatchPort {
   return {
@@ -306,6 +344,11 @@ export function createDefaultDispatchPort(deps: {
       // called, so this is not a delivery attempt (F5) — the suppression itself is still fully
       // observable via the PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS warning above.
       if (safeIntent === SUPPRESS) {
+        // `C5(б)`: канал включает только доставленная отправка. Подавленная на DEV проверка
+        // успехом не является — иначе клиника включила бы канал, ничего не доставив.
+        if (isClinicCredentialProbe(intent)) {
+          throw new Error('CLINIC_CHANNEL_PROBE_SUPPRESSED');
+        }
         return {};
       }
 
@@ -333,11 +376,18 @@ export function createDefaultDispatchPort(deps: {
       // unchanged.
       let sendResult: DeliverySendResult | void;
       const clinicChannel = asClinicDeliveryChannel(channel);
-      const senderScope = clinicSenderScope(intentForChannel);
-      const clinicCredential =
-        senderScope !== 'platform_required' && clinicChannel && deps.resolveClinicDeliveryCredential
-          ? await deps.resolveClinicDeliveryCredential(clinicChannel)
+      const probe = isClinicCredentialProbe(intentForChannel);
+      // Проверочная отправка идёт ИМЕННО ещё не подтверждённым кредентиалом: иначе включить
+      // канал было бы невозможно — резолвер отдаёт только уже включённые (`C5(б)`).
+      const probeCredential =
+        probe && clinicChannel && deps.resolveClinicDeliveryCredential
+          ? await deps.resolveClinicDeliveryCredential(clinicChannel, { allowUnverified: true })
           : null;
+      const resolved = probe
+        ? { senderScope: 'clinic_required' as ClinicSenderScope, clinicCredential: probeCredential }
+        : await clinicSenderScope(intentForChannel, clinicChannel, deps.resolveClinicDeliveryCredential);
+      const senderScope = resolved.senderScope;
+      const clinicCredential = resolved.clinicCredential;
       if (senderScope === 'clinic_required' && !clinicCredential) {
         throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
       }

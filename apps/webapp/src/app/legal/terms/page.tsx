@@ -1,9 +1,5 @@
-import type { Metadata } from 'next';
-
-export const metadata: Metadata = {
-  title: 'Условия использования · BersonCare',
-  description: 'Условия использования веб-приложения BersonCare.',
-};
+import { LEGAL_DOCUMENT_OPERATOR } from '@/config/legalDocumentOperator';
+import { LegalDocumentOperatorRequisites } from '../LegalDocumentOperatorRequisites';
 
 /** Публичная страница условий использования (URL для OAuth consent screen и магазинов). */
 export default function TermsOfServicePage() {
@@ -11,8 +7,8 @@ export default function TermsOfServicePage() {
     <>
       <h1 className="text-xl font-semibold tracking-tight">Условия использования</h1>
       <p className="text-muted-foreground">
-        Настоящий документ определяет правила использования веб-приложения BersonCare Platform
-        (далее — «Сервис»), предоставляемого владельцем сервиса пользователям.
+        Настоящий документ определяет правила использования веб-приложения {LEGAL_DOCUMENT_OPERATOR.productName}
+        {' '}(далее — «Сервис»), предоставляемого владельцем сервиса пользователям.
       </p>
       <section className="space-y-2">
         <h2 className="text-base font-medium">1. Общие положения</h2>
@@ -53,6 +49,7 @@ export default function TermsOfServicePage() {
           использования Сервиса после изменений означает согласие с обновлёнными условиями.
         </p>
       </section>
+      <LegalDocumentOperatorRequisites />
       <p className="text-xs text-muted-foreground">
         Дата публикации: 8 апреля 2026 г. При необходимости юридически полного текста замените этот
         шаблон на утверждённую редакцию.

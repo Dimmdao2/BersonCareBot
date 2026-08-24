@@ -319,7 +319,7 @@ async function sendLinkedChannelMessage(input: {
       payload: {
         recipient: { chatId: bindings.telegramId.trim() },
         message: { text: input.text },
-        delivery: { channels: ['telegram'], maxAttempts: 3 },
+        delivery: { channels: ['telegram'], maxAttempts: 3, senderScope: 'clinic_if_configured' },
       },
     });
   }
@@ -334,7 +334,7 @@ async function sendLinkedChannelMessage(input: {
       payload: {
         recipient: maxUserRecipient(bindings.maxId.trim()),
         message: { text: input.text },
-        delivery: { channels: ['max'], maxAttempts: 3 },
+        delivery: { channels: ['max'], maxAttempts: 3, senderScope: 'clinic_if_configured' },
       },
     });
   }

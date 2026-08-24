@@ -63,6 +63,11 @@ import {
   suggestOrganizationSlug,
   validateOrganizationSlugCandidate,
 } from '@/modules/clinic-directory/organizationSlug';
+import {
+  ORGANIZATION_NAME_MAX_LENGTH,
+  ORGANIZATION_NAME_TOO_LONG_CODE,
+  ORGANIZATION_NAME_TOO_LONG_MESSAGE,
+} from '@/shared/lib/organizationName';
 import type { OrganizationSlugMutationErrorCode } from '@/modules/clinic-directory/ports';
 import { staffSecurityErrorText } from '@/shared/ui/auth/staffSecurityErrorText';
 import { PasswordAltchaChallenge } from '@/shared/ui/auth/PasswordAltchaChallenge';
@@ -1015,6 +1020,10 @@ export function AuthFlowV2({
       toast.error('Пароль — не менее 8 символов.');
       return;
     }
+    if (organizationTitle.length > ORGANIZATION_NAME_MAX_LENGTH) {
+      toast.error(ORGANIZATION_NAME_TOO_LONG_MESSAGE);
+      return;
+    }
     const organizationSlug = await checkSpecialistSignupSlugAvailability();
     if (!organizationSlug) return;
     setLoading(true);
@@ -1068,6 +1077,10 @@ export function AuthFlowV2({
       }
       if (data.error === 'duplicate_email') {
         toast.error('Аккаунт с этой почтой уже существует.');
+        return;
+      }
+      if (data.error === ORGANIZATION_NAME_TOO_LONG_CODE) {
+        toast.error(data.message ?? ORGANIZATION_NAME_TOO_LONG_MESSAGE);
         return;
       }
       if (data.error?.startsWith('slug_') || data.error === 'reserved_slug') {
@@ -1842,6 +1855,7 @@ export function AuthFlowV2({
                     }}
                     disabled={loading}
                     className={authEmailInputClass}
+                    maxLength={ORGANIZATION_NAME_MAX_LENGTH}
                   />
                 </div>
                 <div className="flex flex-col gap-1">

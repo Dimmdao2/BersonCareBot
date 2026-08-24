@@ -264,18 +264,14 @@ export async function completePhoneMessengerBindFromIntegrator(
       contactPhoneNormalized: contactPhone,
     });
 
-    // D25: webapp owns phone trust — it no longer asks the integrator to come back with a
-    // `user.phone.link` write and retry. When the canonical binding/phone isn't in place yet,
-    // apply it here, in the SAME request, via the existing `applyMessengerContactPreOtp`
-    // canonical transaction (find/create/bind + phone-history transition), then continue exactly
-    // as if `completionState.ready` had been true.
-    let accountCreated = completionState.accountCreated;
-    if (!completionState.ready) {
+    // The bot proves phone ownership. Only an authenticated profile-bind may write the binding
+    // here; a login attempt waits for the browser finish, where confirmPhoneAuth performs the
+    // existing create-or-bind transaction and may create the account as part of web registration.
+    if (bindPurpose === 'profile_bind' && !completionState.ready) {
       const preOtp = await port.applyMessengerContactPreOtp({
         phoneNormalized: contactPhone,
         channelCode: params.channelCode,
         externalId,
-        purpose: bindPurpose,
         sessionUserId: row.user_id,
       });
       if (!preOtp.ok) {
@@ -294,7 +290,6 @@ export async function completePhoneMessengerBindFromIntegrator(
         });
         return { ok: false, code: preOtp.code };
       }
-      accountCreated = preOtp.accountCreated;
     }
 
     if (bindPurpose === 'profile_bind') {
@@ -313,7 +308,6 @@ export async function completePhoneMessengerBindFromIntegrator(
 
     const challenge = await createPhoneOtpChallenge(contactPhone, context, phoneAuthDeps, {
       registrationAttemptId: row.id,
-      isRegistrationIntent: accountCreated,
     });
     if (!challenge.ok) {
       await port.updateFailed(row.id, challenge.code);
@@ -336,7 +330,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       channelCode: params.channelCode,
       purpose: bindPurpose,
       replay: false,
-      accountCreated,
+      accountCreated: false,
       phoneSuffix: phoneSuffixForLog(contactPhone),
     });
 
@@ -344,7 +338,7 @@ export async function completePhoneMessengerBindFromIntegrator(
       ok: true as const,
       purpose: 'login',
       otpCode: challenge.code,
-      accountCreated,
+      accountCreated: false,
       challengeId: challenge.challengeId,
     };
   } catch {

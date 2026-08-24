@@ -4,6 +4,7 @@
  * ICS-формат: RFC 5545, временны́е метки в UTC (суффикс Z), уникальный UID.
  * Не зависит от DOM/navigator — может вызываться и в тестах без jsdom.
  */
+import { PATIENT_DEFAULT_SURFACE_NAME } from '@/config/productSurfaceNames';
 
 export type CalendarEventParams = {
   /** ISO-строка начала (с timezone offset или Z). */
@@ -45,8 +46,17 @@ export function escapeIcsText(s: string): string {
 /**
  * Генерирует текст ICS-файла (VCALENDAR + VEVENT).
  * Возвращает строку, которую можно скачать как `.ics`.
+ *
+ * `appName` по умолчанию — литерал `PATIENT_DEFAULT_SURFACE_NAME` (тот же, что использует
+ * `sendBookingConfirmationEmail.ts`, который эту функцию тоже вызывает и не входит в этап A —
+ * его поведение остаётся прежним). Вызовы из `'use client'`-компонентов передают
+ * env-разрешённое имя явно (TPB-09), а не полагаются на литерал по умолчанию.
  */
-export function buildIcsContent(params: CalendarEventParams, appBaseUrl: string): string {
+export function buildIcsContent(
+  params: CalendarEventParams,
+  appBaseUrl: string,
+  appName: string = PATIENT_DEFAULT_SURFACE_NAME,
+): string {
   const start = toIcsDateTime(new Date(params.startAt));
   const end = toIcsDateTime(new Date(params.endAt));
   const uidDomain = new URL(appBaseUrl).hostname;
@@ -58,7 +68,7 @@ export function buildIcsContent(params: CalendarEventParams, appBaseUrl: string)
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//BersonCare//Patient Booking//RU',
+    `PRODID:-//${appName}//Patient Booking//RU`,
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

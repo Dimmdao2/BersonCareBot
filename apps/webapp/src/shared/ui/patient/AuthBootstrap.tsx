@@ -8,6 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { emitAuthFlowEvent } from '@/modules/auth/authFlowObservability';
+import { useSurfaceName } from '@/shared/ui/PlatformProvider';
 import type { UnauthenticatedAppEntryClassification } from '@/modules/auth/appEntryClassification';
 import {
   MAX_BRIDGE_LOAD_GRACE_MS,
@@ -155,6 +156,7 @@ export function AuthBootstrap({
   routeBoundMiniappEntry = false,
   roleLoginPortal = null,
 }: AuthBootstrapProps) {
+  const surfaceName = useSurfaceName();
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawToken = searchParams.get('t') ?? searchParams.get('token');
@@ -1101,7 +1103,8 @@ export function AuthBootstrap({
                 Регистрация кабинета сейчас недоступна
               </h1>
               <p className={cn(patientMutedTextClass, 'mt-2')}>
-                Оставьте запрос — мы свяжемся с вами и покажем текущие возможности BersonCare.
+                Оставьте запрос — мы свяжемся с вами и покажем текущие возможности{' '}
+                {surfaceName}.
               </p>
             </div>
             <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center">

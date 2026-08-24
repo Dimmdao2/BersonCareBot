@@ -11,6 +11,7 @@ import { registerBersoncareSendEmailRoute } from './sendEmailRoute.js';
 
 const SHARED_SECRET = 'send-email-route-test-secret';
 const ROUTE = '/api/bersoncare/send-email';
+const mailProfile = { kind: 'platform', senderDisplayName: 'Therapygo' } as const;
 
 const apps: FastifyInstance[] = [];
 
@@ -50,7 +51,6 @@ function protocolHeaders(
 
 async function buildApp(deps: {
   dispatchOutgoing: DispatchPort['dispatchOutgoing'];
-  isAuthChannelEnabled: (channel: 'email') => Promise<boolean>;
   db?: DbPort;
 }): Promise<FastifyInstance> {
   const keys = new Set<string>();
@@ -68,7 +68,6 @@ async function buildApp(deps: {
     sharedSecret: SHARED_SECRET,
     db: deps.db ?? configuredSmtpDb(),
     dispatchPort: { dispatchOutgoing: deps.dispatchOutgoing },
-    isAuthChannelEnabled: deps.isAuthChannelEnabled,
     recordProviderFailure: async () => {},
     idempotencyPort,
   });
@@ -89,35 +88,15 @@ afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
 
-describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
-  it('дано: auth_email_enabled выключен → тогда OTP-код не доходит до dispatchPort, ответ 403', async () => {
+describe('POST /api/bersoncare/send-email', () => {
+  it('dispatches an authenticated webapp OTP request exactly once when SMTP is configured', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
-    const app = await buildApp({
-      dispatchOutgoing,
-      isAuthChannelEnabled: async () => false,
-    });
+    const app = await buildApp({ dispatchOutgoing });
 
     const response = await injectSigned(app, {
       to: 'patient@example.test',
       code: '123456',
-      idempotencyKey: 'otp:email:disabled',
-    });
-
-    expect(response.statusCode).toBe(403);
-    expect(JSON.parse(response.body)).toMatchObject({ error: 'auth_channel_disabled' });
-    expect(dispatchOutgoing).not.toHaveBeenCalled();
-  });
-
-  it('дано: auth_email_enabled включён и SMTP настроен → тогда OTP-код доходит до dispatchPort ровно один раз', async () => {
-    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
-    const app = await buildApp({
-      dispatchOutgoing,
-      isAuthChannelEnabled: async () => true,
-    });
-
-    const response = await injectSigned(app, {
-      to: 'patient@example.test',
-      code: '123456',
+      mailProfile,
       idempotencyKey: 'otp:email:one',
     });
 
@@ -125,10 +104,29 @@ describe('POST /api/bersoncare/send-email — auth-channel gate', () => {
     expect(dispatchOutgoing).toHaveBeenCalledOnce();
   });
 
+  it('rejects an auth code when the caller omitted its mail profile', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
+    const app = await buildApp({ dispatchOutgoing });
+
+    const response = await injectSigned(app, {
+      to: 'patient@example.test',
+      code: '123456',
+      idempotencyKey: 'otp:email:missing-profile',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(dispatchOutgoing).not.toHaveBeenCalled();
+  });
+
   it('same email OTP request is a no-op, while a new resend key sends another code', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
-    const app = await buildApp({ dispatchOutgoing, isAuthChannelEnabled: async () => true });
-    const first = { to: 'patient@example.test', code: '123456', idempotencyKey: 'otp:email:1' };
+    const app = await buildApp({ dispatchOutgoing });
+    const first = {
+      to: 'patient@example.test',
+      code: '123456',
+      mailProfile,
+      idempotencyKey: 'otp:email:1',
+    };
 
     expect((await injectSigned(app, first)).json()).toEqual({ ok: true });
     expect((await injectSigned(app, first)).json()).toEqual({ ok: true, status: 'duplicate' });

@@ -1,3 +1,5 @@
+import type { MailProfileRequest } from './mailProfile';
+
 /**
  * C-2 step 4 (OWASP ASVS V6.6.2 / NIST SP 800-63B §5.1.3): the intent an email challenge was minted
  * for. One purpose per `startEmailChallenge` caller, matching the confirm engine that legitimately
@@ -57,6 +59,7 @@ export type EmailAuthDbPort = {
     expiresAt: number;
     purpose: EmailChallengePurpose;
     code: string;
+    mailProfile: MailProfileRequest;
   }) => Promise<{ challengeId: string | null; retryAfterSeconds: number }>;
   findEmailSendCooldown: (userId: string, emailNormalized: string) => Promise<Date | null>;
   deleteEmailChallengesForUser: (userId: string) => Promise<void>;
@@ -66,21 +69,11 @@ export type EmailAuthDbPort = {
     codeHash: string;
     expiresAt: number;
     purpose: EmailChallengePurpose;
-    /**
-     * D27-C fix round 2: plaintext OTP, stamped onto the new row (email_challenges.
-     * pending_delivery_code) right after insert -- same request, same idiom as the purpose stamp
-     * immediately below it. Delivery composes the email from this column instead of accepting it
-     * as a caller-supplied payload (app.email_auth_enqueue_otp_delivery, migration 0363).
-     */
+    /** Plaintext OTP retained only by the legacy separate-insert helper. */
     code: string;
   }) => Promise<{
     challengeId: string;
-    /**
-     * D27-C fix round 3: one-shot ownership secret minted by
-     * app.email_auth_set_email_challenge_delivery_code, required by
-     * app.email_auth_enqueue_otp_delivery to prove the caller is the request that created this
-     * challenge -- never sent to the client, only threaded server-side into enqueueEmailOtpDelivery.
-     */
+    /** One-shot ownership secret minted alongside the legacy helper's pending code. */
     deliveryToken: string;
   }>;
   deleteEmailChallengeById: (challengeId: string) => Promise<void>;

@@ -13,6 +13,8 @@ const published: OrgBrandRevision = {
   organizationId,
   status: 'published',
   displayName: 'Бренд клиники',
+  patientAppName: 'Приложение клиники',
+  accentToken: '#7A3CC2',
   logoMediaId,
   logoMediaReady: true,
   createdByPlatformUserId: actorPlatformUserId,
@@ -64,9 +66,29 @@ describe('organization branding entitlement ladder', () => {
       organizationId,
       actorPlatformUserId,
       displayName: 'Новый бренд',
+      patientAppName: 'Приложение клиники',
+      accentToken: '#7a3cc2',
       logoMediaId: null,
     });
     expect(port.publishDraft).toHaveBeenCalledWith({ organizationId, actorPlatformUserId });
+  });
+
+  it('refuses a 101-character paid clinic-name override instead of shortening it', async () => {
+    const port = brandingPort();
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+    const ctx = {
+      organizationId,
+      actorPlatformUserId,
+      hasOrganizationManagementCapability: true as const,
+    };
+
+    await expect(
+      service.saveDraft(ctx, { displayName: 'К'.repeat(101), logoMediaId: null }),
+    ).rejects.toThrow('organization_name_too_long');
+    expect(port.saveDraft).not.toHaveBeenCalled();
   });
 
   it('returns platform presentation to a patient/public consumer while disabled, then restores the retained brand after re-enable', async () => {
@@ -99,8 +121,105 @@ describe('organization branding entitlement ladder', () => {
     await expect(service.resolveEffectiveOrgBranding(organizationId)).resolves.toMatchObject({
       paid: { displayName: 'Бренд клиники', logoUrl: `/api/media/${logoMediaId}` },
       effectiveDisplayName: 'Бренд клиники',
+      effectivePatientAppName: 'Приложение клиники',
+      effectiveAccentToken: '#7a3cc2',
       resolution: 'applied',
     });
+  });
+
+  it('keeps an active anonymous patient surface on the core identity until paid branding applies', async () => {
+    let currentAccess = access('full_access');
+    let currentPublished: OrgBrandRevision | null = published;
+    const port = brandingPort();
+    port.getPublishedRevision = vi.fn(async () => currentPublished);
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => currentAccess,
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toEqual(
+      {
+        effectiveDisplayName: 'Бренд клиники',
+        patientAppName: 'Приложение клиники',
+        accentToken: '#7a3cc2',
+        logoUrl: `/api/media/${logoMediaId}`,
+      },
+    );
+
+    currentAccess = access('disabled');
+    await expect(
+      service.resolveEffectiveOrgBranding(organizationId, 'anonymous'),
+    ).resolves.toEqual({
+      effectiveDisplayName: 'Клиника без тарифа',
+      patientAppName: 'Клиника без тарифа',
+      accentToken: '#284da0',
+    });
+
+    currentAccess = access('full_access');
+    currentPublished = null;
+    await expect(
+      service.resolveEffectiveOrgBranding(organizationId, 'anonymous'),
+    ).resolves.toEqual({
+      effectiveDisplayName: 'Клиника без тарифа',
+      patientAppName: 'Клиника без тарифа',
+      accentToken: '#284da0',
+    });
+  });
+
+  it('does not project a retained draft but keeps the active core surface', async () => {
+    const port = brandingPort();
+    port.getPublishedRevision = vi.fn(async () => null);
+    port.getDraftRevision = vi.fn(async () => published);
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toEqual({
+      effectiveDisplayName: 'Клиника без тарифа',
+      patientAppName: 'Клиника без тарифа',
+      accentToken: '#284da0',
+    });
+  });
+
+  it('withholds a published brand from an anonymous surface when its organization is inactive', async () => {
+    const port = brandingPort();
+    port.getCoreContext = vi.fn(async () => ({
+      organizationId,
+      displayName: 'Деактивированная клиника',
+      isActive: false,
+    }));
+    const service = createOrgBrandingService({
+      port,
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toBeNull();
+  });
+
+  it('uses the existing patient name and accent defaults when a published brand omits both', async () => {
+    const service = createOrgBrandingService({
+      port: {
+        ...brandingPort(),
+        getPublishedRevision: vi.fn(async () => ({
+          ...published,
+          displayName: null,
+          patientAppName: null,
+          accentToken: null,
+          logoMediaId: null,
+          logoMediaReady: false,
+        })),
+      },
+      resolveBrandingAccess: async () => access('full_access'),
+    });
+
+    await expect(service.resolveEffectiveOrgBranding(organizationId, 'anonymous')).resolves.toEqual(
+      {
+        effectiveDisplayName: 'Клиника без тарифа',
+        patientAppName: 'Клиника без тарифа',
+        accentToken: '#284da0',
+      },
+    );
   });
 
   it('keeps the existing brand visible in read-only and rejects a direct save before the port', async () => {

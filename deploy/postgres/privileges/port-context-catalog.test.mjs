@@ -221,7 +221,7 @@ const BOOTSTRAP_REGISTRATION_ROOTS = [
   'app.email_password_delete_unverified_registration(uuid)',
   'app.email_password_find_login_candidate(text)',
   'app.get_specialist_signup_intent_by_challenge(uuid)',
-  'app.email_auth_start_challenge(uuid,text,text,bigint,text,text)',
+  'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
   'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)',
   'app.email_auth_increment_email_challenge_attempts(uuid)',
   'app.email_auth_find_email_owner_conflict(uuid,text)',

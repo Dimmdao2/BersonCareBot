@@ -181,7 +181,7 @@ export function materializePatientReminderDeliveries(input: {
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
-        delivery: { channels: [channel], maxAttempts: 1 },
+        delivery: { channels: [channel], maxAttempts: 1, senderScope: 'clinic_if_configured' },
       });
     } else if (channel === 'max' && targets.maxId?.trim()) {
       append(channel, targets.maxId.trim(), {
@@ -191,7 +191,7 @@ export function materializePatientReminderDeliveries(input: {
         },
         replyMarkup: keyboard,
         parse_mode: 'HTML',
-        delivery: { channels: [channel], maxAttempts: 1 },
+        delivery: { channels: [channel], maxAttempts: 1, senderScope: 'clinic_if_configured' },
       });
     } else if (channel === 'vk' && targets.vkId?.trim()) {
       append(channel, targets.vkId.trim(), {
