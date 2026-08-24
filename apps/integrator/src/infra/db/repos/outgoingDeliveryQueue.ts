@@ -149,13 +149,14 @@ export type ReclaimStaleOutgoingDeliveryProcessingResult = {
 
 /** failure_class set when a row is dead-lettered for exceeding the reclaim cap (D10b), not a delivery error. */
 export const OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS = 'reclaim_limit_exceeded';
+export const OUTGOING_DELIVERY_PROVIDER_OUTCOME_UNKNOWN_FAILURE_CLASS =
+  'provider_outcome_unknown';
 
 /**
- * D10b: a "processing" row not finished within `staleAfterMinutes` is stuck (the worker that
- * claimed it died mid-flight) — normal capture only picks up "pending"/"failed_retryable", so
- * without this it would never be retried again. Returned to "pending" so the next capture picks
- * it back up, unless it has already been reclaimed `maxReclaimCount` times, in which case it goes
- * to the dead letter (`status = 'dead'`) instead of looping forever.
+ * D10b: a stale "processing" row died before the provider boundary and may be reclaimed. A stale
+ * "dispatching" row crossed that boundary, so the provider outcome is ambiguous: retrying it can
+ * duplicate a message that was already accepted. Such rows are dead-lettered for operator review
+ * and never returned to the provider path.
  */
 export async function resetStaleOutgoingDeliveryProcessing(
   db: DbPort,
@@ -167,26 +168,36 @@ export async function resetStaleOutgoingDeliveryProcessing(
   const res = await runIntegratorSql<{ status: string }>(
     db,
     sql`WITH stale AS (
-       SELECT id
+       SELECT id, status AS stale_status
        FROM public.outgoing_delivery_queue
-       WHERE status = 'processing'
+       WHERE status IN ('processing', 'dispatching')
          AND last_attempt_at IS NOT NULL
          AND last_attempt_at < now() - ((${String(m)}::text || ' minutes')::interval)
        FOR UPDATE SKIP LOCKED
      )
      UPDATE public.outgoing_delivery_queue q
      SET reclaim_count = q.reclaim_count + 1,
-         status = CASE WHEN q.reclaim_count + 1 >= ${cap} THEN 'dead' ELSE 'pending' END,
+         status = CASE
+           WHEN stale.stale_status = 'dispatching' OR q.reclaim_count + 1 >= ${cap} THEN 'dead'
+           ELSE 'pending'
+         END,
          next_retry_at = CASE
-           WHEN q.reclaim_count + 1 >= ${cap} THEN q.next_retry_at
+           WHEN stale.stale_status = 'dispatching' OR q.reclaim_count + 1 >= ${cap}
+             THEN q.next_retry_at
            ELSE now()
          END,
-         dead_at = CASE WHEN q.reclaim_count + 1 >= ${cap} THEN now() ELSE q.dead_at END,
+         dead_at = CASE
+           WHEN stale.stale_status = 'dispatching' OR q.reclaim_count + 1 >= ${cap} THEN now()
+           ELSE q.dead_at
+         END,
          failure_class = CASE
+           WHEN stale.stale_status = 'dispatching'
+             THEN ${OUTGOING_DELIVERY_PROVIDER_OUTCOME_UNKNOWN_FAILURE_CLASS}
            WHEN q.reclaim_count + 1 >= ${cap} THEN ${OUTGOING_DELIVERY_RECLAIM_LIMIT_FAILURE_CLASS}
            ELSE q.failure_class
          END,
          last_error = CASE
+           WHEN stale.stale_status = 'dispatching' THEN 'PROVIDER_OUTCOME_UNKNOWN'
            WHEN q.reclaim_count + 1 >= ${cap}
              THEN 'OUTGOING_DELIVERY_RECLAIM_LIMIT_EXCEEDED'
            ELSE q.last_error
@@ -203,6 +214,18 @@ export async function resetStaleOutgoingDeliveryProcessing(
     else reclaimed += 1;
   }
   return { reclaimed, deadLettered };
+}
+
+/** Durable boundary immediately before the external provider call. */
+export async function markOutgoingDeliveryDispatching(db: DbPort, id: string): Promise<void> {
+  await runIntegratorSql(
+    db,
+    sql`UPDATE public.outgoing_delivery_queue
+        SET status = 'dispatching',
+            updated_at = now()
+        WHERE id = ${id}
+          AND status = 'processing'`,
+  );
 }
 
 export async function claimDueOutgoingDeliveries(
@@ -300,7 +323,7 @@ export async function markOutgoingDeliverySent(
            ELSE payload_json || ${mergeJson}::jsonb
          END
      WHERE id = ${id}
-       AND status = 'processing'`,
+       AND status IN ('processing', 'dispatching')`,
   );
 }
 
@@ -413,7 +436,7 @@ export async function markOutgoingDeliveryDead(
          last_error = ${lastError},
          failure_class = ${failureClass ?? null}
      WHERE id = ${id}
-       AND status = 'processing'`,
+       AND status IN ('processing', 'dispatching')`,
   );
 }
 
@@ -432,6 +455,6 @@ export async function rescheduleOutgoingDeliveryRetry(
          updated_at = now(),
          last_error = ${lastError}
      WHERE id = ${id}
-       AND status = 'processing'`,
+       AND status IN ('processing', 'dispatching')`,
   );
 }

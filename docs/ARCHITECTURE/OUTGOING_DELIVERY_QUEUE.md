@@ -10,7 +10,7 @@
 
 ## Статусы и ретраи
 
-Статусы: `pending`, `processing`, `sent`, `failed_retryable`, `dead`. Backoff после неудачи: 60s → 300s → 900s → 3600s (см. `apps/integrator/src/infra/delivery/deliveryContract.ts`). Зависшие `processing` возвращаются в `pending` по DB-backed таймауту; после настроенного числа возвратов строка уходит в `dead`.
+Статусы: `pending`, `processing`, `dispatching`, `sent`, `failed_retryable`, `dead`. `dispatching` ставится непосредственно перед внешним вызовом. Зависшие `processing` можно вернуть в `pending`; зависшие `dispatching` имеют неоднозначный внешний результат и уходят в `dead` с `failure_class=provider_outcome_unknown`, не вызывая провайдера повторно. Backoff после явной ошибки провайдера: 60s → 300s → 900s → 3600s (см. `apps/integrator/src/infra/delivery/deliveryContract.ts`).
 
 Выполненные `sent` старше DB-backed срока удаляются из рабочей очереди после следующей успешной постановки.
 Producer-adapter внутри `delivery-handler` infra scope читает DB-backed срок и вызывает существующий

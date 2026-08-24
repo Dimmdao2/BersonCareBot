@@ -39,6 +39,7 @@ import {
   claimDueOutgoingDeliveries,
   listPendingSpecialistTaskReminderBotMarkers,
   markOutgoingDeliveryDead,
+  markOutgoingDeliveryDispatching,
   markOutgoingDeliverySent,
   markSpecialistTaskReminderBotMarkerApplied,
   listPendingSpecialistTaskReminderOutcomes,
@@ -142,6 +143,10 @@ function queueMarkSent(
   return runWithDeliveryQueueCapability(() =>
     markOutgoingDeliverySent(db, id, sentMessagePayload),
   );
+}
+
+function queueMarkDispatching(db: DbPort, id: string): Promise<void> {
+  return runWithDeliveryQueueCapability(() => markOutgoingDeliveryDispatching(db, id));
 }
 
 function queueReschedule(
@@ -657,38 +662,56 @@ export async function processOutgoingDeliveryRow(
       await queueMarkSent(db, row.id);
       return;
     }
+    await queueMarkDispatching(db, row.id);
     try {
       await dispatchOutgoing(intent);
-      await queueMarkSent(db, row.id);
-      try {
-        await markOperatorIncidentAlertSent(db, incidentId);
-      } catch (error) {
-        logger.error(
-          { error, incidentId, rowId: row.id },
-          'operator_alert_mark_sent_failed_after_delivery',
-        );
-      }
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
         return;
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    try {
+      await queueMarkSent(db, row.id);
+    } catch (error) {
+      logger.error({ error, rowId: row.id }, 'queue_mark_sent_failed_after_provider_acceptance');
+      return;
+    }
+    try {
+      await markOperatorIncidentAlertSent(db, incidentId);
+    } catch (error) {
+      logger.error(
+        { error, incidentId, rowId: row.id },
+        'operator_alert_mark_sent_failed_after_delivery',
+      );
     }
     return;
   }
 
   if (row.kind === INBOUND_REPLY_QUEUE_KIND) {
+    await queueMarkDispatching(db, row.id);
     try {
       await dispatchOutgoing(intent);
-      await maybeClearMessengerBotBlockedMarker(db, row, intent);
-      await queueMarkSent(db, row.id);
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
         return;
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    try {
+      await queueMarkSent(db, row.id);
+    } catch (error) {
+      logger.error({ error, rowId: row.id }, 'queue_mark_sent_failed_after_provider_acceptance');
+      return;
+    }
+    try {
+      await maybeClearMessengerBotBlockedMarker(db, row, intent);
+    } catch (error) {
+      logger.warn({ error, rowId: row.id }, 'bot_marker_clear_failed_after_delivery');
     }
     return;
   }
@@ -739,25 +762,25 @@ export async function processOutgoingDeliveryRow(
         return;
       }
     }
-    try {
-      const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
-      const chatIdForDel = asChatIdFromRecipient(sendPayload.recipient);
-      const unified = p.deleteBeforeSendMessageId;
-      const legacyTg = p.deleteBeforeSendTelegramMessageId;
-      const staleStr =
-        typeof unified === 'string' && unified.trim().length > 0
-          ? unified.trim()
-          : typeof legacyTg === 'number' && Number.isFinite(legacyTg)
-            ? String(Math.trunc(legacyTg))
-            : typeof legacyTg === 'string' && /^\d+$/.test(legacyTg.trim())
-              ? legacyTg.trim()
-              : null;
-      if (staleStr && chatIdForDel !== null) {
-        if (channel === 'telegram') {
-          const staleMid = Number(staleStr);
-          if (Number.isFinite(staleMid) && staleMid > 0) {
-            try {
-              await dispatchOutgoing({
+    let sendResult: DeliverySendResult;
+    const sendPayload = intent.payload as { recipient?: { chatId?: unknown } };
+    const chatIdForDel = asChatIdFromRecipient(sendPayload.recipient);
+    const unified = p.deleteBeforeSendMessageId;
+    const legacyTg = p.deleteBeforeSendTelegramMessageId;
+    const staleStr =
+      typeof unified === 'string' && unified.trim().length > 0
+        ? unified.trim()
+        : typeof legacyTg === 'number' && Number.isFinite(legacyTg)
+          ? String(Math.trunc(legacyTg))
+          : typeof legacyTg === 'string' && /^\d+$/.test(legacyTg.trim())
+            ? legacyTg.trim()
+            : null;
+    if (staleStr && chatIdForDel !== null) {
+      if (channel === 'telegram') {
+        const staleMid = Number(staleStr);
+        if (Number.isFinite(staleMid) && staleMid > 0) {
+          try {
+            await dispatchOutgoing({
                 type: 'message.delete',
                 meta: {
                   eventId: `${row.eventId}:stale_delete`,
@@ -770,14 +793,14 @@ export async function processOutgoingDeliveryRow(
                   messageId: staleMid,
                   delivery: { channels: ['telegram'], maxAttempts: 1 },
                 },
-              });
-            } catch (err) {
-              logger.warn({ err, staleMid, occurrenceId }, 'reminder_stale_message_delete_failed');
-            }
+            });
+          } catch (err) {
+            logger.warn({ err, staleMid, occurrenceId }, 'reminder_stale_message_delete_failed');
           }
-        } else if (channel === 'max') {
-          try {
-            await dispatchOutgoing({
+        }
+      } else if (channel === 'max') {
+        try {
+          await dispatchOutgoing({
               type: 'message.delete',
               meta: {
                 eventId: `${row.eventId}:stale_delete`,
@@ -790,17 +813,19 @@ export async function processOutgoingDeliveryRow(
                 messageId: staleStr,
                 delivery: { channels: ['max'], maxAttempts: 1 },
               },
-            });
-          } catch (err) {
-            logger.warn(
-              { err, staleMessageId: staleStr, occurrenceId },
-              'max_reminder_stale_message_delete_failed',
-            );
-          }
+          });
+        } catch (err) {
+          logger.warn(
+            { err, staleMessageId: staleStr, occurrenceId },
+            'max_reminder_stale_message_delete_failed',
+          );
         }
       }
+    }
 
-      const sendResult = await dispatchOutgoing(intent);
+    await queueMarkDispatching(db, row.id);
+    try {
+      sendResult = await dispatchOutgoing(intent);
       if (channel === 'web_push') {
         const outcome = sendResult.webPushOutcome;
         if (!outcome || outcome.status === 'failed') {
@@ -834,37 +859,36 @@ export async function processOutgoingDeliveryRow(
           );
         }
       }
-      const telegramMessageId =
-        channel === 'telegram' && typeof sendResult?.telegramMessageId === 'number'
-          ? sendResult.telegramMessageId
-          : undefined;
-      const maxMessageId =
-        channel === 'max' &&
-        typeof sendResult?.maxMessageId === 'string' &&
-        sendResult.maxMessageId.trim().length > 0
-          ? sendResult.maxMessageId.trim()
-          : undefined;
-      // Track D final cutover (#987, §7): the provider already accepted this send. Everything from
-      // here on must persist/recognize actual delivery success and must never route a later failure
-      // back through `handleDispatchFailure` (which reschedules the row for another provider call) —
-      // that would call an already-successful provider a second time. `queueMarkSent` durably marks
-      // THIS delivery row (owner's rule/occurrence/delivery model: the queue row IS the delivery)
-      // terminal, and stays inside the provider try/catch, mirroring the already-established
-      // `specialist_task_reminder` pattern below. Occurrence-finalization and bot-marker bookkeeping
-      // run only AFTER it succeeds, each in its own isolated try/catch that only logs — internal
-      // repair, never a second provider call.
-      await queueMarkSent(db, row.id, {
-        ...(telegramMessageId !== undefined
-          ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
-          : {}),
-        ...(maxMessageId !== undefined ? { maxMessageId } : {}),
-      });
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
         return;
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    const telegramMessageId =
+      channel === 'telegram' && typeof sendResult.telegramMessageId === 'number'
+        ? sendResult.telegramMessageId
+        : undefined;
+    const maxMessageId =
+      channel === 'max' &&
+      typeof sendResult.maxMessageId === 'string' &&
+      sendResult.maxMessageId.trim().length > 0
+        ? sendResult.maxMessageId.trim()
+        : undefined;
+    try {
+      await queueMarkSent(db, row.id, {
+        ...(telegramMessageId !== undefined
+          ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
+          : {}),
+        ...(maxMessageId !== undefined ? { maxMessageId } : {}),
+      });
+    } catch (error) {
+      logger.error(
+        { error, occurrenceId, rowId: row.id },
+        'queue_mark_sent_failed_after_provider_acceptance',
+      );
       return;
     }
     try {
@@ -904,31 +928,18 @@ export async function processOutgoingDeliveryRow(
       return;
     }
     const maskedRecipient = maskRecipientForDoctorBroadcastLog(row.channel, intent);
-    let toSend: OutgoingIntent = intent;
+    const toSend =
+      doctorBroadcastMenu !== undefined
+        ? await enrichDoctorBroadcastIntentIfNeeded({
+            db,
+            row,
+            intent,
+            menu: doctorBroadcastMenu,
+          })
+        : intent;
+    await queueMarkDispatching(db, row.id);
     try {
-      toSend =
-        doctorBroadcastMenu !== undefined
-          ? await enrichDoctorBroadcastIntentIfNeeded({
-              db,
-              row,
-              intent,
-              menu: doctorBroadcastMenu,
-            })
-          : intent;
       await dispatchOutgoing(toSend);
-      await maybeClearMessengerBotBlockedMarker(db, row, toSend);
-      await queueMarkSent(db, row.id);
-      await incrementBroadcastAuditCounter(db, broadcastAuditId, 'sent_count');
-      logger.info(
-        {
-          broadcastAuditId,
-          eventId: row.eventId,
-          channel: row.channel,
-          outcome: 'sent',
-          recipient: maskedRecipient,
-        },
-        'doctor_broadcast_delivery.sent',
-      );
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
@@ -953,7 +964,26 @@ export async function processOutgoingDeliveryRow(
         );
       }
       await handleDispatchFailure(db, row, err, writePort, toSend);
+      return;
     }
+    try {
+      await queueMarkSent(db, row.id);
+    } catch (error) {
+      logger.error({ error, rowId: row.id }, 'queue_mark_sent_failed_after_provider_acceptance');
+      return;
+    }
+    await maybeClearMessengerBotBlockedMarker(db, row, toSend);
+    await incrementBroadcastAuditCounter(db, broadcastAuditId, 'sent_count');
+    logger.info(
+      {
+        broadcastAuditId,
+        eventId: row.eventId,
+        channel: row.channel,
+        outcome: 'sent',
+        recipient: maskedRecipient,
+      },
+      'doctor_broadcast_delivery.sent',
+    );
     return;
   }
 
@@ -981,9 +1011,9 @@ export async function processOutgoingDeliveryRow(
         return;
       }
     }
+    await queueMarkDispatching(db, row.id);
     try {
       await dispatchOutgoing(intent);
-      await queueMarkSent(db, row.id);
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
@@ -1012,6 +1042,12 @@ export async function processOutgoingDeliveryRow(
         }
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    try {
+      await queueMarkSent(db, row.id);
+    } catch (error) {
+      logger.error({ error, rowId: row.id }, 'queue_mark_sent_failed_after_provider_acceptance');
       return;
     }
     if (row.kind === 'specialist_task_reminder') {

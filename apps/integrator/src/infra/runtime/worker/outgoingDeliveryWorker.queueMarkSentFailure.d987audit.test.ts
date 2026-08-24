@@ -30,7 +30,11 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
-import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
+import {
+  claimDueOutgoingDeliveries,
+  resetStaleOutgoingDeliveryProcessing,
+  type OutgoingDeliveryQueueRow,
+} from '../../db/repos/outgoingDeliveryQueue.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
 
 vi.mock('../../observability/logger.js', async (importOriginal) => {
@@ -98,6 +102,7 @@ function harness() {
   const queueDead: string[] = [];
   const attemptLog: Array<{ status: unknown; reason: unknown }> = [];
   let markSentFailuresLeft = 1;
+  let queueStatus = 'processing';
 
   const db: DbPort = {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
@@ -107,6 +112,10 @@ function harness() {
       if (sql.includes('organization_id') && sql.includes('reminder_occurrence_history')) {
         return { rows: [{ organization_id: 'd0000000-0000-4000-8000-00000000000d' }] as T[] };
       }
+      if (sql.includes("SET status = 'dispatching'")) {
+        queueStatus = 'dispatching';
+        return { rows: [] as T[] };
+      }
       if (sql.includes("SET status = 'sent'")) {
         if (markSentFailuresLeft > 0) {
           markSentFailuresLeft -= 1;
@@ -114,6 +123,7 @@ function harness() {
           // bookkeeping write, not a delivery failure.
           throw new Error('connection terminated unexpectedly');
         }
+        queueStatus = 'sent';
         queueSent.push(String(params?.at(-1) ?? ''));
         return { rows: [] as T[] };
       }
@@ -122,8 +132,23 @@ function harness() {
         return { rows: [] as T[] };
       }
       if (sql.includes("SET status = 'dead'")) {
+        queueStatus = 'dead';
         queueDead.push(String(params?.at(-1) ?? ''));
         return { rows: [] as T[] };
+      }
+      if (sql.includes('WITH stale AS') && sql.includes('reclaim_count')) {
+        if (queueStatus === 'dispatching') {
+          queueStatus = 'dead';
+          return { rows: [{ status: 'dead' }] as T[] };
+        }
+        return { rows: [] as T[] };
+      }
+      if (sql.includes('WITH due AS') && sql.includes("status IN ('pending', 'failed_retryable')")) {
+        return {
+          rows: (queueStatus === 'pending' || queueStatus === 'failed_retryable'
+            ? [reminderRow({ status: 'processing' })]
+            : []) as T[],
+        };
       }
       return { rows: [] as T[] };
     },
@@ -140,19 +165,36 @@ function harness() {
     },
   };
 
-  return { db, writePort, dispatchOutgoing, queueSent, queueRetryable, queueDead, attemptLog };
+  return {
+    db,
+    writePort,
+    dispatchOutgoing,
+    queueSent,
+    queueRetryable,
+    queueDead,
+    attemptLog,
+    queueStatus: () => queueStatus,
+  };
 }
 
 describe('Track D #987 D987-F1 — a failed post-acceptance queue write must not re-send to the provider', () => {
   it('never calls the provider a second time when marking the queue row sent fails after acceptance', async () => {
     const h = harness();
 
-    // Tick 1: provider accepts, then the `status = 'sent'` write fails.
+    // Tick 1: provider accepts, then the `status = 'sent'` write fails. The durable provider
+    // boundary remains `dispatching`.
     await processOutgoingDeliveryRow(reminderRow(), h as never);
-    // Tick 2: whatever the worker did with the row, the next tick must not produce a second send.
-    await processOutgoingDeliveryRow(reminderRow({ attemptCount: 2 }), h as never);
+    expect(h.queueStatus()).toBe('dispatching');
 
-    // The patient must receive exactly one message. Today: 2.
+    // Recovery dead-letters an ambiguous provider outcome; the normal claimant cannot return it
+    // to the worker, so there is no second provider call.
+    expect(await resetStaleOutgoingDeliveryProcessing(h.db, 1, 3)).toEqual({
+      reclaimed: 0,
+      deadLettered: 1,
+    });
+    const nextTick = await claimDueOutgoingDeliveries(h.db, 10);
+    for (const row of nextTick) await processOutgoingDeliveryRow(row, h as never);
+
     expect(h.dispatchOutgoing).toHaveBeenCalledTimes(1);
   });
 

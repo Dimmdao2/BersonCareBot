@@ -1442,3 +1442,12 @@ DROP TABLE public.reminder_journal;
 -- squashed out of this candidate; IF EXISTS only cleans up an accidental intermediate object.
 
 DROP TABLE IF EXISTS integrator.direct_public_write_retries;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+-- A row at `dispatching` has crossed the last durable boundary before the provider call. If the
+-- worker dies there, the outcome is ambiguous and stale reclaim must dead-letter it, never send it again.
+
+ALTER TABLE public.outgoing_delivery_queue
+  DROP CONSTRAINT outgoing_delivery_queue_status_check,
+  ADD CONSTRAINT outgoing_delivery_queue_status_check
+    CHECK (status = ANY (ARRAY['pending', 'processing', 'dispatching', 'sent', 'failed_retryable', 'dead']::text[]));
