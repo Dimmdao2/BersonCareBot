@@ -72,7 +72,8 @@ BEGIN
            pg_catalog.jsonb_build_object(
              'value',
              pg_catalog.count(*) FILTER (
-               WHERE NULLIF(pg_catalog.btrim(setting.value_json ->> 'value'), '') IS NOT NULL
+               WHERE pg_catalog.jsonb_typeof(setting.value_json -> 'value') = 'string'
+                 AND NULLIF(pg_catalog.btrim(setting.value_json ->> 'value'), '') IS NOT NULL
              ) = pg_catalog.count(*)
            )
       FROM provider_requirement requirement
