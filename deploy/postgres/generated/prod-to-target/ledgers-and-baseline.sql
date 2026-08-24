@@ -95,6 +95,7 @@ INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (786
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (787, '38b33cd3336299c38e435d23e306b14ae699a452135fba90a280fd8bdfd19cfc', 1800000118000, '20260822T210000_drop_stale_public_booking_enrollment_signature');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (788, 'b681480f7a5e55cdb40e30f87b76d5ed541d201494ff843b6384f749efe57e74', 1800000119000, '20260822T213000_drop_dead_integrator_content_access_grant_root');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (793, '2285f55d2e22d7fd7cf06670563bb982b3ab0f391bdcd86addcc5806cf42af71', 1800000122000, '20260823T011000_reject_numeric_organization_slug_claims');
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (1017, '9591fc5596a188e6f9ee63237f6e44e328fabe941efc31ac8e0549467d02b864', 1800000150000, '20260824T162826_seed_unsupported_client_fallback_setting');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (763, '6473c4e8b774628dbfaa89a3a9119fdb00529343482e306c7e8b381c22192658', 1800000109000, '20260822T150000_the_integrator_readers_get_named_roots');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (764, '617fd7ff7360276aa155c3140d8cf19cb0b5a930561410f0de6b82c5fbfaa410', 1800000110000, '20260822T161000_the_platform_user_stats_screens_read_an_aggregate');
 INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at, tag) VALUES (765, '797c493a21eac9cba7265650ea1c36d3010bf3555938bcf8baf56e73c15041c5', 1800000111000, '20260822T173000_the_product_analytics_screen_reads_an_aggregate');
@@ -166,7 +167,7 @@ INSERT INTO public.saas_trial_policy (key, duration_days, start_event, post_tria
 -- Name: __drizzle_migrations_id_seq; Type: SEQUENCE SET; Schema: drizzle; Owner: -
 --
 
-SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1013, true);
+SELECT pg_catalog.setval('drizzle.__drizzle_migrations_id_seq', 1017, true);
 
 
 --
