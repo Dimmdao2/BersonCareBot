@@ -25,14 +25,6 @@ export type ReminderDoneDayStats = {
 };
 
 export type ReminderJournalPort = {
-  logAction(params: {
-    ruleIntegratorId: string;
-    platformUserId: string;
-    occurrenceId: string | null;
-    action: ReminderJournalAction;
-    snoozeUntil?: string | null;
-    skipReason?: string | null;
-  }): Promise<void>;
   listByRule(ruleIntegratorId: string, platformUserId: string): Promise<ReminderJournalEntry[]>;
   statsForUser(
     platformUserId: string,

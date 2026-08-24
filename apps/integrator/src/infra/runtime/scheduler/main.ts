@@ -14,7 +14,6 @@ import {
   reportSchedulerDispatchIsolationFailure,
   reportSchedulerLockIsolationFailure,
   reportWorkerOutgoingIsolationFailure,
-  reportWorkerProjectionIsolationFailure,
   reportWorkerQueueIsolationFailure,
 } from '../../observability/saasIsolationTelemetry.js';
 import { assertDeliveryWorkerPoolReady, assertSchedulerPoolReady } from '../../db/operationalPoolReadiness.js';
@@ -24,7 +23,6 @@ import { runOperatorHealthProbes } from '../../../app/operatorHealthProbeRunner.
 import { getOperatorHealthProbeConfig } from '../../../app/operatorHealthProbeSettings.js';
 import { getOperatorOutboundProbeLastRunAt } from '../../db/repos/operatorHealthDrizzle.js';
 import { runScheduledOperatorHealthProbeTick } from './operatorHealthProbeTick.js';
-import { runDirectPublicWriteRetryWorkerTick } from '../worker/directPublicWriteRetryWorker.js';
 import { runOutgoingDeliveryWorkerTick } from '../worker/outgoingDeliveryWorker.js';
 import { createOperatorAwareDeliveryAttemptWritePort } from '../worker/operatorDeliveryAttemptWritePort.js';
 import {
@@ -46,9 +44,11 @@ async function sleep(ms: number): Promise<void> {
 /**
  * D30 Ш9: `worker` and `scheduler` are one resident process now — one systemd unit, one leader
  * lock, one top-level cycle. Everything that used to run unconditionally in the separate worker
- * process (outgoing delivery, direct-public-write retries) now only runs while this process holds
- * `SCHEDULER_LOCK_KEY`, exactly like the organization sweep and health cadence already did. This
- * is the accepted loss of horizontal delivery scaling (Р-D30а, `docs/OWNER_DECISIONS.md`).
+ * process (outgoing delivery) now only runs while this process holds `SCHEDULER_LOCK_KEY`, exactly
+ * like the organization sweep and health cadence already did. This is the accepted loss of
+ * horizontal delivery scaling (Р-D30а, `docs/OWNER_DECISIONS.md`). Track D final cutover (#987)
+ * retired the separate direct-public-write retry tick entirely — the occurrence writes it used to
+ * repair now land in one atomic UPDATE with no second schema to fall behind.
  */
 async function startResident(): Promise<void> {
   const runtimeDb = createDbPort();
@@ -83,19 +83,22 @@ async function startResident(): Promise<void> {
 
   const { buildDeps } = await import('../../../app/di.js');
   // Two independent DI graphs, exactly as when scheduler and worker were separate processes: the
-  // scheduler graph feeds organization ticks/health probes/wakes, the worker graph keeps its own
-  // operator-aware delivery-attempt write port for outgoing delivery and direct-write retries.
+  // scheduler graph feeds organization ticks/health probes/wakes, the worker graph passes its own
+  // operator-aware delivery-attempt write port directly to the outgoing-delivery tick (below) — the
+  // real failed-provider-attempt write for a queue-backed reminder/broadcast/alert happens there,
+  // tied to the queue row (skipAttemptLog: true below opts dispatchPort's own write out for exactly
+  // this call). Every other (non-queue-backed) dispatchOutgoing caller still gets a real attempt
+  // row written by dispatchPort itself.
   const schedulerDeps = buildDeps();
   const schedulerDb = createDbPort();
 
-  const directPublicWriteRetryDb = createDbPort();
   const deliveryDb = createDbPort();
   const deliveryTenantWritePort = createDbWritePort({ db: deliveryDb });
   const deliveryWritePort = createOperatorAwareDeliveryAttemptWritePort({
     db: deliveryDb,
     tenantWritePort: deliveryTenantWritePort,
   });
-  const workerDeps = buildDeps({ dispatchAttemptWritePort: deliveryWritePort });
+  const workerDeps = buildDeps();
   const batchSize = Math.max(1, Math.trunc(appSettings.runtime.worker.batchSize));
 
   const digestWakeState = { completedBucket: null as number | null };
@@ -116,7 +119,11 @@ async function startResident(): Promise<void> {
       runOutgoingDeliveryWorkerTick({
         db: deliveryDb,
         writePort: deliveryWritePort,
-        dispatchOutgoing: (intent) => workerDeps.dispatchPort.dispatchOutgoing(intent),
+        // skipAttemptLog: this tick already records the one real failed attempt itself
+        // (handleDispatchFailure, with the real queue row id and real attempt count) — dispatchPort
+        // recording its own cruder attempt too would duplicate the operator journal entry.
+        dispatchOutgoing: (intent) =>
+          workerDeps.dispatchPort.dispatchOutgoing(intent, { skipAttemptLog: true }),
         batchSize,
         doctorBroadcastMenu: {
           templatePort: workerDeps.templatePort,
@@ -124,8 +131,6 @@ async function startResident(): Promise<void> {
           isTelegramMenuOnButtonPress: workerDeps.isTelegramMenuOnButtonPress,
         },
       }),
-    runDirectPublicWriteRetryTick: () =>
-      runDirectPublicWriteRetryWorkerTick(directPublicWriteRetryDb, batchSize),
     runOperatorHealthDigestWake: () =>
       runFixedCadenceWake({
         nowMs: Date.now(),
@@ -168,11 +173,6 @@ async function startResident(): Promise<void> {
       captureWorkerLoopError(err);
       reportWorkerOutgoingIsolationFailure(err);
       logger.error({ err }, 'Outgoing delivery worker tick failed');
-    },
-    onDirectPublicWriteRetryTickError: (err) => {
-      captureWorkerLoopError(err);
-      reportWorkerProjectionIsolationFailure(err);
-      logger.error({ err }, 'Direct public write retry worker tick failed');
     },
   });
 

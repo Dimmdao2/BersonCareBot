@@ -80,7 +80,6 @@ email_send_cooldowns	user_id	0	0
 idempotency_keys		0	0
 integration_webhook_error_events		0	0
 integration_webhook_last_status		0	0
-integrator_push_outbox		0	0
 lfk_complex_exercises		0	0
 lfk_complex_template_exercises		0	0
 lfk_complex_templates		0	0

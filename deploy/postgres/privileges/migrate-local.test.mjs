@@ -34,7 +34,8 @@ function createRollbackRuntime() {
       '-- BCB-MIGRATION-OWNER: app_probe_owner',
       '-- BCB-MIGRATION-SCHEMA-CREATE: app',
       '-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql',
-      'CREATE FUNCTION app.rollback_probe() RETURNS integer LANGUAGE plpgsql AS $$',
+      '-- BCB-MIGRATION-REHOME-FUNCTION: app.rollback_probe()',
+      'CREATE OR REPLACE FUNCTION app.rollback_probe() RETURNS integer LANGUAGE plpgsql AS $$',
       'BEGIN',
       '  RETURN 1;',
       'END;',
@@ -81,7 +82,14 @@ test('rollback-only sends pending Drizzle DDL through one transaction without a 
   assert.match(result.stdout, /validated and rolled back/u);
   const transaction = readFileSync(runtime.capture, 'utf8');
   assert.match(transaction, /^\\set ON_ERROR_STOP on\nBEGIN;/u);
-  assert.match(transaction, /CREATE FUNCTION app\.rollback_probe/u);
+  assert.match(transaction, /ALTER FUNCTION %s OWNER TO %I/u);
+  assert.match(transaction, /to_regprocedure\('app\.rollback_probe\(\)'\)/u);
+  assert.ok(
+    transaction.indexOf("to_regprocedure('app.rollback_probe()')")
+      < transaction.indexOf('SET LOCAL SESSION AUTHORIZATION'),
+    'existing function ownership must be repaired before the owner-ordered statement runs',
+  );
+  assert.match(transaction, /CREATE OR REPLACE FUNCTION app\.rollback_probe/u);
   assert.match(transaction, /INSERT INTO drizzle\.__drizzle_migrations/u);
   assert.match(transaction, /\nROLLBACK;\s*$/u);
   assert.doesNotMatch(transaction, /^COMMIT;\s*$/mu);

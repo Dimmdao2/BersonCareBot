@@ -3,10 +3,11 @@
  * Backfills reminders + content access from integrator DB to webapp projection tables.
  *
  * Reads user_reminder_rules, user_reminder_occurrences (sent/failed only),
- * user_reminder_delivery_logs, content_access_grants from integrator and upserts
- * into reminder_rules, reminder_occurrence_history, reminder_delivery_events,
- * content_access_grants_webapp. Idempotent by integrator_*_id. platform_user_id
- * resolved from platform_users.integrator_user_id when present.
+ * content_access_grants from integrator and upserts into reminder_rules,
+ * reminder_occurrence_history, content_access_grants_webapp. Idempotent by
+ * integrator_*_id. platform_user_id resolved from platform_users.integrator_user_id
+ * when present. Delivery events live only in outgoing_delivery_queue — no separate
+ * journal to backfill (retired 2026-08-23, see retire_duplicate_reminder_delivery_journals).
  *
  * Usage:
  *   INTEGRATOR_DATABASE_URL=... DATABASE_URL=... node scripts/backfill-reminders-domain.mjs [--dry-run | --commit] [--limit=N]
@@ -200,59 +201,6 @@ async function backfillReminderOccurrenceHistory() {
   console.log(`  Existing occurrence history preserved: ${preserved}`);
 }
 
-async function backfillReminderDeliveryEvents() {
-  const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
-  const { rows } = await src.query(
-    `SELECT l.id, l.occurrence_id, o.rule_id, r.user_id, l.channel, l.status, l.error_code, l.payload_json, l.created_at
-     FROM user_reminder_delivery_logs l
-     JOIN user_reminder_occurrences o ON o.id = l.occurrence_id
-     JOIN user_reminder_rules r ON r.id = o.rule_id
-     ORDER BY l.created_at ASC${limitClause}`,
-  );
-  console.log(`Reminder delivery events to backfill: ${rows.length}`);
-  let n = 0;
-  for (let i = 0; i < rows.length; i += BACKFILL_WRITE_BATCH) {
-    const chunk = rows.slice(i, i + BACKFILL_WRITE_BATCH);
-    if (!dryRun) await dst.query('BEGIN');
-    try {
-      for (const row of chunk) {
-        if (!dryRun) {
-          await dst.query(
-            `INSERT INTO reminder_delivery_events (
-          integrator_delivery_log_id, integrator_occurrence_id, integrator_rule_id, integrator_user_id,
-          channel, status, error_code, payload_json, created_at
-        ) VALUES ($1, $2, $3, $4::bigint, $5, $6, $7, $8::jsonb, $9::timestamptz)
-        ON CONFLICT (integrator_delivery_log_id) DO NOTHING`,
-            [
-              row.id,
-              row.occurrence_id,
-              row.rule_id,
-              String(row.user_id),
-              row.channel,
-              row.status,
-              row.error_code ?? null,
-              JSON.stringify(row.payload_json ?? {}),
-              row.created_at,
-            ],
-          );
-        }
-        n++;
-      }
-      if (!dryRun) await dst.query('COMMIT');
-    } catch (err) {
-      if (!dryRun) {
-        try {
-          await dst.query('ROLLBACK');
-        } catch {
-          // Best effort rollback; preserve original batch error.
-        }
-      }
-      throw err;
-    }
-  }
-  console.log(`  Delivery events ${dryRun ? 'would insert' : 'inserted'}: ${n}`);
-}
-
 async function backfillContentAccessGrants() {
   const limitClause = limit > 0 ? ` LIMIT ${limit}` : '';
   const { rows } = await src.query(
@@ -321,7 +269,6 @@ async function main() {
   try {
     await backfillReminderRules();
     await backfillReminderOccurrenceHistory();
-    await backfillReminderDeliveryEvents();
     await backfillContentAccessGrants();
   } finally {
     await src.end();

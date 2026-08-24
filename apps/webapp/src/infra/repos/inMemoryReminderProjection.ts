@@ -1,36 +1,11 @@
 import type {
   ReminderProjectionPort,
   ReminderRuleListItem,
-  ReminderOccurrenceHistoryItem,
 } from '@/modules/reminders/projectionPort';
 import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
 import { env } from '@/config/env';
 
 const rulesByIntegratorRuleId = new Map<string, ReminderRuleListItem>();
-const occurrenceHistory: Array<{
-  integratorOccurrenceId: string;
-  integratorRuleId: string;
-  integratorUserId: string;
-  category: string;
-  status: 'sent' | 'failed';
-  deliveryChannel: string | null;
-  errorCode: string | null;
-  occurredAt: string;
-}> = [];
-const deliveryEventsByIntegratorLogId = new Map<
-  string,
-  {
-    integratorDeliveryLogId: string;
-    integratorOccurrenceId: string;
-    integratorRuleId: string;
-    integratorUserId: string;
-    channel: string;
-    status: string;
-    errorCode: string | null;
-    payloadJson: Record<string, unknown>;
-    createdAt: string;
-  }
->();
 const contentGrantsByIntegratorGrantId = new Map<string, unknown>();
 
 export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
@@ -68,38 +43,6 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
     rulesByIntegratorRuleId.set(params.integratorRuleId, item);
   },
 
-  async appendFinalizedOccurrenceFromProjection(params) {
-    const existing = occurrenceHistory.some(
-      (o) => o.integratorOccurrenceId === params.integratorOccurrenceId,
-    );
-    if (existing) return;
-    occurrenceHistory.push({
-      integratorOccurrenceId: params.integratorOccurrenceId,
-      integratorRuleId: params.integratorRuleId,
-      integratorUserId: params.integratorUserId,
-      category: params.category,
-      status: params.status,
-      deliveryChannel: params.deliveryChannel ?? null,
-      errorCode: params.errorCode ?? null,
-      occurredAt: params.occurredAt,
-    });
-  },
-
-  async appendDeliveryEventFromProjection(params) {
-    if (deliveryEventsByIntegratorLogId.has(params.integratorDeliveryLogId)) return;
-    deliveryEventsByIntegratorLogId.set(params.integratorDeliveryLogId, {
-      integratorDeliveryLogId: params.integratorDeliveryLogId,
-      integratorOccurrenceId: params.integratorOccurrenceId,
-      integratorRuleId: params.integratorRuleId,
-      integratorUserId: params.integratorUserId,
-      channel: params.channel,
-      status: params.status,
-      errorCode: params.errorCode ?? null,
-      payloadJson: params.payloadJson ?? {},
-      createdAt: params.createdAt,
-    });
-  },
-
   async upsertContentAccessGrantFromProjection(params) {
     contentGrantsByIntegratorGrantId.set(params.integratorGrantId, params);
   },
@@ -118,22 +61,8 @@ export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
     );
   },
 
-  async listHistoryByIntegratorUserId(integratorUserId: string, limit = 50) {
-    const items = occurrenceHistory
-      .filter((o) => o.integratorUserId === integratorUserId)
-      .sort((a, b) => (b.occurredAt < a.occurredAt ? -1 : 1))
-      .slice(0, limit)
-      .map(
-        (o): ReminderOccurrenceHistoryItem => ({
-          id: o.integratorOccurrenceId,
-          ruleId: o.integratorRuleId,
-          status: o.status,
-          deliveryChannel: o.deliveryChannel,
-          errorCode: o.errorCode,
-          occurredAt: o.occurredAt,
-        }),
-      );
-    return items;
+  async listHistoryByIntegratorUserId(_integratorUserId: string, _limit = 50) {
+    return [];
   },
 
   async getUnseenCount(_platformUserId: string) {

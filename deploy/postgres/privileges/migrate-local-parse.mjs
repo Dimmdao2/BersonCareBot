@@ -5,7 +5,14 @@ export function parseOwnerStatements(source, tag) {
     if (backfillMatch) {
       const sql = statement.slice(backfillMatch[0].length).trim();
       if (!sql) throw new Error(`pending migration ${tag} statement ${index + 1} has an empty backfill`);
-      return { owner: null, schemaCreate: null, languageUsage: null, sql, backfill: true };
+      return {
+        owner: null,
+        schemaCreate: null,
+        languageUsage: null,
+        functionRehome: null,
+        sql,
+        backfill: true,
+      };
     }
     const match = /^\s*--\s*BCB-MIGRATION-OWNER:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(statement);
     if (!match?.[1]) {
@@ -21,12 +28,28 @@ export function parseOwnerStatements(source, tag) {
     if (schemaCreateMatch) remainder = remainder.slice(schemaCreateMatch[0].length);
     const languageUsageMatch = /^\s*--\s*BCB-MIGRATION-LANGUAGE-USAGE:\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:\r?\n|$)/u.exec(remainder);
     if (languageUsageMatch) remainder = remainder.slice(languageUsageMatch[0].length);
+    const functionRehomeMatch = /^\s*--\s*BCB-MIGRATION-REHOME-FUNCTION:\s*([^\r\n]+?)\s*(?:\r?\n|$)/u.exec(remainder);
+    if (functionRehomeMatch) remainder = remainder.slice(functionRehomeMatch[0].length);
+    const functionRehome = functionRehomeMatch?.[1] ?? null;
+    if (functionRehome && !/^[A-Za-z_][A-Za-z0-9_]*\.[A-Za-z_][A-Za-z0-9_]*\([A-Za-z0-9_[\],. ]*\)$/u.test(functionRehome)) {
+      throw new Error(`pending migration ${tag} statement ${index + 1} has an unsafe function rehome identity`);
+    }
+    if (functionRehome) {
+      const functionName = functionRehome.slice(0, functionRehome.indexOf('('));
+      const escapedName = functionName.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+      if (!new RegExp(`^\\s*CREATE\\s+OR\\s+REPLACE\\s+FUNCTION\\s+${escapedName}\\s*\\(`, 'imu').test(remainder)) {
+        throw new Error(
+          `pending migration ${tag} statement ${index + 1} rehomes ${functionRehome} but does not replace that function`,
+        );
+      }
+    }
     const sql = remainder.trim();
     if (!sql) throw new Error(`pending migration ${tag} statement ${index + 1} is empty`);
     return {
       owner: match[1],
       schemaCreate: schemaCreateMatch?.[1] ?? null,
       languageUsage: languageUsageMatch?.[1] ?? null,
+      functionRehome,
       sql,
       backfill: false,
     };

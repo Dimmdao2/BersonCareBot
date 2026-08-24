@@ -27,19 +27,6 @@ describe('createPgReminderJournalPort (pg SQL)', () => {
     runWebappSqlMock.mockResolvedValue({ rows: [], rowCount: 0 });
   });
 
-  it('logAction throws when INSERT returns no row (rule not found)', async () => {
-    const port = createPgReminderJournalPort();
-    await expect(
-      port.logAction({
-        ruleIntegratorId: 'missing-rule',
-        platformUserId: 'platform-1',
-        occurrenceId: 'occ-1',
-        action: 'done',
-      }),
-    ).rejects.toThrow(/no row inserted/);
-    expect(approxSqlAt(0)).toContain('INSERT INTO reminder_journal');
-  });
-
   it('recordSnooze returns not_found and rolls back when occurrence is not owned', async () => {
     const port = createPgReminderJournalPort();
     const result = await port.recordSnooze('platform-user-1', 'occ-missing', 15);

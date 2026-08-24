@@ -202,27 +202,6 @@ export function createWebappEventsPort(deps: {
       return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
     },
 
-    async syncSupportDeliveryAttempt(input: { body: string; idempotencyKey: string }) {
-      const result = await postSignedJson({
-        path: '/api/integrator/support/delivery-attempt',
-        body: input.body,
-        idempotencyKey: input.idempotencyKey,
-      });
-      const canonicalWrite =
-        result.canonicalWrite?.deliveryAttemptId && result.canonicalWrite.organizationId
-          ? {
-              deliveryAttemptId: result.canonicalWrite.deliveryAttemptId,
-              organizationId: result.canonicalWrite.organizationId,
-            }
-          : undefined;
-      const baseResult = {
-        ok: result.ok,
-        status: result.status,
-        ...(result.error ? { error: result.error } : {}),
-      };
-      return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
-    },
-
     async applySupportAdminReply(input: {
       body: string;
       idempotencyKey: string;

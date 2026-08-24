@@ -240,7 +240,7 @@ export function renderNullableSharedPatientPredicate({
 // chain-only patient ownership — tables with NO direct patient-identifying column, where the
 // owning patient is only reachable by walking one or more FK hops to a table that DOES carry one
 // (e.g. integrator.user_reminder_delivery_logs -> integrator.user_reminder_occurrences ->
-// public.reminder_rules, or public.support_delivery_events -> public.support_conversation_messages
+// public.reminder_rules, or public.support_question_messages -> public.support_questions
 // -> public.support_conversations).
 // Rendered as a single EXISTS with a chain of INNER JOINs (not nested EXISTS) so a broken/NULL hop
 // anywhere in the chain naturally fails the join and denies (fail-closed), matching the shape

@@ -75,10 +75,6 @@ async function main() {
           sql: `UPDATE reminder_occurrence_history SET integrator_user_id = $1::bigint WHERE integrator_user_id::text = $2`,
         },
         {
-          label: 'reminder_delivery_events',
-          sql: `UPDATE reminder_delivery_events SET integrator_user_id = $1::bigint WHERE integrator_user_id::text = $2`,
-        },
-        {
           label: 'content_access_grants_webapp',
           sql: `UPDATE content_access_grants_webapp SET integrator_user_id = $1::bigint WHERE integrator_user_id::text = $2`,
         },

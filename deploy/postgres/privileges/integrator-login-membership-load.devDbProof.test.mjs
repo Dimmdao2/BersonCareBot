@@ -63,15 +63,13 @@ const TENANT_SERVICE_READS = [
   ['public.org_enrollments', 'platform_user_id', 'repos/reminders.ts:30'],
   ['public.reminder_rules', 'integrator_rule_id', 'repos/reminders.ts:323'],
   ['public.broadcast_audit', 'organization_id', 'repos/broadcastAudit.ts'],
-  ['integrator.user_reminder_occurrences', 'organization_id', 'repos/reminders.ts'],
-  ['integrator.user_reminder_delivery_logs', 'organization_id', 'repos/reminders.ts'],
+  ['public.reminder_occurrence_history', 'organization_id', 'repos/reminders.ts'],
 ];
 
 /** Очередь доставки: без этих операций воркер не двигает ни одной строки. */
 const DELIVERY_WORKER_WRITES = [
   ['public.outgoing_delivery_queue', 'status', 'UPDATE', 'repos/outgoingDeliveryQueue.ts:177'],
   ['public.outgoing_delivery_queue', 'attempt_count', 'UPDATE', 'repos/jobQueue.ts:163'],
-  ['integrator.direct_public_write_retries', 'status', 'UPDATE', 'repos/directPublicWriteRetry.ts'],
 ];
 
 /** Кто из ролей логина видит колонку — список имён. */

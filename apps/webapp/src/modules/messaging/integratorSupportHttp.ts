@@ -52,18 +52,6 @@ export const integratorSupportQuestionWriteSchema = z.discriminatedUnion('operat
   }),
 ]);
 
-export const integratorSupportDeliveryAttemptWriteSchema = z.object({
-  organizationId: z.string().uuid(),
-  integratorIntentEventId: z.string().max(500).nullable(),
-  correlationId: z.string().max(500).nullable(),
-  channelCode: z.string().min(1).max(100),
-  status: z.string().min(1).max(100),
-  attempt: z.number().int().positive(),
-  reason: z.string().max(1000).nullable(),
-  payloadJson: z.record(z.string(), z.unknown()),
-  occurredAt: z.string().min(1),
-});
-
 export type IntegratorSupportSyncUserMessageBody = z.infer<
   typeof integratorSupportSyncUserMessageSchema
 >;
@@ -71,7 +59,4 @@ export type IntegratorSupportAdminReplyBody = z.infer<typeof integratorSupportAd
 export type IntegratorSupportStatusBody = z.infer<typeof integratorSupportStatusSchema>;
 export type IntegratorSupportQuestionWriteBody = z.infer<
   typeof integratorSupportQuestionWriteSchema
->;
-export type IntegratorSupportDeliveryAttemptWriteBody = z.infer<
-  typeof integratorSupportDeliveryAttemptWriteSchema
 >;

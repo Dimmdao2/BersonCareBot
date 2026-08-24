@@ -99,3 +99,46 @@ export const reminderRules = publicSchema.table('reminder_rules', {
   createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
 });
+
+/**
+ * The single physical occurrence store after Track D consolidation (#987) — replaces the old
+ * `integrator.user_reminder_occurrences` operational table the integrator app used to read/write
+ * directly. `integratorOccurrenceId` is the unique business key formerly known as `.id` on that
+ * table; `id` remains the physical primary key even though integrator repos do not address rows by it.
+ */
+export const reminderOccurrenceHistory = publicSchema.table(
+  'reminder_occurrence_history',
+  {
+    id: uuid().defaultRandom().primaryKey().notNull(),
+    integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
+    integratorRuleId: text('integrator_rule_id').notNull(),
+    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
+    organizationId: uuid('organization_id').notNull(),
+    platformUserId: uuid('platform_user_id').notNull(),
+    occurrenceKey: text('occurrence_key'),
+    category: text().notNull(),
+    status: text().notNull(),
+    plannedAt: timestamp('planned_at', { withTimezone: true, mode: 'string' }).notNull(),
+    queuedAt: timestamp('queued_at', { withTimezone: true, mode: 'string' }),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }),
+    failedAt: timestamp('failed_at', { withTimezone: true, mode: 'string' }),
+    deliveryChannel: text('delivery_channel'),
+    deliveryJobId: text('delivery_job_id'),
+    errorCode: text('error_code'),
+    deliveryGeneration: integer('delivery_generation').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }),
+    seenAt: timestamp('seen_at', { withTimezone: true, mode: 'string' }),
+    snoozedAt: timestamp('snoozed_at', { withTimezone: true, mode: 'string' }),
+    snoozedUntil: timestamp('snoozed_until', { withTimezone: true, mode: 'string' }),
+    skippedAt: timestamp('skipped_at', { withTimezone: true, mode: 'string' }),
+    skipReason: text('skip_reason'),
+    doneAt: timestamp('done_at', { withTimezone: true, mode: 'string' }),
+    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' }).notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' }).notNull(),
+  },
+  (table) => [
+    unique('reminder_occurrence_history_integrator_occurrence_id_key').on(
+      table.integratorOccurrenceId,
+    ),
+  ],
+);

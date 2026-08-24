@@ -16,6 +16,11 @@ export const RETENTION_SWEEP_TARGETS = [
   'product_analytics_events_recent',
   'product_analytics_user_hourly',
   'product_push_notifications',
+  'public_idempotency_keys',
+  'integrator_idempotency_keys',
+  'outgoing_delivery_queue_sent',
+  'outgoing_delivery_queue_dead',
+  'notification_delivery_attempts',
 ] as const;
 
 export type RetentionSweepTarget = (typeof RETENTION_SWEEP_TARGETS)[number];
@@ -37,6 +42,37 @@ export async function pruneRetentionTarget(
     'app.prune_retention_target(text,integer,boolean)',
     [target, days, dryRun],
     sql`SELECT app.prune_retention_target(${target}, ${days}, ${dryRun}) AS affected_count`,
+  );
+  return Number(result.rows[0]?.affected_count ?? 0);
+}
+
+/** Same bounds `app.prune_context_nonce_ledger` enforces (grace 0-86400s, limit 1-500000). */
+export function clampContextNonceLedgerGraceSec(graceSec: number): number {
+  return Math.min(86400, Math.max(0, Math.trunc(graceSec)));
+}
+
+export function clampContextNonceLedgerLimit(limit: number): number {
+  return Math.min(500_000, Math.max(1, Math.trunc(limit)));
+}
+
+/**
+ * `app.context_nonce_ledger` has no `prune_retention_target` branch — its ACL grants nothing but its
+ * own owner (p2-b:356-359), and its window is minutes, not days. Dedicated named root, same
+ * owner-owns-target pattern as `app.install_signed_context`.
+ */
+export async function pruneContextNonceLedger(
+  graceSec: number,
+  limit: number,
+  options?: { dryRun?: boolean },
+): Promise<number> {
+  const grace = clampContextNonceLedgerGraceSec(graceSec);
+  const cappedLimit = clampContextNonceLedgerLimit(limit);
+  const dryRun = options?.dryRun === true;
+  const result = await runWebappNamedRoot<{ affected_count: number | string }>(
+    getWebappSqlDb(),
+    'app.prune_context_nonce_ledger(integer,integer,boolean)',
+    [grace, cappedLimit, dryRun],
+    sql`SELECT app.prune_context_nonce_ledger(${grace}, ${cappedLimit}, ${dryRun}) AS affected_count`,
   );
   return Number(result.rows[0]?.affected_count ?? 0);
 }

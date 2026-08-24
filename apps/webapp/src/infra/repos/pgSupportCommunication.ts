@@ -31,7 +31,6 @@ import type {
   SupportConversationMessageRow,
   SupportConversationRelayInfo,
   SupportConversationRow,
-  SupportDeliveryEventRow,
   SupportQuestionMessageRow,
   SupportQuestionRow,
 } from '@/modules/messaging/ports';
@@ -42,7 +41,6 @@ export type {
   SupportConversationMessageRow,
   SupportConversationRelayInfo,
   SupportConversationRow,
-  SupportDeliveryEventRow,
   SupportQuestionMessageRow,
   SupportQuestionRow,
 } from '@/modules/messaging/ports';
@@ -140,19 +138,6 @@ type SupportQuestionDbRow = {
   created_at: string;
   answered_at: string | null;
   updated_at: string;
-};
-
-type SupportDeliveryEventDbRow = {
-  id: string;
-  conversation_message_id: string | null;
-  integrator_intent_event_id: string | null;
-  correlation_id: string | null;
-  channel_code: string;
-  status: string;
-  attempt: number;
-  reason: string | null;
-  payload_json: Record<string, unknown>;
-  occurred_at: string;
 };
 
 type AdminConversationListDbRow = {
@@ -526,36 +511,6 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       return { id: r.rows[0]?.id ?? '' };
     },
 
-    async appendDeliveryEventFromProjection(params) {
-      const organizationId = getCurrentDbPrincipalOrganizationId();
-      if (!organizationId) throw new Error('organization_principal_required');
-      if (organizationId !== params.organizationId)
-        throw new Error('organization_principal_mismatch');
-      const r = await runWebappPgText<{ id: string }>(
-        `INSERT INTO support_delivery_events (
-          organization_id, conversation_message_id, integrator_intent_event_id, correlation_id,
-          channel_code, status, attempt, reason, payload_json, occurred_at
-        ) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::timestamptz)
-        ON CONFLICT (integrator_intent_event_id)
-          WHERE integrator_intent_event_id IS NOT NULL
-        DO NOTHING
-        RETURNING id`,
-        [
-          organizationId,
-          params.conversationMessageId,
-          params.integratorIntentEventId,
-          params.correlationId,
-          params.channelCode,
-          params.status,
-          params.attempt,
-          params.reason,
-          JSON.stringify(params.payloadJson ?? {}),
-          params.occurredAt,
-        ],
-      );
-      return { id: r.rows[0]?.id ?? '' };
-    },
-
     async listConversationsByUser(platformUserId) {
       const r = await runWebappPgText<SupportConversationDbRow>(
         `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
@@ -608,29 +563,6 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         createdAt: row.created_at,
         answeredAt: row.answered_at,
         updatedAt: row.updated_at,
-      }));
-    },
-
-    async listRecentDeliveryTrailForConversation(conversationId, limit = 50) {
-      const r = await runWebappPgText<SupportDeliveryEventDbRow>(
-        `SELECT e.id, e.conversation_message_id, e.integrator_intent_event_id, e.correlation_id,
-                e.channel_code, e.status, e.attempt, e.reason, e.payload_json, e.occurred_at::text
-         FROM support_delivery_events e
-         JOIN support_conversation_messages m ON m.id = e.conversation_message_id AND m.conversation_id = $1
-         ORDER BY e.occurred_at DESC LIMIT $2`,
-        [conversationId, limit],
-      );
-      return r.rows.map((row) => ({
-        id: row.id,
-        conversationMessageId: row.conversation_message_id,
-        integratorIntentEventId: row.integrator_intent_event_id,
-        correlationId: row.correlation_id,
-        channelCode: row.channel_code,
-        status: row.status,
-        attempt: row.attempt,
-        reason: row.reason,
-        payloadJson: row.payload_json ?? {},
-        occurredAt: row.occurred_at,
       }));
     },
 

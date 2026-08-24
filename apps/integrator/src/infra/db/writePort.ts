@@ -16,11 +16,8 @@ import { createDbPort } from './client.js';
 import { appendMessageLog } from './repos/messageLogs.js';
 import { writeOperatorDeliveryAttempt } from './repos/operatorDeliveryAttempts.js';
 import { recordMessengerPhoneBindBlocked } from './repos/messengerPhoneBindAudit.js';
-import { enqueueDirectPublicWriteRetry } from './repos/directPublicWriteRetry.js';
 import {
   createContentAccessGrant,
-  getReminderOccurrenceContextForProjection,
-  insertReminderDeliveryLog,
   markReminderOccurrenceFailed,
   markReminderOccurrenceSent,
   expireOrphanedPendingReminderOccurrences,
@@ -29,7 +26,6 @@ import {
 } from './repos/reminders.js';
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
-import { projectionIdempotencyKey, hashPayload } from './repos/projectionKeys.js';
 import { logger } from '../observability/logger.js';
 import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
@@ -37,18 +33,9 @@ import {
   normalizeChannelDisplayHandle,
   type DirectPublicChannelCode,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
-import { appendSupportDeliveryEventDirect } from './directPublic/writeSupportQuestionsDirect.js';
-import {
-  appendReminderDeliveryEventDirect,
-  recordReminderOccurrenceFinalizedDirect,
-  type ReminderDeliveryLoggedDirectInput,
-  type ReminderOccurrenceFinalizedDirectInput,
-} from './directPublic/writeReminderProjectionDirect.js';
-import { executeCanonicalWriteOrLegacy } from '../adapters/supportCanonicalWriteHandoff.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
 import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
 import { writeDirectPublic } from './directPublic/writePort.js';
-import { recordOperatorFailureIncident } from '../operatorIncident/reportOperatorFailure.js';
 
 /**
  * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
@@ -149,30 +136,6 @@ export function createDbWritePort(
     'specialistTask.reminder.markSent',
     'message.retry.enqueue',
   ]);
-
-  async function queueDirectPublicRetry(
-    operation:
-      | 'reminder_occurrence_sent_record'
-      | 'reminder_occurrence_failed_record'
-      | 'reminder_occurrence_expired_record'
-      | 'reminder_delivery_log_append',
-    organizationId: string,
-    stableId: string,
-    payload:
-      | ReminderOccurrenceFinalizedDirectInput
-      | ReminderDeliveryLoggedDirectInput,
-  ): Promise<void> {
-    await enqueueDirectPublicWriteRetry(db, {
-      operation,
-      organizationId,
-      idempotencyKey: projectionIdempotencyKey(
-        `direct-public-write.${operation}`,
-        stableId,
-        hashPayload(payload),
-      ),
-      payload,
-    });
-  }
 
   function createTxBoundWritePort(txDb: DbPort): DbWritePort {
     return createDbWritePort({
@@ -375,134 +338,44 @@ export function createDbWritePort(
           }
         }
         case 'reminders.occurrence.markSent': {
+          // Track D final cutover (#987): `markReminderOccurrenceSent` is now itself a single,
+          // complete, atomic UPDATE against the one physical `public.reminder_occurrence_history`
+          // row (status/sent_at/delivery_channel/occurred_at/updated_at together). There is no
+          // second schema to project into anymore, so no separate `writeDirectPublic` finalize
+          // write and no durable retry queue (`integrator.direct_public_write_retries`, dropped by
+          // the same migration) — a failure here is a real write failure the caller's own retry
+          // policy handles, not a projection that can silently fall behind the operational row.
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           if (!occurrenceId || !channel) return;
-          const directInput = await db.tx(
-            async (txDb): Promise<ReminderOccurrenceFinalizedDirectInput | null> => {
-              await markReminderOccurrenceSent(txDb, occurrenceId, channel);
-              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-              if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
-                const canonicalUserId = ctx.userId;
-                return {
-                  integratorOccurrenceId: occurrenceId,
-                  integratorRuleId: ctx.ruleId,
-                  integratorUserId: canonicalUserId,
-                  platformUserId: ctx.platformUserId,
-                  organizationId: ctx.organizationId,
-                  category: ctx.category,
-                  status: ctx.status as 'sent' | 'failed',
-                  deliveryChannel: ctx.deliveryChannel,
-                  errorCode: ctx.errorCode,
-                  occurredAt: ctx.occurredAt,
-                };
-              }
-              return null;
-            },
-          );
-          if (!directInput) return;
-          try {
-            await writeDirectPublic('reminder-occurrence-finalize', () =>
-              recordReminderOccurrenceFinalizedDirect(db, directInput!),
-            );
-          } catch (err) {
-            await queueDirectPublicRetry(
-              'reminder_occurrence_sent_record',
-              directInput.organizationId,
-              occurrenceId,
-              directInput,
-            );
-            logger.warn(
-              { err, occurrenceId },
-              'reminder occurrence sent direct write failed, queued retry',
-            );
-          }
+          await markReminderOccurrenceSent(db, occurrenceId, channel);
           return;
         }
         case 'reminders.occurrence.markFailed': {
+          // Same reasoning as markSent above.
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           const channel = asNonEmptyString(mutation.params.channel);
           if (!occurrenceId || !channel) return;
-          const directInput = await db.tx(
-            async (txDb): Promise<ReminderOccurrenceFinalizedDirectInput | null> => {
-              await markReminderOccurrenceFailed(
-                txDb,
-                occurrenceId,
-                channel,
-                asNullableString(mutation.params.errorCode),
-              );
-              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-              if (ctx && (ctx.status === 'sent' || ctx.status === 'failed')) {
-                const canonicalUserId = ctx.userId;
-                return {
-                  integratorOccurrenceId: occurrenceId,
-                  integratorRuleId: ctx.ruleId,
-                  integratorUserId: canonicalUserId,
-                  platformUserId: ctx.platformUserId,
-                  organizationId: ctx.organizationId,
-                  category: ctx.category,
-                  status: ctx.status as 'sent' | 'failed',
-                  deliveryChannel: ctx.deliveryChannel,
-                  errorCode: ctx.errorCode,
-                  occurredAt: ctx.occurredAt,
-                };
-              }
-              return null;
-            },
+          await markReminderOccurrenceFailed(
+            db,
+            occurrenceId,
+            channel,
+            asNullableString(mutation.params.errorCode),
           );
-          if (!directInput) return;
-          try {
-            await writeDirectPublic('reminder-occurrence-finalize', () =>
-              recordReminderOccurrenceFinalizedDirect(db, directInput!),
-            );
-          } catch (err) {
-            await queueDirectPublicRetry(
-              'reminder_occurrence_failed_record',
-              directInput.organizationId,
-              occurrenceId,
-              directInput,
-            );
-            logger.warn(
-              { err, occurrenceId },
-              'reminder occurrence failure direct write failed, queued retry',
-            );
-          }
           return;
         }
         case 'reminders.occurrence.expireOrphanedPending': {
+          // Same reasoning as markSent above: `expireOrphanedPendingReminderOccurrences` already
+          // performs the complete finalize UPDATE per row; the contexts it returns are kept only
+          // for a summary log line, not for a second projection write.
           const nowIso = asNonEmptyString(mutation.params.nowIso);
           if (!nowIso) return;
           const expired = await expireOrphanedReminderOccurrences(db, nowIso);
-          for (const context of expired) {
-            const canonicalUserId = context.userId;
-            const directInput: ReminderOccurrenceFinalizedDirectInput = {
-              integratorOccurrenceId: context.occurrenceId,
-              integratorRuleId: context.ruleId,
-              integratorUserId: canonicalUserId,
-              platformUserId: context.platformUserId,
-              organizationId: context.organizationId,
-              category: context.category,
-              status: 'failed' as const,
-              deliveryChannel: context.deliveryChannel,
-              errorCode: context.errorCode,
-              occurredAt: context.occurredAt,
-            };
-            try {
-              await writeDirectPublic('reminder-occurrence-finalize', () =>
-                recordReminderOccurrenceFinalizedDirect(db, directInput),
-              );
-            } catch (err) {
-              await queueDirectPublicRetry(
-                'reminder_occurrence_expired_record',
-                directInput.organizationId,
-                context.occurrenceId,
-                directInput,
-              );
-              logger.warn(
-                { err, occurrenceId: context.occurrenceId },
-                'expired reminder occurrence direct write failed, queued retry',
-              );
-            }
+          if (expired.length > 0) {
+            logger.info(
+              { count: expired.length },
+              'expired orphaned pending reminder occurrences',
+            );
           }
           return;
         }
@@ -517,62 +390,6 @@ export function createDbWritePort(
           const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
           if (!occurrenceId) return;
           await markReminderOccurrenceSkippedLocal(db, occurrenceId);
-          return;
-        }
-        case 'reminders.delivery.log': {
-          const id = asNonEmptyString(mutation.params.id);
-          const occurrenceId = asNonEmptyString(mutation.params.occurrenceId);
-          const channel = asNonEmptyString(mutation.params.channel);
-          const status = asNonEmptyString(mutation.params.status);
-          if (!id || !occurrenceId || !channel || (status !== 'success' && status !== 'failed'))
-            return;
-          const payloadJson =
-            typeof mutation.params.payloadJson === 'object' && mutation.params.payloadJson !== null
-              ? (mutation.params.payloadJson as Record<string, unknown>)
-              : {};
-          const directInput = await db.tx(
-            async (txDb): Promise<ReminderDeliveryLoggedDirectInput | null> => {
-              const createdAt = await insertReminderDeliveryLog(txDb, {
-                id,
-                occurrenceId,
-                channel,
-                status,
-                errorCode: asNullableString(mutation.params.errorCode),
-                payloadJson,
-              });
-              const ctx = await getReminderOccurrenceContextForProjection(txDb, occurrenceId);
-              if (ctx) {
-                const canonicalUserId = ctx.userId;
-                return {
-                  organizationId: ctx.organizationId,
-                  integratorDeliveryLogId: id,
-                  integratorOccurrenceId: occurrenceId,
-                  integratorRuleId: ctx.ruleId,
-                  integratorUserId: canonicalUserId,
-                  channel,
-                  status,
-                  errorCode: asNullableString(mutation.params.errorCode),
-                  payloadJson,
-                  createdAt,
-                };
-              }
-              return null;
-            },
-          );
-          if (!directInput) return;
-          try {
-            await writeDirectPublic('reminder-delivery-append', () =>
-              appendReminderDeliveryEventDirect(db, directInput!),
-            );
-          } catch (err) {
-            await queueDirectPublicRetry(
-              'reminder_delivery_log_append',
-              directInput.organizationId,
-              id,
-              directInput,
-            );
-            logger.warn({ err, id }, 'reminder delivery log direct write failed, queued retry');
-          }
           return;
         }
         case 'content.access.grant.create': {
@@ -598,19 +415,27 @@ export function createDbWritePort(
           return;
         }
         case 'delivery.attempt.log': {
-          const dalParams = mutation.params as {
-            intentType?: unknown;
-            intentEventId?: unknown;
-            correlationId?: unknown;
-            channel?: unknown;
-            status?: unknown;
-            attempt?: unknown;
-            reason?: unknown;
-            organizationId?: unknown;
-            payload?: unknown;
-            occurredAt?: unknown;
-          };
+          // Track D final cutover (#987), section C: this case used to ALSO fan out into
+          // public.support_delivery_events (a separate support-conversation delivery timeline).
+          // That fan-out's only production trigger was this exact case, but the sole production
+          // producer of a 'delivery.attempt.log' mutation (outgoingDeliveryWorker.ts's
+          // recordDeliveryFailureAttempt) never reaches it — it goes through
+          // operatorDeliveryAttemptWritePort.ts's operator-aware port, which intercepts this
+          // mutation type and returns before this generic switch. dispatchPort.ts's own
+          // non-queue-backed attempt write (F5/F6 follow-up) uses the SAME operator-aware port for
+          // the same reason: a reminder/OTP/booking delivery attempt is not a support-conversation
+          // event. support_delivery_events, its named root, and this fan-out were removed together
+          // (20260823T200000 migration); only the canonical operator-journal write remains here.
           if (await getOperationalVerboseLogEnabled(db)) {
+            const dalParams = mutation.params as {
+              intentType?: unknown;
+              intentEventId?: unknown;
+              correlationId?: unknown;
+              channel?: unknown;
+              status?: unknown;
+              attempt?: unknown;
+              reason?: unknown;
+            };
             logger.info(
               {
                 intentType: asNullableString(dalParams.intentType),
@@ -627,137 +452,10 @@ export function createDbWritePort(
               'delivery attempt log',
             );
           }
-          const intentEventId = asNullableString(dalParams.intentEventId);
-          const correlationId = asNullableString(dalParams.correlationId);
-          const channel = asNonEmptyString(dalParams.channel);
-          const status = asNonEmptyString(dalParams.status);
-          const attemptRaw =
-            typeof dalParams.attempt === 'number' && Number.isFinite(dalParams.attempt)
-              ? Math.trunc(dalParams.attempt)
-              : null;
-          const reason = asNullableString(dalParams.reason);
-          const organizationId = asNullableString(dalParams.organizationId);
-          const payloadJson =
-            typeof dalParams.payload === 'object' && dalParams.payload !== null
-              ? (dalParams.payload as Record<string, unknown>)
-              : {};
-          const occurredAt = asNonEmptyString(dalParams.occurredAt) ?? new Date().toISOString();
           // The canonical operator-journal root is an exact named-root capability. Its attested
           // transaction must begin before a physical client is checked out; the shared writer installs
           // the existing delivery-worker principal when this path has another ambient principal.
           await writeOperatorDeliveryAttempt(db, mutation);
-          // D4: replaces the `support.delivery.attempt.logged` HTTP projection fanout. Own transaction
-          // after the canonical operator-journal write above; see writeSupportQuestionsDirect.ts header
-          // ("DURABILITY"). A missing `organizationId` is a genuine fail-closed (no write, no fallback,
-          // no incident) — the retired webapp consumer ALSO rejected this case non-retryably
-          // (`support.delivery.attempt.logged: organizationId required`, `retryable: false`), so skipping
-          // both the direct write and retry enqueue changes nothing about the eventual outcome.
-          // Anything else (row not written for an unexpected reason) enters the durable direct retry queue.
-          const deliveryFallbackPayload: Record<string, unknown> = {
-            intentEventId: intentEventId ?? null,
-            correlationId: correlationId ?? null,
-            channelCode: channel ?? 'unknown',
-            status: status ?? 'failed',
-            attempt: attemptRaw ?? 1,
-            reason: reason ?? null,
-            organizationId,
-            payloadJson,
-            occurredAt,
-          };
-          if (!organizationId) {
-            // Global/pre-login delivery has no clinic support timeline by design. The mandatory
-            // operational audit was already persisted above; this optional organization projection
-            // is simply not applicable. Unexpected failures with a known organization stay loud below.
-            return;
-          }
-          const deliveryAttemptId =
-            intentEventId ?? correlationId ?? `del-${hashPayload(deliveryFallbackPayload)}`;
-          const directInput = {
-            organizationId,
-            conversationMessageId: null,
-            integratorIntentEventId: intentEventId,
-            correlationId,
-            channelCode: channel ?? 'unknown',
-            status: status ?? 'failed',
-            attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-            reason,
-            payloadJson,
-            occurredAt,
-          };
-          const recordDeliveryAttemptFailureIncident = async (
-            errorClass: string,
-            errorDetail: string,
-          ): Promise<void> => {
-            await recordOperatorFailureIncident({
-              direction: 'db_write',
-              integration: 'support_delivery_events',
-              errorClass,
-              errorDetail,
-            }).catch((incidentErr: unknown) => {
-              logger.error(
-                { err: incidentErr, mutationType: mutation.type, intentEventId, correlationId },
-                'delivery.attempt.log: failed to record operator incident',
-              );
-            });
-          };
-          await executeCanonicalWriteOrLegacy({
-            sync: webappEventsPort?.syncSupportDeliveryAttempt
-              ? () =>
-                  webappEventsPort.syncSupportDeliveryAttempt!({
-                    body: JSON.stringify({
-                      organizationId,
-                      integratorIntentEventId: intentEventId,
-                      correlationId,
-                      channelCode: channel ?? 'unknown',
-                      status: status ?? 'failed',
-                      attempt: attemptRaw !== null && attemptRaw > 0 ? attemptRaw : 1,
-                      reason,
-                      payloadJson,
-                      occurredAt,
-                    }),
-                    idempotencyKey: `support-delivery-attempt:${deliveryAttemptId}`,
-                  })
-              : undefined,
-            accepts: (canonicalWrite) =>
-              canonicalWrite.deliveryAttemptId === deliveryAttemptId &&
-              canonicalWrite.organizationId === organizationId,
-            onHandoffFailure: async (failure) =>
-              recordDeliveryAttemptFailureIncident(
-                'delivery_attempt_log_canonical_handoff_failure',
-                failure,
-              ),
-            legacyWrite: async () => {
-              try {
-                // organizationId is already a known, validated value here (guarded above) — wrap with it
-                // directly rather than relying on the ambient principal (this mutation can also be reached
-                // from delivery/retry paths without an ambient organization principal at all).
-                await writeDirectPublic(
-                  'support-delivery-append',
-                  () => appendSupportDeliveryEventDirect(db, directInput),
-                  { organizationId },
-                );
-              } catch (err) {
-                await enqueueDirectPublicWriteRetry(db, {
-                  operation: 'support_delivery_attempt_append',
-                  organizationId,
-                  idempotencyKey: projectionIdempotencyKey(
-                    'direct-public-write.support-delivery-attempt-append',
-                    String(deliveryAttemptId),
-                    hashPayload(directInput),
-                  ),
-                  payload: directInput,
-                });
-                logger.warn(
-                  { err, mutationType: mutation.type, intentEventId, correlationId, channel },
-                  'delivery.attempt.log: direct public write failed, queued durable direct retry',
-                );
-                await recordDeliveryAttemptFailureIncident(
-                  'delivery_attempt_log_direct_write_fallback',
-                  'direct_write_unexpected_error',
-                );
-              }
-            },
-          });
           return;
         }
         case 'message.retry.enqueue': {
