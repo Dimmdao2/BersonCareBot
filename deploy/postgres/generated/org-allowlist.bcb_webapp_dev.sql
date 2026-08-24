@@ -21,7 +21,6 @@ END
 $bcb$;
 
 WITH declared(schema_name, table_name) AS (VALUES
-  ('integrator', 'user_reminder_occurrences'),
   ('public', 'admin_audit_log'),
   ('public', 'app_runtime_settings'),
   ('public', 'app_runtime_settings_audit'),
@@ -131,7 +130,6 @@ WITH declared(schema_name, table_name) AS (VALUES
   ('public', 'reference_catalog_snapshot_receipts'),
   ('public', 'reference_categories'),
   ('public', 'reference_items'),
-  ('public', 'reminder_journal'),
   ('public', 'reminder_occurrence_history'),
   ('public', 'reminder_rules'),
   ('public', 'test_attempts'),

@@ -63,38 +63,6 @@ export function createPgReminderProjectionPort(): ReminderProjectionPort {
       );
     },
 
-    async appendFinalizedOccurrenceFromProjection(params) {
-      await runWebappNamedRoot(
-        getWebappSqlDb(),
-        'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
-        [
-          params.integratorOccurrenceId,
-          params.integratorRuleId,
-          params.integratorUserId,
-          params.platformUserId,
-          params.organizationId,
-          params.category,
-          params.status,
-          params.deliveryChannel ?? null,
-          params.errorCode ?? null,
-          params.occurredAt,
-        ],
-        sql`
-        SELECT app.record_reminder_occurrence_finalized_projection(
-          ${params.integratorOccurrenceId}::text,
-          ${params.integratorRuleId}::text,
-          ${params.integratorUserId}::bigint,
-          ${params.platformUserId}::uuid,
-          ${params.organizationId}::uuid,
-          ${params.category}::text,
-          ${params.status}::text,
-          ${params.deliveryChannel ?? null}::text,
-          ${params.errorCode ?? null}::text,
-          ${params.occurredAt}::timestamptz
-        ) AS inserted`,
-      );
-    },
-
     async upsertContentAccessGrantFromProjection(params) {
       const pool = getPool();
       const platformUserId = await resolvePlatformUserId(params.integratorUserId);

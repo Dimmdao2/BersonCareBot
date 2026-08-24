@@ -10,7 +10,7 @@ type OccState = {
   snoozedUntil: string | null;
   skippedAt: string | null;
   skipReason: string | null;
-  /** Synthetic key aligned with `logAction.ruleId` / listByRule filter (no DB join in tests). */
+  /** Synthetic key aligned with the listByRule filter (no DB join in tests). */
   journalRuleIntegratorId: string;
   /** Approximates `reminder_occurrence_history.occurred_at` for day bucketing in tests. */
   deliveredAt: string;
@@ -58,18 +58,6 @@ export function createInMemoryReminderJournalPort(): ReminderJournalPort {
   }
 
   return {
-    async logAction(params) {
-      journal.unshift({
-        id: `j-${journal.length}`,
-        ruleId: params.ruleIntegratorId,
-        occurrenceId: params.occurrenceId,
-        action: params.action,
-        snoozeUntil: params.snoozeUntil ?? null,
-        skipReason: params.skipReason ?? null,
-        createdAt: new Date().toISOString(),
-      });
-    },
-
     async listByRule(ruleIntegratorId, _platformUserId) {
       return journal.filter((e) => e.ruleId === ruleIntegratorId);
     },

@@ -1,6 +1,7 @@
 -- BCB-MIGRATION-OWNER: app_seam_email_otp_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- BCB-MIGRATION-REHOME-FUNCTION: app.email_auth_find_email_challenge_for_confirm(uuid,uuid)
 -- BCB-MIGRATION-VERIFY: SELECT pg_catalog.strpos(p.prosrc, 'require_accepted_context') > 0 AND pg_catalog.strpos(p.prosrc, 'hash_port_typed_args') > 0 FROM pg_catalog.pg_proc p JOIN pg_catalog.pg_language l ON l.oid = p.prolang WHERE p.oid = pg_catalog.to_regprocedure('app.email_auth_find_email_challenge_for_confirm(uuid,uuid)') AND l.lanname = 'plpgsql'
 -- D17 forward-repair (audit F4, docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md
 -- §F4). `4d1380339` removed the second manual overlay body for five pre_session email roots from
@@ -12,7 +13,8 @@
 -- not repair what is already overwritten, and `20260822T100000_...` is already applied so it will not
 -- re-run. This forward migration restores the exact canonical body (verbatim from
 -- `20260822T100000_pre_session_email_and_signup_roots_accept_their_named_context.sql`) so a
--- CREATE OR REPLACE applies on top regardless of which body currently owns the name. The other four
+-- The owner-aware runner first re-homes this exact existing signature inside the same transaction,
+-- then CREATE OR REPLACE applies as app_seam_email_otp_owner. The other four
 -- pre_session email roots named in that migration are already canonical on every measured database
 -- (the migration won there); CREATE OR REPLACE with the identical body is a no-op for them.
 

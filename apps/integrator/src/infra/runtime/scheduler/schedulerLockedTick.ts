@@ -4,14 +4,11 @@ export type SchedulerLockedTickDeps = {
   runOrganizationTicks: () => Promise<number>;
   /** D30 Ш9: the resident process also owns due outgoing-delivery execution. */
   runOutgoingDeliveryTick: () => Promise<unknown>;
-  /** D30 Ш9: and direct-public-write retry execution. */
-  runDirectPublicWriteRetryTick: () => Promise<unknown>;
   runOperatorHealthDigestWake: () => Promise<boolean>;
   runSystemHealthGuardWake: () => Promise<boolean>;
   runOperatorHealthProbeTick: () => Promise<boolean>;
   onOrganizationTickError: (error: unknown) => void | Promise<void>;
   onOutgoingDeliveryTickError: (error: unknown) => void | Promise<void>;
-  onDirectPublicWriteRetryTickError: (error: unknown) => void | Promise<void>;
 };
 
 export type SchedulerLockedTickCoordinator = {
@@ -20,7 +17,6 @@ export type SchedulerLockedTickCoordinator = {
   /** Test/shutdown observation only; it never starts another sweep. */
   waitForOrganizationTick: () => Promise<void>;
   waitForOutgoingDeliveryTick: () => Promise<void>;
-  waitForDirectPublicWriteRetryTick: () => Promise<void>;
 };
 
 type SingleFlightBody = {
@@ -69,10 +65,9 @@ function createSingleFlightBody(
  * ticks.
  *
  * The leader lock is still the common authority: every cadence step proves ownership before it
- * starts any body. Organization work, outgoing-delivery dispatch and direct-public-write retries
- * are each single-flight, so a slow round is not duplicated, but none of them is awaited by the
- * health tick. A failed body is reported through its own boundary and cannot suppress this or
- * later health ticks.
+ * starts any body. Organization work and outgoing-delivery dispatch are each single-flight, so a
+ * slow round is not duplicated, but neither is awaited by the health tick. A failed body is
+ * reported through its own boundary and cannot suppress this or later health ticks.
  */
 export function createSchedulerLockedTickCoordinator(
   deps: SchedulerLockedTickDeps,
@@ -85,10 +80,6 @@ export function createSchedulerLockedTickCoordinator(
     deps.runOutgoingDeliveryTick,
     deps.onOutgoingDeliveryTickError,
   );
-  const directPublicWriteRetryTick = createSingleFlightBody(
-    deps.runDirectPublicWriteRetryTick,
-    deps.onDirectPublicWriteRetryTickError,
-  );
 
   return {
     async runTick(): Promise<void> {
@@ -96,7 +87,6 @@ export function createSchedulerLockedTickCoordinator(
       await deps.assertLockStillHeld();
       organizationTick.startIfIdle();
       outgoingDeliveryTick.startIfIdle();
-      directPublicWriteRetryTick.startIfIdle();
       await deps.runOperatorHealthDigestWake();
       await deps.runSystemHealthGuardWake();
       await deps.runOperatorHealthProbeTick();
@@ -104,6 +94,5 @@ export function createSchedulerLockedTickCoordinator(
 
     waitForOrganizationTick: organizationTick.wait,
     waitForOutgoingDeliveryTick: outgoingDeliveryTick.wait,
-    waitForDirectPublicWriteRetryTick: directPublicWriteRetryTick.wait,
   };
 }

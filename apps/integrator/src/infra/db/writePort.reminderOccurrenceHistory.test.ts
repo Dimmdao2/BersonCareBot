@@ -1,11 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort } from '../../kernel/contracts/index.js';
 
-const fakes = vi.hoisted(() => ({ recordFinalized: vi.fn() }));
-
-vi.mock('./directPublic/writeReminderProjectionDirect.js', () => ({
-  recordReminderOccurrenceFinalizedDirect: fakes.recordFinalized,
+const fakes = vi.hoisted(() => ({
+  markSent: vi.fn(),
+  markFailed: vi.fn(),
 }));
+
+vi.mock('./repos/reminders.js', async () => {
+  const actual = await vi.importActual<typeof import('./repos/reminders.js')>('./repos/reminders.js');
+  return {
+    ...actual,
+    markReminderOccurrenceSent: fakes.markSent,
+    markReminderOccurrenceFailed: fakes.markFailed,
+  };
+});
+
 import { createDbWritePort } from './writePort.js';
 
 function unusedDbPort(): DbPort {
@@ -19,8 +28,39 @@ function unusedDbPort(): DbPort {
   };
 }
 
-describe('reminder occurrence history direct write', () => {
-  it('records an orphaned failed occurrence through the canonical public writer', async () => {
+describe('reminder occurrence history direct write (Track D #987, post single-store cutover)', () => {
+  it('markSent writes straight to the one canonical row and returns without any second write', async () => {
+    fakes.markSent.mockResolvedValue(undefined);
+    const writePort = createDbWritePort({ db: unusedDbPort() });
+
+    await writePort.writeDb({
+      type: 'reminders.occurrence.markSent',
+      params: { occurrenceId: 'occ-sent-1', channel: 'telegram' },
+    });
+
+    expect(fakes.markSent).toHaveBeenCalledTimes(1);
+    expect(fakes.markSent).toHaveBeenCalledWith(expect.anything(), 'occ-sent-1', 'telegram');
+  });
+
+  it('markFailed writes straight to the one canonical row and returns without any second write', async () => {
+    fakes.markFailed.mockResolvedValue(undefined);
+    const writePort = createDbWritePort({ db: unusedDbPort() });
+
+    await writePort.writeDb({
+      type: 'reminders.occurrence.markFailed',
+      params: { occurrenceId: 'occ-failed-1', channel: 'telegram', errorCode: 'synthetic_failure' },
+    });
+
+    expect(fakes.markFailed).toHaveBeenCalledTimes(1);
+    expect(fakes.markFailed).toHaveBeenCalledWith(
+      expect.anything(),
+      'occ-failed-1',
+      'telegram',
+      'synthetic_failure',
+    );
+  });
+
+  it('expireOrphanedPending finalizes through the single injected repo call and needs no second write per row', async () => {
     const expireOrphanedReminderOccurrences = vi.fn().mockResolvedValue([
       {
         occurrenceId: 'occ-orphaned-1',
@@ -40,25 +80,18 @@ describe('reminder occurrence history direct write', () => {
       expireOrphanedReminderOccurrences,
     });
 
-    await writePort.writeDb({
-      type: 'reminders.occurrence.expireOrphanedPending',
-      params: { nowIso: '2026-07-31T09:03:01.000Z' },
-    });
+    // No exception, no second write attempted — the UPDATE inside the injected function is already
+    // the complete finalize; the writer only summarizes the returned contexts for a log line.
+    await expect(
+      writePort.writeDb({
+        type: 'reminders.occurrence.expireOrphanedPending',
+        params: { nowIso: '2026-07-31T09:03:01.000Z' },
+      }),
+    ).resolves.toBeUndefined();
 
     expect(expireOrphanedReminderOccurrences).toHaveBeenCalledWith(
       expect.anything(),
       '2026-07-31T09:03:01.000Z',
-    );
-    expect(fakes.recordFinalized).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        integratorOccurrenceId: 'occ-orphaned-1',
-        integratorRuleId: 'rule-1',
-        integratorUserId: 'non-numeric-user-id',
-        platformUserId: '9f000001-0000-4000-8000-000000000001',
-        organizationId: 'a0000000-0000-4000-8000-000000000001',
-        status: 'failed',
-      }),
     );
   });
 });

@@ -507,7 +507,7 @@ $_$;
 -- 'reminders.delivery.log' mutation type and the integrator worker's direct-write call were both
 -- retired in the same change; see outgoingDeliveryWorker.ts / writePort.ts).
 
-DROP FUNCTION app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone);
+DROP FUNCTION IF EXISTS app.integrator_append_reminder_delivery_event(uuid,text,text,text,bigint,text,text,text,text,timestamp with time zone);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_object_owner
 -- Track D final cutover (#987): integrator.user_reminder_delivery_logs and
@@ -524,23 +524,3 @@ DROP TABLE public.reminder_delivery_events;
 -- BCB-MIGRATION-OWNER: app_object_owner
 
 DROP TABLE integrator.user_reminder_delivery_logs;
---> statement-breakpoint
--- BCB-MIGRATION-OWNER: app_object_owner
--- Track D final cutover (#987): 'reminder_delivery_log_append' was the durable-retry operation for
--- the named root dropped above; no producer enqueues it anymore (writePort.ts's queueDirectPublicRetry
--- narrowed its operation union in the same change). The other five values are untouched — three
--- (reminder_occurrence_*_record) stay live, and 'support_delivery_attempt_append' /
--- 'content_access_grant_upsert' are a separate, pre-existing surface out of this cutover's scope.
-
-ALTER TABLE integrator.direct_public_write_retries
-  DROP CONSTRAINT IF EXISTS direct_public_write_retries_operation_check;
-ALTER TABLE integrator.direct_public_write_retries
-  ADD CONSTRAINT direct_public_write_retries_operation_check CHECK (
-    operation IN (
-      'support_delivery_attempt_append',
-      'reminder_occurrence_sent_record',
-      'reminder_occurrence_failed_record',
-      'reminder_occurrence_expired_record',
-      'content_access_grant_upsert'
-    )
-  );

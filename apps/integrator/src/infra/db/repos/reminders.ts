@@ -4,8 +4,8 @@ import type {
   ReminderOccurrenceRecord,
 } from '../../../kernel/contracts/index.js';
 import { getIntegratorDrizzleSession } from '../drizzle.js';
-import { contentAccessGrants, userReminderOccurrences } from '../schema/integratorDomainRepos.js';
-import { reminderRules } from '../schema/integratorPublicProduct.js';
+import { contentAccessGrants } from '../schema/integratorDomainRepos.js';
+import { reminderOccurrenceHistory, reminderRules } from '../schema/integratorPublicProduct.js';
 import { runIntegratorSql } from '../runIntegratorSql.js';
 import {
   getCurrentOrganizationPrincipalId,
@@ -72,22 +72,22 @@ function normalizeOccurrenceRow(row: {
 }
 
 const occurrenceSelectShape = {
-  id: userReminderOccurrences.id,
-  rule_id: userReminderOccurrences.ruleId,
-  occurrence_key: userReminderOccurrences.occurrenceKey,
-  planned_at: userReminderOccurrences.plannedAt,
-  status: userReminderOccurrences.status,
-  queued_at: userReminderOccurrences.queuedAt,
-  sent_at: userReminderOccurrences.sentAt,
-  failed_at: userReminderOccurrences.failedAt,
-  delivery_channel: userReminderOccurrences.deliveryChannel,
-  delivery_job_id: userReminderOccurrences.deliveryJobId,
-  error_code: userReminderOccurrences.errorCode,
-  organization_id: userReminderOccurrences.organizationId,
-  platform_user_id: userReminderOccurrences.platformUserId,
-  delivery_generation: userReminderOccurrences.deliveryGeneration,
-  created_at: userReminderOccurrences.createdAt,
-  updated_at: userReminderOccurrences.updatedAt,
+  id: reminderOccurrenceHistory.integratorOccurrenceId,
+  rule_id: reminderOccurrenceHistory.integratorRuleId,
+  occurrence_key: reminderOccurrenceHistory.occurrenceKey,
+  planned_at: reminderOccurrenceHistory.plannedAt,
+  status: reminderOccurrenceHistory.status,
+  queued_at: reminderOccurrenceHistory.queuedAt,
+  sent_at: reminderOccurrenceHistory.sentAt,
+  failed_at: reminderOccurrenceHistory.failedAt,
+  delivery_channel: reminderOccurrenceHistory.deliveryChannel,
+  delivery_job_id: reminderOccurrenceHistory.deliveryJobId,
+  error_code: reminderOccurrenceHistory.errorCode,
+  organization_id: reminderOccurrenceHistory.organizationId,
+  platform_user_id: reminderOccurrenceHistory.platformUserId,
+  delivery_generation: reminderOccurrenceHistory.deliveryGeneration,
+  created_at: reminderOccurrenceHistory.createdAt,
+  updated_at: reminderOccurrenceHistory.updatedAt,
 };
 
 export async function getReminderOccurrencesForRuleRange(
@@ -99,15 +99,15 @@ export async function getReminderOccurrencesForRuleRange(
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select(occurrenceSelectShape)
-    .from(userReminderOccurrences)
+    .from(reminderOccurrenceHistory)
     .where(
       and(
-        eq(userReminderOccurrences.ruleId, ruleId),
-        gte(userReminderOccurrences.plannedAt, fromIso),
-        lte(userReminderOccurrences.plannedAt, toIso),
+        eq(reminderOccurrenceHistory.integratorRuleId, ruleId),
+        gte(reminderOccurrenceHistory.plannedAt, fromIso),
+        lte(reminderOccurrenceHistory.plannedAt, toIso),
       ),
     )
-    .orderBy(asc(userReminderOccurrences.plannedAt));
+    .orderBy(asc(reminderOccurrenceHistory.plannedAt));
   return rows.map((r) => normalizeOccurrenceRow(r as Parameters<typeof normalizeOccurrenceRow>[0]));
 }
 
@@ -151,11 +151,11 @@ export async function cancelPendingReminderOccurrencesForRule(
 ): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
-    .delete(userReminderOccurrences)
+    .delete(reminderOccurrenceHistory)
     .where(
       and(
-        eq(userReminderOccurrences.ruleId, ruleId),
-        inArray(userReminderOccurrences.status, ['planned', 'queued']),
+        eq(reminderOccurrenceHistory.integratorRuleId, ruleId),
+        inArray(reminderOccurrenceHistory.status, ['planned', 'queued']),
       ),
     );
 }
@@ -181,12 +181,10 @@ export async function expireOrphanedPendingReminderOccurrences(
   const orgs = await runIntegratorSql<{ organization_id: string }>(
     db,
     sql`
-      SELECT DISTINCT COALESCE(o.organization_id, r.organization_id)::text AS organization_id
-      FROM user_reminder_occurrences o
-      LEFT JOIN public.reminder_rules r ON r.integrator_rule_id = o.rule_id
+      SELECT DISTINCT o.organization_id::text AS organization_id
+      FROM public.reminder_occurrence_history o
       WHERE o.status IN ('planned', 'queued')
         AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
-        AND COALESCE(o.organization_id, r.organization_id) IS NOT NULL
       ORDER BY organization_id
     `,
   );
@@ -198,17 +196,16 @@ export async function expireOrphanedPendingReminderOccurrences(
         const updated = await runIntegratorSql<{ id: string }>(
           txDb,
           sql`
-            UPDATE user_reminder_occurrences AS o
+            UPDATE public.reminder_occurrence_history AS o
             SET status = 'failed',
                 failed_at = now(),
                 error_code = 'orphaned_past_slot',
+                occurred_at = COALESCE(occurred_at, now()),
                 updated_at = now()
-            FROM public.reminder_rules AS r
-            WHERE r.integrator_rule_id = o.rule_id
-              AND o.status IN ('planned', 'queued')
+            WHERE o.status IN ('planned', 'queued')
               AND o.planned_at < ${nowIso}::timestamptz - interval '3 minutes'
-              AND COALESCE(o.organization_id, r.organization_id) = ${row.organization_id}::uuid
-            RETURNING o.id
+              AND o.organization_id = ${row.organization_id}::uuid
+            RETURNING o.integrator_occurrence_id AS id
           `,
         );
         const contexts: FinalizedReminderOccurrenceProjectionContext[] = [];
@@ -233,10 +230,9 @@ export async function resolveReminderOccurrenceOrganizationId(
   const res = await runIntegratorSql<{ organization_id: string | null }>(
     db,
     sql`
-      SELECT COALESCE(o.organization_id, r.organization_id)::text AS organization_id
-      FROM user_reminder_occurrences o
-      INNER JOIN public.reminder_rules r ON r.integrator_rule_id = o.rule_id
-      WHERE o.id = ${occurrenceId}
+      SELECT o.organization_id::text AS organization_id
+      FROM public.reminder_occurrence_history o
+      WHERE o.integrator_occurrence_id = ${occurrenceId}
       LIMIT 1
     `,
   );
@@ -253,14 +249,15 @@ export async function markReminderOccurrenceSent(
 ): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
-    .update(userReminderOccurrences)
+    .update(reminderOccurrenceHistory)
     .set({
       status: 'sent',
       sentAt: sql`now()`,
       deliveryChannel: channel,
+      occurredAt: sql`COALESCE(${reminderOccurrenceHistory.occurredAt}, now())`,
       updatedAt: sql`now()`,
     })
-    .where(eq(userReminderOccurrences.id, occurrenceId));
+    .where(eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId));
 }
 
 export async function markReminderOccurrenceFailed(
@@ -271,15 +268,16 @@ export async function markReminderOccurrenceFailed(
 ): Promise<void> {
   const d = getIntegratorDrizzleSession(db);
   await d
-    .update(userReminderOccurrences)
+    .update(reminderOccurrenceHistory)
     .set({
       status: 'failed',
       failedAt: sql`now()`,
       deliveryChannel: channel,
       errorCode,
+      occurredAt: sql`COALESCE(${reminderOccurrenceHistory.occurredAt}, now())`,
       updatedAt: sql`now()`,
     })
-    .where(eq(userReminderOccurrences.id, occurrenceId));
+    .where(eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId));
 }
 
 /** Context for projection reminder.occurrence.finalized / reminder.delivery.logged. */
@@ -290,20 +288,20 @@ export async function getReminderOccurrenceContextForProjection(
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select({
-      rule_id: userReminderOccurrences.ruleId,
+      rule_id: reminderOccurrenceHistory.integratorRuleId,
       user_id: sql<string>`${reminderRules.integratorUserId}::text`,
-      platform_user_id: userReminderOccurrences.platformUserId,
-      organization_id: sql<string>`COALESCE(${userReminderOccurrences.organizationId}, ${reminderRules.organizationId})::text`,
+      platform_user_id: reminderOccurrenceHistory.platformUserId,
+      organization_id: sql<string>`${reminderOccurrenceHistory.organizationId}::text`,
       category: reminderRules.category,
-      status: userReminderOccurrences.status,
-      sent_at: userReminderOccurrences.sentAt,
-      failed_at: userReminderOccurrences.failedAt,
-      delivery_channel: userReminderOccurrences.deliveryChannel,
-      error_code: userReminderOccurrences.errorCode,
+      status: reminderOccurrenceHistory.status,
+      sent_at: reminderOccurrenceHistory.sentAt,
+      failed_at: reminderOccurrenceHistory.failedAt,
+      delivery_channel: reminderOccurrenceHistory.deliveryChannel,
+      error_code: reminderOccurrenceHistory.errorCode,
     })
-    .from(userReminderOccurrences)
-    .innerJoin(reminderRules, eq(reminderRules.integratorRuleId, userReminderOccurrences.ruleId))
-    .where(eq(userReminderOccurrences.id, occurrenceId))
+    .from(reminderOccurrenceHistory)
+    .innerJoin(reminderRules, eq(reminderRules.integratorRuleId, reminderOccurrenceHistory.integratorRuleId))
+    .where(eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId))
     .limit(1);
   const row = rows[0];
   if (!row) return null;
@@ -371,9 +369,9 @@ export async function getReminderOccurrenceOwnerUserId(
   const d = getIntegratorDrizzleSession(db);
   const rows = await d
     .select({ user_id: sql<string>`${reminderRules.integratorUserId}::text` })
-    .from(userReminderOccurrences)
-    .innerJoin(reminderRules, eq(reminderRules.integratorRuleId, userReminderOccurrences.ruleId))
-    .where(eq(userReminderOccurrences.id, occurrenceId))
+    .from(reminderOccurrenceHistory)
+    .innerJoin(reminderRules, eq(reminderRules.integratorRuleId, reminderOccurrenceHistory.integratorRuleId))
+    .where(eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId))
     .limit(1);
   const id = rows[0]?.user_id;
   return id && id.trim().length > 0 ? id.trim() : null;
@@ -387,7 +385,7 @@ export async function rescheduleReminderOccurrencePlanned(
 ): Promise<boolean> {
   const d = getIntegratorDrizzleSession(db);
   const updated = await d
-    .update(userReminderOccurrences)
+    .update(reminderOccurrenceHistory)
     .set({
       plannedAt: plannedAtIso,
       status: 'planned',
@@ -401,11 +399,11 @@ export async function rescheduleReminderOccurrencePlanned(
     })
     .where(
       and(
-        eq(userReminderOccurrences.id, occurrenceId),
-        ne(userReminderOccurrences.status, 'skipped'),
+        eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId),
+        ne(reminderOccurrenceHistory.status, 'skipped'),
       ),
     )
-    .returning({ id: userReminderOccurrences.id });
+    .returning({ id: reminderOccurrenceHistory.integratorOccurrenceId });
   return updated.length > 0;
 }
 
@@ -415,18 +413,18 @@ export async function markReminderOccurrenceSkippedLocal(
 ): Promise<boolean> {
   const d = getIntegratorDrizzleSession(db);
   const updated = await d
-    .update(userReminderOccurrences)
+    .update(reminderOccurrenceHistory)
     .set({
       status: 'skipped',
       updatedAt: sql`now()`,
     })
     .where(
       and(
-        eq(userReminderOccurrences.id, occurrenceId),
-        ne(userReminderOccurrences.status, 'skipped'),
+        eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId),
+        ne(reminderOccurrenceHistory.status, 'skipped'),
       ),
     )
-    .returning({ id: userReminderOccurrences.id });
+    .returning({ id: reminderOccurrenceHistory.integratorOccurrenceId });
   return updated.length > 0;
 }
 
@@ -451,12 +449,12 @@ export async function getStaleReminderMessengerMessageIdForResend(
        END
      ) AS mid
      FROM public.outgoing_delivery_queue q
-     INNER JOIN user_reminder_occurrences o ON o.id = q.payload_json->>'occurrenceId'
+     INNER JOIN public.reminder_occurrence_history o ON o.integrator_occurrence_id = q.payload_json->>'occurrenceId'
      WHERE q.kind = 'reminder_dispatch'
        AND q.channel = ${input.channel}
        AND q.status = 'sent'
-       AND o.rule_id = ${input.ruleId}
-       AND o.id <> ${input.excludeOccurrenceId}
+       AND o.integrator_rule_id = ${input.ruleId}
+       AND o.integrator_occurrence_id <> ${input.excludeOccurrenceId}
        AND o.status = 'sent'
        AND (
          (${input.channel} = 'max' AND (q.payload_json ? 'maxMessageId'))

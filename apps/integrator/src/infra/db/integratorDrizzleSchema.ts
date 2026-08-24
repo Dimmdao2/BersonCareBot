@@ -3,12 +3,12 @@ import {
   bookingCalendarMap,
   orgEnrollments,
   platformUsers,
+  reminderOccurrenceHistory,
   reminderRules,
   userChannelBindings,
 } from './schema/integratorPublicProduct.js';
 import {
   contentAccessGrants,
-  userReminderOccurrences,
 } from './schema/integratorDomainRepos.js';
 
 export const integratorDrizzleSchema = {
@@ -19,6 +19,6 @@ export const integratorDrizzleSchema = {
   platformUsers,
   userChannelBindings,
   reminderRules,
-  userReminderOccurrences,
+  reminderOccurrenceHistory,
   contentAccessGrants,
 } as const;

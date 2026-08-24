@@ -14,7 +14,6 @@ import {
   reportSchedulerDispatchIsolationFailure,
   reportSchedulerLockIsolationFailure,
   reportWorkerOutgoingIsolationFailure,
-  reportWorkerProjectionIsolationFailure,
   reportWorkerQueueIsolationFailure,
 } from '../../observability/saasIsolationTelemetry.js';
 import { assertDeliveryWorkerPoolReady, assertSchedulerPoolReady } from '../../db/operationalPoolReadiness.js';
@@ -24,7 +23,6 @@ import { runOperatorHealthProbes } from '../../../app/operatorHealthProbeRunner.
 import { getOperatorHealthProbeConfig } from '../../../app/operatorHealthProbeSettings.js';
 import { getOperatorOutboundProbeLastRunAt } from '../../db/repos/operatorHealthDrizzle.js';
 import { runScheduledOperatorHealthProbeTick } from './operatorHealthProbeTick.js';
-import { runDirectPublicWriteRetryWorkerTick } from '../worker/directPublicWriteRetryWorker.js';
 import { runOutgoingDeliveryWorkerTick } from '../worker/outgoingDeliveryWorker.js';
 import { createOperatorAwareDeliveryAttemptWritePort } from '../worker/operatorDeliveryAttemptWritePort.js';
 import {
@@ -46,9 +44,11 @@ async function sleep(ms: number): Promise<void> {
 /**
  * D30 Ш9: `worker` and `scheduler` are one resident process now — one systemd unit, one leader
  * lock, one top-level cycle. Everything that used to run unconditionally in the separate worker
- * process (outgoing delivery, direct-public-write retries) now only runs while this process holds
- * `SCHEDULER_LOCK_KEY`, exactly like the organization sweep and health cadence already did. This
- * is the accepted loss of horizontal delivery scaling (Р-D30а, `docs/OWNER_DECISIONS.md`).
+ * process (outgoing delivery) now only runs while this process holds `SCHEDULER_LOCK_KEY`, exactly
+ * like the organization sweep and health cadence already did. This is the accepted loss of
+ * horizontal delivery scaling (Р-D30а, `docs/OWNER_DECISIONS.md`). Track D final cutover (#987)
+ * retired the separate direct-public-write retry tick entirely — the occurrence writes it used to
+ * repair now land in one atomic UPDATE with no second schema to fall behind.
  */
 async function startResident(): Promise<void> {
   const runtimeDb = createDbPort();
@@ -92,7 +92,6 @@ async function startResident(): Promise<void> {
   const schedulerDeps = buildDeps();
   const schedulerDb = createDbPort();
 
-  const directPublicWriteRetryDb = createDbPort();
   const deliveryDb = createDbPort();
   const deliveryTenantWritePort = createDbWritePort({ db: deliveryDb });
   const deliveryWritePort = createOperatorAwareDeliveryAttemptWritePort({
@@ -132,8 +131,6 @@ async function startResident(): Promise<void> {
           isTelegramMenuOnButtonPress: workerDeps.isTelegramMenuOnButtonPress,
         },
       }),
-    runDirectPublicWriteRetryTick: () =>
-      runDirectPublicWriteRetryWorkerTick(directPublicWriteRetryDb, batchSize),
     runOperatorHealthDigestWake: () =>
       runFixedCadenceWake({
         nowMs: Date.now(),
@@ -176,11 +173,6 @@ async function startResident(): Promise<void> {
       captureWorkerLoopError(err);
       reportWorkerOutgoingIsolationFailure(err);
       logger.error({ err }, 'Outgoing delivery worker tick failed');
-    },
-    onDirectPublicWriteRetryTickError: (err) => {
-      captureWorkerLoopError(err);
-      reportWorkerProjectionIsolationFailure(err);
-      logger.error({ err }, 'Direct public write retry worker tick failed');
     },
   });
 

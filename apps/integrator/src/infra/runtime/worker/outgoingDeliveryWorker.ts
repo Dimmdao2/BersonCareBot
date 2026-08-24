@@ -844,13 +844,15 @@ export async function processOutgoingDeliveryRow(
         sendResult.maxMessageId.trim().length > 0
           ? sendResult.maxMessageId.trim()
           : undefined;
-      await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
-        await writePort.writeDb({
-          type: 'reminders.occurrence.markSent',
-          params: { occurrenceId, channel },
-        });
-      });
-      await maybeClearMessengerBotBlockedMarker(db, row, intent);
+      // Track D final cutover (#987, §7): the provider already accepted this send. Everything from
+      // here on must persist/recognize actual delivery success and must never route a later failure
+      // back through `handleDispatchFailure` (which reschedules the row for another provider call) —
+      // that would call an already-successful provider a second time. `queueMarkSent` durably marks
+      // THIS delivery row (owner's rule/occurrence/delivery model: the queue row IS the delivery)
+      // terminal, and stays inside the provider try/catch, mirroring the already-established
+      // `specialist_task_reminder` pattern below. Occurrence-finalization and bot-marker bookkeeping
+      // run only AFTER it succeeds, each in its own isolated try/catch that only logs — internal
+      // repair, never a second provider call.
       await queueMarkSent(db, row.id, {
         ...(telegramMessageId !== undefined
           ? { telegramMessageId: String(Math.trunc(telegramMessageId)) }
@@ -863,6 +865,31 @@ export async function processOutgoingDeliveryRow(
         return;
       }
       await handleDispatchFailure(db, row, err, writePort, intent);
+      return;
+    }
+    try {
+      await runWithReminderOccurrenceOrganization(db, occurrenceId, async () => {
+        await writePort.writeDb({
+          type: 'reminders.occurrence.markSent',
+          params: { occurrenceId, channel },
+        });
+      });
+    } catch (err) {
+      // The provider already accepted the send and the delivery queue row above is already
+      // terminal. Occurrence-finalization is independent business-state bookkeeping: retry it
+      // through its own repair path, never by returning the external delivery to the provider.
+      logger.warn(
+        { err, occurrenceId, rowId: row.id },
+        'reminder_occurrence_finalize_failed_after_delivery',
+      );
+    }
+    try {
+      await maybeClearMessengerBotBlockedMarker(db, row, intent);
+    } catch (err) {
+      logger.warn(
+        { err, rowId: row.id, occurrenceId },
+        'outgoing_delivery_bot_marker_bookkeeping_failed_after_delivery',
+      );
     }
     return;
   }

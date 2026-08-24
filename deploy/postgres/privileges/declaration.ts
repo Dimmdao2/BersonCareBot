@@ -855,11 +855,6 @@ const TABLE_ROWS: TableRow[] = [
     defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало '
       + 'public.support_conversations 21/21; писатель ещё жив (пишется на каждое сообщение поддержки)' } },
-  { t: 'integrator.direct_public_write_retries', cls: 'S', org: false, why: 'durable retry прямой записи в public — '
-    + 'временный отказ RLS/сети не должен потерять правило напоминания или журнал доставки',
-    revoke: { app_staff: 'D10: очередь исполняется только integrator request и worker; payload содержит пациентские данные.' },
-    pol: 'не projection transport: повторяет тот же direct-public writer под явным org-принципалом.',
-    defect: ['D10-direct-write-durability'] },
   { t: 'integrator.idempotency_keys', cls: 'S', org: false, why: 'ключи идемпотентности API — повтор вебхука '
     + 'начинает дублировать записи и отправки',
     revoke: { app_staff: 'D14: очередь дедупа вебхуков — не место арендной роли.' },
@@ -884,9 +879,6 @@ const TABLE_ROWS: TableRow[] = [
     + 'персонала', defect: ['D25-foundation-identities'],
     drop: { verdict: 'MOVE+DROP', source: 'evidence/15 §6-9 — волна 2', blockedBy: 'зеркало public.support_questions '
       + '16/16' } },
-  { t: 'integrator.user_reminder_occurrences', cls: 'P', org: true, why: 'конкретные срабатывания напоминаний — '
-    + 'напоминания не ставятся в очередь и дублируются', pol: 'опирается на reminder_rules; после волны 3 проверить, '
-    + 'на что смотрит ветка' },
   { t: 'integrator.user_reminder_rules', cls: 'P', why: 'правила напоминаний пациента — пациент перестаёт получать '
     + 'напоминания',
     drop: { verdict: 'DROP', source: 'evidence/15 §4 — 27/27 уже в public.reminder_rules' } },
@@ -1339,11 +1331,13 @@ const TABLE_ROWS: TableRow[] = [
   { t: 'public.reference_items', cls: 'C', org: true, wall: 'reference-org-copy', why: 'элементы справочников '
     + 'клиники — без них выпадающие списки каталогов пусты', wallWhy: W_REF_COPY, pol: 'та же эталонная форма D3, '
     + 'что у reference_categories' },
-  { t: 'public.reminder_journal', cls: 'P', org: true, why: 'действия пациента с напоминанием — без неё пациент не '
-    + 'видит истории «отложил/пропустил»', defect: ['D27-empty-org-discriminator'],
-    gate: ['O3-empty-tenant-discriminator'] },
-  { t: 'public.reminder_occurrence_history', cls: 'P', org: true, why: 'история срабатываний напоминаний — без неё '
-    + 'нет истории напоминаний и статистики соблюдения режима' },
+  { t: 'public.reminder_occurrence_history', cls: 'P', org: true, why: 'единственная физическая occurrence-таблица '
+    + '(Track D §987 cutover) — операционный жизненный цикл срабатывания (planned/queued/sent/failed/skipped, '
+    + 'claim-поля delivery_generation/occurrence_key) и пациентские факты (seen/snoozed/skipped/done) на одной '
+    + 'строке; без неё нет ни доставки напоминаний, ни истории/статистики соблюдения режима',
+    pol: 'слита из integrator.user_reminder_occurrences (операционная сторона) и public.reminder_journal '
+    + '(факт done) — обе таблицы дропнуты в той же миграции; см. '
+    + 'docs/_TODO/runs/integrator-cleanup/TRACK_D_DUPLICATE_STORE_CUTOVER_2026-08-23.md' },
   { t: 'public.reminder_rules', cls: 'P', org: true, why: 'правила напоминаний пациенту — без неё пациент перестаёт '
     + 'получать напоминания' },
   { t: 'public.saas_billing_accounts', cls: 'C', why: 'платёжный профиль клиники — без неё клиника не выставит счёт',
@@ -2290,11 +2284,9 @@ const PATIENT_REMINDER_CORE_SURFACES = [
     'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title',
     'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code',
   ], ['SELECT', 'INSERT', 'UPDATE', 'DELETE']),
-  patientSurface('public.reminder_journal', [
-    'id', 'organization_id', 'rule_id', 'occurrence_id', 'action', 'snooze_until', 'skip_reason', 'created_at',
-  ], ['INSERT']),
   patientSurface('public.reminder_occurrence_history', [
-    'integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at',
+    'integrator_occurrence_id', 'organization_id', 'platform_user_id', 'seen_at', 'done_at', 'skipped_at',
+    'skip_reason', 'snoozed_at', 'snoozed_until', 'occurred_at', 'status', 'planned_at',
   ], ['SELECT', 'UPDATE']),
   patientSurface('public.platform_users', [
     'id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at',
@@ -2394,9 +2386,6 @@ const PATIENT_ROOT_OPERATIONS = {
   delete_current_patient_reminder_rule: {
     'public.reminder_occurrence_history': ['SELECT', 'DELETE'],
     'public.reminder_rules': ['SELECT', 'DELETE'],
-  },
-  record_current_patient_reminder_journal_action: {
-    'public.reminder_journal': ['SELECT', 'INSERT'], 'public.reminder_rules': ['SELECT'],
   },
   mark_current_patient_reminder_history_seen: {
     'public.reminder_occurrence_history': ['SELECT', 'UPDATE'],
@@ -2655,24 +2644,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.attempt-audit',
       functionIdentity: 'app.record_operator_delivery_attempt(text,text,text,uuid,text,text,integer,text,text,timestamp with time zone)' },
-    // Дверь ПОРТА ИНТЕГРАТОРА в общий с вебаппом корень. Роль — своя, `app_integrator_request`:
-    // до 22.08 эта дверь называла роль ВЕБАППА, и попасть в собственный корень интегратор мог
-    // только надев её вместе со всем арендаторским столом вебаппа. Дверь вебаппа в тот же корень
-    // (`integrator_reminder_occurrence_finalized_record`) свою роль сохраняет — соответствие
-    // «дверь → роль» один к одному, гейт корня ветвится по двери (миграция
-    // `20260822T140000_the_shared_roots_name_the_role_of_their_door.sql`).
-    // Класс контекста остаётся `tenant_service`: рантайм порта интегратора выбирает возможность по
-    // паре (function_identity, contextClass), а живой вызывающий держит организационный принципал.
-    integrator_port_reminder_occurrence_finalized_record: { port: 'integrator',
-      runtimeName: 'reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_integrator_request', contextClass: 'tenant_service',
-      purpose: 'integrator.reminder-occurrence-finalized.record',
-      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
-    integrator_delivery_reminder_occurrence_finalized_record: { port: 'integrator',
-      runtimeName: 'delivery_reminder_occurrence_finalized_record', sessionRole: 'app_integrator_request',
-      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
-      purpose: 'integrator.reminder-occurrence-finalized.record',
-      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     integrator_outgoing_delivery_enqueue: { port: 'integrator', runtimeName: 'outgoing_delivery_enqueue',
       sessionRole: 'app_integrator_request', targetRole: 'app_operational_delivery_worker',
       contextClass: 'service', purpose: 'delivery.outgoing.enqueue',
@@ -2956,8 +2927,6 @@ const REV10_CONTEXT = {
       'app.update_current_patient_reminder_rule(text,text)'),
     patient_reminder_rule_delete: patientSelfCapability('patient.reminder-rule.delete',
       'app.delete_current_patient_reminder_rule(text)'),
-    patient_reminder_journal_record: patientSelfCapability('patient.reminder-journal.record',
-      'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)'),
     patient_reminder_history_seen: patientSelfCapability('patient.reminder-history.seen',
       'app.mark_current_patient_reminder_history_seen(text)'),
     patient_reminder_history_seen_all: patientSelfCapability('patient.reminder-history.seen-all',
@@ -3346,10 +3315,6 @@ const REV10_CONTEXT = {
     integrator_event_idempotency_store: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_pre_session', contextClass: 'pre_session', purpose: 'integrator.event-idempotency.store',
       functionIdentity: 'app.integrator_event_idempotency_store(text,text,integer,text,integer)' },
-    integrator_reminder_occurrence_finalized_record: { port: 'webapp', sessionRole: 'app_staff',
-      targetRole: 'app_tenant_service', contextClass: 'tenant_service',
-      purpose: 'integrator.reminder-occurrence-finalized.record',
-      functionIdentity: 'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)' },
     patient_reminder_materialization_snapshot_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'reminder.materialization.snapshot.read',
@@ -6282,10 +6247,6 @@ const REV10_CONTEXT = {
     'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
       'boolean', false, ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
-    'app.record_current_patient_reminder_journal_action(text,text,text,timestamp with time zone,text)': patientSelfFunction(
-      'uuid', false, ['text', 'text', 'text', 'timestamp with time zone', 'text'],
-      'patient.reminder-journal.record', exactPatientSurfaces(
-        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.record_current_patient_reminder_journal_action)),
     'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
       'integer', false, ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_reminder_history_seen)),
@@ -7319,17 +7280,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
     ],
   },
-  'public.reminder_journal': {
-    kind: 'direct', purpose: 'patient reads and records actions only for its own reminder rules',
-    codePaths: ['apps/webapp/src/infra/repos/pgReminderJournal.ts'],
-    grants: [
-      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-    ],
-  },
   'public.reminder_occurrence_history': {
     kind: 'direct',
-    purpose: 'patient reads its own reminder history across clinic contexts and advances only its own seen cursor',
-    codePaths: ['apps/webapp/src/infra/repos/pgReminderProjection.ts'],
+    purpose: 'patient reads its own reminder history across clinic contexts and advances only its own seen '
+      + 'cursor; also read for actions/journal-shaped queries after Track D consolidation',
+    codePaths: ['apps/webapp/src/infra/repos/pgReminderProjection.ts', 'apps/webapp/src/infra/repos/pgReminderJournal.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
     ],
@@ -7762,17 +7717,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
       { role: 'app_staff', operations: ['SELECT', 'INSERT', 'DELETE'], columns: 'table' },
     ],
   },
-  'integrator.direct_public_write_retries': {
-    kind: 'direct', purpose: 'persist and replay failed direct-public writes without returning to HTTP projection transport',
-    codePaths: ['apps/integrator/src/infra/db/repos/directPublicWriteRetry.ts', 'apps/integrator/src/infra/runtime/worker/directPublicWriteRetryWorker.ts'],
-    grants: [
-      { role: 'app_integrator_request', operations: ['INSERT'],
-        columns: ['operation', 'organization_id', 'idempotency_key', 'payload'] },
-      { role: 'app_operational_delivery_worker', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_operational_delivery_worker', operations: ['UPDATE'],
-        columns: ['status', 'updated_at', 'attempt_count', 'next_try_at', 'last_error'] },
-    ],
-  },
   'public.saas_billing_periods': {
     kind: 'direct', purpose: 'staff reads the billing-period catalog; platform operations alone maintain it',
     codePaths: ['apps/webapp/src/infra/repos/pgSaasBilling.ts', 'apps/webapp/src/infra/repos/pgPlatformEntitlements.ts'],
@@ -7966,7 +7910,7 @@ const REV10_PLATFORM_USER_COLUMN: Record<string, string> = {
  * (active staff OR patient enrollment), or P (an exact current-org parent).
  */
 const REV10_TENANT_DIRECT_ORG = new Set([
-  'integrator.user_reminder_occurrences',
+  'public.reminder_occurrence_history',
   'public.be_appointment_staff_comments', 'public.be_appointments', 'public.be_organization_members',
   'public.be_organizations', 'public.be_package_usages', 'public.be_patient_booking_profiles',
   'public.be_patient_packages', 'public.be_patient_timeline_events', 'public.be_payment_history_events',
