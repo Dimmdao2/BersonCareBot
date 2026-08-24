@@ -79,6 +79,8 @@ BEGIN
     RAISE EXCEPTION 'outbound_message_max_attempts_invalid' USING ERRCODE = '22023';
   END IF;
 
+  -- Закрытая карта слотов получателя, выведенная из самих адаптеров интегратора. Неизвестный канал
+  -- отбивается ЗДЕСЬ, при вставке: иначе строка легла бы в очередь и умерла молча через сутки.
   IF p_channel = 'email' THEN
     v_recipient := jsonb_build_object('email', btrim(p_recipient));
     v_dispatch_channel := 'email';
@@ -108,6 +110,9 @@ BEGIN
 
   v_event_id := btrim(p_purpose) || ':' || btrim(p_idempotency_key);
 
+  -- Содержимое переносится ДОСЛОВНО: `v_content` кладётся в payload как есть, поверх него ставятся
+  -- только вычисленные функцией поля. Приёмник, молча роняющий необъявленное поле, — ровно тот
+  -- дефект, что раньше отрывал .ics-вложение от письма-подтверждения.
   v_payload := jsonb_build_object(
     'intent', jsonb_build_object(
       'type', 'message.send',
