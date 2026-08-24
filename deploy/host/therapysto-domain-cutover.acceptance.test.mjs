@@ -78,6 +78,110 @@ function installSuccessfulNetworkFakes(runtime) {
   executable(join(runtime.bin, 'openssl'), 'exit 0');
 }
 
+function applyFixture() {
+  const runtime = fixture();
+  installSuccessfulNetworkFakes(runtime);
+  const webappEnv = join(runtime.root, 'webapp.test');
+  const nginxState = join(runtime.root, 'test.bersoncare.ru');
+  const events = join(runtime.root, 'events');
+  const restartFailed = join(runtime.root, 'restart-failed-once');
+  const healthFailed = join(runtime.root, 'health-failed-once');
+  writeFileSync(
+    webappEnv,
+    'APP_BASE_URL=https://legacy.test.example\nPATIENT_APP_ORIGIN=https://legacy-patient.test.example\nFIXTURE_ONLY=not-a-live-secret\n',
+  );
+  writeFileSync(nginxState, 'old test.bersoncare.ru seam\n');
+  writeFileSync(events, '');
+  executable(
+    join(runtime.bin, 'sudo'),
+    `while [[ "\${1:-}" == '-n' ]]; do shift; done
+if [[ "\${1:-}" == '-u' ]]; then
+  printf 'db-check\\n' >> '${events}'
+  [[ "\${FAKE_DB_MATCH:-yes}" == 'yes' ]]
+  exit
+fi
+command="\${1:-}"
+shift || true
+case "$command" in
+  cp)
+    src="\${@: -2:1}"
+    dst="\${@: -1}"
+    /bin/cp -p -- "$src" "$dst"
+    if [[ "$dst" == '${webappEnv}' ]]; then printf 'restore-env\\n' >> '${events}'; fi
+    if [[ "$dst" == '${nginxState}' ]]; then printf 'restore-nginx\\n' >> '${events}'; fi
+    ;;
+  install)
+    src="\${@: -2:1}"
+    dst="\${@: -1}"
+    /bin/cp -- "$src" "$dst"
+    if [[ "$dst" == '${webappEnv}' ]]; then printf 'mutate-env\\n' >> '${events}'; fi
+    if [[ "$dst" == '${nginxState}' ]]; then printf 'mutate-nginx\\n' >> '${events}'; fi
+    ;;
+  nginx)
+    count=0
+    if [[ -f '${runtime.root}/nginx-count' ]]; then count=$(<'${runtime.root}/nginx-count'); fi
+    count=$((count + 1))
+    printf '%s' "$count" > '${runtime.root}/nginx-count'
+    printf 'nginx-t:%s\\n' "$count" >> '${events}'
+    [[ "\${FAKE_NGINX_FAIL_AT:-0}" != "$count" ]]
+    ;;
+  systemctl)
+    action="\${1:-}"
+    if [[ "$action" == 'restart' ]]; then
+      origin=$(/usr/bin/awk -F= '$1 == "APP_BASE_URL" { print $2 }' '${webappEnv}')
+      printf 'restart:%s\\n' "$origin" >> '${events}'
+      if [[ "\${FAKE_RESTART_FAIL_ONCE:-0}" == '1' && ! -f '${restartFailed}' ]]; then
+        : > '${restartFailed}'
+        exit 1
+      fi
+    elif [[ "$action" == 'reload' ]]; then
+      printf 'reload:%s\\n' "\${2:-}" >> '${events}'
+    elif [[ "$action" == 'is-active' ]]; then
+      printf 'is-active\\n' >> '${events}'
+    fi
+    ;;
+  *)
+    printf 'unexpected-sudo:%s\\n' "$command" >> '${events}'
+    exit 99
+    ;;
+esac`,
+  );
+  executable(
+    join(runtime.bin, 'curl'),
+    `header=''
+while (($#)); do
+  case "$1" in
+    -H) header="\${2:-}"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+origin=$(/usr/bin/awk -F= '$1 == "APP_BASE_URL" { print $2 }' '${webappEnv}')
+expected_host="\${origin#*://}"
+printf 'health:%s\\n' "$header" >> '${events}'
+[[ "$header" == "Host: $expected_host" ]] || exit 22
+if [[ "\${FAKE_HEALTH_FAIL_ONCE:-0}" == '1' && ! -f '${healthFailed}' ]]; then
+  : > '${healthFailed}'
+  exit 22
+fi
+printf '%s\\n' '{"ok":true}'`,
+  );
+  return { ...runtime, events, nginxState, webappEnv };
+}
+
+function runApply(runtime, extraEnv = {}) {
+  const digest = run(
+    cutoverPath,
+    ['--host-map', runtime.mapPath, '--approval-digest'],
+    runtime,
+  ).stdout.trim();
+  return run(cutoverPath, ['--host-map', runtime.mapPath, '--apply'], runtime, {
+    THERAPYSTO_CUTOVER_OWNER_APPROVED: 'yes',
+    THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256: digest,
+    THERAPYSTO_CUTOVER_HERMETIC_ROOT: runtime.root,
+    ...extraEnv,
+  });
+}
+
 test('offline render uses the declared certificate key path', () => {
   const runtime = fixture();
   const output = join(runtime.root, 'candidate.conf');
@@ -144,67 +248,68 @@ test('preflight rejects a map that cannot prepare staff/patient origins and OAut
   );
 });
 
-test('a failed candidate nginx validation leaves the previous active TEST vhost intact', () => {
-  const runtime = fixture();
-  installSuccessfulNetworkFakes(runtime);
-  const state = join(runtime.root, 'virtual-active-vhost');
-  const nginxChecks = join(runtime.root, 'nginx-check-count');
-  const sudoCalls = join(runtime.root, 'sudo-calls');
-  writeFileSync(state, 'old test.bersoncare.ru seam\n');
-  executable(
-    join(runtime.bin, 'sudo'),
-    `printf '<%s>' "$@" >> '${sudoCalls}'
-printf '\\n' >> '${sudoCalls}'
-case "\${1:-}" in
-  nginx)
-    count=0
-    if [[ -f '${nginxChecks}' ]]; then count=$(<'${nginxChecks}'); fi
-    count=$((count + 1))
-    printf '%s' "$count" > '${nginxChecks}'
-    if ((count >= 2)); then exit 1; fi
-    ;;
-  install)
-    src="\${@: -2:1}"
-    dst="\${@: -1}"
-    if [[ "$dst" == '/etc/nginx/sites-available/test.bersoncare.ru' ]]; then
-      cp -- "$src" '${state}'
-    fi
-    ;;
-  cp)
-    src="\${@: -2:1}"
-    dst="\${@: -1}"
-    if [[ "$src" == '/etc/nginx/sites-available/test.bersoncare.ru' ]]; then
-      cp -- '${state}' '${state}.backup'
-    elif [[ "$dst" == '/etc/nginx/sites-available/test.bersoncare.ru' && -f '${state}.backup' ]]; then
-      cp -- '${state}.backup' '${state}'
-    fi
-    ;;
-  systemctl)
-    printf 'reload reached\\n' >> '${sudoCalls}'
-    ;;
-esac`,
-  );
+test('apply proves DB/runtime activation and restores every partial failure using only fixtures', () => {
+  const dbMismatch = applyFixture();
+  const dbMismatchResult = runApply(dbMismatch, { FAKE_DB_MATCH: 'no' });
+  assert.notEqual(dbMismatchResult.status, 0, 'DB callback mismatch must abort apply');
+  const dbMismatchEvents = readFileSync(dbMismatch.events, 'utf8');
+  assert.match(dbMismatchEvents, /^db-check$/mu);
+  assert.doesNotMatch(dbMismatchEvents, /mutate-|restart:|reload:/u);
+  assert.equal(readFileSync(dbMismatch.webappEnv, 'utf8').includes('legacy.test.example'), true);
+  assert.equal(readFileSync(dbMismatch.nginxState, 'utf8'), 'old test.bersoncare.ru seam\n');
 
-  const result = run(
-    cutoverPath,
-    ['--host-map', runtime.mapPath, '--apply'],
-    runtime,
-    {
-      THERAPYSTO_CUTOVER_OWNER_APPROVED: 'yes',
-      THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256: run(
-        cutoverPath,
-        ['--host-map', runtime.mapPath, '--approval-digest'],
-        runtime,
-      ).stdout.trim(),
-    },
-  );
-  assert.notEqual(result.status, 0, 'the injected nginx validation failure must abort apply');
-  assert.equal(
-    readFileSync(state, 'utf8'),
-    'old test.bersoncare.ru seam\n',
-    'the failed apply left the rejected candidate in the active vhost path',
-  );
-  assert.doesNotMatch(readFileSync(sudoCalls, 'utf8'), /reload reached/u);
+  const invalidInstalledNginx = applyFixture();
+  const invalidInstalledResult = runApply(invalidInstalledNginx, { FAKE_NGINX_FAIL_AT: '2' });
+  assert.notEqual(invalidInstalledResult.status, 0, 'installed nginx validation failure must abort');
+  const invalidEvents = readFileSync(invalidInstalledNginx.events, 'utf8');
+  const invalidOrder = [
+    'mutate-env',
+    'mutate-nginx',
+    'nginx-t:2',
+    'restore-env',
+    'restore-nginx',
+    'nginx-t:3',
+  ].map((event) => invalidEvents.indexOf(event));
+  assert.equal(invalidOrder.every((position) => position >= 0), true, invalidEvents);
+  assert.deepEqual(invalidOrder, invalidOrder.toSorted((left, right) => left - right));
+  assert.doesNotMatch(invalidEvents, /restart:/u, 'webapp restarted before installed validation');
+  assert.equal(readFileSync(invalidInstalledNginx.nginxState, 'utf8'), 'old test.bersoncare.ru seam\n');
+  assert.match(readFileSync(invalidInstalledNginx.webappEnv, 'utf8'), /APP_BASE_URL=https:\/\/legacy\.test\.example/u);
+
+  for (const [faultName, fault] of [
+    ['restart', { FAKE_RESTART_FAIL_ONCE: '1' }],
+    ['health', { FAKE_HEALTH_FAIL_ONCE: '1' }],
+  ]) {
+    const failedActivation = applyFixture();
+    const failedActivationResult = runApply(failedActivation, fault);
+    assert.notEqual(failedActivationResult.status, 0, `${faultName} failure must abort apply`);
+    const failedEvents = readFileSync(failedActivation.events, 'utf8');
+    assert.match(failedEvents, /nginx-t:2[\s\S]*restart:https:\/\/staff\.test\.example/u);
+    assert.match(failedEvents, /restore-env[\s\S]*restore-nginx/u);
+    assert.match(failedEvents, /restart:https:\/\/legacy\.test\.example[\s\S]*health:Host: legacy\.test\.example/u);
+    assert.equal(readFileSync(failedActivation.nginxState, 'utf8'), 'old test.bersoncare.ru seam\n');
+    assert.match(readFileSync(failedActivation.webappEnv, 'utf8'), /APP_BASE_URL=https:\/\/legacy\.test\.example/u);
+  }
+
+  const successful = applyFixture();
+  const successfulResult = runApply(successful);
+  assert.equal(successfulResult.status, 0, successfulResult.stderr);
+  assert.match(successfulResult.stdout, /apply OK/u);
+  const successfulEvents = readFileSync(successful.events, 'utf8');
+  const successOrder = [
+    'db-check',
+    'nginx-t:1',
+    'mutate-env',
+    'mutate-nginx',
+    'nginx-t:2',
+    'restart:https://staff.test.example',
+    'health:Host: staff.test.example',
+    'reload:nginx',
+  ].map((event) => successfulEvents.indexOf(event));
+  assert.equal(successOrder.every((position) => position >= 0), true, successfulEvents);
+  assert.deepEqual(successOrder, successOrder.toSorted((left, right) => left - right));
+  assert.equal(successfulEvents.match(/restart:/gu)?.length, 1, successfulEvents);
+  assert.match(readFileSync(successful.webappEnv, 'utf8'), /APP_BASE_URL=https:\/\/staff\.test\.example/u);
 });
 
 test('apply without the owner gate cannot reach sudo', () => {

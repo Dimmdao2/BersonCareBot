@@ -282,12 +282,19 @@ platform apex and wildcard separately, and checks the exact clinic certificate. 
 is composed from `apply-test-nginx-webapp.sh --render`: the existing `test.bersoncare.ru`
 allowlist, integrator routes, payment webhook exceptions, log, maintenance fallback, body
 limit, timeouts and forwarded Host remain in the candidate. The renderer also requires the
-exact Yandex callback list that must already be stored through the normal Admin Settings
-write path (`yandex_oauth_redirect_uri` stays DB-backed, never an env fallback).
+exact Yandex callback list. `--offline --apply` is invalid and is rejected before map-file,
+DNS, TLS, sudo, service or other host access.
 
 Only after an owner activation command, derive its map-bound digest and apply. The CLI first
-compiles the exact temporary candidate, then saves nginx and `webapp.test`, and restores both
-on any install or validation failure; no reload follows a failed validation.
+reads `yandex_oauth_redirect_uri` through the webapp's DB-backed settings chokepoint and
+requires exactly the two callbacks in the approved map without printing the stored value.
+The setting must therefore already have been saved through the normal Admin Settings write
+path; there is no env fallback. A mismatch stops before any file mutation. The CLI then
+compiles the exact temporary candidate, saves nginx and `webapp.test`, installs both candidates,
+and validates the installed nginx configuration. Only after that validation it restarts
+`bersoncarebot-webapp-test.service`, requires the service to be active, and probes
+`http://127.0.0.1:6300/api/health` with `Host: <STAFF_HOST>`. It reloads nginx and reports
+`apply OK` only after that runtime gate passes.
 
 ```bash
 digest=$(bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env --approval-digest)
@@ -301,12 +308,15 @@ Then run the BersonCare journey: branded root → OAuth/login → recovery → c
 cabinet → bot/email notification; separately run the default patient journey and Therapysto
 staff login. Unknown hosts must return the nginx default refusal, never a platform fallback.
 
-Rollback criteria: failed `nginx -t`, DNS/certificate mismatch, any unknown-host fallback,
-technical-host redirect failure, or any cross-surface authentication leakage. For a failure
-inside apply the CLI restores the timestamped `.pre-therapysto.*` nginx and env backups before
-returning non-zero. For a failed later smoke, restore those two named backups, `sudo nginx -t`,
-reload nginx, restart the TEST webapp only if the env was restored, and repeat the old
-`test.bersoncare.ru` smoke. Do not mark B7, B8,
+Rollback criteria: DB callback mismatch, failed `nginx -t`, failed TEST webapp restart/health,
+DNS/certificate mismatch, any unknown-host fallback, technical-host redirect failure, or any
+cross-surface authentication leakage. For a failure inside apply the CLI independently restores
+every env/nginx file whose mutation began. If nginx changed, it validates and reloads the restored
+configuration. If new webapp activation began, it restarts the restored old env, requires the
+service active, and repeats loopback health with the Host derived from the old `APP_BASE_URL`
+before returning non-zero. For a failed later manual smoke, restore the two named backups,
+`sudo nginx -t`, reload nginx, restart the TEST webapp, verify loopback health with the restored
+Host, and repeat the old `test.bersoncare.ru` smoke. Do not mark B7, B8,
 C5a, D1–D3 or runtime C5 closed until this live activation evidence exists.
 
 Prepare daily read-only monitoring only after activation, through cronport (never crontab):

@@ -6,9 +6,22 @@ ACTION=preflight
 OFFLINE=0
 HOST_MAP=""
 OUT=""
-WEBAPP_ENV_FILE="/opt/env/bersoncarebot/webapp.test"
-TARGET_AVAILABLE="/etc/nginx/sites-available/test.bersoncare.ru"
+HERMETIC_ROOT="${THERAPYSTO_CUTOVER_HERMETIC_ROOT:-}"
+if [[ -n "$HERMETIC_ROOT" ]]; then
+  [[ "$HERMETIC_ROOT" == /tmp/* && "$HERMETIC_ROOT" != *'/../'* ]] || {
+    echo "FATAL: THERAPYSTO_CUTOVER_HERMETIC_ROOT must stay below /tmp" >&2
+    exit 1
+  }
+  WEBAPP_ENV_FILE="$HERMETIC_ROOT/webapp.test"
+  TARGET_AVAILABLE="$HERMETIC_ROOT/test.bersoncare.ru"
+else
+  WEBAPP_ENV_FILE="/opt/env/bersoncarebot/webapp.test"
+  TARGET_AVAILABLE="/etc/nginx/sites-available/test.bersoncare.ru"
+fi
 BASE_RENDERER="deploy/host/apply-test-nginx-webapp.sh"
+PROJECT_ROOT="$(pwd)"
+WEBAPP_SERVICE="bersoncarebot-webapp-test.service"
+WEBAPP_HEALTH_URL="http://127.0.0.1:6300/api/health"
 
 usage() { cat <<'EOF'
 Usage: bash deploy/host/therapysto-domain-cutover.sh --host-map FILE [--offline] [--render FILE|--apply|--approval-digest]
@@ -34,6 +47,7 @@ while (($#)); do
   esac
 done
 
+[[ ! ( $OFFLINE -eq 1 && "$ACTION" == apply ) ]] || die "--offline cannot be combined with --apply"
 [[ -n "$HOST_MAP" && -f "$HOST_MAP" ]] || die "--host-map FILE is required"
 
 declare -A map_values=()
@@ -67,9 +81,7 @@ hosts=("$STAFF_HOST" "$PLATFORM_ADMIN_HOST" "$PATIENT_DEFAULT_HOST" "$PATIENT_BR
 [[ $(printf '%s\n' "${hosts[@]}" | sort -u | wc -l) -eq 5 ]] || die "host map values must be distinct"
 [[ "$EXPECTED_DNS_TARGET" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$ ]] || die "EXPECTED_DNS_TARGET must be an approved IPv4 address or hostname"
 for key in PLATFORM_TLS_CERTIFICATE_PATH PLATFORM_TLS_CERTIFICATE_KEY_PATH CLINIC_TLS_CERTIFICATE_PATH CLINIC_TLS_CERTIFICATE_KEY_PATH; do [[ "${!key}" == /* ]] || die "$key must be an absolute path"; done
-if [[ "$STAFF_HOST" != *.test.example ]]; then
-  [[ "$PLATFORM_TLS_CERTIFICATE_PATH" != "$CLINIC_TLS_CERTIFICATE_PATH" && "$PLATFORM_TLS_CERTIFICATE_KEY_PATH" != "$CLINIC_TLS_CERTIFICATE_KEY_PATH" ]] || die "platform and clinic TLS pairs must be separate"
-fi
+[[ "$PLATFORM_TLS_CERTIFICATE_PATH" != "$CLINIC_TLS_CERTIFICATE_PATH" && "$PLATFORM_TLS_CERTIFICATE_KEY_PATH" != "$CLINIC_TLS_CERTIFICATE_KEY_PATH" ]] || die "platform and clinic TLS pairs must be separate"
 [[ "$APP_BASE_URL" == "https://$STAFF_HOST" ]] || die "APP_BASE_URL must exactly match STAFF_HOST"
 [[ "$PATIENT_APP_ORIGIN" == "https://$PATIENT_DEFAULT_HOST" ]] || die "PATIENT_APP_ORIGIN must exactly match PATIENT_DEFAULT_HOST"
 expected_callbacks=$(printf '%s\n' "https://$PATIENT_DEFAULT_HOST/api/auth/oauth/callback/yandex" "https://$CLINIC_CUSTOM_HOST/api/auth/oauth/callback/yandex" | sort)
@@ -147,6 +159,27 @@ EOF
   sudo nginx -t -c "$wrapper"
   rm -f "$wrapper"
 }
+verify_db_callbacks() {
+  sudo -n -u deploy /bin/bash -c '
+    set -euo pipefail
+    set -a
+    source "$1"
+    set +a
+    exec pnpm --dir "$2/apps/webapp" exec tsx \
+      "$2/apps/webapp/scripts/assert-yandex-oauth-redirect-uris.ts" "$3"
+  ' _ "$WEBAPP_ENV_FILE" "$PROJECT_ROOT" "$YANDEX_OAUTH_REDIRECT_URIS"
+}
+env_app_base_url() {
+  /bin/bash -c 'set -euo pipefail; set -a; source "$1"; set +a; printf "%s" "${APP_BASE_URL:-}"' _ "$1"
+}
+origin_host() {
+  node -e 'const value = new URL(process.argv[1]); process.stdout.write(value.host)' "$1"
+}
+health_check() {
+  local host=$1
+  curl --fail --silent --show-error --max-time 10 -H "Host: $host" "$WEBAPP_HEALTH_URL" \
+    | grep -q '"ok":true'
+}
 
 if [[ "$ACTION" == digest ]]; then approval_digest; exit 0; fi
 if [[ "$ACTION" == render ]]; then [[ -n "$OUT" ]] || die "--render requires FILE"; render >"$OUT"; echo "rendered: $OUT"; exit 0; fi
@@ -155,22 +188,48 @@ if [[ "$ACTION" != apply ]]; then echo "preflight OK"; exit 0; fi
 
 [[ "${THERAPYSTO_CUTOVER_OWNER_APPROVED:-}" == yes ]] || die "refusing apply: require THERAPYSTO_CUTOVER_OWNER_APPROVED=yes"
 [[ "${THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256:-}" == "$(approval_digest)" ]] || die "refusing apply: owner approval digest does not match this host map"
+verify_db_callbacks || die "DB-backed yandex_oauth_redirect_uri does not exactly match the approved callbacks"
 candidate=$(mktemp); candidate_env=$(mktemp)
 backup="${TARGET_AVAILABLE}.pre-therapysto.$(date -u +%Y%m%dT%H%M%SZ)"; env_backup="${WEBAPP_ENV_FILE}.pre-therapysto.$(date -u +%Y%m%dT%H%M%SZ)"
-nginx_mutation_started=0; env_mutation_started=0
+nginx_mutation_started=0; env_mutation_started=0; webapp_activation_started=0
+old_health_host=""
 rollback() {
   local status=$?
+  local rollback_failed=0
+  trap - EXIT
   if (( status != 0 )); then
-    if (( nginx_mutation_started )); then sudo cp -p -- "$backup" "$TARGET_AVAILABLE" || true; fi
-    if (( env_mutation_started )); then sudo cp -p -- "$env_backup" "$WEBAPP_ENV_FILE" || true; fi
+    set +e
+    if (( env_mutation_started )); then
+      sudo -n cp -p -- "$env_backup" "$WEBAPP_ENV_FILE" || rollback_failed=1
+    fi
+    if (( nginx_mutation_started )); then
+      sudo -n cp -p -- "$backup" "$TARGET_AVAILABLE" || rollback_failed=1
+      sudo -n nginx -t || rollback_failed=1
+      sudo -n systemctl reload nginx || rollback_failed=1
+    fi
+    if (( webapp_activation_started )); then
+      sudo -n systemctl restart "$WEBAPP_SERVICE" || rollback_failed=1
+      sudo -n systemctl is-active --quiet "$WEBAPP_SERVICE" || rollback_failed=1
+      health_check "$old_health_host" || rollback_failed=1
+    fi
+    if (( rollback_failed )); then
+      echo "FATAL: cutover failed and rollback verification also failed" >&2
+    fi
   fi
   rm -f "$candidate" "$candidate_env"
   exit "$status"
 }
 trap rollback EXIT
 render >"$candidate"; compile_candidate "$candidate"; render_env_candidate "$candidate_env"
-sudo cp -p -- "$TARGET_AVAILABLE" "$backup"; sudo cp -p -- "$WEBAPP_ENV_FILE" "$env_backup"
-env_mutation_started=1; sudo install -m 0640 -o root -g deploy "$candidate_env" "$WEBAPP_ENV_FILE"
-nginx_mutation_started=1; sudo install -m 0644 -o root -g root "$candidate" "$TARGET_AVAILABLE"
-sudo nginx -t; sudo systemctl reload nginx
+old_health_host=$(origin_host "$(env_app_base_url "$WEBAPP_ENV_FILE")")
+[[ "$old_health_host" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]] || die "existing APP_BASE_URL has an invalid Host"
+sudo -n cp -p -- "$TARGET_AVAILABLE" "$backup"; sudo -n cp -p -- "$WEBAPP_ENV_FILE" "$env_backup"
+env_mutation_started=1; sudo -n install -m 0640 -o root -g deploy "$candidate_env" "$WEBAPP_ENV_FILE"
+nginx_mutation_started=1; sudo -n install -m 0644 -o root -g root "$candidate" "$TARGET_AVAILABLE"
+sudo -n nginx -t
+webapp_activation_started=1
+sudo -n systemctl restart "$WEBAPP_SERVICE"
+sudo -n systemctl is-active --quiet "$WEBAPP_SERVICE"
+health_check "$STAFF_HOST"
+sudo -n systemctl reload nginx
 echo "apply OK; backups: $backup $env_backup"
