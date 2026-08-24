@@ -20,12 +20,14 @@ WEBAPP_LOG_FORMAT_CONF="/etc/nginx/conf.d/bersoncare-webapp-access-log-format.co
 REPO_LOG_FORMAT_EXAMPLE="deploy/nginx/bersoncare-webapp-access-log.example.conf"
 A2_CHECKER="docs/_TODO/SAAS_FOUNDATION/scripts/check-saas-a2-nginx-forwarded-host.mjs"
 ACTION="dry-run"
+RENDER_OUTPUT=""
 
 usage() {
   cat <<'EOF'
 Usage:
   bash deploy/host/apply-test-nginx-webapp.sh [--dry-run]
   bash deploy/host/apply-test-nginx-webapp.sh --apply
+  bash deploy/host/apply-test-nginx-webapp.sh --render FILE
 
 For the future Therapysto multi-host cutover use the same TEST vhost seam via
 deploy/host/therapysto-domain-cutover.sh --host-map FILE; this legacy entrypoint
@@ -57,6 +59,12 @@ while [ "$#" -gt 0 ]; do
       ;;
     --apply)
       ACTION="apply"
+      ;;
+    --render)
+      ACTION="render"
+      RENDER_OUTPUT="${2:-}"
+      [ -n "$RENDER_OUTPUT" ] || fatal "--render requires FILE"
+      shift
       ;;
     *)
       fatal "unknown argument: $1"
@@ -227,6 +235,14 @@ server {
 }
 NGINX
 }
+
+# The future multi-host cutover composes this exact TEST seam. Rendering is deliberately
+# offline: it neither inspects nor changes the installed TEST vhost.
+if [ "$ACTION" = "render" ]; then
+  render_config "$RENDER_OUTPUT"
+  echo "rendered: $RENDER_OUTPUT"
+  exit 0
+fi
 
 run_a2_checker_on_file() {
   local config_file="$1"

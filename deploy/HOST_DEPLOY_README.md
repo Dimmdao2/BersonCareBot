@@ -262,8 +262,10 @@ TLS, env, services, or the live resolver until a separate owner command authoriz
 The operator first writes approved TEST analogues into a protected local file (never invent
 or commit values), based on `deploy/host/therapysto-domain-host-map.example.env`. Required,
 distinct values are staff, platform admin, default patient, technical branded patient and
-the custom clinic host, plus absolute certificate/key paths. The supplied certificate must
-cover every mapped TEST hostname. Production topology remains: `therapysto.ru`,
+the custom clinic host; the approved DNS target; process origins; the exact DB-backed Yandex
+callback allowlist; and **separate** absolute platform and clinic certificate/key pairs.
+The platform pair must cover both the default-patient apex and its wildcard; the clinic pair
+must cover only the exact custom host. Production topology remains: `therapysto.ru`,
 `admin.therapysto.ru`, `therapygo.ru`, `*.therapygo.ru`, `bersoncare.therapygo.ru`, and
 `app.bersoncare.ru`. `test.bersoncare.ru` remains on its current address.
 
@@ -275,17 +277,22 @@ bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/
 ```
 
 The first command is offline and verifies the map and rendered fail-closed nginx contract;
-the second additionally proves DNS and the separately-issued certificate for every host.
-The certificate set must explicitly cover both the apex `therapygo.ru` and
-`*.therapygo.ru`; a wildcard alone does not cover the apex. The custom certificate must
-cover `app.bersoncare.ru`. Inspect the rendered config with `sudo nginx -t` before apply.
+the second additionally proves every DNS answer equals `EXPECTED_DNS_TARGET`, checks the
+platform apex and wildcard separately, and checks the exact clinic certificate. The render
+is composed from `apply-test-nginx-webapp.sh --render`: the existing `test.bersoncare.ru`
+allowlist, integrator routes, payment webhook exceptions, log, maintenance fallback, body
+limit, timeouts and forwarded Host remain in the candidate. The renderer also requires the
+exact Yandex callback list that must already be stored through the normal Admin Settings
+write path (`yandex_oauth_redirect_uri` stays DB-backed, never an env fallback).
 
-Only after an owner activation command, preserve both state files, apply, and smoke:
+Only after an owner activation command, derive its map-bound digest and apply. The CLI first
+compiles the exact temporary candidate, then saves nginx and `webapp.test`, and restores both
+on any install or validation failure; no reload follows a failed validation.
 
 ```bash
-sudo cp -p /etc/nginx/sites-available/test.bersoncare.ru /etc/nginx/sites-available/test.bersoncare.ru.pre-therapysto
-sudo cp -p /opt/env/bersoncarebot/webapp.test /opt/env/bersoncarebot/webapp.test.pre-therapysto
-THERAPYSTO_CUTOVER_OWNER_APPROVED=yes bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env --apply
+digest=$(bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env --approval-digest)
+THERAPYSTO_CUTOVER_OWNER_APPROVED=yes THERAPYSTO_CUTOVER_OWNER_APPROVED_MAP_SHA256="$digest" \
+  bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env --apply
 ```
 
 Smoke each host with a Host/SNI request: staff login, platform-admin login, default patient
@@ -295,9 +302,11 @@ cabinet → bot/email notification; separately run the default patient journey a
 staff login. Unknown hosts must return the nginx default refusal, never a platform fallback.
 
 Rollback criteria: failed `nginx -t`, DNS/certificate mismatch, any unknown-host fallback,
-technical-host redirect failure, or any cross-surface authentication leakage. Restore the
-saved nginx and env files, `sudo nginx -t`, reload nginx, restart the TEST webapp only if
-the env was restored, and repeat the old `test.bersoncare.ru` smoke. Do not mark B7, B8,
+technical-host redirect failure, or any cross-surface authentication leakage. For a failure
+inside apply the CLI restores the timestamped `.pre-therapysto.*` nginx and env backups before
+returning non-zero. For a failed later smoke, restore those two named backups, `sudo nginx -t`,
+reload nginx, restart the TEST webapp only if the env was restored, and repeat the old
+`test.bersoncare.ru` smoke. Do not mark B7, B8,
 C5a, D1–D3 or runtime C5 closed until this live activation evidence exists.
 
 Prepare daily read-only monitoring only after activation, through cronport (never crontab):
@@ -306,8 +315,9 @@ Prepare daily read-only monitoring only after activation, through cronport (neve
 node /home/dev/brain/tools/cronport.mjs set therapysto-test-domain-health '17 8 * * *' 'cd /opt/projects/bersoncarebot-test && bash deploy/host/check-therapysto-domain-certificates.sh /opt/env/bersoncarebot/therapysto-test-hosts.env'
 ```
 
-It checks DNS resolution and reports each TLS certificate expiry. The command above is a
-future operator instruction; this change does not install a cron entry.
+It compares every DNS answer to the approved target and exits non-zero when a certificate is
+inside `CERT_EXPIRY_WARN_DAYS`. The command above is a future operator instruction; this
+change does not install a cron entry.
 
 ## Backup contract (pre-migrations)
 
