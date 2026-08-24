@@ -54,7 +54,6 @@ DROP TABLE saas_isolation_events_e1_quarantine;
 DROP TABLE saas_isolation_event_hourly_e1_quarantine;
 
 GRANT SELECT ON TABLE
-  public.app_runtime_settings,
   public.system_settings,
   public.platform_users,
   public.user_channel_bindings,
@@ -140,8 +139,7 @@ REVOKE ALL ON TABLE public.system_settings, public.system_settings_audit FROM ap
 REVOKE ALL ON TABLE public.product_analytics_events_recent, public.product_push_notifications FROM app_patient;
 REVOKE ALL ON TABLE public.saas_tariffs, public.saas_org_entitlement_overrides,
   public.saas_organization_trials FROM app_patient;
-GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
-REVOKE SELECT ON TABLE public.app_runtime_settings, public.system_settings
+REVOKE SELECT ON TABLE public.system_settings
   FROM :"e1_webapp_runtime_role";
 REVOKE ALL ON FUNCTION app.read_public_runtime_setting(text, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION app.read_webapp_server_runtime_setting(text, text)
@@ -317,10 +315,7 @@ SELECT 1 / (
     CROSS JOIN LATERAL aclexplode(
       COALESCE(relation.relacl, acldefault('r', relation.relowner))
     ) AS privilege
-    WHERE relation.oid IN (
-      'public.app_runtime_settings'::regclass,
-      'public.system_settings'::regclass
-    )
+    WHERE relation.oid = 'public.system_settings'::regclass
       AND privilege.privilege_type = 'SELECT'
       AND privilege.grantee IN (
         0,
@@ -330,10 +325,7 @@ SELECT 1 / (
   AND NOT EXISTS (
     SELECT 1
     FROM pg_class AS relation
-    WHERE relation.oid IN (
-      'public.app_runtime_settings'::regclass,
-      'public.system_settings'::regclass
-    )
+    WHERE relation.oid = 'public.system_settings'::regclass
       AND pg_has_role(
         :'e1_webapp_runtime_role',
         relation.relowner,

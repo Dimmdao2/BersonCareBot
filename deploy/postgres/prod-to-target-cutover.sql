@@ -88,17 +88,16 @@ SELECT json_build_object(
 \gset cutover_p04_
 SELECT :'cutover_p04_result'::json AS cutover_phase_p04_ledgers_and_baseline;
 
-\echo '=== CUTOVER PHASE P05/07: install generated runtime settings registry ==='
-\ir generated/prod-to-target/runtime-settings.sql
+\echo '=== CUTOVER PHASE P05/07: verify canonical system settings root ==='
 SELECT json_build_object(
   'status', 'pass',
-  'runtimeSettingRows', (SELECT count(*) FROM public.app_runtime_settings),
-  'globalRuntimeSettingRows', (
-    SELECT count(*) FROM public.app_runtime_settings WHERE organization_id IS NULL
+  'systemSettingRows', (SELECT count(*) FROM public.system_settings),
+  'globalSystemSettingRows', (
+    SELECT count(*) FROM public.system_settings WHERE organization_id IS NULL
   )
 )::text AS result
 \gset cutover_p05_
-SELECT :'cutover_p05_result'::json AS cutover_phase_p05_runtime_settings;
+SELECT :'cutover_p05_result'::json AS cutover_phase_p05_system_settings;
 
 \echo '=== CUTOVER PHASE P06/07: install target post-data schema ==='
 \ir generated/prod-to-target/schema-post.sql

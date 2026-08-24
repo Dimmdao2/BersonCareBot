@@ -97,9 +97,7 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
 -- 6b. Patient program discussion for the owner-ready TEST walkthrough.
--- Migration 0186 registers this key in app_runtime_settings before this post-migrate
--- override runs. The generic system_settings trigger therefore mirrors this value
--- into the patient-readable runtime table without a key-specific application accessor.
+-- The authenticated runtime resolver exposes this registry-classified key from system_settings.
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('patient_program_discussion_ui_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE

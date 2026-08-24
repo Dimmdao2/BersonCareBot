@@ -5,9 +5,7 @@ import {
   type SystemSetting,
 } from './types';
 import type {
-  RuntimeReadTelemetry,
   RuntimeSettingsRepository,
-  RuntimeWrite,
   SettingsWriteUnitOfWork,
   SystemSettingsPort,
   SystemSettingsReadOptions,
@@ -41,55 +39,7 @@ import {
 type SystemSettingsServiceDependencies = {
   runtimeRepository?: RuntimeSettingsRepository;
   writeUnitOfWork?: SettingsWriteUnitOfWork;
-  runtimeReadTelemetry?: RuntimeReadTelemetry;
-  /**
-   * Runtime rows are authoritative. Legacy parity reads are diagnostic only and must be skipped
-   * for principals that deliberately have no access to the restricted legacy store.
-   */
-  shouldCompareRuntimeWithLegacy?: () => boolean;
 };
-
-type RuntimeReadTelemetryEvent = {
-  key: string;
-  source: 'runtime' | 'legacy_fallback' | 'mismatch';
-  count: number;
-};
-
-/**
- * Emits a deliberately value-free, rate-bounded runtime-read signal. The Map is
- * bounded by key/source identities, and a given identity emits once initially
- * and then only at the configured interval. This is a diagnostic signal, not a
- * config store: it never accepts or retains setting values, actor, or org data.
- */
-export function createBoundedRuntimeReadTelemetry(
-  options: {
-    maxEntries?: number;
-    emitEvery?: number;
-    emit?: (event: RuntimeReadTelemetryEvent) => void;
-  } = {},
-): RuntimeReadTelemetry {
-  const maxEntries = options.maxEntries ?? 128;
-  const emitEvery = options.emitEvery ?? 64;
-  const emit =
-    options.emit ??
-    ((event: RuntimeReadTelemetryEvent) => {
-      console.info('[system-settings] runtime-read', event);
-    });
-  const counts = new Map<string, number>();
-  return {
-    record(input: { key: string; source: 'runtime' | 'legacy_fallback' | 'mismatch' }) {
-      const id = `${input.key}:${input.source}`;
-      if (counts.size >= maxEntries && !counts.has(id)) return;
-      const count = (counts.get(id) ?? 0) + 1;
-      counts.set(id, count);
-      if (count === 1 || count % emitEvery === 0) {
-        emit({ key: input.key, source: input.source, count });
-      }
-    },
-  };
-}
-
-const boundedRuntimeTelemetry = createBoundedRuntimeReadTelemetry();
 
 async function mergeWebPushVapidPrivateRetain(
   port: SystemSettingsPort,
@@ -223,23 +173,6 @@ export function createSystemSettingsService(
     return { devMode: true, testAccounts };
   }
 
-  function runtimeWritesFor(
-    key: SystemSettingKey,
-    scope: SystemSettingScope,
-    organizationId: string | null,
-    valueJson: unknown,
-    updatedBy: string | null,
-  ): RuntimeWrite[] {
-    const definition = SYSTEM_SETTING_REGISTRY[key];
-    if (definition.storage === 'runtime') {
-      return [{ key, scope, organizationId, audience: definition.audience, valueJson, updatedBy }];
-    }
-    // Mixed/restricted envelopes remain legacy-authoritative. The legacy DB
-    // trigger owns their VAPID/payment safe projections, so this path only
-    // returns registry storage=runtime rows that receive the explicit bypass.
-    return [];
-  }
-
   async function writeRows(
     rows: Array<{
       key: SystemSettingKey;
@@ -262,12 +195,7 @@ export function createSystemSettingsService(
           ]
         : port.upsertManyInTransaction(rows);
     }
-    return dependencies.writeUnitOfWork.write({
-      legacyRows: rows,
-      authoritativeRuntimeRows: rows.flatMap((row) =>
-        runtimeWritesFor(row.key, row.scope, row.organizationId, row.valueJson, row.updatedBy),
-      ),
-    });
+    return dependencies.writeUnitOfWork.write({ rows });
   }
 
   async function compareAndSwapRow(
@@ -282,14 +210,7 @@ export function createSystemSettingsService(
   ): Promise<SystemSetting | null> {
     if (dependencies.writeUnitOfWork?.compareAndSwap) {
       return dependencies.writeUnitOfWork.compareAndSwap({
-        legacyRow: row,
-        authoritativeRuntimeRows: runtimeWritesFor(
-          row.key,
-          row.scope,
-          row.organizationId,
-          row.valueJson,
-          row.updatedBy,
-        ),
+        row,
         expectedUpdatedAt,
       });
     }
@@ -357,43 +278,12 @@ export function createSystemSettingsService(
             : value;
   }
 
-  async function getSettingWithRuntimeFirst(
+  async function getSettingFromCanonicalRoot(
     key: SystemSettingKey,
     scope: SystemSettingScope,
     options: SystemSettingsReadOptions = {},
   ): Promise<SystemSetting | null> {
-    const definition = SYSTEM_SETTING_REGISTRY[key];
-    if (definition.storage !== 'runtime' || !dependencies.runtimeRepository) {
-      return port.getByKey(key, scope, options);
-    }
-    const organizationId = options.organizationId?.trim() || null;
-    const runtime = await dependencies.runtimeRepository.getEffective({
-      key,
-      scope,
-      organizationId,
-      allowedAudiences: [definition.audience],
-      operationFamily: 'auth_role_config',
-    });
-    const telemetry = dependencies.runtimeReadTelemetry ?? boundedRuntimeTelemetry;
-    if (!runtime) {
-      telemetry.record({ key, source: 'legacy_fallback' });
-      return port.getByKey(key, scope, options);
-    }
-    telemetry.record({ key, source: 'runtime' });
-    if (dependencies.shouldCompareRuntimeWithLegacy?.() !== false) {
-      const legacy = await port.getByKey(key, scope, options);
-      if (legacy && JSON.stringify(legacy.valueJson) !== JSON.stringify(runtime.valueJson)) {
-        telemetry.record({ key, source: 'mismatch' });
-      }
-    }
-    return {
-      key,
-      scope,
-      organizationId: runtime.organizationId,
-      valueJson: runtime.valueJson,
-      updatedAt: runtime.updatedAt ?? '',
-      updatedBy: runtime.updatedBy ?? null,
-    };
+    return port.getByKey(key, scope, options);
   }
 
   return {
@@ -407,34 +297,14 @@ export function createSystemSettingsService(
       scope: SystemSettingScope,
       options?: SystemSettingsReadOptions,
     ): Promise<SystemSetting | null> {
-      return getSettingWithRuntimeFirst(key, scope, options);
+      return getSettingFromCanonicalRoot(key, scope, options);
     },
 
     async listSettingsByScope(
       scope: SystemSettingScope,
       options?: SystemSettingsReadOptions,
     ): Promise<SystemSetting[]> {
-      if (!dependencies.runtimeRepository) return port.getByScope(scope, options);
-      const legacy = await port.getByScope(scope, options);
-      const runtimeRows = await dependencies.runtimeRepository.getSnapshotRows({
-        scope,
-        organizationId: options?.organizationId?.trim() || null,
-        allowedAudiences: ['server', 'authenticated_client', 'public'],
-      });
-      const byKey = new Map(legacy.map((row) => [row.key, row]));
-      for (const row of runtimeRows) {
-        const definition = SYSTEM_SETTING_REGISTRY[row.key as SystemSettingKey];
-        if (!definition || definition.storage !== 'runtime') continue;
-        byKey.set(row.key as SystemSettingKey, {
-          key: row.key as SystemSettingKey,
-          scope: row.scope as SystemSettingScope,
-          organizationId: row.organizationId,
-          valueJson: row.valueJson,
-          updatedAt: row.updatedAt ?? '',
-          updatedBy: row.updatedBy ?? null,
-        });
-      }
-      return [...byKey.values()];
+      return port.getByScope(scope, options);
     },
 
     getWebPushVapidPublicKeyOnly(): Promise<string | null> {

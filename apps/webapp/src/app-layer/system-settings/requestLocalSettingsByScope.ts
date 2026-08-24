@@ -13,7 +13,7 @@ type SettingsByScopeReader = {
  * Один список настроек области на запрос вместо одного на загрузчик.
  *
  * Зачем. `listSettingsByScope` — это ДВА чтения: legacy `system_settings` и авторитетный
- * `app_runtime_settings`. Один рендер `/app/doctor/schedule` спрашивал ровно один и тот же
+ * `system_settings`. Один рендер `/app/doctor/schedule` спрашивал ровно один и тот же
  * список (`scope='doctor'`, та же клиника) дважды — из `loadDoctorWorkspaceShell` и из
  * `loadDoctorScheduleCalendarBootstrap`, — то есть четыре port-транзакции вместо двух, каждая с
  * установкой и снятием контекста. То же удвоение есть на `/app/account` и на странице настроек.

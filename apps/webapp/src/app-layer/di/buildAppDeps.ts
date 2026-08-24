@@ -857,7 +857,6 @@ const appRuntimeSettingsPort = !inMemoryRepos
 const systemSettingsServiceBase = createSystemSettingsService(systemSettingsPort, {
   runtimeRepository: appRuntimeSettingsPort,
   writeUnitOfWork: !inMemoryRepos ? createPgSystemSettingsWriteUnitOfWork() : undefined,
-  shouldCompareRuntimeWithLegacy: () => getCurrentDbPrincipal()?.kind !== 'patient',
 });
 // Один список настроек области на запрос: память живёт в самом сервисе, поэтому её получают все
 // спрашивающие сразу. Обоснование и границы — в `requestLocalSettingsByScope.ts`.

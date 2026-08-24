@@ -186,7 +186,7 @@ export function isRestrictedStaffSecuritySession(session: AppSession): boolean {
  * table system_settings" (reproduced live on TEST 2026-07-25, 9 occurrences across these pages in
  * one session) and Next.js surfaced the generic Server Components error page. Stamping "platform"
  * here routes those same reads through the global-admin pool with SET ROLE app_platform_settings, which
- * already holds SELECT/INSERT/UPDATE on system_settings and app_runtime_settings
+ * already holds the declared access to the canonical system_settings root
  * (deploy/postgres/u9a-platform-settings-role.sql) — no new table grant needed for this page.
  */
 export async function requirePlatformOperationsPage(): Promise<AppSession> {

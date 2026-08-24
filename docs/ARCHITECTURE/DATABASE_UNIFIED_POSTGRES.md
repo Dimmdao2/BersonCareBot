@@ -23,9 +23,9 @@
 
 - **Webapp → integrator API** (`INTEGRATOR_API_URL`): исходящие действия бота, merge и т.д. — это **вызовы сервиса**, не дублирование «второй копии» канона в другой БД.
 - **`system_settings`:** webapp пишет canonical row в `public.system_settings`; integrator читает ту же таблицу напрямую. Его settings-cache истекает не позднее чем через 60 секунд, отдельного push/invalidation API нет.
-- **S5 runtime store:** `public.app_runtime_settings` and its `public.app_runtime_settings_audit` are webapp/public
-  schema tables only. `public.system_settings` remains the settings authoring store until S5-3 moves the write
-  chokepoint. S5-2 separately owns runtime/audit grants and RLS.
+- **Runtime settings:** `public.system_settings` is the only settings data-root. Typed SECURITY DEFINER resolvers
+  project allowlisted public/authenticated/server values without granting runtime roles arbitrary table access;
+  `public.system_settings_audit` remains the single settings audit.
 - **Integrator → webapp HTTP** — только там, где контракт ещё не переведён на общий SQL; такие вызовы **снимать по одному**, не расширять для новых сценариев записи канона.
 
 ## Webapp → integrator SQL cleanup (purge / merge-preview)

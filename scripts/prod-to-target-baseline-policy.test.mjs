@@ -5,9 +5,8 @@ import test from 'node:test';
 import {
   ENVIRONMENT_OWNED_TARIFF_IDS,
   filterAndValidateTargetTariffCatalog,
-  removeRetiredRuntimeSettings,
+  removeRetiredLinkedPhoneSetting,
   REVIEWED_TARGET_TARIFF_IDS,
-  sanitizeRuntimeSettingsForCutover,
   sanitizeSingletonPolicyAuditMetadata,
 } from './prod-to-target-baseline-policy.mjs';
 
@@ -26,16 +25,7 @@ test('target baseline contains exactly four reviewed product tariffs', () => {
 
 test('retired linked-phone setting is removed from rows and function allowlists', () => {
   const source = "VALUES ('integrator_linked_phone_source', 'admin');\nWHERE key IN ('integrator_linked_phone_source', 'other');\n";
-  assert.equal(removeRetiredRuntimeSettings(source), "WHERE key IN ('other');\n");
-});
-
-test('runtime settings do not carry DEV-only updated_by identities into cutover', () => {
-  const source = "INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES ('auth_sms_enabled', 'admin', NULL, 'public', '{\"value\": true}', '2026-08-11 21:47:06+03', '00000000-0000-0000-0000-000000000003');\n";
-  const rendered = sanitizeRuntimeSettingsForCutover(source);
-  assert.equal(
-    rendered,
-    "INSERT INTO public.app_runtime_settings (key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES ('auth_sms_enabled', 'admin', NULL, 'public', '{\"value\": true}', '2026-08-11 21:47:06+03', NULL);\n",
-  );
+  assert.equal(removeRetiredLinkedPhoneSetting(source), "WHERE key IN ('other');\n");
 });
 
 test('singleton policy seed ignores volatile DEV operator metadata', () => {
@@ -78,24 +68,4 @@ test('a complete-looking price drift still requires review', () => {
     () => filterAndValidateTargetTariffCatalog(drifted),
     /differs from its reviewed price\/mechanics contract/u,
   );
-});
-
-test('runtime settings scoped to a DEV-only organization never ride to the target', () => {
-  const prefix = 'INSERT INTO public.app_runtime_settings '
-    + '(key, scope, organization_id, audience, value_json, updated_at, updated_by) VALUES (';
-  const canonical = 'a0000000-0000-4000-8000-000000000001';
-  const devFixture = 'd0000000-0000-4000-8000-000000000004';
-  const sql = [
-    `${prefix}'patient_label', 'doctor', '${canonical}', 'doctor', '{}', '2026-01-01', 'x');`,
-    `${prefix}'patient_label', 'doctor', '${devFixture}', 'doctor', '{}', '2026-01-01', 'x');`,
-    `${prefix}'global_key', 'global', NULL, 'admin', '{}', '2026-01-01', 'x');`,
-  ].join('\n');
-
-  const rendered = sanitizeRuntimeSettingsForCutover(sql);
-
-  // Организаций в целевой базе ровно одна — каноническая из прод-дампа. Строка, привязанная к
-  // DEV-фикстуре, валила раскатку на app_runtime_settings_organization_id_fkey.
-  assert.equal(rendered.includes(devFixture), false);
-  assert.equal(rendered.includes(canonical), true);
-  assert.equal(rendered.includes("'global_key'"), true);
 });

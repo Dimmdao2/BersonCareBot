@@ -59,24 +59,14 @@ UPDATE admin_audit_log            SET actor_id   = 'b0021a38-fb86-45e9-9aec-d850
 UPDATE system_settings            SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884';
 UPDATE user_email_setup_tokens    SET created_by_user_id = 'b0021a38-fb86-45e9-9aec-d85014e932d4' WHERE created_by_user_id = 'a754c977-d1cc-46bb-b870-ca499be81884';
 
--- Эти две таблицы появились уже после исходной PROD-схемы. На свежем dump их ещё нет и переносить в них
--- нечего; при идемпотентном повторе на уже мигрированной схеме ссылки всё равно нормализуются.
+-- Эта таблица появилась уже после исходной PROD-схемы. На свежем dump её ещё нет и переносить в неё
+-- нечего; при идемпотентном повторе на уже мигрированной схеме ссылка всё равно нормализуется.
 DO $$
 BEGIN
   IF to_regclass('integrator.system_settings') IS NOT NULL THEN
     EXECUTE $sql$UPDATE integrator.system_settings
       SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
       WHERE updated_by::text = 'a754c977-d1cc-46bb-b870-ca499be81884'$sql$;
-  END IF;
-  IF to_regclass('public.app_runtime_settings') IS NOT NULL THEN
-    EXECUTE $sql$UPDATE public.app_runtime_settings
-      SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
-      WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884'$sql$;
-  END IF;
-  IF to_regclass('public.app_runtime_settings_audit') IS NOT NULL THEN
-    EXECUTE $sql$UPDATE public.app_runtime_settings_audit
-      SET updated_by = 'b0021a38-fb86-45e9-9aec-d85014e932d4'
-      WHERE updated_by = 'a754c977-d1cc-46bb-b870-ca499be81884'$sql$;
   END IF;
 END $$;
 
