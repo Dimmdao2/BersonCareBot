@@ -3,7 +3,6 @@ import { bindPhoneOtpLimitsDbPort } from '@/modules/auth/phoneOtpLimits';
 import { bindAuthRateLimitDbPort } from '@/modules/auth/authRateLimits';
 import { bindChannelLinkDbPort } from '@/modules/auth/channelLink';
 import { bindEmailSendPort } from '@/modules/auth/emailSendPort';
-import { bindEmailOtpDeliveryQueuePort } from '@/modules/auth/emailOtpDeliveryQueuePort';
 import { bindOAuthUserResolvePort } from '@/modules/auth/oauthUserResolvePort';
 import { bindSessionUserPort } from '@/modules/auth/sessionUserPort';
 import {
@@ -16,7 +15,6 @@ import { pgPhoneOtpLimitsPort } from '@/infra/repos/pgPhoneOtpLimits';
 import { pgOAuthUserResolvePort } from '@/infra/repos/pgOAuthUserResolve';
 import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
 import { sendEmailCodeViaIntegrator } from '@/infra/integrations/email/integratorEmailAdapter';
-import { enqueueAuthEmailOtpDelivery } from '@/infra/repos/pgAuthEmailOtpDeliveryQueue';
 
 let bound = false;
 
@@ -38,7 +36,6 @@ export function ensureAuthModulePortsBound(): void {
       return result.ok ? { ok: true } : { ok: false, error: result.error };
     },
   });
-  bindEmailOtpDeliveryQueuePort({ enqueue: enqueueAuthEmailOtpDelivery });
   bound = true;
 }
 

@@ -72,10 +72,9 @@ export type PatientReminderReadyOutgoingDelivery = {
   platformUserId: string;
 };
 
-// D27-C fix round 2: `auth_email_otp` no longer goes through this generic write port. Its enqueue
-// is a single narrow SECURITY DEFINER call (`app.email_auth_enqueue_otp_delivery`, migration 0363)
-// that composes the row itself from `public.email_challenges` — there is no caller-built
-// `ReadyOutgoingDelivery` envelope for it anymore. See pgAuthEmailOtpDeliveryQueue.ts.
+// `auth_email_otp` does not go through this generic write port. The exact pre-session
+// `app.email_auth_start_challenge` root creates the challenge and its queue row atomically, so there
+// is no caller-built `ReadyOutgoingDelivery` envelope for it.
 
 /**
  * `AppointmentReminderReadyOutgoingDelivery` намеренно НЕ входит в поверхность записи вебаппа:

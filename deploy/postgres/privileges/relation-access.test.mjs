@@ -287,7 +287,6 @@ test('ON CONFLICT seams grant SELECT only on their exact arbiter columns', () =>
     ['app.choose_organization_first_tariff(uuid,uuid)', 'public.saas_organization_trials', ['organization_id']],
     ['app.claim_unbound_patient_invite_email(text,text,text,bigint,text)', 'public.patient_merge_candidates',
       ['organization_id', 'anchor_user_id', 'candidate_user_id', 'status']],
-    ['app.email_auth_enqueue_otp_delivery(uuid,uuid)', 'public.outgoing_delivery_queue', ['event_id']],
     ['app.ensure_staff_security_profile()', 'public.staff_security_profiles', ['user_id']],
     ['app.capture_current_patient_diary_day_snapshot(text,text,integer,integer,boolean,uuid,text,text)',
       'public.patient_diary_day_snapshots', ['platform_user_id', 'local_date']],

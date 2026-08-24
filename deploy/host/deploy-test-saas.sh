@@ -1054,13 +1054,7 @@ WITH pinned_functions(signature) AS (
     ('app.patient_snooze_reminder_occurrence(uuid,text,integer)'),
     ('app.propagate_staff_session_version_to_session_epoch()'),
     ('app.get_preferred_auth_channel_code(uuid)'),
-    -- D27-C (migrations 0369/0370, added 2026-08-04): the login-code delivery pair. Same shape of
-    -- regression as the fifteen above -- organization-member-invites-rls.sql carries a resurrection
-    -- ALTER for the enqueue accessor and, on its first version, re-pinned it to the migrator role right
-    -- after 0370 set app_owner. Named here so a future overlay edit fails by signature instead of only
-    -- shifting a whole-class count from one gate to another.
-    ('app.email_auth_set_email_challenge_delivery_code(uuid,text)'),
-    ('app.email_auth_enqueue_otp_delivery(uuid,uuid)')
+    ('app.email_auth_set_email_challenge_delivery_code(uuid,text)')
 )
 SELECT string_agg(
   target.signature || ' owned by ' || COALESCE(pg_get_userbyid(procedure.proowner), '<missing>'),
