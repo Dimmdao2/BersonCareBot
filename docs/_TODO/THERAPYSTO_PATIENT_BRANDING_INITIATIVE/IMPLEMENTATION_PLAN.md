@@ -799,8 +799,11 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
 - [ ] `C2` Параметризовать существующий Yandex start/callback одним OAuth-config resolver по `ResolvedSurface`;
   resolver допускает одну global config только на включённых patient-поверхностях, а signed state и exact
   callback allowlist исключают подмену host/org/provider.
-- [ ] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
+- [x] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
   существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.
+  Доказательство: route/producer fault injection краснит `sendOtpRoute.route.test.ts`,
+  `materializePatientReminderDeliveries.unit.test.ts` и `dispatchPort.test.ts`; целевой прогон —
+  16 integrator + 27 webapp tests, `pnpm --dir apps/{integrator,webapp} typecheck`.
 - [x] `C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
   setting и один mail-profile resolver/renderer. Не трогать doctor broadcasts/mass mailing кроме сохранения текущего
   поведения. Доказательство: `apps/integrator/src/integrations/email/mailProfile.unit.test.ts` (Therapysto,

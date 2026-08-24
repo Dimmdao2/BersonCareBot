@@ -37,8 +37,8 @@ export type OutboundMessageContent = {
   title?: string;
   /** Ссылка перехода push-уведомления (web_push). */
   url?: string;
-  /** Клиничная рассылка: отправка не откатывается на платформенного отправителя. */
-  senderScope?: 'clinic_required';
+  /** Контекст пациента: свой канал клиники обязателен только когда он реально включён. */
+  senderScope?: 'clinic_required' | 'clinic_if_configured';
 };
 
 export type OutboundMessageContext = {

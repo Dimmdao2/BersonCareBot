@@ -30,8 +30,18 @@ export type VerifyCodeResult =
 /** Куда доставить OTP (код всегда в phone challenge store). */
 export type PhoneOtpDelivery =
   | { channel: 'sms' }
-  | { channel: 'telegram'; recipientId: string }
-  | { channel: 'max'; recipientId: string }
+  | {
+      channel: 'telegram';
+      recipientId: string;
+      /** Branded patient requests must use this organization's bot, never the platform bot. */
+      clinicRequiredOrganizationId?: string;
+    }
+  | {
+      channel: 'max';
+      recipientId: string;
+      /** Branded patient requests must use this organization's bot, never the platform bot. */
+      clinicRequiredOrganizationId?: string;
+    }
   | { channel: 'email'; email: string };
 
 export type DeferredPhoneOtpDelivery = {

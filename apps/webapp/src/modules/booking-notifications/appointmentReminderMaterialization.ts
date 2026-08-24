@@ -94,7 +94,11 @@ export function prepareAppointmentReminderDeliveries(
           payload: {
             recipient: first.recipient,
             message: { text },
-            delivery: { channels: [first.channel], maxAttempts: 1 },
+            delivery: {
+              channels: [first.channel],
+              maxAttempts: 1,
+              senderScope: 'clinic_if_configured',
+            },
           },
         },
       });

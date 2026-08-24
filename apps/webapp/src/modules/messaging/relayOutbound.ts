@@ -43,8 +43,8 @@ type RelayOutboundBaseParams<C extends string> = {
    * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
    */
   icsFilename?: string;
-  /** Clinic-required traffic never falls back to the platform sender. */
-  senderScope?: 'clinic_required';
+  /** Clinic-required traffic never falls back; patient context requires it only when configured. */
+  senderScope?: 'clinic_required' | 'clinic_if_configured';
 };
 
 export type RelayOutboundParams<C extends string = string> = RelayOutboundBaseParams<C> &

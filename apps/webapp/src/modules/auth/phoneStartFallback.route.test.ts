@@ -69,6 +69,13 @@ vi.mock('@/modules/auth/authChannelPolicy', () => ({
   isAuthChannelEnabled: fakes.isChannelEnabled,
   getClientVisibleAuthChannelPolicy: fakes.getClientVisiblePolicy,
 }));
+vi.mock('@/shared/lib/surface/requestSurface', () => ({
+  requireResolvedSurface: () => ({
+    surface: 'patient_default',
+    publicOrigin: 'https://app.example.test',
+    authPolicy: { availableMethods: [], enabledMethods: [] },
+  }),
+}));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
     userByPhone: {

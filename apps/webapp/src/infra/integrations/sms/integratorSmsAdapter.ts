@@ -140,6 +140,13 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
                 code,
                 mailProfile: platformMailProfileForRecipientRole('client'),
                 idempotencyKey: otpDeliveryIdempotencyKey(deliveryChannel, recipientId, code),
+                ...((deliveryChannel === 'telegram' || deliveryChannel === 'max') &&
+                delivery?.channel === deliveryChannel && delivery.clinicRequiredOrganizationId
+                  ? {
+                      organizationId: delivery.clinicRequiredOrganizationId,
+                      senderScope: 'clinic_if_configured' as const,
+                    }
+                  : {}),
               });
               const signature = signPayload(timestamp, body, sharedSecret);
               const res = await fetch(sendOtpUrl, {

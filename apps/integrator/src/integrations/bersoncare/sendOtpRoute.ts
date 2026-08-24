@@ -12,6 +12,7 @@ import type {
   OutgoingIntent,
 } from '../../kernel/contracts/index.js';
 import { logger } from '../../infra/observability/logger.js';
+import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { DbPort } from '../../kernel/contracts/index.js';
 import {
   mailProfileRequestSchema,
@@ -27,6 +28,8 @@ const bodySchema = z
     code: z.string().min(4).max(8),
     mailProfile: mailProfileRequestSchema,
     idempotencyKey: z.string().min(1),
+    organizationId: z.string().uuid().optional(),
+    senderScope: z.literal('clinic_if_configured').optional(),
   })
   .superRefine((value, ctx) => {
     if (value.channel === 'max' && !/^[1-9]\d*$/u.test(value.recipientId.trim())) {
@@ -108,7 +111,11 @@ export async function registerBersoncareSendOtpRoute(
       return reply.code(400).send({ ok: false, error: 'invalid_payload' });
     }
 
-    const { channel, recipientId, code, idempotencyKey, mailProfile } = parsed.data;
+    const { channel, recipientId, code, idempotencyKey, mailProfile, organizationId, senderScope } =
+      parsed.data;
+    if (senderScope && !organizationId) {
+      return reply.code(400).send({ ok: false, error: 'organization_required' });
+    }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
       return reply.code(200).send({ ok: true, status: 'duplicate' });
     }
@@ -130,12 +137,15 @@ export async function registerBersoncareSendOtpRoute(
       payload: {
         recipient,
         message: { text },
-        delivery: { channels: [channel] },
+        delivery: {
+          channels: [channel],
+          ...(senderScope ? { senderScope } : {}),
+        },
       },
     };
 
     try {
-      await dispatchPort.dispatchOutgoing(intent);
+      await runWithOptionalOrganizationPrincipal(organizationId, () => dispatchPort.dispatchOutgoing(intent));
       return reply.code(200).send({ ok: true });
     } catch (err) {
       await idempotencyPort.release?.(idempotencyKey);
