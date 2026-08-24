@@ -173,7 +173,7 @@ env_app_base_url() {
   /bin/bash -c 'set -euo pipefail; set -a; source "$1"; set +a; printf "%s" "${APP_BASE_URL:-}"' _ "$1"
 }
 origin_host() {
-  node -e 'const value = new URL(process.argv[1]); process.stdout.write(value.host)' "$1"
+  APP_BASE_URL="$1" node "$PROJECT_ROOT/deploy/host/webapp-health-host.mjs"
 }
 health_check() {
   local host=$1
