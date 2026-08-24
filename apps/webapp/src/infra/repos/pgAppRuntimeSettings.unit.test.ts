@@ -26,8 +26,8 @@ beforeEach(() => {
 });
 
 describe('runtime settings public boundary', () => {
-  it.each(['telegram_bot_token', 'not_registered_runtime_key'])(
-    'rejects secret or unregistered key %s before any SQL is executed',
+  it.each(['sms_fallback_enabled', 'smsc_api_key', 'not_registered_runtime_key'])(
+    'rejects restricted, secret, or unregistered key %s before any SQL is executed',
     async (key) => {
       const port = createPgAppRuntimeSettingsPort();
 
@@ -43,6 +43,41 @@ describe('runtime settings public boundary', () => {
       expect(fakes.runWebappPgText).not.toHaveBeenCalled();
     },
   );
+
+  it('routes the reviewed SMS fallback projection without admitting its restricted source', async () => {
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({
+      rows: [{
+        key: 'public_sms_fallback_enabled',
+        scope: 'admin',
+        organization_id: null,
+        audience: 'public',
+        value_json: { value: false },
+      }],
+    });
+    const port = createPgAppRuntimeSettingsPort();
+
+    await expect(port.getEffective({
+      key: 'public_sms_fallback_enabled',
+      scope: 'admin',
+      organizationId: null,
+      allowedAudiences: ['public'],
+      operationFamily: 'public_auth_config',
+    })).resolves.toMatchObject({
+      key: 'public_sms_fallback_enabled',
+      audience: 'public',
+      valueJson: { value: false },
+    });
+
+    expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
+    expect(fakes.runWebappNamedRoot.mock.calls[0]?.[1]).toBe(
+      'app.read_public_runtime_setting(text,text)',
+    );
+    expect(fakes.runWebappNamedRoot.mock.calls[0]?.[2]).toEqual([
+      'public_sms_fallback_enabled',
+      'admin',
+    ]);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+  });
 
   it('routes a registered public auth-surface key through the pre-session definer only', async () => {
     fakes.runWebappNamedRoot.mockResolvedValueOnce({
