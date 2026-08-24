@@ -14,9 +14,10 @@
  *
  * ARM A (fault injection, teeth): the PRE-candidate creating body is taken from the product file of
  * record (`deploy/postgres/generated/prod-to-target/schema-pre.sql`), replayed inside the rolled-back
- * transaction, and probed. It must CREATE the four canonical rows. If arm A ever goes quiet, arm B
- * proves nothing — the probe would be measuring an id the root never touches. The injection lives
- * HERE; nothing on disk is touched.
+ * transaction, and probed. Since D17 narrowed the function owner, that stale body must now fail with
+ * `42501` before it can create canonical rows. This proves the structural defence remains effective
+ * even if the creating body is accidentally restored. The injection lives HERE; nothing on disk is
+ * touched.
  *
  * ARM B (acceptance): the candidate migration is materialized in the same transaction, and the same
  * unknown Telegram and MAX ids must leave `platform_users` / `user_identity` /
@@ -217,18 +218,25 @@ ${ACCEPT_CONTEXT_HELPER}
 ${FIXTURE_GUARD}
 
 DO $arm_a$
-DECLARE before_counts text; after_counts text; created boolean; returned integer;
+DECLARE
+  before_counts text;
+  after_counts text;
+  denied_state text;
 BEGIN
   before_counts := pg_temp.identity_counts();
-  SELECT count(*), bool_or(root.account_created) INTO returned, created
-    FROM pg_temp.call_identity_root('telegram', '${UNKNOWN_TG}', 'd25auditor') AS root;
+  BEGIN
+    PERFORM *
+      FROM pg_temp.call_identity_root('telegram', '${UNKNOWN_TG}', 'd25auditor');
+  EXCEPTION
+    WHEN insufficient_privilege THEN
+      denied_state := SQLSTATE;
+  END;
   after_counts := pg_temp.identity_counts();
   INSERT INTO probe_out(key, value) VALUES
     ('arm_a_body_creates',
       (SELECT (pg_get_functiondef('${ROOT}'::regprocedure)
                ~ 'INSERT INTO public[.]platform_users')::text)),
-    ('arm_a_rows_returned', returned::text),
-    ('arm_a_account_created', coalesce(created::text, 'NULL')),
+    ('arm_a_denied_state', coalesce(denied_state, 'NULL')),
     ('arm_a_counts_before', before_counts),
     ('arm_a_counts_after', after_counts),
     ('arm_a_binding_rows',
@@ -383,8 +391,8 @@ test(
     skip: ENABLED ? false : 'set RUN_D25_GENERIC_INGRESS_DB=1 to run against the named DEV database',
   },
   () => {
-    // ARM A — fault injection. Replay the pre-candidate creating body; the same probe must create the
-    // four canonical rows, or arm B's silence means nothing.
+    // ARM A — fault injection. Replay the pre-candidate creating body. D17's narrowed owner must make
+    // the stale write structurally impossible, and the failed call must leave every canonical table still.
     const a = parsed(psql(armAsql()));
     if (process.env.D25_PROOF_PRINT === '1') console.error('ARM A', a);
     assert.equal(
@@ -392,17 +400,16 @@ test(
       'true',
       'arm A must run against the creating (pre-candidate) body',
     );
-    assert.equal(a.arm_a_rows_returned, '1');
     assert.equal(
-      a.arm_a_account_created,
-      'true',
-      'pre-candidate root creates a blank canonical person',
+      a.arm_a_denied_state,
+      '42501',
+      'the narrowed D17 owner must deny the pre-candidate canonical write',
     );
-    assert.equal(a.arm_a_binding_rows, '1', 'pre-candidate root writes the channel binding too');
-    assert.notEqual(
+    assert.equal(a.arm_a_binding_rows, '0', 'the denied stale root must not write a channel binding');
+    assert.equal(
       a.arm_a_counts_before,
       a.arm_a_counts_after,
-      'pre-candidate root must move the identity table counts — otherwise the probe is blind',
+      'the denied stale root must leave identity table counts unchanged',
     );
 
     // ARM B — acceptance on the candidate body.
