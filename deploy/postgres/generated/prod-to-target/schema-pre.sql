@@ -17287,8 +17287,32 @@ CREATE FUNCTION app.read_public_runtime_setting(p_key text, p_scope text) RETURN
     LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
     SET search_path TO 'pg_catalog', 'app', 'public', 'pg_temp'
     AS $_$
+DECLARE
+  v_sms_fallback_enabled boolean;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_settings_runtime_owner'::name, 'app_pre_session'::name, 'pre_session'::app.port_context_class, 'config.runtime.public.read', app.hash_port_typed_args(ARRAY[ROW('text@1', pg_catalog.textsend($1))::app.port_typed_arg, ROW('text@1', pg_catalog.textsend($2))::app.port_typed_arg]), 'app.read_public_runtime_setting(text,text)'::regprocedure);
+
+  IF p_key = 'public_sms_fallback_enabled' AND p_scope = 'admin' THEN
+    SELECT CASE pg_catalog.lower(setting.value_json ->> 'value')
+             WHEN 'true' THEN true
+             WHEN '1' THEN true
+             WHEN 'false' THEN false
+             WHEN '0' THEN false
+             ELSE NULL
+           END
+      INTO v_sms_fallback_enabled
+      FROM public.system_settings setting
+     WHERE setting.key = 'sms_fallback_enabled'
+       AND setting.organization_id IS NULL
+       AND setting.scope IN ('doctor', 'admin')
+     ORDER BY CASE setting.scope WHEN 'doctor' THEN 0 ELSE 1 END
+     LIMIT 1;
+
+    RETURN QUERY
+    SELECT p_key, p_scope, NULL::uuid, 'public'::text,
+           pg_catalog.jsonb_build_object('value', COALESCE(v_sms_fallback_enabled, false));
+    RETURN;
+  END IF;
 
   RETURN QUERY
   SELECT setting.key, setting.scope, setting.organization_id, 'public'::text AS audience, setting.value_json
@@ -17302,9 +17326,9 @@ BEGIN
          'auth_oauth_google_enabled', 'auth_oauth_yandex_enabled', 'auth_oauth_vk_enabled',
          'auth_oauth_apple_enabled', 'auth_passkey_enabled', 'oauth_yandex_enabled',
          'oauth_google_enabled', 'oauth_apple_enabled', 'oauth_vk_enabled',
-         'public_sms_fallback_enabled', 'specialist_signup_enabled',
-         'patient_unsupported_client_fallback_enabled', 'telegram_login_bot_username',
-         'max_login_bot_nickname', 'vk_web_login_url', 'support_contact_url', 'app_display_timezone'
+         'specialist_signup_enabled', 'patient_unsupported_client_fallback_enabled',
+         'telegram_login_bot_username', 'max_login_bot_nickname', 'vk_web_login_url',
+         'support_contact_url', 'app_display_timezone'
        )
        OR setting.key ~ '^auth_surface_(staff|platform_admin|patient)_(email|sms|telegram|max|oauth_google|oauth_yandex|oauth_vk|oauth_apple|passkey)_enabled$'
      )
