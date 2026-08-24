@@ -498,23 +498,23 @@ Passkey не удаляем — и это я уже выключил. Слуша
 
 Checkbox закрывается только доказательством, указанным в той же строке. ID не переименовываются.
 
-- [ ] `TPB-01` User-visible имя staff/platform surface — **Therapysto**. Доказательство: inventory diff + UI/
+- [x] `TPB-01` User-visible имя staff/platform surface — **Therapysto**. Доказательство: inventory diff + UI/
   metadata/auth issuer assertions без старого platform name.
 - [ ] `TPB-02` Specialists и clinic admins работают на `therapysto.ru`, platform admins — на
   `admin.therapysto.ru`; обе поверхности имеют identity Therapysto. Доказательство: host/role route tests для
   staff и platform-admin paths.
 - [ ] `TPB-03` Пациенты работают в отдельно названном standard patient app на отдельном полном owner-selected
   domain. Доказательство: typed config validation и runtime smoke обоих origins.
-- [ ] `TPB-04` Не созданы `staff.therapysto.ru` и `patient.therapysto.ru`; единственный отдельный поддомен
+- [x] `TPB-04` Не созданы `staff.therapysto.ru` и `patient.therapysto.ru`; единственный отдельный поддомен
   Therapysto — явно выбранный `admin.therapysto.ru`. Доказательство: deploy config и active docs не содержат
   запрещённых staff/patient поддоменов.
 - [ ] `TPB-05` Пациент клиники входит через standard patient domain или активный branded clinic domain.
   Доказательство: одинаковые login/booking/cabinet behavior tests на обоих surface.
 - [ ] `TPB-06` BersonCare активирован первой конфигурацией универсального механизма, без BersonCare-specific code.
   Доказательство: runtime settings/brand data + отсутствие BersonCare branching в product code.
-- [ ] `TPB-07` Остаются один repo, один webapp, одна DB и общие mechanics. Доказательство: architecture diff не
+- [x] `TPB-07` Остаются один repo, один webapp, одна DB и общие mechanics. Доказательство: architecture diff не
   создаёт второго app/tree/store/dispatcher.
-- [ ] `TPB-08` Branding влияет только на patient-facing surface; staff/admin видят Therapysto. Доказательство:
+- [x] `TPB-08` Branding влияет только на patient-facing surface; staff/admin видят Therapysto. Доказательство:
   cross-surface metadata/UI tests.
 - [ ] `TPB-09` Standard patient name/origin меняются deploy config без data migration; clinic domain/integrations
   остаются org-scoped DB settings. Доказательство: config test и settings ownership tests.
@@ -592,8 +592,21 @@ Checkbox закрывается только доказательством, у�
   умолчанию у докторов — так же, как passkey. Ничего не удаляется и не блокируется архитектурно. Прежняя
   редакция требовала, чтобы OAuth на staff нельзя было включить в принципе; она отменена как противоречащая
   модели «все механики включаются в админке».
-- [ ] `TPB-16` Реализация расширяет перечисленные choke points и не создаёт параллельных getters/resolvers/stores.
+- [x] `TPB-16` Реализация расширяет перечисленные choke points и не создаёт параллельных getters/resolvers/stores.
   Доказательство: dependency/architecture audit по diff.
+
+  > **`TPB-01`, `TPB-04`, `TPB-07`, `TPB-08`, `TPB-16` закрыты 24.08.2026** проходом `E1`
+  > (`E1_EVIDENCE_TPB01_04_07_08_16_2026-08-24.md`, Opus 5/high, посажено 6 — убито 6 — не поймано 0).
+  > `TPB-04`/`TPB-07`/`TPB-16` — взгляд: запрещённых поддоменов в дереве нет (5 попаданий — текст самого
+  > запрета), `admin.` выводится из `APP_BASE_URL` и другого префикса из этого кода не получается; дифф не
+  > заводит второго приложения/стора/диспетчера, а один убирает (`build:admin`); резолвер поверхности один
+  > (`resolveRequestSurface`), все 8 потребителей импортируют его. `TPB-01` — оба класса: inventory diff
+  > 34 файла / 53 вхождения на `feat` → 4 / 5 на ветке, все в allowlist `TPB-15`, user-visible ноль.
+  > `TPB-08` — поведение, и до этого прохода доказан НЕ был: обе staff-проверки читали константу
+  > `staffPwaLayoutMetadata` напрямую, поэтому подмена ветки в `surfaceLayoutMetadata.ts:52` и выигрыш бренда
+  > арендатора в `requestSurface.ts:277` оставались зелёными. Дописан блок в `staffPwaManifest.unit.test.ts`
+  > (три случая через резолвер плюс обратная проверка пациентских поверхностей); продуктовый код не тронут.
+  > Инъекция проверена ведущим лично: отключение staff-ветки резолвера краснит 3 из 9, после отката дерево чистое.
 
 ### 2.1 Решения владельца 22.08.2026 по развилкам исследования
 
