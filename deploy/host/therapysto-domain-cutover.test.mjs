@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+const dir = mkdtempSync(join(tmpdir(), 'therapysto-domain-'));
+const map = join(dir, 'hosts.env');
+writeFileSync(map, 'STAFF_HOST=staff.test.example\nPLATFORM_ADMIN_HOST=admin.test.example\nPATIENT_DEFAULT_HOST=therapygo.test.example\nPATIENT_BRANDED_HOST=bersoncare.therapygo.test.example\nCLINIC_CUSTOM_HOST=app.bersoncare.test.example\nTLS_CERTIFICATE_PATH=/tmp/cert.pem\nTLS_CERTIFICATE_KEY_PATH=/tmp/key.pem\n');
+const out = join(dir, 'nginx.conf');
+execFileSync('bash', ['deploy/host/therapysto-domain-cutover.sh', '--host-map', map, '--offline', '--render', out]);
+const config = readFileSync(out, 'utf8');
+assert.match(config, /server_name _; return 444/);
+assert.match(config, /proxy_set_header Host \$host/);
+assert.match(config, /bersoncare\.therapygo\.test\.example;[\s\S]*return 308 https:\/\/app\.bersoncare\.test\.example\$request_uri/);
+writeFileSync(map, 'STAFF_HOST=bad_host\n');
+assert.throws(() => execFileSync('bash', ['deploy/host/therapysto-domain-cutover.sh', '--host-map', map, '--offline']), /lowercase DNS hostname/);
+console.log('therapysto domain cutover contracts: PASS');

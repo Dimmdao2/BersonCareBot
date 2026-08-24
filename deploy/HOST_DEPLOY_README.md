@@ -253,6 +253,62 @@ PTY/non-TTY, повторная ротация и отсутствие утеч�
 
 ---
 
+## Therapysto / Therapygo future TEST domain cutover (not activated)
+
+This is the sole prepared operator path for the pending branding-domain switch.
+It extends the existing TEST nginx seam; it does not change `test.bersoncare.ru`, DNS,
+TLS, env, services, or the live resolver until a separate owner command authorizes activation.
+
+The operator first writes approved TEST analogues into a protected local file (never invent
+or commit values), based on `deploy/host/therapysto-domain-host-map.example.env`. Required,
+distinct values are staff, platform admin, default patient, technical branded patient and
+the custom clinic host, plus absolute certificate/key paths. The supplied certificate must
+cover every mapped TEST hostname. Production topology remains: `therapysto.ru`,
+`admin.therapysto.ru`, `therapygo.ru`, `*.therapygo.ru`, `bersoncare.therapygo.ru`, and
+`app.bersoncare.ru`. `test.bersoncare.ru` remains on its current address.
+
+Before activation, from the TEST checkout:
+
+```bash
+bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env --offline --render /tmp/therapysto-nginx.conf
+bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env
+```
+
+The first command is offline and verifies the map and rendered fail-closed nginx contract;
+the second additionally proves DNS and the separately-issued certificate for every host.
+The certificate set must explicitly cover both the apex `therapygo.ru` and
+`*.therapygo.ru`; a wildcard alone does not cover the apex. The custom certificate must
+cover `app.bersoncare.ru`. Inspect the rendered config with `sudo nginx -t` before apply.
+
+Only after an owner activation command, preserve both state files, apply, and smoke:
+
+```bash
+sudo cp -p /etc/nginx/sites-available/test.bersoncare.ru /etc/nginx/sites-available/test.bersoncare.ru.pre-therapysto
+sudo cp -p /opt/env/bersoncarebot/webapp.test /opt/env/bersoncarebot/webapp.test.pre-therapysto
+THERAPYSTO_CUTOVER_OWNER_APPROVED=yes bash deploy/host/therapysto-domain-cutover.sh --host-map /opt/env/bersoncarebot/therapysto-test-hosts.env --apply
+```
+
+Smoke each host with a Host/SNI request: staff login, platform-admin login, default patient
+login, custom patient login, and the technical branded host redirecting to the custom host.
+Then run the BersonCare journey: branded root → OAuth/login → recovery → card/booking →
+cabinet → bot/email notification; separately run the default patient journey and Therapysto
+staff login. Unknown hosts must return the nginx default refusal, never a platform fallback.
+
+Rollback criteria: failed `nginx -t`, DNS/certificate mismatch, any unknown-host fallback,
+technical-host redirect failure, or any cross-surface authentication leakage. Restore the
+saved nginx and env files, `sudo nginx -t`, reload nginx, restart the TEST webapp only if
+the env was restored, and repeat the old `test.bersoncare.ru` smoke. Do not mark B7, B8,
+C5a, D1–D3 or runtime C5 closed until this live activation evidence exists.
+
+Prepare daily read-only monitoring only after activation, through cronport (never crontab):
+
+```bash
+node /home/dev/brain/tools/cronport.mjs set therapysto-test-domain-health '17 8 * * *' 'cd /opt/projects/bersoncarebot-test && bash deploy/host/check-therapysto-domain-certificates.sh /opt/env/bersoncarebot/therapysto-test-hosts.env'
+```
+
+It checks DNS resolution and reports each TLS certificate expiry. The command above is a
+future operator instruction; this change does not install a cron entry.
+
 ## Backup contract (pre-migrations)
 
 Скрипт `/opt/backups/scripts/postgres-backup.sh` вызывается с первым аргументом `pre-migrations` перед миграциями в deploy-prod и в deploy-webapp-prod.

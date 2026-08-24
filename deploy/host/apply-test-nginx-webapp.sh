@@ -27,6 +27,10 @@ Usage:
   bash deploy/host/apply-test-nginx-webapp.sh [--dry-run]
   bash deploy/host/apply-test-nginx-webapp.sh --apply
 
+For the future Therapysto multi-host cutover use the same TEST vhost seam via
+deploy/host/therapysto-domain-cutover.sh --host-map FILE; this legacy entrypoint
+intentionally continues to manage only test.bersoncare.ru.
+
 Default is --dry-run. --apply backs up the active TEST vhost, installs the
 repo-managed TEST vhost, runs nginx -t, reloads nginx only on success, then
 runs the SaaS A2 forwarded-host checker against nginx -T.

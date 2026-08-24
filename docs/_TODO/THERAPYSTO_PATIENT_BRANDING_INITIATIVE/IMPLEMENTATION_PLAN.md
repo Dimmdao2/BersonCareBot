@@ -773,6 +773,10 @@ identity seam, а не набор getters.
 
 ### B — Единый surface/brand path (`TPB-05`, `07`, `08`, `09`, `11`, `14`, `16`)
 
+**Решение владельца 24.08.2026:** подготовка domain cutover выполняется в отдельной
+невливаемой ветке и независимо проверяется; merge и любое применение возможны только по
+отдельной команде владельца. Подготовка не закрывает runtime-пункты B7, B8, C5a, D1–D3 или C5.
+
 - [x] `B1` Резолвить организацию по метке поддомена нашего patient-домена через существующий slug-резолвер и
   approved DB seam; не из route/proxy напрямую. Неизвестная метка — hard 404. Доказательство:
   `patientSubdomainOrganization.unit.test.ts` (`resolved` через `ClinicDirectoryService`, unknown → `{ status: 404 }`).
