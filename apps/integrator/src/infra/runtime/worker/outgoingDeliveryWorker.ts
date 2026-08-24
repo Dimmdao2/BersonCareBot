@@ -80,6 +80,7 @@ import {
   OUTBOUND_MESSAGE_POLICY_DENIED,
   isOutboundMessagePolicyDenied,
 } from '../../adapters/outboundMessagePolicy.js';
+import { isProviderAttemptFailure } from '../../adapters/dispatchPort.js';
 
 export type OutgoingDeliveryWorkerDeps = {
   db: DbPort;
@@ -140,9 +141,7 @@ function queueMarkSent(
   id: string,
   sentMessagePayload?: Record<string, unknown>,
 ): Promise<void> {
-  return runWithDeliveryQueueCapability(() =>
-    markOutgoingDeliverySent(db, id, sentMessagePayload),
-  );
+  return runWithDeliveryQueueCapability(() => markOutgoingDeliverySent(db, id, sentMessagePayload));
 }
 
 function queueMarkDispatching(db: DbPort, id: string): Promise<void> {
@@ -516,12 +515,11 @@ async function finalizeOutgoingDeliveryDead(
 
 /**
  * Records the ONE real failed-provider-call attempt for this queue row (Track D final cutover
- * #987, audit F5/F6). Only handleDispatchFailure's generic (non recipient_blocked_bot) branch
- * calls this — it is the existing seam that already has both the real queue row (`row.id`,
- * `row.attemptCount`) and the real provider error, for every queue-backed dispatch kind
- * (operator_alert, inbound_reply, reminder_dispatch, doctor_broadcast_intent). Pre-provider skips
- * (stale materialization, rate-limited, web_push skipped) and recipient_blocked_bot are expected
- * terminal states, not delivery attempts, and never reach this function.
+ * #987, audit F5/F6). handleDispatchFailure calls this only when dispatchPort marked the thrown
+ * object at the exact DeliveryAdapter.send catch boundary (or when web-push returned an explicit
+ * failed provider outcome). The seam already has both the real queue row (`row.id`,
+ * `row.attemptCount`) and the real provider error for every queue-backed dispatch kind.
+ * Pre-provider errors/skips and recipient_blocked_bot remain queue outcomes, not delivery attempts.
  */
 async function recordDeliveryFailureAttempt(
   writePort: DbWritePort,
@@ -593,6 +591,7 @@ async function handleDispatchFailure(
   err: unknown,
   writePort: DbWritePort,
   intent?: OutgoingIntent,
+  providerAttempted = isProviderAttemptFailure(err),
 ): Promise<void> {
   if (
     row.kind !== 'operator_alert' &&
@@ -612,7 +611,7 @@ async function handleDispatchFailure(
   }
   const msg = err instanceof Error ? err.message : String(err);
   const safe = truncateDeliveryErrorMessage(msg);
-  if (intent) {
+  if (intent && providerAttempted) {
     await recordDeliveryFailureAttempt(writePort, row, intent, safe);
   }
   const attempts = row.attemptCount;
@@ -744,7 +743,12 @@ export async function processOutgoingDeliveryRow(
     if (!materializationCurrent) {
       // F5/F6, docs/_TODO/runs/integrator-cleanup/TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md:
       // stale work before any provider call is not a failed provider attempt — no attempt row.
-      await queueMarkDead(db, row.id, 'stale_materialization', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
+      await queueMarkDead(
+        db,
+        row.id,
+        'stale_materialization',
+        REMINDER_NOT_DISPATCHED_FAILURE_CLASS,
+      );
       return;
     }
     const platformUserId =
@@ -781,18 +785,18 @@ export async function processOutgoingDeliveryRow(
         if (Number.isFinite(staleMid) && staleMid > 0) {
           try {
             await dispatchOutgoing({
-                type: 'message.delete',
-                meta: {
-                  eventId: `${row.eventId}:stale_delete`,
-                  occurredAt: new Date().toISOString(),
-                  source: 'telegram',
-                  ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
-                },
-                payload: {
-                  recipient: { chatId: chatIdForDel },
-                  messageId: staleMid,
-                  delivery: { channels: ['telegram'], maxAttempts: 1 },
-                },
+              type: 'message.delete',
+              meta: {
+                eventId: `${row.eventId}:stale_delete`,
+                occurredAt: new Date().toISOString(),
+                source: 'telegram',
+                ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
+              },
+              payload: {
+                recipient: { chatId: chatIdForDel },
+                messageId: staleMid,
+                delivery: { channels: ['telegram'], maxAttempts: 1 },
+              },
             });
           } catch (err) {
             logger.warn({ err, staleMid, occurrenceId }, 'reminder_stale_message_delete_failed');
@@ -801,18 +805,18 @@ export async function processOutgoingDeliveryRow(
       } else if (channel === 'max') {
         try {
           await dispatchOutgoing({
-              type: 'message.delete',
-              meta: {
-                eventId: `${row.eventId}:stale_delete`,
-                occurredAt: new Date().toISOString(),
-                source: 'max',
-                ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
-              },
-              payload: {
-                recipient: { chatId: chatIdForDel },
-                messageId: staleStr,
-                delivery: { channels: ['max'], maxAttempts: 1 },
-              },
+            type: 'message.delete',
+            meta: {
+              eventId: `${row.eventId}:stale_delete`,
+              occurredAt: new Date().toISOString(),
+              source: 'max',
+              ...(typeof intent.meta.userId === 'string' ? { userId: intent.meta.userId } : {}),
+            },
+            payload: {
+              recipient: { chatId: chatIdForDel },
+              messageId: staleStr,
+              delivery: { channels: ['max'], maxAttempts: 1 },
+            },
           });
         } catch (err) {
           logger.warn(
@@ -839,11 +843,16 @@ export async function processOutgoingDeliveryRow(
           const error = new Error(
             `WEB_PUSH_OUTCOME_FAILED:${reason}${providerCode ? `:${providerCode}` : ''}${statusCode !== undefined ? `:${statusCode}` : ''}`,
           );
-          await handleDispatchFailure(db, row, error, writePort, intent);
+          await handleDispatchFailure(db, row, error, writePort, intent, true);
           return;
         }
         if (outcome.status === 'skipped') {
-          await queueMarkDead(db, row.id, 'web_push_skipped', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
+          await queueMarkDead(
+            db,
+            row.id,
+            'web_push_skipped',
+            REMINDER_NOT_DISPATCHED_FAILURE_CLASS,
+          );
           return;
         }
       }

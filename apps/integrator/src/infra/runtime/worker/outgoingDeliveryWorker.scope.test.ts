@@ -390,7 +390,7 @@ describe('воркер доставки: строка без разрешимо�
     expect(h.markedSent).toBe(1);
   });
 
-  it('keeps retryable generic transport failure durable and dead-letters permanent failure', async () => {
+  it('keeps pre-provider failures durable without inventing provider-attempt rows', async () => {
     const retry = harness({
       queue_kind: 'specialist_task_reminder',
       organization_id: OWNER_ORG,
@@ -401,19 +401,8 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(retry, queueRow('specialist_task_reminder'));
     expect(retry.rescheduled).toBe(1);
-    // Track D F5/F6: every real dispatch failure records exactly one attempt row, tied to the
-    // real queue row id and a real increasing attempt number, regardless of retry/dead outcome.
-    expect(retry.writes).toEqual([
-      {
-        type: 'delivery.attempt.log',
-        params: expect.objectContaining({
-          channel: 'telegram',
-          status: 'failed',
-          attempt: 2,
-          payload: { deliveryQueueId: ROW_ID },
-        }),
-      },
-    ]);
+    // A plain dependency error carries no evidence that DeliveryAdapter.send was called.
+    expect(retry.writes).toEqual([]);
     expect(retry.markedSent).toBe(0);
 
     const permanent = harness({
@@ -426,7 +415,31 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(permanent, queueRow('specialist_task_reminder'));
     expect(permanent.quarantined).toEqual(['CHANNEL_NOT_SUPPORTED:telegram']);
-    expect(permanent.writes).toEqual([
+    expect(permanent.writes).toEqual([]);
+    expect(permanent.rescheduled).toBe(0);
+  });
+
+  it('records one attempt when the real provider adapter rejects', async () => {
+    const providerError = new Error('temporary_provider_failure');
+    const adapter: DeliveryAdapter = {
+      canHandle: () => true,
+      send: async () => {
+        throw providerError;
+      },
+    };
+    const dispatchPort = createDefaultDispatchPort({ adapters: [adapter] });
+    const h = harness({
+      queue_kind: 'specialist_task_reminder',
+      organization_id: OWNER_ORG,
+      resolution: 'tenant',
+    });
+    h.dispatchOutgoing = (intent) =>
+      dispatchPort.dispatchOutgoing(intent, { skipAttemptLog: true });
+
+    await processUnderWorkerTick(h, queueRow('specialist_task_reminder'));
+
+    expect(h.rescheduled).toBe(1);
+    expect(h.writes).toEqual([
       {
         type: 'delivery.attempt.log',
         params: expect.objectContaining({
@@ -437,7 +450,6 @@ describe('воркер доставки: строка без разрешимо�
         }),
       },
     ]);
-    expect(permanent.rescheduled).toBe(0);
   });
 
   it('delivers operator health digest globally without incidentId and preserves generic retry/dead behavior', async () => {

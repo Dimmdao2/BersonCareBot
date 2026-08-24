@@ -2,4 +2,4 @@
 # outgoing_delivery_queue sent/dead, notification_delivery_attempts) — один tick сметает все ещё
 # живые retention-цели разом через app.prune_retention_target / app.prune_context_nonce_ledger.
 # Requires INTERNAL_JOB_SECRET in webapp.prod.
-0 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/db-journal-retention/tick" >/dev/null'
+0 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Host: bersoncare.ru" -H "Origin: https://bersoncare.ru" -H "X-Forwarded-Proto: https" -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/db-journal-retention/tick" >/dev/null'

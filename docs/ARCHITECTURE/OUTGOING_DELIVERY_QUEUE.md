@@ -18,7 +18,12 @@ Producer-adapter внутри `delivery-handler` infra scope читает DB-bac
 сохраняет только `SELECT` и bounded `UPDATE` (claim/reclaim/finalize), получает `EXECUTE` на root, но не прямой
 `DELETE`. Durable-история остаётся в `public.notification_delivery_attempts`; retention очереди её не изменяет.
 
-**Блокировка бота (TG/MAX):** при `RECIPIENT_BLOCKED_BOT` строка финализируется как `dead` с `failure_class = recipient_blocked_bot`, attempt в `notification_delivery_attempts` — `skipped` / `recipient_blocked_bot`. Такие строки **не** входят в operator `deadTotal` («Очередь доставки») и **не** увеличивают `broadcast_audit.error_count` (отдельный счётчик `blocked_recipient_count`). Маркер `user_channel_bindings.bot_blocked_at` снимается при успешной доставке по тому же каналу. См. `docs/ARCHITECTURE/DOCTOR_BROADCASTS.md` и post-deploy backfill SQL.
+`public.notification_delivery_attempts` содержит только неуспешные фактические обращения к внешнему provider.
+Ошибка подготовки до `DeliveryAdapter.send` остаётся в `last_error` и жизненном цикле строки очереди
+(`failed_retryable`/`dead`), но отдельной provider-attempt строкой не становится. Успех, локальный пропуск,
+rate-limit до отправки и блокировка бота также не создают attempt-строку: их итог уже записан в очереди.
+
+**Блокировка бота (TG/MAX):** при `RECIPIENT_BLOCKED_BOT` строка финализируется как `dead` с `failure_class = recipient_blocked_bot`; отдельная attempt-строка не создаётся. Такие строки **не** входят в operator `deadTotal` («Очередь доставки») и **не** увеличивают `broadcast_audit.error_count` (отдельный счётчик `blocked_recipient_count`). Маркер `user_channel_bindings.bot_blocked_at` снимается при успешной доставке по тому же каналу. См. `docs/ARCHITECTURE/DOCTOR_BROADCASTS.md` и post-deploy backfill SQL.
 
 ## Runbook
 
@@ -32,7 +37,7 @@ Producer-adapter внутри `delivery-handler` infra scope читает DB-bac
 | Поле / счётчик                            | Поведение                                                         |
 | ----------------------------------------- | ----------------------------------------------------------------- |
 | `failure_class`                           | `recipient_blocked_bot` — финал очереди, **не** operator-dead     |
-| `notification_delivery_attempts`          | `status=skipped`, `reason=recipient_blocked_bot`                  |
+| `notification_delivery_attempts`          | строка не создаётся                                               |
 | `broadcast_audit.error_count`             | **не** инкрементируется при blocked                               |
 | `broadcast_audit.blocked_recipient_count` | info-счётчик рассылки                                             |
 | `user_channel_bindings.bot_blocked_at`    | маркер; UPSERT/UPDATE integrator; снимается при успешной доставке |
