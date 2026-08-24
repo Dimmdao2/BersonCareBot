@@ -443,6 +443,14 @@ const temporaryLanguageUsages = [...new Map(
     .filter((step) => step.languageUsage)
     .map((step) => [`${step.owner}:${step.languageUsage}`, { owner: step.owner, language: step.languageUsage }]),
 ).values()];
+const temporaryFunctionRehomes = [...new Map(
+  steps
+    .filter((step) => step.functionRehome)
+    .map((step) => [
+      step.functionRehome,
+      { owner: step.owner, functionIdentity: step.functionRehome },
+    ]),
+).values()];
 const backfill = process.argv.includes('--backfill') ? realpathSync(resolve(value('backfill'))) : null;
 const post = process.argv.includes('--post') ? realpathSync(resolve(value('post'))) : null;
 if (steps.some((step) => step.migration && !existsSync(step.migration)) || (backfill && !existsSync(backfill)) || (post && !existsSync(post))) {
@@ -464,6 +472,16 @@ const statements = [
     `GRANT CREATE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
   ...temporaryLanguageUsages.map(({ owner, language }) =>
     `GRANT USAGE ON LANGUAGE ${sqlIdentifier(language)} TO ${sqlIdentifier(owner)};`),
+  ...temporaryFunctionRehomes.map(({ owner, functionIdentity }) =>
+    `DO $bcb_rehome$ BEGIN
+       IF pg_catalog.to_regprocedure(${sqlLiteral(functionIdentity)}) IS NOT NULL THEN
+         EXECUTE pg_catalog.format(
+           'ALTER FUNCTION %s OWNER TO %I',
+           pg_catalog.to_regprocedure(${sqlLiteral(functionIdentity)}),
+           ${sqlLiteral(owner)}
+         );
+       END IF;
+     END $bcb_rehome$;`),
   `SET LOCAL SESSION AUTHORIZATION ${qMigrator};`,
   ...steps.flatMap(({ owner, migration, sql, drizzle, backfill }, index) => {
     const closesDrizzleMigration = drizzle

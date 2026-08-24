@@ -2,7 +2,6 @@ channel_link_secrets	GLOBAL	0
 email_challenges	GLOBAL	0
 email_send_cooldowns	GLOBAL	0
 idempotency_keys	GLOBAL	0
-integrator_push_outbox	GLOBAL	0
 login_tokens	GLOBAL	0
 outgoing_delivery_queue	GLOBAL	0
 phone_messenger_bind_secrets	GLOBAL	0

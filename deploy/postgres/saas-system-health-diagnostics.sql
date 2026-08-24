@@ -230,7 +230,6 @@ GRANT SELECT ON TABLE
   public.operator_incidents,
   public.outgoing_delivery_queue,
   public.reminder_occurrence_history,
-  public.reminder_delivery_events,
   public.idempotency_keys,
   public.user_web_push_subscriptions,
   public.notification_delivery_attempts,

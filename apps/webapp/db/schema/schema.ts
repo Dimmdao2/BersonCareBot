@@ -16,7 +16,6 @@ import {
   bigserial,
   primaryKey,
   date,
-  pgSchema,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { beOrganizations } from './bookingEngine';
@@ -634,93 +633,6 @@ export const supportQuestionMessages = pgTable(
     }).onDelete('cascade'),
     unique('support_question_messages_integrator_question_message_id_key').on(
       table.integratorQuestionMessageId,
-    ),
-  ],
-);
-
-export const supportDeliveryEvents = pgTable(
-  'support_delivery_events',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    conversationMessageId: uuid('conversation_message_id'),
-    integratorIntentEventId: text('integrator_intent_event_id'),
-    correlationId: text('correlation_id'),
-    channelCode: text('channel_code').notNull(),
-    status: text().notNull(),
-    attempt: integer().notNull(),
-    reason: text(),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }).notNull(),
-  },
-  (table) => [
-    index('idx_support_delivery_events_channel_occurred').using(
-      'btree',
-      table.channelCode.asc().nullsLast().op('timestamptz_ops'),
-      table.occurredAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    index('idx_support_delivery_events_conversation_message')
-      .using('btree', table.conversationMessageId.asc().nullsLast().op('uuid_ops'))
-      .where(sql`(conversation_message_id IS NOT NULL)`),
-    index('idx_support_delivery_events_correlation')
-      .using('btree', table.correlationId.asc().nullsLast().op('text_ops'))
-      .where(sql`(correlation_id IS NOT NULL)`),
-    uniqueIndex('idx_support_delivery_events_integrator_intent_uniq')
-      .using('btree', table.integratorIntentEventId.asc().nullsLast().op('text_ops'))
-      .where(sql`(integrator_intent_event_id IS NOT NULL)`),
-    index('idx_support_delivery_events_intent_event')
-      .using('btree', table.integratorIntentEventId.asc().nullsLast().op('text_ops'))
-      .where(sql`(integrator_intent_event_id IS NOT NULL)`),
-    index('idx_support_delivery_events_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    foreignKey({
-      columns: [table.conversationMessageId],
-      foreignColumns: [supportConversationMessages.id],
-      name: 'support_delivery_events_conversation_message_id_fkey',
-    }).onDelete('set null'),
-  ],
-);
-
-export const reminderDeliveryEvents = pgTable(
-  'reminder_delivery_events',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    integratorDeliveryLogId: text('integrator_delivery_log_id').notNull(),
-    integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
-    integratorRuleId: text('integrator_rule_id').notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
-    platformUserId: uuid('platform_user_id'),
-    channel: text().notNull(),
-    status: text().notNull(),
-    errorCode: text('error_code'),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_reminder_delivery_events_created_at').using(
-      'btree',
-      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    uniqueIndex('idx_reminder_delivery_events_integrator_log_id').using(
-      'btree',
-      table.integratorDeliveryLogId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_reminder_delivery_events_integrator_user_id').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
-    ),
-    index('idx_reminder_delivery_events_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    unique('reminder_delivery_events_integrator_delivery_log_id_key').on(
-      table.integratorDeliveryLogId,
     ),
   ],
 );
@@ -2845,20 +2757,29 @@ export const onlineIntakeStatusHistory = pgTable(
   ],
 );
 
+/**
+ * Track D final cutover (#987): the single physical occurrence store. Merged forward from
+ * `integrator.user_reminder_occurrences` (operational delivery lifecycle: `occurrence_key`,
+ * `planned_at`/`queued_at`/`sent_at`/`failed_at`, `delivery_job_id`, `delivery_generation`) and
+ * `public.reminder_journal` (`done_at`, via `20260823T220000_consolidate_reminder_occurrence_stores`)
+ * onto the pre-existing patient-facts table (`seen_at`/`snoozed_at`/`skipped_at`, already native
+ * here before the merge). See that migration for the full column/constraint transcript.
+ */
 export const reminderOccurrenceHistory = pgTable(
   'reminder_occurrence_history',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
+    organizationId: uuid('organization_id').notNull(),
     integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
     integratorRuleId: text('integrator_rule_id').notNull(),
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
     integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
+    platformUserId: uuid('platform_user_id').notNull(),
     category: text().notNull(),
     status: text().notNull(),
     deliveryChannel: text('delivery_channel'),
     errorCode: text('error_code'),
-    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }).notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true, mode: 'string' }),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
@@ -2867,6 +2788,19 @@ export const reminderOccurrenceHistory = pgTable(
     snoozedUntil: timestamp('snoozed_until', { withTimezone: true, mode: 'string' }),
     skippedAt: timestamp('skipped_at', { withTimezone: true, mode: 'string' }),
     skipReason: text('skip_reason'),
+    /** Merged from `integrator.user_reminder_occurrences` — the operational delivery lifecycle. */
+    occurrenceKey: text('occurrence_key'),
+    plannedAt: timestamp('planned_at', { withTimezone: true, mode: 'string' }).notNull(),
+    queuedAt: timestamp('queued_at', { withTimezone: true, mode: 'string' }),
+    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }),
+    failedAt: timestamp('failed_at', { withTimezone: true, mode: 'string' }),
+    deliveryJobId: text('delivery_job_id'),
+    deliveryGeneration: integer('delivery_generation').default(0).notNull(),
+    /** Merged from `public.reminder_journal` (`action = 'done'` rows). */
+    doneAt: timestamp('done_at', { withTimezone: true, mode: 'string' }),
+    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     uniqueIndex('idx_reminder_occurrence_history_integrator_occ_id').using(
@@ -2894,9 +2828,21 @@ export const reminderOccurrenceHistory = pgTable(
     index('idx_reminder_occurrence_history_snoozed_until')
       .using('btree', table.snoozedUntil.asc().nullsLast().op('timestamptz_ops'))
       .where(sql`(snoozed_until IS NOT NULL)`),
+    index('idx_reminder_occurrence_history_status_planned_at').using(
+      'btree',
+      table.status.asc().nullsLast().op('text_ops'),
+      table.plannedAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
+    index('idx_reminder_occurrence_history_platform_status_planned').using(
+      'btree',
+      table.platformUserId.asc().nullsLast().op('uuid_ops'),
+      table.status.asc().nullsLast().op('text_ops'),
+      table.plannedAt.asc().nullsLast().op('timestamptz_ops'),
+    ),
     unique('reminder_occurrence_history_integrator_occurrence_id_key').on(
       table.integratorOccurrenceId,
     ),
+    unique('reminder_occurrence_history_occurrence_key_key').on(table.occurrenceKey),
     check(
       'chk_reminder_occurrence_skip_reason_len',
       sql`(skip_reason IS NULL) OR (length(skip_reason) <= 500)`,
@@ -2907,7 +2853,7 @@ export const reminderOccurrenceHistory = pgTable(
     ),
     check(
       'reminder_occurrence_history_status_check',
-      sql`status = ANY (ARRAY['sent'::text, 'failed'::text])`,
+      sql`status = ANY (ARRAY['planned'::text, 'queued'::text, 'sent'::text, 'failed'::text, 'skipped'::text])`,
     ),
   ],
 );
@@ -3012,91 +2958,6 @@ export const reminderRules = pgTable(
     check(
       'chk_reminder_rules_display_rehab_only',
       sql`(linked_object_type = 'rehab_program'::text) OR ((display_title IS NULL) AND (display_description IS NULL))`,
-    ),
-  ],
-);
-
-export const reminderJournal = pgTable(
-  'reminder_journal',
-  {
-    id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id'),
-    ruleId: uuid('rule_id').notNull(),
-    occurrenceId: text('occurrence_id'),
-    action: text().notNull(),
-    snoozeUntil: timestamp('snooze_until', { withTimezone: true, mode: 'string' }),
-    skipReason: text('skip_reason'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('idx_reminder_journal_action_created_at').using(
-      'btree',
-      table.action.asc().nullsLast().op('text_ops'),
-      table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
-    index('idx_reminder_journal_occurrence_id')
-      .using(
-        'btree',
-        table.occurrenceId.asc().nullsLast().op('text_ops'),
-        table.createdAt.desc().nullsFirst().op('timestamptz_ops'),
-      )
-      .where(sql`(occurrence_id IS NOT NULL)`),
-    index('idx_reminder_journal_organization_id').using(
-      'btree',
-      table.organizationId.asc().nullsLast().op('uuid_ops'),
-    ),
-    index('idx_reminder_journal_rule_created_at').using(
-      'btree',
-      table.ruleId.asc().nullsLast().op('uuid_ops'),
-      table.createdAt.desc().nullsFirst().op('uuid_ops'),
-    ),
-    uniqueIndex('uq_reminder_journal_once_done_per_occurrence')
-      .using(
-        'btree',
-        table.occurrenceId.asc().nullsLast().op('text_ops'),
-        table.action.asc().nullsLast().op('text_ops'),
-      )
-      .where(sql`((occurrence_id IS NOT NULL) AND (action = 'done'::text))`),
-    uniqueIndex('uq_reminder_journal_once_skipped_per_occurrence')
-      .using(
-        'btree',
-        table.occurrenceId.asc().nullsLast().op('text_ops'),
-        table.action.asc().nullsLast().op('text_ops'),
-      )
-      .where(sql`((occurrence_id IS NOT NULL) AND (action = 'skipped'::text))`),
-    uniqueIndex('uq_reminder_journal_snooze_dedupe')
-      .using(
-        'btree',
-        table.occurrenceId.asc().nullsLast().op('timestamptz_ops'),
-        table.action.asc().nullsLast().op('text_ops'),
-        table.snoozeUntil.asc().nullsLast().op('timestamptz_ops'),
-      )
-      .where(
-        sql`((occurrence_id IS NOT NULL) AND (action = 'snoozed'::text) AND (snooze_until IS NOT NULL))`,
-      ),
-    foreignKey({
-      columns: [table.occurrenceId],
-      foreignColumns: [reminderOccurrenceHistory.integratorOccurrenceId],
-      name: 'reminder_journal_occurrence_id_fkey',
-    }).onDelete('set null'),
-    foreignKey({
-      columns: [table.ruleId],
-      foreignColumns: [reminderRules.id],
-      name: 'reminder_journal_rule_id_fkey',
-    }).onDelete('cascade'),
-    check(
-      'reminder_journal_action_check',
-      sql`action = ANY (ARRAY['done'::text, 'skipped'::text, 'snoozed'::text])`,
-    ),
-    check(
-      'reminder_journal_check',
-      sql`((action = 'snoozed'::text) AND (snooze_until IS NOT NULL)) OR ((action <> 'snoozed'::text) AND (snooze_until IS NULL))`,
-    ),
-    check(
-      'reminder_journal_skip_reason_check',
-      sql`(skip_reason IS NULL) OR (length(skip_reason) <= 500)`,
     ),
   ],
 );
@@ -3558,90 +3419,6 @@ export const questionMessages = pgTable(
       columns: [table.questionId],
       foreignColumns: [userQuestions.id],
       name: 'question_messages_question_id_fkey',
-    }).onDelete('cascade'),
-  ],
-);
-
-const integratorSchema = pgSchema('integrator');
-
-export const userReminderOccurrences = integratorSchema.table(
-  'user_reminder_occurrences',
-  {
-    id: text().primaryKey().notNull(),
-    ruleId: text('rule_id').notNull(),
-    platformUserId: uuid('platform_user_id').notNull(),
-    occurrenceKey: text('occurrence_key').notNull(),
-    plannedAt: timestamp('planned_at', { withTimezone: true, mode: 'string' }).notNull(),
-    status: text().default('planned').notNull(),
-    queuedAt: timestamp('queued_at', { withTimezone: true, mode: 'string' }),
-    sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }),
-    failedAt: timestamp('failed_at', { withTimezone: true, mode: 'string' }),
-    deliveryChannel: text('delivery_channel'),
-    deliveryJobId: text('delivery_job_id'),
-    errorCode: text('error_code'),
-    deliveryGeneration: integer('delivery_generation').default(0).notNull(),
-    organizationId: uuid('organization_id'),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-    updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('user_reminder_occurrences_due_idx').using(
-      'btree',
-      table.status.asc().nullsLast().op('text_ops'),
-      table.plannedAt.asc().nullsLast().op('text_ops'),
-    ),
-    index('user_reminder_occurrences_platform_due_idx').using(
-      'btree',
-      table.platformUserId.asc().nullsLast().op('uuid_ops'),
-      table.status.asc().nullsLast().op('text_ops'),
-      table.plannedAt.asc().nullsLast().op('timestamptz_ops'),
-    ),
-    index('user_reminder_occurrences_generation_idx').using(
-      'btree',
-      table.id.asc().nullsLast().op('text_ops'),
-      table.deliveryGeneration.asc().nullsLast().op('int4_ops'),
-    ),
-    foreignKey({
-      columns: [table.ruleId],
-      foreignColumns: [reminderRules.integratorRuleId],
-      name: 'user_reminder_occurrences_rule_id_fkey',
-    }).onDelete('restrict'),
-    foreignKey({
-      columns: [table.platformUserId],
-      foreignColumns: [platformUsers.id],
-      name: 'user_reminder_occurrences_platform_user_id_fkey',
-    }).onDelete('restrict'),
-    unique('user_reminder_occurrences_occurrence_key_key').on(table.occurrenceKey),
-  ],
-);
-
-export const userReminderDeliveryLogs = pgTable(
-  'user_reminder_delivery_logs',
-  {
-    id: text().primaryKey().notNull(),
-    occurrenceId: text('occurrence_id').notNull(),
-    channel: text().notNull(),
-    status: text().notNull(),
-    errorCode: text('error_code'),
-    payloadJson: jsonb('payload_json').default({}).notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
-      .defaultNow()
-      .notNull(),
-  },
-  (table) => [
-    index('user_reminder_delivery_logs_occurrence_idx').using(
-      'btree',
-      table.occurrenceId.asc().nullsLast().op('text_ops'),
-      table.createdAt.desc().nullsFirst().op('text_ops'),
-    ),
-    foreignKey({
-      columns: [table.occurrenceId],
-      foreignColumns: [userReminderOccurrences.id],
-      name: 'user_reminder_delivery_logs_occurrence_id_fkey',
     }).onDelete('cascade'),
   ],
 );

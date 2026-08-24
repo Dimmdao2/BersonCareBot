@@ -326,11 +326,11 @@ const patientOwnedColumns = new Map([
   ['public.program_item_discussion_messages', { column: 'patient_user_id' }],
   ['public.program_item_discussion_reads', { column: 'patient_user_id' }],
   ['public.symptom_entries', { column: 'platform_user_id' }],
-  ['public.reminder_delivery_events', { column: 'integrator_user_id', castType: 'bigint' }],
   // public.reminder_occurrence_history is NOT registered here (as a direct integrator_user_id/bigint
-  // column reading app.current_integrator_user_id()) even though its column shape matches
-  // reminder_delivery_events above. Corrected 2026-07-26 (taskdb #1018, live 404 on all three patient
-  // reminder actions): packages/db-principal/src/index.ts applyDbPrincipal's "patient" branch
+  // column reading app.current_integrator_user_id()), even though its column shape once matched the
+  // now-retired public.reminder_delivery_events (Track D final cutover #987, 2026-08-23). Corrected
+  // 2026-07-26 (taskdb #1018, live 404 on all three patient reminder actions):
+  // packages/db-principal/src/index.ts applyDbPrincipal's "patient" branch
   // (:845-849) ALWAYS clears APP_INTEGRATOR_USER_CONFIG_KEY to "" and only ever populates
   // APP_PATIENT_USER_CONFIG_KEY — a patient session's app.integrator_user_id GUC is never set, so a
   // direct-column predicate reading app.current_integrator_user_id() can never admit a patient's own
@@ -397,27 +397,6 @@ const patientChainOwnedTables = new Map([
       castType: 'bigint',
     },
   ],
-  [
-    'integrator.user_reminder_delivery_logs',
-    {
-      hops: [
-        {
-          table: 'integrator.user_reminder_occurrences',
-          alias: 'b4f_occ',
-          parentPk: 'id',
-          localFk: 'occurrence_id',
-        },
-        {
-          table: 'public.reminder_rules',
-          alias: 'b4f_rule',
-          parentPk: 'integrator_rule_id',
-          localFk: 'rule_id',
-        },
-      ],
-      terminalColumn: 'integrator_user_id',
-      castType: 'bigint',
-    },
-  ],
 
   // public.support_* family (webapp, uuid castType, apps/webapp/migrations/009_support_communication_history.sql):
   // chain to support_conversations.platform_user_id — the SAME column already registered DIRECTLY
@@ -425,8 +404,7 @@ const patientChainOwnedTables = new Map([
   // support_conversations.integrator_user_id (its bigint bridge column): that column is not yet
   // part of any registered patient-owner predicate for support_conversations itself, so adding it
   // only here would be an inconsistent, narrower-than-parent wall. conversation_id/question_id/
-  // conversation_message_id hops are nullable on some of these child tables (e.g. support_questions
-  // .conversation_id, support_delivery_events.conversation_message_id) — a NULL hop simply fails
+  // conversation_id/question_id hops are nullable on some of these child tables — a NULL hop simply fails
   // the INNER JOIN and denies for patient sessions (fail-closed), same as staff-unaffected/org-wide
   // visibility is preserved via the staff-actor bypass.
   [
@@ -468,27 +446,6 @@ const patientChainOwnedTables = new Map([
           alias: 'b4f_question',
           parentPk: 'id',
           localFk: 'question_id',
-        },
-        {
-          table: 'public.support_conversations',
-          alias: 'b4f_conv',
-          parentPk: 'id',
-          localFk: 'conversation_id',
-        },
-      ],
-      terminalColumn: 'platform_user_id',
-      castType: 'uuid',
-    },
-  ],
-  [
-    'public.support_delivery_events',
-    {
-      hops: [
-        {
-          table: 'public.support_conversation_messages',
-          alias: 'b4f_msg',
-          parentPk: 'id',
-          localFk: 'conversation_message_id',
         },
         {
           table: 'public.support_conversations',

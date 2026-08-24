@@ -8,11 +8,8 @@
  * - releases every durable idempotency key created by the probe.
  */
 import { randomInt, randomUUID } from 'node:crypto';
-import type {
-  DbWriteMutation,
-  DbWritePort,
-  IdempotencyPort,
-} from '../../kernel/contracts/index.js';
+import type { IdempotencyPort } from '../../kernel/contracts/index.js';
+import { logger } from '../observability/logger.js';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -102,18 +99,26 @@ async function main(): Promise<void> {
     },
   };
 
+  // Track suppression 1994-track-d final cutover: dev_redirect_suppressed is no longer a
+  // delivery.attempt.log DB write (F5, docs/_TODO/runs/integrator-cleanup/
+  // TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md — dev suppression is not a real failed provider
+  // call and must not create an attempt row). The suppress decision is still observed the same
+  // way any operator would see it live: the structured PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS
+  // warning that applyPreForkDevRedirect always emits on that branch.
   const suppressedChannels: string[] = [];
-  const deliveryAuditPort: DbWritePort = {
-    async writeDb(mutation: DbWriteMutation): Promise<void> {
-      if (
-        mutation.type === 'delivery.attempt.log' &&
-        mutation.params.reason === 'dev_redirect_suppressed' &&
-        typeof mutation.params.channel === 'string'
-      ) {
-        suppressedChannels.push(mutation.params.channel);
-      }
-    },
-  };
+  const originalLoggerWarn = logger.warn.bind(logger);
+  (logger as { warn: typeof logger.warn }).warn = ((...args: Parameters<typeof logger.warn>) => {
+    const [fields, message] = args;
+    if (
+      message === 'PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS' &&
+      fields &&
+      typeof fields === 'object' &&
+      typeof (fields as { intendedChannel?: unknown }).intendedChannel === 'string'
+    ) {
+      suppressedChannels.push((fields as { intendedChannel: string }).intendedChannel);
+    }
+    return originalLoggerWarn(...args);
+  }) as typeof logger.warn;
 
   const telegramFingerprint = 'e'.repeat(64);
   const maxFingerprint = 'f'.repeat(64);
@@ -124,7 +129,6 @@ async function main(): Promise<void> {
   const maxProbeSecret = randomUUID();
   const app = await buildApp({
     idempotencyPort: trackingIdempotencyPort,
-    dispatchAttemptWritePort: deliveryAuditPort,
     registerTelegramWebhookRoutes: async (instance, deps) => {
       probeOrganizationByChannel.set('telegram', dedicatedProbeOrganizationId);
       await registerTelegramWebhookRoutes(instance, {
@@ -234,6 +238,7 @@ async function main(): Promise<void> {
       })}\n`,
     );
   } finally {
+    (logger as { warn: typeof logger.warn }).warn = originalLoggerWarn;
     const keysToClean = [...acquiredKeys];
     await Promise.all(keysToClean.map((key) => realIdempotencyPort.release?.(key)));
     acquiredKeys.clear();

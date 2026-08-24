@@ -3,7 +3,6 @@ import type {
   SupportConversationRow,
   SupportConversationMessageRow,
   SupportQuestionRow,
-  SupportDeliveryEventRow,
 } from '@/modules/messaging/ports';
 import { isSupportNotificationMessage } from '@/shared/lib/supportMessageKinds';
 
@@ -14,11 +13,9 @@ const messages = new Map<string, SupportConversationMessageRow>();
 const questions = new Map<string, SupportQuestionRow>();
 const questionMessages: { id: string; questionId: string; integratorQuestionMessageId: string }[] =
   [];
-const deliveryEvents: SupportDeliveryEventRow[] = [];
 let conversationIdSeq = 0;
 let messageIdSeq = 0;
 let questionIdSeq = 0;
-let deliveryIdSeq = 0;
 
 function nextId(prefix: string, seq: number): string {
   return `${prefix}-${Date.now()}-${seq}`;
@@ -193,29 +190,6 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return { id };
   },
 
-  async appendDeliveryEventFromProjection(params) {
-    if (params.integratorIntentEventId) {
-      const existing = deliveryEvents.find(
-        (e) => e.integratorIntentEventId === params.integratorIntentEventId,
-      );
-      if (existing) return { id: existing.id };
-    }
-    const id = nextId('del', ++deliveryIdSeq);
-    deliveryEvents.push({
-      id,
-      conversationMessageId: params.conversationMessageId,
-      integratorIntentEventId: params.integratorIntentEventId,
-      correlationId: params.correlationId,
-      channelCode: params.channelCode,
-      status: params.status,
-      attempt: params.attempt,
-      reason: params.reason,
-      payloadJson: params.payloadJson ?? {},
-      occurredAt: params.occurredAt,
-    });
-    return { id };
-  },
-
   async listConversationsByUser(platformUserId) {
     return Array.from(conversations.values())
       .filter((c) => c.platformUserId === platformUserId)
@@ -243,16 +217,6 @@ export const inMemorySupportCommunicationPort: SupportCommunicationPort = {
     return Array.from(questions.values())
       .filter((q) => q.conversationId && convIds.includes(q.conversationId))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  },
-
-  async listRecentDeliveryTrailForConversation(conversationId, limit = 50) {
-    const msgIds = Array.from(messages.values())
-      .filter((m) => m.conversationId === conversationId)
-      .map((m) => m.id);
-    return deliveryEvents
-      .filter((e) => e.conversationMessageId && msgIds.includes(e.conversationMessageId))
-      .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
-      .slice(0, limit);
   },
 
   async listOpenConversationsForAdmin(params) {

@@ -42,7 +42,8 @@ test('parses owner DDL and a reusable local-postgres backfill without duplicatin
 -- BCB-MIGRATION-OWNER: app_probe_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
-CREATE FUNCTION app.probe() RETURNS integer LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END $$;
+-- BCB-MIGRATION-REHOME-FUNCTION: app.probe()
+CREATE OR REPLACE FUNCTION app.probe() RETURNS integer LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END $$;
 --> statement-breakpoint
 -- BCB-MIGRATION-BACKFILL
 INSERT INTO public.probe(id) VALUES (1);
@@ -53,17 +54,38 @@ INSERT INTO public.probe(id) VALUES (1);
       owner: 'app_probe_owner',
       schemaCreate: 'app',
       languageUsage: 'plpgsql',
-      sql: 'CREATE FUNCTION app.probe() RETURNS integer LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END $$;',
+      functionRehome: 'app.probe()',
+      sql: 'CREATE OR REPLACE FUNCTION app.probe() RETURNS integer LANGUAGE plpgsql AS $$ BEGIN RETURN 1; END $$;',
       backfill: false,
     },
     {
       owner: null,
       schemaCreate: null,
       languageUsage: null,
+      functionRehome: null,
       sql: 'INSERT INTO public.probe(id) VALUES (1);',
       backfill: true,
     },
   ]);
+});
+
+test('function rehome is exact, safe, and only accompanies replacement of that function', () => {
+  assert.throws(
+    () => parseOwnerStatements(`
+-- BCB-MIGRATION-OWNER: app_probe_owner
+-- BCB-MIGRATION-REHOME-FUNCTION: app.probe(); DROP TABLE public.users
+CREATE OR REPLACE FUNCTION app.probe() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;
+`, 'unsafe-rehome'),
+    /unsafe function rehome identity/u,
+  );
+  assert.throws(
+    () => parseOwnerStatements(`
+-- BCB-MIGRATION-OWNER: app_probe_owner
+-- BCB-MIGRATION-REHOME-FUNCTION: app.other()
+CREATE OR REPLACE FUNCTION app.probe() RETURNS integer LANGUAGE sql AS $$ SELECT 1 $$;
+`, 'wrong-rehome'),
+    /does not replace that function/u,
+  );
 });
 
 test('rejects unowned, postgres-owned, and empty backfill statements', () => {

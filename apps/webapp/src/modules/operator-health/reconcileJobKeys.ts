@@ -20,3 +20,6 @@ export const OPERATOR_BACKUP_JOB_FAMILY = 'backup';
 
 export const OPERATOR_SAAS_BILLING_JOB_FAMILY = 'saas_billing';
 export const OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY = 'saas_billing_renewal.tick';
+
+export const OPERATOR_MAINTENANCE_JOB_FAMILY = 'maintenance';
+export const OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY = 'maintenance.db_journal_retention.tick';

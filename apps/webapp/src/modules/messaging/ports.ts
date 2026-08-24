@@ -55,17 +55,6 @@ export type IntegratorSupportQuestionOwnershipPort = {
     organizationId: string;
     answeredAt: string;
   }): Promise<void>;
-  recordDeliveryAttempt(params: {
-    organizationId: string;
-    integratorIntentEventId: string | null;
-    correlationId: string | null;
-    channelCode: string;
-    status: string;
-    attempt: number;
-    reason: string | null;
-    payloadJson: Record<string, unknown>;
-    occurredAt: string;
-  }): Promise<{ id: string; created: boolean }>;
 };
 
 export type SupportConversationRow = {
@@ -128,19 +117,6 @@ export type SupportQuestionMessageRow = {
   senderRole: string;
   text: string;
   createdAt: string;
-};
-
-export type SupportDeliveryEventRow = {
-  id: string;
-  conversationMessageId: string | null;
-  integratorIntentEventId: string | null;
-  correlationId: string | null;
-  channelCode: string;
-  status: string;
-  attempt: number;
-  reason: string | null;
-  payloadJson: Record<string, unknown>;
-  occurredAt: string;
 };
 
 export type AdminConversationListRow = {
@@ -211,28 +187,12 @@ export type SupportCommunicationPort = {
     text: string;
     createdAt: string;
   }): Promise<{ id: string }>;
-  appendDeliveryEventFromProjection(params: {
-    organizationId: string;
-    conversationMessageId: string | null;
-    integratorIntentEventId: string | null;
-    correlationId: string | null;
-    channelCode: string;
-    status: string;
-    attempt: number;
-    reason: string | null;
-    payloadJson: Record<string, unknown>;
-    occurredAt: string;
-  }): Promise<{ id: string }>;
   listConversationsByUser(platformUserId: string): Promise<SupportConversationRow[]>;
   getConversationWithMessages(
     conversationId: string,
     organizationId?: string,
   ): Promise<{ conversation: SupportConversationRow; messages: SupportConversationMessageRow[] } | null>;
   listQuestionsByUser(platformUserId: string): Promise<SupportQuestionRow[]>;
-  listRecentDeliveryTrailForConversation(
-    conversationId: string,
-    limit?: number,
-  ): Promise<SupportDeliveryEventRow[]>;
   listOpenConversationsForAdmin(params: {
     source?: string;
     limit?: number;

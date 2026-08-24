@@ -91,61 +91,6 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     expect(findCanonicalMock).not.toHaveBeenCalled();
   });
 
-  it('appendFinalizedOccurrenceFromProjection uses its exact organization-scoped root', async () => {
-    const port = createPgReminderProjectionPort();
-    await port.appendFinalizedOccurrenceFromProjection({
-      integratorOccurrenceId: 'occ-1',
-      integratorRuleId: 'rule-1',
-      integratorUserId: '99',
-      platformUserId: '9f000001-0000-4000-8000-000000000001',
-      organizationId: 'a0000000-0000-4000-8000-000000000001',
-      category: 'lfk',
-      status: 'sent',
-      deliveryChannel: null,
-      errorCode: null,
-      occurredAt: '2026-01-01T12:00:00.000Z',
-    });
-    const [, identity, args] = runWebappNamedRootMock.mock.calls[0] as unknown[];
-    expect(identity).toBe(
-      'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
-    );
-    expect(args).toEqual([
-      'occ-1',
-      'rule-1',
-      '99',
-      '9f000001-0000-4000-8000-000000000001',
-      'a0000000-0000-4000-8000-000000000001',
-      'lfk',
-      'sent',
-      null,
-      null,
-      '2026-01-01T12:00:00.000Z',
-    ]);
-    const sql = lastNamedApproxSql();
-    expect(sql).toContain('record_reminder_occurrence_finalized_projection');
-    expect(sql).toContain('9f000001-0000-4000-8000-000000000001');
-    expect(sql).toContain('a0000000-0000-4000-8000-000000000001');
-    expect(runWebappSqlMock).not.toHaveBeenCalled();
-  });
-
-  it('appendDeliveryEventFromProjection uses ON CONFLICT on integrator_delivery_log_id', async () => {
-    const port = createPgReminderProjectionPort();
-    await port.appendDeliveryEventFromProjection({
-      integratorDeliveryLogId: 'del-1',
-      integratorOccurrenceId: 'occ-1',
-      integratorRuleId: 'rule-1',
-      integratorUserId: '99',
-      channel: 'telegram',
-      status: 'sent',
-      errorCode: null,
-      payloadJson: {},
-      createdAt: '2026-01-01T12:00:00.000Z',
-    });
-    const sql = lastApproxSql();
-    expect(sql).toContain('reminder_delivery_events');
-    expect(sql).toContain('ON CONFLICT (integrator_delivery_log_id) DO NOTHING');
-  });
-
   it('listHistoryByIntegratorUserId filters by integrator_user_id (no canonical rewrite)', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [

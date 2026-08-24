@@ -29,10 +29,6 @@ export const WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS = [
     whereClause: (p: string) => `integrator_user_id::text = ${p}`,
   },
   {
-    table: 'reminder_delivery_events',
-    whereClause: (p: string) => `integrator_user_id::text = ${p}`,
-  },
-  {
     table: 'content_access_grants_webapp',
     whereClause: (p: string) => `integrator_user_id::text = ${p}`,
   },
@@ -47,7 +43,6 @@ export const WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS = [
 export const WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES = [
   'reminder_rules',
   'reminder_occurrence_history',
-  'reminder_delivery_events',
   'content_access_grants_webapp',
   'support_conversations',
 ] as const;

@@ -1,7 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import {
   supportConversations,
   supportQuestionMessages,
@@ -119,46 +118,5 @@ export const pgIntegratorSupportQuestionOwnershipPort: IntegratorSupportQuestion
         .returning({ id: supportQuestions.id });
       if (rows.length === 0) throw new Error('support_question_not_found');
     });
-  },
-
-  async recordDeliveryAttempt(params) {
-    assertOrganizationPrincipal(params.organizationId);
-    const result = await runWebappNamedRoot<{ payload: unknown }>(
-      getWebappSqlDb(),
-      'app.record_integrator_support_delivery_attempt(uuid,text,text,text,text,integer,text,text,timestamp with time zone)',
-      [
-        params.organizationId,
-        params.integratorIntentEventId,
-        params.correlationId,
-        params.channelCode,
-        params.status,
-        params.attempt,
-        params.reason,
-        JSON.stringify(params.payloadJson),
-        params.occurredAt,
-      ],
-      sql`SELECT app.record_integrator_support_delivery_attempt(
-        ${params.organizationId}::uuid,
-        ${params.integratorIntentEventId}::text,
-        ${params.correlationId}::text,
-        ${params.channelCode}::text,
-        ${params.status}::text,
-        ${params.attempt}::integer,
-        ${params.reason}::text,
-        ${JSON.stringify(params.payloadJson)}::text,
-        ${params.occurredAt}::timestamptz
-      ) AS payload`,
-    );
-    const payload = result.rows[0]?.payload;
-    if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
-      throw new Error('support_delivery_attempt_write_failed');
-    }
-    const row = payload as Record<string, unknown>;
-    if (row.ok !== true || typeof row.id !== 'string') {
-      throw new Error(
-        typeof row.code === 'string' ? row.code : 'support_delivery_attempt_write_failed',
-      );
-    }
-    return { id: row.id, created: row.created === true };
   },
 };

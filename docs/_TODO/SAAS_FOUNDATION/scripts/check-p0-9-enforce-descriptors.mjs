@@ -139,7 +139,12 @@ assertIncludes(
 // B4-fanout gap closure (docs/_TODO/SAAS_FOUNDATION/R2_ENFORCEMENT_PREP_PLAN.md, taskdb #656): a
 // chain-owned table (no direct patient column) must ALSO get the fail-closed staff-or-patient
 // branch in enforce mode, rendered as an EXISTS chain, terminating on the bigint integrator GUC.
-const chainScoped = getP09EnforceDescriptorByTable('integrator.user_reminder_delivery_logs');
+// Proof subject swapped 2026-08-23 (Track D final cutover #987): the original subject,
+// integrator.user_reminder_delivery_logs, was retired (duplicate delivery journal, folded into
+// public.outgoing_delivery_queue). integrator.user_reminder_occurrences has the identical
+// chain-owned shape (single hop to public.reminder_rules, terminalColumn integrator_user_id,
+// castType bigint) and remains live, so it proves the same regression.
+const chainScoped = getP09EnforceDescriptorByTable('integrator.user_reminder_occurrences');
 const chainScopedSql = renderP09EnforcePolicyStatements(chainScoped).join('\n');
 
 assertIncludes(

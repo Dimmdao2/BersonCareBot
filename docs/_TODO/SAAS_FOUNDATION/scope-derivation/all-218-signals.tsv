@@ -113,7 +113,6 @@ public\temail_send_cooldowns\tuser_id\t0
 public\tidempotency_keys\t\t0
 public\tintegration_webhook_error_events\t\t0
 public\tintegration_webhook_last_status\t\t0
-public\tintegrator_push_outbox\t\t0
 public\tlfk_complex_exercises\t\t0
 public\tlfk_complex_template_exercises\t\t0
 public\tlfk_complex_templates\tcreated_by\t0

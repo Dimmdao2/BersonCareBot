@@ -84,6 +84,7 @@ export type {
   DeliverySendResult,
   DeliveryDefaults,
   DeliveryDefaultsPort,
+  DispatchOutgoingOpts,
   DispatchPort,
   EventGateway,
   GatewayResult,

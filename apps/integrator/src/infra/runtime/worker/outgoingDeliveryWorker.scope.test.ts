@@ -401,7 +401,19 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(retry, queueRow('specialist_task_reminder'));
     expect(retry.rescheduled).toBe(1);
-    expect(retry.writes).toEqual([]);
+    // Track D F5/F6: every real dispatch failure records exactly one attempt row, tied to the
+    // real queue row id and a real increasing attempt number, regardless of retry/dead outcome.
+    expect(retry.writes).toEqual([
+      {
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({
+          channel: 'telegram',
+          status: 'failed',
+          attempt: 2,
+          payload: { deliveryQueueId: ROW_ID },
+        }),
+      },
+    ]);
     expect(retry.markedSent).toBe(0);
 
     const permanent = harness({
@@ -414,7 +426,17 @@ describe('воркер доставки: строка без разрешимо�
     };
     await processUnderWorkerTick(permanent, queueRow('specialist_task_reminder'));
     expect(permanent.quarantined).toEqual(['CHANNEL_NOT_SUPPORTED:telegram']);
-    expect(permanent.writes).toEqual([]);
+    expect(permanent.writes).toEqual([
+      {
+        type: 'delivery.attempt.log',
+        params: expect.objectContaining({
+          channel: 'telegram',
+          status: 'failed',
+          attempt: 2,
+          payload: { deliveryQueueId: ROW_ID },
+        }),
+      },
+    ]);
     expect(permanent.rescheduled).toBe(0);
   });
 
