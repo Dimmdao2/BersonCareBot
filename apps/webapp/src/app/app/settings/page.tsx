@@ -53,6 +53,7 @@ import {
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
 import { type AppointmentReminderSpecialistSettings } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { parseClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 
 type LegacySettingsTab = 'specialist' | 'organization' | 'team' | 'billing' | 'install';
 
@@ -266,6 +267,9 @@ export default async function SettingsPage({
     const clinicSmtp = smtpInnerFromValueJson(
       clinicAdminSetting('clinic_smtp_outbound')?.valueJson,
     );
+    const clinicSmtpSetting = clinicAdminSetting('clinic_smtp_outbound');
+    const clinicTelegramSetting = clinicAdminSetting('clinic_telegram_bot_token');
+    const clinicMaxSetting = clinicAdminSetting('clinic_max_bot_api_key');
     const clinicDelivery = {
       smtp: {
         configured: clinicSmtp.success,
@@ -274,10 +278,13 @@ export default async function SettingsPage({
         secure: clinicSmtp.success ? clinicSmtp.data.secure : false,
         user: clinicSmtp.success ? clinicSmtp.data.user : '',
         from: clinicSmtp.success ? clinicSmtp.data.from : '',
+        readiness: parseClinicDeliveryReadiness(clinicSmtpSetting?.valueJson),
       },
       smsConfigured: clinicAdminSetting('clinic_smsc_api_key') !== null,
-      telegramConfigured: clinicAdminSetting('clinic_telegram_bot_token') !== null,
-      maxConfigured: clinicAdminSetting('clinic_max_bot_api_key') !== null,
+      telegramConfigured: clinicTelegramSetting !== null,
+      telegramReadiness: parseClinicDeliveryReadiness(clinicTelegramSetting?.valueJson),
+      maxConfigured: clinicMaxSetting !== null,
+      maxReadiness: parseClinicDeliveryReadiness(clinicMaxSetting?.valueJson),
       vkConfigured: clinicAdminSetting('clinic_vk_community_access_token') !== null,
       telegramWebhookPath: dedicatedBotWebhookPath(
         'telegram',

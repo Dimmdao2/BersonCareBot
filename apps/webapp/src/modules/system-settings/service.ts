@@ -131,7 +131,7 @@ async function mergeSmtpOutboundPasswordRetain(
   key: 'smtp_outbound' | 'clinic_smtp_outbound',
   incoming: unknown,
   options: SystemSettingsReadOptions,
-): Promise<{ value: unknown }> {
+): Promise<{ value: unknown; deliveryReadiness?: unknown }> {
   const env = normalizeValueJson(incoming);
   const inner = env.value;
   if (inner === null || typeof inner !== 'object' || Array.isArray(inner)) return env;
@@ -157,7 +157,9 @@ async function mergeSmtpOutboundPasswordRetain(
   } else {
     o.password = pwdRaw;
   }
-  return { value: o };
+  return key === 'clinic_smtp_outbound' && 'deliveryReadiness' in env
+    ? { value: o, deliveryReadiness: env.deliveryReadiness }
+    : { value: o };
 }
 
 async function readTestAccountIdentifiersFromPort(

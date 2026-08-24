@@ -22,6 +22,7 @@ import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
 import type {
   ClinicDeliveryChannel,
   ClinicDeliveryCredential,
+  ClinicDeliveryCredentialResolveOptions,
 } from '../db/clinicDeliveryCredentials.js';
 
 const DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED = 'DELIVERY_ATTEMPT_AUDIT_PERSIST_FAILED';
@@ -36,6 +37,7 @@ type DeliveryPayload = {
     channels?: unknown;
     maxAttempts?: unknown;
     senderScope?: unknown;
+    clinicCredentialProbe?: unknown;
     clinicCredential?: ClinicDeliveryCredential;
   };
 } & Record<string, unknown>;
@@ -93,6 +95,11 @@ function withClinicCredential(
       delivery: { ...(payload.delivery ?? {}), clinicCredential: credential },
     },
   };
+}
+
+function isClinicCredentialProbe(intent: OutgoingIntent): boolean {
+  if (intent.type !== 'message.send') return false;
+  return (intent.payload as DeliveryPayload).delivery?.clinicCredentialProbe === true;
 }
 
 function isOtpIntent(intent: OutgoingIntent): boolean {
@@ -349,6 +356,7 @@ export function createDefaultDispatchPort(deps: {
   /** Exact-org tariff + credential resolver. It never returns a platform fallback credential. */
   resolveClinicDeliveryCredential?: (
     channel: ClinicDeliveryChannel,
+    options?: ClinicDeliveryCredentialResolveOptions,
   ) => Promise<ClinicDeliveryCredential | null>;
 }): DispatchPort {
   return {
@@ -363,6 +371,9 @@ export function createDefaultDispatchPort(deps: {
       // SUPPRESS: the test user has no binding for this channel (or unknown channel).
       // No-op success — never reach an adapter, never a real client (D7).
       if (safeIntent === SUPPRESS) {
+        if (isClinicCredentialProbe(intent)) {
+          throw new Error('CLINIC_CHANNEL_PROBE_SUPPRESSED');
+        }
         if (intent.type === 'message.send') {
           await logDeliveryAttempt(
             deps.writePort,
@@ -392,27 +403,36 @@ export function createDefaultDispatchPort(deps: {
       let sendResult: DeliverySendResult | void;
       try {
         const clinicChannel = asClinicDeliveryChannel(channel);
-        const { senderScope, clinicCredential } = await clinicSenderScope(
-          intentForChannel,
-          clinicChannel,
-          deps.resolveClinicDeliveryCredential,
-        );
-        if (senderScope === 'clinic_required' && !clinicCredential) {
-          throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
-        }
-        if (clinicCredential) {
-          try {
-            sendResult = await adapter.send(
-              withClinicCredential(intentForChannel, clinicCredential),
-            );
-          } catch (clinicError) {
-            // Essential traffic remains deliverable through the platform. Clinic-required flows
-            // (broadcasts and bot support) must never silently assume the platform sender.
-            if (senderScope === 'clinic_required') throw clinicError;
+        if (isClinicCredentialProbe(intentForChannel)) {
+          const clinicCredential =
+            clinicChannel && deps.resolveClinicDeliveryCredential
+              ? await deps.resolveClinicDeliveryCredential(clinicChannel, { allowUnverified: true })
+              : null;
+          if (!clinicCredential) throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
+          sendResult = await adapter.send(withClinicCredential(intentForChannel, clinicCredential));
+        } else {
+          const { senderScope, clinicCredential } = await clinicSenderScope(
+            intentForChannel,
+            clinicChannel,
+            deps.resolveClinicDeliveryCredential,
+          );
+          if (senderScope === 'clinic_required' && !clinicCredential) {
+            throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
+          }
+          if (clinicCredential) {
+            try {
+              sendResult = await adapter.send(
+                withClinicCredential(intentForChannel, clinicCredential),
+              );
+            } catch (clinicError) {
+              // Essential traffic remains deliverable through the platform. Clinic-required flows
+              // (broadcasts and bot support) must never silently assume the platform sender.
+              if (senderScope === 'clinic_required') throw clinicError;
+              sendResult = await adapter.send(intentForChannel);
+            }
+          } else {
             sendResult = await adapter.send(intentForChannel);
           }
-        } else {
-          sendResult = await adapter.send(intentForChannel);
         }
       } catch (providerError) {
         if (intent.type === 'message.send') {

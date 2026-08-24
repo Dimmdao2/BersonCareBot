@@ -13,6 +13,7 @@ type SecretSettingInputProps<T extends string> = Readonly<{
   configuredLabel?: string;
   unconfiguredLabel?: string;
   webhookPath?: string | null;
+  onSaved?: () => void;
 }>;
 
 /** Write-only credential input shared by platform and clinic settings. */
@@ -25,6 +26,7 @@ export function SecretSettingInput<T extends string>({
   configuredLabel = 'Подключён',
   unconfiguredLabel = 'Не подключён',
   webhookPath,
+  onSaved,
 }: SecretSettingInputProps<T>) {
   const [value, setValue] = useState('');
   const [previousConfigured, setPreviousConfigured] = useState(configured);
@@ -62,6 +64,7 @@ export function SecretSettingInput<T extends string>({
                 await saveSetting(settingKey, value.trim());
                 setValue('');
                 setSaved(true);
+                onSaved?.();
               } catch {
                 setError('Не удалось сохранить credential');
               }

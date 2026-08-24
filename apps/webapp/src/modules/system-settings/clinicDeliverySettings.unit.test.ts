@@ -5,6 +5,10 @@ import { redactAdminSettingsForClient } from './webPushVapidRuntime';
 import type { SystemSetting } from './types';
 import { createSystemSettingsService } from './service';
 import { createInMemorySystemSettingsPort } from '@/infra/repos/inMemorySystemSettings';
+import {
+  parseClinicDeliveryReadiness,
+  withClinicDeliveryReadiness,
+} from './clinicDeliveryReadiness';
 
 function setting(key: SystemSetting['key'], value: unknown): SystemSetting {
   return {
@@ -88,6 +92,67 @@ describe('clinic delivery settings', () => {
       organizationId,
       valueJson: {
         value: { host: 'smtp2.clinic.test', password: 'stored-secret' },
+      },
+    });
+  });
+
+  it('keeps readiness beside the secret envelope and defaults legacy credentials to pending', () => {
+    expect(parseClinicDeliveryReadiness({ value: 'legacy-token' })).toEqual({ status: 'pending' });
+    const enabled = withClinicDeliveryReadiness(
+      { value: 'secret' },
+      { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
+    );
+    expect(parseClinicDeliveryReadiness(enabled)).toEqual({
+      status: 'enabled',
+      checkedAt: '2026-08-24T00:00:00.000Z',
+    });
+    expect(enabled.value).toBe('secret');
+  });
+
+  it('retains SMTP readiness while preserving the stored password', async () => {
+    const organizationId = '11111111-1111-4111-8111-111111111111';
+    const service = createSystemSettingsService(createInMemorySystemSettingsPort());
+    await service.updateSetting(
+      'clinic_smtp_outbound',
+      'admin',
+      {
+        value: {
+          host: 'smtp.clinic.test',
+          port: 587,
+          secure: false,
+          user: 'clinic',
+          password: 'stored-secret',
+          from: 'clinic@example.test',
+        },
+      },
+      'actor',
+      { organizationId },
+    );
+
+    await service.updateSetting(
+      'clinic_smtp_outbound',
+      'admin',
+      {
+        value: {
+          host: 'smtp.clinic.test',
+          port: 587,
+          secure: false,
+          user: 'clinic',
+          password: '',
+          from: 'clinic@example.test',
+        },
+        deliveryReadiness: { status: 'enabled', checkedAt: '2026-08-24T00:00:00.000Z' },
+      },
+      'actor',
+      { organizationId },
+    );
+
+    await expect(
+      service.getSetting('clinic_smtp_outbound', 'admin', { organizationId }),
+    ).resolves.toMatchObject({
+      valueJson: {
+        value: { password: 'stored-secret' },
+        deliveryReadiness: { status: 'enabled' },
       },
     });
   });

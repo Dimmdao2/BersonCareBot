@@ -73,6 +73,7 @@ import {
   isPlatformIntegrationAvailable,
   type PlatformIntegrationId,
 } from '@/modules/system-settings/platformIntegrationAvailability';
+import { withPendingClinicDeliveryReadiness } from '@/modules/system-settings/clinicDeliveryReadiness';
 
 /** Single-key PATCH: boolean keys normalized like `video_watermark_enabled`. */
 const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
@@ -898,6 +899,14 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ ok: false, error: 'invalid_value' }, { status: 400 });
     }
     normalizedValue = { value: checked.value };
+  }
+
+  if (
+    parsed.data.key === 'clinic_smtp_outbound' ||
+    parsed.data.key === 'clinic_telegram_bot_token' ||
+    parsed.data.key === 'clinic_max_bot_api_key'
+  ) {
+    normalizedValue = withPendingClinicDeliveryReadiness(normalizedValue);
   }
 
   /** Prefetch for audit: avoid second `getSetting` for `web_push_vapid` (same row as validation). */
