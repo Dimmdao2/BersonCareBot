@@ -209,6 +209,14 @@ for env_file in "$API_ENV" "$WEBAPP_ENV"; do
   ! sudo -n -u deploy test -L "$env_file" || fail "canonical TEST env must not be a symlink: $env_file"
 done
 
+# The Host-aware surface resolver deliberately rejects loopback as an unknown product surface.
+# Probe the webapp through the configured staff Host while keeping the socket on loopback.
+WEBAPP_HEALTH_HOST="$(sudo -n -u deploy bash -lc \
+  "set -a; . '$WEBAPP_ENV'; set +a; node -e 'process.stdout.write(new URL(process.env.APP_BASE_URL ?? \"\").host)'")" ||
+  fail 'cannot derive the TEST webapp health Host from APP_BASE_URL'
+[[ "$WEBAPP_HEALTH_HOST" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
+  fail 'APP_BASE_URL has an invalid Host for the TEST webapp health probe'
+
 for address in $(hostname -I 2>/dev/null || true); do
   [[ "$address" == 151.241.228.122 ]] && on_dev_test_host=1
 done
@@ -392,7 +400,7 @@ for attempt in $(seq 1 30); do
     sudo systemctl is-active --quiet "bersoncarebot-$unit_name-test" || all_active=0
   done
   if [[ "$all_active" == 1 ]] && curl -fsS --max-time 3 http://127.0.0.1:3300/health >/dev/null &&
-     curl -fsS --max-time 3 http://127.0.0.1:6300/api/health >/dev/null; then
+     curl -fsS --max-time 3 -H "Host: $WEBAPP_HEALTH_HOST" http://127.0.0.1:6300/api/health >/dev/null; then
     SERVICES_RELEASED=1
     # 9 проверок изоляции этого деплоя: две пробы стены арендатора (до остановки служб и после сверки
     # прав), сама сверка прав `reconcile-access`, четыре `is-active` по юнитам TEST и два health-эндпоинта

@@ -119,6 +119,13 @@ set -a
 source "${ENV_FILE}"
 set +a
 
+# Product-surface routing fails closed for an unknown Host, including bare loopback. Keep the
+# health socket local but identify the configured staff surface exactly as a real request does.
+WEBAPP_HEALTH_HOST="$(node -e 'process.stdout.write(new URL(process.env.APP_BASE_URL ?? "").host)')" ||
+  fail 'Cannot derive webapp health Host from APP_BASE_URL'
+[[ "${WEBAPP_HEALTH_HOST}" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]] ||
+  fail 'APP_BASE_URL has an invalid Host for the webapp health probe'
+
 # Backup webapp DB before migrations (same contract as deploy-prod: pre-migrations → /opt/backups/postgres/pre-migrations/)
 sudo -n "${BACKUP_SCRIPT}" pre-migrations
 
@@ -137,7 +144,8 @@ if [ "${chunk_http_code}" != "200" ]; then
 fi
 
 for i in 1 2 3 4 5; do
-  if curl -sf "http://127.0.0.1:${WEBAPP_PORT}/api/health" -o /tmp/bersoncare-webapp-health.json; then
+  if curl -sf -H "Host: ${WEBAPP_HEALTH_HOST}" \
+    "http://127.0.0.1:${WEBAPP_PORT}/api/health" -o /tmp/bersoncare-webapp-health.json; then
     break
   fi
   if [ "$i" -eq 5 ]; then

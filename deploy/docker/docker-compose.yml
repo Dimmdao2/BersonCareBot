@@ -53,7 +53,9 @@ services:
     ports:
       - "127.0.0.1:${BCB_WEBAPP_PORT:?BCB_WEBAPP_PORT is required}:6200"
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://127.0.0.1:6200/"]
+      # The surface resolver rejects a bare loopback Host. APP_BASE_URL is an origin, so strip its
+      # scheme/path and identify the configured staff surface while probing the local socket.
+      test: ["CMD-SHELL", "health_host=$${APP_BASE_URL#*://}; health_host=$${health_host%%/*}; test -n \"$$health_host\" && curl -fsS -H \"Host: $$health_host\" -o /dev/null http://127.0.0.1:6200/api/health"]
       interval: 10s
       timeout: 5s
       retries: 12
