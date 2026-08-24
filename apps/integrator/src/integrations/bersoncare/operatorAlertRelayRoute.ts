@@ -26,6 +26,26 @@ const schema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (
+      value.channel === 'email' &&
+      (typeof value.metadata?.subject !== 'string' || !value.metadata.subject.trim())
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'subject'],
+        message: 'email subject required',
+      });
+    }
+    if (
+      value.channel === 'web_push' &&
+      (typeof value.metadata?.title !== 'string' || !value.metadata.title.trim())
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'title'],
+        message: 'web_push title required',
+      });
+    }
     if (value.channel === 'web_push' && !value.organizationId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -89,10 +109,7 @@ function buildIntent(payload: Payload): OutgoingIntent {
     };
   }
   if (payload.channel === 'email') {
-    const subject =
-      typeof payload.metadata?.subject === 'string' && payload.metadata.subject.trim()
-        ? payload.metadata.subject.trim()
-        : 'BersonCare';
+    const subject = (payload.metadata?.subject as string).trim();
     return {
       type: 'message.send',
       meta,
@@ -111,7 +128,7 @@ function buildIntent(payload: Payload): OutgoingIntent {
     payload: {
       recipient: { pushUserId: payload.recipient },
       message: { text: payload.text },
-      title: typeof payload.metadata?.title === 'string' ? payload.metadata.title : 'BersonCare',
+      title: (payload.metadata?.title as string).trim(),
       url: typeof payload.metadata?.url === 'string' ? payload.metadata.url : '/',
       ...(extras && typeof extras === 'object' && !Array.isArray(extras)
         ? { pushExtras: extras as Record<string, unknown> }

@@ -53,6 +53,26 @@ const relayPayloadSchema = z
     purpose: z.never().optional(),
   })
   .superRefine((value, ctx) => {
+    if (
+      value.channel === 'email' &&
+      (typeof value.metadata?.subject !== 'string' || !value.metadata.subject.trim())
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'subject'],
+        message: 'email subject required',
+      });
+    }
+    if (
+      value.channel === 'web_push' &&
+      (typeof value.metadata?.title !== 'string' || !value.metadata.title.trim())
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['metadata', 'title'],
+        message: 'web_push title required',
+      });
+    }
     if (value.channel === 'web_push' && !value.organizationId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -153,13 +173,10 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
 
   if (parsed.channel === 'email') {
     // D-S10: extend relay-outbound to carry email intents (N4 APPROVED §5b).
-    // subject comes from optional metadata.subject; falls back to 'BersonCare'.
+    // The caller owns surface selection; schema validation makes subject mandatory.
     // payload shape matches EmailDeliveryAdapter expectations (S8):
     //   payload.recipient.email, payload.subject, payload.message.text, payload.delivery.channels.
-    const subject =
-      typeof parsed.metadata?.subject === 'string' && parsed.metadata.subject.trim()
-        ? parsed.metadata.subject.trim()
-        : 'BersonCare';
+    const subject = (parsed.metadata?.subject as string).trim();
     return {
       type: 'message.send' as const,
       meta,
@@ -186,7 +203,7 @@ function buildIntent(parsed: RelayPayload): OutgoingIntent | null {
     // payload shape matches WebPushDeliveryAdapter expectations (S14):
     //   payload.recipient.pushUserId, payload.message.text (body), payload.title,
     //   payload.url, payload.pushExtras, payload.delivery.channels.
-    const title = typeof parsed.metadata?.title === 'string' ? parsed.metadata.title : 'BersonCare';
+    const title = (parsed.metadata?.title as string).trim();
     const url = typeof parsed.metadata?.url === 'string' ? parsed.metadata.url : '/';
     const rawExtras = parsed.metadata?.pushExtras;
     const pushExtras =

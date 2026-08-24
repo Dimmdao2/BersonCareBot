@@ -80,6 +80,7 @@ function relayPayload(overrides: Partial<RelayPayload> = {}): RelayPayload {
     recipient: 'patient@example.test',
     text: 'Appointment reminder',
     idempotencyKey: 'relay-test-1',
+    metadata: { subject: 'Therapygo' },
     ...overrides,
   };
 }
