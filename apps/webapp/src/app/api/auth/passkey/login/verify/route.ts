@@ -8,7 +8,7 @@ import {
 } from '@/app-layer/auth/passkeyRuntime';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { recordAuthLogin } from '@/app-layer/product-analytics/recordAuthLogin';
-import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
+import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 import { getRedirectPathForRole } from '@/modules/auth/redirectPolicy';
 import { setSessionFromUser } from '@/modules/auth/service';
 import { isStaff } from '@/modules/auth/verifiedStaffPrimaryLogin';
@@ -42,7 +42,7 @@ const bodySchema = z.object({
 
 export async function POST(request: Request) {
   stampBootstrapPrincipal('api/auth/passkey/login/verify:POST', request);
-  if (!(await isAuthMechanicEnabled('passkey'))) {
+  if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return NextResponse.json(
       { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
       { status: 403 },

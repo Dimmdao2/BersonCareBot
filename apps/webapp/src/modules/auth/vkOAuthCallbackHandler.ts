@@ -21,7 +21,7 @@ import {
 import { deriveVkPkceCodeVerifier, parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
+import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 
 const LOG_BASE = {
   authMethod: 'oauth_vk' as const,
@@ -83,7 +83,7 @@ export async function handleVkOAuthCallbackGet(
   // Defense in depth: closes the race window between /oauth/start (which already gates on this
   // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
   // 2026-07-24, R2 fail-closed server-side) — same pattern as the other three providers.
-  const vkOAuthEnabled = await isAuthMechanicEnabled('oauth_vk');
+  const vkOAuthEnabled = await isOAuthProviderEnabled('vk');
   const clientId = (await getVkIdApplicationId()).trim();
   const redirectUri = (await getVkIdRedirectUri()).trim();
   const secret = (await getVkIdClientSecret()).trim();

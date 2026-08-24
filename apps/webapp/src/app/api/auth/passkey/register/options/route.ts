@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { beginSelfPasskeyRegistration } from '@/app-layer/auth/passkeyRuntime';
 import { requireAuthenticatedIdentitySelfApiSession } from '@/app-layer/guards/requireRole';
 import { routePaths } from '@/app-layer/routes/paths';
-import { isAuthMechanicEnabled } from '@/modules/auth/authDeliveryGate';
+import { isIndependentAuthMethodEnabled } from '@/modules/auth/authChannelPolicy';
 
 export async function POST() {
   const gate = await requireAuthenticatedIdentitySelfApiSession();
   if (!gate.ok) return gate.response;
-  if (!(await isAuthMechanicEnabled('passkey'))) {
+  if (!(await isIndependentAuthMethodEnabled('passkey'))) {
     return NextResponse.json(
       { ok: false, error: 'auth_method_disabled', message: 'Вход по ключу доступа отключён' },
       { status: 403 },
