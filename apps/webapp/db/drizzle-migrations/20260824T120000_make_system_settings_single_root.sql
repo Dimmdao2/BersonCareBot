@@ -134,7 +134,7 @@ BEGIN
   ) ON CONFLICT (platform_user_id, local_date) DO NOTHING;
   RETURN FOUND;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_preauth_owner
@@ -159,7 +159,7 @@ BEGIN
   IF NOT FOUND THEN RAISE EXCEPTION 'runtime_setting_unavailable:telegram_login_bot_username'; END IF;
   RETURN configured;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
@@ -255,7 +255,7 @@ BEGIN
     AND day_done_count = day_sent_total;
   RETURN NEXT;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
@@ -321,7 +321,7 @@ BEGIN
   WHERE id = v_platform_user_id;
   RETURN NEXT;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
@@ -353,7 +353,7 @@ BEGIN
      LIMIT 1
   );
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: saas_system_health_owner
@@ -674,7 +674,7 @@ SELECT jsonb_build_object(
 FROM runtime_config, restricted_config, transcode, media_readiness, safe_jobs,
   incident_summary, outgoing, reminders, web_push, notification_delivery,
   webhook_status, digest
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
@@ -733,7 +733,7 @@ BEGIN
   END IF;
   RETURN v_result;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_booking_owner
@@ -973,7 +973,7 @@ BEGIN
     'maxConsecutiveSlotHours', v_max_consecutive_slot_hours
   );
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
@@ -993,7 +993,7 @@ SELECT setting.value_json
     AND setting.scope = 'admin'
     AND setting.organization_id IS NULL
   LIMIT 1
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
@@ -1017,7 +1017,7 @@ SELECT setting.value_json
     AND setting.scope = 'admin'
     AND setting.organization_id IS NULL
   LIMIT 1
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_public_booking_owner
@@ -1227,7 +1227,7 @@ BEGIN
     'maxConsecutiveSlotHours', COALESCE(v_max_consecutive_slot_hours, 1)
   );
 END;
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
@@ -1263,7 +1263,7 @@ BEGIN
      )
    LIMIT 1;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
@@ -1293,7 +1293,7 @@ BEGIN
      )
    LIMIT 1;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
@@ -1368,7 +1368,7 @@ BEGIN
   ) RETURNING id INTO v_id;
   RETURN v_id;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
@@ -1415,7 +1415,7 @@ BEGIN
   WHERE user_notification_topics.user_id = v_patient;
   RETURN FOUND;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
@@ -1468,7 +1468,7 @@ BEGIN
   WHERE user_notification_topic_channels.user_id = v_patient;
   RETURN FOUND;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
@@ -1557,7 +1557,7 @@ BEGIN
   WHERE material_ratings.user_id = v_patient;
   RETURN QUERY SELECT FOUND;
 END
-$function$
+$function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_settings_runtime_owner
@@ -1569,7 +1569,8 @@ CREATE OR REPLACE FUNCTION app.read_authenticated_runtime_setting(
   p_organization_id uuid,
   p_allow_global_fallback boolean
 ) RETURNS TABLE(key text, scope text, organization_id uuid, audience text, value_json jsonb)
-LANGUAGE plpgsql STABLE SECURITY DEFINER PARALLEL RESTRICTED
+LANGUAGE plpgsql
+STABLE SECURITY DEFINER PARALLEL RESTRICTED
 SET search_path TO pg_catalog, app, public, pg_temp
 AS $function$
 DECLARE accepted_org uuid := app.current_org_id();

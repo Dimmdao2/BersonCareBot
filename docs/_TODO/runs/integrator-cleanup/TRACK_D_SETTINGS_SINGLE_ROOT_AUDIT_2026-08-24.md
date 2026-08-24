@@ -102,3 +102,12 @@ They had no non-test callers, but keeping a direct unaudited write method beside
 `createSystemSettingsService().updateSetting` path contradicted the single-write-path rule. This correction only
 removes unreachable surface; it does not add or change runtime behavior and therefore does not require a new blind
 audit.
+
+The first integration CI on landed SHA `b523e5830` exposed one migration-form defect that the scoped audit suite
+did not cover: 17 copied function definitions lacked their terminating semicolon, so the static function parser
+joined them and attributed later relation reads to the first function; the final function also put executable
+language and attributes on one line. The lead corrected only that SQL statement form. The two exact failing suites
+then passed 21/21, the complete DB-privilege step passed 162 with 126 intentional skips, and the canonical
+`bash deploy/host/migrate-dev.sh --preflight` compiled all pending statements under their declared owners and
+rolled back with `PASS` (`pending=5`, `unapplied=0`). Product behavior and the independent audit verdict are
+unchanged; the remaining CI tail is resumed from after the repaired DB-privilege step.
