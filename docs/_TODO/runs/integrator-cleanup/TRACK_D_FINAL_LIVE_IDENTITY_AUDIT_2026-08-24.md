@@ -60,3 +60,21 @@ below remains blocked.
 ## Precise owner action
 
 On TEST, using the existing owner account and one chosen Telegram or MAX contact, complete within the same 15-minute attempt: start webapp login, open the issued `auth_` link, send the self-owned contact, receive and enter the bot-delivered code, confirm the session; then, while authenticated, run `profile_bind` for that same contact and observe completion without OTP. Do not send the phone, messenger id, token, or code to this audit record. This produces the only missing evidence needed for the phone-specific D15b/6 gate; the separate D25 DB-proof gate is already PASS above.
+
+## Second lead correction after schema-B refresh
+
+The structural-denial explanation in the first lead correction is false. Catalog inspection on the
+current named TEST showed that `app_seam_identity_lookup_owner` intentionally retains column-level
+`INSERT` on `public.platform_users`: the same owner runs the normal web-registration roots
+`app.pre_session_phone_confirm_resolve` and `app.pre_session_messenger_channel_resolve`. Removing that
+right would break web registration and is not required by D25; D25 forbids creation by the generic bot
+root, not creation by every function sharing its owner.
+
+Commit `aa943d474` restored the correct oracle without changing product code. The fault arm now
+reintroduces the forbidden generic-bot `INSERT` in memory and proves that the live probe observes the
+extra `platform_users` row; the accepted deployed body then leaves the four identity-table counts
+unchanged for unknown Telegram and MAX ids and still resolves a known binding. The rollback-only TEST
+run passed `2/2`, left no persistent rows, and `push:checked` passed for exact SHA
+`aa943d474f1c34bb572f447d5f05b52e1200f6be`. This correction supersedes only the false `42501`
+explanation above; the D25 generic-ingress verdict remains **PASS** and the owner-operated journey
+remains the sole identity-path remainder.
