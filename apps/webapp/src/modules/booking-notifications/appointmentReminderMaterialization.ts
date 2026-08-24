@@ -97,7 +97,7 @@ export function prepareAppointmentReminderDeliveries(
             delivery: {
               channels: [first.channel],
               maxAttempts: 1,
-              senderScope: 'clinic_required',
+              senderScope: 'clinic_if_configured',
             },
           },
         },

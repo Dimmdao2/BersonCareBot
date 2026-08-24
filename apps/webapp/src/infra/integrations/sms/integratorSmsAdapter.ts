@@ -144,7 +144,7 @@ export function createIntegratorSmsAdapter(deps: IntegratorSmsAdapterDeps): SmsP
                 delivery?.channel === deliveryChannel && delivery.clinicRequiredOrganizationId
                   ? {
                       organizationId: delivery.clinicRequiredOrganizationId,
-                      senderScope: 'clinic_required' as const,
+                      senderScope: 'clinic_if_configured' as const,
                     }
                   : {}),
               });

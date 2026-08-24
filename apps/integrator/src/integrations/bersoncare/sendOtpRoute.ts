@@ -29,7 +29,7 @@ const bodySchema = z
     mailProfile: mailProfileRequestSchema,
     idempotencyKey: z.string().min(1),
     organizationId: z.string().uuid().optional(),
-    senderScope: z.literal('clinic_required').optional(),
+    senderScope: z.literal('clinic_if_configured').optional(),
   })
   .superRefine((value, ctx) => {
     if (value.channel === 'max' && !/^[1-9]\d*$/u.test(value.recipientId.trim())) {
@@ -113,7 +113,7 @@ export async function registerBersoncareSendOtpRoute(
 
     const { channel, recipientId, code, idempotencyKey, mailProfile, organizationId, senderScope } =
       parsed.data;
-    if (senderScope === 'clinic_required' && !organizationId) {
+    if (senderScope && !organizationId) {
       return reply.code(400).send({ ok: false, error: 'organization_required' });
     }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, 24 * 60 * 60))) {
@@ -139,7 +139,7 @@ export async function registerBersoncareSendOtpRoute(
         message: { text },
         delivery: {
           channels: [channel],
-          ...(senderScope === 'clinic_required' ? { senderScope } : {}),
+          ...(senderScope ? { senderScope } : {}),
         },
       },
     };

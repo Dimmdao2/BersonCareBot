@@ -35,7 +35,7 @@ export type DispatchRequestContactParams = {
   channel: 'telegram' | 'max';
   /** Личка: Telegram chat id; MAX platform user id. */
   recipientId: string;
-  senderScope?: 'clinic_required';
+  senderScope?: 'clinic_if_configured';
   /** Для корреляции в meta (не дедуп внутри этой функции). */
   correlationId?: string;
 };

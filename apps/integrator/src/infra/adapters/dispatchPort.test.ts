@@ -73,6 +73,17 @@ function clinicRequiredIntent(channel: 'telegram' | 'max' | 'smsc' | 'email'): O
   } as unknown as OutgoingIntent;
 }
 
+function clinicIfConfiguredIntent(channel: 'telegram' | 'max'): OutgoingIntent {
+  const intent = clinicRequiredIntent(channel);
+  return {
+    ...intent,
+    payload: {
+      ...intent.payload,
+      delivery: { channels: [channel], senderScope: 'clinic_if_configured' },
+    },
+  } as OutgoingIntent;
+}
+
 function queuedClinicBroadcastIntent(): OutgoingIntent {
   const intent = clinicRequiredIntent('telegram');
   return {
@@ -174,6 +185,44 @@ describe('clinic-owned delivery routing', () => {
       'CLINIC_CHANNEL_NOT_CONFIGURED:telegram',
     );
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('uses the platform sender for patient traffic when the clinic has no enabled credential', async () => {
+    const send = vi.fn(async (_intent: OutgoingIntent) => ({ telegramMessageId: 7 }));
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => null,
+    });
+
+    await expect(port.dispatchOutgoing(clinicIfConfiguredIntent('telegram'))).resolves.toEqual({
+      telegramMessageId: 7,
+    });
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).not.toHaveProperty('clinicCredential');
+  });
+
+  it('does not fall back to the platform sender after an enabled clinic bot fails', async () => {
+    const clinicError = new Error('clinic_provider_failed');
+    const send = vi.fn(async (_intent: OutgoingIntent) => {
+      throw clinicError;
+    });
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      resolveClinicDeliveryCredential: async () => ({
+        channel: 'telegram',
+        botToken: 'clinic-a-token',
+      }),
+    });
+
+    await expect(port.dispatchOutgoing(clinicIfConfiguredIntent('telegram'))).rejects.toBe(
+      clinicError,
+    );
+    expect(send).toHaveBeenCalledOnce();
+    expect(
+      (send.mock.calls[0]?.[0].payload as { delivery: { clinicCredential?: unknown } }).delivery,
+    ).toMatchObject({ clinicCredential: { channel: 'telegram', botToken: 'clinic-a-token' } });
   });
 
   it('falls back to the platform credential only for clinic-preferred essential delivery', async () => {

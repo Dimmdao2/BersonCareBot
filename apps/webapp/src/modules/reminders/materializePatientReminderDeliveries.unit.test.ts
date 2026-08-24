@@ -62,7 +62,7 @@ describe('patient reminder ready-delivery materializer', () => {
           channels: [delivery.channel],
           maxAttempts: 1,
           ...(delivery.channel === 'telegram' || delivery.channel === 'max'
-            ? { senderScope: 'clinic_required' }
+            ? { senderScope: 'clinic_if_configured' }
             : {}),
         },
       });

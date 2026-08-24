@@ -23,7 +23,7 @@ const bodySchema = z.object({
   recipientId: z.string().min(1),
   idempotencyKey: z.string().min(1),
   organizationId: z.string().uuid().optional(),
-  senderScope: z.literal('clinic_required').optional(),
+  senderScope: z.literal('clinic_if_configured').optional(),
 });
 
 type Body = z.infer<typeof bodySchema>;
@@ -94,7 +94,7 @@ export async function registerBersoncareRequestContactRoute(
     }
 
     const { channel, recipientId, idempotencyKey, organizationId, senderScope } = parsed.data;
-    if (senderScope === 'clinic_required' && !organizationId) {
+    if (senderScope && !organizationId) {
       return reply.code(400).send({ ok: false, error: 'organization_required' });
     }
     if (!(await idempotencyPort.tryAcquire(idempotencyKey, DEDUP_TTL_MS / 1000))) {

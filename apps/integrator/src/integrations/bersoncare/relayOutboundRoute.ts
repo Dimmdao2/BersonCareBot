@@ -48,7 +48,7 @@ const relayPayloadSchema = z
     icsFilename: z.string().min(1).optional(),
     idempotencyKey: z.string().min(1),
     metadata: z.record(z.string(), z.unknown()).optional(),
-    senderScope: z.literal('clinic_required').optional(),
+    senderScope: z.enum(['clinic_required', 'clinic_if_configured']).optional(),
     purpose: z.never().optional(),
   })
   .superRefine((value, ctx) => {

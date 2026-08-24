@@ -96,12 +96,12 @@ describe('POST /api/bersoncare/request-contact', () => {
       recipientId: '123456789',
       idempotencyKey: 'request-contact-branded',
       organizationId: '11111111-1111-4111-8111-111111111111',
-      senderScope: 'clinic_required',
+      senderScope: 'clinic_if_configured',
     });
 
     expect(response.statusCode).toBe(200);
     expect(dispatchOutgoing.mock.calls[0]?.[0].payload).toMatchObject({
-      delivery: { channels: ['max'], senderScope: 'clinic_required' },
+      delivery: { channels: ['max'], senderScope: 'clinic_if_configured' },
     });
   });
 });

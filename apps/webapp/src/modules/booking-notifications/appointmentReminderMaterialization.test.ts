@@ -29,7 +29,7 @@ describe('appointment reminder product materialization', () => {
     expect(rows[0]?.messengerLadder?.map((step) => step.channel)).toEqual(['telegram', 'max']);
     expect(rows[0]?.channel).toBe('telegram');
     expect(rows[0]?.intent.payload).toMatchObject({
-      delivery: { channels: ['telegram'], senderScope: 'clinic_required' },
+      delivery: { channels: ['telegram'], senderScope: 'clinic_if_configured' },
     });
     expect(rows[1]?.channel).toBe('web_push');
     expect(rows[0]?.eventId).not.toBe(rows[1]?.eventId);

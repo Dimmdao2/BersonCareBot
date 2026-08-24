@@ -41,19 +41,37 @@ type DeliveryPayload = {
 } & Record<string, unknown>;
 
 type ClinicSenderScope = 'clinic_required' | 'clinic_preferred' | 'platform_required';
+type RequestedSenderScope = 'clinic_required' | 'clinic_if_configured';
 
-function clinicSenderScope(intent: OutgoingIntent): ClinicSenderScope {
+async function clinicSenderScope(
+  intent: OutgoingIntent,
+  channel: ClinicDeliveryChannel | null,
+  resolveCredential: ((channel: ClinicDeliveryChannel) => Promise<ClinicDeliveryCredential | null>) | undefined,
+): Promise<{ senderScope: ClinicSenderScope; clinicCredential: ClinicDeliveryCredential | null }> {
   // Platform/system traffic must never borrow a clinic credential merely because the request
   // happens to run under an organization principal.
   if (
     intent.meta.outboundMessageClass === 'operator_security' &&
     intent.meta.outboundCapability === 'operator_alert'
   ) {
-    return 'platform_required';
+    return { senderScope: 'platform_required', clinicCredential: null };
   }
-  if (intent.type !== 'message.send') return 'clinic_preferred';
-  const scope = (intent.payload as DeliveryPayload).delivery?.senderScope;
-  return scope === 'clinic_required' ? 'clinic_required' : 'clinic_preferred';
+  const requestedScope =
+    intent.type === 'message.send'
+      ? ((intent.payload as DeliveryPayload).delivery?.senderScope as RequestedSenderScope | undefined)
+      : undefined;
+  const clinicCredential = channel && resolveCredential ? await resolveCredential(channel) : null;
+
+  if (requestedScope === 'clinic_required') {
+    return { senderScope: 'clinic_required', clinicCredential };
+  }
+  if (requestedScope === 'clinic_if_configured') {
+    return {
+      senderScope: clinicCredential ? 'clinic_required' : 'platform_required',
+      clinicCredential,
+    };
+  }
+  return { senderScope: 'clinic_preferred', clinicCredential };
 }
 
 function asClinicDeliveryChannel(channel: string): ClinicDeliveryChannel | null {
@@ -374,11 +392,11 @@ export function createDefaultDispatchPort(deps: {
       let sendResult: DeliverySendResult | void;
       try {
         const clinicChannel = asClinicDeliveryChannel(channel);
-        const senderScope = clinicSenderScope(intentForChannel);
-        const clinicCredential =
-          senderScope !== 'platform_required' && clinicChannel && deps.resolveClinicDeliveryCredential
-            ? await deps.resolveClinicDeliveryCredential(clinicChannel)
-            : null;
+        const { senderScope, clinicCredential } = await clinicSenderScope(
+          intentForChannel,
+          clinicChannel,
+          deps.resolveClinicDeliveryCredential,
+        );
         if (senderScope === 'clinic_required' && !clinicCredential) {
           throw new Error(`CLINIC_CHANNEL_NOT_CONFIGURED:${channel}`);
         }

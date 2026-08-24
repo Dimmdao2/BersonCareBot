@@ -53,7 +53,10 @@ async function requestMessengerContactUnchecked(input: {
     recipientId: input.recipientId.trim(),
     idempotencyKey,
     ...(input.clinicRequiredOrganizationId
-      ? { organizationId: input.clinicRequiredOrganizationId, senderScope: 'clinic_required' as const }
+      ? {
+          organizationId: input.clinicRequiredOrganizationId,
+          senderScope: 'clinic_if_configured' as const,
+        }
       : {}),
   };
   const rawBody = JSON.stringify(bodyObj);

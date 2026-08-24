@@ -119,7 +119,7 @@ export function createBookingCreatedEffects(
             idempotencyKey: `${input.bookingId}:${target.channel}:${target.recipient}`,
             channel: target.channel,
             recipient: target.recipient,
-            content: { text, senderScope: 'clinic_required' },
+            content: { text, senderScope: 'clinic_if_configured' },
             maxAttempts: MESSENGER_MAX_ATTEMPTS,
           });
         }
