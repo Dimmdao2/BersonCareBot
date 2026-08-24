@@ -10,7 +10,7 @@ vi.mock('../../shared/devDeliveryRedirect.js', () => ({
   resolveDevRedirect: () => ({ kind: 'suppress', reason: 'test_binding_missing' }),
 }));
 
-import { createDefaultDispatchPort } from './dispatchPort.js';
+import { createDefaultDispatchPort, isProviderAttemptFailure } from './dispatchPort.js';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
 
@@ -192,6 +192,20 @@ describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-q
     const port = createDefaultDispatchPort({ adapters: [adapter] });
 
     await expect(port.dispatchOutgoing(messageSendIntent())).rejects.toBe(providerError);
+  });
+
+  it('brands only the normalized primitive provider rejection, never a separate ordinary Error', async () => {
+    const primitiveProviderRejection = 'provider_socket_closed';
+    const send = vi.fn(async () => {
+      throw primitiveProviderRejection;
+    });
+    const port = createDefaultDispatchPort({ adapters: [{ canHandle: () => true, send }] });
+
+    const received = await port.dispatchOutgoing(messageSendIntent()).catch((error: unknown) => error);
+
+    expect(received).toBeInstanceOf(Error);
+    expect(isProviderAttemptFailure(received)).toBe(true);
+    expect(isProviderAttemptFailure(new Error('ordinary_pre_provider_error'))).toBe(false);
   });
 });
 
