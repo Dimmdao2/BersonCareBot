@@ -45,6 +45,18 @@ sudo -n -u deploy pnpm --dir apps/webapp exec vitest --run \
 
 The read-only DB check returned: legacy columns `0`; duplicate primary-phone holders `0`; generic-root platform-user insert `false`; generic-root `user_identity` access `false`; generic-root preference access `false`; D25 probe binding residue `0`.
 
+## Lead correction after audit
+
+The D25 DB-proof failure above was in the stale fault-injection expectation, not in the deployed product.
+After D17 narrowed the function owner, replaying the old creating body is structurally denied with `42501`
+before it can write canonical rows. The proof was corrected in `3496405e9` to require that denial and to
+continue into the candidate acceptance arm. Re-running the same rollback-only command against named TEST
+then passed `2/2`: the injected old body was denied with unchanged counts and zero binding rows; unknown
+Telegram/MAX ids returned zero rows and changed no counts; a known binding still resolved the same person;
+owner-aware migration preflight retained the function OID, owner, SECURITY DEFINER and search path. Residue
+remained zero. Therefore the D25 generic-ingress DB gate is **PASS**; only the owner-operated phone journey
+below remains blocked.
+
 ## Precise owner action
 
-On TEST, using the existing owner account and one chosen Telegram or MAX contact, complete within the same 15-minute attempt: start webapp login, open the issued `auth_` link, send the self-owned contact, receive and enter the bot-delivered code, confirm the session; then, while authenticated, run `profile_bind` for that same contact and observe completion without OTP. Do not send the phone, messenger id, token, or code to this audit record. This produces the only missing evidence needed for the phone-specific D15b/6 gate; it does not resolve the separate D25 DB-proof failure.
+On TEST, using the existing owner account and one chosen Telegram or MAX contact, complete within the same 15-minute attempt: start webapp login, open the issued `auth_` link, send the self-owned contact, receive and enter the bot-delivered code, confirm the session; then, while authenticated, run `profile_bind` for that same contact and observe completion without OTP. Do not send the phone, messenger id, token, or code to this audit record. This produces the only missing evidence needed for the phone-specific D15b/6 gate; the separate D25 DB-proof gate is already PASS above.
