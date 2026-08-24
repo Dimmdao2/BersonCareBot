@@ -278,7 +278,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
         text: 'Файл .ics во вложении — добавьте событие в свой календарь.',
         metadata: { subject: 'Запись подтверждена' },
         icsContent: Buffer.from(icsText, 'utf-8').toString('base64'),
-        icsFilename: 'bersoncare-booking-77.ics',
+        icsFilename: 'booking-77.ics',
       }),
     );
 
@@ -287,7 +287,7 @@ describe('POST /api/bersoncare/relay-outbound', () => {
     const attachments = sendMailMock.mock.calls[0]?.[1].attachments;
     expect(attachments).toHaveLength(1);
     expect(attachments?.[0]).toMatchObject({
-      filename: 'bersoncare-booking-77.ics',
+      filename: 'booking-77.ics',
       contentType: 'text/calendar; charset=utf-8',
     });
     expect(Buffer.from(attachments?.[0]?.content ?? '').toString('utf-8')).toBe(icsText);

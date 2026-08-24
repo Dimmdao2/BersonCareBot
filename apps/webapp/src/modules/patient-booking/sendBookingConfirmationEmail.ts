@@ -89,6 +89,10 @@ export async function sendBookingConfirmationEmail(
         bookingId: input.bookingId,
       },
       appBaseUrl,
+      // TPB-09: имя приложения в .ics берётся из того же профиля отправителя, что и подпись
+      // письма, а не из литерала по умолчанию — иначе смена PATIENT_APP_NAME деплоем оставила бы
+      // в календарном файле старое имя.
+      patientVisibleNameForMailProfile(input.mailProfile),
     );
 
     // Base64 — ровно то, что читает email-адаптер интегратора из payload.icsContent.
@@ -133,7 +137,8 @@ export async function sendBookingConfirmationEmail(
         html: htmlBody,
         subject: `Запись подтверждена: ${input.serviceTitle}`,
         icsContent: icsBase64,
-        icsFilename: `bersoncare-booking-${input.bookingId}.ics`,
+        // TPB-01: имя вложения видит пациент, поэтому в нём нет имени платформы.
+        icsFilename: `booking-${input.bookingId}.ics`,
       },
     });
 

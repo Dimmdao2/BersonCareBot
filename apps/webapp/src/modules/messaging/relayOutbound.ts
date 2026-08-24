@@ -40,7 +40,7 @@ type RelayOutboundBaseParams<C extends string> = {
    */
   icsContent?: string;
   /**
-   * Имя файла .ics вложения (по умолчанию `bersoncare-booking.ics`).
+   * Имя файла .ics вложения (по умолчанию `booking.ics`).
    */
   icsFilename?: string;
   /** Clinic-required traffic never falls back; patient context requires it only when configured. */

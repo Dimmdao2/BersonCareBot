@@ -11,7 +11,7 @@
  * adapter uses it as the envelope From. Otherwise falls back to the system SMTP fromAddress.
  *
  * icsContent: when payload.icsContent (base64-encoded .ics string) is present, it is attached
- * as `bersoncare-booking.ics` (text/calendar; charset=utf-8). Used for booking confirmation emails.
+ * as `booking.ics` (text/calendar; charset=utf-8). Used for booking confirmation emails.
  *
  * Error: if SMTP is not configured, throws EMAIL_NOT_CONFIGURED so the worker's retry/log
  * can surface the misconfiguration without a silent no-op.
@@ -46,11 +46,11 @@ type EmailDeliveryPayload = {
   };
   /**
    * Base64-encoded .ics file content for booking confirmation emails.
-   * When present, attached as `bersoncare-booking.ics` (text/calendar; charset=utf-8).
+   * When present, attached as `booking.ics` (text/calendar; charset=utf-8).
    */
   icsContent?: unknown;
   /**
-   * Optional filename for the .ics attachment (default: `bersoncare-booking.ics`).
+   * Optional filename for the .ics attachment (default: `booking.ics`).
    */
   icsFilename?: unknown;
 } & Record<string, unknown>;
@@ -102,7 +102,8 @@ export function createEmailDeliveryAdapter(deps: { getDb: () => DbPort }): Deliv
 
       // ICS attachment: base64-encoded calendar file for booking confirmation emails.
       const icsBase64 = asString(payload.icsContent);
-      const icsFilename = asString(payload.icsFilename) ?? 'bersoncare-booking.ics';
+      // TPB-01: имя вложения видит получатель — платформенного имени в нём нет.
+      const icsFilename = asString(payload.icsFilename) ?? 'booking.ics';
       const attachments: MailAttachment[] = icsBase64
         ? [
             {

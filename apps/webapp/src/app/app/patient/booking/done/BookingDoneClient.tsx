@@ -76,7 +76,8 @@ export function BookingDoneClient({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bersoncare-booking-${bookingId}.ics`;
+    // TPB-01: имя скачиваемого файла видит пациент — имени платформы в нём нет.
+    a.download = `booking-${bookingId}.ics`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

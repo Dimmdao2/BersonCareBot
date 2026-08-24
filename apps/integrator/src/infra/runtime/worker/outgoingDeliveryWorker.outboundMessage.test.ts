@@ -48,7 +48,7 @@ function bookingConfirmationIntent(eventId: string): OutgoingIntent {
       html: '<p>Ваша запись <strong>подтверждена</strong>.</p>',
       subject: 'Запись подтверждена: Массаж',
       icsContent: ICS_BASE64,
-      icsFilename: 'bersoncare-booking-booking-1.ics',
+      icsFilename: 'booking-booking-1.ics',
       delivery: { channels: ['email'] },
     },
   };
@@ -134,7 +134,7 @@ describe('outbound_message: арендаторская строка доходи
     const payload = dispatched[0]!.payload as Record<string, unknown>;
     // Байт в байт: не «поле присутствует», а именно то же содержимое, что положил отправитель.
     expect(payload.icsContent).toBe(ICS_BASE64);
-    expect(payload.icsFilename).toBe('bersoncare-booking-booking-1.ics');
+    expect(payload.icsFilename).toBe('booking-booking-1.ics');
     expect(Buffer.from(String(payload.icsContent), 'base64').toString('utf-8')).toContain(
       'UID:booking-1',
     );
