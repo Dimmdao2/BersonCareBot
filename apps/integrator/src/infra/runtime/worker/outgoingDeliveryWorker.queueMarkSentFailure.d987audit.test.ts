@@ -30,11 +30,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { DbPort, DbQueryResult, DeliverySendResult, OutgoingIntent } from '../../../kernel/contracts/index.js';
-import {
-  claimDueOutgoingDeliveries,
-  resetStaleOutgoingDeliveryProcessing,
-  type OutgoingDeliveryQueueRow,
-} from '../../db/repos/outgoingDeliveryQueue.js';
+import type { OutgoingDeliveryQueueRow } from '../../db/repos/outgoingDeliveryQueue.js';
 import { processOutgoingDeliveryRow } from './outgoingDeliveryWorker.js';
 
 vi.mock('../../observability/logger.js', async (importOriginal) => {
@@ -136,20 +132,6 @@ function harness() {
         queueDead.push(String(params?.at(-1) ?? ''));
         return { rows: [] as T[] };
       }
-      if (sql.includes('WITH stale AS') && sql.includes('reclaim_count')) {
-        if (queueStatus === 'dispatching') {
-          queueStatus = 'dead';
-          return { rows: [{ status: 'dead' }] as T[] };
-        }
-        return { rows: [] as T[] };
-      }
-      if (sql.includes('WITH due AS') && sql.includes("status IN ('pending', 'failed_retryable')")) {
-        return {
-          rows: (queueStatus === 'pending' || queueStatus === 'failed_retryable'
-            ? [reminderRow({ status: 'processing' })]
-            : []) as T[],
-        };
-      }
       return { rows: [] as T[] };
     },
     async tx<T>(fn: (tx: DbPort) => Promise<T>): Promise<T> {
@@ -178,23 +160,14 @@ function harness() {
 }
 
 describe('Track D #987 D987-F1 — a failed post-acceptance queue write must not re-send to the provider', () => {
-  it('never calls the provider a second time when marking the queue row sent fails after acceptance', async () => {
+  it('leaves the row beyond the retryable provider path when marking sent fails after acceptance', async () => {
     const h = harness();
 
-    // Tick 1: provider accepts, then the `status = 'sent'` write fails. The durable provider
-    // boundary remains `dispatching`.
+    // The provider accepts, then the `status = 'sent'` write fails. The durable provider boundary
+    // remains `dispatching`; recovery/claim semantics are PostgreSQL behavior and are proven by
+    // the named-DEV rollback-only audit, not reproduced by this fake DB.
     await processOutgoingDeliveryRow(reminderRow(), h as never);
     expect(h.queueStatus()).toBe('dispatching');
-
-    // Recovery dead-letters an ambiguous provider outcome; the normal claimant cannot return it
-    // to the worker, so there is no second provider call.
-    expect(await resetStaleOutgoingDeliveryProcessing(h.db, 1, 3)).toEqual({
-      reclaimed: 0,
-      deadLettered: 1,
-    });
-    const nextTick = await claimDueOutgoingDeliveries(h.db, 10);
-    for (const row of nextTick) await processOutgoingDeliveryRow(row, h as never);
-
     expect(h.dispatchOutgoing).toHaveBeenCalledTimes(1);
   });
 

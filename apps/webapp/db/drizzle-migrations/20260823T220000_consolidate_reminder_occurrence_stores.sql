@@ -1451,3 +1451,87 @@ ALTER TABLE public.outgoing_delivery_queue
   DROP CONSTRAINT outgoing_delivery_queue_status_check,
   ADD CONSTRAINT outgoing_delivery_queue_status_check
     CHECK (status = ANY (ARRAY['pending', 'processing', 'dispatching', 'sent', 'failed_retryable', 'dead']::text[]));
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_reminder_appointment_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- Appointment reminder provider failures reach this root after the durable provider boundary, so
+-- every optimistic guard must consume `dispatching`, never the pre-boundary `processing` state.
+
+CREATE OR REPLACE FUNCTION app.advance_appointment_reminder_messenger_ladder(
+  p_queue_id uuid,
+  p_expected_attempt_count integer,
+  p_error text
+) RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'pg_catalog'
+AS $function$
+DECLARE
+  current_payload jsonb;
+  next_index integer;
+  next_step jsonb;
+  next_channel text;
+  next_recipient jsonb;
+BEGIN
+  PERFORM app.require_accepted_context(
+    'app_seam_reminder_appointment_owner'::name,
+    'app_operational_delivery_worker'::name,
+    'service'::app.port_context_class,
+    'delivery.appointment-reminder-advance',
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1', pg_catalog.uuid_send($1))::app.port_typed_arg,
+      ROW('integer@1', pg_catalog.int4send($2))::app.port_typed_arg,
+      ROW('text@1', pg_catalog.textsend($3))::app.port_typed_arg
+    ]),
+    'app.advance_appointment_reminder_messenger_ladder(uuid,integer,text)'::regprocedure
+  );
+
+  SELECT candidate.payload_json INTO current_payload
+  FROM public.outgoing_delivery_queue AS candidate
+  WHERE candidate.id = p_queue_id
+    AND candidate.kind = 'appointment_reminder'
+    AND candidate.status = 'dispatching'
+    AND candidate.attempt_count = p_expected_attempt_count
+  FOR UPDATE;
+  IF NOT FOUND THEN RETURN 'not_transitioned'; END IF;
+
+  next_index := COALESCE((current_payload ->> 'messengerStepIndex')::integer, 0) + 1;
+  next_step := current_payload -> 'messengerLadder' -> next_index;
+  IF next_step IS NULL THEN
+    UPDATE public.outgoing_delivery_queue
+    SET status = 'dead', dead_at = now(), last_error = left(p_error, 900), updated_at = now()
+    WHERE id = p_queue_id AND status = 'dispatching' AND attempt_count = p_expected_attempt_count;
+    RETURN 'dead';
+  END IF;
+
+  next_channel := next_step ->> 'channel';
+  next_recipient := next_step -> 'recipient';
+  IF next_channel NOT IN ('telegram', 'max') OR next_recipient IS NULL THEN
+    UPDATE public.outgoing_delivery_queue
+    SET status = 'dead', dead_at = now(), last_error = 'BAD_APPOINTMENT_REMINDER_LADDER', updated_at = now()
+    WHERE id = p_queue_id AND status = 'dispatching' AND attempt_count = p_expected_attempt_count;
+    RETURN 'dead';
+  END IF;
+
+  UPDATE public.outgoing_delivery_queue
+  SET channel = next_channel,
+      payload_json = jsonb_set(
+        jsonb_set(
+          jsonb_set(
+            jsonb_set(payload_json, '{messengerStepIndex}', to_jsonb(next_index), false),
+            '{intent,meta,source}', to_jsonb(next_channel), false
+          ),
+          '{intent,payload,recipient}', next_recipient, false
+        ),
+        '{intent,payload,delivery,channels}', jsonb_build_array(next_channel), false
+      ),
+      status = 'failed_retryable',
+      next_retry_at = now() + interval '60 seconds',
+      last_error = left(p_error, 900),
+      updated_at = now()
+  WHERE id = p_queue_id AND status = 'dispatching' AND attempt_count = p_expected_attempt_count;
+  IF NOT FOUND THEN RETURN 'not_transitioned'; END IF;
+  RETURN 'advanced';
+END
+$function$;
