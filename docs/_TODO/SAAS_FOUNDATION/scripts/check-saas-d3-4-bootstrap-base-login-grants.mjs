@@ -20,8 +20,6 @@ if (readFileSync(artifactPath, 'utf8') !== firstRender) {
 }
 
 const dedicatedOverlayTables = new Set([
-  'public.app_runtime_settings',
-  'public.app_runtime_settings_audit',
   'public.staff_security_profiles',
 ]);
 const leakedDedicatedTables = getAppStaffGrantTables()

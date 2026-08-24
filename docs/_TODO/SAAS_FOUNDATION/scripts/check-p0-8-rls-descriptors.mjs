@@ -18,10 +18,6 @@ const expectedBootstrapHybridOrgGatedTables = new Set([
   'public.user_phone_history',
 ]);
 
-const expectedBootstrapRuntimeAudienceTables = new Set(['public.app_runtime_settings']);
-
-const expectedBootstrapRuntimeAuditTables = new Set(['public.app_runtime_settings_audit']);
-
 const expectedScopedFkPathTables = new Set([
   'public.be_package_items',
   'public.be_patient_package_items',
@@ -90,8 +86,6 @@ if (!sameSet(descriptorTables, tierTables)) {
 
 const actualBootstrapHybridTables = new Set();
 const actualBootstrapHybridOrgGatedTables = new Set();
-const actualBootstrapRuntimeAudienceTables = new Set();
-const actualBootstrapRuntimeAuditTables = new Set();
 const actualScopedFkPathTables = new Set();
 const actualP083ParentCopyHolds = new Set();
 const batchTables = new Set(readBatchRows().map((row) => row.table));
@@ -167,31 +161,6 @@ for (const [table, descriptor] of descriptors.entries()) {
       if (descriptor.predicateTemplate !== 'org_gated_null_bootstrap') {
         fail(`BOOTSTRAP org-gated hybrid descriptor ${table} must use org_gated_null_bootstrap`);
       }
-    } else if (descriptor.scopingKind === 'bootstrap_runtime_audience') {
-      actualBootstrapRuntimeAudienceTables.add(table);
-
-      if (
-        descriptor.orgColumn !== 'organization_id' ||
-        descriptor.audienceColumn !== 'audience' ||
-        descriptor.predicateTemplate !== 'safe_audience_global_or_tenant_row' ||
-        JSON.stringify(descriptor.safeAudiences) !==
-          JSON.stringify(['public', 'authenticated_client'])
-      ) {
-        fail(
-          `BOOTSTRAP runtime-audience descriptor ${table} must preserve safe audience and org semantics`,
-        );
-      }
-    } else if (descriptor.scopingKind === 'bootstrap_runtime_audit') {
-      actualBootstrapRuntimeAuditTables.add(table);
-
-      if (
-        descriptor.orgColumn !== 'organization_id' ||
-        descriptor.predicateTemplate !== 'staff_global_or_exact_org_audit'
-      ) {
-        fail(
-          `BOOTSTRAP runtime-audit descriptor ${table} must preserve staff-only audit semantics`,
-        );
-      }
     } else if (descriptor.scopingKind !== 'bootstrap_global') {
       fail(`Invalid BOOTSTRAP scoping kind for ${table}: ${descriptor.scopingKind}`);
     }
@@ -213,18 +182,6 @@ if (!sameSet(actualBootstrapHybridTables, expectedBootstrapHybridTables)) {
 if (!sameSet(actualBootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGatedTables)) {
   fail(
     `Unexpected BOOTSTRAP org-gated hybrid set. Missing: ${setDiff(expectedBootstrapHybridOrgGatedTables, actualBootstrapHybridOrgGatedTables).join(', ')}. Extra: ${setDiff(actualBootstrapHybridOrgGatedTables, expectedBootstrapHybridOrgGatedTables).join(', ')}`,
-  );
-}
-
-if (!sameSet(actualBootstrapRuntimeAudienceTables, expectedBootstrapRuntimeAudienceTables)) {
-  fail(
-    `Unexpected BOOTSTRAP runtime-audience set. Missing: ${setDiff(expectedBootstrapRuntimeAudienceTables, actualBootstrapRuntimeAudienceTables).join(', ')}. Extra: ${setDiff(actualBootstrapRuntimeAudienceTables, expectedBootstrapRuntimeAudienceTables).join(', ')}`,
-  );
-}
-
-if (!sameSet(actualBootstrapRuntimeAuditTables, expectedBootstrapRuntimeAuditTables)) {
-  fail(
-    `Unexpected BOOTSTRAP runtime-audit set. Missing: ${setDiff(expectedBootstrapRuntimeAuditTables, actualBootstrapRuntimeAuditTables).join(', ')}. Extra: ${setDiff(actualBootstrapRuntimeAuditTables, expectedBootstrapRuntimeAuditTables).join(', ')}`,
   );
 }
 

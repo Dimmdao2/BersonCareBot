@@ -18,8 +18,6 @@ function fail(message) {
 
 function assertGrantSetMatchesTiers() {
   const expectedDedicatedTables = new Set([
-    'public.app_runtime_settings',
-    'public.app_runtime_settings_audit',
     'public.password_altcha_challenges',
     'public.password_login_identifier_protection',
     'public.staff_security_profiles',

@@ -5,7 +5,6 @@ import {
   hasAnyPatientOwnership,
   renderBootstrapHybridOrgGatedPredicate,
   renderBootstrapHybridPredicate,
-  renderBootstrapRuntimeAudiencePredicate,
   renderCreatePolicy,
   renderDropPolicy,
   renderEnableRowLevelSecurity,
@@ -25,8 +24,6 @@ export const p09EnforceActions = new Set([
   'scoped_pending_default_deny',
   'bootstrap_hybrid',
   'bootstrap_hybrid_org_gated',
-  'bootstrap_runtime_audience',
-  'bootstrap_runtime_audit',
   'bootstrap_global_read',
   'explicit_global',
   'legacy_frozen_deny',
@@ -124,29 +121,6 @@ export function buildP09EnforceDescriptor(descriptor) {
           action: 'bootstrap_hybrid_org_gated',
           reason:
             'null_rows_readable_only_to_contextless_bootstrap_org_rows_require_matching_app_org',
-        },
-      };
-    }
-
-    if (descriptor.scopingKind === 'bootstrap_runtime_audience') {
-      return {
-        ...base,
-        predicateTemplate: 'safe_audience_global_or_tenant_row',
-        enforceMode: {
-          ...base.enforceMode,
-          action: 'bootstrap_runtime_audience',
-          reason: 'runtime_rows_require_safe_audience_and_global_or_matching_org',
-        },
-      };
-    }
-    if (descriptor.scopingKind === 'bootstrap_runtime_audit') {
-      return {
-        ...base,
-        predicateTemplate: 'staff_global_or_exact_org_audit',
-        enforceMode: {
-          ...base.enforceMode,
-          action: 'bootstrap_runtime_audit',
-          reason: 'runtime_audit_rows_require_staff_and_global_or_matching_org',
         },
       };
     }
@@ -298,17 +272,6 @@ export function renderP09EnforcePredicate(descriptor) {
 
   if (action === 'bootstrap_hybrid_org_gated') {
     return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
-  }
-
-  if (action === 'bootstrap_runtime_audience') {
-    return renderBootstrapRuntimeAudiencePredicate({
-      orgColumn: descriptor.orgColumn,
-      audienceColumn: descriptor.audienceColumn,
-      safeAudiences: descriptor.safeAudiences,
-    });
-  }
-  if (action === 'bootstrap_runtime_audit') {
-    return `(${renderStaffActorCheck()} AND ${renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn })})`;
   }
 
   if (action === 'bootstrap_global_read' || action === 'explicit_global') {
