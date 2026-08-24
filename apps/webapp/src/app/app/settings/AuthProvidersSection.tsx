@@ -7,6 +7,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
 import { isSafeExternalHref } from '@/lib/url/isSafeExternalHref';
+import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
 import { patchAdminSetting } from './patchAdminSetting';
 
 export type AuthProvidersSectionProps = {
@@ -97,7 +98,13 @@ export function AuthProvidersSection({
     setError(null);
     startTransition(async () => {
       try {
-        const yErr = validateHttpUrl('Yandex redirect URI', yandexRedirect);
+        // `yandex_oauth_redirect_uri` — точный allowlist адресов возврата, по одному в строке:
+        // у каждой брендированной пациентской поверхности свой origin, и без списка живым
+        // остаётся ровно один домен, а на остальных вход молча отвечает `oauth_disabled`.
+        const yandexRedirectList = parseIdTokens(yandexRedirect);
+        const yErr = yandexRedirectList
+          .map((uri) => validateHttpUrl('Yandex redirect URI', uri))
+          .find((message): message is string => Boolean(message));
         if (yErr) {
           setError(yErr);
           return;
@@ -143,7 +150,7 @@ export function AuthProvidersSection({
           patchAdminSetting('vk_id_redirect_uri', vkIdRedirect.trim()),
           patchAdminSetting('yandex_oauth_client_id', yandexId.trim()),
           patchAdminSetting('yandex_oauth_client_secret', yandexSecret.trim()),
-          patchAdminSetting('yandex_oauth_redirect_uri', yandexRedirect.trim()),
+          patchAdminSetting('yandex_oauth_redirect_uri', yandexRedirectList),
           patchAdminSetting('google_client_id', gId.trim()),
           patchAdminSetting('google_client_secret', gSecret.trim()),
           patchAdminSetting('google_oauth_login_redirect_uri', gLoginRedirect.trim()),
@@ -378,13 +385,15 @@ export function AuthProvidersSection({
                   <code className="rounded bg-muted px-1">…/api/auth/oauth/callback/yandex</code>.
                   Старый путь{' '}
                   <code className="rounded bg-muted px-1">…/api/auth/oauth/callback</code> без
-                  суффикса по-прежнему обрабатывается, но не рекомендуется для новых настроек.
+                  суффикса по-прежнему обрабатывается, но не рекомендуется для новых настроек. Если
+                  пациентских адресов несколько, укажите по одному в строке: сверка точная, и вход
+                  работает только на перечисленных.
                 </>
               }
             >
-              <Input
+              <Textarea
                 id="auth-yandex-redirect"
-                type="url"
+                rows={3}
                 placeholder="https://example.com/api/auth/oauth/callback/yandex"
                 value={yandexRedirect}
                 onChange={(e) => setYandexRedirect(e.target.value)}
