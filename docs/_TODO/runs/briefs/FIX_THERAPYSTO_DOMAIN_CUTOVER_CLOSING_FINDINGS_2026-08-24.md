@@ -10,7 +10,7 @@ wants the future domain scheme completely prepared in this separate branch, whil
 - `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CLOSING_AUDIT_DOMAIN_CUTOVER_READY_2026-08-24.md`
 - candidate/audit HEAD `2c153e8c49f9311e860f805628e8a40e39c892cb`
 
-Источник оракула: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CLOSING_AUDIT_DOMAIN_CUTOVER_READY_2026-08-24.md` — «Fix exactly CF1-CF4 in one coherent pass».
+Источник оракула: `docs/_TODO/THERAPYSTO_PATIENT_BRANDING_INITIATIVE/CLOSING_AUDIT_DOMAIN_CUTOVER_READY_2026-08-24.md` — «Four reachable gaps remain».
 
 Fix exactly CF1-CF4 in one coherent pass. Do not invent adjacent product work.
 
