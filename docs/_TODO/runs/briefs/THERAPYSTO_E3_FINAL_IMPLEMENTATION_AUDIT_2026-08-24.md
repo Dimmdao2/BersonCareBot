@@ -2,6 +2,11 @@
 
 Read `AGENTS.md` first and obey its header-map rule before every action. Read §§1–5, 9–10b, 12 and 24 completely.
 
+## Тест или взгляд
+
+До чтения тестов классифицируй каждый in-scope пункт отдельно: `TEST` для повторяемого поведения либо
+`INSPECTION` для разового итогового состояния, с краткой причиной выбора. Для `TEST` сначала запиши blind kill-set.
+
 ## Candidate and authority
 
 - Worktree: `/home/dev/dev-projects/bcb-wt-therapysto-night-20260823`
