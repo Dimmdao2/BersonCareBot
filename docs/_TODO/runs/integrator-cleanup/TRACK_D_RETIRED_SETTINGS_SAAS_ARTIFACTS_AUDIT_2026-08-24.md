@@ -150,3 +150,30 @@ inside the candidate's simplified SaaS generators.
 
 No temporary fault injection, acceptance test, product change, migration,
 schema action, database action, or deployment action remains from this audit.
+
+## Lead resolution after audit
+
+The audit verdict above remains the historical verdict for candidate
+`a9f73e9e617c1629718e2f4b15d5eccb331abe49`: **FAIL** on F-1. The lead resolved
+that one concrete finding in
+`51ff7d3bb` (`fix(cutover): refresh single-root schema B snapshots (#987)`).
+
+Resolution evidence:
+
+- the canonical DEV migration runner applied the five pending forward
+  migrations to named DEV `bcb_webapp_dev`;
+- a read-only query returned `true|true` for
+  `to_regclass('public.app_runtime_settings') IS NULL` and
+  `to_regclass('public.app_runtime_settings_audit') IS NULL`;
+- `pnpm run refresh:prod-to-target-cutover` regenerated all three checked-in
+  cutover snapshots from that current named DEV schema;
+- exact search for `app_runtime_settings(_audit)?` in `schema-pre.sql`,
+  `schema-post.sql`, and `ledgers-and-baseline.sql` returned no matches;
+- `pnpm run check:prod-to-target-cutover` passed for all three generated
+  artifacts;
+- `pnpm run audit` passed.
+
+Per `AGENTS.md` §24.6, F-1 was a single concrete generated-artifact finding;
+the lead verified the exact fix instead of starting another serial audit.
+The final integration acceptance for F-1 is therefore **PASS**, with no
+remaining finding from this audit.
