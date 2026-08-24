@@ -1,5 +1,10 @@
 # Track D — focused re-audit of ambiguous provider delivery
 
+## Тест или взгляд
+
+- Повторяемое поведение очереди и внешнего side effect проверяется переиспользованным acceptance-тестом и его существующим kill-set.
+- Разовое итоговое состояние миграции, переходов, ролей, retention и отсутствие новых сущностей проверяется взглядом по diff/SQL и, только если нужно, rollback-only introspection именованной DEV.
+
 ## Role and authority
 
 You are the independent focused auditor for the new queue-state surface introduced by fix commit `9829bfced` after the original Track D audit finding `D987-F1` in:
