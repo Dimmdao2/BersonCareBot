@@ -161,7 +161,6 @@ REVOKE EXECUTE ON FUNCTION app.release_principal_context() FROM
   :"c4_diagnostic_login_role", :"c4_delivery_worker_login_role",
   :"c4_scheduler_login_role";
 REVOKE ALL ON TABLE integrator.idempotency_keys,
-  integrator.user_reminder_occurrences,
   public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents,
   public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
@@ -183,7 +182,7 @@ DROP FUNCTION IF EXISTS app.operator_incident_alert_already_sent(uuid);
 DROP FUNCTION IF EXISTS app.mark_operator_incident_alert_sent(uuid);
 DROP FUNCTION IF EXISTS app.record_operator_delivery_attempt(text, text, text, uuid, text, text, integer, text, text, timestamp with time zone);
 DROP FUNCTION IF EXISTS app.read_outgoing_delivery_reclaim_config();
-REVOKE SELECT ON TABLE integrator.user_reminder_occurrences, public.reminder_rules FROM app_owner;
+REVOKE SELECT ON TABLE public.reminder_rules FROM app_owner;
 REVOKE SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents FROM app_owner;
 REVOKE SELECT (id, organization_id, reminder_sent_at), UPDATE (reminder_sent_at)
   ON TABLE public.specialist_tasks FROM app_owner;
@@ -419,7 +418,7 @@ GRANT app_operational_delivery_worker TO :"c4_delivery_worker_login_role" WITH I
 GRANT app_operational_scheduler TO :"c4_scheduler_login_role" WITH INHERIT FALSE, SET TRUE;
 
 REVOKE ALL ON TABLE integrator.idempotency_keys,
-  integrator.user_reminder_occurrences, public.reminder_rules,
+  public.reminder_rules,
   public.outgoing_delivery_queue,
   public.broadcast_audit, public.operator_incidents, public.media_transcode_jobs,
   public.media_files, public.app_runtime_settings FROM
@@ -453,8 +452,7 @@ REVOKE ALL ON TABLE public.outgoing_delivery_queue FROM
 REVOKE ALL ON TABLE public.media_transcode_jobs, public.media_files, public.app_runtime_settings FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
-REVOKE ALL ON TABLE integrator.user_reminder_occurrences, public.reminder_rules,
-  public.broadcast_audit, public.operator_incidents FROM
+REVOKE ALL ON TABLE public.reminder_rules, public.broadcast_audit, public.operator_incidents FROM
   app_operational_diagnostic, app_operational_delivery_worker,
   app_operational_scheduler, app_operational_media_worker;
 
@@ -465,7 +463,6 @@ GRANT SELECT, UPDATE ON TABLE public.media_transcode_jobs, public.media_files TO
 GRANT USAGE ON SCHEMA integrator, public TO app_owner;
 GRANT SELECT ON TABLE public.app_runtime_settings TO app_owner;
 GRANT SELECT ON TABLE public.reminder_rules TO app_owner;
-GRANT SELECT, UPDATE, DELETE ON TABLE integrator.user_reminder_occurrences TO app_owner;
 GRANT SELECT ON TABLE public.outgoing_delivery_queue, public.broadcast_audit, public.operator_incidents TO app_owner;
 GRANT SELECT (id, organization_id, reminder_sent_at), UPDATE (reminder_sent_at)
   ON TABLE public.specialist_tasks TO app_owner;
@@ -995,7 +992,6 @@ SELECT 1 / (
     JOIN pg_roles login ON login.rolname = expected.login_name
     CROSS JOIN LATERAL (VALUES
       ('integrator.idempotency_keys'),
-      ('integrator.user_reminder_occurrences'),
       ('public.reminder_rules'), ('public.outgoing_delivery_queue'),
       ('public.broadcast_audit'), ('public.operator_incidents'),
       ('public.media_transcode_jobs'), ('public.media_files'), ('public.app_runtime_settings')

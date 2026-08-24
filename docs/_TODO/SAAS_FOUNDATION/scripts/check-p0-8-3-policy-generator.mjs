@@ -18,9 +18,9 @@ import {
 // B4-core-3 census follow-up (LOG.md, taskdb #658): chain-owned P0.8.3 direct-org tables — patient
 // is reached via an EXISTS to an already-walled parent, not a direct column on the row itself. The
 // original gap closure found support_questions; the B4-core-3 exhaustive census found 11 more
-// be_appointment_*/be_package_*/be_refunds/be_product_history_events/reminder_journal children of
-// already-walled be_appointments/be_patient_packages/be_payments/be_product_purchases/
-// reminder_rules — see rls-descriptor-model.mjs `patientChainOwnedTables`.
+// be_appointment_*/be_package_*/be_refunds/be_product_history_events children of already-walled
+// be_appointments/be_patient_packages/be_payments/be_product_purchases — see
+// rls-descriptor-model.mjs `patientChainOwnedTables`.
 const parentCopyHolds = new Set([
   'public.content_section_slug_history',
   'public.media_transcode_jobs',
@@ -136,7 +136,6 @@ assert.deepEqual(
     'public.be_package_history_events',
     'public.be_package_usages',
     'public.be_refunds',
-    'public.reminder_journal',
     'public.support_questions',
   ],
   'P0.8.3 patient-chain-owned target set must stay stable',
