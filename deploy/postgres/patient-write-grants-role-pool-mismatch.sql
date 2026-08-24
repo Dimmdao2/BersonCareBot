@@ -16,21 +16,7 @@
 -- reached from a patient-authenticated route gated by requirePatientApiBusinessAccess, which sets
 -- principal.kind = "patient" -> nonstaff/app_patient pool):
 --
---   1. reminder_journal INSERT (rule_id, occurrence_id, action, snooze_until, skip_reason)
---      apps/webapp/src/infra/repos/pgReminderJournal.ts:159-168 (recordDone), :283-303 (recordSnooze),
---      :329-354 (recordSkip). Caller chain: POST /api/patient/reminders/[id]/done|snooze|skip and
---      /api/patient/reminders/occurrences/[id]/snooze|skip -> apps/webapp/src/modules/reminders/
---      service.ts:446/462/492 (doneOccurrence/snoozeOccurrence/skipOccurrence) ->
---      deps.journal.recordDone/recordSnooze/recordSkip. app_patient currently has only
---      ('public','reminder_journal','SELECT') (deploy/postgres/p0-5b-grants.sql:370).
---      IMPORTANT CAVEAT: recordSnooze and recordSkip ALSO UPDATE reminder_occurrence_history in the
---      same transaction, BEFORE the reminder_journal INSERT runs -- see the reminder_occurrence_history
---      exception note below. This overlay's reminder_journal grant alone fully unblocks recordDone
---      (which never touches reminder_occurrence_history), but recordSnooze/recordSkip will still 42501
---      on the reminder_occurrence_history UPDATE and roll back before reaching reminder_journal, until
---      that separate owner-gated decision is resolved.
---
---   2. treatment_program_instances UPDATE (updated_at)
+--   1. treatment_program_instances UPDATE (updated_at)
 --      apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts:212-220 (touchInstanceUpdatedAt),
 --      called from setStageItemCompletedAt (:699) and updateInstanceStageMetadata (:673) and several
 --      insert-item paths. Caller chain: POST .../progress/complete and .../progress/touch ->
@@ -39,7 +25,7 @@
 --      instances.updateInstanceStage. app_patient currently has only
 --      ('public','treatment_program_instances','SELECT') (p0-5b-grants.sql:386).
 --
---   3. treatment_program_instance_stages UPDATE (status, skip_reason, started_at)
+--   2. treatment_program_instance_stages UPDATE (status, skip_reason, started_at)
 --      apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts:606-634 (updateInstanceStage; the
 --      same statement shape also does a cascading UPDATE of the NEXT stage's status to "available" at
 --      :632, same three-column surface, different row of the same table/instance). Caller chain:
@@ -47,12 +33,12 @@
 --      {status:"in_progress"}), fired on the first patient touch of any item in a stage. app_patient
 --      currently has only ('public','treatment_program_instance_stages','SELECT') (p0-5b-grants.sql:385).
 --
---   4. treatment_program_instance_stage_items UPDATE (completed_at)
+--   3. treatment_program_instance_stage_items UPDATE (completed_at)
 --      apps/webapp/src/infra/repos/pgTreatmentProgramInstance.ts:694-698 (setStageItemCompletedAt).
 --      Caller chain: same as #2, progress-service.ts:290. app_patient currently has only
 --      ('public','treatment_program_instance_stage_items','SELECT') (p0-5b-grants.sql:384).
 --
---   5. patient_daily_warmup_presentations UPDATE
+--   4. patient_daily_warmup_presentations UPDATE
 --      (content_page_id, updated_at, last_rotation_at, skip_next_scheduled_rotation)
 --      pgPatientDailyWarmupPresentation.upsertPresentationState uses ON CONFLICT DO UPDATE.
 --      Caller chain: POST /api/patient/practice/completion with source=daily_warmup ->
@@ -60,20 +46,15 @@
 --      missing UPDATE grant as SQLSTATE 42501 on 2026-07-30. The baseline remains SELECT, INSERT;
 --      this overlay grants only the four presentation-state columns the upsert actually changes.
 --
---   6. patient_practice_completions UPDATE (feeling)
+--   5. patient_practice_completions UPDATE (feeling)
 --      pgPatientPracticeCompletions.applyDailyWarmupFeeling updates only `feeling` for the exact
 --      completion id + authenticated patient user id. Caller chain: PATCH
 --      /api/patient/practice/completion/[id]/feeling -> applyDailyWarmupFeeling. TEST runtime proved
 --      the missing UPDATE grant as SQLSTATE 42501 on 2026-07-30. The baseline remains SELECT, INSERT;
 --      this overlay grants only the one column changed by that route.
 --
--- Why these six are RLS-safe to grant (same reasoning as patient-support-mark-read-grant.sql -- RLS
+-- Why these five are RLS-safe to grant (same reasoning as patient-support-mark-read-grant.sql -- RLS
 -- restricts ROWS, a grant never widens rows, only which columns may appear in the SET/INSERT list):
---   - reminder_journal: policy "saas_org_dormant_p0_8_3" (scratchpad/isolation-flagged-rls-policies.txt)
---     WITH CHECK admits a patient-context row only when
---     EXISTS(reminder_rules WHERE id = reminder_journal.rule_id AND platform_user_id =
---     current_patient_user_id()) -- a patient can only ever insert a journal row tied to THEIR OWN
---     reminder rule; cross-patient rule_id values are rejected by WITH CHECK, not merely hidden.
 --   - treatment_program_instances / _stages / _stage_items: policy "saas_org_dormant_p0_8_3" /
 --     "saas_org_dormant_p0_8_4" WITH CHECK admits a patient-context row only when the instance's
 --     patient_user_id (directly, or via the stage/instance FK chain) equals current_patient_user_id().
@@ -88,34 +69,6 @@
 --
 -- EXCLUDED from this overlay (do NOT grant here -- see analysis, owner/orchestrator decision needed
 -- or already resolved elsewhere):
---
---   - reminder_occurrence_history (UPDATE snoozed_at/snoozed_until in recordSnooze; skipped_at/
---     skip_reason in recordSkip, pgReminderJournal.ts:283-289 and :329-339): policy
---     "saas_org_dormant_p0_8_4" WITH CHECK is scoped by integrator_user_id = current_integrator_user_id(),
---     which has NO patient branch at all (scratchpad/isolation-flagged-rls-policies.txt). A patient
---     session's current_integrator_user_id() is not populated the way this policy expects, so even
---     with a grant, WITH CHECK would not admit the patient's own row -- this is a genuine design gap,
---     not a missing grant, and needs an owner call (add a patient-branch policy vs. route this write
---     through a SECURITY DEFINER RPC the way product analytics already does -- see below). See
---     the isolation-42501-fix-prep.md report's "Exceptions design note" section for the full writeup.
---
---     CORRECTION 2026-07-26 (taskdb #1018): this note originally scoped the gap to recordSnooze/
---     recordSkip's UPDATE only. It also broke recordDone -- recordDone's pre-write ownership SELECT
---     (pgReminderJournal.ts:145-151, `reminder_occurrence_history JOIN platform_users ... WHERE
---     pu.id = platformUserId`) hit the SAME RLS policy with no patient branch and came back zero
---     rows (not a 42501 -- app_patient's SELECT-level table grant on reminder_occurrence_history
---     already existed; RLS silently filtered every row), so recordDone 404'd too, upstream of and
---     independent from this overlay's reminder_journal INSERT grant. The "add a patient-branch
---     policy" side of the owner call above is now resolved: deploy/postgres/
---     phase4-locked-helper-rls-policies.sql's saas_org_dormant_p0_8_4 for reminder_occurrence_history
---     now carries a patient branch bridged through platform_users.integrator_user_id (see
---     docs/_TODO/SAAS_FOUNDATION/scripts/rls-descriptor-model.mjs patientChainOwnedTables). That
---     resolves recordDone fully (it never writes to reminder_occurrence_history) and unblocks the
---     ownership SELECT for recordSnooze/recordSkip too, but recordSnooze/recordSkip still need the
---     UPDATE column grant this overlay excludes here -- until that grant is added, they will pass
---     the ownership check and then 42501 on the UPDATE (caught and surfaced as the same 404), so
---     they remain broken end-to-end even after the RLS fix. That UPDATE-grant decision was NOT part
---     of taskdb #1018's scope and is still open.
 --
 --   - product_analytics_hourly (org-GUC-scoped policy "c4_web_push_reminder_org", RLS not patient-aware):
 --     confirmed NOT reachable by app_patient at all -- see next bullet, the entire patient analytics
@@ -158,10 +111,7 @@ SELECT 1 / 0 AS patient_write_grants_role_pool_mismatch_abort;
 \endif
 
 \if :{?patient_write_grants_role_pool_mismatch_down}
-\echo 'Patient write grants (role_pool_mismatch) DOWN: revoking the six INSERT/UPDATE column grants from app_patient.'
-
-REVOKE INSERT ("rule_id", "occurrence_id", "action", "snooze_until", "skip_reason")
-  ON TABLE "public"."reminder_journal" FROM app_patient;
+\echo 'Patient write grants (role_pool_mismatch) DOWN: revoking the five UPDATE column grants from app_patient.'
 
 REVOKE UPDATE ("updated_at")
   ON TABLE "public"."treatment_program_instances" FROM app_patient;
@@ -180,10 +130,7 @@ REVOKE UPDATE ("feeling")
 
 \echo 'Patient write grants (role_pool_mismatch) DOWN complete.'
 \else
-\echo 'Patient write grants (role_pool_mismatch) UP: granting reminder_journal INSERT + treatment_program_instance*, warmup presentation and warmup feeling UPDATE column grants to app_patient.'
-
-GRANT INSERT ("rule_id", "occurrence_id", "action", "snooze_until", "skip_reason")
-  ON TABLE "public"."reminder_journal" TO app_patient;
+\echo 'Patient write grants (role_pool_mismatch) UP: granting treatment_program_instance*, warmup presentation and warmup feeling UPDATE column grants to app_patient.'
 
 GRANT UPDATE ("updated_at")
   ON TABLE "public"."treatment_program_instances" TO app_patient;
