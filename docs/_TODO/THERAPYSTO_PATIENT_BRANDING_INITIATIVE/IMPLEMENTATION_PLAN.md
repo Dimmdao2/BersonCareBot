@@ -512,12 +512,13 @@ Checkbox закрывается только доказательством, у�
   > `modules/system-settings/orgCustomDomainHostname.unit.test.ts`. Открытый вопрос владельцу (работой не
   > становится): статический дубликат `'Therapygo'` в `public/sw.js:64` — сегодня недостижим, интегратор
   > отбивает пустой заголовок push как `WEB_PUSH_PAYLOAD_INVALID`. Живая проверка имени на TEST — гейт `D`.
-- [ ] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
+- [x] `TPB-10` **Переписан 21.08.2026 под §1.6.** Прежняя редакция требовала Yandex OAuth на Therapysto — это
   противоречит более позднему решению о матрице. Требование теперь: на staff surface OAuth выключен по умолчанию,
   но включается настройкой; на patient surfaces Яндекс остаётся включённым одной глобальной регистрацией
   (`OG-4` закрыт 22.08.2026).
   Отдельная consent identity на клинику НЕ делается (`W4`). Доказательство: config-selection/state/callback
   tests и operator smoke единственной зарегистрированной app identity.
+  **Закрыт 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql` оставляет включённым patient Yandex и выключает patient Google; `yandexOAuthConfig.unit.test.ts` подтверждает global config только на patient surface.
 
   Происхождение прежней редакции: owner-требование брифа №10 звучало как «OAuth доступен, без утечки чужой
   identity в consent». Формулировки «обязателен и не отключается» владелец не давал — она возникла при
@@ -569,18 +570,22 @@ Checkbox закрывается только доказательством, у�
   > Низкое следствие ужесточения (пустой заголовок рассылки давал бы `400` вместо письма) закрыто ведущим
   > отдельно: `service.execute` отбивает пустой заголовок как `broadcast_title_required` до отбора аудитории,
   > тест `service.titleRequired.test.ts`, снятие проверки краснит 2 из 3.
-- [ ] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
+- [x] `TPB-17a` Passkey сохранён в коде и выключен у докторов настройкой, а не удалением; включение настройкой
   возвращает его в строй без правки кода. PIN отсутствует. Доказательство: тест «выключено → путь недоступен»
   и «включено → путь работает» на одном и том же коде, плюс сценарий пользователя, у которого passkey уже заведён.
-- [ ] `TPB-17` На staff/admin surface OAuth-вход выключен настройкой (`OG-5` (б)): механика присутствует в
+  **Закрыт 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` выполняет disabled → enabled на одном handler, `passkey/login/verify/route.test.ts` сохраняет existing-credential path.
+- [x] `TPB-17` На staff/admin surface OAuth-вход выключен настройкой (`OG-5` (б)): механика присутствует в
   матрице, значение по умолчанию — «выключено», путь недоступен на уровне резолвера, пока её не включат. Доказательство: UI-тест login-экрана без
   OAuth-элементов + route-тест, что OAuth start/callback следует политике: до включения отвечает отказом, после включения настройкой — редиректом к provider.
-- [ ] `TPB-18` Пациент входит по email и по номеру телефона с подтверждением через бота на обеих patient-поверхностях.
+  **Закрыт 24.08.2026:** migration выключает все staff/platform-admin OAuth cells; `oauthAppleToggle.route.test.ts` проверяет start и callback: disabled → `oauth_disabled`, enabled → provider path.
+- [x] `TPB-18` Пациент входит по email и по номеру телефона с подтверждением через бота на обеих patient-поверхностях.
   Доказательство: одинаковые login behavior tests на standard и branded origin для обоих способов.
-- [ ] `TPB-19` Механики входа настраиваются в админке матрицей «поверхность × механика», раздельно для staff,
+  **Закрыт 24.08.2026:** patient defaults enable email + Telegram contact proof (SMS off); `email-otp/start/route.route.test.ts` executes both default and branded email paths, `phoneStartBrandedOtpSender.audit.test.ts` executes both phone origins, and `phoneMessengerBindSelfSufficient.unit.test.ts` proves no integrator identity write.
+- [x] `TPB-19` Механики входа настраиваются в админке матрицей «поверхность × механика», раздельно для staff,
   platform admin и пациентов, а не одним общим переключателем. Выключенная механика недоступна на уровне
   резолвера, а не только скрыта в UI. Доказательство: settings-тест раздельных значений для трёх политик + fault injection
   «обратиться к выключенной механике напрямую» получает отказ.
+  **Закрыт 24.08.2026:** `publicAuthPolicy.unit.test.ts` доказывает независимые `staff`/`platform_admin`/`patient` cells; `oauthAppleToggle.route.test.ts` и `independentAuthMethodToggle.route.test.ts` — отказ прямого disabled route до provider/credential work.
 
   **`OG-5` ЗАКРЫТ владельцем 22.08.2026: вариант (б).** OAuth присутствует в списке механик и выключен по
   умолчанию у докторов — так же, как passkey. Ничего не удаляется и не блокируется архитектурно. Прежняя
@@ -897,16 +902,20 @@ tests; проверка, что секреты не попадают в public r
   свойство поверхности, а не глобальная настройка. `staff`, `platform_admin` и patient получают отдельные строки
   политики; OAuth и passkey можно включить настройкой без правки типа или кода.
   **Закрыт 24.08.2026** (ведущий bersoncarebot-3d, приёмка по закрывающему аудиту): `AUDIT2_NIGHT_F1_2026-08-23.md` — PASS круга 2, блокер круга 1 закрыт, вход не изменился ни у одной роли.
-- [ ] `F2` Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI,
+- [x] `F2` Выключить OAuth-вход на staff/admin surface значением в матрице механик. Ничего не удалять: UI,
   start/callback и provider config остаются в коде, но при выключенной механике путь недоступен на уровне
   резолвера, а не только скрыт в UI. Включение настройкой возвращает его в строй без правки кода.
-- [ ] `F2b` Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию
+  **Доказательство 24.08.2026:** `20260824T064008_apply_surface_auth_owner_defaults.sql`; targeted auth suite (57 tests), host-locked `pnpm --filter webapp lint && pnpm --filter webapp typecheck`, and `bash deploy/host/migrate-dev.sh --preflight --runtime-env-root /home/dev/dev-projects/BersonCareBot` → PASS.
+- [x] `F2b` Passkey НЕ удалять. Подключить его к матрице механик как переключаемую опцию, по умолчанию
   выключенную у докторов. Код и маршруты сохраняются; выключённая механика недоступна на входе, но включается
   настройкой без правки кода. PIN заново не вводить (вырезан 04.08.2026).
+  **Доказательство 24.08.2026:** `auth_surface_staff_passkey_enabled=false`; `independentAuthMethodToggle.route.test.ts` and `passkey/login/verify/route.test.ts` → PASS.
 - [ ] `F2c` Второй фактор докторского входа по умолчанию: код на email ИЛИ TOTP. Один общий выбор фактора, не два
   независимых пути входа.
-- [ ] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
+  **OWNER QUESTION 24.08.2026:** какой из двух факторов является значением по умолчанию для staff — email code или TOTP — и распространяется ли этот выбор на platform-admin? Сейчас email OTP — отдельный staff login path, а TOTP включается per-user после password; без выбранного значения нельзя заменить их одной policy без самовольного security/product решения.
+- [x] `F3` Свести patient-вход к email и телефону с подтверждением через бота на обеих patient-поверхностях,
   переиспользуя существующие pre-session seams канонических контактов; второго пути входа не создавать.
+  **Доказательство 24.08.2026:** migration enables patient email + Telegram proof; `email-otp/start/route.route.test.ts`, `phoneStartBrandedOtpSender.audit.test.ts`, `phoneMessengerBindSelfSufficient.unit.test.ts`, and `PhoneMessengerAuthFlow.ui.test.tsx` → PASS.
 - [x] `F4` Заменить единственный global-admin переключатель входа на политики `staff`, `platform_admin` и patient;
   миграция каждого существующего значения детерминированно копирует его на все три поверхности без изменения
   входа; дальнейшие значения владелец выставляет раздельными переключателями. Доказательство на DEV 23.08.2026:
@@ -916,8 +925,9 @@ tests; проверка, что секреты не попадают в public r
   совпали с legacy в обеих таблицах (`0/0` расхождений). Включённые способы до и после на каждой
   поверхности: `email`, `passkey`. Финальный общий reconcile остановлен известным чужим pre-session gate
   `app.email_auth_find_email_challenge_for_confirm`; см. `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
-- [ ] `F5` Яндекс у пациентов остаётся включённым как есть (`OG-4` закрыт). Отдельных регистраций на клинику не
+- [x] `F5` Яндекс у пациентов остаётся включённым как есть (`OG-4` закрыт). Отдельных регистраций на клинику не
   заводить (`W4`). Ничего не вырезать — только значения переключателей.
+  **Доказательство 24.08.2026:** patient `oauth_yandex=true`, patient Google and all staff/admin OAuth false in `20260824T064008_apply_surface_auth_owner_defaults.sql`; `yandexOAuthConfig.unit.test.ts` → PASS.
 
 **Gate F:** targeted auth/settings tests, fault injection «staff + OAuth» отвечает отказом, lint+typecheck.
 

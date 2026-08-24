@@ -34,14 +34,14 @@ export type SurfaceAuthPolicy = Readonly<{
 export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, SurfaceAuthPolicy>>;
 
 /**
- * The only surface -> auth-method matrix (TPB-16). Values snapshot live production settings from
- * `deploy/postgres/generated/prod-to-target/runtime-settings.sql` on 2026-08-17: passkey is on;
- * OAuth and phone/bot are off. F2-F5 may change values, not this type.
+ * The only surface -> auth-method matrix (TPB-16). The persisted per-surface setting cells decide
+ * the effective provider/channel availability; this matrix is their fail-closed fresh-install
+ * default. F2-F5 intentionally keep the mechanics available while changing those defaults.
  */
 export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
   staff: {
     availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
+    enabledMethods: ['password', 'email_code', 'totp'],
   },
   platform_admin: {
     availableMethods: SURFACE_AUTH_METHODS,
@@ -49,7 +49,7 @@ export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
   },
   patient: {
     availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-    enabledMethods: ['email_code', 'passkey'],
+    enabledMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
   },
 } as const satisfies SurfaceAuthPolicyConfig;
 

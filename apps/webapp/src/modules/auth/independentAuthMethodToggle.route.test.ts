@@ -45,12 +45,31 @@ beforeEach(() => {
 });
 
 describe('independent login method server gates', () => {
-  it('rejects passkey options before creating a challenge when the global toggle is off', async () => {
+  it('rejects passkey options before creating a challenge when this surface setting is off', async () => {
     const response = await requestPasskeyOptions(
       new Request('https://app.example.test/api/auth/passkey/login/options', { method: 'POST' }),
     );
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: 'auth_method_disabled' });
     expect(fakes.beginPasskeyAuthentication).not.toHaveBeenCalled();
+  });
+
+  it('restores the same passkey-options route for an already enrolled credential when the setting is enabled', async () => {
+    fakes.enabled.mockResolvedValue(true);
+    fakes.beginPasskeyAuthentication.mockResolvedValue({
+      challengeId: '00000000-0000-4000-8000-000000000123',
+      publicKey: { challenge: 'credential-challenge' },
+    });
+
+    const response = await requestPasskeyOptions(
+      new Request('https://app.example.test/api/auth/passkey/login/options', { method: 'POST' }),
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: true,
+      challengeId: '00000000-0000-4000-8000-000000000123',
+    });
+    expect(fakes.beginPasskeyAuthentication).toHaveBeenCalledOnce();
   });
 });

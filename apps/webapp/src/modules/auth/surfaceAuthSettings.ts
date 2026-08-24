@@ -51,6 +51,15 @@ export function defaultSurfaceAuthControlEnabled(
   surface: SurfaceAuthPolicyName,
   control: SurfaceAuthControl,
 ): boolean {
+  // Provider cells must not inherit one generic OAuth default: the owner keeps the one global
+  // patient Yandex registration enabled, while Google and every staff/admin OAuth provider stay
+  // disabled until their own surface setting is switched on.
+  if (control === 'oauth_yandex') return surface === 'patient';
+  if (control.startsWith('oauth_')) return false;
+  // SMS remains implemented but is deliberately off in the base delivery configuration on every
+  // surface; patient phone proof uses the existing messenger-contact route instead.
+  if (control === 'sms') return false;
+
   const enabledMethods: readonly SurfaceAuthMethod[] =
     DEFAULT_SURFACE_AUTH_POLICY_CONFIG[surface].enabledMethods;
   return enabledMethods.includes(METHOD_BY_CONTROL[control]);

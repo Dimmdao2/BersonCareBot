@@ -155,26 +155,39 @@ describe('public auth policy', () => {
     expect(fakes.getPublicRuntimeBool).not.toHaveBeenCalled();
   });
 
-  it('declares the same fresh-environment defaults for legacy and all surface keys', () => {
-    const legacyKeyByControl = {
-      email: 'auth_email_enabled',
-      sms: 'auth_sms_enabled',
-      telegram: 'auth_telegram_enabled',
-      max: 'auth_max_enabled',
-      oauth_google: 'auth_oauth_google_enabled',
-      oauth_yandex: 'auth_oauth_yandex_enabled',
-      oauth_vk: 'auth_oauth_vk_enabled',
-      oauth_apple: 'auth_oauth_apple_enabled',
-      passkey: 'auth_passkey_enabled',
-    } as const;
+  it('declares the independent owner defaults for staff, platform-admin and patient mechanics', () => {
+    const defaults = (surface: (typeof SURFACE_AUTH_POLICY_NAMES)[number]) =>
+      Object.fromEntries(
+        SURFACE_AUTH_CONTROLS.map((control) => [
+          control,
+          SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue,
+        ]),
+      );
 
-    for (const surface of SURFACE_AUTH_POLICY_NAMES) {
-      for (const control of SURFACE_AUTH_CONTROLS) {
-        expect(SYSTEM_SETTING_REGISTRY[surfaceAuthSettingKey(surface, control)].defaultValue).toBe(
-          SYSTEM_SETTING_REGISTRY[legacyKeyByControl[control]].defaultValue,
-        );
-      }
-    }
+    expect(defaults('staff')).toMatchObject({
+      email: 'true',
+      sms: 'false',
+      oauth_google: 'false',
+      oauth_yandex: 'false',
+      oauth_vk: 'false',
+      oauth_apple: 'false',
+      passkey: 'false',
+    });
+    expect(defaults('platform_admin')).toMatchObject({
+      email: 'true',
+      sms: 'false',
+      oauth_google: 'false',
+      oauth_yandex: 'false',
+      oauth_vk: 'false',
+      oauth_apple: 'false',
+    });
+    expect(defaults('patient')).toMatchObject({
+      email: 'true',
+      sms: 'false',
+      telegram: 'true',
+      oauth_google: 'false',
+      oauth_yandex: 'true',
+    });
   });
 
   it('uses only boolean capabilities to hide an unconfigured channel from anonymous login', async () => {
