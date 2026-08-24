@@ -13,15 +13,14 @@ import { reconcileDbRoleWithEnvRole, resolveRoleAsync } from '@/modules/auth/env
 import { resolveUserIdForYandexOAuth } from '@/modules/auth/oauthYandexResolve';
 import type { OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 import type { UserByPhonePort } from '@/modules/auth/userByPhonePort';
-import {
-  getYandexOauthClientId,
-  getYandexOauthClientSecret,
-  getYandexOauthRedirectUri,
-} from '@/modules/system-settings/integrationRuntime';
 import { parseVerifiedSignedOAuthState } from '@/modules/auth/oauthSignedState';
 import { enterStaffSecuritySelfPrincipal } from '@/app-layer/principal/staffSecuritySelfPrincipal';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
-import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
+import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
+import {
+  resolveYandexOAuthConfig,
+  yandexOAuthStateMatchesSurface,
+} from '@/modules/auth/yandexOAuthConfig';
 
 const LOG_BASE = {
   authMethod: 'oauth_yandex' as const,
@@ -78,15 +77,12 @@ export async function handleYandexOAuthCallbackGet(
     );
   }
 
-  // Defense in depth: closes the race window between /oauth/start (which already gates on this
-  // toggle) and this callback, in case the admin disables the provider mid-flight (owner ruling
-  // 2026-07-24, R2 fail-closed server-side).
-  const yandexOAuthEnabled = await isOAuthProviderEnabled('yandex');
-  const clientId = (await getYandexOauthClientId()).trim();
-  const redirectUri = (await getYandexOauthRedirectUri()).trim();
-  const secret = (await getYandexOauthClientSecret()).trim();
-
-  if (!yandexOAuthEnabled || !clientId || !redirectUri || !secret) {
+  const surface = await getResolvedSurface();
+  const config = await resolveYandexOAuthConfig(surface);
+  if (
+    !config ||
+    !yandexOAuthStateMatchesSurface(verifiedState, surface)
+  ) {
     await logOAuthFailure(attemptId, 'oauth_disabled', 'callback');
     return NextResponse.redirect(new URL('/app?oauth=disabled&reason=not_configured', appBase));
   }
@@ -106,9 +102,9 @@ export async function handleYandexOAuthCallbackGet(
   let accessToken: string;
   try {
     const tokenResult = await exchangeYandexCode(code, {
-      clientId,
-      clientSecret: secret,
-      redirectUri,
+      clientId: config.clientId,
+      clientSecret: config.clientSecret,
+      redirectUri: config.redirectUri,
     });
     accessToken = tokenResult.accessToken;
   } catch {

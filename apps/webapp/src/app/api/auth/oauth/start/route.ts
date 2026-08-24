@@ -18,9 +18,6 @@ import {
   type OAuthStatePurpose,
 } from '@/modules/auth/oauthSignedState';
 import {
-  getYandexOauthClientId,
-  getYandexOauthClientSecret,
-  getYandexOauthRedirectUri,
   getGoogleClientId,
   getGoogleClientSecret,
   getGoogleOauthLoginRedirectUri,
@@ -40,6 +37,8 @@ import {
 import { jsonError, jsonOk } from '@/shared/http/apiResponse';
 import { isOAuthProviderEnabled } from '@/modules/auth/authChannelPolicy';
 import { isSafeRolePortalNext } from '@/modules/auth/roleLogin';
+import { getResolvedSurface } from '@/shared/lib/surface/requestSurface.server';
+import { resolveYandexOAuthConfig } from '@/modules/auth/yandexOAuthConfig';
 
 const OAUTH_STATE_TTL_SECONDS = 600;
 
@@ -149,25 +148,26 @@ export async function POST(request: Request) {
 
   try {
     if (provider === 'yandex') {
-      const [yandexOAuthEnabled, clientId, redirectUri, secret] = await Promise.all([
-        isOAuthProviderEnabled('yandex'),
-        getYandexOauthClientId().then((v) => v.trim()),
-        getYandexOauthRedirectUri().then((v) => v.trim()),
-        getYandexOauthClientSecret().then((v) => v.trim()),
-      ]);
+      const surface = await getResolvedSurface();
+      const config = await resolveYandexOAuthConfig(surface);
       // Reuses the same enabled+configured gate the public providers list applies; not just an
       // extra credential re-check — a disabled admin toggle must refuse the request even if
       // credentials happen to be present (owner ruling 2026-07-24, R2 fail-closed).
-      if (!yandexOAuthEnabled || !clientId || !redirectUri || !secret) {
+      if (!config) {
         await logOAuthStartFailure(provider, 'oauth_disabled');
         return jsonError('oauth_disabled', { message: 'OAuth не настроен' }, { status: 501 });
       }
-      const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, tzOpt);
+      const state = createSignedOAuthState('yandex', OAUTH_STATE_TTL_SECONDS, {
+        ...tzOpt,
+        organizationId: surface.organizationId,
+        surface: surface.surface,
+        publicOrigin: surface.publicOrigin,
+      });
       await logOAuthStartAttempt(provider, state);
       const authUrl = new URL('https://oauth.yandex.ru/authorize');
       authUrl.searchParams.set('response_type', 'code');
-      authUrl.searchParams.set('client_id', clientId);
-      authUrl.searchParams.set('redirect_uri', redirectUri);
+      authUrl.searchParams.set('client_id', config.clientId);
+      authUrl.searchParams.set('redirect_uri', config.redirectUri);
       authUrl.searchParams.set('scope', 'login:info login:email login:default_phone');
       authUrl.searchParams.set('state', state);
       return jsonOk({ authUrl: authUrl.toString() });

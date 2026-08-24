@@ -26,19 +26,6 @@ export async function getTelegramBotToken(): Promise<string> {
   return getConfigValue('telegram_bot_token');
 }
 
-/** Yandex OAuth credentials: `system_settings` (admin), scope SSOT per project rules — не через env. */
-export async function getYandexOauthClientId(): Promise<string> {
-  return getConfigValue('yandex_oauth_client_id');
-}
-
-export async function getYandexOauthClientSecret(): Promise<string> {
-  return getConfigValue('yandex_oauth_client_secret');
-}
-
-export async function getYandexOauthRedirectUri(): Promise<string> {
-  return getConfigValue('yandex_oauth_redirect_uri');
-}
-
 /** VK ID OAuth 2.1 credentials: `system_settings` (admin), same seam as Yandex/Google/Apple. */
 export async function getVkIdApplicationId(): Promise<string> {
   return getConfigValue('vk_id_application_id');
