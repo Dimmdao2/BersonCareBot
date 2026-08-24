@@ -528,12 +528,23 @@ Checkbox закрывается только доказательством, у�
   Происхождение прежней редакции: owner-требование брифа №10 звучало как «OAuth доступен, без утечки чужой
   identity в consent». Формулировки «обязателен и не отключается» владелец не давал — она возникла при
   синтезе плана. Зафиксировано, чтобы не воспроизвелась.
-- [ ] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
+- [x] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
   booking и patient cabinet. Доказательство: branded-host page/navigation tests.
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `AUDIT_NIGHT_B5_2026-08-23.md` (PASS) и `AUDIT_NIGHT_B5A_2026-08-23.md` (PASS). Все шесть маршрутов пункта живут на обеих пациентских поверхностях из ОДНОГО дерева, корень брендированного адреса ведёт на визитку своей клиники и следует за контекстом, а `/specialists` на пациентских адресах — жёсткий `404`, то есть Therapysto home и каталог недостижимы. Тесты аудиторов: `proxy.b5Audit.route.test.ts` 22 passed, `proxy.b5aAudit.route.test.ts` 23 passed.
 - [ ] `TPB-12` Branded Telegram/MAX confirmations, codes и notifications идут только через clinic bot; SMS не
   считается branding. Доказательство: dispatch fault injection подтверждает `clinic_required` и отсутствие fallback.
-- [ ] `TPB-13` Branded transactional patient mail использует clinic SMTP/sender/template; mass mailing не изменён.
+
+  > **НЕ ЗАКРЫВАТЬ в этой редакции (ведущий, 24.08.2026).** Текст пункта («идут ТОЛЬКО через clinic bot»)
+  > перекрыт более поздним решением владельца §1.2h от 23.08.2026: «бот — по умолчанию наш, в тексте сообщения
+  > названа клиника-отправитель», свой бот — «опция для тех, кто дорос». Работа сделана и проверена в этой,
+  > более новой редакции: `AUDIT3_C3_2026-08-24.md` (PASS, 3/3 инъекции) и `AUDIT_C3_F1_2026-08-24.md`
+  > (PASS, 5/5) — брендированные интенты уходят `clinic_if_configured`, у клиники СО своим включённым ботом
+  > отката на платформенный нет ни на одном из восьми продюсеров и ни на SQL-корне очереди, у клиники БЕЗ
+  > своего бота пациент получает сообщение прежним путём. SMS брендингом не считается и выключен (§1.2e).
+  > Чтобы закрыть чекбокс, владельцу нужно переписать его текст под §1.2h — это его строка, не наша.
+- [x] `TPB-13` Branded transactional patient mail использует clinic SMTP/sender/template; mass mailing не изменён.
   Доказательство: template/profile selection tests и delivery fault injection.
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `REAUDIT_NIGHT_C4_2026-08-23.md` (PASS, FOR LAND) и `AUDIT2_C4_TENANT_LEAK_2026-08-23.md` (PASS, FOR LAND) — брендированное транзакционное письмо пациенту идёт через SMTP и профиль отправителя своей клиники, предикат арендатора доставлен в живые базы, массовая рассылка не изменена. Убитые инъекции покрывают потерю branded-пары с fail-closed и утечку чужой идентичности.
 - [ ] `TPB-14` Первичная domain activation остаётся ручной; self-service DNS/TLS, SEO automation и marketplace не
   построены. Доказательство: operator runbook и отсутствие таких product flows в diff.
 - [ ] `TPB-15` User-visible BersonCareBot/platform BersonCare и понятие BersonCare Bot заменены на Therapysto; technical IDs и
