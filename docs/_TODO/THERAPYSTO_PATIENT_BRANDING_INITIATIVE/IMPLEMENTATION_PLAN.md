@@ -794,16 +794,22 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
 
 ### C — OAuth и branded delivery (`TPB-10`, `12`, `13`, `16`)
 
-- [ ] `C1` Сохранить одну global patient Yandex config в `system_settings` с secret envelope и существующим
+- [x] `C1` Сохранить одну global patient Yandex config в `system_settings` с secret envelope и существующим
   settings write service; per-org clinic Yandex config не создавать (`OG-4`, `W4`).
-- [ ] `C2` Параметризовать существующий Yandex start/callback одним OAuth-config resolver по `ResolvedSurface`;
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающему независимому аудиту): `AUDIT2_C1_C2_2026-08-24.md` — PASS круга 2, 5/5 инъекций; шов «форма → `system_settings` → резолвер» проверен целиком, круговой прогон «показали → сохранили обратно» даёт тот же список, прежнее одиночное значение живо.
+- [x] `C2` Параметризовать существующий Yandex start/callback одним OAuth-config resolver по `ResolvedSurface`;
   resolver допускает одну global config только на включённых patient-поверхностях, а signed state и exact
   callback allowlist исключают подмену host/org/provider.
+  **Закрыт 24.08.2026** (приёмка ведущего по закрывающему независимому аудиту): `AUDIT_C1_C2_2026-08-24.md` — PASS круга 1 по `C2`, 5/5 инъекций: точность allowlist, гейт пациентской поверхности, сверка origin в state, подмена host/org/provider отбивается.
 - [x] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
   существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.
   Доказательство: route/producer fault injection краснит `sendOtpRoute.route.test.ts`,
   `materializePatientReminderDeliveries.unit.test.ts` и `dispatchPort.test.ts`; целевой прогон —
   16 integrator + 27 webapp tests, `pnpm --dir apps/{integrator,webapp} typecheck`.
+  **Приёмка ведущего 24.08.2026** по закрывающему аудиту `AUDIT3_C3_2026-08-24.md` — PASS круга 3, 3/3 инъекции.
+  Открытая находка другого слоя `F-1`: `app.enqueue_outbound_message` срезает маркер `clinic_if_configured`,
+  из-за чего у клиники СО своим ботом на одном продюсере остаётся откат на платформенного отправителя;
+  путь по умолчанию при этом не ломается. Вынесено отдельным кругом.
 - [x] `C4` Расширить existing SMTP config только sender display data, добавить один org-scoped transactional template
   setting и один mail-profile resolver/renderer. Не трогать doctor broadcasts/mass mailing кроме сохранения текущего
   поведения. Доказательство: `apps/integrator/src/integrations/email/mailProfile.unit.test.ts` (Therapysto,
