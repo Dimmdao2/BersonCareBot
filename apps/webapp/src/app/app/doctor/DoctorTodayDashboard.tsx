@@ -284,7 +284,6 @@ export function DoctorTodayDashboard({
                   id="doctor-today-mobile-kpi-support"
                   title="Сопровождение"
                   value={data.onSupportPeopleCount}
-                  layout="today-mobile-grid"
                   onClick={
                     data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined
                   }
@@ -293,7 +292,6 @@ export function DoctorTodayDashboard({
                   id="doctor-today-mobile-kpi-appointments"
                   title="Записей сегодня"
                   value={data.todayAppointments.length}
-                  layout="today-mobile-grid"
                   onClick={
                     data.todayAppointments.length > 0 ? () => setMobileModal('calendar') : undefined
                   }
