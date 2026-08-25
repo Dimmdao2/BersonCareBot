@@ -8370,6 +8370,11 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
         + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
         + " AND access_patient.status IN ('invited', 'active'))))",
       note: 'staff may read explicitly granted profile columns of current-clinic members and enrolled patients' },
+    { name: `rev10_platform_users_staff_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
+      to: ['app_staff'],
+      withCheck: "(current_user = 'app_staff'::name AND role = 'client' AND merged_into_id IS NULL"
+        + ' AND is_archived = false AND is_blocked = false)',
+      note: 'staff may create only a fresh patient account before enrolling it in the accepted clinic transaction' },
     { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_platform_settings'], using: "(current_user = 'app_platform_settings'::name)",
       note: 'platform administration may read explicitly granted non-clinical directory columns' },

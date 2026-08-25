@@ -967,6 +967,8 @@ test('canonical settings and account email use semantic row walls without broad 
     policy.name.startsWith('rev10_platform_users_patient_select_'));
   const staffSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_staff_select_'));
+  const staffInsert = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_staff_insert_'));
   const platformSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_platform_select_'));
   assert.deepEqual(patientSelect?.to, ['app_patient']);
@@ -980,6 +982,12 @@ test('canonical settings and account email use semantic row walls without broad 
   assert.match(staffSelect?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
   assert.match(staffSelect?.using ?? '', /access_patient\.organization_id = \(SELECT app\.current_org_id\(\)\)/);
   assert.match(staffSelect?.using ?? '', /access_patient\.status IN \('invited', 'active'\)/);
+  assert.deepEqual(staffInsert?.to, ['app_staff']);
+  assert.equal(staffInsert?.cmd, 'INSERT');
+  assert.match(staffInsert?.withCheck ?? '', /role = 'client'/);
+  assert.match(staffInsert?.withCheck ?? '', /merged_into_id IS NULL/);
+  assert.match(staffInsert?.withCheck ?? '', /is_archived = false/);
+  assert.match(staffInsert?.withCheck ?? '', /is_blocked = false/);
   assert.deepEqual(platformSelect?.to, ['app_platform_settings']);
   assert.equal(platformSelect?.using, "(current_user = 'app_platform_settings'::name)");
   const staffUpdate = users.access.grants.find((grant) =>
