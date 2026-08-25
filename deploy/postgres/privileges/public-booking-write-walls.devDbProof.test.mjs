@@ -12,8 +12,9 @@
  *      нет вовсе, и строка `org_enrollments` появляется ровно у субъекта принятого контекста.
  *      Это то, что мешает анониму записать ЧУЖОГО человека в клиенты опубликованной клиники —
  *      то есть показать его имя и телефон её персоналу.
- *   3. Выписанного (`discharged`) или архивного (`archived`) клиента дверь обратно не открывает:
- *      это отказ 42501, а не тихое воскрешение строки.
+ *   3. Выписанного (`discharged`) клиента дверь обратно не открывает. Архивного она временно
+ *      реактивирует для новой записи, а компенсация провалившейся попытки возвращает в архив,
+ *      не принимая старые приёмы за результат этой попытки.
  *   4. ЧУЖОЙ идентификатор организации в создании приёма отвергает БАЗА, а не код приложения:
  *      корень `app.create_current_patient_booking_appointments` сверяет `organizationId` полезной
  *      нагрузки с организацией принятого контекста и падает, даже если приложение пропустило.
@@ -120,6 +121,8 @@ ROLLBACK;`).trim();
 
 const ENROL_PURPOSE = 'booking.public-client.enroll';
 const ENROL_FN = 'app.enroll_current_patient_in_public_booking_clinic(uuid,text)';
+const REVOKE_PURPOSE = 'booking.public-client.revoke';
+const REVOKE_FN = 'app.revoke_public_booking_enrollment(uuid,text,timestamp with time zone)';
 /**
  * Канал подтверждения — АРГУМЕНТ двери с 19.08 (`OWNER_PRODUCT_RULES.md` §33: почта наравне с
  * телефоном, а состав обязательных полей задаёт клиника), поэтому и в транскрипте аргументов их два.
@@ -225,12 +228,11 @@ ROLLBACK;`)
     `зачисление легло не на субъекта контекста или не тем статусом: ${owner}`);
 });
 
-test('выписанного и архивного клиента дверь зачисления обратно не открывает', { skip: !ENABLED }, () => {
+test('выписанного клиента дверь зачисления обратно не открывает', { skip: !ENABLED }, () => {
   const actorRef = anyPatientRef();
   const organizationId = publishedOrg();
 
-  for (const status of ['discharged', 'archived']) {
-    const refusal = psql(`
+  const refusal = psql(`
 BEGIN;
 ${acceptPatientContext({
   purpose: ENROL_PURPOSE,
@@ -239,8 +241,8 @@ ${acceptPatientContext({
   actorRef,
 })}
 INSERT INTO public.org_enrollments (organization_id, platform_user_id, status)
-VALUES ('${organizationId}'::uuid, app_ext.resolve_variant_a_physical('${actorRef}'::uuid, 'actor'), '${status}')
-ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET status = '${status}',
+VALUES ('${organizationId}'::uuid, app_ext.resolve_variant_a_physical('${actorRef}'::uuid, 'actor'), 'discharged')
+ON CONFLICT (organization_id, platform_user_id) DO UPDATE SET status = 'discharged',
   portal_activated_at = NULL, portal_activated_via = NULL;
 DO $proof$
 BEGIN
@@ -252,14 +254,109 @@ END
 $proof$;
 SELECT current_setting('bcb.door_result');
 ROLLBACK;`)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .pop();
+
+  assert.match(refusal, /^42501\|/u, `выписанный клиент открыт заново: ${refusal}`);
+});
+
+test(
+  'неудачная запись возвращает архивного клиента в архив несмотря на старый приём',
+  { skip: !ENABLED },
+  () => {
+    const [actorRef, patientId, organizationId] = fixture(
+      `
+SELECT ref.opaque_ref || '|' || ref.physical_user_id || '|' || enrollment.organization_id
+  FROM app_ext.variant_a_identity_refs ref
+  JOIN public.org_enrollments enrollment ON enrollment.platform_user_id = ref.physical_user_id
+  JOIN public.clinic_public_directory_entries directory
+    ON directory.organization_id = enrollment.organization_id AND directory.is_published
+ WHERE ref.ref_kind = 'actor'
+   AND EXISTS (
+     SELECT 1 FROM public.be_appointments appointment
+      WHERE appointment.organization_id = enrollment.organization_id
+        AND appointment.platform_user_id = ref.physical_user_id
+        AND appointment.deleted_at IS NULL
+        AND appointment.created_at < now() - interval '1 second'
+   )
+ LIMIT 1;`,
+      'архивируемый клиент с историческим приёмом в опубликованной клинике',
+    );
+
+    const outcome = psql(`
+BEGIN;
+UPDATE public.org_enrollments
+   SET status = 'archived'
+ WHERE organization_id = '${organizationId}'::uuid
+   AND platform_user_id = '${patientId}'::uuid;
+${acceptPatientContext({
+  purpose: ENROL_PURPOSE,
+  functionIdentity: ENROL_FN,
+  typedArgsSql: enrolTypedArgs(organizationId),
+  actorRef,
+})}
+SELECT set_config(
+  'bcb.proof_attempt_started_at',
+  app.enroll_current_patient_in_public_booking_clinic(
+    '${organizationId}'::uuid,
+    '${ENROL_CHANNEL}'::text
+  )->>'attemptStartedAt',
+  false
+);
+DELETE FROM app_ext.accepted_port_contexts
+ WHERE capability_id = '00000000-0000-4000-8000-0000000000fd'::uuid;
+DELETE FROM app_ext.port_context_capabilities
+ WHERE capability_id = '00000000-0000-4000-8000-0000000000fd'::uuid;
+${acceptPatientContext({
+  purpose: REVOKE_PURPOSE,
+  functionIdentity: REVOKE_FN,
+  typedArgsSql: `ARRAY[
+    ROW('uuid@1', pg_catalog.uuid_send('${organizationId}'::uuid))::app.port_typed_arg,
+    ROW('text@1', pg_catalog.textsend('reactivated'))::app.port_typed_arg,
+    ROW('timestamptz@1', pg_catalog.timestamptz_send(
+      current_setting('bcb.proof_attempt_started_at')::timestamptz
+    ))::app.port_typed_arg
+  ]`,
+  actorRef,
+  organizationId,
+})}
+SELECT set_config(
+  'bcb.proof_revoke_effect',
+  app.revoke_public_booking_enrollment(
+    '${organizationId}'::uuid,
+    'reactivated'::text,
+    current_setting('bcb.proof_attempt_started_at')::timestamptz
+  )->>'effect',
+  false
+);
+SELECT current_setting('bcb.proof_revoke_effect')
+       || '|' || enrollment.status
+       || '|' || (
+         SELECT count(*)::text FROM public.be_appointments appointment
+          WHERE appointment.organization_id = '${organizationId}'::uuid
+            AND appointment.platform_user_id = '${patientId}'::uuid
+            AND appointment.deleted_at IS NULL
+            AND appointment.created_at
+                < current_setting('bcb.proof_attempt_started_at')::timestamptz
+       )
+  FROM public.org_enrollments enrollment
+ WHERE enrollment.organization_id = '${organizationId}'::uuid
+   AND enrollment.platform_user_id = '${patientId}'::uuid;
+ROLLBACK;`)
       .split('\n')
       .map((line) => line.trim())
       .filter((line) => line !== '')
       .pop();
 
-    assert.match(refusal, /^42501\|/u, `клиент в статусе ${status} открыт заново: ${refusal}`);
-  }
-});
+    assert.match(
+      outcome,
+      /^reverted\|archived\|[1-9][0-9]*$/u,
+      `компенсация не восстановила архив при наличии истории: ${outcome}`,
+    );
+  },
+);
 
 test('чужой идентификатор организации в создании приёма отвергает база, а не приложение',
   { skip: !ENABLED }, () => {
