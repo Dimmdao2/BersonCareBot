@@ -23,6 +23,7 @@ import {
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 
 const bodySchema = z.object({
   filename: z.string().min(1).max(255),
@@ -38,6 +39,8 @@ export async function POST(request: Request) {
 
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
+  if (!entitlement.ok) return entitlement.response;
   const session = gate.ctx.session;
 
   let json: unknown;

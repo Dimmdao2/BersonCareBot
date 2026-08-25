@@ -329,6 +329,8 @@ export interface FunctionRelationSurface {
     | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034'
     | 'exact INSERT ON CONFLICT(event_id) in migration 0039'
     | 'exact INSERT ON CONFLICT(dedup_key) in migration 0041'
+    | 'D20 enqueue root inserts idempotently and prunes expired sent rows'
+    | 'exact UPDATE in migration 0050'
     | 'exact tenant lookup of the generation target in migration 20260822T121000'
     | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 20260822T121000';
 }

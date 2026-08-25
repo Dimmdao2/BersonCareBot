@@ -4,54 +4,27 @@ import {
   type AnonymousPatientBrand,
 } from '@/modules/org-branding/service';
 import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  SURFACE_AUTH_METHODS,
+  type SurfaceAuthMethod,
+  type SurfaceAuthPolicy,
+  type SurfaceAuthPolicyConfig,
+  type SurfaceAuthPolicyName,
+} from '@/shared/lib/surface/surfaceAuthPolicy';
+
+export {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  SURFACE_AUTH_METHODS,
+  type SurfaceAuthMethod,
+  type SurfaceAuthPolicy,
+  type SurfaceAuthPolicyConfig,
+  type SurfaceAuthPolicyName,
+} from '@/shared/lib/surface/surfaceAuthPolicy';
 
 export const RESOLVED_SURFACE_HEADER = 'x-bc-resolved-surface';
 
 export type RequestSurface = 'staff' | 'platform_admin' | 'patient_default' | 'patient_branded';
-
-export const SURFACE_AUTH_METHODS = [
-  'password',
-  'email_code',
-  'phone_bot',
-  'totp',
-  'oauth',
-  'passkey',
-] as const;
-
-export type SurfaceAuthMethod = (typeof SURFACE_AUTH_METHODS)[number];
-export type SurfaceAuthPolicyName = 'staff' | 'platform_admin' | 'patient';
-
-/**
- * `availableMethods` answers which implemented mechanics belong to the surface. `enabledMethods`
- * is the independently configurable subset that is active there. Provider/channel readiness is
- * still resolved by the existing auth capability ports; it is not a second surface decision.
- */
-export type SurfaceAuthPolicy = Readonly<{
-  availableMethods: readonly SurfaceAuthMethod[];
-  enabledMethods: readonly SurfaceAuthMethod[];
-}>;
-
-export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, SurfaceAuthPolicy>>;
-
-/**
- * The only surface -> auth-method matrix (TPB-16). The persisted per-surface setting cells decide
- * the effective provider/channel availability; this matrix is their fail-closed fresh-install
- * default. F2-F5 intentionally keep the mechanics available while changing those defaults.
- */
-export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
-  staff: {
-    availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp'],
-  },
-  platform_admin: {
-    availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
-  },
-  patient: {
-    availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-    enabledMethods: ['email_code', 'phone_bot', 'oauth'],
-  },
-} as const satisfies SurfaceAuthPolicyConfig;
 
 export type EffectivePatientBrand = AnonymousPatientBrand;
 

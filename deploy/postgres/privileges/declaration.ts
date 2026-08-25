@@ -2834,6 +2834,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.preferred-auth-channel.read',
       functionIdentity: 'app.get_current_patient_preferred_auth_channel_code()' },
+    patient_default_auth_channel_read: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.default-auth-channel.read',
+      functionIdentity: 'app.get_current_patient_default_auth_otp_channel()' },
     // D15b/6 confirm-path correction: after OTP verification `createOrBind` still ran its whole
     // resolve/create/contact-write transaction under the bootstrap principal, which (like the
     // `/start` read above) has no unnamed relation door — same failure, on the write that follows a
@@ -4248,6 +4252,13 @@ const REV10_CONTEXT = {
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
       execute: ['app_pre_session'], purpose: 'auth.phone-login.default-channel', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app_ext.read_default_auth_otp_channel(uuid)'],
+    }),
+    'app_ext.read_default_auth_otp_channel(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: [], purpose: 'private shared default auth-channel read behind exact pre-session and patient roots',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'internal' as const,
       relationSurfaces: [
         { relation: 'public.user_phone_history',
           columns: ['platform_user_id', 'valid_to', 'confirming_channel'],
@@ -4258,6 +4269,15 @@ const REV10_CONTEXT = {
         { relation: 'public.user_contacts',
           columns: ['platform_user_id', 'contact_kind', 'is_primary', 'confirmed_at'],
           operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
+    }),
+    'app.get_current_patient_default_auth_otp_channel()': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_patient'], purpose: 'patient.default-auth-channel.read', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: [
+        'app.current_patient_user_id()',
+        'app_ext.read_default_auth_otp_channel(uuid)',
       ],
     }),
     'app.get_current_patient_preferred_auth_channel_code()': rev10Function({
@@ -4659,7 +4679,7 @@ const REV10_CONTEXT = {
     }),
     'app.read_authenticated_runtime_setting(text,text,uuid,boolean)': rev10Function({
       owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
-      execute: ['app_patient'], purpose: 'return one registry-classified public/authenticated setting for the accepted patient organization',
+      execute: ['app_patient', 'app_staff'], purpose: 'return one registry-classified public/authenticated setting for the accepted organization',
       typedArgs: ['text', 'text', 'uuid', 'boolean'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [{ relation: 'public.system_settings',
