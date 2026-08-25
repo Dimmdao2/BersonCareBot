@@ -17,7 +17,6 @@ type Props = {
   title: string;
   value: ReactNode;
   secondaryValue?: ReactNode;
-  layout?: 'default' | 'today-mobile-grid';
   tone?: 'neutral' | 'warning';
   hint?: string;
   tooltip?: string;
@@ -33,7 +32,6 @@ export function DoctorStatCard({
   title,
   value,
   secondaryValue,
-  layout = 'default',
   tone = 'neutral',
   hint,
   tooltip,
@@ -52,13 +50,7 @@ export function DoctorStatCard({
   );
 
   const label = (
-    <p
-      className={cn(
-        doctorMetricLabelClass,
-        layout === 'today-mobile-grid' && 'text-xs text-foreground/85',
-        selected && 'text-primary',
-      )}
-    >
+    <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>
       {title}
     </p>
   );
@@ -70,30 +62,23 @@ export function DoctorStatCard({
   const hintNode = hint ? (
     <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{hint}</p>
   ) : null;
-  const inner =
-    layout === 'today-mobile-grid' ? (
-      <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block">
-        {label}
-        <div className="col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1">
-          {valueNode}
-          {secondaryValue !== undefined ? (
-            <div className="flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75">
-              <span aria-hidden className="text-sm font-normal text-muted-foreground">
-                /
-              </span>
-              <span className="text-[18px] leading-none">{secondaryValue}</span>
-            </div>
-          ) : null}
-        </div>
-        {hint ? <div className="col-span-full">{hintNode}</div> : null}
+  const inner = (
+    <div className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-1.5 md:block">
+      {label}
+      <div className="col-start-2 flex items-baseline justify-end gap-0.5 md:mt-0.5 md:w-full md:justify-start md:gap-1">
+        {valueNode}
+        {secondaryValue !== undefined ? (
+          <div className="flex items-baseline gap-0.5 font-semibold tabular-nums text-foreground/75">
+            <span aria-hidden className="text-sm font-normal text-muted-foreground">
+              /
+            </span>
+            <span className="text-[18px] leading-none">{secondaryValue}</span>
+          </div>
+        ) : null}
       </div>
-    ) : (
-      <>
-        {label}
-        <div className="mt-0.5">{valueNode}</div>
-        {hintNode}
-      </>
-    );
+      {hint ? <div className="col-span-full">{hintNode}</div> : null}
+    </div>
+  );
 
   let trigger: ReactElement;
 

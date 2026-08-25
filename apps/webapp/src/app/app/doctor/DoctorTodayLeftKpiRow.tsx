@@ -166,7 +166,6 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Непрочитанные сообщения от клиентов."
           tone={unreadTotal > 0 ? 'warning' : 'neutral'}
           onClick={unreadTotal > 0 ? () => setKpiModal('messages') : undefined}
-          layout="today-mobile-grid"
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
         <DoctorStatCard
@@ -176,7 +175,6 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Новые комментарии клиентов к упражнениям."
           tone={displayTotal > 0 ? 'warning' : 'neutral'}
           onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
-          layout="today-mobile-grid"
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
         <DoctorStatCard
@@ -186,7 +184,6 @@ export function DoctorTodayLeftKpiRow({
           tooltip="Тесты по программам, ожидающие проверки."
           tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
           onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
-          layout="today-mobile-grid"
         />
         {tasksReadable ? (
           <DoctorStatCard
@@ -203,7 +200,6 @@ export function DoctorTodayLeftKpiRow({
               }
               setKpiModal('tasks');
             }}
-            layout="today-mobile-grid"
             valueClassName={attentionTasks.length > 0 ? 'text-destructive' : 'text-foreground/75'}
           />
         ) : null}

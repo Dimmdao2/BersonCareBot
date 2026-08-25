@@ -68,7 +68,7 @@ export const doctorMetricValueClass =
 
 /** KPI stat card label (uppercase, compact). */
 export const doctorMetricLabelClass =
-  'text-[10px] font-medium uppercase leading-snug tracking-wide text-muted-foreground line-clamp-3';
+  'text-xs font-medium uppercase leading-snug tracking-wide text-foreground/85 line-clamp-3';
 
 /** Shell for KPI stat cards (`DoctorStatCard`). */
 export const doctorStatCardShellClass =
