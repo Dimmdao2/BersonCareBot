@@ -150,7 +150,7 @@ describe('createVerifiedPublicBooking', () => {
     // порт-транзакцией раньше приёма и вместе с ним откатиться не может, поэтому его снимает
     // компенсация. Без неё проигравший гонку за слот остаётся в списке клиентов с нулём приёмов.
     expect(fakes.order).toEqual(['enroll', 'revoke']);
-    expect(fakes.revokePublicBookingEnrollment).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(fakes.revokePublicBookingEnrollment).toHaveBeenCalledWith(ORGANIZATION_ID, 'created');
   });
 
   it('keeps a committed booking when the back-office duplicate hint cannot be recorded', async () => {
