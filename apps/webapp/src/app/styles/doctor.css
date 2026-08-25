@@ -1,8 +1,9 @@
 /** Doctor product zone CSS — loaded from doctor and settings layouts. */
 
 #app-shell-doctor {
-  /* Owner UI finish authority 2026-07-22: DNA v1 canvas; headers/surfaces stay white. */
-  --doctor-page-gap-background: var(--bc-canvas, #f6f4ef);
+  /* Owner correction 2026-08-25: shared canvas; headers/surfaces stay white. */
+  --doctor-page-gap-background: var(--bc-canvas, #f2f2f0);
+  --doctor-today-kpi-attention-background: #f5ede5;
   --doctor-page-header-background: #ffffff;
   --doctor-page-block-radius: 12px;
   --doctor-kpi-radius: 8px;

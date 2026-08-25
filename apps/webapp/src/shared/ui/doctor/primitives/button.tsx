@@ -12,13 +12,13 @@ type SharedButtonVariantsProps = NonNullable<Parameters<typeof sharedButtonVaria
   className?: string;
 };
 
-/** Doctor-only pill control. Explicit caller radii (`rounded-none`, icon circles) still win. */
+/** Doctor button with the shared exact 8px radius. */
 export function Button({ className, size, ...props }: SharedButtonProps) {
   return (
     <SharedButton
       size={size}
       className={cn(
-        'rounded-[var(--doctor-control-radius,24px)]',
+        '!rounded-[var(--button-radius,8px)]',
         size === 'sm' && 'h-9',
         className,
       )}
@@ -27,12 +27,12 @@ export function Button({ className, size, ...props }: SharedButtonProps) {
   );
 }
 
-/** Link/button class helper with the same doctor-only pill default. */
+/** Link/button class helper with the same shared button radius. */
 export function buttonVariants(props?: SharedButtonVariantsProps): string {
   const { className, size, ...variants } = props ?? {};
   return cn(
     sharedButtonVariants({ ...variants, size }),
-    'rounded-[var(--doctor-control-radius,24px)]',
+    '!rounded-[var(--button-radius,8px)]',
     size === 'sm' && 'h-9',
     className,
   );

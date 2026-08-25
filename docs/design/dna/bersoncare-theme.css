@@ -15,7 +15,7 @@
   --font-sans: 'Nunito', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
   /* — Нейтралы (тёплая основа) — */
-  --color-canvas: #f6f4ef; /* фон страницы */
+  --color-canvas: #f2f2f0; /* фон страницы */
   --color-surface: #ffffff; /* карточки, панели */
   --color-rail: #fbfaf6; /* меню, поля, второстепенные зоны */
   --color-warm-sel: #f1eee7; /* фон выбранной/наведённой строки */
