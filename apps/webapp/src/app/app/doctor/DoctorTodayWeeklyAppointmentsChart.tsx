@@ -62,10 +62,12 @@ export function DoctorTodayWeeklyAppointmentsChart({
         const counts = new Map(emptyWeeks.map((week) => [week.weekStart, 0]));
         for (const event of payload.events) {
           if (event.kind !== 'appointment' || isCancelledAppointmentStatus(event.status)) continue;
-          const weekStart = DateTime.fromISO(event.startAt, { setZone: true })
-            .setZone(displayIana)
-            .startOf('week')
-            .toISODate();
+          let start = DateTime.fromISO(event.startAt, { setZone: true });
+          if (!start.isValid) start = DateTime.fromSQL(event.startAt, { setZone: true });
+          if (!start.isValid) start = DateTime.fromJSDate(new Date(event.startAt));
+          const weekStart = start.isValid
+            ? start.setZone(displayIana).startOf('week').toISODate()
+            : null;
           if (weekStart && counts.has(weekStart)) {
             counts.set(weekStart, (counts.get(weekStart) ?? 0) + 1);
           }

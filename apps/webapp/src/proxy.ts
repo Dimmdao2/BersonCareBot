@@ -6,6 +6,7 @@ import { decodeSessionCookie } from '@/modules/auth/sessionCookie';
 import { SESSION_COOKIE_NAME } from '@/modules/auth/sessionCookieNames';
 import {
   getRoleLoginPath,
+  getRolePortalPath,
   isDoctorPortalPlatformOperationsPath,
   isRoleLoginPath,
   portalForAppPath,
@@ -15,7 +16,10 @@ import {
   hasLaunchCapability,
   resolveLaunchCapabilities,
 } from '@/app-layer/guards/workspaceCapabilities';
-import { buildOwnHubUrlWithAccessDeniedToast } from '@/shared/lib/appAccessDeniedToast';
+import {
+  buildOwnHubUrlWithAccessDeniedToast,
+  getOwnHubPathForRole,
+} from '@/shared/lib/appAccessDeniedToast';
 import { doctorRouteRedirectResponse } from '@/middleware/doctorRouteRedirects';
 import {
   applyMessengerEntryPathCookies,
@@ -140,7 +144,14 @@ export async function proxy(
         ));
     if (!canUsePortal) {
       const redirectUrl = request.nextUrl.clone();
-      const ownHub = new URL(buildOwnHubUrlWithAccessDeniedToast(session.user.role), request.url);
+      // An exact portal root is also a PWA launch target. An already authenticated user can open
+      // an older installed app whose start_url belongs to another role; returning them to their
+      // own hub is normal launch recovery, not a denied deep-link attempt.
+      const ownHubPath =
+        pathname === getRolePortalPath(portal)
+          ? getOwnHubPathForRole(session.user.role)
+          : buildOwnHubUrlWithAccessDeniedToast(session.user.role);
+      const ownHub = new URL(ownHubPath, request.url);
       redirectUrl.pathname = ownHub.pathname;
       redirectUrl.search = ownHub.search;
       const response = NextResponse.redirect(redirectUrl);
