@@ -97,14 +97,14 @@ function NumericBar({ value, max, label, dateLabel }: NumericBarProps) {
   const h = barHeight(value, max);
   return (
     <div className="flex flex-col items-center gap-0.5 group" title={`${dateLabel}: ${label}`}>
-      <span className="text-[9px] text-muted-foreground leading-none opacity-0 group-hover:opacity-100 transition-opacity">
+      <span className="text-[10px] text-muted-foreground leading-none opacity-0 group-hover:opacity-100 transition-opacity">
         {label}
       </span>
       <div
         className="w-4 rounded-sm bg-primary/60 hover:bg-primary/80 transition-colors"
         style={{ height: `${h}px` }}
       />
-      <span className="text-[9px] text-muted-foreground leading-none">{dateLabel}</span>
+      <span className="text-[10px] text-muted-foreground leading-none">{dateLabel}</span>
     </div>
   );
 }
@@ -123,7 +123,7 @@ function DifficultyBar({ value, dateLabel }: DifficultyBarProps) {
       title={`${dateLabel}: ${difficultyLabel(value)}`}
     >
       <div className={cn('w-3 h-3 rounded-full', difficultyColor(value))} />
-      <span className="text-[9px] text-muted-foreground leading-none">{dateLabel}</span>
+      <span className="text-[10px] text-muted-foreground leading-none">{dateLabel}</span>
     </div>
   );
 }

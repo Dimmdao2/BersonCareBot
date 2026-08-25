@@ -62,9 +62,21 @@ export const doctorPageTitleClass = 'text-base font-semibold tracking-tight text
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass = 'text-sm font-semibold text-foreground';
 
+/** Default body copy in doctor pages. */
+export const doctorBodyTextClass = 'text-sm text-foreground';
+
+/** Primary entity/title line in doctor lists. */
+export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground';
+
+/** Secondary labels, timestamps, hints, and metadata. */
+export const doctorMetaTextClass = 'text-xs text-muted-foreground';
+
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
   'text-2xl font-semibold tabular-nums leading-tight text-foreground';
+
+/** Inline/secondary numeric value that belongs in a text row rather than a full KPI. */
+export const doctorInlineMetricValueClass = 'text-base font-semibold tabular-nums leading-none';
 
 /** KPI stat card label (uppercase, compact). */
 export const doctorMetricLabelClass =
@@ -82,7 +94,7 @@ export const doctorStatCardInteractiveClass =
   'cursor-pointer transition-colors hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
 /** Section subtitle and helper text under headings. */
-export const doctorSectionSubtitleClass = 'text-xs text-muted-foreground';
+export const doctorSectionSubtitleClass = doctorMetaTextClass;
 
 /** Inline action link used inside text flow. */
 export const doctorInlineLinkClass = 'text-primary underline underline-offset-2';

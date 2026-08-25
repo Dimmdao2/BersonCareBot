@@ -100,14 +100,15 @@
 
 Основные роли (вся chrome-типографика — только отсюда):
 
-| Роль                              | Класс                                    | px  |
-| --------------------------------- | ---------------------------------------- | --- |
-| Page title (h1)                   | `text-base font-semibold tracking-tight` | 16  |
-| Section title (h2/h3)             | `text-sm font-semibold`                  | 14  |
-| Body                              | `text-sm`                                | 14  |
-| Первичная строка основного списка | `text-base font-normal`                  | 16  |
-| Secondary / meta                  | `text-xs text-muted-foreground`          | 12  |
-| Metric (KPI)                      | `text-2xl font-semibold tabular-nums`    | 24  |
+| Роль                              | Общий класс                    | Текущая реализация                       | px  |
+| --------------------------------- | ------------------------------ | ---------------------------------------- | --- |
+| Page title (h1)                   | `doctorPageTitleClass`         | `text-base font-semibold tracking-tight` | 16  |
+| Section title (h2/h3)             | `doctorSectionTitleClass`      | `text-sm font-semibold`                  | 14  |
+| Body                              | `doctorBodyTextClass`          | `text-sm`                                | 14  |
+| Первичная строка основного списка | `doctorPrimaryListTextClass`   | `text-base font-normal`                  | 16  |
+| Secondary / meta                  | `doctorMetaTextClass`          | `text-xs text-muted-foreground`          | 12  |
+| Metric (KPI)                      | `doctorMetricValueClass`       | `text-2xl font-semibold tabular-nums`    | 24  |
+| Строчная метрика                  | `doctorInlineMetricValueClass` | `text-base font-semibold tabular-nums`   | 16  |
 
 **Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
 
@@ -225,11 +226,11 @@ DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
 | --------------------------------------------------- | ------------- | ------------------------------------------------------------- |
 | Заголовок страницы (h1)                             | `h1`          | `text-base font-semibold tracking-tight text-foreground`      |
 | Заголовок секции / панели                           | `h2` или `h3` | `text-sm font-semibold text-foreground`                       |
-| Первичная строка сущности                           | `p`           | `text-sm font-medium text-foreground`                         |
+| Первичная строка сущности                           | `p`           | `text-base font-normal text-foreground`                       |
 | Обычный текст                                       | `p`           | `text-sm text-foreground`                                     |
 | Вспомогательный текст / micro-label / бейдж-подпись | `p` / `span`  | `text-xs text-muted-foreground`                               |
 | Числовая метрика (крупная, KPI)                     | `p`           | `text-2xl font-semibold tabular-nums`                         |
-| Числовая метрика (строчная)                         | `span`        | `font-semibold tabular-nums text-foreground`                  |
+| Числовая метрика (строчная)                         | `span`        | `text-base font-semibold tabular-nums`                        |
 | Inline-link                                         | `Link/a`      | `text-primary underline underline-offset-2`                   |
 | Hover-link (secondary)                              | `Link/a`      | `text-primary underline-offset-4 hover:underline font-medium` |
 | Строка с адресом / телефон                          | `a`           | `font-medium text-primary underline underline-offset-2`       |

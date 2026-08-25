@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactElement, ReactNode } from 'react';
 import {
+  doctorInlineMetricValueClass,
   doctorMetricLabelClass,
   doctorMetricValueClass,
   doctorInteractiveSurfaceButtonClass,
@@ -49,11 +50,7 @@ export function DoctorStatCard({
     className,
   );
 
-  const label = (
-    <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>
-      {title}
-    </p>
-  );
+  const label = <p className={cn(doctorMetricLabelClass, selected && 'text-primary')}>{title}</p>;
   const valueNode = (
     <div className={cn(doctorMetricValueClass, selected && 'text-primary', valueClassName)}>
       {value}
@@ -72,7 +69,7 @@ export function DoctorStatCard({
             <span aria-hidden className="text-sm font-normal text-muted-foreground">
               /
             </span>
-            <span className="text-[18px] leading-none">{secondaryValue}</span>
+            <span className={doctorInlineMetricValueClass}>{secondaryValue}</span>
           </div>
         ) : null}
       </div>

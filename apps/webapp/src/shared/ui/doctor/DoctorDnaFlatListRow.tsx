@@ -5,6 +5,8 @@
  * come from a warm hairline divider, text weight, and the 3px primary marker.
  */
 
+import { doctorMetaTextClass, doctorPrimaryListTextClass } from '@/shared/ui/doctor/doctorVisual';
+
 /**
  * The divider lives here on the `<ul>`, not on the row itself: `doctorDnaFlatListRowClass`
  * is applied inconsistently across callers — sometimes directly on the `<li>` (TeamSection),
@@ -23,17 +25,16 @@ export const doctorDnaFlatListClass =
  */
 export const doctorDnaFlatListInsetClass = 'mx-[var(--doctor-block-padding,18px)]';
 
-export const doctorDnaFlatListRowClass =
-  'relative flex items-center gap-3 border-x-0 border-b-0 border-t-0 px-[var(--doctor-list-inline-padding,18px)] py-2.5 text-base font-normal';
+export const doctorDnaFlatListRowClass = `relative flex items-center gap-3 border-x-0 border-b-0 border-t-0 px-[var(--doctor-list-inline-padding,18px)] py-2.5 ${doctorPrimaryListTextClass}`;
 
 export const doctorDnaFlatListClickableClass =
   'cursor-pointer no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset';
 
-export const doctorDnaFlatListPrimaryClass = 'text-base font-normal text-foreground';
+export const doctorDnaFlatListPrimaryClass = doctorPrimaryListTextClass;
 
 export const doctorDnaFlatListSelectedPrimaryClass = 'font-semibold text-primary';
 
-export const doctorDnaFlatListMetaClass = 'text-xs text-muted-foreground';
+export const doctorDnaFlatListMetaClass = doctorMetaTextClass;
 
 /** 3px flush-left selection marker from DNA v1.0 §6 `.li.sel`. */
 export function DoctorDnaFlatListSelectionStrip() {
