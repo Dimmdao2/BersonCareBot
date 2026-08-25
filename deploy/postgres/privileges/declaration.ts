@@ -8443,6 +8443,10 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
     + ` WHERE access_patient.platform_user_id = ${relationName}.${userColumn}`
     + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
     + " AND access_patient.status IN ('invited', 'active'))))";
+  const archivedStaffReadWall = '(EXISTS (SELECT 1 FROM public.org_enrollments archived_patient'
+    + ` WHERE archived_patient.platform_user_id = ${relationName}.${userColumn}`
+    + ' AND archived_patient.organization_id = (SELECT app.current_org_id())'
+    + " AND archived_patient.status = 'archived'))";
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_patient'], using: patientWall, withCheck: patientWall,
@@ -8450,6 +8454,9 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
     { name: `rev10_staff_member_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: staffWall, withCheck: staffWall,
       note: `staff manages ${tableKey} only for current-clinic members and enrolled patients` },
+    { name: `rev10_staff_archived_patient_read_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff'], using: archivedStaffReadWall,
+      note: `staff may read ${tableKey} for an archived current-clinic patient without reopening writes` },
   ];
 }
 
