@@ -9,14 +9,19 @@ import { getConfigBool } from '@/modules/system-settings/configAdapter';
  * Best-effort: не бросает наружу (ошибки enqueue не должны ломать upload flow / 5xx).
  * Идемпотентность: `enqueueMediaTranscodeJob` (одна активная job на media).
  */
-export async function maybeAutoEnqueueVideoTranscodeAfterUpload(mediaId: string): Promise<void> {
-  const pipelineOn = await getConfigBool('video_hls_pipeline_enabled');
-  const autoOn = await getConfigBool('video_hls_new_uploads_auto_transcode');
-  if (!pipelineOn || !autoOn) {
-    return;
-  }
+export async function maybeAutoEnqueueVideoTranscodeAfterUpload(
+  mediaId: string,
+  mimeType: string,
+): Promise<void> {
+  if (!mimeType.startsWith('video/')) return;
 
   try {
+    const pipelineOn = await getConfigBool('video_hls_pipeline_enabled');
+    const autoOn = await getConfigBool('video_hls_new_uploads_auto_transcode');
+    if (!pipelineOn || !autoOn) {
+      return;
+    }
+
     const out = await enqueueMediaTranscodeJob(mediaId);
     if (!out.ok) {
       if (out.error === 'not_video') {

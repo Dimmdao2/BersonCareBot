@@ -4,13 +4,16 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from '../dev-interactive-audit/lib/browser.mjs';
 
-const baseUrl = 'https://test.bersoncare.ru';
+const baseUrl = process.env.TEST_ACCEPTANCE_BASE_URL || 'https://test.bersoncare.ru';
 const password = process.env.TEST_ACCEPTANCE_PASSWORD || '';
 const outputDirectory = resolve(import.meta.dirname, 'out');
 const marker = `ACCEPTANCE ${new Date().toISOString().replaceAll(':', '-')}`;
 const results = [];
 
 if (!password) throw new Error('TEST_ACCEPTANCE_PASSWORD is required');
+if (!['http://127.0.0.1:5200', 'https://test.bersoncare.ru'].includes(new URL(baseUrl).origin)) {
+  throw new Error('TEST_ACCEPTANCE_BASE_URL must target canonical DEV or TEST');
+}
 
 function concise(value) {
   return String(value).replace(/\s+/gu, ' ').slice(0, 900);

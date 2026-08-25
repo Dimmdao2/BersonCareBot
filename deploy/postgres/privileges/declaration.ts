@@ -3494,7 +3494,7 @@ const REV10_CONTEXT = {
     // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
     revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
-      functionIdentity: 'app.revoke_public_booking_enrollment(uuid)' },
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid,text)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -4904,7 +4904,7 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.platform_users', columns: [
-          'id', 'display_name', 'role', 'merged_into_id', 'first_name', 'last_name', 'patronymic',
+          'id', 'display_name', 'role', 'is_blocked', 'merged_into_id', 'first_name', 'last_name', 'patronymic',
         ],
           operations: ['SELECT' as const, 'INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4945,11 +4945,11 @@ const REV10_CONTEXT = {
     // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
     // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
     // возраст в окне одной попытки и отсутствие живого приёма.
-    'app.revoke_public_booking_enrollment(uuid)': rev10Function({
+    'app.revoke_public_booking_enrollment(uuid,text)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'],
       purpose: 'undo a public-booking client relationship whose booking failed',
-      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
@@ -6984,7 +6984,7 @@ const REV10_CONTEXT = {
           columns: ['platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at', 'source_origin', 'created_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users',
-          columns: ['id', 'role', 'session_epoch', 'is_archived', 'merged_into_id'],
+          columns: ['id', 'role', 'session_epoch', 'is_archived', 'is_blocked', 'merged_into_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_identity',
           columns: ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'],
@@ -7001,7 +7001,8 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
         { relation: 'public.platform_users',
-          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic', 'merged_into_id', 'updated_at'],
+          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic',
+            'session_epoch', 'is_archived', 'is_blocked', 'merged_into_id', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts',
@@ -7030,7 +7031,8 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users',
-          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic', 'merged_into_id', 'updated_at'],
+          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic',
+            'session_epoch', 'is_archived', 'is_blocked', 'merged_into_id', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts',

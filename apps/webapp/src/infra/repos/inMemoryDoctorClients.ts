@@ -167,7 +167,11 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     /* no-op in memory stub */
   },
 
-  async setUserArchived(_userId: string, _archived: boolean): Promise<void> {
+  async setOrganizationClientArchived(_params: {
+    userId: string;
+    organizationId: string;
+    archived: boolean;
+  }): Promise<void> {
     /* no-op in memory stub */
   },
 

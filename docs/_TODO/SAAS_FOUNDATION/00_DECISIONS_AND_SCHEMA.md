@@ -27,12 +27,10 @@ generated via Drizzle. Grounded against prod-mirror `bcb_webapp_dev` (read-only)
 
 - Intra-clinic card visibility `card_visibility_policy` on `be_organizations`: default `all` (every org specialist sees every org patient) vs `assigned`. Deferred — a column + optional 2nd RLS predicate, switchable later. Default `all`.
 - Cross-region enrollment policy (region phase).
-- Doctor client block/archive semantics: current implementation uses global account flags
-  `platform_users.is_blocked` / `platform_users.is_archived`. T0.3.36 only hardens doctor
-  routes with workspace membership authorization before writing those global flags. A true
-  org-scoped model needs a separate product/schema decision: keep global account lifecycle
-  semantics, or move archive to enrollment state and support-chat blocking to an org-scoped
-  support/messaging policy table.
+- Doctor client block/archive semantics were resolved by the owner on 25.08; the active authority is
+  [`docs/OWNER_DECISIONS.md`](../../OWNER_DECISIONS.md) § «Видимость и пациенты». Archive is enrollment-scoped
+  and changes only the selected clinic's active roster; `blocked` remains a global account/login and booking
+  denial. The old implementation through global `platform_users.is_archived` is not the target model.
 - Doctor patient profile semantics: current FIO, birth date, gender, height, and weight
   fields live on global `platform_users`. T0.3.36H only hardens doctor routes with selected
   workspace membership authorization before global profile reads/writes. A true org-scoped

@@ -169,8 +169,9 @@ type RedirectResult = OutgoingIntent | typeof SUPPRESS;
 /**
  * PRE-FORK DEV DELIVERY REDIRECT (primary, authoritative override layer).
  *
- * When active (NODE_ENV !== 'production' OR DEV_DELIVERY_REDIRECT=1), every
- * outgoing intent is redirected to the dev TEST USER's binding FOR ITS OWN CHANNEL
+ * In local development every outgoing intent is suppressed before any adapter.
+ * When the explicit TEST redirect is active (DEV_DELIVERY_REDIRECT=1), every
+ * outgoing intent is redirected to the TEST USER's binding FOR ITS OWN CHANNEL
  * BEFORE it branches to any channel adapter:
  *   telegram → his telegram chat, max → his max id, sms/smsc → his phone,
  *   email → his email, web_push → his subscription (via pushUserId).
@@ -207,6 +208,21 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
           'unknown');
 
   const intendedChannel = readChannel(intent);
+
+  // Local DEV is provider-free by contract. TEST runs with NODE_ENV=production and the explicit
+  // redirect flag, so its live owner-account delivery proof remains available without allowing
+  // a local scheduler/worker/API process to call any external provider.
+  if (process.env.NODE_ENV === 'development') {
+    logger.warn(
+      {
+        intendedRecipient: originalId,
+        intendedChannel,
+        intentType: intent.type,
+      },
+      'PRE_FORK_DEV_DELIVERY_NOOP',
+    );
+    return SUPPRESS;
+  }
 
   // PASSTHROUGH: a recipient that is a KNOWN TEST ACCOUNT (env allowlist) is
   // delivered UNCHANGED so multi-tester flows (doctor↔patient chat/comments/OTP)

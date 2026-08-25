@@ -136,6 +136,26 @@ function platformAdminHost(staffOrigin: URL): string {
   return `admin.${staffOrigin.hostname}${staffOrigin.port ? `:${staffOrigin.port}` : ''}`;
 }
 
+function requestPlatformHost(requestOrigin: URL, staffOrigin: URL): string {
+  const requestHostname = requestOrigin.hostname.toLowerCase();
+  const staffHostname = staffOrigin.hostname.toLowerCase();
+  const isLoopbackStaffHost = staffHostname === '127.0.0.1' || staffHostname === 'localhost';
+
+  // SSH local forwarding changes only the TCP destination. A browser opened at
+  // http://127.0.0.1:15200 still sends Host: 127.0.0.1:15200 to the DEV process listening on
+  // 127.0.0.1:5200. Treat a different port on the same configured loopback hostname as that same
+  // DEV staff surface; non-loopback deploy hosts remain exact, fail-closed matches.
+  if (
+    requestOrigin.protocol === 'http:' &&
+    isLoopbackStaffHost &&
+    requestHostname === staffHostname
+  ) {
+    return staffOrigin.host.toLowerCase();
+  }
+
+  return requestOrigin.host.toLowerCase();
+}
+
 /** Strip every management/internal field before a brand can enter the request header. */
 function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | null {
   if (!value || typeof value !== 'object') return null;
@@ -185,7 +205,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   const platformOrigins = configuredPlatformOrigins();
   if (!requestOrigin || !platformOrigins) return null;
 
-  const requestHost = requestOrigin.host.toLowerCase();
+  const requestHost = requestPlatformHost(requestOrigin, platformOrigins.staff);
   const staffHost = platformOrigins.staff.host.toLowerCase();
   const patientHost = platformOrigins.patient.host.toLowerCase();
   const adminHost = platformAdminHost(platformOrigins.staff).toLowerCase();

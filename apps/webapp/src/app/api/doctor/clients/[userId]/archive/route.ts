@@ -35,5 +35,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }
 
-  return applyClientArchiveChange(userId, parsed.data.archived);
+  await applyClientArchiveChange(
+    deps.doctorClientsPort,
+    userId,
+    gate.ctx.organizationId,
+    parsed.data.archived,
+  );
+  return NextResponse.json({ ok: true });
 }

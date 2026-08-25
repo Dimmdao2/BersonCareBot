@@ -525,6 +525,26 @@ export async function requireDoctorApiSession(): Promise<
       response: NextResponse.json({ ok: false, error: 'security_setup_required' }, { status: 403 }),
     };
   }
+  if (hasLaunchCapability(accountCapabilities, 'platform.operations')) {
+    if (!isPlatformUserUuid(session.user.userId)) {
+      return {
+        ok: false,
+        response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+      };
+    }
+    try {
+      enterWithDbPlatformPrincipal({
+        platformUserId: session.user.userId,
+        source: PLATFORM_OPERATIONS_DB_SOURCE,
+      });
+    } catch {
+      return {
+        ok: false,
+        response: NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 }),
+      };
+    }
+    return { ok: true, session };
+  }
   await stampBestEffortStaffPrincipal(session, 'requireDoctorApiSession');
   return { ok: true, session };
 }

@@ -38,7 +38,7 @@ export type DoctorClientsFilters = {
    * См. docs/ARCHITECTURE/DOCTOR_DASHBOARD_METRICS.md.
    */
   visitedThisCalendarMonth?: boolean;
-  /** Только заархивированные (`is_archived`), раздел «Архив». */
+  /** Только заархивированные в выбранной клинике (`org_enrollments.status = 'archived'`). */
   archivedOnly?: boolean;
   /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
   supportStatus?: 'on' | 'programWithoutSupport';
@@ -119,7 +119,7 @@ export type ClientIdentity = {
   /** Этап 9: заблокирован для исходящих сообщений пациента в чат поддержки. */
   isBlocked: boolean;
   blockedReason: string | null;
-  /** Архив (`platform_users.is_archived`): скрыт из обычных списков; снять архив — `PATCH .../archive` с `{ archived: false }` (врач или админ). */
+  /** Архив в выбранной клинике: скрыт из её обычных списков, но учётная запись и другие клиники сохраняются. */
   isArchived: boolean;
   /** Даты привязки каналов (`user_channel_bindings.created_at`), ключ — `channel_code`. */
   channelBindingDates: Record<string, string>;
@@ -301,8 +301,12 @@ export type DoctorClientsPort = {
     reason: string | null;
     actorId: string;
   }): Promise<void>;
-  /** Архив учётки клиента (скрыть из обычных списков; врач и админ через API). */
-  setUserArchived(userId: string, archived: boolean): Promise<void>;
+  /** Архив связи пациента с конкретной организацией; глобальную учётку не меняет. */
+  setOrganizationClientArchived(params: {
+    userId: string;
+    organizationId: string;
+    archived: boolean;
+  }): Promise<void>;
   getClientSupport(patientUserId: string): Promise<ClientSupportProfile | null>;
   updateClientSupport(params: {
     patientUserId: string;

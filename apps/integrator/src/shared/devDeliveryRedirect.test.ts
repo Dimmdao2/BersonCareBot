@@ -81,6 +81,11 @@ function setTesterTargets(): void {
   process.env.DEV_REDIRECT_WEB_PUSH_USER_ID = TESTER.pushUserId;
 }
 
+function enableTestRedirect(): void {
+  process.env.NODE_ENV = 'production';
+  process.env.DEV_DELIVERY_REDIRECT = '1';
+}
+
 /** Интент «отправить человеку» c маркером, который политика egress пропускает на любой канал. */
 function patientIntent(
   channel: string,
@@ -169,6 +174,20 @@ describe('dev-редирект доставки: кому в итоге уход
       process.env.NODE_ENV = 'production';
       expect(isDevRedirectActive()).toBe(true);
     });
+
+    it('дано: локальный DEV → когда есть исходящая доставка → тогда адаптер не вызывается', async () => {
+      process.env.NODE_ENV = 'development';
+      setTesterTargets();
+      const { adapter, sent } = recordingAdapter();
+      const port = createDefaultDispatchPort({ adapters: [adapter] });
+
+      const result = await port.dispatchOutgoing(
+        patientIntent('telegram', { chatId: PATIENT.telegramChatId }),
+      );
+
+      expect(sent).toEqual([]);
+      expect(result).toEqual({});
+    });
   });
 
   describe('при активном редиректе НИ ОДНО сообщение не уходит настоящему получателю', () => {
@@ -211,7 +230,7 @@ describe('dev-редирект доставки: кому в итоге уход
         // АРБИТР: в applyPreForkDevRedirect() собрать получателя как
         // `recipient: { ...origRecipient, ...outcome.recipient }` вместо `recipient: outcome.recipient`
         // — исходные поля пациента переживут подмену, и toEqual (строгое равенство объекта) покраснеет.
-        process.env.NODE_ENV = 'development';
+        enableTestRedirect();
         setTesterTargets();
         const { adapter, sent } = recordingAdapter();
         const port = createDefaultDispatchPort({ adapters: [adapter] });
@@ -240,7 +259,7 @@ describe('dev-редирект доставки: кому в итоге уход
       // Без префикса тестировщик не отличит своё сообщение от чужого и не заметит утечку адресации.
       // АРБИТР: в applyPreForkDevRedirect() перестать добавлять buildDevPrefix (оставить origText) —
       // тест покраснеет на проверке префикса.
-      process.env.NODE_ENV = 'development';
+      enableTestRedirect();
       setTesterTargets();
       const { adapter, sent } = recordingAdapter();
       const port = createDefaultDispatchPort({ adapters: [adapter] });
@@ -260,7 +279,7 @@ describe('dev-редирект доставки: кому в итоге уход
       // `if (targets.email === null) return { kind: 'suppress', ... }` на возврат redirect с
       // `recipient: { email: targets.email }` — адаптер получит `{ email: null }` и/или интент дойдёт
       // до отправки, `sent` перестанет быть пустым, тест покраснеет.
-      process.env.NODE_ENV = 'development';
+      enableTestRedirect();
       process.env.DEV_REDIRECT_DISABLE_DEFAULTS = '1'; // ни одной цели не настроено
       const { adapter, sent } = recordingAdapter();
       const port = createDefaultDispatchPort({ adapters: [adapter] });
@@ -281,7 +300,7 @@ describe('dev-редирект доставки: кому в итоге уход
       // Неизвестный канал не должен проваливаться в «оставить как есть»: получатель остался бы настоящим.
       // АРБИТР: в normalizeRedirectChannel() в `default` вернуть 'telegram' вместо null —
       // resolveDevRedirect('vk') станет redirect и тест покраснеет.
-      process.env.NODE_ENV = 'development';
+      enableTestRedirect();
       setTesterTargets();
 
       expect(resolveDevRedirect('vk')).toEqual({
@@ -300,7 +319,7 @@ describe('dev-редирект доставки: кому в итоге уход
       // Самый опасный регресс: «сделать passthrough дефолтом» вернёт доставку настоящим пациентам.
       // АРБИТР: в isDevRedirectPassthrough() вернуть true, когда recipient задан (до чтения allowlist)
       // — адаптер получит chatId пациента и тест покраснеет.
-      process.env.NODE_ENV = 'development';
+      enableTestRedirect();
       setTesterTargets();
       const { adapter, sent } = recordingAdapter();
       const port = createDefaultDispatchPort({ adapters: [adapter] });
@@ -314,7 +333,7 @@ describe('dev-редирект доставки: кому в итоге уход
       // АРБИТР: в isDevRedirectPassthrough() ветку telegram сравнивать с
       // DEV_REDIRECT_PASSTHROUGH_MAX (перепутать канал allowlist) — второй expect покраснеет,
       // потому что внесённый в telegram-список адресат будет отредиректен.
-      process.env.NODE_ENV = 'development';
+      enableTestRedirect();
       setTesterTargets();
       const secondTester = 700_000_009;
       process.env.DEV_REDIRECT_PASSTHROUGH_TELEGRAM = String(secondTester);

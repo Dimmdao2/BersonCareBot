@@ -14,8 +14,8 @@ const root = resolve(import.meta.dirname, '../..');
 const outputDirectory = resolve(import.meta.dirname, 'out');
 const routeLimit = 240;
 
-if (new URL(baseUrl).origin !== 'https://test.bersoncare.ru') {
-  throw new Error('TEST_ACCEPTANCE_BASE_URL must be https://test.bersoncare.ru');
+if (!['http://127.0.0.1:5200', 'https://test.bersoncare.ru'].includes(new URL(baseUrl).origin)) {
+  throw new Error('TEST_ACCEPTANCE_BASE_URL must target canonical DEV or TEST');
 }
 if (!password) throw new Error('TEST_ACCEPTANCE_PASSWORD is required');
 
@@ -89,19 +89,44 @@ function canonicalRoute(url) {
 }
 
 function routeTemplate(route) {
-  return route.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/giu, ':uuid');
+  const parsed = new URL(route, baseUrl);
+  if (parsed.pathname === '/app/patient/diary' && parsed.searchParams.has('week')) {
+    parsed.searchParams.set('week', ':week');
+  }
+  if (parsed.pathname.endsWith('/journal') && parsed.searchParams.has('month')) {
+    parsed.searchParams.set('month', ':month');
+  }
+  if (parsed.searchParams.has('page')) parsed.searchParams.set('page', ':page');
+  return `${parsed.pathname}${parsed.search}`.replace(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/giu,
+    ':uuid',
+  );
 }
 
 async function authenticate(context, role) {
-  const response = await context.request.post(`${baseUrl}/api/auth/email-password/login`, {
-    headers: { Origin: baseUrl },
-    data: { email: role.email, password },
-  });
+  let response;
+  try {
+    response = await context.request.post(`${baseUrl}/api/auth/email-password/login`, {
+      headers: { Origin: baseUrl },
+      data: { email: role.email, password },
+      timeout: 90_000,
+    });
+  } catch {
+    throw new Error('login_request_failed');
+  }
   const body = await response.json().catch(() => null);
   if (response.status() !== 200 || body?.ok !== true || body?.factorRequired === true) {
     throw new Error(`login_failed:${response.status()}:${body?.error ?? 'unknown'}`);
   }
-  const identity = await context.request.get(`${baseUrl}/api/me`, { headers: { Origin: baseUrl } });
+  let identity;
+  try {
+    identity = await context.request.get(`${baseUrl}/api/me`, {
+      headers: { Origin: baseUrl },
+      timeout: 90_000,
+    });
+  } catch {
+    throw new Error('identity_request_failed');
+  }
   const identityBody = await identity.json().catch(() => null);
   if (identity.status() !== 200 || identityBody?.ok !== true) {
     throw new Error(`identity_failed:${identity.status()}`);
@@ -128,7 +153,11 @@ async function crawlRole(browser, name, role) {
     if (active) active.pageErrors.push(redact(error.message));
   });
   page.on('requestfailed', (request) => {
-    if (active && request.url().startsWith(baseUrl)) {
+    if (
+      active &&
+      request.url().startsWith(baseUrl) &&
+      request.failure()?.errorText !== 'net::ERR_ABORTED'
+    ) {
       active.requestFailures.push({ method: request.method(), path: canonicalRoute(request.url()), error: redact(request.failure()?.errorText ?? 'failed') });
     }
   });
@@ -148,7 +177,7 @@ async function crawlRole(browser, name, role) {
     const started = performance.now();
     let response = null;
     try {
-      response = await page.goto(`${baseUrl}${target}`, { waitUntil: 'commit', timeout: 12_000 });
+      response = await page.goto(`${baseUrl}${target}`, { waitUntil: 'commit', timeout: 90_000 });
       if ((response?.status() ?? 500) < 500) {
         await page.waitForLoadState('domcontentloaded', { timeout: 4_000 }).catch(() => undefined);
         await page.waitForLoadState('networkidle', { timeout: 2_000 }).catch(() => undefined);

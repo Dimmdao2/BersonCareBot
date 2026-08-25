@@ -86,11 +86,13 @@ export const platformUserSessionRowSchema = z.object({
    */
   session_epoch: z.coerce.number().int().min(1),
   /**
-   * `platform_users.is_archived` (D2). Checked on the session path on EVERY request, not merely
-   * stamped once at archive time — see `pgUserByPhone.findByUserId`, which returns `null` for an
-   * archived row so no caller can resolve or mint a session for one.
+   * Legacy account-level archive flag. Patient archive is now clinic-scoped in `org_enrollments`;
+   * the forward migration clears this flag for clients, but parsing it remains fail-closed while
+   * old/non-client rows still exist.
    */
   is_archived: z.coerce.boolean(),
+  /** Global account block. Required on every session-producing path. */
+  is_blocked: z.coerce.boolean(),
   security_factor_required: z.coerce.boolean().optional().default(false),
 });
 

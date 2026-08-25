@@ -18,8 +18,8 @@ export const DOCTOR_MOBILE_HEADER_HEIGHT_VAR = '--doctor-mobile-header-h';
 /** Высота per-page `DoctorPageHeader` (desktop-якорь). Сбрасывается на мобильном. */
 export const DOCTOR_PAGE_HEADER_HEIGHT_VAR = '--doctor-page-header-h';
 
-/** Левый сайдбар админ-режима на desktop (14rem), в одном ряду с контентом. */
-export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = 'w-56';
+/** Левый sidebar: tablet rail 3.5rem; полноценная колонка 14rem на desktop. */
+export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = 'md:w-14 lg:w-56';
 
 /**
  * `position: sticky` сайдбара: на desktop глобальной шапки нет, поэтому липнет к верху вьюпорта.

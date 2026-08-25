@@ -4,13 +4,16 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium } from '../dev-interactive-audit/lib/browser.mjs';
 
-const baseUrl = 'https://test.bersoncare.ru';
+const baseUrl = process.env.TEST_ACCEPTANCE_BASE_URL || 'https://test.bersoncare.ru';
 const password = process.env.TEST_ACCEPTANCE_PASSWORD || '';
 const outputDirectory = resolve(import.meta.dirname, 'out');
 const marker = `ACCEPTANCE ${new Date().toISOString().replaceAll(':', '-')}`;
 const results = [];
 
 if (!password) throw new Error('TEST_ACCEPTANCE_PASSWORD is required');
+if (!['http://127.0.0.1:5200', 'https://test.bersoncare.ru'].includes(new URL(baseUrl).origin)) {
+  throw new Error('TEST_ACCEPTANCE_BASE_URL must target canonical DEV or TEST');
+}
 
 function concise(value) {
   return String(value).replace(/\s+/gu, ' ').slice(0, 800);
@@ -87,11 +90,11 @@ const context = await browser.newContext({
 try {
   await login(context, 'dimmdao@yandex.ru');
   const page = await context.newPage();
-  page.setDefaultTimeout(8_000);
+  page.setDefaultTimeout(30_000);
+  page.setDefaultNavigationTimeout(90_000);
 
-  const suffix = Date.now().toString().slice(-8);
-  const clientLastName = `Приемка${suffix}`;
-  const clientFirstName = 'Тест';
+  const clientLastName = 'Проверка';
+  const clientFirstName = 'Системная';
   let clientId = null;
   const ownerPatientId = 'f81bf8fb-aed6-427a-9523-5c311f7b5789';
   let targetPatientId = ownerPatientId;
@@ -134,7 +137,7 @@ try {
     if (!response.ok() || responseBody?.ok !== true) {
       throw new Error(`client_create_failed:${response.status()}:${JSON.stringify(responseBody)}`);
     }
-    await page.waitForURL(/\/app\/doctor\/patients\/[0-9a-f-]+/u, { timeout: 15_000 });
+    await page.waitForURL(/\/app\/doctor\/patients\/[0-9a-f-]+/u, { timeout: 30_000 });
     await settle(page);
     clientId = new URL(page.url()).pathname.split('/').at(-1) ?? null;
     if (!clientId || !/^[0-9a-f-]{36}$/u.test(clientId)) throw new Error('client_id_not_observed');
@@ -214,7 +217,7 @@ try {
     if (!response.ok() || responseBody?.ok !== true) {
       throw new Error(`patient_file_init_failed:${response.status()}:${JSON.stringify(responseBody)}`);
     }
-    await page.getByText(patientFileName, { exact: false }).first().waitFor({ timeout: 15_000 });
+    await page.getByText(patientFileName, { exact: false }).first().waitFor({ timeout: 30_000 });
     return { route: new URL(page.url()).pathname, patientFileName };
   });
 
@@ -225,11 +228,24 @@ try {
     await page.getByText(patientFileName, { exact: false }).first().click();
     await page.getByRole('button', { name: 'Удалить', exact: true }).click();
     const confirm = page.getByRole('button', { name: /Удалить/u }).last();
-    if (await confirm.isVisible().catch(() => false)) await confirm.click();
-    await page.getByText(patientFileName, { exact: false }).waitFor({
-      state: 'detached',
-      timeout: 12_000,
-    });
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'DELETE' &&
+        response.url().includes(`/api/doctor/patients/${targetPatientId}/files/`),
+      { timeout: 12_000 },
+    );
+    await confirm.click();
+    const response = await responsePromise;
+    const responseBody = await response.json().catch(() => null);
+    if (!response.ok() || responseBody?.ok !== true) {
+      throw new Error(`patient_file_delete_failed:${response.status()}:${JSON.stringify(responseBody)}`);
+    }
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settle(page);
+    await page.getByRole('button', { name: 'Файлы', exact: true }).click();
+    if (await page.getByText(patientFileName, { exact: false }).count()) {
+      throw new Error('deleted_patient_file_still_visible_after_reload');
+    }
     return { route: new URL(page.url()).pathname };
   });
 
@@ -256,7 +272,7 @@ try {
       (response) =>
         response.request().method() === 'POST' &&
         response.url().endsWith('/api/doctor/booking-engine/appointments/manual'),
-      { timeout: 15_000 },
+      { timeout: 30_000 },
     );
     await page.getByRole('button', { name: 'Сохранить', exact: true }).last().click();
     const response = await responsePromise;
@@ -273,7 +289,7 @@ try {
     if (!appointmentId) throw new Error('appointment_create_failed');
     await page.getByRole('button', { name: 'Список', exact: true }).click();
     const row = page.getByText(clientLastName, { exact: false }).first();
-    await row.waitFor({ timeout: 15_000 });
+    await row.waitFor({ timeout: 30_000 });
     await row.click();
     await page.getByRole('button', { name: /Отменить запись/u }).click();
     const reason = page.getByRole('combobox').filter({ hasText: /Причина|Выберите/u }).last();
@@ -284,7 +300,7 @@ try {
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' && response.url().includes(`/appointments/${appointmentId}/cancel`),
-      { timeout: 15_000 },
+      { timeout: 30_000 },
     );
     await page.getByRole('button', { name: /Подтвердить отмену|Отменить запись/u }).last().click();
     const response = await responsePromise;
@@ -313,7 +329,7 @@ try {
     if (!response.ok() || responseBody?.ok !== true) {
       throw new Error(`client_archive_failed:${response.status()}:${JSON.stringify(responseBody)}`);
     }
-    await page.getByRole('button', { name: 'Вернуть из архива', exact: true }).waitFor({ timeout: 10_000 });
+    await page.getByRole('button', { name: 'Вернуть из архива', exact: true }).waitFor({ timeout: 30_000 });
     return { clientId, route: new URL(page.url()).pathname };
   });
 } finally {

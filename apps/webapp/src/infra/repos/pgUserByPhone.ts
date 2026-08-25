@@ -118,6 +118,7 @@ export async function loadSessionIdentityUser(
                 pu.role,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
+                COALESCE(pu.is_blocked, false) AS is_blocked,
                 COALESCE(sss.factor_required, false) AS security_factor_required
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
@@ -130,7 +131,8 @@ export async function loadSessionIdentityUser(
                 ${FIO.patronymic} AS patronymic,
                 pu.role,
                 pu.session_epoch,
-                COALESCE(pu.is_archived, false) AS is_archived
+                COALESCE(pu.is_archived, false) AS is_archived,
+                COALESCE(pu.is_blocked, false) AS is_blocked
          FROM platform_users pu
          ${USER_IDENTITY_FIO_JOIN}
          WHERE pu.id = $1`,
@@ -141,7 +143,7 @@ export async function loadSessionIdentityUser(
     throw new Error(`loadSessionUser: user ${userId} missing after canonical resolve`);
   }
   const u = parseIdentityRow(platformUserSessionRowSchema, userRow.rows[0], 'load_session_user');
-  if (u.is_archived) return null;
+  if (u.is_archived || u.is_blocked) return null;
   const firstName = u.first_name?.trim() || undefined;
   const lastName = u.last_name?.trim() || undefined;
   const patronymic = u.patronymic?.trim() || undefined;
@@ -325,7 +327,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
     );
     if (!payload.found) return null;
     // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
-    if (payload.is_archived) return null;
+    if (payload.is_archived || payload.is_blocked) return null;
     return sessionUserFromPreSessionIdentityPayload(payload);
   },
 
@@ -375,8 +377,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
         throw new MergeConflictError('createOrBind: ambiguous live phone holders');
       }
       // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
-      if (payload.is_archived) {
-        throw new Error('createOrBind: platform user is archived');
+      if (payload.is_archived || payload.is_blocked) {
+        throw new Error('createOrBind: platform user cannot start a session');
       }
       return {
         user: sessionUserFromPreSessionIdentityPayload(payload),
@@ -430,8 +432,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
         );
       }
       // D2 (2026-07-26): an archived identity has no session — see loadSessionIdentityUser above.
-      if (payload.is_archived) {
-        throw new Error('createOrBind: platform user is archived');
+      if (payload.is_archived || payload.is_blocked) {
+        throw new Error('createOrBind: platform user cannot start a session');
       }
       return {
         user: sessionUserFromPreSessionIdentityPayload(payload),

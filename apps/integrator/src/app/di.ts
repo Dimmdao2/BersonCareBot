@@ -76,6 +76,8 @@ import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDelive
  */
 /** Injected from `routes.ts` for webapp-entry token enrichment (integrator `users.id`). */
 export type MessengerWebappEntryIdentityDeps = {
+  /** Provider-side command/menu setup stays disabled in development. */
+  setupProviderSurface?: boolean;
   resolveIntegratorUserIdForMessenger?: (
     externalId: string,
     resource: 'telegram' | 'max',

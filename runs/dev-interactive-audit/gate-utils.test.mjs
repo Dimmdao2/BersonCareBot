@@ -286,7 +286,7 @@ test('a route adapter cannot classify a different rendered control', () => {
 test('doctor card and program detail require rendered, explicitly contracted dynamic hrefs', () => {
   const doctor = ROLE_SCENARIOS.doctor;
   const hrefs = [
-    'http://127.0.0.1:5200/app/doctor/patients/11111111-1111-4111-8111-111111111111?tab=overview',
+    'http://127.0.0.1:5200/app/doctor/patients/11111111-1111-4111-8111-111111111111?returnTo=%2Fapp%2Fdoctor%2Fpatients',
     'http://127.0.0.1:5200/app/doctor/patients/11111111-1111-4111-8111-111111111111/programs/22222222-2222-4222-8222-222222222222',
   ];
   const discovered = discoverBounded({

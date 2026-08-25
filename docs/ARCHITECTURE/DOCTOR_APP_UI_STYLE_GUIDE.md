@@ -214,7 +214,10 @@ DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.
 
-Фиксированная шапка: `DoctorHeader` (высота `h-14`, компенсация `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`). Все страницы `/app/doctor/**` автоматически получают её через `layout.tsx`.
+Навигационный chrome задаёт `DoctorWorkspaceShell`: на mobile `<768px` используется фиксированная
+`DoctorHeader`; на tablet `768–1023px` — узкий sidebar rail шириной `3.5rem`, раскрываемый поверх
+контента; на desktop `≥1024px` — полный sidebar шириной `14rem`. Верх sidebar всегда показывает
+платформенный бренд `Therapysto`, ссылка аккаунта с круглым аватаром закреплена снизу.
 
 ---
 

@@ -206,7 +206,7 @@ export const ROLE_SCENARIOS = Object.freeze({
         '/app/doctor/content/library', '/app/doctor/courses', '/app/settings?tab=organization',
         '/app/settings?tab=team', '/app/settings?tab=billing', '/app/account',
       ]),
-      { template: /^\/app\/doctor\/patients\/:uuid\?tab=(?:overview|karta|program|records|files|comms|finances|account)(?:&.*)?$/, staticTemplate: '/app/doctor/patients/:uuid', classification: 'substantive', semanticContract: { selectors: ['#doctor-patient-card-header'] } },
+      { template: /^\/app\/doctor\/patients\/:uuid(?:\?returnTo=[^&]+(?:&tab=(?:overview|karta|program|records|files|comms|finances|account))?|\?tab=(?:overview|karta|program|records|files|comms|finances|account))?$/, staticTemplate: '/app/doctor/patients/:uuid', classification: 'substantive', semanticContract: { selectors: ['#doctor-patient-card-header'] } },
       { template: /^\/app\/doctor\/patients\/:uuid\/programs\/:uuid$/, staticTemplate: '/app/doctor/patients/:uuid/programs/:uuid', classification: 'substantive', semanticContract: { selectors: ['#doctor-program-instance-summary'] } },
     ],
     allowedFinalTemplates: {

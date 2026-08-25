@@ -211,7 +211,10 @@ export async function POST(request: Request) {
     );
 
     if (fin.kind === 'finalized' || fin.kind === 'already_done') {
-      await maybeAutoEnqueueVideoTranscodeAfterUpload(row.media_id);
+      await maybeAutoEnqueueVideoTranscodeAfterUpload(
+        row.media_id,
+        received.value.intent.mimeType,
+      );
       const appUrl = `/api/media/${row.media_id}`;
       return NextResponse.json({
         ok: true as const,

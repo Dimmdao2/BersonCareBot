@@ -164,9 +164,10 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
     getAppBaseUrl: getAppBaseUrlForWebhooks,
     resolveMessengerStaffAdmin,
     resolveDedicatedClinicBotOrganization: resolveDedicatedTelegramBotOrganization,
+    setupProviderSurface: env.NODE_ENV !== 'development',
   };
   const telegramRuntimeConfig = await getTelegramRuntimeConfig();
-  if (telegramRuntimeConfig.mode === 'long_polling') {
+  if (env.NODE_ENV !== 'development' && telegramRuntimeConfig.mode === 'long_polling') {
     // RU-isolated host: Telegram cannot reach us inbound — pull updates via
     // getUpdates instead of a webhook. Non-fatal, fire-and-forget; NO webhook route.
     startTelegramLongPolling(telegramWebhookDeps);
@@ -183,6 +184,7 @@ export async function registerRoutes(app: FastifyInstance, deps: AppDeps): Promi
         getAppBaseUrl: getAppBaseUrlForWebhooks,
         resolveMessengerStaffAdmin,
         resolveDedicatedClinicBotOrganization: resolveDedicatedMaxBotOrganization,
+        setupProviderSurface: env.NODE_ENV !== 'development',
         resolveDedicatedClinicBotApiKey: createResolveDedicatedClinicMaxApiKey(),
       });
     });

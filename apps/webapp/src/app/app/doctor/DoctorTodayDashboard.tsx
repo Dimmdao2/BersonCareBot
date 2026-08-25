@@ -251,7 +251,7 @@ export function DoctorTodayDashboard({
 
       <div
         id="doctor-today-two-panes"
-        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
       >
         <div id="doctor-today-left-pane" className="flex min-w-0 flex-col gap-3">
           <DoctorTodayLeftKpiRow

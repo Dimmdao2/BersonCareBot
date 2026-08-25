@@ -423,6 +423,19 @@ test('tenant identity grant is operation- and column-specific', () => {
   assertNoOperation('public.platform_users', 'app_tenant_service', 'DELETE');
 });
 
+test('platform settings can persist only the platform user calendar timezone', () => {
+  exactColumns('public.platform_users', 'app_platform_settings', 'SELECT', [
+    'id',
+    'calendar_timezone',
+  ]);
+  exactColumns('public.platform_users', 'app_platform_settings', 'UPDATE', [
+    'calendar_timezone',
+    'updated_at',
+  ]);
+  assertNoOperation('public.platform_users', 'app_platform_settings', 'INSERT');
+  assertNoOperation('public.platform_users', 'app_platform_settings', 'DELETE');
+});
+
 test('patient demographics inherit the clinical profile column wall', () => {
   exactRepeatedColumns('public.doctor_patient_support', 'app_staff', 'INSERT', [
     'birth_date',
@@ -576,6 +589,40 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
 
 test('doctor CRUD grants cover every column emitted by the production Drizzle inserts', () => {
   const expected = {
+    'public.clinical_anamnesis_illness': [
+      'comment', 'created_at', 'created_by', 'id', 'organization_id', 'patient_user_id', 'period',
+      'what',
+    ],
+    'public.clinical_anamnesis_lifestyle': [
+      'created_at', 'created_by', 'id', 'organization_id', 'patient_user_id', 'record_date', 'text',
+    ],
+    'public.clinical_anamnesis_trauma': [
+      'created_at', 'created_by', 'id', 'immobilization', 'organization_id', 'patient_user_id',
+      'type', 'what', 'year',
+    ],
+    'public.clinical_complaint': [
+      'created_at', 'description', 'id', 'organization_id', 'patient_user_id', 'priority',
+      'resolved_at', 'source_visit_id', 'status', 'text',
+    ],
+    'public.clinical_complaint_update': [
+      'complaint_id', 'created_at', 'id', 'note', 'organization_id', 'resolved', 'severity',
+      'visit_id',
+    ],
+    'public.clinical_diagnosis': [
+      'catalog_id', 'clinical_status', 'comment', 'created_at', 'id', 'organization_id',
+      'patient_user_id', 'priority', 'resolved_at', 'source_visit_id', 'status', 'text',
+    ],
+    'public.clinical_diagnosis_catalog': [
+      'created_at', 'created_by', 'id', 'label', 'note', 'organization_id',
+    ],
+    'public.clinical_diagnosis_status_history': [
+      'changed_at', 'changed_by', 'diagnosis_id', 'id', 'new_status', 'note', 'old_status',
+      'organization_id',
+    ],
+    'public.clinical_diagnosis_update': [
+      'created_at', 'diagnosis_id', 'id', 'organization_id', 'refinement', 'removed', 'status',
+      'visit_id',
+    ],
     'public.clinical_visit': [
       'anamnesis_text', 'canonical_appointment_id', 'created_at', 'created_by', 'duration', 'exam',
       'id', 'location', 'manipulations', 'organization_id', 'patient_user_id', 'recommendations',
@@ -649,6 +696,7 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
   exactColumns('public.user_contacts', 'app_staff', 'UPDATE', [
     'confirmed_at', 'is_primary', 'platform_user_id', 'source_origin', 'updated_at',
   ]);
+  exactColumns('public.org_enrollments', 'app_staff', 'UPDATE', ['status']);
 });
 
 test('clinic-owner mutation grants include every default column emitted by Drizzle inserts', () => {
