@@ -86,6 +86,7 @@ try {
 
   await runStep(page, 'exercise:create', async () => {
     await page.goto(`${baseUrl}/app/doctor/exercises/new`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('#ex-title').fill(`${marker} exercise`);
     await page.getByRole('button', { name: 'Создать упражнение' }).click();
     await page.waitForURL(/\/app\/doctor\/exercises\/[0-9a-f-]+$/u, { timeout: 30_000 });
@@ -121,6 +122,7 @@ try {
 
   await runStep(page, 'clinical-test:create', async () => {
     await page.goto(`${baseUrl}/app/doctor/clinical-tests/new`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('#ct-title').fill(`${marker} clinical test`);
     await page.getByRole('button', { name: 'Создать тест', exact: true }).click();
     await page.waitForURL(/\/app\/doctor\/clinical-tests\/[0-9a-f-]+$/u, { timeout: 30_000 });
@@ -138,6 +140,7 @@ try {
 
   await runStep(page, 'recommendation:create', async () => {
     await page.goto(`${baseUrl}/app/doctor/recommendations/new`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('#rec-title').fill(`${marker} recommendation`);
     await page.getByRole('button', { name: 'Создать', exact: true }).click();
     await page.waitForURL(/\/app\/doctor\/recommendations\/[0-9a-f-]+$/u, { timeout: 30_000 });
@@ -155,6 +158,7 @@ try {
 
   await runStep(page, 'lfk-complex:create-draft', async () => {
     await page.goto(`${baseUrl}/app/doctor/lfk-templates/new`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('input:visible').first().fill(`${marker} lfk complex`);
     await page.getByRole('button', { name: 'Сохранить черновик', exact: true }).click();
     await page.waitForURL(/\/app\/doctor\/lfk-templates(?:\/[0-9a-f-]+|\?selected=[0-9a-f-]+)$/u, {
@@ -174,6 +178,7 @@ try {
 
   await runStep(page, 'test-set:create-draft', async () => {
     await page.goto(`${baseUrl}/app/doctor/test-sets/new`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('input:visible').first().fill(`${marker} test set`);
     await page.getByRole('button', { name: 'Создать черновик', exact: true }).click();
     await page.waitForURL(/\/app\/doctor\/test-sets\/[0-9a-f-]+$/u, { timeout: 30_000 });
@@ -191,6 +196,7 @@ try {
 
   await runStep(page, 'treatment-program-template:create', async () => {
     await page.goto(`${baseUrl}/app/doctor/treatment-program-templates/new`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('#tpl-title').fill(`${marker} treatment template`);
     await page.getByRole('button', { name: 'Создать', exact: true }).click();
     await page.waitForURL(/\/app\/doctor\/treatment-program-templates\/[0-9a-f-]+$/u, { timeout: 30_000 });
@@ -209,6 +215,7 @@ try {
 
   await runStep(page, 'task:create', async () => {
     await page.goto(`${baseUrl}/app/doctor/tasks`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('button:visible').filter({ hasText: 'Новая задача' }).click();
     await page.locator('input[placeholder="Кратко"]:visible').fill(taskTitle);
     const save = page.locator('button:visible').filter({ hasText: 'Сохранить' }).last();
@@ -238,6 +245,7 @@ try {
 
   await runStep(page, 'media:upload', async () => {
     await page.goto(`${baseUrl}/app/doctor/content/library`, { waitUntil: 'domcontentloaded' });
+    await waitForSettled(page);
     await page.locator('input[type="file"]').first().setInputFiles({
       name: uploadName,
       mimeType: 'text/plain',

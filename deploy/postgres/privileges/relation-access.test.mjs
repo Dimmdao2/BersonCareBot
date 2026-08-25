@@ -565,6 +565,14 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
 
 test('schedule grants cover the default columns emitted by Drizzle inserts', () => {
   const expected = {
+    'public.be_appointments': [
+      'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+      'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
+      'chain_position', 'created_at', 'deleted_at', 'duration_minutes', 'end_at', 'id',
+      'organization_id', 'original_start_at', 'package_usage_ref', 'payment_ref',
+      'phone_normalized', 'platform_user_id', 'reschedule_count', 'room_id', 'service_id',
+      'source', 'specialist_id', 'start_at', 'status', 'updated_at',
+    ],
     'public.be_schedule_blocks': [
       'block_type', 'branch_id', 'created_at', 'created_by_actor_id', 'end_at', 'id',
       'organization_id', 'room_id', 'specialist_id', 'start_at', 'title',

@@ -141,10 +141,8 @@ try {
     await settle(page);
     clientId = new URL(page.url()).pathname.split('/').at(-1) ?? null;
     if (!clientId || !/^[0-9a-f-]{36}$/u.test(clientId)) throw new Error('client_id_not_observed');
-    if (!(await page.getByText(clientLastName, { exact: false }).count())) {
-      throw new Error('created_client_name_not_visible');
-    }
     targetPatientId = clientId;
+    await page.getByText(clientLastName, { exact: false }).first().waitFor({ timeout: 30_000 });
     return { clientId, route: new URL(page.url()).pathname };
   });
 
@@ -163,7 +161,7 @@ try {
         response.url().includes(`/api/doctor/clients/${targetPatientId}/treatment-program-instances`),
       { timeout: 12_000 },
     );
-    await page.getByRole('button', { name: 'Назначить', exact: true }).click();
+    await page.getByRole('button', { name: 'Создать пустой план', exact: true }).click();
     const response = await responsePromise;
     const responseBody = await response.json().catch(() => null);
     if (!response.ok() || responseBody?.ok !== true) {
@@ -260,14 +258,12 @@ try {
     await patientOption.waitFor({ timeout: 12_000 });
     await patientOption.click();
     await page.getByRole('button', { name: 'Выберите дату и время', exact: true }).click();
-    const availableDay = page
-      .locator('button[data-day]:visible:not([disabled])')
-      .filter({ hasNot: page.locator('[data-outside]') })
-      .last();
+    const availableDay = page.locator('.rdp-day_button:visible:not([disabled])').last();
     await availableDay.click();
     const timeButton = page.getByRole('button', { name: '18:00', exact: true });
     if (await timeButton.count()) await timeButton.click();
     else await page.locator('button:visible').filter({ hasText: /^18:/u }).first().click();
+    await page.keyboard.press('Escape');
     const responsePromise = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -291,7 +287,7 @@ try {
     const row = page.getByText(clientLastName, { exact: false }).first();
     await row.waitFor({ timeout: 30_000 });
     await row.click();
-    await page.getByRole('button', { name: /Отменить запись/u }).click();
+    await page.getByRole('button', { name: 'Отменить', exact: true }).first().click();
     const reason = page.getByRole('combobox').filter({ hasText: /Причина|Выберите/u }).last();
     if (await reason.count()) {
       await reason.click();
@@ -299,7 +295,8 @@ try {
     }
     const responsePromise = page.waitForResponse(
       (response) =>
-        response.request().method() === 'POST' && response.url().includes(`/appointments/${appointmentId}/cancel`),
+        response.request().method() === 'POST' &&
+        response.url().includes(`/appointments/${appointmentId}/manual-cancel`),
       { timeout: 30_000 },
     );
     await page.getByRole('button', { name: /Подтвердить отмену|Отменить запись/u }).last().click();
