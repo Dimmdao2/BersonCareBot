@@ -19,6 +19,17 @@ function concise(value) {
   return String(value).replace(/\s+/gu, ' ').slice(0, 800);
 }
 
+function moscowDateAfter(days) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date(Date.now() + days * 86_400_000));
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
+}
+
 async function login(context, email) {
   const response = await context.request.post(`${baseUrl}/api/auth/email-password/login`, {
     headers: { Origin: baseUrl },
@@ -258,11 +269,12 @@ try {
     await patientOption.waitFor({ timeout: 12_000 });
     await patientOption.click();
     await page.getByRole('button', { name: 'Выберите дату и время', exact: true }).click();
-    const availableDay = page.locator('.rdp-day_button:visible:not([disabled])').last();
+    const appointmentDate = moscowDateAfter(1);
+    const availableDay = page.locator(
+      `.rdp-day[data-day="${appointmentDate}"] .rdp-day_button:visible:not([disabled])`,
+    );
     await availableDay.click();
-    const timeButton = page.getByRole('button', { name: '18:00', exact: true });
-    if (await timeButton.count()) await timeButton.click();
-    else await page.locator('button:visible').filter({ hasText: /^18:/u }).first().click();
+    await page.getByRole('option', { name: '20:00', exact: true }).click();
     await page.keyboard.press('Escape');
     const responsePromise = page.waitForResponse(
       (response) =>
@@ -277,12 +289,14 @@ try {
     if (!response.ok() || responseBody?.ok !== true || !appointmentId) {
       throw new Error(`appointment_create_failed:${response.status()}:${JSON.stringify(responseBody)}`);
     }
-    await page.getByText('Создано', { exact: true }).waitFor({ timeout: 12_000 });
-    return { appointmentId, route: new URL(page.url()).pathname };
+    await page.getByTestId('create-appointment-btn').waitFor({ timeout: 12_000 });
+    return { appointmentId, appointmentDate, route: new URL(page.url()).pathname };
   });
 
   await runStep(page, 'appointment:cancel', async () => {
     if (!appointmentId) throw new Error('appointment_create_failed');
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await settle(page);
     await page.getByRole('button', { name: 'Список', exact: true }).click();
     const row = page.getByText(clientLastName, { exact: false }).first();
     await row.waitFor({ timeout: 30_000 });
