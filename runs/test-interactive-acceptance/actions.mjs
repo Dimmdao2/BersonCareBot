@@ -109,7 +109,9 @@ try {
       throw new Error(`exercise_update_failed:${response.status()}`);
     }
     await waitForSettled(page);
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    const exerciseRoute = new URL(page.url()).pathname;
+    await page.waitForTimeout(500);
+    await page.goto(`${baseUrl}${exerciseRoute}`, { waitUntil: 'domcontentloaded' });
     if (await page.locator('#ex-desc').inputValue() !== `${marker} updated`) throw new Error('updated_value_not_persisted');
     return { route: new URL(page.url()).pathname };
   });
