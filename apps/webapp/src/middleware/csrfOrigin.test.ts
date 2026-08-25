@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { decideCsrfOrigin } from './csrfOrigin';
 
-describe('decideCsrfOrigin — integrator signed scheduler wakes', () => {
-  it('exempts patient reminder materialization wake from browser CSRF', () => {
+describe('decideCsrfOrigin — integrator signed server-to-server mutations', () => {
+  it.each([
+    '/api/integrator/appointment-reminders/materialize',
+    '/api/integrator/patient-reminders/materialize-wake',
+    '/api/integrator/phone-messenger-bind/claim',
+  ])('lets the HMAC-authenticated caller reach %s without browser origin headers', (pathname) => {
     const decision = decideCsrfOrigin({
       method: 'POST',
-      pathname: '/api/integrator/patient-reminders/materialize-wake',
+      pathname,
       host: 'test.bersoncare.ru',
       requestUrlProtocol: 'https:',
       forwardedProto: 'https',

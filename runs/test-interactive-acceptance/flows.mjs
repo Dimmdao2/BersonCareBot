@@ -298,7 +298,7 @@ try {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await settle(page);
     await page.getByRole('button', { name: 'Список', exact: true }).click();
-    const row = page.getByText(clientLastName, { exact: false }).first();
+    const row = page.getByTestId(`list-appt-${appointmentId}`);
     await row.waitFor({ timeout: 30_000 });
     await row.click();
     await page.getByRole('button', { name: 'Отменить', exact: true }).first().click();
