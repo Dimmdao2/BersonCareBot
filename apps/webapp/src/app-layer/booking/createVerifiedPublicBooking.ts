@@ -136,7 +136,12 @@ export async function createVerifiedPublicBooking(
             platformUserId,
             source: 'api/booking/public/create/confirm:POST',
           },
-          () => revokePublicBookingEnrollment(intent.organizationId, enrollmentEffect),
+          () =>
+            revokePublicBookingEnrollment(
+              intent.organizationId,
+              enrollmentEffect,
+              enrolment.attemptStartedAt,
+            ),
         );
         if (undone === 'kept') {
           logger.warn(

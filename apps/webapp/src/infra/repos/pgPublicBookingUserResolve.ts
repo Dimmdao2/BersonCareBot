@@ -56,6 +56,8 @@ export type PublicBookingEnrollment = {
   status: 'invited' | 'active';
   /** What the door did, so a failed booking can undo exactly that and nothing else. */
   effect: 'created' | 'activated' | 'reactivated' | 'unchanged';
+  /** DB-issued cutoff separating old appointments from appointments created by this attempt. */
+  attemptStartedAt: string;
 };
 
 /**
@@ -92,13 +94,15 @@ export async function enrollCurrentPatientInPublicBookingClinic(
     ) AS enrollment`,
   );
   const payload = result.rows[0]?.enrollment as
-    | { status?: unknown; effect?: unknown }
+    | { status?: unknown; effect?: unknown; attemptStartedAt?: unknown }
     | null
     | undefined;
   const status = payload?.status;
   const effect = payload?.effect;
+  const attemptStartedAt = payload?.attemptStartedAt;
   if (
     (status !== 'active' && status !== 'invited') ||
+    typeof attemptStartedAt !== 'string' ||
     (effect !== 'created' &&
       effect !== 'activated' &&
       effect !== 'reactivated' &&
@@ -106,7 +110,7 @@ export async function enrollCurrentPatientInPublicBookingClinic(
   ) {
     throw new Error('booking_blocked');
   }
-  return { status, effect };
+  return { status, effect, attemptStartedAt };
 }
 
 /**
@@ -125,14 +129,16 @@ export async function enrollCurrentPatientInPublicBookingClinic(
 export async function revokePublicBookingEnrollment(
   organizationId: string,
   enrollmentEffect: Exclude<PublicBookingEnrollment['effect'], 'unchanged'>,
+  attemptStartedAt: string,
 ): Promise<'deleted' | 'reverted' | 'kept' | 'absent'> {
   const result = await runWebappNamedRoot<{ outcome: unknown }>(
     getWebappSqlDb(),
-    'app.revoke_public_booking_enrollment(uuid,text)',
-    [organizationId, enrollmentEffect],
+    'app.revoke_public_booking_enrollment(uuid,text,timestamp with time zone)',
+    [organizationId, enrollmentEffect, attemptStartedAt],
     sql`SELECT app.revoke_public_booking_enrollment(
       ${organizationId}::uuid,
-      ${enrollmentEffect}::text
+      ${enrollmentEffect}::text,
+      ${attemptStartedAt}::timestamptz
     ) AS outcome`,
   );
   const effect = (result.rows[0]?.outcome as { effect?: unknown } | null | undefined)?.effect;
