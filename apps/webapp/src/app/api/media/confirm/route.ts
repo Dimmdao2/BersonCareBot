@@ -100,7 +100,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'confirm_race' }, { status: 409 });
   }
 
-  await maybeAutoEnqueueVideoTranscodeAfterUpload(parsed.data.mediaId);
+  await maybeAutoEnqueueVideoTranscodeAfterUpload(
+    parsed.data.mediaId,
+    received.value.intent.mimeType,
+  );
 
   return NextResponse.json({
     ok: true as const,

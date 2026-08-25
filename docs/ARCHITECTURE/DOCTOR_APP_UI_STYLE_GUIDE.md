@@ -100,18 +100,19 @@
 
 Основные роли (вся chrome-типографика — только отсюда):
 
-| Роль                              | Класс                                    | px  |
-| --------------------------------- | ---------------------------------------- | --- |
-| Page title (h1)                   | `text-base font-semibold tracking-tight` | 16  |
-| Section title (h2/h3)             | `text-sm font-semibold`                  | 14  |
-| Body                              | `text-sm`                                | 14  |
-| Первичная строка основного списка | `text-base font-normal`                  | 16  |
-| Secondary / meta                  | `text-xs text-muted-foreground`          | 12  |
-| Metric (KPI)                      | `text-2xl font-semibold tabular-nums`    | 24  |
+| Роль                              | Общий класс                    | Текущая реализация                         | px   |
+| --------------------------------- | ------------------------------ | ------------------------------------------ | ---- |
+| Page title (h1)                   | `doctorPageTitleClass`         | `text-[18px] font-medium tracking-tight`   | 18   |
+| Section title (h2/h3)             | `doctorSectionTitleClass`      | `text-sm font-semibold`                    | 14   |
+| Body                              | `doctorBodyTextClass`          | `text-sm`                                  | 14   |
+| Первичная строка основного списка | `doctorPrimaryListTextClass`   | `text-base font-normal`                    | 16   |
+| Secondary / meta                  | `doctorMetaTextClass`          | `text-xs text-muted-foreground`            | 12   |
+| Metric (KPI)                      | `doctorMetricValueClass`       | `text-[1.3rem] font-semibold tabular-nums` | 20.8 |
+| Строчная метрика                  | `doctorInlineMetricValueClass` | `text-base font-semibold tabular-nums`     | 16   |
 
 **Micro-роль (узкое исключение, 10–11px).** Разрешена **только** для плотных, нечитаемых-как-абзац подписей: статус-бейджи/пилюли (`Badge`, статус каталога), ячейки календаря, оси/тултипы графиков, технические mono-дампы. Класс: `text-[10px]` / `text-[11px]`. Micro-роль **не** применять к заголовкам, строкам сущностей, кнопкам и основному тексту.
 
-**Запрещено в `/app/doctor/**`(chrome):**`text-[13px]`, `text-lg`, `text-xl`, `text-3xl`, а также `text-2xl` вне роли Metric.
+**Запрещено в `/app/doctor/**`(chrome):**`text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`. Исключения: `text-[18px]` для Page title и `text-[1.3rem]` для Metric через общие классы.
 
 Миграция текущего кода: header-заголовок `text-[13px]` → `text-sm`; KPI-число `text-3xl` → `text-2xl`; прочие крупные числа-метрики `text-lg`/`text-xl` → роль Metric (`text-2xl`) или `text-base` для строчных; заголовки-`text-lg` → `text-base`; page-заголовки admin/ops `text-xl` → `text-base`.
 
@@ -213,7 +214,10 @@ DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.
 
-Фиксированная шапка: `DoctorHeader` (высота `h-14`, компенсация `DOCTOR_WORKSPACE_TOP_PADDING_CLASS`). Все страницы `/app/doctor/**` автоматически получают её через `layout.tsx`.
+Навигационный chrome задаёт `DoctorWorkspaceShell`: на mobile `<768px` используется фиксированная
+`DoctorHeader`; на tablet `768–1023px` — узкий sidebar rail шириной `3.5rem`, раскрываемый поверх
+контента; на desktop `≥1024px` — полный sidebar шириной `14rem`. Верх sidebar всегда показывает
+платформенный бренд `Therapysto`, ссылка аккаунта с круглым аватаром закреплена снизу.
 
 ---
 
@@ -223,13 +227,13 @@ DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
 
 | Роль                                                | Тег           | Класс                                                         |
 | --------------------------------------------------- | ------------- | ------------------------------------------------------------- |
-| Заголовок страницы (h1)                             | `h1`          | `text-base font-semibold tracking-tight text-foreground`      |
+| Заголовок страницы (h1)                             | `h1`          | `text-[18px] font-medium tracking-tight text-foreground`      |
 | Заголовок секции / панели                           | `h2` или `h3` | `text-sm font-semibold text-foreground`                       |
-| Первичная строка сущности                           | `p`           | `text-sm font-medium text-foreground`                         |
+| Первичная строка сущности                           | `p`           | `text-base font-normal text-foreground`                       |
 | Обычный текст                                       | `p`           | `text-sm text-foreground`                                     |
 | Вспомогательный текст / micro-label / бейдж-подпись | `p` / `span`  | `text-xs text-muted-foreground`                               |
-| Числовая метрика (крупная, KPI)                     | `p`           | `text-2xl font-semibold tabular-nums`                         |
-| Числовая метрика (строчная)                         | `span`        | `font-semibold tabular-nums text-foreground`                  |
+| Числовая метрика (крупная, KPI)                     | `p`           | `text-[1.3rem] font-semibold tabular-nums`                    |
+| Числовая метрика (строчная)                         | `span`        | `text-base font-semibold tabular-nums`                        |
 | Inline-link                                         | `Link/a`      | `text-primary underline underline-offset-2`                   |
 | Hover-link (secondary)                              | `Link/a`      | `text-primary underline-offset-4 hover:underline font-medium` |
 | Строка с адресом / телефон                          | `a`           | `font-medium text-primary underline underline-offset-2`       |

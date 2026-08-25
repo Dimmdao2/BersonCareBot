@@ -1,5 +1,5 @@
 /**
- * POST /api/doctor/clients/:userId/block — блокировка исходящих сообщений подписчика в чате поддержки.
+ * POST /api/doctor/clients/:userId/block — глобальная блокировка учётной записи пациента.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';

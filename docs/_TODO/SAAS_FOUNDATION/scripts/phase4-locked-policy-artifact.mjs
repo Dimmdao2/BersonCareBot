@@ -8,7 +8,6 @@ import { getP083PublicDirectOrgDescriptors, p083PolicyName } from './p0-8-3-poli
 import { getP084PublicPathDescriptors, p084PolicyName } from './p0-8-4-policy-targets.mjs';
 import { getP085IntegratorScopedDescriptors, p085PolicyName } from './p0-8-5-policy-targets.mjs';
 import { getP086BootstrapHybridDescriptors, p086PolicyName } from './p0-8-6-policy-targets.mjs';
-import { buildRlsDescriptors } from './rls-descriptor-model.mjs';
 import {
   hasAnyPatientOwnership,
   dormantCompatibilityPredicate,
@@ -29,33 +28,6 @@ const repoRoot = path.resolve(__dirname, '..', '..', '..', '..');
 
 export const phase4LockedPolicyArtifactPath =
   'deploy/postgres/phase4-locked-helper-rls-policies.sql';
-
-const s5RuntimePolicyName = 's5_runtime_settings_isolation';
-const s5RuntimeAuditPolicyName = 's5_runtime_settings_audit_staff';
-
-export function getS5RuntimeSettingsTargets() {
-  const descriptors = buildRlsDescriptors();
-  const runtime = descriptors.get('public.app_runtime_settings');
-  const audit = descriptors.get('public.app_runtime_settings_audit');
-
-  if (runtime?.scopingKind !== 'bootstrap_runtime_audience') {
-    throw new Error('S5 runtime settings descriptor is missing its audience-aware classification');
-  }
-  if (audit?.scopingKind !== 'bootstrap_runtime_audit') {
-    throw new Error(
-      'S5 runtime settings audit descriptor is missing its staff-only classification',
-    );
-  }
-
-  return [
-    {
-      descriptor: runtime,
-      policyName: s5RuntimePolicyName,
-      legacyPolicyNames: ['app_runtime_settings_safe_read', 'app_runtime_settings_staff_write'],
-    },
-    { descriptor: audit, policyName: s5RuntimeAuditPolicyName, legacyPolicyNames: [] },
-  ];
-}
 
 function compareTable(left, right) {
   return left.descriptor.table.localeCompare(right.descriptor.table);
@@ -79,7 +51,6 @@ export function getPhase4LockedPolicyTargets() {
       descriptor,
       policyName: p086PolicyName,
     })),
-    ...getS5RuntimeSettingsTargets(),
   ].sort(compareTable);
 
   const keys = targets.map(({ descriptor, policyName }) => `${descriptor.table}\t${policyName}`);
@@ -99,15 +70,6 @@ export function getPhase4LockedPolicyTargets() {
 }
 
 export function renderPhase4StrictPredicate(descriptor) {
-  if (descriptor.scopingKind === 'bootstrap_runtime_audience') {
-    const orgPredicate = renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn });
-    return `((current_user = 'app_staff' AND ${orgPredicate}) OR (current_user = 'app_patient' AND "audience" IN ('public', 'authenticated_client') AND ${orgPredicate}) OR (current_user = 'app_runtime_nonstaff_login' AND "audience" = 'public' AND ${orgPredicate}) OR (pg_has_role(current_user, 'app_worker', 'member') AND "audience" = 'server' AND "organization_id" IS NULL AND app.current_org_id() IS NULL))`;
-  }
-
-  if (descriptor.scopingKind === 'bootstrap_runtime_audit') {
-    return `(current_user = 'app_staff' AND ${renderBootstrapHybridPredicate({ orgColumn: descriptor.orgColumn })})`;
-  }
-
   if (descriptor.scopingKind === 'bootstrap_hybrid_org_gated') {
     return renderBootstrapHybridOrgGatedPredicate({ orgColumn: descriptor.orgColumn });
   }
@@ -144,9 +106,7 @@ export function renderPhase4DormantCompatPredicate(descriptor) {
 
   if (
     descriptor.dormantMode === 'strict' ||
-    descriptor.scopingKind === 'bootstrap_hybrid' ||
-    descriptor.scopingKind === 'bootstrap_runtime_audience' ||
-    descriptor.scopingKind === 'bootstrap_runtime_audit'
+    descriptor.scopingKind === 'bootstrap_hybrid'
   ) {
     return strictPredicate;
   }

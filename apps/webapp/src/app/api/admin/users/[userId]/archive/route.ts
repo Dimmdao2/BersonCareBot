@@ -8,6 +8,7 @@ import {
   applyClientArchiveChange,
   clientArchiveBodySchema,
 } from '@/modules/doctor-clients/clientArchiveChange';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireAdminWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 
 export async function PATCH(request: Request, context: { params: Promise<{ userId: string }> }) {
@@ -25,5 +26,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ userI
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  return applyClientArchiveChange(userId, parsed.data.archived);
+  const deps = buildAppDeps();
+  const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
+    userId,
+    auth.ctx.organizationId,
+    auth.ctx,
+  );
+  if (!identity) {
+    return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
+  }
+
+  await applyClientArchiveChange(
+    deps.doctorClientsPort,
+    userId,
+    auth.ctx.organizationId,
+    parsed.data.archived,
+  );
+  return NextResponse.json({ ok: true });
 }

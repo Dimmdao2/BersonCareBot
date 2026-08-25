@@ -59,6 +59,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "appointment_id",
           "cancellation_type",
           "created_at",
+          "id",
           "manual_override",
           "notifications_sent",
           "organization_id",
@@ -105,7 +106,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "actor_id",
           "appointment_id",
+          "created_at",
           "event_type",
+          "id",
           "occurred_at",
           "organization_id",
           "payload"
@@ -137,6 +140,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "actor_type",
           "appointment_id",
           "created_at",
+          "id",
           "manual_override",
           "notifications_sent",
           "organization_id",
@@ -189,6 +193,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "free_cancellation_available_at_reschedule",
           "from_end_at",
           "from_start_at",
+          "id",
           "manual_override",
           "notifications_sent",
           "organization_id",
@@ -318,11 +323,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "chain_id",
           "chain_position",
           "created_at",
+          "deleted_at",
           "duration_minutes",
           "end_at",
           "id",
           "organization_id",
           "original_start_at",
+          "package_usage_ref",
+          "payment_ref",
           "phone_normalized",
           "platform_user_id",
           "reschedule_count",
@@ -1297,8 +1305,10 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "domain",
           "event_type",
+          "id",
           "linked_object_id",
           "linked_object_type",
           "occurred_at",
@@ -2455,7 +2465,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "comment",
+          "created_at",
           "created_by",
+          "id",
           "organization_id",
           "patient_user_id",
           "period",
@@ -2484,7 +2496,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
+          "id",
           "organization_id",
           "patient_user_id",
           "record_date",
@@ -2513,7 +2527,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
+          "id",
           "immobilization",
           "organization_id",
           "patient_user_id",
@@ -2544,10 +2560,13 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "description",
+          "id",
           "organization_id",
           "patient_user_id",
           "priority",
+          "resolved_at",
           "source_visit_id",
           "status",
           "text"
@@ -2589,6 +2608,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "complaint_id",
+          "created_at",
+          "id",
           "note",
           "organization_id",
           "resolved",
@@ -2620,10 +2641,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "catalog_id",
+          "clinical_status",
           "comment",
+          "created_at",
+          "id",
           "organization_id",
           "patient_user_id",
           "priority",
+          "resolved_at",
           "source_visit_id",
           "status",
           "text"
@@ -2667,6 +2692,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "created_by",
+          "created_at",
+          "id",
           "label",
           "note",
           "organization_id"
@@ -2696,7 +2723,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "changed_by",
+          "changed_at",
           "diagnosis_id",
+          "id",
           "new_status",
           "note",
           "old_status",
@@ -2725,7 +2754,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "diagnosis_id",
+          "id",
           "organization_id",
           "refinement",
           "removed",
@@ -2802,6 +2833,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "anamnesis_text",
           "canonical_appointment_id",
+          "created_at",
           "created_by",
           "duration",
           "exam",
@@ -3942,8 +3974,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "contraindications",
           "created_by",
+          "description",
+          "difficulty_1_10",
           "is_archived",
+          "load_type",
+          "region_ref_id",
+          "tags",
           "title",
           "updated_at"
         ]
@@ -4036,6 +4074,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "command_id",
           "command_kind",
+          "created_at",
           "organization_id",
           "platform_user_id",
           "request_fingerprint"
@@ -4378,15 +4417,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "aborted_at",
+          "completed_at",
+          "created_at",
           "expected_size_bytes",
           "expires_at",
           "id",
+          "last_error",
           "media_id",
           "mime_type",
+          "organization_id",
           "owner_user_id",
           "part_size_bytes",
           "s3_key",
           "status",
+          "updated_at",
           "upload_id"
         ]
       },
@@ -4396,6 +4441,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
+          "aborted_at",
           "completed_at",
           "last_error",
           "status",
@@ -4801,8 +4847,21 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
+          "id",
           "organization_id",
           "platform_user_id",
+          "portal_activated_at",
+          "portal_activated_via",
+          "status"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
           "status"
         ]
       },
@@ -5914,9 +5973,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_via",
+          "ended_at",
+          "ended_reason",
+          "id",
           "organization_id",
           "patient_user_id",
+          "source_link_id",
           "specialist_id",
           "status"
         ]
@@ -6183,6 +6247,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": ["id", "integrator_user_id", "merged_into_id"]
       },
       {
+        "role": "app_platform_settings",
+        "operations": ["SELECT"],
+        "columns": ["id", "calendar_timezone"]
+      },
+      {
+        "role": "app_platform_settings",
+        "operations": ["UPDATE"],
+        "columns": ["calendar_timezone", "updated_at"]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
@@ -6195,10 +6269,24 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "blocked_at",
+          "blocked_by",
+          "blocked_reason",
+          "calendar_timezone",
+          "created_at",
           "display_name",
           "first_name",
+          "id",
+          "integrator_user_id",
+          "is_archived",
+          "is_blocked",
           "last_name",
+          "merged_at",
+          "merged_into_id",
           "patronymic",
+          "reminder_muted_until",
+          "session_epoch",
+          "updated_at",
           "role"
         ]
       },
@@ -6220,6 +6308,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "merged_into_id",
           "reminder_muted_until",
           "role",
+          "session_epoch",
           "updated_at"
         ]
       },
@@ -8857,11 +8946,15 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
           "description",
+          "id",
+          "is_archived",
           "organization_id",
           "publication_status",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {
@@ -9047,15 +9140,19 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "assessment_kind",
           "body_region_id",
+          "created_at",
           "created_by",
           "description",
+          "id",
+          "is_archived",
           "media",
           "organization_id",
           "raw_text",
           "scoring",
           "tags",
           "test_type",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {
@@ -9065,6 +9162,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "assessment_kind",
+          "body_region_id",
           "description",
           "is_archived",
           "media",
@@ -9092,15 +9190,19 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "assessment_kind",
           "body_region_id",
+          "created_at",
           "created_by",
           "description",
+          "id",
+          "is_archived",
           "media",
           "organization_id",
           "raw_text",
           "scoring",
           "tags",
           "test_type",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {
@@ -9110,6 +9212,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "assessment_kind",
+          "body_region_id",
           "description",
           "is_archived",
           "media",
@@ -9364,6 +9467,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "description",
           "goals",
+          "id",
           "objectives",
           "skip_reason",
           "sort_order",
@@ -9655,6 +9759,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "expected_duration_days",
           "expected_duration_text",
           "goals",
+          "id",
           "objectives",
           "organization_id",
           "sort_order",
@@ -9706,11 +9811,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "created_by",
           "description",
+          "id",
           "organization_id",
           "status",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {
@@ -9997,6 +10105,34 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": "table"
       },
       {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "confirmed_at",
+          "contact_kind",
+          "is_primary",
+          "platform_user_id",
+          "source_origin",
+          "updated_at",
+          "value_normalized"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "confirmed_at",
+          "is_primary",
+          "platform_user_id",
+          "source_origin",
+          "updated_at"
+        ]
+      },
+      {
         "role": "app_tenant_service",
         "operations": [
           "SELECT"
@@ -10067,6 +10203,33 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "SELECT"
         ],
         "columns": "table"
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "INSERT"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "platform_user_id",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
+          "UPDATE"
+        ],
+        "columns": [
+          "display_name",
+          "first_name",
+          "last_name",
+          "patronymic",
+          "updated_at"
+        ]
       },
       {
         "role": "app_tenant_service",
@@ -10293,6 +10456,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "confirming_channel",
+          "id",
           "organization_id",
           "phone_normalized",
           "platform_user_id",

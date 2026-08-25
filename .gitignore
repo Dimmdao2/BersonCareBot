@@ -12,6 +12,7 @@ pnpm-debug.log*
 
 # Generated local audit/transcript output; it can contain runtime identity evidence.
 runs/dev-interactive-audit/out/
+runs/test-interactive-acceptance/out/
 runs/dev-interactive-audit/runs/
 runs/orchestration/
 runs/clickthrough/screenshots/

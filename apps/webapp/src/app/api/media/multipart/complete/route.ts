@@ -23,6 +23,7 @@ import { multipartMaxPartNumber } from '@/modules/media/multipartConstants';
 import { uploadValidationResponse, validateUploadIntent } from '@/modules/media/uploadValidation';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 
 const partSchema = z.object({
   PartNumber: z.number().int().min(1).max(10_000),
@@ -54,6 +55,8 @@ export async function POST(request: Request) {
 
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
+  if (!entitlement.ok) return entitlement.response;
   const session = gate.ctx.session;
 
   let json: unknown;
@@ -208,7 +211,10 @@ export async function POST(request: Request) {
     );
 
     if (fin.kind === 'finalized' || fin.kind === 'already_done') {
-      await maybeAutoEnqueueVideoTranscodeAfterUpload(row.media_id);
+      await maybeAutoEnqueueVideoTranscodeAfterUpload(
+        row.media_id,
+        received.value.intent.mimeType,
+      );
       const appUrl = `/api/media/${row.media_id}`;
       return NextResponse.json({
         ok: true as const,

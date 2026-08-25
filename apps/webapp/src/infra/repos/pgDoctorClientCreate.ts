@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
@@ -46,6 +47,11 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   tx: DrizzleDb,
   organizationId: string,
   input: ResolveOrCreateDoctorClientByPhoneInput,
+  ensureOrganizationRelationship: (
+    activeTx: DrizzleDb,
+    activeOrganizationId: string,
+    platformUserId: string,
+  ) => Promise<unknown>,
 ): Promise<ResolveOrCreateDoctorClientByPhoneResult> {
   const lastName = normalizeFioPart(input.lastName);
   const firstName = normalizeFioPart(input.firstName);
@@ -59,23 +65,27 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     if (input.emailRaw || input.emailNormalized) {
       throw new DoctorClientIdentityError('create_failed');
     }
-    const [inserted] = await tx
+    const inserted = {
+      id: randomUUID(),
+      displayName,
+      lastName,
+      firstName,
+      patronymic,
+    };
+    await tx
       .insert(platformUsers)
       .values({
+        id: inserted.id,
         displayName,
         lastName,
         firstName,
         patronymic,
         role: 'client',
-      })
-      .returning({
-        id: platformUsers.id,
-        displayName: platformUsers.displayName,
-        lastName: platformUsers.lastName,
-        firstName: platformUsers.firstName,
-        patronymic: platformUsers.patronymic,
       });
-    if (!inserted) throw new DoctorClientIdentityError('create_failed');
+    // Tenant-owned identity/contact rows are only writable after the patient belongs to this
+    // organization. Keep that ordering inside the same transaction so every staff entry point
+    // (standalone card, scheduled appointment, walk-in visit) crosses the RLS boundary once.
+    await ensureOrganizationRelationship(tx, organizationId, inserted.id);
     await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
     return {
       userId: inserted.id,
@@ -151,23 +161,24 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
   } | null = null;
   try {
     inserted = await tx.transaction(async (savepointTx) => {
-      const [row] = await savepointTx
+      const row = {
+        id: randomUUID(),
+        displayName,
+        lastName,
+        firstName,
+        patronymic,
+      };
+      await savepointTx
         .insert(platformUsers)
         .values({
+          id: row.id,
           displayName,
           lastName,
           firstName,
           patronymic,
           role: 'client',
-        })
-        .returning({
-          id: platformUsers.id,
-          displayName: platformUsers.displayName,
-          lastName: platformUsers.lastName,
-          firstName: platformUsers.firstName,
-          patronymic: platformUsers.patronymic,
         });
-      if (!row) return null;
+      await ensureOrganizationRelationship(savepointTx, organizationId, row.id);
       await savepointTx.insert(userPhoneHistory).values({
         platformUserId: row.id,
         organizationId,

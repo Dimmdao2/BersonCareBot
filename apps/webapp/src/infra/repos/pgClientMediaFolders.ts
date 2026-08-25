@@ -115,9 +115,21 @@ export async function pgEnsureClientFilesRootFolder(): Promise<MediaFolderRecord
       kind: 'client_files_root',
       ...currentOrganizationValues(),
     })
+    .onConflictDoNothing()
     .returning();
-  if (!created) throw new Error('client_files_root_create_failed');
-  return mapFolderRow(created);
+  if (created) return mapFolderRow(created);
+
+  // Another request may have created (or promoted) the same organization root
+  // after our initial read. Resolve the canonical row instead of depending on
+  // the driver-specific shape of a wrapped PostgreSQL 23505 error.
+  await promoteLegacyClientFilesRootFolder(db);
+  const [concurrent] = await db
+    .select()
+    .from(mediaFolders)
+    .where(and(eq(mediaFolders.kind, 'client_files_root'), folderOrgScopeCondition()))
+    .limit(1);
+  if (!concurrent) throw new Error('client_files_root_create_failed');
+  return mapFolderRow(concurrent);
 }
 
 async function resolvePatientDisplayNameAndPhone(
@@ -145,7 +157,7 @@ async function resolvePatientDisplayNameAndPhone(
 async function insertClientPatientFolder(
   db: ReturnType<typeof getDrizzle>,
   params: { parentId: string; patientUserId: string; name: string },
-): Promise<MediaFolderRecord> {
+): Promise<MediaFolderRecord | null> {
   const [created] = await db
     .insert(mediaFolders)
     .values({
@@ -155,9 +167,9 @@ async function insertClientPatientFolder(
       kind: 'client_patient',
       patientUserId: params.patientUserId,
     })
+    .onConflictDoNothing()
     .returning();
-  if (!created) throw new Error('client_patient_folder_create_failed');
-  return mapFolderRow(created);
+  return created ? mapFolderRow(created) : null;
 }
 
 export async function pgEnsureClientPatientFolder(
@@ -182,34 +194,20 @@ export async function pgEnsureClientPatientFolder(
   const primaryName = clientPatientFolderBaseName(displayName);
   const fallbackName = clientPatientFolderFallbackName(displayName, patientUserId, phoneNormalized);
 
-  try {
-    return await insertClientPatientFolder(db, {
-      parentId: root.id,
-      patientUserId,
-      name: primaryName,
-    });
-  } catch (error) {
-    const code =
-      typeof error === 'object' && error && 'code' in error
-        ? (error as { code?: string }).code
-        : null;
-    if (code !== '23505') throw error;
-  }
+  const primary = await insertClientPatientFolder(db, {
+    parentId: root.id,
+    patientUserId,
+    name: primaryName,
+  });
+  if (primary) return primary;
 
   if (primaryName !== fallbackName) {
-    try {
-      return await insertClientPatientFolder(db, {
-        parentId: root.id,
-        patientUserId,
-        name: fallbackName,
-      });
-    } catch (error) {
-      const code =
-        typeof error === 'object' && error && 'code' in error
-          ? (error as { code?: string }).code
-          : null;
-      if (code !== '23505') throw error;
-    }
+    const fallback = await insertClientPatientFolder(db, {
+      parentId: root.id,
+      patientUserId,
+      name: fallbackName,
+    });
+    if (fallback) return fallback;
   }
 
   const [retry] = await db

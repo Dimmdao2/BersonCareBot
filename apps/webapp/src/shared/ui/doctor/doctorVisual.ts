@@ -57,18 +57,30 @@ export const doctorHistoryRowClass = 'rounded-md border border-border/60 bg-mute
 // -- Typography ---------------------------------------------------------------
 
 /** Page title (h1 in AppShell content or standalone page headers). */
-export const doctorPageTitleClass = 'text-base font-semibold tracking-tight text-foreground';
+export const doctorPageTitleClass = 'text-[18px] font-medium tracking-tight text-foreground';
 
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass = 'text-sm font-semibold text-foreground';
 
+/** Default body copy in doctor pages. */
+export const doctorBodyTextClass = 'text-sm text-foreground';
+
+/** Primary entity/title line in doctor lists. */
+export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground';
+
+/** Secondary labels, timestamps, hints, and metadata. */
+export const doctorMetaTextClass = 'text-xs text-muted-foreground';
+
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
-  'text-2xl font-semibold tabular-nums leading-tight text-foreground';
+  'text-[1.3rem] font-semibold tabular-nums leading-tight text-foreground';
+
+/** Inline/secondary numeric value that belongs in a text row rather than a full KPI. */
+export const doctorInlineMetricValueClass = 'text-base font-semibold tabular-nums leading-none';
 
 /** KPI stat card label (uppercase, compact). */
 export const doctorMetricLabelClass =
-  'text-[10px] font-medium uppercase leading-snug tracking-wide text-muted-foreground line-clamp-3';
+  'text-xs font-medium uppercase leading-snug tracking-wide text-foreground/85 line-clamp-3';
 
 /** Shell for KPI stat cards (`DoctorStatCard`). */
 export const doctorStatCardShellClass =
@@ -82,7 +94,7 @@ export const doctorStatCardInteractiveClass =
   'cursor-pointer transition-colors hover:border-primary/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40';
 
 /** Section subtitle and helper text under headings. */
-export const doctorSectionSubtitleClass = 'text-xs text-muted-foreground';
+export const doctorSectionSubtitleClass = doctorMetaTextClass;
 
 /** Inline action link used inside text flow. */
 export const doctorInlineLinkClass = 'text-primary underline underline-offset-2';

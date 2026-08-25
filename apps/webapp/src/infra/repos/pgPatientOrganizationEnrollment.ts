@@ -18,6 +18,7 @@ export async function ensureInvitedOrganizationClientRelationship(
   tx: DrizzleDb,
   organizationId: string,
   platformUserId: string,
+  options?: { reactivateArchived?: boolean },
 ): Promise<SchedulableClientEnrollmentStatus> {
   const findRelationship = async () => {
     const [row] = await tx
@@ -36,6 +37,20 @@ export async function ensureInvitedOrganizationClientRelationship(
   const existing = await findRelationship();
   if (existing) {
     if (existing.status === 'invited' || existing.status === 'active') return existing.status;
+    if (existing.status === 'archived' && options?.reactivateArchived === true) {
+      await tx
+        .update(orgEnrollments)
+        .set({ status: 'active' })
+        .where(
+          and(
+            eq(orgEnrollments.organizationId, organizationId),
+            eq(orgEnrollments.platformUserId, platformUserId),
+            eq(orgEnrollments.status, 'archived'),
+          ),
+        );
+      const reactivated = await findRelationship();
+      if (reactivated?.status === 'active') return 'active';
+    }
     throw new OrganizationClientRelationshipDeniedError();
   }
 

@@ -1,29 +1,39 @@
 \set ON_ERROR_STOP on
 \set VERBOSITY verbose
 
--- runtime-settings.sql supplies the target key/audience registry, but values for keys that already
--- exist in the fresh PROD dump must come from its canonical system_settings rows, not from the DEV
--- snapshot used to generate the target schema. Only same-key registered projection rows are copied;
--- unregistered secret settings never enter app_runtime_settings.
-\echo '=== CUTOVER STEP F01/05: rehydrate canonical runtime setting values ==='
-UPDATE public.app_runtime_settings AS runtime
-SET value_json = canonical.value_json,
-    updated_at = canonical.updated_at,
-    updated_by = canonical.updated_by
-FROM cutover_source_public.system_settings AS canonical
-WHERE canonical.key = runtime.key
-  AND canonical.scope = runtime.scope
-  AND canonical.organization_id IS NOT DISTINCT FROM runtime.organization_id
-  AND runtime.value_json IS DISTINCT FROM canonical.value_json;
+-- D01 copies the canonical source rows directly into the sole settings root. Verify the copy before
+-- dropping the preserved source schema; no generated registry or second value store is involved.
+\echo '=== CUTOVER STEP F01/05: verify canonical system setting values ==='
+DO $canonical_system_settings_gate$
+DECLARE
+  violations bigint;
+BEGIN
+  SELECT count(*) INTO violations
+  FROM cutover_source_public.system_settings AS source_setting
+  WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.system_settings AS target_setting
+    WHERE target_setting.key = source_setting.key
+      AND target_setting.scope = source_setting.scope
+      AND target_setting.organization_id IS NOT DISTINCT FROM source_setting.organization_id
+      AND target_setting.value_json IS NOT DISTINCT FROM source_setting.value_json
+      AND target_setting.updated_at IS NOT DISTINCT FROM source_setting.updated_at
+      AND target_setting.updated_by IS NOT DISTINCT FROM source_setting.updated_by
+  );
+  IF violations <> 0 THEN
+    RAISE EXCEPTION 'canonical system settings copy drift: %', violations;
+  END IF;
+END
+$canonical_system_settings_gate$;
 
 SELECT json_build_object(
   'status', 'pass',
-  'registeredRuntimeSettings', (SELECT count(*) FROM public.app_runtime_settings),
   'sourceCanonicalSettings', (SELECT count(*) FROM cutover_source_public.system_settings),
-  'unregisteredSecretsCopied', 0
+  'targetCanonicalSettings', (SELECT count(*) FROM public.system_settings),
+  'copyViolations', 0
 )::text AS result
 \gset cutover_f01_
-SELECT :'cutover_f01_result'::json AS cutover_step_f01_runtime_setting_values;
+SELECT :'cutover_f01_result'::json AS cutover_step_f01_system_setting_values;
 
 \echo '=== CUTOVER STEP F02/05: remove preserved source schemas ==='
 DROP SCHEMA cutover_source_integrator CASCADE;
@@ -43,7 +53,6 @@ SELECT :'cutover_f02_result'::json AS cutover_step_f02_remove_source_schemas;
 
 -- Canonical phone is unconditional; do not carry the retired fallback strategy into target state.
 \echo '=== CUTOVER STEP F03/05: retire linked-phone fallback setting ==='
-DELETE FROM public.app_runtime_settings WHERE key = 'integrator_linked_phone_source';
 DELETE FROM public.system_settings
 WHERE key = 'integrator_linked_phone_source'
   AND scope = 'admin'
@@ -51,9 +60,6 @@ WHERE key = 'integrator_linked_phone_source'
 
 SELECT json_build_object(
   'status', 'pass',
-  'runtimeFallbackRowsRemaining', (
-    SELECT count(*) FROM public.app_runtime_settings WHERE key = 'integrator_linked_phone_source'
-  ),
   'canonicalFallbackRowsRemaining', (
     SELECT count(*) FROM public.system_settings
     WHERE key = 'integrator_linked_phone_source'
@@ -82,20 +88,6 @@ VALUES
    now())
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO NOTHING;
 
-INSERT INTO public.app_runtime_settings (
-  key, scope, organization_id, audience, value_json, updated_at, updated_by
-)
-SELECT key, scope, organization_id, 'server', value_json, updated_at, updated_by
-FROM public.system_settings
-WHERE key = 'platform_integration_availability'
-  AND scope = 'admin'
-  AND organization_id IS NULL
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE SET
-  audience = EXCLUDED.audience,
-  value_json = EXCLUDED.value_json,
-  updated_at = EXCLUDED.updated_at,
-  updated_by = EXCLUDED.updated_by;
-
 SELECT json_build_object(
   'status', 'pass',
   'requiredGlobalAdminSettings', 6,
@@ -115,12 +107,6 @@ SELECT json_build_object(
         AND setting.scope = 'admin'
         AND setting.organization_id IS NULL
     )
-  ),
-  'integrationAvailabilityRuntimeRows', (
-    SELECT count(*) FROM public.app_runtime_settings
-    WHERE key = 'platform_integration_availability'
-      AND scope = 'admin'
-      AND organization_id IS NULL
   )
 )::text AS result
 \gset cutover_f04_
@@ -375,7 +361,7 @@ SELECT json_build_object(
     'P02_target_pre_data_schema', :'cutover_p02_result'::json,
     'P03_target_data', :'cutover_p03_result'::json,
     'P04_ledgers_and_baseline', :'cutover_p04_result'::json,
-    'P05_runtime_settings', :'cutover_p05_result'::json,
+    'P05_system_settings', :'cutover_p05_result'::json,
     'P06_target_post_data_schema', :'cutover_p06_result'::json,
     'P07_finalize_and_close', :'cutover_p07_result'::json
   ),
@@ -414,7 +400,7 @@ SELECT json_build_object(
     'D24_copy_completeness_gate', :'cutover_d24_result'::json
   ),
   'finishSteps', json_build_object(
-    'F01_runtime_setting_values', :'cutover_f01_result'::json,
+    'F01_system_setting_values', :'cutover_f01_result'::json,
     'F02_remove_source_schemas', :'cutover_f02_result'::json,
     'F03_retire_phone_fallback', :'cutover_f03_result'::json,
     'F04_required_admin_settings', :'cutover_f04_result'::json,

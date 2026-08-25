@@ -41,14 +41,14 @@ import {
 } from '../../treatmentProgramInstanceOpen';
 import { expectedStageControlDateIso } from '@/modules/treatment-program/stage-semantics';
 import {
+  doctorBodyTextClass,
+  doctorMetaTextClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-  doctorStatCardShellClass,
-  doctorMetricValueClass,
-  doctorMetricLabelClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
@@ -396,28 +396,26 @@ function monthLabelFor(year: number, month: number): string {
 // ---------------------------------------------------------------------------
 
 function KpiCard({
+  id,
   label,
   value,
   hint,
   loading,
 }: {
+  id: string;
   label: string;
   value: string;
   hint: string;
   loading?: boolean;
 }) {
   return (
-    <div className={cn(doctorStatCardShellClass, 'flex flex-col gap-0.5')}>
-      <span className={doctorMetricLabelClass}>{label}</span>
-      {loading ? (
-        <span className="text-xs text-muted-foreground animate-pulse py-1">…</span>
-      ) : (
-        <>
-          <span className={cn(doctorMetricValueClass, 'text-base')}>{value}</span>
-          <span className="text-xs text-muted-foreground leading-tight">{hint}</span>
-        </>
-      )}
-    </div>
+    <DoctorStatCard
+      id={id}
+      title={label}
+      value={loading ? '…' : value}
+      hint={loading ? undefined : hint}
+      valueClassName={loading ? 'animate-pulse text-muted-foreground' : undefined}
+    />
   );
 }
 
@@ -428,7 +426,7 @@ function ScoreBadge({ score, size = 'base' }: { score: number; size?: 'base' | '
   const cls =
     size === 'base'
       ? cn(overviewSymptomSeverityBadgeClass, 'text-xs rounded-[9px] px-2 py-0.5')
-      : cn(overviewSymptomSeverityBadgeClass, 'text-[10.5px] rounded-lg px-1.5 py-0');
+      : cn(overviewSymptomSeverityBadgeClass, 'text-[11px] rounded-lg px-1.5 py-0');
   return <span className={cls}>{score}/10</span>;
 }
 
@@ -1452,6 +1450,7 @@ export function PatientTabOverview({
         <div className={cn('grid grid-cols-2 gap-2', compositionMode === 'right-pane' && 'hidden')}>
           {/* Контроль KPI */}
           <KpiCard
+            id="patient-overview-kpi-control"
             label="Контроль"
             loading={isLoading}
             value={
@@ -1469,6 +1468,7 @@ export function PatientTabOverview({
           />
           {membershipsVisible ? (
             <KpiCard
+              id="patient-overview-kpi-membership"
               label="Абонемент"
               loading={isLoading}
               value={
@@ -1678,7 +1678,7 @@ export function PatientTabOverview({
                 {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map((d) => (
                   <div
                     key={d}
-                    className="h-4 flex items-center justify-center text-[9px] text-muted-foreground/70 uppercase"
+                    className="h-4 flex items-center justify-center text-[10px] text-muted-foreground/70 uppercase"
                   >
                     {d}
                   </div>
@@ -1702,7 +1702,7 @@ export function PatientTabOverview({
                 </div>
               )}
 
-              <div className="flex flex-wrap gap-3 mt-1.5 text-[10.5px] text-muted-foreground">
+              <div className="flex flex-wrap gap-3 mt-1.5 text-[11px] text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <span className="w-2.5 h-2.5 rounded-sm bg-primary" />
                   полностью
@@ -1953,7 +1953,10 @@ export function PatientTabOverview({
                   type="button"
                   variant="ghost"
                   onClick={() => onTabSwitch?.('program')}
-                  className="mb-1.5 h-auto p-0 text-[12px] font-semibold text-foreground hover:bg-transparent hover:text-primary"
+                  className={cn(
+                    doctorSectionTitleClass,
+                    'mb-1.5 h-auto p-0 hover:bg-transparent hover:text-primary',
+                  )}
                 >
                   {data.programTitle}
                 </Button>
@@ -1986,7 +1989,7 @@ export function PatientTabOverview({
                       ◀
                     </Button>
                     <div className="flex-1 text-center">
-                      <div className="text-[12.5px] font-semibold text-foreground">
+                      <div className={doctorSectionTitleClass}>
                         Этап {displayStageIndex + 1} из {data.programStages.length} ·{' '}
                         {displayStage.title}
                       </div>
@@ -2065,7 +2068,8 @@ export function PatientTabOverview({
                     <div
                       key={msg.id}
                       className={cn(
-                        'flex gap-1.5 items-start rounded-lg px-2.5 py-1.5 text-[12.5px]',
+                        doctorBodyTextClass,
+                        'flex gap-1.5 items-start rounded-lg px-2.5 py-1.5',
                         isUnread
                           ? 'border border-primary bg-primary/5'
                           : 'border border-border bg-muted/10',
@@ -2075,7 +2079,7 @@ export function PatientTabOverview({
                       <span className="flex-1 min-w-0">
                         <strong>{isPatient ? 'Пациент' : 'Вы'}:</strong> {msg.text}
                       </span>
-                      <span className="text-[11px] text-muted-foreground whitespace-nowrap ml-auto pl-1.5">
+                      <span className={cn(doctorMetaTextClass, 'whitespace-nowrap ml-auto pl-1.5')}>
                         {fmtDateMsgShort(msg.createdAt)}
                       </span>
                     </div>

@@ -19,17 +19,12 @@
 
 **Таблица `system_settings` (webapp, scope `admin`)** — источник истины для **операционной** конфигурации, которую разумно менять без передеплоя, включая **часть интеграционных параметров авторизации**, согласно правилам репозитория. Таблица поддерживает глобальные строки (`organization_id IS NULL`) и org-specific overrides (`organization_id` задан); текущие admin Settings формы пишут глобальные строки, если конкретный flow явно не передаёт organization context.
 
-### S5 runtime store (additive compatibility state)
+### Единый settings root
 
-`public.app_runtime_settings` — отдельное хранилище только для typed-registry-approved безопасных runtime values и
-allowlisted derived projections; оно хранит global row либо org override с теми же identity semantics. Restricted
-keys, credential envelopes и секретные поля не копируются в него. `public.app_runtime_settings_audit` фиксирует
-old/new runtime JSON, actor, source, org и time в той же PostgreSQL transaction через runtime-table trigger.
-
-На S5-1 `public.system_settings` остаётся existing compatibility authoring store и единственным хранилищем
-настроек. S5-1 не переносит write chokepoint и не включает patient grants/RLS; это последующие S5-2/S5-3
-stages. Runtime audit belongs to the database trigger only, so S5-3 must reuse it rather than create a second
-application audit.
+`public.system_settings` — единственное хранилище настроек. Типизированный registry классифицирует audience,
+scope и ownership, а SECURITY DEFINER resolvers возвращают public, authenticated-client и server callers только
+разрешённые ключи. Произвольного доступа patient/pre-session ролей к таблице нет. Все изменения журналируются в
+`public.system_settings_audit`; отдельного runtime mirror и отдельного audit-store нет.
 
 - **Публичный origin deployment:** `APP_BASE_URL` в validated env webapp и integrator. Это идентичность конкретного развёртывания, поэтому она не редактируется через admin Settings и не читается из `system_settings`; отсутствие или невалидный URL блокирует старт integrator. Миграция `0273_remove_app_base_url_setting` удаляет оставшиеся глобальные и org-scoped строки старого ключа.
 - Публичные ссылки: `support_contact_url`.

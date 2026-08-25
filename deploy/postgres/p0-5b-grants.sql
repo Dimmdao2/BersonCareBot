@@ -340,8 +340,8 @@ WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_patient')
 ORDER BY schema_name, table_name
 \gexec
 
-REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings, public.app_runtime_settings_audit FROM app_staff;
-REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings FROM app_patient;
+REVOKE ALL PRIVILEGES ON TABLE public.system_settings, public.system_settings_audit FROM app_staff;
+REVOKE ALL PRIVILEGES ON TABLE public.system_settings FROM app_patient;
 
 SELECT format('REVOKE USAGE, SELECT ON SEQUENCE %I.%I FROM app_staff', seq_ns.nspname, seq.relname)
 FROM pg_class seq
@@ -463,27 +463,18 @@ WHERE attrelid = 'public.user_oauth_bindings'::regclass
   AND NOT attisdropped
 \gexec
 
--- S5-2: the safe runtime store is directly readable by app_patient, while every
--- restricted/audit surface stays physically unavailable. Re-running the UP path repairs stale ACLs.
+-- S5-2: canonical settings and their audit stay physically unavailable to app_patient.
+-- Re-running the UP path repairs stale ACLs.
 REVOKE ALL PRIVILEGES ON TABLE
   public.system_settings,
-  public.system_settings_audit,
-  public.app_runtime_settings_audit
+  public.system_settings_audit
   FROM PUBLIC, app_patient;
-GRANT SELECT ON TABLE public.app_runtime_settings TO app_patient;
--- Normalize before the narrow grants so a repeat run removes stale audit UPDATE/DELETE.
-REVOKE ALL PRIVILEGES ON TABLE
-  public.app_runtime_settings,
-  public.app_runtime_settings_audit
-  FROM app_staff;
-GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.app_runtime_settings TO app_staff;
-GRANT SELECT, INSERT ON TABLE public.app_runtime_settings_audit TO app_staff;
+-- Canonical settings stay unavailable to patients; staff access is rebuilt by the declaration.
 DO $s5_bootstrap_acl$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'app_runtime_nonstaff_login') THEN
     REVOKE ALL PRIVILEGES ON TABLE public.system_settings FROM app_runtime_nonstaff_login;
     REVOKE ALL PRIVILEGES ON TABLE public.system_settings_audit FROM app_runtime_nonstaff_login;
-    REVOKE ALL PRIVILEGES ON TABLE public.app_runtime_settings_audit FROM app_runtime_nonstaff_login;
   END IF;
 END
 $s5_bootstrap_acl$;

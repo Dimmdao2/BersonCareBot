@@ -12,13 +12,8 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  doctorSectionCardClass,
-  doctorSectionTitleClass,
-  doctorStatCardShellClass,
-  doctorMetricValueClass,
-  doctorMetricLabelClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -366,20 +361,22 @@ export function PatientTabFinances({
       <div className={doctorSectionCardClass}>
         <p className={doctorSectionTitleClass}>Итоги</p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <div className={doctorStatCardShellClass}>
-            <p className={doctorMetricLabelClass}>Наличные</p>
-            <p className={doctorMetricValueClass}>{fmtMinor(totalCashMinor)}</p>
-          </div>
-          <div className={doctorStatCardShellClass}>
-            <p className={doctorMetricLabelClass}>Эквайринг</p>
-            <p className={doctorMetricValueClass}>{fmtMinor(totalAcquiringMinor)}</p>
-          </div>
-          <div className={cn(doctorStatCardShellClass, 'col-span-2 sm:col-span-1')}>
-            <p className={doctorMetricLabelClass}>Итого</p>
-            <p className={doctorMetricValueClass}>
-              {fmtMinor(totalCashMinor + totalAcquiringMinor)}
-            </p>
-          </div>
+          <DoctorStatCard
+            id="patient-finances-cash"
+            title="Наличные"
+            value={fmtMinor(totalCashMinor)}
+          />
+          <DoctorStatCard
+            id="patient-finances-acquiring"
+            title="Эквайринг"
+            value={fmtMinor(totalAcquiringMinor)}
+          />
+          <DoctorStatCard
+            id="patient-finances-total"
+            title="Итого"
+            value={fmtMinor(totalCashMinor + totalAcquiringMinor)}
+            className="col-span-2 sm:col-span-1"
+          />
         </div>
       </div>
 

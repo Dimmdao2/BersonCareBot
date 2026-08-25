@@ -1,9 +1,6 @@
-/**
- * Общая реализация смены архива для клиента (`platform_users.role = 'client'`).
- * Используется и кабинетом врача (`/api/doctor/clients/.../archive`), и админским API (`/api/admin/users/.../archive`).
- */
-import { NextResponse } from 'next/server';
+/** Общая организация-скоупированная смена архива пациента. */
 import { z } from 'zod';
+import type { DoctorClientsPort } from './ports';
 
 export const clientArchiveBodySchema = z.object({
   archived: z.boolean(),
@@ -13,11 +10,10 @@ export const clientArchiveBodySchema = z.object({
  * @param userId — уже проверенный UUID
  */
 export async function applyClientArchiveChange(
+  clientsPort: DoctorClientsPort,
   userId: string,
+  organizationId: string,
   archived: boolean,
-): Promise<NextResponse> {
-  // `platform_users.is_archived` is global while a patient can have more than
-  // one organization enrollment. There is no sanctioned per-enrollment archive
-  // port yet, therefore a compatibility route cannot safely mutate it.
-  return NextResponse.json({ ok: false, error: 'patient_archive_not_available' }, { status: 409 });
+): Promise<void> {
+  await clientsPort.setOrganizationClientArchived({ userId, organizationId, archived });
 }

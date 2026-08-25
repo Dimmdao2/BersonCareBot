@@ -266,8 +266,6 @@ export const PLATFORM_ROLE_SCOPE: PlatformRoleScope = {
     'public.saas_org_entitlement_overrides', 'public.saas_organization_trials', 'public.saas_tariffs',
     'public.saas_trial_policy', 'public.saas_registration_tariff_policy', 'public.saas_paid_period_policy',
     'public.admin_audit_log',
-    'public.app_runtime_settings', // только строки organization_id IS NULL (u9a_platform_runtime_global_only)
-    'public.app_runtime_settings_audit',
     'public.system_settings', // только глобальные строки и только через стену роли (Д3)
     'public.system_settings_audit',
   ],
@@ -884,10 +882,6 @@ const TABLE_ROWS: TableRow[] = [
     drop: { verdict: 'DROP', source: 'evidence/15 §4 — 27/27 уже в public.reminder_rules' } },
   { t: 'public.admin_audit_log', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'журнал административных '
     + 'действий — пропадает разбор «кто что сделал» и авто-мерджи конфликтов', wallWhy: W_PLATFORM_OR_CLINIC },
-  { t: 'public.app_runtime_settings', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'настройки рантайма — '
-    + 'сервис теряет управляемые из кабинета настройки', wallWhy: W_PLATFORM_OR_CLINIC },
-  { t: 'public.app_runtime_settings_audit', cls: 'S', org: true, wall: 'platform-role+clinic', why: 'кто и когда '
-    + 'менял настройку — нельзя восстановить, кто сломал настройку', wallWhy: W_PLATFORM_OR_CLINIC },
   { t: 'public.auth_rate_limit_events', cls: 'S', org: false, wall: 'definer-only', why: 'счётчик попыток '
     + 'входа/отправки кода — снимается защита от перебора OTP и OAuth-стартов', wallWhy: W_AUTH_DEFINER,
     revoke: { app_staff: REV_D1 },
@@ -2840,6 +2834,10 @@ const REV10_CONTEXT = {
       targetRole: 'app_patient', contextClass: 'patient',
       purpose: 'patient.preferred-auth-channel.read',
       functionIdentity: 'app.get_current_patient_preferred_auth_channel_code()' },
+    patient_default_auth_channel_read: { port: 'webapp', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'patient.default-auth-channel.read',
+      functionIdentity: 'app.get_current_patient_default_auth_otp_channel()' },
     // D15b/6 confirm-path correction: after OTP verification `createOrBind` still ran its whole
     // resolve/create/contact-write transaction under the bootstrap principal, which (like the
     // `/start` read above) has no unnamed relation door — same failure, on the write that follows a
@@ -3496,7 +3494,7 @@ const REV10_CONTEXT = {
     // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
     revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
-      functionIdentity: 'app.revoke_public_booking_enrollment(uuid)' },
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid,text)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -4254,6 +4252,13 @@ const REV10_CONTEXT = {
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
       execute: ['app_pre_session'], purpose: 'auth.phone-login.default-channel', typedArgs: ['uuid'],
       volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: ['app_ext.read_default_auth_otp_channel(uuid)'],
+    }),
+    'app_ext.read_default_auth_otp_channel(uuid)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: [], purpose: 'private shared default auth-channel read behind exact pre-session and patient roots',
+      typedArgs: ['uuid'], volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      invocation: 'internal' as const,
       relationSurfaces: [
         { relation: 'public.user_phone_history',
           columns: ['platform_user_id', 'valid_to', 'confirming_channel'],
@@ -4264,6 +4269,15 @@ const REV10_CONTEXT = {
         { relation: 'public.user_contacts',
           columns: ['platform_user_id', 'contact_kind', 'is_primary', 'confirmed_at'],
           operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
+      ],
+    }),
+    'app.get_current_patient_default_auth_otp_channel()': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: false,
+      execute: ['app_patient'], purpose: 'patient.default-auth-channel.read', typedArgs: [],
+      volatility: 'STABLE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      delegatesTo: [
+        'app.current_patient_user_id()',
+        'app_ext.read_default_auth_otp_channel(uuid)',
       ],
     }),
     'app.get_current_patient_preferred_auth_channel_code()': rev10Function({
@@ -4538,15 +4552,6 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       invocation: 'trigger' as const,
     }),
-    'public.audit_app_runtime_settings_change()': rev10Function({
-      owner: 'app_object_owner', security: 'DEFINER', returns: 'trigger', returnsSet: false, execute: [],
-      purpose: 'application runtime-settings audit trigger', typedArgs: [],
-      volatility: 'VOLATILE', parallel: 'UNSAFE',
-      proconfig: ['search_path=pg_catalog, public, pg_temp'], invocation: 'trigger' as const,
-      relationSurfaces: [{ relation: 'public.app_runtime_settings_audit',
-        columns: ['audience', 'key', 'new_value_json', 'old_value_json', 'organization_id', 'scope', 'source',
-          'updated_by'], operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
-    }),
     'public.media_folders_enforce_depth()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder maximum-depth integrity trigger', typedArgs: [],
@@ -4555,11 +4560,6 @@ const REV10_CONTEXT = {
     'public.media_folders_prevent_cycle()': rev10Function({
       owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
       purpose: 'media-folder cycle prevention trigger', typedArgs: [],
-      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
-    }),
-    'public.sync_registered_app_runtime_setting()': rev10Function({
-      owner: 'app_object_owner', security: 'INVOKER', returns: 'trigger', returnsSet: false, execute: [],
-      purpose: 'registered runtime-setting projection trigger', typedArgs: [],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: [], invocation: 'trigger' as const,
     }),
     'public.system_settings_test_lock_guard()': rev10Function({
@@ -4677,6 +4677,15 @@ const REV10_CONTEXT = {
       purpose: 'config.runtime.public.read', typedArgs: ['text', 'text'], volatility: 'STABLE',
       parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
     }),
+    'app.read_authenticated_runtime_setting(text,text,uuid,boolean)': rev10Function({
+      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      execute: ['app_patient', 'app_staff'], purpose: 'return one registry-classified public/authenticated setting for the accepted organization',
+      typedArgs: ['text', 'text', 'uuid', 'boolean'], volatility: 'STABLE', parallel: 'RESTRICTED',
+      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
+      relationSurfaces: [{ relation: 'public.system_settings',
+        columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT'],
+        evidence: 'pg16-function-body-lexical-upper-bound' }],
+    }),
     'app.read_webapp_server_runtime_setting(text,text)': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_webapp_server_runtime_setting(text,text)'],
       owner: 'app_seam_settings_runtime_owner', execute: ['app_pre_session'],
@@ -4688,8 +4697,8 @@ const REV10_CONTEXT = {
       execute: ['app_staff'], purpose: 'config.clinic-platform-integration-availability.read',
       typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
-      relationSurfaces: [{ relation: 'public.app_runtime_settings',
-        columns: ['key', 'scope', 'organization_id', 'audience', 'value_json'],
+      relationSurfaces: [{ relation: 'public.system_settings',
+        columns: ['key', 'scope', 'organization_id', 'value_json'],
         operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' }],
     }),
     'app.is_smtp_outbound_configured()': rev10Function({
@@ -4840,7 +4849,7 @@ const REV10_CONTEXT = {
       typedArgs: ['uuid', 'uuid', 'text', 'text'], volatility: 'STABLE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.app_runtime_settings', columns: ['key', 'scope', 'audience', 'organization_id',
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id',
           'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_appointments', columns: ['organization_id', 'specialist_id', 'service_id',
           'status', 'start_at', 'end_at', 'deleted_at'],
@@ -4895,7 +4904,7 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.platform_users', columns: [
-          'id', 'display_name', 'role', 'merged_into_id', 'first_name', 'last_name', 'patronymic',
+          'id', 'display_name', 'role', 'is_blocked', 'merged_into_id', 'first_name', 'last_name', 'patronymic',
         ],
           operations: ['SELECT' as const, 'INSERT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -4936,11 +4945,11 @@ const REV10_CONTEXT = {
     // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
     // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
     // возраст в окне одной попытки и отсутствие живого приёма.
-    'app.revoke_public_booking_enrollment(uuid)': rev10Function({
+    'app.revoke_public_booking_enrollment(uuid,text)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'],
       purpose: 'undo a public-booking client relationship whose booking failed',
-      typedArgs: ['uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
@@ -5441,8 +5450,8 @@ const REV10_CONTEXT = {
         { relation: 'public.org_enrollments',
           columns: ['organization_id', 'platform_user_id', 'status'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.app_runtime_settings',
-          columns: ['key', 'scope', 'organization_id', 'audience', 'value_json'], operations: ['SELECT' as const],
+        { relation: 'public.system_settings',
+          columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -5485,8 +5494,8 @@ const REV10_CONTEXT = {
         { relation: 'public.be_availability_rules',
           columns: ['organization_id', 'specialist_id', 'rule_type', 'config', 'is_active', 'updated_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.app_runtime_settings',
-          columns: ['key', 'scope', 'organization_id', 'audience', 'value_json'], operations: ['SELECT' as const],
+        { relation: 'public.system_settings',
+          columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
@@ -5997,8 +6006,8 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.app_runtime_settings', columns: [
-          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        { relation: 'public.system_settings', columns: [
+          'key', 'scope', 'organization_id', 'value_json',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.content_pages', columns: [
           'id', 'organization_id', 'slug', 'is_published', 'archived_at', 'deleted_at',
@@ -6105,8 +6114,8 @@ const REV10_CONTEXT = {
       execute: ['app_patient'], purpose: 'record rating feedback for one visible current-clinic page as current patient',
       typedArgs: ['uuid', 'integer', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
-        { relation: 'public.app_runtime_settings', columns: [
-          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        { relation: 'public.system_settings', columns: [
+          'key', 'scope', 'organization_id', 'value_json',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -6189,7 +6198,7 @@ const REV10_CONTEXT = {
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.platform_users', columns: ['id', 'calendar_timezone'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.app_runtime_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
+        { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.treatment_program_instances', columns: ['id', 'organization_id', 'patient_user_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
@@ -6218,8 +6227,8 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.app_runtime_settings', columns: [
-          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        { relation: 'public.system_settings', columns: [
+          'key', 'scope', 'organization_id', 'value_json',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_notification_topics', columns: [
           'user_id', 'topic_code', 'is_enabled', 'updated_at',
@@ -6234,8 +6243,8 @@ const REV10_CONTEXT = {
       relationSurfaces: [
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.app_runtime_settings', columns: [
-          'key', 'scope', 'audience', 'organization_id', 'value_json',
+        { relation: 'public.system_settings', columns: [
+          'key', 'scope', 'organization_id', 'value_json',
         ], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_notification_topic_channels', columns: [
           'user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at',
@@ -6975,7 +6984,7 @@ const REV10_CONTEXT = {
           columns: ['platform_user_id', 'contact_kind', 'value_normalized', 'is_primary', 'confirmed_at', 'source_origin', 'created_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users',
-          columns: ['id', 'role', 'session_epoch', 'is_archived', 'merged_into_id'],
+          columns: ['id', 'role', 'session_epoch', 'is_archived', 'is_blocked', 'merged_into_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_identity',
           columns: ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'],
@@ -6992,7 +7001,8 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
       relationSurfaces: [
         { relation: 'public.platform_users',
-          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic', 'merged_into_id', 'updated_at'],
+          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic',
+            'session_epoch', 'is_archived', 'is_blocked', 'merged_into_id', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts',
@@ -7021,7 +7031,8 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.platform_users',
-          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic', 'merged_into_id', 'updated_at'],
+          columns: ['id', 'display_name', 'role', 'first_name', 'last_name', 'patronymic',
+            'session_epoch', 'is_archived', 'is_blocked', 'merged_into_id', 'updated_at'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts',
@@ -7425,27 +7436,6 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     ],
     grants: [{ role: 'app_patient', operations: ['SELECT'],
       columns: ['platform_user_id', 'display_name', 'first_name', 'last_name', 'patronymic'] }],
-  },
-  'public.app_runtime_settings': {
-    kind: 'direct',
-    purpose: 'patients read safe global/current-clinic runtime values; clinic staff manages current-clinic rows; platform settings manages global rows',
-    codePaths: [
-      'apps/webapp/src/infra/repos/pgAppRuntimeSettings.ts',
-      'apps/webapp/src/modules/system-settings/service.ts',
-    ],
-    grants: [
-      { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_staff', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_staff', operations: ['INSERT'],
-        columns: ['key', 'scope', 'organization_id', 'audience', 'value_json', 'updated_at', 'updated_by'] },
-      { role: 'app_staff', operations: ['UPDATE'],
-        columns: ['audience', 'value_json', 'updated_at', 'updated_by'] },
-      { role: 'app_platform_settings', operations: ['SELECT'], columns: 'table' },
-      { role: 'app_platform_settings', operations: ['INSERT'],
-        columns: ['key', 'scope', 'organization_id', 'audience', 'value_json', 'updated_at', 'updated_by'] },
-      { role: 'app_platform_settings', operations: ['UPDATE'],
-        columns: ['audience', 'value_json', 'updated_at', 'updated_by'] },
-    ],
   },
   'public.platform_users': {
     kind: 'direct',
@@ -8363,23 +8353,15 @@ function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
   ];
 }
 
-function revision10AppRuntimeSettingsPolicies(index: number): PolicyDecl[] {
-  const readWall = "(CASE WHEN current_user = 'app_patient'::name THEN audience IN ('public','authenticated_client') AND CASE WHEN organization_id IS NULL THEN true ELSE organization_id = (SELECT app.current_org_id()) END WHEN current_user = 'app_staff'::name THEN CASE WHEN organization_id IS NULL THEN true ELSE organization_id = (SELECT app.current_org_id()) END WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
-  const writeWall = "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
-  return [
-    { name: `rev10_app_runtime_settings_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
-      to: ['app_patient', 'app_staff', 'app_platform_settings'], using: readWall,
-      note: 'safe runtime values follow patient audience and clinic/global row ownership' },
-    { name: `rev10_app_runtime_settings_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
-      to: ['app_staff', 'app_platform_settings'], withCheck: writeWall,
-      note: 'clinic staff writes current-clinic rows; platform settings writes global rows' },
-    { name: `rev10_app_runtime_settings_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
-      to: ['app_staff', 'app_platform_settings'], using: writeWall, withCheck: writeWall,
-      note: 'runtime settings cannot cross the clinic/global ownership boundary' },
-  ];
-}
-
 function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
+  const staffClinicPerson = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
+    + ' WHERE access_member.platform_user_id = platform_users.id'
+    + ' AND access_member.organization_id = (SELECT app.current_org_id())'
+    + " AND access_member.status = 'active'))"
+    + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
+    + ' WHERE access_patient.platform_user_id = platform_users.id'
+    + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
+    + " AND access_patient.status IN ('invited', 'active', 'archived'))))";
   return [
     // D15b/7a Ш6 (22.08): корень учётки — АКТОРСКАЯ вещь, и гейтится акторской ссылкой. До Ш4 обе
     // ссылки резолвились в один физический id, поэтому субъектный аксессор тут «работал»; после
@@ -8389,15 +8371,13 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       note: 'identity-self may read only its own explicitly granted profile columns' },
     { name: `rev10_platform_users_staff_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff'],
-      using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
-        + ' WHERE access_member.platform_user_id = platform_users.id'
-        + ' AND access_member.organization_id = (SELECT app.current_org_id())'
-        + " AND access_member.status = 'active'))"
-        + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
-        + ' WHERE access_patient.platform_user_id = platform_users.id'
-        + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
-        + " AND access_patient.status IN ('invited', 'active'))))",
-      note: 'staff may read explicitly granted profile columns of current-clinic members and enrolled patients' },
+      using: staffClinicPerson,
+      note: 'staff may read explicitly granted profile columns of current-clinic members and active or archived patients' },
+    { name: `rev10_platform_users_staff_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
+      to: ['app_staff'],
+      withCheck: "(current_user = 'app_staff'::name AND role = 'client' AND merged_into_id IS NULL"
+        + ' AND is_archived = false AND is_blocked = false)',
+      note: 'staff may create only a fresh patient account before enrolling it in the accepted clinic transaction' },
     { name: `rev10_platform_users_platform_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_platform_settings'], using: "(current_user = 'app_platform_settings'::name)",
       note: 'platform administration may read explicitly granted non-clinical directory columns' },
@@ -8405,6 +8385,10 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       to: ['app_patient', 'app_staff', 'app_platform_settings'], using: '(id = app.current_actor_user_id())',
       withCheck: '(id = app.current_actor_user_id())',
       note: 'identity-self, staff and platform administration may update only their own account timezone' },
+    { name: `rev10_platform_users_staff_patient_block_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
+      to: ['app_staff'], using: `(${staffClinicPerson} AND role = 'client')`,
+      withCheck: `(${staffClinicPerson} AND role = 'client')`,
+      note: 'staff may globally block or unblock a patient related to the accepted clinic; column grants constrain the mutation' },
   ];
 }
 
@@ -8459,6 +8443,10 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
     + ` WHERE access_patient.platform_user_id = ${relationName}.${userColumn}`
     + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
     + " AND access_patient.status IN ('invited', 'active'))))";
+  const archivedStaffReadWall = '(EXISTS (SELECT 1 FROM public.org_enrollments archived_patient'
+    + ` WHERE archived_patient.platform_user_id = ${relationName}.${userColumn}`
+    + ' AND archived_patient.organization_id = (SELECT app.current_org_id())'
+    + " AND archived_patient.status = 'archived'))";
   return [
     { name: `rev10_patient_self_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_patient'], using: patientWall, withCheck: patientWall,
@@ -8466,6 +8454,9 @@ function revision10PatientSelfManagedPolicies(tableKey: string, index: number): 
     { name: `rev10_staff_member_managed_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL',
       to: ['app_staff'], using: staffWall, withCheck: staffWall,
       note: `staff manages ${tableKey} only for current-clinic members and enrolled patients` },
+    { name: `rev10_staff_archived_patient_read_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
+      to: ['app_staff'], using: archivedStaffReadWall,
+      note: `staff may read ${tableKey} for an archived current-clinic patient without reopening writes` },
   ];
 }
 
@@ -8534,8 +8525,6 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const runtimeBusinessBaseRaw: PolicyDecl[] = !active ? []
       : key === 'public.system_settings' && access?.kind === 'direct'
         ? revision10SystemSettingsPolicies(index)
-      : key === 'public.app_runtime_settings' && access?.kind === 'direct'
-        ? revision10AppRuntimeSettingsPolicies(index)
       : key === 'public.platform_users' && access?.kind === 'direct'
         ? revision10PlatformUsersPolicies(index)
       : key === 'public.admin_audit_log' && access?.kind === 'direct'

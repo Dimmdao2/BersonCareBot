@@ -48,10 +48,10 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
       aria-labelledby="doctor-block-heading"
     >
       <h2 id="doctor-block-heading" className={doctorClientSectionTitleClass}>
-        Блокировка чата поддержки
+        Блокировка учётной записи
       </h2>
       <p className="text-muted-foreground text-sm">
-        При блокировке пациент не сможет отправлять сообщения в чат поддержки из приложения.
+        Пациент не сможет войти в приложение и записаться на приём.
       </p>
       {blocked ? (
         <p className="text-sm">
@@ -92,7 +92,7 @@ export function SubscriberBlockPanel({ userId, initiallyBlocked, blockedReason }
             disabled={pending}
             onClick={() => void setBlock(true)}
           >
-            Заблокировать отправку сообщений
+            Заблокировать учётную запись
           </Button>
         </div>
       )}

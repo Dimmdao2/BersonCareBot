@@ -65,14 +65,6 @@ export async function POST(request: Request) {
             durationMinutes: parsed.data.durationMinutes,
           });
         }
-        if (parsed.data.platformUserId) {
-          const isSchedulableClient =
-            await deps.patientOrganization?.hasSchedulableClientRelationship(
-              parsed.data.platformUserId,
-              ctx.organizationId,
-            );
-          if (!isSchedulableClient) throw new Error('patient_not_available');
-        }
         let created = await ctx.service.createAppointment({
           organizationId: ctx.organizationId,
           branchId: parsed.data.branchId,

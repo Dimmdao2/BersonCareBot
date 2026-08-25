@@ -128,6 +128,7 @@ export async function createVerifiedPublicBooking(
     // `slot_overlap`, zero appointments, and stayed an `active` client of the clinic, occupying a
     // paid place and holding a portal the clinic never opened.
     if (enrolment.effect !== 'unchanged') {
+      const enrollmentEffect = enrolment.effect;
       try {
         const undone = await withPatientOrganizationPrincipal(
           {
@@ -135,7 +136,7 @@ export async function createVerifiedPublicBooking(
             platformUserId,
             source: 'api/booking/public/create/confirm:POST',
           },
-          () => revokePublicBookingEnrollment(intent.organizationId),
+          () => revokePublicBookingEnrollment(intent.organizationId, enrollmentEffect),
         );
         if (undone === 'kept') {
           logger.warn(

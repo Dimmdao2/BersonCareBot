@@ -217,7 +217,6 @@ SELECT format(
 ) \gexec
 
 GRANT SELECT ON TABLE
-  public.app_runtime_settings,
   public.system_settings,
   public.media_files,
   public.media_transcode_jobs,

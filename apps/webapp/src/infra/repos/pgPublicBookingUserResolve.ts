@@ -55,7 +55,7 @@ export type PublicBookingConfirmationChannel =
 export type PublicBookingEnrollment = {
   status: 'invited' | 'active';
   /** What the door did, so a failed booking can undo exactly that and nothing else. */
-  effect: 'created' | 'activated' | 'unchanged';
+  effect: 'created' | 'activated' | 'reactivated' | 'unchanged';
 };
 
 /**
@@ -99,7 +99,10 @@ export async function enrollCurrentPatientInPublicBookingClinic(
   const effect = payload?.effect;
   if (
     (status !== 'active' && status !== 'invited') ||
-    (effect !== 'created' && effect !== 'activated' && effect !== 'unchanged')
+    (effect !== 'created' &&
+      effect !== 'activated' &&
+      effect !== 'reactivated' &&
+      effect !== 'unchanged')
   ) {
     throw new Error('booking_blocked');
   }
@@ -121,12 +124,16 @@ export async function enrollCurrentPatientInPublicBookingClinic(
  */
 export async function revokePublicBookingEnrollment(
   organizationId: string,
+  enrollmentEffect: Exclude<PublicBookingEnrollment['effect'], 'unchanged'>,
 ): Promise<'deleted' | 'reverted' | 'kept' | 'absent'> {
   const result = await runWebappNamedRoot<{ outcome: unknown }>(
     getWebappSqlDb(),
-    'app.revoke_public_booking_enrollment(uuid)',
-    [organizationId],
-    sql`SELECT app.revoke_public_booking_enrollment(${organizationId}::uuid) AS outcome`,
+    'app.revoke_public_booking_enrollment(uuid,text)',
+    [organizationId, enrollmentEffect],
+    sql`SELECT app.revoke_public_booking_enrollment(
+      ${organizationId}::uuid,
+      ${enrollmentEffect}::text
+    ) AS outcome`,
   );
   const effect = (result.rows[0]?.outcome as { effect?: unknown } | null | undefined)?.effect;
   return effect === 'deleted' || effect === 'reverted' || effect === 'absent' ? effect : 'kept';

@@ -4,54 +4,27 @@ import {
   type AnonymousPatientBrand,
 } from '@/modules/org-branding/service';
 import { validateOrganizationSlugCandidate } from '@/modules/clinic-directory/organizationSlug';
+import {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  SURFACE_AUTH_METHODS,
+  type SurfaceAuthMethod,
+  type SurfaceAuthPolicy,
+  type SurfaceAuthPolicyConfig,
+  type SurfaceAuthPolicyName,
+} from '@/shared/lib/surface/surfaceAuthPolicy';
+
+export {
+  DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
+  SURFACE_AUTH_METHODS,
+  type SurfaceAuthMethod,
+  type SurfaceAuthPolicy,
+  type SurfaceAuthPolicyConfig,
+  type SurfaceAuthPolicyName,
+} from '@/shared/lib/surface/surfaceAuthPolicy';
 
 export const RESOLVED_SURFACE_HEADER = 'x-bc-resolved-surface';
 
 export type RequestSurface = 'staff' | 'platform_admin' | 'patient_default' | 'patient_branded';
-
-export const SURFACE_AUTH_METHODS = [
-  'password',
-  'email_code',
-  'phone_bot',
-  'totp',
-  'oauth',
-  'passkey',
-] as const;
-
-export type SurfaceAuthMethod = (typeof SURFACE_AUTH_METHODS)[number];
-export type SurfaceAuthPolicyName = 'staff' | 'platform_admin' | 'patient';
-
-/**
- * `availableMethods` answers which implemented mechanics belong to the surface. `enabledMethods`
- * is the independently configurable subset that is active there. Provider/channel readiness is
- * still resolved by the existing auth capability ports; it is not a second surface decision.
- */
-export type SurfaceAuthPolicy = Readonly<{
-  availableMethods: readonly SurfaceAuthMethod[];
-  enabledMethods: readonly SurfaceAuthMethod[];
-}>;
-
-export type SurfaceAuthPolicyConfig = Readonly<Record<SurfaceAuthPolicyName, SurfaceAuthPolicy>>;
-
-/**
- * The only surface -> auth-method matrix (TPB-16). The persisted per-surface setting cells decide
- * the effective provider/channel availability; this matrix is their fail-closed fresh-install
- * default. F2-F5 intentionally keep the mechanics available while changing those defaults.
- */
-export const DEFAULT_SURFACE_AUTH_POLICY_CONFIG = {
-  staff: {
-    availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp'],
-  },
-  platform_admin: {
-    availableMethods: SURFACE_AUTH_METHODS,
-    enabledMethods: ['password', 'email_code', 'totp', 'passkey'],
-  },
-  patient: {
-    availableMethods: ['email_code', 'phone_bot', 'oauth', 'passkey'],
-    enabledMethods: ['email_code', 'phone_bot', 'oauth'],
-  },
-} as const satisfies SurfaceAuthPolicyConfig;
 
 export type EffectivePatientBrand = AnonymousPatientBrand;
 
@@ -163,6 +136,26 @@ function platformAdminHost(staffOrigin: URL): string {
   return `admin.${staffOrigin.hostname}${staffOrigin.port ? `:${staffOrigin.port}` : ''}`;
 }
 
+function requestPlatformHost(requestOrigin: URL, staffOrigin: URL): string {
+  const requestHostname = requestOrigin.hostname.toLowerCase();
+  const staffHostname = staffOrigin.hostname.toLowerCase();
+  const isLoopbackStaffHost = staffHostname === '127.0.0.1' || staffHostname === 'localhost';
+
+  // SSH local forwarding changes only the TCP destination. A browser opened at
+  // http://127.0.0.1:15200 still sends Host: 127.0.0.1:15200 to the DEV process listening on
+  // 127.0.0.1:5200. Treat a different port on the same configured loopback hostname as that same
+  // DEV staff surface; non-loopback deploy hosts remain exact, fail-closed matches.
+  if (
+    requestOrigin.protocol === 'http:' &&
+    isLoopbackStaffHost &&
+    requestHostname === staffHostname
+  ) {
+    return staffOrigin.host.toLowerCase();
+  }
+
+  return requestOrigin.host.toLowerCase();
+}
+
 /** Strip every management/internal field before a brand can enter the request header. */
 function sanitizeEffectivePatientBrand(value: unknown): EffectivePatientBrand | null {
   if (!value || typeof value !== 'object') return null;
@@ -212,7 +205,7 @@ export const resolveRequestSurface: RequestSurfaceResolver = async ({
   const platformOrigins = configuredPlatformOrigins();
   if (!requestOrigin || !platformOrigins) return null;
 
-  const requestHost = requestOrigin.host.toLowerCase();
+  const requestHost = requestPlatformHost(requestOrigin, platformOrigins.staff);
   const staffHost = platformOrigins.staff.host.toLowerCase();
   const patientHost = platformOrigins.patient.host.toLowerCase();
   const adminHost = platformAdminHost(platformOrigins.staff).toLowerCase();

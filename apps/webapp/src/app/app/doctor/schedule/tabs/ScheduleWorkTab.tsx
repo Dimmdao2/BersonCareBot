@@ -546,12 +546,12 @@ function DayCell({
           </div>
         )}
       {branchShortLabel && hasSchedule && (
-        <div className="mt-0.5 text-[9px] text-muted-foreground leading-none truncate">
+        <div className="mt-0.5 text-[10px] text-muted-foreground leading-none truncate">
           {branchShortLabel}
         </div>
       )}
       {hasSchedule && breaks.length > 0 && (
-        <div className="mt-0.5 text-[9px] text-muted-foreground leading-none truncate">
+        <div className="mt-0.5 text-[10px] text-muted-foreground leading-none truncate">
           {formatBreakSummary(breaks)}
         </div>
       )}
@@ -1413,7 +1413,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                       <span>{d}</span>
                       {templateSummaries.length > 0 ? (
                         <span
-                          className="max-w-full truncate text-[9px] font-normal leading-none text-muted-foreground"
+                          className="max-w-full truncate text-[10px] font-normal leading-none text-muted-foreground"
                           data-testid={`weekday-template-summary-${wd}`}
                         >
                           {templateSummaries.join('; ')}

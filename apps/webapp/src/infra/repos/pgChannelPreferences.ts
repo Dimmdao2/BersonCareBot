@@ -229,14 +229,20 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
   },
 
   async getDefaultAuthOtpChannel(userId) {
-    // Both the active phone provenance and the historical earliest-linked fallback are needed
-    // before a human session exists. Keep that relation-backed decision inside one exact
-    // pre-session door instead of granting the bootstrap principal an unnamed relation capability.
+    // The same provenance-first decision is needed both before login and on the signed-in profile.
+    // Each caller uses its own exact door; neither principal gets unnamed relation access.
+    const patientCall = getCurrentDbPrincipal()?.kind === 'patient';
+    const identity = patientCall
+      ? 'app.get_current_patient_default_auth_otp_channel()'
+      : 'app.pre_session_get_default_auth_otp_channel(uuid)';
+    const args = patientCall ? [] : [userId];
     const result = await runWebappNamedRoot<{ channel_code: string | null }>(
       getWebappSqlDb(),
-      'app.pre_session_get_default_auth_otp_channel(uuid)',
-      [userId],
-      sql`SELECT app.pre_session_get_default_auth_otp_channel(${userId}::uuid) AS channel_code`,
+      identity,
+      args,
+      patientCall
+        ? sql`SELECT app.get_current_patient_default_auth_otp_channel() AS channel_code`
+        : sql`SELECT app.pre_session_get_default_auth_otp_channel(${userId}::uuid) AS channel_code`,
     );
     const code = result.rows[0]?.channel_code;
     return code === 'telegram' || code === 'max' || code === 'email' ? code : null;

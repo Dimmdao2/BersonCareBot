@@ -92,8 +92,6 @@ CREATE TEMP TABLE phase4_force_rls_targets (
 INSERT INTO phase4_force_rls_targets (target)
 VALUES
   ('"public"."admin_audit_log"'),
-  ('"public"."app_runtime_settings"'),
-  ('"public"."app_runtime_settings_audit"'),
   ('"public"."be_appointment_cancellations"'),
   ('"public"."be_appointment_history_events"'),
   ('"public"."be_appointment_no_shows"'),

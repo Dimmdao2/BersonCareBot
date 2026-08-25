@@ -7,8 +7,9 @@ import test from 'node:test';
 
 const lib = resolve(import.meta.dirname, 'saas-isolation-coverage-gate-lib.sh');
 
-// The gate's only real effect is the command it hands to the deploy user, so the fixture replaces
-// `sudo` with a recorder: every assertion below reads the command line the deploy would have run.
+// The gate's only real effect is the privileged command it hands to the runtime identity, so the
+// fixture replaces `sudo` with a recorder: every assertion below reads the command line the deploy
+// would have run.
 function fixture(sudoExit = 0) {
   const root = mkdtempSync(resolve(tmpdir(), 'bcb-isolation-coverage-gate-'));
   const bin = resolve(root, 'bin');
@@ -46,7 +47,9 @@ test('the gate produces coverage for the marked window with the caller-stated ch
   );
   assert.equal(result.status, 0, result.stderr);
   const call = readFileSync(entry.log, 'utf8').trim();
-  assert.match(call, /diagnostics:saas-isolation -- post-runtime-gate/);
+  assert.match(call, /sudo -E -u bcb-web-test node_modules\/.bin\/tsx/);
+  assert.match(call, /report-saas-isolation-diagnostics\.ts post-runtime-gate/);
+  assert.doesNotMatch(call, /-u deploy/);
   assert.match(call, /--checks 9/);
   const startedAt = /--started-at '([^']+)'/.exec(call);
   assert.ok(startedAt, `no --started-at in: ${call}`);

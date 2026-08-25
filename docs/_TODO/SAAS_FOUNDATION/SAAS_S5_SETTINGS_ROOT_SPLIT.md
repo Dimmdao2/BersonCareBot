@@ -4,6 +4,13 @@
 
 # SaaS S5 — разделение restricted settings и runtime config
 
+> **ЗАМЕНЕНО 24.08.2026:** storage split и все незавершённые dual-read/dual-write этапы этого исторического плана
+> отменены действующим owner-контрактом `AGENTS.md` §4. Единственный data-root —
+> `public.system_settings`, единственный audit — `public.system_settings_audit`; audience обеспечивают typed
+> registry и общие SECURITY DEFINER resolvers. Отдельный runtime store и compatibility mirror удаляются
+> forward-only миграцией `20260824T120000_make_system_settings_single_root.sql`. Оставшийся ниже текст фиксирует
+> прежний замысел и не является authority для исполнения.
+
 Статус: **частично реализован.** На 2026-07-19 S5-0 (reality lock), S5-1 (additive runtime/audit contract) и S5-2 (RLS/grants/config-reader contract) завершены. S5-3 находится в executor/audit-gate: write chokepoint и dual-read/dual-write compatibility реализуются до независимого аудита. S5-4—S5-6 не начаты; S5-7 остаётся TEST/owner/ops-gated. S5 не complete.
 
 > **Boundary:** это storage/runtime settings split, не план нового settings UI. Единый settings hub, ownership

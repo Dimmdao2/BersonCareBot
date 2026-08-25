@@ -196,8 +196,7 @@ async function applyMessengerContactPreOtpImpl(
     }
     return { ok: false, code: 'invalid_phone' };
   }
-  // D2 (2026-07-26): an archived identity has no session — see `loadSessionIdentityUser`.
-  if (payload.is_archived) {
+  if (payload.is_archived || payload.is_blocked) {
     return { ok: false, code: 'account_archived' };
   }
   return { ok: true, accountCreated: payload.was_created };

@@ -1,9 +1,9 @@
 import {
   DEFAULT_SURFACE_AUTH_POLICY_CONFIG,
-  type RequestSurface,
   type SurfaceAuthMethod,
   type SurfaceAuthPolicyName,
-} from '@/shared/lib/surface/requestSurface';
+} from '@/shared/lib/surface/surfaceAuthPolicy';
+import type { RequestSurface } from '@/shared/lib/surface/requestSurface';
 
 export const SURFACE_AUTH_POLICY_NAMES = ['staff', 'platform_admin', 'patient'] as const;
 

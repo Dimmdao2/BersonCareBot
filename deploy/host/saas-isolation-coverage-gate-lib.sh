@@ -43,14 +43,20 @@ run_e1_post_runtime_coverage_gate(){
   # wall enforcement — FORCE-RLS is asserted separately by the caller and stays hard. On TEST a single
   # benign transient must NOT fail-closed and take down the demo env; warn loudly and continue. Prod
   # deploy scripts never source this library, so prod strictness is unaffected.
-  if sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && set -a && . '$WEBAPP_ENV' && set +a && \
-    pnpm --dir apps/webapp run diagnostics:saas-isolation -- post-runtime-gate \
+  # The reporter opens the same three mTLS pools as the TEST webapp. Their private keys are owned by
+  # bcb-web-test and deliberately unreadable to deploy, so load the protected env as root and execute
+  # the TypeScript entrypoint under the actual webapp runtime identity. Calling tsx directly also
+  # avoids making the nologin service account initialise a Corepack cache in its absent home dir.
+  if sudo bash -lc "set -a && . '$WEBAPP_ENV' && set +a && \
+    cd '$DEPLOY_REPO/apps/webapp' && \
+    exec sudo -E -u bcb-web-test node_modules/.bin/tsx \
+      scripts/report-saas-isolation-diagnostics.ts post-runtime-gate \
       --started-at '$E1_RUNTIME_COVERAGE_STARTED_AT' --checks $checks"; then
     echo "   E1 post-runtime coverage/read gate: OK"
   else
     echo "   ⚠️  WARN [TEST]: E1 isolation post-runtime gate did NOT pass — TEST deploy CONTINUES (env stays up)." >&2
     echo "   ⚠️  FORCE-RLS wall assertion stays hard; this gate is diagnostic-only on TEST." >&2
-    echo "   ⚠️  Triage:  (as deploy, webapp.test env)  pnpm --dir apps/webapp run diagnostics:saas-isolation -- read" >&2
+    echo "   ⚠️  Triage: run the reporter as bcb-web-test with the protected webapp.test env loaded by root." >&2
     echo "   ⚠️  Resolve once triaged benign:  ... diagnostics:saas-isolation -- coverage --id <uuid> --status complete --started-at <after last_seen> --finished-at <now> --services cron,integrator,media_worker,scheduler,webapp,worker --checks $checks --unexpected 0" >&2
   fi
 }

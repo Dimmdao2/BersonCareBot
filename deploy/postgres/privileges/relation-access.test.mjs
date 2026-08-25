@@ -423,6 +423,19 @@ test('tenant identity grant is operation- and column-specific', () => {
   assertNoOperation('public.platform_users', 'app_tenant_service', 'DELETE');
 });
 
+test('platform settings can persist only the platform user calendar timezone', () => {
+  exactColumns('public.platform_users', 'app_platform_settings', 'SELECT', [
+    'id',
+    'calendar_timezone',
+  ]);
+  exactColumns('public.platform_users', 'app_platform_settings', 'UPDATE', [
+    'calendar_timezone',
+    'updated_at',
+  ]);
+  assertNoOperation('public.platform_users', 'app_platform_settings', 'INSERT');
+  assertNoOperation('public.platform_users', 'app_platform_settings', 'DELETE');
+});
+
 test('patient demographics inherit the clinical profile column wall', () => {
   exactRepeatedColumns('public.doctor_patient_support', 'app_staff', 'INSERT', [
     'birth_date',
@@ -552,6 +565,40 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
 
 test('schedule grants cover the default columns emitted by Drizzle inserts', () => {
   const expected = {
+    'public.be_appointment_cancellations': [
+      'actor_id', 'actor_type', 'applied_policy_id', 'applied_policy_snapshot',
+      'appointment_id', 'cancellation_type', 'created_at', 'id', 'manual_override',
+      'notifications_sent', 'organization_id', 'package_session_charged',
+      'prepayment_refunded', 'prepayment_retained', 'reason', 'staff_comment', 'was_free',
+      'was_penalized',
+    ],
+    'public.be_appointment_history_events': [
+      'actor_id', 'appointment_id', 'created_at', 'event_type', 'id', 'occurred_at',
+      'organization_id', 'payload',
+    ],
+    'public.be_appointment_no_shows': [
+      'actor_id', 'actor_type', 'appointment_id', 'created_at', 'id', 'manual_override',
+      'notifications_sent', 'organization_id', 'reason', 'staff_comment',
+    ],
+    'public.be_appointment_reschedules': [
+      'actor_id', 'actor_type', 'applied_policy_id', 'applied_policy_snapshot',
+      'appointment_id', 'created_at', 'free_cancellation_available_after',
+      'free_cancellation_available_at_reschedule', 'from_end_at', 'from_start_at', 'id',
+      'manual_override', 'notifications_sent', 'organization_id', 'reason', 'staff_comment',
+      'to_end_at', 'to_start_at', 'was_in_free_reschedule_window',
+    ],
+    'public.be_appointments': [
+      'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
+      'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
+      'chain_position', 'created_at', 'deleted_at', 'duration_minutes', 'end_at', 'id',
+      'organization_id', 'original_start_at', 'package_usage_ref', 'payment_ref',
+      'phone_normalized', 'platform_user_id', 'reschedule_count', 'room_id', 'service_id',
+      'source', 'specialist_id', 'start_at', 'status', 'updated_at',
+    ],
+    'public.be_patient_timeline_events': [
+      'created_at', 'domain', 'event_type', 'id', 'linked_object_id', 'linked_object_type',
+      'occurred_at', 'organization_id', 'payload', 'platform_user_id',
+    ],
     'public.be_schedule_blocks': [
       'block_type', 'branch_id', 'created_at', 'created_by_actor_id', 'end_at', 'id',
       'organization_id', 'room_id', 'specialist_id', 'start_at', 'title',
@@ -572,6 +619,118 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
   for (const [relation, columns] of Object.entries(expected)) {
     exactColumns(relation, 'app_staff', 'INSERT', columns);
   }
+});
+
+test('doctor CRUD grants cover every column emitted by the production Drizzle inserts', () => {
+  const expected = {
+    'public.clinical_anamnesis_illness': [
+      'comment', 'created_at', 'created_by', 'id', 'organization_id', 'patient_user_id', 'period',
+      'what',
+    ],
+    'public.clinical_anamnesis_lifestyle': [
+      'created_at', 'created_by', 'id', 'organization_id', 'patient_user_id', 'record_date', 'text',
+    ],
+    'public.clinical_anamnesis_trauma': [
+      'created_at', 'created_by', 'id', 'immobilization', 'organization_id', 'patient_user_id',
+      'type', 'what', 'year',
+    ],
+    'public.clinical_complaint': [
+      'created_at', 'description', 'id', 'organization_id', 'patient_user_id', 'priority',
+      'resolved_at', 'source_visit_id', 'status', 'text',
+    ],
+    'public.clinical_complaint_update': [
+      'complaint_id', 'created_at', 'id', 'note', 'organization_id', 'resolved', 'severity',
+      'visit_id',
+    ],
+    'public.clinical_diagnosis': [
+      'catalog_id', 'clinical_status', 'comment', 'created_at', 'id', 'organization_id',
+      'patient_user_id', 'priority', 'resolved_at', 'source_visit_id', 'status', 'text',
+    ],
+    'public.clinical_diagnosis_catalog': [
+      'created_at', 'created_by', 'id', 'label', 'note', 'organization_id',
+    ],
+    'public.clinical_diagnosis_status_history': [
+      'changed_at', 'changed_by', 'diagnosis_id', 'id', 'new_status', 'note', 'old_status',
+      'organization_id',
+    ],
+    'public.clinical_diagnosis_update': [
+      'created_at', 'diagnosis_id', 'id', 'organization_id', 'refinement', 'removed', 'status',
+      'visit_id',
+    ],
+    'public.clinical_visit': [
+      'anamnesis_text', 'canonical_appointment_id', 'created_at', 'created_by', 'duration', 'exam',
+      'id', 'location', 'manipulations', 'organization_id', 'patient_user_id', 'recommendations',
+      'service', 'trial_results', 'visit_type', 'visited_at',
+    ],
+    'public.manual_patient_commands': [
+      'command_id', 'command_kind', 'created_at', 'organization_id', 'platform_user_id',
+      'request_fingerprint',
+    ],
+    'public.media_upload_sessions': [
+      'aborted_at', 'completed_at', 'created_at', 'expected_size_bytes', 'expires_at', 'id',
+      'last_error', 'media_id', 'mime_type', 'organization_id', 'owner_user_id', 'part_size_bytes',
+      's3_key', 'status', 'updated_at', 'upload_id',
+    ],
+    'public.org_enrollments': [
+      'created_at', 'id', 'organization_id', 'platform_user_id', 'portal_activated_at',
+      'portal_activated_via', 'status',
+    ],
+    'public.patient_specialist_links': [
+      'created_at', 'created_via', 'ended_at', 'ended_reason', 'id', 'organization_id',
+      'patient_user_id', 'source_link_id', 'specialist_id', 'status',
+    ],
+    'public.platform_users': [
+      'blocked_at', 'blocked_by', 'blocked_reason', 'calendar_timezone', 'created_at', 'display_name',
+      'first_name', 'id', 'integrator_user_id', 'is_archived', 'is_blocked', 'last_name',
+      'merged_at', 'merged_into_id', 'patronymic', 'reminder_muted_until', 'role', 'session_epoch',
+      'updated_at',
+    ],
+    'public.test_sets': [
+      'created_at', 'created_by', 'description', 'id', 'is_archived', 'organization_id',
+      'publication_status', 'title', 'updated_at',
+    ],
+    'public.treatment_program_template_stages': [
+      'description', 'expected_duration_days', 'expected_duration_text', 'goals', 'id', 'objectives',
+      'organization_id', 'sort_order', 'template_id', 'title',
+    ],
+    'public.treatment_program_templates': [
+      'created_at', 'created_by', 'description', 'id', 'organization_id', 'status', 'title',
+      'updated_at',
+    ],
+    'public.user_phone_history': [
+      'confirming_channel', 'id', 'organization_id', 'phone_normalized', 'platform_user_id',
+      'source', 'valid_from', 'valid_to',
+    ],
+  };
+  for (const [relation, columns] of Object.entries(expected)) {
+    exactColumns(relation, 'app_staff', 'INSERT', columns);
+  }
+  exactRepeatedColumns('public.tests', 'app_staff', 'INSERT', [
+    'assessment_kind', 'body_region_id', 'created_at', 'created_by', 'description', 'id',
+    'is_archived', 'media', 'organization_id', 'raw_text', 'scoring', 'tags', 'test_type', 'title',
+    'updated_at',
+  ]);
+  exactColumns('public.lfk_exercises', 'app_staff', 'UPDATE', [
+    'contraindications', 'created_by', 'description', 'difficulty_1_10', 'is_archived', 'load_type',
+    'region_ref_id', 'tags', 'title', 'updated_at',
+  ]);
+  exactColumns('public.media_upload_sessions', 'app_staff', 'UPDATE', [
+    'aborted_at', 'completed_at', 'last_error', 'status', 'updated_at',
+  ]);
+  exactColumns('public.user_identity', 'app_staff', 'INSERT', [
+    'display_name', 'first_name', 'last_name', 'patronymic', 'platform_user_id', 'updated_at',
+  ]);
+  exactColumns('public.user_identity', 'app_staff', 'UPDATE', [
+    'display_name', 'first_name', 'last_name', 'patronymic', 'updated_at',
+  ]);
+  exactColumns('public.user_contacts', 'app_staff', 'INSERT', [
+    'confirmed_at', 'contact_kind', 'is_primary', 'platform_user_id', 'source_origin', 'updated_at',
+    'value_normalized',
+  ]);
+  exactColumns('public.user_contacts', 'app_staff', 'UPDATE', [
+    'confirmed_at', 'is_primary', 'platform_user_id', 'source_origin', 'updated_at',
+  ]);
+  exactColumns('public.org_enrollments', 'app_staff', 'UPDATE', ['status']);
 });
 
 test('clinic-owner mutation grants include every default column emitted by Drizzle inserts', () => {
@@ -850,39 +1009,17 @@ test('system settings grants follow semantic clinic/global walls', () => {
   assert.match(policies[1].withCheck, /organization_id = \(SELECT app\.current_org_id\(\)\)/);
 });
 
-test('runtime settings and account email use semantic row walls without broad patient identity access', () => {
+test('canonical settings and account email use semantic row walls without broad patient identity access', () => {
   const tables = declaration.databases.bersoncarebot_test.tables;
-  const runtime = tables['public.app_runtime_settings'];
-  assert.equal(runtime.access.kind, 'direct');
-  assert.deepEqual(
-    runtime.access.grants.find((grant) => grant.role === 'app_patient')?.operations,
-    ['SELECT'],
-  );
-  const runtimeSelect = runtime.policies.find((policy) =>
-    policy.name.startsWith('rev10_app_runtime_settings_select_'));
-  assert.match(runtimeSelect?.using ?? '', /audience IN \('public','authenticated_client'\)/);
-  assert.match(runtimeSelect?.using ?? '', /CASE WHEN organization_id IS NULL THEN true/);
-  assert.match(runtimeSelect?.using ?? '', /organization_id = \(SELECT app\.current_org_id\(\)\)/);
-
-  const runtimeAudit = tables['public.app_runtime_settings_audit'];
-  assert.equal(runtimeAudit.access.kind, 'named-seams');
-  assert.equal(runtimeAudit.policies.some((policy) =>
-    policy.to.includes('app_platform_settings') && policy.cmd === 'SELECT'), false);
-  assert.ok(runtimeAudit.policies.some((policy) =>
-    policy.to.includes('app_object_owner') && policy.name.startsWith('rev10_seam_business_')));
-  const auditTrigger = declaration.portContext.functions[
-    'public.audit_app_runtime_settings_change()'
+  assert.equal(tables['public.app_runtime_settings'], undefined);
+  assert.equal(tables['public.app_runtime_settings_audit'], undefined);
+  const authenticatedResolver = declaration.portContext.functions[
+    'app.read_authenticated_runtime_setting(text,text,uuid,boolean)'
   ];
-  assert.equal(auditTrigger.security, 'DEFINER');
-  assert.equal(auditTrigger.owner, 'app_object_owner');
-  assert.deepEqual(auditTrigger.execute, []);
-  assert.deepEqual(auditTrigger.relationSurfaces, [{
-    relation: 'public.app_runtime_settings_audit',
-    columns: ['audience', 'key', 'new_value_json', 'old_value_json', 'organization_id', 'scope', 'source',
-      'updated_by'],
-    operations: ['INSERT'],
-    evidence: 'pg16-function-body-lexical-upper-bound',
-  }]);
+  assert.equal(authenticatedResolver.owner, 'app_seam_settings_runtime_owner');
+  assert.deepEqual(authenticatedResolver.execute, ['app_patient', 'app_staff']);
+  assert.deepEqual(authenticatedResolver.relationSurfaces?.[0]?.columns,
+    ['key', 'scope', 'organization_id', 'value_json']);
 
   const users = tables['public.platform_users'];
   assert.equal(users.access.kind, 'direct');
@@ -912,6 +1049,8 @@ test('runtime settings and account email use semantic row walls without broad pa
     policy.name.startsWith('rev10_platform_users_patient_select_'));
   const staffSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_staff_select_'));
+  const staffInsert = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_staff_insert_'));
   const platformSelect = users.policies.find((policy) =>
     policy.name.startsWith('rev10_platform_users_platform_select_'));
   assert.deepEqual(patientSelect?.to, ['app_patient']);
@@ -924,7 +1063,13 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.match(staffSelect?.using ?? '', /access_member\.platform_user_id = platform_users\.id/);
   assert.match(staffSelect?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
   assert.match(staffSelect?.using ?? '', /access_patient\.organization_id = \(SELECT app\.current_org_id\(\)\)/);
-  assert.match(staffSelect?.using ?? '', /access_patient\.status IN \('invited', 'active'\)/);
+  assert.match(staffSelect?.using ?? '', /access_patient\.status IN \('invited', 'active', 'archived'\)/);
+  assert.deepEqual(staffInsert?.to, ['app_staff']);
+  assert.equal(staffInsert?.cmd, 'INSERT');
+  assert.match(staffInsert?.withCheck ?? '', /role = 'client'/);
+  assert.match(staffInsert?.withCheck ?? '', /merged_into_id IS NULL/);
+  assert.match(staffInsert?.withCheck ?? '', /is_archived = false/);
+  assert.match(staffInsert?.withCheck ?? '', /is_blocked = false/);
   assert.deepEqual(platformSelect?.to, ['app_platform_settings']);
   assert.equal(platformSelect?.using, "(current_user = 'app_platform_settings'::name)");
   const staffUpdate = users.access.grants.find((grant) =>
@@ -942,6 +1087,13 @@ test('runtime settings and account email use semantic row walls without broad pa
   assert.deepEqual(timezoneUpdate?.to, ['app_patient', 'app_staff', 'app_platform_settings']);
   assert.equal(timezoneUpdate?.using, '(id = app.current_actor_user_id())');
   assert.equal(timezoneUpdate?.withCheck, '(id = app.current_actor_user_id())');
+  const staffPatientBlockUpdate = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_staff_patient_block_update_'));
+  assert.deepEqual(staffPatientBlockUpdate?.to, ['app_staff']);
+  assert.equal(staffPatientBlockUpdate?.cmd, 'UPDATE');
+  assert.match(staffPatientBlockUpdate?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
+  assert.match(staffPatientBlockUpdate?.using ?? '', /access_patient\.status IN \('invited', 'active', 'archived'\)/);
+  assert.match(staffPatientBlockUpdate?.using ?? '', /role = 'client'/);
 });
 
 test('patient page relations have exact self/current-clinic access and published content walls', () => {

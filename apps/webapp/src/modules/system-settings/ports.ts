@@ -87,53 +87,16 @@ export type RuntimeSettingsRepository = {
     operationFamily: RuntimeConfigOperationFamily;
     allowGlobalFallback?: boolean;
   }): Promise<RuntimeSettingRow | null>;
-  getSnapshotRows(input: {
-    scope: string;
-    organizationId: string | null;
-    allowedAudiences: readonly RuntimeConfigAudience[];
-  }): Promise<RuntimeSettingRow[]>;
-  upsert(input: {
-    key: string;
-    scope: string;
-    organizationId: string | null;
-    audience: RuntimeConfigAudience;
-    valueJson: unknown;
-    updatedBy: string | null;
-  }): Promise<RuntimeSettingRow>;
-};
-
-export type RuntimeWrite = {
-  key: string;
-  scope: string;
-  organizationId: string | null;
-  audience: RuntimeConfigAudience;
-  valueJson: unknown;
-  updatedBy: string | null;
 };
 
 export type SettingsWriteUnitOfWork = {
-  /** Commits public legacy/restricted rows and runtime rows/audits as one transaction. */
-  write(input: {
-    legacyRows: SystemSettingsUpsertRow[];
-    authoritativeRuntimeRows: RuntimeWrite[];
-  }): Promise<SystemSetting[]>;
-  /** Same dual-write transaction, but only when the exact legacy row still matches the read token. */
+  /** Commits canonical rows and system_settings_audit entries in one transaction. */
+  write(input: { rows: SystemSettingsUpsertRow[] }): Promise<SystemSetting[]>;
+  /** Same canonical transaction, but only when the exact row still matches the read token. */
   compareAndSwap?(input: {
-    legacyRow: SystemSettingsUpsertRow;
-    authoritativeRuntimeRows: RuntimeWrite[];
+    row: SystemSettingsUpsertRow;
     expectedUpdatedAt: string | null;
   }): Promise<SystemSetting | null>;
-  delete?(input: {
-    key: SystemSettingKey;
-    scope: SystemSettingScope;
-    organizationId: string | null;
-    updatedBy: string | null;
-    deleteRuntime: boolean;
-  }): Promise<boolean>;
-};
-
-export type RuntimeReadTelemetry = {
-  record(input: { key: string; source: 'runtime' | 'legacy_fallback' | 'mismatch' }): void;
 };
 
 /** Public-login capabilities derived in Postgres without exposing channel credentials. */

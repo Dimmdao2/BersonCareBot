@@ -256,6 +256,13 @@ test(
   BEGIN
 ${REAL_FIXTURE}
 
+    -- TEST keeps real audit history. Isolate this rollback-only proof from rows produced by
+    -- earlier sessions for the same owner account; ROLLBACK restores every removed row.
+    DELETE FROM public.admin_audit_log
+     WHERE actor_id = doctor
+       AND action IN ('identity_session_start', 'identity_patient_card_open',
+                      'identity_patient_list_view', 'identity_linkage_volume_anomaly');
+
     -- ТОЧКА 1. Создание связки. Резолвер зовётся ДВАЖДЫ, потому что живой вход спрашивает ссылку
     -- на каждый запрос: событие обязано родиться на чеканке и не повториться на чтении карты.
 ${resolveContext('person')}
@@ -317,6 +324,8 @@ ${staffContext(`'identity_patient_list_view'`, 'org', 'doctor', 'NULL::text', LI
   DECLARE org uuid; doctor uuid; patient uuid; actor_ref uuid; card_rows int;
   BEGIN
 ${REAL_FIXTURE}
+    DELETE FROM public.admin_audit_log
+     WHERE actor_id = doctor AND action = 'identity_patient_card_open';
 ${staffContext(`'identity_patient_card_open'`, 'org', 'doctor', 'patient::text', CARD_DETAILS)}
     PERFORM app.record_collapsing_audit_event('identity_patient_card_open', org, doctor,
       patient::text, NULL, ${CARD_DETAILS});
@@ -388,6 +397,11 @@ test(
   DECLARE org uuid; doctor uuid; patient uuid; actor_ref uuid; answer jsonb; alarms int;
   BEGIN
 ${REAL_FIXTURE}
+    DELETE FROM public.admin_audit_log
+     WHERE actor_id = doctor
+       AND action IN ('identity_subject_link_created', 'identity_session_start',
+                      'identity_patient_card_open', 'identity_patient_list_view',
+                      'identity_linkage_volume_anomaly');
     INSERT INTO public.admin_audit_log (organization_id, actor_id, action, conflict_key, details,
       status, repeat_count, last_seen_at)
     VALUES (org, doctor, 'identity_patient_card_open', encode(pg_catalog.sha256(

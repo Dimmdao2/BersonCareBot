@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
+import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { useSearchParams } from 'next/navigation';
 
 export function ChartTestPageClient() {
@@ -48,7 +49,7 @@ export function ChartTestPageClient() {
 
   return (
     <div className="mx-auto max-w-3xl p-8">
-      <h1 className="mb-2 text-xl font-bold">Chart Dev Test: ExerciseExecutionGraph</h1>
+      <h1 className={`${doctorPageTitleClass} mb-2`}>Chart Dev Test: ExerciseExecutionGraph</h1>
       <p className="mb-4 text-xs text-muted-foreground">
         instanceId: {instanceId}
         <br />

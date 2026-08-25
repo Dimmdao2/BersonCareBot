@@ -12,11 +12,12 @@
  * DEFINER SQL body, not in TypeScript. A TS test can only prove what the caller does with the root's
  * answer; only the real function against real tables proves the root itself stopped creating.
  *
- * ARM A (fault injection, teeth): the PRE-candidate creating body is taken from the product file of
- * record (`deploy/postgres/generated/prod-to-target/schema-pre.sql`), replayed inside the rolled-back
- * transaction, and probed. It must CREATE the four canonical rows. If arm A ever goes quiet, arm B
- * proves nothing — the probe would be measuring an id the root never touches. The injection lives
- * HERE; nothing on disk is touched.
+ * ARM A (fault injection, teeth): the accepted candidate body is read from its immutable migration,
+ * then the first forbidden pre-candidate INSERT is reintroduced in memory and replayed inside the
+ * rolled-back transaction. The shared identity seam owner intentionally retains that column-level
+ * INSERT for the web registration roots, so this mutant must create a row. That proves arm B is able
+ * to observe the exact forbidden bot-ingress regression after the generated schema-B snapshot is
+ * refreshed to the accepted lookup-only state. The injection lives HERE; nothing on disk is touched.
  *
  * ARM B (acceptance): the candidate migration is materialized in the same transaction, and the same
  * unknown Telegram and MAX ids must leave `platform_users` / `user_identity` /
@@ -57,7 +58,6 @@ const MIGRATION_TAGS = [
 const MIGRATIONS = MIGRATION_TAGS.map(
   (tag) => new URL(`../../../apps/webapp/db/drizzle-migrations/${tag}.sql`, import.meta.url),
 );
-const SCHEMA_PRE = new URL('../generated/prod-to-target/schema-pre.sql', import.meta.url);
 const ROOT = 'app.integrator_upsert_channel_identity(text,text,text)';
 
 for (const [label, value] of [['database', DATABASE], ['migrator', MIGRATOR]]) {
@@ -90,20 +90,33 @@ function parsed(output) {
 
 const candidateSource = MIGRATIONS.map((migration) => readFileSync(fileURLToPath(migration), 'utf8')).join('\n--> statement-breakpoint\n');
 
-/** The creating body as the generated schema-B snapshot still records it — the pre-candidate state. */
+/** Reintroduce the first forbidden creation write into the accepted body without relying on a stale snapshot. */
 function preCandidateBodySql() {
-  const source = readFileSync(fileURLToPath(SCHEMA_PRE), 'utf8');
-  const start = source.indexOf('CREATE FUNCTION app.integrator_upsert_channel_identity(');
-  assert.ok(start >= 0, 'schema-pre.sql no longer records the pre-candidate creating body');
-  const end = source.indexOf('\n$_$;', start);
-  assert.ok(end > start, 'could not find the end of the pre-candidate body in schema-pre.sql');
-  const body = source.slice(start, end + '\n$_$;'.length);
+  const source = readFileSync(fileURLToPath(MIGRATIONS[0]), 'utf8');
+  const start = source.indexOf('CREATE OR REPLACE FUNCTION app.integrator_upsert_channel_identity(');
+  assert.ok(start >= 0, 'candidate migration no longer defines the channel-identity root');
+  const endMarker = '\n$function$;';
+  const end = source.indexOf(endMarker, start);
+  assert.ok(end > start, 'could not find the end of the candidate channel-identity body');
+  const acceptedBody = source.slice(start, end + endMarker.length);
+  const terminalMiss = '  RETURN;\nEND\n$function$;';
+  assert.ok(
+    acceptedBody.endsWith(terminalMiss),
+    'candidate body no longer ends in the lookup-only miss contract',
+  );
+  const body = acceptedBody.slice(0, -terminalMiss.length) + String.raw`  INSERT INTO public.platform_users (display_name)
+  VALUES ('')
+  RETURNING id INTO v_platform_user_id;
+
+  RETURN QUERY SELECT v_platform_user_id, true, false;
+END
+$function$;`;
   assert.match(
     body,
     /INSERT INTO public\.platform_users/u,
-    'pre-candidate body must be the creating one',
+    'fault body must reintroduce the forbidden platform-user creation write',
   );
-  return body.replace('CREATE FUNCTION', 'CREATE OR REPLACE FUNCTION');
+  return body;
 }
 
 /** Same helper the other devDbProof files use: register + accept ONE port context in this xact. */
@@ -217,7 +230,11 @@ ${ACCEPT_CONTEXT_HELPER}
 ${FIXTURE_GUARD}
 
 DO $arm_a$
-DECLARE before_counts text; after_counts text; created boolean; returned integer;
+DECLARE
+  before_counts text;
+  after_counts text;
+  created boolean;
+  returned integer;
 BEGIN
   before_counts := pg_temp.identity_counts();
   SELECT count(*), bool_or(root.account_created) INTO returned, created
@@ -383,8 +400,8 @@ test(
     skip: ENABLED ? false : 'set RUN_D25_GENERIC_INGRESS_DB=1 to run against the named DEV database',
   },
   () => {
-    // ARM A — fault injection. Replay the pre-candidate creating body; the same probe must create the
-    // four canonical rows, or arm B's silence means nothing.
+    // ARM A — fault injection. The shared seam owner still writes for normal web registration, so a
+    // reintroduced bot-ingress INSERT must move the live counts or arm B's silence proves nothing.
     const a = parsed(psql(armAsql()));
     if (process.env.D25_PROOF_PRINT === '1') console.error('ARM A', a);
     assert.equal(
@@ -396,13 +413,13 @@ test(
     assert.equal(
       a.arm_a_account_created,
       'true',
-      'pre-candidate root creates a blank canonical person',
+      'the injected forbidden branch must report the created canonical person',
     );
-    assert.equal(a.arm_a_binding_rows, '1', 'pre-candidate root writes the channel binding too');
+    assert.equal(a.arm_a_binding_rows, '0', 'the minimal injected branch writes no channel binding');
     assert.notEqual(
       a.arm_a_counts_before,
       a.arm_a_counts_after,
-      'pre-candidate root must move the identity table counts — otherwise the probe is blind',
+      'the injected forbidden branch must move the identity counts or the probe is blind',
     );
 
     // ARM B — acceptance on the candidate body.

@@ -21,6 +21,10 @@ import { getPlatformMenuItems } from '@/shared/ui/doctor/platformNavLinks';
 import { hasLaunchCapability } from '@/app-layer/guards/workspaceCapabilities';
 import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
 import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
+import {
+  DoctorSidebarRowContent,
+  doctorSidebarRowClassName,
+} from '@/shared/ui/doctor/shell/DoctorSidebarRowContent';
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
@@ -53,12 +57,6 @@ function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
   }
   return 'inline-flex min-h-[1.25rem] min-w-[1.25rem] shrink-0 items-center justify-center rounded-full bg-muted px-1.5 text-[10px] font-medium tabular-nums leading-none text-muted-foreground';
 }
-
-const SIDEBAR_LINK_CLASS = cn(
-  buttonVariants({ variant: 'ghost' }),
-  DOCTOR_MENU_ITEM_RADIUS_CLASS,
-  'h-auto w-full justify-start px-3 py-2 text-sm font-normal',
-);
 
 const SHEET_LINK_CLASS = cn(
   buttonVariants({ variant: 'ghost' }),
@@ -100,6 +98,8 @@ export type DoctorMenuAccordionProps = {
    * both variants without any accordion/group behavior.
    */
   menuKind?: 'doctor' | 'platform';
+  /** Whether the tablet sidebar rail is expanded over the page. */
+  tabletExpanded?: boolean;
 };
 
 /**
@@ -124,11 +124,13 @@ function SidebarGroupFlyout({
   badgeCounts,
   pathname,
   onNavigate,
+  tabletExpanded,
 }: {
   item: DoctorMenuLinkItem;
   badgeCounts: Record<DoctorMenuBadgeKey, number>;
   pathname: string;
   onNavigate?: () => void;
+  tabletExpanded: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [flyoutPos, setFlyoutPos] = useState<{ top: number; left: number } | null>(null);
@@ -190,20 +192,22 @@ function SidebarGroupFlyout({
             scheduleClose();
           }
         }}
-        className={cn(
-          DOCTOR_MENU_ITEM_RADIUS_CLASS,
-          'flex h-auto w-full items-center justify-start gap-2 px-3 py-2 text-left text-sm font-normal',
+        className={doctorSidebarRowClassName(
+          tabletExpanded,
           anySubActive && 'font-medium text-primary hover:bg-muted focus-visible:bg-muted',
         )}
       >
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {renderMenuIcon(Icon, iconSize)}
-          <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
-        </span>
-        <ChevronRight
-          className="size-3 shrink-0 text-muted-foreground"
-          strokeWidth={NAV_STRIP_ICON_STROKE}
-          aria-hidden
+        <DoctorSidebarRowContent
+          icon={renderMenuIcon(Icon, iconSize)}
+          label={item.label}
+          trailing={
+            <ChevronRight
+              className="size-3 text-muted-foreground"
+              strokeWidth={NAV_STRIP_ICON_STROKE}
+              aria-hidden
+            />
+          }
+          tabletExpanded={tabletExpanded}
         />
       </Button>
 
@@ -422,6 +426,7 @@ export function DoctorMenuAccordion({
   onNavigate,
   enableBadgePolling = true,
   menuKind = 'doctor',
+  tabletExpanded = false,
 }: DoctorMenuAccordionProps) {
   const items = useMemo(() => {
     const menuItems =
@@ -429,7 +434,8 @@ export function DoctorMenuAccordion({
         ? getPlatformMenuItems(menuAccess)
         : getDoctorMenuItems(menuAccess, patientLabel);
 
-    if (variant !== 'sheet' || menuKind !== 'doctor') return menuItems;
+    if (variant === 'sidebar') return menuItems.filter((item) => item.id !== 'account');
+    if (menuKind !== 'doctor') return menuItems;
     return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
   }, [menuKind, menuAccess, patientLabel, variant]);
 
@@ -481,33 +487,31 @@ export function DoctorMenuAccordion({
               prefetch={false}
               onClick={onNavigate}
               aria-label={aria}
-              className={cn(
-                SIDEBAR_LINK_CLASS,
+              className={doctorSidebarRowClassName(
+                tabletExpanded,
                 isDoctorNavItemActive(item.href, pathname) &&
                   'bg-primary/15 font-medium text-primary hover:bg-primary/15 focus-visible:bg-primary/15',
               )}
             >
-              <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                <span className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                  {Icon && (
-                    <Icon
-                      size={16}
-                      strokeWidth={NAV_STRIP_ICON_STROKE}
-                      aria-hidden
-                      className="shrink-0"
-                    />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                </span>
-                {badgeText && item.badgeKey ? (
+              <DoctorSidebarRowContent
+                icon={
+                  Icon ? (
+                    <Icon size={16} strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                  ) : null
+                }
+                label={item.label}
+                trailing={
+                  badgeText && item.badgeKey ? (
                   <span
                     className={navBadgeClassName(item.badgeKey)}
                     aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
                   >
                     {badgeText}
                   </span>
-                ) : null}
-              </span>
+                  ) : null
+                }
+                tabletExpanded={tabletExpanded}
+              />
             </Link>
           );
         }
@@ -520,6 +524,7 @@ export function DoctorMenuAccordion({
             badgeCounts={badgeCounts}
             pathname={pathname}
             onNavigate={onNavigate}
+            tabletExpanded={tabletExpanded}
           />
         );
       })}

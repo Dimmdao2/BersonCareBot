@@ -378,6 +378,7 @@ async function insertAppointmentInTransaction(
       tx,
       input.organizationId,
       input.platformUserId,
+      { reactivateArchived: true },
     );
     await ensureActivePatientSpecialistLink(tx, {
       organizationId: input.organizationId,
@@ -1768,11 +1769,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               tx,
               input.organizationId,
               input,
+              ensureInvitedOrganizationClientRelationship,
             );
             const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
               tx,
               input.organizationId,
               patient.userId,
+              { reactivateArchived: true },
             );
             let appointment: BeAppointment;
             try {
@@ -1893,11 +1896,13 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             tx,
             input.organizationId,
             input,
+            ensureInvitedOrganizationClientRelationship,
           );
           await ensureInvitedOrganizationClientRelationship(
             tx,
             input.organizationId,
             patient.userId,
+            { reactivateArchived: true },
           );
           const relationshipStatus = await lockManualPatientRelationship(
             tx,

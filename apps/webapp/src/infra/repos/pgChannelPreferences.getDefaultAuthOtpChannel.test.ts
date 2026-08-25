@@ -72,11 +72,27 @@ describe('pgChannelPreferencesPort.getDefaultAuthOtpChannel', () => {
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
     expect(fakes.runWebappPgText).not.toHaveBeenCalled();
   });
+
+  it('uses the patient self door when the profile already has a patient principal', async () => {
+    fakes.getCurrentDbPrincipal.mockReturnValue({ kind: 'patient' });
+    fakes.runWebappNamedRoot.mockResolvedValueOnce({ rows: [{ channel_code: 'telegram' }] });
+
+    await expect(pgChannelPreferencesPort.getDefaultAuthOtpChannel('user-1')).resolves.toBe(
+      'telegram',
+    );
+
+    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
+    expect(db).toBe(fakes.db);
+    expect(identity).toBe('app.get_current_patient_default_auth_otp_channel()');
+    expect(args).toEqual([]);
+    expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+  });
 });
 
 describe('pgChannelPreferencesPort.getPreferredAuthChannelCode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.getCurrentDbPrincipal.mockReturnValue(null);
     fakes.getWebappSqlDb.mockReturnValue(fakes.db);
   });
 

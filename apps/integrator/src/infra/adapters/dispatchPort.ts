@@ -23,7 +23,28 @@ import type {
   ClinicDeliveryCredentialResolveOptions,
 } from '../db/clinicDeliveryCredentials.js';
 
-export type DispatchPlatformIntegrationId = 'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
+const providerAttemptFailures = new WeakSet<object>();
+
+function markProviderAttemptFailure(error: unknown): unknown {
+  if ((typeof error === 'object' && error !== null) || typeof error === 'function') {
+    providerAttemptFailures.add(error);
+    return error;
+  }
+  const normalized = new Error(String(error));
+  providerAttemptFailures.add(normalized);
+  return normalized;
+}
+
+/** True only for an error thrown by an actual DeliveryAdapter.send provider call. */
+export function isProviderAttemptFailure(error: unknown): boolean {
+  return (
+    ((typeof error === 'object' && error !== null) || typeof error === 'function') &&
+    providerAttemptFailures.has(error)
+  );
+}
+
+export type DispatchPlatformIntegrationId =
+  'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
 
 type DeliveryPayload = {
   recipient?: { chatId?: unknown; phoneNormalized?: unknown };
@@ -66,7 +87,8 @@ async function clinicSenderScope(
   }
   const requestedScope =
     intent.type === 'message.send'
-      ? ((intent.payload as DeliveryPayload).delivery?.senderScope as RequestedSenderScope | undefined)
+      ? ((intent.payload as DeliveryPayload).delivery?.senderScope as
+          RequestedSenderScope | undefined)
       : undefined;
   const clinicCredential = channel && resolveCredential ? await resolveCredential(channel) : null;
 
@@ -89,7 +111,11 @@ function isClinicCredentialProbe(intent: OutgoingIntent): boolean {
 }
 
 function asClinicDeliveryChannel(channel: string): ClinicDeliveryChannel | null {
-  return channel === 'email' || channel === 'smsc' || channel === 'telegram' || channel === 'max' || channel === 'vk'
+  return channel === 'email' ||
+    channel === 'smsc' ||
+    channel === 'telegram' ||
+    channel === 'max' ||
+    channel === 'vk'
     ? channel
     : null;
 }
@@ -143,8 +169,9 @@ type RedirectResult = OutgoingIntent | typeof SUPPRESS;
 /**
  * PRE-FORK DEV DELIVERY REDIRECT (primary, authoritative override layer).
  *
- * When active (NODE_ENV !== 'production' OR DEV_DELIVERY_REDIRECT=1), every
- * outgoing intent is redirected to the dev TEST USER's binding FOR ITS OWN CHANNEL
+ * In local development every outgoing intent is suppressed before any adapter.
+ * When the explicit TEST redirect is active (DEV_DELIVERY_REDIRECT=1), every
+ * outgoing intent is redirected to the TEST USER's binding FOR ITS OWN CHANNEL
  * BEFORE it branches to any channel adapter:
  *   telegram → his telegram chat, max → his max id, sms/smsc → his phone,
  *   email → his email, web_push → his subscription (via pushUserId).
@@ -181,6 +208,21 @@ function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
           'unknown');
 
   const intendedChannel = readChannel(intent);
+
+  // Local DEV is provider-free by contract. TEST runs with NODE_ENV=production and the explicit
+  // redirect flag, so its live owner-account delivery proof remains available without allowing
+  // a local scheduler/worker/API process to call any external provider.
+  if (process.env.NODE_ENV === 'development') {
+    logger.warn(
+      {
+        intendedRecipient: originalId,
+        intendedChannel,
+        intentType: intent.type,
+      },
+      'PRE_FORK_DEV_DELIVERY_NOOP',
+    );
+    return SUPPRESS;
+  }
 
   // PASSTHROUGH: a recipient that is a KNOWN TEST ACCOUNT (env allowlist) is
   // delivered UNCHANGED so multi-tester flows (doctor↔patient chat/comments/OTP)
@@ -385,7 +427,11 @@ export function createDefaultDispatchPort(deps: {
           : null;
       const resolved = probe
         ? { senderScope: 'clinic_required' as ClinicSenderScope, clinicCredential: probeCredential }
-        : await clinicSenderScope(intentForChannel, clinicChannel, deps.resolveClinicDeliveryCredential);
+        : await clinicSenderScope(
+            intentForChannel,
+            clinicChannel,
+            deps.resolveClinicDeliveryCredential,
+          );
       const senderScope = resolved.senderScope;
       const clinicCredential = resolved.clinicCredential;
       if (senderScope === 'clinic_required' && !clinicCredential) {
@@ -394,7 +440,9 @@ export function createDefaultDispatchPort(deps: {
       try {
         if (clinicCredential) {
           try {
-            sendResult = await adapter.send(withClinicCredential(intentForChannel, clinicCredential));
+            sendResult = await adapter.send(
+              withClinicCredential(intentForChannel, clinicCredential),
+            );
           } catch (clinicError) {
             // Essential traffic remains deliverable through the platform. Clinic-required flows
             // (broadcasts and bot support) must never silently assume the platform sender.
@@ -405,10 +453,16 @@ export function createDefaultDispatchPort(deps: {
           sendResult = await adapter.send(intentForChannel);
         }
       } catch (providerError) {
+        const attemptedFailure = markProviderAttemptFailure(providerError);
         if (!opts?.skipAttemptLog && deps.writePort) {
-          await recordGenericDispatchFailureAttempt(deps.writePort, intent, channel, providerError);
+          await recordGenericDispatchFailureAttempt(
+            deps.writePort,
+            intent,
+            channel,
+            attemptedFailure,
+          );
         }
-        throw providerError;
+        throw attemptedFailure;
       }
       // Success, or a completed-but-skipped webPushOutcome, is not a delivery attempt (F5): the
       // surviving outgoing_delivery_queue row's own status/sent_at/failure_class is the lifecycle

@@ -12,8 +12,7 @@ import { resolve } from 'node:path';
 import { readMigrationFolder, selectPendingMigrations } from '../deploy/postgres/privileges/migration-order.mjs';
 import {
   filterAndValidateTargetTariffCatalog,
-  removeRetiredRuntimeSettings,
-  sanitizeRuntimeSettingsForCutover,
+  removeRetiredLinkedPhoneSetting,
   sanitizeSingletonPolicyAuditMetadata,
 } from './prod-to-target-baseline-policy.mjs';
 
@@ -50,7 +49,7 @@ const artifacts = [
   {
     file: 'schema-pre.sql',
     args: ['--schema-only', '--section=pre-data'],
-    transform: (sql) => removeRetiredRuntimeSettings(sql.replace(
+    transform: (sql) => removeRetiredLinkedPhoneSetting(sql.replace(
       /^CREATE SCHEMA (app|app_control|app_ext|drizzle|integrator);$/gmu,
       'CREATE SCHEMA IF NOT EXISTS $1;',
     )),
@@ -76,11 +75,6 @@ const artifacts = [
     transform: (sql) => sanitizeSingletonPolicyAuditMetadata(
       filterAndValidateTargetTariffCatalog(sql),
     ),
-  },
-  {
-    file: 'runtime-settings.sql',
-    args: ['--data-only', '--column-inserts', '--table=public.app_runtime_settings'],
-    transform: sanitizeRuntimeSettingsForCutover,
   },
 ];
 

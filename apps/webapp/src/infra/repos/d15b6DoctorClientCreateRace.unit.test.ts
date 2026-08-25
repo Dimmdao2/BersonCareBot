@@ -32,6 +32,7 @@ const ORG_ID = '00000000-0000-4000-8000-0000000e0001';
 const PHONE = '+79001234567';
 const CONCURRENT_ID = '00000000-0000-4000-8000-0000000d0002';
 const NEW_ID = '00000000-0000-4000-8000-0000000d0003';
+const ensureOrganizationRelationship = vi.fn(async () => undefined);
 
 const phoneUniqueViolation = Object.assign(new Error('duplicate phone in user_contacts'), {
   code: '23505',
@@ -61,6 +62,7 @@ function buildInsertChain(result: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   syncFioMirrorMock.mockResolvedValue(undefined);
+  ensureOrganizationRelationship.mockResolvedValue(undefined);
 });
 
 describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () => {
@@ -105,14 +107,19 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
       ),
     };
 
-    const result = await resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, {
-      phoneNormalized: PHONE,
-      lastName: 'Петров',
-      firstName: 'Пётр',
-      patronymic: null,
-      emailRaw: null,
-      emailNormalized: null,
-    });
+    const result = await resolveOrCreateDoctorClientByPhoneInTransaction(
+      tx as never,
+      ORG_ID,
+      {
+        phoneNormalized: PHONE,
+        lastName: 'Петров',
+        firstName: 'Пётр',
+        patronymic: null,
+        emailRaw: null,
+        emailNormalized: null,
+      },
+      ensureOrganizationRelationship,
+    );
 
     expect(result).toEqual({
       userId: CONCURRENT_ID,
@@ -128,6 +135,10 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
         action: 'upsert', kind: 'phone', valueNormalized: PHONE, isPrimary: true,
       }),
     ]);
+    expect(ensureOrganizationRelationship).toHaveBeenCalledWith(savepointTx, ORG_ID, NEW_ID);
+    expect(ensureOrganizationRelationship.mock.invocationCallOrder[0]).toBeLessThan(
+      syncContactsMirrorMock.mock.invocationCallOrder[0]!,
+    );
     expect(selectChain.limit).toHaveBeenCalledTimes(2);
   });
 
@@ -153,14 +164,19 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
     };
 
     await expect(
-      resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, {
-        phoneNormalized: PHONE,
-        lastName: 'Петров',
-        firstName: 'Пётр',
-        patronymic: null,
-        emailRaw: null,
-        emailNormalized: null,
-      }),
+      resolveOrCreateDoctorClientByPhoneInTransaction(
+        tx as never,
+        ORG_ID,
+        {
+          phoneNormalized: PHONE,
+          lastName: 'Петров',
+          firstName: 'Пётр',
+          patronymic: null,
+          emailRaw: null,
+          emailNormalized: null,
+        },
+        ensureOrganizationRelationship,
+      ),
     ).rejects.toEqual(phoneUniqueViolation);
   });
 
@@ -187,14 +203,19 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
     };
 
     await expect(
-      resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, {
-        phoneNormalized: PHONE,
-        lastName: 'Петров',
-        firstName: 'Пётр',
-        patronymic: null,
-        emailRaw: null,
-        emailNormalized: null,
-      }),
+      resolveOrCreateDoctorClientByPhoneInTransaction(
+        tx as never,
+        ORG_ID,
+        {
+          phoneNormalized: PHONE,
+          lastName: 'Петров',
+          firstName: 'Пётр',
+          patronymic: null,
+          emailRaw: null,
+          emailNormalized: null,
+        },
+        ensureOrganizationRelationship,
+      ),
     ).rejects.toThrow('canonical write failed');
   });
 
@@ -236,14 +257,19 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
     };
 
     await expect(
-      resolveOrCreateDoctorClientByPhoneInTransaction(tx as never, ORG_ID, {
-        phoneNormalized: PHONE,
-        lastName: 'Петров',
-        firstName: 'Пётр',
-        patronymic: null,
-        emailRaw: null,
-        emailNormalized: null,
-      }),
+      resolveOrCreateDoctorClientByPhoneInTransaction(
+        tx as never,
+        ORG_ID,
+        {
+          phoneNormalized: PHONE,
+          lastName: 'Петров',
+          firstName: 'Пётр',
+          patronymic: null,
+          emailRaw: null,
+          emailNormalized: null,
+        },
+        ensureOrganizationRelationship,
+      ),
     ).rejects.toSatisfy(
       (err: unknown) => err instanceof DoctorClientIdentityError && err.code === 'identity_conflict',
     );

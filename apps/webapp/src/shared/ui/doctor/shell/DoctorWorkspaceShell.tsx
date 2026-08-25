@@ -55,9 +55,9 @@ type DoctorWorkspaceShellProps = {
  *
  * - Мобильный (<md): сверху фиксированная `DoctorHeader` (компактная шапка + Sheet-меню),
  *   контент с верхним отступом под её высоту.
- * - Desktop (md+): глобальной шапки нет (`DoctorHeader` → `md:hidden`); кабинет = ряд
- *   «`DoctorAdminSidebar` | контент». Роль липкого якоря на странице выполняет
- *   per-page `DoctorPageHeader` внутри контента.
+ * - Tablet (md–lg): узкий sidebar rail раскрывается поверх контента.
+ * - Desktop (lg+): полноценный sidebar располагается рядом с контентом.
+ *   Роль липкого якоря на странице выполняет per-page `DoctorPageHeader` внутри контента.
  */
 export function DoctorWorkspaceShell({
   isPlatformOperator,

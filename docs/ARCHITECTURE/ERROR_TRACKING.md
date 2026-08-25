@@ -13,7 +13,7 @@ The only source is the global `admin` settings pair:
 - `error_tracking_enabled` — boolean, default `false`;
 - `error_tracking_dsn` — HTTP(S) DSN, default empty.
 
-Both are server-audience projections in `public.app_runtime_settings`; canonical authoring uses `public.system_settings` through the existing system-settings service and integrator mirror. No error-tracking environment variable is supported. Processes read the pair once during startup; there is no per-request database read.
+Both live in canonical `public.system_settings` and are exposed only through the typed server resolver. No error-tracking environment variable is supported. Processes read the pair once during startup; there is no per-request database read.
 
 Global administrators edit the pair atomically on `/app/doctor/admin/technical`. The DSN is write-only in browser surfaces: APIs/UI expose only `hasStoredDsn`. Enabling requires a valid DSN to be entered again. Disabling clears the stored DSN. A restart of all five processes is required after a change.
 

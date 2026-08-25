@@ -252,50 +252,6 @@ for (const table of ['public.platform_user_contacts', 'public.user_phone_history
 
 const bootstrapGlobal = getP09EnforceDescriptorByTable('public.platform_users');
 
-const runtimeAudience = getP09EnforceDescriptorByTable('public.app_runtime_settings');
-const runtimeAudienceSql = renderP09EnforcePolicyStatements(runtimeAudience).join('\n');
-
-if (runtimeAudience.enforceMode.action !== 'bootstrap_runtime_audience') {
-  fail('P0.9 app_runtime_settings must use bootstrap_runtime_audience enforce action');
-}
-
-assertIncludes(
-  runtimeAudienceSql,
-  `"audience" IN ('public', 'authenticated_client')`,
-  'P0.9 runtime config must allow only client-safe audiences',
-);
-assertIncludes(
-  runtimeAudienceSql,
-  `NOT pg_has_role(current_user, 'app_worker', 'member')`,
-  'P0.9 runtime config client-safe branch must remain unavailable to app_worker',
-);
-assertIncludes(
-  runtimeAudienceSql,
-  `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
-  'P0.9 runtime config tenant rows must require matching protected organization context',
-);
-assertNotIncludes(
-  runtimeAudienceSql,
-  "'server'",
-  'P0.9 runtime config generic bootstrap policy must never expose server audience',
-);
-
-const runtimeAudit = getP09EnforceDescriptorByTable('public.app_runtime_settings_audit');
-const runtimeAuditSql = renderP09EnforcePolicyStatements(runtimeAudit).join('\n');
-if (runtimeAudit.enforceMode.action !== 'bootstrap_runtime_audit') {
-  fail('P0.9 app_runtime_settings_audit must use bootstrap_runtime_audit enforce action');
-}
-assertIncludes(
-  runtimeAuditSql,
-  'app.is_staff()',
-  'P0.9 runtime audit must require staff capability',
-);
-assertIncludes(
-  runtimeAuditSql,
-  `app.current_org_id() IS NOT NULL AND "organization_id" = app.current_org_id()`,
-  'P0.9 runtime audit tenant rows must require matching protected organization context',
-);
-
 if (bootstrapGlobal.enforceMode.action !== 'bootstrap_global_read') {
   fail('P0.9 bootstrap global rows must use bootstrap_global_read');
 }

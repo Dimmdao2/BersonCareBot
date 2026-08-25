@@ -7,6 +7,7 @@ import { withMultipartSessionLock } from '@/app-layer/locks/multipartSessionLock
 import { abortMultipartPendingTx } from '@/app-layer/media/mediaUploadSessionsRepo';
 import { s3AbortMultipartUpload } from '@/app-layer/media/s3Client';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 
 const bodySchema = z.object({
   sessionId: z.string().uuid(),
@@ -19,6 +20,8 @@ export async function POST(request: Request) {
 
   const gate = await requireDoctorWorkspaceApiContext();
   if (!gate.ok) return gate.response;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, 'files');
+  if (!entitlement.ok) return entitlement.response;
 
   let json: unknown;
   try {

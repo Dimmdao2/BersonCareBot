@@ -48,7 +48,6 @@ import { env } from '@/config/env';
 import { parseDoctorTodayPreferences } from '@/modules/system-settings/doctorTodayPreferences';
 import {
   isPlatformIntegrationAvailable,
-  parsePlatformIntegrationAvailabilityEnvelope,
 } from '@/modules/system-settings/platformIntegrationAvailability';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import { shouldShowGoogleCalendarSettings } from './googleCalendarVisibility';
@@ -146,7 +145,7 @@ export default async function SettingsPage({
     const [
       doctorSettings,
       clinicAdminSettings,
-      platformSettings,
+      integrationAvailability,
       brandingState,
       slugState,
       cardSettings,
@@ -160,7 +159,7 @@ export default async function SettingsPage({
       deps.systemSettings.listSettingsByScope('admin', {
         organizationId: workspace.organizationId,
       }),
-      deps.systemSettings.listSettingsByScope('admin', { organizationId: null }),
+      deps.systemSettings.getClinicPlatformIntegrationAvailability(),
       withDoctorWorkspacePrincipal(workspace, 'app.settings.org-branding.read', () =>
         deps.orgBranding.getManagementState(brandingCtx),
       ),
@@ -242,20 +241,6 @@ export default async function SettingsPage({
         )?.valueJson,
         false,
       ) === true;
-    const platformAdminValue = (key: string, fallback = '') =>
-      String(
-        valueOf(platformSettings.find((setting) => setting.key === key)?.valueJson, fallback) ??
-          fallback,
-      ).trim();
-    const platformGoogleConfigured = [
-      'google_client_id',
-      'google_client_secret',
-      'google_redirect_uri',
-    ].every((key) => platformAdminValue(key) !== '');
-    const integrationAvailability = parsePlatformIntegrationAvailabilityEnvelope(
-      platformSettings.find((setting) => setting.key === 'platform_integration_availability')
-        ?.valueJson,
-    );
     const [clinicSmtpEnabled, externalCalendarEnabled] = await Promise.all([
       isMechanicIncluded(workspace, 'clinic_smtp'),
       isMechanicIncluded(workspace, 'external_calendar'),
@@ -376,7 +361,6 @@ export default async function SettingsPage({
           externalCalendarEnabled,
         ) ? (
           <GoogleCalendarSection
-            platformOAuthConfigured={platformGoogleConfigured}
             hasRefreshToken={clinicAdminValue('google_refresh_token').length > 0}
             googleCalendarId={clinicAdminValue('google_calendar_id')}
             googleCalendarEnabled={clinicGoogleEnabled}

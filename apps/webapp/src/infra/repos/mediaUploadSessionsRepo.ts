@@ -5,6 +5,7 @@ import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappSql } from '@/infra/
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
 import { assertReceivedUpload, type ReceivedUpload } from '@/modules/media/uploadValidation';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 
 export type UploadSessionRow = {
   id: string;
@@ -50,8 +51,11 @@ export async function insertUploadSessionTx(
     expiresAt: Date;
   },
 ): Promise<void> {
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  if (!organizationId) throw new Error('organization_principal_required');
   const db = getWebappSqlFromPgClient(client);
   await db.insert(mediaUploadSessions).values({
+    organizationId,
     id: params.sessionId,
     mediaId: params.mediaId,
     s3Key: params.s3Key,
