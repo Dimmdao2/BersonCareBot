@@ -40,6 +40,8 @@ export type DoctorClientsFilters = {
   visitedThisCalendarMonth?: boolean;
   /** Только заархивированные в выбранной клинике (`org_enrollments.status = 'archived'`). */
   archivedOnly?: boolean;
+  /** Включить архивных вместе с активными — только для выбора пациента при новой записи. */
+  includeArchived?: boolean;
   /** `on` — `doctor_patient_support.on_support`; `programWithoutSupport` — активная doctor-программа без сопровождения. */
   supportStatus?: 'on' | 'programWithoutSupport';
   /** Есть действующий абонемент (`be_patient_packages.status = 'active'`). */

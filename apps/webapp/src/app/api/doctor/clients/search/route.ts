@@ -38,6 +38,7 @@ export async function GET(request: Request) {
       search: q,
       organizationId: gate.ctx.organizationId,
       visibilityActor: gate.ctx,
+      includeArchived: true,
     }),
   );
   return NextResponse.json({

@@ -303,7 +303,13 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
           FROM org_enrollments oe
           WHERE oe.platform_user_id = pu.id
             AND oe.organization_id = $${listBaseParams.length}::uuid
-            AND oe.status ${filters.archivedOnly === true ? "= 'archived'" : "IN ('invited', 'active')"}
+            AND oe.status ${
+              filters.archivedOnly === true
+                ? "= 'archived'"
+                : filters.includeArchived === true
+                  ? "IN ('invited', 'active', 'archived')"
+                  : "IN ('invited', 'active')"
+            }
         )`;
       } else {
         listBase += filters.archivedOnly === true
