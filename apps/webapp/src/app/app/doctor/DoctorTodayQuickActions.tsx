@@ -47,10 +47,15 @@ type CreateContext = {
 type DoctorTodayQuickActionsProps = {
   todayIso: string;
   displayIana: string;
+  placement: 'header' | 'mobile-footer';
 };
 
 /** Единый блок быстрых действий страницы «Сегодня». */
-export function DoctorTodayQuickActions({ todayIso, displayIana }: DoctorTodayQuickActionsProps) {
+export function DoctorTodayQuickActions({
+  todayIso,
+  displayIana,
+  placement,
+}: DoctorTodayQuickActionsProps) {
   const router = useRouter();
   const [appointmentOpen, setAppointmentOpen] = useState(false);
   const [createContext, setCreateContext] = useState<CreateContext | null>(null);
@@ -100,15 +105,24 @@ export function DoctorTodayQuickActions({ todayIso, displayIana }: DoctorTodayQu
 
   return (
     <>
-      <div className="doctor-today-quick-actions right-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] left-0 z-40 grid grid-cols-2 gap-2 px-3 py-2 md:rounded-[var(--doctor-page-block-radius,12px)] md:border md:border-[var(--doctor-block-border)] md:bg-card md:p-3">
-        <Button type="button" size="sm" className="w-full" onClick={openAppointment}>
-          <span className="md:hidden">Создать запись</span>
-          <span className="hidden md:inline">Новый визит</span>
+      <div
+        className={
+          placement === 'mobile-footer'
+            ? 'doctor-today-quick-actions right-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] left-0 z-40 grid grid-cols-2 gap-2 px-3 py-2 md:hidden'
+            : 'hidden grid-cols-2 items-center gap-2 md:grid'
+        }
+      >
+        <Button
+          type="button"
+          size="sm"
+          className={placement === 'mobile-footer' ? 'w-full' : undefined}
+          onClick={openAppointment}
+        >
+          {placement === 'mobile-footer' ? 'Создать запись' : 'Новый визит'}
         </Button>
         <DoctorNewClientAction
           patientSingularLabel="Клиент"
-          desktopTriggerLabel="Новый пациент"
-          className="w-full"
+          className={placement === 'mobile-footer' ? 'w-full' : undefined}
           showIcon={false}
           compactOnMobile={false}
         />

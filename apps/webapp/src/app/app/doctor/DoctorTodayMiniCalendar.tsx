@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { DateTime } from 'luxon';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -8,7 +7,6 @@ import interactionPlugin from '@fullcalendar/interaction';
 import luxonPlugin from '@fullcalendar/luxon3';
 import ruLocale from '@fullcalendar/core/locales/ru';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
-import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import type { CalendarAppointmentEvent, WorkingBounds } from '@/modules/booking-calendar/types';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
@@ -203,14 +201,9 @@ export function DoctorTodayMiniCalendar({
       id="doctor-today-mini-calendar"
       className={cn(fillHeight && 'h-full min-h-0 overflow-hidden')}
     >
-      <div className="flex items-center justify-between gap-2">
-        <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
-        <Link href="/app/doctor/schedule?tab=calendar" className={buttonVariants({ size: 'sm' })}>
-          Открыть расписание
-        </Link>
-      </div>
+      <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
 
-      {/* R1: empty-state hint; the FC day and header action stay visible regardless. */}
+      {/* R1: empty-state hint; the FC day stays visible regardless. */}
       {appointments.length === 0 ? (
         <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
       ) : null}

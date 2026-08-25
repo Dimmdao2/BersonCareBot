@@ -7,7 +7,6 @@ import {
   ComposedChart,
   Line,
   ReferenceDot,
-  ReferenceLine,
   XAxis,
   YAxis,
 } from 'recharts';
@@ -175,9 +174,6 @@ export function DoctorTodayWeeklyAppointmentsChart({
                   maxBarSize={24}
                   isAnimationActive={false}
                 />
-                {currentPoint && currentIsVisible ? (
-                  <ReferenceLine y={currentPoint.appointments} stroke="#a8adb4" strokeWidth={1} />
-                ) : null}
                 <Line
                   type="monotone"
                   dataKey="appointmentsPast"
@@ -193,9 +189,9 @@ export function DoctorTodayWeeklyAppointmentsChart({
                   type="monotone"
                   dataKey="appointmentsFuture"
                   name="Записей"
-                  stroke="#406ca7"
+                  stroke="var(--primary)"
                   strokeWidth={1.5}
-                  dot={{ r: 2.5, fill: '#406ca7', strokeWidth: 0 }}
+                  dot={{ r: 2.5, fill: 'var(--primary)', strokeWidth: 0 }}
                   activeDot={{ r: 4 }}
                   connectNulls={false}
                   isAnimationActive={false}
@@ -205,7 +201,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
                     x={currentPoint.label}
                     y={currentPoint.appointments}
                     r={5}
-                    fill="#406ca7"
+                    fill="var(--primary)"
                     stroke="#c4594f"
                     strokeWidth={3}
                     ifOverflow="visible"

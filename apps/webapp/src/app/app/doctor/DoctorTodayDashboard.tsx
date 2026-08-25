@@ -250,11 +250,21 @@ export function DoctorTodayDashboard({
       id="doctor-today-dashboard"
       className={`${doctorPageStackClass} min-h-0 flex-1 pb-[3.25rem] md:pb-0`}
     >
-      <DoctorPageHeader id="doctor-today-header" title="Сегодня" />
+      <DoctorPageHeader
+        id="doctor-today-header"
+        title="Сегодня"
+        tabs={
+          <DoctorTodayQuickActions
+            todayIso={calendarSnapshot.todayIso}
+            displayIana={displayIana}
+            placement="header"
+          />
+        }
+      />
 
       <div
         id="doctor-today-two-panes"
-        className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 md:h-[calc(100dvh_-_var(--doctor-page-header-h,2.75rem)_-_1.5rem)] md:flex-none md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-stretch md:pb-3 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+        className="doctor-today-two-pane-grid grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 md:h-[calc(100dvh_-_var(--doctor-page-header-h,2.75rem)_-_1.5rem)] md:flex-none md:items-stretch md:pb-3"
       >
         <div id="doctor-today-left-pane" className="flex min-h-0 min-w-0 flex-col gap-3">
           <DoctorTodayLeftKpiRow
@@ -278,7 +288,10 @@ export function DoctorTodayDashboard({
             onTaskSaved={handleTaskSaved}
           />
 
-          <DoctorTodayNextAppointment appointment={data.nextAppointment} />
+          <DoctorTodayNextAppointment
+            appointment={data.nextAppointment}
+            displayIana={displayIana}
+          />
 
           <DoctorMetricList columns="two" aria-label="Сводка дня">
             <DoctorStatCard
@@ -299,7 +312,11 @@ export function DoctorTodayDashboard({
             />
           </DoctorMetricList>
 
-          <DoctorTodayQuickActions todayIso={calendarSnapshot.todayIso} displayIana={displayIana} />
+          <DoctorTodayQuickActions
+            todayIso={calendarSnapshot.todayIso}
+            displayIana={displayIana}
+            placement="mobile-footer"
+          />
 
           <div className="min-h-[18rem] md:min-h-0 md:flex-1">
             <DoctorTodayWeeklyAppointmentsChart points={data.weeklyTimeline} />

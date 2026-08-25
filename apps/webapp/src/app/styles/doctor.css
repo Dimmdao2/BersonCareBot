@@ -58,9 +58,19 @@
     --doctor-sticky-offset: var(--doctor-page-header-h, 0px);
   }
 
+  .doctor-today-two-pane-grid {
+    grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
+  }
+
   .doctor-today-quick-actions {
     position: static;
     z-index: auto;
+  }
+}
+
+@media (min-width: 1280px) {
+  .doctor-today-two-pane-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 

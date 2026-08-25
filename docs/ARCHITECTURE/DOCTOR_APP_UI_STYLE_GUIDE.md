@@ -54,11 +54,11 @@
 | Border                     | разделение поверхностей              | `--border` (`#e3e8f0`)           |
 | Text primary               | основной текст                       | `--foreground`                   |
 | Text secondary             | подписи, мета                        | `--muted-foreground`             |
-| Primary                    | кнопки, акцент, active/focus, ссылки | doctor-zone `--primary: #406ca7` |
+| Primary                    | кнопки, акцент, active/focus, ссылки | doctor-zone `--primary: #4573b1` |
 | Primary soft               | hover/active фон акцентных элементов | `bg-primary/10…/15`              |
 | Success / Warning / Danger | статусы                              | мягкие, не кислотные (§17)       |
 
-**Правило:** `#406ca7` задаётся один раз в doctor-zone theme adapter; компоненты используют `--primary`/Tailwind-семантику. Не вводить hex в компонентах. Хардкод-цвета навигации мигрировать на `--primary`/`primary soft`. Patient/public и destructive/warning/info роли этим решением не перекрашиваются.
+**Правило:** `#4573b1` задаётся один раз в doctor-zone theme adapter; компоненты используют `--primary`/Tailwind-семантику. Не вводить hex в компонентах. Хардкод-цвета навигации мигрировать на `--primary`/`primary soft`. Patient/public и destructive/warning/info роли этим решением не перекрашиваются.
 
 ### A.3. Радиусы поверхностей
 

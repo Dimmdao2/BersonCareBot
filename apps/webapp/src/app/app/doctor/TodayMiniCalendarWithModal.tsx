@@ -4,8 +4,6 @@ import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
-import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
-import Link from 'next/link';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import type { DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import type {
@@ -48,12 +46,7 @@ function TodayMiniCalendarShellFallback({
       id="doctor-today-mini-calendar"
       className={cn(fillHeight && 'h-full min-h-0 overflow-y-auto')}
     >
-      <div className="flex items-center justify-between gap-2">
-        <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
-        <Link href="/app/doctor/schedule?tab=calendar" className={buttonVariants({ size: 'sm' })}>
-          Открыть расписание
-        </Link>
-      </div>
+      <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
       {appointments.length === 0 ? (
         <p className="text-xs text-muted-foreground">Записей на сегодня нет</p>
       ) : (

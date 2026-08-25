@@ -2,51 +2,25 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useState } from 'react';
 import type { TodayNextAppointmentItem } from './loadDoctorTodayDashboard';
 import { patientCardHref } from './patients/patientCardHref';
-import {
-  APPOINTMENT_CANCEL_CHARGE_OPTIONS,
-  APPOINTMENT_CANCEL_REASONS,
-} from './calendar/appointmentCancellationOptions';
+import { TodayAppointmentFullModal } from './TodayAppointmentFullModal';
 import {
   DoctorSection,
   DoctorSectionHeader,
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/shared/ui/doctor/primitives/dialog';
-import { Label } from '@/shared/ui/doctor/primitives/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/shared/ui/doctor/primitives/select';
-import { Switch } from '@/shared/ui/doctor/primitives/switch';
-import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 
 type Props = {
   appointment: TodayNextAppointmentItem | null;
+  displayIana: string;
 };
 
-export function DoctorTodayNextAppointment({ appointment }: Props) {
+export function DoctorTodayNextAppointment({ appointment, displayIana }: Props) {
   const router = useRouter();
-  const [cancelOpen, setCancelOpen] = useState(false);
-  const [cancelReason, setCancelReason] = useState('');
-  const [cancelComment, setCancelComment] = useState('');
-  const [cancelCharge, setCancelCharge] = useState('free');
-  const [cancelNotify, setCancelNotify] = useState(true);
-  const [cancelError, setCancelError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const patientHref = appointment?.clientUserId ? patientCardHref(appointment.clientUserId) : null;
   const createVisitHref = appointment?.clientUserId
@@ -57,37 +31,6 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
       })
     : null;
   const appointmentComment = appointment?.comment?.trim() || null;
-
-  function cancelAppointment() {
-    if (!appointment) return;
-    setCancelError(null);
-    startTransition(async () => {
-      try {
-        const response = await fetch(
-          `/api/doctor/booking-engine/appointments/${encodeURIComponent(appointment.id)}/manual-cancel`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              decisionType: cancelCharge,
-              ...(cancelReason ? { reason: cancelReason } : {}),
-              ...(cancelComment.trim() ? { staffComment: cancelComment.trim() } : {}),
-              notifyPatient: cancelNotify,
-            }),
-          },
-        );
-        const payload = (await response.json()) as { ok?: boolean; error?: string };
-        if (!response.ok || !payload.ok) {
-          setCancelError('Не удалось отменить запись');
-          return;
-        }
-        setCancelOpen(false);
-        router.refresh();
-      } catch {
-        setCancelError('Не удалось отменить запись');
-      }
-    });
-  }
 
   return (
     <DoctorSection id="doctor-today-next-appointment">
@@ -162,95 +105,22 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
               type="button"
               size="sm"
               variant="outline"
-              className="w-full min-w-0 px-1 text-xs text-destructive sm:px-3 sm:text-sm"
-              onClick={() => setCancelOpen(true)}
+              className="w-full min-w-0 px-1 text-xs sm:px-3 sm:text-sm"
+              onClick={() => setDetailsOpen(true)}
             >
-              Отменить
+              Детали
             </Button>
           </div>
         </div>
       ) : null}
 
-      <Dialog open={cancelOpen} onOpenChange={setCancelOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Отменить запись</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <Label>Причина отмены</Label>
-              <Select value={cancelReason} onValueChange={(value) => setCancelReason(value ?? '')}>
-                <SelectTrigger
-                  displayLabel={
-                    APPOINTMENT_CANCEL_REASONS.find((item) => item.value === cancelReason)?.label ??
-                    'Выберите причину'
-                  }
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {APPOINTMENT_CANCEL_REASONS.map((item) => (
-                    <SelectItem key={item.value} value={item.value} label={item.label}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Комментарий</Label>
-              <Textarea
-                rows={2}
-                value={cancelComment}
-                onChange={(event) => setCancelComment(event.target.value)}
-                placeholder="Комментарий для истории записи"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Начисление</Label>
-              <Select
-                value={cancelCharge}
-                onValueChange={(value) => setCancelCharge(value ?? 'free')}
-              >
-                <SelectTrigger
-                  displayLabel={
-                    APPOINTMENT_CANCEL_CHARGE_OPTIONS.find((item) => item.value === cancelCharge)
-                      ?.label
-                  }
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {APPOINTMENT_CANCEL_CHARGE_OPTIONS.map((item) => (
-                    <SelectItem key={item.value} value={item.value} label={item.label}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <label className="flex items-center justify-between gap-2">
-              <span className="text-sm">Уведомлять пациента</span>
-              <Switch checked={cancelNotify} onCheckedChange={setCancelNotify} />
-            </label>
-            {cancelError ? <p className="text-xs text-destructive">{cancelError}</p> : null}
-          </div>
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" disabled={isPending} />}>
-              Назад
-            </DialogClose>
-            <Button
-              type="button"
-              variant="outline"
-              className="text-destructive"
-              disabled={isPending}
-              onClick={cancelAppointment}
-            >
-              Подтвердить отмену
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <TodayAppointmentFullModal
+        apptId={detailsOpen && appointment ? appointment.id : null}
+        todayIso={appointment?.visitDate ?? ''}
+        displayIana={displayIana}
+        onClose={() => setDetailsOpen(false)}
+        onChanged={() => router.refresh()}
+      />
     </DoctorSection>
   );
 }
