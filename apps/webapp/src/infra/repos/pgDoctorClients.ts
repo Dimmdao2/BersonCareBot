@@ -1375,7 +1375,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       actorId: string;
     }): Promise<void> {
       if (params.blocked) {
-        await runWebappPgText(
+        const result = await runWebappPgText(
           `UPDATE platform_users SET
              is_blocked = true,
              session_epoch = session_epoch + CASE WHEN COALESCE(is_blocked, false) THEN 0 ELSE 1 END,
@@ -1386,8 +1386,9 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            WHERE id = $1::uuid AND role = 'client'`,
           [params.userId, params.reason, params.actorId],
         );
+        if ((result.rowCount ?? 0) !== 1) throw new Error('patient_not_available');
       } else {
-        await runWebappPgText(
+        const result = await runWebappPgText(
           `UPDATE platform_users SET
              is_blocked = false,
              blocked_at = NULL,
@@ -1397,6 +1398,7 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
            WHERE id = $1::uuid AND role = 'client'`,
           [params.userId],
         );
+        if ((result.rowCount ?? 0) !== 1) throw new Error('patient_not_available');
       }
     },
 

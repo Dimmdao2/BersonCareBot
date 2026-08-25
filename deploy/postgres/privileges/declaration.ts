@@ -8354,6 +8354,14 @@ function revision10SystemSettingsPolicies(index: number): PolicyDecl[] {
 }
 
 function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
+  const staffClinicPerson = '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
+    + ' WHERE access_member.platform_user_id = platform_users.id'
+    + ' AND access_member.organization_id = (SELECT app.current_org_id())'
+    + " AND access_member.status = 'active'))"
+    + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
+    + ' WHERE access_patient.platform_user_id = platform_users.id'
+    + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
+    + " AND access_patient.status IN ('invited', 'active', 'archived'))))";
   return [
     // D15b/7a Ш6 (22.08): корень учётки — АКТОРСКАЯ вещь, и гейтится акторской ссылкой. До Ш4 обе
     // ссылки резолвились в один физический id, поэтому субъектный аксессор тут «работал»; после
@@ -8363,15 +8371,8 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       note: 'identity-self may read only its own explicitly granted profile columns' },
     { name: `rev10_platform_users_staff_select_${index + 1}`, as: 'PERMISSIVE', cmd: 'SELECT',
       to: ['app_staff'],
-      using: '((EXISTS (SELECT 1 FROM public.be_organization_members access_member'
-        + ' WHERE access_member.platform_user_id = platform_users.id'
-        + ' AND access_member.organization_id = (SELECT app.current_org_id())'
-        + " AND access_member.status = 'active'))"
-        + ' OR (EXISTS (SELECT 1 FROM public.org_enrollments access_patient'
-        + ' WHERE access_patient.platform_user_id = platform_users.id'
-        + ' AND access_patient.organization_id = (SELECT app.current_org_id())'
-        + " AND access_patient.status IN ('invited', 'active'))))",
-      note: 'staff may read explicitly granted profile columns of current-clinic members and enrolled patients' },
+      using: staffClinicPerson,
+      note: 'staff may read explicitly granted profile columns of current-clinic members and active or archived patients' },
     { name: `rev10_platform_users_staff_insert_${index + 1}`, as: 'PERMISSIVE', cmd: 'INSERT',
       to: ['app_staff'],
       withCheck: "(current_user = 'app_staff'::name AND role = 'client' AND merged_into_id IS NULL"
@@ -8384,6 +8385,10 @@ function revision10PlatformUsersPolicies(index: number): PolicyDecl[] {
       to: ['app_patient', 'app_staff', 'app_platform_settings'], using: '(id = app.current_actor_user_id())',
       withCheck: '(id = app.current_actor_user_id())',
       note: 'identity-self, staff and platform administration may update only their own account timezone' },
+    { name: `rev10_platform_users_staff_patient_block_update_${index + 1}`, as: 'PERMISSIVE', cmd: 'UPDATE',
+      to: ['app_staff'], using: `(${staffClinicPerson} AND role = 'client')`,
+      withCheck: `(${staffClinicPerson} AND role = 'client')`,
+      note: 'staff may globally block or unblock a patient related to the accepted clinic; column grants constrain the mutation' },
   ];
 }
 

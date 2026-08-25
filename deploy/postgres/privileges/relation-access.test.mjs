@@ -1063,7 +1063,7 @@ test('canonical settings and account email use semantic row walls without broad 
   assert.match(staffSelect?.using ?? '', /access_member\.platform_user_id = platform_users\.id/);
   assert.match(staffSelect?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
   assert.match(staffSelect?.using ?? '', /access_patient\.organization_id = \(SELECT app\.current_org_id\(\)\)/);
-  assert.match(staffSelect?.using ?? '', /access_patient\.status IN \('invited', 'active'\)/);
+  assert.match(staffSelect?.using ?? '', /access_patient\.status IN \('invited', 'active', 'archived'\)/);
   assert.deepEqual(staffInsert?.to, ['app_staff']);
   assert.equal(staffInsert?.cmd, 'INSERT');
   assert.match(staffInsert?.withCheck ?? '', /role = 'client'/);
@@ -1087,6 +1087,13 @@ test('canonical settings and account email use semantic row walls without broad 
   assert.deepEqual(timezoneUpdate?.to, ['app_patient', 'app_staff', 'app_platform_settings']);
   assert.equal(timezoneUpdate?.using, '(id = app.current_actor_user_id())');
   assert.equal(timezoneUpdate?.withCheck, '(id = app.current_actor_user_id())');
+  const staffPatientBlockUpdate = users.policies.find((policy) =>
+    policy.name.startsWith('rev10_platform_users_staff_patient_block_update_'));
+  assert.deepEqual(staffPatientBlockUpdate?.to, ['app_staff']);
+  assert.equal(staffPatientBlockUpdate?.cmd, 'UPDATE');
+  assert.match(staffPatientBlockUpdate?.using ?? '', /access_patient\.platform_user_id = platform_users\.id/);
+  assert.match(staffPatientBlockUpdate?.using ?? '', /access_patient\.status IN \('invited', 'active', 'archived'\)/);
+  assert.match(staffPatientBlockUpdate?.using ?? '', /role = 'client'/);
 });
 
 test('patient page relations have exact self/current-clinic access and published content walls', () => {
