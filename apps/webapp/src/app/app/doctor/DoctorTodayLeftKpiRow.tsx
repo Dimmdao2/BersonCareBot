@@ -55,6 +55,9 @@ type Props = Pick<
 
 type KpiModal = 'messages' | 'comments' | 'tests' | 'tasks' | null;
 
+const todayAttentionKpiClass =
+  'bg-[var(--doctor-today-kpi-attention-background,#f5ede5)]';
+
 function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
   return (
     <div className={doctorSectionItemClass}>
@@ -165,6 +168,8 @@ export function DoctorTodayLeftKpiRow({
           value={unreadTotal}
           tooltip="Непрочитанные сообщения от клиентов."
           tone={unreadTotal > 0 ? 'warning' : 'neutral'}
+          className={unreadTotal > 0 ? todayAttentionKpiClass : undefined}
+          valueClassName={unreadTotal > 0 ? 'text-destructive' : undefined}
           onClick={unreadTotal > 0 ? () => setKpiModal('messages') : undefined}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
@@ -174,6 +179,7 @@ export function DoctorTodayLeftKpiRow({
           value={displayTotal}
           tooltip="Новые комментарии клиентов к упражнениям."
           tone={displayTotal > 0 ? 'warning' : 'neutral'}
+          className={displayTotal > 0 ? todayAttentionKpiClass : undefined}
           onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
@@ -183,6 +189,7 @@ export function DoctorTodayLeftKpiRow({
           value={pendingTestsTotal}
           tooltip="Тесты по программам, ожидающие проверки."
           tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
+          className={pendingTestsTotal > 0 ? todayAttentionKpiClass : undefined}
           onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
         />
         {tasksReadable ? (
@@ -193,6 +200,7 @@ export function DoctorTodayLeftKpiRow({
             secondaryValue={attentionTasks.length > 0 ? tasksTotal : undefined}
             tooltip="Открытые задачи."
             tone={attentionTasks.length > 0 ? 'warning' : 'neutral'}
+            className={attentionTasks.length > 0 ? todayAttentionKpiClass : undefined}
             onClick={() => {
               if (isDesktopViewport) {
                 router.push(routePaths.doctorTasks);

@@ -12,7 +12,7 @@
  */
 
 :root {
-  --bc-canvas: #f6f4ef;
+  --bc-canvas: #f2f2f0;
   --bc-surface: #ffffff;
   --bc-rail: #fbfaf6;
   --bc-warm-selected: #f1eee7;
@@ -46,6 +46,7 @@
   --bc-radius-sm: 8px;
   --bc-radius-md: 11px;
   --bc-radius-lg: 14px;
+  --button-radius: 8px;
 
   --bc-shadow-micro: 0 1px 2px rgb(40 35 25 / 2.8%), 0 4px 14px rgb(40 35 25 / 3%);
   --bc-shadow-raised: 0 2px 4px rgb(40 35 25 / 6%), 0 16px 34px rgb(40 35 25 / 10%);

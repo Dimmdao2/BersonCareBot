@@ -14,7 +14,7 @@
 :root {
   color-scheme: light;
   font-family: var(--font-manrope);
-  background: #ffffff;
+  background: var(--bc-canvas, #f2f2f0);
   color: #18202c;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
@@ -150,13 +150,18 @@
   * {
     @apply border-border outline-ring/50;
   }
+  button,
+  [data-slot='button'],
+  [role='button'] {
+    border-radius: var(--button-radius, 8px) !important;
+  }
   html {
     @apply font-sans;
     width: 100%;
     max-width: 100%;
     min-height: 100%;
     overflow-x: clip;
-    background-color: #ffffff;
+    background-color: var(--bc-canvas, #f2f2f0);
   }
 
   @supports not (overflow: clip) {
@@ -171,7 +176,7 @@
     max-width: 100%;
     min-width: 0;
     overflow-x: clip;
-    background: #ffffff;
+    background: var(--bc-canvas, #f2f2f0);
   }
 
   @supports not (overflow: clip) {

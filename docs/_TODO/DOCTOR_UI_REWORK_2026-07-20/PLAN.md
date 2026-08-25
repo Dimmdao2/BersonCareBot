@@ -50,7 +50,7 @@
 | G3 — тумблеры механик          | **решено: только organization/clinic**, не специалист                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            | строить на существующем S4 engine `#888`, не форкать                                       |
 | G4 — split коммуникаций        | **решено: 45/55**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | согласованный fallback: 50/50                                                              |
 | G5 — онлайн-приём              | **решено:** online уже существует; нужна только встроенная включаемая локация «Онлайн»                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | её toggle гейтит существующие online-галочки услуг; новой схемы не вводить                 |
-| G6 — общий Doctor UI chrome    | **SUPERSEDED частично 2026-07-22:** белый/inherited workspace background из прежней correction. Latest authority `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0: doctor canvas = `#F6F4EF`; белая page header, primary `#406ca7`, радиусы blocks/KPI/controls `12/8/24px`, padding `18px`, белый input и KPI label сверху/value снизу сохраняются. 24px не применяется к sidebar/mobile menu rows: меню почти прямоугольное с минимальным radius; section tabs имеют отдельную округлённую форму. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest shared-primitives residual `#967`; doctor workspace only, без локального style fork |
+| G6 — общий Doctor UI chrome    | **OWNER CORRECTION 2026-08-25:** общий canvas всех страниц = `#f2f2f0`; белая page header, primary `#406ca7`, радиусы blocks/KPI `12/8px`, padding `18px`, белый input и KPI label сверху/value снизу сохраняются. Все кнопки и button-like controls имеют радиус ровно `8px`; doctor input/select trigger сохраняют `24px`. Sidebar/mobile menu rows остаются почти прямоугольными с минимальным radius; section tabs как кнопки используют `8px`. Flat lists используют геометрию «На сопровождении», full-row hover и divider `#f0efeb`. | latest owner correction; doctor workspace only, без локального style fork |
 | SCH-G5 — fallback слотов       | **owner question `#848`**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | не менять строгую/резервную семантику без ответа                                           |
 
 Отдельное точное решение по `#191`: разминки по умолчанию в `12:00` и `15:00` в рабочие дни; существующих клиентов
@@ -294,13 +294,15 @@ Live-проверка candidate на отдельном разрешённом c
 
 ### UI-P — общий Doctor UI presentation-token pass
 
-- **SUPERSEDED — 2026-07-22:** прежний G6 white/inherited background outcome. Latest owner authority
-  `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0 sets exact doctor canvas `#F6F4EF`;
-  sticky page header with title remains white.
-- Радиусы задаются общими doctor primitives: page-level block `12px`, KPI `8px`, doctor button/input/select trigger
-  `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
+- **OWNER CORRECTION 2026-08-25:** общий canvas всех страниц — `#f2f2f0`; sticky page header with title remains
+  white.
+- Радиусы задаются общими primitives: page-level block `12px`, KPI и все кнопки/button-like controls `8px`,
+  doctor input/select trigger `24px`. Основные блоки используют внутренний отступ `18px`; внутренний `input` имеет белый фон. Локальные копии
   этих классов по страницам не создаются.
 - KPI во всех затронутых doctor surfaces используют один порядок: label сверху, value снизу.
+- **OWNER CORRECTION 2026-08-25 — «Сегодня»:** KPI в warning/attention-состоянии имеют непрозрачный фон ровно
+  `#f5ede5`; число непрочитанных/неотвеченных сообщений использует тот же destructive-цвет, что число
+  просроченных задач. В блоке «Следующий прием» ФИО клиента идёт слева сразу после метки «Клиент».
 - Основной шрифт строк doctor-списков становится крупнее и легче без изменения meta/badge/calendar typography.
   Live-эталон владельца — блок «На сопровождении» на «Сегодня»: divider `1px` не доходит до краёв page-level блока,
   а текст/иконки имеют тот же спокойный внутренний ритм. Этот behavioral reference применяется к «Клиентам» и
@@ -434,7 +436,7 @@ Data contracts, metric semantics, patient/public UI, DB/env/deploy и полны
   `50/50`.
 - **SUPERSEDED — 2026-07-22:** the previous `P2B-02` white/inherited workspace outcome. Replaced by
   `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0: doctor canvas is exactly
-  `#F6F4EF`; page header and primary surfaces remain white.
+  `#f2f2f0`; page header and primary surfaces remain white.
 - **SUPERSEDED — 2026-07-22, replaced by `P2B-09`:** применение doctor control radius `24px` к sidebar/mobile
   menu rows, включая промежуточный `rounded-md`. Основное меню остаётся почти прямоугольным с минимальным radius;
   более округлённые section tabs — отдельный contract.
@@ -445,7 +447,7 @@ Data contracts, metric semantics, patient/public UI, DB/env/deploy и полны
 #### Owner ruling — P2B-09/P2B-10/P2B-14 list ambiguity (2026-07-22, Track A round 4)
 
 - **Visual canon:** doctor lists follow the Today page. The list itself receives no added side border or enclosing
-  side frame; the Doctor DNA canvas remains `#F6F4EF`, while page headers and primary surfaces remain white.
+  side frame; the shared canvas remains `#f2f2f0`, while page headers and primary surfaces remain white.
 - **Interaction canon:** the full visible row is the hit target. Today uses one native row `Link` with its metadata
   inside it; Clients and Messages keep their existing native full-row button behavior for master/detail selection.
   No nested interactive element is permitted inside the Today link; any future independent row action must be a
@@ -459,8 +461,8 @@ Data contracts, metric semantics, patient/public UI, DB/env/deploy и полны
 - [~] **P2B-01** Desktop «Сегодня» использует точное разделение `50/50`; repository implementation/test доказаны,
   owner mobile/desktop live visual acceptance остаётся открытой.
 - **P2B-02 — SUPERSEDED 2026-07-22.** Прежний white/inherited outcome снят; действующий canvas contract
-  `#F6F4EF` отслеживается через UI-P/P2B-07/P2B-08, а не пустой галочкой отменённого требования.
-- [~] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
+  `#f2f2f0` отслеживается через UI-P/P2B-07/P2B-08, а не пустой галочкой отменённого требования.
+- [~] **P2B-03** Shared section tabs имеют более тёмный neutral hover и общий кнопочный radius `8px` без
   page-local divergence; это не меняет геометрию sidebar/mobile menu. (code may be in place; awaiting owner live visual acceptance)
 - [x] **P2B-04** Видимая сетка Today calendar начинается ровно за один час до первого приёма, когда именно приём
       расширяет нижнюю границу; общий calendar-window contract не получает локальный fork или двойной lead padding.
@@ -473,9 +475,9 @@ Data contracts, metric semantics, patient/public UI, DB/env/deploy и полны
 - [x] **P2B-07** Semantic doctor primary остаётся ровно `#406ca7` через doctor-zone token; local primary hex и
       перекраска patient/public tokens отсутствуют. (✓ apps/webapp/src/app/styles/bersoncare-tweakcn-theme.css:101; scoped census finds no local hex fork)
 - [~] **P2B-08** Page headers и фактические input surfaces белые. (code may be in place; awaiting owner live visual acceptance)
-- [~] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI `8px`, doctor buttons/inputs/select
-  triggers `24px`; sidebar/mobile menu rows сохраняют прежний почти прямоугольный минимальный radius, tabs живут
-  по отдельному rounded contract. **Owner ruling 2026-07-22:** visual canon for Clients/Messages list surfaces is
+- [~] **P2B-09** Shared radius scale соблюдена: page-level blocks `12px`, KPI и все кнопки/button-like controls
+  `8px`, doctor inputs/select triggers `24px`; sidebar/mobile menu rows сохраняют прежний почти прямоугольный
+  минимальный radius, tabs используют общий кнопочный radius `8px`. **Owner ruling 2026-07-22:** visual canon for Clients/Messages list surfaces is
   Today; those lists receive no added side border or enclosing side frame. (repository + `#977` test/audit
   evidence complete; owner live visual acceptance pending)
 - [~] **P2B-10** Основные page-blocks используют внутренний padding `18px` через shared doctor primitives, без
@@ -500,7 +502,7 @@ Data contracts, metric semantics, patient/public UI, DB/env/deploy и полны
 - `P2B-01` — code/test prove `DoctorTodayDashboard.tsx` uses `md:grid-cols-2`; mobile runtime evidence remains open
   until the integrated commit is checked live.
 - `P2B-02` — retired ID. Old white/inherited value and `#faf9f4` fallback do not apply; `doctor.css` uses DNA
-  canvas `#F6F4EF`, while `P2B-07`/`P2B-08` cover semantic primary and white header/input surfaces.
+  canvas `#f2f2f0`, while `P2B-07`/`P2B-08` cover semantic primary and white header/input surfaces.
 - `P2B-03` — `DoctorSectionTabs.ts` uses `--doctor-section-tab-hover`; `DoctorPresentationChrome.test.tsx`
   proves that section tabs keep their own pill contract independently of menu rows.
 - `P2B-04`/`P2B-05` — `DoctorTodayMiniCalendar.tsx` delegates the single lead buffer to
@@ -739,9 +741,9 @@ brief или заменять одним общим пунктом.
 
 #### UI-P — shared doctor presentation (`#925`)
 
-- **SUPERSEDED 2026-07-22:** white/inherited canvas outcome. Действующий canvas = exact Design DNA `#F6F4EF`;
-  page header остаётся белой, primary `#406ca7` не меняется.
-- [~] Радиусы block/KPI/control `12/8/24px`, основной padding `18px` и белый input реализованы через shared doctor
+- **Owner correction 2026-08-25:** общий page canvas = exact `#f2f2f0`; page header остаётся белой, primary
+  `#406ca7` не меняется. Все кнопки получают точный радиус `8px`; doctor input/select сохраняют `24px`.
+- [~] Радиусы block/KPI/button/input-select `12/8/8/24px`, основной padding `18px` и белый input реализованы через shared doctor
   tokens/primitives без page-local fork. (`doctor.css`, `doctorVisual.ts`, doctor primitives; `#977`
   test/audit complete, owner live visual acceptance pending)
 - [x] KPI используют порядок label → value. (✓ DoctorStatCard.tsx:54-58)
@@ -749,10 +751,9 @@ brief или заменять одним общим пунктом.
       (✓ DoctorDnaFlatListRow.tsx:17-27 `text-base font-normal` primary vs `text-xs` meta)
 - [~] Clients/messages используют один shared list-row contract: геометрия как «На сопровождении», full-row hover и
   divider `#f0efeb` (`#967`). (code may be in place; awaiting owner live visual acceptance)
-- [~] Общие tabs имеют более округлые края и более тёмный нейтральный hover без page-local divergence (`#967`). (code may be in place; awaiting owner live visual acceptance)
+- [~] Общие tabs используют единый кнопочный радиус `8px` и более тёмный нейтральный hover без page-local divergence (`#967`). (code may be in place; awaiting owner live visual acceptance)
 - [~] Пункты основного sidebar/mobile menu возвращены к прежней почти прямоугольной форме с действительно
-  минимальным скруглением и не наследуют 24px doctor button radius (`#967`). Owner live recheck 2026-07-22
-  отклонил промежуточный `rounded-md` как всё ещё слишком округлый; rounded section tabs этим пунктом не меняются.
+  минимальным скруглением для не-кнопочных ссылок; button/`[role='button']` rows используют общий радиус `8px` (`#967`).
   (code may be in place; awaiting owner live visual acceptance)
 - [x] Clients search находится в page-header slot. (✓ PatientsPageClient.tsx:657-688 via `DoctorPageHeader` tabs slot)
 

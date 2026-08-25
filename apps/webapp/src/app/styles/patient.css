@@ -7,7 +7,7 @@
  * Legacy patient tokens on :root (MASTER_PLAN §6) + portal fallbacks for modals outside shell.
  */
 :root {
-  --patient-bg: #ffffff;
+  --patient-bg: var(--bc-canvas, #f2f2f0);
   --patient-surface: #ffffff;
   --patient-radius: 12px;
   --patient-radius-lg: 16px;
@@ -96,7 +96,7 @@
   --patient-content-dvh: calc(
     var(--patient-shell-inner-dvh) - var(--patient-bottom-nav-content-gap)
   );
-  --patient-page-bg: #ffffff;
+  --patient-page-bg: var(--bc-canvas, #f2f2f0);
   --patient-card-bg: #ffffff;
   --patient-border: #e5e7eb;
   --patient-card-radius-mobile: 6px;
@@ -147,9 +147,9 @@
   --patient-surface-danger-border: #fecaca;
   --patient-surface-danger-text: var(--patient-text-primary);
   --patient-surface-danger-accent: var(--patient-color-danger);
-  --patient-bg: #ffffff;
+  --patient-bg: var(--bc-canvas, #f2f2f0);
   --patient-surface: #ffffff;
-  background-color: #ffffff;
+  background-color: var(--patient-page-bg);
 }
 
 @media (min-width: 431px) and (max-width: 767px) {
@@ -206,7 +206,7 @@
 }
 
 #app-shell-patient > main#app-shell-content {
-  background-color: #ffffff;
+  background-color: var(--patient-page-bg);
 }
 
 /**
