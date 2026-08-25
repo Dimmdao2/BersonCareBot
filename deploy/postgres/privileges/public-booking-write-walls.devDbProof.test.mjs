@@ -271,8 +271,6 @@ test(
 SELECT ref.opaque_ref || '|' || ref.physical_user_id || '|' || enrollment.organization_id
   FROM app_ext.variant_a_identity_refs ref
   JOIN public.org_enrollments enrollment ON enrollment.platform_user_id = ref.physical_user_id
-  JOIN public.clinic_public_directory_entries directory
-    ON directory.organization_id = enrollment.organization_id AND directory.is_published
  WHERE ref.ref_kind = 'actor'
    AND EXISTS (
      SELECT 1 FROM public.be_appointments appointment
@@ -282,11 +280,28 @@ SELECT ref.opaque_ref || '|' || ref.physical_user_id || '|' || enrollment.organi
         AND appointment.created_at < now() - interval '1 second'
    )
  LIMIT 1;`,
-      'архивируемый клиент с историческим приёмом в опубликованной клинике',
+      'архивируемый клиент с историческим приёмом',
     );
 
     const outcome = psql(`
 BEGIN;
+-- Публичность нужна двери зачисления, но не должна быть постоянной TEST/DEV-фикстурой.
+-- Строка создаётся или временно включается внутри этой транзакции и исчезает по ROLLBACK ниже.
+INSERT INTO public.organization_slug_claims (slug, kind, organization_id)
+SELECT 'proof-' || left(md5('${organizationId}'), 20), 'current', '${organizationId}'::uuid
+ WHERE NOT EXISTS (
+   SELECT 1 FROM public.organization_slug_claims
+    WHERE organization_id = '${organizationId}'::uuid AND kind = 'current'
+ );
+INSERT INTO public.clinic_public_directory_entries (
+  organization_id, slug, display_name, is_published, published_at
+) SELECT '${organizationId}'::uuid, claim.slug, 'Public booking proof clinic', true, now()
+    FROM public.organization_slug_claims claim
+   WHERE claim.organization_id = '${organizationId}'::uuid AND claim.kind = 'current'
+ON CONFLICT (organization_id) DO UPDATE
+   SET is_published = true,
+       published_at = COALESCE(public.clinic_public_directory_entries.published_at, now()),
+       updated_at = now();
 UPDATE public.org_enrollments
    SET status = 'archived'
  WHERE organization_id = '${organizationId}'::uuid
