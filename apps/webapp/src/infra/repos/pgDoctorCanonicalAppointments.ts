@@ -149,6 +149,7 @@ function mapListRow(row: ListRow): AppointmentRow {
     dateKey: '',
     type: row.serviceTitle?.trim() || 'Запись',
     status: appointmentStatusLabel(row.status as AppointmentStatus),
+    rawStatus: row.status,
     link: null,
     cancellationCountForClient: 0,
     branchName: row.branchTitle ?? null,
@@ -290,6 +291,18 @@ export function createPgDoctorCanonicalAppointmentsPort(
               lte(beAppointments.startAt, sql`date_trunc('month', NOW()) + interval '1 month'`),
             ),
           )
+          .orderBy(asc(beAppointments.startAt));
+      } else if (filter.kind === 'timeline') {
+        rows = await db
+          .select(listSelect)
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
+          .leftJoin(beClinicServices, eq(beClinicServices.id, beAppointments.serviceId))
+          .leftJoin(beBranches, eq(beBranches.id, beAppointments.branchId))
+          .leftJoin(bePackageUsages, packageUsageJoinCond())
+          .leftJoin(bePatientPackages, eq(bePatientPackages.id, bePackageUsages.patientPackageId))
+          .where(and(base, userAudience))
           .orderBy(asc(beAppointments.startAt));
       } else if (filter.kind === 'past') {
         const nowIso = new Date().toISOString();

@@ -10,18 +10,11 @@ import ruLocale from '@fullcalendar/core/locales/ru';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
-import type {
-  CalendarAppointmentEvent,
-  WorkingBounds,
-} from '@/modules/booking-calendar/types';
+import type { CalendarAppointmentEvent, WorkingBounds } from '@/modules/booking-calendar/types';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
-import {
-  DEFAULT_CALENDAR_WINDOW_MAX,
-  DEFAULT_CALENDAR_WINDOW_MIN,
-  deriveCalendarVisibleTimeWindow,
-  type CalendarVisibleWindowEvent,
-} from '@/modules/booking-calendar/visibleTimeWindow';
+import { cn } from '@/lib/utils';
+import { DEFAULT_CALENDAR_WINDOW_MIN } from '@/modules/booking-calendar/visibleTimeWindow';
 
 /** Конвертирует минуты от полуночи в строку "HH:MM:SS" для slotMinTime/slotMaxTime. */
 function minuteToHHMM(minute: number): string {
@@ -112,6 +105,7 @@ type Props = {
   workingBounds?: WorkingBounds | null;
   showWorkingHours?: boolean;
   defaultWindow?: { startMinute: number; endMinute: number };
+  fillHeight?: boolean;
   /**
    * Called when a canonical CalendarAppointmentEvent is clicked.
    * Use this (not onEventClick) when calendarEvents are provided — it passes the full
@@ -134,42 +128,17 @@ export function DoctorTodayMiniCalendar({
   workingBounds,
   showWorkingHours,
   defaultWindow,
+  fillHeight = false,
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
-  // #538/#231: слот мин/макс = дефолт 09:00–19:00, который только расширяется
-  // наружу по рабочим границам и записям. Не сжимаем «Сегодня» до 14–17.
-  const { slotMinTime, slotMaxTime, slotLoMinute, slotHiMinute } = (() => {
-    const visibleEvents: CalendarVisibleWindowEvent[] =
-      calendarEvents && calendarEvents.length > 0
-        ? calendarEvents
-        : appointments.map((appt) => {
-            const startAt = appt.recordAtIso ?? `${todayIso}T${appt.time.slice(0, 5)}:00`;
-            return {
-              kind: 'appointment',
-              startAt,
-              endAt:
-                DateTime.fromISO(startAt, { zone: appt.recordAtIso ? 'utc' : displayIana })
-                  .plus({ minutes: 60 })
-                  .toISO() ?? startAt,
-            };
-          });
-    const result = deriveCalendarVisibleTimeWindow(
-      workingBounds,
-      visibleEvents,
-      displayIana,
-      defaultWindow ?? {
-        startMinute: DEFAULT_CALENDAR_WINDOW_MIN,
-        endMinute: DEFAULT_CALENDAR_WINDOW_MAX,
-      },
-    );
-    return {
-      slotMinTime: result.slotMinTime,
-      slotMaxTime: result.slotMaxTime,
-      slotLoMinute: result.loMinute,
-      slotHiMinute: result.hiMinute,
-    };
-  })();
+  const configuredStartMinute = Number.isFinite(defaultWindow?.startMinute)
+    ? (defaultWindow?.startMinute ?? DEFAULT_CALENDAR_WINDOW_MIN)
+    : (workingBounds?.minMinute ?? DEFAULT_CALENDAR_WINDOW_MIN);
+  const scrollStartMinute = Math.max(0, Math.min(24 * 60 - 1, configuredStartMinute) - 60);
+  const scrollTime = minuteToHHMM(scrollStartMinute);
+  const tomorrowIso =
+    DateTime.fromISO(todayIso, { zone: displayIana }).plus({ days: 1 }).toISODate() ?? todayIso;
 
   // #6: if today has NO schedule (workingBounds === null, explicitly closed/no data),
   // paint the whole visible column grey. When workingBounds is undefined (not yet known)
@@ -179,8 +148,8 @@ export function DoctorTodayMiniCalendar({
       ? [
           {
             id: 'nonwork:today:all',
-            start: `${todayIso}T${minuteToHHMM(slotLoMinute)}`,
-            end: `${todayIso}T${minuteToHHMM(slotHiMinute)}`,
+            start: `${todayIso}T00:00:00`,
+            end: `${tomorrowIso}T00:00:00`,
             display: 'background' as const,
             classNames: ['!bg-[#eeeeee]', '!opacity-60'],
           },
@@ -230,7 +199,10 @@ export function DoctorTodayMiniCalendar({
   const fcEvents = [...bgFillEvent, ...fcAppointmentEvents];
 
   return (
-    <DoctorSection id="doctor-today-mini-calendar">
+    <DoctorSection
+      id="doctor-today-mini-calendar"
+      className={cn(fillHeight && 'h-full min-h-0 overflow-hidden')}
+    >
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
         <Link href="/app/doctor/schedule?tab=calendar" className={buttonVariants({ size: 'sm' })}>
@@ -254,7 +226,14 @@ export function DoctorTodayMiniCalendar({
         </ul>
       ) : null}
 
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div
+        className={cn(
+          'rounded-[4px] border border-border',
+          fillHeight
+            ? 'min-h-0 flex-1 overflow-hidden'
+            : 'h-[min(65dvh,42rem)] overflow-hidden',
+        )}
+      >
         <style>{`
           /* CAL-P1: kill green flash on first paint (same fix as ScheduleCalendarTab). */
           #doctor-today-mini-calendar .fc {
@@ -291,10 +270,12 @@ export function DoctorTodayMiniCalendar({
           dayHeaders={false}
           allDaySlot={false}
           nowIndicator
-          height="auto"
+          height="100%"
           timeZone={displayIana}
-          slotMinTime={slotMinTime}
-          slotMaxTime={slotMaxTime}
+          slotMinTime="00:00:00"
+          slotMaxTime="24:00:00"
+          scrollTime={scrollTime}
+          scrollTimeReset={false}
           events={fcEvents}
           eventClick={(info) => {
             // Prefer canonical event (has be_appointments.id, works with DoctorCalendarEventPanel).

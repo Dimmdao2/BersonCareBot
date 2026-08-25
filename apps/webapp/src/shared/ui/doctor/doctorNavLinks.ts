@@ -89,23 +89,17 @@ export function isDoctorMenuLinkVisible(
 const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
   { id: 'today', label: 'Сегодня', href: '/app/doctor', badgeKey: 'todayAttention' },
   {
-    id: 'tasks',
-    label: 'Задачи',
-    href: routePaths.doctorTasks,
-    requiresSpecialistTasksEntitlement: true,
-  },
-  {
-    id: 'patient-home',
-    label: 'Главная пациента',
-    href: '/app/doctor/patient-home',
-    requiresPatientHomeTodayEntitlement: true,
-  },
-  { id: 'patients', label: 'Пациенты', href: '/app/doctor/patients' },
-  {
     id: 'schedule',
     label: 'Расписание',
     href: routePaths.doctorSchedule,
     accessTier: 'staff',
+  },
+  { id: 'patients', label: 'Пациенты', href: '/app/doctor/patients' },
+  {
+    id: 'tasks',
+    label: 'Задачи',
+    href: routePaths.doctorTasks,
+    requiresSpecialistTasksEntitlement: true,
   },
   {
     id: 'communications',
@@ -137,15 +131,15 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     ],
   },
   {
-    id: 'content',
-    label: 'Контент',
-    href: '/app/doctor/content',
+    id: 'files-and-media',
+    label: 'Файлы',
+    href: '/app/doctor/content/library',
     requiresCmsEntitlement: true,
   },
   {
-    id: 'files-and-media',
-    label: 'Файлы и медиа',
-    href: '/app/doctor/content/library',
+    id: 'content',
+    label: 'Контент',
+    href: '/app/doctor/content',
     requiresCmsEntitlement: true,
   },
   {
@@ -155,12 +149,17 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     requiresCoursesEntitlement: true,
   },
   {
+    id: 'patient-home',
+    label: 'Главная пациента',
+    href: '/app/doctor/patient-home',
+    requiresPatientHomeTodayEntitlement: true,
+  },
+  {
     id: 'settings',
     label: 'Настройки',
     href: routePaths.settings,
     accessTier: 'clinic_admin',
   },
-  { id: 'account', label: 'Аккаунт', href: routePaths.account, accessTier: 'staff' },
   // NOTE: the platform operator's own destinations (analytics + the former "system" cluster)
   // moved out to `platformNavLinks.ts` — the platform shell has its own dedicated, flat
   // navigation now (owner ruling 2026-07-26: the global admin is not a doctor and does not

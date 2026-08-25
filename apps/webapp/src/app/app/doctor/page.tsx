@@ -152,8 +152,8 @@ export default async function DoctorPage() {
   }
 
   return (
-    <DoctorAppShell title="Сегодня" user={session.user}>
-      <div className="flex flex-col gap-3">
+    <DoctorAppShell title="Сегодня" user={session.user} layout="full-height">
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
         {session.user.role === 'admin' ? <DoctorTodayAdminBannersSuspense /> : null}
         <Suspense fallback={<DoctorTodayDashboardFallback />}>
           <DoctorTodayDashboardSection workspace={workspace} />

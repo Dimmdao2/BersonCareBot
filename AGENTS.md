@@ -154,6 +154,10 @@ grep -n "^## \|^### " AGENTS.md
 не ставит её на паузу и не отменяет; продолжать без повторной команды «продолжай». Из вопроса нельзя домысливать
 новую работу, а из отсутствия повторной команды — домысливать остановку уже начатой.
 
+Конкретный отчёт владельца об ошибке, падении, неправильном результате или визуальном дефекте — это поручение
+исправить названный дефект, даже если рядом нет отдельного слова «исправь». Простое сообщение об ошибке не
+расширяет scope дальше указанного дефекта.
+
 **Смысл:** иначе владелец не может спросить о ходе работы, не рискуя, что агент истолкует вопрос как «стоп».
 
 ### Аудит/ревью ищет только реальные нарушения, не стиль
@@ -1730,15 +1734,15 @@ UI-тексты читает владелец и пользователи, их 
 
 ### Единый визуальный язык и шкала (гайд §A–§C)
 
-- Doctor canvas — exact `#F6F4EF` через `--doctor-page-gap-background: var(--bc-canvas)`; page header и
+- Doctor canvas — exact `#F2F2F0` через `--doctor-page-gap-background: var(--bc-canvas)`; page header и
   основные поверхности остаются белыми. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` —
   только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
 - Semantic primary кабинета врача — ровно `#406ca7` через зональный `--primary`; кнопки, ссылки, active/focus и другие primary-consumers используют semantic-классы, а не локальный hex. Patient/public tokens и destructive/warning/info роли не перекрашивать.
 - Chrome-типографика — закрытый набор §B.1: page-title `text-[18px] font-medium`; section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-[1.3rem]`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`; `text-[18px]` и `text-[1.3rem]` разрешены только через соответствующие общие роли.
-- Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]`, стандартная кнопка `size="sm"` — `h-9`/`h-[36px]`, радиус `24px`; фактическая поверхность input белая. Высоту кнопки задаёт doctor primitive, не локальный caller.
-- Радиусы (§A.3): page-block `12px`, KPI `8px`, doctor button/input/select trigger `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
+- Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]` и радиус `24px`; стандартная кнопка `size="sm"` — `h-9`/`h-[36px]` и радиус `8px`; фактическая поверхность input белая. Высоту и радиус кнопки задаёт doctor primitive, не локальный caller.
+- Радиусы (§A.3): page-block `12px`, KPI `8px`, doctor button `8px`, input/select trigger `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
 - Исключение навигации: main doctor sidebar/mobile menu items не являются button pills и сохраняют минимальный
-  shared near-rectangular menu radius; 24px control radius на menu rows не распространяется. Section tabs имеют
+  shared near-rectangular menu radius; control radius на menu rows не распространяется. Section tabs имеют
   отдельный rounded contract.
 - Основные flat-list строки переиспользуют геометрию списка «На сопровождении» на странице «Сегодня», без локальных
   числовых копий отступов; между пунктами divider ровно `1px #f0efeb`, full-row hover для интерактивных списков;

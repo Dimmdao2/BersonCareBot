@@ -36,6 +36,7 @@ type DoctorNewClientActionProps = {
   className?: string;
   showIcon?: boolean;
   compactOnMobile?: boolean;
+  desktopTriggerLabel?: string;
 };
 
 /** Каноническое действие создания карточки клиента для страницы клиентов и быстрых действий. */
@@ -44,6 +45,7 @@ export function DoctorNewClientAction({
   className,
   showIcon = true,
   compactOnMobile = true,
+  desktopTriggerLabel,
 }: DoctorNewClientActionProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -148,7 +150,12 @@ export function DoctorNewClientAction({
         onClick={() => setOpen(true)}
       >
         {showIcon ? <Plus className="size-4" aria-hidden /> : null}
-        {compactOnMobile ? (
+        {desktopTriggerLabel ? (
+          <>
+            <span className="md:hidden">{triggerLabel}</span>
+            <span className="hidden md:inline">{desktopTriggerLabel}</span>
+          </>
+        ) : compactOnMobile ? (
           <>
             <span className="hidden sm:inline">{triggerLabel}</span>
             <span className="sr-only sm:hidden">{triggerLabel}</span>

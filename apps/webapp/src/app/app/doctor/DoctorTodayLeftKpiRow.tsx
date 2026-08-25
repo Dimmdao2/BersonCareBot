@@ -55,6 +55,9 @@ type Props = Pick<
 
 type KpiModal = 'messages' | 'comments' | 'tests' | 'tasks' | null;
 
+const attentionKpiBackgroundClass = 'bg-[#f5ede5]';
+const attentionKpiValueClass = 'text-destructive';
+
 function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
   return (
     <div className={doctorSectionItemClass}>
@@ -165,6 +168,8 @@ export function DoctorTodayLeftKpiRow({
           value={unreadTotal}
           tooltip="Непрочитанные сообщения от клиентов."
           tone={unreadTotal > 0 ? 'warning' : 'neutral'}
+          className={unreadTotal > 0 ? attentionKpiBackgroundClass : undefined}
+          valueClassName={unreadTotal > 0 ? attentionKpiValueClass : undefined}
           onClick={unreadTotal > 0 ? () => setKpiModal('messages') : undefined}
         />
         {/* Комментарии к упражнениям → KpiPreviewModal (S2.8) */}
@@ -174,6 +179,8 @@ export function DoctorTodayLeftKpiRow({
           value={displayTotal}
           tooltip="Новые комментарии клиентов к упражнениям."
           tone={displayTotal > 0 ? 'warning' : 'neutral'}
+          className={displayTotal > 0 ? attentionKpiBackgroundClass : undefined}
+          valueClassName={displayTotal > 0 ? attentionKpiValueClass : undefined}
           onClick={displayTotal > 0 ? () => setKpiModal('comments') : undefined}
         />
         {/* Тесты к проверке → KpiPreviewModal (SEG-02) */}
@@ -183,6 +190,8 @@ export function DoctorTodayLeftKpiRow({
           value={pendingTestsTotal}
           tooltip="Тесты по программам, ожидающие проверки."
           tone={pendingTestsTotal > 0 ? 'warning' : 'neutral'}
+          className={pendingTestsTotal > 0 ? attentionKpiBackgroundClass : undefined}
+          valueClassName={pendingTestsTotal > 0 ? attentionKpiValueClass : undefined}
           onClick={pendingTestsTotal > 0 ? () => setKpiModal('tests') : undefined}
         />
         {tasksReadable ? (
@@ -193,6 +202,7 @@ export function DoctorTodayLeftKpiRow({
             secondaryValue={attentionTasks.length > 0 ? tasksTotal : undefined}
             tooltip="Открытые задачи."
             tone={attentionTasks.length > 0 ? 'warning' : 'neutral'}
+            className={attentionTasks.length > 0 ? attentionKpiBackgroundClass : undefined}
             onClick={() => {
               if (isDesktopViewport) {
                 router.push(routePaths.doctorTasks);
@@ -200,7 +210,9 @@ export function DoctorTodayLeftKpiRow({
               }
               setKpiModal('tasks');
             }}
-            valueClassName={attentionTasks.length > 0 ? 'text-destructive' : 'text-foreground/75'}
+            valueClassName={
+              attentionTasks.length > 0 ? attentionKpiValueClass : 'text-foreground/75'
+            }
           />
         ) : null}
       </DoctorMetricList>

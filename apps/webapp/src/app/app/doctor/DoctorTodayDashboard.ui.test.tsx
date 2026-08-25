@@ -18,6 +18,14 @@ vi.mock('./DoctorTodayNextAppointment', () => ({
   DoctorTodayNextAppointment: () => null,
 }));
 
+vi.mock('./DoctorTodayQuickActions', () => ({
+  DoctorTodayQuickActions: () => null,
+}));
+
+vi.mock('./DoctorTodayWeeklyAppointmentsChart', () => ({
+  DoctorTodayWeeklyAppointmentsChart: () => null,
+}));
+
 vi.mock('./TodayMiniCalendarWithModal', () => ({
   TodayMiniCalendarWithModal: ({
     calendarSnapshot,
@@ -54,6 +62,7 @@ const emptyDashboardData: TodayDashboardData = {
   exerciseCommentAttentionItems: [],
   exerciseCommentAttentionTotal: 0,
   exerciseCommentAttentionTruncated: false,
+  weeklyTimeline: [],
 };
 
 describe('DoctorTodayDashboard', () => {

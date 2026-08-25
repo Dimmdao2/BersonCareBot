@@ -26,6 +26,8 @@ export type DoctorAppointmentsListFilter =
   | { kind: 'cancellationsInCalendarMonth' }
   /** Отмены за 30 суток по `updated_at` — как в `getAppointmentStats.cancellations30d`. */
   | { kind: 'cancellations30d' }
+  /** Полная временная шкала записей специалиста для недельной динамики. */
+  | { kind: 'timeline' }
   /** Прошедшие записи с пагинацией для архива. */
   | { kind: 'past'; limit?: number; offset?: number };
 
@@ -41,6 +43,8 @@ export type AppointmentRow = {
   dateKey: string;
   type: string;
   status: string;
+  /** Исходный машинный статус, если строка будет агрегироваться по бизнес-правилам. */
+  rawStatus?: string;
   link: string | null;
   cancellationCountForClient: number;
   /** Branch name attached to the appointment. */

@@ -488,8 +488,10 @@ card; запрещено строить временный resolver, второ�
   `#F6F4EF`; white page header and primary `#406ca7` remain.
   Общие section tabs получают более округлённую doctor-control форму и более тёмный neutral hover. Clients и
   Messages используют один shared flat-list contract: геометрия/границы как у «На сопровождении», full-row hover и
-  divider `#f0efeb`. Отдельный Today residual `#966` возвращает desktop `50/50`, превращает «Открыть расписание» в
-  кнопку и доказывает ровно час до первой записи без двойного calendar-window padding. Оба среза идут параллельно,
+  divider `#f0efeb`. Отдельный Today residual `#966` возвращает desktop `50/50` и превращает «Открыть расписание» в
+  кнопку. **Owner correction 2026-08-25:** Today calendar всегда показывает полную сетку `00:00–24:00` во
+  внутреннем вертикальном scroll, изначально за час до default start календаря или, если его нет, рабочего времени.
+  Оба среза идут параллельно,
   live DEV и тяжёлые проверки сериализуются; baseline stages целиком не переоткрываются.
   Latest clarification: sidebar/mobile menu items — не rounded control pills; им возвращается прежняя почти
   прямоугольная форма с минимальным скруглением, тогда как более округлённые section tabs остаются отдельным

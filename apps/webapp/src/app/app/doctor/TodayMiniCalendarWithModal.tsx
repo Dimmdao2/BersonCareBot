@@ -16,6 +16,7 @@ import type {
 } from '@/modules/booking-calendar/types';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
+import { cn } from '@/lib/utils';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -36,12 +37,17 @@ const EMPTY_ACTIVE_FILTERS: CalendarCreateActiveFilters = {
 function TodayMiniCalendarShellFallback({
   appointments,
   todayDateLabel,
+  fillHeight = false,
 }: {
   appointments: TodayAppointmentItem[];
   todayDateLabel: string;
+  fillHeight?: boolean;
 }) {
   return (
-    <DoctorSection id="doctor-today-mini-calendar">
+    <DoctorSection
+      id="doctor-today-mini-calendar"
+      className={cn(fillHeight && 'h-full min-h-0 overflow-y-auto')}
+    >
       <div className="flex items-center justify-between gap-2">
         <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
         <Link href="/app/doctor/schedule?tab=calendar" className={buttonVariants({ size: 'sm' })}>
@@ -96,6 +102,7 @@ type Props = {
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   displayIana: string;
   defaultWindow?: { startMinute: number; endMinute: number };
+  fillHeight?: boolean;
 };
 
 /**
@@ -110,6 +117,7 @@ export function TodayMiniCalendarWithModal({
   calendarSnapshot,
   displayIana,
   defaultWindow,
+  fillHeight = false,
 }: Props) {
   const [calendarEvents, setCalendarEvents] = useState<CalendarAppointmentEvent[]>([]);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
@@ -196,12 +204,14 @@ export function TodayMiniCalendarWithModal({
           workingBounds={workingBounds}
           showWorkingHours={showWorkingHours}
           defaultWindow={defaultWindow}
+          fillHeight={fillHeight}
           onCanonicalEventClick={(appt) => setSelected(appt)}
         />
       ) : (
         <TodayMiniCalendarShellFallback
           appointments={appointments}
           todayDateLabel={todayDateLabel}
+          fillHeight={fillHeight}
         />
       )}
 

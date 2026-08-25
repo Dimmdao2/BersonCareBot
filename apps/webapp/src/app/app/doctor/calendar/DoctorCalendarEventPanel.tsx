@@ -88,6 +88,8 @@ type Props = {
   onCreateDirtyChange?: (dirty: boolean) => void;
   /** Dialog hosts keep their standard close; embedded schedule keeps this panel close. */
   showCloseControl?: boolean;
+  /** Host already owns the border and padding (for example the schedule details drawer). */
+  flushChrome?: boolean;
 };
 
 type LifecycleResponse = {
@@ -195,6 +197,7 @@ function DoctorCalendarEventPanelInner({
   createInitialSpecialistId = null,
   onCreateDirtyChange,
   showCloseControl = true,
+  flushChrome = false,
 }: Props) {
   // §3.6: если startInCreate=true — сразу в режиме создания, минуя плейсхолдер
   const [mode, setMode] = useState<'view' | 'create' | 'reschedule' | 'cancel'>(
@@ -352,7 +355,12 @@ function DoctorCalendarEventPanelInner({
 
   if (!selected) {
     return (
-      <div className={doctorClientOverviewPrimaryCardClass}>
+      <div
+        className={cn(
+          doctorClientOverviewPrimaryCardClass,
+          flushChrome && 'rounded-none border-0 bg-transparent p-0 shadow-none',
+        )}
+      >
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className={doctorClientSectionTitleClass}>Запись</h2>
           {mode === 'view' ? (
@@ -538,10 +546,18 @@ function DoctorCalendarEventPanelInner({
   );
 
   return (
-    <div className={doctorClientOverviewPrimaryCardClass}>
+    <div
+      className={cn(
+        doctorClientOverviewPrimaryCardClass,
+        flushChrome && 'rounded-none border-0 bg-transparent p-0 shadow-none',
+      )}
+    >
       <div
         data-testid="appointment-detail-header"
-        className={cn('flex items-start justify-between gap-3', !showCloseControl && 'pr-10')}
+        className={cn(
+          'flex items-start justify-between gap-3',
+          !showCloseControl && !flushChrome && 'pr-10',
+        )}
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-2">

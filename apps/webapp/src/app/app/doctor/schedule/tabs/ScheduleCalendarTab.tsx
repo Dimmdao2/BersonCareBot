@@ -1,6 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { Calendar, List, Search } from 'lucide-react';
@@ -32,6 +40,15 @@ import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from '@/shared/ui/doctor/primitives/sheet';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
@@ -95,7 +112,6 @@ const ScheduleFullCalendarHost = dynamic(
 
 const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
-const NEAREST_WINDOW_API = '/api/doctor/schedule/nearest-free-window';
 
 /** Stable client load identity — used to absorb SSR bootstrap across Strict Mode remounts. */
 function scheduleCalendarLoadKey(parts: {
@@ -146,11 +162,6 @@ type RenderMode = 'calendar' | 'list';
 type CalendarResponse = Omit<ScheduleCalendarFeedSnapshot, 'ok'> & {
   ok: boolean;
   error?: string;
-};
-
-type NearestWindowResponse = {
-  ok: boolean;
-  window: { from: string; to: string } | null;
 };
 
 type CalendarDraftSlot = {
@@ -454,13 +465,10 @@ function eventLastName(event: CalendarEvent): string {
 // ---------------------------------------------------------------------------
 
 const KPI_ITEMS: Array<{ key: keyof ScheduleKpis; label: string }> = [
-  { key: 'recordsInPeriod', label: 'Записей' },
-  { key: 'pastInPeriod', label: 'Прошло' },
+  { key: 'recordsInPeriod', label: 'Записей всего' },
   { key: 'futureInPeriod', label: 'Впереди' },
-  { key: 'bySubscriptionInPeriod', label: 'По абонементу' },
   { key: 'firstVisitInPeriod', label: 'Первичных' },
-  { key: 'repeatVisitInPeriod', label: 'Повторных' },
-  { key: 'uniquePatientsInPeriod', label: 'Уникальных' },
+  { key: 'bySubscriptionInPeriod', label: 'По абонементу' },
   { key: 'cancellationsInPeriod', label: 'Отмены' },
   { key: 'reschedulesInPeriod', label: 'Переносы' },
 ];
@@ -473,26 +481,30 @@ type KpiRowTabProps = {
 
 function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
   return (
-    <div
-      className="grid grid-cols-3 gap-2 md:grid-cols-5 xl:grid-cols-9 md:gap-2"
-      data-testid="cal-kpi-row"
-    >
-      {KPI_ITEMS.map(({ key, label }) => (
-        <DoctorStatCard
-          key={key}
-          id={`kpi-${key}`}
-          title={label}
-          value={
-            kpisLoading && kpis === null ? (
-              <span className="text-sm text-muted-foreground">…</span>
-            ) : (
-              (kpis?.[key] ?? 0)
-            )
-          }
-          onClick={onKpiClick ? () => onKpiClick(key) : undefined}
-          testId={`kpi-${key}`}
-        />
-      ))}
+    <div className="grid grid-cols-2 gap-2" data-testid="cal-kpi-row">
+      {KPI_ITEMS.map(({ key, label }) => {
+        const value = kpis?.[key] ?? 0;
+        const handleClick =
+          key !== 'recordsInPeriod' && value > 0 && onKpiClick
+            ? () => onKpiClick(key)
+            : undefined;
+        return (
+          <DoctorStatCard
+            key={key}
+            id={`kpi-${key}`}
+            title={label}
+            value={
+              kpisLoading && kpis === null ? (
+                <span className="text-sm text-muted-foreground">…</span>
+              ) : (
+                value
+              )
+            }
+            onClick={handleClick}
+            testId={`kpi-${key}`}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -689,79 +701,6 @@ function ListView({ events, timeZone, rangeFrom, rangeTo, onSelect }: ListViewPr
 }
 
 // ---------------------------------------------------------------------------
-// Right panel stub (D5)
-// ---------------------------------------------------------------------------
-
-type NearestWindowStubProps = {
-  apiBase: string;
-  branchId: string | null;
-  scheduleScope: DoctorScheduleScopeState;
-};
-
-function NearestWindowLine({ apiBase: _apiBase, branchId, scheduleScope }: NearestWindowStubProps) {
-  const [windowStr, setWindowStr] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const qs = buildQuery({ branchId, ...doctorScheduleScopeQuery(scheduleScope) });
-    void fetch(`${NEAREST_WINDOW_API}?${qs}`)
-      .then((res) => res.json())
-      .then((json: NearestWindowResponse) => {
-        if (cancelled) return;
-        if (json.ok && json.window) {
-          // Extract time part: just HH:MM
-          const from = json.window.from.slice(11, 16);
-          const to = json.window.to.slice(11, 16);
-          setWindowStr(`${from}–${to}`);
-        }
-      })
-      .catch(() => {
-        // Деградация: ничего не показываем
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [branchId, scheduleScope]);
-
-  if (!windowStr) return null;
-
-  return (
-    <p className="text-xs text-muted-foreground" data-testid="nearest-window-hint">
-      Ближайшее окно сегодня: {windowStr}
-    </p>
-  );
-}
-
-type RightPanelEmptyStubProps = {
-  filterMeta: CalendarFilterMeta;
-  activeFilters: {
-    specialistId: string | null;
-    branchId: string | null;
-    roomId: string | null;
-    serviceId: string | null;
-  };
-  branchId: string | null;
-  scheduleScope: DoctorScheduleScopeState;
-  onCreateClick: () => void;
-};
-
-function RightPanelEmptyStub({ branchId, scheduleScope }: RightPanelEmptyStubProps) {
-  return (
-    <div
-      className="rounded-xl border border-border bg-card p-4 flex flex-col gap-3 items-center text-center"
-      data-testid="right-panel-empty"
-    >
-      <div className="text-2xl text-muted-foreground/40 select-none">📋</div>
-      <p className="text-sm font-medium text-foreground">Запись не выбрана</p>
-      <p className="text-xs text-muted-foreground">
-        Выберите запись в календаре, чтобы просмотреть детали
-      </p>
-      <NearestWindowLine apiBase={API_BASE} branchId={branchId} scheduleScope={scheduleScope} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // ScheduleCalendarTab — главный компонент
 // ---------------------------------------------------------------------------
 
@@ -832,6 +771,12 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(() => bootstrap?.kpis ?? null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const isMobileViewport = useIsMobileViewport();
+  const isWideScheduleViewport = useViewportMinWidth(1280);
+  const [detailsPanelGeometry, setDetailsPanelGeometry] = useState<{
+    right: number;
+    width: number;
+  } | null>(null);
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -861,6 +806,29 @@ export function ScheduleCalendarTab({
   const [rescheduleComment, setRescheduleComment] = useState('');
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
+
+  useLayoutEffect(() => {
+    const container = document.getElementById('app-shell-doctor');
+    if (!container) return;
+
+    const updateGeometry = () => {
+      const rect = container.getBoundingClientRect();
+      setDetailsPanelGeometry({
+        right: Math.max(0, window.innerWidth - rect.right),
+        width: rect.width * (isWideScheduleViewport ? 0.4 : 0.5),
+      });
+    };
+
+    updateGeometry();
+    window.addEventListener('resize', updateGeometry);
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateGeometry);
+    resizeObserver?.observe(container);
+    return () => {
+      window.removeEventListener('resize', updateGeometry);
+      resizeObserver?.disconnect();
+    };
+  }, [isWideScheduleViewport]);
 
   // ─── Sync state → deep-link ────────────────────────────────────────────────
 
@@ -999,8 +967,7 @@ export function ScheduleCalendarTab({
 
   const loadKpis = useCallback(
     (v: CalV26View, anchor: string, generation?: number) => {
-      // KPI are a doctor_statistics surface and are also hidden in the day view.
-      if (!doctorStatisticsEnabled || v === 'day') return;
+      if (!doctorStatisticsEnabled) return;
 
       const gen = generation ?? loadGenerationRef.current;
       const { from, to } = visibleRange(v, anchor, timeZone);
@@ -1534,7 +1501,7 @@ export function ScheduleCalendarTab({
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
-  const showKpi = doctorStatisticsEnabled && view !== 'day';
+  const showKpi = doctorStatisticsEnabled;
 
   // visibleRange for list mode
   const listRange = useMemo(
@@ -1573,7 +1540,8 @@ export function ScheduleCalendarTab({
       futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
       uniquePatientsInPeriod: (_e) => true,
       recordsInPeriod: (_e) => true,
-      reschedulesInPeriod: (e) => e.rescheduleCount > 0,
+      reschedulesInPeriod: (e) =>
+        !isCancelledAppointmentStatus(e.status) && e.rescheduleCount > 0,
     };
 
     const pred = KPI_PREDICATES[kpiModalFilter];
@@ -1586,18 +1554,35 @@ export function ScheduleCalendarTab({
   const kpiModalTitle = kpiModalFilter
     ? (KPI_ITEMS.find((k) => k.key === kpiModalFilter)?.label ?? '')
     : '';
+  const eventPanelOpen = selected !== null || showCreatePanel;
+  const eventPanelTitle = selected ? 'Детали записи' : 'Новая запись';
+  const eventPanelNode = eventPanelOpen ? (
+    <DoctorCalendarEventPanel
+      apiBase={API_BASE}
+      selected={selected}
+      timeZone={currentTimeZone}
+      filterMeta={filters}
+      activeFilters={activeFilters}
+      ownSpecialistId={scopeBootstrap.ownSpecialistId}
+      showCloseControl={false}
+      flushChrome
+      startInCreate={showCreatePanel && !selected}
+      createInitialStart={createInitialStart}
+      createInitialEnd={createInitialEnd}
+      createInitialBranchId={createInitialBranchId}
+      createInitialServiceId={createInitialServiceId}
+      createInitialSpecialistId={defaultCreateSpecialistId}
+      onCreateDirtyChange={setCreateFormDirty}
+      onClose={clearDraftAndPanel}
+      onChanged={() => {
+        clearDraftAndPanel();
+        load();
+      }}
+    />
+  ) : null;
 
   return (
     <div className="flex flex-col gap-4 pb-8">
-      {/* KPI row (D2) — full width, hidden in day */}
-      {showKpi ? (
-        <KpiRowTab
-          kpis={kpis}
-          kpisLoading={kpisLoading}
-          onKpiClick={(key) => setKpiModalFilter((prev) => (prev === key ? null : key))}
-        />
-      ) : null}
-
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <div
@@ -1839,8 +1824,12 @@ export function ScheduleCalendarTab({
       {/* Main content row: calendar/list + aside panel */}
       <div
         className={cn(
-          'flex flex-col gap-4 lg:flex-row lg:items-start',
-          renderMode === 'list' ? 'min-h-0 lg:h-[calc(100dvh-15rem)]' : 'pb-4',
+          isWideScheduleViewport && showKpi
+            ? 'grid grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] items-start gap-4'
+            : 'block',
+          renderMode === 'list' && isWideScheduleViewport && showKpi
+            ? 'min-h-0 h-[calc(100dvh-15rem)]'
+            : 'pb-4',
         )}
       >
         {/* Content area */}
@@ -2134,68 +2123,61 @@ export function ScheduleCalendarTab({
           )}
         </div>
 
-        {/* Right panel (D5) */}
-        <aside className="w-full shrink-0 self-start lg:sticky lg:top-28 lg:max-h-[calc(100dvh-8rem)] lg:w-80 lg:overflow-y-auto lg:pb-4">
-          {selected || showCreatePanel ? (
-            <DoctorCalendarEventPanel
-              apiBase={API_BASE}
-              selected={selected}
-              timeZone={currentTimeZone}
-              filterMeta={filters}
-              activeFilters={activeFilters}
-              ownSpecialistId={scopeBootstrap.ownSpecialistId}
-              // §3.6: при открытии через «+ Создать запись» — сразу в форму создания
-              startInCreate={showCreatePanel && !selected}
-              // R32: подставленное время старта при выделении области
-              createInitialStart={createInitialStart}
-              // #225: конец drag-интервала → длительность в форме создания
-              createInitialEnd={createInitialEnd}
-              createInitialBranchId={createInitialBranchId}
-              createInitialServiceId={createInitialServiceId}
-              createInitialSpecialistId={defaultCreateSpecialistId}
-              onCreateDirtyChange={setCreateFormDirty}
-              onClose={() => {
-                clearDraftAndPanel();
-              }}
-              onChanged={() => {
-                clearDraftAndPanel();
-                load();
-              }}
+        {isWideScheduleViewport && showKpi ? (
+          <aside className="sticky top-28 max-h-[calc(100dvh-8rem)] w-full self-start overflow-y-auto pb-4">
+            <KpiRowTab
+              kpis={kpis}
+              kpisLoading={kpisLoading}
+              onKpiClick={(key) =>
+                setKpiModalFilter((prev) => (prev === key ? null : key))
+              }
             />
-          ) : (
-            <RightPanelEmptyStub
-              filterMeta={filters}
-              activeFilters={activeFilters}
-              branchId={branchId}
-              scheduleScope={scheduleScope}
-              onCreateClick={() => {
-                setSelected(null);
-                setCreateInitialStart(null);
-                setCreateInitialEnd(null);
-                setCreateInitialBranchId(
-                  calendarSettings.defaultBranchId &&
-                    filters.branches.some(
-                      (branch) => branch.id === calendarSettings.defaultBranchId,
-                    )
-                    ? calendarSettings.defaultBranchId
-                    : null,
-                );
-                setCreateInitialServiceId(
-                  calendarSettings.defaultServiceId &&
-                    filters.services.some(
-                      (service) => service.id === calendarSettings.defaultServiceId,
-                    )
-                    ? calendarSettings.defaultServiceId
-                    : null,
-                );
-                setDraftSlot(null);
-                setCreateFormDirty(false);
-                setShowCreatePanel(true);
-              }}
-            />
-          )}
-        </aside>
+          </aside>
+        ) : null}
       </div>
+
+      {!isMobileViewport ? (
+        <Sheet
+          open={eventPanelOpen}
+          onOpenChange={(open) => {
+            if (!open) clearDraftAndPanel();
+          }}
+        >
+          <SheetContent
+            side="right"
+            overlayClassName="!bg-transparent !backdrop-blur-none"
+            className="gap-0 p-0 !shadow-md"
+            style={{
+              top: 'var(--doctor-page-header-h, 2.75rem)',
+              height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
+              right: detailsPanelGeometry?.right ?? 0,
+              width:
+                detailsPanelGeometry?.width ??
+                (isWideScheduleViewport ? '40vw' : '50vw'),
+              maxWidth: 'none',
+            }}
+          >
+            <SheetHeader
+              className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
+              style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
+            >
+              <SheetTitle>{eventPanelTitle}</SheetTitle>
+            </SheetHeader>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">{eventPanelNode}</div>
+          </SheetContent>
+        </Sheet>
+      ) : null}
+
+      {isMobileViewport ? (
+        <DoctorModal
+          open={eventPanelOpen}
+          onClose={clearDraftAndPanel}
+          title={eventPanelTitle}
+          size="content"
+        >
+          {eventPanelNode}
+        </DoctorModal>
+      ) : null}
 
       <DoctorCalendarRescheduleDialog
         pending={pendingReschedule}

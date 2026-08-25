@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -136,29 +136,6 @@ export function DoctorAdminSidebar({
             menuKind={menuKind}
             tabletExpanded={tabletExpanded}
           />
-          <form action="/api/auth/logout" method="post" className="w-full">
-            <Button
-              type="submit"
-              variant="ghost"
-              id="doctor-sidebar-logout"
-              className={doctorSidebarRowClassName(
-                tabletExpanded,
-                'text-destructive hover:bg-destructive/10 hover:text-destructive',
-              )}
-            >
-              <DoctorSidebarRowContent
-                icon={
-                  <LogOut
-                    className="size-4"
-                    strokeWidth={NAV_STRIP_ICON_STROKE}
-                    aria-hidden
-                  />
-                }
-                label="Выйти"
-                tabletExpanded={tabletExpanded}
-              />
-            </Button>
-          </form>
         </nav>
 
         <Link

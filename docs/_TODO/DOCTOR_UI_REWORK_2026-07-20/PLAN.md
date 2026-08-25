@@ -286,8 +286,10 @@ Live-проверка candidate на отдельном разрешённом c
 - **UI-6a presentation:** компактные KPI, перестановка даты/ссылки календаря и удаление дублирующих подписей;
   launch manifest — §4.
 - **UI-6c owner correction 2026-07-22 (`#966`):** desktop-полотна возвращаются к точному `50/50`; ссылка
-  календаря становится стандартной doctor-кнопкой «Открыть расписание»; начало видимой сетки проверяется против
-  первого приёма и должно давать ровно один час до него, без локального форка общего calendar-window contract.
+  календаря становится стандартной doctor-кнопкой «Открыть расписание».
+- **OWNER CORRECTION 2026-08-25:** Today calendar всегда рисует полные сутки `00:00–24:00` во внутреннем
+  вертикальном scroll; начальная позиция — за час до default start настройки календаря, а при её отсутствии — за
+  час до начала рабочего времени, с clamp к `00:00`. Прежняя граница по первому приёму больше не действует.
 - Настраиваемые owner signals, переключатель «на сопровождении»/«недавние с визитами», «самые активные», новые
   counters и скрытие клиентов не входят в косметику UI-6a, но остаются отдельным owner-requested product/behavior
   этапом. Их нельзя понижать до рекомендации или считать закрытыми вместе с compact presentation.
@@ -462,9 +464,9 @@ Data contracts, metric semantics, patient/public UI, DB/env/deploy и полны
   `#F6F4EF` отслеживается через UI-P/P2B-07/P2B-08, а не пустой галочкой отменённого требования.
 - [~] **P2B-03** Shared section tabs имеют более тёмный neutral hover и свой округлённый tab contract без
   page-local divergence; это не меняет геометрию sidebar/mobile menu. (code may be in place; awaiting owner live visual acceptance)
-- [x] **P2B-04** Видимая сетка Today calendar начинается ровно за один час до первого приёма, когда именно приём
-      расширяет нижнюю границу; общий calendar-window contract не получает локальный fork или двойной lead padding.
-      (✓ apps/webapp/src/modules/booking-calendar/visibleTimeWindow.ts:28-69; DoctorTodayMiniCalendar.test.tsx:383-410)
+- [~] **P2B-04 — OWNER CORRECTION 2026-08-25.** Today calendar рисует полные сутки `00:00–24:00`, прокручивается
+      вертикально внутри блока и при первом показе стоит за час до default start настройки календаря; если её нет —
+      за час до начала рабочего времени, с clamp к `00:00`.
 - [x] **P2B-05** В Today calendar header используется standard doctor button **«Открыть расписание»**, а не
       текстовая/ghost-ссылка «Открыть календарь». (✓ apps/webapp/src/app/app/doctor/DoctorTodayMiniCalendar.tsx:227-236)
 - [~] **P2B-06** Clients и Messages используют общий flat-list row contract с геометрией списка «На
@@ -728,9 +730,8 @@ brief или заменять одним общим пунктом.
 - [x] Дублирующая фраза/строка с количеством записей удалена. (✓ no duplicate appointment-count line in DoctorTodayDashboard.tsx)
 - [x] Desktop-разделение страницы «Сегодня» возвращено к точному 50/50 (`#966`). (✓ DoctorTodayDashboard.tsx:118-122 `md:grid-cols-2`)
 - [x] «Открыть расписание» оформлено стандартной doctor-кнопкой (`#966`). (✓ DoctorTodayMiniCalendar.tsx:231-236 `buttonVariants({ size: "sm" })`)
-- [x] Календарная сетка начинается ровно за один час до первого приёма, если именно приём расширяет нижнюю границу;
-      default window и рабочие границы не получают второй запас (`#966`).
-      (✓ modules/booking-calendar/visibleTimeWindow.ts:28-69; DoctorTodayMiniCalendar.tsx:151-172)
+- [~] Календарная сетка Today всегда покрывает `00:00–24:00` и прокручивается внутри блока; начальная позиция — за
+      час до default start настройки календаря или, если её нет, начала рабочего времени, с clamp к `00:00`.
 - [x] Состав видимых сигналов настраивается через существующий settings path после exact data contract (`#963`).
       (✓ modules/reminders или doctorTodayPreferences.ts; DoctorTodayDashboard.tsx:70-71 `data.peopleListMode`)
 - [x] Переключатель «на сопровождении» / «недавние с визитами» имеет доказанную семантику (`#963`).

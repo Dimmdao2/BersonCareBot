@@ -49,7 +49,7 @@ type DoctorTodayQuickActionsProps = {
   displayIana: string;
 };
 
-/** Закреплённые мобильные действия страницы «Сегодня». */
+/** Единый блок быстрых действий страницы «Сегодня». */
 export function DoctorTodayQuickActions({ todayIso, displayIana }: DoctorTodayQuickActionsProps) {
   const router = useRouter();
   const [appointmentOpen, setAppointmentOpen] = useState(false);
@@ -100,12 +100,14 @@ export function DoctorTodayQuickActions({ todayIso, displayIana }: DoctorTodayQu
 
   return (
     <>
-      <div className="fixed right-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] left-0 z-40 grid grid-cols-2 gap-2 border-t border-border/70 bg-background/95 px-3 py-2 backdrop-blur-md md:hidden">
+      <div className="doctor-today-quick-actions right-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] left-0 z-40 grid grid-cols-2 gap-2 px-3 py-2 md:rounded-[var(--doctor-page-block-radius,12px)] md:border md:border-[var(--doctor-block-border)] md:bg-card md:p-3">
         <Button type="button" size="sm" className="w-full" onClick={openAppointment}>
-          Создать запись
+          <span className="md:hidden">Создать запись</span>
+          <span className="hidden md:inline">Новый визит</span>
         </Button>
         <DoctorNewClientAction
           patientSingularLabel="Клиент"
+          desktopTriggerLabel="Новый пациент"
           className="w-full"
           showIcon={false}
           compactOnMobile={false}

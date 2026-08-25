@@ -1,11 +1,12 @@
 /** Doctor product zone CSS — loaded from doctor and settings layouts. */
 
 #app-shell-doctor {
-  /* Owner UI finish authority 2026-07-22: DNA v1 canvas; headers/surfaces stay white. */
-  --doctor-page-gap-background: var(--bc-canvas, #f6f4ef);
+  /* Owner UI authority 2026-08-25: neutral canvas; headers/surfaces stay white. */
+  --doctor-page-gap-background: var(--bc-canvas, #f2f2f0);
   --doctor-page-header-background: #ffffff;
   --doctor-page-block-radius: 12px;
   --doctor-kpi-radius: 8px;
+  --doctor-button-radius: 8px;
   --doctor-control-radius: 24px;
   --doctor-block-padding: 18px;
   --doctor-block-border: rgba(35, 42, 49, 0.1);
@@ -36,9 +37,30 @@
   );
 }
 
+.doctor-button-radius:not(.rounded-none):not(.rounded-full) {
+  border-radius: 8px;
+}
+
+.doctor-today-quick-actions {
+  position: fixed;
+}
+
+.doctor-weekly-chart-scroll {
+  scrollbar-width: none;
+}
+
+.doctor-weekly-chart-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 @media (min-width: 768px) {
   #app-shell-doctor {
     --doctor-sticky-offset: var(--doctor-page-header-h, 0px);
+  }
+
+  .doctor-today-quick-actions {
+    position: static;
+    z-index: auto;
   }
 }
 

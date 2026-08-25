@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useRef, useState } from 'react';
 import { ArrowLeft, Menu } from 'lucide-react';
@@ -17,6 +18,7 @@ import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
 import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { routePaths } from '@/app-layer/routes/paths';
 
 type DoctorHeaderProps = {
   userDisplayName?: string;
@@ -144,21 +146,19 @@ export function DoctorHeader({
                 enableBadgePolling={enableBadgePolling}
                 menuKind={menuKind}
               />
-              <form action="/api/auth/logout" method="post" className="w-full">
-                <Button
-                  type="submit"
-                  variant="ghost"
-                  id="doctor-menu-logout"
-                  className={cn(
-                    DOCTOR_MENU_ITEM_RADIUS_CLASS,
-                    'h-auto w-full justify-start px-3 py-2 font-normal text-destructive hover:bg-destructive/10 hover:text-destructive',
-                  )}
-                  onClick={closeMenu}
-                >
-                  Выйти
-                </Button>
-              </form>
             </nav>
+            <div className="shrink-0 border-t border-border/70 py-2">
+              <Link
+                href={routePaths.account}
+                className={cn(
+                  DOCTOR_MENU_ITEM_RADIUS_CLASS,
+                  'flex min-h-10 items-center px-3 py-2 text-sm font-normal text-foreground no-underline hover:bg-muted/60',
+                )}
+                onClick={closeMenu}
+              >
+                {userDisplayName?.trim() || 'Профиль'}
+              </Link>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

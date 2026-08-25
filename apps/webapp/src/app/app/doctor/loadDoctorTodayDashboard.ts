@@ -5,6 +5,7 @@ import type {
 } from '@/modules/doctor-appointments/ports';
 import type { BookingCalendarService } from '@/modules/booking-calendar/ports';
 import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types';
+import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import type { ClientHistoryService } from '@/modules/client-history/service';
 import type {
   ClientListItem,
@@ -182,6 +183,15 @@ export type TodayPeopleItem = {
   lastAppointmentAt: string | null;
 };
 
+export type TodayWeeklyTimelinePoint = {
+  weekStart: string;
+  label: string;
+  firstAppointments: number;
+  appointments: number;
+  isCurrent: boolean;
+  period: 'past' | 'current' | 'future';
+};
+
 export type TodayDashboardData = {
   todayAppointments: TodayAppointmentItem[];
   nextAppointment: TodayNextAppointmentItem | null;
@@ -210,6 +220,7 @@ export type TodayDashboardData = {
   exerciseCommentAttentionItems: TodayExerciseCommentAttentionItem[];
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
+  weeklyTimeline: TodayWeeklyTimelinePoint[];
 };
 
 const NEXT_APPOINTMENT_ACTIVE_STATUSES = new Set([
@@ -235,6 +246,91 @@ function parseAppointmentDateTime(value: string): DateTime {
   return Number.isNaN(timestamp)
     ? DateTime.invalid('Invalid appointment date')
     : DateTime.fromMillis(timestamp);
+}
+
+function timelineClientKey(row: AppointmentRow): string | null {
+  const userId = row.clientUserId.trim();
+  if (userId) return `user:${userId}`;
+  const label = row.clientLabel.trim().toLocaleLowerCase('ru');
+  return label && label !== 'неизвестный клиент' ? `label:${label}` : null;
+}
+
+function formatTimelineWeekLabel(week: DateTime): string {
+  const weekEnd = week.plus({ weeks: 1 });
+  return week.hasSame(weekEnd, 'month')
+    ? `${week.toFormat('dd')}–${weekEnd.toFormat('dd.LL')}`
+    : `${week.toFormat('dd.LL')}–${weekEnd.toFormat('dd.LL')}`;
+}
+
+export function buildTodayWeeklyTimeline(
+  rows: AppointmentRow[],
+  displayIana: string,
+  now = DateTime.now(),
+): TodayWeeklyTimelinePoint[] {
+  const currentWeek = now.setZone(displayIana).startOf('week');
+  const eligible = rows
+    .flatMap((row) => {
+      if (!row.recordAtIso || isCancelledAppointmentStatus(row.rawStatus ?? row.status)) {
+        return [];
+      }
+      const recordAt = parseAppointmentDateTime(row.recordAtIso).setZone(displayIana);
+      if (!recordAt.isValid) return [];
+      return [{ row, week: recordAt.startOf('week') }];
+    })
+    .sort((left, right) => left.week.toMillis() - right.week.toMillis());
+
+  const appointmentsByWeek = new Map<string, number>();
+  const firstWeekByClient = new Map<string, string>();
+
+  for (const { row, week } of eligible) {
+    const weekKey = week.toISODate();
+    if (!weekKey) continue;
+    appointmentsByWeek.set(weekKey, (appointmentsByWeek.get(weekKey) ?? 0) + 1);
+    const clientKey = timelineClientKey(row);
+    if (!clientKey || firstWeekByClient.has(clientKey)) continue;
+    firstWeekByClient.set(clientKey, weekKey);
+  }
+
+  const clientsStartingByWeek = new Map<string, number>();
+  for (const weekKey of firstWeekByClient.values()) {
+    clientsStartingByWeek.set(weekKey, (clientsStartingByWeek.get(weekKey) ?? 0) + 1);
+  }
+
+  const points = Array.from(appointmentsByWeek.keys())
+    .sort()
+    .flatMap((weekStart) => {
+      const week = DateTime.fromISO(weekStart, { zone: displayIana });
+      if (!week.isValid) return [];
+      const isCurrent = week.hasSame(currentWeek, 'day');
+      return [
+        {
+          weekStart,
+          label: formatTimelineWeekLabel(week),
+          firstAppointments: clientsStartingByWeek.get(weekStart) ?? 0,
+          appointments: appointmentsByWeek.get(weekStart) ?? 0,
+          isCurrent,
+          period: isCurrent ? 'current' : week < currentWeek ? 'past' : 'future',
+        } satisfies TodayWeeklyTimelinePoint,
+      ];
+    });
+
+  if (!points.some((point) => point.period === 'future')) {
+    const nextWeek = currentWeek.plus({ weeks: 1 });
+    const weekStart = nextWeek.toISODate();
+    if (weekStart) {
+      points.push({
+        weekStart,
+        label: formatTimelineWeekLabel(nextWeek),
+        firstAppointments: 0,
+        appointments: 0,
+        isCurrent: false,
+        period: 'future',
+      });
+      points.sort((left, right) => left.weekStart.localeCompare(right.weekStart));
+    }
+  }
+
+  return points;
 }
 
 export function formatNextAppointmentRelative(startAt: string, nowIso: string): string {
@@ -518,7 +614,7 @@ export async function loadDoctorTodayDashboard(
     visibilityActor: deps.visibilityActor,
   };
   const clientAudience = scopedAudience;
-  const [todayRaw, futureRaw, unreadConversations, unreadTotal, onSupportListRaw] =
+  const [todayRaw, futureRaw, timelineRaw, unreadConversations, unreadTotal, onSupportListRaw] =
     await Promise.all([
       // #9: use statsRange so cancelled appointments are included in today lists
       deps.doctorAppointments.listAppointmentsForSpecialist(
@@ -529,6 +625,7 @@ export async function loadDoctorTodayDashboard(
         { kind: 'futureActive' },
         scopedAudience,
       ),
+      deps.doctorAppointments.listAppointmentsForSpecialist({ kind: 'timeline' }, scopedAudience),
       deps.messaging.doctorSupport.listOpenConversations({
         unreadOnly: true,
         limit: 3,
@@ -681,5 +778,6 @@ export async function loadDoctorTodayDashboard(
     exerciseCommentAttentionItems: exerciseCommentAttention.items,
     exerciseCommentAttentionTotal: exerciseCommentAttention.total,
     exerciseCommentAttentionTruncated: exerciseCommentAttention.truncated,
+    weeklyTimeline: buildTodayWeeklyTimeline(timelineRaw, deps.displayIana),
   };
 }

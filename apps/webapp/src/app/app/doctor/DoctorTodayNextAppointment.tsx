@@ -93,42 +93,33 @@ export function DoctorTodayNextAppointment({ appointment }: Props) {
     <DoctorSection id="doctor-today-next-appointment">
       <DoctorSectionHeader className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3">
         <DoctorSectionTitle>
-          {appointment?.isCurrent ? (
-            'Сейчас на приеме'
-          ) : appointment ? (
-            appointment.relativeLabel ? (
-              <>
-                Следующий прием:{' '}
-                <span className="block md:inline">{appointment.relativeLabel}</span>
-              </>
-            ) : (
-              'Следующий прием'
-            )
-          ) : (
-            'Следующий прием: нет записей'
-          )}
+          {appointment?.isCurrent
+            ? 'Сейчас на приеме'
+            : appointment
+              ? 'Следующий прием'
+              : 'Следующий прием: нет записей'}
         </DoctorSectionTitle>
-        {appointment ? (
-          <p className="shrink-0 text-sm font-medium tabular-nums">{appointment.dateTimeLabel}</p>
+        {appointment?.relativeLabel ? (
+          <p className="shrink-0 text-sm font-medium">{appointment.relativeLabel}</p>
         ) : null}
       </DoctorSectionHeader>
 
       {appointment ? (
         <div className="flex min-w-0 flex-col gap-3">
-          <div className="grid min-w-0 gap-2 text-sm">
-            <dl className="grid min-w-0 gap-1.5">
-              <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
-                <dt className="text-muted-foreground">Клиент</dt>
-                <dd className="min-w-0 truncate">{appointment.clientLabel}</dd>
-              </div>
-              {appointmentComment ? (
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-3 text-sm">
+            <p className="min-w-0 truncate">{appointment.clientLabel}</p>
+            <p className="shrink-0 font-medium tabular-nums">{appointment.dateTimeLabel}</p>
+          </div>
+          {appointmentComment ? (
+            <div className="grid min-w-0 gap-2 text-sm">
+              <dl className="grid min-w-0 gap-1.5">
                 <div className="grid min-w-0 grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
                   <dt className="text-muted-foreground">Комментарий</dt>
                   <dd className="min-w-0 whitespace-pre-wrap">{appointmentComment}</dd>
                 </div>
-              ) : null}
-            </dl>
-          </div>
+              </dl>
+            </div>
+          ) : null}
 
           <div className="grid w-full min-w-0 grid-cols-3 items-center gap-1.5">
             {createVisitHref ? (

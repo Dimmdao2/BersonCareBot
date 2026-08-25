@@ -8,6 +8,7 @@ import { loadStaffNotificationsSection } from '@/app/app/account/staffNotificati
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { StaffPwaInstallSection } from '@/shared/ui/doctor/pwa/StaffPwaInstallSection';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DoctorSection,
   DoctorSectionHeader,
@@ -44,6 +45,21 @@ function InstallSection() {
         <DoctorSectionTitle>Установка на устройство</DoctorSectionTitle>
       </DoctorSectionHeader>
       <StaffPwaInstallSection />
+    </DoctorSection>
+  );
+}
+
+function LogoutSection() {
+  return (
+    <DoctorSection>
+      <DoctorSectionHeader>
+        <DoctorSectionTitle>Сеанс</DoctorSectionTitle>
+      </DoctorSectionHeader>
+      <form action="/api/auth/logout" method="post">
+        <Button type="submit" variant="destructive">
+          Выйти
+        </Button>
+      </form>
     </DoctorSection>
   );
 }
@@ -96,6 +112,7 @@ async function loadProfileContent(
           showPatientLabel={false}
         />
       ) : null}
+      <LogoutSection />
     </>
   );
 }

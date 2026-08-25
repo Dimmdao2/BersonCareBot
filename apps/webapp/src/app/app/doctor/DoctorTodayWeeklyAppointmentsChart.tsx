@@ -1,153 +1,220 @@
 'use client';
 
-import { DateTime } from 'luxon';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts';
-import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
-import type { CalendarEvent } from '@/modules/booking-calendar/types';
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ReferenceDot,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import type { TodayWeeklyTimelinePoint } from './loadDoctorTodayDashboard';
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 
-type WeeklyPoint = {
-  weekStart: string;
-  label: string;
-  appointments: number;
-};
+const WEEK_WIDTH = 72;
 
-type CalendarFeedResponse = {
-  ok: boolean;
-  events?: CalendarEvent[];
+type ChartPoint = TodayWeeklyTimelinePoint & {
+  appointmentsPast: number | null;
+  appointmentsFuture: number | null;
 };
-
-function buildEmptyWeeks(todayIso: string, displayIana: string): WeeklyPoint[] {
-  const currentWeek = DateTime.fromISO(todayIso, { zone: displayIana }).startOf('week');
-  return Array.from({ length: 5 }, (_, index) => {
-    const week = currentWeek.minus({ weeks: 4 - index });
-    return {
-      weekStart: week.toISODate() ?? '',
-      label: week.toFormat('dd.LL'),
-      appointments: 0,
-    };
-  });
-}
 
 export function DoctorTodayWeeklyAppointmentsChart({
-  todayIso,
-  displayIana,
+  points,
 }: {
-  todayIso: string;
-  displayIana: string;
+  points: TodayWeeklyTimelinePoint[];
 }) {
-  const emptyWeeks = useMemo(() => buildEmptyWeeks(todayIso, displayIana), [displayIana, todayIso]);
-  const [points, setPoints] = useState(emptyWeeks);
-  const [loadFailed, setLoadFailed] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const abortController = new AbortController();
-    const from = emptyWeeks[0]?.weekStart;
-    if (!from) return () => abortController.abort();
-
-    async function load(): Promise<void> {
-      try {
-        const query = new URLSearchParams({ view: 'feed', from, to: todayIso });
-        const response = await fetch(`/api/doctor/booking-engine/calendar?${query.toString()}`, {
-          signal: abortController.signal,
-        });
-        if (!response.ok) throw new Error('calendar_load_failed');
-        const payload = (await response.json()) as CalendarFeedResponse;
-        if (!payload.ok || !Array.isArray(payload.events)) throw new Error('calendar_load_failed');
-
-        const counts = new Map(emptyWeeks.map((week) => [week.weekStart, 0]));
-        for (const event of payload.events) {
-          if (event.kind !== 'appointment' || isCancelledAppointmentStatus(event.status)) continue;
-          let start = DateTime.fromISO(event.startAt, { setZone: true });
-          if (!start.isValid) start = DateTime.fromSQL(event.startAt, { setZone: true });
-          if (!start.isValid) start = DateTime.fromJSDate(new Date(event.startAt));
-          const weekStart = start.isValid
-            ? start.setZone(displayIana).startOf('week').toISODate()
-            : null;
-          if (weekStart && counts.has(weekStart)) {
-            counts.set(weekStart, (counts.get(weekStart) ?? 0) + 1);
-          }
-        }
-
-        setPoints(
-          emptyWeeks.map((week) => ({
-            ...week,
-            appointments: counts.get(week.weekStart) ?? 0,
-          })),
-        );
-        setLoadFailed(false);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
-        setLoadFailed(true);
-      }
-    }
-
-    void load();
-    return () => abortController.abort();
-  }, [displayIana, emptyWeeks, todayIso]);
+  const currentIndex = points.findIndex((point) => point.isCurrent);
+  const firstFutureIndex = points.findIndex((point) => point.period === 'future');
+  const anchorIndex =
+    currentIndex >= 0
+      ? currentIndex
+      : firstFutureIndex >= 0
+        ? firstFutureIndex
+        : Math.max(0, points.length - 1);
+  const [visibleRange, setVisibleRange] = useState(() => ({
+    start: Math.max(0, anchorIndex - 4),
+    end: Math.min(points.length, anchorIndex + 5),
+  }));
+  const [scrollOffset, setScrollOffset] = useState(0);
+  const chartPoints = useMemo<ChartPoint[]>(
+    () =>
+      points.map((point) => ({
+        ...point,
+        appointmentsPast: point.period !== 'future' ? point.appointments : null,
+        appointmentsFuture: point.period !== 'past' ? point.appointments : null,
+      })),
+    [points],
+  );
+  const chartWidth = Math.max(440, points.length * WEEK_WIDTH);
+  const currentPoint = currentIndex >= 0 ? chartPoints[currentIndex] : undefined;
+  const visiblePoints = points.slice(visibleRange.start, visibleRange.end);
+  const visibleValuesMax = Math.max(
+    1,
+    ...visiblePoints.flatMap((point) => [point.appointments, point.firstAppointments]),
+  );
+  const currentIsVisible =
+    currentIndex >= 0 && currentIndex >= visibleRange.start && currentIndex < visibleRange.end;
 
   useEffect(() => {
     const scrollArea = scrollAreaRef.current;
-    if (scrollArea) scrollArea.scrollLeft = scrollArea.scrollWidth;
-  }, [points]);
+    if (!scrollArea) return;
 
-  const yMax = Math.max(1, ...points.map((point) => point.appointments));
+    const updateVisibleRange = () => {
+      setScrollOffset(scrollArea.scrollLeft);
+      const start = Math.max(0, Math.floor(scrollArea.scrollLeft / WEEK_WIDTH));
+      const end = Math.min(
+        points.length,
+        Math.ceil((scrollArea.scrollLeft + scrollArea.clientWidth) / WEEK_WIDTH) + 1,
+      );
+      setVisibleRange((current) =>
+        current.start === start && current.end === end ? current : { start, end },
+      );
+    };
+
+    const currentCenter = (anchorIndex + 0.5) * WEEK_WIDTH;
+    scrollArea.scrollLeft = Math.max(0, currentCenter - scrollArea.clientWidth / 2);
+    updateVisibleRange();
+    scrollArea.addEventListener('scroll', updateVisibleRange, { passive: true });
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateVisibleRange);
+    resizeObserver?.observe(scrollArea);
+    return () => {
+      scrollArea.removeEventListener('scroll', updateVisibleRange);
+      resizeObserver?.disconnect();
+    };
+  }, [anchorIndex, points.length]);
 
   return (
-    <Card className="min-w-0 py-3">
-      <CardHeader className="px-3">
+    <Card className="flex h-full min-h-[18rem] min-w-0 flex-col gap-2 py-3 md:min-h-0">
+      <CardHeader className="shrink-0 px-3">
         <CardTitle>Записи по неделям</CardTitle>
       </CardHeader>
-      <CardContent className="min-w-0 px-0">
-        {loadFailed ? (
-          <p className="px-3 py-6 text-xs text-muted-foreground">Не удалось загрузить график</p>
-        ) : (
-          <div ref={scrollAreaRef} className="w-full overflow-x-auto overscroll-x-contain">
-            <div className="h-[112px] min-w-[440px] px-2">
-              <PositiveSizeResponsiveContainer width="100%" height="100%">
-                <LineChart data={points} margin={{ top: 10, right: 18, left: 0, bottom: 4 }}>
-                  <CartesianGrid
-                    stroke="hsl(var(--border))"
-                    strokeDasharray="3 3"
-                    vertical={false}
+      <CardContent className="min-h-0 min-w-0 flex-1 px-0 pb-0">
+        <div
+          ref={scrollAreaRef}
+          className="doctor-weekly-chart-scroll h-full w-full overflow-x-auto overscroll-x-contain"
+        >
+          <div
+            className="h-full min-h-[15rem] px-2 pb-2 md:min-h-0"
+            style={{ width: chartWidth, minWidth: '100%' }}
+          >
+            <PositiveSizeResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartPoints} margin={{ top: 12, right: 14, left: 0, bottom: 2 }}>
+                <CartesianGrid
+                  stroke="var(--border)"
+                  vertical={false}
+                  syncWithTicks
+                  horizontal={({ key, offset, x1, x2, y1, y2 }) => (
+                    <line
+                      key={key}
+                      x1={x1}
+                      x2={x2}
+                      y1={y1}
+                      y2={y2}
+                      stroke={
+                        Number(y1) <= offset.top + 0.5 ? 'transparent' : 'var(--border)'
+                      }
+                    />
+                  )}
+                />
+                <XAxis
+                  dataKey="label"
+                  tick={({ x, y, payload }) => (
+                    <text
+                      x={x}
+                      y={y}
+                      dy="0.71em"
+                      fill={chartPoints[payload.index]?.isCurrent ? '#c4594f' : '#8b929b'}
+                      fontSize={10}
+                      textAnchor="middle"
+                    >
+                      {payload.value}
+                    </text>
+                  )}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={0}
+                  height={24}
+                />
+                <YAxis
+                  domain={[0, visibleValuesMax]}
+                  width={32}
+                  allowDecimals={false}
+                  allowDataOverflow
+                  padding={{ top: 10, bottom: 10 }}
+                  tick={({ y, payload }) => (
+                    <text
+                      x={scrollOffset + 2}
+                      y={y}
+                      dy="0.32em"
+                      fill="#8b929b"
+                      fontSize={10}
+                      textAnchor="start"
+                    >
+                      {payload.value}
+                    </text>
+                  )}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <DoctorRechartsTooltip
+                  formatter={(value, name) => [String(value), String(name)]}
+                  labelFormatter={(label) => `Неделя ${String(label)}`}
+                />
+                <Bar
+                  dataKey="firstAppointments"
+                  name="Новых пациентов"
+                  fill="#8fb1dd"
+                  radius={[4, 4, 0, 0]}
+                  maxBarSize={24}
+                  isAnimationActive={false}
+                />
+                {currentPoint && currentIsVisible ? (
+                  <ReferenceLine y={currentPoint.appointments} stroke="#a8adb4" strokeWidth={1} />
+                ) : null}
+                <Line
+                  type="monotone"
+                  dataKey="appointmentsPast"
+                  name="Записей"
+                  stroke="#59616b"
+                  strokeWidth={1.5}
+                  dot={{ r: 2.5, fill: '#59616b', strokeWidth: 0 }}
+                  activeDot={{ r: 4 }}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="appointmentsFuture"
+                  name="Записей"
+                  stroke="#406ca7"
+                  strokeWidth={1.5}
+                  dot={{ r: 2.5, fill: '#406ca7', strokeWidth: 0 }}
+                  activeDot={{ r: 4 }}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+                {currentPoint && currentIsVisible ? (
+                  <ReferenceDot
+                    x={currentPoint.label}
+                    y={currentPoint.appointments}
+                    r={5}
+                    fill="#406ca7"
+                    stroke="#c4594f"
+                    strokeWidth={3}
+                    ifOverflow="visible"
                   />
-                  <XAxis
-                    dataKey="label"
-                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={0}
-                  />
-                  <YAxis
-                    domain={[0, yMax]}
-                    width={28}
-                    allowDecimals={false}
-                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <DoctorRechartsTooltip
-                    formatter={(value) => [String(value), 'Записей']}
-                    labelFormatter={(label) => `Неделя с ${String(label)}`}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="appointments"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2.5}
-                    dot={{ r: 3.5, fill: 'hsl(var(--primary))', strokeWidth: 0 }}
-                    activeDot={{ r: 5 }}
-                    isAnimationActive={false}
-                  />
-                </LineChart>
-              </PositiveSizeResponsiveContainer>
-            </div>
+                ) : null}
+              </ComposedChart>
+            </PositiveSizeResponsiveContainer>
           </div>
-        )}
+        </div>
       </CardContent>
     </Card>
   );

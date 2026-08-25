@@ -246,14 +246,17 @@ export function DoctorTodayDashboard({
   };
 
   return (
-    <div id="doctor-today-dashboard" className={`${doctorPageStackClass} pb-[3.25rem] md:pb-0`}>
+    <div
+      id="doctor-today-dashboard"
+      className={`${doctorPageStackClass} min-h-0 flex-1 pb-[3.25rem] md:pb-0`}
+    >
       <DoctorPageHeader id="doctor-today-header" title="Сегодня" />
 
       <div
         id="doctor-today-two-panes"
-        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-start lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
+        className="grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 md:h-[calc(100dvh_-_var(--doctor-page-header-h,2.75rem)_-_1.5rem)] md:flex-none md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] md:items-stretch md:pb-3 lg:grid-cols-[minmax(0,55fr)_minmax(0,45fr)] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"
       >
-        <div id="doctor-today-left-pane" className="flex min-w-0 flex-col gap-3">
+        <div id="doctor-today-left-pane" className="flex min-h-0 min-w-0 flex-col gap-3">
           <DoctorTodayLeftKpiRow
             pendingTestsTotal={data.pendingProgramTestsTotal}
             unreadConversations={data.unreadConversations}
@@ -277,100 +280,92 @@ export function DoctorTodayDashboard({
 
           <DoctorTodayNextAppointment appointment={data.nextAppointment} />
 
-          {isMobile ? (
-            <>
-              <DoctorMetricList className="grid-cols-2" aria-label="Сводка дня">
-                <DoctorStatCard
-                  id="doctor-today-mobile-kpi-support"
-                  title="Сопровождение"
-                  value={data.onSupportPeopleCount}
-                  onClick={
-                    data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined
-                  }
-                />
-                <DoctorStatCard
-                  id="doctor-today-mobile-kpi-appointments"
-                  title="Записей сегодня"
-                  value={data.todayAppointments.length}
-                  onClick={
-                    data.todayAppointments.length > 0 ? () => setMobileModal('calendar') : undefined
-                  }
-                />
-              </DoctorMetricList>
-              <DoctorTodayWeeklyAppointmentsChart
-                todayIso={calendarSnapshot.todayIso}
-                displayIana={displayIana}
-              />
-            </>
-          ) : (
-            <DoctorTodayPeopleSection data={data} />
-          )}
+          <DoctorMetricList columns="two" aria-label="Сводка дня">
+            <DoctorStatCard
+              id="doctor-today-mobile-kpi-support"
+              title="Сопровождение"
+              value={data.onSupportPeopleCount}
+              onClick={data.onSupportPeopleCount > 0 ? () => setMobileModal('support') : undefined}
+            />
+            <DoctorStatCard
+              id="doctor-today-mobile-kpi-appointments"
+              title="Записей сегодня"
+              value={data.todayAppointments.length}
+              onClick={
+                isMobile && data.todayAppointments.length > 0
+                  ? () => setMobileModal('calendar')
+                  : undefined
+              }
+            />
+          </DoctorMetricList>
+
+          <DoctorTodayQuickActions todayIso={calendarSnapshot.todayIso} displayIana={displayIana} />
+
+          <div className="min-h-[18rem] md:min-h-0 md:flex-1">
+            <DoctorTodayWeeklyAppointmentsChart points={data.weeklyTimeline} />
+          </div>
         </div>
 
         {!isMobile ? (
-          <div id="doctor-today-right-pane" className="flex min-w-0 flex-col gap-3">
+          <div
+            id="doctor-today-right-pane"
+            className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
+          >
             <TodayMiniCalendarWithModal
               appointments={data.todayAppointments}
               calendarSnapshot={calendarSnapshot}
               displayIana={displayIana}
               defaultWindow={calendarDefaultWindow}
+              fillHeight
             />
           </div>
         ) : null}
       </div>
 
-      {isMobile ? (
-        <>
-          <DoctorModal
-            open={mobileModal === 'support'}
-            onClose={() => setMobileModal(null)}
-            title={
-              <span>
-                Сопровождение
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {data.onSupportPeopleCount}
-                </span>
-              </span>
-            }
-            size="lg"
-            bodyClassName="px-0"
-          >
-            <DoctorTodayPeopleSection
-              data={data}
-              showHeader={false}
-              flush
-              peopleListMode="on_support"
-              peopleCount={data.onSupportPeopleCount}
-              people={data.onSupportPeople}
-              peopleListTruncated={data.onSupportPeopleListTruncated}
-            />
-          </DoctorModal>
-          <DoctorModal
-            open={mobileModal === 'calendar'}
-            onClose={() => setMobileModal(null)}
-            title={
-              <span>
-                Записей сегодня
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  {data.todayAppointments.length}
-                </span>
-              </span>
-            }
-            size="lg"
-          >
-            <TodayMiniCalendarWithModal
-              appointments={data.todayAppointments}
-              calendarSnapshot={calendarSnapshot}
-              displayIana={displayIana}
-              defaultWindow={calendarDefaultWindow}
-            />
-          </DoctorModal>
-        </>
-      ) : null}
-
-      {isMobile ? (
-        <DoctorTodayQuickActions todayIso={calendarSnapshot.todayIso} displayIana={displayIana} />
-      ) : null}
+      <DoctorModal
+        open={mobileModal === 'support'}
+        onClose={() => setMobileModal(null)}
+        title={
+          <span>
+            Сопровождение
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {data.onSupportPeopleCount}
+            </span>
+          </span>
+        }
+        size="lg"
+        bodyClassName="px-0"
+      >
+        <DoctorTodayPeopleSection
+          data={data}
+          showHeader={false}
+          flush
+          peopleListMode="on_support"
+          peopleCount={data.onSupportPeopleCount}
+          people={data.onSupportPeople}
+          peopleListTruncated={data.onSupportPeopleListTruncated}
+        />
+      </DoctorModal>
+      <DoctorModal
+        open={mobileModal === 'calendar'}
+        onClose={() => setMobileModal(null)}
+        title={
+          <span>
+            Записей сегодня
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              {data.todayAppointments.length}
+            </span>
+          </span>
+        }
+        size="lg"
+      >
+        <TodayMiniCalendarWithModal
+          appointments={data.todayAppointments}
+          calendarSnapshot={calendarSnapshot}
+          displayIana={displayIana}
+          defaultWindow={calendarDefaultWindow}
+        />
+      </DoctorModal>
     </div>
   );
 }

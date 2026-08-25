@@ -117,7 +117,7 @@ export async function loadDoctorScheduleCalendarBootstrap(input: {
     );
 
   const kpisPromise =
-    doctorStatisticsEnabled && view !== 'day'
+    doctorStatisticsEnabled
       ? (async (): Promise<ScheduleKpis | null> => {
           try {
             const audience = await loadDoctorAnalyticsAudience();
