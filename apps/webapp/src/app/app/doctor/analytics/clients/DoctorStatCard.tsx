@@ -26,6 +26,7 @@ type Props = {
   onClick?: () => void;
   className?: string;
   valueClassName?: string;
+  testId?: string;
 };
 
 export function DoctorStatCard({
@@ -41,6 +42,7 @@ export function DoctorStatCard({
   onClick,
   className,
   valueClassName,
+  testId,
 }: Props) {
   const shellClass = cn(
     tone === 'warning' ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
@@ -81,7 +83,7 @@ export function DoctorStatCard({
 
   if (href) {
     trigger = (
-      <Link id={id} href={href} className={shellClass}>
+      <Link id={id} href={href} className={shellClass} data-testid={testId}>
         {inner}
       </Link>
     );
@@ -98,13 +100,19 @@ export function DoctorStatCard({
         )}
         onClick={onClick}
         aria-pressed={selected}
+        data-testid={testId}
       >
         {inner}
       </Button>
     );
   } else {
     trigger = (
-      <article id={id} className={shellClass} tabIndex={tooltip ? 0 : undefined}>
+      <article
+        id={id}
+        className={shellClass}
+        tabIndex={tooltip ? 0 : undefined}
+        data-testid={testId}
+      >
         {inner}
       </article>
     );

@@ -18,15 +18,11 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-  doctorStatCardShellClass,
-  doctorStatCardShellWarningClass,
-  doctorStatCardInteractiveClass,
-  doctorMetricValueClass,
-  doctorMetricLabelClass,
   doctorSectionItemClass,
   doctorSectionItemUrgentClass,
   doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
@@ -294,22 +290,14 @@ export function PatientTabRecords({
       <section className="flex flex-col gap-2.5" aria-label="Записи и абонементы">
         <div className="grid grid-cols-3 gap-2">
           {sections.map((section) => (
-            <Button
+            <DoctorStatCard
               key={section.id}
-              type="button"
-              variant="ghost"
-              aria-pressed={compositionSection === section.id}
+              id={`patient-records-section-${section.id}`}
+              title={section.label}
+              value={section.value}
+              selected={compositionSection === section.id}
               onClick={() => setCompositionSection(section.id)}
-              className={cn(
-                doctorStatCardShellClass,
-                doctorStatCardInteractiveClass,
-                'h-auto min-w-0 flex-col items-start text-left',
-                compositionSection === section.id && 'border-primary/50 bg-primary/10',
-              )}
-            >
-              <span className={doctorMetricLabelClass}>{section.label}</span>
-              <span className={cn(doctorMetricValueClass, 'mt-0.5')}>{section.value}</span>
-            </Button>
+            />
           ))}
         </div>
 
@@ -396,53 +384,50 @@ export function PatientTabRecords({
       ================================================================ */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {/* Всего записей */}
-        <div className={doctorStatCardShellClass}>
-          <p className={doctorMetricLabelClass}>Всего записей</p>
-          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>{totalRecords}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {firstVisitDate
+        <DoctorStatCard
+          id="patient-records-total"
+          title="Всего записей"
+          value={totalRecords}
+          hint={
+            firstVisitDate
               ? `с ${(() => {
                   const p = firstVisitDate.split('-');
                   return p.length === 3 ? `${p[1]}.${p[0]}` : firstVisitDate;
                 })()}`
-              : 'с 09.2025'}
-          </p>
-        </div>
+              : 'с 09.2025'
+          }
+        />
 
         {/* Состоялись */}
-        <div className={doctorStatCardShellClass}>
-          <p className={doctorMetricLabelClass}>Состоялись</p>
-          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>{completedCount}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">посещений за всё время</p>
-        </div>
+        <DoctorStatCard
+          id="patient-records-completed"
+          title="Состоялись"
+          value={completedCount}
+          hint="посещений за всё время"
+        />
 
         {/* Отмены — clickable, highlights when there are no-shows */}
-        <Button
-          type="button"
-          variant="ghost"
+        <DoctorStatCard
+          id="patient-records-cancellations"
+          title="Отмены"
+          value={
+            <>
+              {cancelsCount}
+              {hasNoShows && <span className="ml-1 font-black text-destructive">!</span>}
+            </>
+          }
+          hint={hasNoShows ? 'есть неявка · детали ↓' : 'за всё время'}
+          tone={hasNoShows ? 'warning' : 'neutral'}
           onClick={() => setCancelsPanelOpen((v) => !v)}
-          className={cn(
-            'text-left',
-            hasNoShows ? doctorStatCardShellWarningClass : doctorStatCardShellClass,
-            doctorStatCardInteractiveClass,
-          )}
-        >
-          <p className={doctorMetricLabelClass}>Отмены</p>
-          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>
-            {cancelsCount}
-            {hasNoShows && <span className="ml-1 text-destructive font-black">!</span>}
-          </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {hasNoShows ? 'есть неявка · детали ↓' : 'за всё время'}
-          </p>
-        </Button>
+        />
 
         {/* Переносы */}
-        <div className={doctorStatCardShellClass}>
-          <p className={doctorMetricLabelClass}>Переносы</p>
-          <p className={cn(doctorMetricValueClass, 'mt-0.5')}>{reschedulesCount}</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">за всё время</p>
-        </div>
+        <DoctorStatCard
+          id="patient-records-reschedules"
+          title="Переносы"
+          value={reschedulesCount}
+          hint="за всё время"
+        />
       </div>
 
       {/* ================================================================
@@ -1280,10 +1265,11 @@ function PaymentsPanel({
       {!unavailable && !loading && payments !== null && (
         <>
           {/* Total */}
-          <div className={cn(doctorStatCardShellClass)}>
-            <div className={cn(doctorMetricLabelClass, 'mb-0.5')}>Итого оплачено</div>
-            <div className={cn(doctorMetricValueClass, 'text-base')}>{fmtRub(totalPaidMinor)}</div>
-          </div>
+          <DoctorStatCard
+            id="patient-records-payments-total"
+            title="Итого оплачено"
+            value={fmtRub(totalPaidMinor)}
+          />
 
           {/* Payment list */}
           {payments.length === 0 ? (

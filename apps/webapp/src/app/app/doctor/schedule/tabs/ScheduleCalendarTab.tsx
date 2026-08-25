@@ -10,12 +10,7 @@ import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import {
-  doctorMetricValueClass,
-  doctorMetricLabelClass,
-  doctorStatCardShellClass,
-  doctorStatCardInteractiveClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
 import type { PendingReschedule } from '../../calendar/DoctorCalendarRescheduleDialog';
@@ -483,26 +478,20 @@ function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
       data-testid="cal-kpi-row"
     >
       {KPI_ITEMS.map(({ key, label }) => (
-        <div
+        <DoctorStatCard
           key={key}
-          className={cn(doctorStatCardShellClass, doctorStatCardInteractiveClass)}
-          data-testid={`kpi-${key}`}
-          role="button"
-          tabIndex={0}
-          onClick={() => onKpiClick?.(key)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') onKpiClick?.(key);
-          }}
-        >
-          <p className={doctorMetricLabelClass}>{label}</p>
-          <p className={doctorMetricValueClass}>
-            {kpisLoading && kpis === null ? (
-              <span className="text-muted-foreground text-sm">…</span>
+          id={`kpi-${key}`}
+          title={label}
+          value={
+            kpisLoading && kpis === null ? (
+              <span className="text-sm text-muted-foreground">…</span>
             ) : (
               (kpis?.[key] ?? 0)
-            )}
-          </p>
-        </div>
+            )
+          }
+          onClick={onKpiClick ? () => onKpiClick(key) : undefined}
+          testId={`kpi-${key}`}
+        />
       ))}
     </div>
   );
@@ -1432,8 +1421,7 @@ export function ScheduleCalendarTab({
   // R34: drag/resize не применяются сразу — открываем диалог подтверждения.
   const openRescheduleConfirm = useCallback((arg: any) => {
     const appointment = arg.event.extendedProps?.appointment as
-      | CalendarAppointmentEvent
-      | undefined;
+      CalendarAppointmentEvent | undefined;
     if (!appointment) return arg.revert();
     const nextStart = arg.event.start?.toISOString();
     const nextEnd = arg.event.end?.toISOString();
@@ -2090,8 +2078,7 @@ export function ScheduleCalendarTab({
                     })}
                 eventClick={(arg) => {
                   const appointment = arg.event.extendedProps?.appointment as
-                    | CalendarAppointmentEvent
-                    | undefined;
+                    CalendarAppointmentEvent | undefined;
                   if (!appointment) return;
                   if (showCreatePanel && createFormDirty) {
                     const ok = window.confirm(
@@ -2121,8 +2108,7 @@ export function ScheduleCalendarTab({
                 eventResize={onResize}
                 eventContent={(info) => {
                   const appointment = info.event.extendedProps?.appointment as
-                    | CalendarAppointmentEvent
-                    | undefined;
+                    CalendarAppointmentEvent | undefined;
                   if (appointment) {
                     if (view === 'month') {
                       // Плашка = строка, только фамилия

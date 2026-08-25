@@ -57,7 +57,7 @@ export const doctorHistoryRowClass = 'rounded-md border border-border/60 bg-mute
 // -- Typography ---------------------------------------------------------------
 
 /** Page title (h1 in AppShell content or standalone page headers). */
-export const doctorPageTitleClass = 'text-base font-semibold tracking-tight text-foreground';
+export const doctorPageTitleClass = 'text-[18px] font-medium tracking-tight text-foreground';
 
 /** Section title for h2/h3 in doctor pages. */
 export const doctorSectionTitleClass = 'text-sm font-semibold text-foreground';
@@ -73,7 +73,7 @@ export const doctorMetaTextClass = 'text-xs text-muted-foreground';
 
 /** KPI numeric value on compact stat cards (dashboard, analytics). */
 export const doctorMetricValueClass =
-  'text-2xl font-semibold tabular-nums leading-tight text-foreground';
+  'text-[1.3rem] font-semibold tabular-nums leading-tight text-foreground';
 
 /** Inline/secondary numeric value that belongs in a text row rather than a full KPI. */
 export const doctorInlineMetricValueClass = 'text-base font-semibold tabular-nums leading-none';

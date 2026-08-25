@@ -46,11 +46,9 @@ import {
   doctorSectionCardClass,
   doctorSectionTitleClass,
   doctorSectionSubtitleClass,
-  doctorStatCardShellClass,
-  doctorMetricValueClass,
-  doctorMetricLabelClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
@@ -398,28 +396,26 @@ function monthLabelFor(year: number, month: number): string {
 // ---------------------------------------------------------------------------
 
 function KpiCard({
+  id,
   label,
   value,
   hint,
   loading,
 }: {
+  id: string;
   label: string;
   value: string;
   hint: string;
   loading?: boolean;
 }) {
   return (
-    <div className={cn(doctorStatCardShellClass, 'flex flex-col gap-0.5')}>
-      <span className={doctorMetricLabelClass}>{label}</span>
-      {loading ? (
-        <span className="text-xs text-muted-foreground animate-pulse py-1">…</span>
-      ) : (
-        <>
-          <span className={cn(doctorMetricValueClass, 'text-base')}>{value}</span>
-          <span className="text-xs text-muted-foreground leading-tight">{hint}</span>
-        </>
-      )}
-    </div>
+    <DoctorStatCard
+      id={id}
+      title={label}
+      value={loading ? '…' : value}
+      hint={loading ? undefined : hint}
+      valueClassName={loading ? 'animate-pulse text-muted-foreground' : undefined}
+    />
   );
 }
 
@@ -1454,6 +1450,7 @@ export function PatientTabOverview({
         <div className={cn('grid grid-cols-2 gap-2', compositionMode === 'right-pane' && 'hidden')}>
           {/* Контроль KPI */}
           <KpiCard
+            id="patient-overview-kpi-control"
             label="Контроль"
             loading={isLoading}
             value={
@@ -1471,6 +1468,7 @@ export function PatientTabOverview({
           />
           {membershipsVisible ? (
             <KpiCard
+              id="patient-overview-kpi-membership"
               label="Абонемент"
               loading={isLoading}
               value={
