@@ -1768,6 +1768,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               tx,
               input.organizationId,
               input,
+              ensureInvitedOrganizationClientRelationship,
             );
             const relationshipStatus = await ensureInvitedOrganizationClientRelationship(
               tx,
@@ -1893,6 +1894,7 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
             tx,
             input.organizationId,
             input,
+            ensureInvitedOrganizationClientRelationship,
           );
           await ensureInvitedOrganizationClientRelationship(
             tx,

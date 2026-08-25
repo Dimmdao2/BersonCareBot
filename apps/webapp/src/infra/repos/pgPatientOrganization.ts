@@ -210,6 +210,7 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
             tx,
             input.organizationId,
             input,
+            ensureInvitedOrganizationClientRelationship,
           );
           await ensureInvitedOrganizationClientRelationship(
             tx,

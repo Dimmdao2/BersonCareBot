@@ -15,7 +15,6 @@ import {
 import { LabeledSwitch } from '@/components/common/form/LabeledSwitch';
 
 type GoogleCalendarSectionProps = {
-  platformOAuthConfigured: boolean;
   hasRefreshToken: boolean;
   googleCalendarId: string;
   googleCalendarEnabled: boolean;
@@ -66,7 +65,6 @@ async function patchSetting(
 }
 
 export function GoogleCalendarSection({
-  platformOAuthConfigured,
   hasRefreshToken,
   googleCalendarId,
   googleCalendarEnabled,
@@ -188,16 +186,10 @@ export function GoogleCalendarSection({
             size="sm"
             variant={hasRefreshToken ? 'outline' : 'default'}
             onClick={startOAuth}
-            disabled={isPending || !platformOAuthConfigured}
+            disabled={isPending}
           >
             {hasRefreshToken ? 'Переподключить Google' : 'Подключить Google'}
           </Button>
-          {!platformOAuthConfigured && (
-            <p className="text-xs text-muted-foreground">
-              Платформа ещё не настроила Google OAuth. Попросите глобального администратора
-              заполнить Client ID, secret и redirect URI для Calendar.
-            </p>
-          )}
         </section>
 
         {hasRefreshToken && (

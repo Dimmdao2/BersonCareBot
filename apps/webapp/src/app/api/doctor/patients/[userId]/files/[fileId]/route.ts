@@ -11,6 +11,7 @@ import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspace
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { env, isS3MediaEnabled } from '@/config/env';
 import { presignGetUrl } from '@/app-layer/media/s3Client';
+import { runWithMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
 
 const FILE_PRESIGN_GET_TTL = 3600;
 
@@ -120,8 +121,10 @@ export async function DELETE(
     }
   }
 
+  // Deletion is the quota-recovery door and deliberately remains available when the files
+  // mechanic is unavailable. Ownership was proven above; grant clearance only around this write.
   const result = await withDoctorWorkspacePrincipal(gate.ctx, 'doctor.patients.files.delete', () =>
-    deps.patientFiles.deleteFile(fileId),
+    runWithMechanicWriteClearance('files', () => deps.patientFiles.deleteFile(fileId)),
   );
   if (result.status === 'not_found') {
     return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
