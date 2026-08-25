@@ -22,7 +22,7 @@ export function buildTopicUnsubscribeResponseHtml(input: {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Настройки уведомлений</title>
   </head>
-  <body style="margin:0;background:#f2f2f0;color:#1f2937;font-family:system-ui,sans-serif">
+  <body style="margin:0;background:#f6f4ef;color:#1f2937;font-family:system-ui,sans-serif">
     <main style="max-width:520px;margin:64px auto;padding:24px">
       <h1 style="font-size:20px;margin:0 0 12px">Настройки уведомлений обновлены</h1>
       <p style="font-size:16px;line-height:1.5;margin:0">${topicCopy}</p>

@@ -1730,16 +1730,16 @@ UI-тексты читает владелец и пользователи, их 
 
 ### Единый визуальный язык и шкала (гайд §A–§C)
 
-- Page canvas — exact `#f2f2f0` через `--bc-canvas`; doctor использует
-  `--doctor-page-gap-background: var(--bc-canvas)`, patient — `--patient-page-bg`. Page header и
+- Doctor canvas — exact `#F6F4EF` через `--doctor-page-gap-background: var(--bc-canvas)`; page header и
   основные поверхности остаются белыми. Глубина — тонкие границы/лёгкие поверхности, не тени (§A). `shadow-*` —
   только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
 - Semantic primary кабинета врача — ровно `#406ca7` через зональный `--primary`; кнопки, ссылки, active/focus и другие primary-consumers используют semantic-классы, а не локальный hex. Patient/public tokens и destructive/warning/info роли не перекрашивать.
 - Chrome-типографика — закрытый набор §B.1: page-title `text-[18px] font-medium`; section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-[1.3rem]`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`; `text-[18px]` и `text-[1.3rem]` разрешены только через соответствующие общие роли.
-- Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]` и радиус `24px`; стандартная кнопка `size="sm"` — `h-9`/`h-[36px]` и общий радиус `8px` через `--button-radius`. Фактическая поверхность input белая. Высоту кнопки задаёт doctor primitive, не локальный caller.
-- Радиусы (§A.3): page-block `12px`, KPI `8px`, кнопки/`[role='button']` ровно `8px`, doctor input/select trigger `24px`; `rounded-2xl` запрещён.
+- Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]`, стандартная кнопка `size="sm"` — `h-9`/`h-[36px]`, радиус `24px`; фактическая поверхность input белая. Высоту кнопки задаёт doctor primitive, не локальный caller.
+- Радиусы (§A.3): page-block `12px`, KPI `8px`, doctor button/input/select trigger `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
 - Исключение навигации: main doctor sidebar/mobile menu items не являются button pills и сохраняют минимальный
-  shared near-rectangular menu radius; кнопочные menu rows и section tabs используют общий радиус `8px`.
+  shared near-rectangular menu radius; 24px control radius на menu rows не распространяется. Section tabs имеют
+  отдельный rounded contract.
 - Основные flat-list строки переиспользуют геометрию списка «На сопровождении» на странице «Сегодня», без локальных
   числовых копий отступов; между пунктами divider ровно `1px #f0efeb`, full-row hover для интерактивных списков;
   первичная строка крупнее и легче (`text-base font-normal`).

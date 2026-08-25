@@ -476,24 +476,24 @@ card; запрещено строить временный resolver, второ�
   blank comment disabled. Диагностический payment panel скрывается до отдельной proof полной organization payment
   readiness и server contracts cash/invoice/pay-link/QR; money backend не входит в UI-1c. Exact manifest и live
   matrix — в Doctor UI execution artifact.
-- **UI-P shared presentation delta (owner 2026-07-20; visual tokens corrected 2026-08-25):** taskdb `#925`;
-  doctor workspace получил единый shared-primitives pass для общего canvas `#f2f2f0`, белой page header, радиусов
-  block/KPI/button/input-select `12/8/8/24px`,
+- **UI-P shared presentation delta (owner 2026-07-20; background subpoint SUPERSEDED 2026-07-22):** taskdb `#925`;
+  doctor workspace получил единый shared-primitives pass для исторического gap background `#faf9f4`, белой page header, радиусов block/KPI/control `12/8/24px`,
   padding основных блоков `18px`, белого input, порядка KPI label→value и более крупного/лёгкого основного list
   text. Поздняя live-коррекция 2026-07-21 заменяет буквальное копирование padding эталоном строк «На сопровождении»:
   inset divider, спокойное выравнивание текста/иконок и selected state без отдельной карточки. Поиск «Клиентов»
   переносится в правую половину page header на одну линию с title. Это не patient/public UI и не изменение
   data/metric semantics.
-- **OWNER CORRECTION 2026-08-25:** the former white/inherited workspace outcome (`#967`) and the older canvas
-  value are replaced. The current shared canvas is exact
-  `#f2f2f0`; white page header and primary `#406ca7` remain.
-  Общие section tabs получают единый кнопочный радиус `8px` и более тёмный neutral hover. Clients и
+- **SUPERSEDED — 2026-07-22:** the former white/inherited workspace outcome (`#967`) conflicts with the later
+  `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2. The current doctor canvas is exact Design DNA
+  `#F6F4EF`; white page header and primary `#406ca7` remain.
+  Общие section tabs получают более округлённую doctor-control форму и более тёмный neutral hover. Clients и
   Messages используют один shared flat-list contract: геометрия/границы как у «На сопровождении», full-row hover и
   divider `#f0efeb`. Отдельный Today residual `#966` возвращает desktop `50/50`, превращает «Открыть расписание» в
   кнопку и доказывает ровно час до первой записи без двойного calendar-window padding. Оба среза идут параллельно,
   live DEV и тяжёлые проверки сериализуются; baseline stages целиком не переоткрываются.
   Latest clarification: sidebar/mobile menu items — не rounded control pills; им возвращается прежняя почти
-  прямоугольная форма с минимальным скруглением, тогда как section tabs используют общий кнопочный радиус `8px`.
+  прямоугольная форма с минимальным скруглением, тогда как более округлённые section tabs остаются отдельным
+  требованием.
 - **Order after presentation:** UI-5 разделён на layout/routing predecessor UI-5a `#958` и полный UI-5b/U5B.
   Последнее решение владельца 2026-07-23 заменяет preview-варианты: обычный экран «Клиенты» = `list + filters`,
   right-pane preview удалён, а клик по строке открывает полную карточку на весь рабочий content container, сохраняя

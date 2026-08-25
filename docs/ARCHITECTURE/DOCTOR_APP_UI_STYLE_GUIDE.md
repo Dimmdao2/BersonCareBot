@@ -15,7 +15,7 @@
 **Companion-файл констант:** `apps/webapp/src/shared/ui/doctor/doctorVisual.ts`  
 **Зональные токены:** `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`)
 
-> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Белый page header, page-block/KPI/input-select радиусы `12/8/24px` и padding `18px` сохраняются; общий радиус кнопок — `8px`. Общий page canvas — `#f2f2f0`; при конфликте величин приоритет у §A–§B.
+> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Параметры owner G6 от 2026-07-20 (белый page header, 12/8/24px и padding 18px) сохраняются. **SUPERSEDED — 2026-07-22:** белый/inherited workspace background; `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §2 + Design DNA v1.0 возвращают doctor canvas `#F6F4EF`. При конфликте величин приоритет у §A–§B.
 
 ---
 
@@ -28,7 +28,7 @@
 5. **h2 всегда со стилем.** Голый `<h2>` без класса запрещён — браузерный default ломает иерархию.
 6. **Двухуровневая модель карточек.** Секции на странице и панели внутри карточки выглядят по-разному — см. §4.
 7. **Единая шкала важнее локального вкуса.** В кабинете не должно быть «то слишком мелко, то слишком крупно»: разрешён фиксированный набор размеров текста и контролов — см. §B. Любой новый размер вне набора — это баг.
-8. **Один визуальный язык.** Межблочный холст кабинета — `#f2f2f0`; page header и основные поверхности белые, а глубина задаётся тонкими границами и лёгкими поверхностями, не тенями — см. §A.
+8. **Один визуальный язык.** Межблочный холст кабинета — DNA `#F6F4EF`; page header и основные поверхности белые, а глубина задаётся тонкими границами и лёгкими поверхностями, не тенями — см. §A.
 
 ---
 
@@ -38,7 +38,7 @@
 
 ### A.1. Фон и глубина
 
-- Workspace background — shared page canvas **`#f2f2f0`** through `--doctor-page-gap-background: var(--bc-canvas)`.
+- Workspace background — Design DNA canvas **`#F6F4EF`** through `--doctor-page-gap-background: var(--bc-canvas)`.
 - Верхняя page header с названием страницы и основные рабочие поверхности — **белые** (`#ffffff`).
 - Глубину дают **тонкие границы** и **лёгкие вложенные поверхности**, а не тени.
 - `shadow-sm` — только для отдельно «плавающих» элементов (медиакарточки §11, card-internal панели §4 уровня 2). На page-секциях теней нет.
@@ -68,13 +68,12 @@
 | KPI                                    | `8px` (`--doctor-kpi-radius`)                |
 | Панель внутри карточки                 | `rounded-lg`                                 |
 | Строка списка / item                   | `rounded-md`                                 |
-| Doctor button                          | `8px` (`--button-radius`)                    |
-| Doctor input / select trigger          | `24px` (`--doctor-control-radius`)            |
+| Doctor button / input / select trigger | `24px` (`--doctor-control-radius`)           |
 | Main sidebar / mobile menu item        | минимальный shared menu radius; не 24px pill |
 
-`rounded-2xl` — запрещён для page-level секций. Кнопки, icon-кнопки и `[role='button']` всегда используют
-`--button-radius: 8px`; локальные radius overrides для них не действуют. Не-кнопочные пункты основного меню
-сохраняют shared menu radius.
+`rounded-2xl` — запрещён для page-level секций. Явные caller overrides (`rounded-none`, icon-only форма и т.п.) сохраняются.
+Пункты основного меню не относятся к control-radius: они остаются почти прямоугольными. Section tabs используют
+отдельный shared tab vocabulary и не задают форму menu rows.
 
 ### A.4. Состояния (единая система)
 
@@ -122,9 +121,9 @@
 | Контрол                                     | Высота         | Радиус |
 | ------------------------------------------- | -------------- | ------ |
 | Input / Select / база тулбара               | `h-8` (32)     | `24px` |
-| Button база doctor (`sm`)                   | `h-9` (36)     | `8px`  |
-| Button главный CTA (`lg`, редко)            | `h-10` (40)    | `8px`  |
-| Header icon-кнопки (тач-таргет)             | `size-10` (40) | `8px`  |
+| Button база doctor (`sm`)                   | `h-9` (36)     | `24px` |
+| Button главный CTA (`lg`, редко)            | `h-10` (40)    | `24px` |
+| Header icon-кнопки (исключение, тач-таргет) | `size-10` (40) | —      |
 
 - В одной строке формы/тулбара поле и select совпадают по высоте (32px); стандартная doctor-кнопка — 36px.
 - Фактическая поверхность `input` белая; декоративный фон внешней области не должен просвечивать через поле.
@@ -638,10 +637,10 @@ article.rounded-lg.border.border-border.bg-card.shadow-sm
     variant="line"
     className="h-auto w-max min-w-full justify-start gap-0 bg-transparent p-0"
   >
-    <TabsTrigger value="overview" className="px-3 py-2">
+    <TabsTrigger value="overview" className="rounded-none px-3 py-2">
       Обзор
     </TabsTrigger>
-    <TabsTrigger value="program" className="px-3 py-2">
+    <TabsTrigger value="program" className="rounded-none px-3 py-2">
       Программа
       {badgeCount > 0 && <Badge>{badgeCount}</Badge>}
     </TabsTrigger>
@@ -1065,7 +1064,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] Карточка сущности (если нужна) — по §9, используя `doctorClientCardChrome.ts`
 - [ ] График — через shadcn Card + recharts по §7 (не кастомный контейнер)
 - [ ] Размеры текста — только из набора §B.1 (нет `text-[13px]`/`text-lg`/`text-xl`/`text-3xl`; `text-[10px]`/`text-[11px]` только в micro-роли)
-- [ ] Кнопки и `[role='button']` используют радиус 8px; doctor input/select trigger — 24px; input белый (§B.2)
+- [ ] Doctor button/input/select trigger используют радиус 24px; input белый; явные `rounded-none`/icon overrides сохранены (§B.2)
 - [ ] KPI-число — `text-2xl` (не `text-3xl`)
 - [ ] KPI: радиус 8px, подпись сверху, число снизу
 - [ ] Основной flat-list: `1px` divider, padding 18px по горизонтали, первичная строка `text-base font-normal`
