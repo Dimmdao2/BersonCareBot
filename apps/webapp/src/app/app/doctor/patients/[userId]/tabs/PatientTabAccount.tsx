@@ -837,7 +837,7 @@ export function PatientTabAccount({
                   'bg-destructive/10 text-destructive hover:bg-destructive/20 border-destructive/40',
               )}
             >
-              {blockPending ? '…' : isBlocked ? 'Снять блокировку' : 'Ограничить доступ'}
+              {blockPending ? '…' : isBlocked ? 'Снять блокировку' : 'Заблокировать учётку'}
             </Button>
 
             {/* Archive / Unarchive — PATCH /api/doctor/clients/{userId}/archive {archived} */}
@@ -882,10 +882,6 @@ export function PatientTabAccount({
           {blockError && <p className="text-[11px] text-destructive">Блокировка: {blockError}</p>}
           {archiveError && <p className="text-[11px] text-destructive">Архив: {archiveError}</p>}
 
-          <p className={cn(doctorSectionSubtitleClass, 'text-[11px]')}>
-            «Ограничить доступ» → POST /block · «В архив» → PATCH /archive. Оптимистичное обновление
-            с rollback.
-          </p>
         </SectionCard>
 
         {/* ── 4. Администрирование ─────────────────────────────────── */}

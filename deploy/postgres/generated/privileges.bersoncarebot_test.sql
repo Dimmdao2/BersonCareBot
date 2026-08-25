@@ -16433,7 +16433,7 @@ GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users"
 GRANT SELECT ("id", "is_archived", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT, DELETE ON TABLE "public"."platform_users" TO "app_staff";
 GRANT INSERT ("blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "created_at", "display_name", "first_name", "id", "integrator_user_id", "is_archived", "is_blocked", "last_name", "merged_at", "merged_into_id", "patronymic", "reminder_muted_until", "role", "session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_staff";
-GRANT UPDATE ("blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "display_name", "integrator_user_id", "is_archived", "is_blocked", "merged_at", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_staff";
+GRANT UPDATE ("blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "display_name", "integrator_user_id", "is_archived", "is_blocked", "merged_at", "merged_into_id", "reminder_muted_until", "role", "session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_staff";
 GRANT SELECT ("created_at", "display_name", "first_name", "id", "integrator_user_id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_tenant_service";
 GRANT INSERT ("display_name", "first_name", "id", "integrator_user_id", "last_name", "role") ON TABLE "public"."platform_users" TO "app_tenant_service";
 GRANT UPDATE ("display_name", "first_name", "integrator_user_id", "last_name", "merged_at", "merged_into_id", "updated_at") ON TABLE "public"."platform_users" TO "app_tenant_service";

@@ -6308,6 +6308,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "merged_into_id",
           "reminder_muted_until",
           "role",
+          "session_epoch",
           "updated_at"
         ]
       },
