@@ -464,7 +464,9 @@ function eventLastName(event: CalendarEvent): string {
 // KPI Row (D2)
 // ---------------------------------------------------------------------------
 
-const KPI_ITEMS: Array<{ key: keyof ScheduleKpis; label: string }> = [
+type ScheduleKpiNumberKey = Exclude<keyof ScheduleKpis, 'firstVisitIds'>;
+
+const KPI_ITEMS: Array<{ key: ScheduleKpiNumberKey; label: string }> = [
   { key: 'recordsInPeriod', label: 'Записей всего' },
   { key: 'futureInPeriod', label: 'Впереди' },
   { key: 'firstVisitInPeriod', label: 'Первичных' },
@@ -476,7 +478,7 @@ const KPI_ITEMS: Array<{ key: keyof ScheduleKpis; label: string }> = [
 type KpiRowTabProps = {
   kpis: ScheduleKpis | null;
   kpisLoading: boolean;
-  onKpiClick?: (key: keyof ScheduleKpis) => void;
+  onKpiClick?: (key: ScheduleKpiNumberKey) => void;
 };
 
 function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
@@ -780,7 +782,7 @@ export function ScheduleCalendarTab({
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [kpiModalFilter, setKpiModalFilter] = useState<keyof ScheduleKpis | null>(null);
+  const [kpiModalFilter, setKpiModalFilter] = useState<ScheduleKpiNumberKey | null>(null);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
   // #225: время конца из drag-интервала → используется как начальная длительность в форме создания.
