@@ -32,6 +32,7 @@ import { clinicalVisit } from '../../../db/schema/patientClinical';
 import { platformUsers, userIdentity } from '../../../db/schema/schema';
 import { drizzleFioCols, drizzleUserIdentityFioJoin } from '@/infra/repos/userIdentityFioSql';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
+import { logger } from '@/app-layer/logging/logger';
 
 type ActiveOrganizationRow = {
   organization_id: string;
@@ -118,6 +119,7 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
     async createManualOrganizationClient(input): Promise<CreateManualOrganizationClientResult> {
       requiredExactOrganizationPrincipal(input.organizationId);
       const db = getDrizzle();
+      let phase = 'begin';
 
       try {
         return await db.transaction(async (tx) => {
@@ -142,7 +144,9 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
 
           if (isStandaloneNoContact) {
             if (!commandId || !requestFingerprint) return { ok: false, error: 'create_failed' };
+            phase = 'lock_command';
             await lockManualPatientCommand(tx, commandId);
+            phase = 'find_command';
             const existingCommand = await findManualPatientCommand(tx, commandId);
             if (existingCommand) {
               assertManualPatientCommandReplay(existingCommand, {
@@ -206,18 +210,21 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
             if (legacyAppointment || legacyVisit) throw new Error('idempotency_conflict');
           }
 
+          phase = 'resolve_identity';
           const identity = await resolveOrCreateDoctorClientByPhoneInTransaction(
             tx,
             input.organizationId,
             input,
             ensureInvitedOrganizationClientRelationship,
           );
+          phase = 'ensure_relationship';
           await ensureInvitedOrganizationClientRelationship(
             tx,
             input.organizationId,
             identity.userId,
           );
           if (input.specialistId) {
+            phase = 'ensure_specialist_link';
             await ensureActivePatientSpecialistLink(tx, {
               organizationId: input.organizationId,
               patientUserId: identity.userId,
@@ -226,6 +233,7 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
             });
           }
           if (isStandaloneNoContact && commandId && requestFingerprint) {
+            phase = 'record_command';
             await insertManualPatientCommand(tx, {
               commandId,
               organizationId: input.organizationId,
@@ -241,6 +249,27 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
           };
         });
       } catch (error) {
+        const pg = pgConstraint(error);
+        const cause =
+          typeof error === 'object' && error !== null && 'cause' in error
+            ? (error as { cause?: unknown }).cause
+            : null;
+        const causePg = pgConstraint(cause);
+        logger.error(
+          {
+            phase,
+            organizationId: input.organizationId,
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage: error instanceof Error ? error.message : 'non_error_throwable',
+            pgCode: pg.code || undefined,
+            pgConstraint: pg.constraint || undefined,
+            causeName: cause instanceof Error ? cause.name : undefined,
+            causeMessage: cause instanceof Error ? cause.message : undefined,
+            causePgCode: causePg.code || undefined,
+            causePgConstraint: causePg.constraint || undefined,
+          },
+          '[patient-organization] manual client creation failed',
+        );
         if (error instanceof DoctorClientIdentityError) {
           return { ok: false, error: error.code };
         }
@@ -253,7 +282,6 @@ export function createPgPatientOrganizationPort(): PatientOrganizationPort {
         ) {
           return { ok: false, error: 'idempotency_conflict' };
         }
-        const pg = pgConstraint(error);
         if (pg.code === '23505' && pg.constraint === 'uq_user_contacts_email') {
           return { ok: false, error: 'email_conflict' };
         }
