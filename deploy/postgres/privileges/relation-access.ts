@@ -59,6 +59,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "appointment_id",
           "cancellation_type",
           "created_at",
+          "id",
           "manual_override",
           "notifications_sent",
           "organization_id",
@@ -105,7 +106,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "actor_id",
           "appointment_id",
+          "created_at",
           "event_type",
+          "id",
           "occurred_at",
           "organization_id",
           "payload"
@@ -137,6 +140,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "actor_type",
           "appointment_id",
           "created_at",
+          "id",
           "manual_override",
           "notifications_sent",
           "organization_id",
@@ -189,6 +193,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "free_cancellation_available_at_reschedule",
           "from_end_at",
           "from_start_at",
+          "id",
           "manual_override",
           "notifications_sent",
           "organization_id",
@@ -1300,8 +1305,10 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "created_at",
           "domain",
           "event_type",
+          "id",
           "linked_object_id",
           "linked_object_type",
           "occurred_at",

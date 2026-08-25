@@ -565,6 +565,28 @@ test('clinic topology grants cover the exact columns emitted by Drizzle inserts'
 
 test('schedule grants cover the default columns emitted by Drizzle inserts', () => {
   const expected = {
+    'public.be_appointment_cancellations': [
+      'actor_id', 'actor_type', 'applied_policy_id', 'applied_policy_snapshot',
+      'appointment_id', 'cancellation_type', 'created_at', 'id', 'manual_override',
+      'notifications_sent', 'organization_id', 'package_session_charged',
+      'prepayment_refunded', 'prepayment_retained', 'reason', 'staff_comment', 'was_free',
+      'was_penalized',
+    ],
+    'public.be_appointment_history_events': [
+      'actor_id', 'appointment_id', 'created_at', 'event_type', 'id', 'occurred_at',
+      'organization_id', 'payload',
+    ],
+    'public.be_appointment_no_shows': [
+      'actor_id', 'actor_type', 'appointment_id', 'created_at', 'id', 'manual_override',
+      'notifications_sent', 'organization_id', 'reason', 'staff_comment',
+    ],
+    'public.be_appointment_reschedules': [
+      'actor_id', 'actor_type', 'applied_policy_id', 'applied_policy_snapshot',
+      'appointment_id', 'created_at', 'free_cancellation_available_after',
+      'free_cancellation_available_at_reschedule', 'from_end_at', 'from_start_at', 'id',
+      'manual_override', 'notifications_sent', 'organization_id', 'reason', 'staff_comment',
+      'to_end_at', 'to_start_at', 'was_in_free_reschedule_window',
+    ],
     'public.be_appointments': [
       'appointment_reminder_allowed_preset_ids', 'appointment_reminder_preset_id',
       'appointment_reminder_selection_source', 'attribution_json', 'branch_id', 'chain_id',
@@ -572,6 +594,10 @@ test('schedule grants cover the default columns emitted by Drizzle inserts', () 
       'organization_id', 'original_start_at', 'package_usage_ref', 'payment_ref',
       'phone_normalized', 'platform_user_id', 'reschedule_count', 'room_id', 'service_id',
       'source', 'specialist_id', 'start_at', 'status', 'updated_at',
+    ],
+    'public.be_patient_timeline_events': [
+      'created_at', 'domain', 'event_type', 'id', 'linked_object_id', 'linked_object_type',
+      'occurred_at', 'organization_id', 'payload', 'platform_user_id',
     ],
     'public.be_schedule_blocks': [
       'block_type', 'branch_id', 'created_at', 'created_by_actor_id', 'end_at', 'id',
