@@ -72,7 +72,11 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   const bookingType = bookingRow?.bookingType ?? 'in_person';
   const city = bookingRow?.city ?? null;
   const cityCodeSnapshot = bookingRow?.cityCodeSnapshot ?? null;
-  const slotStart = opts.appointment.startAt;
+  // Drizzle returns PostgreSQL timestamptz values as `YYYY-MM-DD HH:mm:ss+TZ` on this path.
+  // Normalize at the webapp→integrator boundary so every downstream signed endpoint receives
+  // the RFC 3339 form declared by its schema.
+  const slotStart = new Date(opts.appointment.startAt).toISOString();
+  const slotEnd = new Date(opts.appointment.endAt).toISOString();
   const timeZone = await getAppDisplayTimeZone();
   const patientMessageText =
     opts.eventType === 'booking.created'
@@ -89,7 +93,7 @@ export async function emitStaffCanonicalBookingEvent(opts: {
   try {
     await opts.syncPort.emitBookingEvent({
       eventType: opts.eventType,
-      idempotencyKey: `staff.${opts.eventType}:${opts.appointment.id}:${opts.appointment.startAt}`,
+      idempotencyKey: `staff.${opts.eventType}:${opts.appointment.id}:${slotStart}`,
       payload: {
         organizationId: opts.appointment.organizationId,
         bookingId,
@@ -97,8 +101,8 @@ export async function emitStaffCanonicalBookingEvent(opts: {
         bookingType: bookingRow?.bookingType ?? 'in_person',
         city: bookingRow?.city ?? undefined,
         category: bookingRow?.category ?? 'general',
-        slotStart: opts.appointment.startAt,
-        slotEnd: opts.appointment.endAt,
+        slotStart,
+        slotEnd,
         contactName,
         contactPhone,
         contactEmail: bookingRow?.contactEmail ?? undefined,

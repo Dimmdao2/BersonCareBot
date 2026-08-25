@@ -9,7 +9,7 @@ import type { BeAppointment } from '@/modules/booking-engine/types';
 import type { BookingSyncPort } from '@/modules/patient-booking/ports';
 
 /** D13a(добор): reminderPlan должен доходить дословно до payload события, если передан вызывающим. */
-function fakeAppointment(): BeAppointment {
+function fakeAppointment(overrides: Partial<BeAppointment> = {}): BeAppointment {
   return {
     id: 'appt-1',
     organizationId: 'org-1',
@@ -32,6 +32,7 @@ function fakeAppointment(): BeAppointment {
     appointmentReminderAllowedPresetIds: [],
     appointmentReminderPresetId: null,
     appointmentReminderSelectionSource: 'specialist_default',
+    ...overrides,
   };
 }
 
@@ -69,5 +70,19 @@ describe('emitStaffCanonicalBookingEvent: reminderPlan', () => {
     });
 
     expect(captured[0]).not.toHaveProperty('reminderPlan');
+  });
+
+  it('нормализует PostgreSQL timestamptz перед отправкой интегратору', async () => {
+    await emitStaffCanonicalBookingEvent({
+      syncPort,
+      eventType: 'booking.created',
+      appointment: fakeAppointment({
+        startAt: '2027-03-10 12:00:00+03',
+        endAt: '2027-03-10 12:30:00+03',
+      }),
+    });
+
+    expect(captured[0]!.slotStart).toBe('2027-03-10T09:00:00.000Z');
+    expect(captured[0]!.slotEnd).toBe('2027-03-10T09:30:00.000Z');
   });
 });
