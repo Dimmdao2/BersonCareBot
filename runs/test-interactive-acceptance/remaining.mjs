@@ -109,7 +109,7 @@ try {
   await step(page, 'appointment:cancel-created', async () => {
     if (!appointmentId) throw new Error('create_did_not_produce_appointment');
     await page.getByRole('button', { name: 'Список', exact: true }).click();
-    const row = page.getByText('Альмендингер Ольга', { exact: false }).last();
+    const row = page.locator(`[data-testid="list-appt-${appointmentId}"]`);
     await row.waitFor({ timeout: 15_000 });
     await row.click();
     await page.getByRole('button', { name: /Отменить/u }).first().click();
