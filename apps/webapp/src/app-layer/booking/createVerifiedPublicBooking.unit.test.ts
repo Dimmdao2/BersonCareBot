@@ -46,6 +46,7 @@ import { createVerifiedPublicBooking } from './createVerifiedPublicBooking';
 const PLATFORM_USER_ID = 'person-1';
 const CHANNEL = 'public_booking_phone_otp' as const;
 const ORGANIZATION_ID = 'org-1';
+const ATTEMPT_STARTED_AT = '2027-01-01T09:59:59.000000+00:00';
 const MAIL_PROFILE = { kind: 'platform' as const, senderDisplayName: 'Test patient app' };
 
 const intent = {
@@ -82,7 +83,7 @@ beforeEach(() => {
   );
   fakes.enrollCurrentPatientInPublicBookingClinic.mockImplementation(async () => {
     fakes.order.push('enroll');
-    return { status: 'active', effect: 'created' };
+    return { status: 'active', effect: 'created', attemptStartedAt: ATTEMPT_STARTED_AT };
   });
   fakes.revokePublicBookingEnrollment.mockImplementation(async () => {
     fakes.order.push('revoke');
@@ -150,7 +151,32 @@ describe('createVerifiedPublicBooking', () => {
     // порт-транзакцией раньше приёма и вместе с ним откатиться не может, поэтому его снимает
     // компенсация. Без неё проигравший гонку за слот остаётся в списке клиентов с нулём приёмов.
     expect(fakes.order).toEqual(['enroll', 'revoke']);
-    expect(fakes.revokePublicBookingEnrollment).toHaveBeenCalledWith(ORGANIZATION_ID);
+    expect(fakes.revokePublicBookingEnrollment).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      'created',
+      ATTEMPT_STARTED_AT,
+    );
+  });
+
+  it('passes the DB reactivation cutoff when a booking fails for an archived patient', async () => {
+    fakes.enrollCurrentPatientInPublicBookingClinic.mockResolvedValue({
+      status: 'active',
+      effect: 'reactivated',
+      attemptStartedAt: ATTEMPT_STARTED_AT,
+    });
+    fakes.resolveCurrentPatientInPersonBookingContext.mockRejectedValue(
+      new Error('slot_overlap'),
+    );
+
+    await expect(
+      createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL, MAIL_PROFILE),
+    ).rejects.toThrow('slot_overlap');
+
+    expect(fakes.revokePublicBookingEnrollment).toHaveBeenCalledWith(
+      ORGANIZATION_ID,
+      'reactivated',
+      ATTEMPT_STARTED_AT,
+    );
   });
 
   it('keeps a committed booking when the back-office duplicate hint cannot be recorded', async () => {

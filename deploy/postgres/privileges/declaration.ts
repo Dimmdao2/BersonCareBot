@@ -3494,7 +3494,7 @@ const REV10_CONTEXT = {
     // с ним откатиться не может, поэтому провалившаяся запись убирает за собой отдельной дверью.
     revoke_public_booking_enrollment: { port: 'webapp', sessionRole: 'app_patient',
       targetRole: 'app_patient', contextClass: 'patient', purpose: 'booking.public-client.revoke',
-      functionIdentity: 'app.revoke_public_booking_enrollment(uuid,text)' },
+      functionIdentity: 'app.revoke_public_booking_enrollment(uuid,text,timestamp with time zone)' },
     read_public_booking_catalog: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'booking.public-catalog.read',
@@ -4942,17 +4942,17 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Дверь не
-    // принимает от вызывающего ничего, кроме организации, и решает по самой строке — провенанс,
-    // возраст в окне одной попытки и отсутствие живого приёма.
-    'app.revoke_public_booking_enrollment(uuid,text)': rev10Function({
+    // Компенсация: провалившаяся запись не оставляет человека в списке клиентов клиники. Метка
+    // начала попытки отделяет старую историю приёмов от новой конкурентно созданной записи.
+    'app.revoke_public_booking_enrollment(uuid,text,timestamp with time zone)': rev10Function({
       owner: 'app_seam_public_booking_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_patient'],
       purpose: 'undo a public-booking client relationship whose booking failed',
-      typedArgs: ['uuid', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      typedArgs: ['uuid', 'text', 'timestamp with time zone'], volatility: 'VOLATILE', parallel: 'UNSAFE',
       proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'deleted_at'],
+        { relation: 'public.be_appointments', columns: ['organization_id', 'platform_user_id', 'created_at',
+          'deleted_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status',
           'created_at', 'portal_activated_at', 'portal_activated_via'],
