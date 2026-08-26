@@ -34,6 +34,7 @@ const FOUND_PAYLOAD = {
   role: 'client',
   session_epoch: 3,
   is_archived: false,
+  is_blocked: false,
   contacts: [
     {
       contact_kind: 'phone',

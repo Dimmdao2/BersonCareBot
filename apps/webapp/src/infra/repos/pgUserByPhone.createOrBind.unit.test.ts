@@ -41,6 +41,7 @@ const RESOLVED_EXISTING = {
   role: 'client',
   session_epoch: 3,
   is_archived: false,
+  is_blocked: false,
   contacts: [
     {
       contact_kind: 'phone',
@@ -126,7 +127,7 @@ describe('pgUserByPhonePort.createOrBind (D15b/6 confirm-path bootstrap door)', 
 
     await expect(
       pgUserByPhonePort.createOrBind('+79261234567', { channel: 'web', chatId: 'device-1' }),
-    ).rejects.toThrow('createOrBind: platform user is archived');
+    ).rejects.toThrow('createOrBind: platform user cannot start a session');
   });
 
   it('fails closed on an unrecognized payload shape instead of returning a partial session', async () => {

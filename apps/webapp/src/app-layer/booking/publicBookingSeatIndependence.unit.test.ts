@@ -99,7 +99,15 @@ beforeEach(() => {
   fakes.namedRoot.mockImplementation(async (_db: unknown, identity: string) => {
     recorded.roots.push(identity);
     if (identity === ENROL_DOOR) {
-      return { rows: [{ enrollment: { status: 'active', effect: 'created' } }] };
+      return {
+        rows: [{
+          enrollment: {
+            status: 'active',
+            effect: 'created',
+            attemptStartedAt: '2026-08-26T00:00:00.000Z',
+          },
+        }],
+      };
     }
     return { rows: [{}] };
   });
@@ -149,7 +157,15 @@ describe('a visitor booking spends no paid client place (owner 19.08 §33.2)', (
         throw Object.assign(new Error('saas_quota_reached:patient_count'), { code: '53400' });
       }
       if (identity === ENROL_DOOR) {
-        return { rows: [{ enrollment: { status: 'active', effect: 'created' } }] };
+        return {
+          rows: [{
+            enrollment: {
+              status: 'active',
+              effect: 'created',
+              attemptStartedAt: '2026-08-26T00:00:00.000Z',
+            },
+          }],
+        };
       }
       return { rows: [{}] };
     });

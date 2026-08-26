@@ -130,12 +130,18 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
       phoneNormalized: PHONE,
       created: false,
     });
-    expect(syncContactsMirrorMock).toHaveBeenCalledWith(savepointTx, NEW_ID, [
+    const attemptedUserId = syncContactsMirrorMock.mock.calls[0]?.[1];
+    expect(attemptedUserId).toEqual(expect.any(String));
+    expect(syncContactsMirrorMock).toHaveBeenCalledWith(savepointTx, attemptedUserId, [
       expect.objectContaining({
         action: 'upsert', kind: 'phone', valueNormalized: PHONE, isPrimary: true,
       }),
     ]);
-    expect(ensureOrganizationRelationship).toHaveBeenCalledWith(savepointTx, ORG_ID, NEW_ID);
+    expect(ensureOrganizationRelationship).toHaveBeenCalledWith(
+      savepointTx,
+      ORG_ID,
+      attemptedUserId,
+    );
     expect(ensureOrganizationRelationship.mock.invocationCallOrder[0]).toBeLessThan(
       syncContactsMirrorMock.mock.invocationCallOrder[0]!,
     );

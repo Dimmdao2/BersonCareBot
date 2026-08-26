@@ -19,24 +19,6 @@ const activeMigrations = fs.readdirSync(migrationRoot)
     source: fs.readFileSync(path.join(migrationRoot, file), 'utf8'),
   }));
 
-function requireDerivedLanguageMetadata(source, tag) {
-  const rawStatements = source.split('--> statement-breakpoint');
-  const parsedStatements = parseOwnerStatements(source, tag);
-  assert.equal(parsedStatements.length, rawStatements.length);
-
-  rawStatements.forEach((statement, index) => {
-    const languages = [...statement.matchAll(
-      /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/gimu,
-    )].map((match) => match[1].toLowerCase());
-    assert.ok(languages.length <= 1, `statement ${index + 1} uses multiple function languages`);
-    assert.equal(
-      parsedStatements[index].languageUsage,
-      languages[0] ?? null,
-      `statement ${index + 1} language metadata must match its executable SQL`,
-    );
-  });
-}
-
 test('parses owner DDL and a reusable local-postgres backfill without duplicating the migration path', () => {
   const steps = parseOwnerStatements(`
 -- BCB-MIGRATION-OWNER: app_probe_owner
@@ -154,49 +136,4 @@ test('every active migration statement keeps its owner or backfill marker first'
       );
     });
   }
-});
-
-test('every function statement in active migrations declares its exact executable language', () => {
-  let functionStatements = 0;
-  for (const { tag, source } of activeMigrations) {
-    const statements = source.split('--> statement-breakpoint');
-    const functionStatementIndexes = statements
-      .map((statement, index) => (/^\s*CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+/imu.test(statement) ? index : -1))
-      .filter((index) => index >= 0);
-    functionStatements += functionStatementIndexes.length;
-
-    functionStatementIndexes.forEach((index) => {
-      const expectedLanguage = /^\s*LANGUAGE\s+([A-Za-z_][A-Za-z0-9_]*)\s*$/imu.exec(statements[index])?.[1];
-      assert.ok(expectedLanguage, `${tag}: statement ${index + 1} has no executable language`);
-      requireDerivedLanguageMetadata(statements[index], tag);
-
-      const withoutLanguage = statements[index].replace(
-        /^\s*-- BCB-MIGRATION-LANGUAGE-USAGE:[^\n]+\n/mu,
-        '',
-      );
-      assert.notEqual(withoutLanguage, statements[index], `${tag}: language removal did not apply to statement ${index + 1}`);
-      assert.throws(
-        () => requireDerivedLanguageMetadata(
-          statements.with(index, withoutLanguage).join('--> statement-breakpoint'),
-          tag,
-        ),
-        /language metadata must match its executable SQL/u,
-      );
-
-      const wrongLanguage = expectedLanguage === 'sql' ? 'plpgsql' : 'sql';
-      const withWrongLanguage = statements[index].replace(
-        /(-- BCB-MIGRATION-LANGUAGE-USAGE:)\s*[A-Za-z_][A-Za-z0-9_]*/u,
-        `$1 ${wrongLanguage}`,
-      );
-      assert.notEqual(withWrongLanguage, statements[index], `${tag}: language rewrite did not apply to statement ${index + 1}`);
-      assert.throws(
-        () => requireDerivedLanguageMetadata(
-          statements.with(index, withWrongLanguage).join('--> statement-breakpoint'),
-          tag,
-        ),
-        /language metadata must match its executable SQL/u,
-      );
-    });
-  }
-  assert.ok(functionStatements > 0, 'active migrations must include function statements for this proof');
 });

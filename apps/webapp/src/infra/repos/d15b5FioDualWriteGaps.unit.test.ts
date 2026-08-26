@@ -105,6 +105,7 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
             phone_normalized: '+79001234567',
             session_epoch: 1,
             is_archived: false,
+            is_blocked: false,
           },
         ],
       })

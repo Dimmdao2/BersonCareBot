@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { forwardRef, StrictMode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleCalendarBootstrap } from '../scheduleCalendarBootstrapTypes';
 import { DEFAULT_CALENDAR_SETTINGS } from '../scheduleCalendarSettings';
@@ -52,7 +52,22 @@ vi.mock('../../calendar/DoctorCalendarRescheduleDialog', () => ({
   DoctorCalendarRescheduleDialog: () => null,
 }));
 vi.mock('../../calendar/DoctorCalendarToolbarFilter', () => ({
-  DoctorCalendarToolbarFilter: () => null,
+  DoctorCalendarToolbarFilter: ({
+    noneLabel,
+    options,
+    onChange,
+  }: {
+    noneLabel: string;
+    options: ReadonlyArray<{ id: string }>;
+    onChange: (value: string | null) => void;
+  }) =>
+    noneLabel === 'Все сотрудники' ? (
+      <button
+        type="button"
+        data-testid="schedule-scope-mine"
+        onClick={() => onChange(options[0]?.id ?? null)}
+      />
+    ) : null,
 }));
 vi.mock('@/shared/ui/doctor/KpiPreviewModal', () => ({
   KpiPreviewModal: () => null,
@@ -114,6 +129,22 @@ function calendarJsonResponse(body: Record<string, unknown>) {
     text: async () => JSON.stringify(body),
   } as Response;
 }
+
+beforeEach(() => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => false),
+    })),
+  );
+});
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -178,7 +209,7 @@ describe('ScheduleCalendarTab scope requests', () => {
     expect(requestedUrls.some((url) => url.includes('/schedule-kpis?'))).toBe(false);
   });
 
-  it('sends the same trusted specialist scope to calendar, KPI, and nearest-window', async () => {
+  it('sends the same trusted specialist scope to calendar and KPI', async () => {
     const requestedUrls: string[] = [];
     vi.stubGlobal(
       'fetch',
@@ -250,10 +281,9 @@ describe('ScheduleCalendarTab scope requests', () => {
 
     const isScopedEndpoint = (url: string) =>
       url.includes('/calendar?') ||
-      url.includes('/schedule-kpis?') ||
-      url.includes('/nearest-free-window?');
+      url.includes('/schedule-kpis?');
     await waitFor(() => {
-      expect(requestedUrls.filter(isScopedEndpoint)).toHaveLength(3);
+      expect(requestedUrls.filter(isScopedEndpoint)).toHaveLength(2);
     });
 
     for (const url of requestedUrls.filter(isScopedEndpoint)) {
@@ -445,7 +475,10 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
         scheduleScopeBootstrap={{
           ownSpecialistId: OWN_ID,
           canManageAllSpecialists: true,
-          specialists: [{ id: OWN_ID, displayLabel: 'Свой специалист' }],
+          specialists: [
+            { id: OWN_ID, displayLabel: 'Свой специалист' },
+            { id: OTHER_ID, displayLabel: 'Другой специалист' },
+          ],
         }}
       />,
     );
@@ -466,7 +499,8 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
     );
     for (const url of scopedUrls) {
       const parsed = new URL(url, 'https://app.example.test');
-      expect(parsed.searchParams.get('scope')).toBe('mine');
+      expect(parsed.searchParams.get('scope')).toBe('specialist');
+      expect(parsed.searchParams.get('specialistId')).toBe(OWN_ID);
     }
     await waitFor(() => expect(screen.getByTestId('kpi-recordsInPeriod')).toHaveTextContent('11'));
   });
@@ -581,7 +615,10 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
         scheduleScopeBootstrap={{
           ownSpecialistId: OWN_ID,
           canManageAllSpecialists: true,
-          specialists: [{ id: OWN_ID, displayLabel: 'Свой специалист' }],
+          specialists: [
+            { id: OWN_ID, displayLabel: 'Свой специалист' },
+            { id: OTHER_ID, displayLabel: 'Другой специалист' },
+          ],
         }}
       />,
     );

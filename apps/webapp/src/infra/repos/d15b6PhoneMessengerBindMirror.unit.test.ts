@@ -117,6 +117,7 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
             role: 'client',
             session_epoch: 1,
             is_archived: false,
+            is_blocked: false,
             contacts: [],
             bindings: [],
           },

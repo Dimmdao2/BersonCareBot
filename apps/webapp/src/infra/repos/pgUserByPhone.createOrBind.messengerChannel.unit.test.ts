@@ -34,6 +34,7 @@ const RESOLVED_EXISTING = {
   role: 'client',
   session_epoch: 3,
   is_archived: false,
+  is_blocked: false,
   contacts: [
     {
       contact_kind: 'phone',
@@ -136,6 +137,6 @@ describe('pgUserByPhonePort.createOrBind (D15b/6 messenger confirm-path bootstra
 
     await expect(
       pgUserByPhonePort.createOrBind('+79261234567', { channel: 'telegram', chatId: 'tg-1' }),
-    ).rejects.toThrow('createOrBind: platform user is archived');
+    ).rejects.toThrow('createOrBind: platform user cannot start a session');
   });
 });
