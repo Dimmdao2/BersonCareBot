@@ -2566,9 +2566,7 @@ const WEBAPP_WORKER_SOURCES = [
   'api/payments/saas-webhook:POST:capture',
   'api/integrator/operator-health/digest-wake:POST',
   'api/integrator/system-health/guard-wake:POST',
-  'api/internal/operator-health-digest/tick:POST',
   'api/internal/operator-health-critical/tick:POST',
-  'api/internal/system-health-guard/tick:POST',
   // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
   // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
   'api/internal/saas-billing/renewal/tick:POST',

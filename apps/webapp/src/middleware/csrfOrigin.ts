@@ -33,10 +33,8 @@ export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
   '/api/internal/heartbeat/pipeline_delivery',
   '/api/internal/heartbeat/digest',
   '/api/internal/operator-health-critical/tick',
-  '/api/internal/operator-health-digest/tick',
   '/api/internal/product-analytics/retention',
   '/api/internal/saas-billing/renewal/tick',
-  '/api/internal/system-health-guard/tick',
 ] as const;
 
 export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [

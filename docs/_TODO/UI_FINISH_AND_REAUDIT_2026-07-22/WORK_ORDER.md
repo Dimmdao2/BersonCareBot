@@ -1848,7 +1848,10 @@ booking/event gateway) в том же источнике помечены «за
       registry специалист-задач (Ш3) не снимаются, пока не пройдено (2), а route/registry digest/guard (Ш5) — пока
       нет живого recipient probe на TEST/PROD (вне hard boundary без DB/TEST/PROD доступа); (4) TEST-наблюдение и
       фактическое снятие host cron через `cronport` для Ш4/Ш5/Ш6 (code complete, живой gate остаётся). Никакой
-      миграции очереди и никакой новой test-machinery в этом объёме нет.
+      миграции очереди и никакой новой test-machinery в этом объёме нет. **CURRENT 26.08.2026:** пункт (3)
+      выполнен после подтверждённых scheduler-tick на TEST и повторного `cronport list`: старые Bearer-роуты
+      digest/guard удалены, privilege/principal-каталоги синхронизированы, `cronJobRegistry` указывает на
+      подписанные scheduler wake. Ш4/Ш5 остаются живыми гейтами итогового объединённого TEST-деплоя.
 
 ### 3.5 Track E — принятые решения без своего трека
 

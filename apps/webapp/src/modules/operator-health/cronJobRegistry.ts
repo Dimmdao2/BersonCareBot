@@ -88,7 +88,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     scheduleHint: 'каждые 15 мин',
     staleAfterSec: 35 * 60,
     kind: 'internal_http',
-    internalPath: '/api/internal/system-health-guard/tick',
+    internalPath: '/api/integrator/system-health/guard-wake',
   },
   {
     id: 'operator_health_critical',
@@ -108,7 +108,7 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
     scheduleHint: 'ежечасно в :00',
     staleAfterSec: 2 * 60 * 60,
     kind: 'internal_http',
-    internalPath: '/api/internal/operator-health-digest/tick',
+    internalPath: '/api/integrator/operator-health/digest-wake',
   },
   {
     id: 'playback_retention',
