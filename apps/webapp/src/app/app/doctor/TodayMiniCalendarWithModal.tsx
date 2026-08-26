@@ -16,6 +16,7 @@ import type {
 } from '@/modules/booking-calendar/types';
 import type { CalendarCreateActiveFilters } from '@/modules/booking-calendar/calendarCreateFieldMode';
 import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scope';
+import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { cn } from '@/lib/utils';
 
 const API_BASE = '/api/doctor/booking-engine';
@@ -114,7 +115,9 @@ export function TodayMiniCalendarWithModal({
   defaultWindow,
   fillHeight = false,
 }: Props) {
-  const [calendarEvents, setCalendarEvents] = useState<CalendarAppointmentEvent[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarAppointmentEvent[] | undefined>(
+    undefined,
+  );
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
@@ -125,6 +128,9 @@ export function TodayMiniCalendarWithModal({
   const isMobileViewport = useIsMobileViewport();
 
   const { todayIso, nowMinutes, todayDateLabel } = calendarSnapshot;
+  const visibleAppointments = appointments.filter(
+    (appointment) => !isCancelledAppointmentStatus(appointment.status),
+  );
 
   function fetchTodayEvents(onDone?: () => void) {
     const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
@@ -191,7 +197,7 @@ export function TodayMiniCalendarWithModal({
     <>
       {showFc ? (
         <DoctorTodayMiniCalendar
-          appointments={appointments}
+          appointments={visibleAppointments}
           todayIso={todayIso}
           calendarEvents={calendarEvents}
           nowMinutes={nowMinutes}
@@ -205,7 +211,7 @@ export function TodayMiniCalendarWithModal({
         />
       ) : (
         <TodayMiniCalendarShellFallback
-          appointments={appointments}
+          appointments={visibleAppointments}
           todayDateLabel={todayDateLabel}
           fillHeight={fillHeight}
         />
