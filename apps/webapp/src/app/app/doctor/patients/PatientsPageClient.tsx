@@ -613,7 +613,7 @@ function PatientsContent({
             </Button>
           ) : null
         }
-        className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
+        className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] lg:min-h-0 lg:overflow-hidden"
         left={
           <section
             data-doctor-flat-list-surface
