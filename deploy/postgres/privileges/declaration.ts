@@ -3680,6 +3680,8 @@ const REV10_CONTEXT = {
     ...BUSINESS_SEAM_FUNCTIONS,
     'app.patient_cancel_pending_reminder_occurrences(text)': {
       ...BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'],
+      execute: ['app_patient', 'app_staff'],
+      purpose: 'patient/staff cancel pending reminder occurrences for the accepted clinic context',
       relationSurfaces: [
         ...(BUSINESS_SEAM_FUNCTIONS['app.patient_cancel_pending_reminder_occurrences(text)'].relationSurfaces ?? []),
         { relation: 'public.reminder_rules',
@@ -7307,10 +7309,11 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
   },
   'public.reminder_rules': {
-    kind: 'direct', purpose: 'patient reads and manages only its own reminder rules in the current clinic',
+    kind: 'direct', purpose: 'patient manages its own reminder rules; staff manages rules inside the accepted clinic',
     codePaths: ['apps/webapp/src/infra/repos/pgReminderRules.ts'],
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: 'table' },
+      { role: 'app_staff', operations: ['UPDATE'], columns: ['organization_id'] },
     ],
   },
   'public.reminder_occurrence_history': {

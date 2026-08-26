@@ -43,6 +43,16 @@ export function isProviderAttemptFailure(error: unknown): boolean {
   );
 }
 
+function isPreProviderAdapterFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    /^(?:MAX|TELEGRAM|VK)_RUNTIME_CONFIG_UNAVAILABLE$/u.test(message) ||
+    /^(?:MAX|TELEGRAM|VK|EMAIL|WEB_PUSH)_PAYLOAD_INVALID(?::|$)/u.test(message) ||
+    message === 'EMAIL_NOT_CONFIGURED' ||
+    message === 'WEB_PUSH_ORGANIZATION_PRINCIPAL_REQUIRED'
+  );
+}
+
 export type DispatchPlatformIntegrationId =
   'telegram' | 'max' | 'vk' | 'email' | 'smsc' | 'web_push';
 
@@ -453,6 +463,9 @@ export function createDefaultDispatchPort(deps: {
           sendResult = await adapter.send(intentForChannel);
         }
       } catch (providerError) {
+        // Adapter-local configuration and payload validation happens before any network call.
+        // Keep those durable in the queue, but do not manufacture a provider-attempt fact.
+        if (isPreProviderAdapterFailure(providerError)) throw providerError;
         const attemptedFailure = markProviderAttemptFailure(providerError);
         if (!opts?.skipAttemptLog && deps.writePort) {
           await recordGenericDispatchFailureAttempt(

@@ -168,6 +168,28 @@ describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-q
     expect(writeDb).not.toHaveBeenCalled();
   });
 
+  it('does not brand adapter-local configuration failure as a provider attempt', async () => {
+    const localError = new Error('MAX_RUNTIME_CONFIG_UNAVAILABLE');
+    const writeDb = vi.fn(async () => undefined);
+    const port = createDefaultDispatchPort({
+      adapters: [
+        {
+          canHandle: () => true,
+          send: async () => {
+            throw localError;
+          },
+        },
+      ],
+      writePort: { writeDb },
+    });
+
+    const received = await port.dispatchOutgoing(messageSendIntent()).catch((error: unknown) => error);
+
+    expect(received).toBe(localError);
+    expect(isProviderAttemptFailure(received)).toBe(false);
+    expect(writeDb).not.toHaveBeenCalled();
+  });
+
   it('skips its own attempt write when the caller passes opts.skipAttemptLog (queue-backed worker)', async () => {
     const providerError = new Error('provider_rejected');
     const send = vi.fn(async () => {

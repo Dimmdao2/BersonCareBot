@@ -525,7 +525,6 @@ async function recordDeliveryFailureAttempt(
   writePort: DbWritePort,
   row: OutgoingDeliveryQueueRow,
   intent: OutgoingIntent,
-  reason: string,
 ): Promise<void> {
   try {
     await writePort.writeDb({
@@ -537,7 +536,9 @@ async function recordDeliveryFailureAttempt(
         channel: row.channel,
         status: 'failed',
         attempt: row.attemptCount + 1,
-        reason,
+        // The queue row already owns the bounded provider detail in last_error. The attempt
+        // journal stores the stable failure class accepted by its canonical DB root.
+        reason: 'provider_rejected',
         payload: { deliveryQueueId: row.id },
         occurredAt: new Date().toISOString(),
       },
@@ -612,7 +613,7 @@ async function handleDispatchFailure(
   const msg = err instanceof Error ? err.message : String(err);
   const safe = truncateDeliveryErrorMessage(msg);
   if (intent && providerAttempted) {
-    await recordDeliveryFailureAttempt(writePort, row, intent, safe);
+    await recordDeliveryFailureAttempt(writePort, row, intent);
   }
   const attempts = row.attemptCount;
   const retryable = isOutgoingDeliveryDispatchErrorRetryable(safe);
