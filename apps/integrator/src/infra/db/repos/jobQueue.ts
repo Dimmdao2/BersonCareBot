@@ -191,6 +191,7 @@ export async function cancelPendingBookingReminderJobsByBookingId(
     sql`UPDATE public.outgoing_delivery_queue
         SET status = 'dead',
             dead_at = now(),
+            failure_class = 'reminder_not_dispatched',
             last_error = 'booking_cancelled',
             updated_at = now()
         WHERE status IN ('pending', 'processing', 'failed_retryable')

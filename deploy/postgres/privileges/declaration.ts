@@ -3942,9 +3942,9 @@ const REV10_CONTEXT = {
         { relation: 'public.outgoing_delivery_queue',
           columns: ['organization_id', 'event_id', 'kind', 'channel', 'payload_json', 'status',
             'attempt_count', 'max_attempts', 'next_retry_at', 'last_error', 'dead_at', 'priority',
-            'updated_at'],
+            'updated_at', 'failure_class'],
           operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034' as const },
+          evidence: 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id), including normal non-dispatch classification' as const },
       ],
     }),
     // Отпечаток материализации напоминания задачи считает `app.…_fingerprint(uuid)`, у которой
