@@ -1772,7 +1772,7 @@ export function ScheduleCalendarTab({
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-          'flex flex-wrap items-center gap-2 bg-white/80 supports-backdrop-filter:bg-white/70',
+          'flex flex-wrap items-center gap-2 bg-white/85 supports-backdrop-filter:bg-white/75',
         )}
         data-testid="cal-toolbar"
       >
