@@ -158,9 +158,8 @@ export async function notifySpecialistTaskReminder(
     // P19 MIGRATION (PLAN S14g): emit a web_push intent to the integrator via relay-outbound
     // instead of calling sendWebPushToSubscriptions directly (G2-guarded webapp sink).
     // The integrator's WebPushDeliveryAdapter resolves subscriptions + VAPID and performs
-    // the actual send, covered by the pre-fork redirect chokepoint (G1).
-    // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the telegram
-    // test chat — ZERO real webpush.sendNotification calls.
+    // the actual send, covered by the final environment chokepoint (G1). Local DEV and
+    // non-allowlisted TEST recipients are suppressed before the provider call.
     // G2 guard retired (S16) — 0 live callers, secondary safety layer only.
     const vapid = await getWebPushVapidKeyPair(deps.systemSettings);
     if (vapid) {

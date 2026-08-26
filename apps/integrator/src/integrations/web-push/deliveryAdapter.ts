@@ -12,11 +12,9 @@
  *      the webapp's `sendWebPushToSubscriptions`).
  *   5. Reports delivery attempt results for analytics (mirrors `onAttempt` from S6).
  *
- * SAFETY: This adapter is only reachable via `dispatchOutgoing`, which applies
- * `applyPreForkDevRedirect` BEFORE adapter selection (G1 chokepoint). In dev
- * (DEV_DELIVERY_REDIRECT=1 or NODE_ENV !== 'production'), the redirect runs first and this
- * adapter's `canHandle` returns false — so `sendWebPushViaProvider` is NEVER called with a
- * real recipient.
+ * SAFETY: this adapter is reachable only through `dispatchOutgoing`. Its single pre-provider
+ * environment gate suppresses all local-DEV sends and, on deployed TEST, permits only the original
+ * `TEST_ACCOUNT_WEB_PUSH_USER_IDS` recipient. It never redirects or rewrites the payload.
  * S16: G2 guard in `sendWebPushToSubscriptions.ts` is now retired as primary sink — all 7
  * S14 legs (S14a–S14g) complete, 0 live callers. Kept as secondary safety layer only.
  */

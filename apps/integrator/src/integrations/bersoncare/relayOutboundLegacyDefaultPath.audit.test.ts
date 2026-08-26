@@ -9,10 +9,6 @@ import type {
 import { createDefaultDispatchPort } from '../../infra/adapters/dispatchPort.js';
 import { registerBersoncareRelayOutboundRoute } from './relayOutboundRoute.js';
 
-vi.mock('../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => false,
-}));
-
 /**
  * Audit C3 круг 3, оракул IMPLEMENTATION_PLAN §1.2h: «На пути по умолчанию клиника не настраивает
  * НИЧЕГО». Legacy-ветка `doctorSupportMessagingService.sendAdminReply` (диалог без platform_user_id)

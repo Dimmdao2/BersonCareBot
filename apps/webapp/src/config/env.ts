@@ -207,6 +207,16 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => (v && v.trim() ? v.trim() : 'info')),
+  /** Deploy-owned environment identity. TEST runs production builds with test-only safety policy. */
+  TEST: z
+    .string()
+    .optional()
+    .transform((value) => !isTest && /^(?:1|true|yes)$/iu.test((value ?? '').trim())),
+  TEST_ACCOUNT_PHONES: z.string().optional().default(''),
+  TEST_ACCOUNT_TELEGRAM_IDS: z.string().optional().default(''),
+  TEST_ACCOUNT_MAX_IDS: z.string().optional().default(''),
+  TEST_ACCOUNT_EMAILS: z.string().optional().default(''),
+  TEST_ACCOUNT_WEB_PUSH_USER_IDS: z.string().optional().default(''),
   /** Optional path to the system ffmpeg binary; otherwise the worker resolves `ffmpeg` from PATH. */
   FFMPEG_PATH: z
     .string()
@@ -286,6 +296,12 @@ const parsed = parseWebappEnv({
   OPERATOR_HEARTBEAT_PIPELINE_URL: process.env.OPERATOR_HEARTBEAT_PIPELINE_URL,
   OPERATOR_HEARTBEAT_DIGEST_URL: process.env.OPERATOR_HEARTBEAT_DIGEST_URL,
   LOG_LEVEL: process.env.LOG_LEVEL,
+  TEST: process.env.TEST,
+  TEST_ACCOUNT_PHONES: process.env.TEST_ACCOUNT_PHONES,
+  TEST_ACCOUNT_TELEGRAM_IDS: process.env.TEST_ACCOUNT_TELEGRAM_IDS,
+  TEST_ACCOUNT_MAX_IDS: process.env.TEST_ACCOUNT_MAX_IDS,
+  TEST_ACCOUNT_EMAILS: process.env.TEST_ACCOUNT_EMAILS,
+  TEST_ACCOUNT_WEB_PUSH_USER_IDS: process.env.TEST_ACCOUNT_WEB_PUSH_USER_IDS,
   FFMPEG_PATH: process.env.FFMPEG_PATH,
   MAGICK_PATH: process.env.MAGICK_PATH,
 });
@@ -412,6 +428,10 @@ export function webappReposAreInMemory(): boolean {
 }
 
 export const isProduction = parsed.NODE_ENV === 'production';
+
+/** Runtime diagnostics are automatic in local development and on the TEST deployment. */
+export const environmentDiagnosticsEnabled =
+  parsed.NODE_ENV === 'development' || parsed.TEST;
 
 /** Secret used to sign/verify webapp-entry token. */
 export const integratorWebappEntrySecret = (): string =>

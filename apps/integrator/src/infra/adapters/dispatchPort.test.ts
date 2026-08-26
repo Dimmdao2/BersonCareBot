@@ -1,22 +1,12 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-
-const devRedirect = vi.hoisted(() => ({ active: false }));
-
-vi.mock('../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => devRedirect.active,
-  isDevRedirectPassthrough: () => false,
-  buildDevPrefix: () => '[DEV] ',
-  hasDevPrefix: () => false,
-  resolveDevRedirect: () => ({ kind: 'suppress', reason: 'test_binding_missing' }),
-}));
+import { describe, expect, it, vi } from 'vitest';
 
 import { createDefaultDispatchPort, isProviderAttemptFailure } from './dispatchPort.js';
+import {
+  isLocalDevelopmentDeliverySuppressed,
+  isTestDeployment,
+} from '../../shared/testDeliverySafety.js';
 import type { DeliveryAdapter, OutgoingIntent } from '../../kernel/contracts/index.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
-
-afterEach(() => {
-  devRedirect.active = false;
-});
 
 function messageSendIntent(): OutgoingIntent {
   return {
@@ -115,6 +105,8 @@ describe('Track D F5/F6: dispatchPort never writes success/skip pseudo-attempts'
   // delivery-attempt row is allowed only after a real failed provider call. Success is never an
   // attempt row.
   it('returns the real send result on success and never touches the write port', async () => {
+    expect(isLocalDevelopmentDeliverySuppressed()).toBe(false);
+    expect(isTestDeployment()).toBe(false);
     const send = vi.fn(async () => ({ telegramMessageId: 42 }));
     const writeDb = vi.fn(async () => undefined);
     const port = createDefaultDispatchPort({
@@ -383,8 +375,9 @@ describe('clinic-owned delivery routing', () => {
     expect(send).toHaveBeenCalledOnce();
   });
 
-  it('does not report a live clinic probe as delivered when the DEV redirect suppresses it', async () => {
-    devRedirect.active = true;
+  it('does not report a live clinic probe as delivered when local development suppresses it', async () => {
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.stubEnv('VITEST', 'false');
     const send = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const port = createDefaultDispatchPort({
       adapters: [{ canHandle: () => true, send }],
@@ -399,8 +392,12 @@ describe('clinic-owned delivery routing', () => {
       delivery: { channels: ['telegram'], clinicCredentialProbe: true },
     };
 
-    await expect(port.dispatchOutgoing(intent)).rejects.toThrow('CLINIC_CHANNEL_PROBE_SUPPRESSED');
-    expect(send).not.toHaveBeenCalled();
+    try {
+      await expect(port.dispatchOutgoing(intent)).rejects.toThrow('CLINIC_CHANNEL_PROBE_SUPPRESSED');
+      expect(send).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
 

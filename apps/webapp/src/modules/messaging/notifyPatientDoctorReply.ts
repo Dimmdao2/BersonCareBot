@@ -201,8 +201,8 @@ export function createNotifyPatientDoctorReply(deps: NotifyPatientDoctorReplyDep
       if (hasSubs) {
         // P16 (PLAN S14 web-push leg): emit a web_push intent to the integrator via relay-outbound.
         // The integrator's WebPushDeliveryAdapter resolves subscriptions + VAPID and performs
-        // the actual send. In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to
-        // the telegram test chat — ZERO real webpush.sendNotification calls.
+        // the actual send. The final environment gate suppresses local DEV and non-allowlisted
+        // TEST recipients before any webpush.sendNotification call.
         const pushCopy = buildMessagePushCopy(notificationText);
         const tag = `doctor_reply:${messageId}`;
         tasks.push(

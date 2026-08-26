@@ -1,28 +1,17 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { LabeledSwitch } from '@/shared/ui/doctor/primitives/labeled-switch';
 import { DoctorField } from '@/shared/ui/doctor/DoctorField';
-import { parseIdTokens } from '@/shared/parsers/parseIdTokens';
-import { previewTestAccountPhoneTokens } from '@/modules/system-settings/testAccounts';
 import { patchAdminSettingsBatch } from './patchAdminSetting';
 
 export type AdminSettingsSectionProps = {
-  devMode: boolean;
-  debugForwardToAdmin: boolean;
-  /** Полный initData в journalctl webapp при открытии миниаппа (MAX и Telegram). */
-  miniappAuthVerboseServerLog: boolean;
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
-  /** Тестовые аккаунты: телефоны (пробел/запятая), Telegram ID, Max ID — для техработ и dev_mode relay. */
-  testAccountPhones: string;
-  testAccountTelegramIds: string;
-  testAccountMaxIds: string;
-  testAccountEmails: string;
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
   patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
@@ -33,15 +22,8 @@ export type AdminSettingsSectionProps = {
 };
 
 export function AdminSettingsSection({
-  devMode,
-  debugForwardToAdmin,
-  miniappAuthVerboseServerLog,
   importantFallbackDelayMinutes,
   platformUserMergeV2Enabled,
-  testAccountPhones,
-  testAccountTelegramIds,
-  testAccountMaxIds,
-  testAccountEmails,
   patientAppMaintenanceEnabled,
   patientAppMaintenanceMessage,
   patientProgramDiscussionDoctorReplyFromLogEnabled,
@@ -50,16 +32,8 @@ export function AdminSettingsSection({
   patientBookingUrl,
   materialRatingsEnabled,
 }: AdminSettingsSectionProps) {
-  const [devModeVal, setDevModeVal] = useState(devMode);
-  const [debugForward, setDebugForward] = useState(debugForwardToAdmin);
-  const [miniappVerbose, setMiniappVerbose] = useState(miniappAuthVerboseServerLog);
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
   const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
-
-  const [testPhonesVal, setTestPhonesVal] = useState(testAccountPhones);
-  const [testTgVal, setTestTgVal] = useState(testAccountTelegramIds);
-  const [testMaxVal, setTestMaxVal] = useState(testAccountMaxIds);
-  const [testEmailsVal, setTestEmailsVal] = useState(testAccountEmails);
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(patientAppMaintenanceEnabled);
   const [maintenanceMessage, setMaintenanceMessage] = useState(patientAppMaintenanceMessage);
@@ -76,11 +50,6 @@ export function AdminSettingsSection({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-
-  const testPhonesPreview = useMemo(
-    () => previewTestAccountPhoneTokens(parseIdTokens(testPhonesVal)),
-    [testPhonesVal],
-  );
 
   async function handleSave() {
     setSaved(false);
@@ -107,20 +76,9 @@ export function AdminSettingsSection({
 
     startTransition(async () => {
       try {
-        const testPayload = {
-          phones: parseIdTokens(testPhonesVal),
-          telegramIds: parseIdTokens(testTgVal),
-          maxIds: parseIdTokens(testMaxVal),
-          emails: parseIdTokens(testEmailsVal),
-        };
-
         const batchResult = await patchAdminSettingsBatch([
-          { key: 'dev_mode', value: devModeVal },
-          { key: 'debug_forward_to_admin', value: debugForward },
-          { key: 'max_debug_page_enabled', value: miniappVerbose },
           { key: 'important_fallback_delay_minutes', value: fallbackDelay },
           { key: 'platform_user_merge_v2_enabled', value: mergeV2 },
-          { key: 'test_account_identifiers', value: testPayload },
           { key: 'patient_app_maintenance_enabled', value: maintenanceEnabled },
           { key: 'patient_app_maintenance_message', value: msgRaw },
           {
@@ -167,79 +125,10 @@ export function AdminSettingsSection({
       <CardHeader>
         <CardTitle className="text-destructive">Режимы</CardTitle>
         <p className="text-xs text-muted-foreground">
-          Ключи в БД (<code className="rounded bg-muted px-1">system_settings</code>, scope admin).
-          Свой числовой ID в Telegram или Max — команда{' '}
-          <span className="font-mono">/show_my_id</span> в личном чате с ботом.
+          Управляемые продуктовые настройки. Свойства DEV/TEST задаются окружением сервера.
         </p>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
-          <p className="text-sm font-semibold">Тестовые аккаунты</p>
-          <p className="text-xs text-muted-foreground">
-            При включённых техработах пациентского приложения эти аккаунты видят полный интерфейс.
-            При dev_mode рассылки уходят только на перечисленные Telegram / Max ID, номера SMS и
-            адреса e-mail.
-          </p>
-          <DoctorField label="Телефоны (пробел, запятая)" htmlFor="test-account-phones" width="lg">
-            <Input
-              id="test-account-phones"
-              type="text"
-              value={testPhonesVal}
-              onChange={(e) => setTestPhonesVal(e.target.value)}
-              disabled={isPending}
-              className="font-mono text-sm"
-            />
-          </DoctorField>
-          {(testPhonesPreview.rejected.length > 0 || testPhonesPreview.truncatedAfterCap) && (
-            <div className="max-w-[var(--doctor-field-lg,40rem)] rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
-              {testPhonesPreview.rejected.length > 0 && (
-                <p>
-                  <span className="font-medium">
-                    Не попадут в сохранённый список (невалидный E.164 или лимит):{' '}
-                  </span>
-                  {testPhonesPreview.rejected.slice(0, 12).join(', ')}
-                  {testPhonesPreview.rejected.length > 12
-                    ? ` (+ещё ${testPhonesPreview.rejected.length - 12})`
-                    : ''}
-                </p>
-              )}
-              {testPhonesPreview.truncatedAfterCap && (
-                <p className="mt-1 font-medium">Дальше 200 номеров в списке сервер не сохраняет.</p>
-              )}
-            </div>
-          )}
-          <DoctorField label="Telegram ID" htmlFor="test-account-telegram-ids" width="lg">
-            <Input
-              id="test-account-telegram-ids"
-              type="text"
-              value={testTgVal}
-              onChange={(e) => setTestTgVal(e.target.value)}
-              disabled={isPending}
-              className="font-mono text-sm"
-            />
-          </DoctorField>
-          <DoctorField label="Max ID" htmlFor="test-account-max-ids" width="lg">
-            <Input
-              id="test-account-max-ids"
-              type="text"
-              value={testMaxVal}
-              onChange={(e) => setTestMaxVal(e.target.value)}
-              disabled={isPending}
-              className="font-mono text-sm"
-            />
-          </DoctorField>
-          <DoctorField label="E-mail (пробел, запятая)" htmlFor="test-account-emails" width="lg">
-            <Input
-              id="test-account-emails"
-              type="text"
-              value={testEmailsVal}
-              onChange={(e) => setTestEmailsVal(e.target.value)}
-              disabled={isPending}
-              className="font-mono text-sm"
-            />
-          </DoctorField>
-        </section>
-
         <LabeledSwitch
           label="Оценки материалов"
           checked={ratingsEnabled}
@@ -250,12 +139,11 @@ export function AdminSettingsSection({
         <section className="flex flex-col gap-3 rounded-lg border border-border/80 bg-muted/20 p-4">
           <p className="text-sm font-semibold">Режим техработ пациентского приложения</p>
           <p className="text-xs text-muted-foreground">
-            Для роли «клиент» под <code className="rounded bg-muted px-1">/app/patient</code> обычно
-            показывается экран техработ; тестовые аккаунты (блок выше) — полный UI. Врач/админ не
-            затрагиваются.
+            Показывает экран техработ пациентам и пользователям кабинетов клиник. Глобальный
+            администратор сохраняет доступ, чтобы выключить режим.
           </p>
           <LabeledSwitch
-            label="Включить режим техработ для пациентов"
+            label="Включить режим техработ"
             checked={maintenanceEnabled}
             onCheckedChange={(v) => setMaintenanceEnabled(Boolean(v))}
             disabled={isPending}
@@ -318,33 +206,6 @@ export function AdminSettingsSection({
             switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
           />
         </section>
-
-        <LabeledSwitch
-          label="Dev mode"
-          hint="При включении исходящие relay-сообщения только на тестовые Telegram / Max ID из списка выше"
-          checked={devModeVal}
-          onCheckedChange={setDevModeVal}
-          disabled={isPending}
-          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
-        />
-
-        <LabeledSwitch
-          label="Debug: подробные серверные логи"
-          hint="Включает подробные operational-логи webapp и integrator (journalctl). Не меняет доставку сообщений. На проде держать выключенным."
-          checked={debugForward}
-          onCheckedChange={setDebugForward}
-          disabled={isPending}
-          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
-        />
-
-        <LabeledSwitch
-          label="Mini App: полный initData в логах сервера (journalctl)"
-          hint="Включает запись сырой строки initData от Telegram и MAX в лог процесса webapp при POST /api/auth/telegram-init и max-init. Содержит идентификаторы и подпись — только кратковременно для отладки, на проде выключено."
-          checked={miniappVerbose}
-          onCheckedChange={setMiniappVerbose}
-          disabled={isPending}
-          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
-        />
 
         <LabeledSwitch
           label="Ручной merge клиентов: сценарий v2 (integrator → webapp)"

@@ -42,8 +42,6 @@ export type SystemSettingsPort = {
    * (which also holds admin allowlists/secrets). `null` if unset.
    */
   getWebPushVapidPublicKeyOnly(): Promise<string | null>;
-  /** Boolean-only current-patient capability; never exposes the restricted identifier list. */
-  isCurrentPatientTestAccount(): Promise<boolean>;
   upsert(
     key: SystemSettingKey,
     scope: SystemSettingScope,

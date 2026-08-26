@@ -18,15 +18,8 @@ export default async function DoctorAdminTechnicalPage() {
         hasStoredDsn={errorTracking.hasStoredDsn}
       />
       <AdminSettingsSection
-        devMode={diagnostics.devMode}
-        debugForwardToAdmin={diagnostics.debugForwardToAdmin}
-        miniappAuthVerboseServerLog={diagnostics.miniappAuthVerboseServerLog}
         importantFallbackDelayMinutes={diagnostics.importantFallbackDelayMinutes}
         platformUserMergeV2Enabled={diagnostics.platformUserMergeV2Enabled}
-        testAccountPhones={diagnostics.testAccountIdentifiers.phones.join(' ')}
-        testAccountTelegramIds={diagnostics.testAccountIdentifiers.telegramIds.join(' ')}
-        testAccountMaxIds={diagnostics.testAccountIdentifiers.maxIds.join(' ')}
-        testAccountEmails={diagnostics.testAccountIdentifiers.emails.join(' ')}
         patientAppMaintenanceEnabled={diagnostics.patientAppMaintenanceEnabled}
         patientAppMaintenanceMessage={diagnostics.patientAppMaintenanceMessage}
         patientProgramDiscussionDoctorReplyFromLogEnabled={

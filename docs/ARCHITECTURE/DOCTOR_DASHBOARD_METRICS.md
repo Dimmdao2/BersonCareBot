@@ -8,14 +8,13 @@
 
 ## Исключение тестовых аккаунтов из аналитики
 
-- Источник идентификаторов: `system_settings.test_account_identifiers` (телефоны, Telegram, MAX).
-- По умолчанию тестовые `platform_users` **не** попадают в KPI, графики и drill-down.
-- Включение тестовых в выборки — **только** если в admin settings включён **`dev_mode`** (`readAnalyticsIncludeTestAccounts` в `apps/webapp/src/modules/analytics/analyticsAudience.ts`).
-- **`debug_forward_to_admin`** на аналитику **не влияет** (только полнота серверных логов).
+- Источник идентификаторов: deploy-owned `TEST_ACCOUNT_*` (телефоны, e-mail, Telegram, MAX, web-push user ID).
+- На PROD тестовые `platform_users` **не** попадают в KPI, графики и drill-down.
+- В DEV и на развернутом TEST они включены автоматически; admin-переключателя нет (`apps/webapp/src/modules/analytics/analyticsAudience.ts`).
 - Единый загрузчик на запрос: `loadDoctorAnalyticsAudience()` / `loadProductAnalyticsAudience()` (`apps/webapp/src/app-layer/analytics/loadAnalyticsAudience.ts`) → `excludedUserIds` / `includeTestAccounts`.
 - Product analytics («Использование») дополнительно всегда исключает роли `admin` / `doctor`.
 - В **`GET /api/admin/system-health`** блоки **`videoPlayback`** / **`videoPlaybackClient`** — платформенные KPI без per-user drill-down (UI → `/app/doctor/system-health`). В **`GET /api/doctor/content-stats`** / **`GET /api/admin/reminder-stats`** те же поля считаются с **`excludedUserIds`** (push/видео/разминки/практика/напоминания); при audience-фильтре **`media_playback_stats_hourly`** не используется для `totalResolutions`.
-- Журнал воронки регистрации (`GET /api/admin/auth-registration-events`, баннер сбоев на «Сегодня») **всегда** исключает тестовые аккаунты, даже при `dev_mode` — операционный аудит, не дашборд метрик.
+- Журнал воронки регистрации (`GET /api/admin/auth-registration-events`, баннер сбоев на «Сегодня») **всегда** исключает тестовые аккаунты — операционный аудит, не дашборд метрик.
 
 ### Поверхности, проходящие через audience
 

@@ -134,7 +134,6 @@ export const AUTHENTICATED_RUNTIME_STRING_KEYS = [
 ] as const;
 
 export const SERVER_RUNTIME_BOOLEAN_KEYS = [
-  'debug_forward_to_admin',
   'material_ratings_enabled',
 ] as const;
 

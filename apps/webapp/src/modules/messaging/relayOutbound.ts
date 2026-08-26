@@ -22,7 +22,7 @@ type RelayOutboundBaseParams<C extends string> = {
   channel: C;
   recipient: string;
   text: string;
-  /** Опционально: platform user id для отладки/idempotency; не используется в dev_mode guard. */
+  /** Опционально: platform user id для отладки/idempotency. */
   userId?: string;
   /** Опц. HTML-тело письма (email): integrator relay-outbound кладёт в `content.html`,
    * email-адаптер шлёт как HTML-часть (text остаётся plain-fallback). Только для email. */
@@ -57,11 +57,6 @@ export type RelayOutboundParams<C extends string = string> = RelayOutboundBasePa
     : { organizationId?: string });
 
 export type RelayOutboundDeps = {
-  /**
-   * Dev-mode guard: если задан, вызывается с каналом и получателем relay (Telegram/Max user id).
-   * Если не задан — relay всегда разрешён.
-   */
-  shouldDispatchRelay?: (ctx: { channel: string; recipient: string }) => Promise<boolean>;
   /**
    * Задержки между попытками retry (ms). По умолчанию: [0, 10000, 60000, 300000].
    * Переопределяйте в тестах для ускорения.
@@ -117,7 +112,7 @@ export async function relayOutbound<C extends string>(
   deps: RelayOutboundDeps = {},
 ): Promise<RelayResult> {
   const { messageId, channel, recipient, text } = params;
-  const { shouldDispatchRelay, retryDelaysMs = DEFAULT_RETRY_DELAYS_MS } = deps;
+  const { retryDelaysMs = DEFAULT_RETRY_DELAYS_MS } = deps;
 
   const integratorUrl = (await getIntegratorApiUrl()).trim();
   if (!integratorUrl) {
@@ -126,13 +121,6 @@ export async function relayOutbound<C extends string>(
       console.warn('[relay] INTEGRATOR_API_URL не задан — outbound relay отключён');
     }
     return { ok: false, reason: 'no_integrator_url' };
-  }
-
-  if (shouldDispatchRelay) {
-    const allowed = await shouldDispatchRelay({ channel, recipient });
-    if (!allowed) {
-      return { ok: false, reason: 'dev_mode_skip' };
-    }
   }
 
   const secret = (await getIntegratorWebhookSecret()).trim();

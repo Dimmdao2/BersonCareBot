@@ -17,9 +17,6 @@
  * У каждого `it` в комментарии — свой арбитр. Арбитры прогнаны руками, вывод — в отчёте.
  */
 import { describe, expect, it, vi } from 'vitest';
-vi.mock('../../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => false,
-}));
 import type {
   DbPort,
   DbQueryResult,

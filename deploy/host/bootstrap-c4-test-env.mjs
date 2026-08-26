@@ -25,6 +25,31 @@ const DEV_PATHS = {
   api: '/home/dev/dev-projects/BersonCareBot/.env',
   webapp: '/home/dev/dev-projects/BersonCareBot/apps/webapp/.env.dev',
 };
+const TEST_ACCOUNT_ENV = new Map([
+  ['TEST_ACCOUNT_PHONES', '+79643805480,+79189000782,+12025550101,+12025550102'],
+  ['TEST_ACCOUNT_TELEGRAM_IDS', '364943522,7924656602'],
+  ['TEST_ACCOUNT_MAX_IDS', '89002800,207278131'],
+  ['TEST_ACCOUNT_EMAILS', 'dimmdao@gmail.com,dimmdao@yandex.ru,kinesiospace@gmail.com'],
+  [
+    'TEST_ACCOUNT_WEB_PUSH_USER_IDS',
+    '9c40e322-5823-4dba-ba98-84b1e9b3aeba,b0021a38-fb86-45e9-9aec-d85014e932d4,1c312a64-fab8-4b75-b24e-88a1d6ebe4e0',
+  ],
+]);
+const RETIRED_TEST_DELIVERY_ENV_KEYS = new Set([
+  'DEV_DELIVERY_REDIRECT',
+  'DEV_REDIRECT_TELEGRAM_CHAT_ID',
+  'DEV_DELIVERY_REDIRECT_CHAT_ID',
+  'DEV_REDIRECT_MAX_USER_ID',
+  'DEV_REDIRECT_PHONE',
+  'DEV_REDIRECT_EMAIL',
+  'DEV_REDIRECT_WEB_PUSH_USER_ID',
+  'DEV_REDIRECT_DISABLE_DEFAULTS',
+  'DEV_REDIRECT_PASSTHROUGH_TELEGRAM',
+  'DEV_REDIRECT_PASSTHROUGH_MAX',
+  'DEV_REDIRECT_PASSTHROUGH_PHONES',
+  'DEV_REDIRECT_PASSTHROUGH_EMAILS',
+  'DEV_REDIRECT_PASSTHROUGH_WEB_PUSH',
+]);
 
 const OPERATIONAL_KEYS = [
   ['DATABASE_URL_DIAGNOSTIC', 'bcb_test_operational_diagnostic_login'],
@@ -232,6 +257,34 @@ function writeProtected(path, content, ownerUid, deployGid, mode = 0o640) {
   chownSync(temporary, ownerUid, deployGid);
   chmodSync(temporary, mode);
   renameSync(temporary, path);
+}
+
+function configureTestAccountEnvFile(path, testFlag, ownerUid, ownerGid, write) {
+  assertRegular(path);
+  const source = readFileSync(path, 'utf8');
+  const additions = new Map([['TEST', testFlag], ...TEST_ACCOUNT_ENV]);
+  const rendered = removeEnvKeys(
+    upsertEnv(source, additions),
+    RETIRED_TEST_DELIVERY_ENV_KEYS,
+  );
+  const parsed = parseEnv(rendered, path);
+  for (const [key, value] of additions) {
+    if (parsed.get(key) !== value) fail(`${path} did not render ${key}`);
+  }
+  for (const key of RETIRED_TEST_DELIVERY_ENV_KEYS) {
+    if (parsed.has(key)) fail(`${path} retained retired key ${key}`);
+  }
+  if (write) writeProtected(path, rendered, ownerUid, ownerGid, 0o640);
+}
+
+function configureTestAccountEnvironments(write) {
+  const devUid = Number(execFileSync('id', ['-u', 'dev'], { encoding: 'utf8' }).trim());
+  const devGid = Number(execFileSync('id', ['-g', 'dev'], { encoding: 'utf8' }).trim());
+  const deployGid = Number(execFileSync('id', ['-g', 'deploy'], { encoding: 'utf8' }).trim());
+  configureTestAccountEnvFile(DEV_PATHS.api, 'false', devUid, devGid, write);
+  configureTestAccountEnvFile(DEV_PATHS.webapp, 'false', devUid, devGid, write);
+  configureTestAccountEnvFile(TEST_PATHS.api, 'true', 0, deployGid, write);
+  configureTestAccountEnvFile(TEST_PATHS.webapp, 'true', 0, deployGid, write);
 }
 
 function bootstrapDev({ apiPath, webappPath, ownerUid, ownerGid, write = true, tls = DEV_PORT_CONTEXT_TLS }) {
@@ -878,15 +931,20 @@ if (process.argv.includes('--self-test')) {
       '--port-context-execute',
       '--dev-port-context-check',
       '--dev-port-context-execute',
+      '--test-account-env-check',
+      '--test-account-env-execute',
     ].includes(process.argv[2])
   ) {
-    fail('usage: bootstrap-c4-test-env.mjs --check|--execute|--port-context-check|--port-context-execute|--dev-port-context-check|--dev-port-context-execute');
+    fail('usage: bootstrap-c4-test-env.mjs --check|--execute|--port-context-check|--port-context-execute|--dev-port-context-check|--dev-port-context-execute|--test-account-env-check|--test-account-env-execute');
   }
   const requestedMode = process.argv[2];
   const write = process.argv[2].endsWith('execute');
   const targetPortContext = requestedMode.startsWith('--port-context-');
   const devPortContext = requestedMode.startsWith('--dev-port-context-');
-  if (devPortContext) {
+  const testAccountEnv = requestedMode.startsWith('--test-account-env-');
+  if (testAccountEnv) {
+    configureTestAccountEnvironments(write);
+  } else if (devPortContext) {
     const devUid = Number(execFileSync('id', ['-u', 'dev'], { encoding: 'utf8' }).trim());
     const devGid = Number(execFileSync('id', ['-g', 'dev'], { encoding: 'utf8' }).trim());
     bootstrapDev({
@@ -909,7 +967,7 @@ if (process.argv.includes('--self-test')) {
   }
   console.log(
     write
-      ? `${devPortContext ? 'port-context DEV' : targetPortContext ? 'port-context TEST' : 'C4 TEST'} env bootstrap: OK (secrets redacted)`
-      : `${devPortContext ? 'port-context DEV' : targetPortContext ? 'port-context TEST' : 'C4 TEST'} env bootstrap preflight: OK (no files written; secrets redacted)`,
+      ? `${testAccountEnv ? 'DEV+TEST account' : devPortContext ? 'port-context DEV' : targetPortContext ? 'port-context TEST' : 'C4 TEST'} env bootstrap: OK (secrets redacted)`
+      : `${testAccountEnv ? 'DEV+TEST account' : devPortContext ? 'port-context DEV' : targetPortContext ? 'port-context TEST' : 'C4 TEST'} env bootstrap preflight: OK (no files written; secrets redacted)`,
   );
 }

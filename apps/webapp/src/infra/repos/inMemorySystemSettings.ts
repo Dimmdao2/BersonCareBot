@@ -47,9 +47,6 @@ export function createInMemorySystemSettingsPort(): SystemSettingsPort {
       return typeof pk === 'string' && pk.trim() ? pk.trim() : null;
     },
 
-    async isCurrentPatientTestAccount(): Promise<boolean> {
-      return false;
-    },
 
     async getByScope(
       scope: SystemSettingScope,

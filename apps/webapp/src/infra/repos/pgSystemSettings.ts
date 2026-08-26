@@ -89,7 +89,6 @@ const PREAUTH_PROVIDER_SETTING_KEYS: ReadonlySet<string> = new Set([
   'vk_id_client_secret',
   'vk_id_redirect_uri',
   'telegram_bot_token',
-  'test_account_identifiers',
 ]);
 
 const CURRENT_PATIENT_UI_SETTING_KEYS: ReadonlySet<SystemSettingKey> = new Set([
@@ -505,15 +504,6 @@ export function createPgSystemSettingsPort(): SystemSettingsPort {
       );
       const v = r.rows[0]?.public_key;
       return typeof v === 'string' && v.trim() ? v.trim() : null;
-    },
-
-    async isCurrentPatientTestAccount(): Promise<boolean> {
-      const r = await runWithWebappDbOperationFamily('patient_identity_exception_check', () =>
-        runWebappPgText<{ allowed: boolean }>(
-          `SELECT app.is_current_patient_test_account() AS allowed`,
-        ),
-      );
-      return r.rows[0]?.allowed === true;
     },
 
     async getByScope(

@@ -20,8 +20,6 @@ import { registerOperatorAlertRelayRoute } from './operatorAlertRelayRoute.js';
 import { createWebPushDeliveryAdapter } from '../web-push/deliveryAdapter.js';
 import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 
-vi.mock('../../shared/devDeliveryRedirect.js', () => ({ isDevRedirectActive: () => false }));
-
 const SECRET = 'audit-tpb15-secret';
 const ORG = '0c3c1bb2-b42f-44b7-8398-1dc766abec2d';
 const PUSH_USER = '3c91f0cf-ff9a-48f3-88e6-6bd773056fd3';

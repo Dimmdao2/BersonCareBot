@@ -1,5 +1,4 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { normalizeTestAccountIdentifiersValue } from '@/modules/system-settings/testAccounts';
 import {
   VIDEO_PRESIGN_TTL_MAX_SEC,
   VIDEO_PRESIGN_TTL_MIN_SEC,
@@ -39,9 +38,8 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
 };
 
 const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
-  'error_tracking_dsn', 'error_tracking_enabled', 'dev_mode', 'debug_forward_to_admin',
-  'max_debug_page_enabled', 'important_fallback_delay_minutes', 'platform_user_merge_v2_enabled',
-  'test_account_identifiers', 'patient_app_maintenance_enabled',
+  'error_tracking_dsn', 'error_tracking_enabled', 'important_fallback_delay_minutes',
+  'platform_user_merge_v2_enabled', 'patient_app_maintenance_enabled',
   'patient_app_maintenance_message', 'patient_program_discussion_doctor_reply_from_log_enabled',
   'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
   'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
@@ -203,17 +201,8 @@ export function parseHealthArchiveProbeParam(
 }
 
 export type AdminDiagnosticsSettings = {
-  devMode: boolean;
-  debugForwardToAdmin: boolean;
-  miniappAuthVerboseServerLog: boolean;
   importantFallbackDelayMinutes: number;
   platformUserMergeV2Enabled: boolean;
-  testAccountIdentifiers: {
-    phones: string[];
-    telegramIds: string[];
-    maxIds: string[];
-    emails: string[];
-  };
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
   patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
@@ -287,21 +276,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
   }
 
   const diagnostics: AdminDiagnosticsSettings = {
-    devMode: Boolean(
-      getValueJson(adminSettingsList.find((x) => x.key === 'dev_mode')?.valueJson, false),
-    ),
-    debugForwardToAdmin: Boolean(
-      getValueJson(
-        adminSettingsList.find((x) => x.key === 'debug_forward_to_admin')?.valueJson,
-        false,
-      ),
-    ),
-    miniappAuthVerboseServerLog: Boolean(
-      getValueJson(
-        adminSettingsList.find((x) => x.key === 'max_debug_page_enabled')?.valueJson,
-        false,
-      ),
-    ),
     importantFallbackDelayMinutes: Number(
       getValueJson(
         adminSettingsList.find((x) => x.key === 'important_fallback_delay_minutes')?.valueJson,
@@ -314,20 +288,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
         false,
       );
       return raw === true || raw === 'true';
-    })(),
-    testAccountIdentifiers: (() => {
-      const inner = getValueJson<unknown>(
-        adminSettingsList.find((x) => x.key === 'test_account_identifiers')?.valueJson,
-        null,
-      );
-      return (
-        normalizeTestAccountIdentifiersValue(inner) ?? {
-          phones: [] as string[],
-          telegramIds: [] as string[],
-          maxIds: [] as string[],
-          emails: [] as string[],
-        }
-      );
     })(),
     patientAppMaintenanceEnabled: (() => {
       const raw = getValueJson<unknown>(

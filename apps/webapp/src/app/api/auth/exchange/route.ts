@@ -14,7 +14,7 @@ import {
 } from '@/app-layer/product-analytics/recordAuthLogin';
 import { logAuthRouteTiming } from '@/modules/auth/authRouteObservability';
 import { logger } from '@/app-layer/logging/logger';
-import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
+import { environmentDiagnosticsEnabled } from '@/config/env';
 import { PLATFORM_COOKIE_MAX_AGE, PLATFORM_COOKIE_NAME } from '@/shared/lib/platform';
 import { classifyVerifiedIntegratorTokenChannel } from '@/modules/auth/service';
 import { isAuthChannelEnabled } from '@/modules/auth/authChannelPolicy';
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     : result.session.user.bindings?.telegramId
       ? 'telegram'
       : 'web';
-  if (process.env.NODE_ENV !== 'test' && (await getServerRuntimeBool('debug_forward_to_admin'))) {
+  if (process.env.NODE_ENV !== 'test' && environmentDiagnosticsEnabled) {
     logger.info(
       { route: ROUTE, outcome: 'ok', source, role: result.session.user.role },
       'auth/exchange success',

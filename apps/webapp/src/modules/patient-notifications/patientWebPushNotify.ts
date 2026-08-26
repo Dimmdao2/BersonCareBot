@@ -262,8 +262,8 @@ export async function runPatientWebPushNotify(
 
   // Emit a web_push intent to the integrator via relay-outbound.
   // The integrator's WebPushDeliveryAdapter (S14) resolves subscriptions + VAPID
-  // and performs the actual send. In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork
-  // redirect collapses to the telegram test chat — ZERO real webpush.sendNotification calls.
+  // and performs the actual send. The final environment gate suppresses local DEV and
+  // non-allowlisted TEST recipients before any provider call.
   const tag = body.stableKey.slice(0, 240);
   const result = await relayOutbound({
     messageId: `patient-web-push:${uid}:${tag}`,

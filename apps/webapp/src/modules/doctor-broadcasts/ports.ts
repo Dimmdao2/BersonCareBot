@@ -73,17 +73,17 @@ export type BroadcastDeliveryPolicyKind =
 /** Результат preview (dry-run): сколько пользователей попало, без отправки. */
 export type BroadcastPreviewResult = {
   /**
-   * Клиенты с ≥ одной возможной строкой очереди: после сужения **`dev_mode` для мессенджеров** (если включён),
-   * затем **`user_channel_preferences`** и изоляция (**`with_telegram`** / **`with_max`** / **`sms_only`**).
+   * Клиенты с ≥ одной возможной строкой очереди после **`user_channel_preferences`**
+   * и изоляции (**`with_telegram`** / **`with_max`** / **`sms_only`**).
    */
   audienceSize: number;
   /**
-   * Размер сегмента по выбранному фильтру без сужения dev_mode.
+   * Размер сегмента по выбранному фильтру до prefs/isolate.
    * Заполняется, когда `audienceSize` меньше (показать в UI «в сегменте N…»).
    */
   segmentSize?: number;
   /**
-   * Список получателей в UI (те же клиенты, что и **`audienceSize`**: после dev_mode, prefs и isolate).
+   * Список получателей в UI (те же клиенты, что и **`audienceSize`**: после prefs и isolate).
    * Для сегментов с грубой оценкой числа см. **`isAudienceEstimateApproximate`** в UI — блок может быть скрыт.
    */
   recipientsPreview?: BroadcastRecipientsPreview;
@@ -164,7 +164,7 @@ export type BroadcastNotificationPrefsFlags = {
 
 /**
  * Единый резолвер аудитории для preview и execute.
- * - **`effectiveClients`** — множество после сегмента и **`resolveBroadcastEffectiveClients`** (dev_mode для TG/MAX).
+ * - **`effectiveClients`** — исходное множество сегмента до prefs/isolate.
  * - **`eligibleClients`** — пересечение с prefs/isolate-сегментом; именно они получают задачи очереди (как `audienceSize`).
  */
 export type BroadcastAudienceResolveResult = {

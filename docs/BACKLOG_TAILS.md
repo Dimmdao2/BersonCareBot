@@ -1,8 +1,8 @@
-# Backlog: хвосты по полноте серверных логов (`debug_forward_to_admin`)
+# Backlog: хвосты по полноте серверных логов
 
-Контекст: флаг `debug_forward_to_admin` (admin `system_settings`) переключает полноту серверных
-логов webapp + integrator. Реализация Batch 1 — см. `.cursor/plans/archive/debug-flag-log-verbosity.plan.md`
-(перенесённый план) либо `.cursor/plans/debug-flag-log-verbosity_9c77baf5.plan.md`.
+Контекст: подробные диагностические логи webapp + integrator включаются средой автоматически на DEV/TEST и
+выключены на PROD. Админского флага для этого нет. Историческая реализация Batch 1 — см.
+`.cursor/plans/archive/debug-flag-log-verbosity.plan.md`.
 
 Batch 1 (сделано): integrator `writePort.delivery.attempt.log`, `messageLogs.appendMessageLog`,
 `max/webhook`, `rubitime/webhook`; webapp `integratorNotifyChannels`, `sendWebPushToSubscriptions`,
@@ -11,8 +11,8 @@ Accessors: `apps/webapp/src/modules/observability/operationalVerboseLog.ts`,
 `apps/integrator/src/infra/db/repos/operationalVerboseLog.ts` (+ invalidation в settings/sync).
 
 Batch 1+ (добавлено): `apps/webapp/src/modules/auth/authRouteObservability.ts` (`logAuthRouteTiming`)
-загейтен под verbose через `getConfigBool("debug_forward_to_admin", false)` (deps-free `configAdapter`,
-fire-and-forget — без изменений в 6 route-файлах). `auth/exchange/route.ts`: `console.info success` →
+загейтен через environment diagnostics (fire-and-forget — без изменений в 6 route-файлах).
+`auth/exchange/route.ts`: `console.info success` →
 verbose-gated `logger.info`; `console.info access_denied` → всегда `logger.warn` (security reject, без PII).
 
 ## Уже НЕ являются prod-шумом (проверено, трогать не нужно)
@@ -45,12 +45,11 @@ Verbose-логи не должны содержать сырые `params`/`paylo
 
 ## Runbook: проверка после деплоя
 
-1. Baseline: при `flag=false` снять шум за ~10 мин:
+1. На PROD снять baseline шума за ~10 мин:
    ```bash
    journalctl -u bersoncarebot-webapp-prod.service -u bersoncarebot-scheduler-prod.service \
      --since "10 min ago" --no-pager | rg -i "delivery attempt log|webhook received|notify"
    ```
    Ожидание: тихо (только warn/error при инцидентах).
-2. Включить «Debug: подробные серверные логи» в кабинете (admin Settings) → подробные `info` появляются
-   в integrator и webapp без рестарта (integrator — через invalidation в settings/sync; webapp — TTL ≤30 c).
-3. Выключить → поток снова тихий; `warn`/`error`/DLQ остаются.
+2. На DEV/TEST подробные `info` включены самим режимом среды; в кабинете отдельного переключателя нет.
+3. На PROD поток остаётся тихим; `warn`/`error`/DLQ пишутся во всех средах.

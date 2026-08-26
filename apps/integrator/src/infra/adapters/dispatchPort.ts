@@ -7,12 +7,10 @@ import type {
   OutgoingIntent,
 } from '../../kernel/contracts/index.js';
 import {
-  isDevRedirectActive,
-  isDevRedirectPassthrough,
-  buildDevPrefix,
-  hasDevPrefix,
-  resolveDevRedirect,
-} from '../../shared/devDeliveryRedirect.js';
+  isLocalDevelopmentDeliverySuppressed,
+  isTestDeployment,
+  isTestDeliveryRecipientAllowed,
+} from '../../shared/testDeliverySafety.js';
 import { logger } from '../observability/logger.js';
 import { readChannel } from './channelRouting.js';
 import { assertOutboundMessagePolicy } from './outboundMessagePolicy.js';
@@ -172,146 +170,53 @@ function platformIntegrationIdForChannel(channel: string): DispatchPlatformInteg
   return null;
 }
 
-/** Sentinel returned by the pre-fork redirect when a send must be suppressed. */
-const SUPPRESS = Symbol('dev_redirect_suppress');
-type RedirectResult = OutgoingIntent | typeof SUPPRESS;
+/** Sentinel returned by the pre-fork environment gate when a send must be suppressed. */
+const SUPPRESS = Symbol('environment_delivery_suppress');
+type EnvironmentDeliveryResult = OutgoingIntent | typeof SUPPRESS;
 
 /**
- * PRE-FORK DEV DELIVERY REDIRECT (primary, authoritative override layer).
- *
- * In local development every outgoing intent is suppressed before any adapter.
- * When the explicit TEST redirect is active (DEV_DELIVERY_REDIRECT=1), every
- * outgoing intent is redirected to the TEST USER's binding FOR ITS OWN CHANNEL
- * BEFORE it branches to any channel adapter:
- *   telegram → his telegram chat, max → his max id, sms/smsc → his phone,
- *   email → his email, web_push → his subscription (via pushUserId).
- * The channel is PRESERVED so the tester experiences the real client app per channel.
- *
- * If the test user has NO binding for the intent's channel (or the channel is
- * unknown), the send is SUPPRESSED — `applyPreForkDevRedirect` returns the SUPPRESS
- * sentinel and `dispatchOutgoing` short-circuits without reaching any adapter. This
- * guarantees a send NEVER reaches a real client and NEVER a different person (D7).
- *
- * This is the SINGLE chokepoint (owner's hard rule: no per-channel duplication).
- * Per-channel guards in telegram/max clients remain as defense-in-depth.
- *
- * Pure function of env + intent — no DB, no IO (keeps the hot path cheap).
+ * Single pre-provider environment gate.
+ * Local development is provider-free. When `TEST=true`, only original recipients listed in the
+ * TEST_ACCOUNT_* env variables may reach an adapter. Nothing is redirected and no message body is
+ * changed. In production (`TEST` absent/false) the original intent passes unchanged.
  */
-function applyPreForkDevRedirect(intent: OutgoingIntent): RedirectResult {
-  if (!isDevRedirectActive()) return intent;
-
+function applyPreForkEnvironmentDeliveryPolicy(intent: OutgoingIntent): EnvironmentDeliveryResult {
   const payload = (intent.payload ?? {}) as DeliveryPayload & Record<string, unknown>;
-
-  // Read original recipient for logging/prefix.
-  const origRecipient = payload.recipient as Record<string, unknown> | undefined;
-  const origChatId = origRecipient?.chatId;
-  const originalId =
-    typeof origChatId === 'number'
-      ? origChatId
-      : typeof origChatId === 'string'
-        ? origChatId
-        : ((origRecipient?.email as string | undefined) ??
-          (origRecipient?.phoneNormalized as string | undefined) ??
-          (origRecipient?.pushUserId as string | undefined) ??
-          (origRecipient?.userId as string | number | undefined) ??
-          intent.meta.source ??
-          'unknown');
-
+  const recipient = payload.recipient as Record<string, unknown> | undefined;
   const intendedChannel = readChannel(intent);
 
-  // Local DEV is provider-free by contract. TEST runs with NODE_ENV=production and the explicit
-  // redirect flag, so its live owner-account delivery proof remains available without allowing
-  // a local scheduler/worker/API process to call any external provider.
-  if (process.env.NODE_ENV === 'development') {
+  if (isLocalDevelopmentDeliverySuppressed()) {
     logger.warn(
       {
-        intendedRecipient: originalId,
         intendedChannel,
         intentType: intent.type,
       },
-      'PRE_FORK_DEV_DELIVERY_NOOP',
+      'PRE_FORK_LOCAL_DELIVERY_NOOP',
     );
     return SUPPRESS;
   }
 
-  // PASSTHROUGH: a recipient that is a KNOWN TEST ACCOUNT (env allowlist) is
-  // delivered UNCHANGED so multi-tester flows (doctor↔patient chat/comments/OTP)
-  // can be exercised in-vivo on a real-data test env. The allowlist is empty by
-  // default, so this never fires — and real clients stay redirected/suppressed —
-  // unless an operator explicitly opts in via DEV_REDIRECT_PASSTHROUGH_*.
-  if (isDevRedirectPassthrough(intendedChannel, origRecipient)) {
+  if (!isTestDeployment()) return intent;
+
+  if (!isTestDeliveryRecipientAllowed(intendedChannel, recipient)) {
     logger.warn(
       {
-        passthroughRecipient: originalId,
         intendedChannel,
         intentType: intent.type,
       },
-      'PRE_FORK_DEV_DELIVERY_PASSTHROUGH',
-    );
-    return intent;
-  }
-
-  const outcome = resolveDevRedirect(intendedChannel);
-
-  if (outcome.kind === 'suppress') {
-    logger.warn(
-      {
-        intendedRecipient: originalId,
-        intendedChannel,
-        intentType: intent.type,
-        suppressReason: outcome.reason,
-      },
-      'PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS',
+      'PRE_FORK_TEST_DELIVERY_SUPPRESS',
     );
     return SUPPRESS;
   }
 
-  logger.warn(
+  logger.info(
     {
-      intendedRecipient: originalId,
       intendedChannel,
-      sentTo: outcome.label,
-      sentChannel: outcome.deliveryChannel,
       intentType: intent.type,
     },
-    'PRE_FORK_DEV_DELIVERY_REDIRECT',
+    'PRE_FORK_TEST_DELIVERY_ALLOWED',
   );
-
-  // Prefix text body (message.send carries message.text; others may not have text).
-  const origMessage = payload.message as Record<string, unknown> | undefined;
-  const origText = typeof origMessage?.text === 'string' ? origMessage.text : undefined;
-  const newText =
-    origText !== undefined && !hasDevPrefix(origText)
-      ? buildDevPrefix(originalId) + origText
-      : origText;
-
-  const newMessage =
-    origMessage !== undefined
-      ? { ...origMessage, ...(newText !== undefined ? { text: newText } : {}) }
-      : undefined;
-
-  // Preserve the channel; only rewrite delivery.channels[0] to the canonical wire value.
-  const origDelivery = payload.delivery as Record<string, unknown> | undefined;
-  const newDelivery =
-    origDelivery !== undefined
-      ? { ...origDelivery, channels: [outcome.deliveryChannel] }
-      : { channels: [outcome.deliveryChannel] };
-
-  return {
-    ...intent,
-    meta: {
-      ...intent.meta,
-      source: outcome.deliveryChannel,
-    },
-    payload: {
-      ...payload,
-      // Fresh recipient object containing ONLY this channel's id field(s) — no real
-      // email/phone/pushUserId/userId from the original intent can survive.
-      recipient: outcome.recipient,
-      ...(newMessage !== undefined ? { message: newMessage } : {}),
-      delivery: newDelivery,
-    },
-  };
+  return intent;
 }
 
 /**
@@ -387,16 +292,11 @@ export function createDefaultDispatchPort(deps: {
       // Policy is the first egress operation: denied payloads cannot be redirected, logged,
       // adapter-selected, or passed to a provider.
       assertOutboundMessagePolicy(intent);
-      // PRIMARY DEV REDIRECT: override before the channel fork so no adapter can
-      // ever be reached with a real recipient in non-production environments.
-      const safeIntent = applyPreForkDevRedirect(intent);
+      const safeIntent = applyPreForkEnvironmentDeliveryPolicy(intent);
 
-      // SUPPRESS: the test user has no binding for this channel (or unknown channel).
-      // No-op success — never reach an adapter, never a real client (D7). No provider was ever
-      // called, so this is not a delivery attempt (F5) — the suppression itself is still fully
-      // observable via the PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS warning above.
+      // No provider was called, so suppression is not a delivery attempt.
       if (safeIntent === SUPPRESS) {
-        // `C5(б)`: канал включает только доставленная отправка. Подавленная на DEV проверка
+        // `C5(б)`: канал включает только доставленная отправка. Подавленная средой проверка
         // успехом не является — иначе клиника включила бы канал, ничего не доставив.
         if (isClinicCredentialProbe(intent)) {
           throw new Error('CLINIC_CHANNEL_PROBE_SUPPRESSED');
@@ -424,7 +324,7 @@ export function createDefaultDispatchPort(deps: {
       // chokepoint records the one real attempt itself (recordGenericDispatchFailureAttempt),
       // after classifying recipient_blocked_bot the same way the queue worker does (F5: a
       // blocked-bot rejection is not a delivery attempt either, it is an expected terminal state,
-      // same treatment as dev-redirect suppression). Either way the original error is rethrown
+      // same treatment as environment suppression). Either way the original error is rethrown
       // unchanged.
       let sendResult: DeliverySendResult | void;
       const clinicChannel = asClinicDeliveryChannel(channel);

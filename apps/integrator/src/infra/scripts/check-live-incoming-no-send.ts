@@ -3,8 +3,7 @@
  *
  * The process uses the production composition root and real DEV database ports, but:
  * - disables provider bootstrap mutations (menu/command setup);
- * - disables every redirect target and passthrough recipient;
- * - proves outgoing replies stopped at PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS;
+ * - proves outgoing replies stop at the local pre-provider no-op;
  * - releases every durable idempotency key created by the probe.
  */
 import { randomInt, randomUUID } from 'node:crypto';
@@ -13,28 +12,6 @@ import { logger } from '../observability/logger.js';
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
-}
-
-function disableEveryDeliveryTarget(): void {
-  process.env.NODE_ENV = 'development';
-  process.env.DEV_DELIVERY_REDIRECT = '1';
-  process.env.DEV_REDIRECT_DISABLE_DEFAULTS = '1';
-  for (const key of [
-    'DEV_REDIRECT_TELEGRAM_CHAT_ID',
-    'DEV_DELIVERY_REDIRECT_CHAT_ID',
-    'TELEGRAM_ADMIN_ID',
-    'DEV_REDIRECT_MAX_USER_ID',
-    'DEV_REDIRECT_PHONE',
-    'DEV_REDIRECT_EMAIL',
-    'DEV_REDIRECT_WEB_PUSH_USER_ID',
-    'DEV_REDIRECT_PASSTHROUGH_TELEGRAM',
-    'DEV_REDIRECT_PASSTHROUGH_MAX',
-    'DEV_REDIRECT_PASSTHROUGH_PHONES',
-    'DEV_REDIRECT_PASSTHROUGH_EMAILS',
-    'DEV_REDIRECT_PASSTHROUGH_WEB_PUSH',
-  ]) {
-    process.env[key] = '';
-  }
 }
 
 type RouteResult = { status: number; ok: boolean };
@@ -55,21 +32,14 @@ function parseRouteResult(response: {
 
 async function main(): Promise<void> {
   process.env.NODE_ENV = 'development';
-  process.env.DEV_REDIRECT_DISABLE_DEFAULTS = '0';
   await import('../../config/loadEnv.js');
 
-  const redirectModule = await import('../../shared/devDeliveryRedirect.js');
-  const originalTargets = redirectModule.getDevRedirectTargets();
-  assert(originalTargets.telegramChatId !== null, 'DEV Telegram test identity is not configured');
-  assert(originalTargets.maxUserId !== null, 'DEV MAX test identity is not configured');
-
-  disableEveryDeliveryTarget();
-  redirectModule._resetDevRedirectActiveCache();
-  const disabledTargets = redirectModule.getDevRedirectTargets();
-  assert(
-    Object.values(disabledTargets).every((value) => value === null),
-    'strict no-send process still has a redirect target',
-  );
+  const { readTestAccountIdentifiers } = await import('../../shared/testDeliverySafety.js');
+  const testAccounts = readTestAccountIdentifiers();
+  const telegramChatId = Number([...testAccounts.telegramIds][0]);
+  const maxUserId = Number([...testAccounts.maxIds][0]);
+  assert(Number.isFinite(telegramChatId), 'DEV Telegram test identity is not configured');
+  assert(Number.isFinite(maxUserId), 'DEV MAX test identity is not configured');
 
   const [
     { buildApp },
@@ -103,14 +73,13 @@ async function main(): Promise<void> {
   // delivery.attempt.log DB write (F5, docs/_TODO/runs/integrator-cleanup/
   // TRACK_D_PARTIAL_SALVAGE_AUDIT_2026-08-23.md — dev suppression is not a real failed provider
   // call and must not create an attempt row). The suppress decision is still observed the same
-  // way any operator would see it live: the structured PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS
-  // warning that applyPreForkDevRedirect always emits on that branch.
+  // way any operator would see it live: the structured PRE_FORK_LOCAL_DELIVERY_NOOP warning.
   const suppressedChannels: string[] = [];
   const originalLoggerWarn = logger.warn.bind(logger);
   (logger as { warn: typeof logger.warn }).warn = ((...args: Parameters<typeof logger.warn>) => {
     const [fields, message] = args;
     if (
-      message === 'PRE_FORK_DEV_DELIVERY_REDIRECT_SUPPRESS' &&
+      message === 'PRE_FORK_LOCAL_DELIVERY_NOOP' &&
       fields &&
       typeof fields === 'object' &&
       typeof (fields as { intendedChannel?: unknown }).intendedChannel === 'string'
@@ -171,16 +140,16 @@ async function main(): Promise<void> {
     message: {
       message_id: updateId,
       text: '/start',
-      from: { id: originalTargets.telegramChatId },
-      chat: { id: originalTargets.telegramChatId },
+      from: { id: telegramChatId },
+      chat: { id: telegramChatId },
     },
   });
   const maxPayload = (messageId: string) => ({
     update_type: 'message_created',
     timestamp: Date.now(),
     message: {
-      recipient: { chat_id: originalTargets.maxUserId },
-      sender: { user_id: originalTargets.maxUserId },
+      recipient: { chat_id: maxUserId },
+      sender: { user_id: maxUserId },
       body: { mid: messageId, text: '/start' },
     },
   });

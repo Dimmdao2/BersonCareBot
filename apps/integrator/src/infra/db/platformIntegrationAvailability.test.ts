@@ -13,10 +13,6 @@ vi.mock('../principal/organizationPrincipal.js', () => ({
   runWithInfraPrincipal: principalFakes.runWithInfraPrincipal,
 }));
 
-vi.mock('../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => false,
-}));
-
 const enabledAvailability = {
   value: {
     version: 1,

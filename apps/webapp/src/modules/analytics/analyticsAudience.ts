@@ -1,13 +1,9 @@
 import { sql, type Column, type SQL } from 'drizzle-orm';
+import { env } from '@/config/env';
 import {
-  normalizeTestAccountIdentifiersValue,
+  getTestAccountIdentifiers,
   type TestAccountIdentifiers,
-} from '@/modules/system-settings/testAccounts';
-import type { SystemSetting } from '@/modules/system-settings/types';
-const TTL_MS = 30_000;
-
-type IncludeTestCacheEntry = { value: boolean; expiresAt: number };
-let includeTestCache: IncludeTestCacheEntry | null = null;
+} from '@/config/testAccounts';
 
 export type AnalyticsAudienceContext = {
   includeTestAccounts: boolean;
@@ -15,51 +11,16 @@ export type AnalyticsAudienceContext = {
   organizationId?: string;
 };
 
-function readBooleanValueJson(valueJson: unknown): boolean {
-  if (valueJson === null || typeof valueJson !== 'object') return false;
-  const v = (valueJson as Record<string, unknown>).value;
-  return v === true || v === 'true';
-}
-
-type SettingsReader = {
-  getSetting(
-    key: 'dev_mode' | 'test_account_identifiers',
-    scope: 'admin',
-  ): Promise<SystemSetting | null>;
-};
-
 /**
- * Test users are included in analytics only when dev_mode is on.
+ * DEV and TEST include their own test activity; production analytics excludes configured accounts.
  */
-export async function readAnalyticsIncludeTestAccounts(deps: {
-  systemSettings: SettingsReader;
-}): Promise<boolean> {
-  const now = Date.now();
-  if (includeTestCache && includeTestCache.expiresAt > now) {
-    return includeTestCache.value;
-  }
-  try {
-    const devRow = await deps.systemSettings.getSetting('dev_mode', 'admin');
-    const value = readBooleanValueJson(devRow?.valueJson ?? null);
-    includeTestCache = { value, expiresAt: now + TTL_MS };
-    return value;
-  } catch {
-    return false;
-  }
+export async function readAnalyticsIncludeTestAccounts(): Promise<boolean> {
+  return env.NODE_ENV === 'development' || env.TEST;
 }
 
 /** @internal */
 export function resetAnalyticsIncludeTestAccountsCacheForTests(): void {
-  includeTestCache = null;
-}
-
-async function readAnalyticsTestAccountIdentifiers(deps: {
-  systemSettings: SettingsReader;
-}): Promise<TestAccountIdentifiers | null> {
-  const row = await deps.systemSettings.getSetting('test_account_identifiers', 'admin');
-  if (!row?.valueJson || typeof row.valueJson !== 'object') return null;
-  const inner = (row.valueJson as Record<string, unknown>).value;
-  return normalizeTestAccountIdentifiersValue(inner);
+  // Environment is immutable for the lifetime of a production process; retained for test callers.
 }
 
 /**
@@ -80,14 +41,12 @@ export type AnalyticsTestAccountSpec = {
  * ролью, у которой на эти таблицы прав нет, и отсекает учётки уже за дверью агрегата. Политика
  * «кого считать тестовым» при этом остаётся здесь, одна на все поверхности.
  */
-export async function loadAnalyticsTestAccountSpec(deps: {
-  systemSettings: SettingsReader;
-}): Promise<AnalyticsTestAccountSpec> {
-  const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
+export async function loadAnalyticsTestAccountSpec(): Promise<AnalyticsTestAccountSpec> {
+  const includeTestAccounts = await readAnalyticsIncludeTestAccounts();
   if (includeTestAccounts) {
     return { includeTestAccounts: true, testPhones: [], testTelegramIds: [], testMaxIds: [] };
   }
-  const spec = await readAnalyticsTestAccountIdentifiers(deps);
+  const spec = getTestAccountIdentifiers();
   return {
     includeTestAccounts: false,
     testPhones: spec?.phones ?? [],
@@ -97,16 +56,13 @@ export async function loadAnalyticsTestAccountSpec(deps: {
 }
 
 export async function loadAnalyticsAudienceContext(deps: {
-  systemSettings: SettingsReader;
   loadExcludedUserIds: (input: {
     includeTestAccounts: boolean;
     testAccountIdentifiers?: TestAccountIdentifiers | null;
   }) => Promise<string[]>;
 }): Promise<AnalyticsAudienceContext> {
-  const includeTestAccounts = await readAnalyticsIncludeTestAccounts(deps);
-  const testAccountIdentifiers = includeTestAccounts
-    ? null
-    : await readAnalyticsTestAccountIdentifiers(deps);
+  const includeTestAccounts = await readAnalyticsIncludeTestAccounts();
+  const testAccountIdentifiers = includeTestAccounts ? null : getTestAccountIdentifiers();
   const excludedUserIds = await deps.loadExcludedUserIds({
     includeTestAccounts,
     testAccountIdentifiers,

@@ -61,7 +61,7 @@ export async function resolvePatientMaintenanceOrganizationId(
 /**
  * Решение о полной замене patient shell на экран техработ.
  * Гейт по роли `client` остаётся в layout — врач/админ сюда не передаются.
- * Тестовые аккаунты (`test_account_identifiers`) видят полный patient UI даже при включённых техработах.
+ * Env-declared test accounts see the full patient UI even during maintenance.
  */
 export function patientMaintenanceReplacesPatientShell(
   maintenanceEnabled: boolean,

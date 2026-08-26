@@ -23,6 +23,7 @@ const fakes = vi.hoisted(() => ({
   withPatientOrganizationPrincipal: vi.fn(),
   withDoctorWorkspacePrincipal: vi.fn(),
   runWithDbClinicBillingPrincipal: vi.fn(),
+  getPatientMaintenanceConfig: vi.fn(),
 }));
 
 vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
@@ -59,6 +60,10 @@ vi.mock('@/app-layer/patient-organization/requestContext', () => ({
 }));
 vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
   getAppDisplayTimeZone: fakes.getAppDisplayTimeZone,
+}));
+vi.mock('@/modules/system-settings/patientMaintenance', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/modules/system-settings/patientMaintenance')>()),
+  getPatientMaintenanceConfig: fakes.getPatientMaintenanceConfig,
 }));
 vi.mock('@/app-layer/platform-access', () => ({
   resolvePatientCanViewAuthOnlyContent: fakes.resolvePatientCanViewAuthOnlyContent,
@@ -343,6 +348,11 @@ beforeEach(() => {
     async (_principal: unknown, callback: () => Promise<unknown>) => callback(),
   );
   fakes.getAppDisplayTimeZone.mockResolvedValue('UTC');
+  fakes.getPatientMaintenanceConfig.mockResolvedValue({
+    enabled: false,
+    message: '',
+    bookingUrl: null,
+  });
   fakes.buildAppDeps.mockReturnValue({
     orgEntitlements,
     bookingEngine: {

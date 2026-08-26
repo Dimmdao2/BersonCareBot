@@ -97,14 +97,9 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
 
 const ADMIN_SCOPE_KEYS = [
   'sms_fallback_enabled',
-  'debug_forward_to_admin',
-  'max_debug_page_enabled',
-  'dev_mode',
   'platform_user_merge_v2_enabled',
   'material_ratings_enabled',
   'important_fallback_delay_minutes',
-  'integration_test_ids',
-  'test_account_identifiers',
   'support_contact_url',
   'telegram_login_bot_username',
   'max_login_bot_nickname',

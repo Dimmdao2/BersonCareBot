@@ -1,45 +1,18 @@
-import type { SystemSetting } from '@/modules/system-settings/types';
-
-const TTL_MS = 30_000;
-
-type CacheEntry = { value: boolean; expiresAt: number };
-let cache: CacheEntry | null = null;
-
-function readBooleanValueJson(valueJson: unknown): boolean {
-  if (valueJson === null || typeof valueJson !== 'object') return false;
-  const v = (valueJson as Record<string, unknown>).value;
-  return v === true || v === 'true';
-}
+import { environmentDiagnosticsEnabled } from '@/config/env';
 
 /**
- * Admin-флаг `debug_forward_to_admin` управляет полнотой серверных логов (journalctl):
- * `false` (default) — только значимое (warn/error/DLQ/retry-fail); `true` — подробные operational `info`.
+ * DEV and TEST automatically enable detailed operational logs; PROD keeps only significant events.
  * Verbose-логи не должны содержать сырые params/payload/PII. TTL-кэш (fail-safe `false`).
  *
  * NB: это deps-инъекционный путь для staff/background `modules/*`-флоу. Собственный кэш сбрасывается
  * только по TTL (≤30 c). Public auth route-utils use the server-only app_runtime projection accessor;
  * both roots are refreshed by the canonical system_settings write trigger.
  */
-export async function isOperationalVerboseLogEnabled(deps: {
-  systemSettings: {
-    getSetting(key: 'debug_forward_to_admin', scope: 'admin'): Promise<SystemSetting | null>;
-  };
-}): Promise<boolean> {
-  const now = Date.now();
-  if (cache && cache.expiresAt > now) {
-    return cache.value;
-  }
-  try {
-    const row = await deps.systemSettings.getSetting('debug_forward_to_admin', 'admin');
-    const value = row != null && readBooleanValueJson(row.valueJson);
-    cache = { value, expiresAt: now + TTL_MS };
-    return value;
-  } catch {
-    return false;
-  }
+export async function isOperationalVerboseLogEnabled(_deps?: unknown): Promise<boolean> {
+  return environmentDiagnosticsEnabled;
 }
 
 /** @internal */
 export function resetOperationalVerboseLogCacheForTests(): void {
-  cache = null;
+  // Environment configuration is immutable in production; retained for existing test callers.
 }

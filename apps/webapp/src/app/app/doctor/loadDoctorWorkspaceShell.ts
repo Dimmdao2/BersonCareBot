@@ -19,6 +19,8 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { STAFF_SURFACE } from '@/config/productSurfaces';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
 import type { DoctorWorkspaceAccessContext } from '@/app-layer/guards/requireRole';
+import { getPatientMaintenanceConfig } from '@/modules/system-settings/patientMaintenance';
+import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 
 function getValueJson<T>(valueJson: unknown, fallback: T): T {
   if (
@@ -47,6 +49,7 @@ export type DoctorWorkspaceShellData = {
   patientHomeTodayEnabled: boolean;
   specialistTasksEnabled: boolean;
   canRenderClinicalChildren: boolean;
+  maintenance: { enabled: boolean; message: string };
 };
 
 type LoadDoctorWorkspaceShell = (
@@ -63,12 +66,13 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
   const deps = buildAppDeps();
   const organizationId = workspaceAccess.organizationId;
 
-  const [organization, doctorSettings, effectiveBranding] = await Promise.all([
+  const [organization, doctorSettings, effectiveBranding, maintenance] = await Promise.all([
     deps.bookingEngine
       ? deps.bookingEngine.organization.getOrganization(organizationId)
       : Promise.resolve(null),
     deps.systemSettings.listSettingsByScope('doctor', { organizationId }),
     deps.orgBranding.resolveEffectiveOrgBranding(organizationId).catch(() => null),
+    getPatientMaintenanceConfig(),
   ]);
 
   const [
@@ -171,6 +175,12 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     workspaceAccess.canAccessClinicalWorkspace ||
     workspaceAccess.canManageOrganization ||
     (workspaceAccess.membershipRole === 'owner' && workspaceAccess.specialistId !== null);
+  const isTestAccount = sessionMatchesTestAccountIdentifiers({
+    userId: session.user.userId,
+    phone: session.user.phone,
+    telegramId: session.user.bindings.telegramId,
+    maxId: session.user.bindings.maxId,
+  });
 
   return {
     workspaceAccess,
@@ -185,6 +195,10 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     patientHomeTodayEnabled: patientHomeTodayVisibility.specialistNavigation,
     specialistTasksEnabled: specialistTasksVisibility.specialistNavigation,
     canRenderClinicalChildren,
+    maintenance: {
+      enabled: maintenance.enabled && session.user.role !== 'admin' && !isTestAccount,
+      message: maintenance.message,
+    },
   };
 });
 

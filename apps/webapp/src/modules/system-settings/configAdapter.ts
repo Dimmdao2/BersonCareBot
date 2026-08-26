@@ -103,23 +103,6 @@ export function getServerRuntimeInteger(
   return runtimeConfigProvider().getServerInteger(key, organizationId);
 }
 
-export type ServerConfigStructuredKey = 'test_account_identifiers';
-
-/**
- * Required structured server configuration. It shares the DB-only cache and failure semantics of
- * `getConfigValue`; malformed JSON is unavailable, never an implicit empty configuration.
- */
-export async function getServerConfigStructuredValue(
-  key: ServerConfigStructuredKey,
-): Promise<unknown> {
-  const value = await getConfigValue(key);
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    throw new RuntimeSettingUnavailableError(key);
-  }
-}
-
 /**
  * Fresh, fail-closed server authorization read. This deliberately bypasses
  * the 60-second compatibility cache and has no environment fallback.

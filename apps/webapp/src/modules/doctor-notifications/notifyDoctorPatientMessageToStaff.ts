@@ -172,8 +172,7 @@ export async function notifyDoctorPatientMessageToStaff(
     if (channels.includes('web_push') && hasPush) {
       // Emit a web_push intent to the integrator via relay-outbound.
       // The integrator's WebPushDeliveryAdapter performs the actual send.
-      // In dev (DEV_DELIVERY_REDIRECT=1), the pre-fork redirect collapses to the
-      // telegram test chat — ZERO real webpush.sendNotification calls.
+      // The final environment gate suppresses local DEV and non-allowlisted TEST recipients.
       const tag = `${input.topicCode}:${input.messageId}`;
       const result = await relayOutbound({
         messageId: `${input.messageId}:push:${userId}`,

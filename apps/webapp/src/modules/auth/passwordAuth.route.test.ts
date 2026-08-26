@@ -303,15 +303,9 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).not.toHaveBeenCalled();
   });
 
-  it('allows the configured TEST patient password without entering staff-factor handling', async () => {
+  it('allows the env-configured TEST patient password without entering staff-factor handling', async () => {
     fakes.verifyPassword.mockResolvedValue({ ok: true, userId, emailVerified: true });
     fakes.findUser.mockResolvedValue({ ...user, role: 'client', phone: '+12025550101' });
-    fakes.getStructuredSetting.mockResolvedValue({
-      phones: ['+12025550101'],
-      telegramIds: [],
-      maxIds: [],
-      emails: [],
-    });
 
     const response = await login(request());
 
@@ -323,9 +317,8 @@ describe('email/password login HTTP boundary', () => {
     });
     expect(fakes.setSession).toHaveBeenCalledOnce();
     expect(fakes.getSecurityStatus).not.toHaveBeenCalled();
-    expect(fakes.getStructuredSetting.mock.invocationCallOrder[0]).toBeLessThan(
-      fakes.enterSelfPrincipal.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
-    );
+    expect(fakes.getStructuredSetting).not.toHaveBeenCalled();
+    expect(fakes.enterSelfPrincipal).not.toHaveBeenCalled();
   });
 
   it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {

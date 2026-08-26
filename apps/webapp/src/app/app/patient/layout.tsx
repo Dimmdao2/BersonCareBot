@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { sessionMatchesTestAccountIdentifiers } from '@/config/testAccounts';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { patientClientBusinessGate } from '@/app-layer/platform-access';
@@ -174,19 +175,15 @@ export default async function PatientLayout({ children }: { children: ReactNode 
       sessionPhoneTrimmed: session.user.phone?.trim(),
     });
 
-    let isTestAccount = false;
-    if (maintenance.enabled && !skipMaintenance) {
-      try {
-        isTestAccount = await deps.systemSettings.isCurrentPatientTestAccount();
-      } catch (err) {
-        logger.warn({
-          scope: 'patient_layout',
-          event: 'patient_test_account_check_failed',
-          error: err instanceof Error ? err.message : String(err),
-        });
-        isTestAccount = false;
-      }
-    }
+    const isTestAccount =
+      maintenance.enabled &&
+      !skipMaintenance &&
+      sessionMatchesTestAccountIdentifiers({
+        userId: session.user.userId,
+        phone: session.user.phone,
+        telegramId: session.user.bindings.telegramId,
+        maxId: session.user.bindings.maxId,
+      });
 
     if (
       patientMaintenanceReplacesPatientShell(maintenance.enabled, skipMaintenance, isTestAccount)

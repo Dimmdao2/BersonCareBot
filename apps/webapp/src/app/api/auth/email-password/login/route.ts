@@ -18,11 +18,11 @@ import {
   AUTH_CONFIRM_RATE_LIMIT_SEC,
   checkAuthConfirmRateLimit,
 } from '@/modules/auth/authConfirmRateLimit';
-import { getServerConfigStructuredValue } from '@/modules/system-settings/configAdapter';
 import {
-  normalizeTestAccountIdentifiersValue,
+  getTestAccountIdentifiers,
   sessionMatchesTestAccountIdentifiers,
-} from '@/modules/system-settings/testAccounts';
+  type TestAccountIdentifiers,
+} from '@/config/testAccounts';
 import type { SessionUser } from '@/shared/types/session';
 
 const bodySchema = z.object({
@@ -39,11 +39,9 @@ const SERVER_ERROR_MESSAGE =
 function isConfiguredTestPatientPasswordLogin(
   user: SessionUser | null,
   emailNormalized: string,
-  identifiersValue: unknown,
+  identifiers: TestAccountIdentifiers,
 ): boolean {
   if (!user || user.role !== 'client') return false;
-  const identifiers = normalizeTestAccountIdentifiersValue(identifiersValue);
-  if (!identifiers) return false;
   return (
     identifiers.emails.includes(emailNormalized) ||
     sessionMatchesTestAccountIdentifiers(
@@ -140,12 +138,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Read the fixed TEST allowlist while this pre-session request still carries the bootstrap
-    // principal. The identity-self principal installed below is deliberately unable to read global
-    // settings; moving this read below that boundary makes every configured patient look unlisted.
-    const testAccountIdentifiers = await getServerConfigStructuredValue(
-      'test_account_identifiers',
-    ).catch(() => null);
+    const testAccountIdentifiers = getTestAccountIdentifiers();
 
     enterStaffSecuritySelfPrincipal(pwd.userId, 'api/auth/email-password/login:primary-verified');
 

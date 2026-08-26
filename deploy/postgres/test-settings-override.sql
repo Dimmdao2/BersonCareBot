@@ -1,7 +1,7 @@
 -- =============================================================================
 -- test-settings-override.sql  (canonical, repo-tracked — was /tmp/bcb-test-setup)
 -- Apply AFTER migrate on the test DB (bersoncarebot_test).
--- Enforces send-safety, maintenance-on, allowlist, identity-role normalization,
+-- Enforces maintenance-on and identity-role normalization,
 -- and a DB-level lock. Applied by deploy/host/deploy-test-saas.sh (step 5).
 --
 -- Internal invocation only. Callers MUST pass exactly one explicit mode:
@@ -36,6 +36,16 @@ BEGIN;
 
 DROP TRIGGER IF EXISTS system_settings_test_lock ON public.system_settings;
 
+-- Environment identity, diagnostics and TEST-account delivery safety are deploy-owned env policy.
+DELETE FROM public.system_settings
+WHERE key IN (
+  'dev_mode',
+  'debug_forward_to_admin',
+  'max_debug_page_enabled',
+  'integration_test_ids',
+  'test_account_identifiers'
+);
+
 -- ── 1. app_base_url ──────────────────────────────────────────────────────────
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('app_base_url', 'admin', '{"value":"https://test.bersoncare.ru"}'::jsonb, NOW(), NULL)
@@ -43,7 +53,7 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
 -- ── 2. Maintenance ON (patient app sees maintenance screen) ──────────────────
--- test_account_identifiers users bypass the maintenance screen and see full UI.
+-- Env-declared test accounts bypass the maintenance screen and see full UI.
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('patient_app_maintenance_enabled', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
@@ -52,23 +62,6 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
 INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
 VALUES ('patient_app_maintenance_message', 'admin',
         '{"value":"Тестовая среда. Доступ только для тестовых аккаунтов."}'::jsonb, NOW(), NULL)
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
-  SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
-
--- ── 3. dev_mode ON — webapp relay guard checks test_account_identifiers ───────
-INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
-VALUES ('dev_mode', 'admin', '{"value":true}'::jsonb, NOW(), NULL)
-ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
-  SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
-
--- ── 4. test_account_identifiers (allowlist phones + Telegram/MAX IDs) ─────────
--- Doctor/owner: +79643805480, Telegram 364943522
--- Test user "Дмитрий Берсон": +79189000782, Telegram 7924656602, MAX 207278131
--- Walkthrough representative patients A/B: reserved fictional NANP 555-01xx numbers.
-INSERT INTO public.system_settings (key, scope, value_json, updated_at, updated_by)
-VALUES ('test_account_identifiers', 'admin',
-        '{"value":{"phones":["+79643805480","+79189000782","+12025550101","+12025550102"],"telegramIds":["364943522","7924656602"],"maxIds":["207278131"]}}'::jsonb,
-        NOW(), NULL)
 ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
   SET value_json = EXCLUDED.value_json, updated_at = EXCLUDED.updated_at, updated_by = EXCLUDED.updated_by;
 
@@ -142,7 +135,7 @@ ON CONFLICT (key, scope) WHERE organization_id IS NULL DO UPDATE
 CREATE OR REPLACE FUNCTION system_settings_test_lock_guard()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
 DECLARE
-  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','dev_mode','test_account_identifiers','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
+  locked_keys TEXT[] := ARRAY['patient_app_maintenance_enabled','specialist_signup_enabled','patient_program_discussion_ui_enabled'];
 BEGIN
   IF OLD.key = ANY(locked_keys) THEN
     RAISE EXCEPTION 'TEST ENV LOCK: system_settings key "%" is locked for safety. Remove trigger system_settings_test_lock before changing.', OLD.key

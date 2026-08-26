@@ -3,10 +3,6 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => false,
-}));
-
 import type { OutgoingIntent } from '../../kernel/contracts/index.js';
 import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
 import { createDefaultDispatchPort } from './dispatchPort.js';

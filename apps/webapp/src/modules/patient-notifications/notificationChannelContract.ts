@@ -61,7 +61,7 @@ export function logNotificationChannelsResolved(params: {
   resolution: ResolvedNotificationChannels;
   deliveryPath: NotificationChannelDeliveryPath;
   intentType?: string;
-  /** Gate this routine `info` behind admin verbose flag (`debug_forward_to_admin`). */
+  /** Gate this routine `info` behind automatic DEV/TEST verbose diagnostics. */
   verbose: boolean;
 }): void {
   const { resolution, deliveryPath, intentType, verbose } = params;

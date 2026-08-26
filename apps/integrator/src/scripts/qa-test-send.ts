@@ -1,33 +1,23 @@
-/**
- * QA TEST-SEND (owner-authorized, dev-only). Sends ONE telegram message + ONE web_push to FAKE
- * recipients through the integrator dispatchPort. The pre-fork dev redirect collapses both to the
- * test user «Дмитрий Берсон». DOUBLE-SAFE: (1) hard abort unless the redirect is ACTIVE; (2) the
- * original recipients are FAKE ids, so even a redirect miss can only hit a non-existent chat/user.
- * Run: cd apps/integrator && NODE_ENV=development npx tsx src/scripts/qa-test-send.ts
- */
+/** Owner-authorized TEST-only proof through the final delivery gate. */
 import '../config/loadEnv.js';
-import { isDevRedirectActive, getDevRedirectTargets } from '../shared/devDeliveryRedirect.js';
+import { parseTestFlag, readTestAccountIdentifiers } from '../shared/testDeliverySafety.js';
 import { buildDeps } from '../app/di.js';
 import { logger } from '../infra/observability/logger.js';
 import type { OutgoingIntent } from '../kernel/contracts/index.js';
 
 async function main(): Promise<void> {
   // ── SAFETY GATE ────────────────────────────────────────────────────────────
-  if (process.env.NODE_ENV === 'production') {
-    logger.error('ABORT: NODE_ENV=production — no test sends in production.');
+  if (!parseTestFlag(process.env.TEST)) {
+    logger.error('ABORT: TEST is not true — this proof is allowed only on TEST.');
     process.exit(2);
   }
-  if (!isDevRedirectActive()) {
-    logger.error(
-      'ABORT: dev delivery redirect is NOT active — refusing to send (would risk a real client).',
-    );
+  const testAccounts = readTestAccountIdentifiers();
+  const telegramChatId = [...testAccounts.telegramIds][0];
+  const webPushUserId = [...testAccounts.webPushUserIds][0];
+  if (!telegramChatId || !webPushUserId) {
+    logger.error('ABORT: TEST_ACCOUNT_TELEGRAM_IDS and TEST_ACCOUNT_WEB_PUSH_USER_IDS are required.');
     process.exit(2);
   }
-  const targets = getDevRedirectTargets();
-  logger.warn(
-    { NODE_ENV: process.env.NODE_ENV, targets },
-    'QA test-send: redirect ACTIVE — every send collapses to the test user (Дмитрий). Proceeding.',
-  );
 
   const deps = buildDeps();
   const now = new Date().toISOString();
@@ -42,9 +32,9 @@ async function main(): Promise<void> {
       correlationId: `qa-test-${stamp}`,
     },
     payload: {
-      recipient: { chatId: 700000001 }, // FAKE → redirect collapses to Дмитрий's telegram
+      recipient: { chatId: telegramChatId },
       message: {
-        text: `🧪 BersonCare DEV — тест-отправка (Telegram).\nЕсли видишь это — редирект на тебя работает.\n${now}`,
+        text: `🧪 TEST — проверка прямой доставки разрешённому тестовому аккаунту.\n${now}`,
       },
       delivery: { channels: ['telegram'] },
     },
@@ -59,9 +49,9 @@ async function main(): Promise<void> {
       correlationId: `qa-test-${stamp}`,
     },
     payload: {
-      recipient: { pushUserId: 'fa9e0000-0000-4000-8000-790000000000' }, // FAKE QA user → redirect → Дмитрий's pushUserId
-      message: { text: `🧪 BersonCare DEV — тест-пуш. Редирект на тебя работает. ${now}` },
-      title: 'BersonCare — тест-рассылка',
+      recipient: { pushUserId: webPushUserId },
+      message: { text: `🧪 TEST — проверка прямой доставки тестовому аккаунту. ${now}` },
+      title: 'TEST — проверка доставки',
       url: '/app/patient',
       delivery: { channels: ['web_push'] },
     },

@@ -1,7 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import type { AnalyticsTestAccountSpec } from '@/modules/analytics/analyticsAudience';
-import type { TestAccountIdentifiers } from '@/modules/system-settings/testAccounts';
+import type { TestAccountIdentifiers } from '@/config/testAccounts';
 import { platformUsers, userChannelBindings } from '../../../db/schema/schema';
 import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 

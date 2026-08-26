@@ -14,7 +14,6 @@ const getEffective = vi.fn();
 const {
   getConfigValue,
   getServerRuntimeInteger,
-  getServerConfigStructuredValue,
   getExactOrganizationConfigValue,
   getPublicAuthChannelConfigured,
   invalidateConfigCache,
@@ -97,26 +96,4 @@ describe('configAdapter DB-only legacy reads', () => {
     );
   });
 
-  it('parses structured server configuration without substituting an empty value', async () => {
-    readAdminSystemSettingString.mockResolvedValueOnce('{"phones":["+79990000000"]}');
-
-    await expect(getServerConfigStructuredValue('test_account_identifiers')).resolves.toEqual({
-      phones: ['+79990000000'],
-    });
-  });
-
-  it.each([
-    ['missing value', () => readAdminSystemSettingString.mockResolvedValueOnce(null)],
-    [
-      'database error',
-      () => readAdminSystemSettingString.mockRejectedValueOnce(new Error('db unavailable')),
-    ],
-    ['malformed JSON', () => readAdminSystemSettingString.mockResolvedValueOnce('{not-json')],
-  ])('fails closed for structured server configuration with %s', async (_caseName, arrange) => {
-    arrange();
-
-    await expect(getServerConfigStructuredValue('test_account_identifiers')).rejects.toBeInstanceOf(
-      RuntimeSettingUnavailableError,
-    );
-  });
 });

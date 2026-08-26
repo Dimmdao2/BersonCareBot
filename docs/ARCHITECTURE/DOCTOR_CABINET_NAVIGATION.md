@@ -129,7 +129,7 @@ Loop-guard `x-bc-doctor-rewrite` сохранён в `doctorRouteRedirects.ts`.
 
 ## Экран «Сегодня» — KPI и health-баннер
 
-**KPI-плитки** (верх страницы): новые сообщения (ссылка в inbox), записи сегодня, записи на неделе, отмены за 30 дн. Определения — [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md). Тестовые аккаунты из `test_account_identifiers` в метриках скрыты, пока не включён **`dev_mode`** (`debug_forward_to_admin` не влияет).
+**KPI-плитки** (верх страницы): новые сообщения (ссылка в inbox), записи сегодня, записи на неделе, отмены за 30 дн. Определения — [`DOCTOR_DASHBOARD_METRICS.md`](DOCTOR_DASHBOARD_METRICS.md). Env-тестовые аккаунты скрыты из метрик на PROD и автоматически включены в DEV/TEST.
 
 **Баннер** «Требуется внимание к здоровью системы» (только `role === admin`): те же **критичные** сигналы, что сводка system-health (`adminDoctorTodayHealthBannerFromSystemHealth` в `collectAdminSystemHealthData`), **без** некритичных `mediaPreview` / `videoPlayback` / `videoPlaybackClient`.
 

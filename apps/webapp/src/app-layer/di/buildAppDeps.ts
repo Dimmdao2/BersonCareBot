@@ -80,7 +80,6 @@ import type { ClientAppointmentHistoryItem } from '@/modules/doctor-clients/serv
 import { createDoctorBroadcastsService } from '@/modules/doctor-broadcasts/service';
 import {
   listClientsForBroadcastAudience,
-  resolveBroadcastEffectiveClients,
   buildRecipientsPreviewFromClients,
 } from '@/modules/doctor-broadcasts/broadcastAudienceMetrics';
 import {
@@ -1388,7 +1387,6 @@ const lfkAssignmentsPortResolved: LfkAssignmentsPort = !inMemoryRepos
 const lfkAssignmentsService = createLfkAssignmentsService(lfkAssignmentsPortResolved);
 
 const notifyPatientDoctorReply = createNotifyPatientDoctorReply({
-  shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
   channelPreferences: channelPreferencesPort,
   topicChannelPrefs: topicChannelPrefsPort,
   webPushSubscriptions: webPushSubscriptionsPort,
@@ -1451,7 +1449,6 @@ const patientNotificationInboxService =
 const doctorSupportMessagingService = createDoctorSupportMessagingService(
   supportCommunicationPort,
   {
-    shouldDispatchRelay: (ctx) => systemSettingsService.shouldDispatchRelayToRecipient(ctx),
     notifyPatientOfDoctorReply: notifyPatientDoctorReply,
   },
 );
@@ -1759,18 +1756,11 @@ function _buildAppDeps() {
       assertWriteClearance: assertMechanicWriteClearance,
       resolveBroadcastAudience: async (filter, channels, category, context) => {
         const clients = await listClientsForBroadcastAudience(doctorClientsPort, filter, context);
-        const { devMode, testAccounts } = await systemSettingsService.getRelayDevContext();
-        const { effective, nominal, cappedByDevMode } = resolveBroadcastEffectiveClients(
-          clients,
-          channels,
-          devMode,
-          testAccounts,
-        );
         const prefsMap = await channelPreferencesPort.getBroadcastNotificationFlagsBatch(
-          effective.map((c) => c.userId),
+          clients.map((c) => c.userId),
         );
         const webPushEligibleUserIds = channels.includes('push')
-          ? await resolveBroadcastWebPushEligibleUserIds(effective, category, {
+          ? await resolveBroadcastWebPushEligibleUserIds(clients, category, {
               webPushSubscriptions: webPushSubscriptionsPort,
               channelPreferences: channelPreferencesPort,
               topicChannelPrefs: topicChannelPrefsPort,
@@ -1782,13 +1772,13 @@ function _buildAppDeps() {
           ? new Set(
               (
                 await broadcastEmailRecipientsPort.getVerifiedEmailsForUserIds(
-                  effective.map((client) => client.userId),
+                  clients.map((client) => client.userId),
                 )
               ).keys(),
             )
           : new Set<string>();
         const eligibleClients = filterEligibleBroadcastClients(
-          effective,
+          clients,
           channels,
           filter,
           prefsMap,
@@ -1800,7 +1790,7 @@ function _buildAppDeps() {
         const base = {
           audienceSize: eligibleClients.length,
           recipientsPreview,
-          effectiveClients: effective,
+          effectiveClients: clients,
           eligibleClients,
           audienceFilter: filter,
           notificationPrefsByUserId: prefsMap,
@@ -1809,12 +1799,6 @@ function _buildAppDeps() {
           webPushEligibleUserIds,
           emailEligibleUserIds,
         };
-        if (!devMode) {
-          return base;
-        }
-        if (cappedByDevMode) {
-          return { ...base, segmentSize: nominal };
-        }
         return base;
       },
       broadcastAuditPort,

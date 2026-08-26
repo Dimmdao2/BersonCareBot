@@ -2,6 +2,8 @@ import webpush from 'web-push';
 import { logger } from '@/infra/logging/logger';
 import { hashWebPushEndpoint } from '@/modules/patient-notifications/hashWebPushEndpoint';
 import type { WebPushSubscriptionPayloadV1 } from '@/modules/web-push/ports';
+import { env } from '@/config/env';
+import { getTestAccountIdentifiers } from '@/config/testAccounts';
 
 export type WebPushClientPayload = {
   title: string;
@@ -58,51 +60,23 @@ export async function sendWebPushToSubscriptions(params: {
   } = params;
   if (subscriptions.length === 0) return { delivered: 0, errors: 0, deactivated: 0 };
 
-  // S16 — DEV SECONDARY SAFETY GUARD (G2, retired as primary sink).
-  //
-  // All 7 web-push messaging legs (S14a–S14g) now route through the integrator dispatchPort,
-  // which applies `applyPreForkDevRedirect` (G1) before adapter selection → the
-  // WebPushDeliveryAdapter is only reached with test-user recipients. This function has 0 live
-  // business-logic callers; it is kept only as a secondary belt-and-suspenders layer for any
-  // hypothetical future direct callers.
-  //
-  // Strategy: DELIVER only to the test user (same source-of-truth as the integrator G1 redirect —
-  // env DEV_REDIRECT_WEB_PUSH_USER_ID, default «Дмитрий Берсон» 1c312a64-fab8-4b75-b24e-88a1d6ebe4e0).
-  // All other subscriptions are SUPPRESSED. NEVER reaches a real endpoint in dev.
-  //
-  // ALLOW_DEV_WEB_PUSH=1 bypasses this guard entirely (e.g. for manual E2E runs with a real device).
-  if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_WEB_PUSH !== '1') {
-    const testUserId =
-      process.env.DEV_REDIRECT_WEB_PUSH_USER_ID?.trim() || '1c312a64-fab8-4b75-b24e-88a1d6ebe4e0';
-    const callerUserId = logContext?.userId;
-
-    // If the caller userId does NOT match the test user, suppress entirely.
-    if (!callerUserId || callerUserId !== testUserId) {
+  // No live business path should bypass integrator. This direct sink remains fail-closed if one does.
+  if (env.NODE_ENV === 'development') {
+    logger.warn(
+      { scope: 'web_push', event: 'local_web_push_suppressed', count: subscriptions.length },
+      '[web-push] local delivery suppressed',
+    );
+    return { delivered: 0, errors: 0, deactivated: 0 };
+  }
+  if (env.TEST) {
+    const callerUserId = logContext?.userId?.trim();
+    if (!callerUserId || !getTestAccountIdentifiers().webPushUserIds.includes(callerUserId)) {
       logger.warn(
-        {
-          scope: 'web_push',
-          event: 'dev_web_push_suppressed',
-          count: subscriptions.length,
-          userId: callerUserId ?? null,
-          testUserId,
-          topicCode: logContext?.topicCode,
-        },
-        '[web-push] DEV suppress: caller is not the test user — not sending to real subscriptions in non-production',
+        { scope: 'web_push', event: 'test_web_push_suppressed', count: subscriptions.length },
+        '[web-push] TEST recipient is not a configured test account',
       );
       return { delivered: 0, errors: 0, deactivated: 0 };
     }
-
-    // Caller IS the test user — allow all their subscriptions through.
-    logger.warn(
-      {
-        scope: 'web_push',
-        event: 'dev_web_push_test_user_allowed',
-        count: subscriptions.length,
-        userId: callerUserId,
-        topicCode: logContext?.topicCode,
-      },
-      "[web-push] DEV: delivering to test user's subscriptions (caller matches DEV_REDIRECT_WEB_PUSH_USER_ID)",
-    );
   }
 
   const body = JSON.stringify({

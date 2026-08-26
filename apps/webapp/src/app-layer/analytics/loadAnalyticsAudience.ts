@@ -7,7 +7,7 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudience';
 
 /**
- * Doctor-facing analytics: exclude test users unless dev_mode; do not exclude staff as clients.
+ * Doctor-facing analytics: production excludes env-declared test users; DEV/TEST include them.
  *
  * Второго загрузчика здесь больше нет. `loadProductAnalyticsAudience()` (он резолвил ещё и
  * сотрудников) обслуживал только экран «Приложение», а тот перешёл на именованный корень и
@@ -17,7 +17,6 @@ import { resolveAnalyticsExcludedUserIds } from '@/infra/repos/pgAnalyticsAudien
 export async function loadDoctorAnalyticsAudience() {
   const deps = buildAppDeps();
   return loadAnalyticsAudienceContext({
-    systemSettings: deps.systemSettings,
     loadExcludedUserIds: (input) => resolveAnalyticsExcludedUserIds(getDrizzle(), input),
   });
 }
@@ -27,6 +26,6 @@ export async function loadDoctorAnalyticsAudience() {
  * идентификаторов — принципал глобального админа не может резолвить их в id сам.
  */
 export async function loadPlatformAnalyticsAudienceSpec() {
-  const deps = buildAppDeps();
-  return loadAnalyticsTestAccountSpec({ systemSettings: deps.systemSettings });
+  buildAppDeps();
+  return loadAnalyticsTestAccountSpec();
 }

@@ -1,5 +1,4 @@
 import type { ModesFormKey } from './modesFormKeys';
-import { normalizeTestAccountIdentifiersValue } from './testAccounts';
 
 export function normalizeValueJson(value: unknown): { value: unknown } {
   if (
@@ -67,14 +66,6 @@ export function normalizeModesFormPatchItem(
       }
       normalizedValue = { value: raw };
     }
-    return { ok: true, valueJson: normalizedValue };
-  }
-
-  if (key === 'test_account_identifiers') {
-    const inner = normalizedValue.value;
-    const cleaned = normalizeTestAccountIdentifiersValue(inner);
-    if (cleaned === null) return { ok: false };
-    normalizedValue = { value: cleaned };
     return { ok: true, valueJson: normalizedValue };
   }
 

@@ -402,13 +402,12 @@ fail-closed конфигурацию из глобального `public.system_
 возвращает `200 skipped`, не блокируя остальные каналы. WebPush всегда передаёт фактическую пару
 `organizationId + platform user UUID`, полученную из активного staff membership.
 
-### dev_mode guard
+### TEST delivery safety
 
-> **KNOWN GAP — 2026-07-27.** Описанный telegram/max-only filter ниже не является correct behaviour: §23 требует покрыть каждый канал, включая SMS и email. См. строку **«Уведомления»** в [`CURRENT_AUTHORITY_MAP.md`](../../docs/CURRENT_AUTHORITY_MAP.md).
-
-Если в `system_settings` включён `dev_mode` (scope: admin), исходящий relay из webapp разрешён только когда пара **`channel` + `recipient`** (Telegram chat id / Max user id) попадает в списки **`test_account_identifiers`** (`telegramIds` / `maxIds`). Проверка: `systemSettingsService.shouldDispatchRelayToRecipient({ channel, recipient })`. Ключ **`integration_test_ids`** остаётся в схеме настроек как legacy, **не** используется для этого guard в текущем webapp.
-
-Экран **`/app/doctor/broadcasts`** в предпросмотре учитывает ту же семантику для оценки доставки в мессенджер (пересечение сегмента с тестовыми Telegram/Max ID). Подробнее: **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`**.
+На TEST финальный integrator-dispatch пропускает без изменения только исходного получателя из env-списков
+`TEST_ACCOUNT_*`; остальные доставки подавляются непосредственно перед вызовом provider adapter. Перенаправления
+на другой тестовый адрес нет. Webapp не фильтрует по этому признаку relay или предпросмотр рассылки: предпросмотр
+всегда показывает реальную целевую аудиторию. На PROD TEST-gate выключен.
 
 **Массовые рассылки врача** (`/app/doctor/broadcasts`): после подтверждения webapp пишет `broadcast_audit`, **`broadcast_audit_recipients`** (все eligible, в т.ч. push-only) и строки в `public.outgoing_delivery_queue` с `kind = doctor_broadcast_intent` и **`payload_json.attachMenu`** при включённой опции меню; доставка идёт **воркером integrator** (`dispatchOutgoing`), без HTTP `relay-outbound` на каждого получателя. См. **`docs/ARCHITECTURE/DOCTOR_BROADCASTS.md`**.
 

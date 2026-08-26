@@ -6,10 +6,20 @@ import { redirect } from 'next/navigation';
 import '../../styles/doctor.css';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
 import { loadDoctorWorkspaceShell } from './loadDoctorWorkspaceShell';
+import { ClinicMaintenanceScreen } from '@/shared/ui/doctor/ClinicMaintenanceScreen';
 
 export default async function DoctorSectionLayout({ children }: { children: ReactNode }) {
   const shell = await loadDoctorWorkspaceShell();
   const { session, workspaceAccess } = shell;
+
+  if (shell.maintenance.enabled) {
+    return (
+      <ClinicMaintenanceScreen
+        clinicName={shell.shellBrand.displayName}
+        message={shell.maintenance.message}
+      />
+    );
+  }
 
   if (!workspaceAccess.canAccessClinicalWorkspace && !workspaceAccess.canManageOrganization) {
     if (shell.canRenderClinicalChildren) {

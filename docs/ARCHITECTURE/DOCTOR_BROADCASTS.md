@@ -19,7 +19,7 @@
 | Доменный сервис                              | `apps/webapp/src/modules/doctor-broadcasts/service.ts`                                                                          |
 | Построение заданий очереди и правила каналов | `.../doctor-broadcasts/deliveryJobs.ts`, `broadcastEligible.ts`                                                                 |
 | Типы и константы                             | `.../doctor-broadcasts/ports.ts`, `deliveryQueueKind.ts` (`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP` = 20)                          |
-| Оценка аудитории / dev_mode                  | `.../doctor-broadcasts/broadcastAudienceMetrics.ts`                                                                             |
+| Оценка аудитории                             | `.../doctor-broadcasts/broadcastAudienceMetrics.ts`                                                                             |
 | DI                                           | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`)                        |
 | Аудит в БД                                   | `apps/webapp/src/infra/repos/pgBroadcastAudit.ts` → **`broadcast_audit`**                                                       |
 | Транзакция аудит + очередь + recipients      | `apps/webapp/src/infra/repos/pgDoctorBroadcastDelivery.ts`                                                                      |
@@ -57,30 +57,24 @@
 ## Предпросмотр: число получателей и список имён
 
 - Размер сегмента считается по тем же фильтрам, что и список клиентов врача: **`DoctorClientsPort.listClients`** (см. `listClientsForBroadcastAudience`).
-- После этого применяется **`resolveBroadcastEffectiveClients`** (ниже про `dev_mode`), затем batch чтение prefs (**`channelPreferencesPort.getBroadcastNotificationFlagsBatch`**) и отбор клиентов, которым действительно уйдёт **хотя бы одно** очередное задание (**`filterEligibleBroadcastClients`**).
+- После этого выполняется batch чтение prefs (**`channelPreferencesPort.getBroadcastNotificationFlagsBatch`**) и отбор клиентов, которым действительно уйдёт **хотя бы одно** очередное задание (**`filterEligibleBroadcastClients`**).
 - В **`BroadcastPreviewResult`** возвращаются:
-  - **`audienceSize`** — число **таких** клиентов (eligible после dev_mode и prefs/isolate-сегментов);
-  - при сужении dev_mode у мессенджера — **`segmentSize`** (размер множества до пересечения с тестовыми аккаунтами, как и раньше);
+  - **`audienceSize`** — число **таких** клиентов (eligible после prefs/isolate-сегментов);
+  - **`segmentSize`** — размер исходного сегмента;
   - **`recipientsPreview`** по тем же eligible-клиентам: `names` (до **`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP`**), `total`, `truncated`.
 - **`execute`** строит **`outgoing_delivery_queue`** через **`buildDoctorBroadcastDeliveryJobs`** по списку **`eligibleClients`** (тот же, что счётчик **`audienceSize`** и список имён в превью); задачи добавляются с тем же правилом каналов/prefs/isolate, что при фильтрации превью.
   - **`delivery_jobs_total`** может быть **>** `audience_size`, если одному клиенту уходят и мессенджер, и SMS (или несколько разрешённых мессенджеров при общих prefs).
 - Для сегментов **`inactive`** и **`sms_only`** фильтр в порту пока **не полный** (фактически «все клиенты», см. `isAudienceEstimateApproximate` в `broadcasts/labels.ts`). Чтобы не вводить в заблуждение, **список имён в UI не показывается** (остаётся предупреждение о грубой оценке числа).
 
-## `dev_mode` и `test_account_identifiers`
+## TEST delivery safety не меняет preview
 
-При **`dev_mode` = true** (admin `system_settings`) расчёт доставки в мессенджер для канала «сообщение в боте» **пересекает** сегмент с **`test_account_identifiers.telegramIds` / `maxIds`** — ту же семантику, что guard исходящего relay: `systemSettingsService.shouldDispatchRelayToRecipient` (см. **`apps/webapp/INTEGRATOR_CONTRACT.md`**, раздел _dev_mode guard_).
-
-- **KNOWN GAP / SUPERSEDED AS TARGET — 2026-07-27:** DEV filter must cover SMS (and email) under §23; see the **«Уведомления»** authority-map row.
-- Только **SMS** при включённом `dev_mode`: relay-guard для SMS в текущем контракте не покрывает телефон как `recipient` → в превью **доставка 0** для этого сценария; **в очередь SMS-задачи не ставятся** (согласовано с превью тем же резолвером аудитории).
-- Каналы «скоро» (`push`, `home_banner`, …) в форме не активны; при попадании в расчёт без `bot_message`/`sms` **пересечение dev_mode не применяется** (список = весь сегмент).
-
-Снимок настроек для превью: **`getRelayDevContext`** в `apps/webapp/src/modules/system-settings/service.ts`.
+Предпросмотр и `execute` работают с настоящей аудиторией и одинаковыми prefs/isolate-фильтрами. На развернутом TEST единственный integrator-gate перед провайдером пропускает неизменённую отправку только исходным получателям из `TEST_ACCOUNT_*`; остальных подавляет. Эта техническая защита намеренно не отражается в числе, списке имён или тексте preview и не хранится в `system_settings`.
 
 ## `preview` и `execute`
 
-Оба пути используют один резолвер аудитории в DI — **`resolveBroadcastAudience`**: он собирает сегмент, применяет **`resolveBroadcastEffectiveClients`** (relay `dev_mode`), batch prefs, считает **`eligibleClients`** и поля превью (число/имена и подпись политики).
+Оба пути используют один резолвер аудитории в DI — **`resolveBroadcastAudience`**: он собирает сегмент, применяет batch prefs, считает **`eligibleClients`** и поля превью (число/имена и подпись политики).
 
-- **`effectiveClients`** — множество после **`dev_mode`** для мессенджеров (до отбора по prefs/isolate).
+- **`effectiveClients`** — исходное множество сегмента до отбора по prefs/isolate.
 - **`eligibleClients`** — те, кому возможна ≥ одна задача после prefs/isolate; **`execute`** ставит задачи **только** по этому списку (**`audience_size`** в аудите = его длина).
 
 **`execute`** (сервис `doctor-broadcasts`):
@@ -120,7 +114,7 @@ adapter integrator разрешает только exact-org credential, для 
 
 | Колонка                      | Смысл                                                                                                                                                             |
 | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `audience_size`              | Число клиентов, которым уйдёт хотя бы одна строка очереди (eligible: dev_mode → prefs/isolate-сегмент).                                                           |
+| `audience_size`              | Число клиентов, которым предназначена хотя бы одна строка очереди после применения preference/isolate-сегмента.                                                   |
 | `delivery_jobs_total`        | Число строк очереди для этой рассылки; **0** — запись до внедрения очереди (legacy).                                                                              |
 | `sent_count` / `error_count` | Инкременты воркера по **завершённым** заданиям очереди (успех / operator-`dead`). **`error_count`** — только реальные ошибки доставки, **не** «бот заблокирован». |
 | `blocked_recipient_count`    | Получатель заблокировал бота (TG/MAX); info-счётчик, не деградация health и не `error_count`.                                                                     |
@@ -190,6 +184,6 @@ Shared SQL: `apps/webapp/src/modules/doctor-clients/activeMessengerBindingSql.ts
 
 - PWA-чат и notification inbox пациента (рассылки, unread, deep links): [`PATIENT_SUPPORT_CHAT_INBOX.md`](PATIENT_SUPPORT_CHAT_INBOX.md).
 - Кабинет специалиста (продуктовый смысл раздела «Рассылки»): [`SPECIALIST_CABINET_STRUCTURE.md`](SPECIALIST_CABINET_STRUCTURE.md) §9.
-- Guard relay: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) (Flow 6, dev_mode).
+- Финальный TEST delivery safety: [`apps/webapp/INTEGRATOR_CONTRACT.md`](../../apps/webapp/INTEGRATOR_CONTRACT.md) (Flow 6).
 - Блокировка бота TG/MAX (health, маркер, post-deploy): [`archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md`](../archive/2026-06-initiatives/MESSENGER_BOT_BLOCK_HANDLING_INITIATIVE/LOG.md), [`OUTGOING_DELIVERY_QUEUE.md`](OUTGOING_DELIVERY_QUEUE.md).
 - Режимы и тестовые аккаунты: [`APP_RESTRUCTURE_INITIATIVE/done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md`](../APP_RESTRUCTURE_INITIATIVE/done/MODES_AND_TEST_ACCOUNTS_EXECUTION_AUDIT.md).

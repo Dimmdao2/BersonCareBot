@@ -1,10 +1,9 @@
 import { logger } from '@/infra/logging/logger';
-import { getServerRuntimeBool } from '@/modules/system-settings/configAdapter';
+import { environmentDiagnosticsEnabled } from '@/config/env';
 
 /**
  * Server-side auth route latency / outcome (no secrets, no raw tokens).
- * Routine `info`-телеметрия: пишется только при admin-флаге `debug_forward_to_admin`
- * (verbose-логи). Fire-and-forget: флаг читается асинхронно, вызыватели не ждут.
+ * Routine `info` telemetry is automatic in DEV and TEST.
  */
 export function logAuthRouteTiming(input: {
   route: string;
@@ -17,7 +16,7 @@ export function logAuthRouteTiming(input: {
   if (process.env.NODE_ENV === 'test') return;
   const elapsedMs = Date.now() - input.startedAt;
   void (async () => {
-    if (!(await getServerRuntimeBool('debug_forward_to_admin'))) return;
+    if (!environmentDiagnosticsEnabled) return;
     logger.info(
       {
         scope: 'auth_route',

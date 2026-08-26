@@ -22,10 +22,6 @@ vi.mock('../email/mailer.js', () => ({
   })),
 }));
 
-vi.mock('../../shared/devDeliveryRedirect.js', () => ({
-  isDevRedirectActive: () => false,
-}));
-
 /** Simulates the store `createPostgresIdempotencyPort` backs onto: a table row, not process memory. */
 function fakePersistentIdempotencyPort(): IdempotencyPort {
   const store = new Map<string, number>();

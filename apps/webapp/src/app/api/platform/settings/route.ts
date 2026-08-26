@@ -23,7 +23,6 @@ import { SURFACE_AUTH_SETTING_KEYS } from '@/modules/auth/surfaceAuthSettings';
  * its four boolean auth-channel policy keys.
  */
 const PLATFORM_GLOBAL_SETTINGS_API_KEYS = [
-  'debug_forward_to_admin',
   'specialist_signup_enabled',
   'patient_unsupported_client_fallback_enabled',
   'patient_app_maintenance_enabled',

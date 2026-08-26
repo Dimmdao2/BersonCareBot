@@ -24,11 +24,6 @@ import {
 } from './orgScopedKeys';
 import { normalizeValueJson } from './adminSettingsPatchNormalize';
 import { invalidateConfigKey } from './configAdapter';
-import {
-  normalizeTestAccountIdentifiersValue,
-  relayRecipientAllowedInDevMode,
-  type TestAccountIdentifiers,
-} from './testAccounts';
 import { mergeBookingPaymentProvidersSecretsRetain } from '@/modules/payments/bookingPaymentSettings';
 import { mergeSaasBillingPaymentProviderSecretsRetain } from '@/modules/saas-billing/settings';
 import {
@@ -112,16 +107,6 @@ async function mergeSmtpOutboundPasswordRetain(
     : { value: o };
 }
 
-async function readTestAccountIdentifiersFromPort(
-  port: SystemSettingsPort,
-): Promise<TestAccountIdentifiers | null> {
-  const row = await port.getByKey('test_account_identifiers', 'admin');
-  if (!row?.valueJson || typeof row.valueJson !== 'object') return null;
-  const inner = (row.valueJson as Record<string, unknown>).value;
-  const parsed = normalizeTestAccountIdentifiersValue(inner);
-  return parsed;
-}
-
 export function createSystemSettingsService(
   port: SystemSettingsPort,
   dependencies: SystemSettingsServiceDependencies = {},
@@ -154,23 +139,6 @@ export function createSystemSettingsService(
       throw new SystemSettingsOrgContextRequiredError(key);
     }
     return organizationId;
-  }
-
-  async function readRelayDevContext(): Promise<{
-    devMode: boolean;
-    testAccounts: TestAccountIdentifiers | null;
-  }> {
-    const devModeSetting = await port.getByKey('dev_mode', 'admin');
-    const devMode =
-      devModeSetting?.valueJson !== null &&
-      typeof devModeSetting?.valueJson === 'object' &&
-      (devModeSetting.valueJson as Record<string, unknown>).value === true;
-
-    if (!devMode) {
-      return { devMode: false, testAccounts: null };
-    }
-    const testAccounts = await readTestAccountIdentifiersFromPort(port);
-    return { devMode: true, testAccounts };
   }
 
   async function writeRows(
@@ -434,34 +402,6 @@ export function createSystemSettingsService(
         invalidateConfigKey(setting.key);
       }
       return saved;
-    },
-
-    /**
-     * Dev-mode guard для relay-outbound: при `dev_mode` сравниваются `channel` и `recipient` с `test_account_identifiers`
-     * (`telegramIds` / `maxIds` через `relayRecipientAllowedInDevMode`). Поле `phones` в том же ключе используется для
-     * allowlist доставки relay; bypass техработ пациента проверяется отдельной boolean-only DB capability.
-     */
-    async shouldDispatchRelayToRecipient(ctx: {
-      channel: string;
-      recipient: string;
-    }): Promise<boolean> {
-      const { devMode, testAccounts } = await readRelayDevContext();
-      if (!devMode) return true;
-      if (testAccounts === null) return false;
-      return relayRecipientAllowedInDevMode(ctx.channel, ctx.recipient, testAccounts);
-    },
-
-    /**
-     * Снимок admin `dev_mode` + `test_account_identifiers` для оценки доставки (рассылки, предпросмотр relay).
-     */
-    getRelayDevContext: readRelayDevContext,
-
-    /**
-     * Тестовый пациентский аккаунт для bypass техработ: совпадение по телефону (E.164) или Telegram/Max ID из сессии.
-     * Fail-closed при отсутствии или некорректном `test_account_identifiers`.
-     */
-    async isCurrentPatientTestAccount(): Promise<boolean> {
-      return port.isCurrentPatientTestAccount();
     },
 
     /**

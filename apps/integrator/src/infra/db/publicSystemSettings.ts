@@ -26,8 +26,7 @@ export type IntegratorProviderRuntimeSettingKey =
   | 'vk_callback_confirmation_token'
   | 'smsc_enabled'
   | 'smsc_api_key'
-  | 'smsc_base_url'
-  | 'debug_forward_to_admin';
+  | 'smsc_base_url';
 
 /** Wrapper shape stored in the `value_json` column. */
 export const systemSettingValueEnvelopeSchema = z
@@ -204,15 +203,6 @@ export async function fetchOperatorHealthProbeConfigValueJson(db: DbPort): Promi
     sql`SELECT app.read_operator_health_probe_config() AS value_json`,
   );
   return result.rows[0]?.value_json ?? null;
-}
-
-/** Verbose operational logging flag through its capability; boolean-only, fail-safe false. */
-export async function fetchOperationalVerboseLogFlag(db: DbPort): Promise<boolean> {
-  const valueJson = await fetchIntegratorProviderRuntimeSettingValueJson(
-    db,
-    'debug_forward_to_admin',
-  );
-  return parseSystemSettingTrueLiteral(valueJson);
 }
 
 /** Organizations with the clinic Google Calendar switch on, for the outbound probe only. */

@@ -11,6 +11,13 @@ const parsed = z
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().default(3000),
     LOG_LEVEL: z.string().default('info'),
+    /** Deployment identity and final TEST delivery allowlist; never admin-editable settings. */
+    TEST: z.string().optional().default(''),
+    TEST_ACCOUNT_PHONES: z.string().optional().default(''),
+    TEST_ACCOUNT_TELEGRAM_IDS: z.string().optional().default(''),
+    TEST_ACCOUNT_MAX_IDS: z.string().optional().default(''),
+    TEST_ACCOUNT_EMAILS: z.string().optional().default(''),
+    TEST_ACCOUNT_WEB_PUSH_USER_IDS: z.string().optional().default(''),
     /** Cutover-only deployment switch; never an admin-editable integration setting. */
     TELEGRAM_DELETE_WEBHOOK_ON_START: z
       .string()

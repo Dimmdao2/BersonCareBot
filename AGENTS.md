@@ -525,7 +525,12 @@ fixture/bypass. Агент обязан входить этими учёткам
 Чистый public/login без сессии: `/api/auth/dev-public`; явная регистрация кабинета:
 `/api/auth/dev-public?view=registration`. Это dev-only clear-session helper, не отдельная authenticated role.
 
-**Не путать:** `system_settings.dev_mode` в БД — тестовые аккаунты в аналитике, не вход.
+**Среда и тестовые аккаунты:** `TEST=true` и `TEST_ACCOUNT_*` — deploy-owned env-контракт DEV/TEST,
+не настройки в БД. В DEV и TEST подробные operational-логи и диагностические экраны включаются автоматически;
+на PROD выключены. Предпросмотры и бизнес-логика всегда видят настоящих получателей. Единственный safety-gate
+стоит в integrator непосредственно перед провайдером: локальный DEV подавляет внешнюю отправку целиком, TEST
+доставляет неизменённое сообщение только исходным получателям из `TEST_ACCOUNT_*`, остальных подавляет без
+редиректа. TEST-аккаунты задаются в env телефонами, e-mail, Telegram/MAX ID и web-push user ID.
 
 Подробности, curl, browser MCP, типовые сценарии — в каноническом документе выше.
 
@@ -691,6 +696,12 @@ key/scope плюс непустой `organization_id`, с сохранением
 (`apps/integrator/src/infra/db/publicSystemSettings.ts`); зеркала `integrator.system_settings` нет. Прод и тест —
 одна PostgreSQL со схемами `integrator` и `public` (`docs/ARCHITECTURE/DATABASE_UNIFIED_POSTGRES.md`). Новые env
 для значений, которым место в `system_settings`, не добавлять — см. [§4](#4-system_settings-одна-таблица-public-зеркала-нет).
+
+**Environment identity и safety — отдельная process-level граница.** `TEST` и `TEST_ACCOUNT_*` живут только в
+env DEV/TEST: они определяют среду, автоматические diagnostics и финальный запрет реальной доставки на TEST.
+Это не user-facing whitelist и не настройка интеграции; в `system_settings` и Settings UI их копий быть не
+должно. Единственная сохраняемая в БД режимная настройка — технические работы, потому что её меняет оператор без
+редеплоя и она управляет экраном техработ для пациентов и кабинетов клиник.
 
 Канон: `docs/ARCHITECTURE/CONFIGURATION_ENV_VS_DATABASE.md`.
 
@@ -1975,7 +1986,7 @@ _Scoped: doctor CMS media pickers._
 ### Известные пересечения правил
 
 - **Patient UI primitives vs isolation (§15 vs §17):** в patient/doctor **routes** импорт `@/components/ui/**` запрещён ESLint — используйте `shared/ui/patient/primitives` или `shared/ui/doctor/primitives`. Канонический shadcn живёт в `components/ui/` как **источник для копирования**, не для прямого импорта в product zones.
-- **`dev_mode` (БД) vs `ALLOW_DEV_AUTH_BYPASS` (env):** см. [§1a](#1a-локальный-dev-и-тестирование-ui).
+- **TEST identity / delivery safety vs `ALLOW_DEV_AUTH_BYPASS`:** см. [§1a](#1a-локальный-dev-и-тестирование-ui).
 
 ### Деплой и ops (кратко)
 
