@@ -20,13 +20,11 @@ export async function listClientsForBroadcastAudience(
   context: DoctorBroadcastAudienceContext,
 ): Promise<ClientListItem[]> {
   const list = (filters: Parameters<DoctorClientsPort['listClients']>[0]) =>
-    port.listClients(
-      {
-        ...filters,
-        organizationId: context.organizationId,
-        visibilityActor: context.visibilityActor,
-      },
-    );
+    port.listClients({
+      ...filters,
+      organizationId: context.organizationId,
+      visibilityActor: context.visibilityActor,
+    });
   if (filter === 'with_telegram') {
     return list({ hasTelegram: true });
   }
@@ -58,7 +56,8 @@ export async function listClientsForBroadcastAudience(
 
 /**
  * Клиенты, которым уйдёт доставка через relay-слой: без dev_mode — весь сегмент;
- * при dev_mode — как `relayRecipientAllowedInDevMode` (только тестовые Telegram/Max для `bot_message`); только SMS → пусто.
+ * при dev_mode — как `relayRecipientAllowedInDevMode` (только тестовые Telegram/Max для выбранных messenger-каналов);
+ * только SMS → пусто.
  */
 export function resolveBroadcastEffectiveClients(
   clients: readonly ClientListItem[],
@@ -71,7 +70,10 @@ export function resolveBroadcastEffectiveClients(
     return { effective: [...clients], nominal, cappedByDevMode: false };
   }
 
-  const wantsBot = channels.includes('bot_message');
+  const legacyBotMessage = channels.includes('bot_message');
+  const wantsTelegram = legacyBotMessage || channels.includes('telegram');
+  const wantsMax = legacyBotMessage || channels.includes('max');
+  const wantsBot = wantsTelegram || wantsMax;
   const wantsSms = channels.includes('sms');
   const onlySms = wantsSms && !wantsBot;
   const noRelayChannels = !wantsSms && !wantsBot;
@@ -91,13 +93,13 @@ export function resolveBroadcastEffectiveClients(
   const effective: ClientListItem[] = [];
   for (const c of clients) {
     let hit = false;
-    if (wantsBot) {
+    if (wantsTelegram) {
       const tg = c.bindings.telegramId?.trim();
       if (tg && testAccounts.telegramIds.includes(tg)) hit = true;
-      if (!hit) {
-        const mx = c.bindings.maxId?.trim();
-        if (mx && testAccounts.maxIds.includes(mx)) hit = true;
-      }
+    }
+    if (!hit && wantsMax) {
+      const mx = c.bindings.maxId?.trim();
+      if (mx && testAccounts.maxIds.includes(mx)) hit = true;
     }
     if (hit) effective.push(c);
   }
