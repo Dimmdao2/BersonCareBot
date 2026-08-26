@@ -30,11 +30,7 @@ import { DoctorTodayWeeklyAppointmentsChart } from './DoctorTodayWeeklyAppointme
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
-import {
-  ON_SUPPORT_LIST_HREF,
-  PROGRAM_WITHOUT_SUPPORT_LIST_HREF,
-  RECENT_VISITS_LIST_HREF,
-} from './doctorTodayLinks';
+import { ON_SUPPORT_LIST_HREF, RECENT_VISITS_LIST_HREF } from './doctorTodayLinks';
 
 export type DoctorTodayCalendarSnapshot = {
   todayIso: string;
@@ -103,22 +99,12 @@ function DoctorTodayPeopleSection({
           <p>
             {peopleListIsOnSupport ? 'Клиентов на сопровождении нет' : 'Клиентов с визитами нет'}
           </p>
-          <div className="flex flex-col gap-1">
-            <Link
-              href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
-              className={`${doctorInlineLinkClass} w-fit`}
-            >
-              Список клиентов
-            </Link>
-            {peopleListIsOnSupport ? (
-              <Link
-                href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                className={`${doctorInlineLinkClass} w-fit text-xs`}
-              >
-                Программа без сопровождения
-              </Link>
-            ) : null}
-          </div>
+          <Link
+            href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
+            className={`${doctorInlineLinkClass} w-fit`}
+          >
+            Список клиентов
+          </Link>
         </DoctorEmptyState>
       ) : (
         <>
@@ -174,8 +160,8 @@ function DoctorTodayPeopleSection({
               </li>
             ))}
           </ul>
-          <p className="flex flex-col gap-1">
-            {peopleListTruncated ? (
+          {peopleListTruncated ? (
+            <p>
               <Link
                 href={peopleListIsOnSupport ? ON_SUPPORT_LIST_HREF : RECENT_VISITS_LIST_HREF}
                 className={`${doctorInlineLinkClass} text-sm`}
@@ -183,16 +169,8 @@ function DoctorTodayPeopleSection({
               >
                 {peopleListIsOnSupport ? 'Все на сопровождении' : 'Открыть клиентов'}
               </Link>
-            ) : null}
-            {peopleListIsOnSupport ? (
-              <Link
-                href={PROGRAM_WITHOUT_SUPPORT_LIST_HREF}
-                className={`${doctorInlineLinkClass} w-fit text-xs`}
-              >
-                Программа без сопровождения
-              </Link>
-            ) : null}
-          </p>
+            </p>
+          ) : null}
         </>
       )}
     </DoctorSection>
@@ -351,7 +329,8 @@ export function DoctorTodayDashboard({
           </span>
         }
         size="lg"
-        bodyClassName="px-0"
+        bodyClassName={isMobile ? 'px-0' : undefined}
+        desktopPresentation="right-sheet"
       >
         <DoctorTodayPeopleSection
           data={data}

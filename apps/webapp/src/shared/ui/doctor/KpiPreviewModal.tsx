@@ -1,7 +1,7 @@
 'use client';
 
 import { type ReactNode, useState } from 'react';
-import { DoctorModal } from './DoctorModal';
+import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { cn } from '@/lib/utils';
@@ -31,6 +31,7 @@ export type KpiPreviewModalProps<T> = {
   emptyState?: ReactNode;
   /** Whether data is still loading (shows skeleton) */
   loading?: boolean;
+  desktopPresentation?: DoctorModalDesktopPresentation;
 };
 
 /**
@@ -52,6 +53,7 @@ export function KpiPreviewModal<T>({
   quickFilters,
   emptyState,
   loading = false,
+  desktopPresentation,
 }: KpiPreviewModalProps<T>) {
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<number | null>(null);
@@ -88,6 +90,7 @@ export function KpiPreviewModal<T>({
         </span>
       }
       size="lg"
+      desktopPresentation={desktopPresentation}
     >
       <div className="flex flex-col gap-3">
         {/* Search */}

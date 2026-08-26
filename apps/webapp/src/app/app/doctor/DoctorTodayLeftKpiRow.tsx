@@ -223,6 +223,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Комментарии"
         count={displayTotal}
+        desktopPresentation="right-sheet"
         items={exerciseCommentItems}
         renderItem={(item) => <ExerciseCommentModalItem item={item} />}
         emptyState={
@@ -238,6 +239,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Сообщения"
         count={unreadTotal}
+        desktopPresentation="right-sheet"
         items={unreadConversations}
         renderItem={(item) => <UnreadConversationModalItem item={item} />}
         emptyState={
@@ -256,6 +258,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Тесты к проверке"
         count={pendingProgramTestsTotal}
+        desktopPresentation="right-sheet"
         items={pendingProgramTests}
         renderItem={(item) => <PendingTestModalItem item={item} />}
         emptyState={
@@ -270,6 +273,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Задачи"
         count={attentionTasks.length}
+        desktopPresentation="right-sheet"
         items={attentionTasks}
         renderItem={(task) => (
           <TaskRow

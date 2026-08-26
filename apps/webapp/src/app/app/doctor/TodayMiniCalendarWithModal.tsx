@@ -2,7 +2,9 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect } from 'react';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import type { DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
@@ -120,6 +122,7 @@ export function TodayMiniCalendarWithModal({
   const [workingBounds, setWorkingBounds] = useState<WorkingBounds | null | undefined>(undefined);
   const [showWorkingHours, setShowWorkingHours] = useState<boolean | undefined>(undefined);
   const [calendarTimeZone, setCalendarTimeZone] = useState(displayIana);
+  const isMobileViewport = useIsMobileViewport();
 
   const { todayIso, nowMinutes, todayDateLabel } = calendarSnapshot;
 
@@ -208,30 +211,55 @@ export function TodayMiniCalendarWithModal({
         />
       )}
 
-      <Dialog
-        open={selected !== null}
-        onOpenChange={(open) => {
-          if (!open) setSelected(null);
-        }}
-      >
-        <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
-          <div className="overflow-y-auto max-h-[90dvh]">
-            {selected ? (
-              <DoctorCalendarEventPanel
-                apiBase={API_BASE}
-                selected={selected}
-                timeZone={calendarTimeZone}
-                filterMeta={filterMeta}
-                activeFilters={EMPTY_ACTIVE_FILTERS}
-                ownSpecialistId={ownSpecialistId}
-                onClose={() => setSelected(null)}
-                onChanged={handleChanged}
-                showCloseControl={false}
-              />
-            ) : null}
-          </div>
-        </DialogContent>
-      </Dialog>
+      {isMobileViewport ? (
+        <Dialog
+          open={selected !== null}
+          onOpenChange={(open) => {
+            if (!open) setSelected(null);
+          }}
+        >
+          <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
+            <div className="max-h-[90dvh] overflow-y-auto">
+              {selected ? (
+                <DoctorCalendarEventPanel
+                  apiBase={API_BASE}
+                  selected={selected}
+                  timeZone={calendarTimeZone}
+                  filterMeta={filterMeta}
+                  activeFilters={EMPTY_ACTIVE_FILTERS}
+                  ownSpecialistId={ownSpecialistId}
+                  onClose={() => setSelected(null)}
+                  onChanged={handleChanged}
+                  showCloseControl={false}
+                />
+              ) : null}
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : (
+        <DoctorModal
+          open={selected !== null}
+          onClose={() => setSelected(null)}
+          title="Детали записи"
+          size="lg"
+          desktopPresentation="right-sheet"
+        >
+          {selected ? (
+            <DoctorCalendarEventPanel
+              apiBase={API_BASE}
+              selected={selected}
+              timeZone={calendarTimeZone}
+              filterMeta={filterMeta}
+              activeFilters={EMPTY_ACTIVE_FILTERS}
+              ownSpecialistId={ownSpecialistId}
+              onClose={() => setSelected(null)}
+              onChanged={handleChanged}
+              showCloseControl={false}
+              flushChrome
+            />
+          ) : null}
+        </DoctorModal>
+      )}
     </>
   );
 }
