@@ -1121,9 +1121,12 @@ build/test graph, проверяются своим syntax/smoke gate и так�
 Выполнять:
 
 ```bash
-pnpm install --frozen-lockfile
-pnpm run ci
+TEST_CPUSET=0-7 VITEST_MAX_WORKERS=8 \
+  /home/dev/brain/host-orch/run-tests.sh "pnpm install --frozen-lockfile && pnpm run ci"
 ```
+
+На текущем 8-vCPU DEV/TEST-хосте это один прогон под общим lock, но без унаследованного от desktop-агента
+ограничения в два CPU. Не запускать несколько full CI параллельно и не обходить `run-tests.sh`.
 
 (`pnpm check` — алиас того же `ci`.)
 
