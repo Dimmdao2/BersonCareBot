@@ -44,7 +44,7 @@ export function DoctorCalendarToolbarFilter({
     return (
       <span
         className={cn(
-          'inline-flex h-8 w-[10rem] min-w-0 items-center rounded-md border border-border bg-muted/40 px-2 text-xs text-foreground',
+          'doctor-button-radius inline-flex h-8 w-[10rem] min-w-0 items-center border border-border bg-muted/40 px-2 text-xs text-foreground',
           className,
         )}
       >

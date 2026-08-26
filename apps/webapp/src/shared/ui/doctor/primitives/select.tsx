@@ -36,7 +36,7 @@ export function SelectContent({
     <SharedSelectContent
       align={align}
       alignItemWithTrigger={alignItemWithTrigger}
-      className={cn('[&_[data-slot=select-item]]:pl-3', className)}
+      className={cn('doctor-button-radius [&_[data-slot=select-item]]:pl-3', className)}
       {...props}
     />
   );
