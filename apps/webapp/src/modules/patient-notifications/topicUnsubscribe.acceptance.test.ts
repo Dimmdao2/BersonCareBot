@@ -72,10 +72,12 @@ describe('topic unsubscribe signed flow', () => {
     );
 
     await expect(service.unsubscribeByToken(token)).resolves.toEqual({
+      applied: true,
       topicCode: 'patient_news',
       topicTitle: 'Новости и уведомления',
     });
     await expect(service.unsubscribeByToken(token)).resolves.toEqual({
+      applied: true,
       topicCode: 'patient_news',
       topicTitle: 'Новости и уведомления',
     });
@@ -110,6 +112,7 @@ describe('topic unsubscribe signed flow', () => {
     );
 
     await expect(service.unsubscribeByToken(token)).resolves.toEqual({
+      applied: false,
       topicCode: null,
       topicTitle: null,
     });
@@ -139,6 +142,7 @@ describe('topic unsubscribe signed flow', () => {
     const tamperedPayload = `${payload?.slice(0, -1)}${payload?.endsWith('A') ? 'B' : 'A'}`;
 
     await expect(service.unsubscribeByToken(`${tamperedPayload}.${signature}`)).resolves.toEqual({
+      applied: false,
       topicCode: null,
       topicTitle: null,
     });

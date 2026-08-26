@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!(await isAuthChannelEnabled(row.method))) {
+  if (!(await isAuthChannelEnabled(row.method, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 

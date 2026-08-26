@@ -2,7 +2,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import { isValidNotificationTopicId, isValidNotificationTopicTitle } from './notificationsTopics';
 
-const TOKEN_VERSION = 1;
+// v2 adds the clinic context required by the tenant-scoped write door. Older links fail honestly
+// instead of being accepted under the same version with a now-incompatible payload shape.
+const TOKEN_VERSION = 2;
 const SIGNING_PURPOSE = 'patient-notification-topic-unsubscribe';
 export const PUBLIC_TOPIC_UNSUBSCRIBE_PATH = '/api/public/notifications/unsubscribe';
 
@@ -17,7 +19,9 @@ type TopicUnsubscribeTokenPayload = {
 };
 
 export type TopicUnsubscribeResult = {
-  /** Null only when the token itself is invalid; never exposes recipient existence. */
+  /** True only after the preference write completed. Invalid links and failed writes are indistinguishable. */
+  applied: boolean;
+  /** Present only after a completed write; never exposes recipient existence on failure. */
   topicCode: string | null;
   /** The human title from the signed delivery link, when present. */
   topicTitle: string | null;
@@ -134,7 +138,7 @@ export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps)
     async unsubscribeByToken(token: string): Promise<TopicUnsubscribeResult> {
       const secret = requireSecret(deps.getSecret);
       const payload = decodeToken(token.trim(), secret);
-      if (!payload) return { topicCode: null, topicTitle: null };
+      if (!payload) return { applied: false, topicCode: null, topicTitle: null };
       try {
         await deps.runForPatient(payload.userId, payload.organizationId, () =>
           deps.setTopicEnabled(payload.userId, payload.topicCode, false),
@@ -143,9 +147,9 @@ export function createTopicUnsubscribeService(deps: TopicUnsubscribeServiceDeps)
         deps.onWriteFailure?.(error);
         // Public response must not reveal whether the signed recipient still exists, and a failed
         // write must never be presented as a completed unsubscribe.
-        return { topicCode: null, topicTitle: null };
+        return { applied: false, topicCode: null, topicTitle: null };
       }
-      return { topicCode: payload.topicCode, topicTitle: payload.topicTitle ?? null };
+      return { applied: true, topicCode: payload.topicCode, topicTitle: payload.topicTitle ?? null };
     },
   };
 }

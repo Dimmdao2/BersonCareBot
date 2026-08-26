@@ -9,7 +9,7 @@
  * channel policy instead of the patient one — closing Telegram/MAX login for patients whenever
  * staff has it off, without the owner ever touching a patient setting.
  *
- * The fix (2026-08-26) is not a second resolver: the six patient-only messenger-bind/channel-link
+ * The fix (2026-08-26) is not a second resolver: patient-only messenger-bind/channel-link
  * routes now pass the existing `surface` override argument to `isAuthChannelEnabled(channel,
  * 'patient')` explicitly, instead of relying on the ambient Host-derived resolution. This oracle
  * proves that override wins unconditionally — even while the ambient resolved-surface header

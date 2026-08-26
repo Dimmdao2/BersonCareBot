@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
   const mx = session.user.bindings.maxId?.trim() ?? '';
   const hint = request.headers.get('x-bersoncare-contact-channel');
   const target = resolveMessengerContactTarget({ headerHint: hint, telegramId: tg, maxId: mx });
-  if (target && !(await isAuthChannelEnabled(target.channel))) {
+  if (target && !(await isAuthChannelEnabled(target.channel, 'patient'))) {
     return NextResponse.json({ ok: false, error: AUTH_CHANNEL_DISABLED_ERROR }, { status: 403 });
   }
 
