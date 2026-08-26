@@ -497,6 +497,10 @@ export async function scheduleBookingReminders(input: {
     );
     return;
   }
+  const eventKeyHash = createHash('sha256')
+    .update(input.materializationEventKey)
+    .digest('base64url')
+    .slice(0, 16);
   const body = JSON.stringify({
     organizationId: input.organizationId,
     appointmentId: input.appointmentId,
@@ -505,14 +509,11 @@ export async function scheduleBookingReminders(input: {
     ...(input.phoneNormalized ? { phoneNormalized: input.phoneNormalized } : {}),
     slotStartIso: input.slotStartIso,
     patientName: input.patientName,
+    generationRevision: eventKeyHash,
     cancelPending: input.cancelPending === true,
     reminderPlan: input.reminderPlan ?? { enabled: false, offsetsMinutes: [] },
   });
   const generationKey = `${input.appointmentId}:${input.slotStartIso}`;
-  const eventKeyHash = createHash('sha256')
-    .update(input.materializationEventKey)
-    .digest('base64url')
-    .slice(0, 16);
   const result = await input.webappEventsPort.materializeAppointmentReminders({
     body,
     idempotencyKey: `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}:${eventKeyHash}`.slice(

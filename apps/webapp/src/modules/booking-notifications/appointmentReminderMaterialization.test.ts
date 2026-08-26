@@ -7,6 +7,7 @@ const base = {
   bookingId: 'legacy-booking-a',
   platformUserId: '30000000-0000-4000-8000-000000000003',
   slotStartIso: '2026-08-05T12:00:00.000Z',
+  generationRevision: 'mutation-1',
   patientName: 'Пациент',
   reminderPlan: { enabled: true, offsetsMinutes: [120] },
   cancelPending: false,
@@ -67,6 +68,24 @@ describe('appointment reminder product materialization', () => {
     );
     expect(created[0]?.eventId).toBe(payment[0]?.eventId);
     expect(rescheduled[0]?.eventId).not.toBe(created[0]?.eventId);
+  });
+
+  it('creates a new delivery identity when a later patient mutation rebuilds the same reminder', () => {
+    const audience = { selectedChannels: ['telegram'], telegramId: 'tg-1', hasWebPush: false };
+    const first = prepareAppointmentReminderDeliveries(
+      base,
+      audience,
+      '2026-08-03T00:00:00.000Z',
+      'Europe/Moscow',
+    );
+    const later = prepareAppointmentReminderDeliveries(
+      { ...base, generationRevision: 'mutation-2' },
+      audience,
+      '2026-08-03T01:00:00.000Z',
+      'Europe/Moscow',
+    );
+
+    expect(later[0]?.eventId).not.toBe(first[0]?.eventId);
   });
 
   it('materializes nothing for cancellation, disabled policy, or already-due reminders', () => {

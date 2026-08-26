@@ -7,6 +7,7 @@ export const appointmentReminderMaterializationBodySchema = z.object({
   platformUserId: z.string().uuid().optional(),
   phoneNormalized: z.string().min(8).max(32).optional(),
   slotStartIso: z.string().datetime({ offset: true }),
+  generationRevision: z.string().min(1).max(64),
   patientName: z.string().max(500).nullable().optional(),
   cancelPending: z.boolean().default(false),
   reminderPlan: z.object({

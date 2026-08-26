@@ -55,6 +55,7 @@ describe('scheduleBookingReminders unified materializer handoff', () => {
     expect(JSON.parse(body)).toMatchObject({
       appointmentId: '20000000-0000-4000-8000-000000000002',
       slotStartIso,
+      generationRevision: expect.any(String),
       reminderPlan: { enabled: true, offsetsMinutes: [90, 30] },
       cancelPending: false,
     });

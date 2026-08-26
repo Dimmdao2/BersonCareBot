@@ -75,6 +75,7 @@ export async function POST(request: Request) {
           bookingId: parsed.data.bookingId,
           platformUserId: platform.platformUserId,
           slotStartIso: parsed.data.slotStartIso,
+          generationRevision: parsed.data.generationRevision,
           patientName: parsed.data.patientName ?? null,
           reminderPlan: parsed.data.reminderPlan,
           cancelPending: parsed.data.cancelPending,

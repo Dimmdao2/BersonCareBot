@@ -10,6 +10,7 @@ export type AppointmentReminderMaterializationInput = {
   bookingId: string;
   platformUserId: string;
   slotStartIso: string;
+  generationRevision: string;
   patientName: string | null;
   reminderPlan: { enabled: boolean; offsetsMinutes: number[] };
   cancelPending: boolean;
@@ -23,7 +24,7 @@ export type AppointmentReminderAudience = {
 };
 
 function generationKey(input: AppointmentReminderMaterializationInput, dueAt: string): string {
-  return `${input.appointmentId}:${encodeURIComponent(input.slotStartIso)}:${encodeURIComponent(dueAt)}`;
+  return `${input.appointmentId}:${encodeURIComponent(input.slotStartIso)}:${encodeURIComponent(dueAt)}:${encodeURIComponent(input.generationRevision)}`;
 }
 
 function messengerStep(channel: 'telegram' | 'max', externalId: string): AppointmentReminderMessengerStep {
