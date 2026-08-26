@@ -245,12 +245,17 @@ migrator_state="$(db_call 'проверка роли мигратора' "$DB_CA
   fail "$MIGRATOR_ROLE is not the stationary declaration migrator"
 
 # Documentation is not part of the executable branch artifact and must never hold a deploy hostage.
-# Keep foreign staged docs intact; only uncommitted non-Markdown changes fail the source-integrity gate.
+# The bundle below is built from the named branch ref, not from the checked-out worktree. Dirty
+# executable files matter only when that same branch is checked out: changes on a parallel branch
+# cannot enter the bundle and must not block an unrelated committed deploy.
 SOURCE_NON_DOCUMENT_PATHSPEC=(. ':(exclude,glob)**/*.md' ':(exclude,glob)*.md')
-git -C "$SRC_REPO" diff --quiet --ignore-submodules -- "${SOURCE_NON_DOCUMENT_PATHSPEC[@]}" ||
-  fail 'tracked non-document source changes must be committed before TEST deploy'
-git -C "$SRC_REPO" diff --cached --quiet --ignore-submodules -- "${SOURCE_NON_DOCUMENT_PATHSPEC[@]}" ||
-  fail 'staged non-document source changes must be committed before TEST deploy'
+source_current_branch="$(git -C "$SRC_REPO" symbolic-ref --quiet --short HEAD || true)"
+if [[ "$source_current_branch" == "$BRANCH" ]]; then
+  git -C "$SRC_REPO" diff --quiet --ignore-submodules -- "${SOURCE_NON_DOCUMENT_PATHSPEC[@]}" ||
+    fail 'tracked non-document source changes must be committed before TEST deploy'
+  git -C "$SRC_REPO" diff --cached --quiet --ignore-submodules -- "${SOURCE_NON_DOCUMENT_PATHSPEC[@]}" ||
+    fail 'staged non-document source changes must be committed before TEST deploy'
+fi
 git -C "$SRC_REPO" show-ref --verify --quiet "refs/heads/$BRANCH" || fail "local branch does not exist: $BRANCH"
 
 rm -f -- "$BUNDLE"
