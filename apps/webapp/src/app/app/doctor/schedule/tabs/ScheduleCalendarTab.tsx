@@ -2026,6 +2026,9 @@ export function ScheduleCalendarTab({
                   border-color: color-mix(in srgb, var(--border) 52%, transparent) !important;
                 }
 
+                /* Drag-selection and click-created draft use the same calendar draft color. */
+                .fc .fc-highlight { background-color: rgb(14 165 233 / 20%) !important; }
+
                 .fc-timegrid-event-harness { margin-inline: 1px; }
                 /* Pointer only on real (interactive) events. Background events —
                    non-working fill + breaks — are not clickable (dateClick is
