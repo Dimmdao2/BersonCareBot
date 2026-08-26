@@ -398,9 +398,10 @@ DDL/DML от владельца объекта либо `-- BCB-MIGRATION-BACKFI
 Runner временно даёт мигратору ровно указанную роль, исполняет statement через `SET LOCAL ROLE` и снимает членство
 до конца транзакции; поэтому маркер описывает фактического владельца, а не комментарий для человека.
 
-Если statement создаёт схему, `-- BCB-MIGRATION-SCHEMA-CREATE: <schema>` ставится сразу после owner-маркера. Если
-для DDL нужен procedural language, следующий маркер — `-- BCB-MIGRATION-LANGUAGE-USAGE: <language>`. Эти маркеры
-не самостоятельные statement и не ставятся после SQL: parser читает их только в указанном порядке в начале блока.
+Если statement создаёт новый объект в схеме и его owner-роли нужны временные `CREATE` + `USAGE` на эту схему,
+`-- BCB-MIGRATION-SCHEMA-CREATE: <schema>` ставится сразу после owner-маркера. Если для DDL нужен procedural
+language, следующий маркер — `-- BCB-MIGRATION-LANGUAGE-USAGE: <language>`. Эти маркеры не самостоятельные
+statement и не ставятся после SQL: parser читает их только в указанном порядке в начале блока.
 Если `CREATE OR REPLACE FUNCTION` чинит уже существующую функцию с чужим владельцем, следом ставится
 `-- BCB-MIGRATION-REHOME-FUNCTION: <exact-regprocedure>`: runner внутри той же транзакции передаёт только эту
 существующую сигнатуру owner-роли блока до выполнения тела; для новой функции и обычной замены маркер не нужен.

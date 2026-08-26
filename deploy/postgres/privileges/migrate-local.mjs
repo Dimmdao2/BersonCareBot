@@ -469,7 +469,7 @@ const statements = [
   ...unapplyStatements,
   ...owners.map((owner) => `GRANT ${sqlIdentifier(owner)} TO ${qMigrator} WITH ADMIN FALSE, INHERIT FALSE, SET TRUE;`),
   ...temporarySchemaCreates.map(({ owner, schema }) =>
-    `GRANT CREATE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
+    `GRANT CREATE, USAGE ON SCHEMA ${sqlIdentifier(schema)} TO ${sqlIdentifier(owner)};`),
   ...temporaryLanguageUsages.map(({ owner, language }) =>
     `GRANT USAGE ON LANGUAGE ${sqlIdentifier(language)} TO ${sqlIdentifier(owner)};`),
   ...temporaryFunctionRehomes.map(({ owner, functionIdentity }) =>
@@ -520,7 +520,7 @@ const statements = [
   'RESET SESSION AUTHORIZATION;',
   ...(backfill ? [`\\i ${backfill}`] : []),
   ...temporarySchemaCreates.map(({ owner, schema }) =>
-    `REVOKE CREATE ON SCHEMA ${sqlIdentifier(schema)} FROM ${sqlIdentifier(owner)};`),
+    `REVOKE CREATE, USAGE ON SCHEMA ${sqlIdentifier(schema)} FROM ${sqlIdentifier(owner)};`),
   ...temporaryLanguageUsages.map(({ owner, language }) =>
     `REVOKE USAGE ON LANGUAGE ${sqlIdentifier(language)} FROM ${sqlIdentifier(owner)};`),
   ...owners.map((owner) => `REVOKE ${sqlIdentifier(owner)} FROM ${qMigrator};`),

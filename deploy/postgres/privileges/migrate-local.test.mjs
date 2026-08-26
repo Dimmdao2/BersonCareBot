@@ -83,6 +83,16 @@ test('rollback-only sends pending Drizzle DDL through one transaction without a 
   const transaction = readFileSync(runtime.capture, 'utf8');
   assert.match(transaction, /^\\set ON_ERROR_STOP on\nBEGIN;/u);
   assert.match(transaction, /ALTER FUNCTION %s OWNER TO %I/u);
+  assert.match(
+    transaction,
+    /GRANT CREATE, USAGE ON SCHEMA "app" TO "app_probe_owner";/u,
+    'a new seam-owned app function needs both CREATE and name resolution inside schema app',
+  );
+  assert.match(
+    transaction,
+    /REVOKE CREATE, USAGE ON SCHEMA "app" FROM "app_probe_owner";/u,
+    'temporary schema privileges must not survive the migration transaction',
+  );
   assert.match(transaction, /to_regprocedure\('app\.rollback_probe\(\)'\)/u);
   assert.ok(
     transaction.indexOf("to_regprocedure('app.rollback_probe()')")
