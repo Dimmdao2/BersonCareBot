@@ -15,9 +15,7 @@
  *  1. a public visitor's own booking never consults the paid `patient_count` ceiling, whatever the
  *     clinic's usage is (migration 0052 briefly put it on this path, 0053 took it off, and Т12 then
  *     removed the ceiling itself);
- *  2. a staff-opened card doesn't either any more (Т12) — asserted here too, so a future change that
- *     reintroduces the door on either path fails in both places;
- *  3. the specialist (clinic team) seat is untouched and still refuses at its own ceiling — Т12 named
+ *  2. the specialist (clinic team) seat is untouched and still refuses at its own ceiling — Т12 named
  *     `patient_count` only, `clinic_team` is a different mechanic and was not ruled on.
  *
  * Plus the contact pair the public form collects, which the write half must carry to the booking
@@ -63,7 +61,6 @@ vi.mock('@/modules/patient-booking/inPersonBookingResolve', () => ({
 }));
 
 import { createVerifiedPublicBooking } from './createVerifiedPublicBooking';
-import { ensureInvitedOrganizationClientRelationship } from '@/infra/repos/pgPatientOrganizationEnrollment';
 // Р-15 (19.08): «можно ли продать место и почём» — единственная дверь `decideSeatOverage`, у неё же
 // теперь и решение «пропустить/отказать», которое раньше жило отдельно в `decideClinicTeamQuota`.
 import { decideSeatOverage } from '@/modules/saas-billing/seatOverage';
@@ -207,48 +204,6 @@ describe('a visitor booking spends no paid client place (owner 19.08 §33.2)', (
     expect(written.contactPhone).toBe('+79995550101');
     expect(written.contactEmail).toBe('visitor@example.org');
     expect(written.contactName).toBe('Пришедший посетитель');
-  });
-});
-
-describe('a staff-opened card no longer spends one either (Т12 superseded §33.2)', () => {
-  function staffTx(existingStatus: string | null) {
-    let found = existingStatus;
-    return {
-      select: () => ({
-        from: () => ({
-          where: () => ({ limit: async () => (found ? [{ status: found }] : []) }),
-        }),
-      }),
-      insert: () => ({
-        values: () => ({
-          onConflictDoNothing: async () => {
-            found = 'invited';
-          },
-        }),
-      }),
-    } as never;
-  }
-
-  /**
-   * Negative control for the detector the public-path test relies on: the SAME rendering of the
-   * SAME SQL layer must never show this door by name for a genuinely new card either — Т12 removed
-   * the ceiling from this writer, not just from the public path. Full behavioural coverage (no raw
-   * SQL at all, at any existing enrollment count) lives in
-   * `pgPatientOrganizationEnrollment.noClientCeiling.test.ts`; this is just the by-name check the
-   * sibling test in this file relies on for the public path.
-   */
-  it('never names the retired ceiling for a genuinely new card', async () => {
-    await expect(
-      ensureInvitedOrganizationClientRelationship(staffTx(null), ORGANIZATION_ID, PLATFORM_USER_ID),
-    ).resolves.toBe('invited');
-    expect(recorded.sql.join('\n')).not.toContain(PATIENT_COUNT_DOOR);
-  });
-
-  it('does not name it for a card that already exists either', async () => {
-    await expect(
-      ensureInvitedOrganizationClientRelationship(staffTx('active'), ORGANIZATION_ID, PLATFORM_USER_ID),
-    ).resolves.toBe('active');
-    expect(recorded.sql.join('\n')).not.toContain(PATIENT_COUNT_DOOR);
   });
 });
 
