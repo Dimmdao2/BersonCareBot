@@ -110,7 +110,7 @@ function protocolHeaders(
 
 async function buildApp(
   dispatchOutgoing: DispatchPort['dispatchOutgoing'],
-  options: { idempotencyPort?: IdempotencyPort } = {},
+  options: { idempotencyPort?: IdempotencyPort; db?: DbPort } = {},
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: false });
   apps.push(app);
@@ -118,6 +118,7 @@ async function buildApp(
     dispatchPort: { dispatchOutgoing },
     sharedSecret: SHARED_SECRET,
     idempotencyPort: options.idempotencyPort ?? fakePersistentIdempotencyPort(),
+    ...(options.db ? { db: options.db } : {}),
   });
   return app;
 }
@@ -511,5 +512,73 @@ describe('POST /api/bersoncare/relay-outbound', () => {
       },
     });
     expect(incidentRecorder).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { status: 'success' as const, delivered: 1, errors: 0, deactivated: 0 },
+    { status: 'skipped' as const, delivered: 0, errors: 0, deactivated: 0 },
+  ])('keeps web-push $status in the canonical outcome instead of the failure ledger', async (outcome) => {
+    const writes: unknown[][] = [];
+    const db: DbPort = {
+      async query<T>(_text: string, params?: unknown[]) {
+        writes.push(params ?? []);
+        return { rows: [] as T[] };
+      },
+      async tx<T>(fn: (tx: DbPort) => Promise<T>) {
+        return fn(db);
+      },
+    };
+    const app = await buildApp(async () => ({ webPushOutcome: outcome }), { db });
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'web_push',
+        recipient: PUSH_USER_ID,
+        metadata: { title: 'Reminder', pushExtras: { topicCode: 'appointment_reminder' } },
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(writes).toEqual([]);
+  });
+
+  it('writes one failure-ledger row only after a web-push provider call fails', async () => {
+    const writes: unknown[][] = [];
+    const db: DbPort = {
+      async query<T>(_text: string, params?: unknown[]) {
+        writes.push(params ?? []);
+        return { rows: [] as T[] };
+      },
+      async tx<T>(fn: (tx: DbPort) => Promise<T>) {
+        return fn(db);
+      },
+    };
+    const dispatch = createDefaultDispatchPort({
+      adapters: [
+        {
+          canHandle: () => true,
+          send: async () => {
+            throw new Error('web_push_provider_rejected');
+          },
+        },
+      ],
+    });
+    const app = await buildApp(dispatch.dispatchOutgoing, { db });
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'web_push',
+        recipient: PUSH_USER_ID,
+        metadata: { title: 'Reminder', pushExtras: { topicCode: 'appointment_reminder' } },
+      }),
+    );
+
+    expect(response.statusCode).toBe(502);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]?.[6]).toBe('failed');
   });
 });

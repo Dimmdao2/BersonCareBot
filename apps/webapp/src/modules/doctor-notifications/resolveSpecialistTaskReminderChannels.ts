@@ -23,13 +23,16 @@ const TOPIC_CODE = 'doctor_specialist_task_reminders';
 
 export async function resolveSpecialistTaskReminderChannelsForUser(
   ownerUserId: string,
+  organizationId: string,
   deps: ResolveSpecialistTaskReminderChannelsDeps,
 ): Promise<SpecialistTaskReminderChannelCode[]> {
   const [prefRows, channelPrefs, globalSetting, vapid, bindings, email, emailVerified, hasPush] =
     await Promise.all([
       deps.topicChannelPrefs.listByUserId(ownerUserId),
       deps.channelPreferences.getPreferences(ownerUserId),
-      deps.systemSettings.getSetting('doctor_specialist_task_reminder_channels', 'doctor'),
+      deps.systemSettings.getSetting('doctor_specialist_task_reminder_channels', 'doctor', {
+        organizationId,
+      }),
       getWebPushVapidKeyPair(deps.systemSettings),
       deps.getChannelBindings(ownerUserId),
       deps.getProfileEmail(ownerUserId),

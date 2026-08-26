@@ -10,7 +10,10 @@ import {
   runWithDbClinicBillingPrincipal,
   runWithDbPatientPrincipal,
 } from '@bersoncare/db-principal';
-import { withExplicitOrganizationPrincipal } from '@/app-layer/principal/withOrganizationPrincipal';
+import {
+  withExplicitOrganizationPrincipal,
+  withPatientOrganizationPrincipal,
+} from '@/app-layer/principal/withOrganizationPrincipal';
 import { ensureAuthModulePortsBound } from '@/app-layer/di/bindAuthModulePorts';
 import { ensureSystemSettingsConfigAdapterBound } from '@/app-layer/di/bindSystemSettingsConfigAdapter';
 import {
@@ -87,6 +90,7 @@ import {
 import { resolveBroadcastWebPushEligibleUserIds } from '@/modules/doctor-broadcasts/resolveBroadcastWebPushEligibleUserIds';
 import { fanOutBroadcastWebPush } from '@/modules/doctor-broadcasts/fanOutBroadcastWebPush';
 import { createTopicUnsubscribeService } from '@/modules/patient-notifications/topicUnsubscribe';
+import { logger } from '@/app-layer/logging/logger';
 import { parseNotificationsTopics } from '@/modules/patient-notifications/notificationsTopics';
 import { patientNotificationTopicDisplayTitle } from '@/modules/patient-notifications/topicDisplayTitles';
 import { inMemoryDoctorClientsPort } from '@/infra/repos/inMemoryDoctorClients';
@@ -543,11 +547,13 @@ const topicUnsubscribeService = createTopicUnsubscribeService({
   appBaseUrl: env.APP_BASE_URL,
   setTopicEnabled: (userId, topicCode, enabled) =>
     patientNotificationTopicsPort.setTopicEnabled(userId, topicCode, enabled),
-  runForPatient: (userId, action) =>
-    runWithDbPatientPrincipal(
-      { platformUserId: userId, source: 'public-topic-unsubscribe' },
+  runForPatient: (userId, organizationId, action) =>
+    withPatientOrganizationPrincipal(
+      { platformUserId: userId, organizationId, source: 'public-topic-unsubscribe' },
       action,
     ),
+  onWriteFailure: (error) =>
+    logger.warn({ err: error }, 'public_topic_unsubscribe: topic preference write failed'),
 });
 const userByPhonePort = !inMemoryRepos ? pgUserByPhonePort : inMemoryUserByPhonePort;
 const passwordLoginProtectionPort = !inMemoryRepos
@@ -876,6 +882,7 @@ const specialistTasksPort = !inMemoryRepos
         channelPreferences: channelPreferencesPort,
         webPushSubscriptions: webPushSubscriptionsPort,
         systemSettings: systemSettingsService,
+        appBaseUrl: env.APP_BASE_URL,
         getChannelBindings: loadPlatformUserChannelBindings,
         getProfileEmail: async (platformUserId) => {
           const fields = await userProjectionPort.getProfileEmailFields(platformUserId);
@@ -884,10 +891,6 @@ const specialistTasksPort = !inMemoryRepos
         getProfileEmailVerified: async (platformUserId) => {
           const fields = await userProjectionPort.getProfileEmailFields(platformUserId);
           return Boolean(fields?.emailVerifiedAt);
-        },
-        resolvePatientDisplayName: async (patientUserId) => {
-          const identity = await doctorClientsPort.getClientIdentity(patientUserId);
-          return identity?.displayName?.trim() || null;
         },
       }),
     )

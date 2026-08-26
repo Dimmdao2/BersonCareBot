@@ -106,8 +106,8 @@ describe('D17 — попытка доставки уведомления', () =>
     await expect(
       recordNotificationDeliveryAttemptBestEffort(db, {
         channel: 'web_push',
-        status: 'skipped',
-        reason: 'no_provider_outcome',
+        status: 'failed',
+        reason: 'provider_rejected',
         eventId: 'evt-orgless',
       }),
     ).resolves.toBeUndefined();

@@ -68,6 +68,7 @@ export type DoctorBroadcastsServiceDeps = {
   patientNotificationTopics: PatientNotificationTopicsPort;
   buildTopicUnsubscribeUrl: (input: {
     userId: string;
+    organizationId: string;
     topicCode: string;
     topicTitle: string;
     nonce: string;
@@ -214,6 +215,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
           client.userId,
           deps.buildTopicUnsubscribeUrl({
             userId: client.userId,
+            organizationId: options.organizationId,
             topicCode,
             topicTitle,
             nonce: auditId,
