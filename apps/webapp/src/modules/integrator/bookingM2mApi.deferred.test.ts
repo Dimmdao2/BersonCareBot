@@ -102,6 +102,32 @@ describe('событие записи не держит человека на л
     });
   });
 
+  it('нормализует PostgreSQL timestamptz на единственной границе webapp → integrator', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const event = bookingEvent('booking.created');
+    await createBookingSyncPort().emitBookingEvent({
+      ...event,
+      waitForDelivery: true,
+      payload: {
+        ...event.payload,
+        slotStart: '2027-01-02 15:00:00+03',
+        slotEnd: '2027-01-02 15:30:00+03',
+      },
+    });
+
+    const [, init] = fetchMock.mock.calls[0]! as unknown as [string, RequestInit];
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      payload: {
+        slotStart: '2027-01-02T12:00:00.000Z',
+        slotEnd: '2027-01-02T12:30:00.000Z',
+      },
+    });
+  });
+
   it('вызывающий, который потребляет отказ, по-прежнему его получает', async () => {
     vi.stubGlobal(
       'fetch',

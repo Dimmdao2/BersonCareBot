@@ -133,7 +133,13 @@ export function createBookingSyncPort(options?: { defer?: DeferOutsideResponse }
       const event = {
         eventType: input.eventType,
         idempotencyKey: input.idempotencyKey,
-        payload: input.payload as unknown as Record<string, unknown>,
+        // Every producer ultimately crosses this port. Normalize PostgreSQL timestamptz strings
+        // once here so all signed lifecycle consumers receive the RFC 3339 contract they declare.
+        payload: {
+          ...input.payload,
+          slotStart: new Date(input.payload.slotStart).toISOString(),
+          slotEnd: new Date(input.payload.slotEnd).toISOString(),
+        } as unknown as Record<string, unknown>,
       };
       if (input.waitForDelivery === true) {
         await deliverBookingLifecycleEvent(event);
