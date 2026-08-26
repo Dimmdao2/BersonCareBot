@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
-import { Calendar, List, Search } from 'lucide-react';
+import { Calendar, Filter, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -34,6 +34,7 @@ import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -100,6 +101,7 @@ const ScheduleFullCalendarHost = dynamic(
 const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
 const SCHEDULE_FILTERS_STORAGE_KEY = 'therapysto.doctor.schedule.filters.v1';
+const INACTIVE_TOOLBAR_BUTTON_CLASS = 'bg-white hover:bg-muted';
 
 type CachedScheduleFilters = {
   branchId: string | null;
@@ -807,9 +809,11 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(() => bootstrap?.kpis ?? null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
+  const isWideScheduleLayout = useViewportMinWidth(1280);
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -839,6 +843,15 @@ export function ScheduleCalendarTab({
   const [rescheduleComment, setRescheduleComment] = useState('');
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(min-width: 1280px)');
+    const handleWideLayout = (event: MediaQueryListEvent) => {
+      if (event.matches) setFiltersPanelOpen(false);
+    };
+    mediaQuery.addEventListener('change', handleWideLayout);
+    return () => mediaQuery.removeEventListener('change', handleWideLayout);
+  }, []);
 
   // ─── Sync state → deep-link ────────────────────────────────────────────────
 
@@ -1589,6 +1602,11 @@ export function ScheduleCalendarTab({
   // R32: выделение области по сетке → форма создания с подставленным временем.
   const onSelect = useCallback(
     (arg: { start?: Date | null; end?: Date | null }) => {
+      if (filtersPanelOpen) {
+        setFiltersPanelOpen(false);
+        calendarRef.current?.getApi().unselect();
+        return;
+      }
       if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
         suppressCalendarInteractionUntilRef.current = 0;
         calendarRef.current?.getApi().unselect();
@@ -1600,7 +1618,7 @@ export function ScheduleCalendarTab({
       lastSelectAtRef.current = Date.now();
       openCreateDraft(start, end ?? null);
     },
-    [openCreateDraft],
+    [filtersPanelOpen, openCreateDraft],
   );
 
   const closeDraftOrSelectionFromGrid = useCallback((): boolean => {
@@ -1731,6 +1749,19 @@ export function ScheduleCalendarTab({
       }}
     />
   ) : null;
+  const handleKpiClick = (key: ScheduleKpiNumberKey) => {
+    setFiltersPanelOpen(false);
+    setKpiModalFilter((previous) => (previous === key ? null : key));
+  };
+  const toggleFiltersPanel = () => {
+    if (filtersPanelOpen) {
+      setFiltersPanelOpen(false);
+      return;
+    }
+    if (eventPanelOpen && !closeDraftOrSelectionFromGrid()) return;
+    setKpiModalFilter(null);
+    setFiltersPanelOpen(true);
+  };
 
   return (
     <div className="flex flex-col gap-4 pb-8">
@@ -1740,7 +1771,7 @@ export function ScheduleCalendarTab({
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-          'flex flex-wrap items-center gap-2',
+          'flex flex-wrap items-center gap-2 bg-white/80 supports-backdrop-filter:bg-white/70',
         )}
         data-testid="cal-toolbar"
       >
@@ -1758,7 +1789,9 @@ export function ScheduleCalendarTab({
               type="button"
               size="sm"
               variant={view === v ? 'default' : 'outline'}
+              className={view === v ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
               onClick={() => {
+                setFiltersPanelOpen(false);
                 // При переключении из day (drill-down) — выходим из drill-down
                 if (view === 'day') {
                   setDrillBackView(null);
@@ -1779,7 +1812,11 @@ export function ScheduleCalendarTab({
             type="button"
             size="sm"
             variant="outline"
-            onClick={drillBack}
+            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              drillBack();
+            }}
             data-testid="drill-back-btn"
           >
             ← Назад
@@ -1792,10 +1829,16 @@ export function ScheduleCalendarTab({
             type="button"
             size="icon"
             variant={renderMode === 'calendar' ? 'default' : 'outline'}
-            className="size-[32px] shrink-0"
+            className={cn(
+              'size-[32px] shrink-0',
+              renderMode !== 'calendar' && INACTIVE_TOOLBAR_BUTTON_CLASS,
+            )}
             aria-label="Календарь"
             title="Календарь"
-            onClick={() => setRenderMode('calendar')}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              setRenderMode('calendar');
+            }}
             data-testid="render-btn-calendar"
           >
             <Calendar className="size-4" aria-hidden />
@@ -1804,10 +1847,16 @@ export function ScheduleCalendarTab({
             type="button"
             size="icon"
             variant={renderMode === 'list' ? 'default' : 'outline'}
-            className="size-[32px] shrink-0"
+            className={cn(
+              'size-[32px] shrink-0',
+              renderMode !== 'list' && INACTIVE_TOOLBAR_BUTTON_CLASS,
+            )}
             aria-label="Список"
             title="Список"
-            onClick={() => setRenderMode('list')}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              setRenderMode('list');
+            }}
             data-testid="render-btn-list"
           >
             <List className="size-4" aria-hidden />
@@ -1844,7 +1893,11 @@ export function ScheduleCalendarTab({
           type="button"
           size="sm"
           variant="outline"
-          onClick={goToday}
+          className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+          onClick={() => {
+            setFiltersPanelOpen(false);
+            goToday();
+          }}
           data-testid="period-today"
         >
           Сегодня
@@ -1856,7 +1909,11 @@ export function ScheduleCalendarTab({
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => shiftAnchor(-1)}
+            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(-1);
+            }}
             aria-label="Предыдущий период"
             data-testid="period-prev"
           >
@@ -1872,7 +1929,11 @@ export function ScheduleCalendarTab({
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => shiftAnchor(1)}
+            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(1);
+            }}
             aria-label="Следующий период"
             data-testid="period-next"
           >
@@ -1880,9 +1941,21 @@ export function ScheduleCalendarTab({
           </Button>
         </>
 
-        {/* Filters stay in the toolbar below xl, where the KPI aside is hidden. */}
-        {renderScheduleFilters(cn('flex flex-wrap gap-2', showKpi && 'xl:hidden'))}
-
+        <Button
+          type="button"
+          size="sm"
+          variant={filtersPanelOpen ? 'default' : 'outline'}
+          className={cn(
+            'ml-auto gap-2 xl:hidden',
+            !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
+          )}
+          onClick={toggleFiltersPanel}
+          aria-expanded={filtersPanelOpen}
+          aria-controls="schedule-filters-panel"
+        >
+          <Filter className="size-4" aria-hidden />
+          Фильтры
+        </Button>
       </div>
 
       {/* Error */}
@@ -1895,10 +1968,8 @@ export function ScheduleCalendarTab({
       {/* Main content row: calendar/list + aside panel */}
       <div
         className={cn(
-          'block pb-4',
-          showKpi &&
-            'xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
-          renderMode === 'list' && showKpi && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
+          'block pb-4 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
+          renderMode === 'list' && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
         )}
       >
         {/* Content area */}
@@ -1912,6 +1983,7 @@ export function ScheduleCalendarTab({
               rangeFrom={listRange.from}
               rangeTo={listRange.to}
               onSelect={(appt) => {
+                setFiltersPanelOpen(false);
                 setSelected(appt);
                 setShowCreatePanel(false);
                 onDeepLinkChange('appt', appt.id);
@@ -2149,6 +2221,7 @@ export function ScheduleCalendarTab({
                   const appointment = arg.event.extendedProps?.appointment as
                     CalendarAppointmentEvent | undefined;
                   if (!appointment) return;
+                  setFiltersPanelOpen(false);
                   if (showCreatePanel && createFormDirty) {
                     const ok = window.confirm(
                       'Событие не сохранено, вы уверены что хотите сбросить изменения?',
@@ -2171,6 +2244,10 @@ export function ScheduleCalendarTab({
                     return;
                   }
                   if (Date.now() - lastSelectAtRef.current < 500) return;
+                  if (filtersPanelOpen) {
+                    setFiltersPanelOpen(false);
+                    return;
+                  }
                   if (selected || showCreatePanel) {
                     closeDraftOrSelectionFromGrid();
                     return;
@@ -2207,20 +2284,36 @@ export function ScheduleCalendarTab({
           )}
         </div>
 
-        {showKpi ? (
-          <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start space-y-3 overflow-y-auto pb-4 xl:block">
-            <section className={doctorSectionCardClass}>
-              <h2 className={doctorSectionTitleClass}>Фильтры</h2>
-              {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
-            </section>
+        <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start space-y-3 overflow-y-auto pb-4 xl:block">
+          <section className={doctorSectionCardClass}>
+            <h2 className={doctorSectionTitleClass}>Фильтры</h2>
+            {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
+          </section>
+          {showKpi ? (
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
-              onKpiClick={(key) => setKpiModalFilter((prev) => (prev === key ? null : key))}
+              onKpiClick={handleKpiClick}
             />
-          </aside>
-        ) : null}
+          ) : null}
+        </aside>
       </div>
+
+      <DoctorModal
+        open={filtersPanelOpen && !isWideScheduleLayout}
+        onClose={() => setFiltersPanelOpen(false)}
+        title="Фильтры"
+        size="lg"
+        desktopPresentation="right-sheet"
+        bodyClassName="p-4"
+      >
+        <div id="schedule-filters-panel" className="flex flex-col gap-3">
+          {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
+          {showKpi ? (
+            <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} onKpiClick={handleKpiClick} />
+          ) : null}
+        </div>
+      </DoctorModal>
 
       {!isMobileViewport ? (
         <DoctorModal
