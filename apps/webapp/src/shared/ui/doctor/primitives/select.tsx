@@ -25,16 +25,18 @@ export function SelectTrigger({ className, ...props }: ComponentProps<typeof Sha
   );
 }
 
-/** Doctor select popup follows the trigger edge instead of shifting to the selected item. */
+/** Doctor select popup overlaps its trigger; matching item padding keeps both left edges aligned. */
 export function SelectContent({
   align = 'start',
-  alignItemWithTrigger = false,
+  alignItemWithTrigger = true,
+  className,
   ...props
 }: ComponentProps<typeof SharedSelectContent>) {
   return (
     <SharedSelectContent
       align={align}
       alignItemWithTrigger={alignItemWithTrigger}
+      className={cn('[&_[data-slot=select-item]]:pl-3', className)}
       {...props}
     />
   );
