@@ -48,12 +48,24 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
     identity.userId,
     activeTab,
   );
-  const shellMeta = await loadDoctorPatientCardShellMeta(
+  const loadedShellMeta = await loadDoctorPatientCardShellMeta(
     deps,
     workspace,
     identity.userId,
     activeTab,
   );
+  const shellMeta = loadedShellMeta.cardHeader
+    ? {
+        ...loadedShellMeta,
+        cardHeader: {
+          ...loadedShellMeta.cardHeader,
+          identity: {
+            ...loadedShellMeta.cardHeader.identity,
+            isArchived: identity.isArchived,
+          },
+        },
+      }
+    : loadedShellMeta;
 
   const createVisitFrom = typeof sp.createVisitFrom === 'string' ? sp.createVisitFrom : undefined;
   const visitDate = typeof sp.visitDate === 'string' ? sp.visitDate : undefined;
