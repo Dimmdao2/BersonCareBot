@@ -2133,6 +2133,16 @@ const TENANT_WALL_CROSSINGS: Readonly<Record<string, Readonly<Record<string, str
     'public.booking_cities': 'глобальный справочник городов публичной записи: строки платформенные, клинике не принадлежат',
   },
 
+  // Дубли одного человека находятся по ФИО ПО ВСЕЙ платформе, не по клинике: `platform_users` не
+  // несёт organization_id, и та же логика уже искала кросс-клинично до этой правки (raw pool, без
+  // принципала вовсе). Организация нужна только результату — какой клинике показать кандидата, —
+  // и берётся из аргумента, а не из чтения.
+  'app.record_public_booking_merge_candidates(uuid,uuid,text,uuid)': {
+    'public.platform_users': 'дедуп дублей ищет совпадение ФИО среди ВСЕХ клиентов платформы без телефона, а не только клиники записи',
+    'public.user_identity': 'то же имя того же кандидата — источник ФИО для сравнения, не выборка по клинике',
+    'public.user_contacts': 'проверка «у кандидата ещё нет телефона» — ключ отбора кандидата, не выборка по клинике',
+  },
+
   'app.lookup_patient_invite_continuation(text)': {
     'public.patient_invites': 'приглашение находит неугадываемый continuation_hash; предъявитель клинике ещё не принадлежит',
     'public.org_enrollments': 'зачисление по ключам из строки приглашения',
@@ -3108,6 +3118,16 @@ const REV10_CONTEXT = {
       targetRole: 'app_platform_settings', contextClass: 'platform',
       purpose: 'platform.organization.set-is-active',
       functionIdentity: 'app.set_platform_organization_is_active(uuid,boolean)' },
+    webapp_platform_support_account_action: { port: 'webapp',
+      runtimeName: 'platform_support_account_action', sessionRole: 'app_platform_settings',
+      targetRole: 'app_platform_settings', contextClass: 'platform',
+      purpose: 'platform.support-account.action',
+      functionIdentity: 'app.platform_support_account_action(text,uuid,uuid,boolean,text,text,text,text,text)' },
+    webapp_public_booking_merge_candidates_record: { port: 'webapp',
+      runtimeName: 'public_booking_merge_candidates_record', sessionRole: 'app_patient',
+      targetRole: 'app_patient', contextClass: 'patient',
+      purpose: 'booking.public-merge-candidates.record',
+      functionIdentity: 'app.record_public_booking_merge_candidates(uuid,uuid,text,uuid)' },
     webapp_platform_health_archive_list: { port: 'webapp', runtimeName: 'platform_health_archive_list',
       sessionRole: 'app_platform_settings', targetRole: 'app_platform_admin', contextClass: 'platform',
       purpose: 'platform.health-archive.list',
@@ -5610,6 +5630,31 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // Track D synthesis 26.08: read (name-collision candidates among OTHER clients with no phone) and
+    // write (upsert one pending `patient_merge_candidates` row per candidate) commit atomically under
+    // this one door instead of two hops — a bare `Pool` read with no principal followed by a
+    // clinic-walled write the patient principal cannot reach on its own (`patient_merge_candidates`
+    // is `wall: 'clinic'`; only clinic staff read that queue).
+    'app.record_public_booking_merge_candidates(uuid,uuid,text,uuid)': rev10Function({
+      owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'integer', returnsSet: false,
+      execute: ['app_patient'],
+      purpose: 'record pending duplicate-account merge candidates for a just-completed public booking',
+      typedArgs: ['uuid', 'uuid', 'text', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users', columns: ['id', 'merged_into_id', 'role'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_identity', columns: ['platform_user_id', 'display_name'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts',
+          columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.patient_merge_candidates',
+          columns: ['organization_id', 'anchor_user_id', 'candidate_user_id', 'reason', 'status',
+            'trigger_appointment_id', 'payload'],
+          operations: ['SELECT' as const, 'INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.read_current_patient_booking_form_fields()': rev10Function({
       owner: 'app_seam_patient_booking_owner', security: 'DEFINER', returns: 'record', returnsSet: true, execute: ['app_patient'],
       purpose: 'return only active patient-visible booking form fields for the current enrolled organization',
@@ -7098,6 +7143,26 @@ const REV10_CONTEXT = {
         columns: ['id', 'is_active', 'updated_at'],
         operations: ['SELECT' as const, 'UPDATE' as const],
         evidence: 'exact UPDATE in migration 0050' as const }],
+    }),
+    // D26 §5.8 platform support door (Track D synthesis 26.08): one door, four action variants
+    // (AGENTS.md §5) — block/unblock/revoke one contact/revoke one channel binding on a duplicate
+    // account. Owned by the same seam that already owns the neighbouring pre_session identity roots
+    // touching these three tables, so no new owner is introduced for a single new door.
+    'app.platform_support_account_action(text,uuid,uuid,boolean,text,text,text,text,text)': rev10Function({
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'boolean', returnsSet: false,
+      execute: ['app_platform_settings'],
+      purpose: 'platform support: block/unblock a duplicate account or revoke one contact/channel binding',
+      typedArgs: ['text', 'uuid', 'uuid', 'boolean', 'text', 'text', 'text', 'text', 'text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.platform_users',
+          columns: ['id', 'is_blocked', 'session_epoch', 'blocked_at', 'blocked_reason', 'blocked_by', 'updated_at'],
+          operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'value_normalized'],
+          operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_bindings', columns: ['user_id', 'channel_code', 'external_id'],
+          operations: ['SELECT' as const, 'DELETE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
   }))),
 } as const;

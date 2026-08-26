@@ -1,29 +1,29 @@
-import type { Pool } from 'pg';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
-import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
-import {
-  CONTACTS_NO_PHONE,
-  USER_CONTACTS_PRIMARY_PHONE_LATERAL,
-} from '@/infra/repos/userContactsSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 
-export async function findPublicBookingNameCollisionCandidates(input: {
-  pool: Pool;
+/**
+ * Track D synthesis 26.08: this used to read `platform_users`/`user_contacts` through a bare `Pool`
+ * with no principal installed at all (`getPool()` handed straight to `runPgPoolPgText` — see the
+ * removed `pool` argument at the old call site in `app-layer/booking/createVerifiedPublicBooking.ts`).
+ * Every call failed with "Missing declared webapp port capability: pre_session", caught, logged, and
+ * the dependent write (a pending `patient_merge_candidates` row) never ran. One named door now does
+ * the read AND the write atomically under the patient principal — see
+ * `app.record_public_booking_merge_candidates` (migration `20260826T140000_…`).
+ */
+export async function recordPublicBookingMergeCandidatesNamedRoot(input: {
+  organizationId: string;
   anchorUserId: string;
   contactName: string;
-}): Promise<string[]> {
-  const result = await runPgPoolPgText<{ id: string }>(
-    input.pool,
-    `SELECT pu.id
-       FROM platform_users pu
-       ${USER_IDENTITY_FIO_JOIN}
-       ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-      WHERE pu.merged_into_id IS NULL
-        AND pu.role = 'client'
-        AND pu.id <> $1::uuid
-        AND ${CONTACTS_NO_PHONE}
-        AND lower(trim(${FIO.displayName})) = lower(trim($2))
-      LIMIT 5`,
-    [input.anchorUserId, input.contactName],
+  triggerAppointmentId: string;
+}): Promise<number> {
+  const result = await runWebappNamedRoot<{ created_count: number }>(
+    getWebappSqlDb(),
+    'app.record_public_booking_merge_candidates(uuid,uuid,text,uuid)',
+    [input.organizationId, input.anchorUserId, input.contactName, input.triggerAppointmentId],
+    sql`SELECT app.record_public_booking_merge_candidates(
+      ${input.organizationId}::uuid, ${input.anchorUserId}::uuid,
+      ${input.contactName}::text, ${input.triggerAppointmentId}::uuid
+    ) AS created_count`,
   );
-  return result.rows.map((row) => row.id);
+  return Number(result.rows[0]?.created_count ?? 0);
 }

@@ -1,15 +1,15 @@
-import type { Pool } from 'pg';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { findPublicBookingNameCollisionCandidates } from '@/infra/repos/pgPublicBookingMergeCandidates';
-
-const REASON = 'public_booking_phone_collision';
+import { recordPublicBookingMergeCandidatesNamedRoot } from '@/infra/repos/pgPublicBookingMergeCandidates';
 
 /**
  * При публичной записи по телефону: если есть другие client-профили без телефона
  * с тем же display_name — создаём pending-кандидата на ручной мердж.
+ *
+ * Read (name-collision candidates) and write (upsert pending candidates) commit atomically in one
+ * named DB door under the caller's own principal — see `pgPublicBookingMergeCandidatesNamedRoot`.
+ * The length check below is a cheap early-out; the door re-checks it (a door does not trust its
+ * caller, same as every other door in this file's neighbourhood).
  */
 export async function recordPublicBookingMergeCandidates(input: {
-  pool: Pool;
   organizationId: string;
   anchorUserId: string;
   contactName: string;
@@ -18,25 +18,10 @@ export async function recordPublicBookingMergeCandidates(input: {
   const name = input.contactName.trim();
   if (name.length < 2) return;
 
-  const candidateUserIds = await findPublicBookingNameCollisionCandidates({
-    pool: input.pool,
+  await recordPublicBookingMergeCandidatesNamedRoot({
+    organizationId: input.organizationId,
     anchorUserId: input.anchorUserId,
     contactName: name,
+    triggerAppointmentId: input.triggerAppointmentId,
   });
-
-  if (candidateUserIds.length === 0) return;
-
-  const mergeSvc = buildAppDeps().patientMergeCandidate;
-  if (!mergeSvc) return;
-
-  for (const candidateUserId of candidateUserIds) {
-    await mergeSvc.upsertPending({
-      organizationId: input.organizationId,
-      anchorUserId: input.anchorUserId,
-      candidateUserId,
-      reason: REASON,
-      triggerAppointmentId: input.triggerAppointmentId,
-      payload: { contactName: name },
-    });
-  }
 }

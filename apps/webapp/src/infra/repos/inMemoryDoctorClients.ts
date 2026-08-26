@@ -167,6 +167,11 @@ export const inMemoryDoctorClientsPort: DoctorClientsPort = {
     /* no-op in memory stub */
   },
 
+  async applyPlatformSupportAccountAction(): Promise<{ changed: boolean }> {
+    /* no-op in memory stub */
+    return { changed: false };
+  },
+
   async setOrganizationClientArchived(_params: {
     userId: string;
     organizationId: string;

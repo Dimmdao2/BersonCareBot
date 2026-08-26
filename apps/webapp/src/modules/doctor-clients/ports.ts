@@ -303,6 +303,18 @@ export type DoctorClientsPort = {
     reason: string | null;
     actorId: string;
   }): Promise<void>;
+  /**
+   * D26 §5.8 platform support door — один вход, четыре варианта одного действия (AGENTS.md §5):
+   * block/unblock дубля учётки, отзыв одного контакта, отзыв одной привязки канала. `blocked=true`
+   * поднимает `session_epoch` (действующая сессия перестаёт давать доступ, OWNER_DECISIONS.md
+   * «Blocked — глобальная блокировка учётки»); unblock эпоху не трогает — старая cookie не оживает.
+   */
+  applyPlatformSupportAccountAction(
+    input:
+      | { action: 'set_blocked'; userId: string; blocked: boolean; reason: string | null; actorId: string }
+      | { action: 'revoke_contact'; userId: string; contactKind: 'phone' | 'email'; valueNormalized: string }
+      | { action: 'revoke_channel_binding'; userId: string; channelCode: 'telegram' | 'max' | 'vk'; externalId: string },
+  ): Promise<{ changed: boolean }>;
   /** Архив связи пациента с конкретной организацией; глобальную учётку не меняет. */
   setOrganizationClientArchived(params: {
     userId: string;

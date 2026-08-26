@@ -1,7 +1,12 @@
 /**
- * D15b/5 audit MF-1..3: dual-write mirror after FIO writers + COALESCE reader for booking merge.
+ * D15b/5 audit MF-1..2: dual-write mirror after FIO writers.
+ *
+ * MF-3 (booking-merge COALESCE reader) moved with `pgPublicBookingMergeCandidates` into a named DB
+ * door (Track D synthesis 26.08, migration `20260826T140000_…`) — the COALESCE-over-`user_identity`
+ * property it asserted now lives in SQL, not in a TS query-text fragment, and is proven behaviorally
+ * by `deploy/postgres/privileges/public-booking-merge-candidates.devDbProof.test.mjs` instead of by
+ * matching source text here (AGENTS.md §10a).
  */
-import type { Pool } from 'pg';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const syncMirrorMock = vi.hoisted(() => vi.fn());
@@ -11,7 +16,6 @@ const runIdentityPoolPgTextMock = vi.hoisted(() => vi.fn());
 const withPoolTransactionMock = vi.hoisted(() => vi.fn());
 const resolveCanonicalUserIdMock = vi.hoisted(() => vi.fn());
 const runWebappPgTextMock = vi.hoisted(() => vi.fn());
-const runPgPoolPgTextMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/repos/userContactsSql', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/infra/repos/userContactsSql')>();
@@ -44,7 +48,6 @@ vi.mock('@/infra/db/client', () => ({
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText: runWebappPgTextMock,
-  runPgPoolPgText: runPgPoolPgTextMock,
   getWebappSqlFromPgClient: vi.fn(() => ({})),
   getWebappSqlDb: vi.fn(() => ({
     insert: () => ({
@@ -70,8 +73,6 @@ vi.mock('@bersoncare/db-principal', async (importOriginal) => {
 });
 
 import { pgOAuthUserResolvePort } from '@/infra/repos/pgOAuthUserResolve';
-import { findPublicBookingNameCollisionCandidates } from '@/infra/repos/pgPublicBookingMergeCandidates';
-import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { pgUserByPhonePort } from '@/infra/repos/pgUserByPhone';
 
 const LOCKED_USER_ID = '00000000-0000-4000-8000-0000000d0001';
@@ -165,41 +166,5 @@ describe('D15b/5 MF-2 — pgOAuthUserResolve createOAuthPlatformUser dual-write'
     expect(syncContactsMirrorMock).toHaveBeenCalledOnce();
     expect(syncContactsMirrorMock).toHaveBeenCalledWith(expect.anything(), OAUTH_USER_ID, []);
     expect(runWebappPgTextMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('D15b/5 MF-3 — pgPublicBookingMergeCandidates COALESCE reader', () => {
-  it('matches booking contact names via user_identity COALESCE, not platform_users.display_name only', async () => {
-    runPgPoolPgTextMock.mockResolvedValueOnce({ rows: [] });
-
-    await findPublicBookingNameCollisionCandidates({
-      pool: {} as Pool,
-      anchorUserId: '00000000-0000-4000-8000-0000000d0003',
-      contactName: 'Пётр Петров',
-    });
-
-    expect(runPgPoolPgTextMock).toHaveBeenCalledOnce();
-    const [, sql] = runPgPoolPgTextMock.mock.calls[0] as [unknown, string, unknown[]];
-    expect(sql).toContain(USER_IDENTITY_FIO_JOIN);
-    expect(sql).toContain(FIO.displayName);
-    expect(sql).not.toMatch(/lower\(trim\(display_name\)\)/);
-  });
-
-  it('treats missing phone via user_contacts COALESCE, not platform_users.phone_normalized only', async () => {
-    const { CONTACTS_NO_PHONE, USER_CONTACTS_PRIMARY_PHONE_LATERAL } = await import(
-      '@/infra/repos/userContactsSql'
-    );
-    runPgPoolPgTextMock.mockResolvedValueOnce({ rows: [] });
-
-    await findPublicBookingNameCollisionCandidates({
-      pool: {} as Pool,
-      anchorUserId: '00000000-0000-4000-8000-0000000d0003',
-      contactName: 'Пётр Петров',
-    });
-
-    const [, sql] = runPgPoolPgTextMock.mock.calls[0] as [unknown, string, unknown[]];
-    expect(sql).toContain(USER_CONTACTS_PRIMARY_PHONE_LATERAL);
-    expect(sql).toContain(CONTACTS_NO_PHONE);
-    expect(sql).not.toMatch(/pu\.phone_normalized IS NULL/);
   });
 });

@@ -19,12 +19,10 @@ const fakes = vi.hoisted(() => ({
   revokePublicBookingEnrollment: vi.fn(),
   resolveCurrentPatientInPersonBookingContext: vi.fn(),
   createBooking: vi.fn(),
-  getPool: vi.fn(),
   recordPublicBookingMergeCandidates: vi.fn(),
   order: [] as string[],
 }));
 
-vi.mock('@/app-layer/db/client', () => ({ getPool: fakes.getPool }));
 vi.mock('@/app-layer/principal/withOrganizationPrincipal', () => ({
   withPatientIdentityPrincipal: fakes.withPatientIdentityPrincipal,
   withPatientOrganizationPrincipal: fakes.withPatientOrganizationPrincipal,
@@ -196,5 +194,36 @@ describe('createVerifiedPublicBooking', () => {
     );
 
     expect(booking).toMatchObject({ id: 'booking-1' });
+  });
+
+  it('records the duplicate-person hint under the same patient-organization principal as the write, with no bare pool', async () => {
+    fakes.createBooking.mockResolvedValue({
+      id: 'booking-1',
+      status: 'confirmed',
+      canonicalAppointmentId: 'appointment-1',
+    });
+
+    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL, MAIL_PROFILE);
+
+    expect(fakes.recordPublicBookingMergeCandidates).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      anchorUserId: PLATFORM_USER_ID,
+      contactName: intent.contactName,
+      triggerAppointmentId: 'appointment-1',
+    });
+    // Two calls under the tenant-scoped patient principal: the booking write itself, then this hint —
+    // no third, unprincipled path (the old `getPool()` read) is reachable any more.
+    expect(fakes.withPatientOrganizationPrincipal).toHaveBeenCalledTimes(2);
+    expect(fakes.withPatientOrganizationPrincipal).toHaveBeenLastCalledWith(
+      expect.objectContaining({ platformUserId: PLATFORM_USER_ID, organizationId: ORGANIZATION_ID }),
+      expect.any(Function),
+    );
+  });
+
+  it('does not record a duplicate-person hint when the booking created no appointment', async () => {
+    await createVerifiedPublicBooking(deps(), intent, PLATFORM_USER_ID, CHANNEL, MAIL_PROFILE);
+
+    expect(fakes.recordPublicBookingMergeCandidates).not.toHaveBeenCalled();
+    expect(fakes.withPatientOrganizationPrincipal).toHaveBeenCalledTimes(1);
   });
 });

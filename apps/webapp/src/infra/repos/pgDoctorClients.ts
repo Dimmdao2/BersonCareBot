@@ -4,8 +4,13 @@
 import { getPool } from '@/infra/db/client';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { getWebappSqlDb, runWebappPgText, runWebappTransaction } from '@/infra/db/runWebappSql';
-import { and, countDistinct, eq, inArray, isNull } from 'drizzle-orm';
+import {
+  getWebappSqlDb,
+  runWebappNamedRoot,
+  runWebappPgText,
+  runWebappTransaction,
+} from '@/infra/db/runWebappSql';
+import { and, countDistinct, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import type { ChannelBindings } from '@/shared/types/session';
 import type {
@@ -1406,6 +1411,26 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
         );
         if ((result.rowCount ?? 0) !== 1) throw new Error('patient_not_available');
       }
+    },
+
+    async applyPlatformSupportAccountAction(input): Promise<{ changed: boolean }> {
+      const args: [string, string, string | null, boolean | null, string | null, string | null, string | null, string | null, string | null] =
+        input.action === 'set_blocked'
+          ? ['set_blocked', input.userId, input.actorId, input.blocked, input.reason, null, null, null, null]
+          : input.action === 'revoke_contact'
+            ? ['revoke_contact', input.userId, null, null, null, input.contactKind, input.valueNormalized, null, null]
+            : ['revoke_channel_binding', input.userId, null, null, null, null, null, input.channelCode, input.externalId];
+
+      const result = await runWebappNamedRoot<{ changed: boolean }>(
+        getWebappSqlDb(),
+        'app.platform_support_account_action(text,uuid,uuid,boolean,text,text,text,text,text)',
+        args,
+        sql`SELECT app.platform_support_account_action(
+          ${args[0]}::text, ${args[1]}::uuid, ${args[2]}::uuid, ${args[3]}::boolean,
+          ${args[4]}::text, ${args[5]}::text, ${args[6]}::text, ${args[7]}::text, ${args[8]}::text
+        ) AS changed`,
+      );
+      return { changed: Boolean(result.rows[0]?.changed) };
     },
 
     async setOrganizationClientArchived({ userId, organizationId, archived }): Promise<void> {

@@ -26,7 +26,6 @@
  * `enrollCurrentPatientInPublicBookingClinic` for the owner ruling that makes a first-time visitor
  * a client.
  */
-import { getPool } from '@/app-layer/db/client';
 import { logger } from '@/app-layer/logging/logger';
 import {
   withPatientIdentityPrincipal,
@@ -166,24 +165,33 @@ export async function createVerifiedPublicBooking(
   });
 
   if (result.booking.canonicalAppointmentId && deps.bookingEngine) {
-    // Duplicate-person detection is a back-office queue for staff, and it still has no door of its
-    // own: it reads `platform_users` relationally through `getPool()` with no principal at all, so
-    // it fails with «Missing declared webapp port capability: pre_session» — it has been failing
-    // since the port-context cutover on 12.08, exactly like the rest of this path.
+    // Duplicate-person detection is a back-office queue for staff. Track D synthesis 26.08: it now
+    // has a real door — `app.record_public_booking_merge_candidates` — reached under the SAME patient
+    // principal the appointment itself just committed under, instead of a bare `getPool()` read with
+    // no principal at all (that always failed with «Missing declared webapp port capability:
+    // pre_session», silently, since the port-context cutover on 12.08).
     //
-    // It is NOT silenced here and it is NOT allowed to destroy the visit: the appointment is
-    // already committed by this point, and losing a merge candidate is a lost hint for staff,
-    // while throwing would lose a booking the person has already been told about. Giving it a real
-    // root is a separate question, because it writes a staff-review row ABOUT SOMEBODY ELSE on
-    // behalf of an anonymous visitor — see the report for this branch.
+    // It is NOT allowed to destroy the visit: the appointment is already committed by this point, and
+    // losing a merge candidate is a lost hint for staff, while throwing would lose a booking the
+    // person has already been told about. A failure here still surfaces — `runWebappNamedRoot` runs
+    // through the standard webapp query path, which reports isolation/permission failures to the same
+    // SaaS-isolation telemetry every other door failure does (`reportDbQueryFailure`), so this no
+    // longer depends on someone reading this specific log line.
     try {
-      await recordPublicBookingMergeCandidates({
-        pool: getPool(),
-        organizationId: intent.organizationId,
-        anchorUserId: result.userId,
-        contactName: intent.contactName,
-        triggerAppointmentId: result.booking.canonicalAppointmentId,
-      });
+      await withPatientOrganizationPrincipal(
+        {
+          organizationId: intent.organizationId,
+          platformUserId: result.userId,
+          source: 'api/booking/public/create/confirm:POST',
+        },
+        () =>
+          recordPublicBookingMergeCandidates({
+            organizationId: intent.organizationId,
+            anchorUserId: result.userId,
+            contactName: intent.contactName,
+            triggerAppointmentId: result.booking.canonicalAppointmentId!,
+          }),
+      );
     } catch (error) {
       logger.error(
         {
