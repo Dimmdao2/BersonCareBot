@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
-import { Calendar, Filter, List, Search } from 'lucide-react';
+import { Calendar, CalendarDays, Columns3, Filter, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
@@ -268,6 +268,10 @@ function periodLabel(view: CalV26View, anchorDate: string, zone: string): string
     return `${start.setLocale('ru').toFormat('d LLLL')} – ${end.setLocale('ru').toFormat('d LLLL yyyy')}`;
   }
   return '';
+}
+
+function mobilePeriodLabel(anchorDate: string, zone: string): string {
+  return DateTime.fromISO(anchorDate, { zone }).setLocale('ru').toFormat('LLLL yyyy');
 }
 
 // ---------------------------------------------------------------------------
@@ -770,6 +774,7 @@ export function ScheduleCalendarTab({
   const calendarFilterOpenVersionRef = useRef(0);
   const suppressCalendarInteractionUntilRef = useRef(0);
   const suppressCalendarDateClickUntilRef = useRef(0);
+  const calendarSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -909,6 +914,11 @@ export function ScheduleCalendarTab({
     },
     [onDeepLinkChange],
   );
+
+  useEffect(() => {
+    if (!isMobileViewport || view !== 'weekgrid') return;
+    queueMicrotask(() => setView('3days'));
+  }, [isMobileViewport, setView, view]);
 
   // ─── Drill-down day ────────────────────────────────────────────────────────
 
@@ -1772,140 +1782,215 @@ export function ScheduleCalendarTab({
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-          'flex flex-wrap items-center gap-2 bg-white/80 supports-backdrop-filter:bg-white/70',
+          'flex flex-wrap items-center gap-2 bg-white/85 supports-backdrop-filter:bg-white/75',
         )}
         data-testid="cal-toolbar"
       >
-        {/* View switcher: 3 дня · Неделя · Месяц (без «Лента» и без «День») */}
-        <div className="flex gap-1" role="group" aria-label="Режим отображения">
-          {(
-            [
-              { v: '3days' as const, label: '3 дня' },
-              { v: 'weekgrid' as const, label: 'Неделя' },
-              { v: 'month' as const, label: 'Месяц' },
-            ] as const
-          ).map(({ v, label }) => (
+        <div className="flex w-full min-w-0 items-center gap-1 md:hidden">
+          <Button
+            type="button"
+            size="icon"
+            variant="default"
+            className="size-[32px] shrink-0"
+            aria-label={view === 'month' ? 'Показать три дня' : 'Показать месяц'}
+            title={view === 'month' ? 'Три дня' : 'Месяц'}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              if (view === 'day') {
+                setDrillBackView(null);
+                onDeepLinkChange('from', null);
+              }
+              setView(view === 'month' ? '3days' : 'month');
+            }}
+          >
+            {view === 'month' ? (
+              <CalendarDays className="size-4" aria-hidden />
+            ) : (
+              <Columns3 className="size-4" aria-hidden />
+            )}
+          </Button>
+
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              goToday();
+            }}
+          >
+            Сегодня
+          </Button>
+
+          <span className="min-w-0 flex-1 truncate px-1 text-center text-xs font-medium text-foreground">
+            {mobilePeriodLabel(anchorDate, currentTimeZone)}
+          </span>
+
+          <div
+            className="ml-auto flex shrink-0 items-center gap-1"
+            role="group"
+            aria-label="Вид календаря"
+          >
             <Button
-              key={v}
               type="button"
-              size="sm"
-              variant={view === v ? 'default' : 'outline'}
-              className={view === v ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
+              size="icon"
+              variant={renderMode === 'calendar' ? 'default' : 'outline'}
+              className={cn(
+                'size-[32px]',
+                renderMode !== 'calendar' && INACTIVE_TOOLBAR_BUTTON_CLASS,
+              )}
+              aria-label="Календарь"
               onClick={() => {
                 setFiltersPanelOpen(false);
-                // При переключении из day (drill-down) — выходим из drill-down
-                if (view === 'day') {
-                  setDrillBackView(null);
-                  onDeepLinkChange('from', null);
-                }
-                setView(v);
+                setRenderMode('calendar');
               }}
-              data-testid={`view-btn-${v}`}
             >
-              {label}
+              <Calendar className="size-4" aria-hidden />
             </Button>
-          ))}
-        </div>
-
-        {/* Drill-down «День»: показываем если сейчас day */}
-        {view === 'day' ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              drillBack();
-            }}
-            data-testid="drill-back-btn"
-          >
-            ← Назад
-          </Button>
-        ) : null}
-
-        {/* Calendar/List toggle — compact icon pair */}
-        <div className="flex gap-1" role="group" aria-label="Вид отображения">
-          <Button
-            type="button"
-            size="icon"
-            variant={renderMode === 'calendar' ? 'default' : 'outline'}
-            className={cn(
-              'size-[32px] shrink-0',
-              renderMode !== 'calendar' && INACTIVE_TOOLBAR_BUTTON_CLASS,
-            )}
-            aria-label="Календарь"
-            title="Календарь"
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              setRenderMode('calendar');
-            }}
-            data-testid="render-btn-calendar"
-          >
-            <Calendar className="size-4" aria-hidden />
-          </Button>
-          <Button
-            type="button"
-            size="icon"
-            variant={renderMode === 'list' ? 'default' : 'outline'}
-            className={cn(
-              'size-[32px] shrink-0',
-              renderMode !== 'list' && INACTIVE_TOOLBAR_BUTTON_CLASS,
-            )}
-            aria-label="Список"
-            title="Список"
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              setRenderMode('list');
-            }}
-            data-testid="render-btn-list"
-          >
-            <List className="size-4" aria-hidden />
-          </Button>
-        </div>
-
-        {/* Search bar (list mode) */}
-        {renderMode === 'list' ? (
-          <div className="relative flex-1 min-w-[8rem] max-w-xs">
-            <Search
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
-              aria-hidden
-            />
-            <Input
-              type="search"
-              placeholder="Поиск записей…"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-8 text-sm h-8"
-              aria-label="Поиск записей"
-            />
+            <Button
+              type="button"
+              size="icon"
+              variant={renderMode === 'list' ? 'default' : 'outline'}
+              className={cn('size-[32px]', renderMode !== 'list' && INACTIVE_TOOLBAR_BUTTON_CLASS)}
+              aria-label="Список"
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                setRenderMode('list');
+              }}
+            >
+              <List className="size-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={filtersPanelOpen ? 'default' : 'outline'}
+              className={cn('size-[32px]', !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS)}
+              onClick={toggleFiltersPanel}
+              aria-label="Фильтры"
+              aria-expanded={filtersPanelOpen}
+              aria-controls="schedule-filters-panel"
+            >
+              <Filter className="size-4" aria-hidden />
+            </Button>
           </div>
-        ) : null}
+        </div>
 
-        {/* найдено N counter when searching */}
-        {renderMode === 'list' && searchQuery.trim() ? (
-          <span className="text-xs text-muted-foreground" data-testid="search-count">
-            найдено {visibleEvents.filter((e) => e.kind === 'appointment').length}
-          </span>
-        ) : null}
+        <div className="hidden w-full flex-wrap items-center gap-2 md:flex">
+          {/* View switcher: 3 дня · Неделя · Месяц (без «Лента» и без «День») */}
+          <div className="flex gap-1" role="group" aria-label="Режим отображения">
+            {(
+              [
+                { v: '3days' as const, label: '3 дня' },
+                { v: 'weekgrid' as const, label: 'Неделя' },
+                { v: 'month' as const, label: 'Месяц' },
+              ] as const
+            ).map(({ v, label }) => (
+              <Button
+                key={v}
+                type="button"
+                size="sm"
+                variant={view === v ? 'default' : 'outline'}
+                className={view === v ? undefined : INACTIVE_TOOLBAR_BUTTON_CLASS}
+                onClick={() => {
+                  setFiltersPanelOpen(false);
+                  // При переключении из day (drill-down) — выходим из drill-down
+                  if (view === 'day') {
+                    setDrillBackView(null);
+                    onDeepLinkChange('from', null);
+                  }
+                  setView(v);
+                }}
+                data-testid={`view-btn-${v}`}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
 
-        {/* «Сегодня» — вернуть текущий вид к сегодняшнему периоду */}
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-          onClick={() => {
-            setFiltersPanelOpen(false);
-            goToday();
-          }}
-          data-testid="period-today"
-        >
-          Сегодня
-        </Button>
+          {/* Drill-down «День»: показываем если сейчас day */}
+          {view === 'day' ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                drillBack();
+              }}
+              data-testid="drill-back-btn"
+            >
+              ← Назад
+            </Button>
+          ) : null}
 
-        {/* Period nav: ◀ label ▶ */}
-        <>
+          {/* Calendar/List toggle — compact icon pair */}
+          <div className="flex gap-1" role="group" aria-label="Вид отображения">
+            <Button
+              type="button"
+              size="icon"
+              variant={renderMode === 'calendar' ? 'default' : 'outline'}
+              className={cn(
+                'size-[32px] shrink-0',
+                renderMode !== 'calendar' && INACTIVE_TOOLBAR_BUTTON_CLASS,
+              )}
+              aria-label="Календарь"
+              title="Календарь"
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                setRenderMode('calendar');
+              }}
+              data-testid="render-btn-calendar"
+            >
+              <Calendar className="size-4" aria-hidden />
+            </Button>
+            <Button
+              type="button"
+              size="icon"
+              variant={renderMode === 'list' ? 'default' : 'outline'}
+              className={cn(
+                'size-[32px] shrink-0',
+                renderMode !== 'list' && INACTIVE_TOOLBAR_BUTTON_CLASS,
+              )}
+              aria-label="Список"
+              title="Список"
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                setRenderMode('list');
+              }}
+              data-testid="render-btn-list"
+            >
+              <List className="size-4" aria-hidden />
+            </Button>
+          </div>
+
+          {/* Search bar (list mode) */}
+          {renderMode === 'list' ? (
+            <div className="relative flex-1 min-w-[8rem] max-w-xs">
+              <Search
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                placeholder="Поиск записей…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-8 text-sm h-8"
+                aria-label="Поиск записей"
+              />
+            </div>
+          ) : null}
+
+          {/* найдено N counter when searching */}
+          {renderMode === 'list' && searchQuery.trim() ? (
+            <span className="text-xs text-muted-foreground" data-testid="search-count">
+              найдено {visibleEvents.filter((e) => e.kind === 'appointment').length}
+            </span>
+          ) : null}
+
+          {/* «Сегодня» — вернуть текущий вид к сегодняшнему периоду */}
           <Button
             type="button"
             size="sm"
@@ -1913,51 +1998,85 @@ export function ScheduleCalendarTab({
             className={INACTIVE_TOOLBAR_BUTTON_CLASS}
             onClick={() => {
               setFiltersPanelOpen(false);
-              shiftAnchor(-1);
+              goToday();
             }}
-            aria-label="Предыдущий период"
-            data-testid="period-prev"
+            data-testid="period-today"
           >
-            ◀
+            Сегодня
           </Button>
-          <span
-            className="text-sm font-medium text-foreground px-1 min-w-[8rem] text-center"
-            data-testid="period-label"
-          >
-            {periodLabel(view, anchorDate, currentTimeZone)}
-          </span>
+
+          {/* Period nav: ◀ label ▶ */}
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                shiftAnchor(-1);
+              }}
+              aria-label="Предыдущий период"
+              data-testid="period-prev"
+            >
+              ◀
+            </Button>
+            <span
+              className="text-sm font-medium text-foreground px-1 min-w-[8rem] text-center"
+              data-testid="period-label"
+            >
+              {periodLabel(view, anchorDate, currentTimeZone)}
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className={INACTIVE_TOOLBAR_BUTTON_CLASS}
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                shiftAnchor(1);
+              }}
+              aria-label="Следующий период"
+              data-testid="period-next"
+            >
+              ▶
+            </Button>
+          </>
+
           <Button
             type="button"
             size="sm"
-            variant="outline"
-            className={INACTIVE_TOOLBAR_BUTTON_CLASS}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              shiftAnchor(1);
-            }}
-            aria-label="Следующий период"
-            data-testid="period-next"
+            variant={filtersPanelOpen ? 'default' : 'outline'}
+            className={cn(
+              'ml-auto gap-2 xl:hidden',
+              !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
+            )}
+            onClick={toggleFiltersPanel}
+            aria-expanded={filtersPanelOpen}
+            aria-controls="schedule-filters-panel"
           >
-            ▶
+            <Filter className="size-4" aria-hidden />
+            Фильтры
           </Button>
-        </>
-
-        <Button
-          type="button"
-          size="sm"
-          variant={filtersPanelOpen ? 'default' : 'outline'}
-          className={cn(
-            'ml-auto gap-2 xl:hidden',
-            !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
-          )}
-          onClick={toggleFiltersPanel}
-          aria-expanded={filtersPanelOpen}
-          aria-controls="schedule-filters-panel"
-        >
-          <Filter className="size-4" aria-hidden />
-          Фильтры
-        </Button>
+        </div>
       </div>
+
+      {renderMode === 'list' ? (
+        <div className="relative md:hidden">
+          <Search
+            className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            type="search"
+            placeholder="Поиск записей…"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            className="h-8 pl-8 text-sm"
+            aria-label="Поиск записей"
+          />
+        </div>
+      ) : null}
 
       {/* Error */}
       {error ? (
@@ -1993,7 +2112,27 @@ export function ScheduleCalendarTab({
           ) : (
             // FullCalendar
             <div
-              className="overflow-hidden rounded-xl border border-border bg-card pb-4"
+              className="touch-pan-y overflow-hidden overscroll-x-contain rounded-xl border border-border bg-card pb-4"
+              onTouchStartCapture={(event) => {
+                const touch = event.touches[0];
+                calendarSwipeStartRef.current = touch
+                  ? { x: touch.clientX, y: touch.clientY }
+                  : null;
+              }}
+              onTouchEndCapture={(event) => {
+                const start = calendarSwipeStartRef.current;
+                calendarSwipeStartRef.current = null;
+                const touch = event.changedTouches[0];
+                if (!isMobileViewport || !start || !touch) return;
+                const deltaX = touch.clientX - start.x;
+                const deltaY = touch.clientY - start.y;
+                if (Math.abs(deltaX) < 64 || Math.abs(deltaY) > 40) return;
+                event.preventDefault();
+                event.stopPropagation();
+                suppressCalendarInteractionUntilRef.current = Date.now() + 600;
+                setFiltersPanelOpen(false);
+                shiftAnchor(deltaX > 0 ? -1 : 1);
+              }}
               onPointerDownCapture={() => {
                 if (calendarFilterOpenRef.current) {
                   suppressCalendarInteractionUntilRef.current = Date.now() + 1000;
@@ -2302,11 +2441,7 @@ export function ScheduleCalendarTab({
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
           </section>
           {showKpi ? (
-            <KpiRowTab
-              kpis={kpis}
-              kpisLoading={kpisLoading}
-              onKpiClick={handleKpiClick}
-            />
+            <KpiRowTab kpis={kpis} kpisLoading={kpisLoading} onKpiClick={handleKpiClick} />
           ) : null}
         </aside>
       </div>

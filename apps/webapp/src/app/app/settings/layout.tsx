@@ -4,54 +4,26 @@
  */
 import type { ReactNode } from 'react';
 import '../../styles/doctor.css';
-import { requireOrganizationWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { DoctorWorkspaceShell } from '@/shared/ui/doctor/shell/DoctorWorkspaceShell';
-import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
-
-function getValueJson<T>(valueJson: unknown, fallback: T): T {
-  if (
-    valueJson !== null &&
-    typeof valueJson === 'object' &&
-    'value' in (valueJson as Record<string, unknown>)
-  ) {
-    return (valueJson as Record<string, unknown>).value as T;
-  }
-  return fallback;
-}
+import { loadDoctorWorkspaceShell } from '../doctor/loadDoctorWorkspaceShell';
 
 export default async function SettingsLayout({ children }: { children: ReactNode }) {
-  const workspace = await requireOrganizationWorkspaceContext({ allowCabinetRecovery: true });
-  const session = workspace.session;
-
-  const deps = buildAppDeps();
-  const doctorSettings = await deps.systemSettings.listSettingsByScope('doctor', {
-    organizationId: workspace.organizationId,
-  });
-  const patientLabel = getValueJson(
-    doctorSettings.find((x) => x.key === 'patient_label')?.valueJson,
-    'пациент',
-  );
-  const workspaceContext: DoctorWorkspaceContext = {
-    organizationId: workspace.organizationId,
-    organizationName: null,
-    membershipId: workspace.membershipId,
-    membershipRole: workspace.membershipRole,
-    specialistId: workspace.specialistId,
-    canManageOrganization: workspace.canManageOrganization,
-    canManageAllSpecialists: workspace.canManageAllSpecialists,
-    canAccessClinicalWorkspace: workspace.canAccessClinicalWorkspace,
-    doctorScreensDisabled: workspace.doctorScreensDisabled,
-    selectedSpecialistId: workspace.canManageAllSpecialists ? null : workspace.specialistId,
-  };
+  const shell = await loadDoctorWorkspaceShell(true);
+  const { session } = shell;
 
   return (
     <DoctorWorkspaceShell
       isPlatformOperator={session.user.role === 'admin'}
       userRole={session.user.role}
       userDisplayName={session.user.displayName}
-      patientLabel={String(patientLabel)}
-      workspaceContext={workspaceContext}
+      patientLabel={shell.patientLabel}
+      workspaceContext={shell.workspaceContext}
+      coursesEnabled={shell.coursesEnabled}
+      promoEnabled={shell.promoEnabled}
+      cmsEnabled={shell.cmsEnabled}
+      patientHomeTodayEnabled={shell.patientHomeTodayEnabled}
+      specialistTasksEnabled={shell.specialistTasksEnabled}
+      brand={shell.shellBrand}
     >
       {children}
     </DoctorWorkspaceShell>

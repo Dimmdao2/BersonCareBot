@@ -1,15 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceDot,
-  XAxis,
-  YAxis,
-} from 'recharts';
+import { Bar, CartesianGrid, ComposedChart, Line, ReferenceDot, XAxis, YAxis } from 'recharts';
 import type { TodayWeeklyTimelinePoint } from './loadDoctorTodayDashboard';
 import { PositiveSizeResponsiveContainer } from '@/shared/ui/charts/PositiveSizeResponsiveContainer';
 import { DoctorRechartsTooltip } from '@/shared/ui/doctor/DoctorRechartsTooltip';
@@ -90,7 +82,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
   }, [anchorIndex, points.length]);
 
   return (
-    <Card className="flex h-full min-h-[18rem] min-w-0 flex-col gap-2 py-3 md:min-h-0">
+    <Card className="flex h-full min-h-0 min-w-0 flex-col gap-2 py-3">
       <CardHeader className="shrink-0 px-3">
         <CardTitle>Записи по неделям</CardTitle>
       </CardHeader>
@@ -99,10 +91,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
           ref={scrollAreaRef}
           className="doctor-weekly-chart-scroll h-full w-full overflow-x-auto overscroll-x-contain"
         >
-          <div
-            className="h-full min-h-[15rem] px-2 pb-2 md:min-h-0"
-            style={{ width: chartWidth, minWidth: '100%' }}
-          >
+          <div className="h-full min-h-0 px-2 pb-2" style={{ width: chartWidth, minWidth: '100%' }}>
             <PositiveSizeResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chartPoints} margin={{ top: 12, right: 14, left: 0, bottom: 2 }}>
                 <CartesianGrid
@@ -116,9 +105,7 @@ export function DoctorTodayWeeklyAppointmentsChart({
                       x2={x2}
                       y1={y1}
                       y2={y2}
-                      stroke={
-                        Number(y1) <= offset.top + 0.5 ? 'transparent' : 'var(--border)'
-                      }
+                      stroke={Number(y1) <= offset.top + 0.5 ? 'transparent' : 'var(--border)'}
                     />
                   )}
                 />

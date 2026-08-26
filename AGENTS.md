@@ -1723,7 +1723,7 @@ UI-тексты читает владелец и пользователи, их 
 - **Заголовки:** `doctorSectionTitleClass` / `doctorPageTitleClass` / `doctorClientSectionTitleClass` — **запрещены** голые `<h2>` / `<h3>` без `className`.
 - **Карточка клиента:** только chrome из `doctorClientCardChrome.ts`; вкладки и overview — primary/secondary/stacked по гайду §9.
 - **Каталоги (split-layout):** эталон — `exercises/ExercisesPageClient.tsx`; стек `DoctorCatalogPageLayout` + `DoctorCatalogFiltersToolbar` + `CatalogSplitLayout`; primary action — `doctorCatalogToolbarPrimaryActionClassName`.
-- **Диалоги:** shadcn `Dialog` с шириной из гайда §14; не inline-раскрытие деструктивных действий вне Dialog.
+- **Модалки:** feature-модалки открывать через `DoctorModal`; он выбирает desktop dialog/right-sheet и канонический mobile bottom-drawer. Legacy `doctor/primitives/Dialog` на mobile обязан делегировать тому же `DrawerContent`; локальные mobile-ветки с собственной геометрией, фоном или анимацией запрещены.
 - **Кнопки:** primary — `default` / `size="sm"`; **не** `ghost` как основное действие (гайд §16).
 - **Select:** при нечитаемом `value` — `displayLabel` на `SelectTrigger` (см. раздел [UI: Select](#22-ui-select--displaylabel)).
 
@@ -1748,8 +1748,8 @@ UI-тексты читает владелец и пользователи, их 
   только floating (медиакарточки §11, поповеры, drag), **не** на page-level секциях/KPI.
 - Semantic primary кабинета врача — ровно `#4573b1` через зональный `--primary`; кнопки, ссылки, active/focus и другие primary-consumers используют semantic-классы, а не локальный hex. Patient/public tokens и destructive/warning/info роли не перекрашивать.
 - Chrome-типографика — закрытый набор §B.1: page-title `text-[18px] font-medium`; section `text-sm`, обычный body `text-sm`, **первичная строка списка** `text-base font-normal`, meta `text-xs`, KPI `doctorMetricValueClass` (`text-[1.3rem]`). Micro-роль `text-[10px]`/`text-[11px]` — только бейджи/календарь/оси графиков/mono. Запрещено: `text-[13px]`, `text-lg`, `text-xl`, `text-2xl`, `text-3xl`; `text-[18px]` и `text-[1.3rem]` разрешены только через соответствующие общие роли.
-- Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]`; input имеет радиус `24px`, select — `8px`, как стандартная кнопка. Стандартная кнопка `size="sm"` — `h-9`/`h-[36px]`; фактическая поверхность input белая. Радиусы select и кнопки задают doctor primitives, не локальный caller.
-- Радиусы (§A.3): page-block `12px`, KPI `8px`, doctor button/select trigger `8px`, input `24px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
+- Контролы doctor-zone: input/select-триггер — `h-8`/`h-[32px]`; input/select/textarea используют единый радиус `8px`, как стандартная кнопка. Стандартная кнопка `size="sm"` — `h-9`/`h-[36px]`; фактическая поверхность input белая. Радиус задают doctor primitives, не локальный caller.
+- Радиусы (§A.3): page-block `12px`, KPI `8px`, doctor button/select/input/textarea `8px`; `rounded-2xl` запрещён. Явный радиус caller (`rounded-none`, icon override и т.п.) сохраняется.
 - Исключение навигации: main doctor sidebar/mobile menu items не являются button pills и сохраняют минимальный
   shared near-rectangular menu radius; control radius на menu rows не распространяется. Section tabs имеют
   отдельный rounded contract.

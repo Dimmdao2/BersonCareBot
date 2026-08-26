@@ -226,7 +226,7 @@ export function DoctorTodayDashboard({
   return (
     <div
       id="doctor-today-dashboard"
-      className={`${doctorPageStackClass} min-h-0 flex-1 pb-[3.25rem] md:pb-0`}
+      className={`${doctorPageStackClass} min-h-0 flex-1 overflow-hidden`}
     >
       <DoctorPageHeader
         id="doctor-today-header"
@@ -242,9 +242,12 @@ export function DoctorTodayDashboard({
 
       <div
         id="doctor-today-two-panes"
-        className="doctor-today-two-pane-grid grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 md:h-[calc(100dvh_-_var(--doctor-page-header-h,2.75rem)_-_1.5rem)] md:flex-none md:items-stretch md:pb-3"
+        className="doctor-today-two-pane-grid grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 overflow-hidden md:h-[calc(100dvh_-_var(--doctor-page-header-h,2.75rem)_-_1.5rem)] md:flex-none md:items-stretch md:pb-3"
       >
-        <div id="doctor-today-left-pane" className="flex min-h-0 min-w-0 flex-col gap-3">
+        <div
+          id="doctor-today-left-pane"
+          className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden"
+        >
           <DoctorTodayLeftKpiRow
             pendingTestsTotal={data.pendingProgramTestsTotal}
             unreadConversations={data.unreadConversations}
@@ -290,15 +293,15 @@ export function DoctorTodayDashboard({
             />
           </DoctorMetricList>
 
+          <div className="min-h-0 flex-1">
+            <DoctorTodayWeeklyAppointmentsChart points={data.weeklyTimeline} />
+          </div>
+
           <DoctorTodayQuickActions
             todayIso={calendarSnapshot.todayIso}
             displayIana={displayIana}
             placement="mobile-footer"
           />
-
-          <div className="min-h-[18rem] md:min-h-0 md:flex-1">
-            <DoctorTodayWeeklyAppointmentsChart points={data.weeklyTimeline} />
-          </div>
         </div>
 
         {!isMobile ? (
@@ -353,13 +356,16 @@ export function DoctorTodayDashboard({
             </span>
           </span>
         }
-        size="lg"
+        size="content"
+        bodyClassName="p-0"
       >
         <TodayMiniCalendarWithModal
           appointments={data.todayAppointments}
           calendarSnapshot={calendarSnapshot}
           displayIana={displayIana}
           defaultWindow={calendarDefaultWindow}
+          fillHeight
+          flushChrome
         />
       </DoctorModal>
     </div>

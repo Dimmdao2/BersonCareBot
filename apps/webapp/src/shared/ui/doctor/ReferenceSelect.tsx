@@ -202,7 +202,7 @@ export function ReferenceSelect({
       />
       {open && (clearOptionLabel || missingValueOption || filtered.length > 0) ? (
         <div className="absolute left-0 right-0 top-full z-50 mt-1 w-full min-w-0">
-          <div className="relative max-h-48 overflow-hidden rounded-md border border-border bg-background shadow-md">
+          <div className="relative max-h-48 overflow-hidden rounded-[var(--doctor-control-radius,8px)] border border-border bg-background shadow-md">
             <ul
               ref={listboxRef}
               onScroll={updateListScrollOverflow}
