@@ -7,6 +7,7 @@ import {
   appointmentReminderPlanForPreset,
   isAppointmentReminderPresetId,
 } from '@/modules/booking-notifications/appointmentReminderPresets';
+import { staffBookingContactNameFromAppointment } from '@/app-layer/booking/staffBookingIntegratorEvent';
 
 const bodySchema = z.object({
   presetId: z.string().nullable(),
@@ -55,24 +56,29 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ap
   });
   if (!updated) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
 
-  const booking = await deps.patientBooking.getBookingByCanonicalAppointment(appointmentId);
-  if (!booking) return NextResponse.json({ ok: false, error: 'schedule_sync_failed' }, { status: 503 });
+  const appointment = await deps.bookingEngine?.getAppointment(appointmentId);
+  if (!appointment || appointment.organizationId !== preference.organizationId) {
+    return NextResponse.json({ ok: false, error: 'schedule_sync_failed' }, { status: 503 });
+  }
+  const booking = await deps.patientBooking
+    .getBookingByCanonicalAppointment(appointmentId)
+    .catch(() => null);
   try {
     await deps.bookingSync.emitBookingEvent({
       eventType: 'booking.reminder_updated',
-      idempotencyKey: `booking.reminder_updated:${booking.id}:${parsed.data.mutationId}`,
+      idempotencyKey: `booking.reminder_updated:${booking?.id ?? appointment.id}:${parsed.data.mutationId}`,
       payload: {
         organizationId: preference.organizationId,
-        bookingId: booking.id,
+        bookingId: booking?.id ?? appointment.id,
         userId: gate.session.user.userId,
-        bookingType: booking.bookingType,
-        city: booking.city ?? undefined,
-        category: booking.category,
-        slotStart: booking.slotStart,
-        slotEnd: booking.slotEnd,
-        contactName: booking.contactName,
-        contactPhone: booking.contactPhone,
-        contactEmail: booking.contactEmail ?? undefined,
+        bookingType: booking?.bookingType ?? 'in_person',
+        city: booking?.city ?? undefined,
+        category: booking?.category ?? 'general',
+        slotStart: appointment.startAt,
+        slotEnd: appointment.endAt,
+        contactName: booking?.contactName ?? staffBookingContactNameFromAppointment(appointment),
+        contactPhone: booking?.contactPhone ?? appointment.phoneNormalized ?? '+70000000000',
+        contactEmail: booking?.contactEmail ?? undefined,
         canonicalAppointmentId: appointmentId,
         reminderPlan: appointmentReminderPlanForPreset(presetId),
         cancelPendingReminders: true,

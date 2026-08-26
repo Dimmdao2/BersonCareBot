@@ -5,6 +5,7 @@ const fakes = vi.hoisted(() => ({
   requirePatientApiBusinessAccess: vi.fn(),
   getPatientAppointmentReminderPreference: vi.fn(),
   setPatientAppointmentReminderPreset: vi.fn(),
+  getAppointment: vi.fn(),
   getBookingByCanonicalAppointment: vi.fn(),
   emitBookingEvent: vi.fn(),
 }));
@@ -44,6 +45,15 @@ beforeEach(() => {
     selectionSource: 'patient',
   });
   fakes.setPatientAppointmentReminderPreset.mockResolvedValue(true);
+  fakes.getAppointment.mockResolvedValue({
+    id: appointmentId,
+    organizationId: '44444444-4444-4444-8444-444444444444',
+    platformUserId: '33333333-3333-4333-8333-333333333333',
+    startAt: '2027-03-10T09:00:00.000Z',
+    endAt: '2027-03-10T09:30:00.000Z',
+    phoneNormalized: '+79990000000',
+    attributionJson: { contactName: 'Пациент' },
+  });
   fakes.getBookingByCanonicalAppointment.mockResolvedValue({
     id: bookingId,
     bookingType: 'online',
@@ -60,6 +70,7 @@ beforeEach(() => {
     bookingEngine: {
       getPatientAppointmentReminderPreference: fakes.getPatientAppointmentReminderPreference,
       setPatientAppointmentReminderPreset: fakes.setPatientAppointmentReminderPreset,
+      getAppointment: fakes.getAppointment,
     },
     patientBooking: {
       getBookingByCanonicalAppointment: fakes.getBookingByCanonicalAppointment,
@@ -97,5 +108,27 @@ describe('patient appointment reminder preference', () => {
 
     expect(response.status).toBe(404);
     expect(fakes.emitBookingEvent).not.toHaveBeenCalled();
+  });
+
+  it('schedules a canonical manual appointment without creating a duplicate patient booking row', async () => {
+    fakes.getBookingByCanonicalAppointment.mockResolvedValue(null);
+
+    const response = await patchReminder(
+      'two_hours_before',
+      '77777777-7777-4777-8777-777777777777',
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.emitBookingEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        waitForDelivery: true,
+        payload: expect.objectContaining({
+          bookingId: appointmentId,
+          canonicalAppointmentId: appointmentId,
+          slotStart: '2027-03-10T09:00:00.000Z',
+          slotEnd: '2027-03-10T09:30:00.000Z',
+        }),
+      }),
+    );
   });
 });
