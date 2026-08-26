@@ -2,7 +2,9 @@
  * Wave 3 phase 15E — optional signed HTTP bind orchestration.
  * Domain SQL/TX helpers live in `infra/repos/pgMessengerPhoneHttpBind`.
  *
- * Logic is kept in sync with the binding-first `user.phone.link` path in integrator.
+ * Logic is kept in sync with the binding-first canonical write in `modules/auth/phoneMessengerBind.ts`
+ * (`applyMessengerContactPreOtp` / `completePhoneMessengerBindFromIntegrator`) — integrator's own parallel
+ * `user.phone.link` write was retired 2026-08-26; webapp owns the confirmed-phone write end-to-end.
  *
  * Implemented here (not imported from `apps/integrator`) so Next.js production build does not bundle integrator sources with `.js` import paths.
  */

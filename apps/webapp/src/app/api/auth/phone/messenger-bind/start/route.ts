@@ -52,7 +52,11 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!(await isAuthChannelEnabled(parsed.data.channelCode))) {
+  // Patient-only route: pass the fixed 'patient' surface explicitly rather than the Host-derived
+  // resolution, so the transitional single-Host TEST deployment (staff and patient share one Host)
+  // still evaluates the patient auth-channel toggles instead of falling through to staff's, which
+  // would close Telegram/MAX login for patients without opening it on the staff/admin surface.
+  if (!(await isAuthChannelEnabled(parsed.data.channelCode, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 

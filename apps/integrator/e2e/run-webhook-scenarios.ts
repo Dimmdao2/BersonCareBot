@@ -200,17 +200,6 @@ const dbWritePort = {
       return;
     }
 
-    if (mutation.type === 'user.phone.link') {
-      const channelUserId = asChannelUserId(mutation.params.channelUserId);
-      const phoneNormalized =
-        typeof mutation.params.phoneNormalized === 'string'
-          ? mutation.params.phoneNormalized
-          : null;
-      if (channelUserId && phoneNormalized) {
-        inMemoryState.phones.set(channelUserId, phoneNormalized);
-      }
-      return;
-    }
   },
 };
 

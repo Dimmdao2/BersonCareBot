@@ -97,7 +97,8 @@ export async function POST(request: Request) {
 
   const challenge = await deps.auth.getPhoneChallenge(resolved.challengeId);
   const deliveryChannel = challenge?.deliveryChannel ?? 'telegram';
-  if (!(await isAuthChannelEnabled(deliveryChannel))) {
+  // Patient-only route — see the same explicit-surface note in messenger-bind/start/route.ts.
+  if (!(await isAuthChannelEnabled(deliveryChannel, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
   const isRegistrationIntent = challenge?.isRegistrationIntent === true;

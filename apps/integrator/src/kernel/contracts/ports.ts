@@ -34,7 +34,6 @@ export type DbReadQueryType =
 /** Категории write-мутаций к хранилищу. */
 export type DbWriteMutationType =
   | 'user.upsert'
-  | 'user.phone.link'
   | 'reminders.occurrence.markSent'
   | 'reminders.occurrence.markFailed'
   | 'reminders.occurrence.expireOrphanedPending'
@@ -79,37 +78,9 @@ export type DbReadPort = {
   readDb<T = unknown>(query: DbReadQuery): Promise<T>;
 };
 
-/** Семантический отказ привязки телефона (TX `public` + integrator); не смешивать с конфликтом номера в UI. */
-export type PhoneLinkFailureReason =
-  | 'auth_channel_disabled'
-  | 'no_channel_binding'
-  | 'phone_owned_by_other_user'
-  | 'integrator_id_mismatch'
-  /** Нет строки identities для пары (resource, externalId) — не ретраить как «транзиент БД». */
-  | 'no_integrator_identity'
-  | 'db_transient_failure'
-  | 'channel_already_bound_to_other_user'
-  | 'merge_blocked_booking_overlap'
-  | 'merge_blocked_distinct_real_users'
-  | 'merge_blocked_lfk_conflict'
-  | 'merge_blocked_ambiguous_candidates'
-  | 'legacy_contacts_conflict'
-  | 'merge_blocked_integrator_conflict'
-  | 'merge_blocked_treatment_program_conflict'
-  | 'merge_blocked_open_test_attempt_conflict';
-
-/** Метаданные отдельных мутаций `writeDb` (остальные кейсы возвращают `undefined`). */
-export type DbWriteDbResult = {
-  userPhoneLinkApplied?: boolean;
-  /** Неопределённый исход БД: не показывать копию «номер у другого аккаунта». */
-  phoneLinkIndeterminate?: boolean;
-  /** Уточнение при `userPhoneLinkApplied: false` (binding-first TX-путь). */
-  phoneLinkReason?: PhoneLinkFailureReason;
-};
-
 /** Порт записи данных, используемый orchestrator/domain. */
 export type DbWritePort = {
-  writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult>;
+  writeDb(mutation: DbWriteMutation): Promise<void>;
 };
 
 /** Результат доставки (например, id сообщения в Telegram / MAX для логов напоминаний). */

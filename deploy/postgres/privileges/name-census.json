@@ -313,7 +313,6 @@
   ],
   "integratorDoorsOnTheWebappTenantRole": [],
   "integratorRootColumnParameterRenames": [
-    "app.integrator_bind_bootstrap_channel_phone: public.user_contacts.value_normalized <- p_phone_normalized",
     "app.record_operator_delivery_attempt: public.notification_delivery_attempts.created_at <- p_occurred_at",
     "app.record_operator_delivery_attempt: public.notification_delivery_attempts.event_id <- p_intent_event_id",
     "app.record_operator_delivery_attempt: public.notification_delivery_attempts.event_id <- p_intent_event_id",

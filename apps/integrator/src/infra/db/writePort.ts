@@ -1,11 +1,9 @@
 import type {
   DbPort,
   DispatchPort,
-  DbWriteDbResult,
   DbWriteMutation,
   DbWriteMutationType,
   DbWritePort,
-  PhoneLinkFailureReason,
   QueuePort,
   WebappEventsPort,
 } from '../../kernel/contracts/index.js';
@@ -15,7 +13,6 @@ import { createPostgresJobQueue } from '../adapters/jobQueuePort.js';
 import { createDbPort } from './client.js';
 import { appendMessageLog } from './repos/messageLogs.js';
 import { writeOperatorDeliveryAttempt } from './repos/operatorDeliveryAttempts.js';
-import { recordMessengerPhoneBindBlocked } from './repos/messengerPhoneBindAudit.js';
 import {
   createContentAccessGrant,
   markReminderOccurrenceFailed,
@@ -27,14 +24,12 @@ import {
 import type { FinalizedReminderOccurrenceProjectionContext } from './repos/reminders.js';
 import { getOperationalVerboseLogEnabled } from './repos/operationalVerboseLog.js';
 import { logger } from '../observability/logger.js';
-import { isAuthChannelEnabled as readAuthChannelPolicy } from './authChannelPolicy.js';
 import {
   upsertBootstrapChannelIdentity,
   normalizeChannelDisplayHandle,
   type DirectPublicChannelCode,
 } from './directPublic/writeIdentityAndPreferencesDirect.js';
 import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTaskReminderOutcome.js';
-import { bindBootstrapMessengerPhone } from './directPublic/bootstrapMessengerPhoneBind.js';
 import { writeDirectPublic } from './directPublic/writePort.js';
 
 /**
@@ -69,30 +64,9 @@ function asNullableString(value: unknown): string | null {
   return typeof value === 'string' ? value : null;
 }
 
-function readChannelUserId(params: Record<string, unknown>): string | null {
-  const raw = params.channelUserId ?? params.channelId;
-  const asStr = asNonEmptyString(raw);
-  if (asStr) return asStr;
-  if (typeof raw === 'number' && Number.isFinite(raw)) return String(Math.trunc(raw));
-  return null;
-}
-
 function readResource(params: Record<string, unknown>): string {
   const r = asNonEmptyString(params.resource);
   return r ?? 'telegram';
-}
-
-/** Last digits only — avoid logging full E.164 in clear text. */
-function phoneLogSuffix(phoneNormalized: string): string {
-  const d = phoneNormalized.replace(/\D/g, '');
-  if (d.length <= 4) return '****';
-  return d.slice(-4);
-}
-
-function pgSqlStateFromUnknown(err: unknown): string | undefined {
-  if (typeof err !== 'object' || err === null) return undefined;
-  const code = (err as { code?: unknown }).code;
-  return typeof code === 'string' ? code : undefined;
 }
 
 /**
@@ -106,8 +80,6 @@ export function createDbWritePort(
     webappEventsPort?: WebappEventsPort;
     /** Filled after `buildDeps` constructs `dispatchPort` (avoid circular init). */
     getDispatchPort?: () => DispatchPort | undefined;
-    /** Injectable for deterministic tests; production reads canonical public.system_settings. */
-    authChannelPolicy?: (channel: 'telegram' | 'max') => Promise<boolean>;
     /** Injectable boundary for the scheduler's orphan-expiry maintenance mutation. */
     expireOrphanedReminderOccurrences?: (
       db: DbPort,
@@ -121,9 +93,6 @@ export function createDbWritePort(
   const db = input.db ?? createDbPort();
   const webappEventsPort = input.webappEventsPort;
   const getDispatchPort = input.getDispatchPort;
-  const authChannelPolicy =
-    input.authChannelPolicy ??
-    ((channel: 'telegram' | 'max') => readAuthChannelPolicy(db, channel));
   const expireOrphanedReminderOccurrences =
     input.expireOrphanedReminderOccurrences ?? expireOrphanedPendingReminderOccurrences;
   const queuePort: QueuePort =
@@ -142,13 +111,12 @@ export function createDbWritePort(
       db: txDb,
       ...(webappEventsPort !== undefined ? { webappEventsPort } : {}),
       ...(getDispatchPort !== undefined ? { getDispatchPort } : {}),
-      authChannelPolicy,
       expireOrphanedReminderOccurrences,
     });
   }
 
   return {
-    async writeDb(mutation: DbWriteMutation): Promise<void | DbWriteDbResult> {
+    async writeDb(mutation: DbWriteMutation): Promise<void> {
       if (
         getCurrentDbPrincipalOrganizationId() !== undefined &&
         db.integratorDrizzle === undefined &&
@@ -208,134 +176,6 @@ export function createDbWritePort(
             }),
           );
           return;
-        }
-        case 'user.phone.link': {
-          const resource = readResource(mutation.params);
-          const channelUserId = readChannelUserId(mutation.params);
-          const phoneNormalized = asNonEmptyString(mutation.params.phoneNormalized);
-          const preferredPlatformUserId = asNonEmptyString(mutation.params.preferredPlatformUserId);
-          const bindLogBase = {
-            event: 'messenger_phone_bind_tx' as const,
-            bindOutcome: 'bind_tx_fail' as const,
-            resource,
-            channelCode: resource,
-            ...(channelUserId ? { externalId: channelUserId } : {}),
-            metric: 'messenger_bind_tx_fail' as const,
-            ...(asNonEmptyString(mutation.params.correlationId)
-              ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
-              : {}),
-          };
-          if (resource !== 'telegram' && resource !== 'max') {
-            logger.warn({ ...bindLogBase, reason: 'unsupported_resource' }, 'bind_tx_fail');
-            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
-          }
-          if (!channelUserId || !phoneNormalized) {
-            logger.warn({ ...bindLogBase, reason: 'missing_input' }, 'bind_tx_fail');
-            return { userPhoneLinkApplied: false, phoneLinkIndeterminate: true };
-          }
-          if (!(await authChannelPolicy(resource))) {
-            logger.warn({ ...bindLogBase, reason: 'auth_channel_disabled' }, 'bind_tx_fail');
-            return { userPhoneLinkApplied: false, phoneLinkReason: 'auth_channel_disabled' };
-          }
-          const phoneSuffix = phoneLogSuffix(phoneNormalized);
-          // D25: one exact named root (`app.integrator_bind_bootstrap_channel_phone`), entered through
-          // the one direct-public principal chokepoint (`writeDirectPublic`), which re-installs the
-          // bootstrap principal the root's declared capability accepts — see `identity-upsert` above
-          // and audit K5 (22.08). That re-entry is scoped to the root call alone, so the ambient
-          // organization principal is back in force for the `admin_audit_log` case below. The root
-          // never opens a relation transaction and reports a conflict without deciding or executing an
-          // account merge (D26); the durable, repeat-aware `admin_audit_log` case below is the same one
-          // the retired relation-writer path (`applyMessengerPhonePublicBind`) used to record, now fed
-          // from the exact root's result whenever an organization is ambiently known.
-          try {
-            const bindResult = await writeDirectPublic('phone-bind', () =>
-              bindBootstrapMessengerPhone(db, {
-                channelCode: resource,
-                externalId: channelUserId,
-                phoneNormalized,
-                preferredPlatformUserId,
-              }),
-            );
-            if (!bindResult.applied) {
-              const reason = bindResult.failureCode as PhoneLinkFailureReason | null;
-              logger.warn(
-                { ...bindLogBase, reason: reason ?? 'indeterminate', phoneSuffix },
-                'bind_tx_fail',
-              );
-              const organizationId = getCurrentDbPrincipalOrganizationId();
-              if (reason && organizationId) {
-                void writeDirectPublic('admin-audit-write', () =>
-                  recordMessengerPhoneBindBlocked({
-                    db,
-                    ...(getDispatchPort ? { getDispatchPort } : {}),
-                    reason,
-                    // K8 (audit, 22.08): the human Р-D26 hands the merge decision to opens this
-                    // case and must see BOTH colliding accounts — the source AND the account the
-                    // number/merge collided with, which the root now returns alongside it. It is
-                    // also what keeps `conflict_key` (sha256 of the sorted candidate ids) distinct:
-                    // with the source alone, two different conflicts sharing it collapsed into one
-                    // row and the second case disappeared into `repeat_count`.
-                    candidateIds: [
-                      ...new Set(
-                        [bindResult.platformUserId, bindResult.counterpartyPlatformUserId].filter(
-                          (id): id is string => typeof id === 'string' && id.length > 0,
-                        ),
-                      ),
-                    ],
-                    details: {
-                      channelCode: resource,
-                      externalId: channelUserId,
-                      phoneSuffix,
-                      ...(asNonEmptyString(mutation.params.correlationId)
-                        ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
-                        : {}),
-                    },
-                  }),
-                ).catch(() => {});
-              }
-              return {
-                userPhoneLinkApplied: false,
-                ...(reason ? { phoneLinkReason: reason } : { phoneLinkIndeterminate: true }),
-              };
-            }
-            logger.info(
-              {
-                event: 'messenger_phone_bind_tx',
-                bindOutcome: 'bind_tx_ok',
-                metric: 'messenger_bind_ok',
-                resource,
-                channelCode: resource,
-                externalId: channelUserId,
-                platformUserId: bindResult.platformUserId ?? undefined,
-                phoneSuffix,
-                ...(asNonEmptyString(mutation.params.correlationId)
-                  ? { correlationId: asNonEmptyString(mutation.params.correlationId) }
-                  : {}),
-              },
-              'bind_tx_ok',
-            );
-            return { userPhoneLinkApplied: true };
-          } catch (err) {
-            const sqlState = pgSqlStateFromUnknown(err);
-            logger.error(
-              { err, ...bindLogBase, ...(sqlState ? { sqlState } : {}), phoneSuffix },
-              'user.phone.link: unexpected error',
-            );
-            logger.warn(
-              {
-                ...bindLogBase,
-                reason: 'db_transient_failure',
-                ...(sqlState ? { sqlState } : {}),
-                phoneSuffix,
-              },
-              'bind_tx_fail',
-            );
-            return {
-              userPhoneLinkApplied: false,
-              phoneLinkIndeterminate: true,
-              phoneLinkReason: 'db_transient_failure',
-            };
-          }
         }
         case 'reminders.occurrence.markSent': {
           // Track D final cutover (#987): `markReminderOccurrenceSent` is now itself a single,

@@ -21,7 +21,9 @@ const bodySchema = z.object({
 
 /**
  * Optional M2M: signed POST for an **external** caller (not the unified-DB hot path used by the bot).
- * Same TX semantics as integrator `user.phone.link` — see `executeMessengerPhoneHttpBind`.
+ * Same TX semantics as webapp's own binding-first canonical write (`applyMessengerContactPreOtp` in
+ * `modules/auth/phoneMessengerBind.ts`) — see `executeMessengerPhoneHttpBind`. Integrator's parallel
+ * `user.phone.link` write was retired 2026-08-26.
  */
 export async function POST(request: Request) {
   const timestamp = request.headers.get('x-bersoncare-timestamp');

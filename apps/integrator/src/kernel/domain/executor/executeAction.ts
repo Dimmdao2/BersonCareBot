@@ -7,7 +7,6 @@
 import type {
   Action,
   ActionResult,
-  DbWriteDbResult,
   DbWriteMutation,
   DomainContext,
   OutgoingIntent,
@@ -25,7 +24,6 @@ import {
   asNumber,
   readIncoming,
   readIncomingChatId,
-  readExternalActorId,
   readIncomingPhone,
   buildIntentMeta,
   renderText,
@@ -35,16 +33,6 @@ import {
 } from './helpers.js';
 import { dispatchRequestContactToUser } from '../../../integrations/bersoncare/dispatchRequestContact.js';
 import { logger } from '../../../infra/observability/logger.js';
-import {
-  phoneLinkChannelBoundElsewhereUserMessage,
-  phoneLinkConflictUserMessage,
-  phoneLinkIntegratorMismatchUserMessage,
-  phoneLinkLegacyContactsConflictUserMessage,
-  phoneLinkMergeBlockedUserMessage,
-  phoneLinkNoBindingUserMessage,
-  phoneLinkNoIntegratorIdentityUserMessage,
-  phoneLinkSaveFailedUserMessage,
-} from '../../../shared/phoneLinkUserMessages.js';
 
 const BOOKING_TYPES = new Set<string>(['booking.event.insert']);
 const REMINDER_TYPES = new Set<string>([
@@ -881,102 +869,6 @@ export async function executeAction(
         },
       ];
       return { actionId: action.id, status: 'success', intents };
-    }
-
-    case 'user.phone.link': {
-      const channelUserId =
-        action.params.channelUserId ?? action.params.channelId ?? readExternalActorId(ctx);
-      const phoneNormalized = asString(action.params.phoneNormalized) ?? readIncomingPhone(ctx);
-      if (!phoneNormalized || !deps.writePort) {
-        return {
-          actionId: action.id,
-          status: 'skipped',
-          error: 'PHONE_LINK_INPUT_MISSING',
-        };
-      }
-      const write: DbWriteMutation = {
-        type: 'user.phone.link',
-        params: {
-          resource: ctx.event.meta.source,
-          channelUserId,
-          phoneNormalized,
-          ...(ctx.event.meta.correlationId ? { correlationId: ctx.event.meta.correlationId } : {}),
-        },
-      };
-      const meta = await deps.writePort.writeDb(write);
-      const hasMeta = typeof meta === 'object' && meta !== null && 'userPhoneLinkApplied' in meta;
-      if (!hasMeta) {
-        logger.warn(
-          { actionId: action.id },
-          'user.phone.link: writeDb missing userPhoneLinkApplied',
-        );
-      }
-      const m = hasMeta ? (meta as DbWriteDbResult) : null;
-      const indeterminate = !hasMeta || m?.phoneLinkIndeterminate === true;
-      const notApplied = hasMeta && m && !m.userPhoneLinkApplied;
-
-      if (notApplied || indeterminate) {
-        const chatIdStr = readIncomingChatId(ctx);
-        const chatIdParsed = chatIdStr != null ? Number(chatIdStr) : NaN;
-        const source = ctx.event.meta.source ?? 'telegram';
-        const reason = m?.phoneLinkReason;
-        let text: string;
-        if (reason === 'no_channel_binding') {
-          text = phoneLinkNoBindingUserMessage(source);
-        } else if (reason === 'no_integrator_identity') {
-          text = phoneLinkNoIntegratorIdentityUserMessage(source);
-        } else if (reason === 'phone_owned_by_other_user') {
-          text = phoneLinkConflictUserMessage(source);
-        } else if (reason === 'integrator_id_mismatch') {
-          text = phoneLinkIntegratorMismatchUserMessage(source);
-        } else if (
-          reason === 'merge_blocked_booking_overlap' ||
-          reason === 'merge_blocked_distinct_real_users' ||
-          reason === 'merge_blocked_lfk_conflict' ||
-          reason === 'merge_blocked_ambiguous_candidates' ||
-          reason === 'merge_blocked_integrator_conflict'
-        ) {
-          text = phoneLinkMergeBlockedUserMessage(source);
-        } else if (reason === 'channel_already_bound_to_other_user') {
-          text = phoneLinkChannelBoundElsewhereUserMessage(source);
-        } else if (reason === 'legacy_contacts_conflict') {
-          text = phoneLinkLegacyContactsConflictUserMessage();
-        } else if (reason === 'db_transient_failure' || indeterminate) {
-          text = phoneLinkSaveFailedUserMessage();
-        } else {
-          logger.warn(
-            { actionId: action.id, reason },
-            'user.phone.link: unexpected phoneLinkReason for failed bind; using save-failed copy',
-          );
-          text = phoneLinkSaveFailedUserMessage();
-        }
-        const intents: OutgoingIntent[] = [
-          {
-            type: 'message.send',
-            meta: buildIntentMeta(action, ctx),
-            payload: {
-              recipient:
-                chatIdStr != null && Number.isFinite(chatIdParsed)
-                  ? { chatId: chatIdParsed }
-                  : { chatId: chatIdStr ?? undefined },
-              message: { text },
-              delivery: { channels: [source], maxAttempts: 1 },
-            },
-          },
-        ];
-        return {
-          actionId: action.id,
-          status: 'success',
-          abortPlan: true,
-          intents,
-        };
-      }
-
-      return {
-        actionId: action.id,
-        status: 'success',
-        writes: [write],
-      };
     }
 
     default:

@@ -201,7 +201,6 @@ export const dbReadQuerySchema = z.object({
 export const dbWriteMutationSchema = z.object({
   type: z.enum([
     'user.upsert',
-    'user.phone.link',
     'reminders.occurrence.markSent',
     'reminders.occurrence.markFailed',
     'reminders.occurrence.expireOrphanedPending',

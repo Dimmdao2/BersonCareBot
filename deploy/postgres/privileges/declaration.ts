@@ -1933,9 +1933,6 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.email_password_register_pending(text,text,text,text,text,text)': {
     contacts: ['INSERT'], operations: { 'public.platform_users': ['SELECT', 'INSERT', 'DELETE'] },
   },
-  'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)': {
-    contacts: ['SELECT', 'INSERT', 'UPDATE'],
-  },
   'app.is_current_patient_test_account()': { contacts: ['SELECT'] },
   'app.is_platform_registration_analytics_user_excluded(uuid)': { contacts: ['SELECT'] },
   'app.password_credentials_replace_self(text,text)': { contacts: ['SELECT'] },
@@ -2026,6 +2023,15 @@ function applyCanonicalContactSurfaceCorrections(
 const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   'app.archive_operator_health_failures(text,integer,uuid)': {
     'public.outgoing_delivery_queue': 'updated_at',
+  },
+  'app.auth_phone_bind_lock_channel_binding(text,text)': {
+    // У таблицы нет `updated_at`: единственная отметка времени — `created_at`. Замок берётся до
+    // опознания человека (см. `TENANT_WALL_CROSSINGS` выше) — колонка платится ради `FOR UPDATE`,
+    // тело её не пишет.
+    'public.user_channel_bindings': 'created_at',
+  },
+  'app.auth_phone_bind_upsert_channel_binding(uuid,text,text)': {
+    'public.user_channel_bindings': 'created_at',
   },
   'app.auth_rate_limit_check_and_record(text,text,integer,integer,text,integer,integer)': {
     // У таблицы нет `updated_at`: её единственная отметка времени — `occurred_at`.
@@ -2235,7 +2241,11 @@ function applyRowLockSurfaces(
       pending.delete(surface.relation);
       if (surface.operations.includes('UPDATE')) return surface;
       // Колонка замка попадает в поверхность, но НЕ расширяет чтение: если её там не было,
-      // существующий SELECT закрепляется прежним набором колонок.
+      // существующий SELECT закрепляется прежним набором колонок. Исключение — поверхность уже с
+      // INSERT (upsert-форма): узить SELECT через operationColumns там запрещает сам генератор
+      // (`ON CONFLICT` под FORCE RLS читает конфликтующую строку по ВСЕЙ поверхности), так что для
+      // неё колонка замка добавляется без наложения SELECT-оverride.
+      const isUpsertShape = surface.operations.includes('INSERT');
       const columns = surface.columns.includes(lockColumn)
         ? surface.columns
         : [...surface.columns, lockColumn];
@@ -2244,7 +2254,7 @@ function applyRowLockSurfaces(
         columns,
         operations: [...surface.operations, 'UPDATE' as const],
         operationColumns: {
-          ...(columns === surface.columns ? {} : { SELECT: surface.columns }),
+          ...(columns === surface.columns || isUpsertShape ? {} : { SELECT: surface.columns }),
           ...surface.operationColumns,
           UPDATE: [lockColumn],
         },
@@ -2687,11 +2697,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.channel-identity.upsert',
       functionIdentity: 'app.integrator_upsert_channel_identity(text,text,text)' },
-    integrator_bootstrap_phone_bind: { port: 'integrator',
-      runtimeName: 'integrator_bootstrap_phone_bind', sessionRole: 'app_integrator_request',
-      targetRole: 'app_integrator_resolver', contextClass: 'integrator',
-      purpose: 'integrator.bootstrap-phone-bind',
-      functionIdentity: 'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)' },
     integrator_notification_delivery_attempt_record: { port: 'integrator',
       runtimeName: 'notification_delivery_attempt_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
@@ -2756,10 +2761,6 @@ const REV10_CONTEXT = {
       targetRole: 'app_integrator_resolver', contextClass: 'integrator',
       purpose: 'integrator.channel-organization.resolve',
       functionIdentity: 'app.resolve_active_organization_for_channel_binding(text,text)' },
-    integrator_auth_channel_setting_read: { port: 'integrator', runtimeName: 'auth_channel_setting',
-      sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
-      purpose: 'config.integrator-auth-channel.read',
-      functionIdentity: 'app.read_integrator_auth_channel_setting(text)' },
     integrator_runtime_setting_read: { port: 'integrator', runtimeName: 'runtime_setting',
       sessionRole: 'app_integrator_request', targetRole: 'app_service', contextClass: 'service',
       purpose: 'config.integrator-runtime.read',
@@ -5345,10 +5346,6 @@ const REV10_CONTEXT = {
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_runtime_setting(text)'],
       execute: ['app_service'], purpose: 'return one fixed-allowlist non-secret setting to the integrator service',
     }),
-    'app.read_integrator_auth_channel_setting(text)': rev10Function({
-      ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_auth_channel_setting(text)'],
-      execute: ['app_service'], purpose: 'return one fixed-allowlist auth-channel flag to the integrator service',
-    }),
     'app.read_integrator_smtp_outbound_setting()': rev10Function({
       ...BUSINESS_SEAM_FUNCTIONS['app.read_integrator_smtp_outbound_setting()'],
       execute: ['app_service'], purpose: 'return only the global SMTP envelope to the integrator service',
@@ -6674,48 +6671,6 @@ const REV10_CONTEXT = {
           columns: ['user_id', 'channel_code', 'external_id', 'display_handle'],
           operations: ['SELECT' as const, 'UPDATE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
-      ],
-    }),
-    'app.integrator_bind_bootstrap_channel_phone(text,text,text,uuid)': rev10Function({
-      owner: 'app_seam_phone_binding_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
-      execute: ['app_integrator_resolver'], purpose: 'integrator.bootstrap-phone-bind',
-      typedArgs: ['text', 'text', 'text', 'uuid'], volatility: 'VOLATILE', parallel: 'UNSAFE',
-      proconfig: ['search_path=pg_catalog, app, public, pg_temp'],
-      relationSurfaces: [
-        { relation: 'public.platform_users',
-          columns: ['id', 'integrator_user_id', 'merged_into_id', 'updated_at'],
-          operations: ['SELECT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_identity',
-          columns: ['platform_user_id', 'first_name', 'last_name', 'patronymic'],
-          operations: ['SELECT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.doctor_patient_support',
-          columns: ['patient_user_id', 'height_cm', 'weight_kg', 'gender', 'birth_date'],
-          operations: ['SELECT' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_channel_bindings',
-          columns: ['user_id', 'channel_code', 'external_id'],
-          operations: ['SELECT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_channel_preferences',
-          columns: ['user_id', 'platform_user_id', 'channel_code', 'is_enabled_for_messages',
-            'is_enabled_for_notifications', 'updated_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_contacts',
-          columns: ['platform_user_id', 'contact_kind', 'value_normalized', 'is_primary',
-            'confirmed_at', 'source_origin', 'updated_at'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const, 'DELETE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.user_phone_history',
-          columns: ['platform_user_id', 'phone_normalized', 'valid_from', 'valid_to', 'source'],
-          operations: ['SELECT' as const, 'INSERT' as const, 'UPDATE' as const],
-          evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.org_enrollments', columns: ['platform_user_id'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.be_organization_members', columns: ['platform_user_id'],
-          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
