@@ -87,13 +87,20 @@ export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_DOUBLE_ROW_CLASS =
  * Desktop `CatalogSplitLayout`: высота под шапкой + один ряд липких фильтров (~3.25rem).
  */
 export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE =
-  'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_3.25rem_-_1rem)] lg:overflow-hidden';
+  'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_3.25rem_-_2rem)] lg:overflow-hidden';
 
 /**
  * То же, когда липкий тулбар фильтров в два ряда (~6.5rem под блок).
  */
 export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
-  'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_1rem)] lg:overflow-hidden';
+  'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_2rem)] lg:overflow-hidden';
+
+/**
+ * Full-height body directly below `DoctorPageHeader`: standard main gap plus 24px below the panes.
+ * Mobile keeps document scrolling; tablet and desktop constrain their own internal scrollers.
+ */
+export const DOCTOR_FULL_HEIGHT_VIEWPORT_BODY_CLASS =
+  'md:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] md:min-h-0 md:overflow-hidden';
 
 /**
  * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).

@@ -54,6 +54,7 @@ import {
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
+import { DOCTOR_FULL_HEIGHT_VIEWPORT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import {
   buildPatientListWorkspaceHref,
@@ -613,7 +614,7 @@ function PatientsContent({
             </Button>
           ) : null
         }
-        className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6rem)]"
+        className={DOCTOR_FULL_HEIGHT_VIEWPORT_BODY_CLASS}
         left={
           <section
             data-doctor-flat-list-surface
