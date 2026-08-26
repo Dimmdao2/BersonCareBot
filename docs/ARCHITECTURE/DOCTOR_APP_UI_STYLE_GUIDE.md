@@ -15,7 +15,7 @@
 **Companion-файл констант:** `apps/webapp/src/shared/ui/doctor/doctorVisual.ts`  
 **Зональные токены:** `apps/webapp/src/app/styles/doctor.css` (`#app-shell-doctor`)
 
-> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Актуальные owner-параметры: белый page header, canvas `#F2F2F0`, page/KPI/button/input radius `12/8/8/24px`, padding 18px. При конфликте величин приоритет у §A–§B.
+> **Как читать гайд.** §A–§C — визуальный язык, единая шкала и общий стиль компонентов (целевой дизайн, эталон — экран упражнений). §1–§21 — конкретные паттерны экранов и константы. Актуальные owner-параметры: белый page header, canvas `#F2F2F0`, page/KPI/control radius `12/8/8px`, padding 18px. При конфликте величин приоритет у §A–§B.
 
 ---
 
@@ -69,8 +69,9 @@
 | Панель внутри карточки                 | `rounded-lg`                                 |
 | Строка списка / item                   | `rounded-md`                                 |
 | Doctor button                          | `8px` (`--doctor-button-radius`)             |
-| Doctor input                           | `24px` (`--doctor-control-radius`)            |
+| Doctor input                           | `8px` (`--doctor-control-radius`)             |
 | Doctor select trigger                  | `8px` (`--doctor-button-radius`)              |
+| Doctor textarea                        | `8px` (`--doctor-control-radius`)             |
 | Main sidebar / mobile menu item        | минимальный shared menu radius; не 24px pill |
 
 `rounded-2xl` — запрещён для page-level секций. Явные caller overrides (`rounded-none`, icon-only форма и т.п.) сохраняются.
@@ -795,22 +796,18 @@ tplToolbarTextBtnClass; // кнопки в шапке
 
 ## 14. Диалоги
 
-Использовать shadcn `Dialog / DialogContent / DialogHeader / DialogTitle / DialogDescription / DialogFooter`.
+Feature-модалки открывать через `DoctorModal`: на мобильном он всегда использует один канонический bottom-drawer со свайпом вниз, на desktop/tablet — dialog или правую панель через `desktopPresentation`. Legacy `doctor/primitives/Dialog` остаётся совместимым адаптером и на mobile делегирует тому же drawer; локальная mobile-разметка модалки запрещена.
 
 ```tsx
-<Dialog open={open} onOpenChange={setOpen}>
-  <DialogContent className="sm:max-w-md">
-    <DialogHeader>
-      <DialogTitle>Заголовок</DialogTitle>
-      <DialogDescription>Пояснение.</DialogDescription>
-    </DialogHeader>
-    {/* body */}
-    <DialogFooter>
-      <Button variant="outline" onClick={…}>Отмена</Button>
-      <Button onClick={…}>Подтвердить</Button>
-    </DialogFooter>
-  </DialogContent>
-</Dialog>
+<DoctorModal
+  open={open}
+  onClose={() => setOpen(false)}
+  title="Заголовок"
+  size="md"
+  footer={<><Button variant="outline">Отмена</Button><Button>Подтвердить</Button></>}
+>
+  {/* body */}
+</DoctorModal>
 ```
 
 | Контекст                             | Width          |
@@ -1059,7 +1056,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] Каталожный toolbar: `DoctorCatalogFiltersToolbar` (не кастомный sticky)
 - [ ] Primary action — `default` Button или `doctorCatalogToolbarPrimaryActionClassName`
 - [ ] Пустое состояние по §18
-- [ ] Диалог: `Dialog / DialogContent / DialogHeader / DialogTitle / DialogFooter`
+- [ ] Модалка: только `DoctorModal` (единый mobile bottom-drawer)
 - [ ] Нет inline-раскрытия деталей с destructive-действием вне Dialog
 - [ ] Плотность контента согласована: KPI-сетка ↔ секция ↔ строки (§4 + §6)
 - [ ] `tabular-nums` на всех числовых метриках
@@ -1067,7 +1064,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] Карточка сущности (если нужна) — по §9, используя `doctorClientCardChrome.ts`
 - [ ] График — через shadcn Card + recharts по §7 (не кастомный контейнер)
 - [ ] Размеры текста — только из набора §B.1 (нет `text-[13px]`/`text-lg`/`text-xl`/`text-3xl`; `text-[10px]`/`text-[11px]` только в micro-роли)
-- [ ] Doctor button/select trigger используют радиус 8px, input — 24px; input белый; явные `rounded-none`/icon overrides сохранены (§B.2)
+- [ ] Doctor button/select/input/textarea используют радиус 8px; поля белые; явные `rounded-none`/icon overrides сохранены (§B.2)
 - [ ] KPI-число — `text-[1.3rem]` через общую роль (не локальный `text-2xl`/`text-3xl`)
 - [ ] KPI: радиус 8px, подпись сверху, число снизу
 - [ ] Основной flat-list: `1px` divider, padding 18px по горизонтали, первичная строка `text-base font-normal`

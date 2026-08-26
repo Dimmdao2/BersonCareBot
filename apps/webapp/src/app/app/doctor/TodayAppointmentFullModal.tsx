@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import { Dialog, DialogContent } from '@/shared/ui/doctor/primitives/dialog';
-import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
 import type {
   CalendarAppointmentEvent,
@@ -57,7 +55,6 @@ export function TodayAppointmentFullModal({
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [refetch, setRefetch] = useState(0);
-  const isMobileViewport = useIsMobileViewport();
 
   useEffect(() => {
     if (!apptId) {
@@ -96,65 +93,32 @@ export function TodayAppointmentFullModal({
     setRefetch((n) => n + 1);
   }
 
-  if (!isMobileViewport) {
-    return (
-      <DoctorModal
-        open={apptId !== null}
-        onClose={onClose}
-        title="Детали записи"
-        size="lg"
-        desktopPresentation="right-sheet"
-      >
-        {loading ? (
-          <div className="py-4 text-sm text-muted-foreground">Загрузка записи…</div>
-        ) : event ? (
-          <DoctorCalendarEventPanel
-            apiBase={API_BASE}
-            selected={event}
-            timeZone={displayIana}
-            filterMeta={filterMeta}
-            activeFilters={EMPTY_ACTIVE_FILTERS}
-            ownSpecialistId={ownSpecialistId}
-            onClose={onClose}
-            onChanged={handleChanged}
-            showCloseControl={false}
-            flushChrome
-          />
-        ) : apptId ? (
-          <div className="py-4 text-sm text-muted-foreground">Запись не найдена</div>
-        ) : null}
-      </DoctorModal>
-    );
-  }
-
   return (
-    <Dialog
+    <DoctorModal
       open={apptId !== null}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
+      onClose={onClose}
+      title="Детали записи"
+      size="content"
+      desktopPresentation="right-sheet"
     >
-      <DialogContent className="max-w-sm overflow-hidden p-0 [&>[data-slot=dialog-close]]:size-10 [&>[data-slot=dialog-close]>svg]:size-5">
-        <div className="overflow-y-auto max-h-[90dvh]">
-          {loading ? (
-            <div className="p-4 text-sm text-muted-foreground">Загрузка записи…</div>
-          ) : event ? (
-            <DoctorCalendarEventPanel
-              apiBase={API_BASE}
-              selected={event}
-              timeZone={displayIana}
-              filterMeta={filterMeta}
-              activeFilters={EMPTY_ACTIVE_FILTERS}
-              ownSpecialistId={ownSpecialistId}
-              onClose={onClose}
-              onChanged={handleChanged}
-              showCloseControl={false}
-            />
-          ) : apptId ? (
-            <div className="p-4 text-sm text-muted-foreground">Запись не найдена</div>
-          ) : null}
-        </div>
-      </DialogContent>
-    </Dialog>
+      {loading ? (
+        <div className="py-4 text-sm text-muted-foreground">Загрузка записи…</div>
+      ) : event ? (
+        <DoctorCalendarEventPanel
+          apiBase={API_BASE}
+          selected={event}
+          timeZone={displayIana}
+          filterMeta={filterMeta}
+          activeFilters={EMPTY_ACTIVE_FILTERS}
+          ownSpecialistId={ownSpecialistId}
+          onClose={onClose}
+          onChanged={handleChanged}
+          showCloseControl={false}
+          flushChrome
+        />
+      ) : apptId ? (
+        <div className="py-4 text-sm text-muted-foreground">Запись не найдена</div>
+      ) : null}
+    </DoctorModal>
   );
 }

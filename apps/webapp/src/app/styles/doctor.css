@@ -7,7 +7,7 @@
   --doctor-page-block-radius: 12px;
   --doctor-kpi-radius: 8px;
   --doctor-button-radius: 8px;
-  --doctor-control-radius: 24px;
+  --doctor-control-radius: 8px;
   --doctor-block-padding: 18px;
   --doctor-block-border: rgba(35, 42, 49, 0.1);
   --doctor-field-sm: 12rem;
@@ -41,10 +41,6 @@
   border-radius: var(--doctor-button-radius, 8px);
 }
 
-.doctor-today-quick-actions {
-  position: fixed;
-}
-
 .doctor-weekly-chart-scroll {
   scrollbar-width: none;
 }
@@ -62,10 +58,6 @@
     grid-template-columns: minmax(0, 55fr) minmax(0, 45fr);
   }
 
-  .doctor-today-quick-actions {
-    position: static;
-    z-index: auto;
-  }
 }
 
 @media (min-width: 1280px) {

@@ -108,7 +108,7 @@ export function DoctorTodayQuickActions({
       <div
         className={
           placement === 'mobile-footer'
-            ? 'doctor-today-quick-actions right-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] left-0 z-40 grid grid-cols-2 gap-2 px-3 py-2 md:hidden'
+            ? 'grid shrink-0 grid-cols-2 gap-2 py-2 md:hidden'
             : 'hidden grid-cols-2 items-center gap-2 md:grid'
         }
       >

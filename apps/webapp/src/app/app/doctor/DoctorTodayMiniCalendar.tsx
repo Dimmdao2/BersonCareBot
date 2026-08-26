@@ -104,6 +104,8 @@ type Props = {
   showWorkingHours?: boolean;
   defaultWindow?: { startMinute: number; endMinute: number };
   fillHeight?: boolean;
+  /** Removes the page-section frame when the calendar is already inside DoctorModal. */
+  flushChrome?: boolean;
   /**
    * Called when a canonical CalendarAppointmentEvent is clicked.
    * Use this (not onEventClick) when calendarEvents are provided — it passes the full
@@ -127,6 +129,7 @@ export function DoctorTodayMiniCalendar({
   showWorkingHours,
   defaultWindow,
   fillHeight = false,
+  flushChrome = false,
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
@@ -203,7 +206,10 @@ export function DoctorTodayMiniCalendar({
   return (
     <DoctorSection
       id="doctor-today-mini-calendar"
-      className={cn(fillHeight && 'h-full min-h-0 overflow-hidden')}
+      className={cn(
+        fillHeight && 'h-full min-h-0 overflow-hidden',
+        flushChrome && 'rounded-none border-0 bg-transparent p-0',
+      )}
     >
       <DoctorSectionTitle>{todayDateLabel}</DoctorSectionTitle>
 
@@ -225,10 +231,8 @@ export function DoctorTodayMiniCalendar({
 
       <div
         className={cn(
-          'rounded-[4px] border border-border',
-          fillHeight
-            ? 'min-h-0 flex-1 overflow-hidden'
-            : 'h-[min(65dvh,42rem)] overflow-hidden',
+          !flushChrome && 'rounded-[4px] border border-border',
+          fillHeight ? 'min-h-0 flex-1 overflow-hidden' : 'h-[min(65dvh,42rem)] overflow-hidden',
         )}
       >
         <style>{`

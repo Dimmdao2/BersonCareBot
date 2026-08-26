@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 
 export const inputFieldSurfaceClassName = cn(
   sharedInputFieldSurfaceClassName,
-  'rounded-[var(--doctor-control-radius,24px)] bg-white dark:bg-input/30',
+  'rounded-[var(--doctor-control-radius,8px)] bg-white dark:bg-input/30',
 );
 
 /** Doctor-only input surface; patient/public consumers keep the shared primitive unchanged. */
