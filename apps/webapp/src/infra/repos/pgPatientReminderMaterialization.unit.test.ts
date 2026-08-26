@@ -25,7 +25,6 @@ describe('patient reminder materialization exact capability boundary', () => {
         id: 'rule-1',
         organizationId,
         platformUserId,
-        integratorUserId: '42',
         category: 'warmup',
         isEnabled: true,
         scheduleType: 'slots_v1',
@@ -65,13 +64,13 @@ describe('patient reminder materialization exact capability boundary', () => {
     const result = await createPgPatientReminderMaterializationPort().readDeliveryTargetSnapshot({
       organizationId,
       platformUserId,
-      integratorUserId: '42',
       topicCode: 'warmup_reminders',
       nowIso: '2026-08-17T10:00:00.000Z',
     });
     expect(result).toBeNull();
     expect(fakes.runWebappNamedRoot.mock.calls[0]?.[1]).toBe(
-      'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)',
+      'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)',
     );
+    expect(fakes.runWebappNamedRoot.mock.calls[0]?.[2]).toHaveLength(4);
   });
 });

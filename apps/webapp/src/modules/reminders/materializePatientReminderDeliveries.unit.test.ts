@@ -6,7 +6,6 @@ const input = {
     id: 'rule-1',
     organizationId: 'd0000000-0000-4000-8000-00000000000d',
     platformUserId: 'a0000000-0000-4000-8000-00000000000a',
-    integratorUserId: '42',
     category: 'warmup',
     linkedObjectType: 'content_section',
     linkedObjectId: 'warmups',
@@ -50,11 +49,11 @@ describe('patient reminder ready-delivery materializer', () => {
       expect(delivery.intent.meta).toMatchObject({
         eventId: delivery.eventId,
         source: delivery.channel,
-        userId: input.rule.integratorUserId,
         outboundMessageClass: 'routine_product',
         outboundCapability:
           delivery.channel === 'web_push' ? 'app_push' : 'essential_delivery',
       });
+      expect(delivery.intent.meta).not.toHaveProperty('userId');
       expect(Number.isNaN(Date.parse(delivery.intent.meta.occurredAt))).toBe(false);
       expect(delivery.intent.payload).toMatchObject({
         message: { text: expect.any(String) },

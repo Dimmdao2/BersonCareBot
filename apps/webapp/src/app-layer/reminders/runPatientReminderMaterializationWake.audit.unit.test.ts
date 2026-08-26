@@ -9,7 +9,6 @@ const rule: PatientReminderRuleForMaterialization = {
   id: 'rule-snoozed',
   organizationId: '11111111-1111-4111-8111-111111111111',
   platformUserId: '22222222-2222-4222-8222-222222222222',
-  integratorUserId: '42',
   category: 'warmup',
   isEnabled: true,
   scheduleType: 'slots_v1',

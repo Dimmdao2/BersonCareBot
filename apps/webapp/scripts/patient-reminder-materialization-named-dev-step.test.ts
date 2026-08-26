@@ -22,7 +22,6 @@ const rule: PatientReminderRuleForMaterialization = {
   id: 'rule-1',
   organizationId: '11111111-1111-4111-8111-111111111111',
   platformUserId: '22222222-2222-4222-8222-222222222222',
-  integratorUserId: '42',
   category: 'warmup',
   isEnabled: true,
   scheduleType: 'interval_window',
@@ -83,6 +82,7 @@ describe('named DEV patient reminder materialization step', () => {
     });
     assert.equal(valid.eventId, 'rem:occurrence-1:g0:telegram');
     assert.equal(valid.intent.meta.eventId, valid.eventId);
+    assert.equal('userId' in valid.intent.meta, false);
     assert.notEqual(invalid.eventId, 'rem:occurrence-1:g0:telegram');
     assert.equal(invalid.intent.meta.eventId, invalid.eventId);
     assert.equal(invalid.occurrenceId, valid.occurrenceId);

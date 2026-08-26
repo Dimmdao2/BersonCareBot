@@ -1949,7 +1949,7 @@ const CANONICAL_CONTACT_SURFACE_CORRECTIONS: Readonly<Record<string, CanonicalCo
   'app.patient_reminder_materialization_fingerprint(text,text)': { contacts: ['SELECT'] },
   'app.phone_messenger_bind_completion_state(text,text,text,text)': { contacts: ['SELECT'] },
   'app.provision_specialist_owner(uuid)': { contacts: ['SELECT'] },
-  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)': {
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)': {
     contacts: ['SELECT'],
   },
   'app.read_platform_analytics_dashboard(timestamp with time zone,timestamp with time zone,text,text)': {
@@ -3336,7 +3336,7 @@ const REV10_CONTEXT = {
     patient_reminder_materialization_targets_read: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'reminder.materialization.targets.read',
-      functionIdentity: 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)' },
+      functionIdentity: 'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)' },
     patient_reminder_materialization_commit: { port: 'webapp', sessionRole: 'app_staff',
       targetRole: 'app_tenant_service', contextClass: 'tenant_service',
       purpose: 'reminder.materialization.commit',

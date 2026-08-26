@@ -8,7 +8,7 @@ const database = declaration.databases.bcb_webapp_dev;
 
 const CURRENT_MATERIALIZATION_ROOTS = [
   'app.read_patient_reminder_materialization_snapshot(uuid,timestamp with time zone)',
-  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)',
+  'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)',
   'app.commit_patient_reminder_materialization(uuid,text,text,uuid,text,timestamp with time zone,integer,text)',
 ];
 

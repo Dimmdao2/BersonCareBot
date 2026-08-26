@@ -49,16 +49,14 @@ export async function runPatientReminderMaterializationWake(
   for (const { rule, draft, occurrence } of work) {
     result.occurrences += 1;
     const topic = rule.notificationTopicCode?.trim();
-    const targets =
-      topic && rule.integratorUserId
-        ? await port.readDeliveryTargetSnapshot({
-            organizationId,
-            platformUserId: rule.platformUserId,
-            integratorUserId: rule.integratorUserId,
-            topicCode: topic,
-            nowIso,
-          })
-        : null;
+    const targets = topic
+      ? await port.readDeliveryTargetSnapshot({
+          organizationId,
+          platformUserId: rule.platformUserId,
+          topicCode: topic,
+          nowIso,
+        })
+      : null;
     const resolution =
       targets && topic
         ? resolvePatientNotificationChannels({

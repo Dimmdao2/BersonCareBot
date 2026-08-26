@@ -81,17 +81,16 @@ export function createPgPatientReminderMaterializationPort(): PatientReminderMat
       const args = [
         input.organizationId,
         input.platformUserId,
-        input.integratorUserId,
         input.topicCode,
         input.nowIso,
       ] as const;
       const result = await runWebappNamedRoot<JsonResultRow>(
         getWebappSqlDb(),
-        'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,bigint,text,timestamp with time zone)',
+        'app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)',
         args,
         sql`SELECT app.read_patient_reminder_delivery_target_snapshot(
           ${input.organizationId}::uuid, ${input.platformUserId}::uuid,
-          ${input.integratorUserId}::bigint, ${input.topicCode}, ${input.nowIso}::timestamptz
+          ${input.topicCode}, ${input.nowIso}::timestamptz
         ) AS result`,
       );
       return parseTargets(result.rows[0]?.result);

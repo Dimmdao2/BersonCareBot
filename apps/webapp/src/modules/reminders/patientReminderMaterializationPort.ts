@@ -44,7 +44,6 @@ export type PatientReminderMaterializationPort = {
   readDeliveryTargetSnapshot(input: {
     organizationId: string;
     platformUserId: string;
-    integratorUserId: string;
     topicCode: string;
     nowIso: string;
   }): Promise<PatientReminderDeliveryTargetSnapshot | null>;

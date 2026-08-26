@@ -9,7 +9,6 @@ export type PatientReminderMaterializationRule = {
   id: string;
   organizationId: string;
   platformUserId: string;
-  integratorUserId: string | null;
   category: string;
   linkedObjectType: string | null;
   linkedObjectId: string | null;
@@ -91,7 +90,6 @@ function eventId(
 function intent(input: {
   eventId: string;
   channel: PatientReminderReadyOutgoingDelivery['channel'];
-  integratorUserId: string | null;
   payload: Record<string, unknown>;
 }): OutgoingIntent {
   return {
@@ -102,7 +100,6 @@ function intent(input: {
       source: input.channel,
       outboundMessageClass: 'routine_product',
       outboundCapability: input.channel === 'web_push' ? 'app_push' : 'essential_delivery',
-      ...(input.integratorUserId ? { userId: input.integratorUserId } : {}),
     },
     payload: input.payload,
   };
@@ -166,7 +163,6 @@ export function materializePatientReminderDeliveries(input: {
       intent: intent({
         eventId: id,
         channel,
-        integratorUserId: rule.integratorUserId,
         payload,
       }),
     });

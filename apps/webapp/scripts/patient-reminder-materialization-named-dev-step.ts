@@ -124,7 +124,6 @@ export function buildAtomicRollbackDeliveries(input: {
         eventId,
         occurredAt: input.plannedAt,
         source: 'telegram',
-        userId: input.rule.integratorUserId ?? undefined,
         outboundMessageClass: 'routine_product',
         outboundCapability: 'essential_delivery',
       },
@@ -179,8 +178,15 @@ export function parseRunArgs(args: string[]): string {
   return organizationId;
 }
 
-async function expectPgCode(action: () => Promise<unknown>, code: string): Promise<void> {
-  await assert.rejects(action, (error: unknown) => hasPgCode(error, code));
+async function expectPgCode(
+  action: () => Promise<unknown>,
+  code: string,
+  message?: RegExp,
+): Promise<void> {
+  await assert.rejects(action, (error: unknown) => {
+    if (!hasPgCode(error, code)) return false;
+    return message ? message.test(String(object(error, 'PostgreSQL error').message)) : true;
+  });
 }
 
 async function runLive(organizationId: string): Promise<JsonObject> {
@@ -201,9 +207,7 @@ async function runLive(organizationId: string): Promise<JsonObject> {
     const snapshot = await runWithDbOrganizationPrincipal(organizationId, () =>
       port.readSnapshot(organizationId, now.toISOString()),
     );
-    const rule = snapshot.rules.find(
-      (candidate) => candidate.integratorUserId && candidate.notificationTopicCode,
-    );
+    const rule = snapshot.rules.find((candidate) => candidate.notificationTopicCode);
     assert(rule, 'selected organization has no active materializable reminder rule');
 
     const plannedAt = new Date(now.getTime() + 60 * 60_000).toISOString();
@@ -249,6 +253,7 @@ async function runLive(organizationId: string): Promise<JsonObject> {
         await expectPgCode(
           () => port.materializeOccurrence(rule, draft, occurrence, deliveries),
           '22023',
+          /invalid patient reminder ready delivery/u,
         );
         const readback = await port.readSnapshot(
           organizationId,
