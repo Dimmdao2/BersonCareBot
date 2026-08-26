@@ -34,6 +34,7 @@ import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
+import { Switch } from '@/shared/ui/doctor/primitives/switch';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
@@ -98,6 +99,51 @@ const ScheduleFullCalendarHost = dynamic(
 
 const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
+const SCHEDULE_FILTERS_STORAGE_KEY = 'therapysto.doctor.schedule.filters.v1';
+
+type CachedScheduleFilters = {
+  branchId: string | null;
+  serviceId: string | null;
+  scope: DoctorScheduleScopeState['scope'];
+  specialistId: string | null;
+  showCancelledAppointments: boolean;
+};
+
+function readCachedScheduleFilters(): CachedScheduleFilters | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(SCHEDULE_FILTERS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const value = parsed as Record<string, unknown>;
+    if (value.branchId !== null && typeof value.branchId !== 'string') return null;
+    if (value.serviceId !== null && typeof value.serviceId !== 'string') return null;
+    if (value.specialistId !== null && typeof value.specialistId !== 'string') return null;
+    if (value.scope !== 'mine' && value.scope !== 'clinic' && value.scope !== 'specialist') {
+      return null;
+    }
+    if (typeof value.showCancelledAppointments !== 'boolean') return null;
+    return {
+      branchId: value.branchId,
+      serviceId: value.serviceId,
+      scope: value.scope,
+      specialistId: value.specialistId,
+      showCancelledAppointments: value.showCancelledAppointments,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedScheduleFilters(value: CachedScheduleFilters): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(SCHEDULE_FILTERS_STORAGE_KEY, JSON.stringify(value));
+  } catch {
+    // Private mode or exhausted storage: filters still work for the current page session.
+  }
+}
 
 /** Stable client load identity — used to absorb SSR bootstrap across Strict Mode remounts. */
 function scheduleCalendarLoadKey(parts: {
@@ -717,6 +763,10 @@ export function ScheduleCalendarTab({
   /** SSR settings stay authoritative — never clear, so Strict Mode remount does not refetch. */
   const settingsSeededRef = useRef(Boolean(bootstrap?.settings));
   const loadGenerationRef = useRef(0);
+  const filterCacheRestoredRef = useRef(false);
+  const calendarFilterOpenRef = useRef(false);
+  const calendarFilterOpenVersionRef = useRef(0);
+  const suppressCalendarInteractionUntilRef = useRef(0);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -757,6 +807,8 @@ export function ScheduleCalendarTab({
   const [kpis, setKpis] = useState<ScheduleKpis | null>(() => bootstrap?.kpis ?? null);
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
+  const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
+  const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
@@ -1051,6 +1103,64 @@ export function ScheduleCalendarTab({
   // ─── Calendar events ───────────────────────────────────────────────────────
 
   const filters = data?.filters ?? { specialists: [], branches: [], rooms: [], services: [] };
+
+  useEffect(() => {
+    if (!data || filterCacheRestoredRef.current) return;
+    const cached = readCachedScheduleFilters();
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled || filterCacheRestoredRef.current) return;
+      filterCacheRestoredRef.current = true;
+      if (cached) {
+        if (!deepLinkParams.location) {
+          setBranchIdState(
+            cached.branchId && filters.branches.some((branch) => branch.id === cached.branchId)
+              ? cached.branchId
+              : null,
+          );
+        }
+        if (!deepLinkParams.service) {
+          setServiceIdState(
+            cached.serviceId && filters.services.some((service) => service.id === cached.serviceId)
+              ? cached.serviceId
+              : null,
+          );
+        }
+        if (!deepLinkParams.scope && !deepLinkParams.specialist) {
+          const cachedScope = resolveDoctorScheduleScopeState(
+            scopeBootstrap,
+            cached.scope,
+            cached.specialistId,
+          );
+          if (
+            cachedScope.scope !== scheduleScope.scope ||
+            cachedScope.specialistId !== scheduleScope.specialistId
+          ) {
+            setScheduleScope(cachedScope);
+            setData(null);
+            setKpis(null);
+          }
+        }
+        setShowCancelledAppointments(cached.showCancelledAppointments);
+      }
+      setFilterCacheReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [data, deepLinkParams, filters.branches, filters.services, scheduleScope, scopeBootstrap]);
+
+  useEffect(() => {
+    if (!filterCacheReady) return;
+    writeCachedScheduleFilters({
+      branchId,
+      serviceId,
+      scope: scheduleScope.scope,
+      specialistId: scheduleScope.specialistId,
+      showCancelledAppointments,
+    });
+  }, [branchId, filterCacheReady, scheduleScope, serviceId, showCancelledAppointments]);
+
   const defaultCreateSpecialistId =
     calendarSettings.defaultSpecialistId &&
     filters.specialists.some((specialist) => specialist.id === calendarSettings.defaultSpecialistId)
@@ -1076,6 +1186,18 @@ export function ScheduleCalendarTab({
   );
   const selectedScheduleSpecialistId =
     scheduleScope.scope === 'clinic' ? null : scheduleScope.specialistId;
+  const handleCalendarFilterOpenChange = useCallback((open: boolean) => {
+    const version = ++calendarFilterOpenVersionRef.current;
+    if (open) {
+      calendarFilterOpenRef.current = true;
+      return;
+    }
+    queueMicrotask(() => {
+      if (calendarFilterOpenVersionRef.current === version) {
+        calendarFilterOpenRef.current = false;
+      }
+    });
+  }, []);
 
   const renderScheduleFilters = (className: string, controlClassName?: string) => (
     <div className={className}>
@@ -1084,6 +1206,7 @@ export function ScheduleCalendarTab({
         options={filters.branches}
         value={branchId}
         onChange={setBranchId}
+        onOpenChange={handleCalendarFilterOpenChange}
         className={controlClassName}
       />
       {scopeBootstrap.canManageAllSpecialists && scheduleSpecialistOptions.length > 1 ? (
@@ -1096,6 +1219,7 @@ export function ScheduleCalendarTab({
               ? changeScheduleScope('specialist', specialistId)
               : changeScheduleScope('clinic')
           }
+          onOpenChange={handleCalendarFilterOpenChange}
           className={controlClassName}
         />
       ) : null}
@@ -1104,16 +1228,36 @@ export function ScheduleCalendarTab({
         options={filters.services}
         value={serviceId}
         onChange={setServiceId}
+        onOpenChange={handleCalendarFilterOpenChange}
         className={controlClassName}
       />
+      <div className="flex h-8 w-full items-center justify-between gap-3 px-1 text-sm text-foreground">
+        <span>Показывать отмены</span>
+        <Switch
+          checked={showCancelledAppointments}
+          onCheckedChange={setShowCancelledAppointments}
+          aria-label="Показывать отмены"
+        />
+      </div>
     </div>
+  );
+
+  const displayableCalendarEvents = useMemo(
+    () =>
+      (data?.events ?? []).filter(
+        (event) =>
+          showCancelledAppointments ||
+          event.kind !== 'appointment' ||
+          !isCancelledAppointmentStatus(event.status),
+      ),
+    [data?.events, showCancelledAppointments],
   );
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
   const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(
     workingBounds,
-    data?.events,
+    displayableCalendarEvents,
     currentTimeZone,
     {
       startMinute: calendarSettings.defaultWindowStartMinute,
@@ -1248,7 +1392,7 @@ export function ScheduleCalendarTab({
     // Используем loMinute/hiMinute из deriveSlotTimes (дефолт 09:00–19:00, #231).
     const grayFill = isTimeGrid
       ? buildNonWorkingFillEvents(
-          data.events.filter((e) => e.kind === 'working'),
+          displayableCalendarEvents.filter((e) => e.kind === 'working'),
           currentTimeZone,
           loMinute,
           hiMinute,
@@ -1263,7 +1407,7 @@ export function ScheduleCalendarTab({
           extendedProps: { kind: 'nonworking' as const },
         }))
       : [];
-    const mapped = data.events
+    const mapped = displayableCalendarEvents
       .map((event) => {
         // Рабочее время — не рендерим (фон белый).
         if (event.kind === 'working') return null;
@@ -1340,7 +1484,16 @@ export function ScheduleCalendarTab({
         ]
       : [];
     return [...grayFill, ...mapped, ...draft] as FullCalendarOptions['events'];
-  }, [data, view, anchorDate, currentTimeZone, loMinute, hiMinute, draftSlot]);
+  }, [
+    data,
+    displayableCalendarEvents,
+    view,
+    anchorDate,
+    currentTimeZone,
+    loMinute,
+    hiMinute,
+    draftSlot,
+  ]);
 
   // ─── Reschedule (drag/resize) ──────────────────────────────────────────────
 
@@ -1435,7 +1588,12 @@ export function ScheduleCalendarTab({
 
   // R32: выделение области по сетке → форма создания с подставленным временем.
   const onSelect = useCallback(
-    (arg: any) => {
+    (arg: { start?: Date | null; end?: Date | null }) => {
+      if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+        suppressCalendarInteractionUntilRef.current = 0;
+        calendarRef.current?.getApi().unselect();
+        return;
+      }
       const start: Date | null = arg.start ?? null;
       const end: Date | null = arg.end ?? null;
       if (!start) return;
@@ -1501,14 +1659,15 @@ export function ScheduleCalendarTab({
     [view, anchorDate, currentTimeZone],
   );
 
-  // Search: filter appointments by patientName
+  // Calendar/list filters: cancellations are hidden by default; search narrows the remainder.
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
-    if (!searchQuery.trim()) return data?.events ?? [];
     const q = searchQuery.toLowerCase();
-    return (data?.events ?? []).filter(
-      (e) => e.kind === 'appointment' && (e.patientName ?? '').toLowerCase().includes(q),
+    return displayableCalendarEvents.filter(
+      (event) =>
+        !searchQuery.trim() ||
+        (event.kind === 'appointment' && (event.patientName ?? '').toLowerCase().includes(q)),
     );
-  }, [data?.events, searchQuery]);
+  }, [displayableCalendarEvents, searchQuery]);
 
   // KPI modal: predicate map + filtered items.
   // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
@@ -1549,6 +1708,7 @@ export function ScheduleCalendarTab({
   const eventPanelTitle = selected ? 'Детали записи' : 'Новая запись';
   const eventPanelNode = eventPanelOpen ? (
     <DoctorCalendarEventPanel
+      key={selected?.id ?? 'create'}
       apiBase={API_BASE}
       selected={selected}
       timeZone={currentTimeZone}
@@ -1794,7 +1954,14 @@ export function ScheduleCalendarTab({
             />
           ) : (
             // FullCalendar
-            <div className="overflow-hidden rounded-xl border border-border bg-card pb-4">
+            <div
+              className="overflow-hidden rounded-xl border border-border bg-card pb-4"
+              onPointerDownCapture={() => {
+                if (calendarFilterOpenRef.current) {
+                  suppressCalendarInteractionUntilRef.current = Date.now() + 1000;
+                }
+              }}
+            >
               <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
@@ -2010,6 +2177,10 @@ export function ScheduleCalendarTab({
                       },
                     })}
                 eventClick={(arg) => {
+                  if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+                    suppressCalendarInteractionUntilRef.current = 0;
+                    return;
+                  }
                   const appointment = arg.event.extendedProps?.appointment as
                     CalendarAppointmentEvent | undefined;
                   if (!appointment) return;
@@ -2030,7 +2201,11 @@ export function ScheduleCalendarTab({
                   onDeepLinkChange('appt', appointment.id);
                 }}
                 dateClick={(arg) => {
-                  if (Date.now() - lastSelectAtRef.current < 150) return;
+                  if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+                    suppressCalendarInteractionUntilRef.current = 0;
+                    return;
+                  }
+                  if (Date.now() - lastSelectAtRef.current < 500) return;
                   if (selected || showCreatePanel) {
                     closeDraftOrSelectionFromGrid();
                     return;

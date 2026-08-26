@@ -19,6 +19,7 @@ type Props = {
   options: readonly CalendarFilterOption[];
   value: string | null;
   onChange: (value: string | null) => void;
+  onOpenChange?: (open: boolean) => void;
   className?: string;
 };
 
@@ -32,6 +33,7 @@ export function DoctorCalendarToolbarFilter({
   options,
   value,
   onChange,
+  onOpenChange,
   className,
 }: Props) {
   const mode = resolveCalendarCreateFieldMode(options, null);
@@ -59,6 +61,7 @@ export function DoctorCalendarToolbarFilter({
     <Select
       value={value ?? noneValue()}
       onValueChange={(v) => onChange(v === noneValue() ? null : v)}
+      onOpenChange={onOpenChange}
     >
       <SelectTrigger className={cn('w-[10rem]', className)} displayLabel={displayLabel}>
         <SelectValue />
