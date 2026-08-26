@@ -11665,7 +11665,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."be_payment_intents" FROM "app_clinic_bi
 GRANT SELECT ("idempotency_key", "organization_id", "provider_id") ON TABLE "public"."be_payment_intents" TO "app_seam_payment_webhook_owner";
 GRANT SELECT ON TABLE "public"."be_payment_intents" TO "app_staff";
 GRANT INSERT ("amount_minor", "appointment_id", "checkout_url", "created_at", "currency", "idempotency_key", "metadata_json", "organization_id", "platform_user_id", "product_ref", "provider_id", "provider_intent_ref", "purpose", "status", "updated_at") ON TABLE "public"."be_payment_intents" TO "app_staff";
-GRANT UPDATE ("status", "updated_at") ON TABLE "public"."be_payment_intents" TO "app_staff";
+GRANT UPDATE ("status", "title", "updated_at") ON TABLE "public"."be_payment_intents" TO "app_staff";
 GRANT UPDATE ("platform_user_id") ON TABLE "public"."be_payment_intents" TO "app_tenant_service";
 -- последовательности public.be_payment_intents: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$

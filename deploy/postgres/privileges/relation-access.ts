@@ -1438,6 +1438,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "status",
+          "title",
           "updated_at"
         ]
       },
