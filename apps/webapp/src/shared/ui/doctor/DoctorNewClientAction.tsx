@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
-import { DoctorModal } from './DoctorModal';
+import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
 import { Label } from './primitives/label';
@@ -37,6 +37,7 @@ type DoctorNewClientActionProps = {
   showIcon?: boolean;
   compactOnMobile?: boolean;
   desktopTriggerLabel?: string;
+  desktopPresentation?: DoctorModalDesktopPresentation;
 };
 
 /** Каноническое действие создания карточки клиента для страницы клиентов и быстрых действий. */
@@ -46,6 +47,7 @@ export function DoctorNewClientAction({
   showIcon = true,
   compactOnMobile = true,
   desktopTriggerLabel,
+  desktopPresentation,
 }: DoctorNewClientActionProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -169,6 +171,7 @@ export function DoctorNewClientAction({
         onClose={close}
         title={triggerLabel}
         size="md"
+        desktopPresentation={desktopPresentation}
         footer={
           <>
             <Button type="button" variant="outline" disabled={pending} onClick={close}>

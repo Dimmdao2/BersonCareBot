@@ -1,14 +1,6 @@
 'use client';
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-  useTransition,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { Calendar, List, Search } from 'lucide-react';
@@ -41,14 +33,7 @@ import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from '@/shared/ui/doctor/primitives/sheet';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
-import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
@@ -487,9 +472,7 @@ function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
       {KPI_ITEMS.map(({ key, label }) => {
         const value = kpis?.[key] ?? 0;
         const handleClick =
-          key !== 'recordsInPeriod' && value > 0 && onKpiClick
-            ? () => onKpiClick(key)
-            : undefined;
+          key !== 'recordsInPeriod' && value > 0 && onKpiClick ? () => onKpiClick(key) : undefined;
         return (
           <DoctorStatCard
             key={key}
@@ -774,11 +757,6 @@ export function ScheduleCalendarTab({
   const [kpisLoading, setKpisLoading] = useState(false);
   const [showCreatePanel, setShowCreatePanel] = useState(false);
   const isMobileViewport = useIsMobileViewport();
-  const isWideScheduleViewport = useViewportMinWidth(1280);
-  const [detailsPanelGeometry, setDetailsPanelGeometry] = useState<{
-    right: number;
-    width: number;
-  } | null>(null);
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -808,29 +786,6 @@ export function ScheduleCalendarTab({
   const [rescheduleComment, setRescheduleComment] = useState('');
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
-
-  useLayoutEffect(() => {
-    const container = document.getElementById('app-shell-doctor');
-    if (!container) return;
-
-    const updateGeometry = () => {
-      const rect = container.getBoundingClientRect();
-      setDetailsPanelGeometry({
-        right: Math.max(0, window.innerWidth - rect.right),
-        width: rect.width * (isWideScheduleViewport ? 0.4 : 0.5),
-      });
-    };
-
-    updateGeometry();
-    window.addEventListener('resize', updateGeometry);
-    const resizeObserver =
-      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateGeometry);
-    resizeObserver?.observe(container);
-    return () => {
-      window.removeEventListener('resize', updateGeometry);
-      resizeObserver?.disconnect();
-    };
-  }, [isWideScheduleViewport]);
 
   // ─── Sync state → deep-link ────────────────────────────────────────────────
 
@@ -1542,8 +1497,7 @@ export function ScheduleCalendarTab({
       futureInPeriod: (e) => parseFeedInstant(e.startAt, currentTimeZone) >= DateTime.now(),
       uniquePatientsInPeriod: (_e) => true,
       recordsInPeriod: (_e) => true,
-      reschedulesInPeriod: (e) =>
-        !isCancelledAppointmentStatus(e.status) && e.rescheduleCount > 0,
+      reschedulesInPeriod: (e) => !isCancelledAppointmentStatus(e.status) && e.rescheduleCount > 0,
     };
 
     const pred = KPI_PREDICATES[kpiModalFilter];
@@ -1826,12 +1780,10 @@ export function ScheduleCalendarTab({
       {/* Main content row: calendar/list + aside panel */}
       <div
         className={cn(
-          isWideScheduleViewport && showKpi
-            ? 'grid grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] items-start gap-4'
-            : 'block',
-          renderMode === 'list' && isWideScheduleViewport && showKpi
-            ? 'min-h-0 h-[calc(100dvh-15rem)]'
-            : 'pb-4',
+          'block pb-4',
+          showKpi &&
+            'xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
+          renderMode === 'list' && showKpi && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
         )}
       >
         {/* Content area */}
@@ -2125,49 +2077,28 @@ export function ScheduleCalendarTab({
           )}
         </div>
 
-        {isWideScheduleViewport && showKpi ? (
-          <aside className="sticky top-28 max-h-[calc(100dvh-8rem)] w-full self-start overflow-y-auto pb-4">
+        {showKpi ? (
+          <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start overflow-y-auto pb-4 xl:block">
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
-              onKpiClick={(key) =>
-                setKpiModalFilter((prev) => (prev === key ? null : key))
-              }
+              onKpiClick={(key) => setKpiModalFilter((prev) => (prev === key ? null : key))}
             />
           </aside>
         ) : null}
       </div>
 
       {!isMobileViewport ? (
-        <Sheet
+        <DoctorModal
           open={eventPanelOpen}
-          onOpenChange={(open) => {
-            if (!open) clearDraftAndPanel();
-          }}
+          onClose={clearDraftAndPanel}
+          title={eventPanelTitle}
+          size="lg"
+          desktopPresentation="right-sheet"
+          bodyClassName="p-4"
         >
-          <SheetContent
-            side="right"
-            overlayClassName="!bg-transparent !backdrop-blur-none"
-            className="gap-0 p-0 !shadow-md"
-            style={{
-              top: 'var(--doctor-page-header-h, 2.75rem)',
-              height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
-              right: detailsPanelGeometry?.right ?? 0,
-              width:
-                detailsPanelGeometry?.width ??
-                (isWideScheduleViewport ? '40vw' : '50vw'),
-              maxWidth: 'none',
-            }}
-          >
-            <SheetHeader
-              className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
-              style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
-            >
-              <SheetTitle>{eventPanelTitle}</SheetTitle>
-            </SheetHeader>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">{eventPanelNode}</div>
-          </SheetContent>
-        </Sheet>
+          {eventPanelNode}
+        </DoctorModal>
       ) : null}
 
       {isMobileViewport ? (

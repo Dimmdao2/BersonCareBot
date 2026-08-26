@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode } from 'react';
+import { type ReactNode, useLayoutEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
 import {
@@ -10,9 +10,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from './primitives/drawer';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
+export type DoctorModalDesktopPresentation = 'dialog' | 'right-sheet';
 
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
 const sizeMaxWidth: Record<DoctorModalSize, string> = {
@@ -33,6 +36,8 @@ type DoctorModalProps = {
   footer?: ReactNode;
   /** Доп. классы на прокручиваемое тело (например, убрать паддинги). */
   bodyClassName?: string;
+  /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
+  desktopPresentation?: DoctorModalDesktopPresentation;
 };
 
 /**
@@ -43,7 +48,8 @@ type DoctorModalProps = {
  *   (высота ограничена с приятными отступами сверху/снизу).
  * — Опциональный подвал с кнопками, закреплён снизу.
  * — Размеры sm/md/lg/content (content = широкая+высокая, под чат и обсуждения).
- * — Десктоп: по центру, ограничение по ширине. Мобила: bottom-sheet снизу.
+ * — Десктоп/планшет: диалог по центру либо единая правая панель без затемнения.
+ * — Мобила: bottom-sheet снизу.
  *
  * size="content" отдаёт телу гибкую flex-колонку под контент со СВОИМ внутренним
  * скроллом (чат, панель обсуждений); остальные размеры прокручивают тело сами.
@@ -57,9 +63,36 @@ export function DoctorModal({
   size = 'md',
   footer,
   bodyClassName,
+  desktopPresentation = 'dialog',
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
+  const isWideDesktop = useViewportMinWidth(1280);
   const isContent = size === 'content';
+  const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
+
+  useLayoutEffect(() => {
+    if (!open || isMobile || desktopPresentation !== 'right-sheet') return;
+
+    const pageContent = document.getElementById('app-shell-content');
+    if (!pageContent) return;
+
+    const updateGeometry = () => {
+      const rect = pageContent.getBoundingClientRect();
+      const widthRatio = isWideDesktop ? 0.5 : 0.45;
+      const nextWidth = `calc(${rect.width * widthRatio}px + 0.375rem)`;
+      setRightSheetWidth((current) => (current === nextWidth ? current : nextWidth));
+    };
+
+    updateGeometry();
+    window.addEventListener('resize', updateGeometry);
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateGeometry);
+    resizeObserver?.observe(pageContent);
+    return () => {
+      window.removeEventListener('resize', updateGeometry);
+      resizeObserver?.disconnect();
+    };
+  }, [desktopPresentation, isMobile, isWideDesktop, open]);
 
   const body = (
     <div
@@ -97,6 +130,37 @@ export function DoctorModal({
           {footerNode}
         </DrawerContent>
       </Drawer>
+    );
+  }
+
+  if (desktopPresentation === 'right-sheet') {
+    return (
+      <Sheet open={open} modal={false} onOpenChange={handleOpenChange}>
+        <SheetContent
+          side="right"
+          showOverlay={false}
+          className="gap-0 p-0 !max-w-none !shadow-md"
+          style={{
+            top: 'var(--doctor-page-header-h, 2.75rem)',
+            height: 'calc(100dvh - var(--doctor-page-header-h, 2.75rem))',
+            right: 0,
+            width:
+              rightSheetWidth ??
+              (isWideDesktop ? 'calc(50vw + 0.375rem)' : 'calc(45vw + 0.375rem)'),
+            maxWidth: 'none',
+          }}
+        >
+          <SheetHeader
+            className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
+            style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
+          >
+            <SheetTitle>{title}</SheetTitle>
+            {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+          </SheetHeader>
+          {body}
+          {footerNode}
+        </SheetContent>
+      </Sheet>
     );
   }
 

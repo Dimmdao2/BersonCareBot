@@ -125,6 +125,7 @@ export function DoctorTodayQuickActions({
           className={placement === 'mobile-footer' ? 'w-full' : undefined}
           showIcon={false}
           compactOnMobile={false}
+          desktopPresentation="right-sheet"
         />
       </div>
 
@@ -133,6 +134,7 @@ export function DoctorTodayQuickActions({
         onClose={closeAppointment}
         title="Создать запись"
         size="lg"
+        desktopPresentation="right-sheet"
       >
         {loadError ? (
           <p role="alert" className="py-4 text-sm text-destructive">
@@ -149,6 +151,7 @@ export function DoctorTodayQuickActions({
             createInitialSpecialistId={createContext.ownSpecialistId}
             startInCreate
             showCloseControl={false}
+            flushChrome={placement === 'header'}
             onClose={closeAppointment}
             onChanged={handleChanged}
           />
