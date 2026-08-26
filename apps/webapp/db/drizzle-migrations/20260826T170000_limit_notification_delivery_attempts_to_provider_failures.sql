@@ -115,6 +115,7 @@ $function$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-VERIFY: position('clinic_smtp_outbound' in pg_get_functiondef('app.read_patient_reminder_delivery_target_snapshot(uuid,uuid,text,timestamp with time zone)'::regprocedure)) > 0
 --
