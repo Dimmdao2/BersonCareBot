@@ -25,10 +25,11 @@ function fakeTx(existingRelationship: { status: string } | null) {
       executed.push(JSON.stringify(query));
       return { rows: [] };
     }),
-    select: () => ({
+    select: (selection: Record<string, unknown>) => ({
       from: () => ({
         where: () => ({
-          limit: async () => (found ? [found] : []),
+          limit: async () =>
+            'isBlocked' in selection ? [{ role: 'client', isBlocked: false }] : found ? [found] : [],
         }),
       }),
     }),

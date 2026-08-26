@@ -13816,7 +13816,7 @@ REVOKE ALL PRIVILEGES ON TABLE "public"."lfk_complex_templates" FROM "app_clinic
 GRANT SELECT ("id", "organization_id", "owner_kind", "status") ON TABLE "public"."lfk_complex_templates" TO "app_seam_patient_lfk_media_owner";
 GRANT SELECT, DELETE ON TABLE "public"."lfk_complex_templates" TO "app_staff";
 GRANT INSERT ("created_by", "description", "organization_id", "owner_kind", "title", "updated_at") ON TABLE "public"."lfk_complex_templates" TO "app_staff";
-GRANT UPDATE ("created_by", "status", "updated_at") ON TABLE "public"."lfk_complex_templates" TO "app_staff";
+GRANT UPDATE ("created_by", "description", "status", "title", "updated_at") ON TABLE "public"."lfk_complex_templates" TO "app_staff";
 -- последовательности public.lfk_complex_templates: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;

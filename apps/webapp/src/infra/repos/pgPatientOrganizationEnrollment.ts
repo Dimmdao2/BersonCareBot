@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { DrizzleDb } from '@/app-layer/db/drizzle';
 import { orgEnrollments } from '../../../db/schema/bookingEngine';
+import { platformUsers } from '../../../db/schema/schema';
 
 export type SchedulableClientEnrollmentStatus = 'invited' | 'active';
 
@@ -13,6 +14,7 @@ export class OrganizationClientRelationshipDeniedError extends Error {
 /**
  * Staff card relationship writer. It never proves portal identity: new relationships are invited,
  * while an already-active relationship stays active and discharged/archived rows stay denied.
+ * A globally blocked patient cannot be scheduled, regardless of the clinic relationship state.
  */
 export async function ensureInvitedOrganizationClientRelationship(
   tx: DrizzleDb,
@@ -20,6 +22,15 @@ export async function ensureInvitedOrganizationClientRelationship(
   platformUserId: string,
   options?: { reactivateArchived?: boolean },
 ): Promise<SchedulableClientEnrollmentStatus> {
+  const [patient] = await tx
+    .select({ role: platformUsers.role, isBlocked: platformUsers.isBlocked })
+    .from(platformUsers)
+    .where(eq(platformUsers.id, platformUserId))
+    .limit(1);
+  if (!patient || patient.role !== 'client' || patient.isBlocked) {
+    throw new OrganizationClientRelationshipDeniedError();
+  }
+
   const findRelationship = async () => {
     const [row] = await tx
       .select({ status: orgEnrollments.status })
