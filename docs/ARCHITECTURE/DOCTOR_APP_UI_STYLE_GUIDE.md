@@ -69,7 +69,8 @@
 | Панель внутри карточки                 | `rounded-lg`                                 |
 | Строка списка / item                   | `rounded-md`                                 |
 | Doctor button                          | `8px` (`--doctor-button-radius`)             |
-| Doctor input / select trigger          | `24px` (`--doctor-control-radius`)            |
+| Doctor input                           | `24px` (`--doctor-control-radius`)            |
+| Doctor select trigger                  | `8px` (`--doctor-button-radius`)              |
 | Main sidebar / mobile menu item        | минимальный shared menu radius; не 24px pill |
 
 `rounded-2xl` — запрещён для page-level секций. Явные caller overrides (`rounded-none`, icon-only форма и т.п.) сохраняются.
@@ -1066,7 +1067,7 @@ Overview-сетка и панели уровня 2 — в `doctorClientCardChrom
 - [ ] Карточка сущности (если нужна) — по §9, используя `doctorClientCardChrome.ts`
 - [ ] График — через shadcn Card + recharts по §7 (не кастомный контейнер)
 - [ ] Размеры текста — только из набора §B.1 (нет `text-[13px]`/`text-lg`/`text-xl`/`text-3xl`; `text-[10px]`/`text-[11px]` только в micro-роли)
-- [ ] Doctor button использует радиус 8px, input/select trigger — 24px; input белый; явные `rounded-none`/icon overrides сохранены (§B.2)
+- [ ] Doctor button/select trigger используют радиус 8px, input — 24px; input белый; явные `rounded-none`/icon overrides сохранены (§B.2)
 - [ ] KPI-число — `text-[1.3rem]` через общую роль (не локальный `text-2xl`/`text-3xl`)
 - [ ] KPI: радиус 8px, подпись сверху, число снизу
 - [ ] Основной flat-list: `1px` divider, padding 18px по горизонтали, первичная строка `text-base font-normal`

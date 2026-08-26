@@ -34,6 +34,7 @@ import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
+import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
@@ -1073,6 +1074,40 @@ export function ScheduleCalendarTab({
       })),
     [scopeBootstrap.specialists],
   );
+  const selectedScheduleSpecialistId =
+    scheduleScope.scope === 'clinic' ? null : scheduleScope.specialistId;
+
+  const renderScheduleFilters = (className: string, controlClassName?: string) => (
+    <div className={className}>
+      <DoctorCalendarToolbarFilter
+        noneLabel="Локация"
+        options={filters.branches}
+        value={branchId}
+        onChange={setBranchId}
+        className={controlClassName}
+      />
+      {scopeBootstrap.canManageAllSpecialists && scheduleSpecialistOptions.length > 1 ? (
+        <DoctorCalendarToolbarFilter
+          noneLabel="Все сотрудники"
+          options={scheduleSpecialistOptions}
+          value={selectedScheduleSpecialistId}
+          onChange={(specialistId) =>
+            specialistId
+              ? changeScheduleScope('specialist', specialistId)
+              : changeScheduleScope('clinic')
+          }
+          className={controlClassName}
+        />
+      ) : null}
+      <DoctorCalendarToolbarFilter
+        noneLabel="Услуга"
+        options={filters.services}
+        value={serviceId}
+        onChange={setServiceId}
+        className={controlClassName}
+      />
+    </div>
+  );
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
@@ -1685,53 +1720,8 @@ export function ScheduleCalendarTab({
           </Button>
         </>
 
-        {/* Filters */}
-        {scopeBootstrap.canManageAllSpecialists ? (
-          <>
-            {scopeBootstrap.ownSpecialistId ? (
-              <Button
-                type="button"
-                size="sm"
-                variant={scheduleScope.scope === 'mine' ? 'default' : 'outline'}
-                onClick={() => changeScheduleScope('mine')}
-                data-testid="schedule-scope-mine"
-              >
-                Моё
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="sm"
-              variant={scheduleScope.scope === 'clinic' ? 'default' : 'outline'}
-              onClick={() => changeScheduleScope('clinic')}
-              data-testid="schedule-scope-clinic"
-            >
-              Вся клиника
-            </Button>
-            <DoctorCalendarToolbarFilter
-              noneLabel="Специалист"
-              options={scheduleSpecialistOptions}
-              value={scheduleScope.scope === 'specialist' ? scheduleScope.specialistId : null}
-              onChange={(specialistId) =>
-                specialistId
-                  ? changeScheduleScope('specialist', specialistId)
-                  : changeScheduleScope('clinic')
-              }
-            />
-          </>
-        ) : null}
-        <DoctorCalendarToolbarFilter
-          noneLabel="Локация"
-          options={filters.branches}
-          value={branchId}
-          onChange={setBranchId}
-        />
-        <DoctorCalendarToolbarFilter
-          noneLabel="Услуга"
-          options={filters.services}
-          value={serviceId}
-          onChange={setServiceId}
-        />
+        {/* Filters stay in the toolbar below xl, where the KPI aside is hidden. */}
+        {renderScheduleFilters(cn('flex flex-wrap gap-2', showKpi && 'xl:hidden'))}
 
         {/* CTA — постоянная, всегда справа */}
         <Button
@@ -2078,7 +2068,11 @@ export function ScheduleCalendarTab({
         </div>
 
         {showKpi ? (
-          <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start overflow-y-auto pb-4 xl:block">
+          <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start space-y-3 overflow-y-auto pb-4 xl:block">
+            <section className={doctorSectionCardClass}>
+              <h2 className={doctorSectionTitleClass}>Фильтры</h2>
+              {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
+            </section>
             <KpiRowTab
               kpis={kpis}
               kpisLoading={kpisLoading}
