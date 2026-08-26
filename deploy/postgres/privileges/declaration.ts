@@ -2296,6 +2296,15 @@ const PATIENT_REMINDER_CREATE_SURFACES = [
   ], ['SELECT']),
 ] as const;
 
+const PATIENT_REMINDER_DELETE_SURFACES = [
+  ...PATIENT_REMINDER_CORE_SURFACES.filter(
+    (surface) => surface.relation !== 'public.reminder_occurrence_history',
+  ),
+  patientSurface('public.reminder_occurrence_history', [
+    'integrator_rule_id', 'organization_id', 'platform_user_id',
+  ], ['SELECT', 'DELETE']),
+] as const;
+
 const PATIENT_SUPPORT_CORE_SURFACES = [
   patientSurface('public.support_conversations', [
     'id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source',
@@ -6268,7 +6277,7 @@ const REV10_CONTEXT = {
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.update_current_patient_reminder_rule)),
     'app.delete_current_patient_reminder_rule(text)': patientSelfFunction(
       'boolean', false, ['text'], 'patient.reminder-rule.delete', exactPatientSurfaces(
-        PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
+        PATIENT_REMINDER_DELETE_SURFACES, PATIENT_ROOT_OPERATIONS.delete_current_patient_reminder_rule)),
     'app.mark_current_patient_reminder_history_seen(text)': patientSelfFunction(
       'integer', false, ['text'], 'patient.reminder-history.seen', exactPatientSurfaces(
         PATIENT_REMINDER_CORE_SURFACES, PATIENT_ROOT_OPERATIONS.mark_current_patient_reminder_history_seen)),
