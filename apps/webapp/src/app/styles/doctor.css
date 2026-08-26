@@ -38,7 +38,7 @@
 }
 
 .doctor-button-radius:not(.rounded-none):not(.rounded-full) {
-  border-radius: 8px;
+  border-radius: var(--doctor-button-radius, 8px);
 }
 
 .doctor-today-quick-actions {
