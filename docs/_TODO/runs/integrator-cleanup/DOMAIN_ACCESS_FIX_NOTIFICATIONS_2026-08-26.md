@@ -23,4 +23,6 @@ Authority: owner требует одну canonical delivery state machine; `noti
 - Не full CI, не deploy, не live external delivery.
 - Закоммитить весь task-scope; не push.
 
-Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — «реальные попытки записываются только при ошибке»; `docs/OWNER_DECISIONS.md` — clinic-effective branding/delivery settings.
+Источник оракула: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` — «Отдельная строка в
+`public.notification_delivery_attempts` допустима только для реального неуспешного обращения к внешнему
+provider.»

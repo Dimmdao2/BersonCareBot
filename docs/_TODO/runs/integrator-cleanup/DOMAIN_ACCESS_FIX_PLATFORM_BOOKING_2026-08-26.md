@@ -4,7 +4,7 @@
 
 Authority: blocked — глобальная блокировка identity с немедленным прекращением сессии и новой записи; archive — только clinic enrollment. Repo rule §5: runtime DB access идёт через application port + Drizzle named root с accepted context, без raw pool/route DML. Existing public booking must record merge candidates or expose failure; silent loss forbidden.
 
-Исходный audit: `DOMAIN_ACCESS_AUDIT_CLINICAL_2026-08-26.md`; сводка `DOMAIN_ACCESS_AUDIT_SYNTHESIS_2026-08-26.md`.
+Исходный audit: `docs/_TODO/runs/integrator-cleanup/DOMAIN_ACCESS_AUDIT_CLINICAL_2026-08-26.md`; сводка `docs/_TODO/runs/integrator-cleanup/DOMAIN_ACCESS_AUDIT_SYNTHESIS_2026-08-26.md`.
 
 ## Цельный scope
 
