@@ -315,6 +315,8 @@ async function sendLinkedChannelMessage(input: {
         eventId: `${input.eventId}:telegram`,
         occurredAt: new Date().toISOString(),
         source: 'telegram',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'essential_delivery',
       },
       payload: {
         recipient: { chatId: bindings.telegramId.trim() },
@@ -330,6 +332,8 @@ async function sendLinkedChannelMessage(input: {
         eventId: `${input.eventId}:max`,
         occurredAt: new Date().toISOString(),
         source: 'max',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'essential_delivery',
       },
       payload: {
         recipient: maxUserRecipient(bindings.maxId.trim()),
@@ -374,14 +378,26 @@ async function sendDoctorMessage(
   for (const chatId of recipients.telegram) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: `${eventId}:doctor:telegram:${chatId}`, occurredAt: new Date().toISOString(), source: 'telegram' },
+      meta: {
+        eventId: `${eventId}:doctor:telegram:${chatId}`,
+        occurredAt: new Date().toISOString(),
+        source: 'telegram',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'essential_delivery',
+      },
       payload: { recipient: { chatId }, message: { text }, delivery: { channels: ['telegram'], maxAttempts: 3 } },
     });
   }
   for (const userId of recipients.max) {
     await dispatchPort.dispatchOutgoing({
       type: 'message.send',
-      meta: { eventId: `${eventId}:doctor:max:${userId}`, occurredAt: new Date().toISOString(), source: 'max' },
+      meta: {
+        eventId: `${eventId}:doctor:max:${userId}`,
+        occurredAt: new Date().toISOString(),
+        source: 'max',
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'essential_delivery',
+      },
       payload: { recipient: maxUserRecipient(userId), message: { text }, delivery: { channels: ['max'], maxAttempts: 3 } },
     });
   }

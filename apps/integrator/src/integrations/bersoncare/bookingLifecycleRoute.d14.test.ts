@@ -25,7 +25,13 @@ import { handleBookingLifecycleEvent } from './bookingLifecycleRoute.js';
 import type { BookingLifecycleRouteDeps } from './bookingLifecycleRoute.js';
 import { formatBookingRuDateTime } from './bookingNotificationFormat.js';
 import { createInMemoryIdempotencyPort } from '../../infra/db/repos/idempotencyKeys.js';
-import type { DbWritePort, DispatchPort, WebappEventsPort } from '../../kernel/contracts/index.js';
+import { assertOutboundMessagePolicy } from '../../infra/adapters/outboundMessagePolicy.js';
+import type {
+  DbWritePort,
+  DispatchPort,
+  OutgoingIntent,
+  WebappEventsPort,
+} from '../../kernel/contracts/index.js';
 
 let bookingCounter = 0;
 
@@ -79,6 +85,34 @@ describe('booking lifecycle tenant identity propagation', () => {
     expect(getTargetsByPhoneMock).toHaveBeenCalledWith(payload.contactPhone, {
       organizationId: payload.organizationId,
     });
+  });
+});
+
+describe('booking lifecycle external-delivery policy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('marks patient and doctor messenger notifications as routine essential delivery', async () => {
+    const dispatchPort = fakeDispatchPort();
+
+    await handleBookingLifecycleEvent(
+      { eventType: 'booking.created', payload: basePayload() },
+      dispatchPort,
+      { idempotencyPort: createInMemoryIdempotencyPort() },
+    );
+
+    const intents = (dispatchPort.dispatchOutgoing as ReturnType<typeof vi.fn>).mock.calls.map(
+      ([intent]) => intent as OutgoingIntent,
+    );
+    expect(intents).toHaveLength(2);
+    for (const intent of intents) {
+      expect(intent.meta).toMatchObject({
+        outboundMessageClass: 'routine_product',
+        outboundCapability: 'essential_delivery',
+      });
+      expect(() => assertOutboundMessagePolicy(intent)).not.toThrow();
+    }
   });
 });
 
