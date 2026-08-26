@@ -49,12 +49,16 @@ export type DoctorWorkspaceShellData = {
   canRenderClinicalChildren: boolean;
 };
 
+type LoadDoctorWorkspaceShell = (
+  allowCabinetRecovery?: boolean,
+) => Promise<DoctorWorkspaceShellData>;
+
 /**
  * Request-local doctor shell bootstrap: one workspace resolution and one parallel
  * wave of org/settings/branding/entitlement reads per RSC request.
  */
-export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceShellData> => {
-  const workspaceAccess = await requireOrganizationWorkspaceContext();
+const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
+  const workspaceAccess = await requireOrganizationWorkspaceContext({ allowCabinetRecovery });
   const session = workspaceAccess.session;
   const deps = buildAppDeps();
   const organizationId = workspaceAccess.organizationId;
@@ -183,3 +187,5 @@ export const loadDoctorWorkspaceShell = cache(async (): Promise<DoctorWorkspaceS
     canRenderClinicalChildren,
   };
 });
+
+export const loadDoctorWorkspaceShell: LoadDoctorWorkspaceShell = loadDoctorShell;
