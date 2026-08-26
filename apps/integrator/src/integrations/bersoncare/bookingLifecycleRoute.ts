@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { logger } from '../../infra/observability/logger.js';
 import { env } from '../../config/env.js';
@@ -469,6 +469,7 @@ export async function scheduleBookingReminders(input: {
   /** Вебапп решает, включены ли напоминания и с какими смещениями; отсутствие плана — не ставить ни одного напоминания. */
   reminderPlan?: { enabled: boolean; offsetsMinutes: number[] };
   cancelPending?: boolean;
+  materializationEventKey: string;
 }): Promise<void> {
   if (!input.reminderPlan) {
     logger.warn(
@@ -508,9 +509,16 @@ export async function scheduleBookingReminders(input: {
     reminderPlan: input.reminderPlan ?? { enabled: false, offsetsMinutes: [] },
   });
   const generationKey = `${input.appointmentId}:${input.slotStartIso}`;
+  const eventKeyHash = createHash('sha256')
+    .update(input.materializationEventKey)
+    .digest('base64url')
+    .slice(0, 16);
   const result = await input.webappEventsPort.materializeAppointmentReminders({
     body,
-    idempotencyKey: `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}`.slice(0, 240),
+    idempotencyKey: `arm:${generationKey}:${input.cancelPending ? 'cancel' : 'replace'}:${eventKeyHash}`.slice(
+      0,
+      240,
+    ),
   });
   if (!result.ok) {
     // 19.08: отказ материализации тонул в 502 и трёх повторах — напоминания не появлялись, и об
@@ -722,6 +730,8 @@ function bookingLifecycleSteps(input: {
         phoneNormalized: contactPhone,
         patientName,
         timeZone: await displayTimeZone(),
+        materializationEventKey:
+          asNonEmptyString(body.idempotencyKey) ?? `${eventType}:${bookingId}`,
         ...(webappEventsPort ? { webappEventsPort } : {}),
         ...(options.reminderPlan ? { reminderPlan: options.reminderPlan } : {}),
         cancelPending: options.cancelPending,

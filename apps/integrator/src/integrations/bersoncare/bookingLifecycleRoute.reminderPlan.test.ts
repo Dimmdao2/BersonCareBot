@@ -26,7 +26,10 @@ const webappEventsPort: WebappEventsPort = {
   materializeAppointmentReminders: materialize,
 };
 
-async function schedule(reminderPlan?: { enabled: boolean; offsetsMinutes: number[] }) {
+async function schedule(
+  reminderPlan?: { enabled: boolean; offsetsMinutes: number[] },
+  materializationEventKey = 'booking.reminder_updated:booking-1:mutation-1',
+) {
   await scheduleBookingReminders({
     organizationId: '10000000-0000-4000-8000-000000000001',
     appointmentId: '20000000-0000-4000-8000-000000000002',
@@ -37,6 +40,7 @@ async function schedule(reminderPlan?: { enabled: boolean; offsetsMinutes: numbe
     patientName: 'Пациент',
     timeZone: 'UTC',
     webappEventsPort,
+    materializationEventKey,
     ...(reminderPlan ? { reminderPlan } : {}),
   });
 }
@@ -55,6 +59,16 @@ describe('scheduleBookingReminders unified materializer handoff', () => {
       cancelPending: false,
     });
     expect(idempotencyKey).toContain('20000000-0000-4000-8000-000000000002');
+  });
+
+  it('runs a later patient mutation again while keeping retries of one mutation idempotent', async () => {
+    await schedule({ enabled: true, offsetsMinutes: [120] }, 'mutation-1');
+    await schedule({ enabled: true, offsetsMinutes: [120] }, 'mutation-1');
+    await schedule({ enabled: true, offsetsMinutes: [120] }, 'mutation-2');
+
+    const keys = materialize.mock.calls.map(([input]) => input.idempotencyKey);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).not.toBe(keys[0]);
   });
 
   it('hands disabled and absent plans to the same product-side terminalization seam', async () => {
