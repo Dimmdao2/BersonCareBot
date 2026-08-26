@@ -3100,7 +3100,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.create_current_patient_booking_pending(text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_booking_pending(text)', 'public.patient_bookings', ARRAY['id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end', 'status', 'canonical_appointment_id', 'contact_phone', 'contact_email', 'contact_name', 'branch_id', 'service_id', 'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot', 'duration_minutes_snapshot', 'price_minor_snapshot', 'cancelled_at', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.create_current_patient_reminder_rule(text,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
-  ('app.create_current_patient_reminder_rule(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'reminder_muted_until', 'updated_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.create_current_patient_reminder_rule(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id', 'integrator_user_id']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'integrator_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.media_folders', ARRAY['id', 'organization_id', 'parent_id', 'name', 'kind', 'patient_user_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
@@ -16397,9 +16397,10 @@ GRANT SELECT ("id", "merged_into_id") ON TABLE "public"."platform_users" TO "app
 GRANT SELECT ("id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT UPDATE ("updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_invite_owner";
 GRANT SELECT ("calendar_timezone", "id") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
-GRANT SELECT ("id", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id", "integrator_user_id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("calendar_timezone", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
+GRANT SELECT ("id", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("calendar_timezone", "id", "merged_into_id", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("id", "merged_into_id", "reminder_muted_until", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("display_name", "first_name", "id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_seam_patient_self_actions_owner";

@@ -2287,6 +2287,15 @@ const PATIENT_REMINDER_CORE_SURFACES = [
   ], ['UPDATE']),
 ] as const;
 
+const PATIENT_REMINDER_CREATE_SURFACES = [
+  ...PATIENT_REMINDER_CORE_SURFACES.filter(
+    (surface) => surface.relation !== 'public.platform_users',
+  ),
+  patientSurface('public.platform_users', [
+    'id', 'role', 'merged_into_id', 'integrator_user_id',
+  ], ['SELECT']),
+] as const;
+
 const PATIENT_SUPPORT_CORE_SURFACES = [
   patientSurface('public.support_conversations', [
     'id', 'organization_id', 'integrator_conversation_id', 'platform_user_id', 'integrator_user_id', 'source',
@@ -6252,7 +6261,7 @@ const REV10_CONTEXT = {
     }),
     'app.create_current_patient_reminder_rule(text,text)': patientSelfFunction(
       'jsonb', false, ['text', 'text'], 'patient.reminder-rule.create', exactPatientSurfaces(
-        [...PATIENT_REMINDER_CORE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
+        [...PATIENT_REMINDER_CREATE_SURFACES, PATIENT_ORG_ENROLLMENT_SURFACE],
         PATIENT_ROOT_OPERATIONS.create_current_patient_reminder_rule)),
     'app.update_current_patient_reminder_rule(text,text)': patientSelfFunction(
       'jsonb', false, ['text', 'text'], 'patient.reminder-rule.update', exactPatientSurfaces(
