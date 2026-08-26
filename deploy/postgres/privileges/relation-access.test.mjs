@@ -201,7 +201,7 @@ test('patient reminder cancellation reaches the canonical occurrence only throug
   const cancel = declaration.portContext.functions[
     'app.patient_cancel_pending_reminder_occurrences(text)'
   ];
-  assert.deepEqual(cancel.execute, ['app_patient']);
+  assert.deepEqual(cancel.execute, ['app_patient', 'app_staff']);
   const occurrence = cancel.relationSurfaces.find((surface) =>
     surface.relation === 'public.reminder_occurrence_history');
   assert.deepEqual(occurrence.operations, ['SELECT', 'DELETE']);

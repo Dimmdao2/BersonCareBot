@@ -327,6 +327,7 @@ export interface FunctionRelationSurface {
     | 'exact INSERT ON CONFLICT(event_id) in migration 0033, retyped in migration 0036'
     | 'exact currency EXISTS in migration 0034'
     | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id) in migration 0034'
+    | 'exact terminalize UPDATE + INSERT ON CONFLICT(event_id), including normal non-dispatch classification'
     | 'exact INSERT ON CONFLICT(event_id) in migration 0039'
     | 'exact INSERT ON CONFLICT(dedup_key) in migration 0041'
     | 'D20 enqueue root inserts idempotently and prunes expired sent rows'
