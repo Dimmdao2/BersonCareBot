@@ -38,6 +38,8 @@ type DoctorModalProps = {
   bodyClassName?: string;
   /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
   desktopPresentation?: DoctorModalDesktopPresentation;
+  /** Called before a non-modal right sheet closes from a pointer press outside it. */
+  onRightSheetOutsidePress?: () => void;
 };
 
 /**
@@ -64,6 +66,7 @@ export function DoctorModal({
   footer,
   bodyClassName,
   desktopPresentation = 'dialog',
+  onRightSheetOutsidePress,
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
   const isWideDesktop = useViewportMinWidth(1280);
@@ -135,7 +138,16 @@ export function DoctorModal({
 
   if (desktopPresentation === 'right-sheet') {
     return (
-      <Sheet open={open} modal={false} onOpenChange={handleOpenChange}>
+      <Sheet
+        open={open}
+        modal={false}
+        onOpenChange={(nextOpen, eventDetails) => {
+          if (!nextOpen && eventDetails.reason === 'outside-press') {
+            onRightSheetOutsidePress?.();
+          }
+          handleOpenChange(nextOpen);
+        }}
+      >
         <SheetContent
           side="right"
           showOverlay={false}

@@ -3,7 +3,7 @@
 import type { ComponentProps } from 'react';
 import {
   Select,
-  SelectContent,
+  SelectContent as SharedSelectContent,
   SelectGroup,
   SelectItem,
   SelectLabel,
@@ -15,11 +15,28 @@ import {
 } from '@/shared/ui/primitives/select';
 import { cn } from '@/lib/utils';
 
-/** Doctor-only pill select trigger. Explicit caller radii remain authoritative. */
+/** Doctor select radius matches doctor buttons (8px). Explicit caller radii remain authoritative. */
 export function SelectTrigger({ className, ...props }: ComponentProps<typeof SharedSelectTrigger>) {
   return (
     <SharedSelectTrigger
-      className={cn('rounded-[var(--doctor-control-radius,24px)] bg-white', className)}
+      className={cn('doctor-button-radius bg-white', className)}
+      {...props}
+    />
+  );
+}
+
+/** Doctor select popup overlaps its trigger; matching item padding keeps both left edges aligned. */
+export function SelectContent({
+  align = 'start',
+  alignItemWithTrigger = true,
+  className,
+  ...props
+}: ComponentProps<typeof SharedSelectContent>) {
+  return (
+    <SharedSelectContent
+      align={align}
+      alignItemWithTrigger={alignItemWithTrigger}
+      className={cn('[&_[data-slot=select-item]]:pl-3', className)}
       {...props}
     />
   );
@@ -27,7 +44,6 @@ export function SelectTrigger({ className, ...props }: ComponentProps<typeof Sha
 
 export {
   Select,
-  SelectContent,
   SelectGroup,
   SelectItem,
   SelectLabel,

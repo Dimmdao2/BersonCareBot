@@ -18,10 +18,16 @@ vi.mock('@fullcalendar/luxon3', () => ({ default: {} }));
 vi.mock('@fullcalendar/core/locales/ru', () => ({ default: {} }));
 vi.mock('./ScheduleFullCalendarHost', () => ({
   ScheduleFullCalendarHost: forwardRef(function ScheduleFullCalendarHostMock(
-    _props: unknown,
+    props: { dateClick?: (arg: { date: Date }) => void },
     _ref: unknown,
   ) {
-    return <div data-testid="full-calendar" />;
+    return (
+      <button
+        type="button"
+        data-testid="full-calendar"
+        onClick={() => props.dateClick?.({ date: new Date('2026-07-30T10:00:00.000Z') })}
+      />
+    );
   }),
 }));
 vi.mock('../../calendar/DoctorCalendarEventPanel', () => ({
@@ -339,8 +345,8 @@ describe('ScheduleCalendarTab scope requests', () => {
       />,
     );
 
-    await waitFor(() => expect(screen.getByTestId('create-appointment-btn')).toBeEnabled());
-    fireEvent.click(screen.getByTestId('create-appointment-btn'));
+    await waitFor(() => expect(screen.getByTestId('full-calendar')).toBeEnabled());
+    fireEvent.click(screen.getByTestId('full-calendar'));
 
     const panel = await screen.findByTestId('calendar-event-panel');
     expect(panel).toHaveAttribute('data-default-specialist', OTHER_ID);

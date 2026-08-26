@@ -158,40 +158,44 @@ export function DoctorTodayMiniCalendar({
   // Priority: canonical events (calendarEvents prop) > legacy TodayAppointmentItem list.
   // Canonical events have be_appointments.id which is what DoctorCalendarEventPanel expects.
   const fcAppointmentEvents = (() => {
-    if (calendarEvents && calendarEvents.length > 0) {
+    if (calendarEvents !== undefined) {
       // Map CalendarAppointmentEvent → FC event (same pattern as ScheduleCalendarTab)
-      return calendarEvents.map((appt) => ({
-        id: appt.id,
-        title: canonicalEventTitle(appt),
-        start: appt.startAt,
-        end: appt.endAt,
-        classNames: [canonicalEventClass(appt)],
-        ...canonicalBranchColors(appt),
-        extendedProps: { canonicalAppt: appt },
-      }));
+      return calendarEvents
+        .filter((appt) => !isCancelledAppointmentStatus(appt.status))
+        .map((appt) => ({
+          id: appt.id,
+          title: canonicalEventTitle(appt),
+          start: appt.startAt,
+          end: appt.endAt,
+          classNames: [canonicalEventClass(appt)],
+          ...canonicalBranchColors(appt),
+          extendedProps: { canonicalAppt: appt },
+        }));
     }
     // Fallback: map legacy TodayAppointmentItem list (used while calendarEvents loads)
-    return appointments.map((appt) => {
-      let startDt: DateTime;
-      if (appt.recordAtIso) {
-        startDt = DateTime.fromISO(appt.recordAtIso, { zone: 'utc' });
-      } else {
-        const timeOnly = appt.time.slice(0, 5);
-        startDt = DateTime.fromISO(`${todayIso}T${timeOnly}`, { zone: displayIana });
-      }
-      const start = startDt.isValid ? startDt.toISO() : undefined;
-      const end = startDt.isValid
-        ? (startDt.plus({ minutes: 60 }).toISO() ?? undefined)
-        : undefined;
-      return {
-        id: appt.id,
-        title: appt.clientLabel,
-        start: start ?? undefined,
-        end: end ?? undefined,
-        classNames: ['!bg-primary/15 text-foreground !border-primary/35'],
-        extendedProps: { href: appt.href, appt },
-      };
-    });
+    return appointments
+      .filter((appt) => !isCancelledAppointmentStatus(appt.status))
+      .map((appt) => {
+        let startDt: DateTime;
+        if (appt.recordAtIso) {
+          startDt = DateTime.fromISO(appt.recordAtIso, { zone: 'utc' });
+        } else {
+          const timeOnly = appt.time.slice(0, 5);
+          startDt = DateTime.fromISO(`${todayIso}T${timeOnly}`, { zone: displayIana });
+        }
+        const start = startDt.isValid ? startDt.toISO() : undefined;
+        const end = startDt.isValid
+          ? (startDt.plus({ minutes: 60 }).toISO() ?? undefined)
+          : undefined;
+        return {
+          id: appt.id,
+          title: appt.clientLabel,
+          start: start ?? undefined,
+          end: end ?? undefined,
+          classNames: ['!bg-primary/15 text-foreground !border-primary/35'],
+          extendedProps: { href: appt.href, appt },
+        };
+      });
   })();
 
   const fcEvents = [...bgFillEvent, ...fcAppointmentEvents];
