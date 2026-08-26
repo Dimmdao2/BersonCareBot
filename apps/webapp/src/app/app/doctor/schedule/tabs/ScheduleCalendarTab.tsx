@@ -8,7 +8,6 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_FULL_HEIGHT_VIEWPORT_BODY_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
@@ -770,6 +769,7 @@ export function ScheduleCalendarTab({
   const calendarFilterOpenRef = useRef(false);
   const calendarFilterOpenVersionRef = useRef(0);
   const suppressCalendarInteractionUntilRef = useRef(0);
+  const suppressCalendarDateClickUntilRef = useRef(0);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -1617,7 +1617,7 @@ export function ScheduleCalendarTab({
       const end: Date | null = arg.end ?? null;
       if (!start) return;
       lastSelectAtRef.current = Date.now();
-      openCreateDraft(start, end ?? null);
+      window.setTimeout(() => openCreateDraft(start, end ?? null), 0);
     },
     [filtersPanelOpen, openCreateDraft],
   );
@@ -1765,12 +1765,7 @@ export function ScheduleCalendarTab({
   };
 
   return (
-    <div
-      className={cn(
-        'flex min-h-0 flex-1 flex-col gap-4 pb-8 md:flex-none md:pb-0',
-        DOCTOR_FULL_HEIGHT_VIEWPORT_BODY_CLASS,
-      )}
-    >
+    <div className="flex flex-col gap-4 pb-8">
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <div
@@ -1974,11 +1969,12 @@ export function ScheduleCalendarTab({
       {/* Main content row: calendar/list + aside panel */}
       <div
         className={cn(
-          'block min-h-0 flex-1 pb-4 md:overflow-hidden md:pb-0 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-stretch xl:gap-4',
+          'block pb-4 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
+          renderMode === 'list' && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
         )}
       >
         {/* Content area */}
-        <div className="min-w-0 flex-1 md:h-full md:min-h-0">
+        <div className={cn('min-w-0 flex-1', renderMode === 'list' && 'h-full min-h-0')}>
           {renderMode === 'list' ? (
             // List view — period-bound, grouped by day
             <ListView
@@ -1997,7 +1993,7 @@ export function ScheduleCalendarTab({
           ) : (
             // FullCalendar
             <div
-              className="overflow-hidden rounded-xl border border-border bg-card pb-4 md:h-full md:min-h-0 md:pb-0"
+              className="overflow-hidden rounded-xl border border-border bg-card pb-4"
               onPointerDownCapture={() => {
                 if (calendarFilterOpenRef.current) {
                   suppressCalendarInteractionUntilRef.current = Date.now() + 1000;
@@ -2042,7 +2038,11 @@ export function ScheduleCalendarTab({
                   box-shadow: none !important;
                   --fc-event-text-color: var(--foreground) !important;
                 }
-                .fc-bg-event { cursor: default !important; }
+                .fc-bg-event {
+                  cursor: default !important;
+                  pointer-events: none !important;
+                }
+                .fc-timegrid-bg-harness { pointer-events: none !important; }
                 .fc-event .fc-event-main { color: var(--foreground) !important; }
                 /* R10 — прошедшие записи приглушаем, будущие/актуальные ярче */
                 .fc-event.fc-event-past { opacity: 0.6; }
@@ -2151,7 +2151,7 @@ export function ScheduleCalendarTab({
                 nowIndicator
                 dayMaxEvents
                 allDaySlot={false}
-                height={isMobileViewport ? 'auto' : '100%'}
+                height="auto"
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}
                 longPressDelay={450}
@@ -2244,6 +2244,10 @@ export function ScheduleCalendarTab({
                   onDeepLinkChange('appt', appointment.id);
                 }}
                 dateClick={(arg) => {
+                  if (Date.now() <= suppressCalendarDateClickUntilRef.current) {
+                    suppressCalendarDateClickUntilRef.current = 0;
+                    return;
+                  }
                   if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
                     suppressCalendarInteractionUntilRef.current = 0;
                     return;
@@ -2289,7 +2293,7 @@ export function ScheduleCalendarTab({
           )}
         </div>
 
-        <aside className="hidden h-full min-h-0 w-full space-y-3 overflow-y-auto xl:block">
+        <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start space-y-3 overflow-y-auto pb-4 xl:block">
           <section className={doctorSectionCardClass}>
             <h2 className={doctorSectionTitleClass}>Фильтры</h2>
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}
@@ -2324,6 +2328,9 @@ export function ScheduleCalendarTab({
         <DoctorModal
           open={eventPanelOpen}
           onClose={clearDraftAndPanel}
+          onRightSheetOutsidePress={() => {
+            suppressCalendarDateClickUntilRef.current = Date.now() + 1000;
+          }}
           title={eventPanelTitle}
           size="lg"
           desktopPresentation="right-sheet"
