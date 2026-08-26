@@ -7053,7 +7053,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_integrator_tenant_service",
         "operations": ["SELECT"],
-        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
+        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "occurred_at", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
       },
       {
         "role": "app_integrator_tenant_service",
@@ -7068,7 +7068,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_integrator_request",
         "operations": ["SELECT"],
-        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
+        "columns": ["delivery_channel", "delivery_generation", "delivery_job_id", "error_code", "failed_at", "integrator_occurrence_id", "integrator_rule_id", "occurrence_key", "occurred_at", "organization_id", "planned_at", "platform_user_id", "queued_at", "sent_at", "status", "updated_at"]
       },
       {
         "role": "app_integrator_request",
