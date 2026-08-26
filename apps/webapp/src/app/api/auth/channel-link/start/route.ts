@@ -29,7 +29,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
-  if (parsed.data.channelCode !== 'vk' && !(await isAuthChannelEnabled(parsed.data.channelCode))) {
+  // Patient-only route — see the same explicit-surface note in messenger-bind/start/route.ts.
+  if (
+    parsed.data.channelCode !== 'vk' &&
+    !(await isAuthChannelEnabled(parsed.data.channelCode, 'patient'))
+  ) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 

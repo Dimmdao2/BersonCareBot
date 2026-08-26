@@ -21,8 +21,6 @@ REVOKE EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
 REVOKE EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) FROM :"integrator_runtime_config_role";
-REVOKE EXECUTE ON FUNCTION app.read_integrator_auth_channel_setting(text)
-  FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability()
   FROM :"integrator_runtime_config_role";
 REVOKE EXECUTE ON FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text)
@@ -104,7 +102,6 @@ SELECT 1 / (
   AND to_regprocedure(
     'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)'
   ) IS NOT NULL
-  AND to_regprocedure('app.read_integrator_auth_channel_setting(text)') IS NOT NULL
   AND to_regprocedure('app.read_integrator_platform_integration_availability()') IS NOT NULL
   AND to_regprocedure('app.open_or_touch_operator_incident(text,text,text,text,text)') IS NOT NULL
   AND to_regprocedure('app.install_signed_context(text,integer,bigint,uuid,uuid,bigint,text)') IS NOT NULL
@@ -133,7 +130,6 @@ ALTER FUNCTION app.read_integrator_smtp_outbound_setting() OWNER TO app_owner;
 ALTER FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) OWNER TO app_owner;
-ALTER FUNCTION app.read_integrator_auth_channel_setting(text) OWNER TO app_owner;
 ALTER FUNCTION app.read_integrator_platform_integration_availability() OWNER TO app_owner;
 ALTER FUNCTION app.open_or_touch_operator_incident(text, text, text, text, text) OWNER TO app_owner;
 
@@ -400,40 +396,10 @@ $delivery_audit_acl_scrub$;
 REVOKE ALL ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) FROM PUBLIC, app_staff, app_patient, app_worker;
--- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): reset the three
--- new capabilities exactly as strictly as the ones above, since CREATE OR REPLACE preserves an
--- existing function ACL across replays.
-REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_auth_channel_setting(text)
-  FROM :"integrator_runtime_config_role" CASCADE;
-DO $auth_channel_acl_scrub$
-DECLARE
-  v_grantee_oid oid;
-  v_grantee_name text;
-BEGIN
-  FOR v_grantee_oid, v_grantee_name IN
-    SELECT DISTINCT privilege.grantee, role.rolname
-    FROM pg_proc AS procedure
-    CROSS JOIN LATERAL aclexplode(
-      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
-    ) AS privilege
-    LEFT JOIN pg_roles AS role ON role.oid = privilege.grantee
-    WHERE procedure.oid = 'app.read_integrator_auth_channel_setting(text)'::regprocedure
-      AND privilege.grantee <> procedure.proowner
-  LOOP
-    IF v_grantee_oid = 0 THEN
-      EXECUTE
-        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_auth_channel_setting(text) FROM PUBLIC CASCADE';
-    ELSE
-      EXECUTE format(
-        'REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_auth_channel_setting(text) FROM %I CASCADE',
-        v_grantee_name
-      );
-    END IF;
-  END LOOP;
-END
-$auth_channel_acl_scrub$;
-REVOKE ALL ON FUNCTION app.read_integrator_auth_channel_setting(text)
-  FROM PUBLIC, app_staff, app_patient, app_worker;
+-- Track D (docs/_TODO/runs/briefs/TRACK_D_LOGIN_DELIVERY_CAPABILITIES_BRIEF.md): reset the
+-- remaining new capabilities exactly as strictly as the ones above, since CREATE OR REPLACE
+-- preserves an existing function ACL across replays. (A third one, `read_integrator_auth_channel_
+-- setting`, was retired with `user.phone.link` — identity cleanup 2026-08-26 — and removed here.)
 REVOKE ALL PRIVILEGES ON FUNCTION app.read_integrator_platform_integration_availability()
   FROM :"integrator_runtime_config_role" CASCADE;
 DO $platform_availability_acl_scrub$
@@ -517,8 +483,6 @@ GRANT EXECUTE ON FUNCTION app.read_integrator_smtp_outbound_setting()
 GRANT EXECUTE ON FUNCTION app.record_global_email_delivery_attempt(
   text, text, text, text, text, integer, text, jsonb, timestamptz
 ) TO :"integrator_runtime_config_role";
-GRANT EXECUTE ON FUNCTION app.read_integrator_auth_channel_setting(text)
-  TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_integrator_platform_integration_availability()
   TO :"integrator_runtime_config_role";
 GRANT EXECUTE ON FUNCTION app.read_integrator_runtime_setting(text)
@@ -701,43 +665,6 @@ SELECT 1 / (
     'app.record_global_email_delivery_attempt(text,text,text,text,text,integer,text,jsonb,timestamptz)',
     'EXECUTE'
   )
-  AND has_function_privilege(
-    :'integrator_runtime_config_role',
-    'app.read_integrator_auth_channel_setting(text)',
-    'EXECUTE'
-  )
-  AND (
-    SELECT count(*)
-    FROM pg_proc AS procedure
-    CROSS JOIN runtime_role
-    JOIN pg_roles AS owner ON owner.oid = procedure.proowner
-    CROSS JOIN LATERAL aclexplode(
-      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
-    ) AS privilege
-    WHERE procedure.oid = 'app.read_integrator_auth_channel_setting(text)'::regprocedure
-      AND procedure.prosecdef
-      AND owner.rolname = 'app_owner'
-      AND privilege.grantee IN (procedure.proowner, runtime_role.oid)
-      AND privilege.privilege_type = 'EXECUTE'
-      AND NOT privilege.is_grantable
-  ) = 2
-  AND NOT EXISTS (
-    SELECT 1
-    FROM pg_proc AS procedure
-    CROSS JOIN runtime_role
-    CROSS JOIN LATERAL aclexplode(
-      COALESCE(procedure.proacl, acldefault('f', procedure.proowner))
-    ) AS privilege
-    WHERE procedure.oid = 'app.read_integrator_auth_channel_setting(text)'::regprocedure
-      AND (
-        privilege.grantee NOT IN (procedure.proowner, runtime_role.oid)
-        OR privilege.privilege_type <> 'EXECUTE'
-        OR privilege.is_grantable
-      )
-  )
-  AND NOT has_function_privilege('app_staff', 'app.read_integrator_auth_channel_setting(text)', 'EXECUTE')
-  AND NOT has_function_privilege('app_patient', 'app.read_integrator_auth_channel_setting(text)', 'EXECUTE')
-  AND NOT has_function_privilege('app_worker', 'app.read_integrator_auth_channel_setting(text)', 'EXECUTE')
   AND has_function_privilege(
     :'integrator_runtime_config_role',
     'app.read_integrator_platform_integration_availability()',

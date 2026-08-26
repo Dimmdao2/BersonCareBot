@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'validation_error' }, { status: 400 });
   }
 
-  if (!(await isAuthChannelEnabled(parsed.data.channelCode))) {
+  if (!(await isAuthChannelEnabled(parsed.data.channelCode, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 

@@ -1,10 +1,6 @@
 /**
- * УРОВЕНЬ 2, пункт 12 (D20_INTEGRATOR_MAP.md, `repos/notificationDeliveryAttempts.ts`) — карта
- * дословно: «best-effort запись попыток и ПРОПУСКОВ каналов (skips, not-enqueued) — это
- * единственное, что делает молчаливый пропуск видимым». Поведение под тесты:
- * • дано: канал пропущен → когда запись → тогда причина пропуска сохранена (без неё «сообщение
- *   не пришло» неразбираемо в принципе);
- * • дано: запись журнала упала → когда доставка → тогда сама доставка не отменяется.
+ * Canonical queue owns success, skips, and preparation failures. This repository records only a
+ * best-effort real failed provider attempt without making delivery depend on the journal write.
  *
  * Заглушка — только БД (`db.query`); предмет проверки — какие параметры (канал/причина/occurrence)
  * реально доехали до записи, и что провал самой записи не пробрасывается наружу. С D17 запись идёт
@@ -15,11 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
 import { getCurrentOrganizationPrincipalId } from '../../principal/organizationPrincipal.js';
-import {
-  recordMessengerChannelSkipsBestEffort,
-  recordMessengerNotEnqueuedSkipsBestEffort,
-  recordNotificationDeliveryAttemptBestEffort,
-} from './notificationDeliveryAttempts.js';
+import { recordNotificationDeliveryAttemptBestEffort } from './notificationDeliveryAttempts.js';
 
 /** Позиции аргументов `app.integrator_record_notification_delivery_attempt` (см. исходник). */
 const COL = {
@@ -53,82 +45,6 @@ function harness(): { db: DbPort; inserts: unknown[][] } {
   return { db, inserts };
 }
 
-describe('recordMessengerChannelSkipsBestEffort — пропуск канала с причиной', () => {
-  it('дано: пропущены telegram, max и НЕ-мессенджерский канал → когда запись → тогда причина сохранена для telegram/max, лишний канал не даёт мусора в журнал мессенджера', async () => {
-    // АРБИТР: убрать `if (!isMessengerChannel(s.channel)) continue;` в recordMessengerChannelSkipsBestEffort
-    // — 'email' появится в списке записанных каналов, тест покраснеет на составе множества каналов.
-    const { db, inserts } = harness();
-
-    await recordMessengerChannelSkipsBestEffort(db, {
-      integratorUserId: 'user-1',
-      occurrenceId: 'occ-1',
-      topicCode: 'appointment_reminders',
-      skippedChannels: [
-        { channel: 'telegram', reason: 'muted' },
-        { channel: 'max', reason: 'disabled_by_user_topic_channel' },
-        { channel: 'email', reason: 'missing_email' },
-      ],
-      organizationId: null,
-    });
-
-    const recorded = inserts.map((p) => ({
-      channel: p[COL.channel],
-      status: p[COL.status],
-      reason: p[COL.reason],
-    }));
-    expect(recorded).toEqual([
-      { channel: 'telegram', status: 'skipped', reason: 'muted' },
-      { channel: 'max', status: 'skipped', reason: 'disabled_by_user_topic_channel' },
-    ]);
-  });
-});
-
-describe('recordMessengerNotEnqueuedSkipsBestEffort — канал не поставлен в очередь без явного skip-повода', () => {
-  it('дано: telegram уже записан как skip выше по стеку, max не в sendChannels и не отмечен → когда запись → тогда max получает reason=missing_binding РОВНО один раз, telegram не дублируется', async () => {
-    // АРБИТР 1: убрать `if (input.alreadySkippedChannels.has(ch)) continue;` — telegram получит
-    // ВТОРУЮ (лишнюю) запись со своей уже записанной причиной размытой в missing_binding, тест
-    // покраснеет на количестве/составе записей.
-    const { db, inserts } = harness();
-
-    await recordMessengerNotEnqueuedSkipsBestEffort(db, {
-      integratorUserId: 'user-1',
-      occurrenceId: 'occ-1',
-      topicCode: 'appointment_reminders',
-      sendChannels: [],
-      alreadySkippedChannels: new Set(['telegram']),
-      organizationId: null,
-    });
-
-    const recorded = inserts.map((p) => ({
-      channel: p[COL.channel],
-      status: p[COL.status],
-      reason: p[COL.reason],
-    }));
-    expect(recorded).toEqual([{ channel: 'max', status: 'skipped', reason: 'missing_binding' }]);
-  });
-
-  it('дано: max реально уходит в этот тик (есть в sendChannels) → когда запись → тогда канал, который ДЕЙСТВИТЕЛЬНО отправляется, не помечается как пропущенный', async () => {
-    // Если это условие снять, канал, который реально уйдёт получателю, будет одновременно записан
-    // в журнал как «пропущен по missing_binding» — ложный сигнал, который сломает разбор инцидента
-    // ровно наоборот («мне не пришло», хотя пришло).
-    // АРБИТР 2: убрать `if (input.sendChannels.some((s) => s.channel === ch)) continue;` — max
-    // попадёт в записанные пропуски, тест покраснеет.
-    const { db, inserts } = harness();
-
-    await recordMessengerNotEnqueuedSkipsBestEffort(db, {
-      integratorUserId: 'user-1',
-      occurrenceId: 'occ-1',
-      topicCode: 'appointment_reminders',
-      sendChannels: [{ channel: 'max' }],
-      alreadySkippedChannels: new Set(),
-      organizationId: null,
-    });
-
-    const recordedChannels = inserts.map((p) => p[COL.channel]);
-    expect(recordedChannels).toEqual(['telegram']);
-  });
-});
-
 describe('recordNotificationDeliveryAttemptBestEffort — best-effort запись не должна отменять доставку', () => {
   it('дано: сама запись в БД упала → когда вызов → тогда функция НЕ пробрасывает исключение наружу (доставка не отменяется из-за журнала)', async () => {
     // АРБИТР: убрать `try { ... } catch (err) { logger.warn(...) }` (оставить голый await) —
@@ -145,8 +61,8 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
     await expect(
       recordNotificationDeliveryAttemptBestEffort(db, {
         channel: 'telegram',
-        status: 'skipped',
-        reason: 'muted',
+        status: 'failed',
+        reason: 'provider_rejected',
         eventId: 'evt-1',
       }),
     ).resolves.toBeUndefined();
@@ -162,15 +78,15 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
 
     await recordNotificationDeliveryAttemptBestEffort(db, {
       channel: 'telegram',
-      status: 'skipped',
-      reason: 'missing_binding',
+      status: 'failed',
+      reason: 'provider_rejected',
       eventId: 'evt-2',
       occurrenceId: 'not-a-real-uuid',
     });
 
     expect(inserts).toHaveLength(1);
     expect(inserts[0]![COL.occurrenceId]).toBeNull();
-    expect(inserts[0]![COL.reason]).toBe('missing_binding');
+    expect(inserts[0]![COL.reason]).toBe('provider_rejected');
   });
 
   it('дано: occurrenceId — валидный UUID → когда запись → тогда он доезжает как есть', async () => {
@@ -179,7 +95,7 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
 
     await recordNotificationDeliveryAttemptBestEffort(db, {
       channel: 'max',
-      status: 'success',
+      status: 'failed',
       eventId: 'evt-3',
       occurrenceId: uuid,
     });
@@ -214,8 +130,8 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
 
     await recordNotificationDeliveryAttemptBestEffort(db, {
       channel: 'telegram',
-      status: 'skipped',
-      reason: 'muted',
+      status: 'failed',
+      reason: 'provider_rejected',
       eventId: 'evt-org',
       organizationId: ORG,
     });
@@ -245,8 +161,8 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
 
     await recordNotificationDeliveryAttemptBestEffort(db, {
       channel: 'telegram',
-      status: 'skipped',
-      reason: 'muted',
+      status: 'failed',
+      reason: 'provider_rejected',
       eventId: 'evt-col',
     });
 
@@ -259,8 +175,8 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
       null,
       null,
       'telegram',
-      'skipped',
-      'muted',
+      'failed',
+      'provider_rejected',
       null,
       'evt-col',
       null,
@@ -268,7 +184,7 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
       null,
       '{}',
     ]);
-    expect(params[COL.status]).toBe('skipped');
-    expect(params[COL.reason]).toBe('muted');
+    expect(params[COL.status]).toBe('failed');
+    expect(params[COL.reason]).toBe('provider_rejected');
   });
 });

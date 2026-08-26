@@ -6,15 +6,21 @@ import { patientNotificationTopicDisplayTitle } from '@/modules/patient-notifica
 import { escapeHtml } from '@/shared/lib/escapeHtml';
 
 export function buildTopicUnsubscribeResponseHtml(input: {
+  applied: boolean;
   topicCode: string | null;
   topicTitle: string | null;
 }): string {
   const title = (
     input.topicTitle ?? patientNotificationTopicDisplayTitle(input.topicCode ?? '', '')
   ).trim();
-  const topicCopy = title
+  const topicCopy = input.applied && title
     ? `Вы отписались от темы «${escapeHtml(title)}». Остальные уведомления продолжат приходить.`
-    : 'Настройки уведомлений обновлены.';
+    : input.applied
+      ? 'Настройки уведомлений обновлены.'
+      : 'Не удалось изменить настройки уведомлений. Откройте настройки и повторите попытку.';
+  const heading = input.applied
+    ? 'Настройки уведомлений обновлены'
+    : 'Настройки уведомлений не изменены';
   return `<!doctype html>
 <html lang="ru">
   <head>
@@ -24,7 +30,7 @@ export function buildTopicUnsubscribeResponseHtml(input: {
   </head>
   <body style="margin:0;background:#f6f4ef;color:#1f2937;font-family:system-ui,sans-serif">
     <main style="max-width:520px;margin:64px auto;padding:24px">
-      <h1 style="font-size:20px;margin:0 0 12px">Настройки уведомлений обновлены</h1>
+      <h1 style="font-size:20px;margin:0 0 12px">${heading}</h1>
       <p style="font-size:16px;line-height:1.5;margin:0">${topicCopy}</p>
       <p style="font-size:16px;line-height:1.5;margin:12px 0 0">Другие темы можно изменить в <a href="${routePaths.notificationSettings}">настройках уведомлений</a>.</p>
     </main>
@@ -35,7 +41,8 @@ export function buildTopicUnsubscribeResponseHtml(input: {
 export async function GET(request: Request) {
   stampBootstrapPrincipal('api/public/notifications/unsubscribe:GET', request);
   const token = new URL(request.url).searchParams.get('token') ?? '';
-  let result: { topicCode: string | null; topicTitle: string | null } = {
+  let result: { applied: boolean; topicCode: string | null; topicTitle: string | null } = {
+    applied: false,
     topicCode: null,
     topicTitle: null,
   };

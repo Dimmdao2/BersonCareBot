@@ -64,8 +64,8 @@ describe('doctor broadcast topic unsubscribe — send-time gate', () => {
             new Map([[UNSUBSCRIBED_USER_ID, [{ topicCode, isEnabled: false }]]]),
           setTopicEnabled: async () => {},
         },
-        buildTopicUnsubscribeUrl: ({ userId, topicCode, topicTitle, nonce }) =>
-          `https://example.test/unsubscribe/${userId}/${topicCode}/${encodeURIComponent(topicTitle)}/${nonce}`,
+        buildTopicUnsubscribeUrl: ({ userId, organizationId, topicCode, topicTitle, nonce }) =>
+          `https://example.test/unsubscribe/${organizationId}/${userId}/${topicCode}/${encodeURIComponent(topicTitle)}/${nonce}`,
         getTopicDisplayTitle: async (resolvedTopicCode) =>
           resolvedTopicCode === 'patient_news'
             ? 'Новости и уведомления'

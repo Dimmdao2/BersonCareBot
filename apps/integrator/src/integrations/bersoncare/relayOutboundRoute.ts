@@ -17,6 +17,7 @@ import { logger } from '../../infra/observability/logger.js';
 import { runWithOptionalOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { recordNotificationDeliveryAttemptBestEffort } from '../../infra/db/repos/notificationDeliveryAttempts.js';
 import { isOutboundMessagePolicyDenied } from '../../infra/adapters/outboundMessagePolicy.js';
+import { isProviderAttemptFailure } from '../../infra/adapters/dispatchPort.js';
 import { recordOperatorFailureIncident } from '../../infra/operatorIncident/reportOperatorFailure.js';
 import {
   OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
@@ -348,7 +349,7 @@ export async function registerBersoncareRelayOutboundRoute(
         dispatchPort.dispatchOutgoing(intent),
       );
       inFlight.delete(dedupKey);
-      if (db && parsed.channel === 'web_push') {
+      if (db && parsed.channel === 'web_push' && dispatchResult.webPushOutcome?.status === 'failed') {
         const topicCode =
           typeof parsed.metadata?.pushExtras === 'object' && parsed.metadata.pushExtras !== null
             ? String((parsed.metadata.pushExtras as Record<string, unknown>).topicCode ?? '') ||
@@ -358,12 +359,10 @@ export async function registerBersoncareRelayOutboundRoute(
           ...(parsed.organizationId ? { organizationId: parsed.organizationId } : {}),
           userId: parsed.recipient,
           channel: 'web_push',
-          status: dispatchResult.webPushOutcome?.status ?? 'skipped',
-          ...(dispatchResult.webPushOutcome?.reason
+          status: 'failed',
+          ...(dispatchResult.webPushOutcome.reason
             ? { reason: dispatchResult.webPushOutcome.reason }
-            : dispatchResult.webPushOutcome
-              ? {}
-              : { reason: 'no_provider_outcome' }),
+            : {}),
           eventId: parsed.messageId,
           recipientRef: `web_push:${parsed.recipient.slice(-4)}`,
           ...(dispatchResult.webPushOutcome?.providerStatusCode !== undefined
@@ -399,7 +398,7 @@ export async function registerBersoncareRelayOutboundRoute(
       if (parsed.channel === 'email' || parsed.channel === 'sms') {
         await recordRelayProviderFailureSafely(parsed.channel, err);
       }
-      if (db && parsed.channel === 'web_push') {
+      if (db && parsed.channel === 'web_push' && isProviderAttemptFailure(err)) {
         await recordNotificationDeliveryAttemptBestEffort(db, {
           ...(parsed.organizationId ? { organizationId: parsed.organizationId } : {}),
           userId: parsed.recipient,

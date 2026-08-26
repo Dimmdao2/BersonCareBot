@@ -7,6 +7,10 @@
  * absent. The three surviving scalar accessors are supplied by REV10_CONTEXT; the four legacy
  * rate-limit components are replaced by one atomic root, leaving 235
  * business/trigger roots here. Relation surfaces are lexical upper bounds and are not grants.
+ *
+ * `app.read_integrator_auth_channel_setting(text)` was retired (identity cleanup 2026-08-26,
+ * together with `user.phone.link`/`app.integrator_bind_bootstrap_channel_phone` — its only
+ * caller), leaving 234 entries here.
  */
 import type { DeclaredFunction } from './types.ts';
 
@@ -7929,44 +7933,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "scope",
           "organization_id",
           "value_json"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.read_integrator_auth_channel_setting(text)": {
-    "owner": "app_seam_settings_integrator_owner",
-    "security": "DEFINER",
-    "returns": "jsonb",
-    "returnsSet": false,
-    "volatility": "STABLE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_integrator_request"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_settings_integrator_owner",
-    "typedArgs": [
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.system_settings",
-        "columns": [
-          "key",
-          "scope",
-          "value_json",
-          "organization_id"
         ],
         "operations": [
           "SELECT"

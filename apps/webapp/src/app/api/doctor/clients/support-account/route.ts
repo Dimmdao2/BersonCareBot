@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
-import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { getDrizzle } from '@/app-layer/db/drizzle';
+import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
-import { platformUsers, userChannelBindings, userContacts } from '../../../../../../db/schema/schema';
 
 const accountId = z.string().uuid();
 const commandSchema = z.discriminatedUnion('action', [
@@ -27,7 +25,15 @@ const commandSchema = z.discriminatedUnion('action', [
   }),
 ]);
 
-/** D26 §5.8: global support can revoke a contact/binding and block or unblock either account. */
+/**
+ * D26 §5.8: global support can revoke a contact/binding and block or unblock either account.
+ *
+ * Track D synthesis 26.08: this used to run `getDrizzle()` DML directly at route level (AGENTS.md §5
+ * violation) under the `app_platform_settings` principal, which holds no column grant on these three
+ * tables — every call 42501'd, and `set_blocked` never bumped `session_epoch` even once the grant gap
+ * was closed. One named door now handles all four action variants; see
+ * `app.platform_support_account_action` (migration `20260826T140000_…`).
+ */
 export async function POST(request: Request) {
   const gate = await requirePlatformOperationsApiContext();
   if (!gate.ok) return gate.response;
@@ -37,38 +43,29 @@ export async function POST(request: Request) {
   }
 
   const command = parsed.data;
-  const db = getDrizzle();
+  const deps = buildAppDeps();
   if (command.action === 'revoke_contact') {
-    await db
-      .delete(userContacts)
-      .where(
-        and(
-          eq(userContacts.platformUserId, command.userId),
-          eq(userContacts.contactKind, command.contactKind),
-          eq(userContacts.valueNormalized, command.valueNormalized),
-        ),
-      );
+    await deps.doctorClientsPort.applyPlatformSupportAccountAction({
+      action: 'revoke_contact',
+      userId: command.userId,
+      contactKind: command.contactKind,
+      valueNormalized: command.valueNormalized,
+    });
   } else if (command.action === 'revoke_channel_binding') {
-    await db
-      .delete(userChannelBindings)
-      .where(
-        and(
-          eq(userChannelBindings.userId, command.userId),
-          eq(userChannelBindings.channelCode, command.channelCode),
-          eq(userChannelBindings.externalId, command.externalId),
-        ),
-      );
+    await deps.doctorClientsPort.applyPlatformSupportAccountAction({
+      action: 'revoke_channel_binding',
+      userId: command.userId,
+      channelCode: command.channelCode,
+      externalId: command.externalId,
+    });
   } else {
-    await db
-      .update(platformUsers)
-      .set({
-        isBlocked: command.blocked,
-        blockedAt: command.blocked ? new Date().toISOString() : null,
-        blockedReason: command.blocked ? (command.reason ?? 'support') : null,
-        blockedBy: command.blocked ? gate.session.user.userId : null,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(platformUsers.id, command.userId));
+    await deps.doctorClientsPort.applyPlatformSupportAccountAction({
+      action: 'set_blocked',
+      userId: command.userId,
+      blocked: command.blocked,
+      reason: command.blocked ? (command.reason ?? 'support') : null,
+      actorId: gate.session.user.userId,
+    });
   }
   return NextResponse.json({ ok: true });
 }

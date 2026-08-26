@@ -1,7 +1,8 @@
 /**
- * D17 шаг 2b — поведение двух оставшихся реляционных писателей `public.*`, доступных через
- * chokepoint `writeDirectPublic` (третий, `operatorHealthDrizzle`, зовёт корень без внедряемого
- * `DbPort` и проверяется в `../repos/operatorHealthUsesNamedRootsOnly.behaviour.test.ts`).
+ * D17 шаг 2b — поведение реляционного писателя `public.user_channel_bindings` (метка «бот
+ * заблокирован»), доступного через chokepoint `writeDirectPublic` (третий, `operatorHealthDrizzle`,
+ * зовёт корень без внедряемого `DbPort` и проверяется в
+ * `../repos/operatorHealthUsesNamedRootsOnly.behaviour.test.ts`).
  *
  * Предмет проверки тот же, что у шага 1: НАБЛЮДАЕМЫЙ выход слоя записи — какой оператор реально
  * уходит в базу, с каким позиционным набором аргументов и ПОД КАКИМ принципалом. Заглушка одна и
@@ -13,23 +14,25 @@
  *   • переставить аргументы корня местами — красный на позиционном наборе;
  *   • снять обёртку принципала или подставить чужую организацию — красный на `principalAtCall`
  *     и на аргументе организации.
+ *
+ * Второй писатель, ранее покрытый здесь же (`recordMessengerPhoneBindBlocked`, разбор конфликта
+ * привязки номера), удалён вместе с `user.phone.link` (identity cleanup 2026-08-26) — webapp
+ * owns the confirmed-phone write end-to-end, integrator no longer decides or records a merge
+ * conflict under any name.
  */
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../../kernel/contracts/index.js';
 import { RECIPIENT_BLOCKED_BOT_REASON } from '../../delivery/recipientBotBlocked.js';
 import { runWithInfraPrincipal, runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 import { getCurrentDatabasePrincipal } from '../../principal/organizationPrincipal.js';
-import { writeDirectPublic } from './writePort.js';
 import {
   clearUserChannelBotBlocked,
   markUserChannelBotBlocked,
 } from '../repos/userChannelBotBlocked.js';
-import { recordMessengerPhoneBindBlocked } from '../repos/messengerPhoneBindAudit.js';
 
 const ORG_ROW = 'a0000000-0000-4000-8000-0000000000a1';
 const ORG_OTHER = 'b0000000-0000-4000-8000-0000000000b2';
 const PLATFORM_USER = 'c0000000-0000-4000-8000-0000000000c3';
-const OTHER_PLATFORM_USER = 'd0000000-0000-4000-8000-0000000000d4';
 
 type Executed = {
   text: string;
@@ -186,115 +189,5 @@ describe('D17 шаг 2b — метка «бот заблокирован»', () 
     });
 
     expect(executed).toHaveLength(0);
-  });
-});
-
-describe('D17 шаг 2b — разбор конфликта привязки номера', () => {
-  it('уходит одним корнем под организацией вызывающего, без транзакции отношений', async () => {
-    const { db, executed } = recordingDb({ recorded: { inserted_first: true } });
-
-    await runWithOrganizationPrincipal(ORG_ROW, () =>
-      writeDirectPublic('admin-audit-write', () =>
-        recordMessengerPhoneBindBlocked({
-          db,
-          reason: 'phone_taken_by_other_account',
-          candidateIds: [PLATFORM_USER, OTHER_PLATFORM_USER],
-          details: { channelCode: 'telegram', externalId: '777' },
-        }),
-      ),
-    );
-
-    const call = expectOnlyNamedRootTouches(
-      executed,
-      'app.record_collapsing_audit_event',
-      'admin_audit_log',
-    );
-    expect(call.principalKind).toBe('organization');
-    expect(call.principalOrganizationId).toBe(ORG_ROW);
-    // D15b/7a Ш8: вид события — ПЕРВЫЙ аргумент общей двери, а не вывод из «ключ пуст или нет».
-    expect(call.params[0]).toBe('messenger_phone_bind_blocked');
-    expect(call.params[1]).toBe(ORG_ROW);
-    // Актора у события нет: его пишет сервер по вебхуку, а не человек.
-    expect(call.params[2]).toBeNull();
-    expect(call.params[3]).toBe(PLATFORM_USER);
-    // Ключ схлопывания — sha256 отсортированных кандидатов: 64 шестнадцатеричных знака.
-    expect(call.params[4]).toMatch(/^[0-9a-f]{64}$/);
-    const details = JSON.parse(String(call.params[5])) as Record<string, unknown>;
-    expect(details.reason).toBe('phone_taken_by_other_account');
-    expect(details.source).toBe('integrator.user.phone.link');
-    expect(details.candidateIds).toEqual([PLATFORM_USER, OTHER_PLATFORM_USER]);
-  });
-
-  it('аномалия без кандидатов идёт той же дверью и ключа схлопывания не несёт', async () => {
-    const { db, executed } = recordingDb({ recorded: { inserted_first: true } });
-
-    await runWithOrganizationPrincipal(ORG_ROW, () =>
-      writeDirectPublic('admin-audit-write', () =>
-        recordMessengerPhoneBindBlocked({
-          db,
-          reason: 'indeterminate',
-          candidateIds: [],
-          details: {},
-        }),
-      ),
-    );
-
-    const call = expectOnlyNamedRootTouches(
-      executed,
-      'app.record_collapsing_audit_event',
-      'admin_audit_log',
-    );
-    expect(call.params[0]).toBe('messenger_phone_bind_anomaly');
-    expect(call.params[3]).toBeNull();
-    expect(call.params[4]).toBeNull();
-  });
-
-  it('чужой организации не достаётся: организация — окружающая, а не из деталей случая', async () => {
-    const { db, executed } = recordingDb({ recorded: { inserted_first: false } });
-
-    await runWithOrganizationPrincipal(ORG_OTHER, () =>
-      writeDirectPublic('admin-audit-write', () =>
-        recordMessengerPhoneBindBlocked({
-          db,
-          reason: 'phone_taken_by_other_account',
-          candidateIds: [PLATFORM_USER],
-          details: { organizationId: ORG_ROW },
-        }),
-      ),
-    );
-
-    const call = executed.find((executedCall) =>
-      executedCall.text.includes('app.record_collapsing_audit_event'),
-    )!;
-    expect(call.params[1]).toBe(ORG_OTHER);
-    expect(call.params[1]).toBe(call.principalOrganizationId);
-    // `organizationId` из деталей случая в аргумент корня не попадает ни при каких условиях:
-    // подстановка её туда и была бы межарендной утечкой, потому что корень сверяет аргумент с
-    // принятым контекстом и сужает им КАЖДЫЙ поиск строки.
-    expect(call.params[1]).not.toBe(ORG_ROW);
-  });
-
-  it('дверь сама говорит, первый ли это случай: false — администратора не будят', async () => {
-    const relay = vi.fn();
-    const { db, executed } = recordingDb({ recorded: { inserted_first: false } });
-
-    await runWithOrganizationPrincipal(ORG_ROW, () =>
-      writeDirectPublic('admin-audit-write', () =>
-        recordMessengerPhoneBindBlocked({
-          db,
-          getDispatchPort: () => ({ dispatch: relay }) as never,
-          reason: 'phone_taken_by_other_account',
-          candidateIds: [PLATFORM_USER],
-          details: {},
-        }),
-      ),
-    );
-
-    expect(relay).not.toHaveBeenCalled();
-    expectOnlyNamedRootTouches(
-      executed,
-      'app.record_collapsing_audit_event',
-      'admin_audit_log',
-    );
   });
 });

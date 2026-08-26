@@ -9,19 +9,16 @@ import {
 import type { SpecialistTaskRow } from './types';
 
 export type PrepareSpecialistTaskReminderDeliveriesDeps =
-  ResolveSpecialistTaskReminderChannelsDeps & {
-    resolvePatientDisplayName: (patientUserId: string) => Promise<string | null>;
-  };
+  ResolveSpecialistTaskReminderChannelsDeps & { appBaseUrl: string };
 
-function reminderText(task: SpecialistTaskRow, patientName: string | null): string {
-  const lines = ['Напоминание о задаче'];
-  if (patientName?.trim()) lines.push(`Пациент: ${patientName.trim()}`);
-  lines.push(task.title);
-  if (task.dueAt)
-    lines.push(
-      `Срок: ${new Date(task.dueAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}`,
-    );
-  return lines.join('\n');
+function specialistTasksUrl(appBaseUrl: string): string {
+  const base = appBaseUrl.trim().replace(/\/+$/, '');
+  if (!base) throw new Error('specialist_task_reminder_app_base_url_required');
+  return `${base}/app/doctor#doctor-today-global-tasks`;
+}
+
+function reminderText(url: string): string {
+  return `Напоминание: проверьте задачи в кабинете.\n${url}`;
 }
 
 type MaterializedIntent = {
@@ -44,13 +41,13 @@ export async function prepareSpecialistTaskReminderDeliveries(
   if (!task.organizationId || !task.remindAt || task.completedAt) return [];
   const organizationId = task.organizationId;
   const remindAt = task.remindAt;
-  const [channels, bindings, email, patientName] = await Promise.all([
-    resolveSpecialistTaskReminderChannelsForUser(task.ownerUserId, deps),
+  const [channels, bindings, email] = await Promise.all([
+    resolveSpecialistTaskReminderChannelsForUser(task.ownerUserId, organizationId, deps),
     deps.getChannelBindings(task.ownerUserId),
     deps.getProfileEmail(task.ownerUserId),
-    task.patientUserId ? deps.resolvePatientDisplayName(task.patientUserId) : Promise.resolve(null),
   ]);
-  const text = reminderText(task, patientName);
+  const url = specialistTasksUrl(deps.appBaseUrl);
+  const text = reminderText(url);
   const occurredAt = new Date().toISOString();
   const deliveries: SpecialistTaskReadyOutgoingDelivery[] = [];
   const appendDelivery = (
@@ -87,6 +84,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
         payload: {
           recipient: { chatId: bindings.telegramId.trim() },
           message: { text },
+          replyMarkup: { inline_keyboard: [[{ text: 'Открыть задачи', url }]] },
           delivery: { channels: ['telegram'] },
         },
       });
@@ -101,6 +99,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
         payload: {
           recipient: { userId: bindings.maxId.trim() },
           message: { text },
+          replyMarkup: { inline_keyboard: [[{ text: 'Открыть задачи', url }]] },
           delivery: { channels: ['max'] },
         },
       });
@@ -114,7 +113,7 @@ export async function prepareSpecialistTaskReminderDeliveries(
         },
         payload: {
           recipient: { email: email.trim() },
-          subject: 'Напоминание о задаче',
+          subject: 'Напоминание о задачах',
           message: { text },
           delivery: { channels: ['email'] },
         },
@@ -129,11 +128,9 @@ export async function prepareSpecialistTaskReminderDeliveries(
         },
         payload: {
           recipient: { pushUserId: task.ownerUserId },
-          title: 'Задача',
-          url: task.patientUserId
-            ? `/app/doctor/clients/${task.patientUserId}#doctor-client-section-tasks`
-            : '/app/doctor#doctor-today-global-tasks',
-          message: { text: task.title },
+          title: 'Напоминание о задачах',
+          url: '/app/doctor#doctor-today-global-tasks',
+          message: { text: 'Проверьте задачи в кабинете.' },
           pushExtras: { tag: `specialist_task:${task.id}` },
           delivery: { channels: ['web_push'] },
         },

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { prepareSpecialistTaskReminderDeliveries } from './prepareReminderDeliveries';
 import type { SpecialistTaskRow } from './types';
 
@@ -20,20 +20,28 @@ const task: SpecialistTaskRow = {
 
 describe('specialist-task ready delivery producer', () => {
   it('materializes selected channel intent, deterministic event id, tenant scope and absolute due time', async () => {
+    const getSetting = vi.fn(async () => ({ valueJson: { channels: ['telegram', 'email'] } }));
     const deliveries = await prepareSpecialistTaskReminderDeliveries(task, {
       topicChannelPrefs: { listByUserId: async () => [] },
       channelPreferences: { getPreferences: async () => [] },
       webPushSubscriptions: { hasAnyForUserId: async () => false },
       systemSettings: {
-        getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }),
+        getSetting,
       },
+      appBaseUrl: 'https://clinic.example.test',
       getChannelBindings: async () => ({ telegramId: '12345' }),
       getProfileEmail: async () => 'doctor@example.test',
       getProfileEmailVerified: async () => true,
-      resolvePatientDisplayName: async () => 'Пациент',
     } as never);
 
     expect(deliveries).toHaveLength(2);
+    const serializedPayloads = JSON.stringify(deliveries.map((delivery) => delivery.intent.payload));
+    expect(serializedPayloads).not.toContain(task.title);
+    expect(serializedPayloads).not.toContain('Пациент');
+    expect(serializedPayloads).toContain('https://clinic.example.test/app/doctor#doctor-today-global-tasks');
+    expect(getSetting).toHaveBeenCalledWith('doctor_specialist_task_reminder_channels', 'doctor', {
+      organizationId: task.organizationId,
+    });
     expect(deliveries).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -76,10 +84,10 @@ describe('specialist-task ready delivery producer', () => {
         systemSettings: {
           getSetting: async () => ({ valueJson: { channels: ['telegram', 'email'] } }),
         },
+        appBaseUrl: 'https://clinic.example.test',
         getChannelBindings: async () => ({ telegramId: input?.telegramId ?? '12345' }),
         getProfileEmail: async () => input?.email ?? null,
         getProfileEmailVerified: async () => Boolean(input?.email),
-        resolvePatientDisplayName: async () => 'Пациент',
       }) as never;
 
     const eventIdFor = (

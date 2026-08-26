@@ -38,7 +38,8 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!(await isAuthChannelEnabled(parsed.data.method))) {
+  // Patient-only route — see the same explicit-surface note in messenger-bind/start/route.ts.
+  if (!(await isAuthChannelEnabled(parsed.data.method, 'patient'))) {
     return NextResponse.json({ ok: false, error: 'auth_channel_disabled' }, { status: 403 });
   }
 
