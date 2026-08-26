@@ -84,6 +84,7 @@ describe('booking lifecycle tenant identity propagation', () => {
 
     expect(getTargetsByPhoneMock).toHaveBeenCalledWith(payload.contactPhone, {
       organizationId: payload.organizationId,
+      topic: 'appointment_reminders',
     });
   });
 });

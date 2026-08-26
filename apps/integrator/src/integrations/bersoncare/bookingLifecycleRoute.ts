@@ -283,6 +283,7 @@ async function sendLinkedChannelMessage(input: {
   });
   const fetched = await deliveryTargets.getTargetsByPhone(input.phoneNormalized, {
     organizationId: input.organizationId,
+    topic: PATIENT_NOTIFICATION_TOPIC_APPOINTMENT_REMINDERS,
   });
   // D-b: пустая аудитория не бывает тихим успехом — и отказ резолвера не смеет выглядеть
   // как «получателей нет». Обе ветки уходят в единый порт инцидентов, каждая со своей причиной.
