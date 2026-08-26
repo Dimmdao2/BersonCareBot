@@ -1883,41 +1883,6 @@ export function ScheduleCalendarTab({
         {/* Filters stay in the toolbar below xl, where the KPI aside is hidden. */}
         {renderScheduleFilters(cn('flex flex-wrap gap-2', showKpi && 'xl:hidden'))}
 
-        {/* CTA — постоянная, всегда справа */}
-        <Button
-          type="button"
-          size="sm"
-          className="ml-auto"
-          onClick={() => {
-            if (showCreatePanel && createFormDirty) {
-              const ok = window.confirm(
-                'Событие не сохранено, вы уверены что хотите сбросить изменения?',
-              );
-              if (!ok) return;
-            }
-            const defaultBranchId =
-              calendarSettings.defaultBranchId &&
-              filters.branches.some((branch) => branch.id === calendarSettings.defaultBranchId)
-                ? calendarSettings.defaultBranchId
-                : null;
-            const defaultServiceId =
-              calendarSettings.defaultServiceId &&
-              filters.services.some((service) => service.id === calendarSettings.defaultServiceId)
-                ? calendarSettings.defaultServiceId
-                : null;
-            setSelected(null);
-            setCreateInitialStart(null);
-            setCreateInitialEnd(null);
-            setCreateInitialBranchId(defaultBranchId);
-            setCreateInitialServiceId(defaultServiceId);
-            setDraftSlot(null);
-            setCreateFormDirty(false);
-            setShowCreatePanel(true);
-          }}
-          data-testid="create-appointment-btn"
-        >
-          + Создать запись
-        </Button>
       </div>
 
       {/* Error */}

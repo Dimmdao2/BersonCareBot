@@ -320,7 +320,7 @@ function DoctorCalendarEventPanelInner({
       : null;
     // #225: drag duration takes priority over service default so the slot size chosen
     // by the doctor is honoured. Service duration is only the fallback when no drag
-    // interval is available (e.g. panel opened via «+ Создать запись» button).
+    // interval is available (e.g. panel opened from an empty calendar slot).
     return dragDurationMinutes ?? serviceDuration;
   }, [createServiceId, createServiceOptions, dragDurationMinutes]);
 
