@@ -734,6 +734,27 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
 });
 
 test('clinic-owner mutation grants include every default column emitted by Drizzle inserts', () => {
+  exactColumns('public.content_pages', 'app_staff', 'INSERT', [
+    'archived_at', 'body_html', 'body_md', 'created_at', 'deleted_at', 'id', 'image_url',
+    'is_published', 'linked_course_id', 'organization_id', 'requires_auth', 'section', 'slug',
+    'sort_order', 'summary', 'title', 'updated_at', 'video_type', 'video_url',
+  ]);
+  exactColumns('public.content_sections', 'app_staff', 'INSERT', [
+    'cover_image_url', 'created_at', 'description', 'icon_image_url', 'id', 'is_visible', 'kind',
+    'organization_id', 'requires_auth', 'slug', 'sort_order', 'system_parent_code', 'title',
+    'updated_at',
+  ]);
+  exactColumns('public.doctor_notes', 'app_staff', 'INSERT', [
+    'author_id', 'created_at', 'id', 'organization_id', 'text', 'updated_at', 'user_id',
+  ]);
+  exactColumns('public.platform_user_contacts', 'app_staff', 'INSERT', [
+    'contact_type', 'created_at', 'id', 'organization_id', 'platform_user_id', 'source',
+    'updated_at', 'value', 'value_normalized',
+  ]);
+  exactColumns('public.treatment_program_instance_stages', 'app_staff', 'UPDATE', [
+    'description', 'expected_duration_days', 'expected_duration_text', 'goals', 'id', 'objectives',
+    'skip_reason', 'sort_order', 'started_at', 'status', 'title',
+  ]);
   exactColumns('public.be_booking_form_fields', 'app_staff', 'INSERT', [
     'created_at', 'field_key', 'field_type', 'id', 'is_active', 'is_required', 'label',
     'organization_id', 'placeholder', 'sort_order', 'updated_at', 'visible_to_patient',
@@ -1076,6 +1097,9 @@ test('canonical settings and account email use semantic row walls without broad 
     grant.role === 'app_staff' && grant.operations.includes('UPDATE'));
   assert.ok(Array.isArray(staffUpdate?.columns));
   assert.ok(staffUpdate.columns.includes('calendar_timezone'));
+  assert.ok(staffUpdate.columns.includes('first_name'));
+  assert.ok(staffUpdate.columns.includes('last_name'));
+  assert.ok(staffUpdate.columns.includes('patronymic'));
   assert.ok(staffUpdate.columns.includes('updated_at'));
   assert.deepEqual(
     users.access.grants.find((grant) =>

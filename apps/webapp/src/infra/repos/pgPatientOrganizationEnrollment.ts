@@ -20,15 +20,20 @@ export async function ensureInvitedOrganizationClientRelationship(
   tx: DrizzleDb,
   organizationId: string,
   platformUserId: string,
-  options?: { reactivateArchived?: boolean },
+  options?: {
+    reactivateArchived?: boolean;
+    newClientAlreadyInsertedInTransaction?: true;
+  },
 ): Promise<SchedulableClientEnrollmentStatus> {
-  const [patient] = await tx
-    .select({ role: platformUsers.role, isBlocked: platformUsers.isBlocked })
-    .from(platformUsers)
-    .where(eq(platformUsers.id, platformUserId))
-    .limit(1);
-  if (!patient || patient.role !== 'client' || patient.isBlocked) {
-    throw new OrganizationClientRelationshipDeniedError();
+  if (!options?.newClientAlreadyInsertedInTransaction) {
+    const [patient] = await tx
+      .select({ role: platformUsers.role, isBlocked: platformUsers.isBlocked })
+      .from(platformUsers)
+      .where(eq(platformUsers.id, platformUserId))
+      .limit(1);
+    if (!patient || patient.role !== 'client' || patient.isBlocked) {
+      throw new OrganizationClientRelationshipDeniedError();
+    }
   }
 
   const findRelationship = async () => {

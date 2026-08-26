@@ -46,6 +46,23 @@ function fakeTx(existingRelationship: { status: string } | null) {
 }
 
 describe('ensureInvitedOrganizationClientRelationship — у клиники нет потолка по клиентам', () => {
+  it('заводит связь для только что вставленного client до того, как staff RLS сможет его перечитать', async () => {
+    const { tx, inserted } = fakeTx(null);
+    const select = vi.spyOn(tx, 'select');
+
+    const status = await ensureInvitedOrganizationClientRelationship(
+      tx as never,
+      ORGANIZATION_ID,
+      PLATFORM_USER_ID,
+      { newClientAlreadyInsertedInTransaction: true },
+    );
+
+    expect(status).toBe('invited');
+    expect(inserted).toHaveLength(1);
+    expect(select).toHaveBeenCalledTimes(2);
+    expect(select.mock.calls.every(([selection]) => !('isBlocked' in selection))).toBe(true);
+  });
+
   // «При любом числе уже существующих пациентов»: число тут вообще не участвует в решении —
   // писатель ни разу не спрашивает базу, сколько их. Прогон повторяется, чтобы «сотый» клиент
   // проходил тем же путём, что и первый.

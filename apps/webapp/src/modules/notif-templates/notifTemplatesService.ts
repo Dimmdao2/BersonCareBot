@@ -116,9 +116,8 @@ export class NotifTemplateConflictError extends Error {
 
 /**
  * Notification templates (`notif_template:*`) are PER-ORG (see `orgScopedKeys.ts`) — each clinic edits
- * its own wording. `organizationId` is org-first-then-global-fallback on read, and required by the
- * `system-settings` service chokepoint on write (throws `SystemSettingsOrgContextRequiredError` if
- * missing — the caller/route resolves it from the current session's organization membership).
+ * its own wording. `organizationId` is org-first-then-global-fallback on read. Clinic writes require
+ * an organization context; the platform-admin route explicitly writes the NULL platform fallback.
  */
 export function createNotifTemplatesService(
   systemSettings: SystemSettingsLike,

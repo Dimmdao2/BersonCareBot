@@ -51,6 +51,7 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     activeTx: DrizzleDb,
     activeOrganizationId: string,
     platformUserId: string,
+    options?: { newClientAlreadyInsertedInTransaction?: true },
   ) => Promise<unknown>,
 ): Promise<ResolveOrCreateDoctorClientByPhoneResult> {
   const lastName = normalizeFioPart(input.lastName);
@@ -85,7 +86,9 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
     // Tenant-owned identity/contact rows are only writable after the patient belongs to this
     // organization. Keep that ordering inside the same transaction so every staff entry point
     // (standalone card, scheduled appointment, walk-in visit) crosses the RLS boundary once.
-    await ensureOrganizationRelationship(tx, organizationId, inserted.id);
+    await ensureOrganizationRelationship(tx, organizationId, inserted.id, {
+      newClientAlreadyInsertedInTransaction: true,
+    });
     await syncUserIdentityFioMirrorWebapp(tx, inserted.id);
     return {
       userId: inserted.id,
@@ -178,7 +181,9 @@ export async function resolveOrCreateDoctorClientByPhoneInTransaction(
           patronymic,
           role: 'client',
         });
-      await ensureOrganizationRelationship(savepointTx, organizationId, row.id);
+      await ensureOrganizationRelationship(savepointTx, organizationId, row.id, {
+        newClientAlreadyInsertedInTransaction: true,
+      });
       await savepointTx.insert(userPhoneHistory).values({
         platformUserId: row.id,
         organizationId,

@@ -3130,8 +3130,12 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "archived_at",
           "body_html",
           "body_md",
+          "created_at",
+          "deleted_at",
+          "id",
           "image_url",
           "is_published",
           "linked_course_id",
@@ -3275,7 +3279,28 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_staff",
         "operations": [
-          "INSERT",
+          "INSERT"
+        ],
+        "columns": [
+          "cover_image_url",
+          "created_at",
+          "description",
+          "id",
+          "icon_image_url",
+          "is_visible",
+          "kind",
+          "organization_id",
+          "requires_auth",
+          "slug",
+          "sort_order",
+          "system_parent_code",
+          "title",
+          "updated_at"
+        ]
+      },
+      {
+        "role": "app_staff",
+        "operations": [
           "UPDATE"
         ],
         "columns": [
@@ -3445,8 +3470,11 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "author_id",
+          "created_at",
+          "id",
           "organization_id",
           "text",
+          "updated_at",
           "user_id"
         ]
       },
@@ -6021,6 +6049,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "contact_type",
           "created_at",
+          "id",
           "organization_id",
           "platform_user_id",
           "source",
@@ -6304,11 +6333,14 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "blocked_reason",
           "calendar_timezone",
           "display_name",
+          "first_name",
           "integrator_user_id",
           "is_archived",
           "is_blocked",
+          "last_name",
           "merged_at",
           "merged_into_id",
+          "patronymic",
           "reminder_muted_until",
           "role",
           "session_epoch",
@@ -9469,13 +9501,16 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "description",
+          "expected_duration_days",
+          "expected_duration_text",
           "goals",
           "id",
           "objectives",
           "skip_reason",
           "sort_order",
           "started_at",
-          "status"
+          "status",
+          "title"
         ]
       },
       {

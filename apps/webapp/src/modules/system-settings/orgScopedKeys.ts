@@ -21,6 +21,12 @@ const PLATFORM_GLOBAL_FALLBACK_WRITE_KEYS = new Set<SystemSettingKey>([
   'patient_booking_url',
   'notifications_topics',
   'sms_fallback_enabled',
+  'notif_template:created:patient',
+  'notif_template:created:doctor',
+  'notif_template:cancelled:patient',
+  'notif_template:cancelled:doctor',
+  'notif_template:rescheduled:patient',
+  'notif_template:rescheduled:doctor',
 ]);
 
 /**

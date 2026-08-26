@@ -14,6 +14,7 @@ describe('platform-owned fallback rows for per-organization settings', () => {
     expect(allowsPlatformGlobalFallbackWrite('patient_booking_url')).toBe(true);
     expect(allowsPlatformGlobalFallbackWrite('notifications_topics')).toBe(true);
     expect(allowsPlatformGlobalFallbackWrite('sms_fallback_enabled')).toBe(true);
+    expect(allowsPlatformGlobalFallbackWrite('notif_template:created:patient')).toBe(true);
 
     await service.updateSetting(
       'patient_booking_url',
@@ -36,6 +37,13 @@ describe('platform-owned fallback rows for per-organization settings', () => {
       'platform-actor',
       { allowPlatformGlobalFallbackWrite: true },
     );
+    await service.updateSetting(
+      'notif_template:created:patient',
+      'admin',
+      { value: 'template' },
+      'platform-actor',
+      { allowPlatformGlobalFallbackWrite: true },
+    );
 
     await expect(service.getSetting('patient_booking_url', 'admin')).resolves.toMatchObject({
       organizationId: null,
@@ -48,6 +56,10 @@ describe('platform-owned fallback rows for per-organization settings', () => {
     await expect(service.getSetting('sms_fallback_enabled', 'doctor')).resolves.toMatchObject({
       organizationId: null,
       valueJson: { value: true },
+    });
+    await expect(service.getSetting('notif_template:created:patient', 'admin')).resolves.toMatchObject({
+      organizationId: null,
+      valueJson: { value: 'template' },
     });
   });
 
@@ -67,15 +79,6 @@ describe('platform-owned fallback rows for per-organization settings', () => {
         'patient_home_daily_practice_target',
         'admin',
         { value: 3 },
-        'platform-actor',
-        { allowPlatformGlobalFallbackWrite: true },
-      ),
-    ).rejects.toThrow('organization_context_required');
-    await expect(
-      service.updateSetting(
-        'notif_template:created:patient',
-        'admin',
-        { value: 'template' },
         'platform-actor',
         { allowPlatformGlobalFallbackWrite: true },
       ),

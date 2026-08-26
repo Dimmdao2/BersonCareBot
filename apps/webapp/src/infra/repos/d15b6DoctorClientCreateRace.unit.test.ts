@@ -141,6 +141,7 @@ describe('D15b/6 MF-1 — doctor client create user_contacts race recovery', () 
       savepointTx,
       ORG_ID,
       attemptedUserId,
+      { newClientAlreadyInsertedInTransaction: true },
     );
     expect(ensureOrganizationRelationship.mock.invocationCallOrder[0]).toBeLessThan(
       syncContactsMirrorMock.mock.invocationCallOrder[0]!,

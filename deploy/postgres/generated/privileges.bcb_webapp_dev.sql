@@ -13215,7 +13215,7 @@ GRANT SELECT ("archived_at", "deleted_at", "id", "is_published", "organization_i
 GRANT SELECT ("created_at", "deleted_at", "section", "video_url") ON TABLE "public"."content_pages" TO "app_seam_platform_analytics_owner";
 GRANT SELECT ("deleted_at", "id", "is_published", "organization_id", "slug", "title", "updated_at") ON TABLE "public"."content_pages" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT, DELETE ON TABLE "public"."content_pages" TO "app_staff";
-GRANT INSERT ("body_html", "body_md", "image_url", "is_published", "linked_course_id", "organization_id", "requires_auth", "section", "slug", "sort_order", "summary", "title", "updated_at", "video_type", "video_url") ON TABLE "public"."content_pages" TO "app_staff";
+GRANT INSERT ("archived_at", "body_html", "body_md", "created_at", "deleted_at", "id", "image_url", "is_published", "linked_course_id", "organization_id", "requires_auth", "section", "slug", "sort_order", "summary", "title", "updated_at", "video_type", "video_url") ON TABLE "public"."content_pages" TO "app_staff";
 GRANT UPDATE ("archived_at", "body_html", "body_md", "deleted_at", "image_url", "is_published", "linked_course_id", "organization_id", "requires_auth", "section", "slug", "sort_order", "summary", "title", "updated_at", "video_type", "video_url") ON TABLE "public"."content_pages" TO "app_staff";
 -- последовательности public.content_pages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
@@ -13296,7 +13296,7 @@ GRANT SELECT ON TABLE "public"."content_sections" TO "app_patient";
 GRANT SELECT ("slug", "system_parent_code") ON TABLE "public"."content_sections" TO "app_seam_platform_analytics_owner";
 GRANT SELECT ("id", "is_visible", "organization_id", "slug", "title", "updated_at") ON TABLE "public"."content_sections" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT, DELETE ON TABLE "public"."content_sections" TO "app_staff";
-GRANT INSERT ("cover_image_url", "description", "icon_image_url", "is_visible", "kind", "organization_id", "requires_auth", "slug", "sort_order", "system_parent_code", "title", "updated_at") ON TABLE "public"."content_sections" TO "app_staff";
+GRANT INSERT ("cover_image_url", "created_at", "description", "icon_image_url", "id", "is_visible", "kind", "organization_id", "requires_auth", "slug", "sort_order", "system_parent_code", "title", "updated_at") ON TABLE "public"."content_sections" TO "app_staff";
 GRANT UPDATE ("cover_image_url", "description", "icon_image_url", "is_visible", "kind", "organization_id", "requires_auth", "slug", "sort_order", "system_parent_code", "title", "updated_at") ON TABLE "public"."content_sections" TO "app_staff";
 -- последовательности public.content_sections: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
@@ -13376,7 +13376,7 @@ ALTER TABLE "public"."doctor_notes" FORCE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE "public"."doctor_notes" FROM PUBLIC;
 REVOKE ALL PRIVILEGES ON TABLE "public"."doctor_notes" FROM "app_clinic_billing", "app_integrator_request", "app_integrator_resolver", "app_integrator_tenant_service", "app_operational_delivery_worker", "app_operational_maintenance", "app_operational_media_worker", "app_operational_scheduler", "app_patient", "app_platform_admin", "app_platform_settings", "app_pre_session", "app_seam_catalog_admin_owner", "app_seam_catalog_public_owner", "app_seam_context_owner", "app_seam_dedicated_bot_owner", "app_seam_delivery_scope_owner", "app_seam_email_otp_owner", "app_seam_identity_lookup_owner", "app_seam_login_token_owner", "app_seam_oauth_owner", "app_seam_org_commerce_owner", "app_seam_org_directory_owner", "app_seam_org_invite_owner", "app_seam_passkey_owner", "app_seam_password_auth_owner", "app_seam_patient_booking_owner", "app_seam_patient_invite_owner", "app_seam_patient_lfk_media_owner", "app_seam_patient_org_projection_owner", "app_seam_patient_program_resolver_owner", "app_seam_patient_self_actions_owner", "app_seam_payment_webhook_owner", "app_seam_phone_binding_owner", "app_seam_phone_otp_owner", "app_seam_platform_analytics_owner", "app_seam_public_booking_owner", "app_seam_public_clinic_card_owner", "app_seam_public_slug_owner", "app_seam_reminder_appointment_owner", "app_seam_reminder_email_cooldown_owner", "app_seam_reminder_materialization_owner", "app_seam_reminder_patient_owner", "app_seam_reminder_specialist_owner", "app_seam_retention_sweep_owner", "app_seam_self_security_owner", "app_seam_settings_integrator_owner", "app_seam_settings_preauth_owner", "app_seam_settings_runtime_owner", "app_seam_specialist_provision_owner", "app_seam_staff_security_owner", "app_seam_telemetry_exclusion_owner", "app_seam_telemetry_media_owner", "app_seam_telemetry_operator_owner", "app_seam_telemetry_patient_owner", "app_service", "app_staff", "app_tenant_service", "app_worker", "bcb_dev_integrator", "bcb_dev_migrator", "bcb_dev_webapp_global_admin", "bcb_dev_webapp_patient", "bcb_dev_webapp_staff", "bcb_test_migrator", "saas_system_health_owner", "saas_telemetry_operator", "saas_telemetry_owner";
 GRANT SELECT, DELETE ON TABLE "public"."doctor_notes" TO "app_staff";
-GRANT INSERT ("author_id", "organization_id", "text", "user_id") ON TABLE "public"."doctor_notes" TO "app_staff";
+GRANT INSERT ("author_id", "created_at", "id", "organization_id", "text", "updated_at", "user_id") ON TABLE "public"."doctor_notes" TO "app_staff";
 GRANT UPDATE ("author_id") ON TABLE "public"."doctor_notes" TO "app_staff";
 GRANT SELECT ("user_id") ON TABLE "public"."doctor_notes" TO "app_tenant_service";
 GRANT UPDATE ("user_id") ON TABLE "public"."doctor_notes" TO "app_tenant_service";
@@ -16308,7 +16308,7 @@ GRANT SELECT ("contact_type", "created_at", "id", "organization_id", "platform_u
 GRANT INSERT ("contact_type", "created_at", "id", "organization_id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_seam_patient_booking_owner";
 GRANT UPDATE ("contact_type", "created_at", "id", "organization_id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_seam_patient_booking_owner";
 GRANT SELECT, DELETE ON TABLE "public"."platform_user_contacts" TO "app_staff";
-GRANT INSERT ("contact_type", "created_at", "organization_id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_staff";
+GRANT INSERT ("contact_type", "created_at", "id", "organization_id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_staff";
 GRANT UPDATE ("organization_id", "source", "updated_at", "value") ON TABLE "public"."platform_user_contacts" TO "app_staff";
 GRANT DELETE ON TABLE "public"."platform_user_contacts" TO "app_tenant_service";
 GRANT SELECT ("contact_type", "created_at", "id", "platform_user_id", "source", "updated_at", "value", "value_normalized") ON TABLE "public"."platform_user_contacts" TO "app_tenant_service";
@@ -16430,7 +16430,7 @@ GRANT SELECT ("id", "merged_into_id", "role") ON TABLE "public"."platform_users"
 GRANT SELECT ("id", "is_archived", "merged_into_id", "role") ON TABLE "public"."platform_users" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT, DELETE ON TABLE "public"."platform_users" TO "app_staff";
 GRANT INSERT ("blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "created_at", "display_name", "first_name", "id", "integrator_user_id", "is_archived", "is_blocked", "last_name", "merged_at", "merged_into_id", "patronymic", "reminder_muted_until", "role", "session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_staff";
-GRANT UPDATE ("blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "display_name", "integrator_user_id", "is_archived", "is_blocked", "merged_at", "merged_into_id", "reminder_muted_until", "role", "session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_staff";
+GRANT UPDATE ("blocked_at", "blocked_by", "blocked_reason", "calendar_timezone", "display_name", "first_name", "integrator_user_id", "is_archived", "is_blocked", "last_name", "merged_at", "merged_into_id", "patronymic", "reminder_muted_until", "role", "session_epoch", "updated_at") ON TABLE "public"."platform_users" TO "app_staff";
 GRANT SELECT ("created_at", "display_name", "first_name", "id", "integrator_user_id", "last_name", "merged_into_id", "patronymic", "role", "updated_at") ON TABLE "public"."platform_users" TO "app_tenant_service";
 GRANT INSERT ("display_name", "first_name", "id", "integrator_user_id", "last_name", "role") ON TABLE "public"."platform_users" TO "app_tenant_service";
 GRANT UPDATE ("display_name", "first_name", "integrator_user_id", "last_name", "merged_at", "merged_into_id", "updated_at") ON TABLE "public"."platform_users" TO "app_tenant_service";
@@ -18827,7 +18827,7 @@ GRANT SELECT ("id", "instance_id", "organization_id") ON TABLE "public"."treatme
 GRANT UPDATE ("id", "instance_id", "organization_id", "sort_order", "started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT, DELETE ON TABLE "public"."treatment_program_instance_stages" TO "app_staff";
 GRANT INSERT ("description", "expected_duration_days", "expected_duration_text", "goals", "id", "instance_id", "local_comment", "objectives", "organization_id", "skip_reason", "sort_order", "source_stage_id", "started_at", "status", "title") ON TABLE "public"."treatment_program_instance_stages" TO "app_staff";
-GRANT UPDATE ("description", "goals", "id", "objectives", "skip_reason", "sort_order", "started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_staff";
+GRANT UPDATE ("description", "expected_duration_days", "expected_duration_text", "goals", "id", "objectives", "skip_reason", "sort_order", "started_at", "status", "title") ON TABLE "public"."treatment_program_instance_stages" TO "app_staff";
 GRANT SELECT ("id", "instance_id", "sort_order", "source_stage_id", "started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_tenant_service";
 GRANT UPDATE ("started_at", "status") ON TABLE "public"."treatment_program_instance_stages" TO "app_tenant_service";
 -- последовательности public.treatment_program_instance_stages: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
