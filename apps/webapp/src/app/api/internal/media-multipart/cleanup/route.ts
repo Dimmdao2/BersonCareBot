@@ -6,13 +6,9 @@ import { getPool } from '@/app-layer/db/client';
 import { logger } from '@/app-layer/logging/logger';
 import { withMultipartSessionLock } from '@/app-layer/locks/multipartSessionLock';
 import {
-  deletePendingMediaFileTx,
   listExpiredActiveUploadSessions,
-  lockExpiredSessionForCleanupTx,
-  markUploadSessionExpired,
-  markUploadSessionExpiredTx,
+  stageExpiredMultipartSessionForPurgeTx,
 } from '@/app-layer/media/mediaUploadSessionsRepo';
-import { s3AbortMultipartUpload } from '@/app-layer/media/s3Client';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_MEDIA_JOB_FAMILY,
@@ -29,7 +25,18 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 }
 
 /**
- * Expired multipart sessions: AbortMultipartUpload + remove pending media (cascade removes session rows).
+ * Expired multipart sessions are HANDED to the one media cleanup state machine
+ * (`media_files.status = 'pending_delete'`, drained by `/api/internal/media-pending-delete/purge`
+ * with `delete_attempts` / `next_attempt_at` backoff), which aborts the multipart upload in S3 and
+ * only then deletes the row.
+ *
+ * This tick deliberately performs NO S3 call and deletes NO row. Audit §D1: the previous shape
+ * deleted `media_files` first (cascading away `media_upload_sessions`, the only holder of
+ * `s3_key` + `upload_id`) and then fired a best-effort `AbortMultipartUpload` whose failure was
+ * swallowed — the parts stayed in the bucket with nothing left in the database able to name them,
+ * and the tick still reported success. A row that fails here now stays selectable for the next tick
+ * instead of being pushed into a terminal `expired` state no selector ever looks at again, and
+ * `errors > 0` makes the tick FAIL.
  */
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
@@ -64,47 +71,34 @@ export async function POST(request: Request) {
     const rows = await listExpiredActiveUploadSessions(Number.isFinite(limit) ? limit : 25);
     for (const row of rows) {
       try {
-        const outcome = await withMultipartSessionLock(pool, row.id, async (client) => {
-          const s = await lockExpiredSessionForCleanupTx(client, row.id);
-          if (!s) {
-            return { kind: 'skipped' as const };
-          }
-          const deleted = await deletePendingMediaFileTx(client, s.media_id);
-          if (deleted === 0) {
-            await markUploadSessionExpiredTx(client, s.id);
-            return { kind: 'expired' as const };
-          }
-          return { kind: 'purged' as const, s3Key: s.s3_key, uploadId: s.upload_id };
-        });
-
-        if (outcome.kind === 'purged') {
-          await s3AbortMultipartUpload(outcome.s3Key, outcome.uploadId).catch(() => {
-            /* best-effort */
-          });
-        }
-        if (outcome.kind !== 'skipped') {
+        const outcome = await withMultipartSessionLock(pool, row.id, (client) =>
+          stageExpiredMultipartSessionForPurgeTx(client, row.id),
+        );
+        if (outcome !== 'skipped') {
           cleaned += 1;
         }
       } catch (e) {
+        // Staging is a pure DB transition. A failure here is a real fault, not a state to bury: the
+        // session keeps its active status, so the next tick selects it again, and this tick is red.
         errors += 1;
         logger.error(
           { err: e, sessionId: row.id },
           '[internal/media-multipart/cleanup] row_failed',
         );
-        await markUploadSessionExpired(row.id).catch(() => {
-          /* ignore */
-        });
       }
     }
+    // Stage 4 of the audit: `errors > 0` never becomes `success: true`.
+    const success = errors === 0;
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
       jobKey: OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
       startedAtIso,
       durationMs: Date.now() - startedAt,
-      success: true,
+      success,
+      ...(success ? {} : { error: `${errors} expired session(s) failed to stage for purge` }),
       metaJson: { cleaned, errors },
     });
-    return NextResponse.json({ ok: true, cleaned, errors });
+    return NextResponse.json({ ok: success, cleaned, errors }, { status: success ? 200 : 500 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await recordOperatorCronJobTickBestEffort({

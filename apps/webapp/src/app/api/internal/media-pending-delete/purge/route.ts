@@ -52,15 +52,20 @@ export async function POST(request: Request) {
     const { removed, errors } = await purgePendingMediaDeleteBatch(
       Number.isFinite(limit) ? limit : 25,
     );
+    // Stage 4 of the systemic audit 2026-08-27: a batch job reports success only when every required
+    // operation completed. A row whose S3 abort/delete failed stays retryable with bounded backoff —
+    // and this tick must be RED, or the operator sees a green sweep that removed nothing.
+    const success = errors === 0;
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
       jobKey: OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
       startedAtIso,
       durationMs: Date.now() - startedAt,
-      success: true,
+      success,
+      ...(success ? {} : { error: `${errors} media row(s) failed S3 cleanup; retry scheduled` }),
       metaJson: { removed, errors },
     });
-    return NextResponse.json({ ok: true, removed, errors });
+    return NextResponse.json({ ok: success, removed, errors }, { status: success ? 200 : 500 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await recordOperatorCronJobTickBestEffort({

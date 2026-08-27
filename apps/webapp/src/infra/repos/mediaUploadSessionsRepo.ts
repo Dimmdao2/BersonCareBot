@@ -323,6 +323,54 @@ export async function lockExpiredSessionForCleanupTx(
   return res.rows[0] ?? null;
 }
 
+export type ExpiredMultipartStageOutcome = 'staged' | 'session_only' | 'skipped';
+
+/**
+ * Audit §D1 / stage 4. Hands an EXPIRED multipart session to the ONE cleanup state machine the
+ * repository already has (`media_files.status = 'pending_delete'` + `delete_attempts` /
+ * `next_attempt_at`, drained by `purgePendingMediaDeleteBatch`), instead of deleting the media row
+ * here and firing a best-effort `AbortMultipartUpload` afterwards.
+ *
+ * Why this ordering matters: `media_upload_sessions` is the only holder of the S3 retry identity
+ * (`s3_key` + `upload_id`), and it cascade-dies with its `media_files` row. Deleting the media row
+ * first and aborting second means a failed abort can never be retried — the parts stay in the bucket
+ * with nothing left in the database that names them. Here the session row is only moved to
+ * `expired` (so the cleanup selector stops re-picking it) and SURVIVES; the media row is deleted by
+ * the purge batch only after the abort is confirmed.
+ *
+ * - `staged`      — session expired, media row handed to the pending-delete lifecycle;
+ * - `session_only`— media was no longer `pending` (upload finished): session closed, nothing to purge;
+ * - `skipped`     — the session was claimed or finished by someone else in the meantime.
+ */
+export async function stageExpiredMultipartSessionForPurgeTx(
+  client: PoolClient,
+  sessionId: string,
+): Promise<ExpiredMultipartStageOutcome> {
+  const session = await lockExpiredSessionForCleanupTx(client, sessionId);
+  if (!session) return 'skipped';
+
+  const db = getWebappSqlFromPgClient(client);
+  const staged = await runWebappSql(
+    db,
+    sql`UPDATE media_files
+        SET status = 'pending_delete', next_attempt_at = now()
+      WHERE id = ${session.media_id}::uuid AND status = 'pending'`,
+  );
+  // The session row itself is kept: it carries `s3_key` + `upload_id`, the only way to abort the
+  // multipart upload. `expired` just takes it out of the active-session selector.
+  await markUploadSessionExpiredTx(client, session.id);
+
+  if ((staged.rowCount ?? 0) === 0) return 'session_only';
+
+  // Same treatment as the user-initiated abort (`stagePendingMediaAbort`): metadata for a file that
+  // never arrived must not outlive the upload it describes.
+  await runWebappSql(
+    db,
+    sql`DELETE FROM patient_files WHERE media_file_id = ${session.media_id}::uuid`,
+  );
+  return 'staged';
+}
+
 /** Delete pending media row inside caller transaction (multipart cleanup). */
 export async function deletePendingMediaFileTx(
   client: PoolClient,

@@ -2,6 +2,7 @@ import { and, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { notificationDeliveryAttempts } from '../../../db/schema/notificationDeliveryAttempts';
+import { pgOperatorHealthReadPort } from '@/infra/repos/pgOperatorHealthRead';
 import type { NotificationDeliveryAttemptsPort } from '@/modules/notification-delivery/ports';
 import {
   NOTIFICATION_DELIVERY_CHANNELS,
@@ -85,11 +86,27 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
     for (const row of countRows) {
       if (!isDeliveryChannel(row.channel)) continue;
       const n = Number(row.c ?? 0);
+      // Audit §C2: this journal is FAILURE-ONLY (20260826T170000). A `success` row cannot exist here
+      // any more, so counting one would be counting nothing forever — success is read below from the
+      // canonical delivery lifecycle instead.
+      if (row.status === 'success') continue;
       totalAttempts24h += n;
       const agg = byChannel[row.channel];
-      if (row.status === 'success') agg.successCount = n;
-      else if (row.status === 'failed') agg.failedCount = n;
+      if (row.status === 'failed') agg.failedCount = n;
       else if (row.status === 'skipped') agg.skippedCount = n;
+    }
+
+    // CANONICAL delivery lifecycle: a row that reached `sent` in `outgoing_delivery_queue` is the
+    // one place a confirmed delivery exists. It is read through the DECLARED narrow root
+    // `app.read_operator_delivery_queue_health()`, never by a direct SELECT: no runtime webapp role
+    // holds a grant on that table, so a direct read would be a 42501 on its first live call. No
+    // success row is written back into the attempt journal and no additional journal is introduced.
+    const queue = await pgOperatorHealthReadPort.getOutgoingDeliveryQueueHealth();
+    const confirmedDeliveries24h = queue.confirmedSentLast24h;
+    const lastConfirmedDeliveryAt = queue.lastSentAt;
+    for (const channel of NOTIFICATION_DELIVERY_CHANNELS) {
+      byChannel[channel].successCount = queue.sentByChannel[channel] ?? 0;
+      byChannel[channel].lastSuccessAt = queue.lastSentAtByChannel[channel] ?? null;
     }
 
     for (const channel of NOTIFICATION_DELIVERY_CHANNELS) {
@@ -107,29 +124,17 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
         .limit(1);
 
       if (lastAttempt) {
-        byChannel[channel].lastAttemptAt = lastAttempt.createdAt;
+        const confirmedAt = byChannel[channel].lastSuccessAt;
+        byChannel[channel].lastAttemptAt =
+          confirmedAt && confirmedAt > lastAttempt.createdAt ? confirmedAt : lastAttempt.createdAt;
         if (lastAttempt.status === 'failed' || lastAttempt.status === 'skipped') {
           byChannel[channel].lastErrorAt = lastAttempt.createdAt;
           byChannel[channel].lastProviderStatusCode = lastAttempt.providerStatusCode ?? null;
           byChannel[channel].lastErrorReason = lastAttempt.reason ?? null;
           byChannel[channel].lastErrorMessage = lastAttempt.errorMessage ?? null;
         }
-      }
-
-      const [lastSuccess] = await db
-        .select({ createdAt: notificationDeliveryAttempts.createdAt })
-        .from(notificationDeliveryAttempts)
-        .where(
-          and(
-            eq(notificationDeliveryAttempts.channel, channel),
-            eq(notificationDeliveryAttempts.status, 'success'),
-            windowFilter,
-          ),
-        )
-        .orderBy(desc(notificationDeliveryAttempts.createdAt))
-        .limit(1);
-      if (lastSuccess) {
-        byChannel[channel].lastSuccessAt = lastSuccess.createdAt;
+      } else if (byChannel[channel].lastSuccessAt) {
+        byChannel[channel].lastAttemptAt = byChannel[channel].lastSuccessAt;
       }
 
       const [lastError] = await db
@@ -193,6 +198,8 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
       byChannel,
       recentIssues,
       totalAttempts24h,
+      confirmedDeliveries24h,
+      lastConfirmedDeliveryAt,
     };
   },
 };

@@ -54,6 +54,10 @@ const outgoingDeliveryQueueHealthRootSchema = z
     dueByChannel: queueCountMapSchema,
     dueByKind: queueCountMapSchema,
     deadByKind: queueCountMapSchema,
+    // Added by 20260827T185000 (audit §C2). Optional so a snapshot produced before that migration
+    // still parses instead of blanking the whole health card.
+    sentByChannel: queueCountMapSchema.optional().default({}),
+    lastSentAtByChannel: z.record(z.string(), z.string().nullable()).optional().default({}),
   })
   .strict();
 
@@ -82,6 +86,8 @@ export function parseOutgoingDeliveryQueueHealthSnapshot(
     deadByKind: parsed.deadByKind,
     processingCount: parsed.processingCount,
     lastSentAt: parsed.lastSentAt,
+    sentByChannel: parsed.sentByChannel,
+    lastSentAtByChannel: parsed.lastSentAtByChannel,
     confirmedSentLast24h: parsed.confirmedSentLast24h,
     lastQueueActivityAt: parsed.lastQueueActivityAt,
   };

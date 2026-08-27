@@ -1,4 +1,5 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { logger } from '@/app-layer/logging/logger';
 import { smtpInnerFromValueJson } from '@/modules/system-settings/smtpOutboundPatch';
 import type { NotificationDeliveryHealthSnapshot } from '@/modules/notification-delivery/types';
 import {
@@ -74,26 +75,31 @@ export function emptyNotificationDeliveryHealthPayload(
     byChannel,
     recentIssues: [],
     totalAttempts24h: 0,
+    confirmedDeliveries24h: 0,
+    lastConfirmedDeliveryAt: null,
   };
 }
 
+/**
+ * Audit §C2. Positive evidence of delivery comes ONLY from the canonical lifecycle
+ * (`confirmedDeliveries24h`); the failure-only attempt journal can never supply it. `dueBacklog` is
+ * what separates the two states that used to be indistinguishable: nothing sent because nothing was
+ * asked for (quiet day → `no_data`) versus nothing sent while work is waiting (outage → `degraded`).
+ */
 export function classifyNotificationDeliverySystemHealthStatus(input: {
+  /** FAILED/SKIPPED rows in the failure-only journal within the window. */
   totalAttempts24h: number;
+  /** Rows that reached `sent` in `outgoing_delivery_queue` within the window. */
+  confirmedDeliveries24h: number;
+  /** Queue rows that are due right now — canonical delivery lifecycle, not the attempt journal. */
+  dueBacklog: number;
   byChannel: NotificationDeliveryHealthSnapshot['byChannel'];
   recentIssues: NotificationDeliveryHealthSnapshot['recentIssues'];
   vapidConfigured: boolean;
   smtpConfigured: boolean;
 }): NotificationDeliverySystemHealthStatus {
-  if (input.totalAttempts24h <= 0) {
-    if (!input.vapidConfigured && !input.smtpConfigured) return 'not_configured';
-    return 'no_data';
-  }
-
   if (!input.vapidConfigured && !input.smtpConfigured) return 'not_configured';
 
-  const hasSuccess = NOTIFICATION_DELIVERY_CHANNELS.some(
-    (ch) => input.byChannel[ch].successCount > 0,
-  );
   const hasFailed = NOTIFICATION_DELIVERY_CHANNELS.some(
     (ch) => input.byChannel[ch].failedCount > 0,
   );
@@ -111,8 +117,10 @@ export function classifyNotificationDeliverySystemHealthStatus(input: {
       input.recentIssues.some((i) => i.channel === 'email' && isOperatorRelevantDeliveryIssue(i)));
 
   if (hasFailed || hasOperatorSkip || pushInfraGap || emailInfraGap) return 'degraded';
-  if (hasSuccess) return 'ok';
-  if (input.totalAttempts24h > 0) return 'ok';
+  if (input.confirmedDeliveries24h > 0) return 'ok';
+  // Nothing was delivered and nothing failed. Work waiting in the queue means the pipeline is not
+  // moving at all — a total outage records no failure row anywhere, so silence is the only symptom.
+  if (input.dueBacklog > 0) return 'degraded';
   return 'no_data';
 }
 
@@ -122,6 +130,7 @@ export async function loadAdminNotificationDeliveryHealthMetrics(): Promise<
   try {
     const deps = buildAppDeps();
     const snapshot = await deps.notificationDelivery.getHealthSnapshot24h();
+    const queue = await deps.operatorHealthRead.getOutgoingDeliveryQueueHealth();
     const vapidKeys = await getWebPushVapidKeyPair(deps.systemSettings);
     const vapidConfigured = Boolean(vapidKeys);
     const smtp = await deps.systemSettings.getSetting('smtp_outbound', 'admin');
@@ -132,6 +141,8 @@ export async function loadAdminNotificationDeliveryHealthMetrics(): Promise<
 
     const status = classifyNotificationDeliverySystemHealthStatus({
       totalAttempts24h: snapshot.totalAttempts24h,
+      confirmedDeliveries24h: queue.confirmedSentLast24h,
+      dueBacklog: queue.dueBacklog,
       byChannel: snapshot.byChannel,
       recentIssues: operatorRecentIssues,
       vapidConfigured,
@@ -142,13 +153,18 @@ export async function loadAdminNotificationDeliveryHealthMetrics(): Promise<
       ok: true,
       value: {
         ...snapshot,
+        confirmedDeliveries24h: queue.confirmedSentLast24h,
+        lastConfirmedDeliveryAt: queue.lastSentAt,
         recentIssues: operatorRecentIssues,
         status,
         vapidConfigured,
         smtpConfigured,
       },
     };
-  } catch {
+  } catch (err) {
+    // Audit §C4/stage 4: an empty catch turned a read FAILURE into an indistinguishable "no data"
+    // card. The failure still degrades gracefully for the caller, but it is no longer silent.
+    logger.error({ err }, 'notification delivery health read failed');
     return { ok: false, errorCode: 'notification_delivery_health_query_failed' };
   }
 }

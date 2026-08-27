@@ -2765,8 +2765,14 @@ export const reminderOccurrenceHistory = pgTable(
     organizationId: uuid('organization_id').notNull(),
     integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
     integratorRuleId: text('integrator_rule_id').notNull(),
+    /**
+     * RETIRED legacy id. Nullable in the applied schema and in the generated snapshot
+     * (`deploy/postgres/generated/prod-to-target/schema-pre.sql`) — a reminder created for a
+     * canonical platform user has no integrator id at all. The `.notNull()` that used to stand here
+     * was ORM-only drift: no forward migration ever set NOT NULL on this column.
+     */
     // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
+    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
     platformUserId: uuid('platform_user_id').notNull(),
     category: text().notNull(),
     status: text().notNull(),

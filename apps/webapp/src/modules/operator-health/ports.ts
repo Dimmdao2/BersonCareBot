@@ -68,6 +68,13 @@ export type OutgoingDeliveryQueueHealthSnapshot = {
   processingCount: number;
   lastSentAt: string | null;
   /**
+   * Подтверждённые доставки за окно, разложенные по каналу — единственный источник «успеха» после
+   * того, как журнал попыток стал failure-only (аудит §C2). Ключ — `outgoing_delivery_queue.channel`.
+   */
+  sentByChannel: Record<string, number>;
+  /** Момент последней подтверждённой отправки по каналу; для «свежести» канала на карточке. */
+  lastSentAtByChannel: Record<string, string | null>;
+  /**
    * Подтверждённых доставок (`status = 'sent'`) за последние 24 ч.
    *
    * D-d: сводка обязана нести ПОЗИТИВНОЕ доказательство доставки, а не только отсутствие

@@ -24,6 +24,7 @@ export type RecordNotificationDeliveryAttemptInput = {
 };
 
 export type NotificationDeliveryChannelAggregate = {
+  /** Confirmed sends of this channel from the canonical queue — never from the attempt journal. */
   successCount: number;
   failedCount: number;
   skippedCount: number;
@@ -46,12 +47,25 @@ export type NotificationDeliveryRecentIssue = {
   errorMessage: string | null;
 };
 
+/**
+ * Audit §C2. `notification_delivery_attempts` is a FAILURE-ONLY journal since 20260826T170000, so a
+ * channel aggregate can no longer answer "did anything get delivered". These three facts come from
+ * the CANONICAL delivery lifecycle (`outgoing_delivery_queue`, rows that reached `sent`) and are the
+ * only positive evidence the health card has.
+ */
+export type NotificationDeliveryConfirmedFacts = {
+  /** Rows that reached `sent` in the window. Zero + a due backlog is an outage, not a quiet day. */
+  confirmedDeliveries24h: number;
+  lastConfirmedDeliveryAt: string | null;
+};
+
 export type NotificationDeliveryHealthSnapshot = {
   windowHours: number;
   byChannel: Record<NotificationDeliveryChannel, NotificationDeliveryChannelAggregate>;
   recentIssues: NotificationDeliveryRecentIssue[];
+  /** FAILED/SKIPPED provider attempts recorded in the failure-only journal within the window. */
   totalAttempts24h: number;
-};
+} & NotificationDeliveryConfirmedFacts;
 
 export type NotificationDeliverySystemHealthStatus =
   | 'ok'
