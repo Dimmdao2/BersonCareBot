@@ -32,6 +32,9 @@ it('sweeps every still-live Track D journal target in one tick, through the exis
     { target: 'outgoing_delivery_queue_sent', deleted: 2 },
     { target: 'outgoing_delivery_queue_dead', deleted: 2 },
     { target: 'notification_delivery_attempts', deleted: 2 },
+    { target: 'message_log', deleted: 2 },
+    // Registered, reported, and deliberately not run — see OQ-REMINDER-HISTORY-WINDOW.
+    { target: 'reminder_occurrence_history_terminal', deleted: 0, skipped: 'owner_decision_pending' },
   ]);
 
   const rootsCalled = fakes.runWebappNamedRoot.mock.calls.map((call) => call[1]);
@@ -42,7 +45,54 @@ it('sweeps every still-live Track D journal target in one tick, through the exis
     'app.prune_retention_target(text,integer,boolean)',
     'app.prune_retention_target(text,integer,boolean)',
     'app.prune_retention_target(text,integer,boolean)',
+    'app.prune_retention_target(text,integer,boolean)',
   ]);
+});
+
+it('gives message_log the 90-day window its recorded policy class already defines', async () => {
+  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '0' }] });
+
+  await runDbJournalRetention(port);
+
+  const messageLogCall = fakes.runWebappNamedRoot.mock.calls.find(
+    (call) => (call[2] as unknown[])[0] === 'message_log',
+  );
+  expect(messageLogCall).toBeDefined();
+  expect((messageLogCall![2] as unknown[])[1]).toBe(90);
+});
+
+it('never deletes reminder history on an invented window, but runs on an explicit owner number', async () => {
+  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '5' }] });
+
+  const withoutOwnerWindow = await runDbJournalRetention(port);
+  expect(
+    fakes.runWebappNamedRoot.mock.calls.some(
+      (call) => (call[2] as unknown[])[0] === 'reminder_occurrence_history_terminal',
+    ),
+  ).toBe(false);
+  expect(
+    withoutOwnerWindow.results.find(
+      (r) => r.target === 'reminder_occurrence_history_terminal',
+    ),
+  ).toEqual({
+    target: 'reminder_occurrence_history_terminal',
+    deleted: 0,
+    skipped: 'owner_decision_pending',
+  });
+
+  vi.clearAllMocks();
+  fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ affected_count: '5' }] });
+  const withOwnerWindow = await runDbJournalRetention(port, {
+    reminderOccurrenceHistoryRetentionDays: 365,
+  });
+  const call = fakes.runWebappNamedRoot.mock.calls.find(
+    (c) => (c[2] as unknown[])[0] === 'reminder_occurrence_history_terminal',
+  );
+  expect(call).toBeDefined();
+  expect((call![2] as unknown[])[1]).toBe(365);
+  expect(
+    withOwnerWindow.results.find((r) => r.target === 'reminder_occurrence_history_terminal'),
+  ).toEqual({ target: 'reminder_occurrence_history_terminal', deleted: 5 });
 });
 
 it('carries dryRun into every target call', async () => {
@@ -68,6 +118,7 @@ it('keeps every target independent: one failing target does not stop the others,
   });
 
   await expect(runDbJournalRetention(port)).rejects.toThrow(/integrator_idempotency_keys.*boom/);
-  // all six targets were attempted even though the third one failed
-  expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(6);
+  // every RUNNABLE target was attempted even though the third one failed; the reminder-history
+  // target is skipped by owner decision, not by the failure.
+  expect(fakes.runWebappNamedRoot).toHaveBeenCalledTimes(7);
 });

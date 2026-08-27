@@ -5322,6 +5322,18 @@ const REV10_CONTEXT = {
         { relation: 'public.notification_delivery_attempts', columns: ['created_at', 'id'],
           operations: ['SELECT' as const, 'DELETE' as const],
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // Systemic residual audit 2026-08-27 §C3: the Track D consolidated occurrence table joins the
+        // same closed list. Only terminal statuses are eligible, so the branch reads `status` next to
+        // the `planned_at` window column and the PK for the bounded victims CTE.
+        { relation: 'public.reminder_occurrence_history', columns: ['status', 'planned_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        // Systemic residual audit 2026-08-27 §E1: doctor→patient message journal carries the message
+        // text; it belongs to the 90-day "content of a message sent to a person" class the retention
+        // policy already defines (delivery_attempt_logs / support_delivery_events).
+        { relation: 'public.message_log', columns: ['sent_at', 'id'],
+          operations: ['SELECT' as const, 'DELETE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
     // Track D final cutover (#987), §C: app.context_nonce_ledger cannot join prune_retention_target

@@ -1074,8 +1074,12 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   const notificationDeliveryPayload: NotificationDeliveryHealthPayload = curatedSnapshot
     ? {
         ...curatedSnapshot.notificationDelivery,
+        // Audit §C2: success and staleness come from the canonical delivery lifecycle, never from
+        // the failure-only attempt journal, and `dueBacklog` separates a quiet day from an outage.
         status: classifyNotificationDeliverySystemHealthStatus({
           totalAttempts24h: curatedSnapshot.notificationDelivery.totalAttempts24h,
+          confirmedDeliveries24h: curatedSnapshot.notificationDelivery.confirmedDeliveries24h,
+          dueBacklog: curatedSnapshot.outgoingDelivery.dueBacklog,
           byChannel: curatedSnapshot.notificationDelivery.byChannel,
           recentIssues: [],
           vapidConfigured: curatedSnapshot.config.vapidConfigured,

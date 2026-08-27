@@ -1,10 +1,19 @@
 /**
- * Stage 4 webapp: realign projection rows from loser integrator_user_id → winner.
- * Used by `scripts/realign-webapp-integrator-user-projection.ts` and documented in
- * `docs/archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql`.
+ * ONE list of the webapp projection tables that still carry the retired `integrator_user_id`,
+ * plus their CANONICAL platform-user key.
  *
- * Gate UNION (`diagnostics_webapp_integrator_user_id.sql` + dry-run job) строится из
- * `WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS` — единственный источник списка таблиц и WHERE.
+ * Readers of this single list:
+ *  - Stage 4 realignment (loser integrator_user_id → winner) and its gate diagnostics
+ *    (`scripts/realign-webapp-integrator-user-projection.ts`,
+ *    `docs/archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql`);
+ *  - the retired-id reconcile CLI (`scripts/user-phone-admin.ts webapp-cleanup-by-integrator-id`);
+ *  - the account purge (`@/infra/platformUserFullPurge`), which deletes by `platformUserColumn` and
+ *    NEVER depends on a retired integrator id being present.
+ *
+ * Why one list: a projection table added here without a canonical-key delete is exactly audit finding
+ * C1 (`docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`) — a full account purge that
+ * silently keeps reminder history for every user whose retired integrator id was already dropped.
+ * `platformUserFullPurge.purgeCoverageForRetiredIntegratorProjections()` is the mechanical gate.
  */
 
 import { readFileSync } from 'node:fs';
@@ -21,31 +30,45 @@ function loserIdParamToken(mode: WebappLoserGateParamMode): string {
   return mode === 'psql' ? ":'loser_id'" : '$1';
 }
 
+export type WebappRetiredIntegratorIdProjection = {
+  /** Physical `public` table holding the projection rows. */
+  table: string;
+  /** Canonical owner key. The account purge deletes by THIS column, not by the retired id. */
+  platformUserColumn: string;
+  /** Extra predicate the retired-id gate needs on top of `integrator_user_id::text = <param>`. */
+  retiredIdNotNullGuard?: true;
+};
+
+/**
+ * The single census of retired-integrator-id projections. Order is the realignment job order
+ * (children before the conversation root).
+ */
+export const WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS: readonly WebappRetiredIntegratorIdProjection[] =
+  [
+    { table: 'reminder_rules', platformUserColumn: 'platform_user_id' },
+    { table: 'reminder_occurrence_history', platformUserColumn: 'platform_user_id' },
+    { table: 'content_access_grants_webapp', platformUserColumn: 'platform_user_id' },
+    {
+      table: 'support_conversations',
+      platformUserColumn: 'platform_user_id',
+      retiredIdNotNullGuard: true,
+    },
+  ] as const;
+
 /** Specs for gate: loser integrator_user_id counts (same tables as realignment UPDATE targets). */
-export const WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS = [
-  { table: 'reminder_rules', whereClause: (p: string) => `integrator_user_id::text = ${p}` },
-  {
-    table: 'reminder_occurrence_history',
-    whereClause: (p: string) => `integrator_user_id::text = ${p}`,
-  },
-  {
-    table: 'content_access_grants_webapp',
-    whereClause: (p: string) => `integrator_user_id::text = ${p}`,
-  },
-  {
-    table: 'support_conversations',
+export const WEBAPP_INTEGRATOR_USER_ID_GATE_TABLE_SPECS = WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS.map(
+  (projection) => ({
+    table: projection.table,
     whereClause: (p: string) =>
-      `integrator_user_id IS NOT NULL AND integrator_user_id::text = ${p}`,
-  },
-] as const;
+      projection.retiredIdNotNullGuard
+        ? `integrator_user_id IS NOT NULL AND integrator_user_id::text = ${p}`
+        : `integrator_user_id::text = ${p}`,
+  }),
+);
 
 /** Tables touched by rekey UPDATE (after subscription/mailing dedup DELETEs). Order matches job script. */
-export const WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES = [
-  'reminder_rules',
-  'reminder_occurrence_history',
-  'content_access_grants_webapp',
-  'support_conversations',
-] as const;
+export const WEBAPP_INTEGRATOR_USER_REALIGNMENT_UPDATE_TABLES =
+  WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS.map((projection) => projection.table);
 
 /**
  * UNION ALL branches for gate diagnostics (no outer wrapper).

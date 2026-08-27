@@ -34,4 +34,13 @@ export type JournalRetentionPort = {
     days: number,
     options?: JournalRetentionPurgeOptions,
   ): Promise<{ deleted: number }>;
+  /** TERMINAL occurrences only — `planned`/`queued` are unfinished work the sweep never touches. */
+  pruneReminderOccurrenceHistoryTerminal(
+    days: number,
+    options?: JournalRetentionPurgeOptions,
+  ): Promise<{ deleted: number }>;
+  pruneMessageLog(
+    days: number,
+    options?: JournalRetentionPurgeOptions,
+  ): Promise<{ deleted: number }>;
 };
