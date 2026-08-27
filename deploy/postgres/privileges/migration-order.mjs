@@ -77,6 +77,66 @@ export function findMigrationNameViolations(migrations) {
     .map((migration) => migration.tag);
 }
 
+/**
+ * Applied collisions that predate this gate.  Four historical timestamps carry more than one
+ * migration; every one of them is already applied, and `AGENTS.md` forbids renaming an applied
+ * migration, because the name IS its ledger identity.  So they are frozen here EXACTLY as they
+ * landed — not as an allowlist a future branch may extend, but as a closed baseline: the group is
+ * accepted only when its membership is exactly this set.  Add one more file to any of these four
+ * timestamps and the gate reddens on that group, same as on a brand-new collision.
+ *
+ * Nothing may be added here.  A new migration picks a free UTC second; there are 86400 of them a
+ * day, and "insert between two migrations" already means "pick a timestamp between them".
+ */
+export const APPLIED_MIGRATION_TIMESTAMP_COLLISION_BASELINE = Object.freeze({
+  '20260822T110000': Object.freeze([
+    '20260822T110000_the_email_verify_root_demotes_the_previous_primary',
+    '20260822T110000_the_reminder_rule_upsert_gets_a_named_root',
+  ]),
+  '20260822T130000': Object.freeze([
+    '20260822T130000_the_integrator_roots_name_the_integrator_role',
+    '20260822T130000_the_registration_resend_door_finds_the_unconfirmed_draft',
+  ]),
+  '20260822T200000': Object.freeze([
+    '20260822T200000_patient_demographics_leave_the_actor_root',
+    '20260822T200000_remove_legacy_identity_resolver_signatures',
+    '20260822T200000_tenant_definer_roots_validate_their_organization',
+  ]),
+  '20260823T010000': Object.freeze([
+    '20260823T010000_mail_profile_reaches_auth_delivery',
+    '20260823T010000_patient_subdomain_slug_and_custom_domain_uniqueness',
+  ]),
+});
+
+/**
+ * Order is the file name and there is no second place (`AGENTS.md` §1).  Two migrations sharing one
+ * timestamp therefore have NO defined order between them: whichever the directory listing returns
+ * first wins, and the two checkouts that produced them never agreed on which that is.  The name rule
+ * already promised uniqueness — `findMigrationNameViolations` only checked the SHAPE of the name, so
+ * the promise was documentation, not a gate (A5 of the 27.08 systemic audit).
+ *
+ * Returns one entry per offending timestamp so a caller can name every collision in one pass.
+ */
+export function findMigrationTimestampCollisions(migrations) {
+  const byTimestamp = new Map();
+  for (const migration of migrations) {
+    const separator = migration.tag.indexOf('_');
+    if (separator === -1) continue;
+    const timestamp = migration.tag.slice(0, separator);
+    if (!/^\d{8}T\d{6}$/u.test(timestamp)) continue;
+    byTimestamp.set(timestamp, [...(byTimestamp.get(timestamp) ?? []), migration.tag]);
+  }
+  const collisions = [];
+  for (const [timestamp, tags] of [...byTimestamp.entries()].sort()) {
+    if (tags.length < 2) continue;
+    const baseline = APPLIED_MIGRATION_TIMESTAMP_COLLISION_BASELINE[timestamp];
+    const sorted = [...tags].sort();
+    if (baseline && baseline.length === sorted.length && baseline.every((tag, index) => tag === sorted[index])) continue;
+    collisions.push({ timestamp, tags: sorted, baseline: baseline ? [...baseline] : null });
+  }
+  return collisions;
+}
+
 const GUARDED_RELATION_SCHEMAS = new Set(['public', 'app', 'integrator', 'app_ext']);
 
 function withoutSqlCommentsAndLiterals(sql) {
@@ -134,6 +194,24 @@ export function findMigrationStaticViolations(migrations, declaredRelations) {
       reason: 'file name is not YYYYMMDDTHHMMSS_lower_snake_case',
       action: 'rename the unapplied file to a UTC timestamp name; applied files must not be renamed',
     });
+  }
+
+  for (const collision of findMigrationTimestampCollisions(migrations)) {
+    const newcomers = collision.baseline
+      ? collision.tags.filter((tag) => !collision.baseline.includes(tag))
+      : collision.tags;
+    for (const tag of newcomers) {
+      const migration = migrations.find((candidate) => candidate.tag === tag);
+      violations.push({
+        file: migration?.path ?? `${tag}.sql`,
+        statementIndex: 0,
+        reason: `migration timestamp ${collision.timestamp} is already taken by ${
+          collision.tags.filter((other) => other !== tag).join(', ')}`,
+        action: collision.baseline
+          ? 'the applied collision baseline is closed; give this migration a free UTC second'
+          : 'give this migration a free UTC second — the file name is the only order there is',
+      });
+    }
   }
 
   for (const migration of migrations) {

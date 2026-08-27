@@ -6,7 +6,7 @@
  *   node deploy/postgres/privileges/generate-cli.mjs --all            # обе управляемые базы в generated/
  *   node deploy/postgres/privileges/generate-cli.mjs --check          # ГЕЙТ CI: перегенерировать и сверить
  *   node deploy/postgres/privileges/generate-cli.mjs --gaps           # перечислить пробелы декларации
- *   node deploy/postgres/privileges/generate-cli.mjs --census         # production callsite ↔ status gate
+ *   node deploy/postgres/privileges/generate-cli.mjs --census         # callsite → runtime principal → relation gate
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база>   # login-рендер (НЕ коммитится)
  *   node deploy/postgres/privileges/generate-cli.mjs --env <env> --db <база> --port-context-env <webapp|integrator>
  *   node deploy/postgres/privileges/generate-cli.mjs --all --port-context-only # exact DB capability seeds
@@ -43,7 +43,7 @@ import {
   renderEnvSql,
   renderPortContextRuntimeEnv,
 } from './generate.mjs';
-import { assertNoUndeclaredRuntimeSurface } from './access-census.mjs';
+import { assertNoUndeclaredRuntimeSurface, assertPatientCallsiteDoors } from './access-census.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '..', '..', '..');
@@ -237,9 +237,12 @@ async function main() {
   if (args.flags.has('census')) {
     for (const dbName of dbNames) {
       const result = assertNoUndeclaredRuntimeSurface(declaration, dbName);
+      const principals = assertPatientCallsiteDoors(declaration, dbName);
       const active = Object.values(declaration.databases[dbName].tables)
         .filter((table) => table.disposition === 'ACTIVE').length;
       console.log(`ok ${dbName}: production source census checked ${active} ACTIVE relations across ${result.files} source files`);
+      console.log(`ok ${dbName}: ${principals.patientOnlyModules} patient-only modules reach only the`
+        + ` ${principals.relationsWithPatientDoor} relations that have a patient door`);
     }
     return;
   }

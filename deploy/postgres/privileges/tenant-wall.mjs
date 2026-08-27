@@ -45,3 +45,108 @@ export function tenantWalledRelationsAcrossDatabases(declaration, databases) {
   }
   return union;
 }
+
+/**
+ * Роли, у которых своя строка стены арендатора. `clinic` — роли, привязанные к ОДНОЙ клинике:
+ * их ветка обязана сравнивать организацию строки с текущей. `patient` — пациентская роль: по
+ * шаблону стены (`WALL_TEMPLATES['clinic+patient']`) её ветка идёт ПО СВОЕЙ СТРОКЕ, поэтому ей
+ * достаточно собственного ключа человека, а организация в ветке — усиление, а не требование.
+ */
+export const TENANT_CLINIC_ROLES = new Set([
+  'app_staff', 'app_clinic_billing', 'app_tenant_service', 'app_integrator_tenant_service',
+  'app_integrator_request', 'app_integrator_resolver',
+]);
+export const TENANT_PATIENT_ROLE = 'app_patient';
+
+/** Организационный предикат в любом объявленном виде: прямая колонка или EXISTS по родителю. */
+const ORGANIZATION_PREDICATE = /current_org_id\(\)/u;
+/** Собственный ключ человека — то, чем шаблон стены разрешает ограничить пациентскую ветку. */
+const OWN_ROW_PREDICATE = /current_patient_user_id\(\)|current_actor_user_id\(\)/u;
+/** Ветка, которая не пускает никого, стены не нарушает: пускать нечего. */
+const DENIES_EVERYTHING = /^\(*\s*false\s*\)*$/iu;
+
+/**
+ * Ветка ролевого `CASE` внутри квала политики. Возвращает `null`, когда роль в квале отдельной
+ * веткой не разобрана — тогда предметом проверки становится ВЕСЬ квал, что и требуется: политика
+ * `(current_user = 'app_staff'::name)` без организации обязана краснеть.
+ */
+function roleCaseBranch(predicate, role) {
+  const heads = [
+    `WHEN current_user = '${role}'::name THEN `,
+    ...[...predicate.matchAll(/WHEN current_user IN \(([^)]*)\) THEN /gu)]
+      .filter((match) => match[1].includes(`'${role}'`))
+      .map((match) => match[0]),
+  ];
+  for (const head of heads) {
+    const at = predicate.indexOf(head);
+    if (at === -1) continue;
+    const start = at + head.length;
+    let depth = 0;
+    let end = start;
+    for (; end < predicate.length; end += 1) {
+      const char = predicate[end];
+      if (char === '(') depth += 1;
+      else if (char === ')') {
+        if (depth === 0) break;
+        depth -= 1;
+      } else if (
+        depth === 0
+        && (predicate.startsWith('WHEN ', end)
+          || predicate.startsWith('ELSE ', end)
+          || predicate.startsWith('END', end))
+      ) break;
+    }
+    return predicate.slice(start, end).trim();
+  }
+  return null;
+}
+
+/**
+ * ИНВАРИАНТ A1. Каждая живая таблица, которая НЕСЁТ колонку `organization_id` (`org: true` — это
+ * измеренный переписью факт наличия колонки), обязана сравнивать её с текущей организацией в
+ * КАЖДОЙ разрешающей политике каждой арендной роли. До 27.08 это держалось на двух независимых
+ * ручных списках внутри `declaration.ts` (`specialized` и `REV10_EXPLICIT_ORG_COLUMN`), и
+ * `public.content_access_grants_webapp` попала в первый, но не во второй: сгенерированная политика
+ * проверяла только имя роли, поэтому сотрудник любой клиники читал ВСЮ таблицу, включая токены
+ * доступа чужих пациентов.
+ *
+ * Проверка идёт по объявленным политикам, а не по тексту SQL-артефакта: предмет — тот самый
+ * предикат, который станет политикой в базе, поэтому переформатирование артефакта её не трогает, а
+ * удаление предиката красит.
+ */
+export function tenantPredicateViolations(declaration, database) {
+  const declared = declaration.databases[database];
+  if (!declared) throw new Error(`декларация не знает базы '${database}'`);
+  const violations = [];
+  for (const [relation, table] of Object.entries(declared.tables)) {
+    if (table.disposition !== 'ACTIVE' || table.org !== true) continue;
+    for (const policy of table.policies ?? []) {
+      if ('todo' in policy || policy.as !== 'PERMISSIVE') continue;
+      for (const role of policy.to ?? []) {
+        const clinicBound = TENANT_CLINIC_ROLES.has(role);
+        if (!clinicBound && role !== TENANT_PATIENT_ROLE) continue;
+        for (const qualifier of ['using', 'withCheck']) {
+          const predicate = policy[qualifier];
+          if (predicate === undefined) continue;
+          const branch = roleCaseBranch(predicate, role) ?? predicate;
+          if (DENIES_EVERYTHING.test(branch.trim())) continue;
+          if (ORGANIZATION_PREDICATE.test(branch)) continue;
+          if (!clinicBound && OWN_ROW_PREDICATE.test(branch)) continue;
+          violations.push({
+            database, relation, policy: policy.name, role, qualifier, branch,
+            reason: clinicBound
+              ? 'permissive tenant policy of an organization-scoped relation has no organization predicate'
+              : 'permissive patient policy has neither an organization nor an own-row predicate',
+          });
+        }
+      }
+    }
+  }
+  return violations;
+}
+
+/** Одна строка на нарушение — текст читает и человек в ревью, и упавший гейт. */
+export function describeTenantPredicateViolation(violation) {
+  return `${violation.database} ${violation.relation} ${violation.policy} [${violation.role}.${violation.qualifier}]:`
+    + ` ${violation.reason}; предикат: ${violation.branch}`;
+}

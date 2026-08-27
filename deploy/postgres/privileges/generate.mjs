@@ -31,6 +31,8 @@ import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
+import { describeTenantPredicateViolation, tenantPredicateViolations } from './tenant-wall.mjs';
+
 export const GENERATOR_VERSION = 1;
 
 /** Канонический порядок привилегий (стабильный дифф). */
@@ -1786,6 +1788,22 @@ export function generateFunctionCensusSql(declaration, dbName, options = {}) {
 }
 
 /**
+ * A1 (системный аудит 27.08). Стена клиники обязана доехать до КАЖДОЙ разрешающей политики каждой
+ * арендной роли на каждом отношении, которое несёт `organization_id`. Проверка стоит ЗДЕСЬ, а не
+ * только в тесте: генератор — единственный, кто раскладывает декларацию в артефакт, и артефакта с
+ * дырой в стене он не отдаёт вовсе. Поэтому `--check`, каждая пруф-фикстура и любой reconcile
+ * краснеют от одного и того же удаления предиката, а не только тот, кто вспомнил запустить тест.
+ */
+function assertTenantPredicateWall(declaration, dbName) {
+  const violations = tenantPredicateViolations(declaration, dbName);
+  if (violations.length === 0) return;
+  throw new Error(
+    `стена арендатора не доехала до политики (${violations.length}):\n`
+    + violations.map(describeTenantPredicateViolation).join('\n'),
+  );
+}
+
+/**
  * Декларация + имя базы → текст SQL-артефакта (SCHEME §B, «выход №1»).
  * Чистая функция: ни подключения, ни времени, ни окружения в выходе.
  * @throws {DeclarationGapError} если декларация неполна (громкий отказ вместо тихого пропуска)
@@ -1795,6 +1813,7 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
   const includeClusterState = options.includeClusterState !== false;
   const gaps = collectGaps(declaration, dbName);
   if (gaps.length > 0) throw new DeclarationGapError(gaps);
+  assertTenantPredicateWall(declaration, dbName);
 
   const db = declaration.databases[dbName];
   const { roles, logins } = principals(declaration);

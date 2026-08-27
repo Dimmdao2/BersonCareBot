@@ -20,9 +20,27 @@ import {
   createWebappPortContextRuntimeConfig,
   resolveWebappPortContextPrincipal,
 } from '@/infra/db/portContextRuntime';
+import {
+  WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE,
+  isTestEnv,
+  resolveWebappDbPrincipalContextMode,
+} from '@/config/env';
 
+/**
+ * Порт-контекст — не «одна из веток», а единственный способ выбора роли в продуктовом рантайме.
+ * Решение принимает `config/env.ts` (одна точка на всё приложение): продуктовый старт без
+ * `DB_PRINCIPAL_CONTEXT_MODE=port-context` не происходит вовсе, поэтому старый путь ниже
+ * достижим только из теста, который назвал свой режим ЯВНО. До 27.08 отсутствие строки окружения
+ * тихо уводило сюда организацию и внутренний cron — под `app_staff` без арендного контекста.
+ */
 function isPortContextMode(): boolean {
-  return process.env.DB_PRINCIPAL_CONTEXT_MODE === 'port-context';
+  return (
+    resolveWebappDbPrincipalContextMode({
+      mode: process.env.DB_PRINCIPAL_CONTEXT_MODE,
+      isTestEnv,
+      isBuildPhase: process.env.NEXT_PHASE === 'phase-production-build',
+    }) === WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE
+  );
 }
 
 async function currentWebappPortContextPrincipal(client: PoolClient) {

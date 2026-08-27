@@ -18,6 +18,7 @@ import {
   describeObject,
   findForeignLedgerRows,
   findMigrationNameViolations,
+  findMigrationTimestampCollisions,
   findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
@@ -235,6 +236,17 @@ if (drizzleFolder) {
     fail(
       nameViolations
         .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; there are no exceptions.`)
+        .join('\n'),
+    );
+  }
+  // The name rule promised uniqueness and only checked shape (A5, 27.08). Order is the file name and
+  // there is no second place, so two files on one second have no order at all — refuse before BEGIN.
+  const timestampCollisions = findMigrationTimestampCollisions(migrations);
+  if (timestampCollisions.length > 0) {
+    fail(
+      timestampCollisions
+        .map((collision) => `migration timestamp ${collision.timestamp} is shared by ${collision.tags.join(', ')};`
+          + ' the applied historical collisions are a closed baseline, pick a free UTC second.')
         .join('\n'),
     );
   }

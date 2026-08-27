@@ -2984,6 +2984,27 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     ],
     "grants": [
       {
+        // A2 (27.08): пациентская дверь этой таблицы. Пациентские страницы контента спрашивают
+        // «можно ли показать материал» тем же `EntitlementsPort`, но идут под `app_patient` — до
+        // этой строки у роли не было ни одного права, и вопрос заканчивался 42501 и SSR 500.
+        // Дверь узкая в обе стороны: строки сужает политика (своя клиника, свой человек, доступ
+        // не отозван и не истёк), колонки — этот грант. `token_hash`, `integrator_grant_id`,
+        // `integrator_user_id` и `organization_id` пациенту не выдаются: ему нужен ответ про
+        // материал, а не сам доступ как секрет.
+        "role": "app_patient",
+        "operations": [
+          "SELECT"
+        ],
+        "columns": [
+          "content_id",
+          "expires_at",
+          "meta_json",
+          "platform_user_id",
+          "purpose",
+          "revoked_at"
+        ]
+      },
+      {
         "role": "app_staff",
         "operations": [
           "SELECT"
