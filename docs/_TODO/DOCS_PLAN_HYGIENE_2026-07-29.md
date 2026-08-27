@@ -827,3 +827,70 @@ execution checklist этой работы среди linked plans нет; `IMPLE
   `/home/dev/brain/host-orch/autoloop/bcb-autopass.sh:185`; проверка
   `rg -n '(taskdb\.mjs" set "\$TID" (note|question|block|follow_up)|set <id> (note|question|block|follow_up)|taskdb add \\"\.\.\.\\"|Create NEW tasks|record work progress)' /home/dev/brain/host-orch/autoloop/bcb-autopass.sh`
   → exit 1, совпадений нет.
+
+## Сверка с текущей веткой и taskdb — 27.08.2026
+
+Это заменяет только статусный снимок выше: раздел «Состояние плана на утро 29.07» остаётся историческим.
+27.08 выполнены read-only `node /home/dev/brain/tools/taskdb.mjs list bcb` и поиск по текущей ветке через
+`node /home/dev/brain/tools/code-search.mjs ... --repo bcb`, затем точечное чтение планов и известных файлов.
+Три области в параллельной синхронизации ведущего не менялись: `DB_PRIVILEGE_LAYER_REBUILD/**`,
+`THERAPYSTO_PATIENT_BRANDING_INITIATIVE/**`, `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`.
+
+| taskdb | канонический план | фактический статус | что конкретно осталось |
+| --- | --- | --- | --- |
+| #90, #209, #213 | нет отдельного execution-плана | основа уже есть: темы, фильтрация рассылок, настройки пациента и bell/unread | достроить scheduled delivery/news-feed и заменить действующий marketing opt-out (`patient_news`, отсутствие строки = enabled) на явный opt-in; не строить второй механизм |
+| #215 | отдельного execution-плана нет; roadmap содержит только back-reference и явно исключает задачу из U6B/current launch scope | future owner design | отдельно спроектировать онлайн-запись: предоплату, выборочный приём и собственные слоты |
+| #513 | нет канонического плана в репозитории (ссылка карточки ведёт во внешний `.lead`) | не спроектировано | решение о шаблонах осмотра и WYSIWYG, затем отдельный план |
+| #796 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U5A | код principal-resolver подтверждён, live seal открыт | A↔B switch и revoked-lifecycle проверка на живом клиентском пути |
+| #805, #1085 | `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` | отдельный scope ведущего | TEST public-booking и остаточные DB-grants проверки |
+| #807, #926 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U6A/U6B | design/dependency gate | owner-accepted public routing, slug/profile и один booking-widget путь |
+| #808 | `SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` | admin baseline выполнен; continuous support chat отменён | синхронизировать статус карточки с выполненным baseline; весь остаток поддержки ведётся только в #1070 |
+| #843, #854 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` C4A/C5C/C6 | code foundation есть, commercial work открыт | billing источник, seats commerce и определение platform-метрик |
+| #898, #914 | `RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md`; `stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md` | частично выполнено, дальнейшие stages gated | L0/L1 log residual и dependency-упорядоченные privacy stages; host/PROD — отдельные owner gates |
+| #915 | `NATIVE_MOBILE_APP_INITIATIVE/README.md` и `MASTER_PLAN.md` | MOB-00 сделан, дальнейшая работа ждёт owner decisions | выбрать отдельное mobile-приложение, CSRF/CORS и Android CI, затем persona/store/payment gates |
+| #917 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U3S | signup/workspace runtime доказан на TEST 23.08 | осталось только фактическое уведомление владельца, если оно ещё не было отправлено |
+| #922 | `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` UI-7b | owner-deferred | post-production go на voice/STT; до него код не строить |
+| #935 | `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` | residual execution | session revocation, transport boundary, cross-tenant matrix и поздняя диагностика TEST digest |
+| #964 | `OWNER_PUNCHLIST_2026-07-28.md` §18 | owner question открыт | подтвердить поведение блока запланированных сообщений перед implementation |
+| #971 | `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` UI-5b | implementation in progress | source-backed census, полный client-card contract и required audit/live evidence |
+| #984, #985, #987 | `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` | отдельный scope ведущего | Track A/B/D и TEST evidence; этот файл не менялся |
+| #993, #1005, #1031 | `GLOBAL_ADMIN_CHANNEL_AUTH_TOGGLES_SPEC.md` | R3 код подтверждён, auth policy ещё не закрыта | live menu result и owner decisions по OAuth/домену, затем remaining channel/auth work |
+| #996 | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` | runtime-only gates | подтверждённый TEST/owner cutover sequence; без runtime он не закрывается кодом |
+| #1001, #1062 | `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` | audit/remediation scope открыт | S4–S6, host/secrets и принятые session/privilege remedies с независимой проверкой |
+| #1028 | `CLINIC_SCHEDULE_ROLE_SCOPE_1028.md` | code/test matrix закрыта, runtime открыт | DEV smoke обычным doctor и clinic_admin; поэтому `blocked` честен |
+| #1042 | `PROD_VS_TEST_DIVERGENCE_2026-07-26.md` | owner decisions required | решить один FIO backfill mismatch и history-only Gitleaks allowlist до нового cutover замера |
+| #1044 | нет отдельного execution-плана | ожидается безопасная DEV-подготовка | два разных синтетических аккаунта одной клиники для owner walkthrough |
+| #1063 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U3S | путь specialist signup → organization/specialistId → вход → first workspace закрыт кодом и TEST evidence 23.08 | сверить карточку с evidence и закрыть, не повторять runtime-проход |
+| #1069 | `SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a | code/Test ladder evidence есть, owner acceptance открыта | owner UI walkthrough 7.4; не подменять его старым code evidence |
+| #1070 | `SUPPORT_TICKETS_1070.md` | stage 0 открыт | выбрать независимый российский helpdesk или self-hosted boundary перед DB/RLS implementation |
+| #1071 | `OWNER_PRODUCT_RULES.md` §30; integration workstream | пункты 12.1, 12.2 и 12.4–12.6 закрыты | только 12.3: живая TEST-проверка календаря; 12.7: authenticated encryption и custody ключа |
+| #1081 | `TEST_SUITE_AUDIT_2026-07-29.md` | отдельный scope владельца | ревизия тестового набора; файл не менялся по прямому запрету |
+| #1082 | `SINGLE_ENTRY_CLEANUP_2026-08-01.md` | core checklist closed; one stated residual remains | решить отдельно legacy SQL-text path, не объявляя workstream закрытым раньше |
+| #1086 | `POST_PRODUCTION_IDENTITY_AND_CONTACT_MODEL.md` | future work | owner-approved post-production identity/contact model |
+| #1087 | `TELEGRAM_MAX_MINIAPP_AND_MENU_2026-08-19.md` | external/runtime questions open | фактическая конфигурация Telegram/MAX и product decision о меню/mini-app |
+| #1088 | `RETENTION_SWEEPS_NEVER_RAN_2026-08-18.md` | implementation и runtime proof открыты | дать multipart cleanup собственный именованный root вместо прямых tenant-table операций; провести направленный repo-wide census проглоченных ошибок/no-op updates; затем доказать фактический запуск retention sweeps |
+| #1089 | `DEEP_CODE_AUDIT_PLAN.md` | audit not started | проверить неподключённый код, дубли и owner-question отдельным проходом |
+| #1090, #1091, #1092 | `OWNER_PATIENT_WALKTHROUGH_BUGS_2026-08-19.md` | owner walkthrough fixes in progress | конкретные видимые пациенту ошибки и их live acceptance |
+| #1093 | `DOCTOR_TODAY_CONFIGURABLE_WIDGETS_2026-08-23/PLAN.md` | implementation not evidenced complete | configurable Today widgets и целевые проверки |
+
+### Что было перепроверено по коду
+
+- Schedule scope существует вместе с route/unit coverage: `node /home/dev/brain/tools/code-search.mjs 'resolve schedule scope clinic admin specialist appointment lifecycle comments payment' --repo bcb -k 12` →
+  `apps/webapp/src/modules/doctor-schedule/scope.unit.test.ts` и route matrix. Поэтому у #1028 остался только
+  честный DEV-smoke, а не повторная реализация.
+- Единую дверь очереди/квот подтверждает `node /home/dev/brain/tools/code-search.mjs 'check queue port boundary transaction quota port settings reader' --repo bcb -k 12` →
+  `scripts/check-transaction-quota-port-boundary.mjs`; но `SINGLE_ENTRY_CLEANUP` сам оставляет SQL-text residual,
+  поэтому #1082 не переводится в done.
+- Для #993 `node /home/dev/brain/tools/code-search.mjs 'main menu mini app launch telegram max booking button' --repo bcb -k 20` →
+  `executeActionHomeMiniAppRemoval.unit.test.ts`; наличие кода не доказывает применённое меню у внешних ботов.
+
+### Синхронизация, которую должен сделать ведущий в taskdb
+
+- Перевести в `blocked` с `owner_waiting`: #915 (семь owner gates), #964 (один product question), #1042
+  (FIO/Gitleaks owner decisions). Эти карточки описывают ожидание решения, а не исполнимую работу.
+- #922 оставить `todo`, `owner_waiting=false`, `auto_ok=false`: это явно отложенная до post-production фаза,
+  а не текущий вопрос владельцу.
+- Переписать краткое описание #513: текущая ссылка на внешний `.lead` не является каноническим plan-файлом
+  репозитория; пока owner не назначит канон, карточка не должна выглядеть готовой к запуску.
+- Остальные `todo/doing/blocked` в таблице соответствуют открытому коду, dependency или runtime proof и не
+  менялись этим docs-only проходом.
