@@ -27,6 +27,12 @@ export type HostedVideoLink = {
   canonicalUrl: string;
   /** Значение для `<iframe src>`; наименее навязчивый режим хоста. */
   embedSrc: string;
+  /**
+   * Идентификатор ролика в терминах самого хоста (`dQw4w9WgXcQ`, `-22822305_456239017`).
+   * Нужен серверному запросу обложки (`hostedVideoThumbnail.ts`); вытаскивается здесь, чтобы
+   * канонический URL не разбирался вторым парсером.
+   */
+  videoRef: string;
 };
 
 export const HOSTED_VIDEO_PROVIDER_LABEL_RU: Record<HostedVideoProvider, string> = {
@@ -63,6 +69,7 @@ function parseYoutube(u: URL): HostedVideoLink | null {
     provider: 'youtube',
     canonicalUrl: `https://www.youtube.com/watch?v=${id}`,
     embedSrc: `https://www.youtube-nocookie.com/embed/${id}`,
+    videoRef: id,
   };
 }
 
@@ -80,6 +87,7 @@ function parseRutube(u: URL): HostedVideoLink | null {
     provider: 'rutube',
     canonicalUrl: `https://rutube.ru/video/${id.toLowerCase()}/${query}`,
     embedSrc: `https://rutube.ru/play/embed/${id.toLowerCase()}${query}`,
+    videoRef: id.toLowerCase(),
   };
 }
 
@@ -116,6 +124,7 @@ function parseVk(u: URL): HostedVideoLink | null {
     provider: 'vk',
     canonicalUrl: `https://vkvideo.ru/video${oid}_${vid}${hashOk ? `?hash=${hashOk}` : ''}`,
     embedSrc: embed.toString(),
+    videoRef: `${oid}_${vid}${hashOk ? `_${hashOk}` : ''}`,
   };
 }
 
@@ -146,6 +155,7 @@ function parseVimeo(u: URL): HostedVideoLink | null {
     provider: 'vimeo',
     canonicalUrl: `https://vimeo.com/${id}${hashOk ? `/${hashOk}` : ''}`,
     embedSrc: embed.toString(),
+    videoRef: hashOk ? `${id}:${hashOk}` : id,
   };
 }
 

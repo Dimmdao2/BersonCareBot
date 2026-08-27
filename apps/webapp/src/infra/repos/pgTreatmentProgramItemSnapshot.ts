@@ -8,7 +8,6 @@ import { contentPages, lfkExerciseMedia, lfkExercises } from '../../../db/schema
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import type { TreatmentProgramItemSnapshotPort } from '@/modules/treatment-program/ports';
 import type { TreatmentProgramItemType } from '@/modules/treatment-program/types';
-import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { isMechanicEnabled } from '@/modules/org-entitlements/service';
@@ -57,21 +56,18 @@ type CatalogMediaSnapshotRow = CatalogMediaRowInput & {
 };
 
 /**
- * Дополняет каталожные медиа (`/api/media/{uuid}`) состоянием лестницы (`catalogMediaLadderLookup`) —
- * для снимков элементов программы (пациентский UI без join к БД на клиенте). Один батч-запрос на
- * весь снимок, не на картинку.
+ * Дополняет каталожные медиа состоянием лестницы (`catalogMediaLadderLookup`) — для снимков
+ * элементов программы (пациентский UI без join к БД на клиенте). Один батч-запрос на весь снимок,
+ * не на картинку. Дверь сама различает наш файл (`/api/media/{uuid}`) и ссылку на видеохостинг,
+ * поэтому здесь id больше не разбирается.
  */
 async function catalogMediaRowsWithWorkerPreviews(
   rows: CatalogMediaRowInput[],
 ): Promise<CatalogMediaSnapshotRow[]> {
   if (rows.length === 0) return [];
-  const fileIds = rows
-    .map((r) => parseMediaFileIdFromAppUrl(r.mediaUrl))
-    .filter((id): id is string => Boolean(id));
-  const byId = await catalogMediaLadderLookup(fileIds);
+  const ladderByUrl = await catalogMediaLadderLookup(rows.map((r) => r.mediaUrl));
   return rows.map((row) => {
-    const mid = parseMediaFileIdFromAppUrl(row.mediaUrl);
-    const ladder = mid ? byId.get(mid) : undefined;
+    const ladder = ladderByUrl.get(row.mediaUrl);
     return {
       ...row,
       previewSmUrl: ladder?.previewSmUrl ?? null,

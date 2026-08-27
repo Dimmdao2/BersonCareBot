@@ -7572,6 +7572,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     kind: 'direct',
     purpose: 'the accepted media worker handles transcodes; patient reads current-clinic presentation media and only its own submissions',
     codePaths: [
+      'apps/webapp/src/infra/repos/catalogMediaLadderLookup.ts',
       'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
       'apps/webapp/src/infra/repos/pgOrgBranding.ts#selectRevision',
       'apps/webapp/src/infra/repos/s3MediaStorage.ts#getMediaRowForPlayback',
@@ -7582,7 +7583,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: [
         'available_qualities_json', 'created_at', 'display_name', 'hls_artifact_prefix',
-        'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id', 'original_name',
+        'hls_master_playlist_s3_key', 'hosted_video_source_url', 'id', 'mime_type',
+        'organization_id', 'original_name',
         'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status', 's3_key',
         'size_bytes', 'source_height', 'source_width', 'standard_rendition_at', 'status',
         'stored_path', 'uploaded_by',

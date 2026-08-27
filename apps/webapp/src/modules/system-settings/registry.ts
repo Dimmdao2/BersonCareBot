@@ -159,6 +159,12 @@ export const SYSTEM_SETTING_REGISTRY = {
   vk_community_access_token: restricted('admin', 'global', 'secret_envelope'),
   vk_callback_secret: restricted('admin', 'global', 'secret_envelope'),
   vk_callback_confirmation_token: restricted('admin', 'global', 'secret_envelope'),
+  /**
+   * Сервисный токен VK API с правом `video` — только для получения обложки ролика
+   * (`shared/lib/hostedVideoThumbnail.ts`). Это НЕ токен сообщества выше: `vk_community_access_token`
+   * — Callback API бота для сообщений, `video.get` им не отвечает (замер 27.08: `error_code 5`).
+   */
+  vk_video_service_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_bot_token: restricted('admin', 'global', 'secret_envelope'),
   telegram_webhook_secret: restricted('admin', 'global', 'secret_envelope'),
   telegram_mode: runtime('admin', 'global', 'server', 'string', 'long_polling'),

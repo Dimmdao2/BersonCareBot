@@ -5,7 +5,6 @@ import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
-import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import {
   recommendationRegions,
   recommendations as recommendationsTable,
@@ -78,18 +77,13 @@ function mapRow(
  * always read fresh, same as the treatment-program snapshot and template-list-preview doors.
  */
 async function enrichRecommendationsMediaRendition(recs: Recommendation[]): Promise<Recommendation[]> {
-  const mediaIds = recs
-    .flatMap((r) => r.media)
-    .map((m) => parseMediaFileIdFromAppUrl(m.mediaUrl))
-    .filter((id): id is string => Boolean(id));
-  if (mediaIds.length === 0) return recs;
-  const byId = await catalogMediaLadderLookup(mediaIds);
-  if (byId.size === 0) return recs;
+  const mediaUrls = recs.flatMap((r) => r.media).map((m) => m.mediaUrl);
+  if (mediaUrls.length === 0) return recs;
+  const ladderByUrl = await catalogMediaLadderLookup(mediaUrls);
   return recs.map((r) => ({
     ...r,
     media: r.media.map((m) => {
-      const mid = parseMediaFileIdFromAppUrl(m.mediaUrl);
-      const ladder = mid ? byId.get(mid) : undefined;
+      const ladder = ladderByUrl.get(m.mediaUrl);
       if (!ladder) return m;
       return {
         ...m,

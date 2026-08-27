@@ -63,6 +63,7 @@ import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { MULTIPART_SESSION_TTL_MS } from '@/modules/media/multipartConstants';
 import {
+  mediaLibraryVisibleUsagePredicateM,
   mediaReadableStatusPredicate,
   mediaReadableStatusPredicateM,
   mediaS3PurgeStatusPredicate,
@@ -288,6 +289,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const organizationId = currentPrincipalOrganizationId();
       const whereParts: SQL[] = [
         mediaReadableStatusPredicateM,
+        mediaLibraryVisibleUsagePredicateM,
         sql`m.organization_id = ${organizationId}::uuid`,
       ];
 

@@ -4288,6 +4288,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "folder_id",
           "hls_artifact_prefix",
           "hls_master_playlist_s3_key",
+          "hosted_video_source_url",
           "id",
           "mime_type",
           "next_attempt_at",

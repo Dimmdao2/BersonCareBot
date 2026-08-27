@@ -4,8 +4,12 @@ import {
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import type { MediaExerciseUsageEntry, MediaPreviewStatus } from '@/modules/media/types';
-import { mediaPreviewUrlById } from '@/shared/lib/mediaPreviewUrls';
+import type { MediaExerciseUsageEntry } from '@/modules/media/types';
+import {
+  catalogMediaLadderLookup,
+  type CatalogMediaLadderRow,
+} from '@/infra/repos/catalogMediaLadderLookup';
+import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { pgRuSubstringSearchPattern } from '@/shared/lib/ruSearchNormalize';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { RecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
@@ -36,10 +40,6 @@ type MediaDbRow = {
   media_type: string;
   sort_order: number;
   created_at: Date | string;
-  media_file_id: string | null;
-  preview_sm_key: string | null;
-  preview_md_key: string | null;
-  preview_status: string | null;
 };
 
 function requireOrganizationPrincipal(): void {
@@ -79,11 +79,7 @@ type ExerciseDbRow = {
   updated_at: Date | string;
 };
 
-function mapMediaRow(row: MediaDbRow): ExerciseMedia {
-  const mid = row.media_file_id ? String(row.media_file_id) : null;
-  const previewSmUrl = mid && row.preview_sm_key?.trim() ? mediaPreviewUrlById(mid, 'sm') : null;
-  const previewMdUrl = mid && row.preview_md_key?.trim() ? mediaPreviewUrlById(mid, 'md') : null;
-  const previewStatus = (row.preview_status ?? 'pending') as MediaPreviewStatus;
+function mapMediaRow(row: MediaDbRow, ladder: CatalogMediaLadderRow | undefined): ExerciseMedia {
   return {
     id: String(row.id),
     exerciseId: String(row.exercise_id),
@@ -91,10 +87,23 @@ function mapMediaRow(row: MediaDbRow): ExerciseMedia {
     mediaType: row.media_type as ExerciseMediaType,
     sortOrder: row.sort_order,
     createdAt: toIsoStringSafe(row.created_at),
-    previewSmUrl,
-    previewMdUrl,
-    previewStatus,
+    previewSmUrl: ladder?.previewSmUrl ?? null,
+    previewMdUrl: ladder?.previewMdUrl ?? null,
+    previewStatus: ladder?.previewStatus ?? 'pending',
   };
+}
+
+/**
+ * Rendition state for a batch of exercise media rows, through the shared catalog door.
+ *
+ * The join that used to sit inside these queries parsed `/api/media/{uuid}` out of `media_url` in
+ * SQL and therefore had no answer at all for a hosted-video link. The door knows both kinds and is
+ * the only place that decides which is which, so hosted covers arrive here for free.
+ */
+async function withMediaLadder(rows: MediaDbRow[]): Promise<ExerciseMedia[]> {
+  if (rows.length === 0) return [];
+  const ladder = await catalogMediaLadderLookup(rows.map((r) => r.media_url));
+  return rows.map((row) => mapMediaRow(row, ladder.get(row.media_url)));
 }
 
 const MEDIA_ID_UUID_RE =
@@ -174,6 +183,58 @@ async function txPgText<T>(
   return runWebappPgText<T>(queryText, values, tx);
 }
 
+/**
+ * Ставит в очередь скачивание обложки для ссылки на видеохостинг — одна служебная строка
+ * `media_files` на клинику и ссылку.
+ *
+ * Владелец: «картинку скачиваем один раз и кладём в НАШЕ хранилище». Строка заводится здесь, в той
+ * же транзакции, что и сама ссылка, поэтому сохранённое упражнение не может остаться без записи о
+ * своей обложке. В сеть отсюда никто не ходит: строка рождается `preview_status = 'pending'` и без
+ * `s3_key`, а качает, перекодирует и раскладывает по нашим ключам уже воркер превью
+ * (`mediaPreviewWorker`) — тот же, что делает превью загруженным файлам.
+ *
+ * Повторное сохранение той же ссылки переиспользует строку (частичный unique-индекс
+ * `uq_media_files_hosted_video_preview_source`), а строку, которая раньше сдалась (`failed`),
+ * возвращает в очередь с обнулённым счётчиком попыток: доктор пересохранил — значит просит ещё
+ * раз. Готовую (`ready`) и уже идущую (`pending`) не трогаем, иначе каждое сохранение карточки
+ * заставляло бы качать обложку заново.
+ *
+ * Удаление или замена медиа упражнения строку НЕ трогает: ту же ссылку может использовать другое
+ * упражнение той же клиники, а осиротевшую обложку убирает обычный retention/purge медиа.
+ */
+async function enqueueHostedVideoCover(
+  tx: WebappSqlTransactionExecutor,
+  media: readonly { mediaUrl: string; mediaType: string }[],
+): Promise<void> {
+  const seen = new Set<string>();
+  for (const item of media) {
+    if (item.mediaType !== 'hosted_video') continue;
+    const link = parseHostedVideoLink(item.mediaUrl);
+    if (!link) continue;
+    if (seen.has(link.canonicalUrl)) continue;
+    seen.add(link.canonicalUrl);
+    await txPgText(
+      tx,
+      `INSERT INTO media_files (
+         owner_kind, organization_id, original_name, stored_path, mime_type, size_bytes,
+         status, preview_status, usage_purpose, hosted_video_source_url
+       )
+       VALUES ('organization', ${ORG_ID_EXPR}, $1, $2, 'image/jpeg', 0,
+               'ready', 'pending', 'hosted_video_preview', $3)
+       ON CONFLICT (organization_id, hosted_video_source_url)
+         WHERE usage_purpose = 'hosted_video_preview'
+       DO UPDATE SET
+         preview_status = CASE WHEN media_files.preview_status = 'failed'
+                               THEN 'pending' ELSE media_files.preview_status END,
+         preview_attempts = CASE WHEN media_files.preview_status = 'failed'
+                                 THEN 0 ELSE media_files.preview_attempts END,
+         preview_next_attempt_at = CASE WHEN media_files.preview_status = 'failed'
+                                        THEN NULL ELSE media_files.preview_next_attempt_at END`,
+      [`${link.provider}-${link.videoRef}.jpg`, `hosted-video-preview/${link.provider}`, link.canonicalUrl],
+    );
+  }
+}
+
 async function replaceLfkExerciseRegions(
   tx: WebappSqlTransactionExecutor,
   exerciseId: string,
@@ -203,17 +264,8 @@ async function loadAllMediaForExercise(
   options: ExerciseAccessOptions = {},
 ): Promise<ExerciseMedia[]> {
   const r = await runWebappPgText<MediaDbRow>(
-    `SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
-            mf.id AS media_file_id,
-            mf.preview_sm_key, mf.preview_md_key, mf.preview_status
+    `SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
      FROM lfk_exercise_media em
-     -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
-     LEFT JOIN media_files mf ON mf.id = NULLIF(
-       substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
-       ''
-     )::uuid
-       AND mf.owner_kind = em.owner_kind
-       AND mf.organization_id IS NOT DISTINCT FROM em.organization_id
      WHERE em.exercise_id = $1
        AND (
          (em.owner_kind = 'organization' AND em.organization_id = ${ORG_ID_EXPR})
@@ -222,7 +274,7 @@ async function loadAllMediaForExercise(
      ORDER BY em.sort_order ASC, em.created_at ASC`,
     [exerciseId, options.includePlatformBase === true],
   );
-  return r.rows.map(mapMediaRow);
+  return withMediaLadder(r.rows);
 }
 
 function parseExerciseUsageRefs(raw: unknown): ExerciseUsageRef[] {
@@ -531,10 +583,6 @@ type ExerciseListRow = ExerciseDbRow & {
   pm_type?: string | null;
   pm_order?: number | null;
   pm_created?: Date | string | null;
-  pm_media_file_id?: string | null;
-  pm_preview_sm_key?: string | null;
-  pm_preview_md_key?: string | null;
-  pm_preview_status?: string | null;
 };
 
 export function createPgLfkExercisesPort(): LfkExercisesPort {
@@ -602,24 +650,11 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                    AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                ), ARRAY[]::uuid[]) AS region_m2m_ids,
                pm.id AS pm_id, pm.media_url AS pm_url, pm.media_type AS pm_type, pm.sort_order AS pm_order,
-               pm.created_at AS pm_created,
-               pm.media_file_id AS pm_media_file_id,
-               pm.preview_sm_key AS pm_preview_sm_key,
-               pm.preview_md_key AS pm_preview_md_key,
-               pm.preview_status AS pm_preview_status
+               pm.created_at AS pm_created
         FROM lfk_exercises e
         LEFT JOIN LATERAL (
-          SELECT em.id, em.media_url, em.media_type, em.sort_order, em.created_at,
-                 mf.id AS media_file_id,
-                 mf.preview_sm_key, mf.preview_md_key, mf.preview_status
+          SELECT em.id, em.media_url, em.media_type, em.sort_order, em.created_at
           FROM lfk_exercise_media em
-          -- TEMP: parsing media_id из media_url, будет заменено на нормальный FK media_id
-          LEFT JOIN media_files mf ON mf.id = NULLIF(
-            substring(trim(em.media_url) from '^/api/media/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'),
-            ''
-          )::uuid
-            AND mf.owner_kind = em.owner_kind
-            AND mf.organization_id IS NOT DISTINCT FROM em.organization_id
           WHERE em.exercise_id = e.id
             AND em.owner_kind = e.owner_kind
             AND em.organization_id IS NOT DISTINCT FROM e.organization_id
@@ -630,8 +665,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
         ORDER BY e.updated_at DESC`;
 
       const result = await runWebappPgText<ExerciseListRow>(sql, params);
-      return result.rows.map((row) => {
-        const media: ExerciseMedia[] = [];
+
+      /* Одна дверь на всю страницу списка, не по запросу на карточку. */
+      const previewRows = new Map<string, MediaDbRow>();
+      for (const row of result.rows) {
         if (
           row.pm_id &&
           row.pm_url &&
@@ -639,23 +676,23 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           row.pm_order != null &&
           row.pm_created != null
         ) {
-          media.push(
-            mapMediaRow({
-              id: row.pm_id,
-              owner_kind: row.owner_kind,
-              exercise_id: row.id,
-              media_url: row.pm_url,
-              media_type: row.pm_type,
-              sort_order: row.pm_order,
-              created_at: row.pm_created,
-              media_file_id: row.pm_media_file_id ?? null,
-              preview_sm_key: row.pm_preview_sm_key ?? null,
-              preview_md_key: row.pm_preview_md_key ?? null,
-              preview_status: row.pm_preview_status ?? null,
-            }),
-          );
+          previewRows.set(row.id, {
+            id: row.pm_id,
+            owner_kind: row.owner_kind,
+            exercise_id: row.id,
+            media_url: row.pm_url,
+            media_type: row.pm_type,
+            sort_order: row.pm_order,
+            created_at: row.pm_created,
+          });
         }
-        return mapExerciseRow(row, media);
+      }
+      const previews = await withMediaLadder([...previewRows.values()]);
+      const previewByExerciseId = new Map(previews.map((m) => [m.exerciseId, m]));
+
+      return result.rows.map((row) => {
+        const preview = previewByExerciseId.get(row.id);
+        return mapExerciseRow(row, preview ? [preview] : []);
       });
     },
 
@@ -748,6 +785,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
             );
             order += 1;
           }
+          await enqueueHostedVideoCover(tx, input.media);
         }
         return { row: insRow, exId: newExId };
       });
@@ -826,6 +864,7 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
             );
             order += 1;
           }
+          await enqueueHostedVideoCover(tx, input.media);
         }
         return true;
       });
