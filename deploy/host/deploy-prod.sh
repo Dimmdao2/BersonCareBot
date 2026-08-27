@@ -191,6 +191,13 @@ set +a
 # Guardrail: fail before service restart if critical public columns are missing (shared list).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
 
+# Этап 2 сводного аудита 27.08.2026 (B3): единственный manifest фоновых заданий сверяется с
+# поставляемыми artifacts и с реально установленным расписанием ДО переключения версии.
+node "${PROJECT_ROOT}/deploy/host/background-jobs-cli.mjs" --check ||
+  fail "background job manifest and shipped cron artifacts disagree"
+node "${PROJECT_ROOT}/deploy/host/background-jobs-cli.mjs" --verify-installed --env prod ||
+  fail "installed PROD schedule does not match the background job manifest"
+
 # The first rollout may not have the three operational DB roles yet. Bring up only the new
 # webapp first, so the root provisioner can prove the authenticated control route without
 # restarting any DB operational process on an unprovisioned contract.

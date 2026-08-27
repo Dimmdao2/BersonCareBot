@@ -1,25 +1,28 @@
-/** Canonical keys for periodic job ticks in `public.operator_job_status` (mirror integrator schema if applicable). */
-export const OPERATOR_MEDIA_JOB_FAMILY = 'media';
-export const OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY = 'media_transcode.reconcile';
-export const OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY = 'media.pending_delete.purge';
-export const OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY = 'media.multipart.cleanup';
-export const OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY = 'media.preview.process';
-export const OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY = 'media.playback_stats.retention';
-export const OPERATOR_MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB_KEY = 'media.hls_proxy_errors.retention';
-
-export const OPERATOR_ANALYTICS_JOB_FAMILY = 'analytics';
-export const OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY = 'analytics.product_analytics.retention';
-
-export const OPERATOR_HEALTH_JOB_FAMILY = 'health';
-export const OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY = 'health.system_health_guard.tick';
-export const OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY = 'health.operator_health_critical.tick';
-export const OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY = 'health.operator_health_digest.tick';
-export const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
-
-export const OPERATOR_BACKUP_JOB_FAMILY = 'backup';
-
-export const OPERATOR_SAAS_BILLING_JOB_FAMILY = 'saas_billing';
-export const OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY = 'saas_billing_renewal.tick';
-
-export const OPERATOR_MAINTENANCE_JOB_FAMILY = 'maintenance';
-export const OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY = 'maintenance.db_journal_retention.tick';
+/**
+ * Canonical keys for periodic job ticks in `public.operator_job_status` (mirror integrator schema if applicable).
+ *
+ * Значения живут в `backgroundJobManifest.ts` — единственном typed manifest фоновых заданий (этап 2
+ * сводного аудита 27.08.2026). Здесь остаётся только привычный вход по имени константы, чтобы
+ * маршруты и health-читатели не импортировали manifest целиком.
+ */
+export {
+  OPERATOR_MEDIA_JOB_FAMILY,
+  OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
+  OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
+  OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
+  OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
+  OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+  OPERATOR_MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB_KEY,
+  OPERATOR_ANALYTICS_JOB_FAMILY,
+  OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
+  OPERATOR_HEALTH_JOB_FAMILY,
+  OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
+  OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
+  OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
+  OPERATOR_OUTBOUND_PROBE_JOB_KEY,
+  OPERATOR_BACKUP_JOB_FAMILY,
+  OPERATOR_SAAS_BILLING_JOB_FAMILY,
+  OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,
+  OPERATOR_MAINTENANCE_JOB_FAMILY,
+  OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY,
+} from '@/modules/operator-health/backgroundJobManifest';

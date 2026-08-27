@@ -50,6 +50,8 @@ export const SAAS_ISOLATION_SOURCE_OPERATIONS = [
   'cron_health',
   'cron_media',
   'cron_analytics',
+  'cron_maintenance',
+  'cron_saas_billing',
   'cron_reminders',
   'cron_specialist_tasks',
 ] as const;
@@ -79,7 +81,15 @@ const OPERATIONS_BY_SERVICE: Readonly<
   worker: ['worker_queue_drain', 'worker_projection_delivery', 'worker_outgoing_delivery'],
   scheduler: ['scheduler_lock', 'scheduler_dispatch_tick'],
   media_worker: ['media_transcode_tick'],
-  cron: ['cron_health', 'cron_media', 'cron_analytics', 'cron_reminders', 'cron_specialist_tasks'],
+  cron: [
+    'cron_health',
+    'cron_media',
+    'cron_analytics',
+    'cron_maintenance',
+    'cron_saas_billing',
+    'cron_reminders',
+    'cron_specialist_tasks',
+  ],
 };
 
 export type SaasIsolationExplanationStatus = 'explained' | 'unexplained';

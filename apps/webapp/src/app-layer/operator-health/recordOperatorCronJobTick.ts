@@ -5,7 +5,7 @@ import {
   classifySaasIsolationFailure,
   isRecognizedSaasIsolationFailure,
 } from '@bersoncare/db-principal';
-import type { SaasIsolationSourceOperation } from '@/modules/operator-health/saasIsolationDiagnostics';
+import { resolveCronIsolationOperation } from '@/modules/operator-health/cronIsolationOperations';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 
 export type RecordOperatorCronJobTickInput = {
@@ -16,14 +16,6 @@ export type RecordOperatorCronJobTickInput = {
   success: boolean;
   error?: string;
   metaJson?: Record<string, unknown>;
-};
-
-const CRON_OPERATION_BY_FAMILY: Readonly<Record<string, SaasIsolationSourceOperation>> = {
-  health: 'cron_health',
-  media: 'cron_media',
-  analytics: 'cron_analytics',
-  reminders: 'cron_reminders',
-  specialist_tasks: 'cron_specialist_tasks',
 };
 
 /**
@@ -55,7 +47,7 @@ export async function recordOperatorCronJobTickBestEffort(
       }
     });
   } catch (err) {
-    const sourceOperation = CRON_OPERATION_BY_FAMILY[input.jobFamily];
+    const sourceOperation = resolveCronIsolationOperation(input.jobFamily);
     if (sourceOperation && isRecognizedSaasIsolationFailure(err)) {
       void reportSaasIsolationEventBestEffort({
         eventClass: classifySaasIsolationFailure(err),

@@ -108,6 +108,7 @@ ALTER TABLE public.saas_isolation_events
       ('worker', 'worker_outgoing_delivery'), ('scheduler', 'scheduler_lock'),
       ('scheduler', 'scheduler_dispatch_tick'), ('media_worker', 'media_transcode_tick'),
       ('cron', 'cron_health'), ('cron', 'cron_media'), ('cron', 'cron_analytics'),
+      ('cron', 'cron_maintenance'), ('cron', 'cron_saas_billing'),
       ('cron', 'cron_reminders'), ('cron', 'cron_specialist_tasks')
     )
   );
@@ -144,6 +145,7 @@ BEGIN
     ('worker','worker_outgoing_delivery'), ('scheduler','scheduler_lock'),
     ('scheduler','scheduler_dispatch_tick'), ('media_worker','media_transcode_tick'),
     ('cron','cron_health'), ('cron','cron_media'), ('cron','cron_analytics'),
+    ('cron','cron_maintenance'), ('cron','cron_saas_billing'),
     ('cron','cron_reminders'), ('cron','cron_specialist_tasks')
   ) THEN RAISE EXCEPTION 'invalid_saas_isolation_service_operation' USING ERRCODE = '22023'; END IF;
   IF p_explanation_status NOT IN ('explained','unexplained') THEN
