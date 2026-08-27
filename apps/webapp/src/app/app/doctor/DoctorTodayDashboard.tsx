@@ -226,7 +226,7 @@ export function DoctorTodayDashboard({
   return (
     <div
       id="doctor-today-dashboard"
-      className={`${doctorPageStackClass} min-h-0 flex-1 overflow-hidden`}
+      className={`${doctorPageStackClass} min-h-0 flex-1`}
     >
       <DoctorPageHeader
         id="doctor-today-header"
