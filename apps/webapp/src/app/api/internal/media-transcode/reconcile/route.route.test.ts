@@ -73,6 +73,7 @@ describe('media transcode reconcile result', () => {
     const response = await POST(request());
 
     expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, report: { enqueue: { errors: 0 } } });
     expect(mocks.recordSuccess).toHaveBeenCalledOnce();
     expect(mocks.recordFailure).not.toHaveBeenCalled();
   });
@@ -99,6 +100,33 @@ describe('media transcode reconcile result', () => {
     );
   });
 
+  it('treats an aborted reconcile as a failure even when no enqueue call errored', async () => {
+    vi.clearAllMocks();
+    mocks.env.INTERNAL_JOB_SECRET = 'test-secret';
+    mocks.backfill.mockResolvedValueOnce(report(0, 'cursor_invalidated'));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toMatchObject({
+      ok: false,
+      error: 'reconcile_partial_failure',
+      report: { abortedReason: 'cursor_invalidated' },
+    });
+    expect(mocks.recordSuccess).not.toHaveBeenCalled();
+    expect(mocks.recordFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: 'cursor_invalidated',
+        metaJson: expect.objectContaining({
+          abortedReason: 'cursor_invalidated',
+          enqueueErrors: 0,
+          queuedNew: 1,
+          candidatesScanned: 3,
+        }),
+      }),
+    );
+  });
+
   it('does not disguise a missing runtime secret as an accepted feature-disabled response', async () => {
     vi.clearAllMocks();
     mocks.env.INTERNAL_JOB_SECRET = undefined;
@@ -108,5 +136,34 @@ describe('media transcode reconcile result', () => {
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toEqual({ ok: false, error: 'not_configured' });
     expect(mocks.backfill).not.toHaveBeenCalled();
+  });
+
+  it('keeps a completed reconcile successful when only the secondary success tick write fails', async () => {
+    vi.clearAllMocks();
+    mocks.env.INTERNAL_JOB_SECRET = 'test-secret';
+    mocks.backfill.mockResolvedValueOnce(report(0));
+    mocks.recordSuccess.mockRejectedValueOnce(new Error('operator health unavailable'));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, report: { enqueue: { errors: 0 } } });
+    expect(mocks.recordSuccess).toHaveBeenCalledOnce();
+    expect(mocks.recordFailure).not.toHaveBeenCalled();
+  });
+
+  it('turns a backfill exception into a failed HTTP result and failure tick', async () => {
+    vi.clearAllMocks();
+    mocks.env.INTERNAL_JOB_SECRET = 'test-secret';
+    mocks.backfill.mockRejectedValueOnce(new Error('queue unavailable'));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({ ok: false, error: 'reconcile_failed' });
+    expect(mocks.recordSuccess).not.toHaveBeenCalled();
+    expect(mocks.recordFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ error: 'queue unavailable', metaJson: {} }),
+    );
   });
 });
