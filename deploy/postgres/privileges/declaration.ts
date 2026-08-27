@@ -1043,7 +1043,11 @@ const TABLE_ROWS: TableRow[] = [
     + 'клиники A правил комментарии клиники B. Каталожный вырез теперь несёт свою организацию '
     + '(rls-sql-renderer.mjs sharedScopeSql): «общая» строка общая ВНУТРИ своей клиники' },
   { t: 'public.content_access_grants_webapp', cls: 'P', org: true, why: 'Выданные пациенту доступы к контенту — '
-    + 'пациент теряет доступ к выданным ему материалам' },
+    + 'пациент теряет доступ к выданным ему материалам',
+    pol: 'A1/A2 ЗАКРЫТЫ 27.08: ветка персонала сравнивает организацию (до этого проверяла только имя роли — '
+    + 'сотрудник любой клиники читал всю таблицу вместе с чужими token_hash); пациентская ветка — своя клиника, '
+    + 'свой человек, доступ не отозван и не истёк, колонки сужены грантом на шесть штук. Пациентский '
+    + 'entitlement-путь идёт этой дверью, а не через 42501' },
   { t: 'public.content_pages', cls: 'C', org: true, wall: 'clinic+patient',
     wallWhy: 'Сотрудник управляет CMS своей клиники; пациент читает только опубликованные страницы своей клиники',
     why: 'Страницы CMS — контент, который читает пациент',
@@ -1334,20 +1338,20 @@ const TABLE_ROWS: TableRow[] = [
     + 'docs/_TODO/runs/integrator-cleanup/TRACK_D_DUPLICATE_STORE_CUTOVER_2026-08-23.md' },
   { t: 'public.reminder_rules', cls: 'P', org: true, why: 'правила напоминаний пациенту — без неё пациент перестаёт '
     + 'получать напоминания' },
-  { t: 'public.saas_billing_accounts', cls: 'C', why: 'платёжный профиль клиники — без неё клиника не выставит счёт',
+  { t: 'public.saas_billing_accounts', cls: 'C', org: true, why: 'платёжный профиль клиники — без неё клиника не выставит счёт',
     defect: ['D4-role-escalation'] },
-  { t: 'public.saas_billing_invoices', cls: 'C', why: 'счета — оплата подписки', defect: ['D4-role-escalation'] },
+  { t: 'public.saas_billing_invoices', cls: 'C', org: true, why: 'счета — оплата подписки', defect: ['D4-role-escalation'] },
   { t: 'public.saas_billing_periods', cls: 'R', why: 'справочник периодов оплаты — выбор «месяц/год» при оплате',
     pol: 'I9: сегодня закрыто ГРАНТОМ (только app_platform_settings), а не политикой; у saas_tariffs — RLS+FORCE и '
     + 'четыре read-политики. Без read-политики экран выбора периода даст тихий ноль',
     defect: ['D4-role-escalation', 'I9-grant-instead-of-policy'] },
-  { t: 'public.saas_billing_provider_events', cls: 'C', why: 'вебхуки провайдера — идемпотентность оплаты',
+  { t: 'public.saas_billing_provider_events', cls: 'C', org: true, why: 'вебхуки провайдера — идемпотентность оплаты',
     defect: ['D4-role-escalation'] },
-  { t: 'public.saas_billing_refunds', cls: 'C', why: 'возвраты — возврат денег клинике', pol: 'D13: у клиники ни '
+  { t: 'public.saas_billing_refunds', cls: 'C', org: true, why: 'возвраты — возврат денег клинике', pol: 'D13: у клиники ни '
     + 'гранта, ни политики — стены клиники на возвратах нет как объекта, а глобальная роль достижима из тенантного '
     + 'рантайма. Либо пара политик по образцу invoices, либо объявленное «возвраты — только платформа» + C16',
     defect: ['D13-billing-refunds', 'D4-role-escalation'] },
-  { t: 'public.saas_billing_subscriptions', cls: 'C', why: 'подписка клиники — доступ клиники к продукту',
+  { t: 'public.saas_billing_subscriptions', cls: 'C', org: true, why: 'подписка клиники — доступ клиники к продукту',
     defect: ['D4-role-escalation'] },
   { t: 'public.saas_isolation_coverage_runs', cls: 'S', owner: 'saas_telemetry_owner', why: 'прогоны покрытия — гейт '
     + 'деплоя TEST' },
@@ -1355,9 +1359,9 @@ const TABLE_ROWS: TableRow[] = [
     + 'тренд изоляции на экране здоровья' },
   { t: 'public.saas_isolation_events', cls: 'S', owner: 'saas_telemetry_owner', why: 'события нарушения изоляции — '
     + 'без неё платформа не видит собственные утечки' },
-  { t: 'public.saas_org_entitlement_overrides', cls: 'C', why: 'ручные включения механик клинике — точечная выдача '
+  { t: 'public.saas_org_entitlement_overrides', cls: 'C', org: true, why: 'ручные включения механик клинике — точечная выдача '
     + 'функций клинике', defect: ['D4-role-escalation'] },
-  { t: 'public.saas_organization_trials', cls: 'C', why: 'триал клиники — бесплатный период',
+  { t: 'public.saas_organization_trials', cls: 'C', org: true, why: 'триал клиники — бесплатный период',
     defect: ['D4-role-escalation'] },
   { t: 'public.saas_paid_period_policy', cls: 'S', why: 'поведение после окончания оплаченного периода — что '
     + 'происходит с клиникой после неоплаты', pol: 'I8: у сестринских '
@@ -8177,18 +8181,39 @@ function revision10TenantPolicies(
   });
 }
 
-const REV10_EXPLICIT_ORG_COLUMN = new Set([
-  'public.operator_health_failure_archive',
-  'public.be_organization_members', 'public.manual_patient_commands', 'public.org_brand_revisions',
-  'public.organization_slug_claims', 'public.organization_slug_rename_events', 'public.patient_bookings',
-  'public.product_analytics_hourly', 'public.saas_billing_accounts', 'public.saas_billing_invoices',
-  'public.saas_billing_provider_events', 'public.saas_billing_refunds', 'public.saas_billing_subscriptions',
-  'public.saas_org_entitlement_overrides', 'public.saas_organization_trials',
+/**
+ * Роли БЕЗ арендной личности: у них нет текущей организации вовсе, поэтому организационный
+ * предикат для них не сужение стены, а гарантированный ноль строк. Платформенная роль стоит
+ * отдельно (её ветку рисует `PLATFORM_ROLE_SCOPE` ниже), операционные роли обслуживают весь
+ * кластер: очередь доставки, ретеншн, транскодирование, почасовые агрегации.
+ */
+const REV10_CLUSTER_SCOPE_ROLES = new Set([
+  'app_pre_session', 'app_platform_settings', 'app_platform_admin', 'saas_telemetry_operator',
+  'app_service', 'app_worker', 'app_operational_delivery_worker', 'app_operational_maintenance',
+  'app_operational_media_worker', 'app_operational_scheduler',
 ]);
 
-function revision10DirectBusinessPredicate(tableKey: string, access: Extract<RelationAccess, { kind: 'direct' }>): string {
+/**
+ * Бизнес-квал прямой роли. `carriesOrganizationColumn` — объявленный переписью факт «у таблицы есть
+ * колонка organization_id» (`org: true`), а не ещё один список.
+ *
+ * До 27.08 этот факт жил ВТОРЫМ ручным списком (`REV10_EXPLICIT_ORG_COLUMN`), которому приходилось
+ * совпадать с первым (`specialized` в `revision10Database`). Совпадать он не был обязан ничем, и не
+ * совпал: `public.content_access_grants_webapp` стояла в списке «политику рисуем здесь» и
+ * отсутствовала в списке «добавить организационный предикат» — сгенерированная политика проверяла
+ * только имя роли, и сотрудник любой клиники читал ВСЮ таблицу вместе с токенами чужих пациентов
+ * (A1 системного аудита 27.08). Список, который мог разъехаться, удалён; за тем, что предикат
+ * действительно доехал до каждой разрешающей политики, следит `tenantPredicateViolations`
+ * (`tenant-wall.mjs`), и генератор без него артефакт не отдаёт вовсе.
+ */
+function revision10DirectBusinessPredicate(
+  tableKey: string,
+  access: Extract<RelationAccess, { kind: 'direct' }>,
+  carriesOrganizationColumn: boolean,
+): string {
   const roles = [...new Set(access.grants.map((grant) => grant.role))].sort();
   const ordinaryRoles = roles.filter((role) => !isRevision10TenantServiceRole(role));
+  const tenantBoundRoles = ordinaryRoles.filter((role) => !REV10_CLUSTER_SCOPE_ROLES.has(role));
   const rolePredicate = ordinaryRoles.length > 0
     ? ordinaryRoles.map((role) => `current_user = '${role}'::name`).join(' OR ')
     : 'false';
@@ -8198,6 +8223,13 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.be_appointment_staff_comments') return `(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())`
     + ' AND EXISTS (SELECT 1 FROM public.be_appointments parent_appointment WHERE parent_appointment.id = appointment_id AND parent_appointment.organization_id = (SELECT app.current_org_id())))';
   if (tableKey === 'public.be_patient_booking_profiles') return "(current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id()))";
+  // A2 (27.08): пациентский путь прав доступа к контенту — ОДНА узкая дверь, не table-wide грант.
+  // Пациент видит только СВОЙ действующий доступ в СВОЕЙ клинике; отозванный и истёкший ему не
+  // видны вовсе, поэтому «можно/нельзя показать материал» решается строкой, а не постфильтром.
+  // Колонки сужены грантом (`relation-access.ts`): `token_hash` и интеграторские идентификаторы
+  // пациенту не выдаются. Сотрудник остаётся внутри своей клиники — до этой правки его ветка
+  // организацию не проверяла вовсе.
+  if (tableKey === 'public.content_access_grants_webapp') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND platform_user_id = app.current_patient_user_id() AND revoked_at IS NULL AND expires_at > now() ELSE false END)";
   if (tableKey === 'public.content_pages') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND is_published = true AND archived_at IS NULL AND deleted_at IS NULL ELSE false END)";
   if (tableKey === 'public.content_sections') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_patient'::name THEN organization_id = (SELECT app.current_org_id()) AND is_visible = true ELSE false END)";
   if (tableKey === 'public.content_section_slug_history') return "(current_user IN ('app_staff'::name, 'app_patient'::name) AND organization_id = (SELECT app.current_org_id()))";
@@ -8209,7 +8241,7 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   if (tableKey === 'public.operator_health_failure_archive') return "((current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())) OR (current_user = 'app_platform_settings'::name AND organization_id IS NULL))";
   if (tableKey === 'public.system_settings_audit') return "(CASE WHEN current_user = 'app_staff'::name THEN organization_id = (SELECT app.current_org_id()) WHEN current_user = 'app_platform_settings'::name THEN organization_id IS NULL ELSE false END)";
   if (
-    REV10_EXPLICIT_ORG_COLUMN.has(tableKey)
+    carriesOrganizationColumn
     && PLATFORM_ROLE_SCOPE.mayTouch.includes(tableKey)
     && ordinaryRoles.includes('app_platform_settings')
   ) {
@@ -8222,7 +8254,14 @@ function revision10DirectBusinessPredicate(tableKey: string, access: Extract<Rel
   const platformUserColumn = REV10_PLATFORM_USER_COLUMN[tableKey];
   if (platformUserColumn) return `((${rolePredicate}) AND EXISTS (SELECT 1 FROM public.be_organization_members access_member`
     + ` WHERE access_member.platform_user_id = ${platformUserColumn} AND access_member.organization_id = (SELECT app.current_org_id()) AND access_member.status = 'active'))`;
-  if (REV10_EXPLICIT_ORG_COLUMN.has(tableKey)) return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
+  // Организационный предикат появляется ровно тогда, когда его есть чем проверить (колонка объявлена)
+  // и есть кого им ограничить (в грантах есть роль с арендной личностью). Отношение, к которому
+  // допущены ТОЛЬКО кластерные роли (очередь доставки, ретеншн, транскодирование), стеной клиники
+  // не закрывается: у этих ролей текущей организации нет, и предикат дал бы им гарантированный ноль
+  // строк вместо стены.
+  if (carriesOrganizationColumn && tenantBoundRoles.length > 0) {
+    return `((${rolePredicate}) AND organization_id = (SELECT app.current_org_id()))`;
+  }
   return `(${rolePredicate})`;
 }
 
@@ -8548,6 +8587,10 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const platformScoped = (predicate: string) => PLATFORM_ROLE_SCOPE.mayTouch.includes(key)
       ? `(current_user = 'app_platform_settings'::name OR (${predicate}))`
       : predicate;
+    // Какая СЕМЬЯ политик рисуется, а не есть ли у таблицы стена: перечисленные отношения имеют
+    // собственный квал в `revision10DirectBusinessPredicate` и потому идут мимо locked/explicit
+    // веток. Организационный предикат этот список больше не решает — он выводится из `org`, и
+    // расхождение двух списков, которым была A1, стало невыразимым (плюс инвариант `tenant-wall.mjs`).
     const specialized = new Set(['public.clinical_test_regions', 'public.be_appointment_staff_comments',
       'public.be_patient_booking_profiles', 'public.content_access_grants_webapp', 'public.content_pages',
       'public.content_sections',
@@ -8558,7 +8601,8 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const directBusiness: PolicyDecl[] =
       (access?.kind === 'direct' && ordinaryDirectRoles.length > 0 ? [{
         name: `rev10_direct_business_${index + 1}`, as: 'PERMISSIVE', cmd: 'ALL', to: ordinaryDirectRoles,
-        using: revision10DirectBusinessPredicate(key, access), withCheck: revision10DirectBusinessPredicate(key, access),
+        using: revision10DirectBusinessPredicate(key, access, table.org === true),
+        withCheck: revision10DirectBusinessPredicate(key, access, table.org === true),
         note: `exact direct role business wall for ${key}`,
       }] : []);
     const runtimeBusinessBaseRaw: PolicyDecl[] = !active ? []

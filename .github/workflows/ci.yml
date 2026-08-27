@@ -46,6 +46,40 @@ jobs:
       - run: pnpm test:db-principal
       - uses: ./.github/actions/cancel-on-failure
 
+  # A4/этап 6 системного аудита 27.08: гейты прав и генератора существовали в репозитории, но CI не
+  # запускал ни одного из них — декларация, генератор и закоммиченный SQL могли разъехаться, а merge
+  # остаться зелёным. Именно так и родилась дыра в стене клиники у content_access_grants_webapp.
+  # Три отдельных быстрых job, а не хвост общего прогона: каждый краснеет самостоятельно и не ждёт
+  # webapp/build. `--check` перегенерирует артефакты и сверяет их с закоммиченными побайтно;
+  # `--census` проверяет пару «callsite → runtime principal → отношение».
+  test-db-privileges:
+    name: Test (db privileges / RLS declaration)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm test:db-privileges
+      - uses: ./.github/actions/cancel-on-failure
+
+  test-scripts:
+    name: Test (repo scripts / deploy host)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm test:scripts
+      - uses: ./.github/actions/cancel-on-failure
+
+  privileges-generated:
+    name: Privileges generated artifacts match the declaration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup-pnpm
+      - run: pnpm check:db-privileges-generated
+      - run: pnpm check:db-privileges-census
+      - uses: ./.github/actions/cancel-on-failure
+
   test-webapp-core:
     name: Test (webapp core ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
