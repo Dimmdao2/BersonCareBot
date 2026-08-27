@@ -299,6 +299,35 @@ PROD и домены не входят в этот проход.
 Приёмка этапа: статический инвариант, privilege/RLS oracle с отрицательной инъекцией, живые A/B clinic probes и
 patient onboarding/content probes на DEV, затем TEST.
 
+**Статус 27.08 (ветка `wt/systemic-access-20260827`).** Код закрыт, живая приёмка — нет.
+
+- [x] Декларация — единственный источник. Второй ручной список (`REV10_EXPLICIT_ORG_COLUMN` в
+      `declaration.ts`) удалён; организационный предикат выводится из `org === true` самой декларации, а
+      расхождение с первым списком, которым и была A1, стало невыразимым. Семь `saas_*` таблиц несут
+      `organization_id` и были объявлены без `org`, что и делало вывод невозможным, — объявление исправлено.
+- [x] Инвариант: `tenantPredicateViolations` в `deploy/postgres/privileges/tenant-wall.mjs` (том же файле, что
+      уже был единственным источником стены). Проверяется по объявленной политике, а не по тексту SQL.
+      Стоит в `generatePrivilegesSql`: генератор не отдаёт артефакт со стеной-дырой, поэтому краснеет и
+      `--check`, и каждая пруф-фикстура. Инъекция удаления предиката проверена, `exit 1`.
+- [x] Access census знает runtime principal: `assertPatientCallsiteDoors`
+      (`deploy/postgres/privileges/access-census.mjs`, гейт в `generate-cli.mjs --census`). Принципал не
+      объявляется, а выводится: модуль, достижимый ТОЛЬКО с пациентской поверхности (граф импортов плюс
+      разбор `deps.<ключ>` через `buildAppDeps`), исполняется под пациентским принципалом. Такому модулю
+      запрещено отношение без пациентской двери.
+- [x] Одна узкая дверь entitlements: `app_patient` получает SELECT ровно на шесть колонок
+      `content_access_grants_webapp` (`token_hash` и интеграторские идентификаторы не выдаются), а политика
+      сужает строки до «своя клиника + свой человек + не отозван + не истёк». Ветка сотрудника впервые
+      сравнивает организацию. Новый DB root не понадобился: права и RLS целиком принадлежат генератору,
+      миграции здесь нет.
+- [x] Продуктовое ветвление на старую модель снято: `resolveWebappDbPrincipalContextMode`
+      (`apps/webapp/src/config/env.ts`) отказывает старту при отсутствующем или ином режиме;
+      `infra/db/withClient.ts` спрашивает ту же одну точку. Тестовый harness называет режим явно и работает.
+- [ ] Живые A/B clinic probes и patient onboarding/content probes на DEV, затем TEST. **Не сделано** —
+      выполняется вместе с этапом 7; общий DEV/TEST в этот ход не занимался.
+
+Слепой kill-set, таблица «что сломано → что покраснело» и прогоны:
+[`runs/systemic-access/BLIND_KILL_SET_2026-08-27.md`](runs/systemic-access/BLIND_KILL_SET_2026-08-27.md).
+
 ### Этап 2. Один manifest фоновых заданий
 
 - Свести route, method, principal, cadence, timeout, staleness, Host/Origin и среду в один typed manifest.
@@ -365,6 +394,19 @@ schedule job красит deploy/reconcile-проверку до запуска 
 
 Приёмка этапа: planted tenant-wall drift, stale generated SQL, пропущенный schedule artifact и duplicate timestamp
 краснят каждый свой быстрый job независимо.
+
+**Статус 27.08 (ветка `wt/systemic-access-20260827`).**
+
+- [x] Три отдельных параллельных job в `.github/workflows/ci.yml`: `test-db-privileges`, `test-scripts`,
+      `privileges-generated` (`--check` плюс `--census`). Хвостом общего прогона они не являются.
+- [x] Уникальность timestamp миграций: `findMigrationTimestampCollisions`
+      (`deploy/postgres/privileges/migration-order.mjs`) внутри существующего `findMigrationStaticViolations`
+      и в раннере `migrate-local.mjs`. Четыре уже применённые исторические группы не переименованы, а
+      зафиксированы КАК СОСТАВ: добавление файла в такую группу краснеет так же, как новое совпадение.
+      Гейт едет в job `test-db-privileges`.
+- [ ] Пропущенный schedule artifact — предмет этапа 2, здесь не трогался.
+- [ ] `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` проверяет только форму имени: проверка совпадения
+      timestamp в этот раннер не добавлена (файл вне scope хода). DEV/TEST-путь закрыт `migrate-local.mjs`.
 
 ### Этап 7. Одна связная живая приёмка и синхронизация документов
 

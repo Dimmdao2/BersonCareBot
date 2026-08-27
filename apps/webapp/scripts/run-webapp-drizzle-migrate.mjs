@@ -23,6 +23,7 @@ import {
   describeObject,
   findForeignLedgerRows,
   findMigrationNameViolations,
+  findMigrationTimestampCollisions,
   findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
@@ -261,7 +262,8 @@ if (!url) {
 assertNoTransactionForbiddenConcurrentIndexes(readCurrentMigrationSources());
 
 const beforeTag = process.env.WEBAPP_MIGRATIONS_BEFORE_TAG?.trim() || undefined;
-const phase = selectMigrationPhase(readMigrationFolder(migrationsFolder), beforeTag);
+const migrations = readMigrationFolder(migrationsFolder);
+const phase = selectMigrationPhase(migrations, beforeTag);
 
 // The name rule used to live only in `pnpm run lint` (`check-drizzle-migration-order.sh`): a file
 // with an old hand-picked number was never checked by this
@@ -273,6 +275,17 @@ if (nameViolations.length > 0) {
   console.error(
     `[migrate] migration_name_violation ${nameViolations
       .map((tag) => `${tag}.sql is not named YYYYMMDDTHHMMSS_lower_snake_case; there are no exceptions.`)
+      .join(' ')}`,
+  );
+  process.exit(1);
+}
+
+const timestampCollisions = findMigrationTimestampCollisions(migrations);
+if (timestampCollisions.length > 0) {
+  console.error(
+    `[migrate] migration_timestamp_collision ${timestampCollisions
+      .map((collision) => `${collision.timestamp} is shared by ${collision.tags.join(', ')};`
+        + ' the applied historical collisions are a closed baseline, pick a free UTC second.')
       .join(' ')}`,
   );
   process.exit(1);
