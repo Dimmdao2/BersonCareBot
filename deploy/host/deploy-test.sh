@@ -194,7 +194,7 @@ export BCB_MIGRATION_ENTRYPOINT=deploy-test.sh
 [[ "$(id -u)" -ne 0 ]] || fail 'run as the non-root repository owner'
 [[ "$(realpath "$SRC_REPO")" == /home/dev/dev-projects/BersonCareBot ]] || fail 'source repository path guard failed'
 [[ -d "$DEPLOY_REPO/.git" ]] || fail 'TEST deploy checkout is missing'
-for command in curl flock git mktemp node pnpm realpath sudo systemctl; do
+for command in curl find flock git mktemp node pnpm realpath sudo systemctl; do
   command -v "$command" >/dev/null 2>&1 || fail "required command is unavailable: $command"
 done
 for env_file in "$API_ENV" "$WEBAPP_ENV"; do
@@ -294,7 +294,15 @@ RUN_TENANT_ISOLATION_WALL_DB=1 TENANT_ISOLATION_PROOF_DB="$DB" \
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   pnpm install --frozen-lockfile && \
   rm -rf dist && pnpm build && \
-  rm -rf apps/webapp/.next && pnpm build:webapp && \
+  if [ -L apps/webapp/.next ] || [ -L apps/webapp/.next/cache ]; then \
+    echo 'FATAL: refusing to preserve Next build cache through a symlink' >&2; exit 1; \
+  fi && \
+  if [ -d apps/webapp/.next ]; then \
+    find apps/webapp/.next -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf -- {} +; \
+  else \
+    mkdir -p apps/webapp/.next; \
+  fi && \
+  pnpm build:webapp && \
   pnpm --dir apps/media-worker build && \
   bash deploy/host/sync-webapp-standalone-assets.sh"
 

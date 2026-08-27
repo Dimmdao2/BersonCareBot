@@ -724,6 +724,11 @@ bash deploy/host/deploy-prod.sh
 
 `deploy-test.sh` — единственный будущий entrypoint обновления существующей именованной TEST: он берёт lock до создания collision-safe transcript, собирает committed branch и применяет только B0-forward изменения. Он не создаёт базу, не восстанавливает dump и не исполняет historical, disposable, A0/A1 или PROD A→B0 machinery.
 
+Перед `next build` скрипт удаляет прежние исполняемые артефакты `.next`, но сохраняет только
+`apps/webapp/.next/cache` как build-cache следующей сборки. Symlink вместо `.next` или этого cache считается
+неожиданным состоянием и останавливает deploy; runtime image-cache TEST остаётся отдельным systemd
+`CacheDirectory` и в build-cache не смешивается.
+
 Deploy не создаёт, не seed-ит и не требует persistent fixture-данные. Ролевые и продуктовые проверки выполняются
 от уже зарегистрированных owner-учёток/клиник согласно `AGENTS.md` §1b; отсутствие специально созданной Clinic A/B
 не является deploy precondition или recovery path.
