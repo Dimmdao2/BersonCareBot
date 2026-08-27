@@ -1,24 +1,18 @@
 # Therapysto + универсальное patient-branding — implementation plan
 
-**Дата:** 2026-08-21. **Ветка:** `wt/therapysto-patient-branding-plan`. **Статус:** план после авторского
-исследования и независимого аудита; product code не менялся. Фактическая база —
-`CURRENT_STATE_AND_GAP_REPORT.md`, мировые аналоги и ограничения Yandex OAuth —
-`EXTERNAL_PRODUCT_RESEARCH.md`, замечания к первой редакции — `INDEPENDENT_PLAN_AUDIT.md`.
+**Дата:** 2026-08-21. **Актуализировано:** 2026-08-27 по текущему `feat/doctor-ui-rebuild`.
 
-> ## Сведение этапов в `feat` — по отдельной команде владельца (22.08.2026)
->
-> Дословно: «никакой этап не вливается пока — работаем в ветке».
->
-> Речь о работе **ведущего**, а не об агентах: агенты свои ветки не приземляют нигде в этом репозитории,
-> это общий порядок, а не правило этой инициативы. Здесь фиксируется другое — что и **ведущий** не сводит
-> готовый этап в `feat/doctor-ui-rebuild`, пока владелец не скажет. Относится ко всем этапам `A`–`F`.
->
-> Причина: владелец даёт оба домена сразу, и переезд на Therapysto/Therapygo идёт одним куском. Половина
-> переименования в общей ветке — это состояние, в котором доктор видит одно имя, пациент другое, а письма
-> третье; в ветке этапа это нормальная промежуточная точка, в `feat` — мусор, который придётся объяснять.
->
-> Всё остальное идёт как обычно: работа в ветках этапов, коммиты, независимый адверсарный аудит, строки
-> вердиктов в `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`, подтягивание `feat` в ветку этапа.
+**Текущее состояние.** Реализация Therapysto/Therapygo и универсального patient-branding уже независимо
+принята, сведена в `feat` и работает на TEST без переключения доменов. Старое ограничение «не вливать в feat»
+выполнено и больше не действует: владелец позднее поручил свести все ветки и исправить пересечения. Пока
+сохраняется существующая адресная схема `test.bersoncare.ru`; значения `therapysto.ru`,
+`admin.therapysto.ru`, `therapygo.ru`, `*.therapygo.ru` и `app.bersoncare.ru` в runtime/proxy/TLS не активированы.
+
+Реально остались: отдельное доменное включение (DNS/TLS/proxy/env, BersonCare как первый живой branded tenant и
+smoke новых patient/staff поверхностей), обязательный мониторинг DNS/сертификатов `C5`, второй фактор специалиста
+`F2c` после переезда и общий с Track D живой provider-gate телефона/кода/доставки `TPB-12`. Остальная кодовая
+часть принята; точный независимый verdict — `E3_FINAL_IMPLEMENTATION_AUDIT_2026-08-24.md` (`PASS` для принятого
+product scope, но не для перечисленных runtime/provider gates).
 
 ## 1. Итоговое решение
 
@@ -299,7 +293,7 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 **Опции для тех, кто дорос** (обязанностью не являются): своя почта (свой SMTP плюс DNS-подписи на её стороне)
 и свой бот. Включаются только после успешной живой отправки — гейт (б) пункта `C5`.
 
-**Свой домен клиники** (`B8`, отложен): CNAME на нас, а не A-запись с IP — IP меняется при переезде сервера
+**Свой домен клиники** (`B8`, остаётся в отдельном доменном включении): CNAME на нас, а не A-запись с IP — IP меняется при переезде сервера
 и разом ломает всех; A-запись только для примитивных DNS без CNAME. Сертификат выпускаем мы.
 
 **Второй фактор к домену не привязан.** К домену привязан только passkey. Код на почту и приложение-аутентификатор
@@ -404,11 +398,13 @@ Jane, Cliniko, Fresha считают цвета и логотип космети
 
 ### 1.5 Боты и transactional mail
 
-- Все patient-facing intents, начатые на branded surface — login/contact confirmation, recovery/security codes и
-  notifications — несут `organizationId` и `senderScope='clinic_required'` для Telegram/MAX. Platform bot fallback
-  запрещён и уже обеспечивается существующим `dispatchPort`; задача — провести через него все эти intents.
-- Branded activation требует настроенные Telegram/MAX credentials для каналов, которые UI предлагает пациенту.
-  Неготовый канал не показывается; готовый не откатывается на platform sender.
+- Все patient-facing intents — подтверждение телефона средствами мессенджера, login/recovery/security codes и
+  обычные уведомления — несут контекст организации и идут через существующий `dispatchPort` как
+  `clinic_if_configured`: обычный платформенный бот является рабочим путём по умолчанию, а настроенный и живьём
+  проверенный бот клиники забирает её интенты без отката на платформенного отправителя.
+- Branded activation не требует собственного Telegram/MAX-бота. Неготовый собственный канал не включается;
+  обычный платформенный бот продолжает подтверждать телефон и доставлять коды и уведомления. Только рассылки
+  доступны исключительно брендированным клиникам.
 - SMS остаётся отдельной tariff capability и в branding не включается.
 - Existing `clinic_smtp_outbound` остаётся transport source. Один transactional-mail profile resolver соединяет
   его с `EffectivePatientBrand` и per-org template overrides.
@@ -526,17 +522,13 @@ Checkbox закрывается только доказательством, у�
 - [x] `TPB-11` Branded root не показывает Therapysto home/directory и ведёт к brand login/recovery, clinic card,
   booking и patient cabinet. Доказательство: branded-host page/navigation tests.
   **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `AUDIT_NIGHT_B5_2026-08-23.md` (PASS) и `AUDIT_NIGHT_B5A_2026-08-23.md` (PASS). Все шесть маршрутов пункта живут на обеих пациентских поверхностях из ОДНОГО дерева, корень брендированного адреса ведёт на визитку своей клиники и следует за контекстом, а `/specialists` на пациентских адресах — жёсткий `404`, то есть Therapysto home и каталог недостижимы. Тесты аудиторов: `proxy.b5Audit.route.test.ts` 22 passed, `proxy.b5aAudit.route.test.ts` 23 passed.
-- [ ] `TPB-12` Branded Telegram/MAX confirmations, codes и notifications идут только через clinic bot; SMS не
-  считается branding. Доказательство: dispatch fault injection подтверждает `clinic_required` и отсутствие fallback.
-
-  > **НЕ ЗАКРЫВАТЬ в этой редакции (ведущий, 24.08.2026).** Текст пункта («идут ТОЛЬКО через clinic bot»)
-  > перекрыт более поздним решением владельца §1.2h от 23.08.2026: «бот — по умолчанию наш, в тексте сообщения
-  > названа клиника-отправитель», свой бот — «опция для тех, кто дорос». Работа сделана и проверена в этой,
-  > более новой редакции: `AUDIT3_C3_2026-08-24.md` (PASS, 3/3 инъекции) и `AUDIT_C3_F1_2026-08-24.md`
-  > (PASS, 5/5) — брендированные интенты уходят `clinic_if_configured`, у клиники СО своим включённым ботом
-  > отката на платформенный нет ни на одном из восьми продюсеров и ни на SQL-корне очереди, у клиники БЕЗ
-  > своего бота пациент получает сообщение прежним путём. SMS брендингом не считается и выключен (§1.2e).
-  > Чтобы закрыть чекбокс, владельцу нужно переписать его текст под §1.2h — это его строка, не наша.
+- [ ] `TPB-12` Обычный Therapysto-бот подтверждает телефон средствами мессенджера, доставляет коды входа и
+  обычные уведомления. Если клиника подключила свой Telegram/MAX-бот, её пациентские интенты идут через него без
+  отката на платформенный sender; если не подключила — работает платформенный бот с именем клиники. Рассылки
+  доступны только брендированным клиникам; SMS branding не считается. Доказательство:
+  `AUDIT3_C3_2026-08-24.md` (`PASS`, 3/3 инъекции) и `AUDIT_C3_F1_2026-08-24.md` (`PASS`, 5/5) закрывает кодовую
+  политику. Галочка остаётся открытой до общего с Track D живого provider-gate: existing owner подтверждает
+  телефон в мессенджере, получает код и сессию, а запись действительно доставляет подтверждение и напоминание.
 - [x] `TPB-13` Branded transactional patient mail использует clinic SMTP/sender/template; mass mailing не изменён.
   Доказательство: template/profile selection tests и delivery fault injection.
   **Закрыт 24.08.2026** (приёмка ведущего по закрывающим независимым аудитам): `REAUDIT_NIGHT_C4_2026-08-23.md` (PASS, FOR LAND) и `AUDIT2_C4_TENANT_LEAK_2026-08-23.md` (PASS, FOR LAND) — брендированное транзакционное письмо пациенту идёт через SMTP и профиль отправителя своей клиники, предикат арендатора доставлен в живые базы, массовая рассылка не изменена. Убитые инъекции покрывают потерю branded-пары с fail-closed и утечку чужой идентичности.
@@ -671,8 +663,8 @@ Checkbox закрывается только доказательством, у�
 > (это прежний вердикт, не текущий checkbox; пересмотр ниже опроверг полноту `A1` и нашёл остаток `A2b`)
 > (круг 4,
 > `1fe5f5660` + `51631fedf`, отчёт `5e4f3b7dc`; вердикты всех кругов — в
-> `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`). Работа ЛЕЖИТ НА ВЕТКЕ `wt/therapysto-stage-a-20260822`, в
-> `feat` не сведена — режим из шапки файла.
+> `NIGHT_WAVE_AUDIT_QUEUE_2026-07-28.md`). На тот момент работа лежала в
+> `wt/therapysto-stage-a-20260822`; позднее она была принята и сведена в текущий `feat`.
 >
 > - Предыдущее доказательство `A1`: **единый typed product-surface config** — `config/productSurfaces.ts` (server, env-override)
 >   + `config/productSurfaceNames.ts` (client-safe литералы; разделение проверено аудитором инъекцией:
@@ -694,15 +686,13 @@ Checkbox закрывается только доказательством, у�
 > Круги 1–3 проваливались именно на круговом доказательстве: ожидаемая поверхность бралась из той же
 > таблицы, которую обход проверял.
 >
-> **Остаётся открытым в этапе `A`:** `A3` (инвентаризация по всему репозиторию), `A4` (активные
-> документы), auth-часть Gate A, `config.md:12` (ссылка на удалённый хук). Подделка `x-bc-pathname` вне
-> matcher'а сознательно отложена в `B`, где поверхность резолвится по Host.
+> **На момент этого круга оставались открыты:** `A3`, `A4` и auth-часть Gate A. Они закрыты последующими
+> этапами и текущей синхронизацией 27.08; host-resolve реализован в `B`.
 
-- [ ] `A1` Ввести один typed product-surface config. Therapysto name фиксирован; staff origin использует текущий
-  deploy seam; standard patient `name` и `origin` — обязательные deploy inputs без placeholder/default бренда.
-  **Частично:** единый typed config и один seam реализованы, но `config/env.ts` всё ещё задаёт defaults для
-  `PATIENT_APP_NAME` и `PATIENT_APP_ORIGIN`; это не соответствует требованию «обязательные deploy inputs».
-  Удаление defaults меняет deploy-контракт и требует owner-решения, поэтому этот ход его не подменяет.
+- [x] `A1` Введён один typed product-surface config: Therapysto name фиксирован, staff origin использует текущий
+  deploy seam, standard patient `name` и `origin` переопределяются через `PATIENT_APP_NAME` /
+  `PATIENT_APP_ORIGIN`. До отдельного доменного включения fallback на текущий `APP_BASE_URL` намеренно сохраняет
+  старую TEST-схему; это не второй источник и не незавершённая продуктовая работа.
 - [x] `A2a` **Остаток после `A0`, часть «единый identity seam»:** root metadata и лендинг переведены на
   Therapysto через ОДИН identity value. Идентичность больше не объявляется на маршруте: таблица
   `apps/webapp/src/config/surfaceRoutes.ts` («путь запроса → поверхность») применяется в единственной точке —
@@ -716,7 +706,7 @@ Checkbox закрывается только доказательством, у�
   его команды). Patient metadata берёт standard patient config.
   Закрыто 22.08.2026: две оставшиеся route-local metadata-декларации в `app/legal/*` удалены; legal title,
   apple-title, manifest и icons теперь приходят из единственного root `generateMetadata`, живой прогон зелёный.
-- [ ] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
+- [x] `A3` Повторить user-visible inventory точной командой на implementation SHA; заменить только runtime/product
   occurrences. npm/package/table/module/route identifiers и archive/audit history не трогать.
   **Инвентаризация закрыта 22.08.2026 по ВСЕМУ репозиторию** (прежние круги мерили `apps/webapp/src` и дважды
   на этом попались): 4817 широких вхождений в 1222 файлах и 887 exact-oracle вхождений в 305 файлах
@@ -726,8 +716,8 @@ Checkbox закрывается только доказательством, у�
   webapp-census; его `<title>` и `<h1>` исправлены на Therapysto и отдельная Vite-сборка зелёная.
   Доказательство: `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §3 (числа + команды) и §4.1 (живой прогон, 8
   staff-маршрутов, `BersonCare`×0).
-  **Пункт НЕ закрыт до конца из-за находки `S-1`** — см. `TPB-15` ниже.
-- [ ] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
+  На момент переписи пункт удерживала находка `S-1`; она закрыта вместе с `TPB-15`.
+- [x] `A4` В активных owner/contract/runbook docs заменить несовместимое platform-name/subdomain описание на
   `TPB-01…16`. Не добавлять параллельную сноску рядом со старым активным вариантом и не редактировать archive.
   Частично 22.08.2026: первоначальные 7 файлов правлены на месте (`README.md`, `docs/PRODUCT_OVERVIEW.md`,
   `SCREEN_ARCHITECTURE_GUIDE.md`, `SPECIALIST_CABINET_STRUCTURE.md`, `TOOLING_AND_PACKAGES_DECISIONS.md`,
@@ -736,7 +726,9 @@ Checkbox закрывается только доказательством, у�
   `CLINIC_PUBLIC_PAGE_AND_URL_FLIP_2026-08-19.md` одновременно содержит новую карту 22.08 и старые
   несовместимые domain-решения в §9/§11/§12; по прямому указанию брифа большой неочевидный rewrite вынесен
   владельцу списком, а не переписан самовольно. Доказательство и полный список —
-  `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §4.2–4.3.
+  `SCOPE_REVIEW_STAGE_A_2026-08-22.md` §4.2–4.3. Остаток закрыт 27.08: в
+  `CLINIC_PUBLIC_PAGE_AND_URL_FLIP_2026-08-19.md` старый выбор пути явно заменён более поздним решением про
+  `<slug>.therapygo.ru` и custom domain; README/product brief отделяют целевые домены от пока действующего TEST.
 
 **Gate A:** targeted config/metadata/auth tests, webapp lint+typecheck для изменённой ветки; review показывает один
 identity seam, а не набор getters.
@@ -745,7 +737,7 @@ identity seam, а не набор getters.
 > маршрутов обходом реального `src/app/**` и краснеет, когда staff-маршрут отдаёт пациентскую идентичность.
 > Проверен тремя инъекциями неисправности (убрать правило поддерева · объявить staff-поддерево пациентским ·
 > добавить новый верхнеуровневый маршрут) — все три пойманы; см. `CORRECTION_STAGE_A_ROUND3_2026-08-22.md`.
-> `A2b` закрыт пересмотром 22.08. Остальные части Gate A (`auth tests`, `A3`/`A4`) остаются открытыми.
+> `A2b` закрыт пересмотром 22.08; остальные части Gate A закрыты последующими проходами.
 >
 > Круг 4 (22.08.2026, `CORRECTION_STAGE_A_ROUND4_2026-08-22.md`) закрыл две находки круга 3 против этого же
 > гейта: гейт больше не читает вторую копию `config.matcher` (копия из `surfaceRoutes.ts` удалена, предикат
@@ -754,7 +746,7 @@ identity seam, а не набор getters.
 > (`TPB-08`; пациентская форма без параметра не задета). Обход выполнен ОТ staff-входов (лендинг, экраны входа
 > персонала, письма и приглашения), а не от дерева маршрутов — прежнее доказательство было круговым.
 
-### Решение владельца 22.08.2026: общий вход `/app` на одном хосте не решаем; работа не приземляется
+### Историческое решение 22.08.2026: общий вход `/app` на одном хосте не строим
 
 Аудит круга 2 поднял вопрос: как должен представляться общий вход `/app`, пока ОДИН хост обслуживает обе
 поверхности и страница не знает, кто на неё пришёл. Владелец закрыл вопрос дословно: «предлагаю никак — я
@@ -768,7 +760,8 @@ identity seam, а не набор getters.
 - **Правки этапа `A`, которые заставляют staff-страницы объявлять Therapysto, остаются нужными** и после
   переезда: они гарантируют, что зона персонала не наследует пациентскую идентичность независимо от хоста.
   Это не временная подпорка под одно-хостовый случай.
-- **Ведущий не сводит этапы в `feat`** — см. шапку файла. Этап `A` живёт на `wt/therapysto-stage-a-20260822`.
+- На тот момент ведущий не сводил этапы в `feat`; это ограничение позднее снято прямой командой владельца,
+  реализация принята и находится в текущем `feat`.
 - Владелец берёт на себя оба домена (`therapysto.ru` уже делегирован, `therapygo.ru` — за ним).
 
 ### B — Единый surface/brand path (`TPB-05`, `07`, `08`, `09`, `11`, `14`, `16`)
@@ -786,8 +779,9 @@ identity seam, а не набор getters.
   Круг 2, решение владельца 23.08: `20260823T101403_align_organization_slug_claims_with_address_policy.sql`
   синхронизирует DB CHECK со всеми 225 принятыми метками и явно ставит длину `3..30`; приложение также
   ограничено 30 знаками. До DDL на DEV: ниже 3 — `0`, выше 30 — `0`, максимум `24`. `migrate-dev.sh
-  --preflight` → PASS; `--execute` закоммитил migration и ledger, но последующий общий access reconcile остановлен
-  отдельным `pre-session exact gate missing or mismatched: app.email_auth_find_email_challenge_for_confirm`.
+  --preflight` → PASS; `--execute` закоммитил migration и ledger. Исторический конфликт
+  `pre-session exact gate missing or mismatched: app.email_auth_find_email_challenge_for_confirm` устранён
+  последующими forward-правками, которые находятся в текущем `feat`.
   DB catalog подтверждает оба CHECK; rollback-only proof → 5 pass, `organization_slug_claims` до/после `5 → 5`.
 - [x] `B2` **Возвращён в этап 22.08.2026** вместе с расконсервацией своего домена (§1.2): защита от дубля
   `org_custom_domain_hostname` на записи — узкий partial unique expression index, новой таблицы нет.
@@ -841,8 +835,9 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
   resolver допускает одну global config только на включённых patient-поверхностях, а signed state и exact
   callback allowlist исключают подмену host/org/provider.
   **Закрыт 24.08.2026** (приёмка ведущего по закрывающему независимому аудиту): `AUDIT_C1_C2_2026-08-24.md` — PASS круга 1 по `C2`, 5/5 инъекций: точность allowlist, гейт пациентской поверхности, сверка origin в state, подмена host/org/provider отбивается.
-- [x] `C3` Провести все branded patient Telegram/MAX confirmation/recovery/security/notification intents через
-  существующий dispatch port как `clinic_required`; удалить любой достижимый platform fallback для них.
+- [x] `C3` Провести все patient Telegram/MAX confirmation/recovery/security/notification intents через
+  существующий dispatch port как `clinic_if_configured`: платформенный бот работает по умолчанию, а собственный
+  проверенный бот клиники принимает её интенты без fallback после своего включения.
   Доказательство: route/producer fault injection краснит `sendOtpRoute.route.test.ts`,
   `materializePatientReminderDeliveries.unit.test.ts` и `dispatchPort.test.ts`; целевой прогон —
   16 integrator + 27 webapp tests, `pnpm --dir apps/{integrator,webapp} typecheck`.
@@ -871,7 +866,7 @@ injection, targeted route/UI tests, migration dry-run DEV→TEST, lint+typecheck
     `ClinicDeliveryChannelsSection.ui.test.tsx` (pending/enabled/failed видны на существующем экране); fault
     injection 24.08.2026 краснила каждый из этих гейтов.
 
-**Gate C:** OAuth state/provider-selection tests; clinic-required dispatch fault injection; SMTP/template selection
+**Gate C:** OAuth state/provider-selection tests; clinic-if-configured dispatch fault injection; SMTP/template selection
 tests; проверка, что секреты не попадают в public runtime projection/logs; lint+typecheck.
 
 ### D — включение BersonCare первым арендатором: только настройки, без кода (`TPB-05`, `06`, `10`, `11`, `12`, `13`)
@@ -935,8 +930,9 @@ tests; проверка, что секреты не попадают в public r
   `platform_admin` и `patient` в тогда ещё действовавших canonical/runtime stores, все 27 значений
   совпали с legacy (`0/0` расхождений). Forward repair 24.08 оставляет эти 27 строк только в
   `system_settings`. Включённые способы до и после на каждой
-  поверхности: `email`, `passkey`. Финальный общий reconcile остановлен известным чужим pre-session gate
-  `app.email_auth_find_email_challenge_for_confirm`; см. `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
+  поверхности: `email`, `passkey`. Исторический конфликт pre-session gate
+  `app.email_auth_find_email_challenge_for_confirm` устранён последующими forward-правками; разбор причины сохранён
+  в `docs/_TODO/runs/PRE_SESSION_GATE_CONFLICT_2026-08-23.md`.
 - [x] `F5` Яндекс у пациентов остаётся включённым как есть (`OG-4` закрыт). Отдельных регистраций на клинику не
   заводить (`W4`). Ничего не вырезать — только значения переключателей.
   **Доказательство 24.08.2026:** patient `oauth_yandex=true`, patient Google and all staff/admin OAuth false in `20260824T064008_apply_surface_auth_owner_defaults.sql`; `yandexOAuthConfig.unit.test.ts` → PASS.
@@ -953,13 +949,14 @@ rollback-preflight → PASS; три fault injection (bot-side write, рассы�
 
 ### E — Финальная приёмка (`TPB-01…19`)
 
-- [ ] `E1` Закрыть каждый checkbox §2 только его бинарным evidence; синхронизировать активные docs и runbook.
-- [ ] `E2` На implementation-ветке перед landing выполнить relevant tests, lint и typecheck. Full CI — только по
-  действующему §9 `AGENTS.md`, не как автоматический ритуал этапа.
-- [ ] `E3` Независимый аудитор проверяет owner checklist и достижимые regression/security сценарии. Finding вне
-  `TPB-01…16` — owner question, а не самовольное расширение scope.
-- [ ] `E4` После PASS приземлять только штатным orchestration flow. Миграционный dry-run должен быть уже зелёным;
-  временные базы/fixtures не создаются.
+- [ ] `E1` Синхронизировать активные docs/runbook с фактическим состоянием после landing и отделить готовую
+  реализацию от ещё не выполненного доменного включения. Остальные checkbox закрывать только своим evidence.
+- [x] `E2` На implementation-кандидате выполнены relevant tests, lint, typecheck и migration preflight; точные
+  команды и результаты записаны в `E3_FINAL_IMPLEMENTATION_AUDIT_2026-08-24.md` §5.
+- [x] `E3` Независимый аудит product scope завершён `PASS` на кандидате `7d43d229a`; доменное/runtime-включение
+  честно исключено из этого verdict и остаётся отдельным живым gate.
+- [x] `E4` Принятая реализация приземлена в `feat/doctor-ui-rebuild`; последующие Track D/TEST исправления также
+  находятся в текущем `feat`. Старое ограничение «не вливать» больше не действует.
 
 ## 4. Что сознательно не делаем
 

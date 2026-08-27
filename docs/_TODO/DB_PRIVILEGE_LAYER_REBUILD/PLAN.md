@@ -16,8 +16,44 @@ ordinary deploy через старые migrations являются истори
 удалить активную историю и второй путь → проверить новые chokepoints/marker → один раз перевести текущую именованную
 TEST в финальное состояние через `deploy-test` → удалить необходимость в этом переходном механизме → полностью
 проверить TEST. Живая отправка TEST разрешена только на аккаунты Дмитрия Берсона. Любая ошибка TEST исправляется
-в коде и канонической DEV-базе/схеме с мигратором, после чего DEV и TEST проходят заново. Только затем отдельным
-этапом готовится одна `A → B0` миграция на чистом PROD-дампе для SaaS prod test deploy.
+в коде и канонической DEV-базе/схеме с мигратором, после чего DEV и TEST проходят заново. PROD-снимок и PROD не
+используются в текущем проходе; одна `A → B0` миграция готовится только отдельным будущим этапом после явного
+разрешения владельца.
+
+## Актуальное состояние на 27.08.2026
+
+Это единственный текущий чек-лист инициативы. Датированные чекбоксы ниже сохранены как хроника построения слоя и
+не определяют статус taskdb.
+
+- [x] B0, четыре runtime-login, transaction-bound context, FORCE RLS, узкие SECURITY DEFINER roots и
+  declaration/reconcile применены на named DEV и named TEST.
+- [x] Канонические `user_contacts`, разделение actor/subject, узкая роль integrator и исправленные seam-owner
+  privileges находятся в текущем `feat`. Поздние runtime-разрывы staff/patient/global-admin были исправлены
+  до TEST HEAD `484056ae5`; старые строки ниже про merge `92cf34ffa4` больше не являются текущим состоянием.
+- [x] Восстановление старого TEST backup, создание пустой TEST, disposable/A0 и historical migration replay
+  отменены более поздними owner-решениями. Их нельзя выполнять; история остаётся только в Git и evidence.
+- [x] Поздние TEST-исправления прав задеплоены и основные входы владельца проверены. Сохранённого полного
+  role/action evidence по всем чтениям и мутациям нет, поэтому открытые public/provider gates ниже не считаются
+  закрытыми этим пунктом.
+- [ ] **Оставшаяся аналитика.** Классифицировать её владельца данных, видимость и точную tenant-стену; лишнее
+  удалить.
+- [ ] **Анонимная публичная запись.** Живьём пройти полный public-booking путь без кабинетной сессии и доказать,
+  что узкие roots дают только публичный каталог и создание записи, не tenant-данные.
+- [ ] **Реальная доставка, общий gate с Track D.** Existing owner должен пройти messenger contact proof и код
+  входа; запись на приём — реально доставить подтверждение и напоминание; scheduler — реально доставить operator
+  digest и перенести следующий запуск после смены `digestTime`.
+- [ ] **Retention/rotation.** Автоочистка данных реализована, но регулярный запуск и фактическая ротация
+  PostgreSQL/systemd/application-журналов не подтверждены живым измерением.
+- [ ] **mTLS host proof.** Доказать на named среде отказ wrong/missing/expired/revoked certificate,
+  CN/login/port и non-TLS/socket, а также рабочую процедуру overlap/rotation/rollback.
+- [ ] **Декларация как единственный исполняемый источник.** Убрать оставшиеся переходные `revoke`/
+  `OWNER_GATES_OPEN`/diagnostic-артефакты и подключить уже существующие function-census/callsite/post-zero
+  проверки к обычному рациональному CI gate. Не возвращать права в schema migrations.
+- [ ] **Отдельный архитектурный follow-up слоя доступа.** Довести структурный allowlist владельцев definer,
+  публичное чтение и окончательное разделение identity/medical subject там, где это ещё не покрыто текущими
+  actor/subject refs. Это не блокирует нынешний TEST, но остаётся owner-requested работой `#1085`.
+- [ ] **PROD — только отдельным разрешённым этапом.** Подготовить одну атомарную `A → B0` миграцию и rollback;
+  на PROD ничего не выполнять без нового явного разрешения владельца и проверки host `135.106.162.170`.
 
 ## Конечный результат
 
@@ -72,7 +108,10 @@ cutover восстановленного dump порядок:
   соседние HBA-блоки и только проверяет готовность своего target. DB roles/grants/RLS сверяются каждый deploy.
 - TEST и PROD проходят offline cutover: сервисы не запускаются между legacy-drop, zero и положительным proof.
 
-## Текущее фактическое положение на 13.08
+## Историческая хроника исполнения — состояние на 13.08 и последующие коррекции
+
+Разделы ниже объясняют происхождение решений и прошлых FAIL/PASS. Их checkbox-синтаксис сохранён как evidence;
+текущий объём и статус задаёт только раздел «Актуальное состояние на 27.08.2026» выше.
 
 **DEV находится на шагах 8–9 owner-порядка.** Legacy удалён; target прошёл backup → offline zero/proof →
 cluster baseline → mTLS readiness → declaration install. Webapp и integrator поднялись через новые pools;
@@ -103,13 +142,12 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [x] До ошибочного пересоздания сохранён backup исходной именованной TEST:
   `/var/backups/bersoncarebot-test-portctx/bersoncarebot_test-pre-portctx-20260812T143633Z.dump`;
   SHA-256 `364cb1c35778fe5b7fca8ab0134545dfd2b1aae1bc5a12ac02d0c2aea64fceeb`; archive list читается.
-- [ ] Вернуть именованную TEST из этого pre-error backup и проверить данные/ledger/catalog. Это ремонт инцидента,
-  не репетиция production dump и не доказательство целевого cutover.
-  ⛔ **УСТАРЕЛО 23.08.2026:** восстановление старого snapshot больше не является действием. Именованная TEST уже
+- [x] **ОТМЕНЕНО, НЕ ВЫПОЛНЯТЬ:** возврат именованной TEST из pre-error backup заменён работой на текущих named
+  DEV и TEST. Старый snapshot больше не является действием: именованная TEST уже
   ушла вперёд: physical cutover D15b/6 задеплоен merge `92cf34ffa4`, migration verification webapp `25/25` +
   integrator `1/1` — см. [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md). Возврат
   pre-error backup сегодня откатил бы работающее состояние; новый порядок — текущая named DEV → текущая TEST,
-  без restore/replay (`AGENTS.md` §1b/3a, taskdb `#1085`). Галочка намеренно не поставлена.
+  без restore/replay (`AGENTS.md` §1b/3a, taskdb `#1085`).
 - [x] Коммиты `5a01acf81..cad14a1c6` проверены: empty-TEST-specific обходы и совместный DEV+TEST installer удалены;
   переносимые schema/cutover исправления сведены в target-neutral механизм для существующей БД.
 
@@ -147,10 +185,10 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 - [x] Код очереди доставки переведён с удалённой `integrator.message_retry_jobs` на
   `public.outgoing_delivery_queue`; соответствующие callers старой очереди удалены.
 - [x] DEV: 11 legacy integrator tables, `telegram_state` и `appointment_records` отсутствуют.
-- [ ] TEST: проверять legacy-drop только после восстановления pre-error TEST; не создавать ради этого пустую БД.
-  ⛔ **УСТАРЕЛО 23.08.2026:** зависимость от восстановления pre-error TEST заменена текущим состоянием named TEST;
+- [x] **ОТМЕНЕНО, НЕ ВЫПОЛНЯТЬ:** зависимость TEST legacy-drop от восстановления pre-error TEST заменена
+  проверкой текущего состояния named TEST;
   выполнять старый restore нельзя. Проверка отсутствия legacy остаётся частью живого TEST gate Ф8 ниже и
-  [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md), поэтому галочка не ставится.
+  [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md).
 - [ ] Классифицировать оставшуюся аналитику: владелец данных, видимость и точная стена; лишнее удалить.
 
 ## Ф3 — точка ноль
@@ -563,12 +601,9 @@ OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полн�
 
 ## Ф9 — одна A → B0 миграция на чистом PROD-дампе
 
-- [ ] Только после зелёных DEV и TEST подготовить и отрепетировать для SaaS prod test deploy одну атомарную
-  миграцию чистого PROD-дампа из состояния `A` в `B0`, без historical replay и промежуточных состояний.
-  ⛔ **УСТАРЕЛО 23.08.2026:** репетиция на свежем/чистом PROD dump заменена owner-каноном named DEV → named TEST
+- [x] **ОТМЕНЕНО, НЕ ВЫПОЛНЯТЬ:** репетиция на свежем/чистом PROD dump заменена owner-каноном named DEV → named TEST
   без production dump, disposable/A0 базы и historical replay (`AGENTS.md` §1b/3a; taskdb `#1085`: «No
-  production dump and no local BCB PROD»). Возвращать dump/full-reset путь из старого плана запрещено; галочка
-  намеренно не поставлена.
+  production dump and no local BCB PROD»). Возвращать dump/full-reset путь из старого плана запрещено.
 - [ ] После принятой репетиции отдельно подготовить production operation/rollback.
 - [ ] Ничего на PROD не выполнять без нового явного разрешения владельца и подтверждения host `135.106.162.170`.
 
