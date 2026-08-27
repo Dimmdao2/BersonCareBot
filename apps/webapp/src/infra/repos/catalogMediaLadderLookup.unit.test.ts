@@ -1,9 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
-const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const dbFakes = vi.hoisted(() => ({
+  getDrizzle: vi.fn(),
+  rows: [] as Record<string, unknown>[],
+  where: vi.fn(),
+}));
 
-vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: runWebappPgTextMock,
+vi.mock('@/app-layer/db/drizzle', () => ({
+  getDrizzle: dbFakes.getDrizzle,
+}));
+vi.mock('@bersoncare/db-principal', () => ({
+  getCurrentDbPrincipalOrganizationId: () => '44444444-4444-4444-8444-444444444444',
 }));
 
 import { catalogMediaLadderLookup } from './catalogMediaLadderLookup';
@@ -18,38 +26,50 @@ const YOUTUBE_CANONICAL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
 function fileRow(id: string, over: Record<string, unknown> = {}) {
   return {
     id,
-    hosted_video_source_url: null,
-    preview_sm_key: null,
-    preview_md_key: null,
-    preview_status: 'pending',
-    standard_rendition: false,
+    hostedVideoSourceUrl: null,
+    previewSmKey: null,
+    previewMdKey: null,
+    previewStatus: 'pending',
+    standardRenditionAt: null,
     ...over,
   };
+}
+
+function queryParams(): unknown[] {
+  const condition = dbFakes.where.mock.calls[0]?.[0];
+  if (!condition) return [];
+  return new PgDialect().sqlToQuery(condition).params;
 }
 
 describe('catalogMediaLadderLookup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dbFakes.rows = [];
+    const query = {
+      from: vi.fn(),
+      where: dbFakes.where,
+    };
+    query.from.mockReturnValue(query);
+    dbFakes.where.mockImplementation(async () => dbFakes.rows);
+    dbFakes.getDrizzle.mockReturnValue({ select: vi.fn(() => query) });
   });
 
   it('returns an empty ladder without querying when nothing resolvable was asked for', async () => {
     const out = await catalogMediaLadderLookup([]);
     expect(out.size).toBe(0);
-    expect(runWebappPgTextMock).not.toHaveBeenCalled();
+    expect(dbFakes.getDrizzle).not.toHaveBeenCalled();
   });
 
   it('reports the rendition ladder facts for each stored file it finds', async () => {
-    runWebappPgTextMock.mockResolvedValue({
-      rows: [
-        fileRow(ID_A, {
-          preview_sm_key: 'k-sm',
-          preview_md_key: 'k-md',
-          preview_status: 'ready',
-          standard_rendition: true,
-        }),
-        fileRow(ID_B),
-      ],
-    });
+    dbFakes.rows = [
+      fileRow(ID_A, {
+        previewSmKey: 'k-sm',
+        previewMdKey: 'k-md',
+        previewStatus: 'ready',
+        standardRenditionAt: '2026-08-27T00:00:00.000Z',
+      }),
+      fileRow(ID_B),
+    ];
 
     const out = await catalogMediaLadderLookup([URL_A, URL_B]);
 
@@ -68,22 +88,18 @@ describe('catalogMediaLadderLookup', () => {
   });
 
   it('does not invent an entry for a file the query did not return (row deleted mid-flight)', async () => {
-    runWebappPgTextMock.mockResolvedValue({ rows: [] });
     const out = await catalogMediaLadderLookup([URL_A]);
     expect(out.get(URL_A)).toBeUndefined();
   });
 
   it('asks for each stored file once, however many times the page mentions it', async () => {
-    runWebappPgTextMock.mockResolvedValue({
-      rows: [fileRow(ID_A, { preview_status: 'failed' })],
-    });
+    dbFakes.rows = [fileRow(ID_A, { previewStatus: 'failed' })];
 
     const out = await catalogMediaLadderLookup([URL_A, URL_A.toUpperCase(), URL_A]);
 
     expect(out.size).toBe(1);
     expect(out.get(URL_A)?.previewStatus).toBe('failed');
-    const [, values] = runWebappPgTextMock.mock.calls[0] as [string, unknown[]];
-    expect(values[0]).toEqual([ID_A]);
+    expect(queryParams().filter((value) => value === ID_A)).toHaveLength(1);
   });
 
   /**
@@ -93,18 +109,16 @@ describe('catalogMediaLadderLookup', () => {
    */
   describe('ссылка на видеохостинг', () => {
     it('отдаёт НАШ адрес обложки, скачанной для этой ссылки', async () => {
-      runWebappPgTextMock.mockResolvedValue({
-        rows: [
-          {
-            id: COVER_ID,
-            hosted_video_source_url: YOUTUBE_CANONICAL,
-            preview_sm_key: 'previews/sm/x.jpg',
-            preview_md_key: 'previews/md/x.jpg',
-            preview_status: 'ready',
-            standard_rendition: true,
-          },
-        ],
-      });
+      dbFakes.rows = [
+        {
+          id: COVER_ID,
+          hostedVideoSourceUrl: YOUTUBE_CANONICAL,
+          previewSmKey: 'previews/sm/x.jpg',
+          previewMdKey: 'previews/md/x.jpg',
+          previewStatus: 'ready',
+          standardRenditionAt: '2026-08-27T00:00:00.000Z',
+        },
+      ];
 
       const out = await catalogMediaLadderLookup([YOUTUBE_CANONICAL]);
       const row = out.get(YOUTUBE_CANONICAL);
@@ -117,20 +131,15 @@ describe('catalogMediaLadderLookup', () => {
     });
 
     it('ищет обложку по каноническому виду ссылки, а не по тому, что вставил врач', async () => {
-      runWebappPgTextMock.mockResolvedValue({ rows: [] });
-
       await catalogMediaLadderLookup([
         'https://youtu.be/dQw4w9WgXcQ?t=90&utm_source=tg',
         YOUTUBE_CANONICAL,
       ]);
 
-      const [, values] = runWebappPgTextMock.mock.calls[0] as [string, unknown[]];
-      expect(values[1]).toEqual([YOUTUBE_CANONICAL]);
+      expect(queryParams().filter((value) => value === YOUTUBE_CANONICAL)).toHaveLength(1);
     });
 
     it('без строки обложки говорит «превью не создаётся», а не «готовится»', async () => {
-      runWebappPgTextMock.mockResolvedValue({ rows: [] });
-
       const out = await catalogMediaLadderLookup([YOUTUBE_CANONICAL]);
 
       expect(out.get(YOUTUBE_CANONICAL)).toEqual({
@@ -142,18 +151,16 @@ describe('catalogMediaLadderLookup', () => {
     });
 
     it('обложка, которая ещё качается, остаётся «готовится»', async () => {
-      runWebappPgTextMock.mockResolvedValue({
-        rows: [
-          {
-            id: COVER_ID,
-            hosted_video_source_url: YOUTUBE_CANONICAL,
-            preview_sm_key: null,
-            preview_md_key: null,
-            preview_status: 'pending',
-            standard_rendition: false,
-          },
-        ],
-      });
+      dbFakes.rows = [
+        {
+          id: COVER_ID,
+          hostedVideoSourceUrl: YOUTUBE_CANONICAL,
+          previewSmKey: null,
+          previewMdKey: null,
+          previewStatus: 'pending',
+          standardRenditionAt: null,
+        },
+      ];
 
       const out = await catalogMediaLadderLookup([YOUTUBE_CANONICAL]);
       expect(out.get(YOUTUBE_CANONICAL)?.previewStatus).toBe('pending');
@@ -161,22 +168,20 @@ describe('catalogMediaLadderLookup', () => {
     });
 
     it('обложки соседней клиники не подставляются: запрос ограничен организацией принципала', async () => {
-      runWebappPgTextMock.mockResolvedValue({ rows: [] });
       await catalogMediaLadderLookup([YOUTUBE_CANONICAL]);
-      const [text] = runWebappPgTextMock.mock.calls[0] as [string, unknown[]];
-      expect(text).toContain('organization_id');
+      expect(queryParams()).toContain('44444444-4444-4444-8444-444444444444');
     });
 
     it('ссылка на неизвестный хост не превращается в запрос', async () => {
       const out = await catalogMediaLadderLookup(['https://evil.example/watch?v=1']);
       expect(out.get('https://evil.example/watch?v=1')).toBeUndefined();
-      expect(runWebappPgTextMock).not.toHaveBeenCalled();
+      expect(dbFakes.getDrizzle).not.toHaveBeenCalled();
     });
 
     it('файлы и ссылки на одной странице разбираются одним запросом', async () => {
-      runWebappPgTextMock.mockResolvedValue({ rows: [] });
       await catalogMediaLadderLookup([URL_A, YOUTUBE_CANONICAL]);
-      expect(runWebappPgTextMock).toHaveBeenCalledTimes(1);
+      expect(dbFakes.getDrizzle).toHaveBeenCalledTimes(1);
+      expect(dbFakes.where).toHaveBeenCalledTimes(1);
     });
   });
 });

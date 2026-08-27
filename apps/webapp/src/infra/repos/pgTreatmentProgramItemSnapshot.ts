@@ -1,7 +1,10 @@
 /** Wave 3 phase 15C — catalog media preview lookup via `runWebappPgText`. */
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
+import {
+  catalogMediaLadderLookup,
+  type CatalogMediaLadder,
+} from '@/infra/repos/catalogMediaLadderLookup';
 import { clinicalTests } from '../../../db/schema/clinicalTests';
 import { recommendations } from '../../../db/schema/recommendations';
 import { contentPages, lfkExerciseMedia, lfkExercises } from '../../../db/schema/schema';
@@ -15,6 +18,7 @@ import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
 } from '@/modules/treatment-program/types';
+import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 
 function notFound(type: TreatmentProgramItemType): Error {
   return new Error(`Снимок: объект типа «${type}» не найден`);
@@ -54,6 +58,56 @@ type CatalogMediaSnapshotRow = CatalogMediaRowInput & {
   previewStatus: MediaPreviewStatus;
   standardRendition: boolean;
 };
+
+/** Hosted links retained inside an immutable program-item snapshot. */
+export function hostedVideoUrlsInProgramSnapshot(snapshot: Record<string, unknown>): string[] {
+  if (!Array.isArray(snapshot.media)) return [];
+  const urls = new Set<string>();
+  for (const raw of snapshot.media) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const row = raw as Record<string, unknown>;
+    const mediaType = row.mediaType ?? row.type;
+    if (mediaType !== 'hosted_video') continue;
+    const rawUrl = typeof row.mediaUrl === 'string' ? row.mediaUrl : row.url;
+    if (typeof rawUrl !== 'string') continue;
+    const parsed = parseHostedVideoLink(rawUrl);
+    if (parsed) urls.add(parsed.canonicalUrl);
+  }
+  return [...urls];
+}
+
+/**
+ * Preview status is operational state, not immutable clinical content. Refresh it from the common
+ * ladder whenever an instance is read, so an assignment created while the cover was still pending
+ * starts showing our image after the worker finishes without rewriting the clinical snapshot.
+ */
+export function withCurrentHostedVideoPreviewsInProgramSnapshot(
+  snapshot: Record<string, unknown>,
+  ladder: CatalogMediaLadder,
+): Record<string, unknown> {
+  if (!Array.isArray(snapshot.media)) return snapshot;
+  let changed = false;
+  const media = snapshot.media.map((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+    const row = raw as Record<string, unknown>;
+    const mediaType = row.mediaType ?? row.type;
+    if (mediaType !== 'hosted_video') return raw;
+    const rawUrl = typeof row.mediaUrl === 'string' ? row.mediaUrl : row.url;
+    if (typeof rawUrl !== 'string') return raw;
+    const parsed = parseHostedVideoLink(rawUrl);
+    if (!parsed) return raw;
+    const current = ladder.get(parsed.canonicalUrl);
+    changed = true;
+    return {
+      ...row,
+      previewSmUrl: current?.previewSmUrl ?? null,
+      previewMdUrl: current?.previewMdUrl ?? null,
+      previewStatus: current?.previewStatus ?? 'skipped',
+      standardRendition: current?.standardRendition ?? false,
+    };
+  });
+  return changed ? { ...snapshot, media } : snapshot;
+}
 
 /**
  * Дополняет каталожные медиа состоянием лестницы (`catalogMediaLadderLookup`) — для снимков

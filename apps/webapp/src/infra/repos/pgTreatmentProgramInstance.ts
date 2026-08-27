@@ -56,7 +56,12 @@ import {
 } from '@/modules/treatment-program/types';
 import { withDefaultSystemGroupsIfNeededForTreeStage } from '@/modules/treatment-program/instance-tree-system-groups';
 import { assertTreatmentProgramStageItemFitsSystemGroup } from '@/modules/treatment-program/stage-semantics';
-import { createPgTreatmentProgramItemSnapshotPort } from '@/infra/repos/pgTreatmentProgramItemSnapshot';
+import {
+  createPgTreatmentProgramItemSnapshotPort,
+  hostedVideoUrlsInProgramSnapshot,
+  withCurrentHostedVideoPreviewsInProgramSnapshot,
+} from '@/infra/repos/pgTreatmentProgramItemSnapshot';
+import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
 import { testSetItems, testSets } from '../../../db/schema/clinicalTests';
 import {
   lfkComplexTemplateExercises,
@@ -218,6 +223,26 @@ function toDetail(
     ...mapInstance(inst),
     stages,
   };
+}
+
+async function withCurrentHostedVideoPreviews(
+  itemsRows: (typeof itemTable.$inferSelect)[],
+): Promise<(typeof itemTable.$inferSelect)[]> {
+  const urls = new Set<string>();
+  for (const row of itemsRows) {
+    if (row.itemType !== 'exercise') continue;
+    for (const url of hostedVideoUrlsInProgramSnapshot(row.snapshot)) urls.add(url);
+  }
+  if (urls.size === 0) return itemsRows;
+  const ladder = await catalogMediaLadderLookup([...urls]);
+  return itemsRows.map((row) =>
+    row.itemType === 'exercise'
+      ? {
+          ...row,
+          snapshot: withCurrentHostedVideoPreviewsInProgramSnapshot(row.snapshot, ladder),
+        }
+      : row,
+  );
 }
 
 async function touchInstanceUpdatedAt(
@@ -453,7 +478,12 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
                 asc(instGroupTable.sortOrder),
                 asc(instGroupTable.id),
               );
-      return toDetail(inst, stagesRows, itemsRows, groupsRows);
+      return toDetail(
+        inst,
+        stagesRows,
+        await withCurrentHostedVideoPreviews(itemsRows),
+        groupsRows,
+      );
     },
 
     async getInstanceForPatient(
@@ -518,7 +548,12 @@ export function createPgTreatmentProgramInstancePort(): TreatmentProgramInstance
                 asc(instGroupTable.sortOrder),
                 asc(instGroupTable.id),
               );
-      return toDetail(inst, stagesRows, itemsRows, groupsRows);
+      return toDetail(
+        inst,
+        stagesRows,
+        await withCurrentHostedVideoPreviews(itemsRows),
+        groupsRows,
+      );
     },
 
     async listInstancesForPatient(

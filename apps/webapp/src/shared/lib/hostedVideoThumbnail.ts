@@ -84,16 +84,38 @@ async function fetchWithTimeout(
   deps: HostedVideoThumbnailDeps,
   url: string,
   timeoutMs: number,
-): Promise<{ ok: true; response: Response } | { ok: false; outcome: HostedVideoThumbnailRetryable }> {
+  urlAllowed: (candidate: string) => boolean,
+): Promise<
+  | { ok: true; response: Response }
+  | { ok: false; outcome: HostedVideoThumbnailRetryable | HostedVideoThumbnailTerminal }
+> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await deps.fetch(url, {
-      signal: controller.signal,
-      redirect: 'follow',
-      headers: { accept: '*/*' },
-    });
-    return { ok: true, response };
+    let currentUrl = url;
+    for (let redirects = 0; redirects <= 5; redirects += 1) {
+      if (!urlAllowed(currentUrl)) {
+        return { ok: false, outcome: terminal('provider_redirect_origin_rejected') };
+      }
+      const response = await deps.fetch(currentUrl, {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: { accept: '*/*' },
+      });
+      if (response.status < 300 || response.status >= 400) {
+        const actualUrl = response.url?.trim() ? response.url : currentUrl;
+        if (!urlAllowed(actualUrl)) {
+          return { ok: false, outcome: terminal('provider_response_origin_rejected') };
+        }
+        return { ok: true, response };
+      }
+      const location = response.headers.get('location');
+      if (!location) {
+        return { ok: false, outcome: terminal('provider_redirect_without_location') };
+      }
+      currentUrl = new URL(location, currentUrl).toString();
+    }
+    return { ok: false, outcome: terminal('provider_too_many_redirects') };
   } catch (e) {
     const name = e instanceof Error ? e.name : '';
     return {
@@ -149,8 +171,22 @@ async function downloadThumbnail(
   if (!hostAllowed(thumbnailUrl, provider)) {
     return terminal('thumbnail_origin_rejected');
   }
-  const got = await fetchWithTimeout(deps, thumbnailUrl, THUMBNAIL_DOWNLOAD_TIMEOUT_MS);
-  if (!got.ok) return got.outcome;
+  const got = await fetchWithTimeout(
+    deps,
+    thumbnailUrl,
+    THUMBNAIL_DOWNLOAD_TIMEOUT_MS,
+    (candidate) => hostAllowed(candidate, provider),
+  );
+  if (!got.ok) {
+    if (
+      got.outcome.kind === 'terminal' &&
+      (got.outcome.reason === 'provider_redirect_origin_rejected' ||
+        got.outcome.reason === 'provider_response_origin_rejected')
+    ) {
+      return terminal('thumbnail_redirect_origin_rejected');
+    }
+    return got.outcome;
+  }
   const { response } = got;
   if (!response.ok) return classifyProviderStatus(response.status);
 
@@ -184,7 +220,12 @@ async function resolveYoutube(
   api.searchParams.set('url', canonicalUrl);
   api.searchParams.set('format', 'json');
 
-  const got = await fetchWithTimeout(deps, api.toString(), PROVIDER_API_TIMEOUT_MS);
+  const got = await fetchWithTimeout(
+    deps,
+    api.toString(),
+    PROVIDER_API_TIMEOUT_MS,
+    (candidate) => hostAllowed(candidate, 'youtube'),
+  );
   if (!got.ok) return got.outcome;
   if (!got.response.ok) return classifyProviderStatus(got.response.status);
 
@@ -243,7 +284,12 @@ async function resolveVk(
   api.searchParams.set('v', '5.199');
   api.searchParams.set('access_token', token);
 
-  const got = await fetchWithTimeout(deps, api.toString(), PROVIDER_API_TIMEOUT_MS);
+  const got = await fetchWithTimeout(
+    deps,
+    api.toString(),
+    PROVIDER_API_TIMEOUT_MS,
+    (candidate) => hostAllowed(candidate, 'vk'),
+  );
   if (!got.ok) return got.outcome;
   if (!got.response.ok) return classifyProviderStatus(got.response.status);
 

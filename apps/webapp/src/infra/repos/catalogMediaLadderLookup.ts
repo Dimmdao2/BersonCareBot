@@ -20,7 +20,10 @@
  * by `getMediaThumbPhase` (`shared/ui/{doctor,patient}/media/mediaThumbState.ts`), which this
  * lookup feeds. Do not duplicate this query; extend this function instead.
  */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { and, eq, inArray, or } from 'drizzle-orm';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
+import { getDrizzle } from '@/app-layer/db/drizzle';
+import { mediaFiles } from '../../../db/schema/schema';
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 import { mediaPreviewUrlById, parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
@@ -46,15 +49,6 @@ export type CatalogMediaLadder = {
   /** Number of rows the query actually returned. */
   size: number;
 };
-
-/**
- * Organization scope for the hosted-cover branch. A cover row is keyed by clinic + link, so two
- * clinics that saved the same YouTube video each own their copy; without this predicate a page
- * could be handed the other clinic's row id, which the delivery door would then refuse.
- * Same expression as `pgLfkExercises` — signed principal first, mutation-transaction GUC second.
- */
-const ORG_ID_EXPR =
-  "COALESCE(app.current_org_id(), NULLIF(current_setting('app.org', true), '')::uuid)";
 
 const HOSTED_ABSENT: CatalogMediaLadderRow = {
   previewSmUrl: null,
@@ -103,32 +97,42 @@ export async function catalogMediaLadderLookup(
   };
   if (fileIds.size === 0 && hostedUrls.size === 0) return ladder;
 
-  const res = await runWebappPgText<{
-    id: string;
-    hosted_video_source_url: string | null;
-    preview_sm_key: string | null;
-    preview_md_key: string | null;
-    preview_status: string | null;
-    standard_rendition: boolean;
-  }>(
-    `SELECT id::text AS id, hosted_video_source_url, preview_sm_key, preview_md_key, preview_status,
-            (standard_rendition_at IS NOT NULL) AS standard_rendition
-       FROM media_files
-      WHERE id = ANY($1::uuid[])
-         OR (usage_purpose = 'hosted_video_preview'
-             AND organization_id = ${ORG_ID_EXPR}
-             AND hosted_video_source_url = ANY($2::text[]))`,
-    [[...fileIds], [...hostedUrls]],
-  );
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  const conditions = [];
+  if (fileIds.size > 0) {
+    conditions.push(inArray(mediaFiles.id, [...fileIds]));
+  }
+  if (organizationId && hostedUrls.size > 0) {
+    conditions.push(
+      and(
+        eq(mediaFiles.usagePurpose, 'hosted_video_preview'),
+        eq(mediaFiles.organizationId, organizationId),
+        inArray(mediaFiles.hostedVideoSourceUrl, [...hostedUrls]),
+      ),
+    );
+  }
+  if (conditions.length === 0) return ladder;
 
-  for (const row of res.rows) {
+  const res = await getDrizzle()
+    .select({
+      id: mediaFiles.id,
+      hostedVideoSourceUrl: mediaFiles.hostedVideoSourceUrl,
+      previewSmKey: mediaFiles.previewSmKey,
+      previewMdKey: mediaFiles.previewMdKey,
+      previewStatus: mediaFiles.previewStatus,
+      standardRenditionAt: mediaFiles.standardRenditionAt,
+    })
+    .from(mediaFiles)
+    .where(or(...conditions));
+
+  for (const row of res) {
     const id = row.id.toLowerCase();
-    const key = row.hosted_video_source_url?.trim() ? row.hosted_video_source_url : id;
+    const key = row.hostedVideoSourceUrl?.trim() ? row.hostedVideoSourceUrl : id;
     rows.set(key, {
-      previewSmUrl: row.preview_sm_key?.trim() ? mediaPreviewUrlById(id, 'sm') : null,
-      previewMdUrl: row.preview_md_key?.trim() ? mediaPreviewUrlById(id, 'md') : null,
-      previewStatus: (row.preview_status as MediaPreviewStatus | null) ?? 'pending',
-      standardRendition: row.standard_rendition === true,
+      previewSmUrl: row.previewSmKey?.trim() ? mediaPreviewUrlById(id, 'sm') : null,
+      previewMdUrl: row.previewMdKey?.trim() ? mediaPreviewUrlById(id, 'md') : null,
+      previewStatus: (row.previewStatus as MediaPreviewStatus | null) ?? 'pending',
+      standardRendition: row.standardRenditionAt != null,
     });
   }
   return ladder;

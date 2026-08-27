@@ -8,13 +8,13 @@ import { Readable } from 'node:stream';
 import ffmpeg from 'fluent-ffmpeg';
 import type { FfmpegCommand } from 'fluent-ffmpeg';
 import sharp from 'sharp';
-import { sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
 import { env } from '@/config/env';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
-import { mediaReadableStatusPredicate } from '@/infra/repos/mediaSqlPredicates';
+import { mediaFiles } from '../../../db/schema/schema';
 import {
   presignGetUrl,
   s3DeleteObject,
@@ -392,35 +392,42 @@ export async function processMediaPreviewBatch(
       async (client) => {
         let supersededOriginalKey: string | null = null;
         const db = getWebappSqlFromPgClient(client);
-        const claim = await runWebappSql<{
-          id: string;
-          s3_key: string | null;
-          mime_type: string;
-          size_bytes: string;
-          preview_attempts: number;
-          source_width: number | null;
-          source_height: number | null;
-          usage_purpose: string | null;
-          hosted_video_source_url: string | null;
-        }>(
-          db,
-          sql`SELECT id, s3_key, mime_type, size_bytes::text AS size_bytes, COALESCE(preview_attempts, 0)::int AS preview_attempts,
-                source_width, source_height, usage_purpose, hosted_video_source_url
-         FROM media_files
-         WHERE preview_status = 'pending'
-           AND (
-             (s3_key IS NOT NULL AND length(trim(s3_key)) > 0)
-             -- Обложка ролика по ссылке приходит сюда ещё без объекта: её байты этот же воркер
-             -- и скачивает, а не пересобирает превью из уже лежащего у нас оригинала.
-             OR usage_purpose = 'hosted_video_preview'
-           )
-           AND ${mediaReadableStatusPredicate}
-           AND (preview_next_attempt_at IS NULL OR preview_next_attempt_at <= now())
-         ORDER BY created_at ASC
-         LIMIT 1
-         FOR UPDATE SKIP LOCKED`,
-        );
-        const rows = claim.rows;
+        const rows = await db
+          .select({
+            id: mediaFiles.id,
+            s3_key: mediaFiles.s3Key,
+            mime_type: mediaFiles.mimeType,
+            size_bytes: mediaFiles.sizeBytes,
+            preview_attempts: mediaFiles.previewAttempts,
+            source_width: mediaFiles.sourceWidth,
+            source_height: mediaFiles.sourceHeight,
+            usage_purpose: mediaFiles.usagePurpose,
+            hosted_video_source_url: mediaFiles.hostedVideoSourceUrl,
+          })
+          .from(mediaFiles)
+          .where(
+            and(
+              eq(mediaFiles.previewStatus, 'pending'),
+              or(
+                and(
+                  isNotNull(mediaFiles.s3Key),
+                  sql`length(trim(${mediaFiles.s3Key})) > 0`,
+                ),
+                eq(mediaFiles.usagePurpose, 'hosted_video_preview'),
+              ),
+              or(
+                isNull(mediaFiles.status),
+                notInArray(mediaFiles.status, ['pending', 'deleting', 'pending_delete']),
+              ),
+              or(
+                isNull(mediaFiles.previewNextAttemptAt),
+                lte(mediaFiles.previewNextAttemptAt, new Date().toISOString()),
+              ),
+            ),
+          )
+          .orderBy(asc(mediaFiles.createdAt))
+          .limit(1)
+          .for('update', { skipLocked: true });
 
         if (rows.length === 0) {
           return { outcome: 'empty' };
@@ -434,7 +441,7 @@ export async function processMediaPreviewBatch(
           );
         }
         const mime = row.mime_type.toLowerCase();
-        const sizeBytes = Number.parseInt(row.size_bytes, 10) || 0;
+        const sizeBytes = Number(row.size_bytes) || 0;
         const smKey = s3PreviewKey(row.id, 'sm');
         const mdKey = s3PreviewKey(row.id, 'md');
 

@@ -26,6 +26,8 @@ import type {
   ExerciseUsageSnapshot,
   UpdateExerciseInput,
 } from '@/modules/lfk-exercises/types';
+import { mediaFiles } from '../../../db/schema/schema';
+import { eq, sql } from 'drizzle-orm';
 import {
   EMPTY_EXERCISE_USAGE_SNAPSHOT,
   EXERCISE_USAGE_DETAIL_LIMIT,
@@ -206,6 +208,8 @@ async function enqueueHostedVideoCover(
   tx: WebappSqlTransactionExecutor,
   media: readonly { mediaUrl: string; mediaType: string }[],
 ): Promise<void> {
+  const organizationId = getCurrentDbPrincipalOrganizationId();
+  if (!organizationId) throw new Error('organization_context_required');
   const seen = new Set<string>();
   for (const item of media) {
     if (item.mediaType !== 'hosted_video') continue;
@@ -213,25 +217,29 @@ async function enqueueHostedVideoCover(
     if (!link) continue;
     if (seen.has(link.canonicalUrl)) continue;
     seen.add(link.canonicalUrl);
-    await txPgText(
-      tx,
-      `INSERT INTO media_files (
-         owner_kind, organization_id, original_name, stored_path, mime_type, size_bytes,
-         status, preview_status, usage_purpose, hosted_video_source_url
-       )
-       VALUES ('organization', ${ORG_ID_EXPR}, $1, $2, 'image/jpeg', 0,
-               'ready', 'pending', 'hosted_video_preview', $3)
-       ON CONFLICT (organization_id, hosted_video_source_url)
-         WHERE usage_purpose = 'hosted_video_preview'
-       DO UPDATE SET
-         preview_status = CASE WHEN media_files.preview_status = 'failed'
-                               THEN 'pending' ELSE media_files.preview_status END,
-         preview_attempts = CASE WHEN media_files.preview_status = 'failed'
-                                 THEN 0 ELSE media_files.preview_attempts END,
-         preview_next_attempt_at = CASE WHEN media_files.preview_status = 'failed'
-                                        THEN NULL ELSE media_files.preview_next_attempt_at END`,
-      [`${link.provider}-${link.videoRef}.jpg`, `hosted-video-preview/${link.provider}`, link.canonicalUrl],
-    );
+    await tx
+      .insert(mediaFiles)
+      .values({
+        ownerKind: 'organization',
+        organizationId,
+        originalName: `${link.provider}-${link.videoRef}.jpg`,
+        storedPath: `hosted-video-preview/${link.provider}`,
+        mimeType: 'image/jpeg',
+        sizeBytes: 0,
+        status: 'ready',
+        previewStatus: 'pending',
+        usagePurpose: 'hosted_video_preview',
+        hostedVideoSourceUrl: link.canonicalUrl,
+      })
+      .onConflictDoUpdate({
+        target: [mediaFiles.organizationId, mediaFiles.hostedVideoSourceUrl],
+        targetWhere: eq(mediaFiles.usagePurpose, 'hosted_video_preview'),
+        set: {
+          previewStatus: sql`CASE WHEN ${mediaFiles.previewStatus} = 'failed' THEN 'pending' ELSE ${mediaFiles.previewStatus} END`,
+          previewAttempts: sql`CASE WHEN ${mediaFiles.previewStatus} = 'failed' THEN 0 ELSE ${mediaFiles.previewAttempts} END`,
+          previewNextAttemptAt: sql`CASE WHEN ${mediaFiles.previewStatus} = 'failed' THEN NULL ELSE ${mediaFiles.previewNextAttemptAt} END`,
+        },
+      });
   }
 }
 

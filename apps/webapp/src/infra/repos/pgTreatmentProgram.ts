@@ -282,7 +282,7 @@ async function templateListFirstItemPreviewByTemplateId(
   for (const row of res.rows) {
     const url = row.preview_url?.trim();
     const mt = row.preview_type?.trim();
-    if (!url || (mt !== 'image' && mt !== 'video' && mt !== 'gif')) {
+    if (!url || (mt !== 'image' && mt !== 'video' && mt !== 'gif' && mt !== 'hosted_video')) {
       out.set(row.template_id, null);
     } else {
       out.set(row.template_id, { mediaUrl: url, mediaType: mt });

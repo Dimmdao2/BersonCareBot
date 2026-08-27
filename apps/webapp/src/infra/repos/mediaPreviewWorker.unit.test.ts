@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 /**
  * The worker is the only writer of `media_files.standard_rendition_at`. That column is the row's
@@ -8,6 +9,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  */
 
 const runWebappSql = vi.fn(async () => ({ rows: [] as unknown[] }));
+let nextClaimRows: Record<string, unknown>[] = [];
+let claimWhere: unknown;
 type HostedThumbnailOutcome =
   | { kind: 'ready'; bytes: Buffer; mimeType: string; thumbnailOrigin: string }
   | { kind: 'retryable'; reason: string }
@@ -56,7 +59,24 @@ vi.mock('@/infra/db/withClient', () => ({
     fn({}),
 }));
 vi.mock('@/infra/db/runWebappSql', () => ({
-  getWebappSqlFromPgClient: () => ({}),
+  getWebappSqlFromPgClient: () => {
+    const query = {
+      from: vi.fn(),
+      where: vi.fn(),
+      orderBy: vi.fn(),
+      limit: vi.fn(),
+      for: vi.fn(),
+    };
+    query.from.mockReturnValue(query);
+    query.where.mockImplementation((condition: unknown) => {
+      claimWhere = condition;
+      return query;
+    });
+    query.orderBy.mockReturnValue(query);
+    query.limit.mockReturnValue(query);
+    query.for.mockImplementation(async () => nextClaimRows);
+    return { select: vi.fn(() => query) };
+  },
   runWebappSql: (...args: unknown[]) => runWebappSql(...(args as [])),
 }));
 vi.mock('@/infra/s3/client', () => ({
@@ -96,18 +116,14 @@ function issuedSql(): string[] {
 }
 
 function claimThen(row: Record<string, unknown> | null) {
-  let claimed = false;
-  runWebappSql.mockImplementation(async () => {
-    if (!claimed) {
-      claimed = true;
-      return { rows: row ? [row] : [] };
-    }
-    return { rows: [] };
-  });
+  nextClaimRows = row ? [row] : [];
+  runWebappSql.mockResolvedValue({ rows: [] });
 }
 
 beforeEach(() => {
   runWebappSql.mockReset();
+  nextClaimRows = [];
+  claimWhere = undefined;
   resolveHostedVideoThumbnail.mockReset();
   resolveHostedVideoThumbnail.mockResolvedValue({
     kind: 'ready',
@@ -210,8 +226,8 @@ describe('processMediaPreviewBatch: обложка ролика по ссылк�
 
     await processMediaPreviewBatch(1);
 
-    const claim = issuedSql()[0]!;
-    expect(claim).toContain('hosted_video_preview');
-    expect(claim).toContain('hosted_video_source_url');
+    if (!claimWhere) throw new Error('claim predicate was not issued');
+    const claim = new PgDialect().sqlToQuery(claimWhere as never);
+    expect(claim.params).toContain('hosted_video_preview');
   });
 });

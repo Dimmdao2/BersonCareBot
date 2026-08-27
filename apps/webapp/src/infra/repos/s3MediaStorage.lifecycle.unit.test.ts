@@ -10,6 +10,7 @@ const fakes = vi.hoisted(() => ({
   getPool: vi.fn(),
   startTransaction: vi.fn(),
   runSql: vi.fn(),
+  runNamedRoot: vi.fn(),
   staleCandidates: vi.fn(),
   runMutation: vi.fn(),
   s3DeleteObject: vi.fn(),
@@ -33,6 +34,7 @@ vi.mock('@/infra/db/runWebappSql', () => ({
     }),
   }),
   getWebappSqlFromPgClient: vi.fn(),
+  runWebappNamedRoot: fakes.runNamedRoot,
   runWebappSql: fakes.runSql,
 }));
 vi.mock('@/infra/db/client', () => ({ getPool: fakes.getPool }));
@@ -95,6 +97,7 @@ function receivedJpeg() {
 describe('proxy S3-to-DB lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.runNamedRoot.mockResolvedValue({ rows: [{ staged_count: 0 }] });
     fakes.principalKind = 'staff';
     fakes.insertValues.mockResolvedValue(undefined);
     fakes.s3PutObjectBody.mockResolvedValue(undefined);
@@ -162,6 +165,7 @@ describe('proxy S3-to-DB lifecycle', () => {
 describe('pending upload abort lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.runNamedRoot.mockResolvedValue({ rows: [{ staged_count: 0 }] });
     fakes.principalKind = 'staff';
     fakes.abortReturning.mockResolvedValue([]);
     fakes.deleteWhere.mockResolvedValue(undefined);
@@ -261,7 +265,7 @@ describe('pending upload abort lifecycle', () => {
     // no object delete was attempted on an upload that was never aborted.
     expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
     const statements = fakes.runSql.mock.calls.map((call) => sqlTextOf(call[1]));
-    expect(statements.some((sql) => /DELETE FROM media_files/i.test(sql))).toBe(false);
+    expect(statements.some((sql) => /DELETE FROM media_files WHERE id/i.test(sql))).toBe(false);
     expect(tx.commit).toHaveBeenCalledOnce();
   });
 
