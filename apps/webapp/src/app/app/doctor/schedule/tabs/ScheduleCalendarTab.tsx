@@ -1279,7 +1279,7 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(
+  const visibleTimeWindow = deriveSlotTimes(
     workingBounds,
     displayableCalendarEvents,
     currentTimeZone,
@@ -1288,6 +1288,14 @@ export function ScheduleCalendarTab({
       endMinute: calendarSettings.defaultWindowEndMinute,
     },
   );
+  // The full day stays reachable inside the calendar scroll area. On mount the
+  // viewport is positioned at the relevant working/event window (already
+  // expanded by the configured buffer in deriveSlotTimes), not at midnight.
+  const slotMinTime = '00:00:00';
+  const slotMaxTime = '24:00:00';
+  const calendarScrollTime = visibleTimeWindow.slotMinTime;
+  const loMinute = 0;
+  const hiMinute = 24 * 60;
 
   const findWorkingBranchIdForStart = useCallback(
     (startLocal: string): string | null => {
@@ -1413,7 +1421,7 @@ export function ScheduleCalendarTab({
 
     // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
     // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
-    // Используем loMinute/hiMinute из deriveSlotTimes (дефолт 09:00–19:00, #231).
+    // Временная ось теперь полная (00:00–24:00), поэтому фон покрывает весь день.
     const grayFill = isTimeGrid
       ? buildNonWorkingFillEvents(
           displayableCalendarEvents.filter((e) => e.kind === 'working'),
@@ -1775,7 +1783,7 @@ export function ScheduleCalendarTab({
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-8">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 pb-8 md:pb-3">
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <div
@@ -2089,11 +2097,19 @@ export function ScheduleCalendarTab({
       <div
         className={cn(
           'block pb-4 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
+          renderMode === 'calendar' &&
+            'md:flex md:min-h-0 md:flex-1 md:pb-0 xl:items-stretch',
           renderMode === 'list' && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
         )}
       >
         {/* Content area */}
-        <div className={cn('min-w-0 flex-1', renderMode === 'list' && 'h-full min-h-0')}>
+        <div
+          className={cn(
+            'min-w-0 flex-1',
+            renderMode === 'calendar' && 'md:h-full md:min-h-0',
+            renderMode === 'list' && 'h-full min-h-0',
+          )}
+        >
           {renderMode === 'list' ? (
             // List view — period-bound, grouped by day
             <ListView
@@ -2112,7 +2128,7 @@ export function ScheduleCalendarTab({
           ) : (
             // FullCalendar
             <div
-              className="touch-pan-y overflow-hidden overscroll-x-contain rounded-xl border border-border bg-card pb-4"
+              className="touch-pan-y overflow-hidden overscroll-x-contain rounded-xl border border-border bg-card pb-4 md:flex md:h-full md:min-h-0 md:flex-col md:pb-0"
               onTouchStartCapture={(event) => {
                 const touch = event.touches[0];
                 calendarSwipeStartRef.current = touch
@@ -2270,7 +2286,7 @@ export function ScheduleCalendarTab({
               `}</style>
               <ScheduleFullCalendarHost
                 calendarRef={calendarRef}
-                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${slotMinTime}:${slotMaxTime}`}
+                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}`}
                 initialView={fcInitialView}
                 views={fcViews}
                 initialDate={anchorDate}
@@ -2293,9 +2309,11 @@ export function ScheduleCalendarTab({
                 nowIndicator
                 dayMaxEvents
                 allDaySlot={false}
-                height="auto"
+                height={isMobileViewport ? 'auto' : '100%'}
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}
+                scrollTime={calendarScrollTime}
+                scrollTimeReset={false}
                 longPressDelay={450}
                 eventLongPressDelay={450}
                 selectLongPressDelay={450}
