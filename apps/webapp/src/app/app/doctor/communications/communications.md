@@ -43,7 +43,7 @@ SSR-предзагрузка непрочитанных комментариев
 
 ## Независимый скролл (split-layout)
 
-Все 3 вкладки используют `CatalogSplitLayout` + `DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE`:
+Все 3 вкладки используют `CatalogSplitLayout` + `DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS`:
 
 - Левый пейн — список (пациенты/заявки/форма рассылки).
 - Правый пейн — деталь/тред/журнал.
