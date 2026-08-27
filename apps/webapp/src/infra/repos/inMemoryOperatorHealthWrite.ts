@@ -43,6 +43,7 @@ type FailureCall = {
   startedAtIso: string;
   durationMs: number;
   error: string;
+  metaJson: Record<string, unknown>;
 };
 
 let reconcileSuccessThrowsForTests: Error | undefined;
@@ -114,6 +115,7 @@ export const inMemoryOperatorHealthWritePort: OperatorHealthWritePort = {
       startedAtIso: input.startedAtIso,
       durationMs: input.durationMs,
       error: input.error,
+      metaJson: input.metaJson,
     });
   },
   async resolveAllOpenIncidents() {

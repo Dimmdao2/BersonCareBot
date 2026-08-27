@@ -143,8 +143,8 @@ export const pgOperatorHealthWritePort: OperatorHealthWritePort = {
       startedAtIso: input.startedAtIso,
       durationMs: input.durationMs,
       error: input.error,
-      metaJson: {},
-      clearMetaOnFailure: true,
+      metaJson: input.metaJson,
+      clearMetaOnFailure: false,
     });
   },
 

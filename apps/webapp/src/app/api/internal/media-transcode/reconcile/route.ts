@@ -39,7 +39,7 @@ const MAX_META_ABORTED_LEN = 480;
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
   if (!secret) {
-    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
+    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 500 });
   }
 
   const auth = request.headers.get('authorization') ?? '';
@@ -123,6 +123,28 @@ export async function POST(request: Request) {
       maxSizeBytes: RECONCILE_MAX_MEDIA_BYTES,
     };
 
+    const failureReason = abortedReason ??
+      (report.enqueue.errors > 0 ? `enqueue_errors:${report.enqueue.errors}` : null);
+    if (failureReason) {
+      try {
+        await buildAppDeps().operatorHealthWrite.recordMediaTranscodeReconcileFailure({
+          startedAtIso,
+          durationMs,
+          error: failureReason,
+          metaJson,
+        });
+      } catch (tickErr) {
+        logger.warn(
+          { err: tickErr },
+          '[internal/media-transcode/reconcile] operator_job_status failure tick failed',
+        );
+      }
+      return NextResponse.json(
+        { ok: false, error: 'reconcile_partial_failure', report },
+        { status: 500 },
+      );
+    }
+
     // Secondary: DB tick must not turn a successful reconcile into HTTP 500 if the row write fails.
     try {
       await buildAppDeps().operatorHealthWrite.recordMediaTranscodeReconcileSuccess({
@@ -147,6 +169,7 @@ export async function POST(request: Request) {
         startedAtIso,
         durationMs,
         error: msg,
+        metaJson: {},
       });
     } catch (tickErr) {
       logger.warn(
