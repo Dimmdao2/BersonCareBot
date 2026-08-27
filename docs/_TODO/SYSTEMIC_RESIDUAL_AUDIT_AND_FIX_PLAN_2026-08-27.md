@@ -448,9 +448,11 @@ schedule job красит deploy/reconcile-проверку до запуска 
       и в раннере `migrate-local.mjs`. Четыре уже применённые исторические группы не переименованы, а
       зафиксированы КАК СОСТАВ: добавление файла в такую группу краснеет так же, как новое совпадение.
       Гейт едет в job `test-db-privileges`.
-- [ ] Пропущенный schedule artifact — предмет этапа 2, здесь не трогался.
-- [ ] `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` проверяет только форму имени: проверка совпадения
-      timestamp в этот раннер не добавлена (файл вне scope хода). DEV/TEST-путь закрыт `migrate-local.mjs`.
+- [x] Пропущенный schedule artifact краснит единый manifest/artifact-гейт; TEST/PROD deploy до перезапуска
+      сверяет поставляемые artifacts и реально установленное расписание.
+- [x] `apps/webapp/scripts/run-webapp-drizzle-migrate.mjs` использует тот же
+      `findMigrationTimestampCollisions`, что и `migrate-local.mjs`, поэтому оба действующих раннера отказываются
+      продолжать при новом совпадении timestamp.
 
 ### Этап 7. Одна связная живая приёмка и синхронизация документов
 
