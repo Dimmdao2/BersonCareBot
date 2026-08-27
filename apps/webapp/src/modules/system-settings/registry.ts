@@ -282,13 +282,6 @@ export const SYSTEM_SETTING_REGISTRY = {
     'boolean',
     'false',
   ),
-  booking_calendar_default_window: runtime(
-    'doctor',
-    'per_org',
-    'authenticated_client',
-    'structured',
-    'absent',
-  ),
   booking_calendar_default_branch_id: runtime(
     'doctor',
     'per_org',

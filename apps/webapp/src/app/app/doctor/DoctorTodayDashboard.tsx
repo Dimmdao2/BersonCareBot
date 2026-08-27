@@ -45,7 +45,6 @@ type Props = {
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
-  calendarDefaultWindow?: { startMinute: number; endMinute: number };
 };
 
 function peopleItemName(client: TodayDashboardData['people'][number]): string {
@@ -181,7 +180,6 @@ export function DoctorTodayDashboard({
   data,
   displayIana,
   calendarSnapshot,
-  calendarDefaultWindow,
   specialistTasksAvailable,
   specialistTasksReadable,
 }: Props) {
@@ -313,7 +311,6 @@ export function DoctorTodayDashboard({
               appointments={data.todayAppointments}
               calendarSnapshot={calendarSnapshot}
               displayIana={displayIana}
-              defaultWindow={calendarDefaultWindow}
               fillHeight
             />
           </div>
@@ -363,7 +360,6 @@ export function DoctorTodayDashboard({
           appointments={data.todayAppointments}
           calendarSnapshot={calendarSnapshot}
           displayIana={displayIana}
-          defaultWindow={calendarDefaultWindow}
           fillHeight
           flushChrome
         />

@@ -100,7 +100,6 @@ type Props = {
   /** Fixed on the RSC render so fallback and loaded calendar use one calendar day. */
   calendarSnapshot: DoctorTodayCalendarSnapshot;
   displayIana: string;
-  defaultWindow?: { startMinute: number; endMinute: number };
   fillHeight?: boolean;
   flushChrome?: boolean;
 };
@@ -116,7 +115,6 @@ export function TodayMiniCalendarWithModal({
   appointments,
   calendarSnapshot,
   displayIana,
-  defaultWindow,
   fillHeight = false,
   flushChrome = false,
 }: Props) {
@@ -209,7 +207,6 @@ export function TodayMiniCalendarWithModal({
           displayIana={calendarTimeZone}
           workingBounds={workingBounds}
           showWorkingHours={showWorkingHours}
-          defaultWindow={defaultWindow}
           fillHeight={fillHeight}
           flushChrome={flushChrome}
           onCanonicalEventClick={(appt) => setSelected(appt)}
