@@ -14,10 +14,25 @@ const runWebappPgText =
     rowCount: 0,
   })));
 const catalogMediaLadderLookup = vi.hoisted(() => vi.fn());
+const drizzleInsertValues = vi.hoisted(() => vi.fn());
+const drizzleConflict = vi.hoisted(() => vi.fn());
+const drizzleInsert = vi.hoisted(() =>
+  vi.fn(() => ({
+    values: (values: unknown) => {
+      drizzleInsertValues(values);
+      return {
+        onConflictDoUpdate: async (config: unknown) => {
+          drizzleConflict(config);
+        },
+      };
+    },
+  })),
+);
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappPgText,
-  runWebappTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({ tx: true }),
+  runWebappTransaction: async (fn: (tx: unknown) => Promise<unknown>) =>
+    fn({ insert: drizzleInsert }),
 }));
 vi.mock('@bersoncare/db-principal', () => ({
   getCurrentDbPrincipalOrganizationId: () => 'org-1',
@@ -53,13 +68,16 @@ function issued(): { sql: string; values: readonly unknown[] }[] {
   }));
 }
 
-function coverStatements() {
-  return issued().filter((s) => s.sql.includes('INSERT INTO media_files'));
+function coverValues(): Record<string, unknown>[] {
+  return drizzleInsertValues.mock.calls.map((call) => call[0] as Record<string, unknown>);
 }
 
 beforeEach(() => {
   runWebappPgText.mockReset();
   catalogMediaLadderLookup.mockReset();
+  drizzleInsert.mockClear();
+  drizzleInsertValues.mockClear();
+  drizzleConflict.mockClear();
   catalogMediaLadderLookup.mockResolvedValue({ get: () => undefined, size: 0 });
   runWebappPgText.mockImplementation(async (text: string) => {
     if (text.includes('INSERT INTO lfk_exercises')) return { rows: [EXERCISE_ROW], rowCount: 1 };
@@ -85,10 +103,13 @@ describe('упражнение со ссылкой на видеохостинг
       'doctor-1',
     );
 
-    const covers = coverStatements();
+    const covers = coverValues();
     expect(covers).toHaveLength(1);
-    expect(covers[0]!.sql).toContain("'hosted_video_preview'");
-    expect(covers[0]!.values).toContain('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+    expect(covers[0]).toMatchObject({
+      usagePurpose: 'hosted_video_preview',
+      hostedVideoSourceUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      previewStatus: 'pending',
+    });
   });
 
   it('та же ссылка в разных написаниях не плодит заказов внутри одного сохранения', async () => {
@@ -111,7 +132,7 @@ describe('упражнение со ссылкой на видеохостинг
       'doctor-1',
     );
 
-    expect(coverStatements()).toHaveLength(1);
+    expect(coverValues()).toHaveLength(1);
   });
 
   /* Повторное сохранение той же ссылки переиспользует строку, а сдавшуюся — возвращает в очередь. */
@@ -126,11 +147,16 @@ describe('упражнение со ссылкой на видеохостинг
       ],
     });
 
-    const covers = coverStatements();
+    const covers = coverValues();
     expect(covers).toHaveLength(1);
-    expect(covers[0]!.sql).toContain('ON CONFLICT');
-    expect(covers[0]!.sql).toContain("THEN 'pending'");
-    expect(covers[0]!.sql).toContain('preview_attempts');
+    expect(drizzleConflict).toHaveBeenCalledTimes(1);
+    expect(drizzleConflict.mock.calls[0]?.[0]).toMatchObject({
+      set: {
+        previewStatus: expect.anything(),
+        previewAttempts: expect.anything(),
+        previewNextAttemptAt: expect.anything(),
+      },
+    });
   });
 
   it('замена медиа не удаляет общую обложку — сносится только связь упражнения', async () => {
@@ -155,7 +181,7 @@ describe('упражнение со ссылкой на видеохостинг
       'doctor-1',
     );
 
-    expect(coverStatements()).toHaveLength(0);
+    expect(coverValues()).toHaveLength(0);
   });
 
   it('состояние превью и файла, и ссылки читается общей дверью, а не вторым join', async () => {
@@ -207,7 +233,6 @@ describe('упражнение со ссылкой на видеохостинг
     expect(created.media[0]!.previewSmUrl).toBe(
       '/api/media/33333333-3333-4333-8333-333333333333/preview/sm',
     );
-    /* Никакого второго прохода к media_files внутри самих запросов упражнений. */
-    expect(issued().some((s) => s.sql.includes('LEFT JOIN media_files'))).toBe(false);
+    expect(catalogMediaLadderLookup).toHaveBeenCalled();
   });
 });

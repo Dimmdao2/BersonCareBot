@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
@@ -98,6 +98,12 @@ function personalTraces(value: unknown, path = '$'): string[] {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-08-24T12:00:00.000Z'));
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 it('экран «Приложение» получает числа через объявленную дверь, а не читает отношения', async () => {

@@ -29,6 +29,7 @@ vi.mock('@/shared/ui/doctor/doctorVisual', () => ({
 }));
 vi.mock('@/shared/ui/doctor/doctorWorkspaceLayout', () => ({
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE: 'layout',
+  DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS: 'layout',
 }));
 
 import { BroadcastsTab } from './BroadcastsTab';
