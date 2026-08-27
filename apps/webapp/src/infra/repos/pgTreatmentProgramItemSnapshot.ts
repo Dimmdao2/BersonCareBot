@@ -1,14 +1,16 @@
 /** Wave 3 phase 15C — catalog media preview lookup via `runWebappPgText`. */
 import { and, asc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
+import {
+  catalogMediaLadderLookup,
+  type CatalogMediaLadder,
+} from '@/infra/repos/catalogMediaLadderLookup';
 import { clinicalTests } from '../../../db/schema/clinicalTests';
 import { recommendations } from '../../../db/schema/recommendations';
 import { contentPages, lfkExerciseMedia, lfkExercises } from '../../../db/schema/schema';
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import type { TreatmentProgramItemSnapshotPort } from '@/modules/treatment-program/ports';
 import type { TreatmentProgramItemType } from '@/modules/treatment-program/types';
-import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { createPgOrgEntitlementsPort } from '@/infra/repos/pgOrgEntitlements';
 import { isMechanicEnabled } from '@/modules/org-entitlements/service';
@@ -16,6 +18,7 @@ import {
   LESSON_CONTENT_SECTION,
   LESSON_CONTENT_SECTION_LEGACY,
 } from '@/modules/treatment-program/types';
+import { parseHostedVideoLink } from '@/shared/lib/hostingEmbedUrls';
 
 function notFound(type: TreatmentProgramItemType): Error {
   return new Error(`Снимок: объект типа «${type}» не найден`);
@@ -56,22 +59,69 @@ type CatalogMediaSnapshotRow = CatalogMediaRowInput & {
   standardRendition: boolean;
 };
 
+/** Hosted links retained inside an immutable program-item snapshot. */
+export function hostedVideoUrlsInProgramSnapshot(snapshot: Record<string, unknown>): string[] {
+  if (!Array.isArray(snapshot.media)) return [];
+  const urls = new Set<string>();
+  for (const raw of snapshot.media) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const row = raw as Record<string, unknown>;
+    const mediaType = row.mediaType ?? row.type;
+    if (mediaType !== 'hosted_video') continue;
+    const rawUrl = typeof row.mediaUrl === 'string' ? row.mediaUrl : row.url;
+    if (typeof rawUrl !== 'string') continue;
+    const parsed = parseHostedVideoLink(rawUrl);
+    if (parsed) urls.add(parsed.canonicalUrl);
+  }
+  return [...urls];
+}
+
 /**
- * Дополняет каталожные медиа (`/api/media/{uuid}`) состоянием лестницы (`catalogMediaLadderLookup`) —
- * для снимков элементов программы (пациентский UI без join к БД на клиенте). Один батч-запрос на
- * весь снимок, не на картинку.
+ * Preview status is operational state, not immutable clinical content. Refresh it from the common
+ * ladder whenever an instance is read, so an assignment created while the cover was still pending
+ * starts showing our image after the worker finishes without rewriting the clinical snapshot.
+ */
+export function withCurrentHostedVideoPreviewsInProgramSnapshot(
+  snapshot: Record<string, unknown>,
+  ladder: CatalogMediaLadder,
+): Record<string, unknown> {
+  if (!Array.isArray(snapshot.media)) return snapshot;
+  let changed = false;
+  const media = snapshot.media.map((raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return raw;
+    const row = raw as Record<string, unknown>;
+    const mediaType = row.mediaType ?? row.type;
+    if (mediaType !== 'hosted_video') return raw;
+    const rawUrl = typeof row.mediaUrl === 'string' ? row.mediaUrl : row.url;
+    if (typeof rawUrl !== 'string') return raw;
+    const parsed = parseHostedVideoLink(rawUrl);
+    if (!parsed) return raw;
+    const current = ladder.get(parsed.canonicalUrl);
+    changed = true;
+    return {
+      ...row,
+      previewSmUrl: current?.previewSmUrl ?? null,
+      previewMdUrl: current?.previewMdUrl ?? null,
+      previewStatus: current?.previewStatus ?? 'skipped',
+      standardRendition: current?.standardRendition ?? false,
+    };
+  });
+  return changed ? { ...snapshot, media } : snapshot;
+}
+
+/**
+ * Дополняет каталожные медиа состоянием лестницы (`catalogMediaLadderLookup`) — для снимков
+ * элементов программы (пациентский UI без join к БД на клиенте). Один батч-запрос на весь снимок,
+ * не на картинку. Дверь сама различает наш файл (`/api/media/{uuid}`) и ссылку на видеохостинг,
+ * поэтому здесь id больше не разбирается.
  */
 async function catalogMediaRowsWithWorkerPreviews(
   rows: CatalogMediaRowInput[],
 ): Promise<CatalogMediaSnapshotRow[]> {
   if (rows.length === 0) return [];
-  const fileIds = rows
-    .map((r) => parseMediaFileIdFromAppUrl(r.mediaUrl))
-    .filter((id): id is string => Boolean(id));
-  const byId = await catalogMediaLadderLookup(fileIds);
+  const ladderByUrl = await catalogMediaLadderLookup(rows.map((r) => r.mediaUrl));
   return rows.map((row) => {
-    const mid = parseMediaFileIdFromAppUrl(row.mediaUrl);
-    const ladder = mid ? byId.get(mid) : undefined;
+    const ladder = ladderByUrl.get(row.mediaUrl);
     return {
       ...row,
       previewSmUrl: ladder?.previewSmUrl ?? null,

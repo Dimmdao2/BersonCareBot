@@ -428,6 +428,26 @@ schedule job красит deploy/reconcile-проверку до запуска 
 Приёмка этапа: сетевой лог пациента не содержит запроса за preview к YouTube/VK; hosted и local preview проходят
 одну state machine; старые pending rows либо обработаны, либо получили объяснимое terminal состояние.
 
+**Статус 28.08 (ветка `wt/systemic-hosted-preview-impl-20260827`, пункты 2–3 — preview-door и YouTube/VK).**
+Полный разбор и все решения — в
+[`OWNER_PATIENT_WALKTHROUGH_BUGS_2026-08-19.md`](OWNER_PATIENT_WALKTHROUGH_BUGS_2026-08-19.md) §«Превью для
+видео по ссылке», разделы «Что построено 28.08» и «Инъекции 28.08» (не дублирую здесь). Коротко:
+
+- [x] Одна preview-door на оба кабинета: `catalogMediaLadderLookup` принимает URL медиа и знает три
+      источника — наш файл, ссылку на хостинг, отсутствие. Ручной разбор id у четырёх вызывающих и два
+      собственных `LEFT JOIN media_files` в `pgLfkExercises` удалены.
+- [x] Обложка YouTube/VK получается сервером один раз, перекодируется существующим
+      `imageStandardRendition` и живёт в нашем private S3 как обычная строка `media_files`
+      (`usage_purpose = 'hosted_video_preview'`). Отдельного крона не заведено — работает тот же
+      `processMediaPreviewBatch`. UI получает только `/api/media/{id}/preview/{size}`.
+- [x] Private/deleted/unsupported переходит в явное terminal (`skipped`); временные отказы — bounded retry
+      до `failed`. Вечного `pending` нет ни в одном разряде.
+- [ ] Пункт 1 этапа (single-PUT `pending` в общий lifecycle очистки) и пункт 4 (живое доказательство
+      воркера и накопленных строк на TEST) этой веткой НЕ закрыты.
+- [ ] **Owner-gate:** VK-обложки не появятся, пока владелец не заведёт сервисный токен VK API с правом
+      `video` в `system_settings` (ключ `vk_video_service_token`, scope `admin`). Токен бота сообщества
+      (`vk_community_access_token`) для `video.get` не годится — подтверждено живым запросом.
+
 ### Этап 6. Подключить быстрые защиты к CI
 
 - Добавить отдельные параллельные GitHub jobs для `test:db-privileges`, `test:scripts`, migration timestamp

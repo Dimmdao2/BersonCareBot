@@ -13,7 +13,6 @@ import {
   treatmentProgramTemplateStageGroups as tplGroupTable,
 } from '../../../db/schema/treatmentProgramTemplates';
 import { catalogMediaLadderLookup } from '@/infra/repos/catalogMediaLadderLookup';
-import { parseMediaFileIdFromAppUrl } from '@/shared/lib/mediaPreviewUrls';
 import type {
   CreateTreatmentProgramStageInput,
   CreateTreatmentProgramStageItemInput,
@@ -283,7 +282,7 @@ async function templateListFirstItemPreviewByTemplateId(
   for (const row of res.rows) {
     const url = row.preview_url?.trim();
     const mt = row.preview_type?.trim();
-    if (!url || (mt !== 'image' && mt !== 'video' && mt !== 'gif')) {
+    if (!url || (mt !== 'image' && mt !== 'video' && mt !== 'gif' && mt !== 'hosted_video')) {
       out.set(row.template_id, null);
     } else {
       out.set(row.template_id, { mediaUrl: url, mediaType: mt });
@@ -299,22 +298,18 @@ async function templateListFirstItemPreviewByTemplateId(
 async function enrichTemplateListPreviewMedia(
   previews: Map<string, TreatmentProgramTemplateListPreviewMedia | null>,
 ): Promise<Map<string, TreatmentProgramTemplateListPreviewMedia | null>> {
-  const mediaIds: string[] = [];
+  const mediaUrls: string[] = [];
   for (const preview of previews.values()) {
-    if (!preview?.mediaUrl) continue;
-    const mid = parseMediaFileIdFromAppUrl(preview.mediaUrl);
-    if (mid) mediaIds.push(mid);
+    if (preview?.mediaUrl) mediaUrls.push(preview.mediaUrl);
   }
-  if (mediaIds.length === 0) return previews;
+  if (mediaUrls.length === 0) return previews;
 
-  const byId = await catalogMediaLadderLookup(mediaIds);
+  const ladderByUrl = await catalogMediaLadderLookup(mediaUrls);
 
   const out = new Map(previews);
   for (const [templateId, preview] of previews) {
     if (!preview?.mediaUrl) continue;
-    const mid = parseMediaFileIdFromAppUrl(preview.mediaUrl);
-    if (!mid) continue;
-    const ladder = byId.get(mid);
+    const ladder = ladderByUrl.get(preview.mediaUrl);
     if (!ladder) continue;
     out.set(templateId, {
       ...preview,

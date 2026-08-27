@@ -8,13 +8,13 @@ import { Readable } from 'node:stream';
 import ffmpeg from 'fluent-ffmpeg';
 import type { FfmpegCommand } from 'fluent-ffmpeg';
 import sharp from 'sharp';
-import { sql } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
 import { env } from '@/config/env';
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import { logger } from '@/infra/logging/logger';
-import { mediaReadableStatusPredicate } from '@/infra/repos/mediaSqlPredicates';
+import { mediaFiles } from '../../../db/schema/schema';
 import {
   presignGetUrl,
   s3DeleteObject,
@@ -29,6 +29,7 @@ import {
   encodeStandardImageRendition,
 } from '@/modules/media/imageStandardRendition';
 import { MAX_MEDIA_BYTES } from '@/modules/media/uploadAllowedMime';
+import { resolveHostedVideoThumbnail } from '@/shared/lib/hostedVideoThumbnail';
 
 const resolvedFfmpegPath = env.FFMPEG_PATH || 'ffmpeg';
 try {
@@ -44,11 +45,21 @@ const MAX_IMAGE_PREVIEW_BYTES = 50 * 1024 * 1024;
 /** Keep preview source ceiling aligned with media upload ceiling. */
 const MAX_PREVIEW_SOURCE_BYTES = MAX_MEDIA_BYTES;
 const FFMPEG_EXTRACT_TIMEOUT_MS = 120_000;
+/**
+ * Обложки ролика на этом хостинге не будет никогда: ролик удалён/приватный, провайдер обложек не
+ * отдаёт, либо он вообще не из тех, кого мы умеем спрашивать. Это `skipped` — «превью не
+ * создаётся», ровно как у файла, который нечем сконвертировать, а не ошибка обработки.
+ */
+const HOSTED_PREVIEW_UNAVAILABLE = 'hosted_video_preview_unavailable';
+/** Временная причина (сеть, лимит провайдера, ещё не заведён сервисный токен VK). */
+const HOSTED_PREVIEW_RETRY = 'hosted_video_preview_retry';
+
 const PERMANENT_ERROR_PATTERNS = [
   'compression format has not been built in',
   'Input buffer contains unsupported image format',
   'Invalid data found when processing input',
   'was killed with signal SIGSEGV',
+  HOSTED_PREVIEW_UNAVAILABLE,
 ] as const;
 
 export type ProcessMediaPreviewBatchResult = {
@@ -381,28 +392,42 @@ export async function processMediaPreviewBatch(
       async (client) => {
         let supersededOriginalKey: string | null = null;
         const db = getWebappSqlFromPgClient(client);
-        const claim = await runWebappSql<{
-          id: string;
-          s3_key: string;
-          mime_type: string;
-          size_bytes: string;
-          preview_attempts: number;
-          source_width: number | null;
-          source_height: number | null;
-        }>(
-          db,
-          sql`SELECT id, s3_key, mime_type, size_bytes::text AS size_bytes, COALESCE(preview_attempts, 0)::int AS preview_attempts,
-                source_width, source_height
-         FROM media_files
-         WHERE preview_status = 'pending'
-           AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
-           AND ${mediaReadableStatusPredicate}
-           AND (preview_next_attempt_at IS NULL OR preview_next_attempt_at <= now())
-         ORDER BY created_at ASC
-         LIMIT 1
-         FOR UPDATE SKIP LOCKED`,
-        );
-        const rows = claim.rows;
+        const rows = await db
+          .select({
+            id: mediaFiles.id,
+            s3_key: mediaFiles.s3Key,
+            mime_type: mediaFiles.mimeType,
+            size_bytes: mediaFiles.sizeBytes,
+            preview_attempts: mediaFiles.previewAttempts,
+            source_width: mediaFiles.sourceWidth,
+            source_height: mediaFiles.sourceHeight,
+            usage_purpose: mediaFiles.usagePurpose,
+            hosted_video_source_url: mediaFiles.hostedVideoSourceUrl,
+          })
+          .from(mediaFiles)
+          .where(
+            and(
+              eq(mediaFiles.previewStatus, 'pending'),
+              or(
+                and(
+                  isNotNull(mediaFiles.s3Key),
+                  sql`length(trim(${mediaFiles.s3Key})) > 0`,
+                ),
+                eq(mediaFiles.usagePurpose, 'hosted_video_preview'),
+              ),
+              or(
+                isNull(mediaFiles.status),
+                notInArray(mediaFiles.status, ['pending', 'deleting', 'pending_delete']),
+              ),
+              or(
+                isNull(mediaFiles.previewNextAttemptAt),
+                lte(mediaFiles.previewNextAttemptAt, new Date().toISOString()),
+              ),
+            ),
+          )
+          .orderBy(asc(mediaFiles.createdAt))
+          .limit(1)
+          .for('update', { skipLocked: true });
 
         if (rows.length === 0) {
           return { outcome: 'empty' };
@@ -416,12 +441,39 @@ export async function processMediaPreviewBatch(
           );
         }
         const mime = row.mime_type.toLowerCase();
-        const sizeBytes = Number.parseInt(row.size_bytes, 10) || 0;
+        const sizeBytes = Number(row.size_bytes) || 0;
         const smKey = s3PreviewKey(row.id, 'sm');
         const mdKey = s3PreviewKey(row.id, 'md');
 
+        /* Ветки ниже работают только с уже лежащим у нас объектом: claim их без ключа не выдаёт. */
+        const storedKey = row.s3_key?.trim() ?? '';
+        const hostedSourceUrl =
+          row.usage_purpose === 'hosted_video_preview' &&
+          !row.s3_key?.trim() &&
+          row.hosted_video_source_url?.trim()
+            ? row.hosted_video_source_url.trim()
+            : null;
+
         try {
-          if (mime === 'image/heic' || mime === 'image/heif') {
+          if (hostedSourceUrl) {
+            /* Единственное место, где мы ходим к чужому хосту. Наружу уходят только наши ключи:
+               байты сразу перекодируются нашим энкодером и ложатся в приватный бакет. */
+            const outcome = await resolveHostedVideoThumbnail(hostedSourceUrl);
+            if (outcome.kind === 'terminal') {
+              throw new Error(`${HOSTED_PREVIEW_UNAVAILABLE}: ${outcome.reason}`);
+            }
+            if (outcome.kind === 'retryable') {
+              throw new Error(`${HOSTED_PREVIEW_RETRY}: ${outcome.reason}`);
+            }
+            supersededOriginalKey = await applyStandardImageRendition(
+              db,
+              row.id,
+              '',
+              outcome.bytes,
+              smKey,
+              mdKey,
+            );
+          } else if (mime === 'image/heic' || mime === 'image/heif') {
             if (sizeBytes > MAX_PREVIEW_SOURCE_BYTES) {
               await runWebappSql(
                 db,
@@ -432,11 +484,11 @@ export async function processMediaPreviewBatch(
                 '[processMediaPreviewBatch] heic/heif too large for ffmpeg preview, skipped',
               );
             } else {
-              const decoded = await heicFullSizeJpeg(row.s3_key);
+              const decoded = await heicFullSizeJpeg(storedKey);
               supersededOriginalKey = await applyStandardImageRendition(
                 db,
                 row.id,
-                row.s3_key,
+                storedKey,
                 decoded,
                 smKey,
                 mdKey,
@@ -461,20 +513,20 @@ export async function processMediaPreviewBatch(
               '[processMediaPreviewBatch] video too large for ffmpeg preview, skipped',
             );
           } else if (mime.startsWith('image/')) {
-            const raw = await s3GetObjectBody(row.s3_key);
+            const raw = await s3GetObjectBody(storedKey);
             if (!raw) {
               throw new Error('s3_get_object_empty');
             }
             supersededOriginalKey = await applyStandardImageRendition(
               db,
               row.id,
-              row.s3_key,
+              storedKey,
               raw,
               smKey,
               mdKey,
             );
           } else if (mime.startsWith('video/')) {
-            const presigned = await presignGetUrl(row.s3_key);
+            const presigned = await presignGetUrl(storedKey);
             let sw: number | null = null;
             let sh: number | null = null;
             try {
@@ -489,7 +541,7 @@ export async function processMediaPreviewBatch(
                 '[mediaPreviewWorker] video dimension probe failed',
               );
             }
-            const rawPoster = await videoPosterJpegRaw(row.s3_key);
+            const rawPoster = await videoPosterJpegRaw(storedKey);
             const { sm: posterSm, md: posterMd } = await thumbnailsSmMd(rawPoster);
             await s3PutObjectBody(smKey, posterSm, 'image/jpeg');
             await s3PutObjectBody(mdKey, posterMd, 'image/jpeg');

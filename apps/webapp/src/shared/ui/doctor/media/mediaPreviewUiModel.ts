@@ -48,11 +48,17 @@ export function libraryMediaRowToPreviewUi(item: {
 }
 
 /**
- * Внешняя ссылка на хостинг — тоже видео, но конвертировать у неё нечего: файла в `media_files`
- * нет, миниатюры нашего воркера не будет никогда. По лестнице
- * (`getMediaThumbPhase`) это ровно `skipped` — «превью не создаётся», а не `pending`
- * («готовится», то есть ждём конвертацию, которой не будет) и не `failed` (ошибка обработки,
- * которой не было). Поэтому статус проставляется здесь, а не берётся из строки.
+ * Внешняя ссылка на хостинг — тоже видео, и обложка у неё теперь наша: сервер один раз скачивает
+ * её у провайдера и кладёт в наше хранилище (`media_files`, `usage_purpose =
+ * 'hosted_video_preview'`), поэтому состояние берётся из строки, как у обычного файла, а не
+ * назначается здесь. Общая дверь (`catalogMediaLadderLookup`) отдаёт `skipped` ровно там, где
+ * обложки действительно не будет — приватный/удалённый ролик, неизвестный провайдер, ещё не
+ * заказанная обложка.
+ *
+ * `previewSmUrl`/`previewMdUrl` в этой модели всегда наши `/api/media/{id}/preview/{size}`;
+ * внешний адрес картинки провайдера сюда не попадает никогда. `standardRendition` для ссылки
+ * остаётся пустым: показывать «сам файл» тут нечего — по `url` лежит страница ролика, а не
+ * картинка, и ни при какой лестнице она не должна уехать в `<img src>`.
  */
 export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel {
   const hosted = m.mediaType === 'hosted_video';
@@ -62,9 +68,10 @@ export function exerciseMediaToPreviewUi(m: ExerciseMedia): MediaPreviewUiModel 
     id: m.id,
     kind,
     url: m.mediaUrl,
-    previewStatus: hosted ? 'skipped' : (m.previewStatus ?? null),
-    previewSmUrl: hosted ? null : (m.previewSmUrl ?? null),
-    previewMdUrl: hosted ? null : (m.previewMdUrl ?? null),
+    previewStatus: m.previewStatus ?? null,
+    previewSmUrl: m.previewSmUrl ?? null,
+    previewMdUrl: m.previewMdUrl ?? null,
+    standardRendition: null,
     sourceWidth: null,
     sourceHeight: null,
   };
@@ -105,10 +112,10 @@ export function recommendationMediaItemToPreviewUi(
     id: m.mediaUrl,
     kind,
     url: m.mediaUrl,
-    /* Ссылка на хостинг: конвертировать нечего — `skipped`, см. exerciseMediaToPreviewUi. */
-    previewStatus: hosted ? 'skipped' : (m.previewStatus ?? null),
-    previewSmUrl: hosted ? null : m.previewSmUrl?.trim() || null,
-    previewMdUrl: hosted ? null : m.previewMdUrl?.trim() || null,
+    /* Ссылка на хостинг ходит той же лестницей, что файл, — см. exerciseMediaToPreviewUi. */
+    previewStatus: m.previewStatus ?? null,
+    previewSmUrl: m.previewSmUrl?.trim() || null,
+    previewMdUrl: m.previewMdUrl?.trim() || null,
     standardRendition: hosted ? null : (m.standardRendition ?? null),
     sourceWidth: null,
     sourceHeight: null,

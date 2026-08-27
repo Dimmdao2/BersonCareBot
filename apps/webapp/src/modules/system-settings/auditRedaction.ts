@@ -35,6 +35,7 @@ const SECRET_VALUE_KEYS = new Set<string>([
   'vk_community_access_token',
   'vk_callback_secret',
   'vk_callback_confirmation_token',
+  'vk_video_service_token',
   'telegram_bot_token',
   'telegram_webhook_secret',
   'yandex_oauth_client_secret',

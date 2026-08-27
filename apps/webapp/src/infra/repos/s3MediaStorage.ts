@@ -63,6 +63,7 @@ import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
 import { patientFiles } from '../../../db/schema/patientFiles';
 import { MULTIPART_SESSION_TTL_MS } from '@/modules/media/multipartConstants';
 import {
+  mediaLibraryVisibleUsagePredicateM,
   mediaReadableStatusPredicate,
   mediaReadableStatusPredicateM,
   mediaS3PurgeStatusPredicate,
@@ -288,6 +289,7 @@ export function createS3MediaStoragePort(): MediaStoragePort {
       const organizationId = currentPrincipalOrganizationId();
       const whereParts: SQL[] = [
         mediaReadableStatusPredicateM,
+        mediaLibraryVisibleUsagePredicateM,
         sql`m.organization_id = ${organizationId}::uuid`,
       ];
 
@@ -1300,6 +1302,12 @@ export async function purgePendingMediaDeleteBatch(
 ): Promise<PurgePendingMediaDeleteBatchResult> {
   const pool = getPool();
   const take = Math.max(1, Math.min(50, limit));
+  await runWebappNamedRoot<{ staged_count: number | string }>(
+    getWebappSqlDb(),
+    'app.stage_orphan_hosted_video_covers_for_purge(integer)',
+    [take],
+    sql`SELECT app.stage_orphan_hosted_video_covers_for_purge(${take}) AS staged_count`,
+  );
   await stageStaleSinglePutMediaForPurge(take);
   let removed = 0;
   let errors = 0;

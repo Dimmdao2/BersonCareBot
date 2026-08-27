@@ -1963,6 +1963,12 @@ export const mediaFiles = pgTable(
     availableQualitiesJson: jsonb('available_qualities_json'),
     videoDeliveryOverride: text('video_delivery_override'),
     usagePurpose: text('usage_purpose'),
+    /**
+     * Канонический URL ролика на внешнем хостинге, обложкой которого является эта строка
+     * (`hostingEmbedUrls.ts#canonicalUrl`, тот же текст, что лежит в `lfk_exercise_media.media_url`).
+     * Заполнен ровно на строках `usage_purpose = 'hosted_video_preview'` — см. одноимённый CHECK.
+     */
+    hostedVideoSourceUrl: text('hosted_video_source_url'),
   },
   (table) => [
     index('idx_media_files_created_at').using(
@@ -1990,6 +1996,13 @@ export const mediaFiles = pgTable(
       'btree',
       table.uploadedBy.asc().nullsLast().op('uuid_ops'),
     ),
+    uniqueIndex('uq_media_files_hosted_video_preview_source')
+      .using(
+        'btree',
+        table.organizationId.asc().nullsLast().op('uuid_ops'),
+        table.hostedVideoSourceUrl.asc().nullsLast().op('text_ops'),
+      )
+      .where(sql`(usage_purpose = 'hosted_video_preview'::text)`),
     index('idx_media_files_video_processing_status')
       .using('btree', table.videoProcessingStatus.asc().nullsLast().op('text_ops'))
       .where(sql`(mime_type ~~ 'video/%'::text)`),
@@ -2029,7 +2042,11 @@ export const mediaFiles = pgTable(
     ),
     check(
       'media_files_usage_purpose_check',
-      sql`(usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text]))`,
+      sql`(usage_purpose IS NULL) OR (usage_purpose = ANY (ARRAY['program_item_submission'::text, 'hosted_video_preview'::text]))`,
+    ),
+    check(
+      'media_files_hosted_video_preview_check',
+      sql`(usage_purpose = 'hosted_video_preview' AND hosted_video_source_url IS NOT NULL AND owner_kind = 'organization' AND organization_id IS NOT NULL) OR (usage_purpose IS DISTINCT FROM 'hosted_video_preview' AND hosted_video_source_url IS NULL)`,
     ),
   ],
 );

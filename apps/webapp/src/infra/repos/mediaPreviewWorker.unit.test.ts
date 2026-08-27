@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { PgDialect } from 'drizzle-orm/pg-core';
 
 /**
  * The worker is the only writer of `media_files.standard_rendition_at`. That column is the row's
@@ -8,6 +9,32 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
  */
 
 const runWebappSql = vi.fn(async () => ({ rows: [] as unknown[] }));
+let nextClaimRows: Record<string, unknown>[] = [];
+let claimWhere: unknown;
+type HostedThumbnailOutcome =
+  | { kind: 'ready'; bytes: Buffer; mimeType: string; thumbnailOrigin: string }
+  | { kind: 'retryable'; reason: string }
+  | { kind: 'terminal'; reason: string };
+const resolveHostedVideoThumbnail = vi.fn(
+  async (..._args: unknown[]): Promise<HostedThumbnailOutcome> => ({
+    kind: 'ready',
+    bytes: Buffer.from('hosted-cover-bytes'),
+    mimeType: 'image/jpeg',
+    thumbnailOrigin: 'https://i.ytimg.com',
+  }),
+);
+const HOSTED_URL = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ';
+const hostedRow = {
+  id: '00000000-0000-4000-8000-0000000000h1'.replace('h', 'a'),
+  s3_key: null,
+  mime_type: 'image/jpeg',
+  size_bytes: '0',
+  preview_attempts: 0,
+  source_width: null,
+  source_height: null,
+  usage_purpose: 'hosted_video_preview',
+  hosted_video_source_url: HOSTED_URL,
+};
 const claimedRow = {
   id: '00000000-0000-4000-8000-0000000000c1',
   s3_key: 'media/00000000-0000-4000-8000-0000000000c1/source.jpg',
@@ -32,7 +59,24 @@ vi.mock('@/infra/db/withClient', () => ({
     fn({}),
 }));
 vi.mock('@/infra/db/runWebappSql', () => ({
-  getWebappSqlFromPgClient: () => ({}),
+  getWebappSqlFromPgClient: () => {
+    const query = {
+      from: vi.fn(),
+      where: vi.fn(),
+      orderBy: vi.fn(),
+      limit: vi.fn(),
+      for: vi.fn(),
+    };
+    query.from.mockReturnValue(query);
+    query.where.mockImplementation((condition: unknown) => {
+      claimWhere = condition;
+      return query;
+    });
+    query.orderBy.mockReturnValue(query);
+    query.limit.mockReturnValue(query);
+    query.for.mockImplementation(async () => nextClaimRows);
+    return { select: vi.fn(() => query) };
+  },
   runWebappSql: (...args: unknown[]) => runWebappSql(...(args as [])),
 }));
 vi.mock('@/infra/s3/client', () => ({
@@ -43,6 +87,9 @@ vi.mock('@/infra/s3/client', () => ({
   s3PreviewKey: (id: string, size: string) => `previews/${size}/${id}.jpg`,
   s3PutObjectBody: vi.fn(async () => {}),
   s3StandardImageKey: (id: string) => `media/${id}/standard.webp`,
+}));
+vi.mock('@/shared/lib/hostedVideoThumbnail', () => ({
+  resolveHostedVideoThumbnail: (...args: unknown[]) => resolveHostedVideoThumbnail(...args),
 }));
 vi.mock('@/modules/media/imageStandardRendition', () => ({
   encodeStandardImageRendition: vi.fn(),
@@ -69,18 +116,21 @@ function issuedSql(): string[] {
 }
 
 function claimThen(row: Record<string, unknown> | null) {
-  let claimed = false;
-  runWebappSql.mockImplementation(async () => {
-    if (!claimed) {
-      claimed = true;
-      return { rows: row ? [row] : [] };
-    }
-    return { rows: [] };
-  });
+  nextClaimRows = row ? [row] : [];
+  runWebappSql.mockResolvedValue({ rows: [] });
 }
 
 beforeEach(() => {
   runWebappSql.mockReset();
+  nextClaimRows = [];
+  claimWhere = undefined;
+  resolveHostedVideoThumbnail.mockReset();
+  resolveHostedVideoThumbnail.mockResolvedValue({
+    kind: 'ready',
+    bytes: Buffer.from('hosted-cover-bytes'),
+    mimeType: 'image/jpeg',
+    thumbnailOrigin: 'https://i.ytimg.com',
+  });
 });
 
 describe('processMediaPreviewBatch standard rendition fact', () => {
@@ -104,4 +154,80 @@ describe('processMediaPreviewBatch standard rendition fact', () => {
     expect(statements.some((text) => text.includes('standard_rendition_at'))).toBe(false);
   });
 
+});
+
+/**
+ * Обложка ролика по ссылке идёт той же машиной состояний, что и файл: тот же воркер, тот же
+ * энкодер, те же `preview_sm_key`/`preview_md_key`, те же bounded-попытки. Проверяется именно
+ * это, а не «есть ли в коде ветка»: что скачали, что перекодировали, что не качаем повторно и
+ * что строка не остаётся в `pending` навсегда.
+ */
+describe('processMediaPreviewBatch: обложка ролика по ссылке', () => {
+  it('качает обложку у провайдера и кладёт её нашими ключами превью', async () => {
+    claimThen(hostedRow);
+
+    await processMediaPreviewBatch(1);
+
+    expect(resolveHostedVideoThumbnail).toHaveBeenCalledWith(HOSTED_URL);
+    const update = issuedSql().find((text) => text.includes('s3_key ='));
+    expect(update).toBeDefined();
+    expect(update).toContain('preview_sm_key');
+    expect(update).toContain('standard_rendition_at');
+  });
+
+  it('готовую обложку не качает второй раз', async () => {
+    claimThen({ ...hostedRow, s3_key: 'media/x/standard.webp' });
+
+    await processMediaPreviewBatch(1);
+
+    expect(resolveHostedVideoThumbnail).not.toHaveBeenCalled();
+  });
+
+  it('ролика больше нет — строка получает terminal «превью не создаётся», а не повтор', async () => {
+    resolveHostedVideoThumbnail.mockResolvedValue({ kind: 'terminal', reason: 'provider_status_400' });
+    claimThen(hostedRow);
+
+    await processMediaPreviewBatch(1);
+
+    const statements = issuedSql();
+    expect(statements.some((text) => text.includes("preview_status = 'skipped'"))).toBe(true);
+    expect(statements.some((text) => text.includes('preview_attempts ='))).toBe(false);
+  });
+
+  it('нет сервисного токена VK — не вечный pending, а попытка со счётчиком', async () => {
+    resolveHostedVideoThumbnail.mockResolvedValue({
+      kind: 'retryable',
+      reason: 'vk_video_service_token_missing',
+    });
+    claimThen(hostedRow);
+
+    await processMediaPreviewBatch(1);
+
+    const statements = issuedSql();
+    expect(statements.some((text) => text.includes('preview_attempts ='))).toBe(true);
+    expect(statements.some((text) => text.includes('preview_next_attempt_at ='))).toBe(true);
+    expect(statements.some((text) => text.includes("preview_status = 'skipped'"))).toBe(false);
+  });
+
+  it('после исчерпания попыток строка становится failed и перестаёт крутиться', async () => {
+    resolveHostedVideoThumbnail.mockResolvedValue({
+      kind: 'retryable',
+      reason: 'vk_video_service_token_missing',
+    });
+    claimThen({ ...hostedRow, preview_attempts: 4 });
+
+    await processMediaPreviewBatch(1);
+
+    expect(issuedSql().some((text) => text.includes("preview_status = 'failed'"))).toBe(true);
+  });
+
+  it('очередь воркера видит строку обложки, у которой объекта ещё нет', async () => {
+    claimThen(null);
+
+    await processMediaPreviewBatch(1);
+
+    if (!claimWhere) throw new Error('claim predicate was not issued');
+    const claim = new PgDialect().sqlToQuery(claimWhere as never);
+    expect(claim.params).toContain('hosted_video_preview');
+  });
 });

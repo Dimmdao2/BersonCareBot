@@ -6596,6 +6596,23 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    'app.stage_orphan_hosted_video_covers_for_purge(integer)': rev10Function({
+      owner: 'app_seam_patient_lfk_media_owner', security: 'DEFINER', returns: 'bigint',
+      returnsSet: false, execute: ['app_operational_media_worker'],
+      purpose: 'media.hosted-cover.orphan-stage', typedArgs: ['integer'], volatility: 'VOLATILE',
+      parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.media_files',
+          columns: ['id', 'organization_id', 'usage_purpose', 'hosted_video_source_url', 'status',
+            'created_at', 'next_attempt_at'], operations: ['SELECT' as const, 'UPDATE' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.lfk_exercise_media', columns: ['organization_id', 'media_url'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.treatment_program_instance_stage_items',
+          columns: ['organization_id', 'snapshot'], operations: ['SELECT' as const],
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
     'app.resolve_active_organization_for_integrator_user_id(bigint)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_resolver'], purpose: 'integrator.user-organization.resolve',
@@ -7572,6 +7589,7 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     kind: 'direct',
     purpose: 'the accepted media worker handles transcodes; patient reads current-clinic presentation media and only its own submissions',
     codePaths: [
+      'apps/webapp/src/infra/repos/catalogMediaLadderLookup.ts',
       'apps/webapp/src/infra/repos/pgMediaWorkerControl.ts',
       'apps/webapp/src/infra/repos/pgOrgBranding.ts#selectRevision',
       'apps/webapp/src/infra/repos/s3MediaStorage.ts#getMediaRowForPlayback',
@@ -7582,7 +7600,8 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [
       { role: 'app_patient', operations: ['SELECT'], columns: [
         'available_qualities_json', 'created_at', 'display_name', 'hls_artifact_prefix',
-        'hls_master_playlist_s3_key', 'id', 'mime_type', 'organization_id', 'original_name',
+        'hls_master_playlist_s3_key', 'hosted_video_source_url', 'id', 'mime_type',
+        'organization_id', 'original_name',
         'owner_kind', 'poster_s3_key', 'preview_md_key', 'preview_sm_key', 'preview_status', 's3_key',
         'size_bytes', 'source_height', 'source_width', 'standard_rendition_at', 'status',
         'stored_path', 'uploaded_by',
