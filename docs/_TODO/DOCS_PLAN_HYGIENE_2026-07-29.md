@@ -851,7 +851,9 @@ execution checklist этой работы среди linked plans нет; `IMPLE
 | #935 | `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` | residual execution | session revocation, transport boundary, cross-tenant matrix и поздняя диагностика TEST digest |
 | #964 | `OWNER_PUNCHLIST_2026-07-28.md` §18 | owner question открыт | подтвердить поведение блока запланированных сообщений перед implementation |
 | #971 | `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` UI-5b | implementation in progress | source-backed census, полный client-card contract и required audit/live evidence |
-| #984, #985, #987 | `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` | отдельный scope ведущего | Track A/B/D и TEST evidence; этот файл не менялся |
+| #984 | `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` | общий work order ещё открыт | Track A: полный живой проход функций под настоящими ролями; Track B: owner global-admin email OTP/PWA/Web Push; Track D: provider-gate ниже. Rubitime retirement закрыт |
+| #985 | тот же `WORK_ORDER.md`, Track B | кодовая основа есть, owner TEST acceptance открыт | войти global-admin по email OTP, проверить staff PWA и реальный Web Push на TEST, записать точные шаги |
+| #987 | тот же `WORK_ORDER.md`, Track D | код/миграции/права находятся на TEST | existing-owner messenger proof → код → session/profile bind; запись → реально доставленные подтверждение и напоминание; scheduler → operator digest и перенос запуска после смены `digestTime` |
 | #993, #1005, #1031 | `GLOBAL_ADMIN_CHANNEL_AUTH_TOGGLES_SPEC.md` | R3 код подтверждён, auth policy ещё не закрыта | live menu result и owner decisions по OAuth/домену, затем remaining channel/auth work |
 | #996 | `SAAS_FOUNDATION/SAAS_PROD_DEPLOY_PROCESS.md` | runtime-only gates | подтверждённый TEST/owner cutover sequence; без runtime он не закрывается кодом |
 | #1001, #1062 | `SECURITY_AUDIT_2026-07-25/FINDINGS_AND_OPTIONS.md` | audit/remediation scope открыт | S4–S6, host/secrets и принятые session/privilege remedies с независимой проверкой |
