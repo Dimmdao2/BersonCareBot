@@ -8189,7 +8189,7 @@ function revision10TenantPolicies(
  */
 const REV10_CLUSTER_SCOPE_ROLES = new Set([
   'app_pre_session', 'app_platform_settings', 'app_platform_admin', 'saas_telemetry_operator',
-  'app_service', 'app_operational_delivery_worker', 'app_operational_maintenance',
+  'app_service', 'app_worker', 'app_operational_delivery_worker', 'app_operational_maintenance',
   'app_operational_media_worker', 'app_operational_scheduler',
 ]);
 
