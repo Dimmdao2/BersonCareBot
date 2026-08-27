@@ -8,9 +8,11 @@ import test from 'node:test';
 import { declaration } from './declaration.ts';
 import {
   collectExpectedObjects,
+  APPLIED_MIGRATION_TIMESTAMP_COLLISION_BASELINE,
   findForeignLedgerRows,
   findMigrationNameViolations,
   findMigrationStaticViolations,
+  findMigrationTimestampCollisions,
   findRenamedAppliedMigrations,
   readLegacyJournalEntries,
   readMigrationFolder,
@@ -323,4 +325,61 @@ test('a pending file with genuinely new content is not flagged as a rename', () 
   const foreign = findForeignLedgerRows([], [{ tag: '0009_old_name', hash: 'unrelated-hash' }]);
 
   assert.deepEqual(findRenamedAppliedMigrations(pending, foreign), []);
+});
+
+/**
+ * A5 системного аудита 27.08. Порядок применения — имя файла, второго места нет; две миграции на
+ * одной секунде порядка между собой НЕ имеют, и та, которую вернёт листинг первой, зависит от
+ * файловой системы. Правило имени обещало уникальность и проверяло только ФОРМУ имени, поэтому
+ * обещание было документацией, а не гейтом.
+ */
+test('a fresh pair of migrations may not share one timestamp', () => {
+  const migration = (tag) => ({ tag, path: `${tag}.sql`, source: '', hash: '' });
+
+  const collisions = findMigrationTimestampCollisions([
+    migration('20260901T101112_first_branch_work'),
+    migration('20260901T101112_second_branch_work'),
+    migration('20260901T101113_unrelated'),
+  ]);
+
+  assert.equal(collisions.length, 1);
+  assert.equal(collisions[0].timestamp, '20260901T101112');
+  assert.equal(collisions[0].baseline, null);
+  assert.deepEqual(collisions[0].tags, [
+    '20260901T101112_first_branch_work',
+    '20260901T101112_second_branch_work',
+  ]);
+});
+
+test('the applied historical collision baseline is closed, not an allowlist that may grow', () => {
+  const migration = (tag) => ({ tag, path: `${tag}.sql`, source: '', hash: '' });
+  const [timestamp, applied] = Object.entries(APPLIED_MIGRATION_TIMESTAMP_COLLISION_BASELINE)[0];
+
+  assert.deepEqual(findMigrationTimestampCollisions(applied.map(migration)), [],
+    'уже применённые группы не переименовываются и гейт их не трогает');
+
+  const grown = findMigrationTimestampCollisions([...applied, `${timestamp}_one_more_file`].map(migration));
+
+  assert.equal(grown.length, 1);
+  assert.equal(grown[0].timestamp, timestamp);
+  assert.deepEqual(grown[0].baseline, [...applied]);
+});
+
+test('the static acceptance gate names only the newcomer of a collision, never the applied file', () => {
+  const [timestamp, applied] = Object.entries(APPLIED_MIGRATION_TIMESTAMP_COLLISION_BASELINE)[0];
+  const owned = '-- BCB-MIGRATION-OWNER: app_object_owner\n-- BCB-MIGRATION-VERIFY: SELECT 1\nSELECT 1;\n';
+  const files = Object.fromEntries([...applied, `${timestamp}_one_more_file`].map((tag) => [`${tag}.sql`, owned]));
+
+  const violations = findMigrationStaticViolations(readMigrationFolder(folderWith(files)), new Set())
+    .filter((violation) => /timestamp/u.test(violation.reason));
+
+  assert.equal(violations.length, 1);
+  assert.match(violations[0].file, new RegExp(`${timestamp}_one_more_file\\.sql$`, 'u'));
+  assert.match(violations[0].action, /closed; give this migration a free UTC second/u);
+});
+
+test('the real migration folder has no collision outside the frozen baseline', () => {
+  const collisions = findMigrationTimestampCollisions(readMigrationFolder(REAL_MIGRATIONS_FOLDER));
+
+  assert.deepEqual(collisions, [], collisions.map((c) => `${c.timestamp}: ${c.tags.join(', ')}`).join('\n'));
 });
