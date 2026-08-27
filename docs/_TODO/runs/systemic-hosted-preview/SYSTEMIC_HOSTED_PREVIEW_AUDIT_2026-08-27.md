@@ -1,54 +1,33 @@
-# Независимый аудит systemic hosted-video preview — 27.08.2026
+# Независимый re-audit systemic hosted-video preview — 28.08.2026
 
 ## Candidate
 
-- Product candidate: `4e3a8a0b4` (обязан присутствовать в истории).
-- Pre-audit base: `90a83bd84` (обязан присутствовать в истории).
-- Аудируемый merged HEAD: `234f3e7c5ca1da721e0571027cca75bff47f7313`.
-- Актуальный `feat/doctor-ui-rebuild`, включённый в HEAD: `0fa69f371f403ed5a91680ee2657067b12301f8b`.
+- Аудируемый HEAD: `eaf6fd59567f716383f5774b5f0b2e813014e189`.
+- В истории присутствует обязательный fix `28555e17d`.
+- HEAD — последний merge `feat/doctor-ui-rebuild` в эту ветку (`eaf6fd595`); родительская актуальная вершина
+  `feat/doctor-ui-rebuild` — `9759fecf3`.
+- Это короткий re-audit уже локализованных findings, не новый blind-audit и не product fix.
 
-## Слепой kill-set
+## Итоговый re-audit kill-set
 
-Этот список зафиксирован по owner-authority и brief до чтения worker-authored тестов, production diff и раздела
-worker fault injections.
+Первичный kill-set и его red→green evidence сохранены в предыдущей редакции и owner-записи. Этот проход не
+составляет новый список: повторно проверены только четыре исходных finding и обязательная миграционная граница из
+brief.
 
-| # | Named fault | Метод | Итог |
-|---|---|---|---|
-| 1 | Сохранение YouTube/VK hosted-video не создаёт или не переиспользует pending cover в той же транзакции. | Acceptance + fault injection | TBD |
-| 2 | Две клиники с одной ссылкой получают одну общую строку либо внутри одной клиники создаётся дубль. | Acceptance + fault injection | TBD |
-| 3 | Реальный разрешённый write-path hosted-video обходит enqueue. | Перепись write-path + acceptance/fault injection | TBD |
-| 4 | Worker оставляет вечный pending, бесконечно ретраит или отмечает успех при ошибке fetch/S3/DB. | Acceptance + fault injection | TBD |
-| 5 | Private/deleted/unsupported/нет VK token неверно разделены на terminal/retryable либо превращены в тихий успех. | Acceptance + fault injection | TBD |
-| 6 | Redirect/origin/MIME/размер/таймаут допускают SSRF или произвольные/неограниченные байты; VK secret попадает в клиент/логи. | Взгляд + acceptance/fault injection | TBD |
-| 7 | Provider thumbnail URL попадает в doctor/patient HTML/JSON вместо нашей `/api/media/.../preview/...`. | Acceptance + fault injection | TBD |
-| 8 | Служебные cover rows видны в медиатеке врача. | Acceptance + fault injection | TBD |
-| 9 | Удаление/замена последней ссылки оставляет бесконечно растущую служебную строку и S3-объекты без owner/retention/purge-пути. | Взгляд + acceptance при наличии публичного поведения | TBD |
-| 10 | Hosted/local расходятся по state machine либо doctor/patient трактуют статус по-разному. | Acceptance + fault injection | TBD |
-| 11 | Миграция ломает строки/права, содержит GRANT/POLICY, не имеет owner/verify, создаёт опасный индекс, расходится со schema/generated privileges или не проходит rollback-only preflight named DEV. | Статические гейты + sanctioned rollback-only preflight | TBD |
-| 12 | Новая функциональность добавляет raw SQL, второй DB-проход или дублирующую дверь вопреки §5. | Взгляд + архитектурные гейты | TBD |
-| 13 | Добавлены новая таблица, новый cron/worker или параллельный storage lifecycle вместо расширения существующих. | Взгляд + итоговая схема/manifest | TBD |
-| 14 | Re-save failed cover не даёт осмысленный повтор, а ready cover скачивается заново. | Acceptance + fault injection | TBD |
+| Исходный finding | Метод | Итог |
+| --- | --- | --- |
+| New hosted-cover DB write шёл новым raw-SQL/обходным путём. | Взгляд на diff и Drizzle write-path; `check-no-new-raw-sql`. | PASS: `enqueueHostedVideoCover` использует Drizzle transaction и `onConflictDoUpdate`; новый raw-SQL gate зелёный. Второй DB-путь не появился. |
+| Orphan cover не входил в общий purge. | Взгляд на function/privileges/purge call и existing lifecycle test. | Поведение PASS: root ограниченно переводит только unreferenced cover в `pending_delete`; current exercise reference и immutable snapshot исключают строку. Но migration privilege artifact ниже делает общий verdict FAIL. |
+| Doctor template list отбрасывал hosted-video до общей ladder. | Existing acceptance test для doctor list и assigned patient snapshot. | PASS: test подтверждает common `catalogMediaLadderLookup` и наш `/api/media/.../preview/sm` для обеих поверхностей. |
+| Redirect отправлял запрос на forbidden origin до проверки. | Existing acceptance test и взгляд на fetch door/imports. | PASS: fetch идёт с `redirect: 'manual'`; test подтверждает отсутствие запроса к `169.254.169.254`. `hostedVideoThumbnail` импортирует только server worker; VK token берётся как restricted/redacted system setting и не логируется. |
+
+Новая SECURITY DEFINER-функция визуально корректно объявлена: owner `app_seam_patient_lfk_media_owner`, context
+`app_operational_media_worker`, purpose `media.hosted-cover.orphan-stage`, typed arg `integer`, bounded `1..50`,
+relation surfaces для `media_files`, `lfk_exercise_media` и immutable `treatment_program_instance_stage_items`;
+EXECUTE объявлен только для media worker. Миграция содержит owner/verify markers и не содержит `GRANT`, `REVOKE`
+или `POLICY`.
 
 ## Команды и результаты
-
-Первичный независимый прогон `systemic-hosted-preview-audit-2-20260827` завершился системным обрывом
-после 31:51 и не оставил финальный verdict. Его сырой поток сохранён:
-
-- `/home/dev/brain/runs/codex-raw/2026-08-27T22-00-01-304Z-systemic-hosted-preview-audit-2-20260827.jsonl`;
-- `/tmp/systemic-hosted-preview-audit-2-20260827.log`.
-
-До обрыва аудитор завершил inspection и оставил два независимых acceptance-теста. На исходном
-candidate команда
-
-```bash
-pnpm exec vitest run src/infra/repos/pgTreatmentProgramHostedPreview.acceptance.test.ts \
-  src/shared/lib/hostedVideoThumbnailRedirect.acceptance.test.ts
-```
-
-дала два красных файла: список шаблонов врача не звал общую лестницу для `hosted_video`, а сетевой
-клиент успевал последовать за запрещённым redirect до проверки адреса.
-
-Исправление `28555e17d` проверено ведущим:
 
 ```bash
 pnpm --dir apps/webapp exec vitest run \
@@ -60,36 +39,69 @@ pnpm --dir apps/webapp exec vitest run \
   src/infra/repos/s3MediaStorage.lifecycle.unit.test.ts
 ```
 
-Результат: `6` файлов, `56` тестов — PASS. `pnpm --dir apps/webapp typecheck` — PASS.
-`pnpm --dir apps/webapp lint` — PASS, включая `check-no-new-raw-sql`, migration privileges/order и
-media-door gates.
+PASS — 6 файлов, 56 тестов.
 
-## Обязательные границы
+```bash
+pnpm --dir apps/webapp typecheck
+pnpm --dir apps/webapp lint
+node scripts/check-no-new-raw-sql.mjs
+node scripts/check-migration-privileges.mjs
+bash apps/webapp/scripts/check-drizzle-migration-order.sh
+git diff --check feat/doctor-ui-rebuild..HEAD
+```
 
-- Raw-SQL boundary: первичный аудит нашёл новые прямые SQL-запросы; `28555e17d` перевёл их на Drizzle,
-  `check-no-new-raw-sql` зелёный. Нужна независимая итоговая инспекция diff.
-- Orphan cleanup: первичный аудит подтвердил отсутствие перехода сирот в существующий purge. В
-  `28555e17d` существующий purge сначала ограниченно ставит в `pending_delete` только cover без ссылки
-  из текущего упражнения и без ссылки из выданной пациенту immutable-программы. Нужен rollback-only
-  preflight миграции и независимая инспекция тела/прав.
-- Migration/privileges: статические migration privilege/order gates зелёные; DEV preflight ещё не
-  выполнен.
-- SSRF/token secrecy: запрещённый redirect теперь проверяется до следующего сетевого запроса;
-  независимый acceptance-тест зелёный. VK token остаётся серверным dependency.
-- Doctor/patient delivery: список шаблонов врача и уже назначенная пациенту программа обновляют
-  hosted-cover через общую лестницу; acceptance-тесты зелёные. Живая приёмка ещё не выполнена.
+PASS. Lint включает raw-SQL, infrastructure-boundary, migration-privileges/order и media-door gates. Diff к
+текущему `feat/doctor-ui-rebuild` не затрагивает соседние doctor UI paths и не содержит whitespace errors.
 
-## Findings первичного прохода
+```bash
+node deploy/postgres/privileges/generate-cli.mjs --check
+```
 
-1. **FAIL:** новые hosted-cover запросы обходили обязательный Drizzle-путь сырым SQL.
-2. **FAIL:** orphan cover не имел перехода в существующую машину `pending_delete` → purge.
-3. **FAIL:** список шаблонов врача отбрасывал `hosted_video` до общей лестницы превью.
-4. **FAIL:** автоматический redirect мог отправить запрос на запрещённый адрес до проверки
-   фактического `Response.url`.
+FAIL — оба committed generated privilege artifacts расходятся с `declaration.ts`: на строке 1130 вместо
+`app.stage_orphan_hosted_video_covers_for_purge(integer)` остаётся
+`app.start_current_patient_test_attempt(uuid,uuid)`.
 
-Все четыре исправлены в `28555e17d`; это запись исправления, а не самостоятельный независимый PASS.
+Rollback-only DEV migration preflight и live/TEST worker proof намеренно не запускались аудитором: это отдельные
+lead-owned gates, исключённые из isolated audit.
+
+## Findings
+
+1. **FAIL — generated privileges не синхронизированы с новой SECURITY DEFINER-функцией.**
+   Достижимый сценарий: любой кандидат, проходящий обязательный generated-privileges reconcile/check, получает
+   расхождение для обеих сред и останавливается до landing. Impact: миграция не проходит требуемый static
+   privilege gate, а generated artifact не описывает новый EXECUTE surface media worker. Нарушено `AGENTS.md` §1
+   «Перед приземлением миграции — разбор её прав»: новая функция должна быть полностью объявлена и приехать через
+   privilege generator. Production code и generated artifacts этим аудитом не менялись.
+
+Остальные четыре исходных product findings закрыты на текущем HEAD приведёнными targeted evidence; этот finding
+не является повторным finding о raw SQL, orphan reachability, common ladder или SSRF redirect.
 
 ## Вердикт
 
-`FAIL → FIXED, RE-AUDIT PENDING` — первичный аудитор оборван системой; финальный verdict должен дать
-короткий независимый re-audit четырёх findings и новой orphan-cleanup поверхности.
+Первичный независимый verdict: **FAIL.** Единственный finding — несинхронизированный generated privileges
+artifact.
+
+### Исправление единственного finding ведущим
+
+Finding механический и полностью локализован, поэтому по `AGENTS.md` §24.6 отдельный новый blind-audit не
+запускался. Ведущий выполнил штатную пересборку и точную побайтовую сверку:
+
+```bash
+node deploy/postgres/privileges/generate-cli.mjs --all
+node deploy/postgres/privileges/generate-cli.mjs --check
+```
+
+PASS — оба `privileges.*.sql` обновлены, все четыре managed artifacts совпадают с declaration побайтно.
+
+Отдельный lead-owned migration gate также выполнен из точного candidate checkout:
+
+```bash
+bash deploy/host/migrate-dev.sh --preflight \
+  --runtime-env-root /home/dev/dev-projects/BersonCareBot
+```
+
+PASS — четыре pending migration скомпилированы под declared statement owners на именованной
+`bcb_webapp_dev` и полностью откатились; DEV-данные и ledger не менялись.
+
+Итог после исправления единственного finding: **PASS (independent findings + lead-verified mechanical
+correction).** Отдельно остаётся только live/TEST media-worker proof после landing/deploy; здесь он не заявлен.
