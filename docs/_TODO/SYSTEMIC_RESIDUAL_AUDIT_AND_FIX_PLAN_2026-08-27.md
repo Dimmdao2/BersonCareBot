@@ -37,6 +37,19 @@ Opus с максимальным reasoning effort.
 симптому. План ниже сначала убирает эти пять источников расхождения, затем исправляет уже известные последствия
 и только после этого делает один связный живой проход.
 
+## Ход исправления
+
+Этапы 3–4 (C1, C2, C3, D1, E1 + nullable retired id) исполнены в ветке
+`wt/systemic-lifecycle-20260827`; код закоммичен, живая проверка на DEV/TEST не выполнялась.
+Отчёт и слепой kill-set:
+[`runs/integrator-cleanup/SYSTEMIC_LIFECYCLE_C1_E1_D1_2026-08-27.md`](runs/integrator-cleanup/SYSTEMIC_LIFECYCLE_C1_E1_D1_2026-08-27.md).
+Там же — обязательный перед landing `migrate-dev.sh --preflight`, handoff scheduler-ветке и два
+открытых owner question по срокам хранения.
+
+**Поправка к §D2 ниже:** владелец очистки для single-PUT `pending` без сессии уже существует в коде
+(`stageStaleSinglePutMediaForPurge`, коммит `a38d23c96`, вызывается из `purgePendingMediaDeleteBatch`).
+Замеренные 7 строк — накопленный вход для тика, а не отсутствие владельца.
+
 ## Подтверждённые находки
 
 ### A. Границы доступа и роли БД

@@ -81,6 +81,10 @@ export const inMemoryNotificationDeliveryAttemptsPort: NotificationDeliveryAttem
       byChannel,
       recentIssues,
       totalAttempts24h: recent.length,
+      // The in-memory double has no canonical delivery queue behind it; a confirmed delivery is a
+      // fact of `outgoing_delivery_queue` and this fake never claims one.
+      confirmedDeliveries24h: 0,
+      lastConfirmedDeliveryAt: null,
     };
   },
 };

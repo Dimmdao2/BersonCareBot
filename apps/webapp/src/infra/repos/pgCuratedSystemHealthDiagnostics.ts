@@ -200,7 +200,11 @@ export const curatedSystemHealthSnapshotSchema = z
     notificationDelivery: z
       .object({
         windowHours: z.literal(24),
+        /** FAILED/SKIPPED rows in the failure-only attempt journal (audit §C2). */
         totalAttempts24h: nonNegativeNumber,
+        /** Canonical delivery lifecycle: queue rows that reached `sent` inside the window. */
+        confirmedDeliveries24h: nonNegativeNumber.optional().default(0),
+        lastConfirmedDeliveryAt: nullableIso.optional().default(null),
         byChannel: z
           .object({
             telegram: notificationChannelSchema,

@@ -13,6 +13,7 @@ const fakes = vi.hoisted(() => ({
   staleCandidates: vi.fn(),
   runMutation: vi.fn(),
   s3DeleteObject: vi.fn(),
+  s3AbortMultipartUpload: vi.fn(),
   s3PutObjectBody: vi.fn(),
   principalKind: 'staff' as 'staff' | 'patient',
 }));
@@ -43,6 +44,7 @@ vi.mock('@/infra/db/drizzleMutationTx', () => ({
   runDrizzleMutationTransaction: fakes.runMutation,
 }));
 vi.mock('@/infra/s3/client', () => ({
+  s3AbortMultipartUpload: fakes.s3AbortMultipartUpload,
   s3DeleteObject: fakes.s3DeleteObject,
   s3ListObjectKeysUnderPrefix: vi.fn().mockResolvedValue([]),
   s3ObjectKey: (id: string, filename: string) => `media/${id}/${filename}`,
@@ -168,42 +170,104 @@ describe('pending upload abort lifecycle', () => {
     );
   });
 
-  it('keeps pending_delete retryable when S3 deletion fails during the shared purge', async () => {
-    const tx = {
+  function purgeTx() {
+    return {
       client: {},
       commit: vi.fn().mockResolvedValue(undefined),
       rollback: vi.fn().mockResolvedValue(undefined),
       release: vi.fn().mockResolvedValue(undefined),
     };
+  }
+
+  const MEDIA_ID = '55555555-5555-4555-8555-555555555555';
+  const MEDIA_KEY = 'media/55555555-5555-4555-8555-555555555555/photo.jpg';
+
+  function claimedRow() {
+    return {
+      rows: [
+        {
+          id: MEDIA_ID,
+          s3_key: MEDIA_KEY,
+          preview_sm_key: null,
+          preview_md_key: null,
+          hls_artifact_prefix: null,
+          poster_s3_key: null,
+          hls_master_playlist_s3_key: null,
+          status: 'pending_delete',
+          delete_attempts: 0,
+        },
+      ],
+    };
+  }
+
+  it('keeps pending_delete retryable when S3 deletion fails during the shared purge', async () => {
+    const tx = purgeTx();
     fakes.getPool.mockReturnValue({});
     fakes.startTransaction.mockResolvedValue(tx);
     fakes.s3DeleteObject.mockRejectedValueOnce(new Error('s3_delete_failed'));
     fakes.runSql
-      .mockResolvedValueOnce({
-        rows: [
-          {
-            id: '55555555-5555-4555-8555-555555555555',
-            s3_key: 'media/55555555-5555-4555-8555-555555555555/photo.jpg',
-            preview_sm_key: null,
-            preview_md_key: null,
-            hls_artifact_prefix: null,
-            poster_s3_key: null,
-            hls_master_playlist_s3_key: null,
-            status: 'pending_delete',
-            delete_attempts: 0,
-          },
-        ],
-      })
+      .mockResolvedValueOnce(claimedRow())
+      // no unfinished multipart session for this row
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rowCount: 1 })
       .mockResolvedValueOnce({ rowCount: 0 });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
-    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(
-      'media/55555555-5555-4555-8555-555555555555/photo.jpg',
-    );
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
     expect(tx.commit).toHaveBeenCalledOnce();
-    expect(fakes.runSql).toHaveBeenCalledTimes(3);
+    expect(fakes.runSql).toHaveBeenCalledTimes(4);
+  });
+
+  /**
+   * WHAT BREAKS WITHOUT THIS (audit §D1): the multipart parts stay in the bucket forever and nothing
+   * in the database can name them again, because `s3_key` + `upload_id` live only on the session row
+   * that cascade-dies with the media row. The tick reported success while leaking storage.
+   */
+  it('aborts the multipart upload BEFORE deleting anything, and keeps the row retryable when the abort fails', async () => {
+    const tx = purgeTx();
+    fakes.getPool.mockReturnValue({});
+    fakes.startTransaction.mockResolvedValue(tx);
+    fakes.s3AbortMultipartUpload.mockRejectedValueOnce(new Error('s3_abort_failed'));
+    fakes.runSql
+      .mockResolvedValueOnce(claimedRow())
+      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
+      // schedulePendingDeleteRetry
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // trailing orphan sweep
+      .mockResolvedValueOnce({ rowCount: 0 });
+
+    await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
+
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
+    // The row (and with it the surviving session that holds the retry identity) is NOT deleted, and
+    // no object delete was attempted on an upload that was never aborted.
+    expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
+    const statements = fakes.runSql.mock.calls.map((call) => String(call[1]?.queryChunks ?? call[1]));
+    expect(statements.some((sql) => /DELETE FROM media_files/i.test(sql))).toBe(false);
+    expect(tx.commit).toHaveBeenCalledOnce();
+  });
+
+  it('deletes objects only after a confirmed multipart abort', async () => {
+    const tx = purgeTx();
+    fakes.getPool.mockReturnValue({});
+    fakes.startTransaction.mockResolvedValue(tx);
+    fakes.s3AbortMultipartUpload.mockResolvedValueOnce(undefined);
+    fakes.s3DeleteObject.mockResolvedValue(undefined);
+    fakes.runSql
+      .mockResolvedValueOnce(claimedRow())
+      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
+      // DELETE FROM media_files
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // trailing orphan sweep
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const result = await purgePendingMediaDeleteBatch(1);
+
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
+    expect(result.errors).toBe(0);
   });
 
   it('stages a linked pending upload before removing only its linked patient-file metadata', async () => {

@@ -48,5 +48,17 @@ export function createPgJournalRetentionPort(): JournalRetentionPort {
       });
       return { deleted };
     },
+    async pruneReminderOccurrenceHistoryTerminal(days, options?: JournalRetentionPurgeOptions) {
+      const deleted = await pruneRetentionTarget('reminder_occurrence_history_terminal', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
+    },
+    async pruneMessageLog(days, options?: JournalRetentionPurgeOptions) {
+      const deleted = await pruneRetentionTarget('message_log', days, {
+        dryRun: options?.dryRun === true,
+      });
+      return { deleted };
+    },
   };
 }

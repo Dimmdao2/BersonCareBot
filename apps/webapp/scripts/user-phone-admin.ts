@@ -27,10 +27,11 @@
  *                           через операционный CLI до owner-gated post-retention flow.
  *
  *   webapp-cleanup-by-integrator-id <bigint>
- *                         — только webapp: строки проекций, где нет привязки к platform_users UUID, а есть integrator_user_id
- *                           (reminder_occurrence_history, reminder_rules, content_access_grants_webapp,
- *                           support_* по integrator_user_id).
- *                           Нужно, если platform_users уже удалили, а в журналах/подписках остались хвосты по id из integrator.
+ *                         — RECONCILE-хвост, не условие удаления учётной записи: строки проекций, где уже нет
+ *                           привязки к platform_users UUID, а есть retired integrator_user_id
+ *                           (список — WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS + support_* потомки).
+ *                           Полное удаление учётной записи идёт по platform_user_id (`platformUserFullPurge`)
+ *                           и не зависит от наличия retired id.
  *
  *   integrator-purge-user-id <bigint>
  *                         — ВРЕМЕННО ОТКЛЮЧЕНА: удаляла integrator account с CASCADE.
@@ -58,6 +59,7 @@ import { config as loadDotenv } from 'dotenv';
 import fs from 'node:fs';
 import path from 'node:path';
 import pg, { type PoolClient } from 'pg';
+import { WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS } from '@/infra/ops/webappIntegratorUserProjectionRealignment';
 const { Pool } = pg;
 
 const ACCOUNT_PURGE_DISABLED = 'ACCOUNT_PURGE_DISABLED';
@@ -297,6 +299,7 @@ const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'lfk_sessions', column: 'user_id' },
   { table: 'patient_bookings', column: 'platform_user_id' },
   { table: 'reminder_rules', column: 'platform_user_id' },
+  { table: 'reminder_occurrence_history', column: 'platform_user_id' },
   { table: 'doctor_notes', column: 'user_id' },
   { table: 'support_conversations', column: 'platform_user_id' },
   { table: 'patient_lfk_assignments', column: 'patient_user_id' },
@@ -411,7 +414,8 @@ async function deletePhoneKeyedWebappRows(
 
 /**
  * Проекции webapp с колонкой integrator_user_id (без обязательной связи с platform_users после SET NULL).
- * Вызывать внутри транзакции до DELETE platform_users или отдельной командой, если строки в platform_users уже нет.
+ * Reconcile-вход: строки живого пользователя удаляются по platform_user_id в `platformUserFullPurge`.
+ * Список таблиц — единственная перепись `WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS`, не вторая копия.
  */
 async function deleteWebappProjectionByIntegratorUserId(
   client: PoolClient,
@@ -424,21 +428,6 @@ async function deleteWebappProjectionByIntegratorUserId(
   };
 
   let r = await client.query(
-    `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  log('Удалено из reminder_occurrence_history (integrator_user_id)', r.rowCount ?? 0);
-
-  r = await client.query(`DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`, [id]);
-  log('Удалено из reminder_rules (integrator_user_id)', r.rowCount ?? 0);
-
-  r = await client.query(
-    `DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  log('Удалено из content_access_grants_webapp (integrator_user_id)', r.rowCount ?? 0);
-
-  r = await client.query(
     `DELETE FROM support_question_messages WHERE question_id IN (
        SELECT id FROM support_questions WHERE conversation_id IN (
          SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
@@ -456,11 +445,13 @@ async function deleteWebappProjectionByIntegratorUserId(
   );
   log('Удалено из support_questions (по integrator диалогам)', r.rowCount ?? 0);
 
-  r = await client.query(
-    `DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  log('Удалено из support_conversations (integrator_user_id)', r.rowCount ?? 0);
+  for (const projection of WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS) {
+    r = await client.query(
+      `DELETE FROM ${projection.table} WHERE integrator_user_id = $1::bigint`,
+      [id],
+    );
+    log(`Удалено из ${projection.table} (integrator_user_id)`, r.rowCount ?? 0);
+  }
 }
 
 async function scrubWebappByPhone(phone: string): Promise<void> {

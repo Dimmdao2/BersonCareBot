@@ -7,6 +7,7 @@
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
 import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
+import { WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS } from '@/infra/ops/webappIntegratorUserProjectionRealignment';
 import {
   CONTACTS,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
@@ -25,11 +26,18 @@ export function phoneDigits(phone: string): string {
 /**
  * Таблицы с данными клиента по `user_id` / `platform_user_id` (UUID или TEXT, совпадающий с UUID).
  * Не включает дневник симптомов/ЛФК — см. `deleteSymptomAndLfkDiaryForUser` (порядок FK: комплексы ↔ trackings).
+ *
+ * Exported so the retired-integrator-id projection census can prove, mechanically, that every one of
+ * its tables is purged by the canonical platform-user key.
  */
-const CONTENT_TABLES: { table: string; column: string }[] = [
+export const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'patient_bookings', column: 'platform_user_id' },
   { table: 'be_appointments', column: 'platform_user_id' },
   { table: 'reminder_rules', column: 'platform_user_id' },
+  // Track D consolidated the three occurrence stores into this one table; it has no FK to
+  // `platform_users`, so nothing cascades it away. Audit C1: keying its purge on the retired
+  // `integrator_user_id` left the whole reminder history of every retired-id-less user behind.
+  { table: 'reminder_occurrence_history', column: 'platform_user_id' },
   { table: 'doctor_notes', column: 'user_id' },
   { table: 'support_conversations', column: 'platform_user_id' },
   { table: 'patient_lfk_assignments', column: 'patient_user_id' },
@@ -38,6 +46,24 @@ const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'user_web_push_subscriptions', column: 'user_id' },
   { table: 'online_intake_requests', column: 'user_id' },
 ];
+
+/**
+ * Mechanical gate for audit C1: every retired-integrator-id projection must be purged by its
+ * CANONICAL platform-user key somewhere in the core webapp purge transaction. Returns the
+ * projections that are NOT covered — an empty array is the only passing state.
+ */
+export function purgeCoverageGapsForRetiredIntegratorProjections(): string[] {
+  const coveredByCanonicalKey = new Set(
+    CONTENT_TABLES.filter((entry) => entry.column === 'platform_user_id').map(
+      (entry) => entry.table,
+    ),
+  );
+  return WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS.filter(
+    (projection) =>
+      projection.platformUserColumn !== 'platform_user_id' ||
+      !coveredByCanonicalKey.has(projection.table),
+  ).map((projection) => projection.table);
+}
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
 async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: string): Promise<void> {
@@ -94,6 +120,12 @@ async function deletePhoneKeyedWebappRows(
   );
 }
 
+/**
+ * RECONCILE TAIL, not a purge condition. Rows whose `platform_users` row is already gone can only be
+ * addressed by the retired id; rows of a live user are already deleted by their canonical key above
+ * (`CONTENT_TABLES`). Table list comes from the one census in
+ * `@/infra/ops/webappIntegratorUserProjectionRealignment`, never a second copy.
+ */
 async function deleteWebappProjectionByIntegratorUserId(
   client: PoolClient,
   integratorUserId: string,
@@ -101,21 +133,7 @@ async function deleteWebappProjectionByIntegratorUserId(
   if (!/^\d+$/.test(integratorUserId.trim())) return;
   const id = integratorUserId.trim();
 
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM reminder_occurrence_history WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM reminder_rules WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM content_access_grants_webapp WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
+  // Support children first: they hang off the conversation root deleted in the same list below.
   await runPurgeClientPgText(
     client,
     `DELETE FROM support_question_messages WHERE question_id IN (
@@ -132,11 +150,13 @@ async function deleteWebappProjectionByIntegratorUserId(
      )`,
     [id],
   );
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM support_conversations WHERE integrator_user_id = $1::bigint`,
-    [id],
-  );
+  for (const projection of WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS) {
+    await runPurgeClientPgText(
+      client,
+      `DELETE FROM ${projection.table} WHERE integrator_user_id = $1::bigint`,
+      [id],
+    );
+  }
 }
 
 async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {

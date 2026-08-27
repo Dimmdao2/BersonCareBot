@@ -30,6 +30,7 @@ import { clientFilesSubtreeFolderIdsSql } from '@/infra/repos/pgClientMediaFolde
 import { mediaFolderExists } from '@/infra/repos/pgMediaFolderLookup';
 import { pgMediaUsageSummaryForMediaId } from '@/infra/repos/pgMediaUsageSummary';
 import {
+  s3AbortMultipartUpload,
   s3DeleteObject,
   s3ListObjectKeysUnderPrefix,
   s3ObjectKey,
@@ -958,8 +959,11 @@ export async function stagePendingMediaAbort(mediaId: string): Promise<boolean> 
 }
 
 /**
- * Claims abandoned direct-to-S3 uploads before the existing pending-delete batch runs.
- * Multipart-backed rows are deliberately left to their session lifecycle, even after the TTL.
+ * Claims abandoned direct-to-S3 (single-PUT) uploads before the existing pending-delete batch runs —
+ * audit §D2: `media_files.status = 'pending'` with no upload session had no cleanup owner at all.
+ * Multipart-backed rows are NOT claimed here: their TTL lives on the session row, so
+ * `/api/internal/media-multipart/cleanup` stages them into this same `pending_delete` lifecycle. One
+ * owner, one state machine, one cron — not a second sweeper.
  */
 export async function stageStaleSinglePutMediaForPurge(limit: number): Promise<number> {
   const take = Math.max(1, Math.min(50, limit));
@@ -1329,6 +1333,41 @@ export async function purgePendingMediaDeleteBatch(
           { err: e, mediaId: row.id },
           '[purgePendingMediaDeleteBatch] failed to list keys',
         );
+        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
+        await tx.commit();
+        errors += 1;
+        continue;
+      }
+
+      // Audit §D1: an unfinished multipart upload has no object at `s3_key` — only parts S3 keeps
+      // until AbortMultipartUpload. `media_upload_sessions` is the ONLY holder of that retry identity
+      // (`s3_key` + `upload_id`), and it dies with this media row. So the abort must be CONFIRMED
+      // before anything is deleted; a failed abort leaves the row retryable with the same bounded
+      // backoff every other failure here uses, and the session survives untouched.
+      const pendingAborts = await runWebappSql<{ s3_key: string; upload_id: string }>(
+        db,
+        sql`SELECT s3_key, upload_id
+         FROM media_upload_sessions
+         WHERE media_id = ${row.id}::uuid
+           AND upload_id IS NOT NULL
+           AND length(trim(upload_id)) > 0
+           AND status NOT IN ('completed', 'aborted')
+         FOR UPDATE`,
+      );
+      let abortFailed = false;
+      for (const session of pendingAborts.rows) {
+        try {
+          await s3AbortMultipartUpload(session.s3_key, session.upload_id);
+        } catch (e) {
+          abortFailed = true;
+          logger.error(
+            { err: e, mediaId: row.id, uploadId: session.upload_id },
+            '[purgePendingMediaDeleteBatch] multipart abort failed; retry identity kept',
+          );
+          break;
+        }
+      }
+      if (abortFailed) {
         await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
         await tx.commit();
         errors += 1;
