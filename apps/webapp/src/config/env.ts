@@ -390,6 +390,50 @@ if (
   );
 }
 
+export type WebappDbPrincipalContextMode = EnvParsed['DB_PRINCIPAL_CONTEXT_MODE'];
+
+/** Единственный режим, в котором продуктовый рантайм webapp выбирает роль БД. */
+export const WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE = 'port-context' as const;
+
+/**
+ * A3/A4 системного аудита 27.08. До этого шага старая модель принципал→роль оставалась ЖИВОЙ веткой
+ * продукта и включалась одной строкой окружения: при отсутствующем или ином `DB_PRINCIPAL_CONTEXT_MODE`
+ * webapp молча уходил на путь, где организация становится `app_staff`, а внутренние cron-задания —
+ * тоже `app_staff` с очищенным контекстом клиники. То есть узкие роли, ради которых сделан
+ * port-context, обходились не ошибкой конфигурации, а её ОТСУТСТВИЕМ.
+ *
+ * Теперь режим не «выбирается по умолчанию», а требуется: продуктовый рантайм стартует только под
+ * `port-context`. Тестовый harness по-прежнему может назвать режим ЯВНО — он и называет его явно,
+ * поэтому молчаливой деградации у него не бывает; `next build` окружения рантайма не имеет вовсе и
+ * судить его нечем.
+ */
+export function resolveWebappDbPrincipalContextMode(input: {
+  mode: string | undefined;
+  isTestEnv: boolean;
+  isBuildPhase: boolean;
+}): WebappDbPrincipalContextMode {
+  const declared = (input.mode ?? '').trim();
+  if (input.isBuildPhase) return WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE;
+  if (input.isTestEnv) {
+    return (declared || WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE) as WebappDbPrincipalContextMode;
+  }
+  if (declared !== WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE) {
+    throw new Error(
+      `Refusing to start: webapp requires DB_PRINCIPAL_CONTEXT_MODE=${WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE}`
+      + `, got ${declared === '' ? '<unset>' : declared}. The legacy principal-to-role mapping is not a`
+      + ' runtime fallback: an organization principal must not silently become app_staff.',
+    );
+  }
+  return WEBAPP_RUNTIME_DB_PRINCIPAL_CONTEXT_MODE;
+}
+
+/** Тот же ответ для всего рантайма: один раз посчитан на загрузке модуля, один раз и падает. */
+export const webappDbPrincipalContextMode = resolveWebappDbPrincipalContextMode({
+  mode: process.env.DB_PRINCIPAL_CONTEXT_MODE,
+  isTestEnv: isTest,
+  isBuildPhase: isNextBuildPhase,
+});
+
 export const env = parsed;
 
 type WebappDatabaseRuntimeEnv = Pick<
