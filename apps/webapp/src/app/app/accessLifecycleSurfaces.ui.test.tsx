@@ -220,7 +220,13 @@ beforeEach(() => {
   warmupsIncluded = true;
   patientHomeTodayState = 'grace';
   const session = {
-    user: { userId, role: 'doctor', displayName: 'Врач' },
+    user: {
+      userId,
+      role: 'doctor',
+      displayName: 'Врач',
+      phone: null,
+      bindings: {},
+    },
   };
   const orgEntitlements = {
     // Cabinet entry is its own ladder subject (§5a/2.1a); these cases are about mechanics, so the

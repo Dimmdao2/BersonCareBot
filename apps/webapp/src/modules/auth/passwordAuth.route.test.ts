@@ -318,7 +318,10 @@ describe('email/password login HTTP boundary', () => {
     expect(fakes.setSession).toHaveBeenCalledOnce();
     expect(fakes.getSecurityStatus).not.toHaveBeenCalled();
     expect(fakes.getStructuredSetting).not.toHaveBeenCalled();
-    expect(fakes.enterSelfPrincipal).not.toHaveBeenCalled();
+    expect(fakes.enterSelfPrincipal).toHaveBeenCalledWith(
+      userId,
+      'api/auth/email-password/login:primary-verified',
+    );
   });
 
   it('returns a typed our-side failure instead of an empty body when an unhandled exception hits the DB', async () => {

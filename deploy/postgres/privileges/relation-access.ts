@@ -3405,14 +3405,17 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "access_settings",
+          "created_at",
           "currency",
           "description",
+          "id",
           "intro_lesson_page_id",
           "organization_id",
           "price_minor",
           "program_template_id",
           "status",
-          "title"
+          "title",
+          "updated_at"
         ]
       },
       {
@@ -6964,6 +6967,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "body_md",
+          "body_region_id",
           "domain",
           "duration_text",
           "frequency_text",

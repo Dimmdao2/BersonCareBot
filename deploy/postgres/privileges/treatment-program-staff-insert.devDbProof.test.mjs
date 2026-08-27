@@ -58,6 +58,14 @@ const ORG = 'd0000000-0000-4000-8000-000000000004';
 // не бывает.
 const TABLE_PROBES = [
   {
+    table: 'courses',
+    sql: `INSERT INTO courses
+      (id, organization_id, title, description, program_template_id, intro_lesson_page_id,
+       access_settings, status, price_minor, currency, created_at, updated_at)
+      VALUES (default, '${ORG}'::uuid, 't', null, gen_random_uuid(), null, default, 'draft',
+              default, default, default, default)`,
+  },
+  {
     table: 'treatment_program_instances',
     sql: `INSERT INTO treatment_program_instances
       (id, organization_id, template_id, patient_user_id, assigned_by, title, status, created_at,
@@ -166,6 +174,22 @@ test('app_staff can name every schema column (including server-defaulted ones) o
         `${table}: INSERT with every schema column named must not fail on missing table privilege — got: ${error}`,
       );
     }
+  });
+
+test('app_staff can save every field emitted by the full recommendation editor',
+  { skip: !ENABLED }, () => {
+    const [result] = probeAll([{
+      table: 'recommendations',
+      sql: `UPDATE recommendations SET
+        organization_id = '${ORG}'::uuid, title = 't', body_md = 'b', media = '[]'::jsonb,
+        tags = ARRAY[]::text[], domain = null, body_region_id = null, quantity_text = null,
+        frequency_text = null, duration_text = null, updated_at = now()
+        WHERE id = gen_random_uuid()`,
+    }]);
+    assert.ok(
+      result.ok || !/permission denied for table/i.test(result.error ?? ''),
+      `recommendations: the full editor UPDATE must not fail on a missing column privilege — got: ${result.error}`,
+    );
   });
 
 // Самопроверка: снятая привилегия на "id" обязана вернуть ровно тот 42501, ради которого написан

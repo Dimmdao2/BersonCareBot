@@ -37,6 +37,7 @@ import {
   findPlatformUserIdWithPhoneConflict,
 } from '@/infra/repos/pgAdminClientProfileConflicts';
 import type { UserProjectionPort } from '@/modules/identity/ports';
+import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
   platformUsers,
   userContacts,
@@ -257,6 +258,11 @@ export const pgUserProjectionPort: UserProjectionPort = {
   },
 
   async getCurrentPatientFio() {
+    // The account profile is available even when the patient has no active clinic enrollment
+    // (for example, after the only clinic archives the relationship). The organization-scoped
+    // named root cannot be called without an active organization; the page falls back to the
+    // canonical FIO already carried by the verified session in that state.
+    if (!getCurrentDbPrincipalOrganizationId()) return null;
     const result = await runWebappNamedRoot<{
       last_name: string | null;
       first_name: string | null;
