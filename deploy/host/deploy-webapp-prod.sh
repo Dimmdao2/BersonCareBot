@@ -132,6 +132,15 @@ pnpm --dir apps/webapp run migrate
 # Same guardrail as deploy/host/deploy-prod.sh (shared script; fail before webapp restart).
 bash "${PROJECT_ROOT}/deploy/host/webapp-post-migrate-schema-check.sh"
 
+# Этап 2 сводного аудита 27.08.2026 (B3): manifest, поставляемые artifacts и реально установленное
+# расписание сверяются ДО переключения версии. Полностью реализованное задание, у которого нет
+# будильника, и рукописная cron-строка мимо общего transport одинаково роняют выкатку здесь, а не
+# обнаруживаются через месяц по пустой строке в «Здоровье системы».
+node "${PROJECT_ROOT}/deploy/host/background-jobs-cli.mjs" --check ||
+  fail "background job manifest and shipped cron artifacts disagree"
+node "${PROJECT_ROOT}/deploy/host/background-jobs-cli.mjs" --verify-installed --env prod ||
+  fail "installed PROD schedule does not match the background job manifest"
+
 sudo -n /bin/systemctl restart "${WEBAPP_SERVICE}"
 sleep 3
 sudo -n /bin/systemctl is-active --quiet "${WEBAPP_SERVICE}"

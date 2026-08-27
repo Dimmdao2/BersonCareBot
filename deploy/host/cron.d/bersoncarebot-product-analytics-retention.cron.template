@@ -2,10 +2,10 @@
 # Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
 # Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
 #
-# Critical health tick — среда prod.
-# Сторож наблюдаемого scheduler: должен пережить его смерть, поэтому остаётся внешним host-cron.
-# id=operator_health_critical tick=health/health.operator_health_critical.tick POST /api/internal/operator-health-critical/tick
-# principal=internal_job_bearer surface=app_public_origin timeout=120s stale_after=720s
+# Retention продуктовой аналитики — среда prod.
+# На TEST 517 строк product_analytics_events_recent старше объявленного окна: не было расписания (B2).
+# id=product_analytics_retention tick=analytics/analytics.product_analytics.retention POST /api/internal/product-analytics/retention
+# principal=internal_job_bearer surface=app_public_origin timeout=600s stale_after=691200s
 # Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.prod) строит общий transport
 # deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
-*/5 * * * * root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod operator_health_critical
+30 4 * * 1 root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod product_analytics_retention

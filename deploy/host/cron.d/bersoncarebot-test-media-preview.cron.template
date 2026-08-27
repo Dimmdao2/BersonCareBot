@@ -2,10 +2,10 @@
 # Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
 # Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
 #
-# Превью медиа — среда prod.
+# Превью медиа — среда test.
 # Только HTTP-дверь пишет tick media.preview.process; `media-preview:tick` оставляет строку «нет данных».
 # id=media_preview tick=media/media.preview.process POST /api/internal/media-preview/process?limit=10
 # principal=internal_job_bearer surface=app_public_origin timeout=50s stale_after=180s
-# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.prod) строит общий transport
+# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.test) строит общий transport
 # deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
-* * * * * root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod media_preview
+* * * * * root /opt/projects/bersoncarebot-test/deploy/host/run-internal-job.sh test media_preview

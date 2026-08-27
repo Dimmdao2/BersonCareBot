@@ -749,6 +749,8 @@ const SAAS_ISOLATION_OPERATION_LABEL: Record<SaasIsolationSourceOperation, strin
   cron_health: 'cron здоровья системы',
   cron_media: 'cron обслуживания медиа',
   cron_analytics: 'cron аналитики',
+  cron_maintenance: 'cron служебных журналов БД',
+  cron_saas_billing: 'cron автопродления тарифа',
   cron_reminders: 'cron напоминаний',
   cron_specialist_tasks: 'cron задач специалистов',
 };

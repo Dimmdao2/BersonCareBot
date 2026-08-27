@@ -436,27 +436,27 @@ mc cors set myminio/<PRIVATE_BUCKET_NAME> /path/to/cors.json
 
 Опционально **`S3_PUBLIC_BUCKET`**: только если нужны прямые публичные URL или легаси; для него при необходимости отдельно `mc anonymous set download` и CORS.
 
-**Очередь удаления медиа:** после удаления из библиотеки строки помечаются в БД; фоновый воркер — `POST /api/internal/media-pending-delete/purge` с заголовком `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Задайте **`INTERNAL_JOB_SECRET`** в env webapp и вызывайте endpoint по cron (например раз в минуту) **с того же хоста**, что и приложение: предпочтительно `curl` на `http://127.0.0.1:6200/api/internal/media-pending-delete/purge` (не на публичный `https://bersoncare.ru/...`, если включена блокировка ниже).
+**Очередь удаления медиа:** после удаления из библиотеки строки помечаются в БД; фоновый воркер — `POST /api/internal/media-pending-delete/purge` с заголовком `Authorization: Bearer <INTERNAL_JOB_SECRET>`. Задайте **`INTERNAL_JOB_SECRET`** в env webapp; расписание объявлено в manifest (`media_purge`, каждую минуту) и приезжает шаблоном `deploy/host/cron.d/bersoncarebot-media-purge.cron.template`. Вызов идёт с того же хоста на loopback, но с публичной surface identity — её строит общий transport, см. «Host scheduled jobs».
 
-**Multipart upload (очистка незавершённых сессий):** отдельный воркер — `POST /api/internal/media-multipart/cleanup` с тем же Bearer. Назначение: истёкшие строки `media_upload_sessions` → `AbortMultipartUpload` в S3 и удаление orphan `pending` в `media_files`. Рекомендуется cron на loopback (например раз в 5–15 минут или чаще), тот же `INTERNAL_JOB_SECRET` и тот же nginx `allow 127.0.0.1` для `/api/internal/`. На стороне MinIO дополнительно задайте lifecycle rule **`AbortIncompleteMultipartUpload`** (например 1–2 суток) для private-бакета как вторую линию защиты от «зависших» multipart.
+**Multipart upload (очистка незавершённых сессий):** отдельный воркер — `POST /api/internal/media-multipart/cleanup` с тем же Bearer. Назначение: истёкшие строки `media_upload_sessions` → `AbortMultipartUpload` в S3 и удаление orphan `pending` в `media_files`. Расписание объявлено в manifest (`media_multipart`, каждые 10 минут), тот же `INTERNAL_JOB_SECRET` и тот же nginx `allow 127.0.0.1` для `/api/internal/`. На стороне MinIO дополнительно задайте lifecycle rule **`AbortIncompleteMultipartUpload`** (например 1–2 суток) для private-бакета как вторую линию защиты от «зависших» multipart.
 
-**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` логика — `processMediaPreviewBatch` (см. `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`): JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…`) и обновление `media_files.preview_*`. **Рекомендуемый способ на prod** — отдельный процесс **`pnpm run media-preview:tick`** из каталога webapp после `source webapp.prod` (тот же env, что у `next start`, без нагрузки на Next standalone и без `INTERNAL_JOB_SECRET`). Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. Рекомендуется отдельный cron с небольшим `limit` (например 10/мин), чтобы не перегружать CPU (`ffmpeg` / `sharp`). **Альтернатива (совместимость):** `POST /api/internal/media-preview/process` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` на loopback — шаблон `deploy/host/cron.d/bersoncarebot-media-preview.cron.template`, см. также пример ниже в блоке cron. Только этот HTTP-вызов пишет тик в `public.operator_job_status` (`job_family=media`, ключ `media_preview.process`); `media-preview:tick` тика не пишет, поэтому при нём «Превью медиа» в «Здоровье системы» остаётся без данных.
+**Превью медиатеки (фон):** после применения миграции `075_media_preview_status.sql` логика — `processMediaPreviewBatch` (см. `apps/webapp/src/infra/repos/mediaPreviewWorker.ts`): JPEG-превью в private-бакете (`previews/sm/…`, `previews/md/…`) и обновление `media_files.preview_*`. **Рекомендуемый способ на prod** — отдельный процесс **`pnpm run media-preview:tick`** из каталога webapp после `source webapp.prod` (тот же env, что у `next start`, без нагрузки на Next standalone и без `INTERNAL_JOB_SECRET`). Отдача в браузер: `GET /api/media/:id/preview/sm|md` (сессия врача) → редирект на presigned GET с `Cache-Control: private, max-age=3500`. **Расписанием владеет manifest:** задание `media_preview` — `POST /api/internal/media-preview/process?limit=10` каждую минуту, шаблон `deploy/host/cron.d/bersoncarebot-media-preview.cron.template`. Только этот HTTP-вызов пишет тик в `public.operator_job_status` (`job_family=media`, ключ `media_preview.process`); ручной `pnpm run media-preview:tick` остаётся отладочным входом и тика не пишет, поэтому подменять им расписание нельзя — «Превью медиа» в «Здоровье системы» останется без данных.
 
-**Почасовая статистика playback (HOUSEKEEPING):** после миграции с таблицей **`media_playback_stats_hourly`** — `POST /api/internal/media-playback-stats/retention` с тем же Bearer: удаление старых `bucket_hour` (параметр **`?days=`**, по умолчанию **90**; **`?dryRun=1`** — только число затронутых строк). Таблица дедупа **`media_playback_user_video_first_resolve`** не затрагивается. На хосте достаточно редкого cron на loopback (например раз в неделю).
+**Почасовая статистика playback (HOUSEKEEPING):** после миграции с таблицей **`media_playback_stats_hourly`** — `POST /api/internal/media-playback-stats/retention` с тем же Bearer: удаление старых `bucket_hour` (параметр **`?days=`**, по умолчанию **90**; **`?dryRun=1`** — только число затронутых строк). Таблица дедупа **`media_playback_user_video_first_resolve`** не затрагивается. Расписание объявлено в manifest (`playback_retention`, еженедельно).
 
 **Журнал ошибок HLS‑прокси:** таблица **`media_hls_proxy_error_events`** хранит диагностические события при доставке HLS через same‑origin прокси (исключения и семантика записей — см. архивный журнал [`docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_PROXY_DELIVERY_LOG.md`](../docs/archive/2026-05-initiatives/VIDEO_HLS_DELIVERY/HLS_PROXY_DELIVERY_LOG.md)).
 
-**Retention журнала ошибок HLS‑прокси (HOUSEKEEPING):** `POST /api/internal/media-hls-proxy-errors/retention` с тем же Bearer: удаление строк **`media_hls_proxy_error_events`** старше окна **`?days=`** суток (по умолчанию **90**, минимум 1; **`?dryRun=1`** — только подсчёт затронутых строк без удаления). На хосте достаточно **редкого** cron на loopback, логично ставить **рядом по расписанию** с retention почасовой playback‑статистики (`media-playback-stats/retention`), чтобы housekeeping по медиа‑метрикам и по логам прокси совпадали по ритму.
+**Retention журнала ошибок HLS‑прокси (HOUSEKEEPING):** `POST /api/internal/media-hls-proxy-errors/retention` с тем же Bearer: удаление строк **`media_hls_proxy_error_events`** старше окна **`?days=`** суток (по умолчанию **90**, минимум 1; **`?dryRun=1`** — только подсчёт затронутых строк без удаления). Расписание объявлено в manifest (`hls_proxy_retention`, еженедельно, сразу после playback-retention того же дня).
 
-**Продуктовая аналитика (HOUSEKEEPING):** `POST /api/internal/product-analytics/retention` с тем же Bearer. Удаляет устаревшие строки в **`product_analytics_events_recent`** (**`?recentDays=`**, по умолчанию **90**), **`product_analytics_user_hourly`** (**`?userHourlyDays=`**, **180**), **`product_analytics_hourly`** (**`?hourlyDays=`**, **730**), **`product_push_notifications`** (**`?pushDays=`**, **730**). **`?dryRun=1`** — только подсчёт без DELETE. Ответ JSON с полями `deletedRecent`, `deletedUserHourly`, `deletedHourly`, `deletedPushNotifications`. На хосте — **редкий** weekly cron на loopback (рядом с playback/HLS retention).
+**Продуктовая аналитика (HOUSEKEEPING):** `POST /api/internal/product-analytics/retention` с тем же Bearer. Удаляет устаревшие строки в **`product_analytics_events_recent`** (**`?recentDays=`**, по умолчанию **90**), **`product_analytics_user_hourly`** (**`?userHourlyDays=`**, **180**), **`product_analytics_hourly`** (**`?hourlyDays=`**, **730**), **`product_push_notifications`** (**`?pushDays=`**, **730**). **`?dryRun=1`** — только подсчёт без DELETE. Ответ JSON с полями `deletedRecent`, `deletedUserHourly`, `deletedHourly`, `deletedPushNotifications`. Расписание объявлено в manifest (`product_analytics_retention`, еженедельно, следом за playback/HLS retention). До этого прохода задание было полностью реализовано, но будильника не имело — на TEST копились строки старше объявленного окна (находка B2).
 
 **HLS: reconcile очереди транскода (легаси-библиотека):** `POST /api/internal/media-transcode/reconcile` с тем же Bearer и JSON-телом **`{ "limit": 50 }`** (опционально; верхний cap на стороне сервера **200**). Работает только при **`video_hls_pipeline_enabled`** и **`video_hls_reconcile_enabled`** в admin **`system_settings`** (иначе **`503`** `pipeline_disabled` / `reconcile_disabled`). Один вызов = один батч постановки в **`media_transcode_jobs`** по той же логике, что скрипт phase-07 backfill. Успешная итерация обновляет строку **`public.operator_job_status`** (`job_family=media`, ключ **`media_transcode.reconcile`**), чтобы в админском «Здоровье системы» было видно последний тик reconcile.
 
-**Операторские уведомления (Wave 2):** внешним cron остаётся только `bersoncarebot-operator-health-critical.cron.template` (`*/5`, `POST /api/internal/operator-health-critical/tick`) — dead man's switch должен пережить наблюдаемый scheduler. Сводку и guard-автоочистку будит только резидентный scheduler через подписанные **`POST /api/integrator/operator-health/digest-wake`** и **`POST /api/integrator/system-health/guard-wake`**. Их host-cron шаблоны и прежние Bearer-роуты сняты D30. Настройки доставки лежат в **`operator_health_alert_config`**; `digestTime` читает webapp при постановке. M2M-канал `reminder_rule_upsert` и `public.integrator_push_outbox` также сняты: правила напоминаний webapp сохраняет напрямую в `public.reminder_rules`, доставка идёт через `public.outgoing_delivery_queue`.
+**Операторские уведомления (Wave 2):** внешним cron остаётся только `operator_health_critical` (`*/5`, `POST /api/internal/operator-health-critical/tick`, шаблон `bersoncarebot-operator-health-critical.cron.template`) — dead man's switch должен пережить наблюдаемый scheduler; в manifest он помечен `deadMansSwitch: true`, и тест не даёт перенести его внутрь резидентного scheduler. Сводку и guard-автоочистку будит только резидентный scheduler через подписанные **`POST /api/integrator/operator-health/digest-wake`** и **`POST /api/integrator/system-health/guard-wake`**. Их host-cron шаблоны и прежние Bearer-роуты сняты D30. Настройки доставки лежат в **`operator_health_alert_config`**; `digestTime` читает webapp при постановке. M2M-канал `reminder_rule_upsert` и `public.integrator_push_outbox` также сняты: правила напоминаний webapp сохраняет напрямую в `public.reminder_rules`, доставка идёт через `public.outgoing_delivery_queue`.
 
-**Автопродление тарифа платформы (К5):** `POST /api/internal/saas-billing/renewal/tick` с тем же Bearer: раз в тик находит `saas_billing_subscriptions` с `source='paid_subscription'`, `status='active'` и `current_period_ends_at` в прошлом, и выставляет каждой счёт продления (`saas_billing_invoices`) через уже существующий провайдерский intent — та же логика, что ручное `createRenewalSaasBillingInvoice` (К0), но по расписанию, а не по запросу клиники. Повтор в тот же период не создаёт второй счёт — держится уникальным индексом `saas_billing_invoices_period_uidx (saas_billing_subscription_id, service_period_starts_at, service_period_ends_at)`. Шаблон `deploy/host/cron.d/bersoncarebot-saas-billing-renewal.cron.template` — **ежечасно** на loopback, параметр **`?limit=`** (по умолчанию 50, cap 200). Ответ JSON: `dueCount`, `created`, `alreadyInvoiced`, `failed`, `errors`.
+**Автопродление тарифа платформы (К5):** `POST /api/internal/saas-billing/renewal/tick` с тем же Bearer: раз в тик находит `saas_billing_subscriptions` с `source='paid_subscription'`, `status='active'` и `current_period_ends_at` в прошлом, и выставляет каждой счёт продления (`saas_billing_invoices`) через уже существующий провайдерский intent — та же логика, что ручное `createRenewalSaasBillingInvoice` (К0), но по расписанию, а не по запросу клиники. Повтор в тот же период не создаёт второй счёт — держится уникальным индексом `saas_billing_invoices_period_uidx (saas_billing_subscription_id, service_period_starts_at, service_period_ends_at)`. Расписание объявлено в manifest (`saas_billing_renewal_tick`, ежечасно), шаблон `deploy/host/cron.d/bersoncarebot-saas-billing-renewal.cron.template`, параметр **`?limit=`** (по умолчанию 50, cap 200). Ответ JSON: `dueCount`, `created`, `alreadyInvoiced`, `failed`, `errors`.
 
-**Retention служебных журналов БД (Track D, HOUSEKEEPING):** `POST /api/internal/db-journal-retention/tick` с тем же Bearer: один тик сметает разом все ещё живые retention-цели из `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md` через существующие чекпоинты `app.prune_retention_target`/`app.prune_context_nonce_ledger` — **`app.context_nonce_ledger`** (grace 1 час), **`public.idempotency_keys`**/**`integrator.idempotency_keys`** (истёкшие + 24ч), **`public.outgoing_delivery_queue`** статус `sent` (30д по `sent_at`) и `dead` (180д по `dead_at`; живые статусы никогда не трогаются), **`public.notification_delivery_attempts`** (180д). **`?dryRun=1`** — только подсчёт без DELETE. Ответ JSON: `{ ok, dryRun, results: [{ target, deleted }] }`. Шаблон `deploy/host/cron.d/bersoncarebot-db-journal-retention.cron.template` — **ежечасно** на loopback с production `Host`/`Origin`/`X-Forwarded-Proto` (nonce ledger и idempotency-таблицы нуждаются в почасовом ритме; для остальных целей это безвредный избыток).
+**Retention служебных журналов БД (Track D, HOUSEKEEPING):** `POST /api/internal/db-journal-retention/tick` с тем же Bearer: один тик сметает разом все ещё живые retention-цели из `docs/_TODO/DB_PRIVILEGE_LAYER_REBUILD/evidence/16-journal-retention.md` через существующие чекпоинты `app.prune_retention_target`/`app.prune_context_nonce_ledger` — **`app.context_nonce_ledger`** (grace 1 час), **`public.idempotency_keys`**/**`integrator.idempotency_keys`** (истёкшие + 24ч), **`public.outgoing_delivery_queue`** статус `sent` (30д по `sent_at`) и `dead` (180д по `dead_at`; живые статусы никогда не трогаются), **`public.notification_delivery_attempts`** (180д). **`?dryRun=1`** — только подсчёт без DELETE. Ответ JSON: `{ ok, dryRun, results: [{ target, deleted }] }`. Расписание объявлено в manifest (`db_journal_retention`, ежечасно): nonce ledger и idempotency-таблицы нуждаются в почасовом ритме, для остальных целей это безвредный избыток. `Host`/`Origin`/`X-Forwarded-Proto` строит общий transport, а не строка расписания.
 
 **Known limitations / runtime requirements:** HEIC/HEIF (`image/heic`, `image/heif`) теперь обрабатываются через `ffmpeg`, а при ошибке декодирования есть fallback через `ImageMagick` (`magick`/`convert`). На проде обязателен системный ffmpeg: `apt install ffmpeg` + `FFMPEG_PATH=/usr/bin/ffmpeg` в `/opt/env/bersoncarebot/webapp.prod`; bundled-бинаря в webapp нет. Для fallback HEIC установите `imagemagick` и при необходимости задайте `MAGICK_PATH=/usr/bin/magick` (или `/usr/bin/convert`). Скачивание HEIC во временный файл перед `magick` ограничено HTTP timeout 120 c; по timeout задача уходит в retry/backoff (не в immediate `skipped`).
 
@@ -485,69 +485,66 @@ location /api/internal/ {
 - ручной вызов purge c Bearer на loopback возвращает `{"ok":true,...}`;
 - cron файл `/etc/cron.d/bersoncarebot-media-purge` установлен (каждую минуту, loopback URL);
 
-Пример cron (актуальный формат):
-
-```cron
-* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-pending-delete/purge?limit=25" >/dev/null'
-```
-
-Пример второго cron-файла для multipart-cleanup (интервал подберите под нагрузку):
-
-```cron
-*/10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-multipart/cleanup?limit=25" >/dev/null'
-```
-
-Пример cron для генерации превью медиатеки (**рекомендуется**, отдельный процесс вне Next.js; каталог и env — как в таблице путей выше):
-
-```cron
-* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; cd /opt/projects/bersoncarebot/apps/webapp && pnpm run media-preview:tick -- --limit=10 >/dev/null'
-```
-
-Альтернатива — **HTTP** на loopback с Bearer (если tick-скрипт недоступен):
-
-```cron
-* * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-preview/process?limit=10" >/dev/null'
-```
-
-Пример недельной очистки почасового агрегата playback‑статистики (полный интервал подберите по политике хранения):
-
-```cron
-15 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-playback-stats/retention" >/dev/null'
-```
-
-Пример недельной очистки журнала ошибок HLS‑прокси (`media_hls_proxy_error_events`; время подберите под политику; здесь — понедельник **04:20**, сразу после примера playback‑retention выше):
-
-```cron
-20 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/media-hls-proxy-errors/retention" >/dev/null'
-```
-
-Пример недельной очистки продуктовой аналитики (понедельник **04:30**, после HLS‑proxy retention):
-
-```cron
-30 4 * * 1 root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" "http://127.0.0.1:6200/api/internal/product-analytics/retention" >/dev/null'
-```
-
-Dry-run перед сменой политики (только подсчёт):
+Расписание фоновых заданий вебаппа **не пишется руками**. Единственный typed manifest —
+`apps/webapp/src/modules/operator-health/backgroundJobManifest.ts`; из него генерируются файлы
+`deploy/host/cron.d/*.cron.template`, из него же берёт маршрут, метод, тело, timeout и допустимые
+статусы общий transport `deploy/host/run-internal-job.sh`.
 
 ```bash
+# перечень заданий среды (id, обязательность, cadence, имя файла расписания)
+node deploy/host/background-jobs-cli.mjs --list --env prod
+# перегенерировать шаблоны после правки manifest
+node deploy/host/background-jobs-cli.mjs --write
+# гейт: manifest ⇄ поставляемые artifacts (входит в `pnpm test:scripts` и в оба deploy-скрипта)
+node deploy/host/background-jobs-cli.mjs --check
+# гейт: manifest ⇄ реально установленное расписание хоста
+node deploy/host/background-jobs-cli.mjs --verify-installed --env prod
+```
+
+Каждый сгенерированный шаблон содержит ровно одну строку расписания вида:
+
+```cron
+* * * * * root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod media_purge
+```
+
+**Почему в строке нет ни `Host`, ни `Origin`, ни `curl`, ни `>/dev/null`.** Маршрутизация
+поверхностей отказывает закрыто на неизвестном `Host`: запрос с голым `Host: 127.0.0.1:6200`
+отсекается в `apps/webapp/src/proxy.ts` **до** API-маршрута и получает `404`. Пока каждый шаблон
+копировал заголовки по памяти, три из четырёх ходили без публичного `Host`, а `>/dev/null` съедал
+тело ответа — cron отрабатывал, приложение тика не получало, и «Здоровье системы» показывало
+задание навсегда без данных (находка B1 сводного аудита 27.08.2026). Теперь identity строит
+`deploy/host/webapp-health-host.mjs` из `APP_BASE_URL` того же env-файла, а transport при любом
+отказе печатает статус и тело в stderr, пишет syslog-строку с тегом `bersoncarebot-cron` и выходит
+ненулевым кодом.
+
+**Установка на хост (от root, по одному файлу).** Полный список команд печатает
+`--verify-installed` при расхождении:
+
+```bash
+install -m 0644 -o root -g root \
+  /opt/projects/bersoncarebot/deploy/host/cron.d/bersoncarebot-media-purge.cron.template \
+  /etc/cron.d/bersoncarebot-media-purge
+```
+
+TEST использует те же задания с префиксом `bersoncarebot-test-`, env-файлом
+`/opt/env/bersoncarebot/webapp.test` и checkout `/opt/projects/bersoncarebot-test`.
+
+**Примечание:** в файлах **`/etc/cron.d/*`** между расписанием и командой указывается пользователь
+(**`root`** в шаблонах). В **личном** `crontab` пользователя поле пользователя не пишется.
+
+**Ручной прогон одного задания** (в том числе dry-run retention) идёт через тот же transport или,
+если нужен нештатный query, через ту же identity — но никогда через голый loopback `Host`:
+
+```bash
+sudo /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod product_analytics_retention
+
 set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
-  "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
-```
-
-**Примечание:** в файлах **`/etc/cron.d/*`** между расписанием и командой указывается пользователь (**`root`** в примерах выше). В **личном** `crontab` пользователя **`root`** (`crontab -e` от root) поле пользователя **не пишется** — только пять полей расписания и команда.
-
-Пример **частого** cron для reconcile HLS (прогресс хвоста; флаги pipeline + reconcile в админке):
-
-```cron
-*/10 * * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
-```
-
-Пример **ночного** cron (раз в сутки **04:00 Europe/Moscow**; см. ваш `cron`/`CRON_TZ` на дистрибутиве):
-
-```cron
-CRON_TZ=Europe/Moscow
-0 4 * * * root bash -lc 'set -a && source /opt/env/bersoncarebot/webapp.prod && set +a; [ -n "$INTERNAL_JOB_SECRET" ] || exit 1; curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" -H "Content-Type: application/json" --data "{\"limit\":50}" "http://127.0.0.1:6200/api/internal/media-transcode/reconcile" >/dev/null'
+eval "$(node /opt/projects/bersoncarebot/deploy/host/webapp-health-host.mjs --surface-env)"
+curl -sS -X POST \
+  -H "Host: $BCB_SURFACE_HOST" -H "Origin: $BCB_SURFACE_ORIGIN" \
+  -H "X-Forwarded-Proto: $BCB_SURFACE_SCHEME" \
+  -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
+  "http://127.0.0.1:${PORT}/api/internal/product-analytics/retention?dryRun=1"
 ```
 
 **Проверка MinIO (ops):** скрипт [`check-s3.ts`](../apps/integrator/src/infra/scripts/check-s3.ts) — из **корня репозитория** с `pnpm exec tsx ...`, переменные `S3_*` в корневом `.env` должны совпадать по смыслу с именами бакетов в `webapp.prod` (не обязателен для runtime webapp).
@@ -871,25 +868,44 @@ sudo systemctl reload nginx
 
 ### Host scheduled jobs (production)
 
-Все изменения расписания выполняются через `node /home/dev/brain/tools/cronport.mjs`; сырой `crontab` и `/etc/cron.d` не используются.
+**Единственная точка истины — typed manifest** `apps/webapp/src/modules/operator-health/backgroundJobManifest.ts`.
+Он несёт route, method, principal, cadence, timeout, staleness, surface identity и среду каждого задания. Из него:
 
-| Именованная задача                                                | Обязательность                                      | Назначение                                                                                                            |
-| ----------------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `bersoncarebot-media-purge`                                       | обязателен (медиа CMS)                              | purge очереди удаления `media-pending-delete`                                                                         |
-| `bersoncarebot-media-multipart` (имя на усмотрение)               | рекомендуется                                       | multipart cleanup                                                                                                     |
-| `bersoncarebot-webapp-hls-retention`                              | рекомендуется                                       | playback + HLS proxy errors retention (weekly)                                                                        |
-| `bersoncarebot-product-analytics-retention`                       | рекомендуется                                       | `POST /api/internal/product-analytics/retention` (weekly)                                                             |
-| `bersoncarebot-saas-billing-renewal` (имя на усмотрение)          | рекомендуется после К5                              | `POST /api/internal/saas-billing/renewal/tick` ежечасно — счёт продления тарифа истёкшим `saas_billing_subscriptions` |
-| `bersoncarebot-db-journal-retention`                              | рекомендуется (Track D)                             | `POST /api/internal/db-journal-retention/tick` ежечасно — retention nonce ledger/idempotency/outbox/notification-журналов |
-| прочие                                                            | см. раздел **Nginx → Webapp → CMS медиа и S3** выше | превью, reconcile HLS, health-guard и т.д.                                                                            |
+- генерируются файлы расписания `deploy/host/cron.d/*.cron.template` (`node deploy/host/background-jobs-cli.mjs --write`);
+- выводится реестр «Здоровье системы» (`cronJobRegistry.ts` — проекция manifest, не вторая копия);
+- берёт описание задания общий transport `deploy/host/run-internal-job.sh`;
+- работает deploy-гейт: `--check` (manifest ⇄ поставляемые artifacts) и `--verify-installed --env prod|test`
+  (manifest ⇄ реально установленное расписание). Оба вызываются в `deploy-prod.sh`, `deploy-webapp-prod.sh` и
+  `deploy-test.sh` **до** рестарта служб: обязательное задание без будильника, файл без записи в manifest и
+  строка мимо общего transport роняют выкатку до переключения версии.
 
-**Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в **`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**, UI **`/app/admin/system-health`** → «Cron-задачи хоста». Канон ключей: **`apps/webapp/src/modules/operator-health/cronJobRegistry.ts`**. Smoke после deploy:
+Актуальный перечень печатает сам manifest — таблицу здесь не дублируем:
 
 ```bash
-set -a && source /opt/env/bersoncarebot/webapp.prod && set +a
-# loopback dry-run retention (без DELETE) — после вызова tick появится в operator_job_status:
-curl -fsS -X POST -H "Authorization: Bearer $INTERNAL_JOB_SECRET" \
-  "http://127.0.0.1:6200/api/internal/product-analytics/retention?dryRun=1"
+node deploy/host/background-jobs-cli.mjs --list --env prod
+```
+
+**Где живёт расписание.** Задания вебаппа — файлы `/etc/cron.d/bersoncarebot-*` (PROD) и
+`/etc/cron.d/bersoncarebot-test-*` (TEST), устанавливаемые от root из сгенерированных шаблонов (`install`-команды
+печатает `--verify-installed`). `node /home/dev/brain/tools/cronport.mjs` управляет личным crontab
+оркестрационного пользователя DEV/TEST-хоста и **не является** дверью к этим файлам; сырой `crontab` для заданий
+вебаппа не используется.
+
+**Что не принадлежит host cron.** Сводку здоровья (`operator-health/digest-wake`) и guard-автоочистку
+(`system-health/guard-wake`) будит только резидентный scheduler подписанным wake — в manifest они помечены
+`scheduleOwner: 'resident_scheduler'` и artifact для них не поставляется. Обратное верно для
+`operator_health_critical`: это dead man's switch, он обязан пережить смерть наблюдаемого scheduler и потому
+остаётся внешним host cron (`deadMansSwitch: true`, инвариант закреплён тестом). Бэкапы PostgreSQL
+(`job_family=backup`) планирует `/opt/backups/scripts/postgres-backup.sh`.
+
+**Наблюдаемость в админке:** после каждого успешного/ошибочного вызова internal job (и backup-скриптов) в
+**`public.operator_job_status`** пишется tick. Сводка — **`GET /api/admin/system-health`** → поле **`cronJobs`**,
+UI **`/app/admin/system-health`** → «Cron-задачи хоста». Помимо сводного статуса каждая строка несёт `reason`:
+**`never_run`** (задание ни разу не отработало — обычно расписание не установлено), **`stale`** (успех старше
+собственного SLA), **`last_run_failed`**, **`success`**. Smoke после deploy:
+
+```bash
+sudo /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod product_analytics_retention
 # в UI: /app/admin/system-health → «Cron-задачи хоста»
 ```
 

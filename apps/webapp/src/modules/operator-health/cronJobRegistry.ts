@@ -1,25 +1,9 @@
 import {
-  OPERATOR_ANALYTICS_JOB_FAMILY,
-  OPERATOR_BACKUP_JOB_FAMILY,
-  OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY,
-  OPERATOR_HEALTH_JOB_FAMILY,
-  OPERATOR_MAINTENANCE_JOB_FAMILY,
-  OPERATOR_MEDIA_JOB_FAMILY,
-  OPERATOR_MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB_KEY,
-  OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
-  OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
-  OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
-  OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
-  OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
-  OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
-  OPERATOR_SAAS_BILLING_JOB_FAMILY,
-  OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,
-  OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
-  OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
-  OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
-} from '@/modules/operator-health/reconcileJobKeys';
+  BACKGROUND_JOB_MANIFEST,
+  type BackgroundJobManifestEntry,
+} from '@/modules/operator-health/backgroundJobManifest';
 
-export type CronJobRegistryKind = 'internal_http' | 'backup_shell';
+export type CronJobRegistryKind = BackgroundJobManifestEntry['kind'];
 
 export type CronJobRegistryEntry = {
   id: string;
@@ -38,168 +22,26 @@ export type CronJobRegistryEntry = {
   optionalNoData?: boolean;
 };
 
-/** Канонический список host cron / internal jobs для «Здоровье системы». */
-export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = [
-  {
-    id: 'media_purge',
-    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-    jobKey: OPERATOR_MEDIA_PENDING_DELETE_PURGE_JOB_KEY,
-    label: 'Удаление медиа (purge)',
-    scheduleHint: 'каждую минуту',
-    staleAfterSec: 3 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/media-pending-delete/purge',
-  },
-  {
-    id: 'media_multipart',
-    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-    jobKey: OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
-    label: 'Multipart cleanup',
-    scheduleHint: 'каждые 10 мин',
-    staleAfterSec: 25 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/media-multipart/cleanup',
-  },
-  {
-    id: 'media_preview',
-    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-    jobKey: OPERATOR_MEDIA_PREVIEW_PROCESS_JOB_KEY,
-    label: 'Превью медиа',
-    scheduleHint: 'каждую минуту',
-    staleAfterSec: 3 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/media-preview/process',
-  },
-  {
-    id: 'media_transcode_reconcile',
-    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-    jobKey: OPERATOR_MEDIA_TRANSCODE_RECONCILE_JOB_KEY,
-    label: 'HLS reconcile',
-    scheduleHint: 'каждые 10 мин',
-    staleAfterSec: 25 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/media-transcode/reconcile',
-  },
-  {
-    id: 'system_health_guard',
-    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-    jobKey: OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY,
-    label: 'System health maintenance',
-    scheduleHint: 'каждые 15 мин',
-    staleAfterSec: 35 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/integrator/system-health/guard-wake',
-  },
-  {
-    id: 'operator_health_critical',
-    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-    jobKey: OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY,
-    label: 'Critical health tick',
-    scheduleHint: 'каждые 5 мин',
-    staleAfterSec: 12 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/operator-health-critical/tick',
-  },
-  {
-    id: 'operator_health.digest.daily',
-    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-    jobKey: OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
-    label: 'Digest health tick',
-    scheduleHint: 'ежечасно в :00',
-    staleAfterSec: 2 * 60 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/integrator/operator-health/digest-wake',
-  },
-  {
-    id: 'playback_retention',
-    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-    jobKey: OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
-    label: 'Retention playback stats',
-    scheduleHint: 'еженедельно',
-    staleAfterSec: 8 * 24 * 60 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/media-playback-stats/retention',
-  },
-  {
-    id: 'hls_proxy_retention',
-    jobFamily: OPERATOR_MEDIA_JOB_FAMILY,
-    jobKey: OPERATOR_MEDIA_HLS_PROXY_ERRORS_RETENTION_JOB_KEY,
-    label: 'Retention HLS proxy errors',
-    scheduleHint: 'еженедельно',
-    staleAfterSec: 8 * 24 * 60 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/media-hls-proxy-errors/retention',
-  },
-  {
-    id: 'product_analytics_retention',
-    jobFamily: OPERATOR_ANALYTICS_JOB_FAMILY,
-    jobKey: OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
-    label: 'Retention продуктовой аналитики',
-    scheduleHint: 'еженедельно',
-    staleAfterSec: 8 * 24 * 60 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/product-analytics/retention',
-  },
-  {
-    id: 'db_journal_retention',
-    jobFamily: OPERATOR_MAINTENANCE_JOB_FAMILY,
-    jobKey: OPERATOR_DB_JOURNAL_RETENTION_JOB_KEY,
-    label: 'Retention служебных журналов БД',
-    scheduleHint: 'ежечасно',
-    staleAfterSec: 3 * 60 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/db-journal-retention/tick',
-  },
-  {
-    id: 'saas_billing_renewal_tick',
-    jobFamily: OPERATOR_SAAS_BILLING_JOB_FAMILY,
-    jobKey: OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,
-    label: 'Автопродление тарифа (счета клиникам)',
-    scheduleHint: 'ежечасно',
-    staleAfterSec: 3 * 60 * 60,
-    kind: 'internal_http',
-    internalPath: '/api/internal/saas-billing/renewal/tick',
-  },
-  {
-    id: 'backup_hourly',
-    jobFamily: OPERATOR_BACKUP_JOB_FAMILY,
-    jobKey: 'backup.hourly',
-    label: 'Бэкап PostgreSQL (hourly)',
-    scheduleHint: 'ежечасно',
-    staleAfterSec: 3 * 60 * 60,
-    kind: 'backup_shell',
-  },
-  {
-    id: 'backup_daily',
-    jobFamily: OPERATOR_BACKUP_JOB_FAMILY,
-    jobKey: 'backup.daily',
-    label: 'Бэкап PostgreSQL (daily)',
-    scheduleHint: 'ежедневно',
-    staleAfterSec: 28 * 60 * 60,
-    kind: 'backup_shell',
-    optionalNoData: true,
-  },
-  {
-    id: 'backup_weekly',
-    jobFamily: OPERATOR_BACKUP_JOB_FAMILY,
-    jobKey: 'backup.weekly',
-    label: 'Бэкап PostgreSQL (weekly)',
-    scheduleHint: 'еженедельно',
-    staleAfterSec: 8 * 24 * 60 * 60,
-    kind: 'backup_shell',
-    optionalNoData: true,
-  },
-  {
-    id: 'backup_prune',
-    jobFamily: OPERATOR_BACKUP_JOB_FAMILY,
-    jobKey: 'backup.prune',
-    label: 'Бэкап PostgreSQL (prune)',
-    scheduleHint: 'по расписанию retention',
-    staleAfterSec: 8 * 24 * 60 * 60,
-    kind: 'backup_shell',
-    optionalNoData: true,
-  },
-] as const;
+/**
+ * Канонический список host cron / internal jobs для «Здоровье системы».
+ *
+ * Больше не рукописная копия: проекция единственного typed manifest
+ * (`backgroundJobManifest.ts`), из которого генерируются и host artifacts, и deploy-сверка.
+ * Реестр здоровья и поставляемое расписание физически не могут разойтись.
+ */
+export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = BACKGROUND_JOB_MANIFEST.map(
+  (entry) => ({
+    id: entry.id,
+    jobFamily: entry.jobFamily,
+    jobKey: entry.jobKey,
+    label: entry.label,
+    scheduleHint: entry.scheduleHint,
+    staleAfterSec: entry.staleAfterSec,
+    kind: entry.kind,
+    ...(entry.route ? { internalPath: entry.route.path } : {}),
+    ...(entry.optionalNoData ? { optionalNoData: true } : {}),
+  }),
+);
 
 export function findCronJobRegistryEntry(
   jobFamily: string,

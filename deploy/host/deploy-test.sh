@@ -396,6 +396,15 @@ retire_legacy_test_worker_unit
 # последовательность: её остальные гейты пересоздают как раз те логины, ради удаления которых её сняли.
 mark_e1_runtime_coverage_start
 
+# Этап 2 сводного аудита 27.08.2026 (B3): manifest фоновых заданий ⇄ поставляемые artifacts ⇄ реально
+# установленное расписание. Сверка идёт по кандидату в `$DEPLOY_REPO` и ДО переключения версии:
+# обязательное задание без будильника на TEST — это ровно тот случай, из-за которого
+# `product_analytics_events_recent` копил строки старше объявленного окна.
+sudo -u deploy node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --check ||
+  fail 'background job manifest and shipped cron artifacts disagree'
+sudo -u deploy node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --verify-installed --env test ||
+  fail 'installed TEST schedule does not match the background job manifest'
+
 for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
 for attempt in $(seq 1 30); do
   all_active=1

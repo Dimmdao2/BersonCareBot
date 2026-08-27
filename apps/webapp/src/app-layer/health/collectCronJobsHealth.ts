@@ -1,5 +1,8 @@
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
-import { classifyOperatorCronJobHealthStatus } from '@/modules/operator-health/classifyOperatorCronJobHealthStatus';
+import {
+  classifyOperatorCronJobHealth,
+  type OperatorCronJobHealthReason,
+} from '@/modules/operator-health/classifyOperatorCronJobHealthStatus';
 import {
   CRON_JOB_REGISTRY,
   findCronJobRegistryEntry,
@@ -29,6 +32,12 @@ export type CronJobHealthItem = {
   kind: CronJobRegistryEntry['kind'];
   internalPath?: string;
   status: 'ok' | 'degraded' | 'error' | 'no_data';
+  /**
+   * Что именно наблюдалось: `never_run` / `stale` / `last_run_failed` / `success`.
+   * Сводный `status` их схлопывает, поэтому оператор без этого поля не отличает
+   * «никогда не запускалось» от «просрочено» (этап 2 сводного аудита 27.08.2026).
+   */
+  reason: OperatorCronJobHealthReason;
   lastTick: CronJobLastTickPayload | null;
 };
 
@@ -125,7 +134,7 @@ export async function collectCronJobsHealth(input?: {
       }
     }
 
-    const status = classifyOperatorCronJobHealthStatus({
+    const verdict = classifyOperatorCronJobHealth({
       lastStatus: lastTick?.lastStatus ?? null,
       lastSuccessAt: lastTick?.lastSuccessAt ?? null,
       lastFailureAt: lastTick?.lastFailureAt ?? null,
@@ -140,7 +149,8 @@ export async function collectCronJobsHealth(input?: {
       scheduleHint: entry.scheduleHint,
       kind: entry.kind,
       internalPath: entry.internalPath,
-      status,
+      status: verdict.status,
+      reason: verdict.reason,
       lastTick,
     });
   }

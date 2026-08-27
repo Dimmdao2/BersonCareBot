@@ -2,10 +2,10 @@
 # Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
 # Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
 #
-# Retention служебных журналов БД — среда prod.
+# Retention служебных журналов БД — среда test.
 # Nonce ledger и idempotency-таблицы нуждаются в почасовом ритме (Track D, evidence/16).
 # id=db_journal_retention tick=maintenance/maintenance.db_journal_retention.tick POST /api/internal/db-journal-retention/tick
 # principal=internal_job_bearer surface=app_public_origin timeout=600s stale_after=10800s
-# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.prod) строит общий transport
+# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.test) строит общий transport
 # deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
-0 * * * * root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod db_journal_retention
+0 * * * * root /opt/projects/bersoncarebot-test/deploy/host/run-internal-job.sh test db_journal_retention

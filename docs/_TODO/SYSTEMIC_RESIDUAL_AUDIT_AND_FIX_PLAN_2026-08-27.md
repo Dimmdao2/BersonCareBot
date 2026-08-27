@@ -115,6 +115,10 @@ runtime-ролью выполняется этот файл.
 ### B. Планировщик, cron и наблюдаемость
 
 #### B1. Четыре cron-шаблона стучатся в Next без правильного Host и получают 404
+**Статус 27.08.2026:** закрыто в коде. Cron-строки больше не несут заголовков: единственный transport
+`deploy/host/run-internal-job.sh` строит surface identity из `APP_BASE_URL`, а `>/dev/null` убран — не-2xx
+печатается с телом и роняет прогон. Поведение закреплено `deploy/host/run-internal-job.test.mjs`.
+
 
 После разделения поверхностей запрос с `Host: 127.0.0.1:6300` отсекается в `proxy.ts` до API-маршрута.
 Шаблоны превью, критического health-check и продления тарифа не передают публичный Host; шаблон retention,
@@ -132,6 +136,9 @@ curl -s -o /dev/null -w '%{http_code}' -H 'Host: test.bersoncare.ru' http://127.
 dead-man's-switch и, вероятно, автоматическое продление тарифа.
 
 #### B2. Часть объявленных retention-задач вообще не имеет расписания
+**Статус 27.08.2026:** расписания добавлены в manifest и сгенерированы в `deploy/host/cron.d/` для PROD и
+TEST. Установка на хост остаётся операторским шагом.
+
 
 Для retention HLS proxy errors и product analytics существуют API, права и записи в реестре здоровья, но нет
 cron-шаблона, установленного cron и вызова из resident scheduler. На TEST уже есть события старше объявленного
@@ -146,6 +153,9 @@ sudo -n -u postgres psql -d bersoncarebot_test -Atc "SELECT count(*) FROM produc
 Результат: `517` строк. Это не проблема прав — право и named root проверены; отсутствует «будильник».
 
 #### B3. Реестр, шаблоны и установленное расписание не имеют общей точки истины
+**Статус 27.08.2026:** точка истины — `backgroundJobManifest.ts`; реестр здоровья выводится из него, шаблоны
+генерируются, deploy сверяет manifest ⇄ artifacts ⇄ установленное расписание до переключения версии.
+
 
 В `cronJobRegistry.ts` объявлено больше внутренних заданий, чем поставляется шаблонов, а на хосте установлено
 ещё меньше. Deploy не сравнивает эти множества, а здоровье видит только те jobs, которые когда-то уже записали
@@ -250,6 +260,10 @@ TEST и соответствующий owner-сценарий пройден. Э
 должны ли terminal-session иметь собственное окно. До решения автоматически добавлять их в purge нельзя.
 
 #### E3. Низкоприоритетные пробелы наблюдаемости
+**Статус 27.08.2026:** карта операций выводится из manifest и не собирается без записи для нового семейства;
+`cron_maintenance` и `cron_saas_billing` добавлены в TS-словарь и в overlay `saas-isolation-telemetry.sql`
+(переприменение overlay — операторский шаг).
+
 
 `maintenance` и `saas_billing` отсутствуют в карте isolation telemetry. Ошибка записи их тика останется только
 warning. Это исправляется общей моделью результата фоновой задачи, не отдельными ручными логами.
@@ -328,7 +342,7 @@ patient onboarding/content probes на DEV, затем TEST.
 Слепой kill-set, таблица «что сломано → что покраснело» и прогоны:
 [`runs/systemic-access/BLIND_KILL_SET_2026-08-27.md`](runs/systemic-access/BLIND_KILL_SET_2026-08-27.md).
 
-### Этап 2. Один manifest фоновых заданий
+### Этап 2. Один manifest фоновых заданий — сделано в коде (`wt/systemic-scheduler-20260827`)
 
 - Свести route, method, principal, cadence, timeout, staleness, Host/Origin и среду в один typed manifest.
 - Генерировать из него host schedule или проверяемые шаблоны; убрать ручные curl-копии из runbook.
@@ -341,6 +355,36 @@ patient onboarding/content probes на DEV, затем TEST.
 
 Приёмка этапа: на TEST каждая обязательная job получает свежий тик, а намеренно удалённая из установленного
 schedule job красит deploy/reconcile-проверку до запуска продукта.
+
+**Что уже стоит в репозитории.**
+
+- `apps/webapp/src/modules/operator-health/backgroundJobManifest.ts` — единственный typed manifest (route,
+  method, principal, cadence, timeout, staleness, surface identity, среда, обязательность, dead-man-признак).
+  `cronJobRegistry.ts` и `reconcileJobKeys.ts` стали его проекциями, второй рукописной копии не осталось.
+- `deploy/host/cron.d/*.cron.template` — 20 файлов (10 заданий × PROD/TEST) генерируются
+  `deploy/host/background-jobs-cli.mjs --write`; `--check` красит расхождение и входит в `pnpm test:scripts`.
+- `deploy/host/run-internal-job.sh` — единственный transport. Cron-строка не содержит ни `Host`, ни `Origin`,
+  ни `curl`, ни `>/dev/null`; identity строится из `APP_BASE_URL` тем же `webapp-health-host.mjs`, которым
+  пользуется health-проверка деплоя. Любой не-2xx, timeout или отказ сети печатается с телом ответа, уходит в
+  syslog (`bersoncarebot-cron`) и даёт ненулевой код возврата.
+- `--verify-installed --env prod|test` вызывается в `deploy-prod.sh`, `deploy-webapp-prod.sh` и `deploy-test.sh`
+  **до** рестарта служб: обязательное задание без установленного расписания, файл без записи в manifest и строка
+  мимо общего transport роняют выкатку и печатают точные `install`-команды.
+- Появились отсутствовавшие расписания (B2): `hls_proxy_retention`, `product_analytics_retention`,
+  `playback_retention`, `media_purge`, `media_multipart`, `media_transcode_reconcile` — и их TEST-двойники.
+- `classifyOperatorCronJobHealth` различает `never_run` / `stale` / `last_run_failed` / `success`; `reason`
+  доехал до payload `cronJobs`.
+- E3: карта isolation telemetry выводится из manifest (`cronIsolationOperations.ts`), добавлены операции
+  `cron_maintenance` и `cron_saas_billing` — в TS-словаре и в `deploy/postgres/saas-isolation-telemetry.sql`.
+
+**Что осталось оператору (хост не трогали).**
+
+1. Установить сгенерированные файлы в `/etc/cron.d` от root на PROD и TEST — до этого первый же deploy
+   красит `--verify-installed`. Команды печатает сам гейт.
+2. Переприменить `deploy/postgres/saas-isolation-telemetry.sql` на DEV/TEST/PROD, иначе новые операции
+   `cron_maintenance`/`cron_saas_billing` отвергнет закрытый словарь БД.
+3. Живая приёмка на TEST: свежий тик у каждой обязательной job и красный deploy-гейт при намеренно снятом
+   расписании.
 
 ### Этап 3. Полный реестр жизненного цикла данных
 
@@ -430,4 +474,3 @@ schedule job красит deploy/reconcile-проверку до запуска 
 - Нужно ли отдельное окно для terminal `media_upload_sessions`, или они должны жить до удаления `media_id`?
 - Решение о настройках пересылки входящих сообщений брендированного бота найдено как направление, но не как
   однозначно активный пункт текущего плана. Его не следует молча включать в этот пакет до сверки owner-authority.
-
