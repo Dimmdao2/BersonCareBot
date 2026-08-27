@@ -43,6 +43,7 @@ import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCar
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -591,6 +592,51 @@ function PatientsContent({
 
   const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase('ru-RU');
 
+  const renderFilters = (idPrefix: string) => (
+    <>
+      <TooltipProvider delay={450}>
+        <DoctorMetricList className="grid-cols-3 gap-1.5 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          {SEGMENTS.map((seg) => {
+            const segmentContextBase =
+              seg.key === 'all'
+                ? categoryBase
+                : applySegmentFilters(
+                    categoryBase,
+                    activeSegments.filter((key) => key !== seg.key),
+                  );
+            const currentValue =
+              seg.key === 'all'
+                ? filteredBySegments.length
+                : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
+            const totalValue =
+              seg.key === 'all'
+                ? categoryBase.length
+                : getSegmentCount(seg.key, metrics, categoryBase);
+            return (
+              <DoctorStatCard
+                key={seg.key}
+                id={`${idPrefix}-segment-${seg.key}`}
+                title={seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
+                value={renderSegmentMetricValue(currentValue, totalValue)}
+                tooltip={
+                  seg.key === 'all'
+                    ? `Все ${patientPluralLabelLower} этой организации.`
+                    : seg.tooltip
+                }
+                selected={
+                  seg.key === 'all'
+                    ? activeSegments.length === 0 && !archivedOnly
+                    : activeSegments.includes(seg.key)
+                }
+                onClick={() => onSegmentToggle(seg.key)}
+              />
+            );
+          })}
+        </DoctorMetricList>
+      </TooltipProvider>
+    </>
+  );
+
   return (
     <>
       <DoctorPageHeader
@@ -599,21 +645,10 @@ function PatientsContent({
         tabs={<DoctorNewClientAction patientSingularLabel={patientSingularLabel} />}
       />
       <CatalogSplitLayout
-        desktopColsClassName="lg:grid-cols-2"
-        mobileView={mobileFiltersOpen ? 'detail' : 'list'}
-        mobileBackSlot={
-          mobileFiltersOpen ? (
-            <Button
-              variant="ghost"
-              type="button"
-              className="mb-2 h-9 px-2"
-              onClick={() => onMobileFiltersOpenChange(false)}
-            >
-              ← Назад
-            </Button>
-          ) : null
-        }
-        className="lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] lg:min-h-0 lg:overflow-hidden"
+        splitFrom="md"
+        desktopColsClassName="md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-2"
+        mobileView="list"
+        className="md:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] md:min-h-0 md:overflow-hidden"
         left={
           <section
             data-doctor-flat-list-surface
@@ -723,7 +758,7 @@ function PatientsContent({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-8 gap-1.5 px-2 text-xs lg:hidden"
+                    className="h-8 gap-1.5 px-2 text-xs md:hidden"
                     onClick={() => onMobileFiltersOpenChange(true)}
                   >
                     <Filter className="size-3.5" aria-hidden />
@@ -809,50 +844,14 @@ function PatientsContent({
           </section>
         }
         right={
-          <CatalogRightPane className="h-full bg-transparent" contentClassName="gap-3 p-0">
+          <CatalogRightPane
+            className="hidden h-full bg-transparent md:flex"
+            contentClassName="gap-3 p-0"
+          >
             {/* Filter panel (right pane holds filters only) */}
             <section className="rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
               {/* Factual filters in the desktop right panel. */}
-              <TooltipProvider delay={450}>
-                <DoctorMetricList className="grid-cols-3 gap-1.5 xl:grid-cols-3 2xl:grid-cols-3">
-                  {SEGMENTS.map((seg) => {
-                    const segmentContextBase =
-                      seg.key === 'all'
-                        ? categoryBase
-                        : applySegmentFilters(
-                            categoryBase,
-                            activeSegments.filter((key) => key !== seg.key),
-                          );
-                    const currentValue =
-                      seg.key === 'all'
-                        ? filteredBySegments.length
-                        : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
-                    const totalValue =
-                      seg.key === 'all'
-                        ? categoryBase.length
-                        : getSegmentCount(seg.key, metrics, categoryBase);
-                    return (
-                      <DoctorStatCard
-                        key={seg.key}
-                        id={`doctor-patients-segment-${seg.key}`}
-                        title={seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
-                        value={renderSegmentMetricValue(currentValue, totalValue)}
-                        tooltip={
-                          seg.key === 'all'
-                            ? `Все ${patientPluralLabelLower} этой организации.`
-                            : seg.tooltip
-                        }
-                        selected={
-                          seg.key === 'all'
-                            ? activeSegments.length === 0 && !archivedOnly
-                            : activeSegments.includes(seg.key)
-                        }
-                        onClick={() => onSegmentToggle(seg.key)}
-                      />
-                    );
-                  })}
-                </DoctorMetricList>
-              </TooltipProvider>
+              {renderFilters('doctor-patients')}
 
               {/*
                 Communication-channel filters (owner punch-list item 4): UI hidden per owner request —
@@ -933,6 +932,14 @@ function PatientsContent({
           </CatalogRightPane>
         }
       />
+      <DoctorModal
+        open={mobileFiltersOpen}
+        onClose={() => onMobileFiltersOpenChange(false)}
+        title="Фильтры"
+        size="lg"
+      >
+        {renderFilters('doctor-patients-modal')}
+      </DoctorModal>
     </>
   );
 }

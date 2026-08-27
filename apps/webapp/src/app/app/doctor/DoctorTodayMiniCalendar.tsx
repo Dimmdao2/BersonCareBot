@@ -12,14 +12,7 @@ import type { CalendarAppointmentEvent, WorkingBounds } from '@/modules/booking-
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { cn } from '@/lib/utils';
-import { DEFAULT_CALENDAR_WINDOW_MIN } from '@/modules/booking-calendar/visibleTimeWindow';
-
-/** Конвертирует минуты от полуночи в строку "HH:MM:SS" для slotMinTime/slotMaxTime. */
-function minuteToHHMM(minute: number): string {
-  const h = Math.floor(minute / 60);
-  const m = minute % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`;
-}
+import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
 
 /** Maps a canonical CalendarAppointmentEvent to a display class matching the schedule calendar. */
 function canonicalEventClass(appt: CalendarAppointmentEvent): string {
@@ -102,7 +95,6 @@ type Props = {
    */
   workingBounds?: WorkingBounds | null;
   showWorkingHours?: boolean;
-  defaultWindow?: { startMinute: number; endMinute: number };
   fillHeight?: boolean;
   /** Removes the page-section frame when the calendar is already inside DoctorModal. */
   flushChrome?: boolean;
@@ -127,17 +119,16 @@ export function DoctorTodayMiniCalendar({
   displayIana,
   workingBounds,
   showWorkingHours,
-  defaultWindow,
   fillHeight = false,
   flushChrome = false,
   onCanonicalEventClick,
   onEventClick,
 }: Props) {
-  const configuredStartMinute = Number.isFinite(defaultWindow?.startMinute)
-    ? (defaultWindow?.startMinute ?? DEFAULT_CALENDAR_WINDOW_MIN)
-    : (workingBounds?.minMinute ?? DEFAULT_CALENDAR_WINDOW_MIN);
-  const scrollStartMinute = Math.max(0, Math.min(24 * 60 - 1, configuredStartMinute) - 60);
-  const scrollTime = minuteToHHMM(scrollStartMinute);
+  const scrollTime = deriveCalendarInitialScrollTime(
+    workingBounds,
+    calendarEvents,
+    displayIana,
+  );
   const tomorrowIso =
     DateTime.fromISO(todayIso, { zone: displayIana }).plus({ days: 1 }).toISODate() ?? todayIso;
 
@@ -263,6 +254,7 @@ export function DoctorTodayMiniCalendar({
           }
         `}</style>
         <FullCalendar
+          key={`${todayIso}:${scrollTime}`}
           plugins={[timeGridPlugin, interactionPlugin, luxonPlugin]}
           locale={ruLocale}
           initialView="timeGridDay"

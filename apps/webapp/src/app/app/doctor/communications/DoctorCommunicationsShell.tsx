@@ -249,7 +249,11 @@ export function DoctorCommunicationsShell({
         const TabComponent = DYNAMIC_TABS.get(entry.id)!;
         const tabId = entry.id;
         return (
-          <div key={tabId} hidden={tabId !== activeTab} className="flex min-h-0 flex-1 flex-col">
+          <div
+            key={tabId}
+            hidden={tabId !== activeTab}
+            className="flex min-h-0 flex-1 flex-col md:pb-3"
+          >
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}
               onDeepLinkChange={(key, value) => handleDeepLinkChange(tabId, key, value)}

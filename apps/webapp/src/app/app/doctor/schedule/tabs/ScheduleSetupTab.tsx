@@ -234,8 +234,6 @@ type CalendarSettingsState =
       branches: CalendarCatalogOption[];
       services: CalendarCatalogOption[];
       specialists: CalendarCatalogOption[];
-      defaultStart: string;
-      defaultEnd: string;
       defaultBranchId: string | null;
       defaultServiceId: string | null;
       defaultSpecialistId: string | null;
@@ -247,36 +245,6 @@ function getSettingValue(rows: CalendarSettingsRow[], key: string): unknown {
     return (valueJson as { value?: unknown }).value;
   }
   return null;
-}
-
-function minuteToTimeInput(minute: number): string {
-  const safe = Math.max(0, Math.min(24 * 60, minute));
-  const h = Math.floor(safe / 60);
-  const m = safe % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-}
-
-function timeInputToMinute(value: string): number | null {
-  const m = /^(\d{2}):(\d{2})$/.exec(value);
-  if (!m) return null;
-  const h = Number(m[1]);
-  const min = Number(m[2]);
-  if (!Number.isInteger(h) || !Number.isInteger(min) || h < 0 || h > 23 || min < 0 || min > 59) {
-    return null;
-  }
-  return h * 60 + min;
-}
-
-function parseDefaultWindow(raw: unknown): { startMinute: number; endMinute: number } {
-  if (raw && typeof raw === 'object') {
-    const obj = raw as { startMinute?: unknown; endMinute?: unknown };
-    if (typeof obj.startMinute === 'number' && typeof obj.endMinute === 'number') {
-      const startMinute = Math.max(0, Math.min(1439, Math.round(obj.startMinute)));
-      const endMinute = Math.max(startMinute + 30, Math.min(1440, Math.round(obj.endMinute)));
-      return { startMinute, endMinute };
-    }
-  }
-  return { startMinute: 9 * 60, endMinute: 19 * 60 };
 }
 
 function stringOrNull(raw: unknown): string | null {
@@ -300,16 +268,11 @@ function ScheduleCalendarDefaultsSection() {
         };
       }>('/api/doctor/booking-engine/calendar?view=day&scope=clinic'),
     ]);
-    const windowValue = parseDefaultWindow(
-      getSettingValue(settingsJson.settings, 'booking_calendar_default_window'),
-    );
     return {
       phase: 'ready',
       branches: calendarJson.filters.branches,
       services: calendarJson.filters.services,
       specialists: calendarJson.filters.specialists,
-      defaultStart: minuteToTimeInput(windowValue.startMinute),
-      defaultEnd: minuteToTimeInput(windowValue.endMinute),
       defaultBranchId: stringOrNull(
         getSettingValue(settingsJson.settings, 'booking_calendar_default_branch_id'),
       ),
@@ -365,16 +328,9 @@ function ScheduleCalendarDefaultsSection() {
 
   function save() {
     if (state.phase !== 'ready') return;
-    const startMinute = timeInputToMinute(state.defaultStart);
-    const endMinute = timeInputToMinute(state.defaultEnd);
-    if (startMinute === null || endMinute === null || endMinute <= startMinute) {
-      setState({ phase: 'error', message: 'Проверьте начало и конец окна календаря' });
-      return;
-    }
     startTransition(async () => {
       try {
         await Promise.all([
-          patchDoctorSetting('booking_calendar_default_window', { startMinute, endMinute }),
           patchDoctorSetting('booking_calendar_default_branch_id', state.defaultBranchId),
           patchDoctorSetting('booking_calendar_default_service_id', state.defaultServiceId),
           patchDoctorSetting('booking_calendar_default_specialist_id', state.defaultSpecialistId),
@@ -411,29 +367,6 @@ function ScheduleCalendarDefaultsSection() {
         <DoctorSectionTitle>Календарь</DoctorSectionTitle>
       </DoctorSectionHeader>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label>Окно календаря по умолчанию</Label>
-          <div className="flex items-center gap-2">
-            <Input
-              type="time"
-              className="w-32"
-              value={state.defaultStart}
-              onChange={(e) => updateReady({ defaultStart: e.target.value })}
-            />
-            <span className="text-sm text-muted-foreground">—</span>
-            <Input
-              type="time"
-              className="w-32"
-              value={state.defaultEnd}
-              onChange={(e) => updateReady({ defaultEnd: e.target.value })}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Используется, когда в периоде нет рабочих часов или записей; если данные выходят за
-            окно, сетка расширяется.
-          </p>
-        </div>
-
         <div className="space-y-2">
           <Label>Филиал по умолчанию</Label>
           <Select

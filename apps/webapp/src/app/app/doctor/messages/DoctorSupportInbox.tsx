@@ -20,7 +20,7 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { patientCardHref } from '../patients/patientCardHref';
 import { ChatClientOverviewPanel } from './ChatClientOverviewPanel';
 
@@ -521,7 +521,7 @@ export function DoctorSupportInbox({
         </Button>
       }
       desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
-      className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}
+      className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
     />
   );
 }

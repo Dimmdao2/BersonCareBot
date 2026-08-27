@@ -27,7 +27,6 @@ import type {
   CalendarEvent,
   CalendarFilterMeta,
 } from '@/modules/booking-calendar/types';
-import type { WorkingBounds } from '@/modules/booking-calendar/types';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
@@ -40,11 +39,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 import { routePaths } from '@/app-layer/routes/paths';
 import { DOCTOR_SCHEDULE_CALENDAR_REFRESH_EVENT } from '../scheduleCalendarEvents';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
-import {
-  DEFAULT_CALENDAR_WINDOW_MAX,
-  DEFAULT_CALENDAR_WINDOW_MIN,
-  deriveCalendarVisibleTimeWindow,
-} from '@/modules/booking-calendar/visibleTimeWindow';
+import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
 import {
   doctorScheduleScopeQuery,
   resolveDoctorScheduleScopeState,
@@ -165,12 +160,6 @@ function scheduleCalendarLoadKey(parts: {
     parts.specialistId ?? '',
   ].join('\0');
 }
-
-// #231/#237: окно сетки по умолчанию 9:00–19:00. Хранится в system_settings (scope=doctor,
-// key=booking_calendar_default_window). Настраивается в «Настройки → Календарь».
-// Если записи/рабочие часы выходят за дефолтное окно — сетка только расширяется наружу.
-const DEFAULT_WINDOW_MIN = DEFAULT_CALENDAR_WINDOW_MIN; // 540 мин = 9:00
-const DEFAULT_WINDOW_MAX = DEFAULT_CALENDAR_WINDOW_MAX; // 1140 мин = 19:00
 
 // R34: понятные подписи ошибок переноса для диалога подтверждения.
 function rescheduleErrorLabel(error: string | undefined): string {
@@ -297,29 +286,6 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
 // ---------------------------------------------------------------------------
 // Helper: slot min/max from workingBounds
 // ---------------------------------------------------------------------------
-
-/**
- * Диапазон часовой сетки = дефолтное окно 09:00–19:00, которое при необходимости
- * расширяется по рабочим границам и по фактическим записям c буфером ±1 час.
- *
- * Правила:
- * - Нет данных → 09:00–19:00.
- * - Рабочие границы уже приходят с серверным буфером ±1 час.
- * - Записи дополнительно расширяют окно на 60 минут до старта и 60 минут после конца.
- * - Если всё внутри дефолтного окна, окно НЕ ужимается.
- * - Если данные выходят за пределы дефолта, окно только расширяется наружу.
- */
-export function deriveSlotTimes(
-  workingBounds: WorkingBounds | null | undefined,
-  events: CalendarEvent[] | undefined,
-  timeZone: string,
-  defaultWindow: { startMinute: number; endMinute: number } = {
-    startMinute: DEFAULT_WINDOW_MIN,
-    endMinute: DEFAULT_WINDOW_MAX,
-  },
-): { slotMinTime: string; slotMaxTime: string; loMinute: number; hiMinute: number } {
-  return deriveCalendarVisibleTimeWindow(workingBounds, events, timeZone, defaultWindow);
-}
 
 // ---------------------------------------------------------------------------
 // §3.14 — Non-working gray background fill
@@ -1279,21 +1245,15 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const visibleTimeWindow = deriveSlotTimes(
+  const calendarScrollTime = deriveCalendarInitialScrollTime(
     workingBounds,
     displayableCalendarEvents,
     currentTimeZone,
-    {
-      startMinute: calendarSettings.defaultWindowStartMinute,
-      endMinute: calendarSettings.defaultWindowEndMinute,
-    },
   );
   // The full day stays reachable inside the calendar scroll area. On mount the
-  // viewport is positioned at the relevant working/event window (already
-  // expanded by the configured buffer in deriveSlotTimes), not at midnight.
+  // viewport starts at actual working hours (or an earlier appointment), not midnight.
   const slotMinTime = '00:00:00';
   const slotMaxTime = '24:00:00';
-  const calendarScrollTime = visibleTimeWindow.slotMinTime;
   const loMinute = 0;
   const hiMinute = 24 * 60;
 

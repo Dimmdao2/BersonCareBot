@@ -96,6 +96,13 @@ export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
   'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_1rem)] lg:overflow-hidden';
 
 /**
+ * Split content inside a page shell that already owns the remaining viewport height.
+ * Unlike catalog max-height helpers, this does not subtract a toolbar row.
+ */
+export const DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS =
+  'md:h-full md:min-h-0 md:overflow-hidden';
+
+/**
  * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).
  */
 export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS =

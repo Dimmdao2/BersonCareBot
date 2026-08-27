@@ -16,7 +16,6 @@ const DOCTOR_SCOPE_KEYS = [
   'doctor_patient_support_comments_without_support_default_enabled',
   'doctor_patient_support_media_without_support_default_enabled',
   'doctor_specialist_task_reminder_channels',
-  'booking_calendar_default_window',
   'booking_calendar_default_branch_id',
   'booking_calendar_default_service_id',
   'booking_calendar_default_specialist_id',

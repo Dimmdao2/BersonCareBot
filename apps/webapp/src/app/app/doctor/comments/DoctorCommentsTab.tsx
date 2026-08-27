@@ -36,7 +36,7 @@ import { patientCardHref } from '../patients/patientCardHref';
 import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
@@ -1158,7 +1158,10 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
   ) : null;
 
   return (
-    <div id="doctor-communications-comments" className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}>
+    <div
+      id="doctor-communications-comments"
+      className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
+    >
       <CatalogSplitLayout
         left={leftPane}
         right={rightPane}

@@ -11,7 +11,7 @@ import { BroadcastDeliveryArchiveClient } from '../../broadcasts/BroadcastDelive
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import type { CommunicationsTabProps } from '../communicationsTabRegistry';
 
 /** Таб «Рассылки». ?archive=1 → лог ошибок в правой панели. */
@@ -160,14 +160,14 @@ function BroadcastsMainView({
 
   if (!mailingsMutationAvailable) {
     return (
-      <div id="broadcasts-main-view" className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}>
+      <div id="broadcasts-main-view" className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}>
         {rightPane}
       </div>
     );
   }
 
   return (
-    <div id="broadcasts-main-view" className={DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE}>
+    <div id="broadcasts-main-view" className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}>
       <CatalogSplitLayout
         left={leftPane}
         right={rightPane}

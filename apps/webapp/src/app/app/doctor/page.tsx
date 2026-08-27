@@ -29,7 +29,6 @@ import { cn } from '@/lib/utils';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
 import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
-import { parseCalendarDoctorSettings } from './schedule/scheduleCalendarSettings';
 
 function DoctorTodayDashboardFallback() {
   return (
@@ -56,7 +55,6 @@ async function DoctorTodayDashboardSection({
     displayIana,
     audience,
     todayPreferencesRow,
-    calendarSettings,
     specialistTasksAvailability,
     specialistTasksRead,
   ] = await Promise.all([
@@ -65,12 +63,6 @@ async function DoctorTodayDashboardSection({
     deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
       organizationId: workspace.organizationId,
     }),
-    deps.systemSettings
-      .listSettingsByScope('doctor', {
-        organizationId: workspace.organizationId,
-      })
-      .then(parseCalendarDoctorSettings)
-      .catch(() => parseCalendarDoctorSettings([])),
     getMechanicMutationAvailability(workspace, 'specialist_tasks'),
     requireEntitlementForReadAction(workspace, 'specialist_tasks'),
   ]);
@@ -119,10 +111,6 @@ async function DoctorTodayDashboardSection({
       data={data}
       displayIana={displayIana}
       calendarSnapshot={calendarSnapshot}
-      calendarDefaultWindow={{
-        startMinute: calendarSettings.defaultWindowStartMinute,
-        endMinute: calendarSettings.defaultWindowEndMinute,
-      }}
       specialistTasksAvailable={specialistTasksAvailable}
       specialistTasksReadable={specialistTasksReadable}
     />

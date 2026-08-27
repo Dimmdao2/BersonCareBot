@@ -199,7 +199,6 @@ const DOCTOR_SCOPE_KEYS = [
   'doctor_today_preferences',
   'doctor_appointment_reminder_enabled',
   'doctor_appointment_reminder_offsets_minutes',
-  'booking_calendar_default_window',
   'booking_calendar_default_branch_id',
   'booking_calendar_default_service_id',
 ] as const;
