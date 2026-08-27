@@ -1279,7 +1279,7 @@ export function ScheduleCalendarTab({
 
   const currentTimeZone = data?.timeZone ?? timeZone;
   const workingBounds = data?.workingBounds;
-  const { slotMinTime, slotMaxTime, loMinute, hiMinute } = deriveSlotTimes(
+  const visibleTimeWindow = deriveSlotTimes(
     workingBounds,
     displayableCalendarEvents,
     currentTimeZone,
@@ -1288,6 +1288,14 @@ export function ScheduleCalendarTab({
       endMinute: calendarSettings.defaultWindowEndMinute,
     },
   );
+  // The full day stays reachable inside the calendar scroll area. On mount the
+  // viewport is positioned at the relevant working/event window (already
+  // expanded by the configured buffer in deriveSlotTimes), not at midnight.
+  const slotMinTime = '00:00:00';
+  const slotMaxTime = '24:00:00';
+  const calendarScrollTime = visibleTimeWindow.slotMinTime;
+  const loMinute = 0;
+  const hiMinute = 24 * 60;
 
   const findWorkingBranchIdForStart = useCallback(
     (startLocal: string): string | null => {
@@ -1413,7 +1421,7 @@ export function ScheduleCalendarTab({
 
     // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
     // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
-    // Используем loMinute/hiMinute из deriveSlotTimes (дефолт 09:00–19:00, #231).
+    // Временная ось теперь полная (00:00–24:00), поэтому фон покрывает весь день.
     const grayFill = isTimeGrid
       ? buildNonWorkingFillEvents(
           displayableCalendarEvents.filter((e) => e.kind === 'working'),
@@ -2278,7 +2286,7 @@ export function ScheduleCalendarTab({
               `}</style>
               <ScheduleFullCalendarHost
                 calendarRef={calendarRef}
-                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${slotMinTime}:${slotMaxTime}`}
+                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}`}
                 initialView={fcInitialView}
                 views={fcViews}
                 initialDate={anchorDate}
@@ -2304,6 +2312,8 @@ export function ScheduleCalendarTab({
                 height={isMobileViewport ? 'auto' : '100%'}
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}
+                scrollTime={calendarScrollTime}
+                scrollTimeReset={false}
                 longPressDelay={450}
                 eventLongPressDelay={450}
                 selectLongPressDelay={450}
