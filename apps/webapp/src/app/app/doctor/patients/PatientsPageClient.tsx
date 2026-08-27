@@ -814,7 +814,7 @@ function PatientsContent({
             <section className="rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-[var(--doctor-block-padding,18px)]">
               {/* Factual filters in the desktop right panel. */}
               <TooltipProvider delay={450}>
-                <DoctorMetricList className="grid-cols-3 gap-1.5 xl:grid-cols-3 2xl:grid-cols-3">
+                <DoctorMetricList className="grid-cols-3 gap-1.5 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                   {SEGMENTS.map((seg) => {
                     const segmentContextBase =
                       seg.key === 'all'
