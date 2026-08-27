@@ -260,7 +260,7 @@ describe('pending upload abort lifecycle', () => {
     // The row (and with it the surviving session that holds the retry identity) is NOT deleted, and
     // no object delete was attempted on an upload that was never aborted.
     expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
-    const statements = fakes.runSql.mock.calls.map((call) => String(call[1]?.queryChunks ?? call[1]));
+    const statements = fakes.runSql.mock.calls.map((call) => sqlTextOf(call[1]));
     expect(statements.some((sql) => /DELETE FROM media_files/i.test(sql))).toBe(false);
     expect(tx.commit).toHaveBeenCalledOnce();
   });

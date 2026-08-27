@@ -1207,6 +1207,24 @@ function isDeterministicDeleteConstraintFailure(err: unknown): boolean {
   return typeof code === 'string' && code.startsWith('23');
 }
 
+function isNoSuchMultipartUpload(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const value = err as {
+    name?: unknown;
+    code?: unknown;
+    Code?: unknown;
+    cause?: { name?: unknown; code?: unknown; Code?: unknown };
+  };
+  return [
+    value.name,
+    value.code,
+    value.Code,
+    value.cause?.name,
+    value.cause?.code,
+    value.cause?.Code,
+  ].some((candidate) => candidate === 'NoSuchUpload');
+}
+
 /**
  * Resolves all S3 object keys to delete for a media row in `pending_delete` / `deleting`:
  * preview JPEGs, entire HLS prefix (variants + master + legacy segments), poster prefix/object, source MP4.
@@ -1359,6 +1377,16 @@ export async function purgePendingMediaDeleteBatch(
         try {
           await s3AbortMultipartUpload(session.s3_key, session.upload_id);
         } catch (e) {
+          // AbortMultipartUpload is idempotent in business terms, but S3 reports a repeated abort
+          // as NoSuchUpload. The upload has no remaining parts in either case, so cleanup may
+          // continue. Other failures keep the database retry identity and schedule a retry.
+          if (isNoSuchMultipartUpload(e)) {
+            logger.info(
+              { mediaId: row.id, uploadId: session.upload_id },
+              '[purgePendingMediaDeleteBatch] multipart upload already absent; continuing purge',
+            );
+            continue;
+          }
           abortFailed = true;
           logger.error(
             { err: e, mediaId: row.id, uploadId: session.upload_id },
