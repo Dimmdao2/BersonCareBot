@@ -239,8 +239,14 @@ esac
 
 # 5. Запуск. Лог рядом с брифом, run-id — в имени.
 LOG="$(dirname "$BRIEF")/$RUN_ID.log"
+JOURNAL="/home/dev/brain/runs/agent-port/$RUN_ID.md"
+PORT_PROGRESS_ARGS=()
+if [ "$PROVIDER" = claude ]; then
+  PORT_PROGRESS_ARGS=(--watchdog stream --progress-journal "$JOURNAL")
+fi
 echo "запуск: роль=$ROLE клон=$CLONE_NAME провайдер=$PROVIDER модель=$MODEL effort=$EFFORT scope=$SCOPE"
 echo "  клон содержит feat ${HEAD_MAIN:0:9}, своих коммитов сверху: $AHEAD; агентов было $LIVE из $CAP; лог $LOG"
+[ "$PROVIDER" != claude ] || echo "  прогрессивный журнал: $JOURNAL"
 [ -z "${ORCH_DRY:-}" ] || { echo "  ORCH_DRY=1 — все проверки пройдены, агент НЕ запущен"; exit 0; }
 # ORCH_JOB="worker|worker-hard|reviewer|reviewer-critical|explorer|mechanic" — канонический выбор модели и effort
 # по карте `/home/dev/brain/docs/MODEL_TIERS.md`. Владелец 30.07: «у тебя же есть полный список решения когда и
@@ -282,6 +288,7 @@ BRIEF_WITH_PREAMBLE=$(mktemp /tmp/orch-brief-XXXXXX.md)
 { printf '%s\n' "$PREAMBLE"; cat "$BRIEF"; } > "$BRIEF_WITH_PREAMBLE"
 setsid nohup node "$PORT" --provider "$PROVIDER" "${MODEL_ARGS[@]}" \
   --role "$ROLE_FOR_PORT" --sandbox "$SANDBOX" --cwd "$CLONE" --run-id "$RUN_ID" \
+  "${PORT_PROGRESS_ARGS[@]}" \
   < "$BRIEF_WITH_PREAMBLE" > "$LOG" 2>&1 &
 AGENT_PID=$!
 echo "  pid=$AGENT_PID"
