@@ -58,6 +58,7 @@ import {
   stagePendingMediaAbort,
   stageStaleSinglePutMediaForPurge,
 } from './s3MediaStorage';
+import { stageExpiredMultipartSessionForPurgeTx } from './mediaUploadSessionsRepo';
 
 const lifecycleTx = {
   delete: () => ({ where: fakes.deleteWhere }),
@@ -182,6 +183,22 @@ describe('pending upload abort lifecycle', () => {
   const MEDIA_ID = '55555555-5555-4555-8555-555555555555';
   const MEDIA_KEY = 'media/55555555-5555-4555-8555-555555555555/photo.jpg';
 
+  /**
+   * Renders the SQL TEXT of a drizzle `sql` template. `String(query.queryChunks)` — used elsewhere in
+   * this file — yields `'[object Object],<param>,[object Object]'` and therefore matches no SQL
+   * pattern at all, so an assertion built on it passes no matter what the code does.
+   */
+  function sqlTextOf(query: unknown): string {
+    const chunks = (query as { queryChunks?: unknown })?.queryChunks;
+    if (!Array.isArray(chunks)) return String(query);
+    return chunks
+      .map((chunk) => {
+        const value = (chunk as { value?: unknown })?.value;
+        return Array.isArray(value) ? value.join('') : '';
+      })
+      .join(' ');
+  }
+
   function claimedRow() {
     return {
       rows: [
@@ -268,6 +285,119 @@ describe('pending upload abort lifecycle', () => {
     expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
     expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
     expect(result.errors).toBe(0);
+  });
+
+  /**
+   * AUDITOR ACCEPTANCE TEST (independent audit of 2403aaadf, audit §D1 / stage 4 acceptance
+   * "повторный запуск завершает работу ровно один раз").
+   *
+   * WHAT BREAKS WITHOUT THIS: the abort step is not idempotent. Once an `AbortMultipartUpload` has
+   * SUCCEEDED, nothing records that fact — the session row keeps `status = 'expired'`, which is not
+   * in the `('completed','aborted')` exclusion of the session lookup, so the very next tick calls
+   * abort again on an upload S3 no longer knows. S3 answers `NoSuchUpload`, `s3AbortMultipartUpload`
+   * throws (it swallows nothing), `abortFailed` is set, and the row is pushed back onto the backoff
+   * WITHOUT ever being deleted. The backoff caps at one day and has no attempt limit and no terminal
+   * state, so the media row and its session live forever and `/api/internal/media-pending-delete/purge`
+   * returns HTTP 500 on every tick from then on — a red operator card that no retry can clear.
+   *
+   * REACHED BY: any failure AFTER a successful abort inside the same iteration. Here the object
+   * delete of tick 1 fails (transient S3 error), which the suite above already treats as an ordinary
+   * retryable outcome. The same permanent stick is reached with no transient failure at all if the
+   * bucket carries an `AbortIncompleteMultipartUpload` lifecycle rule, or if the upload was completed
+   * out of band — both make the FIRST abort answer `NoSuchUpload`.
+   *
+   * ORACLE: the owner plan, `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, stage 4
+   * acceptance — "fault injection ... оставляет retryable запись, красный tick и операторский сигнал;
+   * повторный запуск завершает работу ровно один раз". A repeat run must finish the work, not restart
+   * a step that can never succeed again.
+   */
+  it('finishes the work on the retry after an abort that already succeeded', async () => {
+    fakes.getPool.mockReturnValue({});
+
+    // ── tick 1: abort confirmed, then the object delete fails → retryable, red, nothing removed ──
+    const firstTx = purgeTx();
+    fakes.startTransaction.mockResolvedValue(firstTx);
+    fakes.s3AbortMultipartUpload.mockResolvedValueOnce(undefined);
+    fakes.s3DeleteObject.mockRejectedValueOnce(new Error('s3_delete_failed'));
+    fakes.runSql
+      .mockResolvedValueOnce(claimedRow())
+      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
+      // schedulePendingDeleteRetry
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // trailing orphan sweep
+      .mockResolvedValueOnce({ rowCount: 0 });
+
+    await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
+    expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
+
+    // ── tick 2: the session still says 'expired', so the same upload is aborted a second time. S3
+    // has already forgotten it: NoSuchUpload. The retry must still finish the cleanup. ──
+    vi.clearAllMocks();
+    const secondTx = purgeTx();
+    fakes.startTransaction.mockResolvedValue(secondTx);
+    const noSuchUpload = Object.assign(new Error('NoSuchUpload'), {
+      name: 'NoSuchUpload',
+      $metadata: { httpStatusCode: 404 },
+    });
+    fakes.s3AbortMultipartUpload.mockRejectedValueOnce(noSuchUpload);
+    fakes.s3DeleteObject.mockResolvedValue(undefined);
+    fakes.runSql
+      .mockResolvedValueOnce({
+        rows: [{ ...claimedRow().rows[0], delete_attempts: 1 }],
+      })
+      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
+      // DELETE FROM media_files
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // trailing orphan sweep
+      .mockResolvedValueOnce({ rowCount: 0 })
+      .mockResolvedValue({ rows: [], rowCount: 0 });
+
+    const retry = await purgePendingMediaDeleteBatch(1);
+
+    // An upload S3 no longer holds IS an aborted upload. The retry must treat it as done and
+    // complete the cleanup exactly once, instead of parking the row on the backoff forever.
+    expect(retry).toEqual({ removed: 1, errors: 0 });
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
+  });
+
+  /**
+   * AUDITOR ACCEPTANCE TEST (independent audit of 2403aaadf, audit §D1).
+   *
+   * WHAT BREAKS WITHOUT THIS: the expiry tick goes back to deleting `media_files` first. That
+   * cascade-deletes `media_upload_sessions`, the ONLY row holding `s3_key` + `upload_id`, so the
+   * multipart parts stay in the bucket with nothing in the database able to name them — and the tick
+   * still reports success. This is the exact shape audit §D1 names, and reverting
+   * `stageExpiredMultipartSessionForPurgeTx` to a `DELETE FROM media_files` leaves every other test
+   * in this branch green: the route test mocks this function away, so nothing else watches the
+   * ordering the fix is about.
+   *
+   * ORACLE: owner plan `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, stage 4 —
+   * "Не удалять retry identity до подтверждённого S3 Abort/Delete".
+   */
+  it('hands an expired multipart session to the purge lifecycle without destroying the retry identity', async () => {
+    const SESSION_ID = '66666666-6666-4666-8666-666666666666';
+    fakes.runSql
+      // lockExpiredSessionForCleanupTx
+      .mockResolvedValueOnce({
+        rows: [{ id: SESSION_ID, media_id: MEDIA_ID, s3_key: MEDIA_KEY, upload_id: 'upload-1' }],
+      })
+      // UPDATE media_files -> pending_delete
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // markUploadSessionExpiredTx
+      .mockResolvedValueOnce({ rowCount: 1 })
+      // DELETE FROM patient_files
+      .mockResolvedValueOnce({ rowCount: 0 });
+
+    await expect(
+      stageExpiredMultipartSessionForPurgeTx({} as never, SESSION_ID),
+    ).resolves.toBe('staged');
+
+    const statements = fakes.runSql.mock.calls.map((call) => sqlTextOf(call[1]));
+    // The media row is STAGED, never deleted here...
+    expect(statements.some((sql) => /UPDATE media_files/i.test(sql))).toBe(true);
+    expect(statements.some((sql) => /DELETE FROM media_files/i.test(sql))).toBe(false);
+    // ...and the session that carries s3_key + upload_id survives for the confirmed abort.
+    expect(statements.some((sql) => /DELETE FROM media_upload_sessions/i.test(sql))).toBe(false);
   });
 
   it('stages a linked pending upload before removing only its linked patient-file metadata', async () => {
