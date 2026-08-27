@@ -949,8 +949,8 @@ rollback-preflight → PASS; три fault injection (bot-side write, рассы�
 
 ### E — Финальная приёмка (`TPB-01…19`)
 
-- [ ] `E1` Синхронизировать активные docs/runbook с фактическим состоянием после landing и отделить готовую
-  реализацию от ещё не выполненного доменного включения. Остальные checkbox закрывать только своим evidence.
+- [x] `E1` Активные docs/runbook синхронизированы 27.08.2026 с текущим `feat`: готовая реализация отделена от
+  открытых domain/provider/monitoring/F2c gates; taskdb приведён к тем же статусам.
 - [x] `E2` На implementation-кандидате выполнены relevant tests, lint, typecheck и migration preflight; точные
   команды и результаты записаны в `E3_FINAL_IMPLEMENTATION_AUDIT_2026-08-24.md` §5.
 - [x] `E3` Независимый аудит product scope завершён `PASS` на кандидате `7d43d229a`; доменное/runtime-включение

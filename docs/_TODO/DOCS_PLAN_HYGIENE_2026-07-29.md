@@ -833,7 +833,7 @@ execution checklist этой работы среди linked plans нет; `IMPLE
 Это заменяет только статусный снимок выше: раздел «Состояние плана на утро 29.07» остаётся историческим.
 27.08 выполнены read-only `node /home/dev/brain/tools/taskdb.mjs list bcb` и поиск по текущей ветке через
 `node /home/dev/brain/tools/code-search.mjs ... --repo bcb`, затем точечное чтение планов и известных файлов.
-Три области в параллельной синхронизации ведущего не менялись: `DB_PRIVILEGE_LAYER_REBUILD/**`,
+Три области синхронизированы ведущим отдельным коммитом: `DB_PRIVILEGE_LAYER_REBUILD/**`,
 `THERAPYSTO_PATIENT_BRANDING_INITIATIVE/**`, `UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md`.
 
 | taskdb | канонический план | фактический статус | что конкретно осталось |
@@ -844,11 +844,9 @@ execution checklist этой работы среди linked plans нет; `IMPLE
 | #796 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U5A | код principal-resolver подтверждён, live seal открыт | A↔B switch и revoked-lifecycle проверка на живом клиентском пути |
 | #805, #1085 | `DB_PRIVILEGE_LAYER_REBUILD/PLAN.md` | отдельный scope ведущего | TEST public-booking и остаточные DB-grants проверки |
 | #807, #926 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U6A/U6B | design/dependency gate | owner-accepted public routing, slug/profile и один booking-widget путь |
-| #808 | `SAAS_FOUNDATION/ADMIN_BASELINE_AND_SUPPORT_CHAT_DESIGN.md` | admin baseline выполнен; continuous support chat отменён | синхронизировать статус карточки с выполненным baseline; весь остаток поддержки ведётся только в #1070 |
 | #843, #854 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` C4A/C5C/C6 | code foundation есть, commercial work открыт | billing источник, seats commerce и определение platform-метрик |
 | #898, #914 | `RU_PRIVACY_AND_PRODUCTION_READINESS/MASTER_PLAN.md`; `stages/LOG-01_SENSITIVE_PAYLOAD_HYGIENE.md` | частично выполнено, дальнейшие stages gated | L0/L1 log residual и dependency-упорядоченные privacy stages; host/PROD — отдельные owner gates |
 | #915 | `NATIVE_MOBILE_APP_INITIATIVE/README.md` и `MASTER_PLAN.md` | MOB-00 сделан, дальнейшая работа ждёт owner decisions | выбрать отдельное mobile-приложение, CSRF/CORS и Android CI, затем persona/store/payment gates |
-| #917 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U3S | signup/workspace runtime доказан на TEST 23.08 | осталось только фактическое уведомление владельца, если оно ещё не было отправлено |
 | #922 | `DOCTOR_UI_REWORK_2026-07-20/PLAN.md` UI-7b | owner-deferred | post-production go на voice/STT; до него код не строить |
 | #935 | `STABILITY_SECURITY_HARDENING_PLAN_2026-07-21.md` | residual execution | session revocation, transport boundary, cross-tenant matrix и поздняя диагностика TEST digest |
 | #964 | `OWNER_PUNCHLIST_2026-07-28.md` §18 | owner question открыт | подтвердить поведение блока запланированных сообщений перед implementation |
@@ -860,7 +858,6 @@ execution checklist этой работы среди linked plans нет; `IMPLE
 | #1028 | `CLINIC_SCHEDULE_ROLE_SCOPE_1028.md` | code/test matrix закрыта, runtime открыт | DEV smoke обычным doctor и clinic_admin; поэтому `blocked` честен |
 | #1042 | `PROD_VS_TEST_DIVERGENCE_2026-07-26.md` | owner decisions required | решить один FIO backfill mismatch и history-only Gitleaks allowlist до нового cutover замера |
 | #1044 | нет отдельного execution-плана | ожидается безопасная DEV-подготовка | два разных синтетических аккаунта одной клиники для owner walkthrough |
-| #1063 | `SAAS_PRODUCT_UX_INITIATIVE/IMPLEMENTATION_ROADMAP.md` U3S | путь specialist signup → organization/specialistId → вход → first workspace закрыт кодом и TEST evidence 23.08 | сверить карточку с evidence и закрыть, не повторять runtime-проход |
 | #1069 | `SAAS_FOUNDATION/TARIFFS_PAYMENTS_ADMIN_PLAN.md` §5a | code/Test ladder evidence есть, owner acceptance открыта | owner UI walkthrough 7.4; не подменять его старым code evidence |
 | #1070 | `SUPPORT_TICKETS_1070.md` | stage 0 открыт | выбрать независимый российский helpdesk или self-hosted boundary перед DB/RLS implementation |
 | #1071 | `OWNER_PRODUCT_RULES.md` §30; integration workstream | пункты 12.1, 12.2 и 12.4–12.6 закрыты | только 12.3: живая TEST-проверка календаря; 12.7: authenticated encryption и custody ключа |
