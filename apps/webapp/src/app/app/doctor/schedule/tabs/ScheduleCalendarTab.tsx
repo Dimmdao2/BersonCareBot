@@ -1775,7 +1775,7 @@ export function ScheduleCalendarTab({
   };
 
   return (
-    <div className="flex flex-col gap-4 pb-8">
+    <div className="flex min-h-0 flex-1 flex-col gap-4 pb-8 md:pb-3">
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <div
@@ -2089,11 +2089,19 @@ export function ScheduleCalendarTab({
       <div
         className={cn(
           'block pb-4 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
+          renderMode === 'calendar' &&
+            'md:flex md:min-h-0 md:flex-1 md:pb-0 xl:items-stretch',
           renderMode === 'list' && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
         )}
       >
         {/* Content area */}
-        <div className={cn('min-w-0 flex-1', renderMode === 'list' && 'h-full min-h-0')}>
+        <div
+          className={cn(
+            'min-w-0 flex-1',
+            renderMode === 'calendar' && 'md:h-full md:min-h-0',
+            renderMode === 'list' && 'h-full min-h-0',
+          )}
+        >
           {renderMode === 'list' ? (
             // List view — period-bound, grouped by day
             <ListView
@@ -2112,7 +2120,7 @@ export function ScheduleCalendarTab({
           ) : (
             // FullCalendar
             <div
-              className="touch-pan-y overflow-hidden overscroll-x-contain rounded-xl border border-border bg-card pb-4"
+              className="touch-pan-y overflow-hidden overscroll-x-contain rounded-xl border border-border bg-card pb-4 md:flex md:h-full md:min-h-0 md:flex-col md:pb-0"
               onTouchStartCapture={(event) => {
                 const touch = event.touches[0];
                 calendarSwipeStartRef.current = touch
@@ -2293,7 +2301,7 @@ export function ScheduleCalendarTab({
                 nowIndicator
                 dayMaxEvents
                 allDaySlot={false}
-                height="auto"
+                height={isMobileViewport ? 'auto' : '100%'}
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}
                 longPressDelay={450}
