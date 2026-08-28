@@ -39,7 +39,8 @@ type EntryTokenPayload = {
   purpose: string;
   exp: number;
   displayName?: string;
-  integratorUserId?: string;
+  /** Track D (#987): canonical `platform_users.id`; the retired numeric twin is gone. */
+  platformUserId?: string;
   bindings?: { telegramId?: string; maxId?: string; vkId?: string };
 };
 
@@ -236,25 +237,44 @@ describe('роль в токене: незнакомец не может вып�
     expect(readTokenPayload(tokenFor('max')).role).toBe('client');
   });
 
-  it('дано: интеграторский id человека передан → тогда он в токене, и вебапп резолвит канон по нему', () => {
-    // арбитр: перестать класть integratorUserId в payload — вебапп потеряет связь с каноном
-    // и заведёт человеку второй аккаунт
+  it('дано: канонический uuid человека передан → тогда он в токене, и вебапп резолвит канон по нему', () => {
+    // арбитр: перестать класть platformUserId в payload — ссылка из рассылки врача потеряет
+    // связь с уже существующим каноническим аккаунтом
     const token = buildWebappEntryTokenFromSource(
-      { source: 'telegram', chatId: 364943522, integratorUserId: ' 1201 ' },
+      {
+        source: 'telegram',
+        chatId: 364943522,
+        platformUserId: ' 6f1a2b3c-4d5e-4f60-8a91-b2c3d4e5f607 ',
+      },
       APP_BASE,
     )!;
 
-    expect(readTokenPayload(token).integratorUserId).toBe('1201');
+    expect(readTokenPayload(token).platformUserId).toBe('6f1a2b3c-4d5e-4f60-8a91-b2c3d4e5f607');
   });
 
-  it('дано: интеграторский id пустой/пробельный → тогда поля в токене нет (а не пустая строка)', () => {
-    // арбитр: убрать проверку `trim() !== ''` — вебапп получит integratorUserId: '' и попробует
-    // резолвить канон по пустому ключу
+  it('дано: вместо uuid пришёл retired числовой id → тогда поля в токене нет', () => {
+    // арбитр (Track D #987): ослабить проверку до «непустая строка» — retired numeric identity
+    // снова поедет в подписанном токене и вернёт вебапп в старый auth-path
     const token = buildWebappEntryTokenFromSource(
-      { source: 'telegram', chatId: 364943522, integratorUserId: '   ' },
+      { source: 'telegram', chatId: 364943522, platformUserId: ' 1201 ' },
       APP_BASE,
     )!;
 
-    expect('integratorUserId' in readTokenPayload(token)).toBe(false);
+    expect('platformUserId' in readTokenPayload(token)).toBe(false);
+  });
+
+  it('дано: обычный /start без известной привязки → тогда токен не несёт НИКАКОЙ identity человека', () => {
+    // арбитр: положить сюда любой id снова — generic webhook начнёт предъявлять вебаппу человека,
+    // которого он не доказал (docs/OWNER_DECISIONS.md, владелец 23.08.2026)
+    const payload = readTokenPayload(
+      buildWebappEntryTokenFromSource({ source: 'telegram', chatId: 364943522 }, APP_BASE)!,
+    );
+
+    expect('platformUserId' in payload).toBe(false);
+    // Никакого ДРУГОГО имени человека в payload тоже нет: ключи — строгое подмножество закрытого
+    // контракта `contracts/webapp-entry-token.json` (`additionalProperties: false`), а из них
+    // человека называет только `platformUserId`, которого здесь нет.
+    expect(Object.keys(payload).sort()).toEqual(['bindings', 'exp', 'purpose', 'role', 'sub']);
+    expect(payload.bindings).toEqual({ telegramId: '364943522' });
   });
 });

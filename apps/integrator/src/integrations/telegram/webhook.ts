@@ -3,7 +3,6 @@ import { env } from '../../config/env.js';
 import {
   runWithBootstrapPrincipal,
   runWithInfraPrincipal,
-  runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
 import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
@@ -53,7 +52,6 @@ function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, 
 /** Exported for tests: resolves booking deep-link (native cabinet vs BOOKING_URL fallback). */
 export async function buildLinksFromBody(
   body: TelegramWebhookBodyValidated,
-  resolveIntegratorUserIdForMessenger?: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'],
   getAppBaseUrl?: () => Promise<string>,
 ): Promise<Record<string, unknown>> {
   const appBaseUrl = getAppBaseUrl ? await getAppBaseUrl() : undefined;
@@ -66,19 +64,14 @@ export async function buildLinksFromBody(
     links.remindersUrl = `${appBase}/app/patient/reminders`;
   }
   if (typeof chatId === 'number') {
-    let integratorUserId: string | undefined;
-    try {
-      if (typeof from?.id === 'number' && resolveIntegratorUserIdForMessenger) {
-        integratorUserId = await resolveIntegratorUserIdForMessenger(String(from.id), 'telegram');
-      }
-    } catch {
-      integratorUserId = undefined;
-    }
+    // Track D (#987): the entry token carries NO user identity of its own. `bindings.telegramId`
+    // below is the canonical reference — webapp resolves it against `user_channel_bindings` and
+    // gets a session only for an account that already exists. A generic `/start` therefore hands
+    // out a link that can log in an existing owner and cannot open an account for anyone else.
     const webappEntryUrl = buildWebappEntryUrl(
       {
         chatId,
         ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
-        ...(integratorUserId !== undefined ? { integratorUserId } : {}),
       },
       appBaseUrl ?? null,
     );
@@ -127,15 +120,12 @@ export async function buildAdminFacts(
 
 async function buildTelegramFacts(
   body: TelegramWebhookBodyValidated,
-  resolveIntegratorUserIdForMessenger:
-    | TelegramWebhookDeps['resolveIntegratorUserIdForMessenger']
-    | undefined,
   getAppBaseUrl: TelegramWebhookDeps['getAppBaseUrl'],
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
   return {
     ...buildActorFromBody(body),
-    ...(await buildLinksFromBody(body, resolveIntegratorUserIdForMessenger, getAppBaseUrl)),
+    ...(await buildLinksFromBody(body, getAppBaseUrl)),
     ...(await buildAdminFacts(body, resolveMessengerStaffAdmin)),
   };
 }
@@ -146,11 +136,6 @@ export type TelegramWebhookDeps = {
   setupProviderSurface?: boolean;
   /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
   getRuntimeConfig?: typeof getTelegramRuntimeConfig;
-  /** Best-effort integrator `users.id` for webapp-entry token (Phase B); injected from app layer (DB). */
-  resolveIntegratorUserIdForMessenger?: (
-    externalId: string,
-    resource: 'telegram' | 'max',
-  ) => Promise<string | undefined>;
   /** Публичный deployment origin вебаппа (`APP_BASE_URL`); для ссылок в кнопках WebApp. */
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
@@ -190,19 +175,6 @@ async function resolveTelegramOrganizationId(
     'telegram webhook: no exact organization context for inbound bot message',
   );
   return null;
-}
-
-async function resolveTelegramIntegratorUserId(
-  body: TelegramWebhookBodyValidated,
-  deps: TelegramWebhookDeps,
-): Promise<string | null> {
-  const externalId = getSourceTelegramExternalId(body);
-  if (!externalId || !deps.resolveIntegratorUserIdForMessenger) return null;
-  try {
-    return (await deps.resolveIntegratorUserIdForMessenger(externalId, 'telegram')) ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /** Exported for tests (contact ownership). */
@@ -331,15 +303,9 @@ export async function processTelegramUpdate(
   const preRouting = await runWithBootstrapPrincipal(
     { source: 'telegram-webhook:pre-routing' },
     async () => ({
-      facts: await buildTelegramFacts(
-        body,
-        deps.resolveIntegratorUserIdForMessenger,
-        deps.getAppBaseUrl,
-        deps.resolveMessengerStaffAdmin,
-      ),
+      facts: await buildTelegramFacts(body, deps.getAppBaseUrl, deps.resolveMessengerStaffAdmin),
       organizationId:
         ctx.dedicatedOrganizationId ?? (await resolveTelegramOrganizationId(body, deps, reqLogger)),
-      integratorUserId: await resolveTelegramIntegratorUserId(body, deps),
     }),
   );
 
@@ -364,21 +330,14 @@ export async function processTelegramUpdate(
     ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
   });
   const organizationId = preRouting.organizationId;
-  const integratorUserId = preRouting.integratorUserId;
   const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
     deps.eventGateway.handleIncomingEvent(event);
-  const result =
-    organizationId && integratorUserId
-      ? await runWithIntegratorPrincipal(
-          { organizationId, integratorUserId, source: 'telegram-webhook' },
-          handleEvent,
-        )
-      : organizationId
-        ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-        : await runWithBootstrapPrincipal(
-            { source: 'telegram-webhook:unresolved-org' },
-            handleEvent,
-          );
+  // Принципал входящего вебхука — организация. Track D (#987): ветки «разрешить мессенджер-логин в
+  // числовую личность и войти под ней» больше нет — публичная числовая личность удалена, а
+  // внутренний ключ запроса интегратора человека не называет и заводиться из внешнего id не может.
+  const result = organizationId
+    ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+    : await runWithBootstrapPrincipal({ source: 'telegram-webhook:unresolved-org' }, handleEvent);
   if (result.status === 'rejected') {
     reqLogger.warn(
       { reason: result.reason, dedupKey: result.dedupKey },

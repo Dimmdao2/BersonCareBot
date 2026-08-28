@@ -40,8 +40,8 @@ type DirectPublicWritePrincipalStrategy = 'organization' | 'bootstrap';
 /**
  * D25 correction (independent audit K5, 22.08.2026): `user.upsert` / `user.phone.link` are reachable
  * from a Telegram/MAX webhook whose clinic is ALREADY resolved — `telegram/webhook.ts` then installs
- * `runWithIntegratorPrincipal` (or `runWithOrganizationPrincipal`) around the whole pipeline, which
- * is the common case for a returning person. Calling the exact roots straight from that principal
+ * `runWithOrganizationPrincipal` around the whole pipeline, which is the common case for a returning
+ * person. Calling the exact roots straight from that principal
  * left them unreachable exactly there: the login link was never delivered and the confirmed contact
  * was never bound, surfacing as a retryable-looking `db_transient_failure`. The removed writer paths
  * used to re-enter an accepted principal through THIS same chokepoint; restoring the two operations

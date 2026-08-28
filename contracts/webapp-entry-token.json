@@ -1,17 +1,21 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Webapp entry token payload",
-  "description": "Payload of the signed token in ?t= for webapp entry (before HMAC signature). Used by tgcarebot and webapp.",
+  "description": "Payload of the signed token in ?t= for webapp entry (before HMAC signature). Used by the integrator bot and webapp. A person is named ONLY by canonical UUID or by a channel binding: Track D (#987) retired the numeric public integrator user id, and `additionalProperties: false` is what keeps it — and every other unknown key — out. Webapp rejects any payload whose key set is not a subset of `properties`, so an old signed token carrying the retired field stays rejected without the retired field living in active code.",
   "type": "object",
   "required": ["sub", "role", "purpose", "exp"],
   "properties": {
-    "sub": { "type": "string", "description": "Platform or external user id, e.g. tg:123456789" },
-    "role": { "enum": ["client", "doctor", "admin"], "description": "User role for webapp" },
+    "sub": {
+      "type": "string",
+      "description": "Channel-scoped entry subject, e.g. tg:123456789 or max:123456789. Not an account id."
+    },
+    "role": { "enum": ["client", "doctor", "admin"], "description": "Session role seed for an ALREADY EXISTING account; it never creates one." },
     "displayName": { "type": "string" },
     "phone": { "type": "string" },
-    "integratorUserId": {
+    "platformUserId": {
       "type": "string",
-      "description": "Optional tgcarebot / integrator numeric user id (stringified) for webapp-side canon lookup before creating a new platform_users row."
+      "format": "uuid",
+      "description": "Canonical `public.platform_users.id`, present only when an existing binding already resolved it. Absent means \"webapp resolves the person from `bindings` alone\"; it never means \"create one\"."
     },
     "bindings": {
       "type": "object",

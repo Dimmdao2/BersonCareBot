@@ -55,7 +55,7 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-  if (!parsed.data.integratorUserId && !parsed.data.phoneNormalized) {
+  if (!parsed.data.platformUserId && !parsed.data.phoneNormalized) {
     return NextResponse.json({ ok: false, error: 'missing_user_ref' }, { status: 400 });
   }
 
@@ -79,8 +79,8 @@ export async function POST(request: Request) {
         { status: 503 },
       );
     }
-    const platformUser = parsed.data.integratorUserId
-      ? await deps.userProjection.findByIntegratorId(parsed.data.integratorUserId)
+    const platformUser = parsed.data.platformUserId
+      ? { platformUserId: parsed.data.platformUserId }
       : parsed.data.phoneNormalized
         ? await deps.userProjection.findByPhoneNormalized(parsed.data.phoneNormalized)
         : null;
@@ -97,13 +97,6 @@ export async function POST(request: Request) {
       );
     }
     const result = await runPatientWebPushNotify(parsed.data, {
-      findPlatformUserByIntegratorId: async (integratorUserId) => {
-        const row =
-          integratorUserId === parsed.data.integratorUserId
-            ? platformUser
-            : await deps.userProjection.findByIntegratorId(integratorUserId);
-        return row ? { platformUserId: row.platformUserId } : null;
-      },
       findPlatformUserByPhone: async (phoneNormalized) => {
         const row =
           phoneNormalized === parsed.data.phoneNormalized

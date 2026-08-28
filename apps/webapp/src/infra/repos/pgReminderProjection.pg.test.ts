@@ -3,16 +3,11 @@ import { drizzleSqlFragmentToApproximateSql } from '@/infra/db/drizzleSqlDebugTe
 
 const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const runWebappNamedRootMock = vi.hoisted(() => vi.fn());
-const findCanonicalMock = vi.hoisted(() => vi.fn());
 const loadWarmupsMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const getPoolMock = vi.hoisted(() => vi.fn(() => ({})));
 
 vi.mock('@/infra/db/client', () => ({
   getPool: getPoolMock,
-}));
-
-vi.mock('@/infra/repos/pgCanonicalPlatformUser', () => ({
-  findCanonicalUserIdByIntegratorId: findCanonicalMock,
 }));
 
 vi.mock('@/infra/repos/pgWarmupsSectionSlugs', () => ({
@@ -41,57 +36,22 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
   beforeEach(() => {
     runWebappSqlMock.mockClear();
     runWebappNamedRootMock.mockClear();
-    findCanonicalMock.mockClear();
     loadWarmupsMock.mockClear();
     runWebappSqlMock.mockResolvedValue({ rows: [], rowCount: 0 });
     runWebappNamedRootMock.mockResolvedValue({ rows: [{ inserted: true }], rowCount: 1 });
-    findCanonicalMock.mockResolvedValue('platform-uuid-canonical');
   });
 
-  it('upsertRuleFromProjection resolves platform_user_id via canonical lookup (integrator_user_id preserved)', async () => {
+  it('listRulesByPlatformUserId фильтрует по каноническому platform_user_id', async () => {
+    // арбитр (Track D #987): подставить сюда любой другой ключ владельца — и чтение правил снова
+    // уедет мимо канонического пациента
     const port = createPgReminderProjectionPort();
-    await port.upsertRuleFromProjection({
-      integratorRuleId: 'rule-1',
-      integratorUserId: '42',
-      category: 'exercise',
-      isEnabled: true,
-      scheduleType: 'daily',
-      timezone: 'Europe/Moscow',
-      intervalMinutes: 60,
-      windowStartMinute: 0,
-      windowEndMinute: 1440,
-      daysMask: '1111111',
-      contentMode: 'none',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    });
-    expect(findCanonicalMock).toHaveBeenCalledWith(expect.anything(), '42');
+    await port.listRulesByPlatformUserId('11111111-1111-4111-8111-111111111111');
     const sql = lastApproxSql();
-    expect(sql).toContain('INSERT INTO reminder_rules');
-    expect(sql).toContain('integrator_user_id');
-    expect(sql).toContain('ON CONFLICT (integrator_rule_id)');
-    expect(sql).toContain('platform-uuid-canonical');
+    expect(sql).toContain('platform_user_id');
+    expect(sql).toContain('11111111-1111-4111-8111-111111111111');
   });
 
-  it('upsertRuleFromProjection skips canonical lookup when integratorUserId is empty', async () => {
-    const port = createPgReminderProjectionPort();
-    await port.upsertRuleFromProjection({
-      integratorRuleId: 'rule-empty',
-      integratorUserId: '',
-      category: 'exercise',
-      isEnabled: true,
-      scheduleType: 'daily',
-      timezone: 'Europe/Moscow',
-      intervalMinutes: 60,
-      windowStartMinute: 0,
-      windowEndMinute: 1440,
-      daysMask: '1111111',
-      contentMode: 'none',
-      updatedAt: '2026-01-01T00:00:00.000Z',
-    });
-    expect(findCanonicalMock).not.toHaveBeenCalled();
-  });
-
-  it('listHistoryByIntegratorUserId filters by integrator_user_id (no canonical rewrite)', async () => {
+  it('listHistoryByPlatformUserId фильтрует историю по каноническому platform_user_id', async () => {
     runWebappSqlMock.mockResolvedValueOnce({
       rows: [
         {
@@ -106,12 +66,14 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
       rowCount: 1,
     });
     const port = createPgReminderProjectionPort();
-    const list = await port.listHistoryByIntegratorUserId('77', 10);
+    const list = await port.listHistoryByPlatformUserId(
+      '22222222-2222-4222-8222-222222222222',
+      10,
+    );
     expect(list).toHaveLength(1);
-    expect(findCanonicalMock).not.toHaveBeenCalled();
     const sql = lastApproxSql();
-    expect(sql).toContain('integrator_user_id');
-    expect(sql).toContain('77');
+    expect(sql).toContain('platform_user_id');
+    expect(sql).toContain('22222222-2222-4222-8222-222222222222');
   });
 
   it('markSeen passes occurrence id array to UPDATE', async () => {

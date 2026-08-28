@@ -8,7 +8,6 @@ export type NotificationDeliveryStatus = (typeof NOTIFICATION_DELIVERY_STATUSES)
 
 export type RecordNotificationDeliveryAttemptInput = {
   userId?: string;
-  integratorUserId?: string;
   topicCode?: string;
   intentType?: string;
   channel: NotificationDeliveryChannel;

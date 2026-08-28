@@ -28,7 +28,6 @@ export type DeliveryTargetsResolveInput = {
   topicChannelPrefsPort: TopicChannelPrefsPort;
   gate: NotificationTopicGate;
   availability: PatientNotificationChannelAvailability;
-  integratorUserId?: string;
 };
 
 function bindingsFromResolution(
@@ -63,7 +62,6 @@ export async function resolveDeliveryTargetsForTopic(
   const resolution = attachResolutionIdentity(core, {
     userId: input.userId,
     topicCode: input.topicCode,
-    integratorUserId: input.integratorUserId,
   });
   return {
     channelBindings: bindingsFromResolution(input.bindings, resolution.selectedChannels),

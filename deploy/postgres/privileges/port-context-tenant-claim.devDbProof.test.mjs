@@ -194,31 +194,32 @@ SELECT ref.opaque_ref FROM app_ext.variant_a_identity_refs ref
   assert.match(refusal, /^42501\|/u, `класс платформы выдан не администратору: ${refusal}`);
 });
 
-test('integrator: организация обязана быть действующей для этого integrator_user_id', { skip: !ENABLED }, () => {
-  const [integratorUserId, ownOrg, foreignOrg] = fixture(`
-SELECT u.integrator_user_id || '|' || own.organization_id || '|' || foreign_org.organization_id
-  FROM public.platform_users u
-  JOIN public.org_enrollments own ON own.platform_user_id = u.id AND own.status = 'active'
-  JOIN LATERAL (
-    SELECT other.organization_id FROM public.org_enrollments other
-     WHERE other.organization_id <> own.organization_id
-       AND NOT EXISTS (SELECT 1 FROM public.org_enrollments mine
-                        WHERE mine.platform_user_id = u.id AND mine.organization_id = other.organization_id
-                          AND mine.status = 'active')
-       AND NOT EXISTS (SELECT 1 FROM public.be_organization_members mine
-                        WHERE mine.platform_user_id = u.id AND mine.organization_id = other.organization_id
-                          AND mine.status = 'active')
-     LIMIT 1) AS foreign_org ON TRUE
- WHERE u.integrator_user_id IS NOT NULL LIMIT 1;`, 'пользователь интегратора с одной действующей организацией');
+test('integrator: организация обязана быть настоящей, а внутренний принципал — присутствовать', { skip: !ENABLED }, () => {
+  // Track D (#987): у класса `integrator` больше нет публичной личности человека, по которой можно
+  // было бы сверить членство — `p_integrator_user_id` называет ТЕХНИЧЕСКИЙ принципал запроса и
+  // никогда не человека. Поэтому гейт проверяет ровно то, что ещё осмысленно на этом уровне:
+  // организация названа, она существует в системе, и внутренний ключ принципала передан. Стену
+  // арендатора держат предикаты внутри каждого именованного корня, а не эта заявка.
+  const [realOrg] = fixture(`
+SELECT enrollment.organization_id FROM public.org_enrollments enrollment
+ WHERE enrollment.status = 'active' ORDER BY enrollment.organization_id LIMIT 1;`,
+    'действующая организация');
+  const PRINCIPAL = 42;
 
   assert.equal(
-    claim({ contextClass: 'integrator', targetRole: 'app_integrator_request', organizationId: ownOrg, integratorUserId }),
+    claim({ contextClass: 'integrator', targetRole: 'app_integrator_request', organizationId: realOrg, integratorUserId: PRINCIPAL }),
     'ok',
   );
-  for (const [label, organizationId] of [['чужая', foreignOrg], ['выдуманная', INVENTED]]) {
-    const refusal = claim({ contextClass: 'integrator', targetRole: 'app_integrator_request', organizationId, integratorUserId });
-    assert.match(refusal, /^42501\|/u, `${label} организация принята: ${refusal}`);
-  }
+
+  const invented = claim({ contextClass: 'integrator', targetRole: 'app_integrator_request', organizationId: INVENTED, integratorUserId: PRINCIPAL });
+  assert.match(invented, /^42501\|/u, `выдуманная организация принята: ${invented}`);
+
+  const noOrg = claim({ contextClass: 'integrator', targetRole: 'app_integrator_request', integratorUserId: PRINCIPAL });
+  assert.match(noOrg, /^42501\|/u, `заявка без организации принята: ${noOrg}`);
+
+  const noPrincipal = claim({ contextClass: 'integrator', targetRole: 'app_integrator_request', organizationId: realOrg });
+  assert.match(noPrincipal, /^42501\|/u, `заявка без внутреннего принципала принята: ${noPrincipal}`);
+
   // У резолвера личности нет вовсе — ему нечего подделывать, и он обязан продолжать работать.
   assert.equal(claim({ contextClass: 'integrator', targetRole: 'app_integrator_resolver' }), 'ok');
 });

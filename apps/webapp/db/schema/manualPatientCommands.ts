@@ -32,7 +32,12 @@ export const manualPatientCommands = pgTable(
       columns: [table.organizationId, table.platformUserId],
       foreignColumns: [orgEnrollments.organizationId, orgEnrollments.platformUserId],
       name: 'manual_patient_commands_enrollment_fkey',
-    }),
+    }).onDelete('cascade'),
+    index('idx_manual_patient_commands_enrollment').using(
+      'btree',
+      table.organizationId.asc().nullsLast().op('uuid_ops'),
+      table.platformUserId.asc().nullsLast().op('uuid_ops'),
+    ),
     check(
       'manual_patient_commands_kind_check',
       sql`${table.commandKind} = ANY (ARRAY['scheduled'::text, 'walk_in'::text, 'standalone_no_contact_card'::text])`,

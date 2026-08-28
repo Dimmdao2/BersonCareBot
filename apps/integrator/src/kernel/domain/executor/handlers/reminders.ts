@@ -85,7 +85,14 @@ function buildReminderCallbackAckIntents(
   return intents;
 }
 
-async function resolveIntegratorUserId(
+/**
+ * Canonical `platform_users.id` behind the EXACT channel binding the callback arrived on.
+ *
+ * `user.byIdentity` resolves `(channel_code, external_id)` against `public.user_channel_bindings`
+ * inside a named root that also walks the merge chain and repeats the tenant wall, so a binding
+ * belonging to another clinic resolves to nothing here rather than to a foreign person.
+ */
+async function resolveCanonicalPlatformUserId(
   readPort: NonNullable<ExecutorDeps['readPort']>,
   channelUserId: string,
   resource: string,
@@ -97,18 +104,13 @@ async function resolveIntegratorUserId(
   return link && typeof link.userId === 'string' ? link.userId : null;
 }
 
-async function assertOccurrenceOwnedByUser(
-  readPort: NonNullable<ExecutorDeps['readPort']>,
-  occurrenceId: string,
-  userId: string,
-): Promise<boolean> {
-  const owner = await readPort.readDb<string | null>({
-    type: 'reminders.occurrence.ownerUserId',
-    params: { occurrenceId },
-  });
-  return owner === userId;
-}
-
+/**
+ * Track D (#987): both sides of this comparison are the canonical uuid now. Before the cutover the
+ * owner side came back as the retired public identity (bigint) while this side was already the
+ * canonical uuid, so the equality could never hold and every reminder button was denied.
+ * A different binding, a different person or a different clinic still resolves to a different
+ * uuid — or to nothing — and stays denied.
+ */
 export async function handleReminders(
   action: Action,
   ctx: DomainContext,
@@ -150,8 +152,8 @@ export async function handleReminders(
       };
     }
     const minutes = minutesRounded;
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -166,6 +168,7 @@ export async function handleReminders(
       };
     }
     const w = await deps.remindersWebappWritesPort.postOccurrenceSnooze({
+      platformUserId: userId,
       occurrenceId,
       minutes,
     });
@@ -233,8 +236,8 @@ export async function handleReminders(
         error: 'reminders.skip.applyPreset: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -250,6 +253,7 @@ export async function handleReminders(
       };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceSkip({
+      platformUserId: userId,
       occurrenceId,
       reason: null,
     });
@@ -313,8 +317,8 @@ export async function handleReminders(
         error: 'reminders.done.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
       return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: forbidden' };
     }
     if (!deps.remindersWebappWritesPort) {
@@ -325,6 +329,7 @@ export async function handleReminders(
       };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceDone({
+      platformUserId: userId,
       occurrenceId,
     });
     if (!web.ok) {
@@ -415,7 +420,7 @@ export async function handleReminders(
         error: 'reminders.mute.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
       return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: no user' };
     }
@@ -452,6 +457,7 @@ export async function handleReminders(
       };
     }
     const mute = await deps.remindersWebappWritesPort.postReminderMuteUntil({
+      platformUserId: userId,
       minutes,
       untilTomorrow: mutePreset === 'tomorrow',
     });
@@ -527,8 +533,8 @@ export async function handleReminders(
       };
     }
 
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -537,6 +543,7 @@ export async function handleReminders(
     }
 
     const web = await deps.remindersWebappWritesPort.postMessengerTopicDisable({
+      platformUserId: userId,
       occurrenceId,
       messengerChannel,
     });
@@ -604,8 +611,8 @@ export async function handleReminders(
         error: 'reminders.snoozeMenu.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -680,8 +687,8 @@ export async function handleReminders(
         error: 'reminders.notifSettings.open.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -690,6 +697,7 @@ export async function handleReminders(
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
+      platformUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];
@@ -763,7 +771,7 @@ export async function handleReminders(
         error: 'reminders.notifSettings.toggle.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
       return {
         actionId: action.id,
@@ -773,6 +781,7 @@ export async function handleReminders(
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const toggle = await deps.remindersWebappWritesPort.toggleNotificationTopic({
+      platformUserId: userId,
       topicCode,
       messengerChannel,
     });
@@ -784,6 +793,7 @@ export async function handleReminders(
       };
     }
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
+      platformUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];

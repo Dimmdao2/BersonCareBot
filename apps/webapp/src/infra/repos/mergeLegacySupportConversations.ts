@@ -60,9 +60,9 @@ async function resolveCanonicalConversationId(
   const inserted = await mergeSqlOnClient<{ id: string }>(
     client,
     `INSERT INTO support_conversations (
-      integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
+      integrator_conversation_id, platform_user_id, source, admin_scope, status,
       opened_at, last_message_at
-    ) VALUES ($1, $2::uuid, NULL, 'webapp', 'support', 'open', now(), now())
+    ) VALUES ($1, $2::uuid, 'webapp', 'support', 'open', now(), now())
     ON CONFLICT (integrator_conversation_id) DO NOTHING
     RETURNING id`,
     [canonicalKey, platformUserId],
@@ -91,10 +91,6 @@ export async function mergeLegacySupportConversationsForPlatformUser(
      WHERE sc.integrator_conversation_id <> $2
        AND (
          sc.platform_user_id = $1::uuid
-         OR sc.integrator_user_id = (
-           SELECT pu.integrator_user_id FROM platform_users pu
-           WHERE pu.id = $1::uuid AND pu.integrator_user_id IS NOT NULL
-         )
          OR EXISTS (
            SELECT 1 FROM user_channel_bindings ucb
            WHERE ucb.user_id = $1::uuid

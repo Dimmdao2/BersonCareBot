@@ -16,7 +16,6 @@ function warmupRule() {
   return {
     id: RULE_ID,
     platformUserId: USER_ID,
-    integratorUserId: null,
     linkedObjectType: 'content_section' as const,
     linkedObjectId: DEFAULT_WARMUPS_SECTION_SLUG,
     customTitle: null,
@@ -93,7 +92,7 @@ describe('reminders service — 3.2 physical door (warmups via createObjectRemin
   function buildCreateService() {
     const create = vi.fn(async () => warmupRule());
     const port = {
-      resolveIntegratorUserId: vi.fn(async () => 'integrator-1'),
+      hasMessengerChannelBinding: vi.fn(async () => true),
       create,
     } as unknown as ReminderRulesPort;
     const service = createRemindersService(port, {

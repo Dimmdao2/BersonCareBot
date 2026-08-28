@@ -870,31 +870,31 @@ BEGIN
         MESSAGE = 'platform port context actor is not a platform administrator';
     END IF;
 
-  -- integrator: у `app_integrator_request` личность — числовой `integrator_user_id`, и связка
-  -- «этот пользователь ↔ эта организация» уже описана в базе — в
-  -- `app.resolve_active_organization_for_integrator_user_id`, которым порт и выбирает организацию.
-  -- Здесь повторяется ЕГО предикат (действующее зачисление ИЛИ действующее членство), чтобы
-  -- принять можно было только то, что резолвер и мог вернуть.  У `app_integrator_resolver`
-  -- личности нет вовсе: это и есть тот вызов, который личность ещё только разрешает; матрица
-  -- классов выше уже требует у него пустые actor/subject/organization/integrator_user_id, так что
-  -- заявки на арендатора он не несёт и подделать ею нечего.
+  -- integrator: у `app_integrator_request` `p_integrator_user_id` — ВНУТРЕННИЙ ключ запроса самого
+  -- интегратора, и ничья публичная личность (Track D, #987: `platform_users.integrator_user_id`
+  -- удалён вместе с резолвером `app.resolve_active_organization_for_integrator_user_id`).  Поэтому
+  -- проверять здесь человека нечем и не нужно: заявка на человека тут больше не приходит.
+  -- Проверяется ровно то, что осталось проверяемым, — что заявленный арендатор СУЩЕСТВУЕТ как
+  -- живая организация (у неё есть хотя бы одно зачисление или членство), и что внутренний ключ и
+  -- организация заявлены оба.  У `app_integrator_resolver` личности нет вовсе: матрица классов выше
+  -- уже требует у него пустые actor/subject/organization/integrator_user_id.
+  --
+  -- Стену «этот человек — клиент этой клиники» держат сами корни: `app_integrator_request` не
+  -- получает реляционного доступа, а каждый его SECURITY DEFINER-корень несёт предикат арендатора
+  -- в теле (гейт `definer-tenant-predicate`).  Возвращать сюда публичный поиск личности значило бы
+  -- завести retired-путь заново под другим именем.
   ELSIF p_context_class = 'integrator' AND p_target_role = 'app_integrator_request' THEN
-    IF NOT EXISTS (
-      SELECT 1 FROM public.platform_users platform_user
-       WHERE platform_user.integrator_user_id = p_integrator_user_id
-         AND (EXISTS (
-               SELECT 1 FROM public.org_enrollments enrollment
-                WHERE enrollment.platform_user_id = platform_user.id
-                  AND enrollment.organization_id = p_organization_id
-                  AND enrollment.status = 'active')
-           OR EXISTS (
-               SELECT 1 FROM public.be_organization_members member
-                WHERE member.platform_user_id = platform_user.id
-                  AND member.organization_id = p_organization_id
-                  AND member.status = 'active'))
-    ) THEN
+    IF p_integrator_user_id IS NULL
+      OR p_organization_id IS NULL
+      OR (NOT EXISTS (
+            SELECT 1 FROM public.org_enrollments enrollment
+             WHERE enrollment.organization_id = p_organization_id)
+        AND NOT EXISTS (
+            SELECT 1 FROM public.be_organization_members member
+             WHERE member.organization_id = p_organization_id))
+    THEN
       RAISE EXCEPTION USING ERRCODE = '42501',
-        MESSAGE = 'port context organization claim is not active for the integrator user';
+        MESSAGE = 'integrator request principal requires a known organization';
     END IF;
 
   -- tenant_service и service: актора нет НИ ОДНОГО — это классы доверенного сервера (фоновые

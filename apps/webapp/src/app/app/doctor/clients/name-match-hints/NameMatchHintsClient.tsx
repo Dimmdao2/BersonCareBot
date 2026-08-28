@@ -17,7 +17,6 @@ type Member = {
   firstName: string | null;
   lastName: string | null;
   phoneNormalized: string | null;
-  integratorUserId: string | null;
   createdAt: string;
 };
 
@@ -153,11 +152,6 @@ export function NameMatchHintsClient({ clientsListBase }: Props) {
                       <span className="text-xs text-muted-foreground">
                         {m.phoneNormalized ?? 'нет тел.'}
                       </span>
-                      {m.integratorUserId ? (
-                        <span className="text-xs text-muted-foreground">
-                          int:{m.integratorUserId}
-                        </span>
-                      ) : null}
                     </li>
                   ))}
                 </ul>

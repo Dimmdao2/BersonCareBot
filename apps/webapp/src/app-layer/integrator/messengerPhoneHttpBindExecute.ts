@@ -107,7 +107,6 @@ export async function executeMessengerPhoneHttpBind(
         channelCode: resource,
         externalId: channelUserId,
         phoneNormalized,
-        canonicalIntegratorUserId: null,
       });
       platformUserIdForLog = platformUserId;
       applied = true;

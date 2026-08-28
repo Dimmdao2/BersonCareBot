@@ -15,24 +15,22 @@ const db = {} as DbPort;
 
 describe('doctor broadcast canonical linked phone', () => {
   it('uses only the canonical platform-user delivery identity', async () => {
-    canonicalIdentity.read.mockResolvedValueOnce({
-      phoneNormalized: '+79990000000',
-      integratorUserId: '42',
-    });
+    canonicalIdentity.read.mockResolvedValueOnce({ phoneNormalized: '+79990000000' });
 
+    // Track D (#987): наружу выходит ТОЛЬКО факт привязанного телефона. Числовой retired-id
+    // здесь был единственным публичным читателем — ссылка рассылки уводила человека обратно
+    // в вытесненный путь входа.
     await expect(resolveLinkedPhoneForPlatformUser(db, 'patient-id')).resolves.toEqual({
       linkedPhone: true,
-      integratorUserId: '42',
     });
     expect(canonicalIdentity.read).toHaveBeenCalledWith(db, 'patient-id');
   });
 
   it('treats an absent canonical phone as unlinked', async () => {
-    canonicalIdentity.read.mockResolvedValueOnce({ phoneNormalized: null, integratorUserId: '42' });
+    canonicalIdentity.read.mockResolvedValueOnce({ phoneNormalized: null });
 
     await expect(resolveLinkedPhoneForPlatformUser(db, 'patient-id')).resolves.toEqual({
       linkedPhone: false,
-      integratorUserId: '42',
     });
   });
 

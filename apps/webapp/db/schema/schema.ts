@@ -53,8 +53,6 @@ export const supportConversations = pgTable(
     organizationId: uuid('organization_id'),
     integratorConversationId: text('integrator_conversation_id').notNull(),
     platformUserId: uuid('platform_user_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
     source: text().notNull(),
     adminScope: text('admin_scope').notNull(),
     status: text().notNull(),
@@ -80,9 +78,6 @@ export const supportConversations = pgTable(
       'btree',
       table.integratorConversationId.asc().nullsLast().op('text_ops'),
     ),
-    index('idx_support_conversations_integrator_user_id')
-      .using('btree', table.integratorUserId.asc().nullsLast().op('int8_ops'))
-      .where(sql`(integrator_user_id IS NOT NULL)`),
     index('idx_support_conversations_last_message').using(
       'btree',
       table.lastMessageAt.desc().nullsFirst().op('timestamptz_ops'),
@@ -117,8 +112,6 @@ export const platformUsers = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
       .notNull(),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
     firstName: text('first_name'),
     lastName: text('last_name'),
     isBlocked: boolean('is_blocked').default(false).notNull(),
@@ -137,9 +130,6 @@ export const platformUsers = pgTable(
     patronymic: text('patronymic'),
   },
   (table) => [
-    index('idx_platform_users_integrator_uid')
-      .using('btree', table.integratorUserId.asc().nullsLast().op('int8_ops'))
-      .where(sql`(integrator_user_id IS NOT NULL)`),
     index('idx_platform_users_merged_into')
       .using('btree', table.mergedIntoId.asc().nullsLast().op('uuid_ops'))
       .where(sql`(merged_into_id IS NOT NULL)`),
@@ -156,7 +146,6 @@ export const platformUsers = pgTable(
       foreignColumns: [table.id],
       name: 'platform_users_merged_into_id_fkey',
     }).onDelete('set null'),
-    unique('platform_users_integrator_user_id_key').on(table.integratorUserId),
     check('platform_users_no_self_merge', sql`(merged_into_id IS NULL) OR (merged_into_id <> id)`),
     check(
       'platform_users_role_check',
@@ -709,8 +698,6 @@ export const contentAccessGrantsWebapp = pgTable(
     organizationId: uuid('organization_id'),
     integratorGrantId: text('integrator_grant_id').notNull(),
     platformUserId: uuid('platform_user_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
     contentId: text('content_id').notNull(),
     purpose: text().notNull(),
     tokenHash: text('token_hash'),
@@ -729,10 +716,6 @@ export const contentAccessGrantsWebapp = pgTable(
     uniqueIndex('idx_content_access_grants_webapp_integrator_grant_id').using(
       'btree',
       table.integratorGrantId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_content_access_grants_webapp_integrator_user_id').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
     ),
     index('idx_content_access_grants_webapp_organization_id').using(
       'btree',
@@ -2124,6 +2107,14 @@ export const mediaPlaybackStatsHourly = pgTable(
       'btree',
       table.bucketHour.desc().nullsFirst().op('timestamptz_ops'),
     ),
+    // Exhaustive lifecycle census audit 2026-08-28, F3: declared `orgPurge: organization_id` with no
+    // FK at all — 10 rows kept the raw clinic uuid after the organization was gone. An hourly
+    // playback rollup is clinic-owned aggregate state and goes with the clinic.
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'media_playback_stats_hourly_organization_id_fkey',
+    }).onDelete('cascade'),
     check(
       'media_playback_stats_hourly_delivery_check',
       sql`delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])`,
@@ -2783,14 +2774,6 @@ export const reminderOccurrenceHistory = pgTable(
     organizationId: uuid('organization_id').notNull(),
     integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
     integratorRuleId: text('integrator_rule_id').notNull(),
-    /**
-     * RETIRED legacy id. Nullable in the applied schema and in the generated snapshot
-     * (`deploy/postgres/generated/prod-to-target/schema-pre.sql`) — a reminder created for a
-     * canonical platform user has no integrator id at all. The `.notNull()` that used to stand here
-     * was ORM-only drift: no forward migration ever set NOT NULL on this column.
-     */
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
     platformUserId: uuid('platform_user_id').notNull(),
     category: text().notNull(),
     status: text().notNull(),
@@ -2823,10 +2806,6 @@ export const reminderOccurrenceHistory = pgTable(
     uniqueIndex('idx_reminder_occurrence_history_integrator_occ_id').using(
       'btree',
       table.integratorOccurrenceId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_reminder_occurrence_history_integrator_user_id').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
     ),
     index('idx_reminder_occurrence_history_occurred_at').using(
       'btree',
@@ -2881,9 +2860,7 @@ export const reminderRules = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     organizationId: uuid('organization_id'),
     integratorRuleId: text('integrator_rule_id').notNull(),
-    platformUserId: uuid('platform_user_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
+    platformUserId: uuid('platform_user_id').notNull(),
     category: text().notNull(),
     isEnabled: boolean('is_enabled').default(false).notNull(),
     scheduleType: text('schedule_type').default('interval_window').notNull(),
@@ -2917,15 +2894,6 @@ export const reminderRules = pgTable(
       'btree',
       table.integratorRuleId.asc().nullsLast().op('text_ops'),
     ),
-    index('idx_reminder_rules_integrator_user_id').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
-    ),
-    index('idx_reminder_rules_integrator_user_updated_at').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('timestamptz_ops'),
-      table.updatedAt.desc().nullsFirst().op('timestamptz_ops'),
-    ),
     index('idx_reminder_rules_linked_object')
       .using(
         'btree',
@@ -2954,7 +2922,7 @@ export const reminderRules = pgTable(
       columns: [table.platformUserId],
       foreignColumns: [platformUsers.id],
       name: 'reminder_rules_platform_user_id_fkey',
-    }).onDelete('set null'),
+    }).onDelete('cascade'),
     unique('reminder_rules_integrator_rule_id_key').on(table.integratorRuleId),
     check(
       'chk_reminder_rules_custom_only_for_custom_type',

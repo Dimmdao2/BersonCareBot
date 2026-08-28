@@ -25,7 +25,6 @@ function serializeMember(m: {
   first_name: string | null;
   last_name: string | null;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   created_at: Date;
 }) {
   return {
@@ -34,7 +33,6 @@ function serializeMember(m: {
     firstName: m.first_name,
     lastName: m.last_name,
     phoneNormalized: m.phone_normalized,
-    integratorUserId: m.integrator_user_id,
     createdAt: m.created_at.toISOString(),
   };
 }

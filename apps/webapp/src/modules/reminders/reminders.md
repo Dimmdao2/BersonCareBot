@@ -2,9 +2,9 @@
 
 Сервисные правила напоминаний в **webapp** (`public.reminder_rules` — единственный источник истины для CRUD и scheduler-read), API пациента и integrator M2M. Каждое конкретное напоминание и весь его lifecycle (`planned` → `queued` → `sent`/`failed`, а также seen/snoozed/skipped/done) хранятся в одной строке `public.reminder_occurrence_history`. **Фактическая отправка push** выполняется в **integrator**; `getEnabledReminderRules` читает канонические правила только в exact organization principal и учитывает `platform_users.reminder_muted_until`. Per-delivery факт живёт только в `public.outgoing_delivery_queue` (kind=`reminder_dispatch`); дублирующие occurrence-хранилища и журналы доставки удалены.
 
-`integrator.user_reminder_rules` не является runtime-источником и не получает новых записей. Таблица сохранена как legacy: в репозитории есть ещё one-shot backfill/reconcile-инструменты, поэтому условие zero consumers для её удаления не выполнено; отдельный retirement удалит её лишь после снятия этих инструментов.
+`integrator.user_reminder_rules` не является runtime-источником и не получает новых записей. Таблица сохранена как legacy: её ещё читает один сверочный инструмент (`apps/webapp/scripts/reconcile-reminders-domain.mjs`), поэтому условие zero consumers для её удаления не выполнено; отдельный retirement удалит её лишь после снятия этого инструмента. Track D (#987) снял с неё `backfill-reminders-domain` и `reconcile-person-domain` вместе с вытесненной публичной личностью.
 
-**Web Push без бота** (`integrator_user_id IS NULL`, есть `platform_user_id` и подписка): единое правило хранится в `public.reminder_rules`; штатный integrator scheduler создаёт канонические occurrence, а delivery worker отправляет канал Web Push через общий delivery pipeline.
+**Web Push без бота** (у человека нет привязки мессенджера — `public.user_channel_bindings` пуста, — но есть `platform_user_id` и подписка): единое правило хранится в `public.reminder_rules`; штатный integrator scheduler создаёт канонические occurrence, а delivery worker отправляет канал Web Push через общий delivery pipeline. Track D (#987): владелец правила — только канонический `reminder_rules.platform_user_id` (`NOT NULL`), вытесненной публичной личности в этой таблице больше нет.
 
 ## Документация
 

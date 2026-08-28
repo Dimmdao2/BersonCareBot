@@ -22,7 +22,7 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           db,
           sql`SELECT snoozed_until::text
               FROM app.patient_snooze_reminder_occurrence(
-                NULL::uuid, ${input.occurrenceId}::text, ${input.minutes}::integer
+                ${input.platformUserId}::uuid, ${input.occurrenceId}::text, ${input.minutes}::integer
               )`,
         );
         const snoozedUntil = result.rows[0]?.snoozed_until;
@@ -38,7 +38,7 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           db,
           sql`SELECT skipped_at::text
               FROM app.patient_skip_reminder_occurrence(
-                NULL::uuid, ${input.occurrenceId}::text, ${input.reason}::text
+                ${input.platformUserId}::uuid, ${input.occurrenceId}::text, ${input.reason}::text
               )`,
         );
         const skippedAt = result.rows[0]?.skipped_at;
@@ -60,7 +60,9 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           db,
           sql`SELECT done_at::text, first_done_for_occurrence, day_done_count, day_sent_total,
                      day_fully_done
-              FROM app.patient_done_reminder_occurrence(${input.occurrenceId}::text)`,
+              FROM app.patient_done_reminder_occurrence(
+                ${input.platformUserId}::uuid, ${input.occurrenceId}::text
+              )`,
         );
         const row = result.rows[0];
         return row
@@ -83,7 +85,9 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         const result = await runIntegratorSql<{ muted_until: string | null }>(
           db,
           sql`SELECT muted_until::text
-              FROM app.patient_set_reminder_mute(${input.minutes}::integer, ${input.untilTomorrow})`,
+              FROM app.patient_set_reminder_mute(
+                ${input.platformUserId}::uuid, ${input.minutes}::integer, ${input.untilTomorrow}
+              )`,
         );
         const mutedUntil = result.rows[0]?.muted_until;
         return mutedUntil ? { ok: true, mutedUntil } : { ok: false, error: 'not_found' };
@@ -98,7 +102,8 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           db,
           sql`SELECT persisted, paragraphs
               FROM app.patient_disable_reminder_messenger_topic(
-                ${input.occurrenceId}::text, ${input.messengerChannel}::text
+                ${input.platformUserId}::uuid, ${input.occurrenceId}::text,
+                ${input.messengerChannel}::text
               )`,
         );
         const row = result.rows[0];
@@ -118,7 +123,9 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
         const result = await runIntegratorSql<{ topics: unknown }>(
           db,
           sql`SELECT topics
-              FROM app.patient_reminder_notification_settings(${input.messengerChannel}::text, NULL::text)`,
+              FROM app.patient_reminder_notification_settings(
+                ${input.platformUserId}::uuid, ${input.messengerChannel}::text, NULL::text
+              )`,
         );
         const topics = Array.isArray(result.rows[0]?.topics)
           ? result.rows[0]!.topics.filter(
@@ -146,7 +153,8 @@ export function createRemindersWritesPort(deps: { db: DbPort }): RemindersWebapp
           db,
           sql`SELECT new_state
               FROM app.patient_reminder_notification_settings(
-                ${input.messengerChannel}::text, ${input.topicCode}::text
+                ${input.platformUserId}::uuid, ${input.messengerChannel}::text,
+                ${input.topicCode}::text
               )`,
         );
         const row = result.rows[0];

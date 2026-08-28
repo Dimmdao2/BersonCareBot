@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { PhoneMessengerBindClaimRow, PhoneMessengerBindSecretRow } from '@/modules/auth/phoneMessengerBind.ports';
-import type { MessengerIdentityResolutionHints } from '@/modules/auth/identityResolutionPort';
 import type { ChannelContext } from '@/modules/auth/channelContext';
 import type { ChannelBindings, SessionIdentityContact } from '@/shared/types/session';
 import type { UserRole } from '@/shared/types/session';
@@ -24,21 +23,14 @@ export const messengerBindStatusSchema = z.enum([
   'expired',
 ]);
 
-export const messengerIdentityResolutionHintsSchema = z.object({
-  platformUserSub: z.string().trim().min(1).optional(),
-  phoneNormalized: z.string().trim().min(1).optional(),
-  integratorUserId: z.string().trim().min(1).optional(),
-});
-
 export const channelBindingLookupParamsSchema = z.object({
   channelCode: identityChannelCodeSchema,
   externalId: z.string().trim().min(1),
 });
 
-export const findOrCreateByChannelBindingParamsSchema = channelBindingLookupParamsSchema.extend({
+export const resolveByChannelBindingParamsSchema = channelBindingLookupParamsSchema.extend({
   displayName: z.string().optional(),
   role: userRoleSchema.optional(),
-  resolutionHints: messengerIdentityResolutionHintsSchema.optional(),
 });
 
 export const channelContextSchema = z.object({
@@ -173,7 +165,6 @@ export const emailVerifiedRowSchema = z.object({
 export const puMergeRowSchema = z.object({
   id: z.string(),
   phone_normalized: z.string().nullable(),
-  integrator_user_id: z.string().nullable(),
   merged_into_id: z.string().nullable(),
   display_name: z.string(),
   first_name: z.string().nullable(),
@@ -220,7 +211,6 @@ export const platformUserInsertRowSchema = z.object({
 
 export const bindingOwnerRowSchema = z.object({
   user_id: z.string(),
-  integrator_user_id: z.string().nullable(),
 });
 
 const phoneMessengerBindSecretRowSchema = z.object({
@@ -261,25 +251,18 @@ export function parseChannelBindingLookupParams(params: {
   return parseIdentityRow(channelBindingLookupParamsSchema, params, 'channel_binding_lookup');
 }
 
-export function parseFindOrCreateByChannelBindingParams(
-  params: z.input<typeof findOrCreateByChannelBindingParamsSchema>,
-): z.infer<typeof findOrCreateByChannelBindingParamsSchema> {
+export function parseResolveByChannelBindingParams(
+  params: z.input<typeof resolveByChannelBindingParamsSchema>,
+): z.infer<typeof resolveByChannelBindingParamsSchema> {
   return parseIdentityRow(
-    findOrCreateByChannelBindingParamsSchema,
+    resolveByChannelBindingParamsSchema,
     params,
-    'find_or_create_by_channel_binding',
+    'resolve_by_channel_binding',
   );
 }
 
 export function parseChannelContext(context: ChannelContext): ChannelContext {
   return parseIdentityRow(channelContextSchema, context, 'channel_context');
-}
-
-export function parseMessengerIdentityResolutionHints(
-  hints: MessengerIdentityResolutionHints | undefined,
-): MessengerIdentityResolutionHints | undefined {
-  if (hints == null) return undefined;
-  return parseIdentityRow(messengerIdentityResolutionHintsSchema, hints, 'resolution_hints');
 }
 
 export function bindingsFromRows(rows: unknown[]): ChannelBindings {

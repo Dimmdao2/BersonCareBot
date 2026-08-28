@@ -10,7 +10,6 @@ export type ReminderRuleCreateInput = {
   /** Stable product id used to make an HTTP create retry idempotent. */
   integratorRuleId?: string;
   platformUserId: string;
-  integratorUserId: string | null;
   linkedObjectType: ReminderLinkedObjectType;
   linkedObjectId: string | null;
   customTitle: string | null;
@@ -29,8 +28,16 @@ export type ReminderRuleCreateInput = {
 };
 
 export type ReminderRulesPort = {
-  /** Bigint string as stored for integrator_user_id / reminder_rules. */
-  resolveIntegratorUserId(platformUserId: string): Promise<string | null>;
+  /**
+   * Does this person have a messenger channel binding (`public.user_channel_bindings`)?
+   *
+   * Track D (#987): this replaces the retired numeric-identity lookup, which asked "does a retired
+   * public identity exist for them" and used the answer as a stand-in for "is a bot channel available".
+   * The two stopped being the same thing once accounts started existing without the retired id:
+   * a patient with a canonical uuid and a selected bot could not create a reminder at all unless
+   * they also had web push. The question is now asked directly, of the canonical binding table.
+   */
+  hasMessengerChannelBinding(platformUserId: string): Promise<boolean>;
   listByPlatformUser(platformUserId: string): Promise<ReminderRule[]>;
   /** Rules for unified management UI, newest first. */
   listByPlatformUserWithObjects(platformUserId: string): Promise<ReminderRule[]>;

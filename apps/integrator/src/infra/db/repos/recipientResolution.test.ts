@@ -53,7 +53,6 @@ import { resolveCanonicalPlatformUserIdByChannel } from './platformUserByChannel
 import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 import { getPhoneNormalizedForDeliveryLookup } from './platformUserDeliveryPhone.js';
 
-vi.mock('./channelUsers.js', () => ({}));
 vi.mock('./platformUserByChannel.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./platformUserByChannel.js')>();
   return {
@@ -283,8 +282,7 @@ describe('резолв платформенного пользователя: «
   });
 
   it('дано: ключ пользователя пуст → когда резолв телефона доставки → тогда в БД НЕ ходим вовсе', () => {
-    // Пустой ключ в предикате `id::text = $1 OR integrator_user_id::text = $1` — это запрос
-    // «отдай хоть что-нибудь». Отказ обязан произойти ДО похода в базу.
+    // Пустой ключ — это запрос «отдай хоть что-нибудь». Отказ обязан произойти ДО похода в базу.
     // АРБИТР: в getPhoneNormalizedForDeliveryLookup() убрать `if (!trimmed) return null` —
     // запрос уйдёт в БД, `db.calls` перестанет быть пустым, тест покраснеет.
     const db = fakeDb([{ phone_normalized: '+79189000782' }]);

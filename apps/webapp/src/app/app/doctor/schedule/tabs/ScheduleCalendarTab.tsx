@@ -1776,7 +1776,7 @@ export function ScheduleCalendarTab({
     ],
   );
 
-  const calendarEvents = useMemo(() => {
+  const calendarEvents = useMemo<EventInput[]>(() => {
     if (!data) return [];
     const isTimeGrid = view !== 'month';
     // §3.14: paint the whole non-working span (pre-shift + post-shift + breaks)
@@ -1893,7 +1893,7 @@ export function ScheduleCalendarTab({
           },
         ]
       : [];
-    return [...grayFill, ...mapped, ...draft] as EventInput[];
+    return [...grayFill, ...mapped, ...draft];
   }, [
     data,
     displayableCalendarEvents,

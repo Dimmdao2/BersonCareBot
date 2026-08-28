@@ -423,7 +423,6 @@ test('tenant calendar and package roots expose only their proven columns', () =>
 test('tenant identity grant is operation- and column-specific', () => {
   exactColumns('public.platform_users', 'app_tenant_service', 'SELECT', [
     'id',
-    'integrator_user_id',
     'merged_into_id',
     'display_name',
     'first_name',
@@ -435,14 +434,12 @@ test('tenant identity grant is operation- and column-specific', () => {
   ]);
   exactColumns('public.platform_users', 'app_tenant_service', 'INSERT', [
     'id',
-    'integrator_user_id',
     'display_name',
     'first_name',
     'last_name',
     'role',
   ]);
   exactColumns('public.platform_users', 'app_tenant_service', 'UPDATE', [
-    'integrator_user_id',
     'merged_into_id',
     'merged_at',
     'display_name',
@@ -711,7 +708,7 @@ test('doctor CRUD grants cover every column emitted by the production Drizzle in
     ],
     'public.platform_users': [
       'blocked_at', 'blocked_by', 'blocked_reason', 'calendar_timezone', 'created_at', 'display_name',
-      'first_name', 'id', 'integrator_user_id', 'is_archived', 'is_blocked', 'last_name',
+      'first_name', 'id', 'is_archived', 'is_blocked', 'last_name',
       'merged_at', 'merged_into_id', 'patronymic', 'reminder_muted_until', 'role', 'session_epoch',
       'updated_at',
     ],
@@ -1077,7 +1074,7 @@ test('canonical settings and account email use semantic row walls without broad 
   assert.deepEqual(
     users.access.grants.find((grant) =>
       grant.role === 'app_patient' && Array.isArray(grant.columns))?.columns,
-    ['id', 'calendar_timezone', 'integrator_user_id',
+    ['id', 'calendar_timezone',
       'merged_into_id', 'display_name', 'role', 'session_epoch', 'is_archived',
       'is_blocked', 'reminder_muted_until'],
   );
@@ -1267,13 +1264,30 @@ test('patient page relations have exact self/current-clinic access and published
   ['user_id', 'media_id']);
 
   const clientEvents = tables['public.media_playback_client_events'];
-  assert.equal(clientEvents.access.kind, 'named-seams');
+  assert.equal(clientEvents.access.kind, 'direct');
+  assert.deepEqual(clientEvents.access.grants, [{
+    role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table',
+  }]);
+  assert.equal(clientEvents.access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT')), false);
   const clientEventRoot = declaration.portContext.functions[
     'app.record_current_patient_playback_client_event(uuid,text,text,text,text)'
   ];
   assert.deepEqual(clientEventRoot.execute, ['app_patient']);
   assert.deepEqual(clientEventRoot.relationSurfaces.find((surface) =>
     surface.relation === 'public.media_playback_client_events')?.operations, ['INSERT']);
+
+  const resolutionEvents = tables['public.media_playback_resolution_events'];
+  assert.deepEqual(resolutionEvents.access.grants, [{
+    role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table',
+  }]);
+  for (const operation of ['select', 'delete']) {
+    const policy = resolutionEvents.policies.find((candidate) =>
+      candidate.name.startsWith(`rev10_playback_resolution_event_maintenance_${operation}_`));
+    assert.deepEqual(policy?.to, ['app_operational_maintenance']);
+    assert.match(policy?.using ?? '', /current_user = 'app_operational_maintenance'::name/u);
+    assert.doesNotMatch(policy?.using ?? '', /current_org_id/u);
+  }
 
   for (const relation of ['public.patient_home_blocks', 'public.patient_home_block_items']) {
     const policy = tables[relation].policies.find((candidate) =>
@@ -1569,29 +1583,15 @@ test('patient material rating rows remain self-only and aggregate access uses on
   }
 });
 
-test('integrator user-to-organization pre-routing uses one exact resolver root', () => {
-  assert.deepEqual(declaration.portContext.capabilities.integrator_user_organization_resolve, {
-    port: 'integrator',
-    runtimeName: 'integrator_user_organization_resolve',
-    sessionRole: 'app_integrator_request',
-    targetRole: 'app_integrator_resolver',
-    contextClass: 'integrator',
-    purpose: 'integrator.user-organization.resolve',
-    functionIdentity: 'app.resolve_active_organization_for_integrator_user_id(bigint)',
-  });
-  const root = declaration.portContext.functions[
-    'app.resolve_active_organization_for_integrator_user_id(bigint)'
-  ];
-  assert.equal(root.owner, 'app_seam_identity_lookup_owner');
-  assert.deepEqual(root.execute, ['app_integrator_resolver']);
-  assert.deepEqual(root.relationSurfaces, [
-    { relation: 'public.platform_users', columns: ['id', 'integrator_user_id'],
-      operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
-    { relation: 'public.org_enrollments', columns: ['organization_id', 'platform_user_id', 'status'],
-      operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
-    { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
-      operations: ['SELECT'], evidence: 'pg16-function-body-lexical-upper-bound' },
-  ]);
+test('the retired numeric-id organization resolver root stays retired', () => {
+  // The public integrator identity cutover retired the numeric-id resolver in favor of the
+  // existing channel-binding resolver (`app.resolve_organization_for_channel_identity`, C3/C4).
+  // This asserts the retirement is not silently reintroduced.
+  assert.equal(declaration.portContext.capabilities.integrator_user_organization_resolve, undefined);
+  assert.equal(
+    declaration.portContext.functions['app.resolve_active_organization_for_integrator_user_id(bigint)'],
+    undefined,
+  );
 });
 
 test('tenant service has one command-aware D/M/P policy for every exact relation operation', () => {

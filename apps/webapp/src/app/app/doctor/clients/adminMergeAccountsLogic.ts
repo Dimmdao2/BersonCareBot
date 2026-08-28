@@ -1,13 +1,11 @@
 /**
  * Pure helpers for admin manual merge UI — aligned with merge-preview JSON and ManualMergeResolution.
  */
-import type { MergePreviewIntegratorUserPresence } from '@/infra/mergePreviewIntegratorUserPresence';
 import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
 
 export type MergePreviewApiProfile = {
   id: string;
   phoneNormalized: string | null;
-  integratorUserId: string | null;
   displayName: string;
   firstName: string | null;
   lastName: string | null;
@@ -89,10 +87,6 @@ export type MergePreviewApiOk = {
   };
   mergeAllowed: boolean;
   v1MergeEngineCallable: boolean;
-  /** Mirrors admin `platform_user_merge_v2_enabled` at preview time. */
-  platformUserMergeV2Enabled: boolean;
-  /** Наличие строки в integrator `users` для `integrator_user_id` из webapp (нужен `INTEGRATOR_DATABASE_URL` у webapp). */
-  integratorUserPresence: MergePreviewIntegratorUserPresence;
   hardBlockers: { code: string; message: string; details?: Record<string, unknown> }[];
 };
 
@@ -253,21 +247,6 @@ const BLOCKER_RU: Record<string, { title: string; detail: string }> = {
     title: 'Вторая запись — уже алиас merge',
     detail:
       'У дубликата уже заполнен merged_into_id. Объединять можно только две канонические строки (merged_into_id IS NULL).',
-  },
-  different_non_null_integrator_user_id: {
-    title: 'Разные integrator user id (оба заданы)',
-    detail:
-      'Оба пользователя привязаны к разным записям в интеграторе. Режим v1: merge заблокирован (риск «фантомного» пользователя). В режиме v2 сначала выполняется canonical merge в integrator, затем webapp merge.',
-  },
-  integrator_canonical_merge_required: {
-    title: 'Нужен canonical merge в integrator',
-    detail:
-      'Включён режим v2: сначала объедините пользователей в БД интегратора (кнопка ниже или ops), при необходимости выполните realignment проекций в webapp, затем обновите preview и выполните webapp merge.',
-  },
-  integrator_merge_status_unavailable: {
-    title: 'Не удалось проверить статус integrator',
-    detail:
-      'Не настроены INTEGRATOR_API_URL / секрет webhook или интегратор недоступен — preview не может подтвердить, что пара уже сведена к одному canonical users.id.',
   },
   active_bookings_time_overlap: {
     title: 'Пересечение активных записей по времени',

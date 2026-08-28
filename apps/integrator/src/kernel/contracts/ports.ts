@@ -27,7 +27,6 @@ export type DbReadQueryType =
   | 'reminders.rules.forUser'
   | 'reminders.rule.forUserAndCategory'
   | 'reminders.occurrences.forRuleRange'
-  | 'reminders.occurrence.ownerUserId'
   | 'reminders.delivery.staleMessengerMessage'
   | 'delivery.pending';
 
@@ -406,7 +405,6 @@ export type { DeliveryTargetsFetchResult } from './notificationChannels.js';
 export type DeliveryTargetsFetchOptions = {
   organizationId: string;
   topic?: string;
-  integratorUserId?: string;
 };
 
 export type AdminMessengerTargets = { telegram: string[]; max: string[] };
@@ -422,13 +420,11 @@ export type DeliveryTargetsPort = {
     telegramId?: string;
     maxId?: string;
     topic?: string;
-    integratorUserId?: string;
     organizationId?: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
   getTargetsByPlatformUser?(params: {
     platformUserId: string;
     topic: string;
-    integratorUserId?: string;
     organizationId: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
 };
@@ -460,14 +456,16 @@ export type ReminderOccurrenceHistoryItem = {
  */
 export type RemindersWebappWritesPort = {
   postOccurrenceSnooze(input: {
+    platformUserId: string;
     occurrenceId: string;
     minutes: number;
   }): Promise<{ ok: true; snoozedUntil: string } | { ok: false; error: string }>;
   postOccurrenceSkip(input: {
+    platformUserId: string;
     occurrenceId: string;
     reason: string | null;
   }): Promise<{ ok: true; skippedAt: string } | { ok: false; error: string }>;
-  postOccurrenceDone(input: { occurrenceId: string }): Promise<
+  postOccurrenceDone(input: { platformUserId: string; occurrenceId: string }): Promise<
     | {
         ok: true;
         doneAt: string;
@@ -479,16 +477,19 @@ export type RemindersWebappWritesPort = {
     | { ok: false; error: string }
   >;
   postReminderMuteUntil(input: {
+    platformUserId: string;
     minutes: number | null;
     untilTomorrow: boolean;
   }): Promise<{ ok: true; mutedUntil: string } | { ok: false; error: string }>;
   /** Turn off reminder delivery in Telegram/MAX for occurrence's topic (`user_notification_topic_channels`). */
   postMessengerTopicDisable(input: {
+    platformUserId: string;
     occurrenceId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; paragraphs: string[] } | { ok: false; error: string }>;
   /** Fetch per-channel notification topic settings for a user. */
   getNotificationSettings(input: {
+    platformUserId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<
     | { ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> }
@@ -496,23 +497,27 @@ export type RemindersWebappWritesPort = {
   >;
   /** Toggle a notification topic on/off for a specific channel. Returns new state. */
   toggleNotificationTopic(input: {
+    platformUserId: string;
     topicCode: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; newState: boolean } | { ok: false; error: string }>;
 };
 
-/** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */
+/**
+ * Port to read reminder product data from webapp (projection).
+ * Track D (#987): keyed by canonical `public.platform_users.id`, never the retired numeric identity.
+ */
 export type RemindersReadsPort = {
   listRulesForUser(
-    integratorUserId: string,
+    platformUserId: string,
     organizationId: string,
   ): Promise<ReminderRuleListItem[]>;
   getRuleForUserAndCategory(
-    integratorUserId: string,
+    platformUserId: string,
     category: string,
   ): Promise<ReminderRuleDetail | null>;
   listHistoryForUser(
-    integratorUserId: string,
+    platformUserId: string,
     limit?: number,
   ): Promise<ReminderOccurrenceHistoryItem[]>;
 };

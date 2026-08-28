@@ -10,7 +10,18 @@
  *
  * `app.read_integrator_auth_channel_setting(text)` was retired (identity cleanup 2026-08-26,
  * together with `user.phone.link`/`app.integrator_bind_bootstrap_channel_phone` — its only
- * caller), leaving 234 entries here.
+ * caller).
+ *
+ * Track D (#987), 2026-08-28: the five reminder-callback overloads that resolved a person through
+ * the retired public `platform_users.integrator_user_id` left this census with the column they
+ * read — `patient_done_reminder_occurrence(text)`,
+ * `patient_disable_reminder_messenger_topic(text,text)`,
+ * `patient_reminder_notification_settings(text,text)`, `patient_set_reminder_mute(integer,boolean)`
+ * and `patient_set_reminder_muted_until(timestamp with time zone)`. Their canonical successors take
+ * `platform_users.id` and are declared in `declaration.ts`; the dropped column is gone from every
+ * surviving surface here. Entry count is measured, not narrated:
+ * `node -e "import('./deploy/postgres/privileges/function-census.ts').then(m=>console.log(Object.keys(m.BUSINESS_SEAM_FUNCTIONS).length))"`
+ * → 221.
  */
 import type { DeclaredFunction } from './types.ts';
 
@@ -4187,7 +4198,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "relation": "public.platform_users",
         "columns": [
           "id",
-          "integrator_user_id",
           "reminder_muted_until"
         ],
         "operations": [
@@ -4200,7 +4210,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "id",
           "platform_user_id",
-          "integrator_user_id",
           "is_enabled",
           "organization_id"
         ],
@@ -5481,229 +5490,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "runtime"
   },
-  "app.patient_disable_reminder_messenger_topic(text,text)": {
-    "owner": "app_seam_reminder_patient_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "returnsSet": true,
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
-    "typedArgs": [
-      "text",
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.org_enrollments",
-        "columns": [
-          "id",
-          "organization_id",
-          "platform_user_id",
-          "status"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.platform_users",
-        "columns": [
-          "id",
-          "updated_at",
-          "integrator_user_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.reminder_occurrence_history",
-        "columns": [
-          "id",
-          "integrator_occurrence_id",
-          "integrator_rule_id",
-          "integrator_user_id",
-          "category",
-          "status",
-          "organization_id",
-          "platform_user_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.reminder_rules",
-        "columns": [
-          "id",
-          "integrator_rule_id",
-          "platform_user_id",
-          "integrator_user_id",
-          "category",
-          "is_enabled",
-          "updated_at",
-          "linked_object_type",
-          "reminder_intent",
-          "notification_topic_code",
-          "organization_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_channel_bindings",
-        "columns": [
-          "user_id",
-          "channel_code"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_channel_preferences",
-        "columns": [
-          "id",
-          "user_id",
-          "channel_code",
-          "is_enabled_for_notifications",
-          "updated_at",
-          "platform_user_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_notification_topic_channels",
-        "columns": [
-          "user_id",
-          "topic_code",
-          "channel_code",
-          "is_enabled",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT",
-          "INSERT",
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_web_push_subscriptions",
-        "columns": [
-          "id",
-          "user_id",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.patient_done_reminder_occurrence(text)": {
-    "owner": "app_seam_reminder_patient_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "returnsSet": true,
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_integrator_request",
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
-    "typedArgs": [
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.system_settings",
-        "columns": [
-          "key",
-          "scope",
-          "organization_id",
-          "value_json"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.org_enrollments",
-        "columns": [
-          "organization_id",
-          "platform_user_id",
-          "status"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.platform_users",
-        "columns": [
-          "id",
-          "integrator_user_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.reminder_occurrence_history",
-        "columns": [
-          "integrator_occurrence_id",
-          "platform_user_id",
-          "organization_id",
-          "planned_at",
-          "sent_at",
-          "occurred_at",
-          "status",
-          "done_at",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT",
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.patient_reminder_materialization_fingerprint(text,text)": {
     "owner": "app_seam_reminder_materialization_owner",
     "security": "DEFINER",
@@ -5762,7 +5548,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "id",
           "created_at",
           "updated_at",
-          "integrator_user_id",
           "reminder_muted_until"
         ],
         "operations": [
@@ -5776,7 +5561,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "id",
           "integrator_rule_id",
           "platform_user_id",
-          "integrator_user_id",
           "is_enabled",
           "updated_at",
           "created_at",
@@ -5884,189 +5668,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
     ],
     "invocation": "internal"
   },
-  "app.patient_reminder_notification_settings(text,text)": {
-    "owner": "app_seam_reminder_patient_owner",
-    "security": "DEFINER",
-    "returns": "record",
-    "returnsSet": true,
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
-    "typedArgs": [
-      "text",
-      "text"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.org_enrollments",
-        "columns": [
-          "id",
-          "organization_id",
-          "platform_user_id",
-          "status"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.platform_users",
-        "columns": [
-          "id",
-          "updated_at",
-          "integrator_user_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_notification_topic_channels",
-        "columns": [
-          "user_id",
-          "topic_code",
-          "channel_code",
-          "is_enabled",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT",
-          "INSERT",
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.patient_set_reminder_mute(integer,boolean)": {
-    "owner": "app_seam_reminder_patient_owner",
-    "security": "DEFINER",
-    "returns": "timestamp with time zone",
-    "returnsSet": true,
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
-    "typedArgs": [
-      "integer",
-      "boolean"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.system_settings",
-        "columns": [
-          "key",
-          "scope",
-          "organization_id",
-          "value_json"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.org_enrollments",
-        "columns": [
-          "id",
-          "organization_id",
-          "platform_user_id",
-          "status"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.platform_users",
-        "columns": [
-          "id",
-          "integrator_user_id",
-          "reminder_muted_until"
-        ],
-        "operations": [
-          "SELECT",
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
-  "app.patient_set_reminder_muted_until(timestamp with time zone)": {
-    "owner": "app_seam_reminder_patient_owner",
-    "security": "DEFINER",
-    "returns": "timestamp with time zone",
-    "returnsSet": true,
-    "volatility": "VOLATILE",
-    "parallel": "UNSAFE",
-    "proconfig": [
-      "search_path=pg_catalog"
-    ],
-    "execute": [
-      "app_patient"
-    ],
-    "purpose": "evidence/25+30 narrow seam owned by app_seam_reminder_patient_owner",
-    "typedArgs": [
-      "timestamp with time zone"
-    ],
-    "databases": [
-      "bersoncarebot_test",
-      "bcb_webapp_dev"
-    ],
-    "relationSurfaces": [
-      {
-        "relation": "public.org_enrollments",
-        "columns": [
-          "id",
-          "organization_id",
-          "platform_user_id",
-          "status"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.platform_users",
-        "columns": [
-          "id",
-          "integrator_user_id",
-          "reminder_muted_until"
-        ],
-        "operations": [
-          "SELECT",
-          "UPDATE"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      }
-    ],
-    "invocation": "runtime"
-  },
   "app.patient_skip_reminder_occurrence(uuid,text,text)": {
     "owner": "app_seam_reminder_patient_owner",
     "security": "DEFINER",
@@ -6107,8 +5708,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.platform_users",
         "columns": [
-          "id",
-          "integrator_user_id"
+          "id"
         ],
         "operations": [
           "SELECT"
@@ -6178,8 +5778,7 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
       {
         "relation": "public.platform_users",
         "columns": [
-          "id",
-          "integrator_user_id"
+          "id"
         ],
         "operations": [
           "SELECT"
@@ -9518,7 +9117,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "columns": [
           "created_at",
           "user_id",
-          "integrator_user_id",
           "topic_code",
           "intent_type",
           "channel",

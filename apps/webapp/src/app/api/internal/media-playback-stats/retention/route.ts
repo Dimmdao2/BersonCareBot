@@ -5,6 +5,7 @@ import { env } from '@/config/env';
 import { logger } from '@/app-layer/logging/logger';
 import {
   PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
+  PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
   purgeStalePlaybackHourlyStats,
 } from '@/app-layer/media/playbackHourlyRetention';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
@@ -21,11 +22,12 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
 }
 
 /**
- * HOUSEKEEPING: trims `media_playback_stats_hourly` older than retention window.
+ * HOUSEKEEPING: trims aggregate and raw playback telemetry using their declared retention windows.
  *
  * Bearer `INTERNAL_JOB_SECRET`, optional query `dryRun=1`, `days=<positive int>` (defaults to repo constant).
  *
- * Dedup таблица `media_playback_user_video_first_resolve` deliberately **не** затрагивается.
+ * `days` overrides only the aggregate window. Raw event stores stay on the fixed policy window.
+ * The `media_playback_user_video_first_resolve` dedup table is deliberately untouched.
  */
 export async function POST(request: Request) {
   const secret = env.INTERNAL_JOB_SECRET;
@@ -71,7 +73,13 @@ export async function POST(request: Request) {
     });
 
     logger.info(
-      { dryRun: result.dryRun, deleted: result.deleted, retentionDays: result.retentionDays },
+      {
+        dryRun: result.dryRun,
+        deleted: result.deleted,
+        deletedByStore: result.deletedByStore,
+        retentionDays: result.retentionDays,
+        rawEventRetentionDays: result.rawEventRetentionDays,
+      },
       'media_playback_stats_retention_job',
     );
 
@@ -84,15 +92,20 @@ export async function POST(request: Request) {
       metaJson: {
         dryRun: result.dryRun,
         deleted: result.deleted,
+        deletedByStore: result.deletedByStore,
         retentionDays: result.retentionDays,
+        rawEventRetentionDays: result.rawEventRetentionDays,
       },
     });
 
     return NextResponse.json({
       ok: true,
       deleted: result.deleted,
+      deletedByStore: result.deletedByStore,
       dryRun: result.dryRun,
       retentionDays: result.retentionDays,
+      rawEventRetentionDays: result.rawEventRetentionDays,
+      defaultRawEventRetentionDays: PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

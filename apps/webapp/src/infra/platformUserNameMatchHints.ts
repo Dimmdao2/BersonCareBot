@@ -23,7 +23,6 @@ export type NameMatchHintMember = {
   first_name: string | null;
   last_name: string | null;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   created_at: Date;
 };
 
@@ -59,14 +58,12 @@ type SwappedSqlRow = {
   a_first_name: string | null;
   a_last_name: string | null;
   a_phone_normalized: string | null;
-  a_integrator_user_id: string | null;
   a_created_at: Date;
   b_id: string;
   b_display_name: string;
   b_first_name: string | null;
   b_last_name: string | null;
   b_phone_normalized: string | null;
-  b_integrator_user_id: string | null;
   b_created_at: Date;
 };
 
@@ -77,7 +74,6 @@ function mapMember(r: NameMatchHintMember): NameMatchHintMember {
     first_name: r.first_name,
     last_name: r.last_name,
     phone_normalized: r.phone_normalized,
-    integrator_user_id: r.integrator_user_id,
     created_at: r.created_at,
   };
 }
@@ -116,7 +112,6 @@ export async function buildNameMatchHintsReport(
         ${FIO.firstName} AS first_name,
         ${FIO.lastName} AS last_name,
         ${CONTACTS.phoneNormalized} AS phone_normalized,
-        pu.integrator_user_id::text AS integrator_user_id,
         pu.created_at,
         lower(trim(both from regexp_replace(coalesce(${FIO.firstName}, ''), '[[:space:]]+', ' ', 'g'))) AS nf,
         lower(trim(both from regexp_replace(coalesce(${FIO.lastName}, ''), '[[:space:]]+', ' ', 'g'))) AS nl
@@ -147,7 +142,6 @@ export async function buildNameMatchHintsReport(
         b.first_name,
         b.last_name,
         b.phone_normalized,
-        b.integrator_user_id,
         b.created_at,
         b.nf,
         b.nl,
@@ -156,7 +150,7 @@ export async function buildNameMatchHintsReport(
       INNER JOIN grouped_keys g ON b.nf = g.nf AND b.nl = g.nl
       WHERE b.nf <> '' AND b.nl <> ''
     )
-    SELECT id, display_name, first_name, last_name, phone_normalized, integrator_user_id, created_at, nf, nl
+    SELECT id, display_name, first_name, last_name, phone_normalized, created_at, nf, nl
     FROM ranked
     WHERE rn <= $2::int
     ORDER BY nf ASC, nl ASC, rn ASC
@@ -170,14 +164,12 @@ export async function buildNameMatchHintsReport(
       a.first_name AS a_first_name,
       a.last_name AS a_last_name,
       a.phone_normalized AS a_phone_normalized,
-      a.integrator_user_id AS a_integrator_user_id,
       a.created_at AS a_created_at,
       b.id AS b_id,
       b.display_name AS b_display_name,
       b.first_name AS b_first_name,
       b.last_name AS b_last_name,
       b.phone_normalized AS b_phone_normalized,
-      b.integrator_user_id AS b_integrator_user_id,
       b.created_at AS b_created_at
     FROM base a
     INNER JOIN base b
@@ -205,7 +197,6 @@ export async function buildNameMatchHintsReport(
       first_name: row.a_first_name,
       last_name: row.a_last_name,
       phone_normalized: row.a_phone_normalized,
-      integrator_user_id: row.a_integrator_user_id,
       created_at: row.a_created_at,
     }),
     userB: mapMember({
@@ -214,7 +205,6 @@ export async function buildNameMatchHintsReport(
       first_name: row.b_first_name,
       last_name: row.b_last_name,
       phone_normalized: row.b_phone_normalized,
-      integrator_user_id: row.b_integrator_user_id,
       created_at: row.b_created_at,
     }),
   }));

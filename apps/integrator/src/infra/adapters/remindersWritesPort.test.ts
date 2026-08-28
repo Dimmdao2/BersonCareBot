@@ -22,7 +22,7 @@ describe('D7 reminder callback capability adapter', () => {
     });
 
     await expect(
-      port.postOccurrenceSnooze({ occurrenceId: 'occ-1', minutes: 20 }),
+      port.postOccurrenceSnooze({ platformUserId: '00000000-0000-0000-0000-000000000001', occurrenceId: 'occ-1', minutes: 20 }),
     ).resolves.toEqual({
       ok: true,
       snoozedUntil: '2026-08-02T10:20:00.000Z',
@@ -35,7 +35,7 @@ describe('D7 reminder callback capability adapter', () => {
       db: dbWithRows({ rows: [{ skipped_at: '2026-08-02T10:00:00.000Z' }] }),
     });
 
-    await expect(port.postOccurrenceSkip({ occurrenceId: 'occ-1', reason: null })).resolves.toEqual(
+    await expect(port.postOccurrenceSkip({ platformUserId: '00000000-0000-0000-0000-000000000001', occurrenceId: 'occ-1', reason: null })).resolves.toEqual(
       {
         ok: true,
         skippedAt: '2026-08-02T10:00:00.000Z',
@@ -58,7 +58,7 @@ describe('D7 reminder callback capability adapter', () => {
       }),
     });
 
-    await expect(port.postOccurrenceDone({ occurrenceId: 'occ-1' })).resolves.toEqual({
+    await expect(port.postOccurrenceDone({ platformUserId: '00000000-0000-0000-0000-000000000001', occurrenceId: 'occ-1' })).resolves.toEqual({
       ok: true,
       doneAt: '2026-08-02T10:00:00.000Z',
       firstDoneForOccurrence: true,
@@ -72,7 +72,7 @@ describe('D7 reminder callback capability adapter', () => {
     const port = createRemindersWritesPort({ db: dbWithRows({ rows: [] }) });
 
     await expect(
-      port.postReminderMuteUntil({ minutes: null, untilTomorrow: true }),
+      port.postReminderMuteUntil({ platformUserId: '00000000-0000-0000-0000-000000000001', minutes: null, untilTomorrow: true }),
     ).resolves.toEqual({ ok: false, error: 'not_found' });
   });
 
@@ -86,7 +86,7 @@ describe('D7 reminder callback capability adapter', () => {
     });
 
     await expect(
-      port.postMessengerTopicDisable({ occurrenceId: 'occ-1', messengerChannel: 'telegram' }),
+      port.postMessengerTopicDisable({ platformUserId: '00000000-0000-0000-0000-000000000001', occurrenceId: 'occ-1', messengerChannel: 'telegram' }),
     ).resolves.toEqual({
       ok: true,
       paragraphs: ['Отключаю в Telegram.', 'Push остаётся активным.'],
@@ -109,12 +109,12 @@ describe('D7 reminder callback capability adapter', () => {
       ),
     });
 
-    await expect(port.getNotificationSettings({ messengerChannel: 'max' })).resolves.toEqual({
+    await expect(port.getNotificationSettings({ platformUserId: '00000000-0000-0000-0000-000000000001', messengerChannel: 'max' })).resolves.toEqual({
       ok: true,
       topics: [{ code: 'warmup_reminders', title: 'Напоминания о разминках', isEnabled: true }],
     });
     await expect(
-      port.toggleNotificationTopic({ messengerChannel: 'max', topicCode: 'warmup_reminders' }),
+      port.toggleNotificationTopic({ platformUserId: '00000000-0000-0000-0000-000000000001', messengerChannel: 'max', topicCode: 'warmup_reminders' }),
     ).resolves.toEqual({ ok: true, newState: false });
   });
 });

@@ -27,7 +27,7 @@
 | --- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | 1   | `backfill-person-domain` — завершён и удалён D15b/6                      | Исторический перенос закрыт; canonical phone/e-mail теперь живут только в `user_contacts`. |
 | 2   | `pnpm --dir apps/webapp run backfill-communication-history -- --commit` | История поддержки: треды, сообщения, вопросы.                                                                            |
-| 3   | `pnpm --dir apps/webapp run backfill-reminders-domain -- --commit`      | Правила напоминаний, история срабатываний, доступ к контенту.                                                            |
+| 3   | `backfill-reminders-domain` — снят Track D (#987)                       | Переносил правила напоминаний, историю срабатываний и доступ к контенту по вытесненной публичной личности; ключа больше нет, скрипт и команда удалены. |
 | 4   | `pnpm --dir apps/webapp run backfill-appointments-domain -- --commit`   | Записи на приём (appointment records).                                                                                   |
 
 Subscription/mailing backfill больше не является активным шагом: Track D8 доказал отсутствие live producer и
@@ -43,7 +43,6 @@ Subscription/mailing backfill больше не является активны�
 После backfill запустить reconcile по каждому домену. Exit code 0 — данные согласованы.
 
 ```bash
-pnpm --dir apps/webapp run reconcile-person-domain
 pnpm --dir apps/webapp run reconcile-communication-domain
 pnpm --dir apps/webapp run reconcile-reminders-domain
 pnpm --dir apps/webapp run reconcile-appointments-domain
@@ -72,7 +71,7 @@ Mailing/subscription source and projection tables were retired migration-forward
 
 ## Сохранность данных
 
-- **Карточки и настройки пользователей:** исторический `backfill-person-domain` завершён и удалён; повторный импорт контактов из provider/history источников запрещён D15b/6. `reconcile-person-domain` остаётся только для не-контактных проекций до своего отдельного этапа.
+- **Карточки и настройки пользователей:** исторический `backfill-person-domain` завершён и удалён; повторный импорт контактов из provider/history источников запрещён D15b/6. `reconcile-person-domain` тоже снят (Track D, #987): он сверял проекции по вытесненной публичной личности, и после её удаления сверять по этому ключу нечего.
 - **История записей на приём:** historical backfill переносил provider records в `appointment_records` по `integrator_record_id`; внешний источник выведен 2026-07-27.
 
 Оставшиеся активные backfill-скрипты используют upsert/ON CONFLICT; повторный запуск с `--commit` безопасен и не дублирует записи при корректных ключах.

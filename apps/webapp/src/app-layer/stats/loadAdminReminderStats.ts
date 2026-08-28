@@ -219,15 +219,16 @@ export function summarizePushOpens(buckets: PushOpenBucket[]): PushOpensSummary 
  */
 function reminderOccurrenceAudienceSql(excludedUserIds: string[]) {
   if (excludedUserIds.length === 0) return undefined;
+  // Track D (#987): the rule's owner is `rr.platform_user_id` and nothing else. The removed
+  // `LEFT JOIN platform_users … ON <retired public id> AND rr.platform_user_id IS NULL` was a
+  // fallback for rules that predate the canonical column; the cutover migration backfills and then
+  // `NOT NULL`s that column, so the fallback can no longer match anything.
   return sql`EXISTS (
     SELECT 1
     FROM reminder_rules rr
-    LEFT JOIN platform_users pu
-      ON pu.integrator_user_id = rr.integrator_user_id
-     AND rr.platform_user_id IS NULL
     WHERE rr.integrator_rule_id = ${reminderOccurrenceHistory.integratorRuleId}
-      AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
-      AND COALESCE(rr.platform_user_id, pu.id) NOT IN (${drizzleSqlUuidInList(excludedUserIds)})
+      AND rr.platform_user_id IS NOT NULL
+      AND rr.platform_user_id NOT IN (${drizzleSqlUuidInList(excludedUserIds)})
   )`;
 }
 

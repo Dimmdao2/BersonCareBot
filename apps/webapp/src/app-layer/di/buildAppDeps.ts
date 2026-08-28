@@ -1603,8 +1603,10 @@ function _buildAppDeps() {
     getDoctorSupportDefault: (key, context) => runtimeConfig.getBoolean(key, context),
   });
   // Аудитория доставки интегратора — один объявленный корень, а не сборка из сырых чтений.
-  // Стена участия, сверка integratorUserId, привязки, предпочтения и готовность каналов живут
-  // внутри `app.read_integrator_delivery_target_snapshot(...)`.
+  // Стена участия, привязки, предпочтения и готовность каналов живут внутри
+  // `app.read_integrator_delivery_target_snapshot(...)`. Track D (#987): retired numeric identity
+  // корню больше не передаётся — соответствующий аргумент всегда NULL
+  // (`pgIntegratorDeliveryTargets.ts`).
   const integratorDeliveryTargetsDeps = {
     integratorDeliveryTargets: integratorDeliveryTargetsPort,
   };
@@ -1813,10 +1815,6 @@ function _buildAppDeps() {
       patientInboundChatPort: supportCommunicationPort,
       fanOutBroadcastWebPush,
       patientWebPushNotifyDeps: {
-        findPlatformUserByIntegratorId: async (integratorUserId) => {
-          const row = await userProjectionPort.findByIntegratorId(integratorUserId);
-          return row ? { platformUserId: row.platformUserId } : null;
-        },
         findPlatformUserByPhone: async (phoneNormalized) =>
           userProjectionPort.findByPhoneNormalized(phoneNormalized),
         channelPreferences: channelPreferencesPort,
@@ -1944,7 +1942,6 @@ function _buildAppDeps() {
         maxId?: string;
         platformUserId?: string;
         topic?: string;
-        integratorUserId?: string;
       }) => getDeliveryTargetsForIntegrator(params, integratorDeliveryTargetsDeps),
     },
     adminNotificationTargets: {
@@ -1961,8 +1958,6 @@ function _buildAppDeps() {
     patientNotificationTopics: patientNotificationTopicsPort,
     topicUnsubscribe: topicUnsubscribeService,
     userProjection: {
-      upsertFromProjection: userProjectionPort.upsertFromProjection,
-      findByIntegratorId: userProjectionPort.findByIntegratorId,
       findByPhoneNormalized: userProjectionPort.findByPhoneNormalized,
       updatePhone: userProjectionPort.updatePhone,
       updateProfileByPhone: userProjectionPort.updateProfileByPhone,

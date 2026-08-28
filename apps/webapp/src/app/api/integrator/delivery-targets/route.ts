@@ -32,7 +32,6 @@ export async function GET(request: Request) {
 
   const deps = buildAppDeps();
   const topic = url.searchParams.get('topic')?.trim();
-  const integratorUserId = url.searchParams.get('integratorUserId')?.trim();
   let result: Awaited<ReturnType<typeof deps.deliveryTargetsApi.getTargets>>;
   try {
     result = await deps.deliveryTargetsApi.getTargets({
@@ -42,7 +41,6 @@ export async function GET(request: Request) {
       ...(maxId ? { maxId } : {}),
       ...(platformUserId ? { platformUserId } : {}),
       ...(topic ? { topic } : {}),
-      ...(integratorUserId ? { integratorUserId } : {}),
     });
   } catch (error) {
     if (error instanceof DeliveryTargetsTenantDeniedError) {

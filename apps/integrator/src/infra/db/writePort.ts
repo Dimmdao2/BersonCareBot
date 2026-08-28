@@ -33,18 +33,19 @@ import { applySpecialistTaskReminderSuccessOutcome } from './repos/specialistTas
 import { writeDirectPublic } from './directPublic/writePort.js';
 
 /**
- * Re-verified 2026-07-25 by independent audit against the REAL "integrator" principal shape
- * (`runWithIntegratorPrincipal`, telegram/webhook.ts): every D3-D5 direct-public write below targets a
+ * Re-verified 2026-07-25 by independent audit against the REAL messenger-human principal shape that
+ * telegram/webhook.ts installed at the time: every D3-D5 direct-public write below targets a
  * `public.*` table whose FORCE RLS policy is `(is_staff() AND organization_id = current_org_id()) OR
  * (current_patient_user_id() IS NOT NULL AND platform_user_id = current_patient_user_id())`
  * (`saas_org_dormant_p0_8_3`). The "integrator" principal locks the `app_patient` runtime role with
  * `organization_id` SET but `patient_user_id` NULL — `is_staff()` is false (app_patient is not a member
  * of app_staff) and the patient branch is null, so BOTH branches fail: every direct write AND every
  * internal org-resolution SELECT (e.g. `org_enrollments`) is RLS-denied for a normal telegram/max
- * message from an already-known user — the common case, since `runWithIntegratorPrincipal` wraps the
- * WHOLE event pipeline whenever webhook pre-routing already resolved both `organizationId` and
- * `integratorUserId`. This silently degraded every one of these writes to "always falls back to the
- * durable outbox + fires an operator incident" (D3/D4/D5).
+ * message from an already-known user — the common case, since the removed messenger-human principal
+ * wrapper covered the WHOLE event pipeline whenever webhook pre-routing had resolved the person.
+ * This silently degraded every one of these writes to "always falls back to the durable outbox +
+ * fires an operator incident" (D3/D4/D5). Track D (#987) removed that wrapper: an incoming webhook
+ * now runs under the organization principal only.
  *
  * Fix (mirrors `persistWritesByOrganization` in handlers/reminders.ts, the ALREADY-correct pattern used
  * by signed scheduled wakes): re-install an EXPLICIT organization principal — `SET ROLE
@@ -159,8 +160,8 @@ export function createDbWritePort(
           // (`app.integrator_upsert_channel_identity`), entered through the one direct-public
           // principal chokepoint (`writeDirectPublic`), which re-installs the bootstrap principal the
           // root's declared capability accepts — the webhook itself runs under
-          // `runWithIntegratorPrincipal`/`runWithOrganizationPrincipal` whenever the clinic is already
-          // resolved (telegram/webhook.ts), and the root is unreachable from those (audit K5, 22.08).
+          // `runWithOrganizationPrincipal` whenever the clinic is already resolved
+          // (telegram/webhook.ts), and the root is unreachable from that one (audit K5, 22.08).
           // It never opens a relation transaction. LOOKUP-ONLY: an unknown `externalId` resolves to
           // `null` and creates nothing — a generic webhook proves no phone ownership, so it must never
           // create `platform_users`/`user_identity`/`user_channel_bindings`/`user_channel_preferences`.

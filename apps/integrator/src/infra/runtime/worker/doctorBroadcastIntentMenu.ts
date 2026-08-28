@@ -28,16 +28,18 @@ export type DoctorBroadcastMenuWorkerDeps = {
   isTelegramMenuOnButtonPress: () => Promise<boolean>;
 };
 
+/**
+ * Track D (#987): the broadcast link no longer re-reads a retired numeric identity here. The
+ * recipient is already known canonically (`payloadJson.clientUserId` = `platform_users.id`), so the
+ * only thing still needed from the delivery identity is whether a confirmed phone exists.
+ */
 export async function resolveLinkedPhoneForPlatformUser(
   db: DbPort,
   platformUserId: string,
-): Promise<{ linkedPhone: boolean; integratorUserId: string | null }> {
+): Promise<{ linkedPhone: boolean }> {
   const identity = await getCanonicalPlatformUserDeliveryIdentity(db, platformUserId);
-  if (!identity) return { linkedPhone: false, integratorUserId: null };
-  return {
-    linkedPhone: identity.phoneNormalized !== null,
-    integratorUserId: identity.integratorUserId,
-  };
+  if (!identity) return { linkedPhone: false };
+  return { linkedPhone: identity.phoneNormalized !== null };
 }
 
 function buildDoctorBroadcastMenuContext(input: {
@@ -75,7 +77,8 @@ async function buildWebappLinkFactsForRecipient(input: {
   db: DbPort;
   queueChannel: string;
   recipient: Record<string, unknown>;
-  integratorUserId: string | null;
+  /** Canonical `platform_users.id` of the broadcast recipient; never a retired numeric identity. */
+  platformUserId: string;
 }): Promise<Record<string, string>> {
   const appBase = env.APP_BASE_URL;
   const links: Record<string, string> = {};
@@ -83,13 +86,11 @@ async function buildWebappLinkFactsForRecipient(input: {
   if (appBaseUrl.startsWith('http://') || appBaseUrl.startsWith('https://')) {
     links.remindersUrl = `${appBaseUrl}/app/patient/reminders`;
   }
-  const intId = input.integratorUserId ?? undefined;
-
   if (input.queueChannel === 'telegram') {
     const chatId = asNumber(input.recipient.chatId);
     if (chatId !== null) {
       const webappEntryUrl = buildWebappEntryUrl(
-        intId !== undefined ? { chatId, integratorUserId: intId } : { chatId },
+        { chatId, platformUserId: input.platformUserId },
         appBase,
       );
       if (webappEntryUrl) {
@@ -107,7 +108,7 @@ async function buildWebappLinkFactsForRecipient(input: {
     const maxId = typeof raw === 'string' ? raw.trim() : typeof raw === 'number' ? String(raw) : '';
     if (maxId.length > 0) {
       const webappEntryUrl = buildWebappEntryUrlForMax(
-        intId !== undefined ? { maxId, integratorUserId: intId } : { maxId },
+        { maxId, platformUserId: input.platformUserId },
         appBase,
       );
       if (webappEntryUrl) {
@@ -149,7 +150,7 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
     typeof row.payloadJson.clientUserId === 'string' ? row.payloadJson.clientUserId.trim() : '';
   if (!clientUserId) return intent;
 
-  const { linkedPhone, integratorUserId } = await resolveLinkedPhoneForPlatformUser(db, clientUserId);
+  const { linkedPhone } = await resolveLinkedPhoneForPlatformUser(db, clientUserId);
 
   const payload = asRecord(intent.payload);
   const recipient = asRecord(payload.recipient);
@@ -158,7 +159,7 @@ export async function enrichDoctorBroadcastIntentIfNeeded(input: {
     db,
     queueChannel: row.channel,
     recipient,
-    integratorUserId,
+    platformUserId: clientUserId,
   });
 
   const ctx = buildDoctorBroadcastMenuContext({

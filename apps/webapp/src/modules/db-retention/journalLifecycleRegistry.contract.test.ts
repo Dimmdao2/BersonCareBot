@@ -3,24 +3,40 @@ import path from 'node:path';
 import { expect, it } from 'vitest';
 
 import {
-  JOURNAL_LIFECYCLE_EXTRA_CANDIDATES,
   JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS,
   JOURNAL_LIFECYCLE_REGISTRY,
-  JOURNAL_LIFECYCLE_TABLE_SUFFIXES,
 } from '../../../../../deploy/postgres/privileges/journal-lifecycle-registry';
 import { RETENTION_SWEEP_TARGETS } from '@/infra/db/pruneRetentionTarget';
 import { CRON_JOB_REGISTRY } from '@/modules/operator-health/cronJobRegistry';
+import {
+  MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES,
+  PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
+  PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
+} from '@/app-layer/media/playbackHourlyRetention';
+import { MEDIA_HLS_PROXY_ERROR_RETENTION_DAYS_DEFAULT } from '@/app-layer/media/hlsProxyErrorEvents';
+import { OUTGOING_DELIVERY_QUEUE_SENT_RETENTION_DAYS_DEFAULT } from '@/modules/db-retention/journalRetention';
+import { PRODUCT_ANALYTICS_RETENTION_BRANCHES } from '@/modules/product-analytics/productAnalyticsRetention';
+import {
+  OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+  OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
+} from '@/modules/operator-health/backgroundJobManifest';
 
 /**
- * WHAT BREAKS WITHOUT THIS: a new journal/queue/temp table is declared, migrated and wired to a live
- * writer while belonging to no retention policy, no purge path and no sweep — exactly how
- * `message_log` and the consolidated `reminder_occurrence_history` reached the systemic audit of
- * 2026-08-27 (§E1, §C3). Nothing in lint, typecheck, the privilege generator or the migration gate
+ * WHAT BREAKS WITHOUT THIS: a new table is declared, migrated and wired to a live writer while
+ * belonging to no retention policy, no purge path and no sweep — exactly how `message_log` and the
+ * consolidated `reminder_occurrence_history` reached the systemic audit of 2026-08-27 (§E1, §C3), and
+ * exactly how `manual_patient_commands` reached the audit of 2026-08-28 (F1) and made every account
+ * purge of a patient fail. Nothing in lint, typecheck, the privilege generator or the migration gate
  * looks at data lifecycle, so the omission is invisible until someone measures the database.
  *
  * ORACLE: `deploy/postgres/privileges/declaration.ts` — the independent artifact that must list every
  * physical table before its migration may exist. This test never derives the candidate set from the
  * registry it is checking.
+ *
+ * THE CANDIDATE SET IS EVERY DECLARED TABLE. The previous version of this gate only considered names
+ * ending in `_log` / `_events` / `_queue` / … plus a hand list of extras, so the 2026-08-28 audit
+ * declared `public.bcb_probe_sms_deliveries` and the gate stayed green (F3). A name heuristic cannot
+ * be the trigger: it is precisely the tables nobody thought of as journals that go unclassified.
  */
 
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../../..');
@@ -44,25 +60,98 @@ async function declaredTables(): Promise<string[]> {
   }
 }
 
-function isLifecycleCandidate(table: string): boolean {
-  if (JOURNAL_LIFECYCLE_EXTRA_CANDIDATES.includes(table)) return true;
-  return JOURNAL_LIFECYCLE_TABLE_SUFFIXES.some((suffix) => table.endsWith(suffix));
+const USER_PURGE_KINDS = new Set([
+  'cascade',
+  'explicit-delete',
+  'deferred-delete',
+  'explicit-anonymise',
+  'anonymised',
+  'phone-keyed',
+  'via-parent',
+  'staff-authored',
+  'self-expiring',
+  'purge-blocked',
+  'owner-question',
+  'absent-retired',
+  'not-user-scoped',
+]);
+const ORG_PURGE_KINDS = new Set([
+  'organization_id',
+  'org-anonymised',
+  'via-parent',
+  'absent-retired',
+  'not-org-scoped',
+]);
+
+/**
+ * Runtime shape check, deliberately not "the TypeScript type says so": the escape hatch this gate
+ * exists to close was a plain string, and a plain string type-checks fine the moment somebody widens
+ * the union again. A decision is only a decision when both purge semantics are actually written.
+ */
+function structuralFaults(table: string, decision: unknown): string[] {
+  const faults: string[] = [];
+  if (typeof decision !== 'object' || decision === null) {
+    return [`${table}: non-structured exception (${typeof decision}) — needs reason + purge semantics`];
+  }
+  const d = decision as { reason?: unknown; userPurge?: unknown; orgPurge?: unknown };
+  if (typeof d.reason !== 'string' || d.reason.trim() === '') {
+    faults.push(`${table}: missing reason`);
+  }
+  const user = d.userPurge as { kind?: unknown } | undefined;
+  if (!user || typeof user.kind !== 'string' || !USER_PURGE_KINDS.has(user.kind)) {
+    faults.push(`${table}: missing or unknown account-purge semantics`);
+  }
+  const org = d.orgPurge as { kind?: unknown } | undefined;
+  if (!org || typeof org.kind !== 'string' || !ORG_PURGE_KINDS.has(org.kind)) {
+    faults.push(`${table}: missing or unknown organization-purge semantics`);
+  }
+  return faults;
 }
 
-it('leaves no declared journal/queue/temp table without a written lifecycle decision', async () => {
+it('leaves no declared table at all without a written lifecycle decision', async () => {
   const registered = new Set(JOURNAL_LIFECYCLE_REGISTRY.map((entry) => entry.table));
   const excluded = new Set(Object.keys(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS));
 
-  const undecided = (await declaredTables())
-    .filter(isLifecycleCandidate)
-    .filter((table) => !registered.has(table) && !excluded.has(table));
+  const undecided = (await declaredTables()).filter(
+    (table) => !registered.has(table) && !excluded.has(table),
+  );
 
   expect(
     undecided,
-    'Every journal/queue/attempt/temp store needs a lifecycle entry (owner, purge key, terminal ' +
-      'states, retention decision, prune root, sweeping job) in journalLifecycleRegistry.ts — or an ' +
-      'explicit "this is not a journal" line with a reason in ' +
-      'JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS.',
+    'Every declared physical table needs either a lifecycle entry (owner, purge key, terminal ' +
+      'states, retention decision, prune root, sweeping job) in journal-lifecycle-registry.ts, or a ' +
+      'structured "this is not a journal" decision in JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS ' +
+      'carrying a reason plus explicit account-purge and organization-purge semantics. There is no ' +
+      'name heuristic: an arbitrarily named new table lands here too.',
+  ).toEqual([]);
+});
+
+it('classifies every declared table exactly once, and nothing it does not declare', async () => {
+  const declared = new Set(await declaredTables());
+  const registered = JOURNAL_LIFECYCLE_REGISTRY.map((entry) => entry.table);
+  const excluded = Object.keys(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS);
+
+  const bothWays = registered.filter((table) => table in JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS);
+  expect(bothWays, 'A table cannot be both a journal and not a journal.').toEqual([]);
+
+  const undeclared = [...registered, ...excluded].filter((table) => !declared.has(table)).sort();
+  expect(
+    undeclared,
+    'A lifecycle decision for a table that declaration.ts does not declare is a policy for nothing — ' +
+      'it hides a rename or a removal instead of surfacing it.',
+  ).toEqual([]);
+});
+
+it('accepts no bare or half-written non-journal exception', () => {
+  const faults = Object.entries(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS)
+    .flatMap(([table, decision]) => structuralFaults(table, decision))
+    .sort();
+
+  expect(
+    faults,
+    'A bare reason string is how patient_practice_completions and patient_diary_day_snapshots were ' +
+      'marked "not a journal" and survived account purge (audit 2026-08-28, F2). Both purge ' +
+      'semantics must be written, and "not-user-scoped" / "not-org-scoped" are legitimate answers.',
   ).toEqual([]);
 });
 
@@ -78,6 +167,30 @@ it('keeps the registry itself honest: no entry may leave a required lifecycle fa
   expect(incomplete).toEqual([]);
 });
 
+it('keeps declared retention windows equal to the windows the sweeping modules execute', () => {
+  const daysByTable = new Map(
+    JOURNAL_LIFECYCLE_REGISTRY.flatMap((entry) =>
+      entry.retention.kind === 'window' ? [[entry.table, entry.retention.days] as const] : [],
+    ),
+  );
+
+  expect(daysByTable.get('public.outgoing_delivery_queue')).toBe(
+    OUTGOING_DELIVERY_QUEUE_SENT_RETENTION_DAYS_DEFAULT,
+  );
+  expect(daysByTable.get('public.media_hls_proxy_error_events')).toBe(
+    MEDIA_HLS_PROXY_ERROR_RETENTION_DAYS_DEFAULT,
+  );
+  expect(daysByTable.get('public.media_playback_stats_hourly')).toBe(
+    PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
+  );
+  expect(daysByTable.get('public.media_playback_resolution_events')).toBe(
+    PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
+  );
+  expect(daysByTable.get('public.media_playback_client_events')).toBe(
+    PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
+  );
+});
+
 it('registers no table twice and never contradicts itself with a non-journal decision', () => {
   const seen = new Map<string, number>();
   for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
@@ -91,27 +204,153 @@ it('registers no table twice and never contradicts itself with a non-journal dec
   expect(contradicted).toEqual([]);
 });
 
-it('makes every decided retention window executable: named prune target plus a sweeping job', () => {
-  const sweepTargets = new Set<string>(RETENTION_SWEEP_TARGETS);
-  const cronJobKeys = new Set(CRON_JOB_REGISTRY.map((job) => job.jobKey));
+it('keeps every recorded open question answerable: a stable id, a column and a written basis', () => {
+  const faults: string[] = [];
+  for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
+    if (entry.userPurge.kind !== 'owner-question') continue;
+    const purge = entry.userPurge;
+    if (!/^OQ-[A-Z0-9-]+$/.test(purge.id)) faults.push(`${entry.table}: purge question needs a stable id`);
+    if (purge.column.trim() === '') faults.push(`${entry.table}: purge question needs the column`);
+    if (purge.basis.length <= 40) faults.push(`${entry.table}: purge question needs a written basis`);
+  }
+  expect(faults).toEqual([]);
 
-  const unexecutable = JOURNAL_LIFECYCLE_REGISTRY.filter(
-    (entry) => entry.retention.kind === 'window',
-  )
-    .filter((entry) => {
-      const target = (entry.retention as { pruneTarget: string }).pruneTarget;
-      // A target label of the ONE closed-list root must really be in that list; roots outside it
-      // (product analytics, media, the operator archive) name themselves and only need a sweep job.
-      const rootOk = sweepTargets.has(target) || target.includes('.') || target.includes(':');
-      const sweepOk = entry.sweptBy !== null && cronJobKeys.has(entry.sweptBy);
-      return !rootOk || !sweepOk;
-    })
-    .map((entry) => entry.table);
+  // Recorded so an unanswered purge decision is a number a reader sees, not something discovered by
+  // measuring the database later.
+  // OQ-DELIVERY-ATTEMPT-USER-PURGE was ANSWERED on 2026-08-28 (owner brief, finding 1): the delivery
+  // journal keeps its non-identifying outcome and loses the person on all three surfaces it carried
+  // him on, so the entry is now an executed `explicit-anonymise` rather than a question. Nothing is
+  // owed here today — and this assertion is what makes a new silent one impossible.
+  expect(
+    new Set(
+      JOURNAL_LIFECYCLE_REGISTRY.filter((e) => e.userPurge.kind === 'owner-question').map((e) =>
+        (e.userPurge as { id: string }).id,
+      ),
+    ),
+  ).toEqual(new Set<string>());
+});
+
+/**
+ * The three — and only three — shapes a decided window's prune root may have, each checkable against
+ * an artifact outside this registry.
+ *
+ * Audit 2026-08-28, F4: the previous rule was `sweepTargets.has(target) || target.includes('.') ||
+ * target.includes(':')`, i.e. ANY name with punctuation counted as executable. Under it the required
+ * injection of `app.audit_missing_prune_target` stayed green, and two false roots were already
+ * living in the registry: `app.archive_operator_health_failures`, which moves failures INTO the
+ * archive rather than pruning it, and `media_playback_stats.retention:events`, a module branch no
+ * module implements. A prune root is now resolved, not spelled.
+ */
+type PruneRootResolution = { ok: true } | { ok: false; why: string };
+
+/** Every callable the privilege declaration says is installed, by `schema.function` name. */
+async function declaredInstalledPruneRoots(): Promise<Map<string, string[]>> {
+  const cwd = process.cwd();
+  process.chdir(REPO_ROOT);
+  try {
+    const mod = (await import(
+      pathToFileURL(path.join(REPO_ROOT, 'deploy/postgres/privileges/declaration.ts')).href
+    )) as {
+      declaration: {
+        portContext: {
+          functions: Record<string, unknown>;
+          capabilities: Record<string, { purpose?: string; functionIdentity?: string }>;
+        };
+      };
+    };
+    const context = mod.declaration.portContext;
+    const installed = new Set(
+      Object.keys(context.functions).map((regprocedure) => regprocedure.split('(')[0] ?? ''),
+    );
+    // A root is only a PRUNE root when the declared seam it is reached through says so. This is what
+    // separates `app.prune_operator_health_failure_archive` (purpose `health.failure-archive.prune`)
+    // from `app.archive_operator_health_failures` (purpose `platform.health-archive.clear`), which
+    // the registry named for years while the scheduler called the other one.
+    const purposesByName = new Map<string, string[]>();
+    for (const capability of Object.values(context.capabilities)) {
+      const identity = capability.functionIdentity;
+      if (!identity) continue;
+      const name = identity.split('(')[0] ?? '';
+      if (!installed.has(name)) continue;
+      purposesByName.set(name, [...(purposesByName.get(name) ?? []), capability.purpose ?? '']);
+    }
+    return purposesByName;
+  } finally {
+    process.chdir(cwd);
+  }
+}
+
+function isPrunePurpose(purpose: string): boolean {
+  return purpose.startsWith('retention.') || purpose.endsWith('.prune');
+}
+
+it('makes every decided retention window executable: real prune root, scheduler and health signal', async () => {
+  const sweepTargets = new Set<string>(RETENTION_SWEEP_TARGETS);
+  const cronJobs = new Map(CRON_JOB_REGISTRY.map((job) => [job.jobKey, job]));
+  const dbPruneRootPurposes = await declaredInstalledPruneRoots();
+  /* Branches a background job REALLY performs, taken from the module that performs them. */
+  const moduleBranches = new Map<string, readonly string[]>([
+    [OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY, PRODUCT_ANALYTICS_RETENTION_BRANCHES],
+    [OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY, MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES],
+  ]);
+
+  function resolvePruneRoot(target: string, sweptBy: string | null): PruneRootResolution {
+    if (sweepTargets.has(target)) return { ok: true };
+    if (target.includes(':')) {
+      const [jobKey, branch] = [
+        target.slice(0, target.indexOf(':')),
+        target.slice(target.indexOf(':') + 1),
+      ];
+      if (jobKey !== sweptBy) {
+        return { ok: false, why: `module branch names job '${jobKey}' but is swept by '${sweptBy}'` };
+      }
+      const branches = moduleBranches.get(jobKey);
+      if (!branches) return { ok: false, why: `no module declares the branches of job '${jobKey}'` };
+      if (!branches.includes(branch)) {
+        return { ok: false, why: `job '${jobKey}' implements no '${branch}' sweep branch` };
+      }
+      return { ok: true };
+    }
+    if (target.includes('.')) {
+      const purposes = dbPruneRootPurposes.get(target);
+      if (!purposes) {
+        return { ok: false, why: `no installed callable '${target}' is declared in declaration.ts` };
+      }
+      if (!purposes.some(isPrunePurpose)) {
+        return { ok: false, why: `'${target}' is installed but its declared purpose is not pruning (${purposes.join(', ')})` };
+      }
+      return { ok: true };
+    }
+    return { ok: false, why: `'${target}' is not a closed-list sweep target` };
+  }
+
+  const unexecutable: string[] = [];
+  for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
+    if (entry.retention.kind !== 'window') continue;
+    const targets = [entry.retention.pruneTarget, ...(entry.alsoPruneTargets ?? [])];
+    for (const target of targets) {
+      const resolved = resolvePruneRoot(target, entry.sweptBy);
+      if (!resolved.ok) unexecutable.push(`${entry.table}: ${resolved.why}`);
+    }
+    const job = entry.sweptBy === null ? undefined : cronJobs.get(entry.sweptBy);
+    if (!job) {
+      unexecutable.push(`${entry.table}: no registered sweeping job '${entry.sweptBy}'`);
+      continue;
+    }
+    // The health signal: the job's staleness threshold is what reds out the operator card when the
+    // sweep stops running. A window whose sweep cannot go stale is unobservable.
+    if (!(job.staleAfterSec > 0)) {
+      unexecutable.push(`${entry.table}: job '${job.jobKey}' carries no staleness health signal`);
+    }
+  }
 
   expect(
-    unexecutable,
+    unexecutable.sort(),
     'A retention window with no reachable prune root or no registered sweeping job is a policy that ' +
-      'never runs — audit §B2, where declared retention had no alarm clock.',
+      'never runs — audit §B2, where declared retention had no alarm clock. A prune root is one of: ' +
+      'a closed-list RETENTION_SWEEP_TARGETS label; `<jobKey>:<branch>` where the module behind that ' +
+      'job really implements that branch; or a `schema.function` the privilege declaration installs ' +
+      'AND reaches through a seam whose declared purpose is pruning.',
   ).toEqual([]);
 });
 

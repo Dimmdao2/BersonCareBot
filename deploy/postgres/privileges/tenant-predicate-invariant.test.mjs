@@ -97,7 +97,7 @@ test('the patient entitlement door is narrow: own active grant, and only the fie
       `${database}: table-wide грант пациенту не выдаётся`);
     assert.deepEqual([...patient[0].columns].sort(),
       ['content_id', 'expires_at', 'meta_json', 'platform_user_id', 'purpose', 'revoked_at']);
-    for (const secret of ['token_hash', 'integrator_grant_id', 'integrator_user_id']) {
+    for (const secret of ['token_hash', 'integrator_grant_id']) {
       assert.ok(!patient[0].columns.includes(secret), `${database}: ${secret} пациенту не отдаётся`);
     }
 
