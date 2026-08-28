@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import { and, asc, eq, lte, notExists, sql, type SQL } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
@@ -9,7 +9,7 @@ import {
 import { env } from '@/config/env';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { startPoolTransaction, withPoolTransaction } from '@/infra/db/withClient';
+import { withPoolTransaction } from '@/infra/db/withClient';
 import { pgSessionAdvisoryLock, pgSessionAdvisoryUnlock } from '@/infra/db/pgAdvisoryLock';
 import {
   getWebappSqlDb,
@@ -61,12 +61,10 @@ import {
 import { pgRuSubstringSearchPattern } from '@/shared/lib/ruSearchNormalize';
 import { mediaFiles, mediaUploadSessions } from '../../../db/schema/schema';
 import { patientFiles } from '../../../db/schema/patientFiles';
-import { MULTIPART_SESSION_TTL_MS } from '@/modules/media/multipartConstants';
 import {
   mediaLibraryVisibleUsagePredicateM,
   mediaReadableStatusPredicate,
   mediaReadableStatusPredicateM,
-  mediaS3PurgeStatusPredicate,
 } from '@/infra/repos/mediaSqlPredicates';
 
 export {
@@ -967,47 +965,98 @@ export async function stagePendingMediaAbort(mediaId: string): Promise<boolean> 
  * `/api/internal/media-multipart/cleanup` stages them into this same `pending_delete` lifecycle. One
  * owner, one state machine, one cron — not a second sweeper.
  */
-export async function stageStaleSinglePutMediaForPurge(limit: number): Promise<number> {
-  const take = Math.max(1, Math.min(50, limit));
-  const cutoff = new Date(Date.now() - MULTIPART_SESSION_TTL_MS).toISOString();
+const MEDIA_PENDING_DELETE_STEP_ROOT =
+  'app.process_media_pending_delete_step(text,uuid,integer,uuid)';
 
-  return runDrizzleMutationTransaction(async (tx) => {
-    const sessionExists = () =>
-      tx
-        .select({ id: mediaUploadSessions.id })
-        .from(mediaUploadSessions)
-        .where(eq(mediaUploadSessions.mediaId, mediaFiles.id));
-    const candidates = await tx
-      .select({ id: mediaFiles.id })
-      .from(mediaFiles)
-      .where(
-        and(
-          eq(mediaFiles.status, 'pending'),
-          lte(mediaFiles.createdAt, cutoff),
-          notExists(sessionExists()),
-        ),
-      )
-      .orderBy(asc(mediaFiles.createdAt))
-      .limit(take);
+type MediaPendingDeleteAction = 'stage' | 'claim' | 'retry' | 'complete';
 
-    let staged = 0;
-    for (const candidate of candidates) {
-      const changed = await tx
-        .update(mediaFiles)
-        .set({ status: 'pending_delete' })
-        .where(
-          and(
-            eq(mediaFiles.id, candidate.id),
-            eq(mediaFiles.status, 'pending'),
-            lte(mediaFiles.createdAt, cutoff),
-            notExists(sessionExists()),
-          ),
-        )
-        .returning({ id: mediaFiles.id });
-      staged += changed.length;
-    }
-    return staged;
-  });
+type MediaPendingDeleteStepResult = {
+  action: MediaPendingDeleteAction;
+  stagedCount?: number;
+  removedEmpty?: number;
+  claim?: {
+    id: string;
+    s3Key: string;
+    previewSmKey: string | null;
+    previewMdKey: string | null;
+    hlsArtifactPrefix: string | null;
+    posterS3Key: string | null;
+    hlsMasterPlaylistS3Key: string | null;
+    deleteAttempts: number;
+    claimToken: string;
+    claimUntil: string;
+    pendingAborts: Array<{ s3Key: string; uploadId: string }>;
+  } | null;
+  retryScheduled?: boolean;
+  deleted?: boolean;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isNullableString(value: unknown): value is string | null {
+  return value === null || typeof value === 'string';
+}
+
+function isMediaPendingDeleteClaim(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === 'string' &&
+    typeof value.s3Key === 'string' &&
+    isNullableString(value.previewSmKey) &&
+    isNullableString(value.previewMdKey) &&
+    isNullableString(value.hlsArtifactPrefix) &&
+    isNullableString(value.posterS3Key) &&
+    isNullableString(value.hlsMasterPlaylistS3Key) &&
+    Number.isInteger(value.deleteAttempts) &&
+    typeof value.claimToken === 'string' &&
+    typeof value.claimUntil === 'string' &&
+    Array.isArray(value.pendingAborts) &&
+    value.pendingAborts.every(
+      (abort) =>
+        isRecord(abort) && typeof abort.s3Key === 'string' && typeof abort.uploadId === 'string',
+    )
+  );
+}
+
+function isMediaPendingDeleteStepResult(
+  action: MediaPendingDeleteAction,
+  value: unknown,
+): value is MediaPendingDeleteStepResult {
+  if (!isRecord(value) || value.action !== action) return false;
+  switch (action) {
+    case 'stage':
+      return Number.isInteger(value.stagedCount) && Number.isInteger(value.removedEmpty);
+    case 'claim':
+      return Object.hasOwn(value, 'claim') &&
+        (value.claim === null || isMediaPendingDeleteClaim(value.claim));
+    case 'retry':
+      return typeof value.retryScheduled === 'boolean';
+    case 'complete':
+      return typeof value.deleted === 'boolean';
+  }
+}
+
+async function runMediaPendingDeleteStep(
+  action: MediaPendingDeleteAction,
+  mediaId: string | null,
+  limit: number | null,
+  claimToken: string | null,
+): Promise<MediaPendingDeleteStepResult> {
+  const result = await runWebappNamedRoot<{ result: unknown }>(
+    getWebappSqlDb(),
+    MEDIA_PENDING_DELETE_STEP_ROOT,
+    [action, mediaId, limit, claimToken],
+    sql`SELECT app.process_media_pending_delete_step(
+      ${action}, ${mediaId}::uuid, ${limit}::integer, ${claimToken}::uuid
+    ) AS result`,
+  );
+  const payload = result.rows[0]?.result;
+  if (!isMediaPendingDeleteStepResult(action, payload)) {
+    throw new Error('invalid_media_pending_delete_step_result');
+  }
+  return payload;
 }
 
 export type MediaDeleteErrorRow = {
@@ -1167,26 +1216,6 @@ export type PurgePendingMediaDeleteBatchResult = {
   errors: number;
 };
 
-function computeDeleteRetryDelayMinutes(previousAttempts: number): number {
-  const exp = Math.min(previousAttempts + 1, 20);
-  return Math.min(1440, Math.pow(2, exp));
-}
-
-async function schedulePendingDeleteRetry(
-  db: ReturnType<typeof getWebappSqlFromPgClient>,
-  mediaId: string,
-  previousAttempts: number,
-): Promise<void> {
-  const minutes = computeDeleteRetryDelayMinutes(previousAttempts);
-  await runWebappSql(
-    db,
-    sql`UPDATE media_files SET
-       delete_attempts = delete_attempts + 1,
-       next_attempt_at = now() + (${minutes}::numeric * interval '1 minute')
-     WHERE id = ${mediaId}::uuid`,
-  );
-}
-
 function readPgCode(err: unknown): string | null {
   if (!err || typeof err !== 'object') return null;
   const e = err as { code?: unknown; cause?: { code?: unknown } };
@@ -1300,173 +1329,96 @@ export async function collectS3KeysForMediaPurge(row: {
 export async function purgePendingMediaDeleteBatch(
   limit: number = 25,
 ): Promise<PurgePendingMediaDeleteBatchResult> {
-  const pool = getPool();
   const take = Math.max(1, Math.min(50, limit));
-  await runWebappNamedRoot<{ staged_count: number | string }>(
-    getWebappSqlDb(),
-    'app.stage_orphan_hosted_video_covers_for_purge(integer)',
-    [take],
-    sql`SELECT app.stage_orphan_hosted_video_covers_for_purge(${take}) AS staged_count`,
-  );
-  await stageStaleSinglePutMediaForPurge(take);
-  let removed = 0;
+  const staged = await runMediaPendingDeleteStep('stage', null, take, null);
+  let removed = Number(staged.removedEmpty ?? 0);
   let errors = 0;
 
   for (let i = 0; i < take; i++) {
-    const tx = await startPoolTransaction(pool);
-    const client = tx.client;
-    const db = getWebappSqlFromPgClient(client);
+    const claim = (await runMediaPendingDeleteStep('claim', null, null, null)).claim;
+    if (!claim) break;
+    const row = {
+      id: claim.id,
+      s3_key: claim.s3Key,
+      preview_sm_key: claim.previewSmKey,
+      preview_md_key: claim.previewMdKey,
+      hls_artifact_prefix: claim.hlsArtifactPrefix,
+      poster_s3_key: claim.posterS3Key,
+      hls_master_playlist_s3_key: claim.hlsMasterPlaylistS3Key,
+    };
+
+    let keysToDelete: string[];
     try {
-      const claim = await runWebappSql<{
-        id: string;
-        s3_key: string;
-        preview_sm_key: string | null;
-        preview_md_key: string | null;
-        hls_artifact_prefix: string | null;
-        poster_s3_key: string | null;
-        hls_master_playlist_s3_key: string | null;
-        status: string | null;
-        delete_attempts: number | null;
-      }>(
-        db,
-        sql`SELECT id, s3_key, preview_sm_key, preview_md_key,
-                hls_artifact_prefix, poster_s3_key, hls_master_playlist_s3_key,
-                status, COALESCE(delete_attempts, 0) AS delete_attempts
-         FROM media_files
-         WHERE ${mediaS3PurgeStatusPredicate} AND s3_key IS NOT NULL AND length(trim(s3_key)) > 0
-         AND (next_attempt_at IS NULL OR next_attempt_at <= now())
-         ORDER BY id ASC
-         LIMIT 1
-         FOR UPDATE SKIP LOCKED`,
+      keysToDelete = await collectS3KeysForMediaPurge(row);
+    } catch (e) {
+      logger.error(
+        { err: e, mediaId: row.id },
+        '[purgePendingMediaDeleteBatch] failed to list keys',
       );
-      const rows = claim.rows;
-      if (rows.length === 0) {
-        await tx.commit();
+      await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);
+      errors += 1;
+      continue;
+    }
+
+    // The DB claim commits before any network call. Its short lease makes a crashed worker retryable,
+    // while the multipart identity survives until the final DB delete.
+    let abortFailed = false;
+    for (const session of claim.pendingAborts) {
+      try {
+        await s3AbortMultipartUpload(session.s3Key, session.uploadId);
+      } catch (e) {
+        if (isNoSuchMultipartUpload(e)) {
+          logger.info(
+            { mediaId: row.id, uploadId: session.uploadId },
+            '[purgePendingMediaDeleteBatch] multipart upload already absent; continuing purge',
+          );
+          continue;
+        }
+        abortFailed = true;
+        logger.error(
+          { err: e, mediaId: row.id, uploadId: session.uploadId },
+          '[purgePendingMediaDeleteBatch] multipart abort failed; retry identity kept',
+        );
         break;
       }
+    }
+    if (abortFailed) {
+      await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);
+      errors += 1;
+      continue;
+    }
 
-      const row = rows[0]!;
-      if (row.status !== 'pending_delete' && row.status !== 'deleting') {
-        await tx.rollback();
-        continue;
-      }
-
-      let keysToDelete: string[];
-      try {
-        keysToDelete = await collectS3KeysForMediaPurge(row);
-      } catch (e) {
-        logger.error(
-          { err: e, mediaId: row.id },
-          '[purgePendingMediaDeleteBatch] failed to list keys',
-        );
-        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await tx.commit();
-        errors += 1;
-        continue;
-      }
-
-      // Audit §D1: an unfinished multipart upload has no object at `s3_key` — only parts S3 keeps
-      // until AbortMultipartUpload. `media_upload_sessions` is the ONLY holder of that retry identity
-      // (`s3_key` + `upload_id`), and it dies with this media row. So the abort must be CONFIRMED
-      // before anything is deleted; a failed abort leaves the row retryable with the same bounded
-      // backoff every other failure here uses, and the session survives untouched.
-      const pendingAborts = await runWebappSql<{ s3_key: string; upload_id: string }>(
-        db,
-        sql`SELECT s3_key, upload_id
-         FROM media_upload_sessions
-         WHERE media_id = ${row.id}::uuid
-           AND upload_id IS NOT NULL
-           AND length(trim(upload_id)) > 0
-           AND status NOT IN ('completed', 'aborted')
-         FOR UPDATE`,
-      );
-      let abortFailed = false;
-      for (const session of pendingAborts.rows) {
-        try {
-          await s3AbortMultipartUpload(session.s3_key, session.upload_id);
-        } catch (e) {
-          // AbortMultipartUpload is idempotent in business terms, but S3 reports a repeated abort
-          // as NoSuchUpload. The upload has no remaining parts in either case, so cleanup may
-          // continue. Other failures keep the database retry identity and schedule a retry.
-          if (isNoSuchMultipartUpload(e)) {
-            logger.info(
-              { mediaId: row.id, uploadId: session.upload_id },
-              '[purgePendingMediaDeleteBatch] multipart upload already absent; continuing purge',
-            );
-            continue;
-          }
-          abortFailed = true;
-          logger.error(
-            { err: e, mediaId: row.id, uploadId: session.upload_id },
-            '[purgePendingMediaDeleteBatch] multipart abort failed; retry identity kept',
-          );
-          break;
-        }
-      }
-      if (abortFailed) {
-        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await tx.commit();
-        errors += 1;
-        continue;
-      }
-
-      try {
-        for (const key of keysToDelete) {
-          await s3DeleteObject(key);
-        }
-      } catch (e) {
-        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await tx.commit();
-        errors += 1;
-        logger.error(
-          { err: e, mediaId: row.id },
-          '[purgePendingMediaDeleteBatch] s3 delete failed',
-        );
-        continue;
-      }
-
-      try {
-        const del = await runWebappSql(
-          db,
-          sql`DELETE FROM media_files WHERE id = ${row.id}::uuid AND ${mediaS3PurgeStatusPredicate}`,
-        );
-        await tx.commit();
-        if ((del.rowCount ?? 0) > 0) removed += 1;
-      } catch (e) {
-        if (!isDeterministicDeleteConstraintFailure(e)) {
-          throw e;
-        }
-        await schedulePendingDeleteRetry(db, row.id, row.delete_attempts ?? 0);
-        await tx.commit();
-        errors += 1;
-        logger.warn(
-          {
-            err: e,
-            mediaId: row.id,
-            pgCode: readPgCode(e),
-            pgConstraint: readPgConstraint(e),
-          },
-          '[purgePendingMediaDeleteBatch] db delete blocked by data constraint; retry scheduled',
-        );
-        continue;
+    try {
+      for (const key of keysToDelete) {
+        await s3DeleteObject(key);
       }
     } catch (e) {
-      try {
-        await tx.rollback();
-      } catch {
-        /* ignore */
+      await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);
+      errors += 1;
+      logger.error({ err: e, mediaId: row.id }, '[purgePendingMediaDeleteBatch] s3 delete failed');
+      continue;
+    }
+
+    try {
+      const completed = await runMediaPendingDeleteStep('complete', row.id, null, claim.claimToken);
+      if (completed.deleted) removed += 1;
+    } catch (e) {
+      if (!isDeterministicDeleteConstraintFailure(e)) {
+        throw e;
       }
-      throw e;
-    } finally {
-      await tx.release();
+      await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);
+      errors += 1;
+      logger.warn(
+        {
+          err: e,
+          mediaId: row.id,
+          pgCode: readPgCode(e),
+          pgConstraint: readPgConstraint(e),
+        },
+        '[purgePendingMediaDeleteBatch] db delete blocked by data constraint; retry scheduled',
+      );
     }
   }
-
-  const orphan = await runWebappSql(
-    getWebappSqlDb(),
-    sql`DELETE FROM media_files WHERE ${mediaS3PurgeStatusPredicate} AND (s3_key IS NULL OR trim(s3_key) = '')`,
-  );
-  removed += orphan.rowCount ?? 0;
 
   return { removed, errors };
 }

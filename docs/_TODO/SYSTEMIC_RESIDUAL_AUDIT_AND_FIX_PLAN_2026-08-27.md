@@ -39,16 +39,19 @@ Opus с максимальным reasoning effort.
 
 ## Ход исправления
 
-Этапы 3–4 (C1, C2, C3, D1, E1 + nullable retired id) исполнены, прошли независимую приёмку, сведены в
-`feat/doctor-ui-rebuild` и развёрнуты на TEST в составе `206be5478`.
+Базовая часть этапов 3–4 (C1, C2, C3, D1, E1 + nullable retired id) сведена и развёрнута на TEST в составе
+`206be5478`. Последующий живой тик обнаружил остаточный прямой путь media purge и `42501`; поэтому D1 нельзя
+считать полностью закрытым до следующей TEST-приёмки. Кандидат заменяет все DB-шаги purge одной leased/CAS
+функцией, не держит транзакцию во время S3 и удаляет связанную пациентскую запись атомарно.
 Отчёт и слепой kill-set:
 [`runs/integrator-cleanup/SYSTEMIC_LIFECYCLE_C1_E1_D1_2026-08-27.md`](runs/integrator-cleanup/SYSTEMIC_LIFECYCLE_C1_E1_D1_2026-08-27.md).
 Там же — обязательный перед landing `migrate-dev.sh --preflight`, handoff scheduler-ветке и два
 открытых owner question по срокам хранения.
 
-**Поправка к §D2 ниже:** владелец очистки для single-PUT `pending` без сессии уже существует в коде
-(`stageStaleSinglePutMediaForPurge`, коммит `a38d23c96`, вызывается из `purgePendingMediaDeleteBatch`).
-Замеренные 7 строк — накопленный вход для тика, а не отсутствие владельца.
+**Поправка к §D2 ниже:** single-PUT `pending` без сессии, orphan hosted-cover, claim/retry/complete и пустые
+S3-ключи теперь принадлежат одной функции `process_media_pending_delete_step`. Отдельная
+`stageStaleSinglePutMediaForPurge` и старый orphan-root удалены. Замеренные 7 строк — накопленный вход для этого
+тика; живое доказательство их обработки остаётся открытым пунктом этапа 5.
 
 ## Подтверждённые находки
 
@@ -444,8 +447,11 @@ schedule job красит deploy/reconcile-проверку до запуска 
       `processMediaPreviewBatch`. UI получает только `/api/media/{id}/preview/{size}`.
 - [x] Private/deleted/unsupported переходит в явное terminal (`skipped`); временные отказы — bounded retry
       до `failed`. Вечного `pending` нет ни в одном разряде.
-- [ ] Пункт 1 этапа (single-PUT `pending` в общий lifecycle очистки) и пункт 4 (живое доказательство
-      воркера и накопленных строк на TEST) этой веткой НЕ закрыты.
+- [x] Пункт 1 этапа: single-PUT `pending` включён в одну leased/CAS state machine вместе с hosted-cover,
+      multipart retry identity и обычным pending-delete. Доказательство: независимый аудит пяти достижимых
+      отказов; targeted route+lifecycle `15/15`, webapp typecheck, privilege generator и owner-aware
+      rollback-only DEV preflight — PASS.
+- [ ] Пункт 4 этапа: живое доказательство воркера и обработки накопленных строк на TEST.
 - [ ] **Owner-gate:** VK-обложки не появятся, пока владелец не заведёт сервисный токен VK API с правом
       `video` в `system_settings` (ключ `vk_video_service_token`, scope `admin`). Токен бота сообщества
       (`vk_community_access_token`) для `video.get` не годится — подтверждено живым запросом.

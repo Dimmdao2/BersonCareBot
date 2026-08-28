@@ -334,10 +334,11 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     retention: {
       kind: 'bounded-by-parent',
       basis:
-        'Ready rows are product content and are never aged out. The temporary states are: an '
-        + 'abandoned single-PUT `pending` row is staged by stageStaleSinglePutMediaForPurge, an '
-        + 'expired multipart one by /api/internal/media-multipart/cleanup, and both are drained by '
-        + 'the ONE pending-delete purge with delete_attempts/next_attempt_at backoff (audit §D1/§D2).',
+        'Ready rows are product content and are never aged out. The temporary states are: an ' +
+        'abandoned single-PUT `pending` row and orphan hosted-video covers are staged through the ' +
+        'same leased pending-delete DB root; expired multipart uploads join that lifecycle through ' +
+        '/api/internal/media-multipart/cleanup. The ONE purge keeps multipart retry identity until ' +
+        'confirmed S3 cleanup and uses delete_attempts/next_attempt_at backoff (audit §D1/§D2).',
     },
     sweptBy: MEDIA_PENDING_DELETE_PURGE_JOB,
   },

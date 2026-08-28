@@ -1932,6 +1932,7 @@ export const mediaFiles = pgTable(
     status: text().default('ready').notNull(),
     deleteAttempts: integer('delete_attempts').default(0).notNull(),
     nextAttemptAt: timestamp('next_attempt_at', { withTimezone: true, mode: 'string' }),
+    deleteClaimToken: uuid('delete_claim_token'),
     displayName: text('display_name'),
     folderId: uuid('folder_id'),
     previewStatus: text('preview_status').default('pending').notNull(),

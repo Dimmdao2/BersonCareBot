@@ -7,11 +7,8 @@ const fakes = vi.hoisted(() => ({
   readyReturning: vi.fn(),
   abortReturning: vi.fn(),
   deleteWhere: vi.fn(),
-  getPool: vi.fn(),
-  startTransaction: vi.fn(),
   runSql: vi.fn(),
   runNamedRoot: vi.fn(),
-  staleCandidates: vi.fn(),
   runMutation: vi.fn(),
   s3DeleteObject: vi.fn(),
   s3AbortMultipartUpload: vi.fn(),
@@ -37,9 +34,7 @@ vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappNamedRoot: fakes.runNamedRoot,
   runWebappSql: fakes.runSql,
 }));
-vi.mock('@/infra/db/client', () => ({ getPool: fakes.getPool }));
 vi.mock('@/infra/db/withClient', () => ({
-  startPoolTransaction: fakes.startTransaction,
   withPoolTransaction: vi.fn(),
 }));
 vi.mock('@/infra/db/drizzleMutationTx', () => ({
@@ -58,17 +53,11 @@ import {
   createS3MediaStoragePort,
   purgePendingMediaDeleteBatch,
   stagePendingMediaAbort,
-  stageStaleSinglePutMediaForPurge,
 } from './s3MediaStorage';
 import { stageExpiredMultipartSessionForPurgeTx } from './mediaUploadSessionsRepo';
 
 const lifecycleTx = {
   delete: () => ({ where: fakes.deleteWhere }),
-  select: () => ({
-    from: () => ({
-      where: () => ({ orderBy: () => ({ limit: fakes.staleCandidates }) }),
-    }),
-  }),
   update: () => ({
     set: () => ({
       where: () => ({ returning: fakes.abortReturning }),
@@ -97,14 +86,13 @@ function receivedJpeg() {
 describe('proxy S3-to-DB lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fakes.runNamedRoot.mockResolvedValue({ rows: [{ staged_count: 0 }] });
+    fakes.runNamedRoot.mockResolvedValue({ rows: [] });
     fakes.principalKind = 'staff';
     fakes.insertValues.mockResolvedValue(undefined);
     fakes.s3PutObjectBody.mockResolvedValue(undefined);
     fakes.readyReturning.mockResolvedValue([]);
     fakes.abortReturning.mockResolvedValue([]);
     fakes.deleteWhere.mockResolvedValue(undefined);
-    fakes.staleCandidates.mockResolvedValue([]);
     fakes.runMutation.mockImplementation((fn: (tx: typeof lifecycleTx) => unknown) =>
       Promise.resolve(fn(lifecycleTx)),
     );
@@ -165,24 +153,32 @@ describe('proxy S3-to-DB lifecycle', () => {
 describe('pending upload abort lifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fakes.runNamedRoot.mockResolvedValue({ rows: [{ staged_count: 0 }] });
+    fakes.runNamedRoot.mockImplementation(
+      (_db: unknown, _identity: string, args: readonly unknown[]) => {
+        const action = args[0];
+        if (action === 'stage') {
+          return Promise.resolve({
+            rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+          });
+        }
+        if (action === 'claim') {
+          return Promise.resolve({ rows: [{ result: { action: 'claim', claim: null } }] });
+        }
+        if (action === 'retry') {
+          return Promise.resolve({
+            rows: [{ result: { action: 'retry', retryScheduled: true } }],
+          });
+        }
+        return Promise.resolve({ rows: [{ result: { action: 'complete', deleted: true } }] });
+      },
+    );
     fakes.principalKind = 'staff';
     fakes.abortReturning.mockResolvedValue([]);
     fakes.deleteWhere.mockResolvedValue(undefined);
-    fakes.staleCandidates.mockResolvedValue([]);
     fakes.runMutation.mockImplementation((fn: (tx: typeof lifecycleTx) => unknown) =>
       Promise.resolve(fn(lifecycleTx)),
     );
   });
-
-  function purgeTx() {
-    return {
-      client: {},
-      commit: vi.fn().mockResolvedValue(undefined),
-      rollback: vi.fn().mockResolvedValue(undefined),
-      release: vi.fn().mockResolvedValue(undefined),
-    };
-  }
 
   const MEDIA_ID = '55555555-5555-4555-8555-555555555555';
   const MEDIA_KEY = 'media/55555555-5555-4555-8555-555555555555/photo.jpg';
@@ -203,41 +199,54 @@ describe('pending upload abort lifecycle', () => {
       .join(' ');
   }
 
-  function claimedRow() {
+  const CLAIM_TOKEN = '77777777-7777-4777-8777-777777777777';
+
+  function claimedStep(deleteAttempts = 0) {
     return {
       rows: [
         {
-          id: MEDIA_ID,
-          s3_key: MEDIA_KEY,
-          preview_sm_key: null,
-          preview_md_key: null,
-          hls_artifact_prefix: null,
-          poster_s3_key: null,
-          hls_master_playlist_s3_key: null,
-          status: 'pending_delete',
-          delete_attempts: 0,
+          result: {
+            action: 'claim',
+            claim: {
+              id: MEDIA_ID,
+              s3Key: MEDIA_KEY,
+              previewSmKey: null,
+              previewMdKey: null,
+              hlsArtifactPrefix: null,
+              posterS3Key: null,
+              hlsMasterPlaylistS3Key: null,
+              deleteAttempts,
+              claimToken: CLAIM_TOKEN,
+              claimUntil: '2026-08-28T01:30:00.000Z',
+              pendingAborts: [] as Array<{ s3Key: string; uploadId: string }>,
+            },
+          },
         },
       ],
     };
   }
 
   it('keeps pending_delete retryable when S3 deletion fails during the shared purge', async () => {
-    const tx = purgeTx();
-    fakes.getPool.mockReturnValue({});
-    fakes.startTransaction.mockResolvedValue(tx);
     fakes.s3DeleteObject.mockRejectedValueOnce(new Error('s3_delete_failed'));
-    fakes.runSql
-      .mockResolvedValueOnce(claimedRow())
-      // no unfinished multipart session for this row
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rowCount: 1 })
-      .mockResolvedValueOnce({ rowCount: 0 });
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claimedStep())
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'retry', retryScheduled: true } }],
+      });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
     expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
-    expect(tx.commit).toHaveBeenCalledOnce();
-    expect(fakes.runSql).toHaveBeenCalledTimes(4);
+    expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      'app.process_media_pending_delete_step(text,uuid,integer,uuid)',
+      ['retry', MEDIA_ID, null, CLAIM_TOKEN],
+      expect.anything(),
+    );
   });
 
   /**
@@ -246,17 +255,17 @@ describe('pending upload abort lifecycle', () => {
    * that cascade-dies with the media row. The tick reported success while leaking storage.
    */
   it('aborts the multipart upload BEFORE deleting anything, and keeps the row retryable when the abort fails', async () => {
-    const tx = purgeTx();
-    fakes.getPool.mockReturnValue({});
-    fakes.startTransaction.mockResolvedValue(tx);
     fakes.s3AbortMultipartUpload.mockRejectedValueOnce(new Error('s3_abort_failed'));
-    fakes.runSql
-      .mockResolvedValueOnce(claimedRow())
-      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
-      // schedulePendingDeleteRetry
-      .mockResolvedValueOnce({ rowCount: 1 })
-      // trailing orphan sweep
-      .mockResolvedValueOnce({ rowCount: 0 });
+    const claim = claimedStep();
+    claim.rows[0]!.result.claim!.pendingAborts = [{ s3Key: MEDIA_KEY, uploadId: 'upload-1' }];
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claim)
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'retry', retryScheduled: true } }],
+      });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
 
@@ -264,31 +273,33 @@ describe('pending upload abort lifecycle', () => {
     // The row (and with it the surviving session that holds the retry identity) is NOT deleted, and
     // no object delete was attempted on an upload that was never aborted.
     expect(fakes.s3DeleteObject).not.toHaveBeenCalled();
-    const statements = fakes.runSql.mock.calls.map((call) => sqlTextOf(call[1]));
-    expect(statements.some((sql) => /DELETE FROM media_files WHERE id/i.test(sql))).toBe(false);
-    expect(tx.commit).toHaveBeenCalledOnce();
+    expect(fakes.runNamedRoot).toHaveBeenCalledTimes(3);
   });
 
   it('deletes objects only after a confirmed multipart abort', async () => {
-    const tx = purgeTx();
-    fakes.getPool.mockReturnValue({});
-    fakes.startTransaction.mockResolvedValue(tx);
     fakes.s3AbortMultipartUpload.mockResolvedValueOnce(undefined);
     fakes.s3DeleteObject.mockResolvedValue(undefined);
-    fakes.runSql
-      .mockResolvedValueOnce(claimedRow())
-      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
-      // DELETE FROM media_files
-      .mockResolvedValueOnce({ rowCount: 1 })
-      // trailing orphan sweep
-      .mockResolvedValueOnce({ rowCount: 0 })
-      .mockResolvedValue({ rows: [], rowCount: 0 });
+    const claim = claimedStep();
+    claim.rows[0]!.result.claim!.pendingAborts = [{ s3Key: MEDIA_KEY, uploadId: 'upload-1' }];
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claim)
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'complete', deleted: true } }] });
 
     const result = await purgePendingMediaDeleteBatch(1);
 
     expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
     expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
-    expect(result.errors).toBe(0);
+    expect(result).toEqual({ removed: 1, errors: 0 });
+    expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      'app.process_media_pending_delete_step(text,uuid,integer,uuid)',
+      ['complete', MEDIA_ID, null, CLAIM_TOKEN],
+      expect.anything(),
+    );
   });
 
   /**
@@ -316,20 +327,19 @@ describe('pending upload abort lifecycle', () => {
    * a step that can never succeed again.
    */
   it('finishes the work on the retry after an abort that already succeeded', async () => {
-    fakes.getPool.mockReturnValue({});
-
     // ── tick 1: abort confirmed, then the object delete fails → retryable, red, nothing removed ──
-    const firstTx = purgeTx();
-    fakes.startTransaction.mockResolvedValue(firstTx);
     fakes.s3AbortMultipartUpload.mockResolvedValueOnce(undefined);
     fakes.s3DeleteObject.mockRejectedValueOnce(new Error('s3_delete_failed'));
-    fakes.runSql
-      .mockResolvedValueOnce(claimedRow())
-      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
-      // schedulePendingDeleteRetry
-      .mockResolvedValueOnce({ rowCount: 1 })
-      // trailing orphan sweep
-      .mockResolvedValueOnce({ rowCount: 0 });
+    const firstClaim = claimedStep();
+    firstClaim.rows[0]!.result.claim!.pendingAborts = [{ s3Key: MEDIA_KEY, uploadId: 'upload-1' }];
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(firstClaim)
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'retry', retryScheduled: true } }],
+      });
 
     await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
     expect(fakes.s3AbortMultipartUpload).toHaveBeenCalledWith(MEDIA_KEY, 'upload-1');
@@ -337,24 +347,20 @@ describe('pending upload abort lifecycle', () => {
     // ── tick 2: the session still says 'expired', so the same upload is aborted a second time. S3
     // has already forgotten it: NoSuchUpload. The retry must still finish the cleanup. ──
     vi.clearAllMocks();
-    const secondTx = purgeTx();
-    fakes.startTransaction.mockResolvedValue(secondTx);
     const noSuchUpload = Object.assign(new Error('NoSuchUpload'), {
       name: 'NoSuchUpload',
       $metadata: { httpStatusCode: 404 },
     });
     fakes.s3AbortMultipartUpload.mockRejectedValueOnce(noSuchUpload);
     fakes.s3DeleteObject.mockResolvedValue(undefined);
-    fakes.runSql
+    const secondClaim = claimedStep(1);
+    secondClaim.rows[0]!.result.claim!.pendingAborts = [{ s3Key: MEDIA_KEY, uploadId: 'upload-1' }];
+    fakes.runNamedRoot
       .mockResolvedValueOnce({
-        rows: [{ ...claimedRow().rows[0], delete_attempts: 1 }],
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
       })
-      .mockResolvedValueOnce({ rows: [{ s3_key: MEDIA_KEY, upload_id: 'upload-1' }] })
-      // DELETE FROM media_files
-      .mockResolvedValueOnce({ rowCount: 1 })
-      // trailing orphan sweep
-      .mockResolvedValueOnce({ rowCount: 0 })
-      .mockResolvedValue({ rows: [], rowCount: 0 });
+      .mockResolvedValueOnce(secondClaim)
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'complete', deleted: true } }] });
 
     const retry = await purgePendingMediaDeleteBatch(1);
 
@@ -392,9 +398,9 @@ describe('pending upload abort lifecycle', () => {
       // DELETE FROM patient_files
       .mockResolvedValueOnce({ rowCount: 0 });
 
-    await expect(
-      stageExpiredMultipartSessionForPurgeTx({} as never, SESSION_ID),
-    ).resolves.toBe('staged');
+    await expect(stageExpiredMultipartSessionForPurgeTx({} as never, SESSION_ID)).resolves.toBe(
+      'staged',
+    );
 
     const statements = fakes.runSql.mock.calls.map((call) => sqlTextOf(call[1]));
     // The media row is STAGED, never deleted here...
@@ -423,13 +429,45 @@ describe('pending upload abort lifecycle', () => {
     expect(fakes.deleteWhere).not.toHaveBeenCalled();
   });
 
-  it('stages only the stale sessionless candidates selected for the existing purge batch', async () => {
-    fakes.staleCandidates.mockResolvedValueOnce([{ id: '55555555-5555-4555-8555-555555555555' }]);
-    fakes.abortReturning.mockResolvedValueOnce([{ id: '55555555-5555-4555-8555-555555555555' }]);
+  it('stages all purge inputs through the same named root and rejects a malformed stage result', async () => {
+    fakes.runNamedRoot.mockResolvedValueOnce({ rows: [{ result: { action: 'stage' } }] });
 
-    await expect(stageStaleSinglePutMediaForPurge(25)).resolves.toBe(1);
+    await expect(purgePendingMediaDeleteBatch(25)).rejects.toThrow(
+      'invalid_media_pending_delete_step_result',
+    );
 
-    expect(fakes.staleCandidates).toHaveBeenCalledWith(25);
-    expect(fakes.abortReturning).toHaveBeenCalledOnce();
+    expect(fakes.runNamedRoot).toHaveBeenCalledWith(
+      expect.anything(),
+      'app.process_media_pending_delete_step(text,uuid,integer,uuid)',
+      ['stage', null, 25, null],
+      expect.anything(),
+    );
+  });
+
+  it('rejects a claim result that does not prove whether the queue is empty', async () => {
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'claim' } }] });
+
+    await expect(purgePendingMediaDeleteBatch(1)).rejects.toThrow(
+      'invalid_media_pending_delete_step_result',
+    );
+  });
+
+  it('rejects a complete result that does not prove the DB row was deleted', async () => {
+    fakes.s3DeleteObject.mockResolvedValue(undefined);
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claimedStep())
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'complete' } }] });
+
+    await expect(purgePendingMediaDeleteBatch(1)).rejects.toThrow(
+      'invalid_media_pending_delete_step_result',
+    );
+    expect(fakes.s3DeleteObject).toHaveBeenCalledWith(MEDIA_KEY);
   });
 });
