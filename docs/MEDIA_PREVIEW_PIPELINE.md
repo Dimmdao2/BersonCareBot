@@ -1,6 +1,6 @@
 # Media library — background preview pipeline
 
-**Статус:** реализовано в webapp (миграция `075_media_preview_status.sql`). **Дата:** 2026-04-16.
+**Статус:** работает для загруженных файлов и hosted-video; актуализировано 2026-08-28.
 
 ## Назначение
 
@@ -22,10 +22,17 @@
 
 ## Воркер
 
-- **Host tick (рекомендуется на prod):** из каталога `apps/webapp` после загрузки того же env, что у webapp (`webapp.prod`): `pnpm run media-preview:tick -- --limit=10` (или env **`MEDIA_PREVIEW_LIMIT`**). Отдельный процесс Node/`tsx` — **без** `INTERNAL_JOB_SECRET`, без нагрузки на процесс Next standalone. Скрипт: [`apps/webapp/scripts/media-preview-process-tick.ts`](../apps/webapp/scripts/media-preview-process-tick.ts).
-- **HTTP (совместимость / ручной триггер):** `POST /api/internal/media-preview/process?limit=10` с `Authorization: Bearer <INTERNAL_JOB_SECRET>` (как purge удаления медиа). В route воркер подключается **ленивым** `import()` при обработке запроса.
-- **Логика:** `processMediaPreviewBatch` в [`apps/webapp/src/infra/repos/mediaPreviewWorker.ts`](../apps/webapp/src/infra/repos/mediaPreviewWorker.ts): выбор строк `preview_status = 'pending'` с `FOR UPDATE SKIP LOCKED`, чтение оригинала из S3, для **image** — `sharp` (sm + md) + `source_width`/`source_height` из `metadata()`, для **video** — `ffmpeg` кадр (~1 с, fallback 0 с) + `sharp` до **sm и md**, размеры источника через `ffprobe`, для **HEIC** — декод в JPEG, затем `sharp` для sm/md; размеры источника: приоритет `ffprobe` по presigned оригиналу, иначе метаданные `sharp` по декодированному кадру; при неудаче ffmpeg — magick + sharp. Загрузка в S3, `preview_status = 'ready'`. В выборке видны `source_width`/`source_height`; если оба ещё `NULL` до обработки (backfill) — **debug**-лог.
-- **Cron:** см. [`deploy/HOST_DEPLOY_README.md`](../deploy/HOST_DEPLOY_README.md) (предпочтительно tick через `pnpm`; альтернатива — loopback `127.0.0.1:6200` + Bearer).
+- **Канонический host tick:** typed manifest
+  [`backgroundJobManifest.ts`](../apps/webapp/src/modules/operator-health/backgroundJobManifest.ts) →
+  сгенерированный `/etc/cron.d` artifact → единый
+  [`run-internal-job.sh`](../deploy/host/run-internal-job.sh). Он раз в минуту вызывает
+  `POST /api/internal/media-preview/process?limit=10` с правильными Host/Origin и Bearer. Прямой
+  `media-preview:tick` оставлен только для диагностики: он не пишет операторский health tick.
+- **Результат HTTP:** batch с `errors=0` возвращает `200` и зелёный tick; хотя бы одна retryable/failed строка
+  возвращает `500` и красный tick. Terminal `skipped` — обработанный исход, а не авария задания.
+- **Логика:** `processMediaPreviewBatch` в [`apps/webapp/src/infra/repos/mediaPreviewWorker.ts`](../apps/webapp/src/infra/repos/mediaPreviewWorker.ts): выбор строк `preview_status = 'pending'` с `FOR UPDATE SKIP LOCKED`, чтение оригинала из S3, для **image** — `sharp` (sm + md) + `source_width`/`source_height` из `metadata()`, для **video** — `ffmpeg` кадр (~1 с, fallback 0 с) + `sharp` до **sm и md**, размеры источника через `ffprobe`, для **HEIC** — декод в JPEG, затем `sharp` для sm/md. Для `hosted_video_preview` сервер получает обложку YouTube/VK, тем же энкодером нормализует её и кладёт в private S3; браузер пациента к провайдеру картинки не обращается. Временный отказ получает bounded retry, private/deleted/unsupported — terminal `skipped`.
+- **Cron / установка:** см. [`deploy/HOST_DEPLOY_README.md`](../deploy/HOST_DEPLOY_README.md); manifest,
+  artifact и реально установленное расписание сверяются перед переключением релиза.
 
 ### Лимиты и устойчивость (post-audit)
 
@@ -48,7 +55,9 @@
 
 ### Доступ к превью
 
-Как и `GET /api/media/:id`, маршрут превью требует **любую** валидную сессию, без проверки роли владельца файла (UUID как capability URL). Это осознанное совпадение с моделью отдачи оригинала; ужесточение — отдельная задача (роль врача / ACL).
+Маршрут требует валидный doctor workspace либо активную patient organization и применяет тот же
+organization/submission access row, что playback. Знание UUID файла другой клиники не даёт доступ. Канон:
+[`MEDIA_HTTP_ACCESS_AUTHORIZATION.md`](./ARCHITECTURE/MEDIA_HTTP_ACCESS_AUTHORIZATION.md).
 
 ## Отдача превью клиенту
 
@@ -87,9 +96,12 @@
 
 **Next.js production build:** в [`apps/webapp/next.config.ts`](../apps/webapp/next.config.ts) нативные `sharp` и `fluent-ffmpeg` остаются в `serverExternalPackages`. Для preview-route исключены исходники и test/config-файлы, которые NFT ошибочно захватывал из-за динамических временных путей. Платформенный `@ffmpeg-installer` из webapp удалён отдельно: сервер использует системный ffmpeg, а bundled-бинарь уже давал `SIGSEGV` на хосте.
 
-## Миграция
+## Миграции
 
-Применить [`075_media_preview_status.sql`](../apps/webapp/migrations/075_media_preview_status.sql), [`076_requeue_skipped_mov_heic.sql`](../apps/webapp/migrations/076_requeue_skipped_mov_heic.sql), [`077_requeue_previews_skipped_by_200mb_cap.sql`](../apps/webapp/migrations/077_requeue_previews_skipped_by_200mb_cap.sql), [`079_media_files_source_dimensions.sql`](../apps/webapp/migrations/079_media_files_source_dimensions.sql), при необходимости backfill [`080_requeue_source_dimensions.sql`](../apps/webapp/migrations/080_requeue_source_dimensions.sql) и requeue видео без md [`081_requeue_video_for_md_preview.sql`](../apps/webapp/migrations/081_requeue_video_for_md_preview.sql) через **legacy** раннер webapp: `pnpm --dir apps/webapp run migrate:legacy` (файлы лежат в `apps/webapp/migrations/`, не в Drizzle-журнале).
+Исторические `075…081` уже применены и не являются текущей инструкцией запуска. Hosted-preview и единая
+leased media-purge машина поставляются forward-only Drizzle-миграциями из
+[`apps/webapp/db/drizzle-migrations`](../apps/webapp/db/drizzle-migrations/) и накатываются штатным deploy/migrate
+runner; legacy replay вручную не запускать.
 
 ## Troubleshooting: ffmpeg SIGSEGV
 

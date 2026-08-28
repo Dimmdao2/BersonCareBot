@@ -5,33 +5,42 @@
 > а CLI-команды `reset-user`/`purge-by-id`/`integrator-clear-phone`/`integrator-purge-user-id` fail-closed. Описание ниже сохраняет исторический контракт strict-purge
 > core, который остаётся внутренним primitive и не является доступным account-delete flow.
 
-Отчёт по реализованной логике жизненного цикла учётной записи клиента: архив → безвозвратное удаление, точки в коде и ограничения доступа.
+Отчёт по двум разным механизмам жизненного цикла пациента: архив отношения с конкретной клиникой и
+отдельный, сейчас отключённый, внутренний strict-purge учётной записи.
 
-**Дата документа:** 2026-04-08  
+**Актуализировано по коду:** 2026-08-28
 **Подробный лог доработок:** [DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md](./DOCTOR_CLIENT_ARCHIVE_AND_PURGE_LOG.md)
 
 ---
 
 ## 1. Сделанная работа (сводка)
 
-- **Архив / снятие архива:** доступны пользователям с ролью врача или администратора (`canAccessDoctor`), флаг в БД `platform_users.is_archived`.
-- **Безвозвратное удаление:** только для клиентов с `role = client`, только если клиент **уже в архиве**, с телом запроса `confirmUserId` (совпадение с UUID в URL) и многошаговым подтверждением в UI.
-- **Ограничение «admin mode»:** безвозвратное удаление через API кабинета врача разрешено **только** при `session.user.role === "admin"` **и** включённом `session.adminMode` (как у прочих admin API: каталог записи, Rubitime и т.д.). Обычный врач (`doctor`) purge выполнить не может; в UI кнопка удаления скрыта, показаны пояснения.
-- **Для чистого ретеста нового пользователя:** одного архива недостаточно; нужен `permanent-delete` (или CLI `purge-by-id`) и успешная очистка integrator, иначе в боте может остаться `linkedPhone` и `/start` не покажет повторный onboarding.
+- **Архив / снятие архива:** меняет только `org_enrollments.status` для пациента в выбранной клинике.
+  Учётная запись, вход, медицинские данные и отношения с другими клиниками сохраняются.
+- **Обычные списки клиники:** показывают отношения `invited`/`active`; архивный список показывает
+  `archived`; выбор пациента при создании записи может включать обе группы.
+- **Новая подтверждённая публичная запись:** автоматически переводит архивное отношение этой клиники в
+  `active`. Если создание записи завершилось ошибкой, compensation возвращает прежний `archived`.
+- **Blocked:** отдельная глобальная блокировка учётной записи. Она завершает действующие сессии и запрещает
+  доступ; архив такого эффекта не имеет.
+- **Безвозвратное удаление:** не является продолжением архива и сейчас недоступно. Legacy endpoint всегда
+  отвечает `409 account_purge_disabled`, destructive UI отсутствует, CLI-команды fail-closed.
 
-Безвозвратное удаление выполняется через **`runStrictPurgePlatformUser`** (`apps/webapp/src/infra/strictPlatformUserPurge.ts`): advisory lock → preflight ключей S3 в одной транзакции с DELETE → post-commit параллельно S3 + integrator → запись в `admin_audit_log`. Обёртка **`purgePlatformUserByPlatformId`** (`platformUserFullPurge.ts`) делегирует в strict purge. CLI `purge-by-id` вызывает strict purge напрямую.
+`runStrictPurgePlatformUser` и `runWebappPurgeCoreInTransaction` остаются внутренними primitives для будущей
+retention state machine и проверяются отдельно; существование кода не означает доступного пользовательского
+сценария удаления.
 
 ---
 
-## 2. Поток «архив → удаление»
+## 2. Действующий поток архива
 
-| Шаг | Описание                                                                                                                                       |
-| --- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Врач/админ переводит клиента в архив: `PATCH .../archive` с `{ archived: true }`.                                                              |
-| 2   | Администратор включает **режим администратора** (Настройки → переключатель admin mode).                                                        |
-| 3   | На карточке заархивированного клиента доступна кнопка «Удалить безвозвратно» (только при admin + adminMode).                                   |
-| 4   | UI: `confirm` → `prompt` с вводом полного UUID → `POST .../permanent-delete` с `{ confirmUserId }`.                                            |
-| 5   | Сервер проверяет admin mode, UUID, роль client, `isArchived`, затем вызывает `runStrictPurgePlatformUser` (аудит `user_purge`, актор — admin). |
+| Шаг | Описание |
+| --- | --- |
+| 1 | Врач или администратор клиники переводит пациента в архив через `PATCH .../archive`. |
+| 2 | Репозиторий меняет статус отношения пациента только с текущей организацией. |
+| 3 | Пациент исчезает из обычного списка этой клиники и остаётся доступен в её архиве. |
+| 4 | Ручное снятие архива возвращает статус `active`. |
+| 5 | Новая подтверждённая публичная запись также реактивирует архивное отношение; неуспешная попытка откатывает только собственную реактивацию. |
 
 ---
 
@@ -41,18 +50,19 @@
 
 | Файл                                                                        | Назначение                                                                                                                                                                                                                   |
 | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts`             | Общая логика архива: `applyClientArchiveChange`, схема тела `clientArchiveBodySchema`; внутри — `createPgDoctorClientsPort()` + `getPool` (без `buildAppDeps`).                                                              |
-| `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.ts`          | `PATCH` — guard: сессия (иначе **401**) + `canAccessDoctor` (иначе **403**), затем `applyClientArchiveChange`.                                                                                                               |
-| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.ts`             | `PATCH` — тот же `applyClientArchiveChange`, guard: `role === admin` (нет сессии или не admin → **403**). Цель не `client` → **404** `not_client`, как у doctor.                                                             |
-| `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.ts` | `POST` — безвозвратное удаление. Guard: **`requireAdminModeSession()`** (admin + adminMode), затем проверки тела, роли, архива, вызов **`runStrictPurgePlatformUser`**. Ответ включает `outcome`, `details` (S3/integrator). |
-| `apps/webapp/src/modules/auth/requireAdminMode.ts`                          | `requireAdminModeSession`: нет сессии → **401** `unauthorized`; не admin или `adminMode` выкл. → **403** `forbidden`.                                                                                                        |
+| `apps/webapp/src/modules/doctor-clients/clientArchiveChange.ts`             | Валидирует тело и вызывает организационно-скоупированный порт архива. |
+| `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.ts`          | Требует doctor workspace, проверяет видимость пациента в текущей организации и меняет только её отношение. |
+| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.ts`             | Compatibility alias для администратора конкретной клиники; не глобальная repair-поверхность. |
+| `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.ts` | Fail-closed legacy endpoint: после auth всегда `409 account_purge_disabled`. |
+| `apps/webapp/db/drizzle-migrations/20260825T124133_make_patient_archive_clinic_scoped.sql` | Перенёс архив из глобального флага в статус отношения с клиникой и добавил реактивацию новой записью. |
+| `apps/webapp/db/drizzle-migrations/20260825T184132_restore_archived_relationship_after_failed_booking.sql` | Не даёт неуспешной записи случайно оставить пациента активным. |
 
 ### 3.2 Данные врача (порт)
 
 | Файл                                              | Назначение                                                                                                                              |
 | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/webapp/src/modules/doctor-clients/ports.ts` | Контракт: `setUserArchived`, `getClientIdentity` (в т.ч. `isArchived`; комментарий к полю описывает архив и снятие через тот же PATCH). |
-| `apps/webapp/src/infra/repos/pgDoctorClients.ts`  | Реализация PG: `UPDATE platform_users SET is_archived = ...`, списки с фильтром `archivedOnly`.                                         |
+| `apps/webapp/src/modules/doctor-clients/ports.ts` | Контракт `setOrganizationClientArchived`; `isArchived` относится к выбранной клинике. |
+| `apps/webapp/src/infra/repos/pgDoctorClients.ts`  | Меняет `org_enrollments.status`; списки фильтруются по организации и статусу отношения. |
 
 ### 3.3 UI
 
@@ -60,9 +70,7 @@
 | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `apps/webapp/src/app/app/doctor/clients/page.tsx`                         | Список клиентов: в URL **`scope=archived`** → на сервер уходит **`listClients({ archivedOnly: true })`** (раздел «Архив»). Режимы `scope=appointments` / `scope=all` задают другие фильтры списка. |
 | `apps/webapp/src/app/app/doctor/clients/DoctorClientsPanel.tsx`           | Отображение списка и **дополнительные** клиентские фильтры (поиск `q`, telegram / max / appointment) поверх уже загруженных данных; это не второй фильтр архива.                                   |
-| `apps/webapp/src/app/app/doctor/clients/[userId]/page.tsx`                | Страница профиля; передаёт в карточку `canPermanentDelete={role === 'admin' && Boolean(adminMode)}`.                                                                                               |
-| `apps/webapp/src/app/app/doctor/clients/ClientProfileCard.tsx`            | Пробрасывает `isAdmin`, `canPermanentDelete` в блок жизненного цикла.                                                                                                                              |
-| `apps/webapp/src/app/app/doctor/clients/DoctorClientLifecycleActions.tsx` | Кнопки «В архив» / «Вернуть из архива» / «Удалить безвозвратно»; последняя только при `canPermanentDelete`; подсказки для врача и для admin без admin mode.                                        |
+| `apps/webapp/src/app/app/doctor/clients/DoctorClientLifecycleActions.tsx` | Только «В архив» / «Вернуть из архива»; без destructive account-delete action. |
 
 ### 3.4 Ядро удаления (webapp + integrator)
 
@@ -78,14 +86,14 @@
 | Файл                                                                             | Назначение                                                                                      |
 | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | `apps/webapp/src/app/api/doctor/clients/[userId]/archive/route.test.ts`          | Тесты doctor archive API (мок `pgDoctorClients` / `getPool`).                                   |
-| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.test.ts`             | Тесты admin archive (доступ только admin).                                                      |
-| `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.test.ts` | Тесты permanent-delete, в т.ч. отказ при отсутствии admin mode (мок `requireAdminModeSession`). |
-| `apps/webapp/src/infra/strictPlatformUserPurge.test.ts`                          | Порядок tx/lock/collect, post-commit S3+integrator, audit при rollback.                         |
+| `apps/webapp/src/app/api/admin/users/[userId]/archive/route.test.ts`             | Проверяет organization-scoped admin alias.                                                     |
+| `apps/webapp/src/app/api/doctor/clients/[userId]/permanent-delete/route.test.ts` | Проверяет fail-closed `account_purge_disabled`.                                                |
+| `apps/webapp/src/infra/platformUserFullPurge.devDbProof.test.ts`                 | Rollback-only доказательство внутреннего DB-core на существующей TEST-БД; не включает account-delete flow.                        |
 | `apps/webapp/src/infra/manualPlatformUserMerge.test.ts`                          | Dual lock + `user_merge` audit (ok / error после rollback).                                     |
 
 ---
 
-## 4. Логика strict purge (кратко)
+## 4. Внутренний strict purge (отключённый primitive)
 
 1. **Валидация:** UUID, пользователь существует, `role === 'client'`.
 2. **Транзакция webapp (одна сессия):**
@@ -141,15 +149,11 @@
 - Пациентское удаление **только дневника** (не `platform_users`): `apps/webapp/src/infra/repos/pgDiaryPurge.ts`, API patient diary purge — другой контракт.
 - Админские опасные действия на карточке (если есть): `AdminDangerActions` — отдельный блок, не смешивать с doctor client lifecycle без явной необходимости.
 
-## 6.1 Как пересоздать пользователя для теста onboarding
+## 6.1 Ретест onboarding
 
-1. Перевести клиента в архив (`PATCH .../archive` или UI «В архив»).
-2. Выполнить `POST .../permanent-delete` из UI архива под `admin + adminMode`, либо CLI `purge-by-id <uuid>`.
-3. Исторический workaround через `integrator-clear-phone` / `integrator-purge-user-id` больше недоступен: обе
-   команды fail-closed вместе с account purge. Внешний хвост может исполняться только будущим owner-gated
-   post-retention flow; вручную обходить gate нельзя.
-4. Strict purge уже таргетит S3 + `media_files` при включённом S3 в окружении; при `partial_failed` проверить лог и повторить cleanup.
-5. После этого тот же телефон можно регистрировать заново; `platform_users.id` и `integrator users.id` будут созданы заново.
+Архив не удаляет и не освобождает идентичность пользователя, поэтому не может использоваться для чистого
+повторного onboarding. Legacy permanent-delete и CLI обходы намеренно закрыты. До появления принятой retention
+state machine чистый ретест выполняется только утверждённой owner-gated процедурой; вручную обходить gate нельзя.
 
 ---
 
@@ -161,3 +165,7 @@
 4. **2026-04-09 — аудит полноты purge:** зафиксировано, какие таблицы чистятся вручную, какие закрываются `ON DELETE CASCADE`; ранний риск с `media_files.uploaded_by = NULL` затем закрыт strict-purge cleanup'ом из этапа 2; для чистого ретеста onboarding нужен purge с успешной integrator cleanup.
 5. **2026-04-09 — strict purge (этап 2 плана):** advisory lock, preflight S3 в транзакции, post-commit S3 + integrator параллельно, `admin_audit_log` для `user_purge`, shared-lock для `POST /api/media/presign` и online-intake (`createLfkRequest` / **`createNutritionRequest`**). См. [STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md](./STRICT_PURGE_MANUAL_MERGE_EXECUTION_LOG.md).
 6. **2026-04-09 — этап 6 (документация / верификация v1):** синхронизация описания lock protocol и manual merge (`withTwoUserLifecycleLocksExclusive`); отчёт о покрытии и ограничениях — в execution log.
+7. **2026-08-25 — архив стал clinic-scoped:** состояние перенесено в `org_enrollments`; новая запись реактивирует
+   отношение только с выбранной клиникой, failed booking восстанавливает архив.
+8. **2026-08-28 — актуализация:** удалены ложные описания доступного permanent-delete UI/API и зафиксирован
+   fail-closed safety override.
