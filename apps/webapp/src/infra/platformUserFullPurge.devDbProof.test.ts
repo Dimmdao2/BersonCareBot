@@ -352,6 +352,7 @@ type ViaParent = { child: string; parent: string; join: string };
 type Report = {
   database: string;
   user: PurgePlatformUserRow;
+  advisoryLockHeld: boolean;
   phoneDigits: string;
   artifact: PurgeArtifactKeys;
   /** Independently measured, in the same transaction, before the purge. */
@@ -360,8 +361,8 @@ type Report = {
   before: Map<string, Counts>;
   after: Map<string, Counts>;
   restored: Map<string, Counts>;
-  phoneKeyed: { relation: string; column: string; before: number; after: number }[];
-  viaParent: { child: string; parent: string; before: number; after: number }[];
+  phoneKeyed: { relation: string; column: string; before: number; after: number; restored: number }[];
+  viaParent: { child: string; parent: string; before: number; after: number; restored: number }[];
   /** Relations that also lose rows through a cascading parent the purge empties. */
   cascadeChildrenOfPurged: string[];
   registryDivergences: string[];
@@ -373,6 +374,10 @@ let setupError: unknown = null;
 
 function key(relation: string, column: string): string {
   return `${relation}.${column}`;
+}
+
+function viaKey(child: string, parent: string): string {
+  return `${child}->${parent}`;
 }
 
 async function countsFor(surfaces: Surface[], userId: string): Promise<Map<string, Counts>> {
@@ -495,6 +500,22 @@ describe.skipIf(!ENABLED)('account purge core against the live TEST database (ro
            AND con.confdeltype = 'c'
            AND np.nspname || '.' || pc.relname IN (${goneRelations.map(catalogLiteral).join(', ')})
            AND nc.nspname || '.' || cc.relname <> np.nspname || '.' || pc.relname`);
+      const liveViaParents = new Set(
+        viaParentRows.rows.map((row) => viaKey(row.child ?? '', row.parent ?? '')),
+      );
+      for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
+        const purge = entry.userPurge;
+        if (purge.kind !== 'via-parent') continue;
+        if (!goneRelations.includes(purge.parent)) {
+          divergences.push(
+            `${entry.table}: declared via-parent ${purge.parent}, parent is not purge-gone`,
+          );
+        } else if (!liveViaParents.has(viaKey(entry.table, purge.parent))) {
+          divergences.push(
+            `${entry.table}: declared via-parent ${purge.parent}, live cascading path absent`,
+          );
+        }
+      }
       const cascadeChildrenOfPurged = [
         ...new Set(viaParentRows.rows.map((row) => row.child ?? '')),
       ].sort();
@@ -629,7 +650,11 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
       const after = new Map<string, Counts>();
       const restored = new Map<string, Counts>();
       const phoneAfter = new Map<string, number>();
+      const phoneRestored = new Map<string, number>();
       const viaAfter = new Map<string, number>();
+      const viaRestored = new Map<string, number>();
+      const digits = user.phone_normalized ? phoneDigits(user.phone_normalized) : '';
+      let advisoryLockHeld = false;
       let artifact: PurgeArtifactKeys = { intakeS3Keys: [], mediaFiles: [], patientFileS3Keys: [] };
       let artifactExpected = { mediaFileIds: [] as string[], patientFileKeys: 0, intakeKeys: 0 };
 
@@ -663,11 +688,18 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
 
         const asPoolClient = client as unknown as PoolClient;
         await pgAdvisoryXactLock(asPoolClient, user.id);
+        const advisoryLock = await client.probe(
+          `SELECT count(*) AS n FROM pg_locks
+            WHERE pid = pg_backend_pid()
+              AND locktype = 'advisory'
+              AND mode = 'ExclusiveLock'
+              AND granted`,
+        );
+        advisoryLockHeld = asInt(advisoryLock.rows[0]?.n ?? null) > 0;
         artifact = await collectPurgeArtifactKeys(asPoolClient, user.id);
         await runWebappPurgeCoreInTransaction(asPoolClient, user);
 
         for (const [k, v] of await countsFor(surfaces, user.id)) after.set(k, v);
-        const digits = user.phone_normalized ? phoneDigits(user.phone_normalized) : '';
         for (const store of chosenPhone) {
           const res = await client.probe(
             `SELECT count(*) AS n FROM ${quoteIdent(store.relation)} ` +
@@ -678,17 +710,30 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         }
         for (const via of viaParents) {
           const res = await client.probe(`SELECT count(*) AS n ${via.join}`, [user.id]);
-          viaAfter.set(via.child, asInt(res.rows[0]?.n ?? null));
+          viaAfter.set(viaKey(via.child, via.parent), asInt(res.rows[0]?.n ?? null));
         }
       } finally {
         await client.probe('ROLLBACK');
       }
 
       for (const [k, v] of await countsFor(surfaces, user.id)) restored.set(k, v);
+      for (const store of chosenPhone) {
+        const res = await client.probe(
+          `SELECT count(*) AS n FROM ${quoteIdent(store.relation)} ` +
+            `WHERE regexp_replace(${quoteIdent(store.column)}, '\\D', '', 'g') = $1`,
+          [digits],
+        );
+        phoneRestored.set(key(store.relation, store.column), asInt(res.rows[0]?.n ?? null));
+      }
+      for (const via of viaParents) {
+        const res = await client.probe(`SELECT count(*) AS n ${via.join}`, [user.id]);
+        viaRestored.set(viaKey(via.child, via.parent), asInt(res.rows[0]?.n ?? null));
+      }
 
       report = {
         database: live,
         user,
+        advisoryLockHeld,
         phoneDigits: user.phone_normalized ? phoneDigits(user.phone_normalized) : '',
         artifact,
         artifactExpected,
@@ -699,8 +744,13 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         phoneKeyed: chosenPhone.map((p) => ({
           ...p,
           after: phoneAfter.get(key(p.relation, p.column)) ?? -1,
+          restored: phoneRestored.get(key(p.relation, p.column)) ?? -1,
         })),
-        viaParent: chosenViaParent.map((v) => ({ ...v, after: viaAfter.get(v.child) ?? -1 })),
+        viaParent: chosenViaParent.map((v) => ({
+          ...v,
+          after: viaAfter.get(viaKey(v.child, v.parent)) ?? -1,
+          restored: viaRestored.get(viaKey(v.child, v.parent)) ?? -1,
+        })),
         cascadeChildrenOfPurged,
         registryDivergences: divergences.sort(),
       };
@@ -718,6 +768,9 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
     expect(report.database).toBe(TEST_DATABASE);
     expect(report.user.role).toBe('client');
     expect(report.user.id).toMatch(/^[0-9a-f-]{36}$/u);
+    expect(report.advisoryLockHeld, 'the production advisory lock is not held by this transaction').toBe(
+      true,
+    );
     const touched = [...report.before.values()].filter((c) => c.referencing > 0).length;
     expect(touched, 'fixture missing: the chosen client has no related facts at all').toBeGreaterThan(10);
   });
@@ -838,6 +891,14 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
           : `${k}: ${b.referencing}/${b.total} → ${r.referencing}/${r.total}`;
       })
       .filter((x): x is string => x !== null);
+    drift.push(
+      ...report.phoneKeyed
+        .filter((p) => p.before !== p.restored)
+        .map((p) => `${key(p.relation, p.column)} phone-keyed: ${p.before} → ${p.restored}`),
+      ...report.viaParent
+        .filter((v) => v.before !== v.restored)
+        .map((v) => `${viaKey(v.child, v.parent)} via-parent: ${v.before} → ${v.restored}`),
+    );
     expect(drift, 'the proof must leave the TEST database exactly as it found it').toEqual([]);
   });
 
