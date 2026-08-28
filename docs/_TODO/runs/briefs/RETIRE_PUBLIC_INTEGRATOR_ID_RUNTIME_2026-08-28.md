@@ -12,6 +12,9 @@
 - Track authority: `docs/_TODO/UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md` §3.4 and
   `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md` final production census.
 
+Источник оракула: `docs/OWNER_DECISIONS.md` — «Уточнение владельца 23.08.2026 — бот подтверждает телефон, но не
+создаёт учётную запись.»
+
 ## Goal
 
 Complete one coherent Track D cutover: the public/webapp user identity and all live auth/reminder/broadcast-link
