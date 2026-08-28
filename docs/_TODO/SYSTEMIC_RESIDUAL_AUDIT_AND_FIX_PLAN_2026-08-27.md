@@ -86,10 +86,17 @@ backend/media/data-lifecycle файлами. До исправлений все 
   ограниченные счётчики и класс ошибки, без телефона, retired id, raw user UUID, S3 keys и media row ids.
   Мёртвый retry API, который требовал этот raw payload, удаляется; будущая retention state machine получит
   отдельную durable retry-очередь только после принятия PR-03 policy.
+- Финальный production-census retired `integrator_user_id` измерил 82 production-файла / 420 строк и нашёл пять
+  достижимых путей, пропущенных прежней записью о готовности: Telegram/MAX auth с fallback-созданием аккаунта,
+  создание напоминаний, чтение/статистика напоминаний, callback-кнопки Telegram/MAX и ссылка из рассылки врача.
+  Все пять переводятся на уже существующие canonical UUID, подтверждённый телефон и channel bindings; только
+  после этого удаляется публичный retired-id runtime-контракт. Внутренний principal-id самого integrator остаётся
+  отдельным техническим ключом и не оправдывает публичный дубль identity.
 
-Порядок одного исправляющего пакета: route-result contract → retired purge tail + lifecycle truth/FK →
-clinic-admin acceptance support → targeted gates и rollback-only DB proof → один финальный CI → push → TEST
-deploy → единый живой проход → синхронизация этого плана и taskdb. Документы сами deploy не блокируют.
+Порядок одного исправляющего пакета: route-result contract → retired purge tail + lifecycle truth/FK → перевод
+пяти runtime-путей со старого id → clinic-admin acceptance support → targeted gates и rollback-only DB proof →
+один финальный CI → push → TEST deploy → единый живой проход → синхронизация этого плана и taskdb. Документы
+сами deploy не блокируют.
 
 **Фактический замер retired-id перед удалением runtime-хвоста.** Один read-only запрос к именованным DEV/TEST
 показал, что старые идентификаторы ещё лежат в данных: в DEV у `platform_users` заполнено `122/304`, у правил
