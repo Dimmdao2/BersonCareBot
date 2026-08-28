@@ -40,9 +40,11 @@ Opus с максимальным reasoning effort.
 ## Ход исправления
 
 Базовая часть этапов 3–4 (C1, C2, C3, D1, E1 + nullable retired id) сведена и развёрнута на TEST в составе
-`206be5478`. Последующий живой тик обнаружил остаточный прямой путь media purge и `42501`; поэтому D1 нельзя
-считать полностью закрытым до следующей TEST-приёмки. Кандидат заменяет все DB-шаги purge одной leased/CAS
-функцией, не держит транзакцию во время S3 и удаляет связанную пациентскую запись атомарно.
+`206be5478`. Последующий живой тик обнаружил остаточный прямой путь media purge и `42501`. Исправление
+`7908b5070` заменило все DB-шаги purge одной leased/CAS-функцией, не держит транзакцию во время S3 и удаляет
+связанную пациентскую запись атомарно. TEST выявил ещё один общий разрыв маршрутизатора: именованный infra-root
+ошибочно требовал параллельную relation-capability. `b3e2e8eb9` убрал это требование без возврата прямого доступа;
+после выкатки штатный `media_purge` завершился со статусом `success`, `removed=14`, `errors=0`.
 Отчёт и слепой kill-set:
 [`runs/integrator-cleanup/SYSTEMIC_LIFECYCLE_C1_E1_D1_2026-08-27.md`](runs/integrator-cleanup/SYSTEMIC_LIFECYCLE_C1_E1_D1_2026-08-27.md).
 Там же — обязательный перед landing `migrate-dev.sh --preflight`, handoff scheduler-ветке и два
@@ -51,7 +53,7 @@ Opus с максимальным reasoning effort.
 **Поправка к §D2 ниже:** single-PUT `pending` без сессии, orphan hosted-cover, claim/retry/complete и пустые
 S3-ключи теперь принадлежат одной функции `process_media_pending_delete_step`. Отдельная
 `stageStaleSinglePutMediaForPurge` и старый orphan-root удалены. Замеренные 7 строк — накопленный вход для этого
-тика; живое доказательство их обработки остаётся открытым пунктом этапа 5.
+тика на момент аудита; к живому прогону накопилось 14 строк, и все они обработаны на TEST без ошибки.
 
 ## Подтверждённые находки
 
@@ -451,7 +453,9 @@ schedule job красит deploy/reconcile-проверку до запуска 
       multipart retry identity и обычным pending-delete. Доказательство: независимый аудит пяти достижимых
       отказов; targeted route+lifecycle `15/15`, webapp typecheck, privilege generator и owner-aware
       rollback-only DEV preflight — PASS.
-- [ ] Пункт 4 этапа: живое доказательство воркера и обработки накопленных строк на TEST.
+- [x] Пункт 4 этапа: `b3e2e8eb9` развёрнут штатным `deploy-test.sh` (`PASS`); ручной вызов через
+      `run-internal-job.sh test media_purge` записал на TEST `success`, `removed=14`, `errors=0`, а четыре
+      TEST-unit остались `active`.
 - [ ] **Owner-gate:** VK-обложки не появятся, пока владелец не заведёт сервисный токен VK API с правом
       `video` в `system_settings` (ключ `vk_video_service_token`, scope `admin`). Токен бота сообщества
       (`vk_community_access_token`) для `video.get` не годится — подтверждено живым запросом.
