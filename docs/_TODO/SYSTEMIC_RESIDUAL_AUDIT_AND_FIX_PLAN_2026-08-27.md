@@ -67,9 +67,12 @@ backend/media/data-lifecycle файлами. До исправлений все 
 - Completion-аудит `ccf96854f` подтвердил этапы 1–6 и нашёл незавершённую живую часть этапа 7: текущий
   acceptance-runner не знает роль clinic admin; public booking, contact/booking confirmation, реальное
   напоминание и wrong-certificate mTLS refusal ещё не повторены единым финальным проходом.
-- Lifecycle-аудит Claude оборван внешним `SIGTERM` до отчёта, но оставил воспроизводимый красный route-test:
-  частичный отказ продления SaaS-тарифа возвращает HTTP 200 и пишет зелёный операторский тик. Это тот же класс
-  тихой ошибки, который этап 4 уже закрыл для media jobs.
+- Lifecycle-аудит Claude завершился сохранённым коммитом `2fe5fefba` и дал **FAIL** по пяти достижимым классам:
+  частичный отказ продления тарифа скрывался зелёным тиком; `manual_patient_commands` блокировал account purge
+  целиком; ещё три пользовательских класса переживали purge; census зависел от суффикса имени; новые cron-классы
+  isolation telemetry отвергались живыми DEV/TEST. Отчёт и два acceptance-test приземлены; временные product-
+  инъекции откачены. Billing-класс исправлен в `a394efaa9`, F1–F3 ведутся одним lifecycle-пакетом, F5 закрывается
+  обычной forward-миграцией вместо restore-only overlay.
 - Повторная инспекция purge-path нашла ещё один исполняемый хвост Track D: strict purge всё ещё запускает
   retired integrator cleanup, переносит `integrator_user_id`/телефон в post-purge audit и содержит активный
   cleanup-вход по retired id, хотя integrator identity/contact storage уже снят. Этот хвост нужно удалить, а
@@ -102,6 +105,16 @@ backfill/reconcile до разбора orphan-строк.
 получают новых прав и не выполняют это действие — ссылку обнуляет сама БД при удалении пользователя.
 Декларация прав не меняется, GRANT/REVOKE/политик в миграции нет. Новых горячих колонок и запросов нет, поэтому
 новый индекс не требуется.
+
+**Разбор прав миграции `20260828T092521_deliver_cron_isolation_operations.sql`.** Первый statement меняет только
+существующий CHECK таблицы `saas_isolation_events` от её владельца `app_object_owner`; второй обновляет тело уже
+существующей SECURITY DEFINER-функции от её действующего владельца `saas_telemetry_owner`. Сигнатура, владелец,
+таблицы и операции функции не меняются: она по-прежнему читает/пишет те же `saas_isolation_events` и
+`saas_isolation_event_hourly`, права на которые уже задекларированы в единственном privilege-источнике. Новых
+runtime-ролей, GRANT/REVOKE/политик и индексов нет; runner временно даёт владельцу функции schema-create и
+PL/pgSQL usage для `CREATE OR REPLACE`, затем снимает оба в той же транзакции. Добавляются только две допустимые пары закрытого словаря,
+которые typed manifest уже эмитит. Overlay остаётся семантически тем же телом, а forward-миграция доставляет его
+обычному DEV→TEST пути, где restore-only overlay раньше не исполнялся.
 
 **Targeted-проверки собранного пакета.** Unit-контракт биллингового тика: `1` файл / `2` теста PASS; purge core:
 `2` файла / `3` теста PASS; lifecycle registry: `1` файл / `6` тестов PASS; webapp typecheck PASS. Полный CI на
