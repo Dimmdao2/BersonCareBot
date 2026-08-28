@@ -1047,3 +1047,151 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
     });
   },
 );
+
+/* ────────────────── delete blockers behind a cascading parent (stage 3 acceptance) ────────────────── */
+
+/**
+ * WHAT BREAKS WITHOUT THIS: the account purge is REFUSED by the database for a whole class of real
+ * clients, and nothing notices. `platform_users` cascades into a parent row (`org_enrollments`), a
+ * third table references THAT parent with `NO ACTION`, and no step of the purge clears it — so the
+ * final `DELETE FROM platform_users` raises `23503` and the whole transaction rolls back. The caller
+ * gets `transaction_failed`; the person's data stays. The existing proof above cannot see this: it
+ * deliberately picks the ONE client that maximises class coverage, and that client happens to have no
+ * such row.
+ *
+ * ORACLE: stage 3 acceptance of `SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md` — «живой account
+ * purge не оставляет ни одного связанного пользовательского факта вне явно сохранённых по закону».
+ * A purge the database refuses leaves ALL of them.
+ *
+ * The candidate set is derived from the LIVE constraint graph, never from a list written here: every
+ * relation that cascades away with `platform_users`, then every `NO ACTION`/`RESTRICT` dependent of
+ * such a relation that actually holds rows for a live `role = 'client'` user. Each candidate is then
+ * proven BEHAVIOURALLY by running the real production purge core, inside a transaction that is
+ * unconditionally rolled back.
+ */
+describe.skipIf(!ENABLED)('account purge is not refused by a blocking dependent (rollback-only)', () => {
+  const blockerClient = new AdminSocketClient();
+  let blockedUsers: string[] = [];
+  let candidates: { dependent: string; parent: string; constraint: string }[] = [];
+  let blockerSetupError: unknown = null;
+
+  beforeAll(async () => {
+    blockerClient.start();
+    try {
+      const current = await blockerClient.probe('SELECT current_database() AS name');
+      const live = current.rows[0]?.name ?? '';
+      if (live !== TEST_DATABASE) {
+        throw new Error(`refusing: current_database='${live}', expected '${TEST_DATABASE}'`);
+      }
+
+      /* Relations the database itself empties when a platform_users row goes away, and the
+         dependents of those relations that REFUSE the parent delete instead of following it. */
+      const blockers = await blockerClient.probe(`
+        WITH cascade_parents AS (
+          SELECT DISTINCT con.conrelid AS oid
+            FROM pg_constraint con
+           WHERE con.contype = 'f'
+             AND con.confdeltype = 'c'
+             AND con.confrelid = 'public.platform_users'::regclass
+        )
+        SELECT con.conrelid::regclass::text AS dependent,
+               con.confrelid::regclass::text AS parent,
+               con.conname                   AS constraint_name
+          FROM pg_constraint con
+          JOIN cascade_parents cp ON cp.oid = con.confrelid
+         WHERE con.contype = 'f'
+           AND con.confdeltype IN ('a', 'r')
+         ORDER BY 1, 3`);
+
+      candidates = blockers.rows.map((r) => ({
+        dependent: r.dependent ?? '',
+        parent: r.parent ?? '',
+        constraint: r.constraint_name ?? '',
+      }));
+
+      const failures: string[] = [];
+      for (const candidate of candidates) {
+        /* One affected client per blocking dependent — the graph names the table, the data names
+           the person; neither is written down in this file. BOUND: a dependent that reaches the
+           person through a differently named column is skipped, so this probe under-reports rather
+           than invents. */
+        const affected = await blockerClient.probe(
+          `SELECT pu.id::text AS id
+             FROM ${quoteIdent(candidate.dependent)} d
+             JOIN public.platform_users pu ON pu.id = d.platform_user_id
+            WHERE pu.role = 'client'
+            LIMIT 1`,
+        ).catch(() => ({ rows: [] as Record<string, string | null>[], rowCount: 0 }));
+        const userId = affected.rows[0]?.id ?? '';
+        if (!userId) continue;
+
+        const user = await loadPurgeUserForBlockerProbe(blockerClient, userId);
+        await blockerClient.probe('BEGIN ISOLATION LEVEL REPEATABLE READ');
+        try {
+          const asPoolClient = blockerClient as unknown as PoolClient;
+          await pgAdvisoryXactLock(asPoolClient, user.id);
+          await runWebappPurgeCoreInTransaction(asPoolClient, user);
+        } catch (error) {
+          failures.push(
+            `${candidate.dependent} (${candidate.constraint} → ${candidate.parent}): ` +
+              `${error instanceof Error ? error.message.split('\n')[0] : String(error)}`,
+          );
+        } finally {
+          await blockerClient.probe('ROLLBACK');
+        }
+      }
+      blockedUsers = failures;
+    } catch (error) {
+      blockerSetupError = error;
+    }
+  }, 600_000);
+
+  afterAll(async () => {
+    await blockerClient.stop();
+  });
+
+  it('ran against the named TEST database and found the blocking dependents to probe', () => {
+    expect(
+      blockerSetupError,
+      String(blockerSetupError instanceof Error ? blockerSetupError.stack : blockerSetupError),
+    ).toBeNull();
+    expect(
+      candidates.length,
+      'no NO ACTION/RESTRICT dependent of a cascading parent was found — the probe would prove nothing',
+    ).toBeGreaterThan(0);
+  });
+
+  it('completes the purge core for every client a blocking dependent can reach', () => {
+    expect(blockerSetupError).toBeNull();
+    expect(
+      blockedUsers,
+      'The database REFUSED the account purge for a real client: a table references a row that ' +
+        'cascades away with platform_users, with ON DELETE NO ACTION, and no purge step clears it. ' +
+        'Nothing is deleted at all — stage 3 acceptance of the systemic residual audit 2026-08-27.',
+    ).toEqual([]);
+  });
+});
+
+/** Same shape the purge core needs; read through the same session, no second mechanism. */
+async function loadPurgeUserForBlockerProbe(
+  session: AdminSocketClient,
+  userId: string,
+): Promise<PurgePlatformUserRow> {
+  const row = await session.probe(
+    `SELECT pu.id::text AS id,
+            (SELECT uc.value_normalized FROM public.user_contacts uc
+              WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary
+              LIMIT 1) AS phone_normalized,
+            pu.integrator_user_id::text AS integrator_user_id,
+            pu.role AS role
+       FROM public.platform_users pu
+      WHERE pu.id::text = $1`,
+    [userId],
+  );
+  return {
+    id: row.rows[0]?.id ?? '',
+    phone_normalized: row.rows[0]?.phone_normalized ?? null,
+    integrator_user_id: row.rows[0]?.integrator_user_id ?? null,
+    role: row.rows[0]?.role ?? '',
+  };
+}
