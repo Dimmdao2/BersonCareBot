@@ -118,9 +118,16 @@ function addDays(dateKey: string, days: number): string {
   return dt.toISOString().slice(0, 10);
 }
 
+/**
+ * How far ahead a single slots query looks. The public booking widget issues one
+ * query without a date and renders whatever days come back, so this window is the
+ * only thing that decides whether next month is reachable at all.
+ */
+const DEFAULT_SLOT_HORIZON_DAYS = 60;
+
 function defaultDateRange(date: string | undefined, timeZone: string): { from: string; to: string } {
   const today = date ?? localDateKey(new Date().toISOString(), timeZone);
-  return { from: today, to: addDays(today, 13) };
+  return { from: today, to: addDays(today, DEFAULT_SLOT_HORIZON_DAYS - 1) };
 }
 
 export function createBookingSchedulingService(port: BookingSchedulingPort): BookingSchedulingService {

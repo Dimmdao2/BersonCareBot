@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildSlotsForContext } from "./service";
+import { buildSlotsForContext, createBookingSchedulingService } from "./service";
 import type { BookingSchedulingPort, WorkingDayRecord } from "./ports";
 
 /** Дата ~30 дней в будущем (минует min-notice фильтр), YYYY-MM-DD в UTC. */
@@ -58,5 +58,47 @@ describe("buildSlotsForContext per-date branch scoping", () => {
     const slots = await buildSlotsForContext(makePort(null), context("branch-A"));
     const total = slots.reduce((n, d) => n + d.slots.length, 0);
     expect(total).toBeGreaterThan(0);
+  });
+});
+
+describe("default slot horizon", () => {
+  /** Ловит запрошенный диапазон, сами слоты не важны. */
+  function capturingPort(captured: { dateFrom?: string; dateTo?: string }): BookingSchedulingPort {
+    return {
+      resolveCanonicalFromBranchService: async () => ({
+        organizationId: "org",
+        branchId: "branch-A",
+        specialistId: "spec",
+        serviceId: "svc",
+        roomId: null,
+        branchServiceId: "bs-1",
+        durationMinutes: 60,
+        branchTimezone: "UTC",
+      }),
+      getSlots: async (ctx: { dateFrom: string; dateTo: string }) => {
+        captured.dateFrom = ctx.dateFrom;
+        captured.dateTo = ctx.dateTo;
+        return [];
+      },
+    } as unknown as BookingSchedulingPort;
+  }
+
+  function spanDays(from: string, to: string): number {
+    return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  }
+
+  it("looks far enough ahead to reach next month for in-person slots", async () => {
+    const captured: { dateFrom?: string; dateTo?: string } = {};
+    const service = createBookingSchedulingService(capturingPort(captured));
+    await service.getInPersonSlots({ branchServiceId: "bs-1", date: "2026-08-28" });
+    expect(captured.dateFrom).toBe("2026-08-28");
+    expect(spanDays(captured.dateFrom!, captured.dateTo!)).toBe(60);
+  });
+
+  it("looks far enough ahead to reach next month for online slots", async () => {
+    const captured: { dateFrom?: string; dateTo?: string } = {};
+    const service = createBookingSchedulingService(capturingPort(captured));
+    await service.getOnlineSlots({ organizationId: "org", date: "2026-08-28", branchTimezone: "UTC" });
+    expect(spanDays(captured.dateFrom!, captured.dateTo!)).toBe(60);
   });
 });
