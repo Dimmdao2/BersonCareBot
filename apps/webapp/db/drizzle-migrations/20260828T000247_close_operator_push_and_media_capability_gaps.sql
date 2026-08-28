@@ -84,6 +84,7 @@ $$;
 
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_patient_lfk_media_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- The previous migration created this exact-gated body before its runtime capability existed.
 -- Reconcile therefore downgraded the live function to the attested fallback. Restore the same body
