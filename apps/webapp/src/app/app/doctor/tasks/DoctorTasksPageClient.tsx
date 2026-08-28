@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ListPlus } from 'lucide-react';
+import { StickyNotePlus } from 'lucide-react';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -57,7 +57,7 @@ export function DoctorTasksPageClient({
           aria-label="Новая задача"
           onClick={() => setPane({ kind: 'create' })}
         >
-          <ListPlus className="size-[22px]" aria-hidden />
+          <StickyNotePlus className="size-[22px]" aria-hidden />
         </Button>
       ) : null,
     [canMutate],
