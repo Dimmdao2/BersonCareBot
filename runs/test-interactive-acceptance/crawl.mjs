@@ -33,6 +33,7 @@ const roles = Object.freeze({
     email: 'dimmdao@yandex.ru',
     roots: [join(root, 'apps/webapp/src/app/app/settings')],
     prefixes: ['/app/settings', '/app/account'],
+    requiredFinalPrefixes: ['/app/settings'],
     viewport: { width: 1440, height: 900 },
   },
   patient: {
@@ -219,15 +220,21 @@ async function crawlRole(browser, name, role) {
         })),
       );
       const fatal = serverFailed || /Что-то пошло не так|An error occurred in the Server Components render|Internal Server Error|status 500/iu.test(body);
+      const finalRoute = canonicalRoute(page.url());
+      const missedRequiredSurface = (role.requiredFinalPrefixes ?? []).some(
+        (prefix) => target === prefix || target.startsWith(`${prefix}/`),
+      ) && !(role.requiredFinalPrefixes ?? []).some(
+        (prefix) => finalRoute === prefix || finalRoute.startsWith(`${prefix}/`),
+      );
       results.push({
         ...active,
-        finalRoute: canonicalRoute(page.url()),
+        finalRoute,
         status: response?.status() ?? null,
         durationMs: Math.round(performance.now() - started),
         mainCharacters,
         fatal,
         controls,
-        pass: Boolean(response?.ok()) && !fatal && active.consoleErrors.length === 0 && active.pageErrors.length === 0 && active.requestFailures.length === 0 && active.apiErrors.length === 0,
+        pass: Boolean(response?.ok()) && !fatal && !missedRequiredSurface && active.consoleErrors.length === 0 && active.pageErrors.length === 0 && active.requestFailures.length === 0 && active.apiErrors.length === 0,
       });
     } catch (error) {
       results.push({ ...active, finalRoute: canonicalRoute(page.url()), status: response?.status() ?? null, durationMs: Math.round(performance.now() - started), fatal: true, controls: [], pass: false, navigationError: redact(error instanceof Error ? error.message : error) });
