@@ -38,14 +38,18 @@ export async function POST(request: Request) {
   const startedAtIso = new Date(startedAt).toISOString();
   try {
     const result = await runOperatorHealthDigestTick();
-    await recordOperatorCronJobTickBestEffort({
-      jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
-      jobKey: OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
-      startedAtIso,
-      durationMs: Date.now() - startedAt,
-      success: true,
-      metaJson: result,
-    });
+    // A wake outside the configured send slot is only a scheduler poll. It must not overwrite a
+    // failed in-slot run from the same hour with a misleading success row.
+    if (result.reason !== 'not_slot') {
+      await recordOperatorCronJobTickBestEffort({
+        jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+        jobKey: OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY,
+        startedAtIso,
+        durationMs: Date.now() - startedAt,
+        success: true,
+        metaJson: result,
+      });
+    }
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     await recordOperatorCronJobTickBestEffort({

@@ -1,98 +1,48 @@
-import { and, count, eq, gte, isNotNull, lt } from 'drizzle-orm';
-import { getDrizzle } from '@/app-layer/db/drizzle';
-import { adminAuditLog } from '../../../db/schema/schema';
-import { operatorIncidents, operatorJobStatus } from '../../../db/schema/operatorHealth';
-import type { OperatorHealthDigestReadPort } from '@/modules/operator-health/digestPorts';
+import { sql } from 'drizzle-orm';
+import { z } from 'zod';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import type {
+  OperatorHealthDigestReadPort,
+  OperatorHealthDigestWindow,
+} from '@/modules/operator-health/digestPorts';
+
+const digestWindowSchema = z
+  .object({
+    auditErrorCount: z.number().int().nonnegative(),
+    hadResolveAll: z.boolean(),
+    incidentsOpened: z.array(
+      z.object({ integration: z.string(), errorClass: z.string() }).strict(),
+    ),
+    incidentsResolved: z.array(
+      z.object({ integration: z.string(), errorClass: z.string() }).strict(),
+    ),
+    jobFailures: z.array(
+      z
+        .object({
+          jobFamily: z.string(),
+          jobKey: z.string(),
+          lastFailureAt: z.string(),
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
+export function parseOperatorHealthDigestWindow(raw: unknown): OperatorHealthDigestWindow {
+  return digestWindowSchema.parse(raw);
+}
 
 export const pgOperatorHealthDigestReadPort: OperatorHealthDigestReadPort = {
-  async countAuditErrorsInWindow(windowStartIso: string, windowEndIso: string): Promise<number> {
-    const db = getDrizzle();
-    const [row] = await db
-      .select({ n: count() })
-      .from(adminAuditLog)
-      .where(
-        and(
-          gte(adminAuditLog.createdAt, windowStartIso),
-          lt(adminAuditLog.createdAt, windowEndIso),
-          eq(adminAuditLog.status, 'error'),
-        ),
-      );
-    return Number(row?.n ?? 0);
-  },
-
-  async hadOperatorIncidentsResolveAllInWindow(
-    windowStartIso: string,
-    windowEndIso: string,
-  ): Promise<boolean> {
-    const db = getDrizzle();
-    const [row] = await db
-      .select({ n: count() })
-      .from(adminAuditLog)
-      .where(
-        and(
-          gte(adminAuditLog.createdAt, windowStartIso),
-          lt(adminAuditLog.createdAt, windowEndIso),
-          eq(adminAuditLog.action, 'operator_incidents_resolve_all'),
-        ),
-      );
-    return Number(row?.n ?? 0) > 0;
-  },
-
-  async listIncidentsOpenedInWindow(windowStartIso: string, windowEndIso: string) {
-    const db = getDrizzle();
-    const rows = await db
-      .select({
-        integration: operatorIncidents.integration,
-        errorClass: operatorIncidents.errorClass,
-      })
-      .from(operatorIncidents)
-      .where(
-        and(
-          gte(operatorIncidents.openedAt, windowStartIso),
-          lt(operatorIncidents.openedAt, windowEndIso),
-        ),
-      );
-    return rows;
-  },
-
-  async listIncidentsResolvedInWindow(windowStartIso: string, windowEndIso: string) {
-    const db = getDrizzle();
-    const rows = await db
-      .select({
-        integration: operatorIncidents.integration,
-        errorClass: operatorIncidents.errorClass,
-      })
-      .from(operatorIncidents)
-      .where(
-        and(
-          isNotNull(operatorIncidents.resolvedAt),
-          gte(operatorIncidents.resolvedAt, windowStartIso),
-          lt(operatorIncidents.resolvedAt, windowEndIso),
-        ),
-      );
-    return rows;
-  },
-
-  async listJobFailuresInWindow(windowStartIso: string, windowEndIso: string) {
-    const db = getDrizzle();
-    const rows = await db
-      .select({
-        jobFamily: operatorJobStatus.jobFamily,
-        jobKey: operatorJobStatus.jobKey,
-        lastFailureAt: operatorJobStatus.lastFailureAt,
-      })
-      .from(operatorJobStatus)
-      .where(
-        and(
-          isNotNull(operatorJobStatus.lastFailureAt),
-          gte(operatorJobStatus.lastFailureAt, windowStartIso),
-          lt(operatorJobStatus.lastFailureAt, windowEndIso),
-        ),
-      );
-    return rows.map((r) => ({
-      jobFamily: r.jobFamily,
-      jobKey: r.jobKey,
-      lastFailureAt: r.lastFailureAt!,
-    }));
+  async readWindow(windowStartIso: string, windowEndIso: string) {
+    const result = await runWebappNamedRoot<{ snapshot: unknown }>(
+      getWebappSqlDb(),
+      'app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)',
+      [windowStartIso, windowEndIso],
+      sql`SELECT app.read_operator_health_digest_window(
+        ${windowStartIso}::timestamp with time zone,
+        ${windowEndIso}::timestamp with time zone
+      ) AS snapshot`,
+    );
+    return parseOperatorHealthDigestWindow(result.rows[0]?.snapshot);
   },
 };

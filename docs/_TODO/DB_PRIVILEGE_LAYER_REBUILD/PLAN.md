@@ -38,15 +38,20 @@ TEST в финальное состояние через `deploy-test` → уд�
   `74/74`, patient `54/54`, global admin `21/21`, clinic admin `8/8`. Изменяющие действия врача, пациента и
   глобального администратора, а также CMS/patient media upload/delete подтверждены предыдущим связным проходом.
   Это не закрывает отдельно перечисленные anonymous/provider/host gates ниже.
-- [ ] **Оставшаяся аналитика.** Классифицировать её владельца данных, видимость и точную tenant-стену; лишнее
-  удалить.
+- [x] **Оставшаяся аналитика классифицирована 29.08.** Это глобальный агрегат платформы без идентификаторов
+  людей, доступный только global admin через именованный definer-root. Живой TEST: global admin получает `200`,
+  doctor и patient — `403`; отдельной tenant-аналитики или лишней второй поверхности не найдено.
 - [ ] **Анонимная публичная запись.** Живьём пройти полный public-booking путь без кабинетной сессии и доказать,
   что узкие roots дают только публичный каталог и создание записи, не tenant-данные.
 - [ ] **Реальная доставка, общий gate с Track D.** Existing owner должен пройти messenger contact proof и код
   входа; запись на приём — реально доставить подтверждение и напоминание; scheduler — реально доставить operator
   digest и перенести следующий запуск после смены `digestTime`.
-- [x] **Retention/rotation.** Почасовая DB-retention задача установлена; живой тик 28.08 в 19:00
-  завершился успехом. PostgreSQL logrotate активен (`weekly`, `rotate 10`) и имеет живые
+- [ ] **Retention/rotation — code/DEV fixed, ждёт повторного TEST tick.** Почасовая DB-retention задача
+  установлена. Запись «завершился успехом» 28.08 оказалась неполной: 29.08 точный разбор показал, что цель
+  `app.context_nonce_ledger` падала, потому что генератор не восстанавливал явно отозванные schema-привилегии
+  владельца. Генератор и декларация исправлены; named DEV reconcile прошёл, dry-run всех целей зелёный.
+  Галочка возвращается только после общей TEST-выкатки и живого тика без частичного отказа. PostgreSQL logrotate
+  активен (`weekly`, `rotate 10`) и имеет живые
   ротированные файлы; systemd/application stdout живёт в journald, где фактически применены
   `SystemMaxUse=2G`, `MaxRetentionSec=90day`, `SystemKeepFree=1G`, `ForwardToSyslog=no` (`18f75d8f7`).
 - [x] **mTLS host proof.** На named DEV/TEST 28.08 штатный shared-readiness повторно доказал четыре
@@ -61,9 +66,11 @@ TEST в финальное состояние через `deploy-test` → уд�
   роли удалены (`3b7ea5860`). Function census и callsite/relation census входят в штатные
   privilege-гейты CI; historical disposable post-zero replay не возвращается. Права в schema migrations
   не выдаются.
-- [ ] **Отдельный архитектурный follow-up слоя доступа.** Довести структурный allowlist владельцев definer,
-  публичное чтение и окончательное разделение identity/medical subject там, где это ещё не покрыто текущими
-  actor/subject refs. Это не блокирует нынешний TEST, но остаётся owner-requested работой `#1085`.
+- [x] **Архитектурный follow-up слоя доступа закрыт 29.08.** Каталожный census на named TEST дал
+  `owners=43`, `requirements=1334`, `missing_or_partial=0`; анонимный каталог проходит только через узкие
+  public-booking doors (целевая проверка `publicBookingDoors.unit.test.ts` зелёная); D15b/7a уже разделяет
+  opaque actor/identity ref и medical-subject ref внутри канонического identity/DB-port seam. Полный физический
+  redesign `platform_users` сюда не возвращается: он остаётся отдельной post-production задачей `#1086`.
 - [ ] **PROD — только отдельным разрешённым этапом.** Подготовить одну атомарную `A → B0` миграцию и rollback;
   на PROD ничего не выполнять без нового явного разрешения владельца и проверки host `135.106.162.170`. До этого
   все активные PROD deploy/bootstrap/provision entrypoint закрыты fail-closed, чтобы старый C4-путь
@@ -204,7 +211,8 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   проверкой текущего состояния named TEST;
   выполнять старый restore нельзя. Проверка отсутствия legacy остаётся частью живого TEST gate Ф8 ниже и
   [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md).
-- [ ] Классифицировать оставшуюся аналитику: владелец данных, видимость и точная стена; лишнее удалить.
+- [x] Оставшаяся аналитика классифицирована как global-admin-only агрегат платформы без идентификаторов людей;
+  живой TEST даёт global admin `200`, doctor/patient `403`.
 
 ## Ф3 — точка ноль
 

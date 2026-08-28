@@ -2033,9 +2033,12 @@ export function generatePrivilegesSql(declaration, dbName, options = {}) {
     out.push(`REVOKE ALL ON SCHEMA ${q(schemaName)} FROM PUBLIC;`);
     const schemaRevoke = revokeTargets(schema.owner);
     if (schemaRevoke.length > 0) out.push(`REVOKE ALL ON SCHEMA ${q(schemaName)} FROM ${revokeList(schemaRevoke)};`);
-    const usageRoles = (schema.usage ?? []).filter((g) => isRole(g) && g !== schema.owner).sort();
+    // Ownership lets a role re-grant access to itself, but an earlier explicit REVOKE can leave
+    // its ACL empty. Render the declaration literally so SECURITY DEFINER owners can traverse
+    // their own schema without relying on an implicit privilege that may have been revoked.
+    const usageRoles = (schema.usage ?? []).filter(isRole).sort();
     if (usageRoles.length > 0) out.push(`GRANT USAGE ON SCHEMA ${q(schemaName)} TO ${usageRoles.map(q).join(', ')};`);
-    const createRoles = (schema.create ?? []).filter((g) => isRole(g) && g !== schema.owner).sort();
+    const createRoles = (schema.create ?? []).filter(isRole).sort();
     if (createRoles.length > 0) out.push(`GRANT CREATE ON SCHEMA ${q(schemaName)} TO ${createRoles.map(q).join(', ')};`);
     const loginGrantees = [...new Set([...(schema.usage ?? []), ...(schema.create ?? [])].filter(isLogin))].sort();
     for (const login of loginGrantees) {

@@ -45,7 +45,15 @@ vi.mock('@/modules/system-settings/configAdapter', () => ({
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(() => ({
-    operatorHealthDigestRead: { hadOperatorIncidentsResolveAllInWindow: vi.fn(async () => false) },
+    operatorHealthDigestRead: {
+      readWindow: vi.fn(async () => ({
+        auditErrorCount: 0,
+        hadResolveAll: false,
+        incidentsOpened: [],
+        incidentsResolved: [],
+        jobFailures: [],
+      })),
+    },
     operatorHealthDigestDelivery: {
       loadRecipients: vi.fn(async () => ({
         telegram: ['123'],

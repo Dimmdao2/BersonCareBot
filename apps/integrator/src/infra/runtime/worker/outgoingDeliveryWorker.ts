@@ -440,11 +440,13 @@ async function recordAuthEmailOtpDeliveryDeadIncident(
  * ran, so nothing upstream is still watching. Same direction as the synchronous send path, so it
  * feeds the SAME critical-alert/digest cadence rather than a new one.
  */
-async function recordOutboundMessageDeliveryDeadIncident(
+async function recordUserVisibleDeliveryDeadIncident(
   row: OutgoingDeliveryQueueRow,
   safeError: string,
 ): Promise<void> {
-  if (row.kind !== OUTBOUND_MESSAGE_QUEUE_KIND) return;
+  if (row.kind !== OUTBOUND_MESSAGE_QUEUE_KIND && row.kind !== DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
+    return;
+  }
   try {
     await recordOperatorFailureIncident({
       direction: OUTBOUND_PROVIDER_INCIDENT_DIRECTION,
@@ -455,7 +457,7 @@ async function recordOutboundMessageDeliveryDeadIncident(
   } catch (err) {
     logger.warn(
       { err, rowId: row.id, eventId: row.eventId },
-      'outbound_message_delivery_dead_incident_record_failed',
+      'user_visible_delivery_dead_incident_record_failed',
     );
   }
 }
@@ -493,7 +495,7 @@ async function finalizeOutgoingDeliveryDead(
   await queueMarkDead(db, row.id, safeError);
   await recordInboundReplyDeliveryDeadIncident(row, safeError);
   await recordAuthEmailOtpDeliveryDeadIncident(row, safeError);
-  await recordOutboundMessageDeliveryDeadIncident(row, safeError);
+  await recordUserVisibleDeliveryDeadIncident(row, safeError);
   await incrementBroadcastAuditErrorIfDoctorBroadcast(db, row);
   if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
     const auditId =

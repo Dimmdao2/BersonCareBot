@@ -7,28 +7,15 @@ import {
   isOperatorProbeFailureIncident,
 } from '@/modules/operator-health/criticalHealthSignals';
 import { readOperatorHeartbeatVerdicts } from '@/app-layer/health/deliveryHeartbeatObserver';
+import type { OperatorHealthDigestWindow } from '@/modules/operator-health/digestPorts';
 
 export async function collectOperatorHealthDigestInput(params: {
-  windowStartIso: string;
-  windowEndIso: string;
-  suppressRecovery: boolean;
+  digestWindow: OperatorHealthDigestWindow;
 }): Promise<OperatorHealthDigestInput> {
   const deps = buildAppDeps();
-  const digestRead = deps.operatorHealthDigestRead;
   const nowMs = Date.now();
 
-  const [
-    auditErrorCount,
-    incidentsOpened,
-    incidentsResolved,
-    jobFailures,
-    health,
-    openIncidents,
-  ] = await Promise.all([
-    digestRead.countAuditErrorsInWindow(params.windowStartIso, params.windowEndIso),
-    digestRead.listIncidentsOpenedInWindow(params.windowStartIso, params.windowEndIso),
-    digestRead.listIncidentsResolvedInWindow(params.windowStartIso, params.windowEndIso),
-    digestRead.listJobFailuresInWindow(params.windowStartIso, params.windowEndIso),
+  const [health, openIncidents] = await Promise.all([
     collectAdminSystemHealthData(),
     deps.operatorHealthRead.listOpenIncidents(100),
   ]);
@@ -70,10 +57,10 @@ export async function collectOperatorHealthDigestInput(params: {
   });
 
   return {
-    auditErrorCount,
-    incidentsOpened,
-    incidentsResolved,
-    jobFailures,
+    auditErrorCount: params.digestWindow.auditErrorCount,
+    incidentsOpened: params.digestWindow.incidentsOpened,
+    incidentsResolved: params.digestWindow.incidentsResolved,
+    jobFailures: params.digestWindow.jobFailures,
     snapshotLines,
     hasStopIssue:
       (deliveryQueue ? deliveryQueue.deadRecent : health.outgoingDelivery.deadTotal) > 0 ||
@@ -90,6 +77,6 @@ export async function collectOperatorHealthDigestInput(params: {
         }
       : {}),
     heartbeats,
-    suppressRecovery: params.suppressRecovery,
+    suppressRecovery: params.digestWindow.hadResolveAll,
   };
 }

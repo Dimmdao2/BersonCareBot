@@ -3116,6 +3116,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.digest.last-sent.read',
       functionIdentity: 'app.read_operator_health_digest_last_sent_at()' },
+    webapp_health_digest_window_read: { port: 'webapp', runtimeName: 'health_digest_window_read',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.digest.window.read',
+      functionIdentity: 'app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)' },
     // Двенадцать запросов отношением под `app_staff` (`getOutgoingDeliveryQueueHealth`) стояли в
     // ГОЛОМ `Promise.all` критического тика — падал весь пятиминутный тик и баннер врача, а не
     // одна панель. Одна дверь вместо двенадцати запросов, тот же шов операторской телеметрии.
@@ -5109,6 +5113,19 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.outgoing_delivery_queue', columns: ['kind', 'sent_at'],
         operations: ['SELECT' as const],
         evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'], purpose: 'return the one bounded journal snapshot consumed by the daily operator digest',
+      typedArgs: ['timestamp with time zone', 'timestamp with time zone'], volatility: 'STABLE', parallel: 'UNSAFE',
+      proconfig: ['search_path=pg_catalog'], relationSurfaces: [
+        { relation: 'public.admin_audit_log', columns: ['created_at', 'status', 'action'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.operator_incidents', columns: ['integration', 'error_class', 'opened_at', 'resolved_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.operator_job_status', columns: ['job_family', 'job_key', 'last_failure_at'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
     }),
     // Единственное АГРЕГАТНОЕ чтение очереди, разрешённое порту webapp: снимок здоровья очереди
     // для критического тика и суточной сводки. Двенадцать запросов отношением сведены в один
@@ -8757,10 +8774,11 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     database: { owner: 'postgres', connect: loginNames, publicConnectTempDefect: false },
     schemas: {
       app: { owner: 'app_object_owner', present: true,
-        usage: [...new Set([...REV10_RUNTIME, ...REV10_SEAM_OWNERS, 'app_seam_context_owner', ...loginNames])].sort(),
+        usage: [...new Set(['app_object_owner', ...REV10_RUNTIME, ...REV10_SEAM_OWNERS, 'app_seam_context_owner', ...loginNames])].sort(),
         create: ['app_object_owner'] },
       app_ext: { owner: 'app_object_owner', present: true,
         usage: [
+          'app_object_owner',
           'app_seam_context_owner',
           'app_seam_dedicated_bot_owner',
           'app_seam_identity_lookup_owner',
@@ -8768,9 +8786,11 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
           'app_seam_patient_invite_owner',
         ],
         create: ['app_object_owner'] },
-      public: { owner: 'app_object_owner', present: true, usage: schemaUsage('public'), create: ['app_object_owner'] },
-      integrator: { owner: 'app_object_owner', present: true, usage: schemaUsage('integrator'), create: ['app_object_owner'] },
-      drizzle: { owner: 'app_object_owner', present: true, usage: [], create: ['app_object_owner'] },
+      public: { owner: 'app_object_owner', present: true,
+        usage: [...new Set(['app_object_owner', ...schemaUsage('public')])].sort(), create: ['app_object_owner'] },
+      integrator: { owner: 'app_object_owner', present: true,
+        usage: [...new Set(['app_object_owner', ...schemaUsage('integrator')])].sort(), create: ['app_object_owner'] },
+      drizzle: { owner: 'app_object_owner', present: true, usage: ['app_object_owner'], create: ['app_object_owner'] },
     },
     tables,
     sequences: { rule: 'all sequence ACL is exact and deny-by-default', examples: {} },
@@ -8803,6 +8823,11 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
 /* ============================================================================================
  * СБОРКА
  * ========================================================================================== */
+
+// Два доревизионных снимка выше остаются compile-checked инвентарём;
+// исполняемая декларация собирается только из revision10Database.
+void db_bersoncarebot_test;
+void db_bcb_webapp_dev;
 
 export const declaration: PrivilegeDeclaration = {
   ownerDecisions: OWNER_DECISIONS,

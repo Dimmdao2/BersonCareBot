@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { runWithMechanicWriteClearance } from '@/app-layer/entitlements/mechanicWriteClearance';
+import { requireEntitlementForMutation } from '@/app-layer/guards/requireEntitlement';
 import { requireClinicManagementApiContext } from '@/app-layer/guards/requireRole';
 import {
   type ClinicDeliveryReadiness,
@@ -9,6 +11,7 @@ import {
 } from '@/modules/system-settings/clinicDeliveryReadiness';
 import type { SystemSettingKey } from '@/modules/system-settings/types';
 import { relayOutbound } from '@/modules/messaging/relayOutbound';
+import type { OrgMechanic } from '@/modules/org-entitlements/types';
 
 const bodySchema = z.object({ channel: z.enum(['email', 'telegram', 'max']) });
 
@@ -16,6 +19,12 @@ const SETTING_KEY: Readonly<Record<z.infer<typeof bodySchema>['channel'], System
   email: 'clinic_smtp_outbound',
   telegram: 'clinic_telegram_bot_token',
   max: 'clinic_max_bot_api_key',
+};
+
+const MECHANIC: Readonly<Record<z.infer<typeof bodySchema>['channel'], OrgMechanic>> = {
+  email: 'clinic_smtp',
+  telegram: 'clinic_telegram_bot',
+  max: 'clinic_max_bot',
 };
 
 function employeeRecipient(
@@ -51,6 +60,8 @@ export async function POST(request: Request) {
   }
 
   const { channel } = parsed.data;
+  const entitlement = await requireEntitlementForMutation(gate.ctx, MECHANIC[channel]);
+  if (!entitlement.ok) return entitlement.response;
   const recipient = employeeRecipient(channel, gate.ctx.session.user);
   if (!recipient) {
     return NextResponse.json(
@@ -94,13 +105,15 @@ export async function POST(request: Request) {
     result.ok && result.status === 'accepted'
       ? { status: 'enabled', checkedAt: new Date().toISOString() }
       : failedReadiness();
-  const saved = await deps.systemSettings.updateSettingIfUnchanged(
-    key,
-    'admin',
-    withClinicDeliveryReadiness(setting.valueJson, readiness),
-    gate.ctx.session.user.userId,
-    setting.updatedAt,
-    { organizationId: gate.ctx.organizationId },
+  const saved = await runWithMechanicWriteClearance(MECHANIC[channel], () =>
+    deps.systemSettings.updateSettingIfUnchanged(
+      key,
+      'admin',
+      withClinicDeliveryReadiness(setting.valueJson, readiness),
+      gate.ctx.session.user.userId,
+      setting.updatedAt,
+      { organizationId: gate.ctx.organizationId },
+    ),
   );
   if (!saved) {
     return NextResponse.json(

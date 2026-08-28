@@ -150,6 +150,12 @@ describe('D17 — журнал рассылки врача: имя счётчи�
     const bump = onlyCounterBump(h.executed);
     expect(bump.params).toEqual([AUDIT_ID, ORG_ID, 'error_count']);
     expect(bump.principalOrganizationId).toBe(ORG_ID);
+    expect(incidentRecorder).toHaveBeenCalledWith({
+      direction: 'outbound_delivery_provider',
+      integration: 'telegram',
+      errorClass: 'provider_send_failed',
+      errorDetail: null,
+    });
   });
 
   it('дано: адресат заблокировал бота → когда обработка → тогда поднят РОВНО blocked_recipient_count, а не error_count', async () => {

@@ -64,16 +64,9 @@ export async function runOperatorHealthDigestTick(
   const windowEndIso = now.toISOString();
 
   const digestRead = buildAppDeps().operatorHealthDigestRead;
-  const suppressRecovery = await digestRead.hadOperatorIncidentsResolveAllInWindow(
-    windowStartIso,
-    windowEndIso,
-  );
+  const digestWindow = await digestRead.readWindow(windowStartIso, windowEndIso);
 
-  const input = await collectOperatorHealthDigestInput({
-    windowStartIso,
-    windowEndIso,
-    suppressRecovery,
-  });
+  const input = await collectOperatorHealthDigestInput({ digestWindow });
   const digest = buildOperatorHealthDigest(input);
 
   const recipients = await delivery.loadRecipients();

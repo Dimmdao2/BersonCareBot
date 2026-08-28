@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
   requireClinic: vi.fn(),
+  requireEntitlement: vi.fn(),
   getSetting: vi.fn(),
   updateSettingIfUnchanged: vi.fn(),
   relayOutbound: vi.fn(),
@@ -9,6 +10,9 @@ const fakes = vi.hoisted(() => ({
 
 vi.mock('@/app-layer/guards/requireRole', () => ({
   requireClinicManagementApiContext: fakes.requireClinic,
+}));
+vi.mock('@/app-layer/guards/requireEntitlement', () => ({
+  requireEntitlementForMutation: fakes.requireEntitlement,
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: () => ({
@@ -71,6 +75,7 @@ beforeEach(() => {
     },
   });
   fakes.getSetting.mockResolvedValue(setting);
+  fakes.requireEntitlement.mockResolvedValue({ ok: true });
   fakes.updateSettingIfUnchanged.mockImplementation(
     async (_key: string, _scope: string, valueJson: unknown) => ({ ...setting, valueJson }),
   );
@@ -83,6 +88,10 @@ describe('POST /api/admin/clinic-delivery-test', () => {
     const response = await POST(request('email'));
 
     expect(response.status).toBe(200);
+    expect(fakes.requireEntitlement).toHaveBeenCalledWith(
+      expect.objectContaining({ organizationId }),
+      'clinic_smtp',
+    );
     expect(fakes.relayOutbound).toHaveBeenCalledWith(
       expect.objectContaining({
         organizationId,
@@ -102,6 +111,21 @@ describe('POST /api/admin/clinic-delivery-test', () => {
       setting.updatedAt,
       { organizationId },
     );
+  });
+
+  it('does not probe or change a channel that is unavailable to the clinic', async () => {
+    fakes.requireEntitlement.mockResolvedValue({
+      ok: false,
+      response: new Response(JSON.stringify({ ok: false, error: 'entitlement_required' }), {
+        status: 403,
+      }),
+    });
+
+    const response = await POST(request('email'));
+
+    expect(response.status).toBe(403);
+    expect(fakes.relayOutbound).not.toHaveBeenCalled();
+    expect(fakes.updateSettingIfUnchanged).not.toHaveBeenCalled();
   });
 
   it('records a visible failure and does not enable the channel', async () => {

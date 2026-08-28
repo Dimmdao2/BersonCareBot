@@ -57,7 +57,8 @@ settings, billing и capability activation; эти delta уже reconciled в `I
 - порядок текущей SaaS-работы: `docs/_TODO/SAAS_FOUNDATION/SEQUENCE.md`;
 - текущий SaaS execution plan: `docs/_TODO/SAAS_FOUNDATION/SAAS_ENFORCE_ROADMAP.md`;
 - обзор продукта: `docs/PRODUCT_OVERVIEW.md`;
-- фактическая геометрия экранов: `docs/ARCHITECTURE/SCREEN_LAYOUT_INVENTORY.md`;
+- во время активной UI-переработки геометрия экранов определяется только по текущему коду и live UI; прежний
+  inventory архивирован как негодный и не является authority;
 - текущая навигация специалиста: `docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`;
 - продуктовая структура специалиста: `docs/ARCHITECTURE/SPECIALIST_CABINET_STRUCTURE.md`;
 - identity tiers: `docs/ARCHITECTURE/PLATFORM_IDENTITY_SPECIFICATION.md`;

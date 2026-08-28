@@ -9,22 +9,14 @@ export type OperatorJobFailureDigestRow = {
   lastFailureAt: string;
 };
 
+export type OperatorHealthDigestWindow = {
+  auditErrorCount: number;
+  hadResolveAll: boolean;
+  incidentsOpened: OperatorIncidentDigestRow[];
+  incidentsResolved: OperatorIncidentDigestRow[];
+  jobFailures: OperatorJobFailureDigestRow[];
+};
+
 export type OperatorHealthDigestReadPort = {
-  countAuditErrorsInWindow(windowStartIso: string, windowEndIso: string): Promise<number>;
-  hadOperatorIncidentsResolveAllInWindow(
-    windowStartIso: string,
-    windowEndIso: string,
-  ): Promise<boolean>;
-  listIncidentsOpenedInWindow(
-    windowStartIso: string,
-    windowEndIso: string,
-  ): Promise<OperatorIncidentDigestRow[]>;
-  listIncidentsResolvedInWindow(
-    windowStartIso: string,
-    windowEndIso: string,
-  ): Promise<OperatorIncidentDigestRow[]>;
-  listJobFailuresInWindow(
-    windowStartIso: string,
-    windowEndIso: string,
-  ): Promise<OperatorJobFailureDigestRow[]>;
+  readWindow(windowStartIso: string, windowEndIso: string): Promise<OperatorHealthDigestWindow>;
 };

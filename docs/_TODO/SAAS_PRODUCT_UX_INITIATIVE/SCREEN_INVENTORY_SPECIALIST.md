@@ -4,7 +4,8 @@
 
 ## 1. Канон и метод
 
-- Layout families: `docs/ARCHITECTURE/SCREEN_LAYOUT_INVENTORY.md`.
+- Layout families ниже — только локальные исторические метки этого снимка; прежний общий inventory архивирован
+  как негодный и не является authority.
 - Navigation intent: `docs/ARCHITECTURE/DOCTOR_CABINET_NAVIGATION.md`; фактический список и tiers: `apps/webapp/src/shared/ui/doctor/doctorNavLinks.ts:25-52,54-152`.
 - Staff route gate: parent layout вызывает `requireDoctorWorkspaceContext` для всего `/app/doctor/**` и передаёт organization/membership/specialist context в shell (`apps/webapp/src/app/app/doctor/layout.tsx:24-70`; resolver/guard — `apps/webapp/src/app-layer/guards/requireRole.ts:147-184`).
 - Clinic management gate: global admin либо `canManageOrganization`; global-admin page gate: `role=admin` (`apps/webapp/src/app/app/settings/requireAdminDoctorPage.ts:4-20`).
@@ -49,7 +50,8 @@ Assistant remains a membership role without a separate capability/screen contrac
 
 ## 4. Route-family inventory
 
-Обозначения layout: L1 stack, L2 Today dashboard, L3 catalog master-detail, L4 patients workbench, L5 entity card, L6 full-height tabs, L7 analytics tabs, L8 CMS hub, L9 media library — по `SCREEN_LAYOUT_INVENTORY.md`.
+Обозначения L1–L9 сохранены только как исторические метки этой таблицы; они не задают текущую реализацию или
+целевой layout.
 
 |   # | Route / coherent family                                                                                                                                                                                      | Actor + server guard                                                                                                  | Purpose, actions, states                                                                                                                         | Context                                                                                                                 | Layout                                                                  | Visual                                                                                                                      | Disposition hypothesis                                                                                             | Evidence                                                                                                                               |
 | --: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |

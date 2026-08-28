@@ -40,7 +40,8 @@ patient-replay audit завершён с **PASS — UX-01 factual current-state 
 - каталоги назначений, CMS, media, courses;
 - clinic-admin sections `Врачи` и `Настройки клиники`;
 - global-admin sections analytics, platform settings и system health;
-- фактические layout families описаны в `SCREEN_LAYOUT_INVENTORY.md`.
+- во время активной UI-переработки layout families определяются по текущему коду и live UI; прежний inventory
+  архивирован и не является authority.
 - regular doctor, clinic admin и global admin имеют различимые server-derived role/navigation boundaries; assistant capability boundary остаётся не определена.
 
 ### Organization / SaaS
