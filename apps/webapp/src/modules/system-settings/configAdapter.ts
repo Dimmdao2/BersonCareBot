@@ -129,13 +129,14 @@ export function invalidateConfigKey(key: string): void {
  * request gets on `system_settings` — a 42501 from the bare nonstaff login role — and caching it
  * poisoned the key for every consumer in the process for the whole TTL. They are now distinct.
  */
-type SettingReadOutcome =
-  | { read: true; value: string | null }
-  | { read: false; cause: unknown };
+type SettingReadOutcome = { read: true; value: string | null } | { read: false; cause: unknown };
 
 async function fetchFromDb(key: string): Promise<SettingReadOutcome> {
   try {
-    return { read: true, value: await currentConfigAdapterPort().readAdminSystemSettingString(key) };
+    return {
+      read: true,
+      value: await currentConfigAdapterPort().readAdminSystemSettingString(key),
+    };
   } catch (cause) {
     return { read: false, cause };
   }
@@ -178,6 +179,22 @@ export async function getConfigValue(key: string): Promise<string> {
   const value = requireReadValue(key, outcome);
   writeCached(identity, value, now);
   return value;
+}
+
+/**
+ * Read a migration-era optional setting without turning a database/access failure into "missing".
+ * Missing rows are deliberately not cached, so a later canonical write is visible immediately.
+ */
+export async function getOptionalConfigValue(key: string): Promise<string | null> {
+  const now = Date.now();
+  const identity = { kind: 'global', settingKey: key } as const;
+  const cached = readCached(identity, now);
+  if (cached !== null) return cached;
+
+  const outcome = await fetchFromDb(key);
+  if (!outcome.read) throw new RuntimeSettingUnavailableError(key, outcome.cause);
+  if (outcome.value !== null) writeCached(identity, outcome.value, now);
+  return outcome.value;
 }
 
 /** Exact clinic row, intentionally without global fallback for connection credentials. */

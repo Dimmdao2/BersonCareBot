@@ -20,7 +20,7 @@ TEST в финальное состояние через `deploy-test` → уд�
 используются в текущем проходе; одна `A → B0` миграция готовится только отдельным будущим этапом после явного
 разрешения владельца.
 
-## Актуальное состояние на 28.08.2026
+## Актуальное состояние на 29.08.2026
 
 Это единственный текущий чек-лист инициативы. Датированные чекбоксы ниже сохранены как хроника построения слоя и
 не определяют статус taskdb.
@@ -30,7 +30,7 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [x] Канонические `user_contacts`, разделение actor/subject, узкая роль integrator и исправленные seam-owner
   privileges находятся в текущем `feat`. Накопленный runtime-пакет до `cc13a4ed4` прошёл полный CI; последующие
   изолированные cleanup/deploy-wrapper изменения прошли targeted и независимые audit-gates. Штатный TEST deploy
-  завершился `PASS` на `7f29df6a1`, вместе с declaration/reconcile и финальной tenant-wall проверкой; старые
+  завершился `PASS` на `0e8060ab4`, вместе с declaration/reconcile и финальной tenant-wall проверкой; старые
   строки ниже про merge `92cf34ffa4` и TEST HEAD `484056ae5` больше не являются текущим состоянием.
 - [x] Восстановление старого TEST backup, создание пустой TEST, disposable/A0 и historical migration replay
   отменены более поздними owner-решениями. Их нельзя выполнять; история остаётся только в Git и evidence.
@@ -46,11 +46,12 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [ ] **Реальная доставка, общий gate с Track D.** Existing owner должен пройти messenger contact proof и код
   входа; запись на приём — реально доставить подтверждение и напоминание; scheduler — реально доставить operator
   digest и перенести следующий запуск после смены `digestTime`.
-- [ ] **Retention/rotation — code/DEV fixed, ждёт повторного TEST tick.** Почасовая DB-retention задача
+- [x] **Retention/rotation повторно доказана на TEST 29.08.** Почасовая DB-retention задача
   установлена. Запись «завершился успехом» 28.08 оказалась неполной: 29.08 точный разбор показал, что цель
   `app.context_nonce_ledger` падала, потому что генератор не восстанавливал явно отозванные schema-привилегии
-  владельца. Генератор и декларация исправлены; named DEV reconcile прошёл, dry-run всех целей зелёный.
-  Галочка возвращается только после общей TEST-выкатки и живого тика без частичного отказа. PostgreSQL logrotate
+  владельца. Генератор и декларация исправлены; named DEV reconcile и dry-run всех целей зелёные. После TEST deploy
+  `0e8060ab4` штатный `run-internal-job.sh test db_journal_retention` завершился с кодом `0`, а
+  `operator_job_status` записал `success` в `2026-08-29 01:58:55+03`. PostgreSQL logrotate
   активен (`weekly`, `rotate 10`) и имеет живые
   ротированные файлы; systemd/application stdout живёт в journald, где фактически применены
   `SystemMaxUse=2G`, `MaxRetentionSec=90day`, `SystemKeepFree=1G`, `ForwardToSyslog=no` (`18f75d8f7`).

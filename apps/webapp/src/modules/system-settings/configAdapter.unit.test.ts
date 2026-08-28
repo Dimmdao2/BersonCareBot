@@ -13,6 +13,7 @@ const getEffective = vi.fn();
 
 const {
   getConfigValue,
+  getOptionalConfigValue,
   getServerRuntimeInteger,
   getExactOrganizationConfigValue,
   getPublicAuthChannelConfigured,
@@ -56,6 +57,18 @@ describe('configAdapter DB-only legacy reads', () => {
     );
   });
 
+  it('distinguishes an optional missing row from a failed read', async () => {
+    readAdminSystemSettingString
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(getOptionalConfigValue('retired_migration_source')).resolves.toBeNull();
+    await expect(getOptionalConfigValue('retired_migration_source')).rejects.toBeInstanceOf(
+      RuntimeSettingUnavailableError,
+    );
+    expect(readAdminSystemSettingString).toHaveBeenCalledTimes(2);
+  });
+
   it('invalidates an exact-organization entry by its setting key', async () => {
     readExactOrganizationAdminSystemSettingString
       .mockResolvedValueOnce('old-token')
@@ -95,5 +108,4 @@ describe('configAdapter DB-only legacy reads', () => {
       }),
     );
   });
-
 });

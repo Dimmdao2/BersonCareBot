@@ -15,6 +15,17 @@ const mocks = vi.hoisted(() => ({
     return inserted;
   }),
   heartbeat: vi.fn(async () => undefined),
+  getOptionalConfigValue: vi.fn(async (key: string) =>
+    key === 'operator_health_alert_config'
+      ? JSON.stringify({
+          topics: { digest_enabled: true },
+          digestTime: '09:00',
+          channels: {
+            digest: { telegram: true, max: false, web_push: false, sms: false, email: false },
+          },
+        })
+      : null,
+  ),
 }));
 
 vi.mock('@/app-layer/health/collectOperatorHealthDigestInput', () => ({
@@ -31,17 +42,15 @@ vi.mock('@/modules/system-settings/appDisplayTimezone', () => ({
   getAppDisplayTimeZone: vi.fn(async () => mocks.timeZone),
 }));
 vi.mock('@/modules/system-settings/configAdapter', () => ({
-  getConfigValue: vi.fn(async (key: string) =>
-    key === 'operator_health_alert_config'
-      ? JSON.stringify({
-          topics: { digest_enabled: true },
-          digestTime: mocks.digestTime,
-          channels: {
-            digest: { telegram: true, max: false, web_push: false, sms: false, email: false },
-          },
-        })
-      : '',
-  ),
+  getOptionalConfigValue: vi.fn(async (key: string) => {
+    if (key !== 'operator_health_alert_config') return null;
+    const value = await mocks.getOptionalConfigValue(key);
+    if (value === null) return null;
+    return JSON.stringify({
+      ...JSON.parse(value),
+      digestTime: mocks.digestTime,
+    });
+  }),
 }));
 vi.mock('@/app-layer/di/buildAppDeps', () => ({
   buildAppDeps: vi.fn(() => ({
@@ -91,6 +100,7 @@ describe('runOperatorHealthDigestTick queue materialization', () => {
     expect(mocks.rows.size).toBe(1);
     expect(mocks.enqueue).toHaveBeenCalledTimes(2);
     expect(mocks.heartbeat).toHaveBeenCalledOnce();
+    expect(mocks.getOptionalConfigValue).not.toHaveBeenCalledWith('admin_incident_alert_config');
   });
 
   it('moves the next materialization immediately when digestTime changes', async () => {

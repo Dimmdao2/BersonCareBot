@@ -15,7 +15,7 @@ import {
 } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import { ADMIN_INCIDENT_ALERT_CONFIG_KEY } from '@/modules/admin-incidents/adminIncidentAlertConfig';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
-import { getConfigValue } from '@/modules/system-settings/configAdapter';
+import { getOptionalConfigValue } from '@/modules/system-settings/configAdapter';
 import { pingOperatorHeartbeatBestEffort } from '@/app-layer/operator-health/pingOperatorHeartbeat';
 
 export type RunOperatorHealthDigestTickResult = {
@@ -25,10 +25,6 @@ export type RunOperatorHealthDigestTickResult = {
 };
 
 async function loadDigestConfig(): Promise<OperatorHealthAlertConfig> {
-  const [operatorRaw, legacyRaw] = await Promise.all([
-    getConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY),
-    getConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY),
-  ]);
   const parseJson = (raw: string): unknown | null => {
     const t = raw.trim();
     if (!t) return null;
@@ -38,7 +34,15 @@ async function loadDigestConfig(): Promise<OperatorHealthAlertConfig> {
       return null;
     }
   };
-  return mergeOperatorHealthAlertConfigFromLegacy(parseJson(operatorRaw), parseJson(legacyRaw));
+  const operatorRaw = await getOptionalConfigValue(OPERATOR_HEALTH_ALERT_CONFIG_KEY);
+  if (operatorRaw !== null) {
+    return mergeOperatorHealthAlertConfigFromLegacy(parseJson(operatorRaw), null);
+  }
+  const legacyRaw = await getOptionalConfigValue(ADMIN_INCIDENT_ALERT_CONFIG_KEY);
+  return mergeOperatorHealthAlertConfigFromLegacy(
+    null,
+    legacyRaw === null ? null : parseJson(legacyRaw),
+  );
 }
 
 /**
