@@ -77,15 +77,28 @@ type IntegratorTokenPayload = {
   role: UserRole;
   displayName?: string;
   phone?: string;
-  /**
-   * Canonical `platform_users.id`; see `contracts/webapp-entry-token.json`. Track D (#987)
-   * replaced the retired numeric `integratorUserId` that used to travel here.
-   */
+  /** Canonical `platform_users.id`; see `contracts/webapp-entry-token.json`. */
   platformUserId?: string;
   bindings?: Record<string, string | undefined>;
   purpose: 'webapp-entry';
   exp: number;
 };
+
+/**
+ * Exactly the `properties` of `contracts/webapp-entry-token.json`. The contract is
+ * `additionalProperties: false`, so this set is the whole accepted key space and any other key —
+ * retired, renamed or invented — makes the payload refused.
+ */
+const CANONICAL_ENTRY_TOKEN_FIELDS: ReadonlySet<string> = new Set([
+  'sub',
+  'role',
+  'displayName',
+  'phone',
+  'platformUserId',
+  'bindings',
+  'purpose',
+  'exp',
+]);
 
 export type ExchangeResult = {
   session: AppSession;
@@ -267,7 +280,12 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
     return null;
   }
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-  if (Object.prototype.hasOwnProperty.call(raw, 'integratorUserId')) return null;
+  // `contracts/webapp-entry-token.json` is `additionalProperties: false`, and this is that clause:
+  // a payload whose key set is not a subset of the canonical contract is refused as a shape, not as
+  // a named field. Track D (#987) retired the numeric public identity that used to travel here — an
+  // old signed token carrying it is still refused, by the same rule that refuses any other unknown
+  // key, so the retired name does not have to survive in active code to keep its shape out.
+  if (!Object.keys(raw).every((key) => CANONICAL_ENTRY_TOKEN_FIELDS.has(key))) return null;
   const candidate = raw as Record<string, unknown>;
   if (
     typeof candidate.sub !== 'string' ||

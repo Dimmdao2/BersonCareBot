@@ -6,12 +6,9 @@ import { runIntegratorNamedRoot } from '../runIntegratorSql.js';
  * D17 финал. Оба чтения шли реляционно по `public.platform_users` + `public.user_contacts` под
  * ролью вебаппа. Читаемое у них одно и то же, поэтому корень ОДИН.
  *
- * Track D (#987): выходную колонку `integrator_user_id` этого корня больше НЕ читает никто —
- * единственным читателем была ссылка из рассылки врача (`doctorBroadcastIntentMenu.ts`), и она
- * переведена на канонический `platform_users.id`. Сама колонка в `RETURNS TABLE` пока остаётся:
- * убрать её — значит сменить тип возврата, то есть `DROP`+`CREATE` функции, а после `DROP` её
- * гранты пришлось бы выдавать заново. Миграция прав не выдаёт (AGENTS.md §1), поэтому снятие
- * колонки и числовой формы ключа идёт отдельным privilege-aware проходом.
+ * Track D (#987): корень пересоздан. Он возвращает ровно `phone_normalized`, ключ принимает только
+ * канонический uuid (не-uuid отвергается без чтения), а каждое чтение `platform_users` внутри несёт
+ * предикат арендатора. Вытесненной публичной личности нет ни во входе, ни в выходе.
  */
 
 const DELIVERY_IDENTITY_ROOT = 'app.integrator_read_platform_user_delivery_identity(text)';
@@ -48,7 +45,7 @@ export async function getCanonicalPlatformUserDeliveryIdentity(
 
 /**
  * Resolves `phone_normalized` for integrator delivery-targets lookup. `userKey` is the canonical
- * `platform_users.id`; the root still tolerates the retired numeric form, no live caller sends it.
+ * `platform_users.id`; anything that is not a uuid returns null without reading a row.
  */
 export async function getPhoneNormalizedForDeliveryLookup(
   db: DbPort,

@@ -106,8 +106,8 @@ async function resolveCanonicalPlatformUserId(
 
 /**
  * Track D (#987): both sides of this comparison are the canonical uuid now. Before the cutover the
- * owner side came back as `reminder_rules.integrator_user_id` (bigint) while this side was already
- * the canonical uuid, so the equality could never hold and every reminder button was denied.
+ * owner side came back as the retired public identity (bigint) while this side was already the
+ * canonical uuid, so the equality could never hold and every reminder button was denied.
  * A different binding, a different person or a different clinic still resolves to a different
  * uuid — or to nothing — and stays denied.
  */

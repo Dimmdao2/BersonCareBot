@@ -2044,6 +2044,13 @@ const ROW_LOCK_SURFACES: Readonly<Record<string, Readonly<Record<string, string>
     'public.platform_users': 'updated_at',
   },
   'app.email_otp_public_consume_latest_challenge(text,text)': { 'public.platform_users': 'updated_at' },
+  // Этот корень строку занятия только ЧИТАЕТ под `FOR UPDATE OF h` — пишет он тему канала в
+  // `user_notification_topic_channels`. Track D (#987) заново создал корень (ключ — канонический
+  // uuid), и общая с done/skip/snooze поверхность занятия дала бы ему UPDATE на 21 колонке ради
+  // одного замка. Здесь названа ровно одна служебная отметка времени.
+  'app.patient_disable_reminder_messenger_topic(uuid,text,text)': {
+    'public.reminder_occurrence_history': 'updated_at',
+  },
   'app.exchange_patient_invite(text,text,timestamp with time zone)': {
     'public.be_organizations': 'updated_at',
   },
@@ -2333,6 +2340,16 @@ const REMINDER_CALLBACK_OCCURRENCE_SURFACE = patientSurface('public.reminder_occ
   'skip_reason', 'snoozed_at', 'snoozed_until', 'delivery_generation', 'queued_at', 'failed_at',
   'delivery_channel', 'delivery_job_id', 'error_code',
 ], ['SELECT', 'UPDATE']);
+/**
+ * Тот же набор колонок для корня, который занятие только читает под замком: операции — `SELECT`,
+ * а право класса UPDATE ради `FOR UPDATE` доклеивает `ROW_LOCK_SURFACES` ОДНОЙ колонкой.
+ */
+const REMINDER_CALLBACK_OCCURRENCE_LOCK_SURFACE = patientSurface('public.reminder_occurrence_history', [
+  'integrator_occurrence_id', 'integrator_rule_id', 'organization_id', 'platform_user_id', 'category',
+  'done_at', 'sent_at', 'planned_at', 'occurred_at', 'updated_at', 'status', 'skipped_at',
+  'skip_reason', 'snoozed_at', 'snoozed_until', 'delivery_generation', 'queued_at', 'failed_at',
+  'delivery_channel', 'delivery_job_id', 'error_code',
+], ['SELECT']);
 const REMINDER_CALLBACK_RULE_SURFACE = patientSurface('public.reminder_rules', [
   'integrator_rule_id', 'organization_id', 'platform_user_id', 'category', 'notification_topic_code',
   'reminder_intent', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text',
@@ -2713,7 +2730,7 @@ const REV10_CONTEXT = {
       runtimeName: 'notification_delivery_attempt_record', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
       purpose: 'integrator.notification-delivery-attempt.record',
-      functionIdentity: 'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)' },
+      functionIdentity: 'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)' },
     integrator_broadcast_audit_counter_increment: { port: 'integrator',
       runtimeName: 'broadcast_audit_counter_increment', sessionRole: 'app_integrator_request',
       targetRole: 'app_integrator_request', contextClass: 'tenant_service',
@@ -5296,15 +5313,25 @@ const REV10_CONTEXT = {
       owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_request', 'app_patient'], purpose: 'atomically authorize and update canonical reminder mute',
       typedArgs: ['uuid', 'integer', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      // `UPDATE public.platform_users … WHERE id = v_actor`: предикат по `id` оплачивается
+      // привилегией SELECT на `id`, которой поколоночный UPDATE не даёт. Без неё тело проходит
+      // миграцию и reconcile зелёными и падает `42501` на первом живом «отключить напоминания» —
+      // ровно тот разбор права по ТЕЛУ, которого требует AGENTS.md §1. Операции разведены: читать
+      // разрешён только ключ, писать — только `reminder_muted_until`, поэтому UPDATE первичного
+      // ключа этой ролью недостижим, а рантайм-роль реляционного доступа к таблице не получает
+      // вовсе (грант уходит владельцу шва).
       relationSurfaces: [PATIENT_ORG_ENROLLMENT_SURFACE,
-        { relation: 'public.platform_users', columns: ['id', 'reminder_muted_until'], operations: ['UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.platform_users', columns: ['id', 'reminder_muted_until'],
+          operations: ['SELECT' as const, 'UPDATE' as const],
+          operationColumns: { SELECT: ['id'], UPDATE: ['reminder_muted_until'] },
+          evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.patient_disable_reminder_messenger_topic(uuid,text,text)': rev10Function({
       owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_request', 'app_patient'], purpose: 'atomically authorize and disable one canonical reminder topic channel',
       typedArgs: ['uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
-      relationSurfaces: [REMINDER_CALLBACK_OCCURRENCE_SURFACE, REMINDER_CALLBACK_RULE_SURFACE,
+      relationSurfaces: [REMINDER_CALLBACK_OCCURRENCE_LOCK_SURFACE, REMINDER_CALLBACK_RULE_SURFACE,
         REMINDER_CALLBACK_TOPIC_SURFACE, PATIENT_ORG_ENROLLMENT_SURFACE],
     }),
     'app.patient_reminder_notification_settings(uuid,text,text)': rev10Function({
@@ -6731,6 +6758,11 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
+    // Ключ этой двери — канонический `platform_users.id`; прежняя форма принимала ещё и retired
+    // публичный числовой ключ и потому читала `platform_users` без предиката арендатора. Каждое её
+    // чтение теперь сужено принципалом (гейт `definer-tenant-predicate`), поэтому в поверхности
+    // появилось `be_organization_members`: сотрудник клиники — такой же законный получатель, как её
+    // клиент, и обе ветки предиката оплачиваются грантом владельца шва.
     'app.integrator_read_platform_user_delivery_identity(text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
       execute: ['app_integrator_request'], purpose: 'integrator.platform-user-delivery-identity.read',
@@ -6741,14 +6773,16 @@ const REV10_CONTEXT = {
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.user_contacts', columns: ['platform_user_id', 'contact_kind', 'is_primary', 'value_normalized'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.be_organization_members', columns: ['platform_user_id', 'organization_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.org_enrollments', columns: ['platform_user_id', 'organization_id', 'status'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    // Сосед `app.resolve_active_organization_for_integrator_user_id(bigint)` делает то же дело по
-    // ДРУГОМУ ключу — по integrator_user_id, а не по привязке канала; поэтому это второй корень, а
-    // не вторая дверь в первый. Стены арендатора здесь нет и быть не может: дверь как раз и ищет
-    // организацию, и отдаёт наружу ровно один uuid, ни одной колонки о человеке.
+    // Дверь ищет организацию по привязке канала — единственный оставшийся способ: retired-сосед по
+    // публичному числовому ключу удалён вместе с самим ключом. Стены арендатора здесь нет и быть не
+    // может: дверь как раз и ищет организацию, и отдаёт наружу ровно один uuid, ни одной колонки о
+    // человеке.
     'app.resolve_active_organization_for_channel_binding(text,text)': rev10Function({
       owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'uuid', returnsSet: false,
       execute: ['app_integrator_resolver'], purpose: 'integrator.channel-organization.resolve',
@@ -6785,15 +6819,15 @@ const REV10_CONTEXT = {
           evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),
-    'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
+    'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)': rev10Function({
       owner: 'app_seam_delivery_scope_owner', security: 'DEFINER', returns: 'void', returnsSet: false,
       execute: ['app_integrator_request'], purpose: 'integrator.notification-delivery-attempt.record',
-      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'text', 'integer', 'text',
+      typedArgs: ['uuid', 'text', 'text', 'text', 'text', 'text', 'text', 'integer', 'text',
         'text', 'text', 'text', 'text'],
       volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
         { relation: 'public.notification_delivery_attempts',
-          columns: ['organization_id', 'user_id', 'integrator_user_id', 'topic_code', 'intent_type',
+          columns: ['organization_id', 'user_id', 'topic_code', 'intent_type',
             'channel', 'status', 'reason', 'provider_status_code', 'event_id', 'occurrence_id',
             'recipient_ref', 'error_message', 'metadata'],
           operations: ['INSERT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },

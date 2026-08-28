@@ -16,8 +16,10 @@
    Ожидание: результат приходит из webapp через `subscriptionMailingReadsPort`, не из локальной БД integrator.
 
 2. **Integrator: subscriptions.byUser**  
-   Integrator вызывает `readPort.readDb({ type: 'subscriptions.byUser', params: { integratorUserId: '...' } })`.  
-   Ожидание: результат приходит из webapp.
+   Track D (#987): числовой селектор человека вытеснен, и такой параметр в контракте невозможен —
+   подписки читаются по каноническому `platformUserId`. Сама пара read-типов (`mailing.topics.list`,
+   `subscriptions.byUser`) в текущем рантайме отсутствует; шаг сохранён как описание проверяемого
+   свойства «интегратор читает подписки из webapp, а не из своей БД».
 
 3. **Reconciliation**  
    Запуск `reconcile-subscription-mailing-domain` при настроенных `DATABASE_URL` и `INTEGRATOR_DATABASE_URL`.  

@@ -158,7 +158,7 @@ describe('integrator platform-user delivery identity reader', () => {
 
   it('accepts the canonical uuid key', async () => {
     const db = {} as DbPort;
-    answers([{ phone_normalized: '+79060432251', integrator_user_id: '126' }]);
+    answers([{ phone_normalized: '+79060432251' }]);
 
     await expect(
       getCanonicalPlatformUserDeliveryIdentity(db, bindingRow.platform_user_id),
@@ -166,8 +166,8 @@ describe('integrator platform-user delivery identity reader', () => {
     expect(callOf(0)).toEqual([db, DELIVERY_ROOT, [bindingRow.platform_user_id]]);
   });
 
-  // Track D (#987): корень до сих пор терпит числовую форму ключа, но живого вызывающего у неё нет —
-  // сторожим ровно это: ключ уезжает в корень дословно, а наружу выходит только телефон.
+  // Track D (#987): ключ уезжает в корень дословно, а наружу выходит только телефон — отбор
+  // непригодных форм ключа делает сам корень, а не этот адаптер.
   it('passes the key through verbatim and returns the phone alone', async () => {
     const db = {} as DbPort;
     answers([{ phone_normalized: '+79060432251' }]);

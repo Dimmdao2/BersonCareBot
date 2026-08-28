@@ -41,15 +41,14 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     runWebappNamedRootMock.mockResolvedValue({ rows: [{ inserted: true }], rowCount: 1 });
   });
 
-  it('listRulesByPlatformUserId фильтрует по каноническому platform_user_id, а не по retired id', async () => {
-    // арбитр (Track D #987): вернуть сюда `integrator_user_id` — и чтение правил снова уедет на
-    // retired numeric identity, которой у канонического пациента может не быть вовсе
+  it('listRulesByPlatformUserId фильтрует по каноническому platform_user_id', async () => {
+    // арбитр (Track D #987): подставить сюда любой другой ключ владельца — и чтение правил снова
+    // уедет мимо канонического пациента
     const port = createPgReminderProjectionPort();
     await port.listRulesByPlatformUserId('11111111-1111-4111-8111-111111111111');
     const sql = lastApproxSql();
     expect(sql).toContain('platform_user_id');
     expect(sql).toContain('11111111-1111-4111-8111-111111111111');
-    expect(sql).not.toContain('integrator_user_id');
   });
 
   it('listHistoryByPlatformUserId фильтрует историю по каноническому platform_user_id', async () => {
@@ -75,7 +74,6 @@ describe('createPgReminderProjectionPort (pg SQL)', () => {
     const sql = lastApproxSql();
     expect(sql).toContain('platform_user_id');
     expect(sql).toContain('22222222-2222-4222-8222-222222222222');
-    expect(sql).not.toContain('integrator_user_id');
   });
 
   it('markSeen passes occurrence id array to UPDATE', async () => {

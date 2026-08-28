@@ -1,17 +1,25 @@
 -- BCB-MIGRATION-BACKFILL
 -- Public messenger identity is canonical user/channel state. The numeric integrator user key remains
 -- only an internal request principal and a delivery-attempt diagnostic.
--- Privilege analysis:
---   changed objects: six reminder callback roots, two delivery roots, support ensure root,
---   reminder materialization/read roots, and the retired columns on platform_users,
---   reminder_rules, reminder_occurrence_history and support_conversations;
+-- Privilege analysis (AGENTS.md §1 «Перед приземлением миграции — разбор её прав»):
+--   changed objects: six reminder callback roots, the retired `patient_set_reminder_muted_until`
+--   and `patient_set_reminder_mute` overloads, `resolve_active_organization_for_integrator_user_id`,
+--   two delivery roots, the two delivery-attempt journal roots, the support ensure root,
+--   reminder materialization/read roots, `app_ext.assert_port_context_claim`, and the retired
+--   `integrator_user_id` columns on platform_users, reminder_rules, reminder_occurrence_history,
+--   support_conversations, notification_delivery_attempts and content_access_grants_webapp;
 --   statement owners: app_seam_reminder_patient_owner, app_seam_reminder_materialization_owner,
 --   app_seam_identity_lookup_owner, app_seam_delivery_scope_owner,
---   app_seam_patient_self_actions_owner and app_object_owner;
+--   app_seam_telemetry_operator_owner, app_seam_patient_self_actions_owner and app_object_owner;
 --   runtime roles: app_integrator_request/app_patient for callbacks, app_operational_scheduler for
---   reminder discovery, app_tenant_service for delivery snapshots, app_patient for support;
+--   reminder discovery, app_tenant_service for delivery snapshots and the integrator delivery-attempt
+--   journal, app_operational_delivery_worker for the operator journal, app_patient for support;
 --   body privileges: the named owners need the relation SELECT/INSERT/UPDATE surfaces declared in
---   deploy/postgres/privileges/declaration.ts; runtime roles receive EXECUTE only there;
+--   deploy/postgres/privileges/declaration.ts — in particular the mute root now needs SELECT(id) on
+--   platform_users for its `WHERE id` predicate next to UPDATE(reminder_muted_until), and the
+--   delivery-identity root needs SELECT on be_organization_members for its tenant predicate;
+--   runtime roles receive EXECUTE only there. DROP+CREATE changes the function OID, so every
+--   changed signature is reconciled after the migration;
 --   declaration/generated changes: signatures, relation columns and dropped columns are updated in
 --   the same commit. This migration deliberately contains no GRANT/REVOKE/role/policy statement.
 
@@ -239,7 +247,9 @@ $function$;
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
-DROP FUNCTION IF EXISTS app.patient_set_reminder_muted_until(integer,boolean);
+-- The live retired overload takes `timestamptz`, not `(integer,boolean)`: its body resolved the
+-- person through `platform_users.integrator_user_id`, and it has no caller left.
+DROP FUNCTION app.patient_set_reminder_muted_until(timestamptz);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
 -- BCB-MIGRATION-SCHEMA-CREATE: app
@@ -291,14 +301,32 @@ DROP FUNCTION app.integrator_read_platform_user_delivery_identity(text);
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.integrator_read_platform_user_delivery_identity(p_platform_user_id text)
 RETURNS TABLE(phone_normalized text) LANGUAGE plpgsql STABLE PARALLEL RESTRICTED SECURITY DEFINER SET search_path TO 'pg_catalog','app','public','pg_temp' AS $function$
-DECLARE v_org uuid:=app.current_org_id(); v_user uuid;
+DECLARE v_org uuid; v_user uuid; v_next uuid; v_depth integer:=0;
 BEGIN
   PERFORM app.require_accepted_context('app_seam_identity_lookup_owner'::name,'app_integrator_request'::name,'tenant_service'::app.port_context_class,'integrator.platform-user-delivery-identity.read',app.hash_port_typed_args(ARRAY[ROW('text@1',pg_catalog.textsend($1))::app.port_typed_arg]),'app.integrator_read_platform_user_delivery_identity(text)'::regprocedure);
-  IF v_org IS NULL OR p_platform_user_id !~ '^[0-9a-fA-F-]{36}$' THEN RETURN; END IF;
-  WITH RECURSIVE chain AS (SELECT id,merged_into_id FROM public.platform_users WHERE id=p_platform_user_id::uuid UNION ALL SELECT p.id,p.merged_into_id FROM public.platform_users p JOIN chain c ON p.id=c.merged_into_id)
-  SELECT id INTO v_user FROM chain WHERE merged_into_id IS NULL LIMIT 1;
-  IF v_user IS NULL OR NOT EXISTS(SELECT 1 FROM public.org_enrollments e WHERE e.platform_user_id=v_user AND e.organization_id=v_org AND e.status='active') THEN RETURN; END IF;
-  RETURN QUERY SELECT c.value_normalized FROM public.user_contacts c WHERE c.platform_user_id=v_user AND c.contact_kind='phone' AND c.is_primary LIMIT 1;
+  v_org:=app.current_org_id();
+  IF v_org IS NULL THEN RAISE EXCEPTION 'integrator_platform_user_delivery_identity_principal_required' USING ERRCODE='42501'; END IF;
+  IF p_platform_user_id !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN RETURN; END IF;
+  -- SECURITY DEFINER обходит RLS, поэтому КАЖДОЕ чтение `platform_users` здесь несёт предикат
+  -- арендатора само: строка видна только тому, чья клиника числит этого человека сотрудником или
+  -- клиентом. Прежняя рекурсивная CTE читала таблицу без этого предиката.
+  SELECT platform_user.id INTO v_user FROM public.platform_users AS platform_user
+   WHERE platform_user.id=p_platform_user_id::uuid
+     AND (EXISTS(SELECT 1 FROM public.be_organization_members AS tenant_staff WHERE tenant_staff.platform_user_id=platform_user.id AND tenant_staff.organization_id=v_org AND tenant_staff.status='active')
+       OR EXISTS(SELECT 1 FROM public.org_enrollments AS tenant_patient WHERE tenant_patient.platform_user_id=platform_user.id AND tenant_patient.organization_id=v_org AND tenant_patient.status='active'));
+  IF v_user IS NULL THEN RETURN; END IF;
+  LOOP
+    EXIT WHEN v_depth>=5;
+    SELECT platform_user.merged_into_id INTO v_next FROM public.platform_users AS platform_user
+     WHERE platform_user.id=v_user
+       AND (EXISTS(SELECT 1 FROM public.be_organization_members AS tenant_staff WHERE tenant_staff.platform_user_id=platform_user.id AND tenant_staff.organization_id=v_org AND tenant_staff.status='active')
+         OR EXISTS(SELECT 1 FROM public.org_enrollments AS tenant_patient WHERE tenant_patient.platform_user_id=platform_user.id AND tenant_patient.organization_id=v_org AND tenant_patient.status='active'));
+    EXIT WHEN v_next IS NULL;
+    v_user:=v_next;
+    v_depth:=v_depth+1;
+  END LOOP;
+  RETURN QUERY SELECT contact.value_normalized FROM public.user_contacts AS contact
+   WHERE contact.platform_user_id=v_user AND contact.contact_kind='phone' AND contact.is_primary LIMIT 1;
 END
 $function$;
 --> statement-breakpoint
@@ -389,13 +417,169 @@ ALTER TABLE public.reminder_rules DROP COLUMN integrator_user_id;
 ALTER TABLE public.platform_users DROP COLUMN integrator_user_id;
 --> statement-breakpoint
 
+-- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
+-- The delivery-attempt journal keeps every existing fact; only the retired public person copy
+-- leaves it. `user_id` (canonical `platform_users.id`) and `recipient_ref` already carry who the
+-- attempt was for, so the numeric column added nothing that survives the cutover.
+DROP FUNCTION app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text);
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+CREATE FUNCTION app.integrator_record_notification_delivery_attempt(p_organization_id uuid,p_user_id text,p_topic_code text,p_intent_type text,p_channel text,p_status text,p_reason text,p_provider_status_code integer,p_event_id text,p_occurrence_id text,p_recipient_ref text,p_error_message text,p_metadata text)
+RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER PARALLEL UNSAFE SET search_path = pg_catalog AS $function$
+DECLARE v_user_id uuid;
+BEGIN
+  PERFORM app.require_accepted_context('app_seam_delivery_scope_owner'::name,'app_tenant_service'::name,'tenant_service'::app.port_context_class,'integrator.notification-delivery-attempt.record',
+    app.hash_port_typed_args(ARRAY[
+      ROW('uuid@1',pg_catalog.uuid_send($1))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($2))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($3))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($4))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($5))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($6))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($7))::app.port_typed_arg,
+      ROW('integer@1',pg_catalog.int4send($8))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($9))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($10))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($11))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($12))::app.port_typed_arg,
+      ROW('text@1',pg_catalog.textsend($13))::app.port_typed_arg
+    ]),'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)'::regprocedure);
+  IF p_status IS DISTINCT FROM 'failed' THEN RAISE EXCEPTION 'notification_delivery_attempt_must_be_failed_provider_attempt' USING ERRCODE='22023'; END IF;
+  IF app.current_org_id() IS NULL THEN RAISE EXCEPTION 'integrator_notification_delivery_attempt_principal_required' USING ERRCODE='42501'; END IF;
+  IF p_organization_id IS DISTINCT FROM app.current_org_id() THEN RAISE EXCEPTION 'integrator_notification_delivery_attempt_principal_mismatch' USING ERRCODE='42501'; END IF;
+  v_user_id := p_user_id::uuid;
+  IF v_user_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM public.be_organization_members AS tenant_staff WHERE tenant_staff.platform_user_id=v_user_id AND tenant_staff.organization_id=p_organization_id AND tenant_staff.status='active')
+    AND NOT EXISTS (SELECT 1 FROM public.org_enrollments AS tenant_patient WHERE tenant_patient.platform_user_id=v_user_id AND tenant_patient.organization_id=p_organization_id AND tenant_patient.status='active')
+  THEN RAISE EXCEPTION 'integrator_notification_delivery_attempt_user_outside_organization' USING ERRCODE='42501'; END IF;
+  INSERT INTO public.notification_delivery_attempts (
+    organization_id, user_id, topic_code, intent_type, channel, status, reason,
+    provider_status_code, event_id, occurrence_id, recipient_ref, error_message, metadata
+  ) VALUES (
+    p_organization_id, v_user_id, p_topic_code, p_intent_type, p_channel, p_status, p_reason,
+    p_provider_status_code, p_event_id, p_occurrence_id::uuid, p_recipient_ref, p_error_message, p_metadata::jsonb
+  );
+END
+$function$;
+--> statement-breakpoint
+
+-- BCB-MIGRATION-OWNER: app_seam_telemetry_operator_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
+-- The operator journal root stops projecting `intent.meta.userId` into the retired person column.
+-- Everything else in both branches is unchanged.
+CREATE OR REPLACE FUNCTION app.record_operator_delivery_attempt(p_intent_type text,p_intent_event_id text,p_correlation_id text,p_organization_id uuid,p_channel text,p_status text,p_attempt integer,p_reason text,p_payload_text text,p_occurred_at timestamp with time zone)
+RETURNS void LANGUAGE plpgsql VOLATILE SECURITY DEFINER PARALLEL UNSAFE SET search_path = pg_catalog AS $function$
+DECLARE
+  v_queue_kind text;
+  v_organization_id uuid;
+  v_payload jsonb;
+  v_occurrence_id uuid;
+  v_topic_code text;
+  v_user_id uuid;
+  v_context_payload jsonb;
+BEGIN
+  PERFORM app.require_attested_context_for_roles('app_seam_telemetry_operator_owner'::name, ARRAY['app_operational_delivery_worker'::name]::name[]);
+
+  IF length(COALESCE(p_intent_event_id, '')) NOT BETWEEN 1 AND 240
+    OR p_channel NOT IN ('telegram', 'max', 'email', 'sms', 'smsc', 'web_push')
+    OR p_status NOT IN ('success', 'failed', 'skipped')
+    OR p_attempt NOT BETWEEN 1 AND 100
+    OR length(COALESCE(p_reason, '')) > 500
+    OR (p_status = 'success' AND p_reason IS NOT NULL AND p_reason <> 'dev_redirect_suppressed')
+    OR (p_status = 'failed' AND p_reason IS DISTINCT FROM 'provider_rejected')
+    OR (p_status = 'skipped' AND COALESCE(p_reason, '') = '')
+  THEN
+    RAISE EXCEPTION 'invalid operator delivery attempt audit input' USING ERRCODE = '23514';
+  END IF;
+
+  SELECT queue.kind, queue.organization_id, queue.payload_json
+  INTO v_queue_kind, v_organization_id, v_payload
+  FROM public.outgoing_delivery_queue AS queue
+  WHERE queue.channel = p_channel
+    AND queue.payload_json #>> '{intent,meta,eventId}' = p_intent_event_id
+  LIMIT 1;
+
+  IF v_queue_kind IS NULL THEN
+    v_context_payload := p_payload_text::jsonb;
+    IF NULLIF(btrim(p_intent_type), '') IS NULL
+      OR length(p_intent_type) > 200
+      OR length(COALESCE(p_correlation_id, '')) > 500
+      OR v_context_payload IS NULL
+      OR jsonb_typeof(v_context_payload) <> 'object'
+      OR pg_column_size(v_context_payload) > 65536
+      OR p_occurred_at IS NULL
+    THEN
+      RAISE EXCEPTION 'invalid nonqueue operator delivery attempt audit context'
+        USING ERRCODE = '23514';
+    END IF;
+
+    INSERT INTO public.notification_delivery_attempts (
+      created_at, organization_id, intent_type, channel, status, reason, event_id, metadata
+    ) VALUES (
+      p_occurred_at, p_organization_id, p_intent_type, p_channel, p_status, p_reason, p_intent_event_id,
+      jsonb_build_object(
+        'attempt', p_attempt,
+        'kind', p_intent_type,
+        'channel', p_channel,
+        'source', 'record_operator_delivery_attempt',
+        'queueSource', false,
+        'correlationId', NULLIF(p_correlation_id, ''),
+        'payload', v_context_payload
+      )
+    );
+    RETURN;
+  END IF;
+
+  v_occurrence_id := NULLIF(v_payload->>'occurrenceId', '')::uuid;
+  v_topic_code := NULLIF(v_payload->>'topicCode', '');
+  IF NULLIF(v_payload->>'platformUserId', '') ~
+     '^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'
+  THEN
+    v_user_id := NULLIF(v_payload->>'platformUserId', '')::uuid;
+  END IF;
+
+  INSERT INTO public.notification_delivery_attempts (
+    organization_id, user_id, topic_code, intent_type, channel, status, reason, event_id,
+    occurrence_id, metadata
+  ) VALUES (
+    v_organization_id, v_user_id, v_topic_code, v_queue_kind, p_channel, p_status, p_reason,
+    p_intent_event_id, v_occurrence_id,
+    jsonb_build_object(
+      'attempt', p_attempt,
+      'kind', v_queue_kind,
+      'channel', p_channel,
+      'source', 'record_operator_delivery_attempt'
+    )
+  );
+END
+$function$;
+--> statement-breakpoint
+
+-- BCB-MIGRATION-OWNER: app_object_owner
+-- The delivery-attempt rows themselves stay; only the retired public person copy is dropped.
+ALTER TABLE public.notification_delivery_attempts DROP COLUMN integrator_user_id;
+--> statement-breakpoint
+-- BCB-MIGRATION-OWNER: app_object_owner
+-- `idx_content_access_grants_webapp_integrator_user_id` disappears with its column; the canonical
+-- owner key `platform_user_id` and its foreign key are untouched.
+ALTER TABLE public.content_access_grants_webapp DROP COLUMN integrator_user_id;
+--> statement-breakpoint
+
 -- BCB-MIGRATION-BACKFILL
 -- BCB-MIGRATION-VERIFY: retired public columns/signatures are absent and canonical reminder ownership is mandatory
 DO $migration$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name IN('platform_users','reminder_rules','reminder_occurrence_history','support_conversations') AND column_name='integrator_user_id')
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND column_name='integrator_user_id')
      OR EXISTS (SELECT 1 FROM public.reminder_rules WHERE platform_user_id IS NULL)
      OR to_regprocedure('app.patient_done_reminder_occurrence(uuid,text)') IS NULL
+     OR to_regprocedure('app.patient_set_reminder_muted_until(timestamp with time zone)') IS NOT NULL
+     OR to_regprocedure('app.patient_set_reminder_mute(integer,boolean)') IS NOT NULL
+     OR to_regprocedure('app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)') IS NULL
+     OR to_regprocedure('app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)') IS NOT NULL
+     OR to_regprocedure('app.resolve_active_organization_for_integrator_user_id(bigint)') IS NOT NULL
      OR to_regprocedure('app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,text,timestamp with time zone)') IS NULL
      OR to_regprocedure('app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)') IS NOT NULL THEN
     RAISE EXCEPTION 'public integrator identity retirement verification failed';

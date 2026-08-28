@@ -3,7 +3,7 @@ import { getRequestLogger, newEventId } from '../../infra/observability/logger.j
 import { getVkRuntimeConfig } from '../../infra/adapters/integrationRuntimeConfig.js';
 import { isWebhookSecretValid } from '../common/webhookSecretCompare.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
-import { runWithBootstrapPrincipal, runWithIntegratorPrincipal, runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
+import { runWithBootstrapPrincipal, runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import { vkIncomingToEvent } from './connector.js';
 import { fromVk } from './mapIn.js';
 import { parseVkCallback } from './schema.js';
@@ -12,7 +12,6 @@ export type VkWebhookDeps = {
   eventGateway: EventGateway;
   getRuntimeConfig?: typeof getVkRuntimeConfig;
   resolveOrganizationIdForMessengerIdentity?: (externalId: string, resource: 'vk') => Promise<string | null>;
-  resolveIntegratorUserIdForMessenger?: (externalId: string, resource: 'vk') => Promise<string | undefined>;
 };
 
 function externalId(callback: Parameters<typeof fromVk>[0]): string | null {
@@ -49,7 +48,6 @@ export async function registerVkWebhookRoutes(app: FastifyInstance, deps: VkWebh
       const id = externalId(parsed.data);
       const preRouting = await runWithBootstrapPrincipal({ source: 'vk-webhook:pre-routing' }, async () => ({
         organizationId: id ? await deps.resolveOrganizationIdForMessengerIdentity?.(id, 'vk') ?? null : null,
-        integratorUserId: id ? await deps.resolveIntegratorUserIdForMessenger?.(id, 'vk') ?? null : null,
       }));
       const event = vkIncomingToEvent({
         incoming,
@@ -58,11 +56,11 @@ export async function registerVkWebhookRoutes(app: FastifyInstance, deps: VkWebh
         ...(parsed.data.event_id ? { providerEventId: parsed.data.event_id } : {}),
       });
       const invoke = () => deps.eventGateway.handleIncomingEvent(event);
-      const result = preRouting.organizationId && preRouting.integratorUserId
-        ? await runWithIntegratorPrincipal({ organizationId: preRouting.organizationId, integratorUserId: preRouting.integratorUserId, source: 'vk-webhook' }, invoke)
-        : preRouting.organizationId
-          ? await runWithOrganizationPrincipal(preRouting.organizationId, invoke)
-          : await runWithBootstrapPrincipal({ source: 'vk-webhook:unresolved-org' }, invoke);
+      // Принципал входящего вебхука — организация (Track D, #987: мессенджер-логин больше не
+      // разрешается ни в какую публичную числовую личность).
+      const result = preRouting.organizationId
+        ? await runWithOrganizationPrincipal(preRouting.organizationId, invoke)
+        : await runWithBootstrapPrincipal({ source: 'vk-webhook:unresolved-org' }, invoke);
       if (result.status === 'rejected') {
         reqLogger.warn({ reason: result.reason }, 'vk webhook pipeline rejected');
         return reply.code(500).type('text/plain').send('failed');

@@ -94,10 +94,10 @@ describe('D17 — попытка доставки уведомления', () =>
     expect(call.principalOrganizationId).toBe(ORG_ROW);
     expect(call.params[0]).toBe(ORG_ROW);
     expect(call.params[1]).toBe(PLATFORM_USER);
-    expect(call.params[5]).toBe('web_push');
-    expect(call.params[6]).toBe('failed');
-    expect(call.params[7]).toBe('dispatch_failed');
-    expect(call.params[10]).toBeNull();
+    expect(call.params[4]).toBe('web_push');
+    expect(call.params[5]).toBe('failed');
+    expect(call.params[6]).toBe('dispatch_failed');
+    expect(call.params[9]).toBeNull();
   });
 
   it('без организации корень зовётся без принципала и без организации — то есть отказывает, а доставка не отменяется', async () => {

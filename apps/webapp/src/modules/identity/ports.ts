@@ -9,8 +9,8 @@ import type { DoctorClientsPort } from '@/modules/doctor-clients/ports';
 export type UserProjectionPort = {
   /**
    * Track D (#987) removed `upsertFromProjection` and `findByIntegratorId` from this port. They
-   * were the write and read halves of the retired M2M identity projection keyed by
-   * `platform_users.integrator_user_id`, and both had zero production callers once the auth,
+   * were the write and read halves of the retired M2M identity projection keyed by the retired
+   * public column on `platform_users`, and both had zero production callers once the auth,
    * reminder, callback and broadcast-link paths moved to the canonical uuid. Do not reintroduce
    * them under another name.
    */

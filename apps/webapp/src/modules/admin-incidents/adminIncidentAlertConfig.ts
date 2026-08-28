@@ -3,7 +3,6 @@
  * Stored in system_settings key `admin_incident_alert_config` (scope admin).
  *
  * Без Node-only импортов: клиентские компоненты настроек импортируют константы/типы из этого файла.
- * Dedup-хеш для integrator — {@link integratorAutoMergeAnomalyDedupKey}.
  */
 
 export const ADMIN_INCIDENT_ALERT_CONFIG_KEY = 'admin_incident_alert_config' as const;

@@ -738,8 +738,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "codePaths": [
       "apps/integrator/src/infra/db/migrate.ts",
       "apps/integrator/src/infra/db/repos/channelUsers.ts",
-      "apps/integrator/src/infra/db/repos/integratorUserOrganizationSql.ts",
-      "apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts",
       "apps/integrator/src/infra/db/repos/messageThreads.ts",
       "apps/integrator/src/infra/db/repos/reminders.ts",
       "apps/webapp/src/app/app/account/accountContext.ts",
@@ -2976,7 +2974,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
     "kind": "direct",
     "purpose": "Выданные пациенту доступы к контенту — пациент теряет доступ к выданным ему материалам",
     "codePaths": [
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/repos/pgEntitlements.ts",
       "apps/webapp/src/infra/repos/pgReminderProjection.ts",
@@ -2988,9 +2985,9 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         // «можно ли показать материал» тем же `EntitlementsPort`, но идут под `app_patient` — до
         // этой строки у роли не было ни одного права, и вопрос заканчивался 42501 и SSR 500.
         // Дверь узкая в обе стороны: строки сужает политика (своя клиника, свой человек, доступ
-        // не отозван и не истёк), колонки — этот грант. `token_hash`, `integrator_grant_id`,
-        // `integrator_user_id` и `organization_id` пациенту не выдаются: ему нужен ответ про
-        // материал, а не сам доступ как секрет.
+        // не отозван и не истёк), колонки — этот грант. `token_hash`, `integrator_grant_id` и
+        // `organization_id` пациенту не выдаются: ему нужен ответ про материал, а не сам доступ
+        // как секрет.
         "role": "app_patient",
         "operations": [
           "SELECT"
@@ -3021,7 +3018,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "created_at",
           "expires_at",
           "integrator_grant_id",
-          "integrator_user_id",
           "meta_json",
           "organization_id",
           "platform_user_id",
@@ -3038,7 +3034,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "content_id",
           "expires_at",
-          "integrator_user_id",
           "meta_json",
           "organization_id",
           "platform_user_id",
@@ -4641,7 +4636,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "endpoint_hash",
           "error_message",
           "event_id",
-          "integrator_user_id",
           "intent_type",
           "metadata",
           "occurrence_id",
@@ -4663,7 +4657,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "channel",
           "error_message",
           "event_id",
-          "integrator_user_id",
           "intent_type",
           "metadata",
           "occurrence_id",
@@ -4685,7 +4678,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "channel",
           "error_message",
           "event_id",
-          "integrator_user_id",
           "intent_type",
           "metadata",
           "occurrence_id",
@@ -4873,8 +4865,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
       "apps/integrator/src/infra/db/migrate.ts",
       "apps/integrator/src/infra/db/repos/channelUsers.ts",
-      "apps/integrator/src/infra/db/repos/integratorUserOrganizationSql.ts",
-      "apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts",
       "apps/integrator/src/infra/db/repos/messageThreads.ts",
       "apps/integrator/src/infra/db/repos/reminders.ts",
       "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
@@ -6165,8 +6155,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/integrator/src/infra/db/directPublic/writeSupportConversationsDirect.ts",
       "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
       "apps/integrator/src/infra/db/repos/channelUsers.ts",
-      "apps/integrator/src/infra/db/repos/integratorUserOrganizationSql.ts",
-      "apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts",
       "apps/integrator/src/infra/db/repos/messageThreads.ts",
       "apps/integrator/src/infra/db/repos/platformUserByChannel.ts",
       "apps/integrator/src/infra/db/repos/platformUserDeliveryPhone.ts",
@@ -6187,7 +6175,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
       "apps/webapp/src/app/api/account/security/sessions/revoke/route.ts",
       "apps/webapp/src/app/api/auth/email-password/reset/route.ts",
-      "apps/webapp/src/app/api/doctor/clients/integrator-merge/route.ts",
       "apps/webapp/src/app/api/doctor/patients/[userId]/physical/route.ts",
       "apps/webapp/src/app/api/internal/saas-billing/renewal/tick/route.ts",
       "apps/webapp/src/app/app/doctor/clients/AdminClientProfileEditPanel.tsx",
@@ -6196,11 +6183,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/config/env.ts",
       "apps/webapp/src/infra/adminAuditLog.ts",
       "apps/webapp/src/infra/db/bootProbe.ts",
-      "apps/webapp/src/infra/integratorPlatformUserMerge.ts",
-      "apps/webapp/src/infra/manualMergeIntegratorGate.ts",
       "apps/webapp/src/infra/mergeAuditLabels.ts",
-      "apps/webapp/src/infra/mergePreviewIntegratorUserPresence.ts",
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/platformUserMergePreview.ts",
       "apps/webapp/src/infra/platformUserNameMatchHints.ts",
@@ -7095,7 +7078,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/integrator/src/infra/runtime/worker/outgoingDeliveryWorker.ts",
       "apps/webapp/src/app-layer/health/adminReminderPipelineMetrics.ts",
       "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/repos/inMemoryReminderJournal.ts",
       "apps/webapp/src/infra/repos/pgDoctorAnalyticsMetricAccounts.ts",
@@ -7169,7 +7151,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/integrator/src/infra/db/directPublic/writeReminderRulesDirect.ts",
       "apps/integrator/src/infra/db/integratorDrizzleSchema.ts",
       "apps/integrator/src/infra/db/migrations/core/20260808_0002_drop_legacy_user_reminder_rules.sql",
-      "apps/integrator/src/infra/db/repos/mergeIntegratorUsers.ts",
       "apps/integrator/src/infra/db/repos/reminders.ts",
       "apps/integrator/src/infra/db/schema/integratorPublicProduct.ts",
       "apps/integrator/src/infra/db/writePort.ts",
@@ -7177,7 +7158,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/app-layer/stats/loadAdminReminderStats.ts",
       "apps/webapp/src/app-layer/stats/reminderNotificationPeopleStats.ts",
       "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/platformUserMergePreview.ts",
       "apps/webapp/src/infra/repos/inMemoryReminderRules.ts",
@@ -8339,7 +8319,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/integrator/src/infra/db/directPublic/writeSupportQuestionsDirect.ts",
       "apps/integrator/src/infra/db/writePort.ts",
       "apps/webapp/src/app/app/doctor/clients/adminMergeAccountsLogic.ts",
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/platformUserMergePreview.ts",
       "apps/webapp/src/infra/repos/mergeLegacySupportConversations.ts",
@@ -9098,10 +9077,8 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       "apps/webapp/src/app/app/patient/treatment/stageItemSnapshot.ts",
       "apps/webapp/src/config/env.ts",
       "apps/webapp/src/infra/idempotency/index.ts",
-      "apps/webapp/src/infra/ops/webappIntegratorUserProjectionRealignment.ts",
       "apps/webapp/src/infra/platformUserFullPurge.ts",
       "apps/webapp/src/infra/platformUserMergePreview.ts",
-      "apps/webapp/src/infra/reconcilePersonDomain.ts",
       "apps/webapp/src/infra/repos/identityPhoneSql.ts",
       "apps/webapp/src/infra/repos/inMemoryBroadcastRecipients.ts",
       "apps/webapp/src/infra/repos/inMemoryClinicalTestMeasureKinds.ts",

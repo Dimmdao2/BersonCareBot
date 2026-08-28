@@ -57,7 +57,7 @@ function memberships() {
  * Каждая строка — `отношение`, `колонка`, и место в коде, откуда она читается.
  */
 const TENANT_SERVICE_READS = [
-  ['public.platform_users', 'integrator_user_id', 'repos/platformUserByChannel.ts:127'],
+  ['public.platform_users', 'id', 'repos/platformUserByChannel.ts:127'],
   ['public.user_contacts', 'platform_user_id', 'repos/platformUserByChannel.ts:128'],
   ['public.user_channel_bindings', 'user_id', 'repos/platformUserByChannel.ts:129'],
   ['public.org_enrollments', 'platform_user_id', 'repos/reminders.ts:30'],

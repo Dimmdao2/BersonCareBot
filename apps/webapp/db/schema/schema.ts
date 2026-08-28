@@ -698,8 +698,6 @@ export const contentAccessGrantsWebapp = pgTable(
     organizationId: uuid('organization_id'),
     integratorGrantId: text('integrator_grant_id').notNull(),
     platformUserId: uuid('platform_user_id'),
-    // You can use { mode: "bigint" } if numbers are exceeding js number limitations
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }).notNull(),
     contentId: text('content_id').notNull(),
     purpose: text().notNull(),
     tokenHash: text('token_hash'),
@@ -718,10 +716,6 @@ export const contentAccessGrantsWebapp = pgTable(
     uniqueIndex('idx_content_access_grants_webapp_integrator_grant_id').using(
       'btree',
       table.integratorGrantId.asc().nullsLast().op('text_ops'),
-    ),
-    index('idx_content_access_grants_webapp_integrator_user_id').using(
-      'btree',
-      table.integratorUserId.asc().nullsLast().op('int8_ops'),
     ),
     index('idx_content_access_grants_webapp_organization_id').using(
       'btree',

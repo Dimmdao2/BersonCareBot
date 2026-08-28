@@ -30,7 +30,7 @@ export const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'reminder_rules', column: 'platform_user_id' },
   // Track D consolidated the three occurrence stores into this one table; it has no FK to
   // `platform_users`, so nothing cascades it away. Audit C1: keying its purge on the retired
-  // `integrator_user_id` left the whole reminder history of every retired-id-less user behind.
+  // public identity left the whole reminder history of every canonical-only user behind.
   { table: 'reminder_occurrence_history', column: 'platform_user_id' },
   { table: 'doctor_notes', column: 'user_id' },
   { table: 'support_conversations', column: 'platform_user_id' },

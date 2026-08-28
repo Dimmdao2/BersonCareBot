@@ -9,7 +9,9 @@ export type ResolveByChannelBindingResult = {
 /**
  * Optional hints from a signed integrator webapp-entry token (`?t=`), Mini App `start_param`, or Login Widget `webappEntryToken`.
  * Used to attach a channel binding to an EXISTING canon. Track D (#987) removed the retired
- * `integratorUserId` hint: every remaining hint names a canonical person directly.
+ * numeric-identity hint: every remaining hint names a canonical person directly. The token contract
+ * (`contracts/webapp-entry-token.json`) is closed (`additionalProperties: false`), so an old signed
+ * payload carrying it is rejected as an unknown key, not by a field-specific check.
  * Phone is matched only when the canon already has integrator/trusted projection activation (§5 SPEC).
  */
 /**

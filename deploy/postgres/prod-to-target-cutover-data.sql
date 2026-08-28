@@ -638,13 +638,15 @@ SELECT json_build_object(
 SELECT :'cutover_d08_result'::json AS cutover_step_d08_required_tenant_rows;
 
 -- reminder_occurrence_history predates its canonical patient key. Populate every row that can be
--- resolved mechanically through the existing platform_users.integrator_user_id identity graph.
+-- resolved mechanically through the SOURCE identity graph in `cutover_source_public`. Track D
+-- (#987) retired the public numeric identity from the TARGET schema, so the join reads it from the
+-- untouched source schema and never from `public`.
 -- NULL remains only for a source integrator identity that has no platform user at all.
 \echo '=== CUTOVER STEP D09/24: attribute reminder history to canonical users ==='
 UPDATE public.reminder_occurrence_history target
 SET platform_user_id = identity_map.canonical_id
 FROM cutover_source_public.reminder_occurrence_history source_history
-JOIN public.platform_users source_user
+JOIN cutover_source_public.platform_users source_user
   ON source_user.integrator_user_id = source_history.integrator_user_id
 JOIN cutover_platform_user_canonical_map identity_map
   ON identity_map.source_id = source_user.id
@@ -663,7 +665,7 @@ BEGIN
   SELECT count(*) INTO target_rows FROM public.reminder_occurrence_history;
   SELECT count(*) INTO attributable_rows
   FROM cutover_source_public.reminder_occurrence_history source_history
-  JOIN public.platform_users source_user
+  JOIN cutover_source_public.platform_users source_user
     ON source_user.integrator_user_id = source_history.integrator_user_id
   JOIN cutover_platform_user_canonical_map identity_map
     ON identity_map.source_id = source_user.id;
@@ -675,7 +677,7 @@ BEGIN
   SELECT count(*) INTO violations
   FROM cutover_source_public.reminder_occurrence_history source_history
   JOIN public.reminder_occurrence_history target ON target.id = source_history.id
-  LEFT JOIN public.platform_users source_user
+  LEFT JOIN cutover_source_public.platform_users source_user
     ON source_user.integrator_user_id = source_history.integrator_user_id
   LEFT JOIN cutover_platform_user_canonical_map identity_map
     ON identity_map.source_id = source_user.id
@@ -996,17 +998,17 @@ SELECT :'cutover_d15_result'::json AS cutover_step_d15_legacy_organization_scope
 
 -- Preserve actionable drafts inside the canonical support-conversation path. Most source drafts
 -- predate a conversation row, so create one deterministic holder per patient/channel when needed.
--- The retired integrator identity/table remains source-only; no compatibility mirror is recreated.
+-- The retired public identity remains source-only: ownership of the created conversation is the
+-- canonical `platform_user_id`, and the source numeric key is read only from `cutover_source_public`.
 \echo '=== CUTOVER STEP D16/24: preserve actionable message drafts ==='
 INSERT INTO public.support_conversations (
-  id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id,
+  id, organization_id, integrator_conversation_id, platform_user_id,
   source, admin_scope, status, opened_at, last_message_at, created_at, updated_at
 )
 SELECT md5('cutover-pending-drafts:' || draft_group.identity_id::text || ':' || draft_group.source)::uuid,
        current_setting('bcb.cutover.canonical_organization_id')::uuid,
        'cutover-pending-drafts:' || draft_group.identity_id::text || ':' || draft_group.source,
        draft_group.canonical_user_id,
-       draft_group.integrator_user_id,
        draft_group.source,
        'canonical-pending-draft',
        'pending_confirmation',
@@ -1018,23 +1020,22 @@ FROM (
   SELECT draft.identity_id,
          draft.source,
          identity_map.canonical_id AS canonical_user_id,
-         source_identity.user_id AS integrator_user_id,
          min(draft.created_at) AS opened_at,
          max(draft.updated_at) AS last_message_at
   FROM cutover_source_integrator.message_drafts draft
   JOIN cutover_source_integrator.identities source_identity
     ON source_identity.id = draft.identity_id
-  JOIN public.platform_users source_user
+  JOIN cutover_source_public.platform_users source_user
     ON source_user.integrator_user_id = source_identity.user_id
   JOIN cutover_platform_user_canonical_map identity_map
     ON identity_map.source_id = source_user.id
   WHERE NOT EXISTS (
     SELECT 1
     FROM public.support_conversations existing_conversation
-    WHERE existing_conversation.integrator_user_id = source_identity.user_id
+    WHERE existing_conversation.platform_user_id = identity_map.canonical_id
       AND existing_conversation.source = draft.source
   )
-  GROUP BY draft.identity_id, draft.source, identity_map.canonical_id, source_identity.user_id
+  GROUP BY draft.identity_id, draft.source, identity_map.canonical_id
 ) draft_group;
 
 CREATE TEMP TABLE cutover_message_draft_bindings (
@@ -1047,10 +1048,14 @@ SELECT draft.id, target_conversation.id
 FROM cutover_source_integrator.message_drafts draft
 JOIN cutover_source_integrator.identities source_identity
   ON source_identity.id = draft.identity_id
+JOIN cutover_source_public.platform_users source_user
+  ON source_user.integrator_user_id = source_identity.user_id
+JOIN cutover_platform_user_canonical_map identity_map
+  ON identity_map.source_id = source_user.id
 JOIN LATERAL (
   SELECT conversation.id
   FROM public.support_conversations conversation
-  WHERE conversation.integrator_user_id = source_identity.user_id
+  WHERE conversation.platform_user_id = identity_map.canonical_id
     AND conversation.source = draft.source
   ORDER BY
     (conversation.integrator_conversation_id LIKE 'cutover-pending-drafts:%') ASC,

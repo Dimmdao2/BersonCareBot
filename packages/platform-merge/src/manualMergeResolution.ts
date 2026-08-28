@@ -1,6 +1,8 @@
 /**
  * Operator-selected resolution for `mergePlatformUsersInTransaction(..., "manual", { resolution })`.
- * `integrator_user_id` is not part of `fields`: two different non-null integrator ids remain a hard blocker in the merge engine.
+ * `fields` covers the scalar columns an operator actually arbitrates. Track D (#987) retired the
+ * public numeric identity, so there is no longer any identity column whose two non-null values
+ * could block a merge; the remaining hard blocker is two real active treatment-program assignments.
  */
 export type ScalarFieldWinner = 'target' | 'duplicate';
 

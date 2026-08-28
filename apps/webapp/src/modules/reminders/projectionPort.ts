@@ -9,10 +9,10 @@ export type ReminderProjectionPort = {
   /**
    * Track D (#987) also removed `upsertRuleFromProjection` and
    * `upsertContentAccessGrantFromProjection`. They were the write half of the same retired M2M
-   * projection: keyed by `integrator_user_id`, they were the only writers of that column into
-   * `reminder_rules` / `content_access_grants_webapp`, and they had zero production callers — the
-   * integrator writes reminder rules through the patient/webapp roots instead. Do not reintroduce
-   * them under another name.
+   * projection: keyed by the retired public identity rather than by the owner, they were the only
+   * writers of that key into `reminder_rules` / `content_access_grants_webapp`, and they had zero
+   * production callers — the integrator writes reminder rules through the patient/webapp roots
+   * instead. Do not reintroduce them under another name.
    *
    * The reads below are keyed by canonical `public.platform_users.id`.
    */

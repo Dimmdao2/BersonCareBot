@@ -48,11 +48,27 @@ test('patient reminder callbacks expose exact patient/integrator roots, never PU
   for (const signature of [
     'app.patient_skip_reminder_occurrence(uuid,text,text)',
     'app.patient_snooze_reminder_occurrence(uuid,text,integer)',
-    'app.patient_set_reminder_muted_until(timestamp with time zone)',
+    'app.patient_set_reminder_mute(uuid,integer,boolean)',
+    'app.patient_disable_reminder_messenger_topic(uuid,text,text)',
   ]) {
     const fn = declaredFunction(signature);
     assert.equal(fn.owner, 'app_seam_reminder_patient_owner');
     assert(fn.execute.includes('app_patient'));
+  }
+});
+
+test('the retired reminder-callback overloads stay retired', () => {
+  // Track D (#987): each of these resolved the person through the retired public identity on
+  // `platform_users`. Their canonical successors take `platform_users.id`; re-declaring an old
+  // overload under any name brings the retired path back, so absence is the oracle.
+  for (const signature of [
+    'app.patient_done_reminder_occurrence(text)',
+    'app.patient_disable_reminder_messenger_topic(text,text)',
+    'app.patient_reminder_notification_settings(text,text)',
+    'app.patient_set_reminder_mute(integer,boolean)',
+    'app.patient_set_reminder_muted_until(timestamp with time zone)',
+  ]) {
+    assert.equal(functions[signature], undefined, `${signature} must stay retired`);
   }
 });
 

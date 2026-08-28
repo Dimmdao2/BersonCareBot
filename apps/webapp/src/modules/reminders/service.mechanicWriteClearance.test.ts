@@ -16,7 +16,6 @@ function warmupRule() {
   return {
     id: RULE_ID,
     platformUserId: USER_ID,
-    integratorUserId: null,
     linkedObjectType: 'content_section' as const,
     linkedObjectId: DEFAULT_WARMUPS_SECTION_SLUG,
     customTitle: null,

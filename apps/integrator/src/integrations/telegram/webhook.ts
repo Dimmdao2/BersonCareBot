@@ -3,7 +3,6 @@ import { env } from '../../config/env.js';
 import {
   runWithBootstrapPrincipal,
   runWithInfraPrincipal,
-  runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
 import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
@@ -137,16 +136,6 @@ export type TelegramWebhookDeps = {
   setupProviderSurface?: boolean;
   /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
   getRuntimeConfig?: typeof getTelegramRuntimeConfig;
-  /**
-   * Integrator's own internal principal key (`app.integrator_user_id` GUC → `runWithIntegratorPrincipal`),
-   * NOT a public user identity: Track D (#987) removed the only public use, webapp-entry token
-   * enrichment. Optional and currently unwired in `app/routes.ts`, so the webhook runs under the
-   * organization principal.
-   */
-  resolveIntegratorUserIdForMessenger?: (
-    externalId: string,
-    resource: 'telegram' | 'max',
-  ) => Promise<string | undefined>;
   /** Публичный deployment origin вебаппа (`APP_BASE_URL`); для ссылок в кнопках WebApp. */
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
@@ -186,19 +175,6 @@ async function resolveTelegramOrganizationId(
     'telegram webhook: no exact organization context for inbound bot message',
   );
   return null;
-}
-
-async function resolveTelegramIntegratorUserId(
-  body: TelegramWebhookBodyValidated,
-  deps: TelegramWebhookDeps,
-): Promise<string | null> {
-  const externalId = getSourceTelegramExternalId(body);
-  if (!externalId || !deps.resolveIntegratorUserIdForMessenger) return null;
-  try {
-    return (await deps.resolveIntegratorUserIdForMessenger(externalId, 'telegram')) ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /** Exported for tests (contact ownership). */
@@ -330,7 +306,6 @@ export async function processTelegramUpdate(
       facts: await buildTelegramFacts(body, deps.getAppBaseUrl, deps.resolveMessengerStaffAdmin),
       organizationId:
         ctx.dedicatedOrganizationId ?? (await resolveTelegramOrganizationId(body, deps, reqLogger)),
-      integratorUserId: await resolveTelegramIntegratorUserId(body, deps),
     }),
   );
 
@@ -355,21 +330,14 @@ export async function processTelegramUpdate(
     ...(typeof body.update_id === 'number' ? { updateId: body.update_id } : {}),
   });
   const organizationId = preRouting.organizationId;
-  const integratorUserId = preRouting.integratorUserId;
   const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
     deps.eventGateway.handleIncomingEvent(event);
-  const result =
-    organizationId && integratorUserId
-      ? await runWithIntegratorPrincipal(
-          { organizationId, integratorUserId, source: 'telegram-webhook' },
-          handleEvent,
-        )
-      : organizationId
-        ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-        : await runWithBootstrapPrincipal(
-            { source: 'telegram-webhook:unresolved-org' },
-            handleEvent,
-          );
+  // Принципал входящего вебхука — организация. Track D (#987): ветки «разрешить мессенджер-логин в
+  // числовую личность и войти под ней» больше нет — публичная числовая личность удалена, а
+  // внутренний ключ запроса интегратора человека не называет и заводиться из внешнего id не может.
+  const result = organizationId
+    ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+    : await runWithBootstrapPrincipal({ source: 'telegram-webhook:unresolved-org' }, handleEvent);
   if (result.status === 'rejected') {
     reqLogger.warn(
       { reason: result.reason, dedupKey: result.dedupKey },

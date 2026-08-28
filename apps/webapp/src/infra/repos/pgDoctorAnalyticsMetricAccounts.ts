@@ -675,8 +675,8 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
             'rr.platform_user_id',
           );
           // Track D (#987): the rule's owner is `rr.platform_user_id`. The removed
-          // `LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id` was the
-          // pre-canonical fallback; the cutover migration backfills and `NOT NULL`s that column.
+          // `LEFT JOIN platform_users pu ON <retired public id>` was the pre-canonical fallback;
+          // the cutover migration backfills and `NOT NULL`s the owner column.
           const r = await runWebappPgText<ListRow>(
             `SELECT
                rr.platform_user_id::text AS user_id,

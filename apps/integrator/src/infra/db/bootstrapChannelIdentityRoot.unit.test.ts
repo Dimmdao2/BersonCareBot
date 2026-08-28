@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { runWithDbBootstrapPrincipal } from '@bersoncare/db-principal';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
-import { runWithIntegratorPrincipal } from '../principal/organizationPrincipal.js';
 import { createDbWritePort } from './writePort.js';
+import { runWithOrganizationPrincipal } from '../principal/organizationPrincipal.js';
 
 describe('user.upsert bootstrap boundary', () => {
   it('uses one exact named root and never opens a direct relation transaction', async () => {
@@ -68,17 +68,17 @@ describe('user.upsert bootstrap boundary', () => {
 });
 
 /**
- * D25 — the same exact named root, now unconditionally used for the organization/integrator
- * principal too (Telegram/MAX already resolved to an organization). Before this slice, this exact
- * principal shape (`runWithIntegratorPrincipal`, telegram/webhook.ts's common case) selected the
- * retired relation-writer path (`writeIdentityAndPreferencesDirect`, a `db.tx(...)`-opening direct
- * write) instead of the root above.
+ * D25 — the same exact named root, now unconditionally used for the organization principal too
+ * (Telegram/MAX already resolved to an organization). Before this slice, this exact principal shape
+ * — the telegram/webhook.ts common case — selected the retired relation-writer path
+ * (`writeIdentityAndPreferencesDirect`, a `db.tx(...)`-opening direct write) instead of the root
+ * above.
  *
  * `user.phone.link` / `app.integrator_bind_bootstrap_channel_phone` coverage that used to live here
  * is removed together with the action (identity cleanup 2026-08-26): webapp owns the
  * confirmed-phone write end-to-end, integrator no longer writes contact/merge state under any name.
  */
-describe('user.upsert under organization/integrator principal', () => {
+describe('user.upsert under the organization principal', () => {
   it('user.upsert uses the exact named root, never a relation transaction', async () => {
     const calls: Array<{ text: string; params: unknown[] }> = [];
     const db: DbPort = {
@@ -96,24 +96,16 @@ describe('user.upsert under organization/integrator principal', () => {
         };
       },
       async tx(): Promise<never> {
-        throw new Error(
-          'organization/integrator user.upsert must not receive a relation transaction',
-        );
+        throw new Error('organization user.upsert must not receive a relation transaction');
       },
     };
     const port = createDbWritePort({ db });
 
-    await runWithIntegratorPrincipal(
-      {
-        organizationId: '00000000-0000-4000-8000-000000000abc',
-        integratorUserId: '42',
-        source: 'integrator-channel-root-test',
-      },
-      () =>
-        port.writeDb({
-          type: 'user.upsert',
-          params: { resource: 'telegram', externalId: '778', username: '@another_handle' },
-        }),
+    await runWithOrganizationPrincipal('00000000-0000-4000-8000-000000000abc', () =>
+      port.writeDb({
+        type: 'user.upsert',
+        params: { resource: 'telegram', externalId: '778', username: '@another_handle' },
+      }),
     );
 
     expect(calls).toHaveLength(1);

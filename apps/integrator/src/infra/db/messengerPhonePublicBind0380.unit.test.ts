@@ -8,12 +8,10 @@ const PHONE = '+79180000022';
 const CHANNEL = 'telegram';
 const EXTERNAL = 'ext-0380';
 const BIND_USER = 'pu-bind';
-const INTEGRATOR_ID = '1000';
 
 type PlatformUserRow = {
   id: string;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   merged_into_id: string | null;
 };
 
@@ -94,16 +92,8 @@ function makeDb(state: State) {
 
     if (q.includes('from platform_users')) {
       const live = state.platformUsers.filter((u) => u.merged_into_id === null);
-      if (q.includes('existing_int_uid')) {
-        const hit = live.find((u) => u.id === p[0]);
-        return { rows: hit ? [{ existing_int_uid: hit.integrator_user_id }] : [], rowCount: hit ? 1 : 0 };
-      }
       if (q.includes('phone_normalized = $1') && q.includes('id <> $2')) {
         const hit = live.filter((u) => u.phone_normalized === p[0] && u.id !== p[1]);
-        return { rows: hit.map((u) => ({ id: u.id })), rowCount: hit.length };
-      }
-      if (q.includes('integrator_user_id = $1') && q.includes('id <> $2')) {
-        const hit = live.filter((u) => u.integrator_user_id === p[0] && u.id !== p[1]);
         return { rows: hit.map((u) => ({ id: u.id })), rowCount: hit.length };
       }
       const hit = live.find((u) => u.id === p[0]);
@@ -113,7 +103,6 @@ function makeDb(state: State) {
               {
                 id: hit.id,
                 phone_normalized: hit.phone_normalized,
-                integrator_user_id: hit.integrator_user_id,
                 created_at: new Date('2026-01-01T00:00:00.000Z'),
               },
             ]
@@ -142,14 +131,6 @@ function makeDb(state: State) {
       const hit = state.platformUsers.find((u) => u.id === p[0] && u.merged_into_id === null);
       if (!hit) return { rows: [], rowCount: 0 };
       hit.phone_normalized = at(1);
-      if (hit.integrator_user_id === null) hit.integrator_user_id = at(2);
-      return { rows: [], rowCount: 1 };
-    }
-
-    if (q.startsWith('update platform_users') && q.includes('integrator_user_id = coalesce')) {
-      const hit = state.platformUsers.find((u) => u.id === p[1] && u.merged_into_id === null);
-      if (!hit) return { rows: [], rowCount: 0 };
-      if (hit.integrator_user_id === null) hit.integrator_user_id = at(0);
       return { rows: [], rowCount: 1 };
     }
 
@@ -162,7 +143,6 @@ function makeDb(state: State) {
       const hit = state.platformUsers.find((u) => u.id === p[2] && u.merged_into_id === null);
       if (!hit) return { rows: [], rowCount: 0 };
       hit.phone_normalized = at(0);
-      if (hit.integrator_user_id === null) hit.integrator_user_id = at(1);
       return { rows: [], rowCount: 1 };
     }
 
@@ -241,7 +221,7 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind canonical contact write'
   it('writes user_contacts without rebuilding it from platform_users', async () => {
     const state: State = {
       platformUsers: [
-        { id: BIND_USER, phone_normalized: null, integrator_user_id: INTEGRATOR_ID, merged_into_id: null },
+        { id: BIND_USER, phone_normalized: null, merged_into_id: null },
       ],
       userContacts: [],
       bindings: [{ channel_code: CHANNEL, external_id: EXTERNAL, user_id: BIND_USER }],

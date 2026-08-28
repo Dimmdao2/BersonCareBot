@@ -31,8 +31,8 @@ export type ReminderRulesPort = {
   /**
    * Does this person have a messenger channel binding (`public.user_channel_bindings`)?
    *
-   * Track D (#987): this replaces `resolveIntegratorUserId`, which asked "does a retired numeric
-   * identity exist for them" and used the answer as a stand-in for "is a bot channel available".
+   * Track D (#987): this replaces the retired numeric-identity lookup, which asked "does a retired
+   * public identity exist for them" and used the answer as a stand-in for "is a bot channel available".
    * The two stopped being the same thing once accounts started existing without the retired id:
    * a patient with a canonical uuid and a selected bot could not create a reminder at all unless
    * they also had web push. The question is now asked directly, of the canonical binding table.

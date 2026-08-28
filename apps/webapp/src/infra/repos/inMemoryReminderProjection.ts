@@ -7,8 +7,8 @@ import type {
  * In-memory projection reads used when no runtime DB is configured.
  *
  * Track D (#987): the two `*FromProjection` upserts were removed from the port — they were the
- * retired M2M write path, keyed by `integrator_user_id`, with no production callers. Without a
- * writer there is nothing to seed, so every read below is empty rather than fake.
+ * retired M2M write path, keyed by the retired public identity, with no production callers. Without
+ * a writer there is nothing to seed, so every read below is empty rather than fake.
  */
 const rulesByIntegratorRuleId = new Map<string, ReminderRuleListItem>();
 

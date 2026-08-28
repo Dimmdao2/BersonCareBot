@@ -17,17 +17,16 @@ import { recordNotificationDeliveryAttemptBestEffort } from './notificationDeliv
 const COL = {
   organizationId: 0,
   userId: 1,
-  integratorUserId: 2,
-  topicCode: 3,
-  intentType: 4,
-  channel: 5,
-  status: 6,
-  reason: 7,
-  providerStatusCode: 8,
-  eventId: 9,
-  occurrenceId: 10,
-  recipientRef: 11,
-  errorMessage: 12,
+  topicCode: 2,
+  intentType: 3,
+  channel: 4,
+  status: 5,
+  reason: 6,
+  providerStatusCode: 7,
+  eventId: 8,
+  occurrenceId: 9,
+  recipientRef: 10,
+  errorMessage: 11,
 } as const;
 
 
@@ -169,7 +168,6 @@ describe('recordNotificationDeliveryAttemptBestEffort — best-effort запис
     const { text, params } = calls[0]!;
     expect(text).toContain('app.integrator_record_notification_delivery_attempt');
     expect(params).toEqual([
-      null,
       null,
       null,
       null,

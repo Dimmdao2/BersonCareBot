@@ -15,10 +15,10 @@ import {
 
 /**
  * Track D (#987): the clinic of a content-access grant comes from the live organization principal
- * and nowhere else. The removed `COALESCE` fallback re-derived it by joining
- * `public.platform_users.integrator_user_id` — the retired public identity — and could only ever
- * fire when no principal was installed, i.e. exactly when the INSERT itself would be refused by
- * RLS. It bought nothing and kept a live reader of the retired column alive.
+ * and nowhere else. The removed `COALESCE` fallback re-derived it by joining `public.platform_users`
+ * on the retired public identity, and could only ever fire when no principal was installed, i.e.
+ * exactly when the INSERT itself would be refused by RLS. It bought nothing and kept a live reader
+ * of the retired column alive.
  */
 function organizationIdForCurrentPrincipalSql() {
   return sql`${getCurrentOrganizationPrincipalId() ?? null}::uuid`;
@@ -355,7 +355,7 @@ export async function createContentAccessGrant(
 /**
  * Canonical `public.platform_users.id` owning the occurrence, or null if missing.
  *
- * Track D (#987): this used to return `reminder_rules.integrator_user_id::text`, while its only
+ * Track D (#987): this used to return the rule's retired public identity as text, while its only
  * caller — the Telegram/MAX reminder callback ownership check in
  * `kernel/domain/executor/handlers/reminders.ts` — compared it against the value of
  * `user.byIdentity`, which has been the canonical uuid since D17. A bigint never equals a uuid, so

@@ -1562,7 +1562,7 @@ export async function enrichPickMergeCandidatesWithBookingCounts(
 
 /**
  * Pick canonical target id from two distinct candidate ids.
- * Priority: **больше подтверждённых native-бронирований** (`patientBookingCount`) → row with phone vs without → **older created_at** → integrator id → stable id.
+ * Priority: **больше подтверждённых native-бронирований** (`patientBookingCount`) → row with phone vs without → **older created_at** → stable id.
  */
 export function pickMergeTargetId(
   a: PickMergeTargetCandidate,

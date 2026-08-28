@@ -5,8 +5,8 @@ import type { ChannelBindings } from '@/shared/types/session';
 
 /**
  * Track D (#987): ownership is `reminder_occurrence_history.platform_user_id` (NOT NULL), read
- * directly. It used to hop `platform_users.integrator_user_id = roh.integrator_user_id`, which
- * silently excluded every occurrence whose owner has no retired numeric identity — i.e. exactly the
+ * directly. It used to hop through the retired public identity on both sides, which silently
+ * excluded every occurrence whose owner has no retired numeric identity — i.e. exactly the
  * canonical-only patients this cutover is for, on the messenger "disable this topic" callback.
  */
 export async function loadReminderRuleForMessengerTopicDisable(

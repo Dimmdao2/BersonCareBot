@@ -9,12 +9,11 @@ import { runWithOptionalOrganizationPrincipal } from '../../principal/organizati
  * was actually called and failed; preparation failures, success, and local skips stay on that queue.
  */
 const RECORD_NOTIFICATION_DELIVERY_ATTEMPT_ROOT =
-  'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,text,integer,text,text,text,text,text)';
+  'app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)';
 
 export type IntegratorNotificationDeliveryChannel = 'telegram' | 'max' | 'web_push' | 'email';
 
 export type IntegratorRecordNotificationDeliveryAttemptInput = {
-  integratorUserId?: string;
   userId?: string;
   topicCode?: string;
   intentType?: string;
@@ -48,7 +47,6 @@ export async function recordNotificationDeliveryAttemptBestEffort(
     const metadataJson = JSON.stringify(input.metadata ?? {});
     const organizationId = input.organizationId ?? null;
     const userId = input.userId ?? null;
-    const integratorUserId = input.integratorUserId ?? null;
     const topicCode = input.topicCode ?? null;
     const intentType = input.intentType ?? null;
     const reason = input.reason ?? null;
@@ -64,7 +62,6 @@ export async function recordNotificationDeliveryAttemptBestEffort(
         [
           organizationId,
           userId,
-          integratorUserId,
           topicCode,
           intentType,
           input.channel,
@@ -80,7 +77,6 @@ export async function recordNotificationDeliveryAttemptBestEffort(
         sql`SELECT app.integrator_record_notification_delivery_attempt(
           ${organizationId}::uuid,
           ${userId}::text,
-          ${integratorUserId}::text,
           ${topicCode}::text,
           ${intentType}::text,
           ${input.channel}::text,

@@ -21,7 +21,6 @@ export const notificationDeliveryAttempts = pgTable(
       .defaultNow()
       .notNull(),
     userId: uuid('user_id'),
-    integratorUserId: text('integrator_user_id'),
     topicCode: text('topic_code'),
     intentType: text('intent_type'),
     channel: text('channel').notNull(),

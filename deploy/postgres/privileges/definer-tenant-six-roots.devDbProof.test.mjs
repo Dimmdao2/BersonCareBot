@@ -1,5 +1,10 @@
 /**
- * Rollback-only DEV proof for D17's six tenant-facing SECURITY DEFINER roots.
+ * Rollback-only DEV proof for D17's tenant-facing SECURITY DEFINER roots.
+ *
+ * Track D (#987) removed the reminder-occurrence-projection probe: that root took the retired
+ * public identity as a `bigint` argument and wrote it into `reminder_occurrence_history`, and it no
+ * longer exists in the database (see `generated/prod-to-target/schema-pre.sql`). The billing roots
+ * below are unchanged and still carry the whole point of the proof.
  *
  * The proof uses existing DEV rows. It first calls the currently installed, vulnerable bodies with
  * a context for another organization, materializes the candidate migration in the same transaction,
@@ -97,12 +102,7 @@ SELECT
   release_invoice.id AS release_invoice_id,
   release_invoice.organization_id AS release_org_id,
   (SELECT organization.id FROM public.be_organizations AS organization
-    WHERE organization.id <> release_invoice.organization_id LIMIT 1) AS release_context_org_id,
-  enrollment.platform_user_id,
-  enrollment.organization_id AS reminder_org_id,
-  reminder_user.integrator_user_id,
-  (SELECT organization.id FROM public.be_organizations AS organization
-    WHERE organization.id <> enrollment.organization_id LIMIT 1) AS reminder_context_org_id
+    WHERE organization.id <> release_invoice.organization_id LIMIT 1) AS release_context_org_id
 FROM LATERAL (
   SELECT invoice.id, invoice.organization_id, invoice.tariff_id
     FROM public.saas_billing_invoices AS invoice
@@ -127,16 +127,7 @@ CROSS JOIN LATERAL (
   SELECT invoice.id, invoice.organization_id
     FROM public.saas_billing_invoices AS invoice
    LIMIT 1
-) AS release_invoice
-CROSS JOIN LATERAL (
-  SELECT candidate.platform_user_id, candidate.organization_id
-    FROM public.org_enrollments AS candidate
-    JOIN public.platform_users AS candidate_user ON candidate_user.id = candidate.platform_user_id
-   WHERE candidate.status = 'active'
-     AND candidate_user.integrator_user_id IS NOT NULL
-   LIMIT 1
-) AS enrollment
-JOIN public.platform_users AS reminder_user ON reminder_user.id = enrollment.platform_user_id;
+) AS release_invoice;
 
 DO $fixture$
 BEGIN
@@ -144,9 +135,9 @@ BEGIN
      OR EXISTS (
        SELECT 1 FROM probe_fixture
         WHERE paid_context_org_id IS NULL OR draft_context_org_id IS NULL
-           OR release_context_org_id IS NULL OR reminder_context_org_id IS NULL
+           OR release_context_org_id IS NULL
      ) THEN
-    RAISE EXCEPTION 'DEV lacks the existing rows required by the six-root proof';
+    RAISE EXCEPTION 'DEV lacks the existing rows required by the tenant-root proof';
   END IF;
 END $fixture$;
 
@@ -186,31 +177,6 @@ BEGIN
   SELECT app.release_carried_seat_debt(fixture.release_invoice_id, fixture.release_org_id)
     INTO result;
   INSERT INTO probe_out(key, value) VALUES ('release_foreign_before', result);
-
-  PERFORM pg_temp.accept_context(
-    'app_tenant_service', 'tenant_service',
-    'integrator.reminder-occurrence-finalized.record',
-    'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
-    fixture.reminder_context_org_id,
-    ARRAY[
-      ROW('text@1', pg_catalog.textsend('d17-six-roots-before'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('d17-rule'))::app.port_typed_arg,
-      ROW('bigint@1', pg_catalog.int8send(fixture.integrator_user_id))::app.port_typed_arg,
-      ROW('uuid@1', pg_catalog.uuid_send(fixture.platform_user_id))::app.port_typed_arg,
-      ROW('uuid@1', pg_catalog.uuid_send(fixture.reminder_org_id))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('appointment'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('sent'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('telegram'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend(NULL))::app.port_typed_arg,
-      ROW('timestamptz@1', pg_catalog.timestamptz_send(occurred_at))::app.port_typed_arg
-    ]
-  );
-  SELECT app.record_reminder_occurrence_finalized_projection(
-    'd17-six-roots-before', 'd17-rule', fixture.integrator_user_id,
-    fixture.platform_user_id, fixture.reminder_org_id, 'appointment', 'sent', 'telegram', NULL,
-    occurred_at
-  )::text INTO result;
-  INSERT INTO probe_out(key, value) VALUES ('reminder_foreign_before', result);
 END $before$;
 `;
 
@@ -259,59 +225,6 @@ BEGIN
   EXCEPTION WHEN OTHERS THEN result := SQLSTATE || '|' || SQLERRM; END;
   INSERT INTO probe_out(key, value) VALUES ('release_foreign_after', result);
 
-  PERFORM pg_temp.accept_context(
-    'app_tenant_service', 'tenant_service',
-    'integrator.reminder-occurrence-finalized.record',
-    'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
-    fixture.reminder_org_id,
-    ARRAY[
-      ROW('text@1', pg_catalog.textsend('d17-six-roots-honest'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('d17-rule'))::app.port_typed_arg,
-      ROW('bigint@1', pg_catalog.int8send(fixture.integrator_user_id))::app.port_typed_arg,
-      ROW('uuid@1', pg_catalog.uuid_send(fixture.platform_user_id))::app.port_typed_arg,
-      ROW('uuid@1', pg_catalog.uuid_send(fixture.reminder_org_id))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('appointment'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('sent'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('telegram'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend(NULL))::app.port_typed_arg,
-      ROW('timestamptz@1', pg_catalog.timestamptz_send(occurred_at))::app.port_typed_arg
-    ]
-  );
-  SELECT app.record_reminder_occurrence_finalized_projection(
-    'd17-six-roots-honest', 'd17-rule', fixture.integrator_user_id,
-    fixture.platform_user_id, fixture.reminder_org_id, 'appointment', 'sent', 'telegram', NULL,
-    occurred_at
-  )::text INTO result;
-  INSERT INTO probe_out(key, value) VALUES ('reminder_honest_after', result);
-
-  occurred_at := clock_timestamp();
-  PERFORM pg_temp.accept_context(
-    'app_tenant_service', 'tenant_service',
-    'integrator.reminder-occurrence-finalized.record',
-    'app.record_reminder_occurrence_finalized_projection(text,text,bigint,uuid,uuid,text,text,text,text,timestamp with time zone)',
-    fixture.reminder_context_org_id,
-    ARRAY[
-      ROW('text@1', pg_catalog.textsend('d17-six-roots-foreign'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('d17-rule'))::app.port_typed_arg,
-      ROW('bigint@1', pg_catalog.int8send(fixture.integrator_user_id))::app.port_typed_arg,
-      ROW('uuid@1', pg_catalog.uuid_send(fixture.platform_user_id))::app.port_typed_arg,
-      ROW('uuid@1', pg_catalog.uuid_send(fixture.reminder_org_id))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('appointment'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('sent'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend('telegram'))::app.port_typed_arg,
-      ROW('text@1', pg_catalog.textsend(NULL))::app.port_typed_arg,
-      ROW('timestamptz@1', pg_catalog.timestamptz_send(occurred_at))::app.port_typed_arg
-    ]
-  );
-  BEGIN
-    PERFORM app.record_reminder_occurrence_finalized_projection(
-      'd17-six-roots-foreign', 'd17-rule', fixture.integrator_user_id,
-      fixture.platform_user_id, fixture.reminder_org_id, 'appointment', 'sent', 'telegram', NULL,
-      occurred_at
-    );
-    result := 'ALLOWED';
-  EXCEPTION WHEN OTHERS THEN result := SQLSTATE || '|' || SQLERRM; END;
-  INSERT INTO probe_out(key, value) VALUES ('reminder_foreign_after', result);
 
   PERFORM pg_temp.accept_context('app_staff', 'staff', 'relation', NULL, fixture.paid_org_id);
   SELECT count(*)::text INTO result
@@ -363,14 +276,12 @@ ROLLBACK;`));
 
     assert.equal(output.apply_foreign_before, 'true');
     assert.equal(output.refresh_foreign_before, 'true');
-    assert.equal(output.reminder_foreign_before, 'true');
     assert.notEqual(output.release_foreign_before, '');
 
     for (const key of [
       'apply_foreign_after',
       'refresh_foreign_after',
       'release_foreign_after',
-      'reminder_foreign_after',
     ]) {
       assert.match(output[key], /^42501\|/u, `${key}: ${output[key]}`);
     }
@@ -378,6 +289,5 @@ ROLLBACK;`));
     assert.equal(output.apply_honest_after, 'true');
     assert.equal(output.refresh_honest_after, 'true');
     assert.notEqual(output.release_honest_after, '');
-    assert.equal(output.reminder_honest_after, 'true');
     assert.equal(output.effective_wrapper_honest_after, '1');
   });

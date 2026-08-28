@@ -575,6 +575,6 @@ describe('POST /api/bersoncare/relay-outbound', () => {
 
     expect(response.statusCode).toBe(502);
     expect(writes).toHaveLength(1);
-    expect(writes[0]?.[6]).toBe('failed');
+    expect(writes[0]?.[5]).toBe('failed');
   });
 });

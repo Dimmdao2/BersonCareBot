@@ -271,7 +271,10 @@ describe('роль в токене: незнакомец не может вып�
     );
 
     expect('platformUserId' in payload).toBe(false);
-    expect('integratorUserId' in payload).toBe(false);
+    // Никакого ДРУГОГО имени человека в payload тоже нет: ключи — строгое подмножество закрытого
+    // контракта `contracts/webapp-entry-token.json` (`additionalProperties: false`), а из них
+    // человека называет только `platformUserId`, которого здесь нет.
+    expect(Object.keys(payload).sort()).toEqual(['bindings', 'exp', 'purpose', 'role', 'sub']);
     expect(payload.bindings).toEqual({ telegramId: '364943522' });
   });
 });

@@ -2,7 +2,7 @@
  * In-memory реализация ReminderRulesPort для юнит-тестов.
  *
  * `listByPlatformUser` — по `platformUserId` из `platformUserIdByRuleId` (create / options).
- * Track D (#987) убрал legacy-совпадение по retired `integratorUserId`: владелец правила —
+ * Track D (#987) убрал legacy-совпадение по вытесненной публичной личности: владелец правила —
  * только канонический uuid, как и в PG-реализации (`reminder_rules.platform_user_id`).
  */
 import { randomUUID } from 'node:crypto';

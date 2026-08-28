@@ -4,7 +4,6 @@ import {
   getCurrentDbPrincipalOrganizationId,
   runWithDbBootstrapPrincipal,
   runWithDbInfraPrincipal,
-  runWithDbIntegratorPrincipal,
   runWithDbOrganizationPrincipal,
 } from '@bersoncare/db-principal';
 import type { DbBootstrapPrincipalInput, DbInfraPrincipalInput } from '@bersoncare/db-principal';
@@ -17,13 +16,6 @@ export const getCurrentOrganizationPrincipalId = getCurrentDbPrincipalOrganizati
 export const getCurrentIntegratorPrincipalUserId = getCurrentDbPrincipalIntegratorUserId;
 export const getCurrentDatabasePrincipal = getCurrentDbPrincipal;
 export const runWithOrganizationPrincipal = runWithDbOrganizationPrincipal;
-
-export function runWithIntegratorPrincipal<T>(
-  input: { organizationId: string; integratorUserId: string | number | bigint; source?: string },
-  fn: () => T,
-): T {
-  return runWithDbIntegratorPrincipal(input, fn);
-}
 
 // Channel/integration adapters (e.g. telegram/**) are barred by eslint's no-restricted-imports
 // (*db* pattern) from importing @bersoncare/db-principal directly — DB access must flow through

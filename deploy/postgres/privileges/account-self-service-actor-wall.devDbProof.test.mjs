@@ -383,18 +383,18 @@ SELECT 'org=' || id::text FROM public.be_organizations
     const seen = probe({ questions: `
 RESET SESSION AUTHORIZATION;
 INSERT INTO public.content_access_grants_webapp
-  (integrator_grant_id, platform_user_id, integrator_user_id, content_id, purpose,
+  (integrator_grant_id, platform_user_id, content_id, purpose,
    token_hash, expires_at, revoked_at, organization_id)
 VALUES
-  ('bcb-live-proof-own', '${state.self}'::uuid, -91001, 'bcb-live-proof-own', 'test', NULL,
+  ('bcb-live-proof-own', '${state.self}'::uuid, 'bcb-live-proof-own', 'test', NULL,
    pg_catalog.now() + interval '1 hour', NULL, '${state.organization}'::uuid),
-  ('bcb-live-proof-foreign-org', '${state.self}'::uuid, -91002, 'bcb-live-proof-foreign-org', 'test', NULL,
+  ('bcb-live-proof-foreign-org', '${state.self}'::uuid, 'bcb-live-proof-foreign-org', 'test', NULL,
    pg_catalog.now() + interval '1 hour', NULL, '${uuid(foreignOrganization, 'foreign organization')}'::uuid),
-  ('bcb-live-proof-foreign-user', '${state.other}'::uuid, -91003, 'bcb-live-proof-foreign-user', 'test', NULL,
+  ('bcb-live-proof-foreign-user', '${state.other}'::uuid, 'bcb-live-proof-foreign-user', 'test', NULL,
    pg_catalog.now() + interval '1 hour', NULL, '${state.organization}'::uuid),
-  ('bcb-live-proof-revoked', '${state.self}'::uuid, -91004, 'bcb-live-proof-revoked', 'test', NULL,
+  ('bcb-live-proof-revoked', '${state.self}'::uuid, 'bcb-live-proof-revoked', 'test', NULL,
    pg_catalog.now() + interval '1 hour', pg_catalog.now(), '${state.organization}'::uuid),
-  ('bcb-live-proof-expired', '${state.self}'::uuid, -91005, 'bcb-live-proof-expired', 'test', NULL,
+  ('bcb-live-proof-expired', '${state.self}'::uuid, 'bcb-live-proof-expired', 'test', NULL,
    pg_catalog.now() - interval '1 hour', NULL, '${state.organization}'::uuid);
 SET LOCAL SESSION AUTHORIZATION ${state.login};
 SET LOCAL ROLE app_patient;

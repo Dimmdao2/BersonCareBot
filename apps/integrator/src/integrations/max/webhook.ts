@@ -2,10 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { runWithDbBootstrapPrincipal, runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { getRequestLogger, logger, newEventId } from '../../infra/observability/logger.js';
 import { env } from '../../config/env.js';
-import {
-  runWithIntegratorPrincipal,
-  runWithOrganizationPrincipal,
-} from '../../infra/principal/organizationPrincipal.js';
+import { runWithOrganizationPrincipal } from '../../infra/principal/organizationPrincipal.js';
 import type { EventGateway } from '../../kernel/contracts/index.js';
 import { buildWebappEntryUrlForMax } from '../webappEntryToken.js';
 import { maxIncomingToEvent } from './connector.js';
@@ -34,15 +31,6 @@ export type MaxWebhookDeps = {
   setupProviderSurface?: boolean;
   /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
   getRuntimeConfig?: typeof getMaxRuntimeConfig;
-  /**
-   * Integrator's own internal principal key (`app.integrator_user_id` GUC → `runWithIntegratorPrincipal`),
-   * NOT a public user identity: Track D (#987) removed the only public use, webapp-entry token
-   * enrichment. Optional and currently unwired in `app/routes.ts`.
-   */
-  resolveIntegratorUserIdForMessenger?: (
-    externalId: string,
-    resource: 'telegram' | 'max',
-  ) => Promise<string | undefined>;
   getAppBaseUrl?: () => Promise<string>;
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin;
   resolveOrganizationIdForMessengerIdentity?: (
@@ -78,19 +66,6 @@ async function resolveMaxOrganizationId(
     'max webhook: no exact organization context for inbound bot message',
   );
   return null;
-}
-
-async function resolveMaxIntegratorUserId(
-  data: MaxUpdateValidated,
-  deps: MaxWebhookDeps,
-): Promise<string | null> {
-  const externalId = getSourceMaxExternalId(data);
-  if (!externalId || !deps.resolveIntegratorUserIdForMessenger) return null;
-  try {
-    return (await deps.resolveIntegratorUserIdForMessenger(externalId, 'max')) ?? null;
-  } catch {
-    return null;
-  }
 }
 
 /** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
@@ -282,7 +257,6 @@ export async function registerMaxWebhookRoutes(
             resolveMessengerStaffAdmin,
           ),
           organizationId: await resolveMaxOrganizationId(data, deps, reqLogger),
-          integratorUserId: await resolveMaxIntegratorUserId(data, deps),
         }),
       );
 
@@ -293,21 +267,13 @@ export async function registerMaxWebhookRoutes(
         facts: preRouting.facts,
       });
       const organizationId = preRouting.organizationId;
-      const integratorUserId = preRouting.integratorUserId;
       const handleEvent = (): Promise<Awaited<ReturnType<EventGateway['handleIncomingEvent']>>> =>
         deps.eventGateway.handleIncomingEvent(event);
-      const result =
-        organizationId && integratorUserId
-          ? await runWithIntegratorPrincipal(
-              { organizationId, integratorUserId, source: 'max-webhook' },
-              handleEvent,
-            )
-          : organizationId
-            ? await runWithOrganizationPrincipal(organizationId, handleEvent)
-            : await runWithDbBootstrapPrincipal(
-                { source: 'max-webhook:unresolved-org' },
-                handleEvent,
-              );
+      // Принципал входящего вебхука — организация (Track D, #987: мессенджер-логин больше не
+      // разрешается ни в какую публичную числовую личность).
+      const result = organizationId
+        ? await runWithOrganizationPrincipal(organizationId, handleEvent)
+        : await runWithDbBootstrapPrincipal({ source: 'max-webhook:unresolved-org' }, handleEvent);
       if (result.status === 'rejected') {
         reqLogger.warn(
           { reason: result.reason, dedupKey: result.dedupKey },
@@ -384,16 +350,12 @@ export async function registerMaxWebhookRoutes(
             deps.getAppBaseUrl,
             deps.resolveMessengerStaffAdmin,
           ),
-          integratorUserId: await resolveMaxIntegratorUserId(data, deps),
         }),
       );
       const event = maxIncomingToEvent({ incoming, correlationId, eventId, facts: preRouting.facts });
-      const result = preRouting.integratorUserId
-        ? await runWithIntegratorPrincipal(
-            { organizationId, integratorUserId: preRouting.integratorUserId, source: 'max-dedicated-webhook' },
-            () => deps.eventGateway.handleIncomingEvent(event),
-          )
-        : await runWithOrganizationPrincipal(organizationId, () => deps.eventGateway.handleIncomingEvent(event));
+      const result = await runWithOrganizationPrincipal(organizationId, () =>
+        deps.eventGateway.handleIncomingEvent(event),
+      );
       if (result.status === 'rejected') {
         recordMaxWebhookOutcome({
           source: 'max',

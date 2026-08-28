@@ -48,7 +48,7 @@ import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topi
 export const integratorPatientWebPushNotifyBodySchema = z
   .object({
     organizationId: z.string().uuid(),
-    // Track D (#987): the retired numeric `integratorUserId` selector is gone. The only producer
+    // Track D (#987): the retired numeric-identity selector is gone. The only producer
     // (`bookingLifecycleRoute.ts:notifyPatientWebPush`) sends `phoneNormalized`; a caller that
     // wants to name the person directly sends the canonical `platformUserId`.
     phoneNormalized: z.string().min(8).max(32).optional(),
