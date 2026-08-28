@@ -6,6 +6,9 @@ Owner, 2026-08-28: after the cutover, clean every active file so no old public i
 The distinct internal technical integrator request/process principal stays, but it must never identify a public
 person, own a reminder/support/content row, create an account, or resolve a messenger login.
 
+Источник оракула: owner instruction in this brief — «после cutover надо вычистить все файлы так, чтобы остатков
+не было»; the separate allowed internal ID is preserved only as the technical request/process principal.
+
 Work in the existing clean candidate clone and branch:
 
 - clone: `/home/dev/dev-projects/bcb-wt-retire-public-integrator-id-runtime-20260828`
