@@ -130,6 +130,7 @@ export function DoctorSupportInbox({
   const [mobileToolbarTarget, setMobileToolbarTarget] = useState<HTMLElement | null>(null);
   const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -163,6 +164,19 @@ export function DoctorSupportInbox({
     }
     setMobileToolbarTarget(document.getElementById('doctor-communications-mobile-toolbar'));
   }, [active]);
+
+  useEffect(() => {
+    if (!active || loading) return;
+    const mobileMedia = window.matchMedia('(max-width: 767px)');
+    const alignListStart = () => {
+      if (mobileMedia.matches && listScrollRef.current) {
+        listScrollRef.current.scrollTop = 0;
+      }
+    };
+    alignListStart();
+    mobileMedia.addEventListener('change', alignListStart);
+    return () => mobileMedia.removeEventListener('change', alignListStart);
+  }, [active, loading]);
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
@@ -377,7 +391,7 @@ export function DoctorSupportInbox({
       )}
 
       {/* Conversation rows */}
-      <div className="flex flex-1 flex-col overflow-y-auto">
+      <div ref={listScrollRef} className="flex flex-1 flex-col overflow-y-auto">
         {filteredList.length === 0 ? (
           <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
             {query.trim()

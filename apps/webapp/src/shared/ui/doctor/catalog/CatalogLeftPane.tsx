@@ -51,7 +51,12 @@ export function CatalogLeftPane({
       )}
     >
       {headerSlot ? (
-        <div className="shrink-0 px-[var(--doctor-block-padding,18px)] pb-1 pt-1.5">
+        <div
+          className={cn(
+            'shrink-0 px-[var(--doctor-block-padding,18px)] pb-1 pt-1.5',
+            mobileEdgeToEdge && 'hidden md:block',
+          )}
+        >
           {headerSlot}
         </div>
       ) : null}
