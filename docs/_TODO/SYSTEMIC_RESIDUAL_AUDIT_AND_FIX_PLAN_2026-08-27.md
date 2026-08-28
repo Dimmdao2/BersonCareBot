@@ -303,7 +303,8 @@ warning. Это исправляется общей моделью резуль�
 - полный public booking: путь начинается без заранее существующей кабинетной сессии; после подтверждения телефона
   сервер выдаёт сессию, и уже под ней проверяются создание, чтение, перенос, отмена и история;
 - подтверждение контакта, подтверждение записи и реальное напоминание через узкие роли;
-- media preview worker, очистки и hosted-preview;
+- media preview worker и очистки подтверждены на TEST; YouTube hosted-preview подтверждён под doctor/patient,
+  а VK остаётся owner-gated до сервисного токена VK API с `video` scope (пункт этапа 5 ниже);
 - mTLS refusal с неправильным сертификатом подтверждён; просроченный/отозванный сертификат и overlap-ротация
   принадлежат отдельному операционному этапу `#1085`, а не текущему дефекту runtime;
 - полный продуктовый проход под patient, doctor, clinic admin и global admin.
@@ -583,8 +584,19 @@ src/infra/platformUserFullPurge.devDbProof.test.ts` → **9/9 PASS**; коман
 полный набор колонок с единственной декларацией прав. До исправления тест краснел ровно на
 `delete_claim_token`; после добавления колонки в `relation-access.ts` команда `pnpm test:db-privileges` дала
 `314 tests / 0 fail`, `generate-cli.mjs --check` — побайтовое совпадение четырёх артефактов, `--census` — обе
-управляемые базы без незаявленной runtime-поверхности. Живой повтор двух загрузок выполняется после независимого
-аудита, commit/push и штатного TEST deploy; до него этап 7 не закрыт.
+управляемые базы без незаявленной runtime-поверхности. Независимый аудит `0fca9bb89` дал `PASS` и отдельно
+покрасил guard удалением `delete_claim_token`; отчёт —
+`docs/_TODO/runs/MEDIA_FILES_INSERT_GRANT_AUDIT_2026-08-28.md`.
+
+Исправление вошло в интеграционный SHA `90a8d35ec`, `pnpm run push:checked` дождался зелёного GitHub Security,
+а штатный `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild` завершился `PASS` с transcript
+`/var/log/bersoncarebot/deploy-test/deploy-test.20260828T051842Z.IRh4vS.log`. Повторный живой проход под
+owner-врачом командой
+`TEST_ACCEPTANCE_PASSWORD=<owner-test-password> node runs/test-interactive-acceptance/out/media-retry.mjs`
+дал четыре результата `PASS`: CMS upload/delete и patient-file upload/delete; итоговый локальный artifact —
+`runs/test-interactive-acceptance/out/media-retry-2026-08-28T05-31-53.880Z.json`. После прохода команда
+`sudo -n journalctl -u bersoncarebot-webapp-test.service -u bersoncarebot-api-test.service -u bersoncarebot-scheduler-test.service -u bersoncarebot-media-worker-test.service --since '2026-08-28 08:28:00' --no-pager | rg -i '42501|permission denied|status.?500|\b500\b|uncaught|unhandled|fatal|media_files|upload_failed|delete_failed'`
+не вернула строк. Разрыв загрузки и удаления закрыт живьём; временные файлы обоих прогонов удалены через UI.
 
 ## Порядок выполнения
 
