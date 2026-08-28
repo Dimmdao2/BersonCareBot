@@ -21,21 +21,17 @@ test('sets each supported operational runtime role with fixed SQL', async () => 
   };
 
   for (const role of [
-    'app_operational_diagnostic',
     'app_operational_delivery_worker',
     'app_operational_media_worker',
     'app_operational_scheduler',
-    'app_config_reader',
   ]) {
     await setDbOperationalRuntimeRole(client, role);
   }
 
   assert.deepEqual(queries, [
-    'SET ROLE app_operational_diagnostic',
     'SET ROLE app_operational_delivery_worker',
     'SET ROLE app_operational_media_worker',
     'SET ROLE app_operational_scheduler',
-    'SET ROLE app_config_reader',
   ]);
 });
 

@@ -10,7 +10,6 @@ const client = {
 };
 
 void setDbOperationalRuntimeRole(client, 'app_operational_scheduler');
-void setDbOperationalRuntimeRole(client, 'app_config_reader');
 void applyDbOperationalOrganizationContextToConnection(client, undefined);
 void clearDbOperationalOrganizationContextFromConnection(client);
 void resetDbOperationalRuntimeRole(client);

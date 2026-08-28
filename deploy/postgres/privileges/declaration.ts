@@ -1,11 +1,10 @@
 /**
  * declaration.ts — DB privilege-layer DECLARATION («как должно быть»): единственный источник истины.
  *
- * ⚠ СТАТУС. Ни к одному деплою не подключено, ни одна DDL/DML не исполнялась. Файл несёт РЕШЁННУЮ
- *   МОДЕЛЬ (решения владельца 08.08 — §0), объявленный КЛАСС + требуемую СТЕНУ на каждой из 239
- *   классифицированных таблиц, модель двух портов, узкую роль резолвера, роль прунера и приёмочный
- *   инвариант. Где сегодняшний код делает то, что модель запрещает, объявлена МОДЕЛЬ, а код внесён в
- *   `CODE_MUST_CHANGE` — грант никогда не выдаётся «потому что код туда ходит».
+ * СТАТУС. Revision 10 ниже — исполняемый источник DEV/TEST: из него генерируются роли,
+ *   логины, ACL, RLS, context catalog и двусторонние каталожные проверки. Верхняя часть файла остаётся
+ *   нейтральным инвентарём объектов; её старые отзывы, гейты и очередь кода в исполняемую декларацию
+ *   не попадают.
  *
  * ФОРМА (компактная; полные правила — README §«Компактная форма»). Грамматика вынесена в `types.ts`.
  *   Строка таблицы несёт ТОЛЬКО решения: имя, класс, одну строку обоснования, отклонения от умолчаний
@@ -66,8 +65,8 @@ import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
 // @ts-expect-error no declaration file exists for the canonical executable descriptor module.
 import { getPhase4LockedPolicyTargets, renderPhase4StrictPredicate } from '../../../docs/_TODO/SAAS_FOUNDATION/scripts/phase4-locked-policy-artifact.mjs';
 import type {
-  AcceptanceInvariant, CodeChange, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection, GrantDecl, LoginRecord,
-  OwnerDecision, OwnerGate, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
+  AcceptanceInvariant, DatabaseDecl, DeclaredFunction, DefinerException, DefinerExceptionsSection, GrantDecl, LoginRecord,
+  OwnerDecision, PatientVisibility, PlatformRoleScope, Port, PortSpec, PrivilegeDeclaration,
   FunctionRelationSurface, NamedSeamAccess, PolicyDecl, Privilege, ReferenceModel, RelationAccess, RoleDecl, TableDecl, TableRow,
 } from './types.ts';
 
@@ -118,31 +117,6 @@ export const OWNER_DECISIONS: OwnerDecision[] = [
     encodedAs: 'роль `postgres`: superuser, GLOBAL, `bypassrls: true` — объявлено, не дефект; §G.5 рендерит отсюда' },
 ];
 
-/** SCHEME §I Р3/Р4 переспрашиваются у владельца на приёмке Ч1.3; записаны, чтобы не потерялись. */
-export const OWNER_GATES_OPEN: OwnerGate[] = [
-  { id: 'O3-empty-tenant-discriminator',
-    question: 'organization_id IS NULL массово на живых таблицах (outgoing_delivery_queue 812/812, '
-      + 'product_analytics_hourly 5300/5421, patient_bookings 219/263; FINDINGS Д27). Сперва backfill, потом '
-      + 'стена — или включаем стену и списываем NULL-строки?',
-    safeDefault: 'backfill первым: включение стены как есть отрезает 83-100% строк на трёх живых таблицах. '
-      + 'Затронутые строки несут `gate: [\'O3\']`, их стена объявлена, но НЕ ставится до ответа.' },
-  { id: 'O4-dead-tables',
-    question: 'Судьба мёртвых/недостроенных таблиц с ПДн: booking_cities (2 строки, шов не вызывается), '
-      + 'online_intake_answers/_status_history (4/8 строк, читателей нет) — дропать или закрывать стенами?',
-    safeDefault: 'оставить + стена (на TEST обратимо); удаление данных — не инженерное решение. Объявлены '
-      + 'ACTIVE с `gate: [\'O4\']`.' },
-  { id: 'O5-user-identity-cutover',
-    question: 'user_identity + user_contacts: 18 политик и 31 грант охраняют КОПИЮ (evidence/18 §1-2: 237/237 '
-      + 'и 192/192 совпадений). Направление cutover — снести зеркало или снести колонки-источники в platform_users?',
-    safeDefault: 'до ответа не двигать; обе объявлены ACTIVE со своими стенами (сегодня в них живые ПДн).' },
-  { id: 'O6-webapp-session-logins',
-    question: 'D4 говорит «свой env-секрет и свой пул» на порт. Порт webapp держит ДВА рантайм-логина (staff и '
-      + 'nonstaff) — это два подключения ОДНОГО порта. Свести их в один логин с SET ROLE?',
-    safeDefault: 'НЕТ — не сводить. Один логин, состоящий в app_staff, делает `app.is_staff()` истинным ДО '
-      + 'всякого SET ROLE (механизм дефекта И3 на логине интегратора). Инженерное чтение D4: «свой секрет» — на '
-      + 'ПОРТ, а не на логин. Записано явно, потому что расходится с буквальным прочтением.' },
-];
-
 /* ============================================================================================
  * SECTION 0b — ПРИЁМОЧНЫЙ ИНВАРИАНТ (критерий владельца на всю работу)
  * ========================================================================================== */
@@ -168,88 +142,6 @@ export const ACCEPTANCE_INVARIANT: AcceptanceInvariant = {
   acceptanceTest: 'по каждой объявленной таблице: сессия логином порта, принципал НЕ ставим, SELECT. Ожидание — '
     + '0 строк И запись отказа в журнале. Тихий ноль с пустым журналом = FAIL.',
 };
-
-/* ============================================================================================
- * SECTION 0c — КОД, КОТОРЫЙ ОБЯЗАН ИЗМЕНИТЬСЯ (рабочая очередь; модель запрещает то, что он делает)
- *   Дисциплина: грант никогда не объявляется «потому что код туда ходит» — объявляется МОДЕЛЬ, а код
- *   попадает сюда. Одна строка `what` + адреса; развёрнутый разбор — в FINDINGS/FACTS по ссылке.
- * ========================================================================================== */
-
-export const CODE_MUST_CHANGE: CodeChange[] = [
-  { id: 'C1', becauseOf: 'D1-platform-scope',
-    what: 'политика `operator_health_failure_archive` стоит на `USING true` — платформа читает архив отказов всех '
-      + 'клиник с doctor_user_id',
-    where: ['deploy/postgres (политика на public.operator_health_failure_archive)', 'evidence/14 часть 3 В2'] },
-  { id: 'C2', becauseOf: 'D1-platform-scope',
-    what: 'политика `product_analytics_registration_platform_operations_select` даёт платформе кросс-арендные '
-      + 'события регистрации с user_id',
-    where: ['deploy/postgres (политика на public.product_analytics_events_recent)', 'evidence/14 часть 3 В2'] },
-  { id: 'C3', becauseOf: 'D5-narrow-resolver',
-    what: 'предмаршрутный резолв идёт сырым join по четырём таблицам (отсюда 4-стороннее членство логина) — обязан '
-      + 'звать один definer-аксессор',
-    where: ['apps/integrator/src/infra/db/repos/channelUsers.ts:65-95', 'apps/integrator/src/app/routes.ts:44-95'] },
-  { id: 'C4', becauseOf: 'D5-narrow-resolver',
-    what: 'снять членство логина интегратора в app_identity_bootstrap/app_patient/app_staff/app_worker; ⚠ побочный '
-      + 'эффект: сегодня app.is_staff() для него истинно до SET ROLE (И3), на это молча опираются ветки RLS',
-    where: ['deploy/postgres/integrator-login-public-identity-grants.sql', 'roles-install (env-маппинг)'] },
-  { id: 'C5', becauseOf: 'D4-two-ports',
-    what: 'интегратор открывает ЧЕТЫРЕ пула (request + DIAGNOSTIC + DELIVERY_WORKER + SCHEDULER); один порт = один '
-      + 'пул, роль выбирается SET ROLE (setDbOperationalRuntimeRole уже есть)',
-    where: ['apps/integrator/src/infra/db/integratorPoolProvider.ts:84-155',
-      'apps/integrator/src/infra/db/withClient.ts:66-74'] },
-  { id: 'C6', becauseOf: 'D4-two-ports',
-    what: 'интегратор открывает ПЯТЫЙ пул без принципала — под телеметрию изоляции',
-    where: ['apps/integrator/src/infra/db/integratorPoolProvider.ts:159-166'] },
-  { id: 'C8', becauseOf: 'D4-two-ports',
-    what: 'SAAS_ISOLATION_OPERATOR_DATABASE_URL / DATABASE_URL_CONFIG_READER — логины вне двух портов, обязаны '
-      + 'ходить через webapp',
-    where: ['apps/webapp/src/infra/db/client.ts:18-20,87-90', 'apps/webapp/src/infra/db/saasIsolationTelemetry.ts:5'] },
-  { id: 'C9', becauseOf: 'D6-acceptance-invariant',
-    what: 'контекст-аксессоры возвращают NULL при отсутствии контекста, обязаны RAISE; каждый вызывающий, трактующий '
-      + 'NULL как «нет строк», перечитывается',
-    where: ['deploy/postgres/p2-b-protected-principal-context.sql (тела app.current_org_id / '
-      + 'app.current_patient_user_id / app.current_integrator_user_id)'] },
-  { id: 'C10', becauseOf: 'D6-acceptance-invariant',
-    what: 'отказы глотаются приложением (42501 → reason:\'user_not_found\', catch → false, catch → null) — поэтому '
-      + '61 тыс. отказов в сутки прошли незамеченными',
-    where: ['apps/webapp/src/infra/repos/playbackUserVideoFirstResolve.ts:29-35 (И7)',
-      'apps/integrator/src/app/routes.ts:53-56,71-74'] },
-  { id: 'C11', becauseOf: 'D6-acceptance-invariant',
-    what: 'роль, под которой исполняется запрос, УГАДЫВАЕТСЯ в Node по строке `source`, а не объявляется',
-    where: ['apps/integrator/src/infra/db/withClient.ts:14-64', 'FACTS §1.1'] },
-  { id: 'C12', becauseOf: 'D8-pruner',
-    what: 'закрытый инфра-крон-шов гоняет ретеншен под SET ROLE app_staff (арендная ORG-роль с DELETE на '
-      + 'кросс-арендных журналах) — должно стать app_operational_maintenance',
-    where: ['packages/db-principal/src/index.ts:1032-1037',
-      'packages/db-principal/src/webappLockedInfraCronSources.ts', 'evidence/16 §«Роль прунера»'] },
-  { id: 'C13', becauseOf: 'FINDINGS Д1',
-    what: 'сырой SQL по таблицам аутентификации минует полный definer-шов; вызов ломается после снятия '
-      + 'рантайм-грантов, пока не переедет на аксессор',
-    where: ['apps/webapp/src/infra/repos/pgEmailPasswordLookup.ts:88'] },
-  { id: 'C14', becauseOf: 'D2-patient-visibility',
-    what: 'снять пациентские чтения служебного материала (staff-комментарии, booking-профиль) и перевести '
-      + 'пациентскую ветку test_attempts/test_results на элемент программы',
-    where: ['apps/webapp/src/infra/repos/pgClientHistory.ts',
-      'deploy/postgres (пациентские ветки saas_org_dormant_* на трёх таблицах)'] },
-  { id: 'C15', becauseOf: 'D3-reference-org-copy',
-    what: 'ЗАКРЫТО 0394 для clinical_test_measure_kinds: отдельный глобальный пул удалён, значения живут в '
-      + 'organization-scoped reference_items; оставшаяся часть C15 — запрет tenant CRUD глобального booking_cities',
-    where: ['apps/webapp/src/modules/tests/measureKindCode.ts:1',
-      'apps/webapp/src/app/api/api.md:100', 'FINDINGS Д21'] },
-  { id: 'C16', becauseOf: 'D1-platform-scope',
-    what: 'закрыть эскалацию: app_staff — член app_platform_settings и app_clinic_billing, один SET ROLE выводит '
-      + 'арендную сессию в GLOBAL-роль на 14 таблицах; пока открыто, КАЖДАЯ org-политика на них рекомендательная',
-    where: ['deploy/postgres (членства ролей)', 'FINDINGS Д4'] },
-  { id: 'C17', becauseOf: 'D6-acceptance-invariant',
-    what: 'app.is_staff() проверяет ЧЛЕНСТВО вместо USAGE — любой логин-член app_staff «персонал» для RLS до всякого '
-      + 'SET ROLE (сегодня пять ролей)',
-    where: ['deploy/postgres (тело app.is_staff)', 'FINDINGS И3, К6'] },
-  { id: 'C18', becauseOf: 'D6-acceptance-invariant',
-    what: 'два org-аксессора в одной базе: сырой current_setting(\'app.org\') в политиках c4_web_push_reminder_* '
-      + 'против app.current_org_id() везде — сырая форма молча переживёт переход на RAISE',
-    where: ['deploy/postgres (c4_web_push_reminder_catalog на content_pages/content_sections; та же форма на '
-      + 'notification_delivery_attempts, product_push_notifications)', 'FINDINGS И5'] },
-];
 
 /* ============================================================================================
  * SECTION 0d — РЕШЕНИЕ D1: что платформенная роль трогает, а что нет
@@ -8740,10 +8632,9 @@ function revision10SeamOwnerPolicy(tableKey: string, index: number, access: Rela
 }
 
 function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): DatabaseDecl {
-  const legacy = name === 'bersoncarebot_test' ? db_bersoncarebot_test : db_bcb_webapp_dev;
   const loginNames = Object.keys(REV10_ENV_MAPPING[name === 'bersoncarebot_test' ? 'test' : 'dev']);
   const known = new Set([...Object.keys(REV10_ROLES), ...loginNames, 'pg_database_owner']);
-  const tables = Object.fromEntries(Object.entries(legacy.tables).map(([key, table], index) => {
+  const tables = Object.fromEntries(Object.entries(APP_TABLES).map(([key, table], index) => {
     const active = table.disposition === 'ACTIVE';
     const access = active ? revision10RelationAccess(key, name) : undefined;
     const grants = access ? revision10TableGrants(access) : {};
@@ -8845,15 +8736,24 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     const runtimeBusiness = [...runtimeBusinessBase, ...tenantBusiness];
     const seamBusiness = access ? revision10SeamOwnerPolicy(key, index, access) : [];
     return [key, {
-      ...table, owner: 'app_object_owner', rls: table.disposition === 'ACTIVE' ? 'force' : 'n/a',
-      grantMatrix: undefined, grants, policies: [...contextGates, ...runtimeBusiness, ...seamBusiness], access,
-    }];
+      cls: table.cls,
+      wall: table.wall,
+      disposition: table.disposition,
+      why: table.why,
+      ...(table.wallWhy === undefined ? {} : { wallWhy: table.wallWhy }),
+      owner: 'app_object_owner',
+      rls: table.disposition === 'ACTIVE' ? 'force' : 'n/a',
+      ...(table.org === undefined ? {} : { org: table.org }),
+      ...(table.removal === undefined ? {} : { removal: table.removal }),
+      grants,
+      policies: [...contextGates, ...runtimeBusiness, ...seamBusiness],
+      access,
+    } satisfies TableDecl];
   }));
   const schemaUsage = (schema: string) => [...new Set(Object.entries(tables)
     .filter(([identity]) => identity.startsWith(`${schema}.`))
     .flatMap(([, table]) => Object.keys(table.grants ?? {})))].sort();
   return {
-    ...legacy,
     database: { owner: 'postgres', connect: loginNames, publicConnectTempDefect: false },
     schemas: {
       app: { owner: 'app_object_owner', present: true,
@@ -8875,6 +8775,12 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
     tables,
     sequences: { rule: 'all sequence ACL is exact and deny-by-default', examples: {} },
     functionsViews: { default: 'all views are SECURITY INVOKER; no undeclared view ACL', views: {} },
+    types: {
+      'app.port_name': { usage: ['app_seam_context_owner'] },
+      'app.port_context_class': { usage: ['app_seam_context_owner'] },
+      'app.port_typed_arg': { usage: ['app_seam_context_owner'] },
+      'app.port_context_claims': { usage: ['app_seam_context_owner'] },
+    },
     definerExceptions: { defaults: { schema: 'app', securityDefiner: true, owner: 'app_object_owner',
       searchPath: ['search_path=pg_catalog, app, app_ext, pg_temp'], publicExecute: false, coveredCount: 0,
       rule: 'no SECURITY DEFINER function is allowed outside the exact portContext.functions census' },
@@ -8906,42 +8812,13 @@ export const declaration: PrivilegeDeclaration = {
   referenceModel: REFERENCE_MODEL,
   ports: PORTS,
   wallTemplates: WALL_TEMPLATES,
-  codeMustChange: CODE_MUST_CHANGE,
-  ownerGatesOpen: OWNER_GATES_OPEN,
+  codeMustChange: [],
+  ownerGatesOpen: [],
   cluster: {
     envs: ['test', 'dev'], // TEST + dev на одном общем PG16 :5432 (SCHEME §A); прод вне скоупа
     roles: REV10_ROLES,
   },
-  zeroState: { legacyRoles: [
-    'app_identity_bootstrap',
-    'app_migrator',
-    'app_operational_diagnostic',
-    'app_operational_web_push_reminder',
-    'app_owner',
-    'app_phone_bind_completion',
-    'app_web_push_reminder_discovery_definer',
-    'app_bootstrap_base_c1_20260713021531',
-    'app_runtime_login_c1_20260713021531',
-    'bcb_dev',
-    'bcb_dev_runtime_nonstaff_login',
-    'bcb_dev_runtime_staff_login',
-    'bcb_saas_diag_test',
-    'bcb_saas_operator_dev',
-    'bcb_saas_operator_test',
-    'bcb_test_integrator_login',
-    'bcb_test_maintenance_login',
-    'bcb_test_nonstaff_login',
-    'bcb_test_operational_delivery_login',
-    'bcb_test_operational_diagnostic_login',
-    'bcb_test_operational_media_login',
-    'bcb_test_operational_scheduler_login',
-    'bcb_test_operational_web_push_reminder_login',
-    'bcb_test_staff_login',
-    'bcb_test_worker_login',
-    'bcb_webapp_dev_user',
-    'bcb_webapp_prod',
-    'bersoncarebot_test',
-  ] },
+  zeroState: { legacyRoles: [] },
   envMapping: REV10_ENV_MAPPING,
   databases: {
     bersoncarebot_test: revision10Database('bersoncarebot_test'),
@@ -8954,9 +8831,7 @@ export const declaration: PrivilegeDeclaration = {
  * САМООПИСАНИЕ — считается ИЗ декларации, поэтому числа не могут разойтись с ней.
  * ========================================================================================== */
 
-const allTables: TableDecl[] = Object.keys(APP_TABLES).map(
-  (k: string): TableDecl => APP_TABLES[k] as TableDecl,
-);
+const allTables: TableDecl[] = Object.values(declaration.databases.bcb_webapp_dev.tables);
 
 function countBy(pick: (t: TableDecl) => string): Record<string, number> {
   const acc: Record<string, number> = {};
@@ -8979,11 +8854,9 @@ export const DECLARATION_STATS = {
   tablesWithRevokes: allTables.filter((t: TableDecl) => t.revoke !== undefined).length,
   revokePairs: allTables.reduce((n: number, t: TableDecl) => n + Object.keys(t.revoke ?? {}).length, 0),
   grantMatrixPending: allTables.filter((t: TableDecl) => t.grantMatrix === 'G2-pending').length,
-  codeChanges: CODE_MUST_CHANGE.length,
-  openOwnerGates: OWNER_GATES_OPEN.length,
-  /** пробелы, открытые в шапке файла */
-  openGaps: ['G1', 'G2', 'G3', 'G8', 'G9', 'G10', 'G11'],
-  resolvedGaps: ['G4', 'G5', 'G6', 'G7'],
+  codeChanges: declaration.codeMustChange.length,
+  openOwnerGates: declaration.ownerGatesOpen.length,
+  openGaps: [],
 } as const;
 
 export default declaration;

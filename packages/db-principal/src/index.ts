@@ -73,11 +73,9 @@ export const DB_PRINCIPAL_PLATFORM_SETTINGS_ROLE = 'app_platform_settings';
 export const DB_PRINCIPAL_CLINIC_BILLING_ROLE = 'app_clinic_billing';
 
 export type DbOperationalRuntimeRole =
-  | 'app_operational_diagnostic'
   | 'app_operational_delivery_worker'
   | 'app_operational_media_worker'
-  | 'app_operational_scheduler'
-  | 'app_config_reader';
+  | 'app_operational_scheduler';
 
 export type DbPrincipalKind =
   | 'organization'
@@ -215,9 +213,6 @@ export async function setDbOperationalRuntimeRole(
 ): Promise<void> {
   let statement: string;
   switch (role) {
-    case 'app_operational_diagnostic':
-      statement = 'SET ROLE app_operational_diagnostic';
-      break;
     case 'app_operational_delivery_worker':
       statement = 'SET ROLE app_operational_delivery_worker';
       break;
@@ -226,9 +221,6 @@ export async function setDbOperationalRuntimeRole(
       break;
     case 'app_operational_scheduler':
       statement = 'SET ROLE app_operational_scheduler';
-      break;
-    case 'app_config_reader':
-      statement = 'SET ROLE app_config_reader';
       break;
     default:
       throw new Error('Unsupported DB operational runtime role');

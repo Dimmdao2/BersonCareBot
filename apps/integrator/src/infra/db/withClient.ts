@@ -88,7 +88,6 @@ const allowedLockedBootstrapSources = new Set([
 const allowedLockedInfraSources = new Set([
   'delivery-handler',
   'integrator-health-check',
-  'integrator-projection-health',
   'max-webhook:record-outcome',
   'scheduler:acquire-lock',
   'scheduler:claim-due-jobs',
@@ -99,11 +98,9 @@ const allowedLockedInfraSources = new Set([
 ]);
 
 export type IntegratorTechnicalRuntimeRole =
-  | 'app_operational_diagnostic'
   | 'app_operational_delivery_worker'
   | 'app_operational_scheduler';
 
-const diagnosticInfraSources = new Set(['integrator-projection-health']);
 const workerInfraSources = new Set(['worker:job-queue-drain', 'worker:outgoing-delivery-tick']);
 const schedulerInfraSources = new Set([
   'scheduler:acquire-lock',
@@ -117,7 +114,6 @@ export function getCurrentIntegratorTechnicalRuntimeRole():
   const principal = getCurrentDbPrincipal();
   if (principal?.kind !== 'infra') return undefined;
   const source = principal.source ?? '';
-  if (diagnosticInfraSources.has(source)) return 'app_operational_diagnostic';
   if (workerInfraSources.has(source)) return 'app_operational_delivery_worker';
   if (schedulerInfraSources.has(source)) return 'app_operational_scheduler';
   return undefined;
