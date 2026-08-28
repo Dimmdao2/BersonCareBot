@@ -28,6 +28,7 @@ import { doctorSectionCardClass } from '@/shared/ui/doctor/doctorVisual';
 import { cn } from '@/lib/utils';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
 import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
+import { DoctorTodayQuickActions } from './DoctorTodayQuickActions';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
 function DoctorTodayDashboardFallback() {
@@ -45,20 +46,20 @@ function DoctorTodayDashboardFallback() {
 
 async function DoctorTodayDashboardSection({
   workspace,
+  displayIana,
 }: {
   workspace: Awaited<ReturnType<typeof requireOrganizationWorkspaceContext>>;
+  displayIana: string;
 }) {
   const session = workspace.session;
   const deps = buildAppDeps();
 
   const [
-    displayIana,
     audience,
     todayPreferencesRow,
     specialistTasksAvailability,
     specialistTasksRead,
   ] = await Promise.all([
-    getAppDisplayTimeZone(),
     loadDoctorAnalyticsAudience(),
     deps.systemSettings.getSetting(DOCTOR_TODAY_PREFERENCES_KEY, 'doctor', {
       organizationId: workspace.organizationId,
@@ -139,12 +140,27 @@ export default async function DoctorPage() {
     );
   }
 
+  const displayIana = await getAppDisplayTimeZone();
+  const todayIso =
+    DateTime.now().setZone(displayIana).toISODate() ?? new Date().toISOString().slice(0, 10);
+
   return (
-    <DoctorAppShell title="Сегодня" user={session.user} layout="full-height">
+    <DoctorAppShell
+      title="Сегодня"
+      user={session.user}
+      layout="full-height"
+      mobileHeaderActions={
+        <DoctorTodayQuickActions
+          todayIso={todayIso}
+          displayIana={displayIana}
+          placement="mobile-header"
+        />
+      }
+    >
       <div className="flex min-h-0 flex-1 flex-col gap-3">
         {session.user.role === 'admin' ? <DoctorTodayAdminBannersSuspense /> : null}
         <Suspense fallback={<DoctorTodayDashboardFallback />}>
-          <DoctorTodayDashboardSection workspace={workspace} />
+          <DoctorTodayDashboardSection workspace={workspace} displayIana={displayIana} />
         </Suspense>
       </div>
     </DoctorAppShell>

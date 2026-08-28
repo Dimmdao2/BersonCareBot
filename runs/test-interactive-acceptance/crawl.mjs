@@ -6,7 +6,7 @@ import { chromium } from '../dev-interactive-audit/lib/browser.mjs';
 
 const baseUrl = process.env.TEST_ACCEPTANCE_BASE_URL || 'https://test.bersoncare.ru';
 const password = process.env.TEST_ACCEPTANCE_PASSWORD || '';
-const requestedRoles = (process.env.TEST_ACCEPTANCE_ROLES || 'doctor,patient,global_admin')
+const requestedRoles = (process.env.TEST_ACCEPTANCE_ROLES || 'doctor,clinic_admin,patient,global_admin')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
@@ -25,6 +25,15 @@ const roles = Object.freeze({
     roots: [join(root, 'apps/webapp/src/app/app/doctor'), join(root, 'apps/webapp/src/app/app/settings')],
     prefixes: ['/app/doctor', '/app/settings', '/app/account'],
     viewport: { width: 390, height: 844 },
+  },
+  // Clinic administration is organization membership on the same owner doctor account, not a
+  // fourth platform identity. Keep it as a separate acceptance surface so settings/admin failures
+  // cannot hide inside the broader doctor crawl.
+  clinic_admin: {
+    email: 'dimmdao@yandex.ru',
+    roots: [join(root, 'apps/webapp/src/app/app/settings')],
+    prefixes: ['/app/settings', '/app/account'],
+    viewport: { width: 1440, height: 900 },
   },
   patient: {
     email: 'kinesiospace@gmail.com',

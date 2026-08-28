@@ -221,6 +221,8 @@ export type TodayDashboardData = {
   exerciseCommentAttentionTotal: number;
   exerciseCommentAttentionTruncated: boolean;
   weeklyTimeline: TodayWeeklyTimelinePoint[];
+  currentWeekAppointments: TodayAppointmentItem[];
+  currentWeekFirstAppointments: TodayAppointmentItem[];
 };
 
 const NEXT_APPOINTMENT_ACTIVE_STATUSES = new Set([
@@ -331,6 +333,42 @@ export function buildTodayWeeklyTimeline(
   }
 
   return points;
+}
+
+function buildCurrentWeekAppointmentLists(
+  rows: AppointmentRow[],
+  displayIana: string,
+  now = DateTime.now(),
+): {
+  appointments: TodayAppointmentItem[];
+  firstAppointments: TodayAppointmentItem[];
+} {
+  const currentWeekKey = now.setZone(displayIana).startOf('week').toISODate();
+  const eligible = rows
+    .flatMap((row) => {
+      if (!row.recordAtIso || isCancelledAppointmentStatus(row.rawStatus ?? row.status)) return [];
+      const recordAt = parseAppointmentDateTime(row.recordAtIso).setZone(displayIana);
+      const weekKey = recordAt.isValid ? recordAt.startOf('week').toISODate() : null;
+      return weekKey ? [{ row, weekKey }] : [];
+    })
+    .sort((left, right) =>
+      (left.row.recordAtIso ?? '').localeCompare(right.row.recordAtIso ?? ''),
+    );
+  const firstWeekByClient = new Map<string, string>();
+  for (const { row, weekKey } of eligible) {
+    const clientKey = timelineClientKey(row);
+    if (clientKey && !firstWeekByClient.has(clientKey)) firstWeekByClient.set(clientKey, weekKey);
+  }
+  const current = eligible.filter(({ weekKey }) => weekKey === currentWeekKey);
+  return {
+    appointments: current.map(({ row }) => mapAppointmentToTodayItem(row)),
+    firstAppointments: current
+      .filter(({ row, weekKey }) => {
+        const clientKey = timelineClientKey(row);
+        return clientKey != null && firstWeekByClient.get(clientKey) === weekKey;
+      })
+      .map(({ row }) => mapAppointmentToTodayItem(row)),
+  };
 }
 
 export function formatNextAppointmentRelative(startAt: string, nowIso: string): string {
@@ -751,6 +789,7 @@ export async function loadDoctorTodayDashboard(
   const pendingProgramTests = mapPendingProgramTestsForToday(pendingRows, appDisplayTimeZone);
   const pendingProgramTestsTruncated =
     pendingProgramTestsTotal > DOCTOR_TODAY_PENDING_TESTS_PREVIEW_LIMIT;
+  const currentWeekLists = buildCurrentWeekAppointmentLists(timelineRaw, deps.displayIana);
 
   return {
     todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
@@ -779,5 +818,7 @@ export async function loadDoctorTodayDashboard(
     exerciseCommentAttentionTotal: exerciseCommentAttention.total,
     exerciseCommentAttentionTruncated: exerciseCommentAttention.truncated,
     weeklyTimeline: buildTodayWeeklyTimeline(timelineRaw, deps.displayIana),
+    currentWeekAppointments: currentWeekLists.appointments,
+    currentWeekFirstAppointments: currentWeekLists.firstAppointments,
   };
 }

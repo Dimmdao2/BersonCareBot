@@ -55,6 +55,59 @@ S3-ключи теперь принадлежат одной функции `pro
 `stageStaleSinglePutMediaForPurge` и старый orphan-root удалены. Замеренные 7 строк — накопленный вход для этого
 тика на момент аудита; к живому прогону накопилось 14 строк, и все они обработаны на TEST без ошибки.
 
+### Финальный свод проверок 28.08 перед последним пакетом исправлений
+
+Проверки выполнялись на `6f924fe1d`; последующий UI-коммит `0da226a60` не пересекается с перечисленными ниже
+backend/media/data-lifecycle файлами. До исправлений все находки сведены здесь, отдельные мелкие fix-циклы не
+запускаются.
+
+- Hosted-video/program-video аудит `2246c0f87` — **PASS**: одна private preview-door, общий lifecycle,
+  fail-loud retry, `9.6` и missing duration отклоняются до upload, `10`/`12` и обычный HLS-path работают.
+  Единственный внешний blocker — отсутствующий VK service token с `video` scope.
+- Completion-аудит `ccf96854f` подтвердил этапы 1–6 и нашёл незавершённую живую часть этапа 7: текущий
+  acceptance-runner не знает роль clinic admin; public booking, contact/booking confirmation, реальное
+  напоминание и wrong-certificate mTLS refusal ещё не повторены единым финальным проходом.
+- Lifecycle-аудит Claude оборван внешним `SIGTERM` до отчёта, но оставил воспроизводимый красный route-test:
+  частичный отказ продления SaaS-тарифа возвращает HTTP 200 и пишет зелёный операторский тик. Это тот же класс
+  тихой ошибки, который этап 4 уже закрыл для media jobs.
+- Повторная инспекция purge-path нашла ещё один исполняемый хвост Track D: strict purge всё ещё запускает
+  retired integrator cleanup, переносит `integrator_user_id`/телефон в post-purge audit и содержит активный
+  cleanup-вход по retired id, хотя integrator identity/contact storage уже снят. Этот хвост нужно удалить, а
+  purge оставить только на каноническом UUID и S3/media lifecycle.
+- Реестр lifecycle ложно объявляет `message_log` и `media_files` как anonymised, хотя действующий core удаляет
+  строки физически. Три actor-FK (`system_settings_audit`, `organization_slug_rename_events`,
+  `online_intake_status_history`) тоже объявлены anonymised, но живой FK = `NO ACTION`. Реестр приводится к
+  фактическому delete-контракту, actor-FK — к `ON DELETE SET NULL`; публичный destructive route остаётся
+  выключенным.
+- Post-purge audit не должен снова сохранять удалённую identity: успешный/частичный audit оставляет только
+  ограниченные счётчики и класс ошибки, без телефона, retired id, raw user UUID, S3 keys и media row ids.
+  Мёртвый retry API, который требовал этот raw payload, удаляется; будущая retention state machine получит
+  отдельную durable retry-очередь только после принятия PR-03 policy.
+
+Порядок одного исправляющего пакета: route-result contract → retired purge tail + lifecycle truth/FK →
+clinic-admin acceptance support → targeted gates и rollback-only DB proof → один финальный CI → push → TEST
+deploy → единый живой проход → синхронизация этого плана и taskdb. Документы сами deploy не блокируют.
+
+**Фактический замер retired-id перед удалением runtime-хвоста.** Один read-only запрос к именованным DEV/TEST
+показал, что старые идентификаторы ещё лежат в данных: в DEV у `platform_users` заполнено `122/304`, у правил
+напоминаний `29` (из них `2` без канонического UUID), у истории напоминаний `2619` (все с каноническим UUID),
+у support-переписок `26` (из них `11` без канонического UUID); в TEST соответственно `144/328`, `32/2`,
+`3905/0`, `44/11`; в content grants старых id нет. Поэтому активная очистка и post-purge audit больше не
+читают retired-id, но сами старые колонки/значения не удаляются вслепую: они остаются только входом отдельного
+backfill/reconcile до разбора orphan-строк.
+
+**Разбор прав миграции `20260828T085822_anonymise_audit_actors_on_account_delete.sql`.** Она не создаёт новых
+таблиц, функций, колонок или runtime-путей: меняет только три существующих внешних ключа журналов на
+`ON DELETE SET NULL`. Все три DDL-блока исполняются владельцем таблиц `app_object_owner`; runtime-роли не
+получают новых прав и не выполняют это действие — ссылку обнуляет сама БД при удалении пользователя.
+Декларация прав не меняется, GRANT/REVOKE/политик в миграции нет. Новых горячих колонок и запросов нет, поэтому
+новый индекс не требуется.
+
+**Targeted-проверки собранного пакета.** Unit-контракт биллингового тика: `1` файл / `2` теста PASS; purge core:
+`2` файла / `3` теста PASS; lifecycle registry: `1` файл / `6` тестов PASS; webapp typecheck PASS. Полный CI на
+каждую локальную правку не запускался; он остаётся одним финальным интеграционным гейтом после миграционного
+preflight и приземления audit-artifacts.
+
 ## Подтверждённые находки
 
 ### A. Границы доступа и роли БД

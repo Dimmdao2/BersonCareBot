@@ -66,6 +66,7 @@ import {
   parseCalendarDoctorSettings,
   type CalendarDoctorSettings,
 } from '../scheduleCalendarSettings';
+import { MobileScrollableMonthCalendar } from './MobileScrollableMonthCalendar';
 
 type FullCalendarInstance = InstanceType<typeof FullCalendar>;
 
@@ -273,10 +274,18 @@ function mobilePeriodLabel(anchorDate: string, zone: string): string {
 }
 
 function mobileCalendarRangeAround(anchorDate: string, zone: string): MobileCalendarRange {
+  const anchor = DateTime.fromISO(anchorDate, { zone }).startOf('day');
+  return {
+    start: anchor.minus({ days: 7 }).toISODate() ?? anchorDate,
+    end: anchor.plus({ days: 8 }).toISODate() ?? anchorDate,
+  };
+}
+
+function mobileMonthCalendarRangeAround(anchorDate: string, zone: string): MobileCalendarRange {
   const anchor = DateTime.fromISO(anchorDate, { zone }).startOf('month');
   return {
-    start: anchor.minus({ months: 1 }).toISODate() ?? anchorDate,
-    end: anchor.plus({ months: 2 }).toISODate() ?? anchorDate,
+    start: anchor.minus({ months: 6 }).toISODate() ?? anchorDate,
+    end: anchor.plus({ months: 4 }).toISODate() ?? anchorDate,
   };
 }
 
@@ -773,6 +782,7 @@ export function ScheduleCalendarTab({
   const mobileScrollPositionedRangeRef = useRef<string | null>(null);
   const mobileScrollRestoreDateRef = useRef<string | null>(null);
   const mobileRangeExpandingRef = useRef(false);
+  const mobileTimeAxisCleanupRef = useRef<(() => void) | null>(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -784,6 +794,12 @@ export function ScheduleCalendarTab({
   );
   const [mobileCalendarRange, setMobileCalendarRange] = useState<MobileCalendarRange>(() =>
     mobileCalendarRangeAround(
+      bootstrap?.anchorDate ?? resolveAnchorDate(deepLinkParams.date, timeZone),
+      timeZone,
+    ),
+  );
+  const [mobileMonthCalendarRange, setMobileMonthCalendarRange] = useState<MobileCalendarRange>(() =>
+    mobileMonthCalendarRangeAround(
       bootstrap?.anchorDate ?? resolveAnchorDate(deepLinkParams.date, timeZone),
       timeZone,
     ),
@@ -848,19 +864,24 @@ export function ScheduleCalendarTab({
 
   const mobileScrollableTimeGrid =
     isMobileViewport && view === '3days' && renderMode === 'calendar';
+  const mobileScrollableMonthGrid =
+    isMobileViewport && view === 'month' && renderMode === 'calendar';
+  const mobileScrollableCalendar = mobileScrollableTimeGrid || mobileScrollableMonthGrid;
+  const activeMobileCalendarRange = mobileScrollableMonthGrid
+    ? mobileMonthCalendarRange
+    : mobileCalendarRange;
   const calendarFeedRange = useMemo(
     () =>
-      mobileScrollableTimeGrid
-        ? mobileCalendarRangeInstants(mobileCalendarRange, timeZone)
+      mobileScrollableCalendar
+        ? mobileCalendarRangeInstants(activeMobileCalendarRange, timeZone)
         : visibleRange(view, anchorDate, timeZone),
-    [anchorDate, mobileCalendarRange, mobileScrollableTimeGrid, timeZone, view],
+    [activeMobileCalendarRange, anchorDate, mobileScrollableCalendar, timeZone, view],
   );
   const mobileCalendarDayCount = useMemo(() => {
     const start = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
     const end = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
     return Math.max(1, Math.round(end.diff(start, 'days').days));
   }, [mobileCalendarRange, timeZone]);
-
   // R34: подтверждение переноса (drag/resize) перед применением.
   const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
   const pendingRescheduleRef = useRef<{
@@ -975,15 +996,18 @@ export function ScheduleCalendarTab({
       startTransition(async () => {
         try {
           const range =
-            isMobileViewport && v === '3days' && renderMode === 'calendar'
-              ? mobileCalendarRangeInstants(mobileCalendarRange, timeZone)
+            isMobileViewport && (v === '3days' || v === 'month') && renderMode === 'calendar'
+              ? mobileCalendarRangeInstants(
+                  v === 'month' ? mobileMonthCalendarRange : mobileCalendarRange,
+                  timeZone,
+                )
               : visibleRange(v, anchor, timeZone);
           const from = range.from;
           const to = range.to;
 
           // Map v26 view to API view param
           const apiView =
-            isMobileViewport && v === '3days' && renderMode === 'calendar'
+            isMobileViewport && (v === '3days' || v === 'month') && renderMode === 'calendar'
               ? 'feed'
               : v === '3days'
                 ? '3days'
@@ -1039,6 +1063,7 @@ export function ScheduleCalendarTab({
       scheduleScope,
       isMobileViewport,
       mobileCalendarRange,
+      mobileMonthCalendarRange,
       renderMode,
     ],
   );
@@ -1116,7 +1141,7 @@ export function ScheduleCalendarTab({
 
   useEffect(() => {
     if (
-      !mobileScrollableTimeGrid &&
+      !mobileScrollableCalendar &&
       ssrLoadKeyRef.current !== null &&
       calendarLoadKey === ssrLoadKeyRef.current
     ) {
@@ -1124,7 +1149,7 @@ export function ScheduleCalendarTab({
     }
     ssrLoadKeyRef.current = null;
     queueMicrotask(() => load());
-  }, [calendarLoadKey, load, mobileScrollableTimeGrid]);
+  }, [calendarLoadKey, load, mobileScrollableCalendar]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1172,24 +1197,61 @@ export function ScheduleCalendarTab({
     if (!today) return;
     setMobileVisibleDate(today);
     mobileScrollRestoreDateRef.current = today;
-    if (today < mobileCalendarRange.start || today >= mobileCalendarRange.end) {
-      setMobileCalendarRange(mobileCalendarRangeAround(today, timeZone));
+    mobileScrollPositionedRangeRef.current = null;
+    const range = mobileScrollableMonthGrid ? mobileMonthCalendarRange : mobileCalendarRange;
+    if (today < range.start || today >= range.end) {
+      if (mobileScrollableMonthGrid) {
+        setMobileMonthCalendarRange(mobileMonthCalendarRangeAround(today, timeZone));
+      } else {
+        setMobileCalendarRange(mobileCalendarRangeAround(today, timeZone));
+      }
     }
     setAnchorDate(today);
   }
 
   useEffect(() => {
-    if (!mobileScrollableTimeGrid) return;
-    if (anchorDate >= mobileCalendarRange.start && anchorDate < mobileCalendarRange.end) return;
+    if (!mobileScrollableCalendar) return;
+    const range = mobileScrollableMonthGrid ? mobileMonthCalendarRange : mobileCalendarRange;
+    if (anchorDate >= range.start && anchorDate < range.end) return;
     mobileScrollRestoreDateRef.current = anchorDate;
-    queueMicrotask(() => setMobileCalendarRange(mobileCalendarRangeAround(anchorDate, timeZone)));
-  }, [anchorDate, mobileCalendarRange, mobileScrollableTimeGrid, timeZone]);
+    queueMicrotask(() => {
+      if (mobileScrollableMonthGrid) {
+        setMobileMonthCalendarRange(mobileMonthCalendarRangeAround(anchorDate, timeZone));
+      } else {
+        setMobileCalendarRange(mobileCalendarRangeAround(anchorDate, timeZone));
+      }
+    });
+  }, [
+    anchorDate,
+    mobileCalendarRange,
+    mobileMonthCalendarRange,
+    mobileScrollableCalendar,
+    mobileScrollableMonthGrid,
+    timeZone,
+  ]);
 
   const positionMobileCalendar = useCallback(
     (dateKey: string) => {
       window.requestAnimationFrame(() => {
         const scroller = calendarViewportRef.current;
         if (!scroller) return;
+        if (mobileScrollableMonthGrid) {
+          const dateCell = scroller.querySelector<HTMLElement>(
+            `.fc-daygrid-day[data-date="${dateKey}"]`,
+          );
+          if (dateCell) {
+            const scrollerBox = scroller.getBoundingClientRect();
+            const cellBox = dateCell.getBoundingClientRect();
+            scroller.scrollTop = Math.max(
+              0,
+              scroller.scrollTop + cellBox.top - scrollerBox.top - scroller.clientHeight / 3,
+            );
+          }
+          window.requestAnimationFrame(() => {
+            mobileRangeExpandingRef.current = false;
+          });
+          return;
+        }
         const rangeStart = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
         const rangeEnd = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
         const targetDate = DateTime.fromISO(dateKey, { zone: timeZone });
@@ -1205,25 +1267,133 @@ export function ScheduleCalendarTab({
           timeAxisWidth + targetDay * dayWidth - scroller.clientWidth / 2 + dayWidth / 2,
         );
         scroller.style.setProperty('--doctor-calendar-scroll-x', `${scroller.scrollLeft}px`);
-        mobileRangeExpandingRef.current = false;
+        window.requestAnimationFrame(() => {
+          mobileRangeExpandingRef.current = false;
+        });
       });
     },
-    [mobileCalendarRange, timeZone],
+    [mobileCalendarRange, mobileScrollableMonthGrid, timeZone],
   );
 
-  const handleMobileCalendarDatesSet = useCallback(() => {
-    if (!mobileScrollableTimeGrid) return;
-    const rangeKey = `${mobileCalendarRange.start}:${mobileCalendarRange.end}`;
+  useEffect(() => {
+    if (!mobileScrollableMonthGrid) return;
+    const rangeKey = `month:${mobileMonthCalendarRange.start}:${mobileMonthCalendarRange.end}`;
     if (mobileScrollPositionedRangeRef.current === rangeKey) return;
     mobileScrollPositionedRangeRef.current = rangeKey;
     const target = mobileScrollRestoreDateRef.current ?? mobileVisibleDate;
     mobileScrollRestoreDateRef.current = null;
+    mobileRangeExpandingRef.current = true;
     positionMobileCalendar(target);
-  }, [mobileCalendarRange, mobileScrollableTimeGrid, mobileVisibleDate, positionMobileCalendar]);
+  }, [
+    mobileMonthCalendarRange,
+    mobileScrollableMonthGrid,
+    mobileVisibleDate,
+    positionMobileCalendar,
+  ]);
+
+  const bindMobileTimeAxis = useCallback(() => {
+    mobileTimeAxisCleanupRef.current?.();
+    mobileTimeAxisCleanupRef.current = null;
+    if (!mobileScrollableTimeGrid) return;
+    window.requestAnimationFrame(() => {
+      const root = calendarViewportRef.current;
+      if (!root) return;
+      const verticalScroller = Array.from(root.querySelectorAll<HTMLElement>('.fc-scroller')).find(
+        (node) => node.scrollHeight > node.clientHeight + 8,
+      );
+      if (!verticalScroller) return;
+      const header = root.querySelector<HTMLElement>('.fc-scrollgrid-section-header');
+      const sync = () => {
+        const hourHeight = verticalScroller.scrollHeight / 24;
+        root.style.setProperty('--doctor-calendar-scroll-y', `${verticalScroller.scrollTop}px`);
+        root.style.setProperty('--doctor-calendar-hour-h', `${hourHeight}px`);
+        root.style.setProperty('--doctor-calendar-half-hour-h', `${hourHeight / 2}px`);
+        root.style.setProperty(
+          '--doctor-calendar-scroll-content-h',
+          `${verticalScroller.scrollHeight}px`,
+        );
+        root.style.setProperty(
+          '--doctor-calendar-header-h',
+          `${header?.getBoundingClientRect().height ?? 49}px`,
+        );
+      };
+      sync();
+      verticalScroller.addEventListener('scroll', sync, { passive: true });
+      mobileTimeAxisCleanupRef.current = () => {
+        verticalScroller.removeEventListener('scroll', sync);
+      };
+    });
+  }, [mobileScrollableTimeGrid]);
+
+  useEffect(
+    () => () => {
+      mobileTimeAxisCleanupRef.current?.();
+    },
+    [],
+  );
+
+  const handleMobileCalendarDatesSet = useCallback(() => {
+    if (!mobileScrollableTimeGrid) return;
+    bindMobileTimeAxis();
+    const rangeKey = `${view}:${mobileCalendarRange.start}:${mobileCalendarRange.end}`;
+    if (mobileScrollPositionedRangeRef.current === rangeKey) return;
+    mobileScrollPositionedRangeRef.current = rangeKey;
+    const target = mobileScrollRestoreDateRef.current ?? mobileVisibleDate;
+    mobileScrollRestoreDateRef.current = null;
+    mobileRangeExpandingRef.current = true;
+    positionMobileCalendar(target);
+  }, [
+    bindMobileTimeAxis,
+    mobileCalendarRange,
+    mobileScrollableTimeGrid,
+    mobileVisibleDate,
+    positionMobileCalendar,
+    view,
+  ]);
 
   const handleMobileCalendarScroll = useCallback(
     (target: HTMLElement) => {
-      if (!mobileScrollableTimeGrid || target.scrollWidth <= target.clientWidth + 8) return;
+      if (!mobileScrollableCalendar) return;
+      if (mobileScrollableMonthGrid) {
+        const viewportCenter = target.getBoundingClientRect().top + target.clientHeight / 2;
+        const visibleMonth = Array.from(
+          target.querySelectorAll<HTMLElement>('[data-mobile-calendar-month]'),
+        ).reduce<HTMLElement | null>((closest, month) => {
+          const rect = month.getBoundingClientRect();
+          const distance = Math.abs(rect.top + rect.height / 2 - viewportCenter);
+          if (!closest) return month;
+          const closestRect = closest.getBoundingClientRect();
+          return distance < Math.abs(closestRect.top + closestRect.height / 2 - viewportCenter)
+            ? month
+            : closest;
+        }, null);
+        const centerDate = visibleMonth?.dataset.mobileCalendarMonth ?? mobileVisibleDate;
+        setMobileVisibleDate(centerDate);
+        if (mobileRangeExpandingRef.current) return;
+        const edgeThreshold = target.clientHeight * 0.35;
+        const nearStart = target.scrollTop <= edgeThreshold;
+        const nearEnd = target.scrollHeight - target.clientHeight - target.scrollTop <= edgeThreshold;
+        if (!nearStart && !nearEnd) return;
+        mobileRangeExpandingRef.current = true;
+        mobileScrollRestoreDateRef.current = centerDate;
+        mobileScrollPositionedRangeRef.current = null;
+        setMobileMonthCalendarRange((current) => ({
+          start: nearStart
+            ? (DateTime.fromISO(current.start, { zone: timeZone })
+                .minus({ months: 1 })
+                .startOf('month')
+                .toISODate() ?? current.start)
+            : current.start,
+          end: nearEnd
+            ? (DateTime.fromISO(current.end, { zone: timeZone })
+                .plus({ months: 1 })
+                .startOf('month')
+                .toISODate() ?? current.end)
+            : current.end,
+        }));
+        return;
+      }
+      if (target.scrollWidth <= target.clientWidth + 8) return;
       target.style.setProperty('--doctor-calendar-scroll-x', `${target.scrollLeft}px`);
       const rangeStart = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
       const rangeEnd = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
@@ -1250,22 +1420,27 @@ export function ScheduleCalendarTab({
       mobileRangeExpandingRef.current = true;
       mobileScrollRestoreDateRef.current = centerDate;
       mobileScrollPositionedRangeRef.current = null;
-      setMobileCalendarRange((current) => ({
-        start: nearStart
-          ? (DateTime.fromISO(current.start, { zone: timeZone })
-              .minus({ months: 1 })
-              .startOf('month')
-              .toISODate() ?? current.start)
-          : current.start,
-        end: nearEnd
-          ? (DateTime.fromISO(current.end, { zone: timeZone })
-              .plus({ months: 1 })
-              .startOf('month')
-              .toISODate() ?? current.end)
-          : current.end,
-      }));
+      setMobileCalendarRange((current) => {
+        const shiftDays = nearStart ? -7 : 7;
+        return {
+          start:
+            DateTime.fromISO(current.start, { zone: timeZone })
+              .plus({ days: shiftDays })
+              .toISODate() ?? current.start,
+          end:
+            DateTime.fromISO(current.end, { zone: timeZone })
+              .plus({ days: shiftDays })
+              .toISODate() ?? current.end,
+        };
+      });
     },
-    [mobileCalendarRange, mobileScrollableTimeGrid, timeZone],
+    [
+      mobileCalendarRange,
+      mobileScrollableCalendar,
+      mobileScrollableMonthGrid,
+      mobileVisibleDate,
+      timeZone,
+    ],
   );
 
   function jumpToDate(date: Date) {
@@ -1277,8 +1452,13 @@ export function ScheduleCalendarTab({
     setMobileVisibleDate(dateKey);
     mobileScrollRestoreDateRef.current = dateKey;
     mobileScrollPositionedRangeRef.current = null;
-    if (dateKey < mobileCalendarRange.start || dateKey >= mobileCalendarRange.end) {
-      setMobileCalendarRange(mobileCalendarRangeAround(dateKey, timeZone));
+    const range = mobileScrollableMonthGrid ? mobileMonthCalendarRange : mobileCalendarRange;
+    if (dateKey < range.start || dateKey >= range.end) {
+      if (mobileScrollableMonthGrid) {
+        setMobileMonthCalendarRange(mobileMonthCalendarRangeAround(dateKey, timeZone));
+      } else {
+        setMobileCalendarRange(mobileCalendarRangeAround(dateKey, timeZone));
+      }
     }
     setAnchorDate(dateKey);
     setDatePickerOpen(false);
@@ -1802,6 +1982,28 @@ export function ScheduleCalendarTab({
     return true;
   }, [clearDraftAndPanel, createFormDirty, showCreatePanel]);
 
+  const openAppointmentDetails = useCallback(
+    (appointment: CalendarAppointmentEvent) => {
+      setFiltersPanelOpen(false);
+      if (showCreatePanel && createFormDirty) {
+        const ok = window.confirm(
+          'Событие не сохранено, вы уверены что хотите сбросить изменения?',
+        );
+        if (!ok) return;
+      }
+      setSelected(appointment);
+      setShowCreatePanel(false);
+      setCreateInitialStart(null);
+      setCreateInitialEnd(null);
+      setCreateInitialBranchId(null);
+      setCreateInitialServiceId(null);
+      setDraftSlot(null);
+      setCreateFormDirty(false);
+      onDeepLinkChange('appt', appointment.id);
+    },
+    [createFormDirty, onDeepLinkChange, showCreatePanel],
+  );
+
   // ─── FullCalendar view mapping ─────────────────────────────────────────────
 
   const fcView =
@@ -1817,7 +2019,7 @@ export function ScheduleCalendarTab({
   const fcInitialView = useMemo(() => {
     if (view === '3days') return 'timeGrid3days';
     return fcView;
-  }, [view, fcView]);
+  }, [fcView, view]);
 
   const fcViews = useMemo((): NonNullable<FullCalendarOptions['views']> => {
     if (view === '3days') {
@@ -1958,6 +2160,8 @@ export function ScheduleCalendarTab({
             title={view === 'month' ? 'Три дня' : 'Месяц'}
             onClick={() => {
               setFiltersPanelOpen(false);
+              mobileScrollRestoreDateRef.current = mobileVisibleDate;
+              mobileScrollPositionedRangeRef.current = null;
               if (view === 'day') {
                 setDrillBackView(null);
                 onDeepLinkChange('from', null);
@@ -2293,7 +2497,13 @@ export function ScheduleCalendarTab({
             // FullCalendar
             <div
               ref={calendarViewportRef}
-              className="-mx-3 h-full min-h-0 touch-pan-x touch-pan-y overflow-x-auto overflow-y-hidden overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:rounded-xl md:border md:border-border"
+              className={cn(
+                'relative -mx-3 h-[calc(100dvh_-_var(--doctor-mobile-header-h,3.5rem)_-_var(--doctor-mobile-bottom-nav-h,3.25rem)_-_3.125rem)] min-h-0 touch-pan-x touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:h-full md:rounded-xl md:border md:border-border',
+                mobileScrollableMonthGrid
+                  ? 'overflow-x-hidden overflow-y-auto'
+                  : 'overflow-x-auto overflow-y-hidden',
+              )}
+              data-mobile-calendar-viewport=""
               onScroll={(event) => {
                 handleMobileCalendarScroll(event.currentTarget);
               }}
@@ -2303,14 +2513,25 @@ export function ScheduleCalendarTab({
                 }
               }}
             >
-              <div
-                className="h-full min-h-0"
-                style={
-                  mobileScrollableTimeGrid
-                    ? { width: `${mobileCalendarDayCount * 112 + 48}px` }
-                    : undefined
-                }
-              >
+              {mobileScrollableMonthGrid ? (
+                <MobileScrollableMonthCalendar
+                  rangeStart={mobileMonthCalendarRange.start}
+                  rangeEnd={mobileMonthCalendarRange.end}
+                  timeZone={currentTimeZone}
+                  events={calendarEvents}
+                  onDateClick={drillDownDay}
+                  onAppointmentClick={openAppointmentDetails}
+                />
+              ) : (
+                <>
+                  <div
+                    className="h-full min-h-0"
+                    style={
+                      mobileScrollableTimeGrid
+                        ? { width: `${mobileCalendarDayCount * 112 + 48}px` }
+                        : undefined
+                    }
+                  >
                 <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
@@ -2442,21 +2663,18 @@ export function ScheduleCalendarTab({
                 @media (max-width: 767px) {
                   .fc .fc-scrollgrid-section-header .fc-timegrid-axis,
                   .fc .fc-timegrid-slot-label {
-                    position: relative;
-                    z-index: 5;
-                    background: var(--card);
-                    transform: translateX(var(--doctor-calendar-scroll-x, 0));
+                    visibility: hidden;
                   }
                 }
                 `}</style>
                 <ScheduleFullCalendarHost
                 calendarRef={calendarRef}
-                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:${mobileScrollableTimeGrid ? `${mobileCalendarRange.start}:${mobileCalendarRange.end}` : 'bounded'}`}
+                key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:${mobileScrollableCalendar ? `${mobileCalendarRange.start}:${mobileCalendarRange.end}` : 'bounded'}`}
                 initialView={fcInitialView}
                 views={fcViews}
-                initialDate={mobileScrollableTimeGrid ? mobileCalendarRange.start : anchorDate}
+                initialDate={mobileScrollableCalendar ? mobileCalendarRange.start : anchorDate}
                 visibleRange={
-                  mobileScrollableTimeGrid
+                  mobileScrollableCalendar
                     ? { start: mobileCalendarRange.start, end: mobileCalendarRange.end }
                     : undefined
                 }
@@ -2480,7 +2698,7 @@ export function ScheduleCalendarTab({
                 dayMaxEvents
                 allDaySlot={false}
                 height="100%"
-                stickyHeaderDates={mobileScrollableTimeGrid}
+                stickyHeaderDates={mobileScrollableCalendar}
                 datesSet={handleMobileCalendarDatesSet}
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}
@@ -2558,22 +2776,7 @@ export function ScheduleCalendarTab({
                   const appointment = arg.event.extendedProps?.appointment as
                     CalendarAppointmentEvent | undefined;
                   if (!appointment) return;
-                  setFiltersPanelOpen(false);
-                  if (showCreatePanel && createFormDirty) {
-                    const ok = window.confirm(
-                      'Событие не сохранено, вы уверены что хотите сбросить изменения?',
-                    );
-                    if (!ok) return;
-                  }
-                  setSelected(appointment);
-                  setShowCreatePanel(false);
-                  setCreateInitialStart(null);
-                  setCreateInitialEnd(null);
-                  setCreateInitialBranchId(null);
-                  setCreateInitialServiceId(null);
-                  setDraftSlot(null);
-                  setCreateFormDirty(false);
-                  onDeepLinkChange('appt', appointment.id);
+                  openAppointmentDetails(appointment);
                 }}
                 dateClick={(arg) => {
                   if (Date.now() <= suppressCalendarDateClickUntilRef.current) {
@@ -2621,7 +2824,44 @@ export function ScheduleCalendarTab({
                   return <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>;
                 }}
                 />
-              </div>
+                  </div>
+                  {mobileScrollableTimeGrid ? (
+                <div
+                  className="pointer-events-none absolute bottom-0 left-0 z-10 w-8 overflow-hidden border-r border-border/60 bg-white md:hidden"
+                  style={{
+                    top: 'var(--doctor-calendar-header-h, 49px)',
+                    transform: 'translateX(var(--doctor-calendar-scroll-x, 0px))',
+                  }}
+                  aria-hidden
+                >
+                  <div
+                    className="absolute inset-x-0 top-0 bg-white"
+                    style={{
+                      height: 'var(--doctor-calendar-scroll-content-h, 1200px)',
+                      transform:
+                        'translateY(calc(-1 * var(--doctor-calendar-scroll-y, 0px)))',
+                      backgroundImage:
+                        'linear-gradient(to bottom, transparent calc(100% - 1px), color-mix(in srgb, var(--border) 52%, transparent) calc(100% - 1px))',
+                      backgroundSize:
+                        '100% var(--doctor-calendar-half-hour-h, 25px)',
+                    }}
+                  >
+                    {Array.from({ length: 25 }, (_, hour) => (
+                      <span
+                        key={hour}
+                        className="absolute left-0 w-full -translate-y-1/2 bg-white/95 pr-1 text-right text-[10px] leading-none text-muted-foreground"
+                        style={{
+                          top: `calc(var(--doctor-calendar-hour-h, 50px) * ${hour})`,
+                        }}
+                      >
+                        {hour}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                  ) : null}
+                </>
+              )}
             </div>
           )}
         </div>

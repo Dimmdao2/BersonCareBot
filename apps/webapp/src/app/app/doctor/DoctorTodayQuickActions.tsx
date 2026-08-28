@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { CalendarPlus, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import type { CalendarFilterMeta } from '@/modules/booking-calendar/types';
@@ -8,7 +9,6 @@ import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scop
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { cn } from '@/lib/utils';
 
 const API_BASE = '/api/doctor/booking-engine';
@@ -49,7 +49,7 @@ type CreateContext = {
 type DoctorTodayQuickActionsProps = {
   todayIso: string;
   displayIana: string;
-  placement: 'header' | 'mobile-footer';
+  placement: 'header' | 'mobile-header';
 };
 
 /** Единый блок быстрых действий страницы «Сегодня». */
@@ -107,30 +107,33 @@ export function DoctorTodayQuickActions({
 
   return (
     <>
-      {placement === 'mobile-footer' ? (
-        <div className="h-[52px] shrink-0 md:hidden" aria-hidden />
-      ) : null}
       <div
         className={cn(
-          placement === 'mobile-footer'
-            ? 'fixed inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-30 grid grid-cols-2 gap-2 border-t border-border/60 px-3 py-2 md:hidden'
+          placement === 'mobile-header'
+            ? 'flex items-center gap-0.5 md:hidden'
             : 'hidden grid-cols-2 items-center gap-2 md:grid',
-          placement === 'mobile-footer' && DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
         )}
       >
         <Button
           type="button"
-          size="sm"
-          className={placement === 'mobile-footer' ? 'w-full' : undefined}
+          size={placement === 'mobile-header' ? 'icon' : 'sm'}
+          className={placement === 'mobile-header' ? 'size-10 shrink-0' : undefined}
+          aria-label="Новый визит"
+          title="Новый визит"
           onClick={openAppointment}
         >
-          {placement === 'mobile-footer' ? 'Создать запись' : 'Новый визит'}
+          {placement === 'mobile-header' ? (
+            <CalendarPlus className="size-[20px]" aria-hidden />
+          ) : (
+            'Новый визит'
+          )}
         </Button>
         <DoctorNewClientAction
           patientSingularLabel="Клиент"
-          className={placement === 'mobile-footer' ? 'w-full' : undefined}
-          showIcon={false}
-          compactOnMobile={false}
+          className={placement === 'mobile-header' ? 'size-10 p-0' : undefined}
+          showIcon={placement === 'mobile-header'}
+          triggerIcon={<UserPlus className="size-[20px]" aria-hidden />}
+          compactOnMobile={placement === 'mobile-header'}
           desktopPresentation="right-sheet"
         />
       </div>
@@ -157,7 +160,7 @@ export function DoctorTodayQuickActions({
             createInitialSpecialistId={createContext.ownSpecialistId}
             startInCreate
             showCloseControl={false}
-            flushChrome={placement === 'header'}
+            flushChrome
             onClose={closeAppointment}
             onChanged={handleChanged}
           />

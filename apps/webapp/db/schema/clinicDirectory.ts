@@ -212,7 +212,7 @@ export const organizationSlugRenameEvents = pgTable(
       columns: [table.actorPlatformUserId],
       foreignColumns: [platformUsers.id],
       name: 'organization_slug_rename_events_actor_fkey',
-    }),
+    }).onDelete('set null'),
     check(
       'organization_slug_rename_events_slug_change_check',
       sql`${table.previousSlug} <> ${table.nextSlug}`,

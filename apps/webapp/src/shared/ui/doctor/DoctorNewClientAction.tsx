@@ -2,7 +2,7 @@
 
 import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { routePaths } from '@/app-layer/routes/paths';
 import { cn } from '@/lib/utils';
 import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
@@ -38,6 +38,7 @@ type DoctorNewClientActionProps = {
   compactOnMobile?: boolean;
   desktopTriggerLabel?: string;
   desktopPresentation?: DoctorModalDesktopPresentation;
+  triggerIcon?: ReactNode;
 };
 
 /** Каноническое действие создания карточки клиента для страницы клиентов и быстрых действий. */
@@ -48,6 +49,7 @@ export function DoctorNewClientAction({
   compactOnMobile = true,
   desktopTriggerLabel,
   desktopPresentation,
+  triggerIcon,
 }: DoctorNewClientActionProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -151,7 +153,7 @@ export function DoctorNewClientAction({
         aria-label={triggerLabel}
         onClick={() => setOpen(true)}
       >
-        {showIcon ? <Plus className="size-4" aria-hidden /> : null}
+        {showIcon ? (triggerIcon ?? <Plus className="size-4" aria-hidden />) : null}
         {desktopTriggerLabel ? (
           <>
             <span className="md:hidden">{triggerLabel}</span>

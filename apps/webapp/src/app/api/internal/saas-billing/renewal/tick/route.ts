@@ -61,15 +61,20 @@ export async function POST(request: Request) {
     const saasBilling = buildAppDeps().saasBilling;
     const renewals = await saasBilling.runDueSaasBillingRenewals({ limit });
     const result = { ...renewals };
+    const success = renewals.failed === 0 && renewals.errors.length === 0;
     await recordOperatorCronJobTickBestEffort({
       jobFamily: OPERATOR_SAAS_BILLING_JOB_FAMILY,
       jobKey: OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,
       startedAtIso,
       durationMs: Date.now() - startedAt,
-      success: true,
+      success,
+      ...(success ? {} : { error: `${renewals.failed} renewal(s) failed` }),
       metaJson: result,
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json(
+      { ok: success, ...result },
+      success ? undefined : { status: 500 },
+    );
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await recordOperatorCronJobTickBestEffort({

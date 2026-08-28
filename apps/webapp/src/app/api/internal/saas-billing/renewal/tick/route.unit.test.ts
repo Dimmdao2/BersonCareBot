@@ -13,7 +13,6 @@ import { describe, expect, it, vi } from 'vitest';
  * (`media-pending-delete/purge`, `media-multipart/cleanup`), which map `errors > 0` to a red tick and
  * a non-2xx status.
  */
-
 const mocks = vi.hoisted(() => ({
   runDueSaasBillingRenewals: vi.fn(),
   recordTick: vi.fn(async () => undefined),
@@ -81,6 +80,8 @@ describe('saas billing renewal tick', () => {
 
     expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ ok: false, failed: 1 });
-    expect(mocks.recordTick).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(mocks.recordTick).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: '1 renewal(s) failed' }),
+    );
   });
 });

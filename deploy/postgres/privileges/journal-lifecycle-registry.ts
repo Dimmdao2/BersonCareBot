@@ -161,7 +161,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
   {
     table: 'public.message_log',
     why: 'doctor→patient message journal: the text actually sent, plus its delivery error',
-    userPurge: { kind: 'anonymised', column: 'platform_user_id' },
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['sent', 'partial', 'failed'],
     retention: {
@@ -328,7 +328,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.media_files',
     why: 'media library content — but `pending` (upload not finished) and `pending_delete`/`deleting` '
       + 'are TEMPORARY states with their own cleanup owner, which is why the row is listed here',
-    userPurge: { kind: 'anonymised', column: 'uploaded_by' },
+    userPurge: { kind: 'explicit-delete', column: 'uploaded_by' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['ready', 'pending_delete', 'deleting'],
     retention: {
