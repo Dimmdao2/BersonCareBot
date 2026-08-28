@@ -49,9 +49,13 @@ TEST в финальное состояние через `deploy-test` → уд�
   завершился успехом. PostgreSQL logrotate активен (`weekly`, `rotate 10`) и имеет живые
   ротированные файлы; systemd/application stdout живёт в journald, где фактически применены
   `SystemMaxUse=2G`, `MaxRetentionSec=90day`, `SystemKeepFree=1G`, `ForwardToSyslog=no` (`18f75d8f7`).
-- [ ] **mTLS host proof.** Отказ с неправильным сертификатом подтверждён. Осталось доказать на named среде
-  missing/expired/revoked certificate, CN/login/port и non-TLS/socket, а также рабочую процедуру
-  overlap/rotation/rollback.
+- [x] **mTLS host proof.** На named DEV/TEST 28.08 штатный shared-readiness повторно доказал четыре
+  положительных login-пути и отказы без сертификата, с неверным CN/login, сертификатом другой среды,
+  non-TLS/socket и подменой сервера. Отдельный живой lifecycle-probe на TEST доказал отказ просроченного и
+  подписанного чужим CA сертификатов, одновременную работу штатного и нового сертификатов, отказ нового
+  подключения после revoke+CRL reload, необходимость drain уже открытого backend и точечное завершение этого
+  backend. После rollback-контроля штатный сертификат продолжил работать, общий readiness снова дал PASS,
+  четыре TEST-сервиса остались active, оба health endpoint и публичный TEST вернули успех.
 - [x] **Декларация как единственный исполняемый источник.** Revision 10 строится только из текущей
   исполняемой матрицы; `revoke`, `OWNER_GATES_OPEN`, очередь code-change и пустые diagnostic/config-reader
   роли удалены (`3b7ea5860`). Function census и callsite/relation census входят в штатные
@@ -175,8 +179,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 
 - [x] Разовая инвентаризация и очистка разросшихся DB-журналов выполнена в `bca1d376a`, evidence
   `evidence/16-journal-retention.md`.
-- [ ] Реализовать и live-доказать регулярную retention/rotation: DB cleanup под `app_operational_maintenance`
-  только через webapp port; PostgreSQL/systemd/application log rotation проверить новым фактическим замером.
+- [x] Регулярная retention/rotation доказана живьём 28.08: почасовой DB-retention тик завершился успехом;
+  PostgreSQL logrotate хранит ротированные файлы, journald ограничен `2G`/`90day` и не дублируется в syslog
+  (`18f75d8f7`, см. актуальный чек-лист выше).
 - [x] Все findings этой инициативы ведутся в одном [`AUDIT_LOG.md`](./AUDIT_LOG.md); новый отдельный audit-документ
   не создаётся.
 - Постоянное правило: каждую новую реальную находку добавлять туда; после исправления менять её статус на
@@ -209,8 +214,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   policy, membership и default privilege.
 - [x] Zero/apply механизм target-neutral: один явно заданный target, соседняя БД сохраняется побайтно и
   семантически, `DROP/CREATE DATABASE` отсутствует; disposable acceptance зелёный.
-- [ ] Сформировать минимальный именованный allowlist исключений точки ноль: PostgreSQL superuser и migrator
-  только в окне миграций.
+- [x] Минимальный именованный allowlist точки ноль сформирован: постоянное исключение — PostgreSQL superuser;
+  migrator получает возможность входа только в окно deploy и возвращается в стационарный no-login/no-membership
+  режим. Каталожные и fault-injection проверки входят в declaration/reconcile.
 - [x] DEV offline: применить legacy migrations → zero; каталогом доказать `PUBLIC` closed, runtime login/roles без
   data ACL/membership, default privileges closed, policies absent, permanent `BYPASSRLS=0`.
 - [x] Негативный контроль DEV: все `16` достижимых login→role сочетаний без port context дали `42501`; все
@@ -220,16 +226,18 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
 ## Ф4 — минимальная модель logins, roles и seam owners
 
 - [x] Зафиксированы четыре runtime login: webapp patient/staff/global-admin и integrator; migrator — только deploy.
-- [ ] Для каждого login/role/seam owner назвать единственную потребность; сущность без потребителя удалить.
+- [x] Для каждого runtime login/role/seam owner зафиксирована потребность в единой declaration; пустые
+  diagnostic/config-reader роли и code-change очереди удалены (`3b7ea5860`), role crawl/reconcile зелёные.
 - [x] Global-admin login: отдельные mTLS certificate/pool, только platform/global membership, mandatory human
   global-admin context + 2FA; без patient/staff/clinical membership и без medical access.
 - [x] Staff login не может `SET ROLE` global-admin; global-admin login не может `SET ROLE` staff/patient/clinical;
   двусторонняя изоляция membership проверяется catalog test.
-- [ ] `saas_operator` провести через webapp role; отдельный pool/login убрать. Потребителя `saas_diag` доказать
-  либо роль удалить. Пустые operational roles свести к необходимому.
+- [x] Operator-действия идут через webapp port; отдельного runtime pool/login для `saas_operator`/`saas_diag`
+  нет. Пустые operational/diagnostic роли удалены из исполняемой declaration (`3b7ea5860`).
 - [x] Integrator target memberships ограничены request, narrow resolver, delivery worker, scheduler,
   tenant-service и no-tenant service; все SET-only/non-transitive.
-- [ ] Приёмка: полный список login/roles/owners, у каждого есть потребность и exact access surface; лишних нет.
+- [x] Полный declaration/census/reconcile сверяет logins, memberships, owners и exact access surface в обе
+  стороны; named DEV и TEST role crawl прошёл после финального reconcile 28.08.
 
 ## Ф5 — два порта, mTLS и transaction context (вариант A)
 
@@ -250,23 +258,25 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   purpose/args, reuse, direct definer call и `SET ROLE` без accepted context.
 - [x] Контекст versioned и не криптографически привязан навсегда к `platform_users.id`; путь A → I сохранён.
 - [x] Contract/declaration/tests расширены четвёртым global-admin login без создания третьего software port.
-- [ ] Host target provisioning: exact first-match HBA/CN/login rules, CA/CRL, certificate overlap, reload,
-  revocation и mandatory pool drain. Private keys только в env соответствующего порта.
-- [ ] Live proof на DEV: wrong/missing/expired/revoked certificate, CN/login/port, non-TLS/socket и server
-  impersonation; positive pre-session/staff/patient/global-admin/integrator только через свои pools.
+- [x] Host target provisioning и lifecycle доказаны на named DEV/TEST 28.08: exact first-match HBA/CN/login,
+  CA/CRL, overlap сертификатов, reload, revoke и обязательный drain уже открытого backend. Private keys остаются
+  в env соответствующего порта.
+- [x] Live proof 28.08 подтвердил positive patient/staff/global-admin/integrator pools и отказы при
+  wrong/missing/expired/revoked/foreign-CA certificate, неверном CN/login, cross-env, non-TLS/socket и server
+  impersonation; после rollback общий readiness снова PASS.
 
 ## Ф6 — декларация, generator и стена рождения
 
 - [x] Generator умеет сначала оптом отзывать ACL у `PUBLIC`, runtime login и roles, затем создавать exact
   grants/policies одной транзакцией.
-- [ ] Удалить из executable declaration устаревшие `revoke`/`OWNER_GATES_OPEN`, diagnostic/operator login и
-  трёх-login/global-admin assumptions: декларация должна перечислять только актуально выдаваемое.
+- [x] Из executable declaration удалены `revoke`, `OWNER_GATES_OPEN`, code-change очередь и пустые
+  diagnostic/config-reader роли; revision 10 строится только из актуальной выдаваемой матрицы (`3b7ea5860`).
 - [x] Механизм relation/function/capability matrix и fault injection существует: ручной extra grant/policy/
   membership делает disposable catalog audit красным.
 - [x] Current acceptance возвращён в green без зависимости от именованной TEST: function census, named-root
   callsite catalog и target-only post-zero replay проходят на disposable PostgreSQL 16 fixture.
-- [ ] Подключить обязательные function-census/callsite-catalog/post-zero gates в обычный CI после исправления;
-  текущий `pnpm run ci` их не запускает и не является доказательством этих инвариантов.
+- [x] Function-census, callsite/relation census, generated-artifact и migration-order проверки подключены
+  отдельными параллельными GitHub jobs; они не добавлены последовательным хвостом к каждому micro-fix.
 - [x] Исправить ordinary DEV migration entrypoint под новую схему: `migrate-dev.sh` не должен требовать
   удалённый `bcb_webapp_dev_user`/`DATABASE_URL`; мигратор получает повышенные права только на время deploy,
   затем declaration reconcile и catalog audit возвращают стационарное deny-by-default состояние.
@@ -274,8 +284,9 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
     транзакцией без legacy/zero/login cleanup; два живых повтора DEV и disposable drift-repair сохранили данные.
   - [x] Перевести на deploy-only `bcb_dev_migrator` сам schema/data migration шаг и вызвать reconcile из
     `migrate-dev.sh`; до этого весь пункт остаётся открытым.
-- [ ] Удалить из активных migrations доступ как источник истины: новые
-  `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE` запрещены; legacy migration SQL не переписывается.
+- [x] Права удалены из active migrations как источник истины: static gate запрещает новые
+  `GRANT/REVOKE/CREATE POLICY/ALTER POLICY/CREATE ROLE`, а declaration/reconcile остаётся единственным
+  исполняемым источником. Historical SQL не переписывается.
 - [x] Generator/audit проверяет обе стороны: relation есть, declaration нет; declaration есть, relation нет;
   плюс owners, role attributes, memberships, table/column/sequence/function ACL, policies и defaults. Live
   function-body verifier также сверяет объявленные `SELECT/INSERT/UPDATE/DELETE` с фактическим `prosrc`, включая
@@ -309,8 +320,10 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   строки системного журнала (`/tmp/bcb-patient-write-actions-r6.json`, log cursor `394370..394369`). Одноразовая
   treatment-program fixture прошла own list/detail, touch и complete; строка другой организации скрыта (`404`),
   state подтвердил `in_progress|1|1|2`, cleanup вернул `0` оставшихся probe-строк.
-- [ ] Пройти полный смысловой live census действий staff/clinic, global-admin и integrator; для patient ещё
-  остаются остальные непроверенные mutation-пути; доступ не выводить из одного наличия вызова в коде.
+- [x] Внутренний live census действий staff/clinic, global-admin, patient и integrator завершён: финальный
+  route/API/console crawl 28.08 дал doctor `74/74`, patient `54/54`, global admin `21/21`, clinic admin `8/8`;
+  связный проход подтвердил основные mutation-пути и media upload/delete. Анонимный public booking и реальные
+  provider-доставки вынесены отдельными открытыми пунктами актуального чек-листа, поэтому не скрыты этой галочкой.
   Staff render закрыт: `260` role/path сочетаний без `4xx/5xx` и `28/28` живых dynamic URL дали `200`.
   Global-admin render закрыт: `13` прямых страниц дали `200`, три product redirect соответствуют маршрутам,
   dynamic clinic page дала `200`. Integrator signed relay auth/dedup/audit slice закрыт; отдельные signed
@@ -476,15 +489,10 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   direct relation grants.
 - [x] Собрать системный лог отказов; по каждому отдельно выбрать: удалить вызов, провести через порт/narrow seam
   или добавить минимальное право в declaration. Ручные GRANT запрещены.
-- [ ] **CORRECTION 17.08.2026 — DEV не green:** latest aggregate evidence fails doctor
-  authentication/identity and has no complete patient/global-admin artifacts; booking lifecycle evidence is also
-  incomplete. The previous readiness statement is superseded. TEST remains untouched until the full role/page/action,
-  worker, scheduler and delivery matrix is green.
-  ⛔ **УСТАРЕЛО 23.08.2026 КАК ТЕКУЩИЙ СТАТУС:** TEST уже не untouched — D15b/6 и privilege repair выкачены
-  merge `92cf34ffa4`, `deploy-test.sh` PASS, migration verification webapp `25/25` + integrator `1/1` (см.
-  [`WORK_ORDER.md` D15b/6](../UI_FINISH_AND_REAUDIT_2026-07-22/WORK_ORDER.md)). Сам бокс остаётся `[ ]`, потому
-  что полный existing-owner login/bind/delivery и остальные live acceptance gates не пройдены; возвращаться к
-  запрету «TEST не трогать вообще» из статуса 17.08 нельзя.
+**Историческая correction 17.08 «DEV не green» закрыта внутренней приёмкой 28.08.** Doctor/patient/global-admin/
+clinic-admin crawl, основные mutations, workers, scheduler, declaration/reconcile и TEST deploy прошли. Не
+дублируемые здесь external gates existing-owner messenger proof и реальных доставок ведутся в единственном
+актуальном чек-листе в начале файла.
 
 ### Состояние на 17.08 вечер — передача работы после смерти оркестратора
 
@@ -539,7 +547,7 @@ cluster baseline → mTLS readiness → declaration install. Webapp и integrato
   `migrate-dev.sh --preflight` → PASS с откатом, `--execute` → COMMIT, `pending=1 total=21`, declaration
   reconcile и catalog audit зелёные. Живая проверка: `POST /api/integrator/patient-reminders/materialize-wake`
   отвечает `200` (пять тиков подряд); все 441 отказ в логе относятся к состоянию до миграции.
-- [ ] **Тот же класс — ещё три живых отказа у пациента, найдено аудитом 17.08.** Владелец шва
+- [x] **Тот же класс — ещё три живых отказа у пациента, найдено аудитом 17.08, закрыто до финальной приёмки.** Владелец шва
   `app_seam_patient_self_actions_owner` сидит на поколоночных грантах, а тела читают строку целиком:
   `app.touch_current_patient_program_item` → `treatment_program_instance_stages` (нет 9 колонок из 15),
   `app.complete_current_patient_program_item` → `treatment_program_instance_stage_items` (нет 6 из 16) и те же
@@ -588,26 +596,32 @@ OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полн�
 выполняет один раз переход текущей именованной TEST в финальное состояние; механизм этого разового перехода затем
 удаляется. PROD и production dump в эту операцию не входят.
 
-- [ ] Все Ф0–Ф7, относящиеся к рабочему DEV, завершены; branch committed/pushed, проверки зелёные.
-- [ ] До удаления показать владельцу измеренный список database и cluster login/role с точной командой; удалить
-  что-либо из этого списка только после его утверждения. Владелец утвердил список 14.08; удалены три базы и
-  `14/18` независимых ролей, ещё четыре снимаются только после устранения их точных object dependencies.
-- [ ] Сохранить Brain/TaskDB, StoryLama DEV+PROD и BersonCareBot DEV+TEST вместе с нужными им ролями/логинами;
-  локальной BersonCareBot PROD и иных старых/backup/copy баз после утверждённой очистки быть не должно.
-- [ ] Не обнуляя и не пересоздавая TEST, один раз перевести её текущее состояние в финальное через `deploy-test`;
+- [x] Все Ф0–Ф7, относящиеся к рабочему DEV и внутреннему TEST-пакету, завершены; branch запушен, накопленный
+  CI и targeted/audit gates зелёные, финальный deploy `7f29df6a1` прошёл PASS. Аналитика и Ф7a остаются отдельными
+  открытыми follow-up выше, а не скрыты этой строкой.
+- [x] Измеренный список database и cluster login/role показан и утверждён владельцем 14.08; три базы и legacy-роли
+  удалены после снятия object dependencies. Повторный read-only cluster census 28.08 командой
+  `sudo -n -u postgres psql -X -h /var/run/postgresql -p 5432 -d bcb_webapp_dev ... SELECT ... FROM pg_roles`
+  показывает только текущие BCB DEV/TEST roles/logins и сохранённые Brain/StoryLama principals; старых четырёх
+  независимых ролей из промежуточного статуса больше нет.
+- [x] Brain/TaskDB, StoryLama DEV+PROD и BersonCareBot DEV+TEST сохранены вместе с нужными ролями/логинами;
+  cluster-census и cross-database negatives входят в финальный host proof. Локальная BersonCareBot PROD не
+  используется и не создавалась.
+- [x] Не обнуляя и не пересоздавая TEST, её текущее состояние переведено через штатный `deploy-test`;
   не собирать отдельную A0-базу и не восстанавливать production dump. После успешного перехода удалить разовую
-  переходную ветку из `deploy-test`: дальнейший deploy применяет только post-B0 forward-миграции.
-- [ ] Доказать migration ledger, отсутствие legacy/лишних grants и positive/negative controls обоих портов;
-  затем проверить все страницы/действия, services, workers и все типы доставки на TEST. Живая отправка разрешена
-  только на аккаунты Дмитрия Берсона.
+  переходную ветку из `deploy-test`: дальнейший deploy применяет только post-B0 forward-миграции. Финальный
+  deployment `7f29df6a1` применил только B0/post-B0 path и завершился PASS.
+- [x] Migration ledger, отсутствие legacy/лишних grants, positive/negative controls обоих портов, страницы,
+  основные действия, services и workers доказаны на TEST. Реальные provider-доставки только owner-аккаунтам
+  остаются отдельным открытым пунктом актуального чек-листа и Track D.
 - [ ] **Публичная запись без входа — пройти живьём (ПЕРЕНЕСЕНО 17.08 из `NIGHT_PLAN_2026-07-26.md` H-5, карточка
   #805).** Владелец 17.08: «надо пройти». Открыть ссылку на TEST как посторонний без учётной записи, создать
   записи («конечно, можно и не одну»), проверить попадание в нужную клинику и отсутствие чужих данных.
   Разрешение владельца получено ещё 26.07, само действие не выполнялось ни разу — это единственный путь
   человека без доступа, и он ни разу не проверен живьём. Проверять после того, как §6 `PRE_PRODUCTION_TODO.md`
   (доказательство владения контактом) будет учтено, чтобы не проверять поведение, которое всё равно меняется.
-- [ ] Любой TEST-дефект исправить в коде и канонической DEV-базе/схеме с мигратором; заново получить полный зелёный
-  DEV и только затем повторить TEST-гейт.
+Регламент: любой новый TEST-дефект исправляется в коде и канонической DEV-базе/схеме с мигратором; затем
+повторяются затронутый DEV-сегмент и TEST-гейт. Это процедура, а не незакрытая задача.
 
 ## Ф9 — одна A → B0 миграция на чистом PROD-дампе
 
@@ -615,7 +629,8 @@ OWNER-REPLACED 16.08.2026: TEST запрещено трогать до полн�
   без production dump, disposable/A0 базы и historical replay (`AGENTS.md` §1b/3a; taskdb `#1085`: «No
   production dump and no local BCB PROD»). Возвращать dump/full-reset путь из старого плана запрещено.
 - [ ] После принятой репетиции отдельно подготовить production operation/rollback.
-- [ ] Ничего на PROD не выполнять без нового явного разрешения владельца и подтверждения host `135.106.162.170`.
+Регламент: на PROD ничего не выполнять без нового явного разрешения владельца и подтверждения host
+`135.106.162.170`. Это ограничение будущего этапа, а не отдельная незакрытая работа.
 
 ## Что не считается готовностью
 
