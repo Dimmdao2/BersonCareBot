@@ -98,12 +98,8 @@ export function doctorRouteRedirectResponse(request: NextRequest): NextResponse 
 
   // /app/doctor/clients/:userId[/treatment-programs/:instanceId] → новая карточка /patients/.
   // (Старая карточка-клиента удаляется; здесь — сетка безопасности для любых оставшихся
-  // ссылок/закладок. name-match-hints — админ-инструмент слияния без /patients/-эквивалента,
-  // оставляем как есть.) Query сохраняется (clone) → discussionItem/focusItemId доезжают.
-  if (
-    pathname.startsWith('/app/doctor/clients/') &&
-    pathname !== '/app/doctor/clients/name-match-hints'
-  ) {
+  // ссылок/закладок.) Query сохраняется (clone) → discussionItem/focusItemId доезжают.
+  if (pathname.startsWith('/app/doctor/clients/')) {
     const clientProgram = pathname.match(
       /^\/app\/doctor\/clients\/([^/]+)\/treatment-programs\/([^/]+)$/,
     );

@@ -775,7 +775,7 @@ function PatientsContent({
         splitFrom="md"
         desktopColsClassName="md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-2"
         mobileView="list"
-        className="min-h-0 flex-1 md:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] md:flex-none md:overflow-hidden"
+        className="min-h-0 flex-1 md:overflow-hidden"
         left={
           <section
             data-doctor-flat-list-surface

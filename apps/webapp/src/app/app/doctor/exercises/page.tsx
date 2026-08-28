@@ -2,6 +2,7 @@ import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorCatalogViewFromSearchParams } from '@/shared/lib/doctorCatalogViewPreference';
 import { parseRecommendationListFilterScope } from '@/shared/lib/doctorCatalogListStatus';
 import {
@@ -80,7 +81,13 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         .catch(() => ({ exercise: null, usage: null }))
     : Promise.resolve({ exercise: null, usage: null });
   return (
-    <DoctorAppShell title="Упражнения ЛФК" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Упражнения ЛФК"
+      user={session.user}
+      backHref="/app/doctor"
+      layout="full-height"
+    >
+      <DoctorPageHeader title="Упражнения ЛФК" />
       <ExercisesPageClient
         listPromise={listPromise}
         doctorExerciseSelectionPromise={doctorExerciseSelectionPromise}

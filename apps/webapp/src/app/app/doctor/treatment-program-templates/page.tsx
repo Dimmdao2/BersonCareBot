@@ -38,7 +38,12 @@ export default async function TreatmentProgramTemplatesPage({ searchParams }: Pa
   const initialTitleSort = sp.titleSort === 'asc' || sp.titleSort === 'desc' ? sp.titleSort : null;
 
   return (
-    <DoctorAppShell title="Шаблоны программ" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Шаблоны программ"
+      user={session.user}
+      backHref="/app/doctor"
+      layout="full-height"
+    >
       <DoctorPageHeader title="Шаблоны программ" />
       <TreatmentProgramTemplatesPageClient
         templatesPromise={templatesPromise}

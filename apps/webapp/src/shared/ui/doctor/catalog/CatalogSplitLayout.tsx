@@ -42,7 +42,7 @@ export function CatalogSplitLayout({
   return (
     <div
       className={cn(
-        'relative min-h-[calc(100dvh_-_8rem)] overflow-hidden',
+        'relative min-h-0 flex-1 overflow-hidden',
         mobileEdgeToEdge && '-mx-3 md:mx-0',
         splitFromMd
           ? 'md:grid md:min-h-0 md:items-stretch md:gap-3 md:overflow-x-hidden md:overflow-y-visible'
@@ -53,10 +53,10 @@ export function CatalogSplitLayout({
     >
       <div
         className={cn(
-          'absolute inset-0 overflow-y-auto transition-transform duration-300 ease-out',
+          'absolute inset-0 overflow-hidden transition-transform duration-300 ease-out',
           splitFromMd
-            ? 'md:static md:flex md:min-h-0 md:min-w-0 md:flex-col md:overflow-visible md:translate-x-0'
-            : 'lg:static lg:flex lg:min-h-0 lg:min-w-0 lg:flex-col lg:overflow-visible lg:translate-x-0',
+            ? 'md:static md:flex md:min-h-0 md:min-w-0 md:flex-col md:overflow-hidden md:translate-x-0'
+            : 'lg:static lg:flex lg:min-h-0 lg:min-w-0 lg:flex-col lg:overflow-hidden lg:translate-x-0',
           mobileView === 'list' ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -65,10 +65,10 @@ export function CatalogSplitLayout({
 
       <div
         className={cn(
-          'absolute inset-0 z-10 overflow-y-auto bg-background px-1 pb-6 pt-2 transition-transform duration-300 ease-out',
+          'absolute inset-0 z-10 overflow-hidden bg-background px-1 pb-0 pt-2 transition-transform duration-300 ease-out',
           splitFromMd
-            ? 'md:static md:z-auto md:flex md:min-h-0 md:min-w-0 md:flex-col md:overflow-visible md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:translate-x-0'
-            : 'lg:static lg:z-auto lg:flex lg:min-h-0 lg:min-w-0 lg:flex-col lg:overflow-visible lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:translate-x-0',
+            ? 'md:static md:z-auto md:flex md:min-h-0 md:min-w-0 md:flex-col md:overflow-hidden md:bg-transparent md:px-0 md:pb-0 md:pt-0 md:translate-x-0'
+            : 'lg:static lg:z-auto lg:flex lg:min-h-0 lg:min-w-0 lg:flex-col lg:overflow-hidden lg:bg-transparent lg:px-0 lg:pb-0 lg:pt-0 lg:translate-x-0',
           mobileView === 'detail' ? 'translate-x-0' : 'translate-x-full',
         )}
       >

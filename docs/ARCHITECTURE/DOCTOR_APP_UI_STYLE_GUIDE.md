@@ -138,7 +138,8 @@
 - Между блоками страницы — `gap-3` (12px), дефолт.
 - Внутри секции — `gap-2` / `gap-3`.
 - Внутренний отступ основных блоков — `18px` (`--doctor-block-padding`).
-- Page padding — `px-3 pt-3 pb-6` (не увеличивать).
+- Page padding — `px-3 pt-3`; единый нижний зазор — `18px` через
+  `--doctor-page-bottom-gutter` (не дублировать локальным `pb-*`).
 - **Запрещено** на admin/ops-страницах: `space-y-6`, `gap-6`, `mb-6`.
 
 ---
@@ -212,7 +213,8 @@ aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border
 
 ```ts
 // doctorWorkspaceLayout.ts
-DOCTOR_PAGE_CONTAINER_CLASS = 'mx-auto w-full max-w-7xl px-3 pt-3 pb-6';
+DOCTOR_PAGE_CONTAINER_CLASS =
+  'mx-auto w-full max-w-7xl px-3 pt-3 pb-[var(--doctor-page-bottom-gutter,18px)]';
 ```
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.

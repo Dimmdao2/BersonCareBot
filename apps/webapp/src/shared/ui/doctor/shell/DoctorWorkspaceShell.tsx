@@ -110,7 +110,7 @@ export function DoctorWorkspaceShell({
       <StaffWebPushBootstrap />
       <StaffCalendarTimezoneBootstrap />
       <DoctorShellChromeProvider>
-        <div className="flex min-h-screen flex-col bg-background">
+        <div className="flex min-h-screen flex-col bg-background md:h-dvh md:min-h-0 md:overflow-hidden">
           <DoctorHeader
             userDisplayName={userDisplayName}
             isPlatformOperator={isPlatformOperator}
@@ -137,7 +137,9 @@ export function DoctorWorkspaceShell({
                 menuKind={menuKind}
               />
             ) : null}
-            <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+            <div className="flex min-w-0 flex-1 flex-col md:min-h-0 md:overflow-y-auto">
+              {children}
+            </div>
           </div>
           {showClinicalShortcuts ? (
             <DoctorBottomNav menuAccess={menuAccess} patientLabel={patientLabel} />
