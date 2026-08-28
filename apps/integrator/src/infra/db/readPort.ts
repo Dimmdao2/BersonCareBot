@@ -10,7 +10,6 @@ import { getAdminStats } from './repos/adminStats.js';
 import { getChannelBindingLinkData } from './repos/platformUserByChannel.js';
 import {
   getReminderOccurrencesForRuleRange,
-  getReminderOccurrenceOwnerUserId,
   getStaleReminderMessengerMessageIdForResend,
 } from './repos/reminders.js';
 import { getPhoneNormalizedForDeliveryLookup } from './repos/platformUserDeliveryPhone.js';
@@ -99,24 +98,24 @@ export function createDbReadPort(
         case 'stats.adminDashboard':
           return (await getAdminStats(db)) as T;
         case 'reminders.rules.forUser': {
-          const userId = asNonEmptyString(query.params.userId);
+          const platformUserId = asNonEmptyString(query.params.userId);
           const organizationId = asNonEmptyString(query.params.organizationId);
-          if (!userId || !organizationId) {
+          if (!platformUserId || !organizationId) {
             throw new Error('reminders.rules.forUser requires userId and organizationId');
           }
           if (!remindersReadsPort) {
             throw new Error('reminders product reads require remindersReadsPort');
           }
-          return (await remindersReadsPort.listRulesForUser(userId, organizationId)) as T;
+          return (await remindersReadsPort.listRulesForUser(platformUserId, organizationId)) as T;
         }
         case 'reminders.rule.forUserAndCategory': {
-          const userId = asNonEmptyString(query.params.userId);
+          const platformUserId = asNonEmptyString(query.params.userId);
           const category = asNonEmptyString(query.params.category);
-          if (!userId || !category) return null as T;
+          if (!platformUserId || !category) return null as T;
           if (!remindersReadsPort) {
             throw new Error('reminders product reads require remindersReadsPort');
           }
-          return (await remindersReadsPort.getRuleForUserAndCategory(userId, category)) as T;
+          return (await remindersReadsPort.getRuleForUserAndCategory(platformUserId, category)) as T;
         }
         case 'reminders.occurrences.forRuleRange': {
           const ruleId = asNonEmptyString(query.params.ruleId);
@@ -124,12 +123,6 @@ export function createDbReadPort(
           const toIso = asNonEmptyString(query.params.toIso);
           if (!ruleId || !fromIso || !toIso) return [] as T;
           return (await getReminderOccurrencesForRuleRange(db, ruleId, fromIso, toIso)) as T;
-        }
-        case 'reminders.occurrence.ownerUserId': {
-          const occurrenceId = asNonEmptyString(query.params.occurrenceId);
-          if (!occurrenceId) return null as T;
-          const owner = await getReminderOccurrenceOwnerUserId(db, occurrenceId);
-          return (owner ?? null) as T;
         }
         case 'reminders.delivery.staleMessengerMessage': {
           const ruleId = asNonEmptyString(query.params.ruleId);

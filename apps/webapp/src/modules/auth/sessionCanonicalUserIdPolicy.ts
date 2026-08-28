@@ -5,7 +5,7 @@
  *
  * After a **trusted** exchange (integrator webapp-entry token, Telegram initData/widget, OAuth callback,
  * phone OTP confirm), `SessionUser.userId` SHOULD be the **canonical** `platform_users.id` UUID
- * (possibly after merge resolve via `pgUserByPhone.findByUserId` / `findOrCreateByChannelBinding`).
+ * (possibly after merge resolve via `pgUserByPhone.findByUserId` / `resolveByChannelBinding`).
  *
  * ## Legacy / compatibility: non-UUID `userId` (`tg:…`, `max:…`, `telegram:…` in in-memory tests)
  *

@@ -48,7 +48,6 @@ export const pgNotificationDeliveryAttemptsPort: NotificationDeliveryAttemptsPor
     await db.insert(notificationDeliveryAttempts).values({
       organizationId: getCurrentDbPrincipalOrganizationId() ?? null,
       userId: input.userId ?? null,
-      integratorUserId: input.integratorUserId ?? null,
       topicCode: input.topicCode ?? null,
       intentType: input.intentType ?? null,
       channel: input.channel,

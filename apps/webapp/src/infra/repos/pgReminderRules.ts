@@ -69,7 +69,6 @@ function parseScheduleData(raw: unknown): SlotsV1ScheduleData | null {
 
 function toRule(row: {
   integrator_rule_id: string;
-  integrator_user_id: string | null;
   category: string;
   is_enabled: boolean;
   timezone: string;
@@ -93,7 +92,6 @@ function toRule(row: {
 }): ReminderRule {
   return {
     id: row.integrator_rule_id,
-    integratorUserId: row.integrator_user_id?.trim() ? row.integrator_user_id.trim() : null,
     category: row.category as ReminderRule['category'],
     enabled: row.is_enabled,
     timezone: row.timezone?.trim() || 'Europe/Moscow',
@@ -120,7 +118,6 @@ function toRule(row: {
 
 const SELECT_COLS = `
   rr.integrator_rule_id,
-  rr.integrator_user_id::text,
   rr.category,
   rr.is_enabled,
   rr.timezone,
@@ -186,12 +183,15 @@ function claimPrincipalOrgSql(principalOrganizationId: string | null) {
 
 export function createPgReminderRulesPort(): ReminderRulesPort {
   return {
-    async resolveIntegratorUserId(platformUserId) {
-      const r = await runWebappSql<{ integrator_user_id: string }>(
+    async hasMessengerChannelBinding(platformUserId) {
+      const r = await runWebappSql<{ bound: boolean }>(
         getWebappSqlDb(),
-        sql`SELECT integrator_user_id::text FROM platform_users WHERE id = ${platformUserId}::uuid LIMIT 1`,
+        sql`SELECT EXISTS (
+              SELECT 1 FROM user_channel_bindings
+              WHERE user_id = ${platformUserId}::uuid
+            ) AS bound`,
       );
-      return r.rows[0]?.integrator_user_id ?? null;
+      return r.rows[0]?.bound === true;
     },
 
     async listByPlatformUser(platformUserId) {
@@ -200,8 +200,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(SELECT_COLS)}
          FROM reminder_rules rr
-         LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
-         WHERE (rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+         WHERE rr.platform_user_id = ${platformUserId}::uuid
          ${ruleOrgScopeSql(principalOrganizationId)}
          ORDER BY rr.category`,
       );
@@ -214,8 +213,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(SELECT_COLS)}
          FROM reminder_rules rr
-         LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
-         WHERE (rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+         WHERE rr.platform_user_id = ${platformUserId}::uuid
          ${ruleOrgScopeSql(principalOrganizationId)}
          ORDER BY rr.updated_at DESC`,
       );
@@ -228,8 +226,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         getWebappSqlDb(),
         sql`SELECT ${sql.raw(SELECT_COLS)}
          FROM reminder_rules rr
-         LEFT JOIN platform_users pu ON pu.integrator_user_id = rr.integrator_user_id
-         WHERE (rr.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid) AND rr.category = ${category}
+         WHERE rr.platform_user_id = ${platformUserId}::uuid AND rr.category = ${category}
          ${ruleOrgScopeSql(principalOrganizationId)}
          LIMIT 1`,
       );
@@ -294,7 +291,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
       const r = await runWebappSql<RuleRow>(
         getWebappSqlDb(),
         sql`INSERT INTO reminder_rules (
-          integrator_rule_id, organization_id, platform_user_id, integrator_user_id, category, is_enabled,
+          integrator_rule_id, organization_id, platform_user_id, category, is_enabled,
           schedule_type, timezone, interval_minutes, window_start_minute, window_end_minute,
           days_mask, content_mode,
           linked_object_type, linked_object_id, custom_title, custom_text,
@@ -303,7 +300,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
           notification_topic_code,
           updated_at
         ) VALUES (
-          ${integratorRuleId}, ${principalOrganizationId}::uuid, ${input.platformUserId}::uuid, ${input.integratorUserId}::bigint, ${category}, ${input.enabled},
+          ${integratorRuleId}, ${principalOrganizationId}::uuid, ${input.platformUserId}::uuid, ${category}, ${input.enabled},
           ${scheduleType}, ${tz}, ${input.schedule.intervalMinutes}, ${input.schedule.windowStartMinute}, ${input.schedule.windowEndMinute},
           ${input.schedule.daysMask}, 'none',
           ${input.linkedObjectType}, ${input.linkedObjectId}, ${input.customTitle}, ${input.customText},
@@ -314,7 +311,6 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
         )
         RETURNING
           integrator_rule_id,
-          integrator_user_id::text,
           category,
           is_enabled,
           timezone,
@@ -358,12 +354,7 @@ export function createPgReminderRulesPort(): ReminderRulesPort {
             sql`SELECT rr.id, rr.integrator_rule_id
            FROM reminder_rules rr
            WHERE rr.integrator_rule_id = ${ruleIntegratorId}
-             AND (
-               rr.platform_user_id = ${platformUserId}::uuid
-               OR rr.integrator_user_id IN (
-                 SELECT integrator_user_id FROM platform_users WHERE id = ${platformUserId}::uuid
-               )
-             )
+             AND rr.platform_user_id = ${platformUserId}::uuid
            LIMIT 1`,
           );
           if (own.rows.length === 0) {

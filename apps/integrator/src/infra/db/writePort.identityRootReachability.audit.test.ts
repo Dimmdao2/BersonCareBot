@@ -11,10 +11,10 @@
  * under the product call, using the capability descriptor actually declared for the root.
  *
  * Named failures these catch:
- *  1. A Telegram `/start` from a person whose clinic is already resolved (`runWithIntegratorPrincipal`
- *     — telegram/webhook.ts:372, the common case) → `user.upsert` throws instead of writing the
- *     channel identity, so the login link is never delivered.
- *  2. The same for the organization-only principal (telegram/webhook.ts:377).
+ *  1. A Telegram `/start` from a person whose clinic is already resolved (the organization
+ *     principal telegram/webhook.ts installs, the common case) → `user.upsert` throws instead of
+ *     writing the channel identity, so the login link is never delivered.
+ *  2. The same for a `/start` whose clinic could not be resolved, under the bootstrap principal.
  *
  * `user.phone.link` and its named root `app.integrator_bind_bootstrap_channel_phone` were removed
  * (identity cleanup 2026-08-26): webapp owns the confirmed-phone write end-to-end
@@ -27,7 +27,6 @@ import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult } from '../../kernel/contracts/index.js';
 import {
   runWithBootstrapPrincipal,
-  runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../principal/organizationPrincipal.js';
 import { createIntegratorPoolProvider } from './integratorPoolProvider.js';
@@ -135,23 +134,6 @@ describe('D25 audit — identity root must be reachable under the webhook princi
         type: 'user.upsert',
         params: { resource: 'telegram', externalId: '778', username: '@handle' },
       }),
-    );
-
-    expect(productQueries).toHaveLength(1);
-    expect(productQueries[0]).toContain('app.integrator_upsert_channel_identity');
-  });
-
-  it('user.upsert writes the channel identity when the clinic AND integrator user are resolved', async () => {
-    const { db, productQueries } = portContextHarness(IDENTITY_ROW);
-    const port = createDbWritePort({ db });
-
-    await runWithIntegratorPrincipal(
-      { organizationId: ORG, integratorUserId: '42', source: 'telegram-webhook' },
-      () =>
-        port.writeDb({
-          type: 'user.upsert',
-          params: { resource: 'telegram', externalId: '778', username: '@handle' },
-        }),
     );
 
     expect(productQueries).toHaveLength(1);

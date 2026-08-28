@@ -53,17 +53,6 @@ GROUP BY contact.value_normalized
 HAVING COUNT(*) > 1
 ORDER BY row_count DESC, key;
 
-SELECT
-  'duplicate_canonical_integrator_user_id' AS check_name,
-  integrator_user_id::text AS key,
-  COUNT(*)::bigint AS row_count
-FROM platform_users
-WHERE integrator_user_id IS NOT NULL
-  AND merged_into_id IS NULL
-GROUP BY integrator_user_id
-HAVING COUNT(*) > 1
-ORDER BY row_count DESC, key;
-
 -- 4) merged aliases still referenced in migrated user-owned tables
 WITH merged_aliases AS (
   SELECT id

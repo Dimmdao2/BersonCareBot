@@ -16,7 +16,6 @@ function openConversation(): SupportConversationRow {
     organizationId: ORGANIZATION_ID,
     integratorConversationId: `webapp:platform:${USER_ID}`,
     platformUserId: USER_ID,
-    integratorUserId: null,
     source: 'webapp',
     adminScope: 'platform',
     status: 'open',

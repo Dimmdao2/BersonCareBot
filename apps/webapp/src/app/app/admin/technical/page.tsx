@@ -19,7 +19,6 @@ export default async function DoctorAdminTechnicalPage() {
       />
       <AdminSettingsSection
         importantFallbackDelayMinutes={diagnostics.importantFallbackDelayMinutes}
-        platformUserMergeV2Enabled={diagnostics.platformUserMergeV2Enabled}
         patientAppMaintenanceEnabled={diagnostics.patientAppMaintenanceEnabled}
         patientAppMaintenanceMessage={diagnostics.patientAppMaintenanceMessage}
         patientProgramDiscussionDoctorReplyFromLogEnabled={

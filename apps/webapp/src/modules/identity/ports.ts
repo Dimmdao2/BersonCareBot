@@ -7,20 +7,13 @@ import type { DoctorClientsPort } from '@/modules/doctor-clients/ports';
  * module, the repository is only its implementation (AGENTS.md §5.3).
  */
 export type UserProjectionPort = {
-  upsertFromProjection: (params: {
-    integratorUserId: string;
-    phoneNormalized?: string;
-    displayName?: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-    channelCode?: string;
-    externalId?: string;
-  }) => Promise<{ platformUserId: string }>;
-  findByIntegratorId: (integratorUserId: string) => Promise<{
-    platformUserId: string;
-    phoneNormalized?: string | null;
-  } | null>;
+  /**
+   * Track D (#987) removed `upsertFromProjection` and `findByIntegratorId` from this port. They
+   * were the write and read halves of the retired M2M identity projection keyed by the retired
+   * public column on `platform_users`, and both had zero production callers once the auth,
+   * reminder, callback and broadcast-link paths moved to the canonical uuid. Do not reintroduce
+   * them under another name.
+   */
   findByPhoneNormalized: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
   updatePhone: (platformUserId: string, phoneNormalized: string) => Promise<void>;
   /** Update structured profile fields (first_name, last_name, email) by phone; no-op if no user found. */

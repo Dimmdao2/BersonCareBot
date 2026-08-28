@@ -123,13 +123,11 @@ export function normalizeChannelDisplayHandle(value: string | null | undefined):
  *
  * The channel-binding lookup runs ONLY when both `channelCode`/`externalId` are non-empty — this lets
  * `notifications.update`'s direct write match `pgUserProjection`'s `preferences.updated` handler exactly:
- * that consumer calls `upsertFromProjection({ integratorUserId })` with no channel args, so candidate
- * resolution there is integrator_user_id-only.
+ * a channel identity never falls back to a process-local numeric principal.
  */
 export async function collectPlatformUserCandidates(
   txDb: DbPort,
   input: {
-    integratorUserId?: string | null;
     phoneNormalized: string | null;
     channelCode: string;
     externalId: string;

@@ -79,7 +79,6 @@ type SupportConversationDbRow = {
   organization_id: string | null;
   integrator_conversation_id: string;
   platform_user_id: string | null;
-  integrator_user_id: string | null;
   source: string;
   admin_scope: string;
   status: string;
@@ -99,7 +98,6 @@ function mapConversationRow(row: SupportConversationDbRow): SupportConversationR
     organizationId: row.organization_id,
     integratorConversationId: row.integrator_conversation_id,
     platformUserId: row.platform_user_id,
-    integratorUserId: row.integrator_user_id,
     source: row.source,
     adminScope: row.admin_scope,
     status: row.status,
@@ -144,7 +142,6 @@ type AdminConversationListDbRow = {
   conversation_id: string;
   integrator_conversation_id: string;
   source: string;
-  integrator_user_id: string | null;
   admin_scope: string;
   status: string;
   opened_at: string;
@@ -167,7 +164,6 @@ function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConv
     conversationId: String(row.conversation_id),
     integratorConversationId: row.integrator_conversation_id,
     source: row.source,
-    integratorUserId: row.integrator_user_id,
     adminScope: row.admin_scope,
     status: row.status,
     openedAt: row.opened_at,
@@ -187,29 +183,8 @@ function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConv
 }
 
 async function resolvePlatformUserId(
-  integratorUserId: string | null,
   channel?: { channelCode: string | null; channelExternalId: string | null },
 ): Promise<string | null> {
-  if (integratorUserId != null && integratorUserId !== '') {
-    const r = await runWebappPgText<{ id: string }>(
-      `SELECT id FROM platform_users
-       WHERE integrator_user_id = $1::bigint AND merged_into_id IS NULL
-       ORDER BY created_at ASC
-       LIMIT 3`,
-      [integratorUserId],
-    );
-    if (r.rows.length === 0) {
-      /* fall through to channel binding */
-    } else if (r.rows.length > 1) {
-      console.error('[canonical] multiple canonical rows for integrator_user_id', {
-        integratorUserId,
-        ids: r.rows.map((x) => x.id),
-      });
-    } else {
-      return r.rows[0]!.id;
-    }
-  }
-
   const channelCode = channel?.channelCode?.trim() ?? '';
   const channelExternalId = channel?.channelExternalId?.trim() ?? '';
   if (!channelCode || !channelExternalId) return null;
@@ -230,18 +205,17 @@ async function resolvePlatformUserId(
 export function createPgSupportCommunicationPort(): SupportCommunicationPort {
   return {
     async upsertConversationFromProjection(params) {
-      const platformUserId = await resolvePlatformUserId(params.integratorUserId, {
+      const platformUserId = await resolvePlatformUserId({
         channelCode: params.channelCode ?? null,
         channelExternalId: params.channelExternalId ?? null,
       });
       const r = await runWebappPgText<{ id: string }>(
         `INSERT INTO support_conversations (
-          integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
+          integrator_conversation_id, platform_user_id, source, admin_scope, status,
           opened_at, last_message_at, closed_at, close_reason, channel_code, channel_external_id
-        ) VALUES ($1, $2, $3::bigint, $4, $5, $6, $7::timestamptz, $8::timestamptz, $9::timestamptz, $10, $11, $12)
+        ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $7::timestamptz, $8::timestamptz, $9, $10, $11)
         ON CONFLICT (integrator_conversation_id) DO UPDATE SET
-          platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
-          integrator_user_id = COALESCE(EXCLUDED.integrator_user_id, support_conversations.integrator_user_id),
+          platform_user_id = COALESCE(support_conversations.platform_user_id, EXCLUDED.platform_user_id),
           status = EXCLUDED.status,
           last_message_at = EXCLUDED.last_message_at,
           closed_at = EXCLUDED.closed_at,
@@ -251,7 +225,6 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         [
           params.integratorConversationId,
           platformUserId,
-          params.integratorUserId ?? null,
           params.source,
           params.adminScope,
           params.status,
@@ -283,8 +256,8 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
       if (!conversationId) {
         const ins = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversations (
-            integrator_conversation_id, integrator_user_id, source, admin_scope, status, opened_at, last_message_at
-          ) VALUES ($1, NULL, $2, '', 'open', $3::timestamptz, $3::timestamptz)
+            integrator_conversation_id, source, admin_scope, status, opened_at, last_message_at
+          ) VALUES ($1, $2, '', 'open', $3::timestamptz, $3::timestamptz)
           ON CONFLICT (integrator_conversation_id) DO UPDATE SET last_message_at = GREATEST(support_conversations.last_message_at, $3::timestamptz)
           RETURNING id`,
           [params.integratorConversationId, params.source, params.createdAt],
@@ -513,7 +486,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async listConversationsByUser(platformUserId) {
       const r = await runWebappPgText<SupportConversationDbRow>(
-        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations WHERE platform_user_id = $1 ORDER BY last_message_at DESC`,
@@ -524,7 +497,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async getConversationWithMessages(conversationId, organizationId) {
       const conv = await runWebappPgText<SupportConversationDbRow>(
-        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations
@@ -578,7 +551,6 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           sc.id AS conversation_id,
           sc.integrator_conversation_id,
           sc.source,
-          sc.integrator_user_id::text,
           sc.admin_scope,
           sc.status,
           sc.opened_at::text,
@@ -697,9 +669,9 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         }
         const r = await runWebappPgText<{ id: string }>(
           `INSERT INTO support_conversations (
-            organization_id, integrator_conversation_id, platform_user_id, integrator_user_id, source, admin_scope, status,
+            organization_id, integrator_conversation_id, platform_user_id, source, admin_scope, status,
             opened_at, last_message_at
-          ) VALUES ($1::uuid, $2, $3::uuid, NULL, 'webapp', 'support', 'open', now(), now())
+          ) VALUES ($1::uuid, $2, $3::uuid, 'webapp', 'support', 'open', now(), now())
           ON CONFLICT (integrator_conversation_id) DO UPDATE SET
             organization_id = COALESCE(support_conversations.organization_id, EXCLUDED.organization_id),
             platform_user_id = COALESCE(EXCLUDED.platform_user_id, support_conversations.platform_user_id),
@@ -901,7 +873,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
 
     async getConversationIfOwnedByUser(conversationId, platformUserId) {
       const r = await runWebappPgText<SupportConversationDbRow>(
-        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, integrator_user_id::text, source, admin_scope, status,
+        `SELECT id, organization_id, integrator_conversation_id, platform_user_id, source, admin_scope, status,
                 opened_at::text, last_message_at::text, closed_at::text, close_reason, channel_code, channel_external_id,
                 created_at::text, updated_at::text
          FROM support_conversations WHERE id = $1::uuid AND platform_user_id = $2::uuid`,

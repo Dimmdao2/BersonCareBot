@@ -7,7 +7,6 @@ export type {
   MergePlatformUsersOptions,
   MergePlatformUsersReason,
   PickMergeTargetCandidate,
-  VerifiedDistinctIntegratorUserIds,
 } from '@bersoncare/platform-merge';
 
 export {

@@ -153,8 +153,8 @@ export function createRemindersReadsPort(deps?: {
   };
 
   return {
-    async listRulesForUser(integratorUserId: string, organizationId: string) {
-      const search = new URLSearchParams({ integratorUserId, organizationId });
+    async listRulesForUser(platformUserId: string, organizationId: string) {
+      const search = new URLSearchParams({ platformUserId, organizationId });
       const result = await fetchRemindersGet<{ rules?: WebappRuleRow[] }>(
         db,
         '/api/integrator/reminders/rules',
@@ -176,8 +176,8 @@ export function createRemindersReadsPort(deps?: {
       return rows.map((row) => mapRule(row, fallbackTz));
     },
 
-    async getRuleForUserAndCategory(integratorUserId: string, category: string) {
-      const search = new URLSearchParams({ integratorUserId, category });
+    async getRuleForUserAndCategory(platformUserId: string, category: string) {
+      const search = new URLSearchParams({ platformUserId, category });
       const result = await fetchRemindersGet<{ rule?: WebappRuleRow | null }>(
         db,
         '/api/integrator/reminders/rules/by-category',
@@ -193,8 +193,8 @@ export function createRemindersReadsPort(deps?: {
       return mapRule(rule, fallbackTz) as ReminderRuleDetail;
     },
 
-    async listHistoryForUser(integratorUserId: string, limit = 50) {
-      const search = new URLSearchParams({ integratorUserId, limit: String(limit) });
+    async listHistoryForUser(platformUserId: string, limit = 50) {
+      const search = new URLSearchParams({ platformUserId, limit: String(limit) });
       const result = await fetchRemindersGet<{ history?: WebappHistoryRow[] }>(
         db,
         '/api/integrator/reminders/history',

@@ -4,8 +4,7 @@
  * / `applyMessengerPhonePublicBind` relation-writers is now entirely delegated to the exact named
  * PostgreSQL roots `app.integrator_upsert_channel_identity` / `app.integrator_bind_bootstrap_channel_phone`
  * (SECURITY DEFINER functions already deployed — see `bootstrapChannelIdentityRoot.unit.test.ts` for the
- * chokepoint/result-shape coverage of that dispatch, both bootstrap and organization/integrator
- * principal). Re-modeling the SQL functions' own create/enrich/handle-normalize/FIO-preserve/D28-revoke
+ * chokepoint/result-shape coverage of that dispatch, both bootstrap and organization principal). Re-modeling the SQL functions' own create/enrich/handle-normalize/FIO-preserve/D28-revoke
  * semantics as a TS-level fake-table test would just re-implement the deployed function body in JS; that
  * class of coverage now belongs to a live DB proof, out of this slice's scope.
  *
@@ -22,7 +21,6 @@ import { upsertIdentityProjection } from '@bersoncare/platform-merge';
 
 type PlatformUserRow = {
   id: string;
-  integrator_user_id: string | null;
   merged_into_id: string | null;
 };
 type PhoneHistoryRow = {
@@ -55,12 +53,8 @@ function makeDb(tables: Tables): DbPort {
     );
     const rows = (r: unknown[]): DbQueryResult<T> => ({ rows: r as T[], rowCount: r.length });
 
-    // collectIdentityProjectionCandidates: by integrator_user_id, then by phone.
+    // collectIdentityProjectionCandidates: by phone.
     if (q.includes('from platform_users')) {
-      const live = tables.platformUsers.filter((u) => u.merged_into_id === null);
-      if (q.includes('integrator_user_id = $1')) {
-        return rows(live.filter((u) => u.integrator_user_id === p[0]).map((u) => ({ id: u.id })));
-      }
       // `syncUserIdentityFioMirror`'s `INSERT INTO user_identity (...) SELECT ... FROM platform_users
       // WHERE id = $1 ...` also matches this branch (substring `from platform_users`); its result is
       // discarded by the caller, so an empty/irrelevant row set is harmless here.
@@ -83,7 +77,6 @@ function makeDb(tables: Tables): DbPort {
       const id = `pu-new-${tables.platformUsers.length + 1}`;
       tables.platformUsers.push({
         id,
-        integrator_user_id: p[0] ?? null,
         merged_into_id: null,
       });
       return rows([{ id }]);
@@ -137,7 +130,6 @@ describe('D28: брошенный номер без какой-либо исто
     const db = makeDb(tables);
 
     const result = await upsertIdentityProjection(db, {
-      integratorUserId: '9000',
       phoneNormalized: '+79000000055',
       displayName: 'Анна Кузнецова',
       firstName: 'Анна',

@@ -82,9 +82,8 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
                    h.snoozed_at::text, h.snoozed_until::text
          FROM reminder_occurrence_history h
          INNER JOIN reminder_rules rr ON rr.integrator_rule_id = h.integrator_rule_id
-         LEFT JOIN platform_users pu ON pu.integrator_user_id = h.integrator_user_id
          WHERE h.integrator_rule_id = ${ruleIntegratorId}
-           AND (h.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+           AND h.platform_user_id = ${platformUserId}::uuid
            AND (h.done_at IS NOT NULL OR h.skipped_at IS NOT NULL OR h.snoozed_at IS NOT NULL)
          ORDER BY GREATEST(
            COALESCE(h.done_at, '-infinity'::timestamptz),
@@ -103,8 +102,7 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
               COUNT(*) FILTER (WHERE h.skipped_at >= now() - make_interval(days => ${days}))::text AS skipped_cnt,
               COUNT(*) FILTER (WHERE h.snoozed_at >= now() - make_interval(days => ${days}))::text AS snoozed_cnt
             FROM reminder_occurrence_history h
-            LEFT JOIN platform_users pu ON pu.integrator_user_id = h.integrator_user_id
-            WHERE (h.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)`,
+            WHERE h.platform_user_id = ${platformUserId}::uuid`,
       );
       const row = r.rows[0];
       return {
@@ -127,8 +125,7 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
               COUNT(*) FILTER (WHERE h.skipped_at >= now() - make_interval(days => ${days}))::text AS skipped_cnt,
               COUNT(*) FILTER (WHERE h.snoozed_at >= now() - make_interval(days => ${days}))::text AS snoozed_cnt
             FROM reminder_occurrence_history h
-            LEFT JOIN platform_users pu ON pu.integrator_user_id = h.integrator_user_id
-            WHERE (h.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+            WHERE h.platform_user_id = ${platformUserId}::uuid
             GROUP BY h.integrator_rule_id`,
       );
       const out: Record<string, ReminderJournalRuleStats> = {};
@@ -148,13 +145,11 @@ export function createPgReminderJournalPort(): ReminderJournalPort {
         sql`SELECT COUNT(*)::text AS cnt
          FROM (
            SELECT h.done_at AS at FROM reminder_occurrence_history h
-           LEFT JOIN platform_users pu ON pu.integrator_user_id = h.integrator_user_id
-           WHERE (h.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+           WHERE h.platform_user_id = ${platformUserId}::uuid
              AND h.done_at IS NOT NULL
            UNION ALL
            SELECT h.skipped_at AS at FROM reminder_occurrence_history h
-           LEFT JOIN platform_users pu ON pu.integrator_user_id = h.integrator_user_id
-           WHERE (h.platform_user_id = ${platformUserId}::uuid OR pu.id = ${platformUserId}::uuid)
+           WHERE h.platform_user_id = ${platformUserId}::uuid
              AND h.skipped_at IS NOT NULL
          ) facts
          WHERE facts.at >= ${rangeStart.toISOString()}::timestamptz

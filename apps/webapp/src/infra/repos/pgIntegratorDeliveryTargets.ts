@@ -78,17 +78,16 @@ export function createPgIntegratorDeliveryTargetsPort(): IntegratorDeliveryTarge
         nonEmpty(selector.telegramId),
         nonEmpty(selector.maxId),
         nonEmpty(selector.platformUserId),
-        nonEmpty(selector.integratorUserId),
         nonEmpty(selector.topicCode),
         nowIso,
       ] as const;
       const result = await runWebappNamedRoot<JsonResultRow>(
         getWebappSqlDb(),
-        'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)',
+        'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,text,timestamp with time zone)',
         args,
         sql`SELECT app.read_integrator_delivery_target_snapshot(
           ${args[0]}::uuid, ${args[1]}::text, ${args[2]}::text, ${args[3]}::text,
-          ${args[4]}::uuid, ${args[5]}::bigint, ${args[6]}::text, ${args[7]}::timestamptz
+          ${args[4]}::uuid, ${args[5]}::text, ${args[6]}::timestamptz
         ) AS result`,
       );
       return parseSnapshot(result.rows[0]?.result);

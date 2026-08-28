@@ -12,7 +12,6 @@ const KEY = 'patient-reminder-create-retry-1';
 function rule(id: string): ReminderRule {
   return {
     id,
-    integratorUserId: '42',
     category: 'lfk',
     enabled: false,
     intervalMinutes: 120,
@@ -58,7 +57,7 @@ describe('patient reminder create idempotency', () => {
     const existing = rule(id);
     const create = vi.fn(async () => existing);
     const port = {
-      resolveIntegratorUserId: vi.fn(async () => '42'),
+      hasMessengerChannelBinding: vi.fn(async () => true),
       listByPlatformUserWithObjects: vi.fn(async () => [existing]),
       create,
     } as unknown as ReminderRulesPort;
@@ -82,7 +81,7 @@ describe('patient reminder create idempotency', () => {
       throw new Error('response lost after commit');
     });
     const port = {
-      resolveIntegratorUserId: vi.fn(async () => '42'),
+      hasMessengerChannelBinding: vi.fn(async () => true),
       listByPlatformUserWithObjects: list,
       create,
     } as unknown as ReminderRulesPort;

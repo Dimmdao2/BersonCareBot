@@ -2,66 +2,32 @@ import type {
   ReminderProjectionPort,
   ReminderRuleListItem,
 } from '@/modules/reminders/projectionPort';
-import { buildReminderDeepLink } from '@/modules/reminders/buildReminderDeepLink';
-import { env } from '@/config/env';
 
+/**
+ * In-memory projection reads used when no runtime DB is configured.
+ *
+ * Track D (#987): the two `*FromProjection` upserts were removed from the port — they were the
+ * retired M2M write path, keyed by the retired public identity, with no production callers. Without
+ * a writer there is nothing to seed, so every read below is empty rather than fake.
+ */
 const rulesByIntegratorRuleId = new Map<string, ReminderRuleListItem>();
-const contentGrantsByIntegratorGrantId = new Map<string, unknown>();
 
 export const inMemoryReminderProjectionPort: ReminderProjectionPort = {
-  async upsertRuleFromProjection(params) {
-    const item: ReminderRuleListItem = {
-      id: params.integratorRuleId,
-      userId: params.integratorUserId,
-      category: params.category,
-      isEnabled: params.isEnabled,
-      scheduleType: params.scheduleType,
-      timezone: params.timezone,
-      intervalMinutes: params.intervalMinutes,
-      windowStartMinute: params.windowStartMinute,
-      windowEndMinute: params.windowEndMinute,
-      daysMask: params.daysMask,
-      contentMode: params.contentMode,
-      linkedObjectType: null,
-      linkedObjectId: null,
-      customTitle: null,
-      customText: null,
-      deepLink: buildReminderDeepLink({
-        linkedObjectType: null,
-        linkedObjectId: null,
-        appBaseUrl: env.APP_BASE_URL,
-      }),
-      scheduleData: null,
-      reminderIntent: null,
-      displayTitle: null,
-      displayDescription: null,
-      quietHoursStartMinute: null,
-      quietHoursEndMinute: null,
-      notificationTopicCode: null,
-      updatedAt: params.updatedAt,
-    };
-    rulesByIntegratorRuleId.set(params.integratorRuleId, item);
-  },
-
-  async upsertContentAccessGrantFromProjection(params) {
-    contentGrantsByIntegratorGrantId.set(params.integratorGrantId, params);
-  },
-
-  async listRulesByIntegratorUserId(integratorUserId: string) {
+  async listRulesByPlatformUserId(platformUserId: string) {
     return Array.from(rulesByIntegratorRuleId.values())
-      .filter((r) => r.userId === integratorUserId)
+      .filter((r) => r.userId === platformUserId)
       .sort((a, b) => a.category.localeCompare(b.category));
   },
 
-  async getRuleByIntegratorUserIdAndCategory(integratorUserId: string, category: string) {
+  async getRuleByPlatformUserIdAndCategory(platformUserId: string, category: string) {
     return (
       Array.from(rulesByIntegratorRuleId.values()).find(
-        (x) => x.userId === integratorUserId && x.category === category,
+        (x) => x.userId === platformUserId && x.category === category,
       ) ?? null
     );
   },
 
-  async listHistoryByIntegratorUserId(_integratorUserId: string, _limit = 50) {
+  async listHistoryByPlatformUserId(_platformUserId: string, _limit = 50) {
     return [];
   },
 

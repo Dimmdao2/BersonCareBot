@@ -31,7 +31,7 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
   const ianaSql = sql`${iana}::text`;
   const excludePeopleSql =
     excludedUserIds.length > 0
-      ? sql`AND COALESCE(rr.platform_user_id, pu.id) NOT IN (${drizzleSqlUuidInList(excludedUserIds)})`
+      ? sql`AND rr.platform_user_id NOT IN (${drizzleSqlUuidInList(excludedUserIds)})`
       : sql``;
   const db = getDrizzle();
 
@@ -39,14 +39,11 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
     db.execute<DailyRow>(sql`
       WITH enabled_users AS (
         SELECT
-          COALESCE(rr.platform_user_id, pu.id) AS platform_user_id,
+          rr.platform_user_id AS platform_user_id,
           MIN(rr.created_at::timestamptz) AS cohort_at
         FROM reminder_rules rr
-        LEFT JOIN platform_users pu
-          ON pu.integrator_user_id = rr.integrator_user_id
-         AND rr.platform_user_id IS NULL
         WHERE rr.is_enabled = TRUE
-          AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+          AND rr.platform_user_id IS NOT NULL
           ${excludePeopleSql}
         GROUP BY 1
       ),
@@ -70,13 +67,10 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
     `),
     db.execute<ChannelFlagsRow>(sql`
       WITH reminded AS (
-        SELECT DISTINCT COALESCE(rr.platform_user_id, pu.id) AS platform_user_id
+        SELECT DISTINCT rr.platform_user_id AS platform_user_id
         FROM reminder_rules rr
-        LEFT JOIN platform_users pu
-          ON pu.integrator_user_id = rr.integrator_user_id
-         AND rr.platform_user_id IS NULL
         WHERE rr.is_enabled = TRUE
-          AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+          AND rr.platform_user_id IS NOT NULL
           ${excludePeopleSql}
       )
       SELECT
@@ -121,13 +115,10 @@ export async function loadReminderPeopleWithNotificationsStats(opts: {
       FROM reminded r
     `),
     db.execute<{ peopleCount: unknown }>(sql`
-      SELECT COUNT(DISTINCT COALESCE(rr.platform_user_id, pu.id))::int AS "peopleCount"
+      SELECT COUNT(DISTINCT rr.platform_user_id)::int AS "peopleCount"
       FROM reminder_rules rr
-      LEFT JOIN platform_users pu
-        ON pu.integrator_user_id = rr.integrator_user_id
-       AND rr.platform_user_id IS NULL
       WHERE rr.is_enabled = TRUE
-        AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL
+        AND rr.platform_user_id IS NOT NULL
         ${excludePeopleSql}
     `),
   ]);

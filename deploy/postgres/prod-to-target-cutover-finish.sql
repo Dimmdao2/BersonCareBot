@@ -159,10 +159,14 @@ BEGIN
     RAISE EXCEPTION 'noncanonical specialist card survived the transition';
   END IF;
 
+  -- Track D (#987): the target schema no longer carries the retired public identity, so the same
+  -- gate reads the numeric key from the untouched source schema and still checks EVERY target row.
   SELECT count(*) INTO violations
   FROM public.reminder_occurrence_history history
-  LEFT JOIN public.platform_users source_user
-    ON source_user.integrator_user_id = history.integrator_user_id
+  LEFT JOIN cutover_source_public.reminder_occurrence_history source_history
+    ON source_history.id = history.id
+  LEFT JOIN cutover_source_public.platform_users source_user
+    ON source_user.integrator_user_id = source_history.integrator_user_id
   LEFT JOIN cutover_platform_user_canonical_map identity_map
     ON identity_map.source_id = source_user.id
   WHERE history.platform_user_id IS DISTINCT FROM identity_map.canonical_id;

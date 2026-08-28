@@ -120,7 +120,6 @@ export function createDeliveryTargetsPort(deps: {
         phone: phoneNormalized.trim(),
         organizationId,
         ...(topic ? { topic } : {}),
-        ...(options?.integratorUserId ? { integratorUserId: options.integratorUserId } : {}),
       });
     },
     async getAdminMessengerTargets(): Promise<AdminMessengerTargets | null> {
@@ -130,14 +129,12 @@ export function createDeliveryTargetsPort(deps: {
       telegramId?: string;
       maxId?: string;
       topic?: string;
-      integratorUserId?: string;
       organizationId?: string;
     }): Promise<DeliveryTargetsFetchResult | null> {
       const topic = params.topic?.trim();
       const q = (base: Record<string, string>) => ({
         ...base,
         ...(topic ? { topic } : {}),
-        ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
         ...(params.organizationId ? { organizationId: params.organizationId } : {}),
       });
       if (params.telegramId?.trim()) {
@@ -156,7 +153,6 @@ export function createDeliveryTargetsPort(deps: {
         platformUserId: params.platformUserId.trim(),
         topic: params.topic.trim(),
         organizationId: params.organizationId.trim(),
-        ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
       });
     },
   };

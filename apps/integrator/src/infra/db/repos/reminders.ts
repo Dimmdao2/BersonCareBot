@@ -13,22 +13,15 @@ import {
   runWithOrganizationPrincipal,
 } from '../../principal/organizationPrincipal.js';
 
-function organizationIdForIntegratorUserSql(integratorUserId: string | number) {
-  const currentOrganizationId = getCurrentOrganizationPrincipalId() ?? null;
-  return sql`COALESCE(
-    ${currentOrganizationId}::uuid,
-    (
-      SELECT (array_agg(DISTINCT active_user_orgs.organization_id))[1]
-      FROM public.platform_users platform_user
-      INNER JOIN (
-        SELECT platform_user_id, organization_id FROM public.org_enrollments WHERE status = 'active'
-        UNION
-        SELECT platform_user_id, organization_id FROM public.be_organization_members WHERE status = 'active'
-      ) active_user_orgs ON active_user_orgs.platform_user_id = platform_user.id
-      WHERE platform_user.integrator_user_id = ${String(integratorUserId)}::bigint
-      HAVING count(DISTINCT active_user_orgs.organization_id) = 1
-    )
-  )`;
+/**
+ * Track D (#987): the clinic of a content-access grant comes from the live organization principal
+ * and nowhere else. The removed `COALESCE` fallback re-derived it by joining `public.platform_users`
+ * on the retired public identity, and could only ever fire when no principal was installed, i.e.
+ * exactly when the INSERT itself would be refused by RLS. It bought nothing and kept a live reader
+ * of the retired column alive.
+ */
+function organizationIdForCurrentPrincipalSql() {
+  return sql`${getCurrentOrganizationPrincipalId() ?? null}::uuid`;
 }
 
 function normalizeOccurrenceRow(row: {
@@ -164,7 +157,7 @@ export async function cancelPendingReminderOccurrencesForRule(
 export type FinalizedReminderOccurrenceProjectionContext = {
   occurrenceId: string;
   ruleId: string;
-  userId: string;
+  /** Track D (#987): canonical owner; the retired numeric `userId` twin was dropped with the column. */
   platformUserId: string;
   organizationId: string;
   category: string;
@@ -289,7 +282,6 @@ export async function getReminderOccurrenceContextForProjection(
   const rows = await d
     .select({
       rule_id: reminderOccurrenceHistory.integratorRuleId,
-      user_id: sql<string>`${reminderRules.integratorUserId}::text`,
       platform_user_id: reminderOccurrenceHistory.platformUserId,
       organization_id: sql<string>`${reminderOccurrenceHistory.organizationId}::text`,
       category: reminderRules.category,
@@ -311,7 +303,6 @@ export async function getReminderOccurrenceContextForProjection(
   const occurredAt = row.sent_at ?? row.failed_at ?? new Date().toISOString();
   return {
     ruleId: row.rule_id,
-    userId: String(row.user_id),
     platformUserId: row.platform_user_id,
     organizationId: row.organization_id,
     category: row.category,
@@ -336,7 +327,7 @@ export async function createContentAccessGrant(
   },
 ): Promise<{ createdAt: string; organizationId: string | null }> {
   const d = getIntegratorDrizzleSession(db);
-  const organizationIdExpression = organizationIdForIntegratorUserSql(input.userId);
+  const organizationIdExpression = organizationIdForCurrentPrincipalSql();
   const rows = await d
     .insert(contentAccessGrants)
     .values({
@@ -361,22 +352,17 @@ export async function createContentAccessGrant(
   };
 }
 
-/** Integrator `users.id` (text) owning the occurrence's rule, or null if missing. */
-export async function getReminderOccurrenceOwnerUserId(
-  db: DbPort,
-  occurrenceId: string,
-): Promise<string | null> {
-  const d = getIntegratorDrizzleSession(db);
-  const rows = await d
-    .select({ user_id: sql<string>`${reminderRules.integratorUserId}::text` })
-    .from(reminderOccurrenceHistory)
-    .innerJoin(reminderRules, eq(reminderRules.integratorRuleId, reminderOccurrenceHistory.integratorRuleId))
-    .where(eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId))
-    .limit(1);
-  const id = rows[0]?.user_id;
-  return id && id.trim().length > 0 ? id.trim() : null;
-}
-
+/**
+ * Canonical `public.platform_users.id` owning the occurrence, or null if missing.
+ *
+ * Track D (#987): this used to return the rule's retired public identity as text, while its only
+ * caller — the Telegram/MAX reminder callback ownership check in
+ * `kernel/domain/executor/handlers/reminders.ts` — compared it against the value of
+ * `user.byIdentity`, which has been the canonical uuid since D17. A bigint never equals a uuid, so
+ * EVERY reminder button (snooze/done/skip) failed closed with `forbidden`. Both sides now speak the
+ * canonical uuid, and it is read straight off the occurrence row, whose `platform_user_id` is
+ * `NOT NULL` — no join through the retired identity and no fallback.
+ */
 /** Snooze: move occurrence back to planned at `plannedAtIso`, clear send/queue fields. */
 export async function rescheduleReminderOccurrencePlanned(
   db: DbPort,

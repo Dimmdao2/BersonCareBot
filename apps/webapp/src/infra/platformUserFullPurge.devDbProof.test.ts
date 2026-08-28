@@ -1569,7 +1569,6 @@ async function loadPurgeUserForBlockerProbe(
             (SELECT uc.value_normalized FROM public.user_contacts uc
               WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary
               LIMIT 1) AS phone_normalized,
-            pu.integrator_user_id::text AS integrator_user_id,
             pu.role AS role
        FROM public.platform_users pu
       WHERE pu.id::text = $1`,

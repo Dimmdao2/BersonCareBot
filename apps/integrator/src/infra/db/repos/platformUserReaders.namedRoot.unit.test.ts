@@ -158,28 +158,32 @@ describe('integrator platform-user delivery identity reader', () => {
 
   it('accepts the canonical uuid key', async () => {
     const db = {} as DbPort;
-    answers([{ phone_normalized: '+79060432251', integrator_user_id: '126' }]);
+    answers([{ phone_normalized: '+79060432251' }]);
 
     await expect(
       getCanonicalPlatformUserDeliveryIdentity(db, bindingRow.platform_user_id),
-    ).resolves.toEqual({ phoneNormalized: '+79060432251', integratorUserId: '126' });
+    ).resolves.toEqual({ phoneNormalized: '+79060432251' });
     expect(callOf(0)).toEqual([db, DELIVERY_ROOT, [bindingRow.platform_user_id]]);
   });
 
-  it('accepts the numeric integrator key through the same door', async () => {
+  // Track D (#987): ключ уезжает в корень дословно, а наружу выходит только телефон — отбор
+  // непригодных форм ключа делает сам корень, а не этот адаптер.
+  it('passes the key through verbatim and returns the phone alone', async () => {
     const db = {} as DbPort;
-    answers([{ phone_normalized: '+79060432251', integrator_user_id: '126' }]);
+    answers([{ phone_normalized: '+79060432251' }]);
 
-    await expect(getPhoneNormalizedForDeliveryLookup(db, ' 126 ')).resolves.toBe('+79060432251');
-    expect(callOf(0)).toEqual([db, DELIVERY_ROOT, ['126']]);
+    await expect(
+      getPhoneNormalizedForDeliveryLookup(db, ` ${bindingRow.platform_user_id} `),
+    ).resolves.toBe('+79060432251');
+    expect(callOf(0)).toEqual([db, DELIVERY_ROOT, [bindingRow.platform_user_id]]);
   });
 
   it('separates "no person" from "person without a phone"', async () => {
     const db = {} as DbPort;
-    answers([{ phone_normalized: null, integrator_user_id: '126' }]);
+    answers([{ phone_normalized: null }]);
     await expect(
       getCanonicalPlatformUserDeliveryIdentity(db, bindingRow.platform_user_id),
-    ).resolves.toEqual({ phoneNormalized: null, integratorUserId: '126' });
+    ).resolves.toEqual({ phoneNormalized: null });
     await expect(getPhoneNormalizedForDeliveryLookup(db, bindingRow.platform_user_id))
       .resolves.toBeNull();
 

@@ -98,10 +98,12 @@ describe('D21 platform-user delivery target resolution', () => {
     ).rejects.toBeInstanceOf(DeliveryTargetsTenantDeniedError);
   });
 
-  it('refuses a delivery target whose integrator identity does not match the signed one', async () => {
+  it('refuses a delivery target whose identity does not match the signed one', async () => {
+    // Track D (#987): the selector no longer carries a retired numeric identity, but the root's
+    // identity-mismatch verdict must still surface as a tenant denial, never as an empty audience.
     await expect(
       getDeliveryTargetsForIntegrator(
-        { platformUserId: USER_ID, organizationId: ORG_ID, integratorUserId: '77' },
+        { platformUserId: USER_ID, organizationId: ORG_ID },
         deps({ ok: false, code: 'delivery_target_identity_mismatch' }),
       ),
     ).rejects.toBeInstanceOf(DeliveryTargetsTenantDeniedError);

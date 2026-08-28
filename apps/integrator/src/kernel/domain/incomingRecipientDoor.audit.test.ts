@@ -23,7 +23,6 @@ import { describe, expect, it } from 'vitest';
 import type { DbPort, DbQueryResult, IncomingEvent } from '../contracts/index.js';
 import {
   runWithBootstrapPrincipal,
-  runWithIntegratorPrincipal,
   runWithOrganizationPrincipal,
 } from '../../infra/principal/organizationPrincipal.js';
 import { createIntegratorPoolProvider } from '../../infra/db/integratorPoolProvider.js';
@@ -150,17 +149,6 @@ describe('входящее событие: опознание получател
   it('организационный принципал (telegram/webhook.ts:377) — получатель опознан', async () => {
     const { db, productQueries } = portContextHarness(IDENTITY_ROW);
     const base = await runWithOrganizationPrincipal(ORG, () => recipientOf(db));
-    expect(productQueries).toHaveLength(1);
-    expect(base.linkedPhone).toBe(true);
-    expect(base.phoneNormalized).toBe('+79000000078');
-  });
-
-  it('интеграторский принципал (telegram/webhook.ts:372) — получатель опознан', async () => {
-    const { db, productQueries } = portContextHarness(IDENTITY_ROW);
-    const base = await runWithIntegratorPrincipal(
-      { organizationId: ORG, integratorUserId: '42', source: 'telegram-webhook' },
-      () => recipientOf(db),
-    );
     expect(productQueries).toHaveLength(1);
     expect(base.linkedPhone).toBe(true);
     expect(base.phoneNormalized).toBe('+79000000078');

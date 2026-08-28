@@ -216,7 +216,7 @@ CROSS JOIN general_tracking gt;
 
 -- Reminders
 INSERT INTO public.reminder_rules (
-  integrator_rule_id, platform_user_id, integrator_user_id, category, is_enabled, schedule_type, timezone,
+  integrator_rule_id, platform_user_id, category, is_enabled, schedule_type, timezone,
   interval_minutes, window_start_minute, window_end_minute, days_mask, content_mode,
   linked_object_type, linked_object_id, custom_title, custom_text, schedule_data, reminder_intent,
   display_title, display_description, updated_at, created_at
@@ -225,7 +225,6 @@ VALUES
   (
     'demo-warmup-weekdays-v1-3d54ecbf',
     '3d54ecbf-2208-454c-9a39-c6db39a73e58'::uuid,
-    COALESCE((SELECT integrator_user_id FROM public.platform_users WHERE id = '3d54ecbf-2208-454c-9a39-c6db39a73e58'::uuid), 990001::bigint),
     'lfk',
     true,
     'slots_v1',
@@ -249,7 +248,6 @@ VALUES
   (
     'demo-rehab-every2d-v1-3d54ecbf',
     '3d54ecbf-2208-454c-9a39-c6db39a73e58'::uuid,
-    COALESCE((SELECT integrator_user_id FROM public.platform_users WHERE id = '3d54ecbf-2208-454c-9a39-c6db39a73e58'::uuid), 990001::bigint),
     'lfk',
     true,
     'slots_v1',
@@ -273,7 +271,6 @@ VALUES
 ON CONFLICT (integrator_rule_id)
 DO UPDATE SET
   platform_user_id = EXCLUDED.platform_user_id,
-  integrator_user_id = EXCLUDED.integrator_user_id,
   category = EXCLUDED.category,
   is_enabled = EXCLUDED.is_enabled,
   schedule_type = EXCLUDED.schedule_type,

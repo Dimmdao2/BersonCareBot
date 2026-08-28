@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { requirePlatformOperationsApiContext } from '@/app-layer/guards/requireRole';
 import { getPool } from '@/app-layer/db/client';
 import { runManualPlatformUserMerge } from '@/app-layer/merge/manualPlatformUserMerge';
-import { verifyManualMergeIntegratorIntegratorGate } from '@/app-layer/merge/manualMergeIntegratorGate';
 
 const winner = z.enum(['target', 'duplicate']);
 const resolutionSchema = z.object({
@@ -34,16 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
   const pool = getPool();
-  const integratorGate = await verifyManualMergeIntegratorIntegratorGate(
-    pool,
-    parsed.data.targetId,
-    parsed.data.duplicateId,
-  );
-  if (!integratorGate.ok) return integratorGate.response;
-  const result = await runManualPlatformUserMerge(pool, adminGate.session.user.userId, parsed.data, {
-    allowDistinctIntegratorUserIds: integratorGate.allowDistinctIntegratorUserIds,
-    verifiedDistinctIntegratorUserIds: integratorGate.verifiedDistinctIntegratorUserIds,
-  });
+  const result = await runManualPlatformUserMerge(pool, adminGate.session.user.userId, parsed.data);
   if (!result.ok) {
     return NextResponse.json(
       { ok: false, error: 'merge_failed', code: result.code, message: result.error },

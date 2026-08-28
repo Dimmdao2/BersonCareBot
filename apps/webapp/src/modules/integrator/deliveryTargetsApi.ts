@@ -32,7 +32,6 @@ export type DeliveryTargetsApiParams = {
   platformUserId?: string;
   /** When set, uses unified channel resolver (topic matrix + mute gate). */
   topic?: string;
-  integratorUserId?: string;
 };
 
 export type DeliveryTargetsApiResult = {
@@ -106,7 +105,6 @@ export async function getDeliveryTargetsForIntegrator(
     ...(params.telegramId?.trim() ? { telegramId: params.telegramId.trim() } : {}),
     ...(params.maxId?.trim() ? { maxId: params.maxId.trim() } : {}),
     ...(params.platformUserId?.trim() ? { platformUserId: params.platformUserId.trim() } : {}),
-    ...(params.integratorUserId?.trim() ? { integratorUserId: params.integratorUserId.trim() } : {}),
     ...(topicCode ? { topicCode } : {}),
   });
 
@@ -135,7 +133,6 @@ export async function getDeliveryTargetsForIntegrator(
   const resolution = attachResolutionIdentity(core, {
     userId: snapshot.platformUserId,
     topicCode,
-    ...(params.integratorUserId ? { integratorUserId: params.integratorUserId } : {}),
   });
   return {
     channelBindings: bindingsFromResolution(snapshot, resolution.selectedChannels),

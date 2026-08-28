@@ -463,7 +463,7 @@ fail-closed конфигурацию из глобального `public.system_
 
 **Headers:** `x-bersoncare-timestamp`, `x-bersoncare-signature`, `x-bersoncare-idempotency-key` (как у других signed M2M).
 
-**Body (JSON):** обязательный `organizationId` (UUID подписанного tenant-контекста) и один из идентификаторов пользователя — `integratorUserId` (digits) или `phoneNormalized`; для internal fan-out из webapp допустим `platformUserId` (UUID, не используется integrator HTTP-клиентом). После HMAC webapp устанавливает organization principal до idempotency/read-path и отклоняет разрешившегося пользователя без активного enrollment в этой организации.
+**Body (JSON):** обязательный `organizationId` (UUID подписанного tenant-контекста) и один из идентификаторов пользователя — `phoneNormalized` (его шлёт единственный продьюсер, `bookingLifecycleRoute.ts:notifyPatientWebPush`) или канонический `platformUserId` (UUID). Track D (#987) убрал числовой селектор личности; иного способа назвать человека в этом теле нет. После HMAC webapp устанавливает organization principal до idempotency/read-path и отклоняет разрешившегося пользователя без активного enrollment в этой организации.
 
 | Поле             | Описание                                                                     |
 | ---------------- | ---------------------------------------------------------------------------- |

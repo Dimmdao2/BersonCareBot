@@ -1,12 +1,12 @@
 /**
- * WHAT BREAKS WITHOUT THIS: a full account purge of a user who has no retired `integrator_user_id`
- * leaves the whole `reminder_occurrence_history` of that person in the database — the row has no FK
- * to `platform_users`, so nothing cascades it away, and the only DELETE that ever named the table
- * was keyed on the retired id (systemic audit 2026-08-27 §C1; live TEST census: 130 rows across 33
- * users with `integrator_user_id IS NULL`).
+ * WHAT BREAKS WITHOUT THIS: a full account purge of a canonical-only user leaves the whole
+ * `reminder_occurrence_history` of that person in the database — the row has no FK to
+ * `platform_users`, so nothing cascades it away, and the only DELETE that ever named the table was
+ * keyed on the retired public identity (systemic audit 2026-08-27 §C1; live TEST census at the
+ * time: 130 rows across 33 users who never had one).
  *
- * ORACLE: the canonical platform user is the only account-purge key. A retired integrator id must
- * never enter this transaction again.
+ * ORACLE: the canonical platform user uuid is the ONLY account-purge key. The retired public
+ * identity was a `bigint`, so no purge statement may bind the account key as one.
  */
 import { describe, expect, it, vi } from 'vitest';
 import type { PoolClient } from 'pg';
@@ -31,7 +31,7 @@ function issuedStatements(): { text: string; values: readonly unknown[] }[] {
 }
 
 describe('account purge — reminder history is keyed on the canonical platform user', () => {
-  it('deletes reminder_occurrence_history by platform_user_id for a user with no retired id', async () => {
+  it('deletes reminder_occurrence_history by platform_user_id', async () => {
     runPurgeClientPgText.mockReset();
     runPurgeClientPgText.mockResolvedValue({ rows: [], rowCount: 0 });
 
@@ -50,7 +50,8 @@ describe('account purge — reminder history is keyed on the canonical platform 
     );
     expect(canonicalDelete).toBeDefined();
 
-    // The account purge has no retired-id fallback or compatibility tail.
-    expect(statements.some((s) => /integrator_user_id = \$1::bigint/.test(s.text))).toBe(false);
+    // The account purge has no numeric-identity fallback or compatibility tail: the retired public
+    // identity was the only `bigint` account key this transaction ever bound.
+    expect(statements.some((s) => /\$1::bigint/.test(s.text))).toBe(false);
   });
 });

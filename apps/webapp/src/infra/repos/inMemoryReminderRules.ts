@@ -1,9 +1,9 @@
 /**
  * In-memory реализация ReminderRulesPort для юнит-тестов.
  *
- * `listByPlatformUser` — по `platformUserId` из `platformUserIdByRuleId` (create / options)
- * или legacy-совпадению `integratorUserId === platformUserId`.
- * Реальная PG-реализация использует `reminder_rules.platform_user_id`.
+ * `listByPlatformUser` — по `platformUserId` из `platformUserIdByRuleId` (create / options).
+ * Track D (#987) убрал legacy-совпадение по вытесненной публичной личности: владелец правила —
+ * только канонический uuid, как и в PG-реализации (`reminder_rules.platform_user_id`).
  */
 import { randomUUID } from 'node:crypto';
 import type { ReminderRulesPort } from '@/modules/reminders/ports';
@@ -40,26 +40,16 @@ export function createInMemoryReminderRulesPort(
   const platformUserIdByRuleId = new Map<string, string>(
     Object.entries(options?.platformUserIdByRuleId ?? {}),
   );
-  for (const rule of initial) {
-    if (!platformUserIdByRuleId.has(rule.id) && rule.integratorUserId) {
-      platformUserIdByRuleId.set(rule.id, rule.integratorUserId);
-    }
-  }
-
   const getRulesForUser = (platformUserId: string): ReminderRule[] =>
-    Array.from(store.values()).filter(
-      (r) =>
-        platformUserIdByRuleId.get(r.id) === platformUserId ||
-        r.integratorUserId === platformUserId,
-    );
+    Array.from(store.values()).filter((r) => platformUserIdByRuleId.get(r.id) === platformUserId);
 
   const ruleOwnedByPlatformUser = (rule: ReminderRule, platformUserId: string): boolean =>
-    platformUserIdByRuleId.get(rule.id) === platformUserId ||
-    rule.integratorUserId === platformUserId;
+    platformUserIdByRuleId.get(rule.id) === platformUserId;
 
   return {
-    async resolveIntegratorUserId(platformUserId) {
-      return platformUserId;
+    // In-memory fake: ownership is the map above, so every seeded person is reachable.
+    async hasMessengerChannelBinding() {
+      return true;
     },
 
     async listByPlatformUser(platformUserId) {
@@ -92,7 +82,6 @@ export function createInMemoryReminderRulesPort(
       }
       const rule: ReminderRule = {
         id,
-        integratorUserId: input.integratorUserId,
         category,
         enabled: input.enabled,
         timezone: input.timezone?.trim() || 'Europe/Moscow',
@@ -224,7 +213,7 @@ export function createInMemoryReminderRulesPort(
       if (!oldT || !newT || oldT === newT) return 0;
       let n = 0;
       for (const [id, rule] of store) {
-        const rulePlatformUserId = platformUserIdByRuleId.get(id) ?? rule.integratorUserId;
+        const rulePlatformUserId = platformUserIdByRuleId.get(id);
         if (rulePlatformUserId !== platformUserId) continue;
         if (rule.linkedObjectType !== 'rehab_program') continue;
         const rid = rule.linkedObjectId?.trim();

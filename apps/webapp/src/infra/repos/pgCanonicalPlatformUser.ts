@@ -61,7 +61,6 @@ export async function followMergedIntoChain(
 export type PlatformUserRow = {
   id: string;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   merged_into_id: string | null;
   display_name: string;
   role: string;
@@ -75,7 +74,6 @@ export async function selectPlatformUserById(
     .select({
       id: platformUsers.id,
       phone_normalized: drizzlePrimaryPhoneCol,
-      integrator_user_id: sql<string | null>`${platformUsers.integratorUserId}::text`,
       merged_into_id: platformUsers.mergedIntoId,
       // Track D: user_identity is the sole FIO source of truth (D15b/5, see
       // userIdentityFioSql.ts header) — no fallback to the legacy platform_users.display_name
@@ -123,27 +121,6 @@ export async function findCanonicalUserIdByPhone(
     viaContacts,
     '[canonical] multiple canonical rows for phone via user_contacts (redacted)',
   );
-}
-
-/** Exactly one canonical row per integrator id. */
-export async function findCanonicalUserIdByIntegratorId(
-  db: WebappSqlExecutor,
-  integratorUserId: string,
-): Promise<string | null> {
-  const rows = await db
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
-    .where(
-      and(
-        eq(sql`${platformUsers.integratorUserId}`, sql`${integratorUserId}::bigint`),
-        isNull(platformUsers.mergedIntoId),
-      ),
-    )
-    .orderBy(asc(platformUsers.createdAt))
-    .limit(3);
-  return pickUniqueCanonicalId(rows, '[canonical] multiple canonical rows for integrator_user_id', {
-    integratorUserId,
-  });
 }
 
 /**

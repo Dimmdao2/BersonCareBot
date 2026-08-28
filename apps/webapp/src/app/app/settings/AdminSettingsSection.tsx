@@ -11,7 +11,6 @@ import { patchAdminSettingsBatch } from './patchAdminSetting';
 
 export type AdminSettingsSectionProps = {
   importantFallbackDelayMinutes: number;
-  platformUserMergeV2Enabled: boolean;
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
   patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
@@ -23,7 +22,6 @@ export type AdminSettingsSectionProps = {
 
 export function AdminSettingsSection({
   importantFallbackDelayMinutes,
-  platformUserMergeV2Enabled,
   patientAppMaintenanceEnabled,
   patientAppMaintenanceMessage,
   patientProgramDiscussionDoctorReplyFromLogEnabled,
@@ -33,7 +31,6 @@ export function AdminSettingsSection({
   materialRatingsEnabled,
 }: AdminSettingsSectionProps) {
   const [fallbackDelay, setFallbackDelay] = useState(importantFallbackDelayMinutes);
-  const [mergeV2, setMergeV2] = useState(platformUserMergeV2Enabled);
 
   const [maintenanceEnabled, setMaintenanceEnabled] = useState(patientAppMaintenanceEnabled);
   const [maintenanceMessage, setMaintenanceMessage] = useState(patientAppMaintenanceMessage);
@@ -78,7 +75,6 @@ export function AdminSettingsSection({
       try {
         const batchResult = await patchAdminSettingsBatch([
           { key: 'important_fallback_delay_minutes', value: fallbackDelay },
-          { key: 'platform_user_merge_v2_enabled', value: mergeV2 },
           { key: 'patient_app_maintenance_enabled', value: maintenanceEnabled },
           { key: 'patient_app_maintenance_message', value: msgRaw },
           {
@@ -206,15 +202,6 @@ export function AdminSettingsSection({
             switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
           />
         </section>
-
-        <LabeledSwitch
-          label="Ручной merge клиентов: сценарий v2 (integrator → webapp)"
-          hint="При разных integrator_user_id: сначала canonical merge в integrator, затем webapp merge. Выкл. = поведение v1 (жёсткий запрет)."
-          checked={mergeV2}
-          onCheckedChange={setMergeV2}
-          disabled={isPending}
-          switchClassName="data-checked:bg-destructive dark:data-checked:bg-destructive"
-        />
 
         <DoctorField
           label="Задержка SMS fallback для важных сообщений (минут)"

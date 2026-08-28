@@ -74,14 +74,14 @@ import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDelive
  * Регистраторы интеграций инжектируются,
  * чтобы wiring app-слоя оставался стабильным во время миграции.
  */
-/** Injected from `routes.ts` for webapp-entry token enrichment (integrator `users.id`). */
+/**
+ * Injected from `routes.ts`. Track D (#987): the messenger-login → numeric-person hook that used to
+ * live here is gone with the public identity it resolved; a messenger external id now only ever
+ * resolves an ORGANIZATION.
+ */
 export type MessengerWebappEntryIdentityDeps = {
   /** Provider-side command/menu setup stays disabled in development. */
   setupProviderSurface?: boolean;
-  resolveIntegratorUserIdForMessenger?: (
-    externalId: string,
-    resource: 'telegram' | 'max',
-  ) => Promise<string | undefined>;
   /** Публичный origin вебаппа из deployment env. */
   getAppBaseUrl?: () => Promise<string>;
   /** Staff lists from system_settings (admin_*_ids ∪ doctor_*_ids). */
@@ -112,7 +112,6 @@ export type MaxRoutesRegistrar = (
 export type VkRoutesRegistrar = (app: FastifyInstance, deps: {
   eventGateway: EventGateway;
   resolveOrganizationIdForMessengerIdentity?: (externalId: string, resource: 'vk') => Promise<string | null>;
-  resolveIntegratorUserIdForMessenger?: (externalId: string, resource: 'vk') => Promise<string | undefined>;
 }) => Promise<void> | void;
 
 /** Опциональные внешние зависимости для buildDeps на период миграции. */

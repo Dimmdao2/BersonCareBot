@@ -672,25 +672,25 @@ export function createPgDoctorAnalyticsMetricAccountsPort(
           const ex = sqlExcludeUsers(
             excluded,
             [notifHours, status, safeLimit + 1, safeOffset],
-            'COALESCE(rr.platform_user_id, pu.id)',
+            'rr.platform_user_id',
           );
+          // Track D (#987): the rule's owner is `rr.platform_user_id`. The removed
+          // `LEFT JOIN platform_users pu ON <retired public id>` was the pre-canonical fallback;
+          // the cutover migration backfills and `NOT NULL`s the owner column.
           const r = await runWebappPgText<ListRow>(
             `SELECT
-               COALESCE(rr.platform_user_id, pu.id)::text AS user_id,
+               rr.platform_user_id::text AS user_id,
                COALESCE(ui_pcanon.display_name, pcanon.display_name) AS display_name,
                pcanon.phone_normalized,
                MAX(roh.occurred_at)::text AS event_at,
                '${eventLabel}'::text AS event_label
              FROM reminder_occurrence_history roh
              INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
-             LEFT JOIN platform_users pu
-               ON pu.integrator_user_id = rr.integrator_user_id
-              AND rr.platform_user_id IS NULL
              INNER JOIN platform_users pcanon
-               ON pcanon.id = COALESCE(rr.platform_user_id, pu.id)
+               ON pcanon.id = rr.platform_user_id
              WHERE roh.occurred_at >= (NOW() - ($1::integer * interval '1 hour'))
                AND roh.status = $2::text
-               AND COALESCE(rr.platform_user_id, pu.id) IS NOT NULL${ex.andSql}
+               AND rr.platform_user_id IS NOT NULL${ex.andSql}
              GROUP BY 1, 2, 3
              ORDER BY MAX(roh.occurred_at) DESC, user_id ASC
              LIMIT $3::int OFFSET $4::int`,

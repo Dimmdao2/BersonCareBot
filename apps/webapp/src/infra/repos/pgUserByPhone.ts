@@ -77,7 +77,7 @@ async function loadPuRowForMerge(client: PoolClient, id: string) {
     client,
     `SELECT pu.id,
             phone.value_normalized AS phone_normalized,
-            pu.integrator_user_id::text AS integrator_user_id, pu.merged_into_id,
+            pu.merged_into_id,
             pu.display_name, pu.first_name, pu.last_name, email.value_normalized AS email, pu.created_at
      FROM platform_users pu
      LEFT JOIN user_contacts phone ON phone.platform_user_id = pu.id AND phone.contact_kind = 'phone' AND phone.is_primary = true
@@ -446,11 +446,6 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
     const bindInTransaction = () =>
       withPoolTransaction(pool, async (client) => {
-        await runIdentityClientPgText(
-          client,
-          `SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`,
-        );
-
         const bindingLock = await runIdentityClientPgText(
           client,
           `SELECT app.auth_phone_bind_lock_channel_binding($1, $2) AS user_id`,

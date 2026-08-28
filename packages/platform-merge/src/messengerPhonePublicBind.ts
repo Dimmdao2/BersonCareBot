@@ -22,7 +22,6 @@ export type MessengerPhoneBindDb = PlatformMergeDbClient;
 export type MessengerPhoneLinkFailureCode =
   | 'no_channel_binding'
   | 'phone_owned_by_other_user'
-  | 'integrator_id_mismatch'
   | 'channel_already_bound_to_other_user'
   | 'merge_blocked_booking_overlap'
   | 'merge_blocked_distinct_real_users'
@@ -31,7 +30,6 @@ export type MessengerPhoneLinkFailureCode =
   | 'merge_blocked_open_test_attempt_conflict'
   | 'merge_blocked_ambiguous_candidates'
   | 'legacy_contacts_conflict'
-  | 'merge_blocked_integrator_conflict'
   | 'db_transient_failure';
 
 export class MessengerPhoneLinkError extends Error {
@@ -60,14 +58,12 @@ async function loadPickCandidate(
   const r = await runMergeSql<{
     id: string;
     phone_normalized: string | null;
-    integrator_user_id: string | null;
     created_at: Date | string;
   }>(
     db,
     sql`SELECT pu.id::text,
             (SELECT uc.value_normalized FROM public.user_contacts uc
              WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
-            pu.integrator_user_id::text AS integrator_user_id,
             pu.created_at
      FROM public.platform_users pu
      WHERE pu.id = ${id}::uuid AND pu.merged_into_id IS NULL`,
@@ -77,7 +73,6 @@ async function loadPickCandidate(
   return {
     id: row.id,
     phone_normalized: row.phone_normalized,
-    integrator_user_id: row.integrator_user_id,
     created_at: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
   };
 }
@@ -113,38 +108,12 @@ async function writeConfirmedPhoneAndMirror(
   db: MessengerPhoneBindDb,
   platformUserId: string,
   phoneNormalized: string,
-  canonicalIntegratorUserId: string | null,
 ): Promise<void> {
   await syncPlatformUserPhoneHistoryOnConfirm(db, platformUserId, phoneNormalized, 'messenger');
-  const upd = await runMergeSql(
-    db,
-    sql`UPDATE public.platform_users SET
-       integrator_user_id = COALESCE(integrator_user_id, ${canonicalIntegratorUserId}::bigint),
-       updated_at = now()
-     WHERE id = ${platformUserId}::uuid
-       AND merged_into_id IS NULL`,
-  );
-  if ((upd.rowCount ?? 0) < 1) {
-    throw new MessengerPhoneLinkError('db_transient_failure');
-  }
   await mutateCanonicalUserContacts(db as PlatformMergeDbClient, platformUserId, [{
     action: 'upsert', kind: 'phone', valueNormalized: phoneNormalized, isPrimary: true,
     confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
   }]);
-}
-
-async function findOtherPlatformUserWithSameIntegrator(
-  db: MessengerPhoneBindDb,
-  excludeId: string,
-  integratorUserId: string,
-): Promise<string | null> {
-  const r = await runMergeSql<{ id: string }>(
-    db,
-    sql`SELECT id::text FROM public.platform_users
-     WHERE integrator_user_id = ${integratorUserId}::bigint AND merged_into_id IS NULL AND id <> ${excludeId}::uuid
-     LIMIT 1`,
-  );
-  return r.rows[0]?.id ?? null;
 }
 
 async function resolveBoundPlatformUserId(
@@ -221,8 +190,7 @@ async function mergePairIfDistinct(
 /**
  * Strict binding-first: row must exist in `user_channel_bindings` for (channelCode, externalId).
  * Resolves duplicate platform rows via full `mergePlatformUsersInTransaction`, then sets phone + trust.
- * A legacy integrator id may still be supplied by old webapp callers during the removal migration;
- * binding-first channel callers do not need or create one. After each intra-loop merge, re-resolves canonical `platformUserId`
+ * After each intra-loop merge, re-resolves canonical `platformUserId`
  * via bindings so merge does not reuse a stale UUID that already became a merged-away alias (`merged_into_id` set).
  */
 export async function applyMessengerPhonePublicBind(
@@ -231,12 +199,10 @@ export async function applyMessengerPhonePublicBind(
     channelCode: string;
     externalId: string;
     phoneNormalized: string;
-    canonicalIntegratorUserId?: string | null;
     preferredPlatformUserId?: string | null;
   },
 ): Promise<{ platformUserId: string }> {
   const { channelCode, externalId, phoneNormalized } = input;
-  const canonicalIntegratorUserId = input.canonicalIntegratorUserId?.trim() || null;
   const preferredPlatformUserId = input.preferredPlatformUserId?.trim() || null;
 
   let platformUserId = await resolveBoundPlatformUserId(db, channelCode, externalId);
@@ -270,70 +236,6 @@ export async function applyMessengerPhonePublicBind(
   }
 
   for (let round = 0; round < mergeRoundMax; round++) {
-    const rowMeta: { rows: { existing_int_uid: string | null }[]; rowCount?: number } =
-      await runMergeSql<{ existing_int_uid: string | null }>(
-        db,
-        sql`SELECT pu.integrator_user_id::text AS existing_int_uid
-       FROM public.platform_users pu
-       WHERE pu.id = ${platformUserId}::uuid AND pu.merged_into_id IS NULL`,
-      );
-    const rawIntUid: string | null | undefined = rowMeta.rows[0]?.existing_int_uid;
-    const existingInt: string | null =
-      typeof rawIntUid === 'string' && rawIntUid.trim() !== '' ? rawIntUid.trim() : null;
-
-    if (canonicalIntegratorUserId && existingInt && existingInt !== canonicalIntegratorUserId) {
-      const canonPu: { rows: { id: string }[]; rowCount?: number } = await runMergeSql<{
-        id: string;
-      }>(
-        db,
-        sql`SELECT id::text FROM public.platform_users
-         WHERE integrator_user_id = ${canonicalIntegratorUserId}::bigint AND merged_into_id IS NULL
-         LIMIT 1`,
-      );
-      const otherId: string | undefined = canonPu.rows[0]?.id;
-      if (otherId && otherId !== platformUserId) {
-        try {
-          await mergePairIfDistinct(db, platformUserId, otherId, channelCode);
-        } catch (err) {
-          if (err instanceof MessengerPhoneLinkError) throw err;
-          throw mapMergeFailure(err, [platformUserId, otherId]);
-        }
-        await reboundFromChannel();
-        continue;
-      }
-      // Channel already on this platform user; `integrator_user_id` stale vs canonical from integrator — realign if unique key allows.
-      const realign = await runMergeSql(
-        db,
-        sql`UPDATE public.platform_users SET
-           integrator_user_id = ${canonicalIntegratorUserId}::bigint,
-           updated_at = now()
-         WHERE id = ${platformUserId}::uuid
-           AND merged_into_id IS NULL
-           AND integrator_user_id::text = ${existingInt}
-           AND NOT EXISTS (
-             SELECT 1 FROM public.platform_users pu2
-             WHERE pu2.integrator_user_id = ${canonicalIntegratorUserId}::bigint
-               AND pu2.merged_into_id IS NULL
-               AND pu2.id <> ${platformUserId}::uuid
-           )`,
-      );
-      if ((realign.rowCount ?? 0) < 1) {
-        throw new MessengerPhoneLinkError('integrator_id_mismatch', {
-          candidateIds: [platformUserId],
-        });
-      }
-      logger.info(
-        {
-          event: 'phone_bind_realign_integrator_user_id',
-          targetId: platformUserId,
-          old: existingInt,
-          new: canonicalIntegratorUserId,
-        },
-        '[messengerPhone] realigned platform_users.integrator_user_id',
-      );
-      continue;
-    }
-
     let changed = false;
 
     const otherPhone = await findOtherPlatformUserWithSamePhone(
@@ -352,24 +254,6 @@ export async function applyMessengerPhonePublicBind(
       changed = true;
     }
 
-    if (canonicalIntegratorUserId) {
-      const otherInt = await findOtherPlatformUserWithSameIntegrator(
-        db,
-        platformUserId,
-        canonicalIntegratorUserId,
-      );
-      if (otherInt) {
-        try {
-          await mergePairIfDistinct(db, platformUserId, otherInt, channelCode);
-        } catch (err) {
-          if (err instanceof MessengerPhoneLinkError) throw err;
-          throw mapMergeFailure(err, [platformUserId, otherInt]);
-        }
-        await reboundFromChannel();
-        changed = true;
-      }
-    }
-
     const rebound = await resolveBoundPlatformUserId(db, channelCode, externalId);
     if (rebound) platformUserId = rebound;
 
@@ -382,7 +266,6 @@ export async function applyMessengerPhonePublicBind(
         db,
         platformUserId,
         phoneNormalized,
-        canonicalIntegratorUserId,
       );
       return { platformUserId };
     } catch (err) {

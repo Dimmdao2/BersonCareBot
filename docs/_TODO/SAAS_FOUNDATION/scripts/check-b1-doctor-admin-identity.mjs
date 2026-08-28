@@ -155,7 +155,6 @@ legacy_email_admin AS (
     AND pu.email = c.admin_email
     AND pu.email_normalized = c.admin_email
     AND pu.phone_normalized IS NULL
-    AND pu.integrator_user_id IS NULL
     AND pu.merged_into_id IS NULL
     AND pu.is_archived IS FALSE
     AND NOT EXISTS (SELECT 1 FROM public.user_channel_bindings b WHERE b.user_id = pu.id)

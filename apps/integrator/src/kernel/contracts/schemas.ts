@@ -190,7 +190,7 @@ export const dbReadQuerySchema = z.object({
     'reminders.rules.forUser',
     'reminders.rule.forUserAndCategory',
     'reminders.occurrences.forRuleRange',
-    'reminders.occurrence.ownerUserId',
+    'reminders.occurrence.ownerPlatformUserId',
     'reminders.delivery.staleMessengerMessage',
     'delivery.pending',
   ]),

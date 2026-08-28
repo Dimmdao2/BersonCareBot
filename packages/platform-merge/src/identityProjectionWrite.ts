@@ -2,7 +2,7 @@
  * Single shared implementation of "resolve-or-create the canonical `platform_users` row for an
  * incoming channel/OAuth identity, then bind the channel" (D15b/2). Both apps' `user.upsert`-class
  * write paths call this — integrator's channel webhooks and webapp's own projection consumer — so
- * there is exactly one place that assembles a person from integrator id / phone / channel binding,
+ * there is exactly one place that assembles a person from phone / channel binding,
  * not two parallel copies of the same SQL.
  *
  * Also carries the candidate-collapse cascade (`collapseIdentityProjectionCandidates`), previously
@@ -29,8 +29,6 @@ import { syncUserIdentityFioMirror } from './userIdentityFioWrite.js';
 const CHANNEL_PREFERENCES_SEED_CHANNELS = new Set(['telegram', 'max', 'sms']);
 
 export type IdentityProjectionInput = {
-  /** Legacy numeric anchor. New messenger identities are keyed only by channel binding. */
-  integratorUserId?: string | null;
   phoneNormalized?: string | null;
   displayName?: string | null;
   firstName?: string | null;
@@ -63,7 +61,6 @@ function normalizeChannelDisplayHandle(value: string | null | undefined): string
 type IdentityMergeRow = {
   id: string;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   created_at: Date | string;
 };
 
@@ -76,7 +73,7 @@ async function loadCandidateForMerge(
     sql`SELECT pu.id,
        (SELECT uc.value_normalized FROM public.user_contacts uc
         WHERE uc.platform_user_id = pu.id AND uc.contact_kind = 'phone' AND uc.is_primary = true LIMIT 1) AS phone_normalized,
-       pu.integrator_user_id::text AS integrator_user_id, pu.created_at
+       pu.created_at
      FROM public.platform_users pu WHERE pu.id = ${id}::uuid AND pu.merged_into_id IS NULL`,
   );
   const row = r.rows[0];
@@ -84,7 +81,6 @@ async function loadCandidateForMerge(
   return {
     id: row.id,
     phone_normalized: row.phone_normalized,
-    integrator_user_id: row.integrator_user_id,
     created_at: row.created_at instanceof Date ? row.created_at : new Date(row.created_at),
   };
 }
@@ -123,13 +119,12 @@ export async function collapseIdentityProjectionCandidates(
 }
 
 /**
- * Candidate `platform_users.id` lookup by integrator id / phone / channel binding — the read side of
+ * Candidate `platform_users.id` lookup by phone / channel binding — the read side of
  * identity resolution for an incoming channel/OAuth identity.
  */
 export async function collectIdentityProjectionCandidates(
   db: PlatformMergeDbClient,
   params: {
-    integratorUserId?: string | null;
     phoneNormalized?: string | null;
     channelCode?: string | null;
     externalId?: string | null;
@@ -137,30 +132,8 @@ export async function collectIdentityProjectionCandidates(
 ): Promise<string[]> {
   const ids: string[] = [];
 
-  let integratorMatched = false;
   let phoneMatched = false;
   let channelCandidateId: string | null = null;
-  let channelCandidateIntegratorId: string | null = null;
-
-  const integratorUserId = trimmedOrNull(params.integratorUserId);
-  if (integratorUserId) {
-    const byInt = await runMergeSql<{ id: string }>(
-      db,
-      sql`SELECT id::text AS id FROM public.platform_users
-       WHERE integrator_user_id = ${integratorUserId}::bigint AND merged_into_id IS NULL
-       LIMIT 3`,
-    );
-    if (byInt.rows.length > 1) {
-      throw new MergeConflictError(
-        'ambiguous integrator_user_id match',
-        byInt.rows.map((r) => r.id),
-      );
-    }
-    if (byInt.rows[0]) {
-      integratorMatched = true;
-      ids.push(byInt.rows[0].id);
-    }
-  }
 
   const phoneNormalized = trimmedOrNull(params.phoneNormalized);
   if (phoneNormalized) {
@@ -187,9 +160,9 @@ export async function collectIdentityProjectionCandidates(
   const channelCode = trimmedOrNull(params.channelCode);
   const externalId = trimmedOrNull(params.externalId);
   if (channelCode && externalId) {
-    const byChannel = await runMergeSql<{ user_id: string; integrator_user_id: string | null }>(
+    const byChannel = await runMergeSql<{ user_id: string }>(
       db,
-      sql`SELECT pu.id::text AS user_id, pu.integrator_user_id::text AS integrator_user_id
+      sql`SELECT pu.id::text AS user_id
        FROM public.user_channel_bindings ucb
        INNER JOIN public.platform_users pu ON pu.id = ucb.user_id
        WHERE ucb.channel_code = ${channelCode} AND ucb.external_id = ${externalId} AND pu.merged_into_id IS NULL
@@ -197,23 +170,12 @@ export async function collectIdentityProjectionCandidates(
     );
     if (byChannel.rows[0]) {
       channelCandidateId = byChannel.rows[0].user_id;
-      channelCandidateIntegratorId = byChannel.rows[0].integrator_user_id;
       ids.push(byChannel.rows[0].user_id);
     }
   }
 
-  if (
-    !integratorMatched &&
-    !phoneMatched &&
-    channelCandidateId &&
-    typeof channelCandidateIntegratorId === 'string' &&
-    channelCandidateIntegratorId.length > 0 &&
-    integratorUserId !== null &&
-    channelCandidateIntegratorId !== integratorUserId
-  ) {
-    throw new MergeConflictError('channel_anchor_owned_by_other_user', [channelCandidateId]);
-  }
-
+  void phoneMatched;
+  void channelCandidateId;
   return [...new Set(ids)];
 }
 
@@ -225,7 +187,6 @@ export async function collectIdentityProjectionCandidates(
 export async function insertIdentityProjection(
   db: PlatformMergeDbClient,
   input: {
-    integratorUserId?: string | null;
     phoneNormalized: string | null;
     displayName: string | null;
     firstName: string | null;
@@ -234,15 +195,10 @@ export async function insertIdentityProjection(
   },
 ): Promise<string> {
   const displayName = input.displayName ?? '';
-  const integratorUserId = trimmedOrNull(input.integratorUserId);
   const res = await runMergeSql<{ id: string }>(
     db,
-    sql`INSERT INTO public.platform_users (
-       integrator_user_id, display_name, first_name, last_name
-     )
-     VALUES (
-       ${integratorUserId}::bigint, ${displayName}, ${input.firstName}, ${input.lastName}
-     )
+    sql`INSERT INTO public.platform_users (display_name, first_name, last_name)
+     VALUES (${displayName}, ${input.firstName}, ${input.lastName})
      RETURNING id::text AS id`,
   );
   const id = res.rows[0]?.id;
@@ -284,7 +240,6 @@ export async function enrichIdentityProjection(
   db: PlatformMergeDbClient,
   platformUserId: string,
   input: {
-    integratorUserId?: string | null;
     phoneNormalized: string | null;
     displayName: string | null;
     firstName: string | null;
@@ -294,7 +249,6 @@ export async function enrichIdentityProjection(
   },
 ): Promise<void> {
   const phoneNormalized = input.phoneNormalized?.trim();
-  const integratorUserId = trimmedOrNull(input.integratorUserId);
   if (phoneNormalized) {
     // D28: this UPDATE below is about to (re)set `phone_normalized` for an EXISTING account — close
     // its previous active confirmation spell (if any, and if the number actually changed) before the
@@ -322,7 +276,6 @@ export async function enrichIdentityProjection(
          WHEN ${input.channelCode}::text IN ('telegram', 'max') THEN COALESCE(last_name, ${input.lastName}::text)
          ELSE COALESCE(${input.lastName}::text, last_name)
        END,
-       integrator_user_id = COALESCE(integrator_user_id, ${integratorUserId}::bigint),
        updated_at = now()
      WHERE id = ${platformUserId}::uuid AND merged_into_id IS NULL`,
   );
@@ -414,7 +367,6 @@ export async function upsertIdentityProjection(
   const displayHandle = normalizeChannelDisplayHandle(input.displayHandle);
 
   const candidates = await collectIdentityProjectionCandidates(db, {
-    integratorUserId: input.integratorUserId,
     phoneNormalized,
     channelCode,
     externalId,
@@ -423,7 +375,6 @@ export async function upsertIdentityProjection(
   let platformUserId: string;
   if (candidates.length === 0) {
     platformUserId = await insertIdentityProjection(db, {
-      integratorUserId: input.integratorUserId,
       phoneNormalized,
       displayName,
       firstName,
@@ -438,7 +389,6 @@ export async function upsertIdentityProjection(
             channel: channelCode ?? undefined,
           });
     await enrichIdentityProjection(db, platformUserId, {
-      integratorUserId: input.integratorUserId,
       phoneNormalized,
       displayName,
       firstName,

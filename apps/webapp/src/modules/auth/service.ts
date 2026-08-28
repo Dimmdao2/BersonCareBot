@@ -10,13 +10,8 @@ import {
   resolveRoleAsync,
   isWhitelistedAsync,
 } from './envRole';
-import type {
-  IdentityResolutionPort,
-  MessengerIdentityResolutionHints,
-} from './identityResolutionPort';
+import type { IdentityResolutionPort } from './identityResolutionPort';
 import type { AccountOutcome } from './oauthYandexResolve';
-import { normalizePhone } from './phoneNormalize';
-import { isValidPhoneE164 } from './phoneValidation';
 import { getRedirectPathForRole } from './redirectPolicy';
 import {
   getIntegratorWebappEntrySecret,
@@ -82,12 +77,28 @@ type IntegratorTokenPayload = {
   role: UserRole;
   displayName?: string;
   phone?: string;
-  /** Optional; see `contracts/webapp-entry-token.json`. */
-  integratorUserId?: string;
+  /** Canonical `platform_users.id`; see `contracts/webapp-entry-token.json`. */
+  platformUserId?: string;
   bindings?: Record<string, string | undefined>;
   purpose: 'webapp-entry';
   exp: number;
 };
+
+/**
+ * Exactly the `properties` of `contracts/webapp-entry-token.json`. The contract is
+ * `additionalProperties: false`, so this set is the whole accepted key space and any other key —
+ * retired, renamed or invented — makes the payload refused.
+ */
+const CANONICAL_ENTRY_TOKEN_FIELDS: ReadonlySet<string> = new Set([
+  'sub',
+  'role',
+  'displayName',
+  'phone',
+  'platformUserId',
+  'bindings',
+  'purpose',
+  'exp',
+]);
 
 export type ExchangeResult = {
   session: AppSession;
@@ -262,12 +273,30 @@ async function parseIntegratorToken(token: string): Promise<IntegratorTokenPaylo
   if (!entrySecret || !safeEqualStrings(signature, signIntegratorPayload(payload, entrySecret)))
     return null;
 
-  let parsed: IntegratorTokenPayload;
+  let raw: unknown;
   try {
-    parsed = JSON.parse(decodeBase64Url(payload)) as IntegratorTokenPayload;
+    raw = JSON.parse(decodeBase64Url(payload));
   } catch {
     return null;
   }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  // `contracts/webapp-entry-token.json` is `additionalProperties: false`, and this is that clause:
+  // a payload whose key set is not a subset of the canonical contract is refused as a shape, not as
+  // a named field. Track D (#987) retired the numeric public identity that used to travel here — an
+  // old signed token carrying it is still refused, by the same rule that refuses any other unknown
+  // key, so the retired name does not have to survive in active code to keep its shape out.
+  if (!Object.keys(raw).every((key) => CANONICAL_ENTRY_TOKEN_FIELDS.has(key))) return null;
+  const candidate = raw as Record<string, unknown>;
+  if (
+    typeof candidate.sub !== 'string' ||
+    !['client', 'doctor', 'admin'].includes(String(candidate.role)) ||
+    candidate.purpose !== 'webapp-entry' ||
+    typeof candidate.exp !== 'number' ||
+    !Number.isFinite(candidate.exp)
+  ) {
+    return null;
+  }
+  const parsed = raw as IntegratorTokenPayload;
   const now = Math.floor(Date.now() / 1000);
   if (parsed.purpose !== 'webapp-entry' || parsed.exp <= now) {
     if (process.env.NODE_ENV !== 'test') {
@@ -450,56 +479,6 @@ function firstBinding(
   return null;
 }
 
-/** Signed webapp-entry token → hints for `findOrCreateByChannelBinding` (Phase B: canon before INSERT). */
-function messengerResolutionHintsFromToken(
-  parsed: IntegratorTokenPayload,
-): MessengerIdentityResolutionHints | undefined {
-  const hints: MessengerIdentityResolutionHints = {};
-  const sub = parsed.sub.trim();
-  if (isPlatformUserUuid(sub)) {
-    hints.platformUserSub = sub;
-  }
-  const intRaw = parsed.integratorUserId;
-  if (typeof intRaw === 'string' && intRaw.trim() !== '') {
-    hints.integratorUserId = intRaw.trim();
-  }
-  const phoneRaw = parsed.phone;
-  if (typeof phoneRaw === 'string' && phoneRaw.trim() !== '') {
-    const n = normalizePhone(phoneRaw.trim());
-    if (isValidPhoneE164(n)) {
-      hints.phoneNormalized = n;
-    }
-  }
-  if (
-    hints.platformUserSub == null &&
-    hints.integratorUserId == null &&
-    hints.phoneNormalized == null
-  ) {
-    return undefined;
-  }
-  return hints;
-}
-
-async function optionalResolutionHintsFromVerifiedWebappEntryToken(
-  embeddedToken: string | null | undefined,
-  verifiedBinding: { channelCode: 'telegram' | 'max' | 'vk'; externalId: string },
-): Promise<MessengerIdentityResolutionHints | undefined> {
-  const raw = embeddedToken?.trim();
-  if (!raw) return undefined;
-  const parsed = await parseIntegratorToken(raw);
-  if (!parsed) return undefined;
-  if (
-    !webappEntryTokenMatchesVerifiedMessenger(
-      parsed,
-      verifiedBinding.channelCode,
-      verifiedBinding.externalId,
-    )
-  ) {
-    return undefined;
-  }
-  return messengerResolutionHintsFromToken(parsed);
-}
-
 export async function exchangeIntegratorToken(
   token: string,
   identityResolutionPort?: IdentityResolutionPort | null,
@@ -529,14 +508,19 @@ export async function exchangeIntegratorToken(
   if (identityResolutionPort) {
     const binding = effectiveMessengerBinding(parsed);
     if (binding) {
-      const resolutionHints = messengerResolutionHintsFromToken(parsed);
-      const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
+      const resolved = await identityResolutionPort.resolveByChannelBinding({
         channelCode: binding.channelCode,
         externalId: binding.externalId,
         displayName: parsed.displayName,
         role: parsed.role,
-        ...(resolutionHints ? { resolutionHints } : {}),
       });
+      // Track D (#987): a signed link whose binding names nobody is a dead end, not a sign-up.
+      if (!resolved) {
+        if (process.env.NODE_ENV !== 'test') {
+          console.info('[auth/exchange] binding_resolves_no_account channel=%s', binding.channelCode);
+        }
+        return null;
+      }
       user = resolved.user;
       accountOutcome = resolved.accountOutcome;
     } else {
@@ -610,32 +594,22 @@ export async function exchangeTelegramInitData(
   const parsed = await validateTelegramInitData(initData);
   if (!parsed) return null;
 
-  const verifiedBinding = { channelCode: 'telegram' as const, externalId: parsed.telegramId };
-  const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
-    parsed.startParam,
-    verifiedBinding,
-  );
-  if (resolutionHints && process.env.NODE_ENV !== 'test' && process.env.DEBUG_AUTH === '1') {
-    const kinds = [
-      resolutionHints.platformUserSub && 'sub',
-      resolutionHints.integratorUserId && 'integrator',
-      resolutionHints.phoneNormalized && 'phone',
-    ]
-      .filter(Boolean)
-      .join(',');
-    console.info('[auth/telegram-init] resolution_hints_from=start_param kinds=%s', kinds);
-  }
-
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
+    const resolved = await identityResolutionPort.resolveByChannelBinding({
       channelCode: 'telegram',
       externalId: parsed.telegramId,
       displayName: parsed.displayName,
       role: parsed.role,
-      ...(resolutionHints ? { resolutionHints } : {}),
     });
+    // Track D (#987): opening the Mini App proves a Telegram id, not an account. No row → no session.
+    if (!resolved) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.info('[auth/telegram-init] binding_resolves_no_account');
+      }
+      return null;
+    }
     user = resolved.user;
     accountOutcome = resolved.accountOutcome;
   } else {
@@ -678,7 +652,11 @@ export async function exchangeTelegramInitData(
 }
 
 /** Причина отказа MAX initData: валидация строки или отсутствие ключа в admin settings. */
-export type MaxInitDenyReason = MaxInitDataRejectReason | 'max_bot_api_key_missing';
+export type MaxInitDenyReason =
+  | MaxInitDataRejectReason
+  | 'max_bot_api_key_missing'
+  /** Track D (#987): signature is valid, but no canonical account owns this MAX binding. */
+  | 'binding_resolves_no_account';
 
 export type MaxInitExchangeDenied = { denied: true; reason: MaxInitDenyReason };
 
@@ -718,32 +696,17 @@ export async function exchangeMaxInitData(
   if (!validated.ok) return { denied: true, reason: validated.reason };
   const parsed = validated.data;
 
-  const verifiedBinding = { channelCode: 'max' as const, externalId: parsed.maxUserId };
-  const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
-    parsed.startParam,
-    verifiedBinding,
-  );
-  if (resolutionHints && process.env.NODE_ENV !== 'test' && process.env.DEBUG_AUTH === '1') {
-    const kinds = [
-      resolutionHints.platformUserSub && 'sub',
-      resolutionHints.integratorUserId && 'integrator',
-      resolutionHints.phoneNormalized && 'phone',
-    ]
-      .filter(Boolean)
-      .join(',');
-    console.info('[auth/max-init] resolution_hints_from=start_param kinds=%s', kinds);
-  }
-
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
+    const resolved = await identityResolutionPort.resolveByChannelBinding({
       channelCode: 'max',
       externalId: parsed.maxUserId,
       displayName: parsed.displayName,
       role: parsed.role,
-      ...(resolutionHints ? { resolutionHints } : {}),
     });
+    // Track D (#987): same rule as Telegram — a valid MAX signature is not an account.
+    if (!resolved) return { denied: true, reason: 'binding_resolves_no_account' };
     user = resolved.user;
     accountOutcome = resolved.accountOutcome;
   } else {
@@ -810,32 +773,22 @@ export async function exchangeTelegramLoginWidget(
 
   const role = await resolveRoleAsync({ telegramId });
 
-  const verifiedBinding = { channelCode: 'telegram' as const, externalId: telegramId };
-  const resolutionHints = await optionalResolutionHintsFromVerifiedWebappEntryToken(
-    webappEntryToken,
-    verifiedBinding,
-  );
-  if (resolutionHints && process.env.NODE_ENV !== 'test' && process.env.DEBUG_AUTH === '1') {
-    const kinds = [
-      resolutionHints.platformUserSub && 'sub',
-      resolutionHints.integratorUserId && 'integrator',
-      resolutionHints.phoneNormalized && 'phone',
-    ]
-      .filter(Boolean)
-      .join(',');
-    console.info('[auth/telegram-login] resolution_hints_from=webapp_entry_token kinds=%s', kinds);
-  }
-
   let user: SessionUser;
   let accountOutcome: AccountOutcome | undefined;
   if (identityResolutionPort) {
-    const resolved = await identityResolutionPort.findOrCreateByChannelBinding({
+    const resolved = await identityResolutionPort.resolveByChannelBinding({
       channelCode: 'telegram',
       externalId: telegramId,
       displayName: displayName || undefined,
       role,
-      ...(resolutionHints ? { resolutionHints } : {}),
     });
+    // Track D (#987): the Login Widget signature proves the Telegram id, never an account.
+    if (!resolved) {
+      if (process.env.NODE_ENV !== 'test') {
+        console.info('[auth/telegram-login] binding_resolves_no_account');
+      }
+      return null;
+    }
     user = resolved.user;
     accountOutcome = resolved.accountOutcome;
   } else {

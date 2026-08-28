@@ -63,16 +63,15 @@ set -a && source /opt/env/bersoncarebot/cutover.prod && set +a
 - Зафиксировать в production ticket / ops record время merge, пары id и результат SQL gate-запросов.
 - [`AGENT_EXECUTION_LOG.md`](../archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/AGENT_EXECUTION_LOG.md) использовать только для repo-level engineering milestones, а не как per-merge production журнал.
 - После **integrator** merge: `node apps/integrator/scripts/projection-health.mjs` — проверить `cancelledCount` (ожидаемый рост при dedup outbox), что `pending` drain стабилен и `dead` не всплыл из‑за merge.
-- После merge пары `(winner, loser)` на **webapp** БД: realignment `integrator_user_id` (Stage 4) — см. [`STAGE_4_WEBAPP_REALIGNMENT.md`](../archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/STAGE_4_WEBAPP_REALIGNMENT.md):
-  - префикс `set -a && source /opt/env/bersoncarebot/webapp.prod && set +a` (или cutover-файл, если так задан `DATABASE_URL` для webapp);
-  - опционально `psql` с [`preview_webapp_realignment_collisions.sql`](../archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/preview_webapp_realignment_collisions.sql) и [`realign_webapp_integrator_user_id.sql`](../archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/realign_webapp_integrator_user_id.sql) (`\set winner_id` / `\set loser_id` — в [`sql/README.md`](../archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/README.md));
-  - либо из `apps/webapp`: `pnpm realign-webapp-integrator-user -- --winner=… --loser=…` (dry-run), затем с `--commit`;
-  - gate: [`diagnostics_webapp_integrator_user_id.sql`](../archive/2026-04-initiatives/PLATFORM_USER_MERGE_V2/sql/diagnostics_webapp_integrator_user_id.sql) — все `cnt = 0` для `loser_id`.
+- **Шаг realignment webapp-проекции снят (Track D, #987).** Публичная числовая личность вытеснена из
+  `platform_users` и из всех прикладных таблиц, поэтому выравнивать после merge нечего: команда
+  `pnpm realign-webapp-integrator-user`, модуль realignment и SQL-шаблоны Stage 4 удалены из рантайма.
+  Ссылки на них остаются только в архиве инициативы как история.
 
-## Deploy 4 (feature flag)
+## Deploy 4 (feature flag) — снят (Track D, #987)
 
-- Включить ключ в `system_settings` через админ Settings (не через новые env для интеграционной конфигурации — см. правила проекта).
-- Пилот: один кейс с двумя integrator id под наблюдением.
+- Флага `platform_user_merge_v2_enabled` и сценария «пилот на паре с двумя числовыми личностями» больше
+  нет: публичная числовая личность вытеснена, блокер, который флаг снимал, не существует.
 - Rollback: выключить ключ; при необходимости откатить релиз через повторный deploy предыдущего коммита (операционно).
 
 ## Rollback (общие принципы)

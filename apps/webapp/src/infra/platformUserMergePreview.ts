@@ -9,7 +9,6 @@ import {
   CONTACTS,
   USER_CONTACTS_PRIMARY_LATERALS,
 } from '@/infra/repos/userContactsSql';
-import { checkIntegratorCanonicalPair } from '@/infra/integrations/integratorUserMergeM2mClient';
 import {
   effectiveAutoMergedDisplayName,
   effectiveAutoMergedFirstName,
@@ -18,13 +17,11 @@ import {
 } from '@/infra/repos/autoMergeScalarEffective';
 import { pickMergeTargetId } from '@/infra/repos/pgPlatformUserMerge';
 import { logger } from '@/infra/logging/logger';
-import { getConfigBool } from '@/modules/system-settings/configAdapter';
 
 /** Rows compatible with {@link pickMergeTargetId} / merge transaction loader. */
 export type MergePreviewPlatformUserRow = {
   id: string;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   merged_into_id: string | null;
   display_name: string;
   first_name: string | null;
@@ -75,22 +72,11 @@ export type MergePreviewDependentCounts = {
 export type MergePreviewHardBlockerCode =
   | 'target_is_alias'
   | 'duplicate_is_alias'
-  | 'different_non_null_integrator_user_id'
-  | 'integrator_canonical_merge_required'
-  | 'integrator_merge_status_unavailable'
   | 'active_bookings_time_overlap'
   | 'active_lfk_template_conflict'
   | 'active_treatment_program_conflict'
   | 'open_test_attempt_conflict'
   | 'shared_phone_both_have_meaningful_data';
-
-/** How to treat two different non-null integrator_user_id values in preview (v1 hard block vs v2 gate). */
-export type IntegratorPairPreview =
-  | { kind: 'not_applicable' }
-  | { kind: 'v1_both_different_non_null' }
-  | { kind: 'v2_canonical_aligned' }
-  | { kind: 'v2_merge_required' }
-  | { kind: 'v2_status_unavailable' };
 
 export type MergePreviewHardBlocker = {
   code: MergePreviewHardBlockerCode;
@@ -174,8 +160,6 @@ export type MergePreviewModel = {
    * Does not imply channel/oauth/email semantics are ideal; manual merge may still change resolution later.
    */
   v1MergeEngineCallable: boolean;
-  /** Admin setting `platform_user_merge_v2_enabled` at preview time. */
-  platformUserMergeV2Enabled: boolean;
 };
 
 export type MergePreviewErrorCode = 'same_id' | 'missing_user' | 'not_client';
@@ -289,16 +273,6 @@ function oauthByProvider(
   return rows.find((o) => o.provider === provider);
 }
 
-function inferIntegratorPairPreview(
-  target: MergePreviewPlatformUserRow,
-  duplicate: MergePreviewPlatformUserRow,
-): IntegratorPairPreview {
-  const iT = normStr(target.integrator_user_id);
-  const iD = normStr(duplicate.integrator_user_id);
-  if (!iT || !iD || iT === iD) return { kind: 'not_applicable' };
-  return { kind: 'v1_both_different_non_null' };
-}
-
 /** Exported for unit tests — pure preview from already-loaded rows. */
 export function analyzeMergePreviewModel(
   target: MergePreviewPlatformUserRow,
@@ -318,9 +292,6 @@ export function analyzeMergePreviewModel(
     openTestAttemptConflictCount: number;
     meaningfulDataScoreTarget: number;
     meaningfulDataScoreDuplicate: number;
-    /** When omitted, inferred from rows (v1 blocker if both integrator ids differ). */
-    integratorPairPreview?: IntegratorPairPreview;
-    platformUserMergeV2Enabled?: boolean;
   },
 ): MergePreviewModel {
   const picked = pickMergeTargetId(target, duplicate);
@@ -346,34 +317,6 @@ export function analyzeMergePreviewModel(
       message: 'Duplicate row is a merge alias (merged_into_id is set); resolve chain first.',
       details: { merged_into_id: duplicate.merged_into_id },
     });
-  }
-
-  const iT = normStr(target.integrator_user_id);
-  const iD = normStr(duplicate.integrator_user_id);
-  const pair = opts.integratorPairPreview ?? inferIntegratorPairPreview(target, duplicate);
-  if (iT != null && iD != null && iT !== iD) {
-    if (pair.kind === 'v1_both_different_non_null') {
-      hardBlockers.push({
-        code: 'different_non_null_integrator_user_id',
-        message:
-          'Both users have different non-null integrator_user_id — merge blocked (phantom user / projection risk).',
-        details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
-      });
-    } else if (pair.kind === 'v2_merge_required') {
-      hardBlockers.push({
-        code: 'integrator_canonical_merge_required',
-        message:
-          'Both users have different integrator_user_id — complete integrator canonical merge first (then webapp projection realignment if needed), then retry preview.',
-        details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
-      });
-    } else if (pair.kind === 'v2_status_unavailable') {
-      hardBlockers.push({
-        code: 'integrator_merge_status_unavailable',
-        message:
-          'Cannot verify integrator canonical merge status (INTEGRATOR_API_URL / webhook secret missing or integrator error).',
-        details: { targetIntegratorUserId: iT, duplicateIntegratorUserId: iD },
-      });
-    }
   }
 
   if (opts.activeBookingOverlapCount > 0) {
@@ -531,7 +474,6 @@ export function analyzeMergePreviewModel(
   const mergeAllowed = hardBlockers.length === 0;
   const differentNonNullPhones = pT != null && pD != null && pT !== pD;
   const v1MergeEngineCallable = mergeAllowed && !differentNonNullPhones;
-  const platformUserMergeV2Enabled = opts.platformUserMergeV2Enabled === true;
 
   return {
     ok: true,
@@ -552,7 +494,6 @@ export function analyzeMergePreviewModel(
     recommendation,
     mergeAllowed,
     v1MergeEngineCallable,
-    platformUserMergeV2Enabled,
   };
 }
 
@@ -564,7 +505,6 @@ async function loadPlatformUser(
     pool,
     `SELECT pu.id,
             ${CONTACTS.phoneNormalized} AS phone_normalized,
-            integrator_user_id::text AS integrator_user_id,
             merged_into_id,
             display_name,
             first_name,
@@ -863,22 +803,6 @@ export async function buildMergePreview(
     countDependents(pool, duplicateId),
   ]);
 
-  const v2Enabled = await getConfigBool('platform_user_merge_v2_enabled');
-  const iT = normStr(target.integrator_user_id);
-  const iD = normStr(duplicate.integrator_user_id);
-
-  let integratorPairPreview: IntegratorPairPreview = inferIntegratorPairPreview(target, duplicate);
-  if (v2Enabled && iT && iD && iT !== iD) {
-    const st = await checkIntegratorCanonicalPair(iT, iD);
-    if (!st.ok) {
-      integratorPairPreview = { kind: 'v2_status_unavailable' };
-    } else if (st.sameCanonical) {
-      integratorPairPreview = { kind: 'v2_canonical_aligned' };
-    } else {
-      integratorPairPreview = { kind: 'v2_merge_required' };
-    }
-  }
-
   const model = analyzeMergePreviewModel(target, duplicate, {
     targetBindings,
     duplicateBindings,
@@ -891,8 +815,6 @@ export async function buildMergePreview(
     openTestAttemptConflictCount,
     meaningfulDataScoreTarget,
     meaningfulDataScoreDuplicate,
-    integratorPairPreview,
-    platformUserMergeV2Enabled: v2Enabled,
   });
 
   logger.info(
@@ -903,7 +825,6 @@ export async function buildMergePreview(
       v1MergeEngineCallable: model.v1MergeEngineCallable,
       hardBlockerCount: model.hardBlockers.length,
       scalarConflictCount: model.scalarConflicts.length,
-      platformUserMergeV2Enabled: model.platformUserMergeV2Enabled,
     },
     '[merge-preview] computed',
   );
@@ -916,14 +837,13 @@ export type MergeCandidateRow = {
   display_name: string;
   phone_normalized: string | null;
   email: string | null;
-  integrator_user_id: string | null;
   created_at: Date;
 };
 
 /**
  * Other canonical clients that share at least one identity key with the anchor user
- * (phone, email, integrator id, or messenger external_id via user_channel_bindings).
- * Optional `q` narrows by substring match on id / phones / email / names / integrator id / binding ids.
+ * (phone, email, or messenger external_id via user_channel_bindings).
+ * Optional `q` narrows by substring match on id / phones / email / names / binding ids.
  */
 export async function searchMergeCandidates(
   pool: Pool,
@@ -966,7 +886,6 @@ export async function searchMergeCandidates(
         OR ${FIO.displayName} ILIKE $${p}
         OR ${FIO.firstName} ILIKE $${p}
         OR ${FIO.lastName} ILIKE $${p}
-        OR pu.integrator_user_id::text ILIKE $${p}
         OR EXISTS (
           SELECT 1 FROM user_channel_bindings ucb
           WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE $${p}
@@ -977,7 +896,7 @@ export async function searchMergeCandidates(
 
   const sql = `
     WITH anchor AS (
-      SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, ${CONTACTS.email} AS email, pu.integrator_user_id
+      SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, ${CONTACTS.email} AS email
       FROM platform_users pu
       ${USER_CONTACTS_PRIMARY_LATERALS}
       WHERE pu.id = $1::uuid
@@ -986,7 +905,6 @@ export async function searchMergeCandidates(
            ${FIO.displayName} AS display_name,
            ${CONTACTS.phoneNormalized} AS phone_normalized,
            ${CONTACTS.email} AS email,
-           pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu, anchor
     ${USER_IDENTITY_FIO_JOIN}
@@ -999,10 +917,6 @@ export async function searchMergeCandidates(
         OR (
           anchor.email IS NOT NULL AND ${CONTACTS.email} IS NOT NULL
           AND lower(trim(${CONTACTS.email})) = lower(trim(anchor.email))
-        )
-        OR (
-          anchor.integrator_user_id IS NOT NULL
-          AND pu.integrator_user_id IS NOT DISTINCT FROM anchor.integrator_user_id
         )
         OR EXISTS (
           SELECT 1
@@ -1042,7 +956,6 @@ export async function searchMergeUsersForManualMerge(
            ${FIO.displayName} AS display_name,
            ${CONTACTS.phoneNormalized} AS phone_normalized,
            ${CONTACTS.email} AS email,
-           pu.integrator_user_id::text AS integrator_user_id,
            pu.created_at
     FROM platform_users pu
     ${USER_IDENTITY_FIO_JOIN}
@@ -1056,7 +969,6 @@ export async function searchMergeUsersForManualMerge(
         OR ${FIO.displayName} ILIKE $1
         OR ${FIO.firstName} ILIKE $1
         OR ${FIO.lastName} ILIKE $1
-        OR pu.integrator_user_id::text ILIKE $1
         OR EXISTS (
           SELECT 1 FROM user_channel_bindings ucb
           WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE $1

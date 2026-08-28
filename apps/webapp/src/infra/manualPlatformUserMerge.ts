@@ -3,7 +3,6 @@ import { writeAuditLog } from '@/infra/adminAuditLog';
 import { fetchMergePartyDisplayLabels } from '@/infra/mergeAuditLabels';
 import type { ManualMergeResolution } from '@/infra/repos/manualMergeResolution';
 import { mergePlatformUsersInTransaction } from '@/infra/repos/pgPlatformUserMerge';
-import type { VerifiedDistinctIntegratorUserIds } from '@/infra/repos/pgPlatformUserMerge';
 import { MergeConflictError } from '@/infra/repos/platformUserMergeErrors';
 import { withTwoUserLifecycleLocksExclusive } from '@/infra/userLifecycleLock';
 
@@ -27,10 +26,6 @@ export async function runManualPlatformUserMerge(
   pool: Pool,
   actorId: string | null,
   resolution: ManualMergeResolution,
-  options?: {
-    allowDistinctIntegratorUserIds?: boolean;
-    verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
-  },
 ): Promise<ManualMergeOk | ManualMergeFail> {
   const { targetId, duplicateId } = resolution;
   const partyLabels = await fetchMergePartyDisplayLabels(pool, targetId, duplicateId);
@@ -44,8 +39,6 @@ export async function runManualPlatformUserMerge(
         'manual',
         {
           resolution,
-          allowDistinctIntegratorUserIds: options?.allowDistinctIntegratorUserIds,
-          verifiedDistinctIntegratorUserIds: options?.verifiedDistinctIntegratorUserIds,
           mergeContext: { actorId },
         },
       );
@@ -53,10 +46,6 @@ export async function runManualPlatformUserMerge(
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    const code =
-      e instanceof MergeConflictError && msg === 'merge: integrator ids changed since gate'
-        ? 'integrator_ids_changed_since_gate'
-        : undefined;
     await writeAuditLog(pool, {
       actorId,
       action: 'user_merge',
@@ -71,7 +60,7 @@ export async function runManualPlatformUserMerge(
       },
       status: 'error',
     });
-    return { ok: false, error: msg, code };
+    return { ok: false, error: msg };
   }
 
   await writeAuditLog(pool, {
