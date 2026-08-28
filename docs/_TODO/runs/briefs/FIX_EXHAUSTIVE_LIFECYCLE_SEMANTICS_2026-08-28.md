@@ -8,6 +8,11 @@ rollback-only proof and TEST read-only. Do not create a disposable database.
 
 ## Authority and accepted findings
 
+Источник оракула: `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, stage 3 — «Для каждой
+физической сущности зафиксировать: зачем существует, канонический ключ пользователя/клиники, cascade при
+account/org purge, terminal states, окно хранения, named prune root, scheduler и health signal»; приёмка — «живой
+account purge не оставляет ни одного связанного пользовательского факта вне явно сохранённых по закону».
+
 The owner directed that all findings be fixed systemically. The oracle is stage 3 of
 `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`; the independent evidence and exact live facts are
 `docs/_TODO/runs/FINAL_EXHAUSTIVE_LIFECYCLE_CENSUS_AUDIT_2026-08-28.md`. Preserve the candidate's accepted
