@@ -59,6 +59,18 @@ listen_pids_on_port() {
   echo "$pids" | xargs
 }
 
+wait_until_port_is_free() {
+  local port="$1" attempts="$2"
+  local attempt
+  for ((attempt = 1; attempt <= attempts; attempt += 1)); do
+    if [[ -z "$(listen_pids_on_port "$port")" ]]; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
 kill_listeners_on_port() {
   local port="$1"
   assert_not_prod_port "$port"
@@ -73,15 +85,37 @@ kill_listeners_on_port() {
   echo "port $port: stopping PID(s): $pids"
   # shellcheck disable=SC2086
   kill $pids 2>/dev/null || true
-  sleep 0.4
+  if wait_until_port_is_free "$port" 5; then
+    return 0
+  fi
   pids="$(listen_pids_on_port "$port")"
   if [[ -n "$pids" ]]; then
     echo "port $port: SIGKILL PID(s): $pids"
     # shellcheck disable=SC2086
     kill -9 $pids 2>/dev/null || true
   fi
+  if ! wait_until_port_is_free "$port" 50; then
+    echo "port $port: listener did not stop after SIGKILL" >&2
+    return 1
+  fi
 }
 
-echo "kill-local-dev-ports: webapp dev :$WEBAPP_PORT, integrator dev :$INTEGRATOR_PORT (prod :3200/:6200 untouched)"
-kill_listeners_on_port "$WEBAPP_PORT"
-kill_listeners_on_port "$INTEGRATOR_PORT"
+case "${1:-all}" in
+  all)
+    echo "kill-local-dev-ports: webapp dev :$WEBAPP_PORT, integrator dev :$INTEGRATOR_PORT (prod :3200/:6200 untouched)"
+    kill_listeners_on_port "$WEBAPP_PORT"
+    kill_listeners_on_port "$INTEGRATOR_PORT"
+    ;;
+  webapp)
+    echo "kill-local-dev-ports: webapp dev :$WEBAPP_PORT (integrator and prod untouched)"
+    kill_listeners_on_port "$WEBAPP_PORT"
+    ;;
+  integrator)
+    echo "kill-local-dev-ports: integrator dev :$INTEGRATOR_PORT (webapp and prod untouched)"
+    kill_listeners_on_port "$INTEGRATOR_PORT"
+    ;;
+  *)
+    echo "usage: $0 [all|webapp|integrator]" >&2
+    exit 2
+    ;;
+esac

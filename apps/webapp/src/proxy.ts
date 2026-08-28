@@ -37,6 +37,16 @@ import {
 
 const NO_TENANT_SURFACE: TenantSurfaceLookup = async () => ({ status: 'unknown' });
 
+function rebaseRedirectToPublicOrigin(response: NextResponse, publicOrigin: string): void {
+  const location = response.headers.get('location');
+  if (!location) return;
+  const target = new URL(location, publicOrigin);
+  response.headers.set(
+    'location',
+    new URL(`${target.pathname}${target.search}${target.hash}`, publicOrigin).toString(),
+  );
+}
+
 export async function proxy(
   request: NextRequest,
   nextContextOrTenantLookup?: unknown,
@@ -96,6 +106,7 @@ export async function proxy(
   }
   const doctorResponse = doctorRouteRedirectResponse(request);
   if (doctorResponse) {
+    rebaseRedirectToPublicOrigin(doctorResponse, resolvedSurface.publicOrigin);
     // 308-редиректы отдаём как есть: браузер сразу делает новый запрос,
     // который пройдёт через proxy снова и получит session renewal.
     if (doctorResponse.status === 308) {
@@ -111,6 +122,7 @@ export async function proxy(
 
   const ctxResponse = handlePlatformContextRequest(request);
   if (ctxResponse.headers.has('location')) {
+    rebaseRedirectToPublicOrigin(ctxResponse, resolvedSurface.publicOrigin);
     const response = applySessionRenewalToResponse(request, ctxResponse);
     response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
     return response;
@@ -125,6 +137,7 @@ export async function proxy(
       loginUrl.search = '';
       loginUrl.searchParams.set('next', `${pathname}${request.nextUrl.search}`);
       const response = NextResponse.redirect(loginUrl);
+      rebaseRedirectToPublicOrigin(response, resolvedSurface.publicOrigin);
       response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
       return response;
     }
@@ -155,6 +168,7 @@ export async function proxy(
       redirectUrl.pathname = ownHub.pathname;
       redirectUrl.search = ownHub.search;
       const response = NextResponse.redirect(redirectUrl);
+      rebaseRedirectToPublicOrigin(response, resolvedSurface.publicOrigin);
       response.headers.set(BC_CORRELATION_ID_HEADER, correlationId);
       return response;
     }

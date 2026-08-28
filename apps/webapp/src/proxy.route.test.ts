@@ -104,7 +104,7 @@ const HOST_MATRIX: readonly HostMatrixCase[] = [
 async function loadProxyForSurfaceConfiguration({
   staffOrigin,
   patientOrigin,
-}: PlatformSurfaceConfiguration) {
+}: Readonly<{ staffOrigin: string; patientOrigin: string }>) {
   vi.resetModules();
   vi.stubEnv('APP_BASE_URL', staffOrigin);
   vi.stubEnv('PATIENT_APP_ORIGIN', patientOrigin);
@@ -479,6 +479,23 @@ describe('role-specific protected app doors', () => {
     expect(location).not.toBeNull();
     expect(`${new URL(location!).pathname}${new URL(location!).search}`).toBe(
       '/app/patient/login?next=%2Fapp%2Fpatient%2Fprofile',
+    );
+  });
+
+  it('keeps an unauthenticated staff redirect on the SSH-forwarded public port', async () => {
+    const runtime = await loadProxyForSurfaceConfiguration({
+      staffOrigin: 'http://127.0.0.1:5200',
+      patientOrigin: 'http://127.0.0.1:5200',
+    });
+    const tunnelOrigin = new URL('http://127.0.0.1:15200');
+    const response = await runtime.proxy(
+      requestFor(runtime.staffOrigin, '/app/doctor/patients?tab=active', {
+        headers: { host: tunnelOrigin.host },
+      }),
+    );
+
+    expect(response.headers.get('location')).toBe(
+      'http://127.0.0.1:15200/app/doctor/login?next=%2Fapp%2Fdoctor%2Fpatients%3Ftab%3Dactive',
     );
   });
 
