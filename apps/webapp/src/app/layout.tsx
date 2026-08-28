@@ -63,7 +63,9 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             <ClientToaster />
             <PlatformProvider serverHint={platformEntry} surfaceName={surfaceDisplayName(surface)}>
               <BuildVersionWatcher />
-              <HorizontalOverflowProbe />
+              {process.env.DEV_HORIZONTAL_OVERFLOW_PROBE === '1' ? (
+                <HorizontalOverflowProbe />
+              ) : null}
               {children}
             </PlatformProvider>
           </TooltipProvider>

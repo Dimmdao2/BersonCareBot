@@ -81,14 +81,26 @@ TEST→DEV destructive refresh и DEV runtime-rehydrate удалены реше�
 
 ### 2.1 Основной DEV-host и SSH port forwarding
 
-На основном DEV-host webapp запускается управляемой обёрткой:
+На основном DEV-host webapp запускается обычной проектной командой из корня BersonCareBot:
 
 ```bash
-bash /home/dev/brain/host-orch/start-dev-5200.sh
+pnpm dev:turbo
 ```
 
-Она запускает Turbopack с логом `/home/dev/brain/host-orch/main-dev-5200.log`, ограничивает процесс двумя vCPU,
-освобождает и проверяет только webapp-порт `5200` и не останавливает integrator на `4200`.
+Команда освобождает и проверяет только webapp-порт `5200` и не останавливает integrator на `4200`. Stdout/stderr
+самого Next всегда пишутся в обычный файл `apps/webapp/.next/dev-server-turbo.log`; терминал показывает `tail`
+этого файла. Поэтому обрыв SSH, Remote Development или терминального viewer не оставляет Next с оборванным pipe
+(`EPIPE`), а следующий `pnpm dev:turbo` штатно заменяет listener на `5200`.
+
+Next dev запускается с `--disable-source-maps` и V8 old-space 6 GiB: штатные dev source maps на этом приложении
+заполняют неограниченный Node `source_map_cache` несколькими гигабайтами после прохода по staff-разделам. Для
+отдельной диагностики server stack trace их можно вернуть командой
+`DEV_NEXT_SOURCE_MAPS=1 pnpm dev:turbo`. Встроенный guard останавливает процесс только после трёх
+последовательных превышений 12 GiB RSS. Это аварийный потолок, а не резервирование памяти.
+
+Глобальная диагностика horizontal overflow выключена в обычном dev, потому что MutationObserver и пересылка
+browser-console в Next создают тяжёлый поток логов. Для отдельного визуального прохода включать явно:
+`DEV_HORIZONTAL_OVERFLOW_PROBE=1 pnpm dev:turbo`.
 
 Для входа с рабочей машины через SSH-туннель:
 
