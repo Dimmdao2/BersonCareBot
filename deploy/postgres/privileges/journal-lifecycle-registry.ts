@@ -682,18 +682,6 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
 
   // ── clinical / product histories: patient record, not a journal to age out ──────────────────────
   {
-    table: 'public.be_appointment_events',
-    why: 'appointment state changes',
-    userPurge: { kind: 'via-parent', parent: 'public.be_appointments' },
-    orgPurge: { kind: 'via-parent', parent: 'public.be_appointments' },
-    terminalStates: [],
-    retention: {
-      kind: 'bounded-by-parent',
-      basis: 'dies with its appointment row',
-    },
-    sweptBy: null,
-  },
-  {
     table: 'public.be_appointment_history_events',
     why: 'human-readable appointment history shown in the cabinet',
     userPurge: { kind: 'anonymised', column: 'actor_id' },
@@ -875,6 +863,8 @@ export const JOURNAL_LIFECYCLE_EXTRA_CANDIDATES: readonly string[] = [
  * reason. Anything not here and not in the registry fails the gate.
  */
 export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, string>> = {
+  'public.be_appointment_events':
+    'retired duplicate absent from the target schema; declaration entry is cleanup metadata for old databases',
   'drizzle.__drizzle_migrations': 'applied-migration ledger; identity of the schema itself',
   'integrator.schema_migrations': 'applied-migration ledger of the integrator schema',
   'public.schema_migrations': 'applied-migration ledger',

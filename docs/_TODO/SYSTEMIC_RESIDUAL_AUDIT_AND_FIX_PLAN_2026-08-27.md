@@ -436,6 +436,45 @@ schedule job красит deploy/reconcile-проверку до запуска 
 и post-purge audit, который сейчас заново сохраняет raw user id и идентификаторы артефактов. Этап остаётся
 открытым; mock SQL не считается живым доказательством.
 
+**Rollback-only DB-proof ядра — сделано 28.08 (ветка `wt/account-purge-proof-20260828`).**
+`apps/webapp/src/infra/platformUserFullPurge.devDbProof.test.ts`, opt-in
+`RUN_PLATFORM_USER_PURGE_DB=1`, канонический admin socket (AGENTS §6), только `bersoncarebot_test`.
+Каждый сценарий выполняет настоящий production-core внутри `REPEATABLE READ` и безусловно делает
+`ROLLBACK`; route/CLI не включаются. Проба не повторяет алгоритм удаления: она берёт production advisory
+lock, вызывает `collectPurgeArtifactKeys` и `runWebappPurgeCoreInTransaction`, а ожидания выводит из
+`pg_constraint` живой TEST-БД и `JOURNAL_LIFECYCLE_REGISTRY`.
+
+Независимый аудит `008e37f67` выполнил весь записанный blind kill-set без непойманных классов и сначала дал **FAIL**:
+реестр продолжал объявлять уже удалённый дубль `be_appointment_events` как живой via-parent журнал;
+rollback-oracle не перемерял phone-keyed/via-parent классы; непустой сбор внешних артефактов не был доказан;
+план сохранял лишние runtime-ID. Аудитор оставил красную acceptance-проверку и отчёт
+`docs/_TODO/runs/ACCOUNT_PURGE_CORE_DB_PROOF_AUDIT_2026-08-28.md`.
+
+Коррекция ведущего закрыла ровно эти findings без нового цикла аудита: retired duplicate удалён из lifecycle
+registry и записан в non-journal decisions как отсутствующий в target schema; rollback повторно измеряет
+phone-keyed и via-parent; основной существующий client доказывает все DB-классы, а второй динамически выбранный
+существующий client с реальными `media_files`/`patient_files` доказывает непустой сбор ключей до purge,
+исчезновение исходных строк и их восстановление после rollback. Raw UUID/integrator ID в документации не
+сохраняются. Команда
+`RUN_PLATFORM_USER_PURGE_DB=1 pnpm --dir apps/webapp exec vitest run
+src/infra/platformUserFullPurge.devDbProof.test.ts` → **9/9 PASS**; команда
+`pnpm --dir apps/webapp exec vitest run src/modules/db-retention/journalLifecycleRegistry.contract.test.ts`
+→ **6/6 PASS**; scoped ESLint, webapp typecheck и `git diff --check` — PASS.
+
+Найдено пробой, НЕ исправлено, требует решения владельца — четвёртое расхождение помимо трёх выше:
+реестр объявляет `anonymised` (то есть «FK `ON DELETE SET NULL`, строка выживает обезличенной») для
+`public.system_settings_audit.changed_by`, `public.organization_slug_rename_events.actor_platform_user_id`
+и `public.online_intake_status_history.changed_by`, а в живой TEST-БД все три FK — `NO ACTION`, и
+`clearPlatformUserDeleteBlockers` их не снимает: база не обезличит строку, а ОТКАЖЕТ в удалении
+учётки. Сегодня это не достигается только потому, что все три пишутся сотрудниками, а purge принимает
+`role = 'client'`; объявленный жизненный цикл при этом ложен. Набор зафиксирован в самой пробе
+(`RECORDED_REGISTRY_FK_DIVERGENCES`) как незакрытый дефект, чтобы новое расхождение не появилось молча.
+
+Границы этого доказательства: только ядро транзакции и сбор ключей до него. Post-commit удаление строк
+`media_files`, очистка S3/provider и запись audit не входят — два из трёх зафиксированных policy-расхождений
+живут именно там и остаются открытыми. `message_log` пуст на TEST, поэтому живого факта для его policy-конфликта
+нет. Публичный destructive route остаётся выключенным; проба его не включает.
+
 ### Этап 4. Один контракт результата фоновой операции
 
 - Успех batch-job возможен только когда все обязательные операции завершены; `errors > 0` не превращается в
