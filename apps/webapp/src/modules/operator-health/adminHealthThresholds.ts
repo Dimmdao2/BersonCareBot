@@ -6,8 +6,8 @@ export const ADMIN_TRANSCODE_OLDEST_PENDING_DEGRADED_SEC = 15 * 60;
 /** Возраст самой долгой pending-задачи (сек) — «error», если в очереди есть работа. */
 export const ADMIN_TRANSCODE_OLDEST_PENDING_ERROR_SEC = 60 * 60;
 
-/** Ошибки за последний час UTC — «degraded» от порога включительно. */
-export const ADMIN_TRANSCODE_FAILED_LAST_HOUR_DEGRADED = 3;
+/** Любая ошибка за последний час UTC делает сбой видимым как «degraded». */
+export const ADMIN_TRANSCODE_FAILED_LAST_HOUR_DEGRADED = 1;
 /** Ошибки за последний час UTC — «error» от порога включительно. */
 export const ADMIN_TRANSCODE_FAILED_LAST_HOUR_ERROR = 10;
 

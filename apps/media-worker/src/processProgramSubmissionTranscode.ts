@@ -4,8 +4,8 @@ import { join, posix } from 'node:path';
 import { DeleteObjectCommand } from '@aws-sdk/client-s3';
 import type { ClaimedJob } from './control.js';
 import type { TranscodeContext } from './processTranscodeJob.js';
-import { buildPosterFfmpegArgs } from './ffmpeg/hlsArgs.js';
 import { runFfmpeg } from './ffmpeg/runFfmpeg.js';
+import { extractPosterWithFallback } from './ffmpeg/extractPosterWithFallback.js';
 import {
   isCanonicalMediaRootForId,
   mediaRootFromSourceS3Key,
@@ -86,15 +86,13 @@ export async function processProgramSubmissionTranscodeJob(
     const videoDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, outMp4, 60_000);
 
     await mkdir(posterDir, { recursive: true });
-    const posterArgs = buildPosterFfmpegArgs(src, posterLocal);
-    const runPoster = await runFfmpeg(ctx.ffmpegBin, posterArgs, {
+    await extractPosterWithFallback({
+      ffmpegBin: ctx.ffmpegBin,
+      inputFile: src,
+      outputJpg: posterLocal,
       cwd: workDir,
       timeoutMs: ctx.ffmpegTimeoutMs,
-      collectStderrMaxBytes: 16384,
     });
-    if (runPoster.code !== 0) {
-      throw new Error(`ffmpeg_poster_exit_${runPoster.code}: ${runPoster.stderrTail}`);
-    }
     const posterBuf = await readFile(posterLocal);
     await putObjectWithRetry(
       ctx.s3Client,

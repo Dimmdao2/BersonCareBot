@@ -41,8 +41,9 @@ export function buildPosterFfmpegArgs(
   inputFile: string,
   outputJpg: string,
   videoFilter?: string,
+  seekSeconds = 1,
 ): string[] {
-  const a = ['-y', '-ss', '1', '-i', inputFile];
+  const a = ['-y', '-ss', String(seekSeconds), '-i', inputFile];
   if (videoFilter) {
     a.push('-vf', videoFilter);
   }

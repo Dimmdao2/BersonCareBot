@@ -3,7 +3,8 @@ import type { Dirent } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, posix } from 'node:path';
 import type { S3Client } from '@aws-sdk/client-s3';
-import { buildHlsSingleVariantArgs, buildPosterFfmpegArgs } from './ffmpeg/hlsArgs.js';
+import { buildHlsSingleVariantArgs } from './ffmpeg/hlsArgs.js';
+import { extractPosterWithFallback } from './ffmpeg/extractPosterWithFallback.js';
 import {
   composeHlsVideoFilter,
   watermarkTextLine,
@@ -336,18 +337,21 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
     ]);
     await writeFile(join(hlsDir, 'master.m3u8'), masterBody, 'utf8');
 
-    const posterArgs = buildPosterFfmpegArgs(src, posterLocal, wmDrawtext ? vf720 : undefined);
-    const runPoster = await runFfmpeg(ctx.ffmpegBin, posterArgs, {
-      cwd: tmpRoot,
-      timeoutMs: transcodeTimeoutMs,
-      collectStderrMaxBytes: 16384,
-    });
-    if (runPoster.code !== 0) {
+    try {
+      await extractPosterWithFallback({
+        ffmpegBin: ctx.ffmpegBin,
+        inputFile: src,
+        outputJpg: posterLocal,
+        videoFilter: wmDrawtext ? vf720 : undefined,
+        cwd: tmpRoot,
+        timeoutMs: transcodeTimeoutMs,
+      });
+    } catch (error) {
       await retryableFail(
         ctx,
         job,
         ctx.maxAttempts,
-        `ffmpeg_poster_exit_${runPoster.code}: ${runPoster.stderrTail}`,
+        error instanceof Error ? error.message : String(error),
       );
       return;
     }
