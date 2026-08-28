@@ -68,3 +68,7 @@ d14daf8adf06616c10d663552c2680de9882173d:scripts/refresh-prod-to-target-cutover.
 # HEAD groups the hexadecimal value for readability and to avoid new scanner matches; this exact
 # fingerprint remains in the already-pushed historical audit commit and is therefore allow-listed.
 7337869d5bb581f908fcf4d9e870d33be2b9067a:docs/_TODO/runs/integrator-cleanup/TRACK_D_SETTINGS_SINGLE_ROOT_AUDIT_2026-08-24.md:generic-api-key:70
+
+# 2026-08-28 systemic completion audit: architecture terms in a quoted CI criterion, not a
+# credential. HEAD uses plain Russian prose; this fingerprint remains in the pushed audit commit.
+ccf96854fb62740c95b05dc0fe7ff50ca91de2de:docs/_TODO/runs/FINAL_SYSTEMIC_COMPLETION_AUDIT_2026-08-28.md:generic-api-key:173
