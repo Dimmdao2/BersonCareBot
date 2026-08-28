@@ -855,6 +855,11 @@ export function ScheduleCalendarTab({
         : visibleRange(view, anchorDate, timeZone),
     [anchorDate, mobileCalendarRange, mobileScrollableTimeGrid, timeZone, view],
   );
+  const mobileCalendarDayCount = useMemo(() => {
+    const start = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
+    const end = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
+    return Math.max(1, Math.round(end.diff(start, 'days').days));
+  }, [mobileCalendarRange, timeZone]);
 
   // R34: подтверждение переноса (drag/resize) перед применением.
   const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
@@ -1183,23 +1188,22 @@ export function ScheduleCalendarTab({
   const positionMobileCalendar = useCallback(
     (dateKey: string) => {
       window.requestAnimationFrame(() => {
-        const root = calendarViewportRef.current;
-        if (!root) return;
+        const scroller = calendarViewportRef.current;
+        if (!scroller) return;
         const rangeStart = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
         const rangeEnd = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
         const targetDate = DateTime.fromISO(dateKey, { zone: timeZone });
         const totalDays = Math.max(1, Math.round(rangeEnd.diff(rangeStart, 'days').days));
         const targetDay = Math.max(0, Math.round(targetDate.diff(rangeStart, 'days').days));
-        const scrollers = Array.from(root.querySelectorAll<HTMLElement>('.fc-scroller')).filter(
-          (node) => node.scrollWidth > node.clientWidth + 8,
+        const timeAxisWidth = 48;
+        const dayWidth = Math.max(
+          1,
+          (scroller.scrollWidth - timeAxisWidth) / totalDays,
         );
-        for (const scroller of scrollers) {
-          const dayWidth = scroller.scrollWidth / totalDays;
-          scroller.scrollLeft = Math.max(
-            0,
-            targetDay * dayWidth - scroller.clientWidth / 2 + dayWidth / 2,
-          );
-        }
+        scroller.scrollLeft = Math.max(
+          0,
+          timeAxisWidth + targetDay * dayWidth - scroller.clientWidth / 2 + dayWidth / 2,
+        );
         mobileRangeExpandingRef.current = false;
       });
     },
@@ -1222,10 +1226,14 @@ export function ScheduleCalendarTab({
       const rangeStart = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
       const rangeEnd = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
       const totalDays = Math.max(1, Math.round(rangeEnd.diff(rangeStart, 'days').days));
-      const dayWidth = target.scrollWidth / totalDays;
+      const timeAxisWidth = 48;
+      const dayWidth = Math.max(1, (target.scrollWidth - timeAxisWidth) / totalDays);
       const centerDay = Math.max(
         0,
-        Math.min(totalDays - 1, Math.floor((target.scrollLeft + target.clientWidth / 2) / dayWidth)),
+        Math.min(
+          totalDays - 1,
+          Math.floor((target.scrollLeft + target.clientWidth / 2 - timeAxisWidth) / dayWidth),
+        ),
       );
       const centerDate = rangeStart.plus({ days: centerDay }).toISODate();
       if (centerDate) setMobileVisibleDate(centerDate);
@@ -2283,9 +2291,9 @@ export function ScheduleCalendarTab({
             // FullCalendar
             <div
               ref={calendarViewportRef}
-              className="-mx-3 flex h-full min-h-0 touch-pan-x touch-pan-y flex-col overflow-hidden overscroll-contain border-0 bg-card pb-0 md:mx-0 md:rounded-xl md:border md:border-border"
-              onScrollCapture={(event) => {
-                handleMobileCalendarScroll(event.target as HTMLElement);
+              className="-mx-3 h-full min-h-0 touch-pan-x touch-pan-y overflow-x-auto overflow-y-hidden overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:rounded-xl md:border md:border-border"
+              onScroll={(event) => {
+                handleMobileCalendarScroll(event.currentTarget);
               }}
               onPointerDownCapture={() => {
                 if (calendarFilterOpenRef.current) {
@@ -2293,7 +2301,15 @@ export function ScheduleCalendarTab({
                 }
               }}
             >
-              <style>{`
+              <div
+                className="h-full min-h-0"
+                style={
+                  mobileScrollableTimeGrid
+                    ? { width: `${mobileCalendarDayCount * 112 + 48}px` }
+                    : undefined
+                }
+              >
+                <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
                    принудительно делаем текст записей ТЁМНЫМ (FC форсит белый через
@@ -2421,8 +2437,8 @@ export function ScheduleCalendarTab({
                   padding-top: 0.125rem;
                   padding-bottom: 0.125rem;
                 }
-              `}</style>
-              <ScheduleFullCalendarHost
+                `}</style>
+                <ScheduleFullCalendarHost
                 calendarRef={calendarRef}
                 key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:${mobileScrollableTimeGrid ? `${mobileCalendarRange.start}:${mobileCalendarRange.end}` : 'bounded'}`}
                 initialView={fcInitialView}
@@ -2453,7 +2469,6 @@ export function ScheduleCalendarTab({
                 dayMaxEvents
                 allDaySlot={false}
                 height="100%"
-                dayMinWidth={mobileScrollableTimeGrid ? 112 : undefined}
                 stickyHeaderDates={mobileScrollableTimeGrid}
                 datesSet={handleMobileCalendarDatesSet}
                 slotMinTime={slotMinTime}
@@ -2594,7 +2609,8 @@ export function ScheduleCalendarTab({
                   }
                   return <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>;
                 }}
-              />
+                />
+              </div>
             </div>
           )}
         </div>
