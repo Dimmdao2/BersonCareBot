@@ -188,6 +188,8 @@ export function DoctorTodayDashboard({
   const [tasks, setTasks] = useState(data.globalOpenTasks);
   const [taskPatientNames, setTaskPatientNames] = useState(data.globalTaskPatientNames);
   const [taskMutationPending, setTaskMutationPending] = useState(false);
+  const currentWeek =
+    data.weeklyTimeline.find((point) => point.isCurrent) ?? data.weeklyTimeline.at(-1);
 
   const handleTaskSaved = (task: SpecialistTaskRow, patientDisplayName?: string) => {
     setTasks((current) => {
@@ -291,15 +293,26 @@ export function DoctorTodayDashboard({
             />
           </DoctorMetricList>
 
-          <div className="min-h-0 flex-1">
+          <div className="doctor-today-mobile-chart min-h-0 flex-1">
             <DoctorTodayWeeklyAppointmentsChart points={data.weeklyTimeline} />
           </div>
 
-          <DoctorTodayQuickActions
-            todayIso={calendarSnapshot.todayIso}
-            displayIana={displayIana}
-            placement="mobile-footer"
-          />
+          <DoctorMetricList
+            columns="two"
+            aria-label="Сводка недели"
+            className="doctor-today-mobile-compact-fallback"
+          >
+            <DoctorStatCard
+              id="doctor-today-mobile-kpi-week-appointments"
+              title="Записей за неделю"
+              value={currentWeek?.appointments ?? 0}
+            />
+            <DoctorStatCard
+              id="doctor-today-mobile-kpi-week-new-clients"
+              title="Новых клиентов за неделю"
+              value={currentWeek?.firstAppointments ?? 0}
+            />
+          </DoctorMetricList>
         </div>
 
         {!isMobile ? (

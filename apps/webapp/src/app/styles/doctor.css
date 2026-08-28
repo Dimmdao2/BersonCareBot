@@ -15,6 +15,7 @@
   --doctor-field-lg: 40rem;
   --doctor-list-inline-padding: 18px;
   --doctor-flat-list-divider: #f0efeb;
+  --doctor-mobile-bottom-nav-h: calc(3.25rem + env(safe-area-inset-bottom, 0px));
   --doctor-section-tab-hover: color-mix(in srgb, var(--muted-foreground) 18%, #ffffff);
 
   background-color: var(--doctor-page-gap-background);
@@ -47,6 +48,20 @@
 
 .doctor-weekly-chart-scroll::-webkit-scrollbar {
   display: none;
+}
+
+.doctor-today-mobile-compact-fallback {
+  display: none;
+}
+
+@media (max-width: 767px) and (max-height: 720px) {
+  .doctor-today-mobile-chart {
+    display: none;
+  }
+
+  .doctor-today-mobile-compact-fallback {
+    display: grid;
+  }
 }
 
 @media (min-width: 768px) {
