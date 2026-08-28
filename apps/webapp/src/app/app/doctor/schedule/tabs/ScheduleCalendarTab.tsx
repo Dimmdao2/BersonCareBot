@@ -2454,7 +2454,7 @@ export function ScheduleCalendarTab({
                 key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:${mobileScrollableTimeGrid ? `${mobileCalendarRange.start}:${mobileCalendarRange.end}` : 'bounded'}`}
                 initialView={fcInitialView}
                 views={fcViews}
-                initialDate={anchorDate}
+                initialDate={mobileScrollableTimeGrid ? mobileCalendarRange.start : anchorDate}
                 visibleRange={
                   mobileScrollableTimeGrid
                     ? { start: mobileCalendarRange.start, end: mobileCalendarRange.end }
