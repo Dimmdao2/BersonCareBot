@@ -2759,7 +2759,7 @@ export const onlineIntakeStatusHistory = pgTable(
       columns: [table.changedBy],
       foreignColumns: [platformUsers.id],
       name: 'online_intake_status_history_changed_by_fkey',
-    }),
+    }).onDelete('set null'),
     foreignKey({
       columns: [table.requestId],
       foreignColumns: [onlineIntakeRequests.id],

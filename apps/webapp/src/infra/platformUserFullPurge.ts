@@ -7,16 +7,10 @@
 import type { Pool, PoolClient } from 'pg';
 import { getPool } from '@/infra/db/client';
 import { runPurgeClientPgText, runPurgePoolPgText } from '@/infra/platformUserPurgeSql';
-import { WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS } from '@/infra/ops/webappIntegratorUserProjectionRealignment';
 import {
   CONTACTS,
   USER_CONTACTS_PRIMARY_PHONE_LATERAL,
 } from '@/infra/repos/userContactsSql';
-
-/** Compatibility result for the retired post-commit integrator cleanup path. */
-export function getIntegratorPoolForPurge(): Pool | null {
-  return null;
-}
 
 /** Только цифры; для сопоставления записей по номеру. */
 export function phoneDigits(phone: string): string {
@@ -46,24 +40,6 @@ export const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'user_web_push_subscriptions', column: 'user_id' },
   { table: 'online_intake_requests', column: 'user_id' },
 ];
-
-/**
- * Mechanical gate for audit C1: every retired-integrator-id projection must be purged by its
- * CANONICAL platform-user key somewhere in the core webapp purge transaction. Returns the
- * projections that are NOT covered — an empty array is the only passing state.
- */
-export function purgeCoverageGapsForRetiredIntegratorProjections(): string[] {
-  const coveredByCanonicalKey = new Set(
-    CONTENT_TABLES.filter((entry) => entry.column === 'platform_user_id').map(
-      (entry) => entry.table,
-    ),
-  );
-  return WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS.filter(
-    (projection) =>
-      projection.platformUserColumn !== 'platform_user_id' ||
-      !coveredByCanonicalKey.has(projection.table),
-  ).map((projection) => projection.table);
-}
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
 async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: string): Promise<void> {
@@ -118,45 +94,6 @@ async function deletePhoneKeyedWebappRows(
         )`,
     [digs],
   );
-}
-
-/**
- * RECONCILE TAIL, not a purge condition. Rows whose `platform_users` row is already gone can only be
- * addressed by the retired id; rows of a live user are already deleted by their canonical key above
- * (`CONTENT_TABLES`). Table list comes from the one census in
- * `@/infra/ops/webappIntegratorUserProjectionRealignment`, never a second copy.
- */
-async function deleteWebappProjectionByIntegratorUserId(
-  client: PoolClient,
-  integratorUserId: string,
-): Promise<void> {
-  if (!/^\d+$/.test(integratorUserId.trim())) return;
-  const id = integratorUserId.trim();
-
-  // Support children first: they hang off the conversation root deleted in the same list below.
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM support_question_messages WHERE question_id IN (
-       SELECT id FROM support_questions WHERE conversation_id IN (
-         SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
-       )
-     )`,
-    [id],
-  );
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM support_questions WHERE conversation_id IN (
-       SELECT id FROM support_conversations WHERE integrator_user_id = $1::bigint
-     )`,
-    [id],
-  );
-  for (const projection of WEBAPP_RETIRED_INTEGRATOR_ID_PROJECTIONS) {
-    await runPurgeClientPgText(
-      client,
-      `DELETE FROM ${projection.table} WHERE integrator_user_id = $1::bigint`,
-      [id],
-    );
-  }
 }
 
 async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
@@ -288,7 +225,6 @@ export async function collectPurgeArtifactKeys(
 export type PurgePlatformUserRow = {
   id: string;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   role: string;
 };
 
@@ -307,10 +243,6 @@ export async function runWebappPurgeCoreInTransaction(
   await deleteSymptomAndLfkDiaryForUser(client, user.id);
   await deleteContentTablesForUser(client, user.id);
 
-  if (user.integrator_user_id && /^\d+$/.test(user.integrator_user_id)) {
-    await deleteWebappProjectionByIntegratorUserId(client, user.integrator_user_id);
-  }
-
   await runPurgeClientPgText(
     client,
     `DELETE FROM message_log
@@ -325,77 +257,11 @@ export async function runWebappPurgeCoreInTransaction(
   await runPurgeClientPgText(client, `DELETE FROM platform_users WHERE id = $1`, [user.id]);
 }
 
-/** Messenger rows in webapp `user_channel_bindings` that map to integrator `identities.resource`. */
-const INTEGRATOR_CLEANUP_CHANNEL_CODES = new Set(['telegram', 'max']);
-
-export type MessengerBindingForIntegratorCleanup = {
-  channel_code: string;
-  external_id: string;
-};
-
-/** Load bindings before webapp deletes `user_channel_bindings` (same purge transaction). */
-export async function fetchMessengerBindingsForIntegratorCleanup(
-  client: PoolClient,
-  userId: string,
-): Promise<MessengerBindingForIntegratorCleanup[]> {
-  const r = await runPurgeClientPgText<{ channel_code: string; external_id: string }>(
-    client,
-    `SELECT channel_code, external_id FROM user_channel_bindings
-     WHERE user_id = $1::uuid AND channel_code IN ('telegram', 'max')`,
-    [userId],
-  );
-  return r.rows;
-}
-
-export async function resolveIntegratorUserIds(
-  _integratorDb: Pool | null,
-  _digs: string,
-  _webappIntegratorUserId: string | null,
-  _messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
-): Promise<string[]> {
-  return [];
-}
-
-export async function deleteIntegratorPhoneData(
-  _integratorDb: Pool,
-  _digs: string,
-  _integratorUserIds: string[],
-  _messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
-): Promise<void> {
-  // Integrator identity/contact storage was retired. Canonical user data is deleted in the webapp
-  // transaction together with user_channel_bindings.
-}
-
-export type IntegratorPurgeCleanupResult =
-  | { ok: true; skipped?: boolean }
-  | { ok: false; message: string };
-
-/**
- * Same as `deleteIntegratorPhoneData` but never throws; used for post-commit strict purge (parallel with S3).
- */
-export async function deleteIntegratorPhoneDataWithResult(
-  integratorDb: Pool | null,
-  digs: string,
-  integratorUserIds: string[],
-  messengerBindings?: ReadonlyArray<MessengerBindingForIntegratorCleanup>,
-): Promise<IntegratorPurgeCleanupResult> {
-  if (!integratorDb) {
-    return { ok: true, skipped: true };
-  }
-  try {
-    await deleteIntegratorPhoneData(integratorDb, digs, integratorUserIds, messengerBindings);
-    return { ok: true };
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    return { ok: false, message };
-  }
-}
-
 /** Mirrors `runStrictPurgePlatformUser` — see `strictPlatformUserPurge.ts`. */
-export type StrictPurgeOutcome = 'completed' | 'partial_failed' | 'needs_retry';
+export type StrictPurgeOutcome = 'completed' | 'partial_failed';
 
 export type PurgePlatformUserResult =
-  | { ok: true; integratorSkipped: boolean; outcome?: StrictPurgeOutcome }
+  | { ok: true; outcome?: StrictPurgeOutcome }
   | { ok: false; error: 'invalid_uuid' | 'not_found' | 'not_client' | 'transaction_failed' };
 
 /**
@@ -416,7 +282,6 @@ export async function purgePlatformUserByPlatformId(
   }
   return {
     ok: true,
-    integratorSkipped: r.integratorSkipped,
     outcome: r.outcome,
   };
 }
@@ -424,7 +289,7 @@ export async function purgePlatformUserByPlatformId(
 async function loadPurgeUserRow(db: Pool, id: string): Promise<PurgePlatformUserRow | null> {
   const userRes = await runPurgePoolPgText<PurgePlatformUserRow>(
     db,
-    `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.integrator_user_id::text AS integrator_user_id, pu.role
+    `SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, pu.role
      FROM platform_users pu
      ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
      WHERE pu.id = $1`,

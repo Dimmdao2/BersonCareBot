@@ -75,20 +75,6 @@ if (ENABLED && DATABASE !== TEST_DATABASE) {
   );
 }
 
-/**
- * Registry entries whose declared user-purge behaviour contradicts the live FK graph. RECORDED, NOT
- * ACCEPTED: each one declares `anonymised` — "FK with ON DELETE SET NULL, the row survives
- * de-identified on purpose" — while the live constraint is `NO ACTION`, so the database would
- * REFUSE the account delete instead of de-identifying anything. All three are staff-authored stores,
- * so a `role = 'client'` purge does not reach them today; the declaration is still false. Reported
- * to the owner as part of stage 3; the set is asserted so a NEW divergence cannot appear silently.
- */
-const RECORDED_REGISTRY_FK_DIVERGENCES = [
-  'public.online_intake_status_history.changed_by: declared anonymised, live NO ACTION',
-  'public.organization_slug_rename_events.actor_platform_user_id: declared anonymised, live NO ACTION',
-  'public.system_settings_audit.changed_by: declared anonymised, live NO ACTION',
-];
-
 /* ────────────────────────────── psql-backed client ────────────────────────────── */
 
 const SENTINEL = '@@bcb-purge-proof@@';
@@ -1043,7 +1029,7 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         'A registry entry that declares a purge behaviour the database will not perform is a false ' +
           'lifecycle record — audit 2026-08-27 stage 3. Recorded divergences are unresolved defects ' +
           'reported to the owner, not accepted policy; a NEW one must not appear silently.',
-      ).toEqual(RECORDED_REGISTRY_FK_DIVERGENCES);
+      ).toEqual([]);
     });
   },
 );
