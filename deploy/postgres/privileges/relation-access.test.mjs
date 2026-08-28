@@ -1264,13 +1264,30 @@ test('patient page relations have exact self/current-clinic access and published
   ['user_id', 'media_id']);
 
   const clientEvents = tables['public.media_playback_client_events'];
-  assert.equal(clientEvents.access.kind, 'named-seams');
+  assert.equal(clientEvents.access.kind, 'direct');
+  assert.deepEqual(clientEvents.access.grants, [{
+    role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table',
+  }]);
+  assert.equal(clientEvents.access.grants.some((grant) =>
+    grant.role === 'app_patient' && grant.operations.includes('INSERT')), false);
   const clientEventRoot = declaration.portContext.functions[
     'app.record_current_patient_playback_client_event(uuid,text,text,text,text)'
   ];
   assert.deepEqual(clientEventRoot.execute, ['app_patient']);
   assert.deepEqual(clientEventRoot.relationSurfaces.find((surface) =>
     surface.relation === 'public.media_playback_client_events')?.operations, ['INSERT']);
+
+  const resolutionEvents = tables['public.media_playback_resolution_events'];
+  assert.deepEqual(resolutionEvents.access.grants, [{
+    role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table',
+  }]);
+  for (const operation of ['select', 'delete']) {
+    const policy = resolutionEvents.policies.find((candidate) =>
+      candidate.name.startsWith(`rev10_playback_resolution_event_maintenance_${operation}_`));
+    assert.deepEqual(policy?.to, ['app_operational_maintenance']);
+    assert.match(policy?.using ?? '', /current_user = 'app_operational_maintenance'::name/u);
+    assert.doesNotMatch(policy?.using ?? '', /current_org_id/u);
+  }
 
   for (const relation of ['public.patient_home_blocks', 'public.patient_home_block_items']) {
     const policy = tables[relation].policies.find((candidate) =>

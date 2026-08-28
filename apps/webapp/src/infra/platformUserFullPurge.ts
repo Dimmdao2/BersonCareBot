@@ -139,17 +139,15 @@ export const ANONYMISE_ON_PURGE_COLUMNS: AnonymiseOnPurgeTarget[] = [
   // Exhaustive lifecycle census audit 2026-08-28, F1. This journal is a RETAINED 180-day delivery
   // fact, not a second account record: it carries no message text of its own, `recipient_ref` is
   // already digested (`tg:…1234`, `email:<digest>`), and the diagnostics it feeds are the reason it
-  // exists. What it did carry was the person, on three independent live surfaces — `user_id`
-  // (7044 rows / 36 clients on bcb_webapp_dev), `integrator_user_id`, written separately by the
-  // integrator repo (537 / 110), and the raw uuid embedded in `metadata` by the nonqueue-attempt
-  // path (1956 / 41) — with no purge step at all. The owner's decision (brief finding 1) is the one
+  // exists. It carries the person on two live surfaces — `user_id` and the raw uuid embedded in
+  // `metadata` by the nonqueue-attempt path — with no purge step at all. The owner's decision
+  // (brief finding 1) is the one
   // already taken for `product_analytics_events_recent`: keep the outcome, drop the person, and let
   // the row die on its own 180-day sweep. Nothing else in the journal is touched and no second
   // journal is created.
   {
     table: 'notification_delivery_attempts',
     column: 'user_id',
-    alsoNullColumns: ['integrator_user_id'],
     scrubJsonColumns: ['metadata'],
   },
 ];

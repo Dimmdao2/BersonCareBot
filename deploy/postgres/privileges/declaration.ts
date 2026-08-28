@@ -8501,14 +8501,30 @@ function revision10MediaFilesPolicies(index: number): PolicyDecl[] {
   ];
 }
 
-function revision10PatientPlaybackTelemetryPolicies(
-  tableKey: 'public.media_playback_client_events' | 'public.media_playback_user_video_first_resolve',
+function revision10PlaybackTelemetryPolicies(
+  tableKey: 'public.media_playback_client_events'
+    | 'public.media_playback_resolution_events'
+    | 'public.media_playback_user_video_first_resolve',
   index: number,
 ): PolicyDecl[] {
   const patientOwn = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND user_id = app.current_patient_user_id()';
+  const maintenance = "current_user = 'app_operational_maintenance'::name";
+  if (tableKey === 'public.media_playback_resolution_events') {
+    return [
+      {
+        name: `rev10_playback_resolution_event_maintenance_select_${index + 1}`,
+        as: 'PERMISSIVE', cmd: 'SELECT', to: ['app_operational_maintenance'], using: `(${maintenance})`,
+        note: 'accepted maintenance worker counts expired playback resolutions across clinics',
+      },
+      {
+        name: `rev10_playback_resolution_event_maintenance_delete_${index + 1}`,
+        as: 'PERMISSIVE', cmd: 'DELETE', to: ['app_operational_maintenance'], using: `(${maintenance})`,
+        note: 'accepted maintenance worker deletes expired playback resolutions across clinics',
+      },
+    ];
+  }
   if (tableKey === 'public.media_playback_client_events') {
-    const maintenance = "current_user = 'app_operational_maintenance'::name";
     return [
       {
         name: `rev10_playback_client_event_patient_insert_${index + 1}`,
@@ -8798,8 +8814,9 @@ function revision10Database(name: 'bersoncarebot_test' | 'bcb_webapp_dev'): Data
       : key === 'public.media_files' && access?.kind === 'direct'
         ? revision10MediaFilesPolicies(index)
       : (key === 'public.media_playback_client_events'
+          || key === 'public.media_playback_resolution_events'
           || key === 'public.media_playback_user_video_first_resolve') && access?.kind === 'direct'
-        ? revision10PatientPlaybackTelemetryPolicies(key, index)
+        ? revision10PlaybackTelemetryPolicies(key, index)
       : key === 'public.material_ratings' && access?.kind === 'direct'
         ? revision10MaterialRatingsPolicies(index)
       : key === 'public.patient_content_rating_feedback' && access?.kind === 'direct'

@@ -227,7 +227,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     terminalStates: ['sent', 'dead'],
     retention: {
       kind: 'window',
-      days: 90,
+      days: 30,
       pruneTarget: 'outgoing_delivery_queue_sent',
       basis: `${EVIDENCE_16}: sent 30d by sent_at, dead 180d by dead_at; live statuses never pruned`,
     },
@@ -239,12 +239,8 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     why: 'FAILURE-ONLY journal of real provider calls that failed (Track D #987)',
     // Exhaustive census 2026-08-28: declared `not-user-scoped`, but `user_id uuid` is a real
     // platform-user reference with no FK and no purge step. The independent audit of the same day
-    // (F1) then showed the recorded question was itself false: this row carries the person on THREE
-    // live surfaces, not one. Measured read-only, rows / distinct `role='client'` users:
-    //   bcb_webapp_dev      user_id 7044/36 · integrator_user_id 537/110 · metadata 1956/41
-    //   bersoncarebot_test  user_id 11222/40 · integrator_user_id 536/110 · metadata 3616/44
-    // `integrator_user_id` is written independently by
-    // `apps/integrator/src/infra/db/repos/notificationDeliveryAttempts.ts`, and
+    // (F1) then showed the recorded question was itself false: this row carries the person on TWO
+    // live surfaces, not one: `user_id` and the raw uuid embedded in `metadata`.
     // `20260820T185707_the_delivery_journal_accepts_a_nonqueue_attempt.sql` copies
     // `payload.intent.meta.userId` into it while embedding the whole payload under `metadata`, where
     // the raw uuid turns up inside free text (`correlationId`, `callback_data`, message bodies) —
@@ -366,7 +362,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     terminalStates: [],
     retention: {
       kind: 'window',
-      days: 30,
+      days: 90,
       pruneTarget: 'media_hls_proxy_error_events',
       basis: 'mediaHlsProxyErrorRetention module window',
     },

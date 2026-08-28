@@ -8,7 +8,13 @@ import {
 } from '../../../../../deploy/postgres/privileges/journal-lifecycle-registry';
 import { RETENTION_SWEEP_TARGETS } from '@/infra/db/pruneRetentionTarget';
 import { CRON_JOB_REGISTRY } from '@/modules/operator-health/cronJobRegistry';
-import { MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES } from '@/app-layer/media/playbackHourlyRetention';
+import {
+  MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES,
+  PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
+  PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
+} from '@/app-layer/media/playbackHourlyRetention';
+import { MEDIA_HLS_PROXY_ERROR_RETENTION_DAYS_DEFAULT } from '@/app-layer/media/hlsProxyErrorEvents';
+import { OUTGOING_DELIVERY_QUEUE_SENT_RETENTION_DAYS_DEFAULT } from '@/modules/db-retention/journalRetention';
 import { PRODUCT_ANALYTICS_RETENTION_BRANCHES } from '@/modules/product-analytics/productAnalyticsRetention';
 import {
   OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
@@ -159,6 +165,30 @@ it('keeps the registry itself honest: no entry may leave a required lifecycle fa
   ).map((entry) => entry.table);
 
   expect(incomplete).toEqual([]);
+});
+
+it('keeps declared retention windows equal to the windows the sweeping modules execute', () => {
+  const daysByTable = new Map(
+    JOURNAL_LIFECYCLE_REGISTRY.flatMap((entry) =>
+      entry.retention.kind === 'window' ? [[entry.table, entry.retention.days] as const] : [],
+    ),
+  );
+
+  expect(daysByTable.get('public.outgoing_delivery_queue')).toBe(
+    OUTGOING_DELIVERY_QUEUE_SENT_RETENTION_DAYS_DEFAULT,
+  );
+  expect(daysByTable.get('public.media_hls_proxy_error_events')).toBe(
+    MEDIA_HLS_PROXY_ERROR_RETENTION_DAYS_DEFAULT,
+  );
+  expect(daysByTable.get('public.media_playback_stats_hourly')).toBe(
+    PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
+  );
+  expect(daysByTable.get('public.media_playback_resolution_events')).toBe(
+    PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
+  );
+  expect(daysByTable.get('public.media_playback_client_events')).toBe(
+    PLAYBACK_RAW_EVENTS_RETENTION_DAYS,
+  );
 });
 
 it('registers no table twice and never contradicts itself with a non-journal decision', () => {
