@@ -400,6 +400,22 @@ describe('Ч1 intent policy at the six public intake routes', () => {
     expect(fakes.presignPutUrl).toHaveBeenCalledOnce();
   });
 
+  it('rejects a patient video shorter than ten seconds before creating an upload', async () => {
+    const response = await submissionPresign(
+      jsonRequest({
+        filename: 'clip.mp4',
+        mimeType: 'video/mp4',
+        size: 12,
+        durationSeconds: 9.5,
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ ok: false, error: 'video_too_short' });
+    expect(fakes.createPendingProgramSubmissionMediaFile).not.toHaveBeenCalled();
+    expect(fakes.presignPutUrl).not.toHaveBeenCalled();
+  });
+
   it('patient video confirm atomically makes the submission ready and queues processing', async () => {
     fakes.getMediaRowForConfirm.mockResolvedValue(
       pendingRow({

@@ -14,11 +14,16 @@ import {
 import { uploadValidationResponse } from '@/modules/media/uploadValidation';
 import { assertPatientProgramMediaAllowed } from '@/modules/doctor-clients/assertPatientProgramInteraction';
 import { isPatientProgramDiscussionMediaFlowEnabled } from '@/modules/program-item-discussion/discussionFeatureGates';
+import {
+  isProgramSubmissionVideoMime,
+  MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS,
+} from '@/modules/media/programSubmissionUploadLimits';
 
 const bodySchema = z.object({
   filename: z.string().min(1).max(255),
   mimeType: z.string().min(1),
   size: z.number().int().positive(),
+  durationSeconds: z.number().finite().positive().optional(),
 });
 
 export async function POST(request: Request) {
@@ -60,6 +65,13 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
+  }
+  if (
+    isProgramSubmissionVideoMime(parsed.data.mimeType) &&
+    parsed.data.durationSeconds !== undefined &&
+    parsed.data.durationSeconds < MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS
+  ) {
+    return NextResponse.json({ ok: false, error: 'video_too_short' }, { status: 400 });
   }
 
   const prepared = prepareMediaUpload({

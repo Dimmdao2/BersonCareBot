@@ -297,7 +297,13 @@ export function ProgramItemDiscussionDialog(props: {
                   itemId={itemId}
                   disabled={sending || loading}
                   onUploaded={() => bootstrap()}
-                  onError={() => setError('Не удалось загрузить файл')}
+                  onError={(message) =>
+                    setError(
+                      message === 'video_too_short'
+                        ? 'Видео должно быть не короче 10 секунд'
+                        : 'Не удалось загрузить файл',
+                    )
+                  }
                 />
               ) : null
             }

@@ -14,6 +14,9 @@ export const PROGRAM_SUBMISSION_ALLOWED_MIME = new Set([
 /** Max single file for patient program submission upload: 250 MiB. */
 export const MAX_PROGRAM_SUBMISSION_BYTES = 250 * 1024 * 1024;
 
+/** A patient technique video shorter than this is not a meaningful submission. */
+export const MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS = 10;
+
 export const PROGRAM_SUBMISSION_FILE_INPUT_ACCEPT = ['image/*', 'video/*', '.heic', '.heif'].join(
   ',',
 );

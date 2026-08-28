@@ -1073,7 +1073,13 @@ export function PatientProgramStageItemPageClient(props: PatientProgramStageItem
               onUploaded={() => {
                 void loadDiscussionPreview();
               }}
-              onError={() => reportError('Не удалось загрузить файл')}
+              onError={(message) =>
+                reportError(
+                  message === 'video_too_short'
+                    ? 'Видео должно быть не короче 10 секунд'
+                    : 'Не удалось загрузить файл',
+                )
+              }
             />
           ) : null}
           {commentsVisible && item ? (

@@ -250,29 +250,20 @@ bash deploy/host/migrate-dev.sh --execute
 запускает owner-ordered pending migrations и возвращает её к декларативному deny-by-default состоянию без
 reset/restore.
 
-### 6.6 SaaS diagnostics contour (System Health / isolation telemetry) — legacy/pre-cutover only
+### 6.6 SaaS diagnostics contour (System Health)
 
-> **УСТАРЕЛО ДЛЯ TARGET 12.08.2026:** отдельный operator login ниже не переносится в revision 11. Global-admin
-> diagnostics идут через dedicated global-admin webapp login/certificate/pool и `app_platform_settings`; staff
-> login не может переключиться в platform-global role. Пока DEV ещё не прошёл cutover, блок ниже только описывает
-> фактически существующий legacy runtime и не является инструкцией по созданию target access.
+В target port-context отдельного `SAAS_ISOLATION_OPERATOR_DATABASE_URL` нет: защищённый System Health идёт
+через штатный staff-порт и его декларативную capability `saas_telemetry_operator`. Права и membership приезжают
+из общего privilege reconcile; DEV-скрипт не создаёт логины и не выдаёт ручные права.
 
-`migrate-dev.sh` **не** ставит telemetry/health overlays и **не** перенакатывает d3-4 bootstrap grants.
-Для карточек «Всё состояние» / `saasIsolation` и для phone-bind accessors после `0371` на DEV нужен
-отдельный read-only operator login (как на TEST), не расширение обычного `DATABASE_URL`.
-
-1. В `apps/webapp/.env.dev` задать `SAAS_ISOLATION_OPERATOR_DATABASE_URL` на `bcb_webapp_dev` с отдельным login
-   (имя содержит `operator`, пример закомментирован в `apps/webapp/.env.example`; пароль ≥ 32 байт; **не коммитить**).
-2. После миграций и при смене operator URL:
+После миграций и privilege reconcile обновить тело защищённого агрегата:
 
 ```bash
 bash deploy/host/provision-dev-saas-diagnostics.sh
 ```
 
-Скрипт: provisioning operator LOGIN + `CONNECT`, telemetry/health overlays, `GRANT EXECUTE` bootstrap-логину на
-`app.auth_phone_bind_*` (иначе `createOrBind` под bare NOINHERIT nonstaff получает `42501` на функции).
-
-3. Перезапустить webapp, чтобы pool подхватил env.
+Скрипт берёт роль из `DATABASE_URL_STAFF`, применяет только System Health aggregate и проверяет связку
+staff-порт → telemetry-role → protected functions. Перезапуск webapp для этого не нужен: URL не меняется.
 
 ---
 

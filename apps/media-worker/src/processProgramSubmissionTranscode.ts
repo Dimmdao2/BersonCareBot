@@ -18,6 +18,10 @@ import {
   putObjectWithRetry,
   contentTypeForKey,
 } from './s3.js';
+import {
+  isProgramSubmissionVideoDurationAllowed,
+  MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS,
+} from './programSubmissionVideoPolicy.js';
 
 function submission480pKeyFromMediaRoot(mediaRoot: string): string {
   return posix.join(mediaRoot.replace(/\/+$/, ''), '480p.mp4');
@@ -50,6 +54,15 @@ export async function processProgramSubmissionTranscodeJob(
     await ctx.control.processing(job, ctx.lockId);
 
     await downloadObjectToFile(ctx.s3Client, ctx.bucket, sourceKey, src);
+    const sourceDurationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, 60_000);
+    if (
+      sourceDurationSeconds === null ||
+      !isProgramSubmissionVideoDurationAllowed(sourceDurationSeconds)
+    ) {
+      throw new Error(
+        `video_too_short:min_${MIN_PROGRAM_SUBMISSION_VIDEO_DURATION_SECONDS}s:actual_${sourceDurationSeconds}s`,
+      );
+    }
 
     const ffmpegArgs = [
       '-hide_banner',

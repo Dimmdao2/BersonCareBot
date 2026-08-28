@@ -105,6 +105,36 @@ base AS MATERIALIZED (
     ) AS value
   FROM media_preview, playback_client
 ),
+-- The legacy aggregate below this overlay predates the typed background-job manifest and still
+-- carries a closed list of job keys. Do not copy that list here: every status row is already
+-- written through the protected operator-health port, while consumers select the manifest keys
+-- they understand. Preserve the legacy aggregate's explicitly curated safeMeta for the handful of
+-- jobs that expose it; every other row gets an empty object.
+all_safe_jobs AS MATERIALIZED (
+  SELECT COALESCE(jsonb_agg(
+    jsonb_build_object(
+      'jobKey', job.job_key,
+      'jobFamily', job.job_family,
+      'lastStatus', CASE
+        WHEN job.last_status IN ('success', 'failure') THEN job.last_status
+        ELSE 'unknown'
+      END,
+      'lastFinishedAt', job.last_finished_at,
+      'lastSuccessAt', job.last_success_at,
+      'lastFailureAt', job.last_failure_at,
+      'lastDurationMs', job.last_duration_ms,
+      'safeMeta', COALESCE((
+        SELECT legacy_job->'safeMeta'
+        FROM jsonb_array_elements(COALESCE(base.value->'operatorJobs', '[]'::jsonb)) AS legacy_job
+        WHERE legacy_job->>'jobFamily' = job.job_family
+          AND legacy_job->>'jobKey' = job.job_key
+        LIMIT 1
+      ), '{}'::jsonb)
+    ) ORDER BY job.job_family, job.job_key
+  ), '[]'::jsonb) AS value
+  FROM public.operator_job_status AS job
+  CROSS JOIN base
+),
 channel_diagnostics AS MATERIALIZED (
   SELECT jsonb_object_agg(
     channels.channel,
@@ -150,7 +180,12 @@ digest_delivery AS MATERIALIZED (
 )
 SELECT jsonb_set(
   jsonb_set(
-    base.value,
+    jsonb_set(
+      base.value,
+      ARRAY['operatorJobs'],
+      all_safe_jobs.value,
+      true
+    ),
     ARRAY['notificationDelivery', 'byChannel'],
     channel_diagnostics.value,
     false
@@ -159,7 +194,7 @@ SELECT jsonb_set(
   COALESCE(to_jsonb(digest_delivery.last_sent_at), 'null'::jsonb),
   true
 )
-FROM base, channel_diagnostics, digest_delivery
+FROM base, all_safe_jobs, channel_diagnostics, digest_delivery
 $function$;
 
 DO $roles$
@@ -284,9 +319,15 @@ SELECT 1 / (
   )
   AND pg_has_role(:'system_health_operator_runtime_role', 'saas_telemetry_operator', 'MEMBER')
   AND has_function_privilege(
-    :'system_health_operator_runtime_role', 'app.read_curated_system_health()', 'EXECUTE'
+    'saas_telemetry_operator', 'app.read_curated_system_health()', 'EXECUTE'
   )
   AND has_function_privilege(
+    'saas_telemetry_operator', 'app.read_curated_playback_health()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
+    :'system_health_operator_runtime_role', 'app.read_curated_system_health()', 'EXECUTE'
+  )
+  AND NOT has_function_privilege(
     :'system_health_operator_runtime_role', 'app.read_curated_playback_health()', 'EXECUTE'
   )
   AND NOT has_function_privilege('app_owner', 'app.read_curated_system_health()', 'EXECUTE')
