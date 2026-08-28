@@ -2586,6 +2586,7 @@ const INTEGRATOR_SERVICE_SOURCES = [
 const INTEGRATOR_MIGRATION_LEDGER_SOURCES = ['integrator-startup-migration-ledger'] as const;
 const WEBAPP_MEDIA_SOURCES = [
   'api/internal/media-worker/control:POST',
+  'api/internal/media-pending-delete/purge:POST',
   'api/internal/media-multipart/cleanup:POST',
   'api/internal/media-preview/process:POST',
   'api/internal/media-transcode/enqueue:POST',
