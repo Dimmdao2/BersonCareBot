@@ -68,7 +68,7 @@ function readPortForOwnedOccurrence(): DbReadPort {
   return {
     readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
       if (query.type === 'user.byIdentity') return { userId } as T;
-      if (query.type === 'reminders.occurrence.ownerUserId') return userId as T;
+      if (query.type === 'reminders.occurrence.ownerPlatformUserId') return userId as T;
       throw new Error(`unexpected read: ${query.type}`);
     },
   };

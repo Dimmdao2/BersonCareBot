@@ -85,7 +85,14 @@ function buildReminderCallbackAckIntents(
   return intents;
 }
 
-async function resolveIntegratorUserId(
+/**
+ * Canonical `platform_users.id` behind the EXACT channel binding the callback arrived on.
+ *
+ * `user.byIdentity` resolves `(channel_code, external_id)` against `public.user_channel_bindings`
+ * inside a named root that also walks the merge chain and repeats the tenant wall, so a binding
+ * belonging to another clinic resolves to nothing here rather than to a foreign person.
+ */
+async function resolveCanonicalPlatformUserId(
   readPort: NonNullable<ExecutorDeps['readPort']>,
   channelUserId: string,
   resource: string,
@@ -97,16 +104,23 @@ async function resolveIntegratorUserId(
   return link && typeof link.userId === 'string' ? link.userId : null;
 }
 
+/**
+ * Track D (#987): both sides of this comparison are the canonical uuid now. Before the cutover the
+ * owner side came back as `reminder_rules.integrator_user_id` (bigint) while this side was already
+ * the canonical uuid, so the equality could never hold and every reminder button was denied.
+ * A different binding, a different person or a different clinic still resolves to a different
+ * uuid — or to nothing — and stays denied.
+ */
 async function assertOccurrenceOwnedByUser(
   readPort: NonNullable<ExecutorDeps['readPort']>,
   occurrenceId: string,
-  userId: string,
+  platformUserId: string,
 ): Promise<boolean> {
   const owner = await readPort.readDb<string | null>({
-    type: 'reminders.occurrence.ownerUserId',
+    type: 'reminders.occurrence.ownerPlatformUserId',
     params: { occurrenceId },
   });
-  return owner === userId;
+  return owner !== null && owner === platformUserId;
 }
 
 export async function handleReminders(
@@ -150,7 +164,7 @@ export async function handleReminders(
       };
     }
     const minutes = minutesRounded;
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return {
         actionId: action.id,
@@ -233,7 +247,7 @@ export async function handleReminders(
         error: 'reminders.skip.applyPreset: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return {
         actionId: action.id,
@@ -313,7 +327,7 @@ export async function handleReminders(
         error: 'reminders.done.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: forbidden' };
     }
@@ -415,7 +429,7 @@ export async function handleReminders(
         error: 'reminders.mute.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
       return { actionId: action.id, status: 'failed', error: 'reminders.mute.callback: no user' };
     }
@@ -527,7 +541,7 @@ export async function handleReminders(
       };
     }
 
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return {
         actionId: action.id,
@@ -604,7 +618,7 @@ export async function handleReminders(
         error: 'reminders.snoozeMenu.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return {
         actionId: action.id,
@@ -680,7 +694,7 @@ export async function handleReminders(
         error: 'reminders.notifSettings.open.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
       return {
         actionId: action.id,
@@ -763,7 +777,7 @@ export async function handleReminders(
         error: 'reminders.notifSettings.toggle.callback: missing params',
       };
     }
-    const userId = await resolveIntegratorUserId(deps.readPort, channelUserId, resource);
+    const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
     if (!userId) {
       return {
         actionId: action.id,

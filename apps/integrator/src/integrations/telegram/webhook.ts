@@ -53,7 +53,6 @@ function buildActorFromBody(body: TelegramWebhookBodyValidated): Record<string, 
 /** Exported for tests: resolves booking deep-link (native cabinet vs BOOKING_URL fallback). */
 export async function buildLinksFromBody(
   body: TelegramWebhookBodyValidated,
-  resolveIntegratorUserIdForMessenger?: TelegramWebhookDeps['resolveIntegratorUserIdForMessenger'],
   getAppBaseUrl?: () => Promise<string>,
 ): Promise<Record<string, unknown>> {
   const appBaseUrl = getAppBaseUrl ? await getAppBaseUrl() : undefined;
@@ -66,19 +65,14 @@ export async function buildLinksFromBody(
     links.remindersUrl = `${appBase}/app/patient/reminders`;
   }
   if (typeof chatId === 'number') {
-    let integratorUserId: string | undefined;
-    try {
-      if (typeof from?.id === 'number' && resolveIntegratorUserIdForMessenger) {
-        integratorUserId = await resolveIntegratorUserIdForMessenger(String(from.id), 'telegram');
-      }
-    } catch {
-      integratorUserId = undefined;
-    }
+    // Track D (#987): the entry token carries NO user identity of its own. `bindings.telegramId`
+    // below is the canonical reference — webapp resolves it against `user_channel_bindings` and
+    // gets a session only for an account that already exists. A generic `/start` therefore hands
+    // out a link that can log in an existing owner and cannot open an account for anyone else.
     const webappEntryUrl = buildWebappEntryUrl(
       {
         chatId,
         ...(displayName !== undefined && displayName !== '' ? { displayName } : {}),
-        ...(integratorUserId !== undefined ? { integratorUserId } : {}),
       },
       appBaseUrl ?? null,
     );
@@ -127,15 +121,12 @@ export async function buildAdminFacts(
 
 async function buildTelegramFacts(
   body: TelegramWebhookBodyValidated,
-  resolveIntegratorUserIdForMessenger:
-    | TelegramWebhookDeps['resolveIntegratorUserIdForMessenger']
-    | undefined,
   getAppBaseUrl: TelegramWebhookDeps['getAppBaseUrl'],
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
   return {
     ...buildActorFromBody(body),
-    ...(await buildLinksFromBody(body, resolveIntegratorUserIdForMessenger, getAppBaseUrl)),
+    ...(await buildLinksFromBody(body, getAppBaseUrl)),
     ...(await buildAdminFacts(body, resolveMessengerStaffAdmin)),
   };
 }
@@ -146,7 +137,12 @@ export type TelegramWebhookDeps = {
   setupProviderSurface?: boolean;
   /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
   getRuntimeConfig?: typeof getTelegramRuntimeConfig;
-  /** Best-effort integrator `users.id` for webapp-entry token (Phase B); injected from app layer (DB). */
+  /**
+   * Integrator's own internal principal key (`app.integrator_user_id` GUC → `runWithIntegratorPrincipal`),
+   * NOT a public user identity: Track D (#987) removed the only public use, webapp-entry token
+   * enrichment. Optional and currently unwired in `app/routes.ts`, so the webhook runs under the
+   * organization principal.
+   */
   resolveIntegratorUserIdForMessenger?: (
     externalId: string,
     resource: 'telegram' | 'max',
@@ -331,12 +327,7 @@ export async function processTelegramUpdate(
   const preRouting = await runWithBootstrapPrincipal(
     { source: 'telegram-webhook:pre-routing' },
     async () => ({
-      facts: await buildTelegramFacts(
-        body,
-        deps.resolveIntegratorUserIdForMessenger,
-        deps.getAppBaseUrl,
-        deps.resolveMessengerStaffAdmin,
-      ),
+      facts: await buildTelegramFacts(body, deps.getAppBaseUrl, deps.resolveMessengerStaffAdmin),
       organizationId:
         ctx.dedicatedOrganizationId ?? (await resolveTelegramOrganizationId(body, deps, reqLogger)),
       integratorUserId: await resolveTelegramIntegratorUserId(body, deps),

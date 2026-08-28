@@ -8,7 +8,6 @@ export type IntegratorDeliveryTargetSelector = {
   telegramId?: string;
   maxId?: string;
   platformUserId?: string;
-  integratorUserId?: string;
   topicCode?: string;
   nowIso?: string;
 };

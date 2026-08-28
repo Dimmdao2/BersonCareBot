@@ -6,38 +6,23 @@
  * `apps/integrator/src/infra/db/repos/reminders.ts`), so there is nothing left to project.
  */
 export type ReminderProjectionPort = {
-  upsertRuleFromProjection(params: {
-    integratorRuleId: string;
-    integratorUserId: string;
-    category: string;
-    isEnabled: boolean;
-    scheduleType: string;
-    timezone: string;
-    intervalMinutes: number;
-    windowStartMinute: number;
-    windowEndMinute: number;
-    daysMask: string;
-    contentMode: string;
-    updatedAt: string;
-  }): Promise<void>;
-  upsertContentAccessGrantFromProjection(params: {
-    integratorGrantId: string;
-    integratorUserId: string;
-    contentId: string;
-    purpose: string;
-    tokenHash: string | null;
-    expiresAt: string;
-    revokedAt: string | null;
-    metaJson: Record<string, unknown>;
-    createdAt: string;
-  }): Promise<void>;
-  listRulesByIntegratorUserId(integratorUserId: string): Promise<ReminderRuleListItem[]>;
-  getRuleByIntegratorUserIdAndCategory(
-    integratorUserId: string,
+  /**
+   * Track D (#987) also removed `upsertRuleFromProjection` and
+   * `upsertContentAccessGrantFromProjection`. They were the write half of the same retired M2M
+   * projection: keyed by `integrator_user_id`, they were the only writers of that column into
+   * `reminder_rules` / `content_access_grants_webapp`, and they had zero production callers — the
+   * integrator writes reminder rules through the patient/webapp roots instead. Do not reintroduce
+   * them under another name.
+   *
+   * The reads below are keyed by canonical `public.platform_users.id`.
+   */
+  listRulesByPlatformUserId(platformUserId: string): Promise<ReminderRuleListItem[]>;
+  getRuleByPlatformUserIdAndCategory(
+    platformUserId: string,
     category: string,
   ): Promise<ReminderRuleListItem | null>;
-  listHistoryByIntegratorUserId(
-    integratorUserId: string,
+  listHistoryByPlatformUserId(
+    platformUserId: string,
     limit?: number,
   ): Promise<ReminderOccurrenceHistoryItem[]>;
   getUnseenCount(platformUserId: string): Promise<number>;
@@ -51,6 +36,7 @@ export type ReminderProjectionPort = {
 
 export type ReminderRuleListItem = {
   id: string;
+  /** Canonical `public.platform_users.id` owning the rule. */
   userId: string;
   category: string;
   isEnabled: boolean;

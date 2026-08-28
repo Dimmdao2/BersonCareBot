@@ -3,6 +3,12 @@ import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import type { ReminderRuleForTopicCode } from '@/modules/reminders/reminderOccurrenceTopicCode';
 import type { ChannelBindings } from '@/shared/types/session';
 
+/**
+ * Track D (#987): ownership is `reminder_occurrence_history.platform_user_id` (NOT NULL), read
+ * directly. It used to hop `platform_users.integrator_user_id = roh.integrator_user_id`, which
+ * silently excluded every occurrence whose owner has no retired numeric identity — i.e. exactly the
+ * canonical-only patients this cutover is for, on the messenger "disable this topic" callback.
+ */
 export async function loadReminderRuleForMessengerTopicDisable(
   pool: Pool,
   params: {
@@ -22,10 +28,9 @@ export async function loadReminderRuleForMessengerTopicDisable(
             rr.reminder_intent,
             rr.linked_object_type::text AS linked_object_type
        FROM reminder_occurrence_history roh
- INNER JOIN platform_users pu ON pu.integrator_user_id = roh.integrator_user_id
  INNER JOIN reminder_rules rr ON rr.integrator_rule_id = roh.integrator_rule_id
       WHERE roh.integrator_occurrence_id = $1
-        AND pu.id = $2::uuid`,
+        AND roh.platform_user_id = $2::uuid`,
     [params.integratorOccurrenceId, params.platformUserId],
   );
   const row = own.rows[0];

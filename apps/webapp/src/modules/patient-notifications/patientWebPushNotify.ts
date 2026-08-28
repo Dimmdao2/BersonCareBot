@@ -48,7 +48,9 @@ import type { TopicChannelPrefsPort } from '@/modules/patient-notifications/topi
 export const integratorPatientWebPushNotifyBodySchema = z
   .object({
     organizationId: z.string().uuid(),
-    integratorUserId: z.string().regex(/^\d+$/).optional(),
+    // Track D (#987): the retired numeric `integratorUserId` selector is gone. The only producer
+    // (`bookingLifecycleRoute.ts:notifyPatientWebPush`) sends `phoneNormalized`; a caller that
+    // wants to name the person directly sends the canonical `platformUserId`.
     phoneNormalized: z.string().min(8).max(32).optional(),
     platformUserId: z.string().uuid().optional(),
     topicCode: z.string().min(1).max(120).default(REMINDER_NOTIFICATION_TOPIC_APPOINTMENT),
@@ -60,7 +62,7 @@ export const integratorPatientWebPushNotifyBodySchema = z
     broadcastTitle: z.string().max(500).optional(),
     nowIso: z.string().max(64).optional(),
   })
-  .refine((body) => Boolean(body.platformUserId || body.integratorUserId || body.phoneNormalized), {
+  .refine((body) => Boolean(body.platformUserId || body.phoneNormalized), {
     message: 'missing_user_ref',
   });
 
@@ -69,9 +71,6 @@ export type IntegratorPatientWebPushNotifyBody = z.infer<
 >;
 
 export type PatientWebPushNotifyDeps = {
-  findPlatformUserByIntegratorId: (
-    integratorUserId: string,
-  ) => Promise<{ platformUserId: string } | null>;
   findPlatformUserByPhone: (phoneNormalized: string) => Promise<{ platformUserId: string } | null>;
   channelPreferences: ChannelPreferencesPort;
   topicChannelPrefs: TopicChannelPrefsPort;
@@ -139,11 +138,9 @@ export async function runPatientWebPushNotify(
 ): Promise<Record<string, unknown>> {
   const platform = body.platformUserId
     ? { platformUserId: body.platformUserId }
-    : body.integratorUserId
-      ? await deps.findPlatformUserByIntegratorId(body.integratorUserId)
-      : body.phoneNormalized
-        ? await deps.findPlatformUserByPhone(body.phoneNormalized)
-        : null;
+    : body.phoneNormalized
+      ? await deps.findPlatformUserByPhone(body.phoneNormalized)
+      : null;
 
   if (!platform) {
     return { ok: true, skipped: 'no_platform_user' };

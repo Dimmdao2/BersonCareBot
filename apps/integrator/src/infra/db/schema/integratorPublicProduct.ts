@@ -76,6 +76,7 @@ export const orgEnrollments = publicSchema.table('org_enrollments', {
 export const reminderRules = publicSchema.table('reminder_rules', {
   integratorRuleId: text('integrator_rule_id').primaryKey().notNull(),
   organizationId: uuid('organization_id'),
+  /** Track D (#987): единственный ключ владельца правила; retired-id больше не читается. */
   platformUserId: uuid('platform_user_id'),
   integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
   category: text().notNull(),

@@ -78,7 +78,12 @@ export function createPgIntegratorDeliveryTargetsPort(): IntegratorDeliveryTarge
         nonEmpty(selector.telegramId),
         nonEmpty(selector.maxId),
         nonEmpty(selector.platformUserId),
-        nonEmpty(selector.integratorUserId),
+        // Track D (#987): the retired numeric identity is no longer a selector anywhere in TS, so
+        // this positional argument is pinned to NULL. The root keeps its `bigint` parameter for now
+        // because dropping it changes the function's signature — that is a DROP+CREATE, and a
+        // recreated function would need its grants re-issued, which a migration must never do
+        // (AGENTS.md §1). Retiring the parameter itself belongs to a privilege-aware pass.
+        null,
         nonEmpty(selector.topicCode),
         nowIso,
       ] as const;

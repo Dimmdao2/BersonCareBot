@@ -53,7 +53,6 @@ import { resolveCanonicalPlatformUserIdByChannel } from './platformUserByChannel
 import { runWithOrganizationPrincipal } from '../../principal/organizationPrincipal.js';
 import { getPhoneNormalizedForDeliveryLookup } from './platformUserDeliveryPhone.js';
 
-vi.mock('./channelUsers.js', () => ({}));
 vi.mock('./platformUserByChannel.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./platformUserByChannel.js')>();
   return {

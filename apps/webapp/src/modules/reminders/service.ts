@@ -324,10 +324,12 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         if (existing) return { ok: true, data: existing };
       }
 
-      const integratorUserId = await port.resolveIntegratorUserId(platformUserId);
+      // Track D (#987): a reminder needs SOME way to reach the person — a selected bot channel or
+      // web push. It used to ask for a retired numeric identity instead of a bot binding, which
+      // locked out every canonical-only patient who had chosen a bot and no push.
+      const hasBotBinding = await port.hasMessengerChannelBinding(platformUserId);
       const hasWebPush = await hasNotificationChannel(platformUserId);
-      // Allow creation if has bot linking OR has web push subscription
-      if (!integratorUserId && !hasWebPush) return { ok: false, error: 'not_found' };
+      if (!hasBotBinding && !hasWebPush) return { ok: false, error: 'not_found' };
 
       const reminderIntent = await resolveReminderIntentForLinkedObject(
         params.linkedObjectType,
@@ -365,7 +367,6 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
         const rule = await createRule({
           integratorRuleId,
           platformUserId,
-          integratorUserId,
           linkedObjectType: params.linkedObjectType,
           linkedObjectId: params.linkedObjectId.trim(),
           customTitle: null,
@@ -392,7 +393,6 @@ export function createRemindersService(port: ReminderRulesPort, deps?: Reminders
       const rule = await createRule({
         integratorRuleId,
         platformUserId,
-        integratorUserId,
         linkedObjectType: params.linkedObjectType,
         linkedObjectId: params.linkedObjectId.trim(),
         customTitle: null,

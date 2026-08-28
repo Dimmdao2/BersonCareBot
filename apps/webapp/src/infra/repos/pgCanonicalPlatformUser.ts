@@ -125,27 +125,6 @@ export async function findCanonicalUserIdByPhone(
   );
 }
 
-/** Exactly one canonical row per integrator id. */
-export async function findCanonicalUserIdByIntegratorId(
-  db: WebappSqlExecutor,
-  integratorUserId: string,
-): Promise<string | null> {
-  const rows = await db
-    .select({ id: platformUsers.id })
-    .from(platformUsers)
-    .where(
-      and(
-        eq(sql`${platformUsers.integratorUserId}`, sql`${integratorUserId}::bigint`),
-        isNull(platformUsers.mergedIntoId),
-      ),
-    )
-    .orderBy(asc(platformUsers.createdAt))
-    .limit(3);
-  return pickUniqueCanonicalId(rows, '[canonical] multiple canonical rows for integrator_user_id', {
-    integratorUserId,
-  });
-}
-
 /**
  * Canonical user with this phone and trusted patient activation (`user_contacts.confirmed_at`).
  * Every confirmed phone remains login-capable; primary selects delivery preference only.

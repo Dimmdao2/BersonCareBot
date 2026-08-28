@@ -27,7 +27,7 @@ export type DbReadQueryType =
   | 'reminders.rules.forUser'
   | 'reminders.rule.forUserAndCategory'
   | 'reminders.occurrences.forRuleRange'
-  | 'reminders.occurrence.ownerUserId'
+  | 'reminders.occurrence.ownerPlatformUserId'
   | 'reminders.delivery.staleMessengerMessage'
   | 'delivery.pending';
 
@@ -406,7 +406,6 @@ export type { DeliveryTargetsFetchResult } from './notificationChannels.js';
 export type DeliveryTargetsFetchOptions = {
   organizationId: string;
   topic?: string;
-  integratorUserId?: string;
 };
 
 export type AdminMessengerTargets = { telegram: string[]; max: string[] };
@@ -422,13 +421,11 @@ export type DeliveryTargetsPort = {
     telegramId?: string;
     maxId?: string;
     topic?: string;
-    integratorUserId?: string;
     organizationId?: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
   getTargetsByPlatformUser?(params: {
     platformUserId: string;
     topic: string;
-    integratorUserId?: string;
     organizationId: string;
   }): Promise<import('./notificationChannels.js').DeliveryTargetsFetchResult | null>;
 };
@@ -501,18 +498,21 @@ export type RemindersWebappWritesPort = {
   }): Promise<{ ok: true; newState: boolean } | { ok: false; error: string }>;
 };
 
-/** Port to read reminder product data from webapp (projection). Used with fallback to local DB. */
+/**
+ * Port to read reminder product data from webapp (projection).
+ * Track D (#987): keyed by canonical `public.platform_users.id`, never the retired numeric identity.
+ */
 export type RemindersReadsPort = {
   listRulesForUser(
-    integratorUserId: string,
+    platformUserId: string,
     organizationId: string,
   ): Promise<ReminderRuleListItem[]>;
   getRuleForUserAndCategory(
-    integratorUserId: string,
+    platformUserId: string,
     category: string,
   ): Promise<ReminderRuleDetail | null>;
   listHistoryForUser(
-    integratorUserId: string,
+    platformUserId: string,
     limit?: number,
   ): Promise<ReminderOccurrenceHistoryItem[]>;
 };

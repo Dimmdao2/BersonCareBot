@@ -62,7 +62,7 @@ function skipPorts() {
   const readPort: DbReadPort = {
     readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
       if (query.type === 'user.byIdentity') return { userId } as T;
-      if (query.type === 'reminders.occurrence.ownerUserId') return userId as T;
+      if (query.type === 'reminders.occurrence.ownerPlatformUserId') return userId as T;
       throw new Error(`unexpected read: ${query.type}`);
     },
   };
@@ -121,7 +121,7 @@ describe('D21a: skip guards occurrence ownership (D21A_AUDIT.md F5)', () => {
       readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
         if (query.type === 'user.byIdentity') return { userId } as T;
         // Occurrence belongs to someone else — the actor pressing "Пропустить" is not the owner.
-        if (query.type === 'reminders.occurrence.ownerUserId') return otherOwnerUserId as T;
+        if (query.type === 'reminders.occurrence.ownerPlatformUserId') return otherOwnerUserId as T;
         throw new Error(`unexpected read: ${query.type}`);
       },
     };
@@ -183,7 +183,7 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
     const readPort: DbReadPort = {
       readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
         if (query.type === 'user.byIdentity') return { userId: routingUserId } as T;
-        if (query.type === 'reminders.occurrence.ownerUserId') return routingUserId as T;
+        if (query.type === 'reminders.occurrence.ownerPlatformUserId') return routingUserId as T;
         throw new Error(`unexpected read: ${query.type}`);
       },
     };

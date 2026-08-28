@@ -11,16 +11,23 @@ type WebappEntryTokenPayload = {
   role: 'client' | 'doctor' | 'admin';
   displayName?: string;
   phone?: string;
-  /** Optional; webapp resolves canon before creating `platform_users` (see contracts/webapp-entry-token.json). */
-  integratorUserId?: string;
+  /**
+   * Canonical `public.platform_users.id` (uuid), and only when an existing binding already
+   * resolved it — Track D (#987) retired the numeric public identity that used to sit here.
+   * Absent means "webapp resolves the person from `bindings` alone"; it never means "create one".
+   */
+  platformUserId?: string;
   bindings?: { telegramId?: string; maxId?: string; vkId?: string };
   purpose: 'webapp-entry';
   exp: number;
 };
 
 export type WebappEntrySource =
-  | { source: 'telegram'; chatId: number; displayName?: string; integratorUserId?: string }
-  | { source: 'max'; maxId: string; displayName?: string; integratorUserId?: string };
+  | { source: 'telegram'; chatId: number; displayName?: string; platformUserId?: string }
+  | { source: 'max'; maxId: string; displayName?: string; platformUserId?: string };
+
+const PLATFORM_USER_UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function base64UrlEncode(value: string): string {
   return Buffer.from(value, 'utf8')
@@ -35,11 +42,13 @@ function sign(value: string, secret: string): string {
 }
 
 /**
- * C-4 (docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): this token's `role` is the only input to
- * `INSERT INTO platform_users(..., role)` for a channel binding that does not resolve to an
- * existing account yet (webapp's `pgIdentityResolution.ts:findOrCreateByChannelBinding`, called
- * from `exchangeIntegratorToken`) — so whatever this function returns for a brand-new person
- * becomes their persisted role. It used to return 'admin' when the Telegram chat id matched
+ * C-4 (docs/ARCHITECTURE/ADMIN_ACCESS_MODEL.md): this token's `role` no longer reaches any
+ * `INSERT INTO platform_users`. Track D (#987) made webapp's
+ * `pgIdentityResolution.ts:resolveByChannelBinding` resolve-only, so a channel binding that does
+ * not resolve to an existing account yields no session instead of a new person — the bot confirms
+ * a phone, it never opens an account (`docs/OWNER_DECISIONS.md`, owner 23.08.2026). The role is
+ * still carried because it seeds the session for an already-existing account. It used to return
+ * 'admin' when the Telegram chat id matched
  * `TELEGRAM_ADMIN_ID` (an env-resident single-id admin list, same shape/risk as the seven
  * DB-resident allowlists closed by C-4's main change): a stranger whose chat id happened to sit
  * in that env value could self-register into admin. Always 'client' now, for both channels — an
@@ -94,9 +103,9 @@ export function buildWebappEntryTokenFromSource(
   const now = Math.floor(Date.now() / 1000);
   const exp = now + 300;
 
-  const intId =
-    typeof params.integratorUserId === 'string' && params.integratorUserId.trim() !== ''
-      ? params.integratorUserId.trim()
+  const platformUserId =
+    typeof params.platformUserId === 'string' && PLATFORM_USER_UUID_RE.test(params.platformUserId.trim())
+      ? params.platformUserId.trim()
       : undefined;
   const payload: WebappEntryTokenPayload = {
     sub,
@@ -104,7 +113,7 @@ export function buildWebappEntryTokenFromSource(
     ...(params.displayName !== undefined && params.displayName !== ''
       ? { displayName: params.displayName }
       : {}),
-    ...(intId !== undefined ? { integratorUserId: intId } : {}),
+    ...(platformUserId !== undefined ? { platformUserId } : {}),
     bindings,
     purpose: 'webapp-entry',
     exp,
@@ -134,11 +143,11 @@ export function buildWebappEntryUrlFromSource(
 export function buildWebappEntryToken(params: {
   chatId: number;
   displayName?: string;
-  integratorUserId?: string;
+  platformUserId?: string;
 }): string | null {
   const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
-  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
+  if (params.platformUserId !== undefined) src.platformUserId = params.platformUserId;
   return buildWebappEntryTokenFromSource(src);
 }
 
@@ -146,11 +155,11 @@ export function buildWebappEntryToken(params: {
 export function buildWebappEntryTokenForMax(params: {
   maxId: string;
   displayName?: string;
-  integratorUserId?: string;
+  platformUserId?: string;
 }): string | null {
   const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
-  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
+  if (params.platformUserId !== undefined) src.platformUserId = params.platformUserId;
   return buildWebappEntryTokenFromSource(src);
 }
 
@@ -159,13 +168,13 @@ export function buildWebappEntryUrlForMax(
   params: {
     maxId: string;
     displayName?: string;
-    integratorUserId?: string;
+    platformUserId?: string;
   },
   appBaseUrlOverride?: string | null,
 ): string | null {
   const src: WebappEntrySource = { source: 'max', maxId: params.maxId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
-  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
+  if (params.platformUserId !== undefined) src.platformUserId = params.platformUserId;
   return buildWebappEntryUrlFromSource(src, appBaseUrlOverride);
 }
 
@@ -174,12 +183,12 @@ export function buildWebappEntryUrl(
   params: {
     chatId: number;
     displayName?: string;
-    integratorUserId?: string;
+    platformUserId?: string;
   },
   appBaseUrlOverride?: string | null,
 ): string | null {
   const src: WebappEntrySource = { source: 'telegram', chatId: params.chatId };
   if (params.displayName !== undefined) src.displayName = params.displayName;
-  if (params.integratorUserId !== undefined) src.integratorUserId = params.integratorUserId;
+  if (params.platformUserId !== undefined) src.platformUserId = params.platformUserId;
   return buildWebappEntryUrlFromSource(src, appBaseUrlOverride);
 }

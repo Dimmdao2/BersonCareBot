@@ -31,9 +31,9 @@ export type SkippedNotificationChannel = {
 
 /** Результат резолвера каналов для темы и пользователя. */
 export type ResolvedNotificationChannels = {
+  /** Canonical `public.platform_users.id`. Track D (#987) removed the retired numeric twin. */
   userId: string;
   topicCode: string;
-  integratorUserId?: string;
   selectedChannels: NotificationChannelCode[];
   skippedChannels: SkippedNotificationChannel[];
   availableChannels: NotificationChannelCode[];
@@ -42,17 +42,16 @@ export type ResolvedNotificationChannels = {
 
 export type ResolvedNotificationChannelsCore = Omit<
   ResolvedNotificationChannels,
-  'userId' | 'topicCode' | 'integratorUserId'
+  'userId' | 'topicCode'
 >;
 
 export function attachResolutionIdentity(
   core: ResolvedNotificationChannelsCore,
-  identity: { userId: string; topicCode: string; integratorUserId?: string },
+  identity: { userId: string; topicCode: string },
 ): ResolvedNotificationChannels {
   return {
     userId: identity.userId,
     topicCode: identity.topicCode,
-    integratorUserId: identity.integratorUserId,
     ...core,
   };
 }
@@ -70,7 +69,6 @@ export function logNotificationChannelsResolved(params: {
     {
       event: 'notification_channels_resolved',
       userId: resolution.userId,
-      integratorUserId: resolution.integratorUserId,
       topicCode: resolution.topicCode,
       intentType,
       deliveryPath,

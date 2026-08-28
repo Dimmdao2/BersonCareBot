@@ -22,9 +22,9 @@ export type SkippedNotificationChannelReason =
   | 'rate_limited';
 
 export type ResolvedNotificationChannelsPayload = {
+  /** Canonical `public.platform_users.id`. Track D (#987) removed the retired numeric twin. */
   userId: string;
   topicCode: string;
-  integratorUserId?: string;
   selectedChannels: NotificationChannelCode[];
   skippedChannels: Array<{
     channel: NotificationChannelCode;

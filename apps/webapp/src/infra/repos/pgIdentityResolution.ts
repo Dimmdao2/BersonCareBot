@@ -11,7 +11,6 @@ import type {
   MessengerIdentityResolutionHints,
 } from '@/modules/auth/identityResolutionPort';
 import {
-  findCanonicalUserIdByIntegratorId,
   findTrustedCanonicalUserIdByPhone,
   resolveCanonicalUserId,
 } from '@/infra/repos/pgCanonicalPlatformUser';
@@ -20,13 +19,12 @@ import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
 import {
   bindingsFromRows,
   parseChannelBindingLookupParams,
-  parseFindOrCreateByChannelBindingParams,
+  parseResolveByChannelBindingParams,
   parseIdentityRow,
   parseMessengerIdentityResolutionHints,
   parseUserRole,
   preSessionChannelBindingSessionRowSchema,
   userIdRowSchema,
-  platformUserIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
 import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
@@ -51,11 +49,6 @@ async function collectMessengerResolutionCandidates(
     const canon = await resolveCanonicalUserId(getWebappSqlFromPgClient(client), sub);
     if (canon) ids.push(canon);
   }
-  const intId = parsedHints.integratorUserId?.trim();
-  if (intId) {
-    const byInt = await findCanonicalUserIdByIntegratorId(getWebappSqlFromPgClient(client), intId);
-    if (byInt) ids.push(byInt);
-  }
   const phone = parsedHints.phoneNormalized?.trim();
   if (phone) {
     const byTrustedPhone = await findTrustedCanonicalUserIdByPhone(getWebappSqlFromPgClient(client), phone);
@@ -75,8 +68,19 @@ async function loadSessionUserForId(
 }
 
 export const pgIdentityResolutionPort: IdentityResolutionPort = {
-  async findOrCreateByChannelBinding(params) {
-    const parsed = parseFindOrCreateByChannelBindingParams(params);
+  /**
+   * Track D (#987): resolve-only. Three outcomes and no fourth:
+   *   1. the binding already exists  → that person's session;
+   *   2. no binding, but a hint from the signed token resolves an EXISTING canon → bind and merge;
+   *   3. nothing resolves            → `null`, and the caller denies the entry.
+   *
+   * The removed fourth branch was `INSERT INTO platform_users` — it is what let an arbitrary
+   * `/start` (which mints a signed entry link for any chat id) open an account for a stranger the
+   * bot had proved nothing about. The owner's rule is that the bot proves phone ownership and the
+   * webapp owns the account record (`docs/OWNER_DECISIONS.md`, 23.08.2026).
+   */
+  async resolveByChannelBinding(params) {
+    const parsed = parseResolveByChannelBindingParams(params);
     const pool = getPool();
     const txResult = await withPoolTransaction(pool, async (client) => {
       const existing = await runIdentityClientPgText(
@@ -85,102 +89,88 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
         [parsed.channelCode, parsed.externalId],
       );
 
-      let userId: string;
-      let accountOutcome: 'created' | 'linked_existing' = 'linked_existing';
-
       if (existing.rows.length > 0) {
-        userId = parseIdentityRow(userIdRowSchema, existing.rows[0], 'existing_binding').user_id;
+        const userId = parseIdentityRow(userIdRowSchema, existing.rows[0], 'existing_binding').user_id;
         if (process.env.NODE_ENV !== 'test') {
           console.info(
             '[identity_resolution] path=existing_binding channel=%s',
             parsed.channelCode,
           );
         }
-      } else {
-        let insertedNewPlatformUser = false;
-        const hintCandidates = await collectMessengerResolutionCandidates(
-          client,
-          parsed.resolutionHints,
-        );
-        if (hintCandidates.length > 0) {
-          userId = await mergeCanonicalPlatformUserCandidates(client, hintCandidates, 'projection');
-          const dn = parsed.displayName?.trim();
-          if (dn) {
-            await runIdentityClientPgText(
-              client,
-              `UPDATE platform_users SET
-                 display_name = $2::text,
-                 updated_at = now()
-               WHERE id = $1::uuid`,
-              [userId, dn],
-            );
-            await syncUserIdentityFioMirrorWebapp(client, userId);
-          }
-          if (process.env.NODE_ENV !== 'test') {
-            console.info(
-              '[identity_resolution] path=merge_before_bind channel=%s hint_candidates=%d',
-              parsed.channelCode,
-              hintCandidates.length,
-            );
-          }
-        } else {
-          if (process.env.NODE_ENV !== 'test') {
-            console.info('[identity_resolution] path=insert_new channel=%s', parsed.channelCode);
-          }
-          const insertUser = await runIdentityClientPgText(
-            client,
-            `INSERT INTO platform_users (display_name, role) VALUES ($1, $2) RETURNING id`,
-            [parsed.displayName ?? parsed.externalId, parsed.role ?? 'client'],
-          );
-          userId = parseIdentityRow(
-            platformUserIdRowSchema,
-            insertUser.rows[0],
-            'insert_platform_user',
-          ).id;
-          insertedNewPlatformUser = true;
-          await syncUserIdentityFioMirrorWebapp(client, userId);
-        }
-        const insBinding = await runIdentityClientPgText(
-          client,
-          `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-           VALUES ($1, $2, $3)
-           ON CONFLICT (channel_code, external_id) DO NOTHING
-           RETURNING user_id`,
-          [userId, parsed.channelCode, parsed.externalId],
-        );
-        if (insBinding.rows.length > 0) {
-          await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, parsed.channelCode);
-          if (insertedNewPlatformUser) {
-            accountOutcome = 'created';
-          }
-        } else {
-          const reread = await runIdentityClientPgText(
-            client,
-            'SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE',
-            [parsed.channelCode, parsed.externalId],
-          );
-          const ownerId = reread.rows[0]
-            ? parseIdentityRow(userIdRowSchema, reread.rows[0], 'binding_reread').user_id
-            : null;
-          if (!ownerId) {
-            throw new Error('findOrCreateByChannelBinding: binding missing after conflict');
-          }
-          if (insertedNewPlatformUser) {
-            await runIdentityClientPgText(client, 'DELETE FROM platform_users WHERE id = $1', [
-              userId,
-            ]);
-          }
-          userId = ownerId;
-        }
+        return { userId };
       }
-      return {
-        accountOutcome,
-        userId,
-      };
+
+      const hintCandidates = await collectMessengerResolutionCandidates(
+        client,
+        parsed.resolutionHints,
+      );
+      if (hintCandidates.length === 0) {
+        if (process.env.NODE_ENV !== 'test') {
+          console.info(
+            '[identity_resolution] path=unresolved_no_account channel=%s',
+            parsed.channelCode,
+          );
+        }
+        return null;
+      }
+
+      let userId = await mergeCanonicalPlatformUserCandidates(client, hintCandidates, 'projection');
+      const dn = parsed.displayName?.trim();
+      if (dn) {
+        await runIdentityClientPgText(
+          client,
+          `UPDATE platform_users SET
+             display_name = $2::text,
+             updated_at = now()
+           WHERE id = $1::uuid`,
+          [userId, dn],
+        );
+        await syncUserIdentityFioMirrorWebapp(client, userId);
+      }
+      if (process.env.NODE_ENV !== 'test') {
+        console.info(
+          '[identity_resolution] path=merge_before_bind channel=%s hint_candidates=%d',
+          parsed.channelCode,
+          hintCandidates.length,
+        );
+      }
+
+      const insBinding = await runIdentityClientPgText(
+        client,
+        `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (channel_code, external_id) DO NOTHING
+         RETURNING user_id`,
+        [userId, parsed.channelCode, parsed.externalId],
+      );
+      if (insBinding.rows.length > 0) {
+        await upsertBroadcastDefaultsAfterChannelBind(
+          getWebappSqlFromPgClient(client),
+          userId,
+          parsed.channelCode,
+        );
+      } else {
+        // Raced against another binder: the winner owns the channel, we follow it.
+        const reread = await runIdentityClientPgText(
+          client,
+          'SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE',
+          [parsed.channelCode, parsed.externalId],
+        );
+        const ownerId = reread.rows[0]
+          ? parseIdentityRow(userIdRowSchema, reread.rows[0], 'binding_reread').user_id
+          : null;
+        if (!ownerId) {
+          throw new Error('resolveByChannelBinding: binding missing after conflict');
+        }
+        userId = ownerId;
+      }
+      return { userId };
     });
+    if (!txResult) return null;
     return {
       user: await loadSessionUserForId(txResult.userId, parsed.externalId),
-      accountOutcome: txResult.accountOutcome,
+      // Resolve-only: this port can no longer report a freshly created account.
+      accountOutcome: 'linked_existing',
     };
   },
 

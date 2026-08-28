@@ -83,56 +83,7 @@ export async function mergeCanonicalPlatformUserCandidates(
   return collapseIdentityProjectionCandidates(client, uniq, reason);
 }
 
-async function upsertFromProjectionTx(
-  client: PoolClient,
-  params: {
-    integratorUserId: string;
-    phoneNormalized?: string;
-    displayName?: string;
-    firstName?: string | null;
-    lastName?: string | null;
-    email?: string | null;
-    channelCode?: string;
-    externalId?: string;
-  },
-): Promise<string> {
-  const { platformUserId } = await upsertIdentityProjection(client, params);
-  return platformUserId;
-}
-
 export const pgUserProjectionPort: UserProjectionPort = {
-  async upsertFromProjection(params) {
-    const pool = getPool();
-    const id = await withPoolTransaction(pool, async (client) => {
-      await deferPlatformUserUniqueConstraints(client);
-      const id = await upsertFromProjectionTx(client, params);
-      return id;
-    });
-    if (params.phoneNormalized?.trim()) {
-      trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.IntegratorUpsertFromProjection);
-    }
-    return { platformUserId: id };
-  },
-
-  async findByIntegratorId(integratorUserId) {
-    const rows = await getWebappSqlDb()
-      .select({
-        id: platformUsers.id,
-        phone_normalized: drizzlePrimaryPhoneCol,
-      })
-      .from(platformUsers)
-      .where(
-        and(
-          eq(platformUsers.integratorUserId, Number(integratorUserId)),
-          isNull(platformUsers.mergedIntoId),
-        ),
-      )
-      .limit(1);
-    if (rows.length === 0) return null;
-    const row = rows[0]!;
-    return { platformUserId: row.id, phoneNormalized: row.phone_normalized };
-  },
-
   async findByPhoneNormalized(phoneNormalized) {
     const platformUserId = await findCanonicalUserIdByPhone(getWebappSqlDb(), phoneNormalized);
     return platformUserId ? { platformUserId } : null;
@@ -440,8 +391,6 @@ export const pgUserProjectionPort: UserProjectionPort = {
 };
 
 export const inMemoryUserProjectionPort: UserProjectionPort = {
-  upsertFromProjection: async () => ({ platformUserId: '' }),
-  findByIntegratorId: async () => null,
   findByPhoneNormalized: async () => null,
   updatePhone: async () => {},
   updateProfileByPhone: async () => {},

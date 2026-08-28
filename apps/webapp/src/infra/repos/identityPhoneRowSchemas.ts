@@ -25,9 +25,9 @@ export const messengerBindStatusSchema = z.enum([
 ]);
 
 export const messengerIdentityResolutionHintsSchema = z.object({
+  /** Canonical `platform_users.id`; Track D (#987) dropped the retired `integratorUserId` hint. */
   platformUserSub: z.string().trim().min(1).optional(),
   phoneNormalized: z.string().trim().min(1).optional(),
-  integratorUserId: z.string().trim().min(1).optional(),
 });
 
 export const channelBindingLookupParamsSchema = z.object({
@@ -35,7 +35,7 @@ export const channelBindingLookupParamsSchema = z.object({
   externalId: z.string().trim().min(1),
 });
 
-export const findOrCreateByChannelBindingParamsSchema = channelBindingLookupParamsSchema.extend({
+export const resolveByChannelBindingParamsSchema = channelBindingLookupParamsSchema.extend({
   displayName: z.string().optional(),
   role: userRoleSchema.optional(),
   resolutionHints: messengerIdentityResolutionHintsSchema.optional(),
@@ -261,13 +261,13 @@ export function parseChannelBindingLookupParams(params: {
   return parseIdentityRow(channelBindingLookupParamsSchema, params, 'channel_binding_lookup');
 }
 
-export function parseFindOrCreateByChannelBindingParams(
-  params: z.input<typeof findOrCreateByChannelBindingParamsSchema>,
-): z.infer<typeof findOrCreateByChannelBindingParamsSchema> {
+export function parseResolveByChannelBindingParams(
+  params: z.input<typeof resolveByChannelBindingParamsSchema>,
+): z.infer<typeof resolveByChannelBindingParamsSchema> {
   return parseIdentityRow(
-    findOrCreateByChannelBindingParamsSchema,
+    resolveByChannelBindingParamsSchema,
     params,
-    'find_or_create_by_channel_binding',
+    'resolve_by_channel_binding',
   );
 }
 

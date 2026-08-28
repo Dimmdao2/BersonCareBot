@@ -1,8 +1,5 @@
 import { getDrizzle } from '@/app-layer/db/drizzle';
-import {
-  findCanonicalUserIdByIntegratorId as findCanonicalUserIdByIntegratorIdOn,
-  resolveCanonicalUserId as resolveCanonicalUserIdOn,
-} from '@/infra/repos/pgCanonicalPlatformUser';
+import { resolveCanonicalUserId as resolveCanonicalUserIdOn } from '@/infra/repos/pgCanonicalPlatformUser';
 
 /**
  * Фасад для вызывающих вне infra: сессия базы берётся здесь, а не передаётся снаружи.
@@ -11,10 +8,4 @@ import {
  */
 export function resolveCanonicalUserId(userId: string): Promise<string | null> {
   return resolveCanonicalUserIdOn(getDrizzle(), userId);
-}
-
-export function findCanonicalUserIdByIntegratorId(
-  integratorUserId: string,
-): Promise<string | null> {
-  return findCanonicalUserIdByIntegratorIdOn(getDrizzle(), integratorUserId);
 }

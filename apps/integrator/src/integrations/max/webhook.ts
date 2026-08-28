@@ -34,6 +34,11 @@ export type MaxWebhookDeps = {
   setupProviderSurface?: boolean;
   /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
   getRuntimeConfig?: typeof getMaxRuntimeConfig;
+  /**
+   * Integrator's own internal principal key (`app.integrator_user_id` GUC → `runWithIntegratorPrincipal`),
+   * NOT a public user identity: Track D (#987) removed the only public use, webapp-entry token
+   * enrichment. Optional and currently unwired in `app/routes.ts`.
+   */
   resolveIntegratorUserIdForMessenger?: (
     externalId: string,
     resource: 'telegram' | 'max',
@@ -91,9 +96,6 @@ async function resolveMaxIntegratorUserId(
 /** Экспорт для тестов контракта URL miniapp (`/app/max`, `next=`). */
 export async function buildMaxLinks(
   data: MaxUpdateValidated,
-  resolveIntegratorUserIdForMessenger:
-    | MaxWebhookDeps['resolveIntegratorUserIdForMessenger']
-    | undefined,
   appBaseUrl: string | undefined,
 ): Promise<Record<string, unknown>> {
   const maxId = data.message?.sender?.user_id ?? data.callback?.user?.user_id ?? data.user?.user_id;
@@ -103,24 +105,17 @@ export async function buildMaxLinks(
     sender?.first_name != null || sender?.last_name != null
       ? [sender?.first_name, sender?.last_name].filter(Boolean).join(' ').trim() || undefined
       : (sender?.name ?? undefined);
-  let integratorUserId: string | undefined;
-  try {
-    if (resolveIntegratorUserIdForMessenger) {
-      integratorUserId = await resolveIntegratorUserIdForMessenger(String(maxId), 'max');
-    }
-  } catch {
-    integratorUserId = undefined;
-  }
   const appBase = (appBaseUrl ?? env.APP_BASE_URL).trim().replace(/\/+$/, '');
   const remindersUrl =
     appBase.startsWith('http://') || appBase.startsWith('https://')
       ? `${appBase}/app/patient/reminders`
       : undefined;
+  // Track D (#987): no user identity travels in the token — `bindings.maxId` is the canonical
+  // reference and webapp resolves it against an EXISTING `user_channel_bindings` row.
   const webappEntryUrl = buildWebappEntryUrlForMax(
     {
       maxId: String(maxId),
       ...(displayName ? { displayName } : {}),
-      ...(integratorUserId !== undefined ? { integratorUserId } : {}),
     },
     appBaseUrl,
   );
@@ -142,9 +137,6 @@ export async function buildMaxLinks(
 /** Exported for tests. */
 export async function buildMaxFacts(
   data: MaxUpdateValidated,
-  resolveIntegratorUserIdForMessenger:
-    | MaxWebhookDeps['resolveIntegratorUserIdForMessenger']
-    | undefined,
   getAppBaseUrl: MaxWebhookDeps['getAppBaseUrl'],
   resolveMessengerStaffAdmin?: ResolveMessengerStaffAdmin,
 ): Promise<Record<string, unknown>> {
@@ -174,7 +166,7 @@ export async function buildMaxFacts(
   }
   const isAdmin = dbAdmin;
   return {
-    ...(await buildMaxLinks(data, resolveIntegratorUserIdForMessenger, appBaseUrl)),
+    ...(await buildMaxLinks(data, appBaseUrl)),
     ...(actorId ? { isAdmin } : {}),
   };
 }
@@ -190,7 +182,6 @@ export async function registerMaxWebhookRoutes(
 ): Promise<void> {
   if (deps.setupProviderSurface !== false) await setupMaxCommands();
   const readRuntimeConfig = deps.getRuntimeConfig ?? getMaxRuntimeConfig;
-  const resolveIntegratorUserIdForMessenger = deps.resolveIntegratorUserIdForMessenger;
   const getAppBaseUrl = deps.getAppBaseUrl;
   const resolveMessengerStaffAdmin = deps.resolveMessengerStaffAdmin;
 
@@ -287,7 +278,6 @@ export async function registerMaxWebhookRoutes(
         async () => ({
           facts: await buildMaxFacts(
             parseResult.data,
-            resolveIntegratorUserIdForMessenger,
             getAppBaseUrl,
             resolveMessengerStaffAdmin,
           ),
@@ -391,7 +381,6 @@ export async function registerMaxWebhookRoutes(
         async () => ({
           facts: await buildMaxFacts(
             data,
-            deps.resolveIntegratorUserIdForMessenger,
             deps.getAppBaseUrl,
             deps.resolveMessengerStaffAdmin,
           ),
