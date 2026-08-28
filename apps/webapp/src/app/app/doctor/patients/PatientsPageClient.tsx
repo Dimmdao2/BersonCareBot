@@ -771,6 +771,7 @@ function PatientsContent({
         toolbarClassName="md:hidden"
       />
       <CatalogSplitLayout
+        mobileEdgeToEdge
         splitFrom="md"
         desktopColsClassName="md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-2"
         mobileView="list"
@@ -778,7 +779,7 @@ function PatientsContent({
         left={
           <section
             data-doctor-flat-list-surface
-            className="-mx-3 flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-card md:mx-0 md:rounded-[var(--doctor-page-block-radius,12px)]"
+            className="flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-card md:rounded-[var(--doctor-page-block-radius,12px)]"
           >
             <div className="hidden md:block">{renderListControls(false)}</div>
 

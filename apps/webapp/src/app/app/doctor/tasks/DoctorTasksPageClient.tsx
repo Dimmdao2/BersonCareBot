@@ -255,6 +255,7 @@ export function DoctorTasksPageClient({
         }
       >
         <CatalogSplitLayout
+          mobileEdgeToEdge
           className={cn(DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE, 'min-h-0 flex-1')}
           mobileView={pane ? 'detail' : 'list'}
           mobileBackSlot={

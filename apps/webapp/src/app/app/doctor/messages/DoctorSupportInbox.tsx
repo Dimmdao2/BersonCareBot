@@ -380,7 +380,7 @@ export function DoctorSupportInbox({
   const leftPane = (
     <div
       data-doctor-flat-list-surface
-      className="relative -mx-3 flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:mx-0 md:rounded-lg md:border md:border-border"
+      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:rounded-lg md:border md:border-border"
     >
       <div className="hidden shrink-0 border-b border-border bg-muted/20 px-3 py-2 md:block">
         {renderListControls()}
@@ -542,6 +542,7 @@ export function DoctorSupportInbox({
     <>
       {mobileToolbarTarget ? createPortal(renderListControls(), mobileToolbarTarget) : null}
       <CatalogSplitLayout
+        mobileEdgeToEdge
         left={leftPane}
         right={rightPane}
         mobileView={overviewOpen ? 'list' : selectedId ? 'detail' : 'list'}

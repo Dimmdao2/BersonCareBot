@@ -8,6 +8,8 @@ export type CatalogSplitLayoutProps = {
   right: ReactNode;
   mobileView: 'list' | 'detail';
   mobileBackSlot?: ReactNode;
+  /** Mobile list/detail viewport fills the shell width instead of being clipped by page gutters. */
+  mobileEdgeToEdge?: boolean;
   className?: string;
   /**
    * Tailwind class that sets the desktop grid-cols.
@@ -28,6 +30,7 @@ export function CatalogSplitLayout({
   right,
   mobileView,
   mobileBackSlot,
+  mobileEdgeToEdge = false,
   className,
   desktopColsClassName,
   splitFrom = 'lg',
@@ -40,6 +43,7 @@ export function CatalogSplitLayout({
     <div
       className={cn(
         'relative min-h-[calc(100dvh_-_8rem)] overflow-hidden',
+        mobileEdgeToEdge && '-mx-3 md:mx-0',
         splitFromMd
           ? 'md:grid md:min-h-0 md:items-stretch md:gap-3 md:overflow-x-hidden md:overflow-y-visible'
           : 'lg:grid lg:min-h-0 lg:items-stretch lg:gap-3 lg:overflow-x-hidden lg:overflow-y-visible',
