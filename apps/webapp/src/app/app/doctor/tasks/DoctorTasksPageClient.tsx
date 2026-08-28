@@ -84,11 +84,16 @@ export function DoctorTasksPageClient({
     [matchingTasks],
   );
   const visibleTaskGroups = useMemo(() => {
-    if (taskView === 'open') return [matchingOpenTasks];
-    if (taskView === 'completed') return [matchingCompletedTasks];
-    return [matchingOpenTasks, matchingCompletedTasks];
+    if (taskView === 'open') return [{ kind: 'open' as const, tasks: matchingOpenTasks }];
+    if (taskView === 'completed') {
+      return [{ kind: 'completed' as const, tasks: matchingCompletedTasks }];
+    }
+    return [
+      { kind: 'open' as const, tasks: matchingOpenTasks },
+      { kind: 'completed' as const, tasks: matchingCompletedTasks },
+    ];
   }, [matchingCompletedTasks, matchingOpenTasks, taskView]);
-  const visibleTaskCount = visibleTaskGroups.reduce((sum, group) => sum + group.length, 0);
+  const visibleTaskCount = visibleTaskGroups.reduce((sum, group) => sum + group.tasks.length, 0);
 
   const selectTaskView = (nextView: TaskView) => {
     setTaskView(nextView);
@@ -126,25 +131,20 @@ export function DoctorTasksPageClient({
       <div className="flex shrink-0 items-center gap-1" aria-label="Статус задач">
         <Button
           type="button"
-          variant={taskView === 'open' ? 'default' : 'outline'}
+          variant={taskView === 'all' ? 'outline' : 'default'}
           size="icon-sm"
-          aria-label="Открытые задачи"
-          title="Открытые"
-          aria-pressed={taskView === 'open'}
-          onClick={() => selectTaskView('open')}
+          aria-label={
+            taskView === 'open' ? 'Показать выполненные задачи' : 'Показать открытые задачи'
+          }
+          title={taskView === 'open' ? 'Выполненные' : 'Открытые'}
+          aria-pressed={taskView !== 'all'}
+          onClick={() => selectTaskView(taskView === 'open' ? 'completed' : 'open')}
         >
-          <LayoutList className="size-4" aria-hidden />
-        </Button>
-        <Button
-          type="button"
-          variant={taskView === 'completed' ? 'default' : 'outline'}
-          size="icon-sm"
-          aria-label="Выполненные задачи"
-          title="Выполненные"
-          aria-pressed={taskView === 'completed'}
-          onClick={() => selectTaskView('completed')}
-        >
-          <ListChecks className="size-4" aria-hidden />
+          {taskView === 'completed' ? (
+            <ListChecks className="size-4" aria-hidden />
+          ) : (
+            <LayoutList className="size-4" aria-hidden />
+          )}
         </Button>
         <Button
           type="button"
@@ -277,21 +277,26 @@ export function DoctorTasksPageClient({
               stickySplit={false}
               headerSlot={<p className="hidden text-sm font-medium md:block">Задачи</p>}
             >
-              {visibleTaskCount ? (
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-                  {visibleTaskGroups.map((group, groupIndex) =>
-                    group.length ? (
-                      <ul
-                        key={groupIndex === 0 ? 'primary' : 'completed'}
-                        className={cn(
-                          'flex flex-col gap-1',
-                          taskView === 'all' &&
-                            groupIndex === 1 &&
-                            matchingOpenTasks.length > 0 &&
-                            'mt-2 border-t border-border/60 pt-2',
-                        )}
-                      >
-                        {group.map((task) => (
+              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                {visibleTaskGroups.map((group) => (
+                  <section
+                    key={group.kind}
+                    className={cn(
+                      group.kind === 'completed' && 'mt-2 border-t border-border/60 pt-2',
+                    )}
+                  >
+                    <p
+                      className={cn(
+                        'px-3 pb-1 text-xs font-medium',
+                        group.kind === 'completed' ? 'text-muted-foreground' : 'text-foreground',
+                      )}
+                    >
+                      {group.kind === 'completed' ? 'Выполненные' : 'Открытых'}:{' '}
+                      {group.tasks.length}
+                    </p>
+                    {group.tasks.length ? (
+                      <ul className="flex flex-col gap-0 [&>li+li]:border-t [&>li+li]:border-border/60 md:gap-1 md:[&>li+li]:border-t-0">
+                        {group.tasks.map((task) => (
                           <SpecialistTaskRow
                             key={task.id}
                             task={task}
@@ -300,19 +305,21 @@ export function DoctorTasksPageClient({
                               task.patientUserId ? patientNames[task.patientUserId] : undefined
                             }
                             dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
+                            mobileFlat
                             onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
                             active={selected?.id === task.id}
                           />
                         ))}
                       </ul>
-                    ) : null,
-                  )}
-                </div>
-              ) : (
-                <p className="p-3 text-sm text-muted-foreground">
-                  {query.trim() ? 'Задачи не найдены' : 'Нет задач'}
-                </p>
-              )}
+                    ) : null}
+                  </section>
+                ))}
+                {!visibleTaskCount ? (
+                  <p className="px-3 py-2 text-sm text-muted-foreground">
+                    {query.trim() ? 'Задачи не найдены' : 'Нет задач'}
+                  </p>
+                ) : null}
+              </div>
             </CatalogLeftPane>
           }
           right={<CatalogRightPane>{right}</CatalogRightPane>}

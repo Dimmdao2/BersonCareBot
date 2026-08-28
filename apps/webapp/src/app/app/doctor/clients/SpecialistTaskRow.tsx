@@ -37,6 +37,7 @@ type Props = {
   onOpen?: (task: Task) => void;
   as?: 'li' | 'div';
   active?: boolean;
+  mobileFlat?: boolean;
 };
 
 export function SpecialistTaskRow({
@@ -51,6 +52,7 @@ export function SpecialistTaskRow({
   onOpen,
   as = 'li',
   active = false,
+  mobileFlat = false,
 }: Props) {
   const overdue = isSpecialistTaskOverdue(task);
   const completed = Boolean(task.completedAt);
@@ -67,6 +69,13 @@ export function SpecialistTaskRow({
             getDoctorSectionItemClass(
               !completed && (overdue || dueToday || task.isImportant) ? 'urgent' : 'neutral',
             ),
+            mobileFlat &&
+              cn(
+                'rounded-none border-0 bg-card px-[var(--doctor-list-inline-padding,18px)] py-2.5 md:rounded-lg md:border md:p-3',
+                !completed && (overdue || dueToday || task.isImportant)
+                  ? 'bg-destructive/5 md:bg-destructive/5'
+                  : 'md:bg-muted/15',
+              ),
             active && doctorCatalogRowActiveClass,
           )}
           aria-current={active ? 'true' : undefined}
