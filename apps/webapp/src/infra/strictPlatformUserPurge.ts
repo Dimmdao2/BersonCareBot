@@ -8,6 +8,7 @@ import { startPoolTransaction } from '@/infra/db/withClient';
 import { runPgPoolPgText } from '@/infra/db/runWebappSql';
 import { pgAdvisoryXactLock } from '@/infra/db/pgAdvisoryLock';
 import {
+  PurgeIdentityRootConflictError,
   collectPurgeArtifactKeys,
   isPlatformUserUuid,
   runWebappPurgeCoreInTransaction,
@@ -41,7 +42,16 @@ export type StrictPurgeSuccess = {
 
 export type StrictPurgeFailure = {
   ok: false;
-  error: 'invalid_uuid' | 'not_found' | 'not_client' | 'transaction_failed';
+  /**
+   * `identity_in_use` — the account id is ALSO the identity root of another persona (an active
+   * specialist card and its schedule). Exhaustive lifecycle census audit 2026-08-28, F2: the purge
+   * used to accept such an account, delete the platform identity and leave the same raw uuid
+   * running a live clinic schedule. It now refuses before touching anything; the specialist,
+   * schedule and appointments are left exactly as they were.
+   */
+  error: 'invalid_uuid' | 'not_found' | 'not_client' | 'identity_in_use' | 'transaction_failed';
+  /** For `identity_in_use`: which identity roots refused, as `table.column: reason`. */
+  identityConflicts?: readonly string[];
   transactionError?: string;
 };
 
@@ -242,6 +252,18 @@ export async function runStrictPurgePlatformUser(opts: RunOpts): Promise<StrictP
       await tx.rollback();
     } catch {
       /* ignore */
+    }
+    if (e instanceof PurgeIdentityRootConflictError) {
+      if (auditEnabled) {
+        await writeAuditLog(pool, {
+          actorId: opts.actorId,
+          action: 'user_purge',
+          targetId: auditTargetRef,
+          status: 'error',
+          details: { reason: 'identity_in_use', identityConflicts: e.conflicts },
+        });
+      }
+      return { ok: false, error: 'identity_in_use', identityConflicts: e.conflicts };
     }
     const message = e instanceof Error ? e.message : String(e);
     if (auditEnabled) {

@@ -8,6 +8,12 @@ import {
 } from '../../../../../deploy/postgres/privileges/journal-lifecycle-registry';
 import { RETENTION_SWEEP_TARGETS } from '@/infra/db/pruneRetentionTarget';
 import { CRON_JOB_REGISTRY } from '@/modules/operator-health/cronJobRegistry';
+import { MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES } from '@/app-layer/media/playbackHourlyRetention';
+import { PRODUCT_ANALYTICS_RETENTION_BRANCHES } from '@/modules/product-analytics/productAnalyticsRetention';
+import {
+  OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
+  OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
+} from '@/modules/operator-health/backgroundJobManifest';
 
 /**
  * WHAT BREAKS WITHOUT THIS: a new table is declared, migrated and wired to a live writer while
@@ -51,18 +57,21 @@ async function declaredTables(): Promise<string[]> {
 const USER_PURGE_KINDS = new Set([
   'cascade',
   'explicit-delete',
+  'deferred-delete',
   'explicit-anonymise',
   'anonymised',
   'phone-keyed',
   'via-parent',
   'staff-authored',
   'self-expiring',
+  'purge-blocked',
   'owner-question',
   'absent-retired',
   'not-user-scoped',
 ]);
 const ORG_PURGE_KINDS = new Set([
   'organization_id',
+  'org-anonymised',
   'via-parent',
   'absent-retired',
   'not-org-scoped',
@@ -178,36 +187,140 @@ it('keeps every recorded open question answerable: a stable id, a column and a w
 
   // Recorded so an unanswered purge decision is a number a reader sees, not something discovered by
   // measuring the database later.
+  // OQ-DELIVERY-ATTEMPT-USER-PURGE was ANSWERED on 2026-08-28 (owner brief, finding 1): the delivery
+  // journal keeps its non-identifying outcome and loses the person on all three surfaces it carried
+  // him on, so the entry is now an executed `explicit-anonymise` rather than a question. Nothing is
+  // owed here today — and this assertion is what makes a new silent one impossible.
   expect(
     new Set(
       JOURNAL_LIFECYCLE_REGISTRY.filter((e) => e.userPurge.kind === 'owner-question').map((e) =>
         (e.userPurge as { id: string }).id,
       ),
     ),
-  ).toEqual(new Set(['OQ-DELIVERY-ATTEMPT-USER-PURGE']));
+  ).toEqual(new Set<string>());
 });
 
-it('makes every decided retention window executable: named prune target plus a sweeping job', () => {
-  const sweepTargets = new Set<string>(RETENTION_SWEEP_TARGETS);
-  const cronJobKeys = new Set(CRON_JOB_REGISTRY.map((job) => job.jobKey));
+/**
+ * The three — and only three — shapes a decided window's prune root may have, each checkable against
+ * an artifact outside this registry.
+ *
+ * Audit 2026-08-28, F4: the previous rule was `sweepTargets.has(target) || target.includes('.') ||
+ * target.includes(':')`, i.e. ANY name with punctuation counted as executable. Under it the required
+ * injection of `app.audit_missing_prune_target` stayed green, and two false roots were already
+ * living in the registry: `app.archive_operator_health_failures`, which moves failures INTO the
+ * archive rather than pruning it, and `media_playback_stats.retention:events`, a module branch no
+ * module implements. A prune root is now resolved, not spelled.
+ */
+type PruneRootResolution = { ok: true } | { ok: false; why: string };
 
-  const unexecutable = JOURNAL_LIFECYCLE_REGISTRY.filter(
-    (entry) => entry.retention.kind === 'window',
-  )
-    .filter((entry) => {
-      const target = (entry.retention as { pruneTarget: string }).pruneTarget;
-      // A target label of the ONE closed-list root must really be in that list; roots outside it
-      // (product analytics, media, the operator archive) name themselves and only need a sweep job.
-      const rootOk = sweepTargets.has(target) || target.includes('.') || target.includes(':');
-      const sweepOk = entry.sweptBy !== null && cronJobKeys.has(entry.sweptBy);
-      return !rootOk || !sweepOk;
-    })
-    .map((entry) => entry.table);
+/** Every callable the privilege declaration says is installed, by `schema.function` name. */
+async function declaredInstalledPruneRoots(): Promise<Map<string, string[]>> {
+  const cwd = process.cwd();
+  process.chdir(REPO_ROOT);
+  try {
+    const mod = (await import(
+      pathToFileURL(path.join(REPO_ROOT, 'deploy/postgres/privileges/declaration.ts')).href
+    )) as {
+      declaration: {
+        portContext: {
+          functions: Record<string, unknown>;
+          capabilities: Record<string, { purpose?: string; functionIdentity?: string }>;
+        };
+      };
+    };
+    const context = mod.declaration.portContext;
+    const installed = new Set(
+      Object.keys(context.functions).map((regprocedure) => regprocedure.split('(')[0] ?? ''),
+    );
+    // A root is only a PRUNE root when the declared seam it is reached through says so. This is what
+    // separates `app.prune_operator_health_failure_archive` (purpose `health.failure-archive.prune`)
+    // from `app.archive_operator_health_failures` (purpose `platform.health-archive.clear`), which
+    // the registry named for years while the scheduler called the other one.
+    const purposesByName = new Map<string, string[]>();
+    for (const capability of Object.values(context.capabilities)) {
+      const identity = capability.functionIdentity;
+      if (!identity) continue;
+      const name = identity.split('(')[0] ?? '';
+      if (!installed.has(name)) continue;
+      purposesByName.set(name, [...(purposesByName.get(name) ?? []), capability.purpose ?? '']);
+    }
+    return purposesByName;
+  } finally {
+    process.chdir(cwd);
+  }
+}
+
+function isPrunePurpose(purpose: string): boolean {
+  return purpose.startsWith('retention.') || purpose.endsWith('.prune');
+}
+
+it('makes every decided retention window executable: real prune root, scheduler and health signal', async () => {
+  const sweepTargets = new Set<string>(RETENTION_SWEEP_TARGETS);
+  const cronJobs = new Map(CRON_JOB_REGISTRY.map((job) => [job.jobKey, job]));
+  const dbPruneRootPurposes = await declaredInstalledPruneRoots();
+  /* Branches a background job REALLY performs, taken from the module that performs them. */
+  const moduleBranches = new Map<string, readonly string[]>([
+    [OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY, PRODUCT_ANALYTICS_RETENTION_BRANCHES],
+    [OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY, MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES],
+  ]);
+
+  function resolvePruneRoot(target: string, sweptBy: string | null): PruneRootResolution {
+    if (sweepTargets.has(target)) return { ok: true };
+    if (target.includes(':')) {
+      const [jobKey, branch] = [
+        target.slice(0, target.indexOf(':')),
+        target.slice(target.indexOf(':') + 1),
+      ];
+      if (jobKey !== sweptBy) {
+        return { ok: false, why: `module branch names job '${jobKey}' but is swept by '${sweptBy}'` };
+      }
+      const branches = moduleBranches.get(jobKey);
+      if (!branches) return { ok: false, why: `no module declares the branches of job '${jobKey}'` };
+      if (!branches.includes(branch)) {
+        return { ok: false, why: `job '${jobKey}' implements no '${branch}' sweep branch` };
+      }
+      return { ok: true };
+    }
+    if (target.includes('.')) {
+      const purposes = dbPruneRootPurposes.get(target);
+      if (!purposes) {
+        return { ok: false, why: `no installed callable '${target}' is declared in declaration.ts` };
+      }
+      if (!purposes.some(isPrunePurpose)) {
+        return { ok: false, why: `'${target}' is installed but its declared purpose is not pruning (${purposes.join(', ')})` };
+      }
+      return { ok: true };
+    }
+    return { ok: false, why: `'${target}' is not a closed-list sweep target` };
+  }
+
+  const unexecutable: string[] = [];
+  for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
+    if (entry.retention.kind !== 'window') continue;
+    const targets = [entry.retention.pruneTarget, ...(entry.alsoPruneTargets ?? [])];
+    for (const target of targets) {
+      const resolved = resolvePruneRoot(target, entry.sweptBy);
+      if (!resolved.ok) unexecutable.push(`${entry.table}: ${resolved.why}`);
+    }
+    const job = entry.sweptBy === null ? undefined : cronJobs.get(entry.sweptBy);
+    if (!job) {
+      unexecutable.push(`${entry.table}: no registered sweeping job '${entry.sweptBy}'`);
+      continue;
+    }
+    // The health signal: the job's staleness threshold is what reds out the operator card when the
+    // sweep stops running. A window whose sweep cannot go stale is unobservable.
+    if (!(job.staleAfterSec > 0)) {
+      unexecutable.push(`${entry.table}: job '${job.jobKey}' carries no staleness health signal`);
+    }
+  }
 
   expect(
-    unexecutable,
+    unexecutable.sort(),
     'A retention window with no reachable prune root or no registered sweeping job is a policy that ' +
-      'never runs — audit §B2, where declared retention had no alarm clock.',
+      'never runs — audit §B2, where declared retention had no alarm clock. A prune root is one of: ' +
+      'a closed-list RETENTION_SWEEP_TARGETS label; `<jobKey>:<branch>` where the module behind that ' +
+      'job really implements that branch; or a `schema.function` the privilege declaration installs ' +
+      'AND reaches through a seam whose declared purpose is pruning.',
   ).toEqual([]);
 });
 
@@ -228,6 +341,10 @@ it('does not let an open owner question hide as a silent gap', () => {
       'OQ-TERMINAL-UPLOAD-SESSION-WINDOW',
       'OQ-WEBHOOK-ERROR-EVENTS-WINDOW',
       'OQ-SAAS-ISOLATION-EVENTS-WINDOW',
+      // Surfaced by the replacement prune-root gate on 2026-08-28: both playback event stores
+      // declared a 30-day window swept by a job branch that does not exist, so nothing has ever
+      // deleted a row. Recorded, not invented.
+      'OQ-PLAYBACK-EVENT-STORES-WINDOW',
     ]),
   );
 });

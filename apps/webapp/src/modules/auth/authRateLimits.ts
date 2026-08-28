@@ -68,10 +68,29 @@ export const isMessengerStartRateLimited = createSlidingWindowRateLimit({
   db: authRateLimitDb,
 });
 
+/**
+ * The ONE limiter scope whose key is the raw platform user id, not an IP or a phone — so its rows
+ * are the only ones in `auth_rate_limit_events` that name a person.
+ *
+ * Exhaustive lifecycle census audit 2026-08-28, F2: the registry called this table
+ * "bounded by the limiter's own window", and that was only true of a key that keeps being called.
+ * `app.auth_rate_limit_check_and_record` deletes expired rows of the CURRENT `(scope, key)` unless
+ * the caller asks for a scope-wide prune, and after the last link attempt — certainly after the
+ * account is deleted — there is no next call for that key. Measured: 15 rows carrying 11 distinct
+ * `role='client'` uuids on bcb_webapp_dev, the same on bersoncarebot_test. The bounded, batched
+ * scope prune already built for `patient.client_boot_report` closes it, with the same shape and the
+ * same existing DB function; the deleted person's own key is additionally removed by the account
+ * purge (`CONTENT_TABLES`).
+ */
 const isChannelLinkStartRateLimitedCore = createSlidingWindowRateLimit({
   scope: 'auth.channel_link_start',
   windowMs: 60 * 60 * 1000,
   maxPerWindow: 30,
+  scopePrune: {
+    retentionMs: 60 * 60 * 1000,
+    intervalMs: 5 * 60 * 1000,
+    batchSize: 500,
+  },
   db: authRateLimitDb,
 });
 

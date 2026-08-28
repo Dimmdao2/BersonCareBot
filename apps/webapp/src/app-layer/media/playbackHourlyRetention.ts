@@ -6,6 +6,18 @@ import { mediaPlaybackStatsHourly } from '../../../db/schema';
 /** Oldest hourly buckets retained; older rows may be purged (KPI использует только скользящее окно). */
 export const PLAYBACK_HOURLY_STATS_RETENTION_DAYS = 90;
 
+/**
+ * The sweep branches this job REALLY implements — the module half of a prune-root name, the way
+ * `RETENTION_SWEEP_TARGETS` is the DB-root half.
+ *
+ * Exhaustive lifecycle census audit 2026-08-28, F4: the lifecycle gate accepted any prune target
+ * containing a dot or a colon, so `media_playback_stats.retention:events` and
+ * `…:client_events` passed as decided 30-day windows while nothing in this repository ever deletes
+ * a row of `media_playback_resolution_events` or `media_playback_client_events`. A branch that is
+ * not listed here is not a prune root, and the gate now says so.
+ */
+export const MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES = ['hourly'] as const;
+
 export type PlaybackHourlyPurgeResult = {
   /** Rows matched for delete (dry run) или фактически удалённые `.returning` строки. */
   deleted: number;

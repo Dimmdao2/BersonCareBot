@@ -49,17 +49,83 @@ export const CONTENT_TABLES: { table: string; column: string }[] = [
   // diary content that must die with the account, but nothing cascades it away.
   { table: 'patient_diary_day_snapshots', column: 'platform_user_id' },
   { table: 'patient_practice_completions', column: 'user_id' },
+  // Exhaustive lifecycle census audit 2026-08-28, F2: `auth.channel_link_start` keys its rate-limit
+  // bucket on the RAW platform uuid, so `auth_rate_limit_events.key` IS the person for that scope.
+  // The limiter only trims the `(scope, key)` of the call in front of it, and after an account is
+  // deleted there is no next call for its key — the bucket outlived the account (15 rows carrying
+  // 11 client uuids on bcb_webapp_dev, the same on bersoncarebot_test). Purged by the same one
+  // statement shape as every other row here; a platform uuid cannot collide with the IP / phone /
+  // e-mail keys of the other scopes.
+  { table: 'auth_rate_limit_events', column: 'key' },
+  // Same audit, F5: the registry declares `explicit-delete` for this table, and that statement was
+  // true of the BEHAVIOUR but not of this list — the rows were removed by a hand-written statement
+  // below instead. Naming it here makes the declaration checkable; the residual statement now only
+  // covers the legacy TEXT column, so the set of deleted rows is unchanged.
+  { table: 'message_log', column: 'platform_user_id' },
 ];
 
 /**
+ * Identity roots of ANOTHER persona that share `platform_users.id` without any FK. A client account
+ * that also owns one of these is refused, whole, before any destructive statement — see
+ * `runWebappPurgeCoreInTransaction`.
+ *
+ * Exhaustive lifecycle census audit 2026-08-28, F2: `be_specialists.id` IS a `platform_users.id`,
+ * and bcb_webapp_dev carries one ACTIVE specialist whose id belongs to a `role='client'` platform
+ * user, with 8 working-hours rows, 1 service-availability row and 12 appointments hanging off it.
+ * Strict purge accepted that row: it deleted the platform identity and left the same raw uuid
+ * running a live clinic schedule. Deleting the specialist instead would destroy clinic data that is
+ * not the client's, so the only correct answer is to refuse.
+ */
+export const IDENTITY_ROOT_TABLES: { table: string; column: string; reason: string }[] = [
+  {
+    table: 'be_specialists',
+    column: 'id',
+    reason: 'active specialist card shares this platform user id',
+  },
+];
+
+/** Thrown by the purge core when an identity root of another persona shares the account id. */
+export class PurgeIdentityRootConflictError extends Error {
+  readonly conflicts: readonly string[];
+
+  constructor(conflicts: readonly string[]) {
+    super(`account purge refused: ${conflicts.join('; ')}`);
+    this.name = 'PurgeIdentityRootConflictError';
+    this.conflicts = conflicts;
+  }
+}
+
+/** One relation whose reference to the purged person is nulled instead of deleted. */
+export type AnonymiseOnPurgeTarget = {
+  table: string;
+  /** The canonical reference column, the one the lifecycle registry declares. Nulled. */
+  column: string;
+  /**
+   * Further columns of the SAME row that carry the same person under another name (a retired
+   * integrator id kept as `text`). Nulled together with `column`, each matched on its own.
+   */
+  alsoNullColumns?: readonly string[];
+  /**
+   * `jsonb` columns whose document embeds the raw uuid in free text (correlation ids, callback
+   * data, message bodies). Every occurrence is replaced by a fixed non-identifying token; the rest
+   * of the document — the delivery outcome this store exists for — is left untouched.
+   */
+  scrubJsonColumns?: readonly string[];
+};
+
+/** Replacement written over a purged person's raw uuid inside a retained JSON document. */
+export const PURGED_USER_JSON_TOKEN = 'purged-user';
+
+/**
  * Columns nulled — not deleted — on purge: the ROW is not the purged person's own data (it belongs to
- * the specialist who owns it), only the reference to the purged patient must not survive.
+ * the specialist who owns it, or it is a retained delivery fact), only the reference to the purged
+ * patient must not survive.
  * Final systemic lifecycle audit 2026-08-28, F2: `specialist_tasks.patient_user_id` carries no FK to
  * `platform_users` at all, so a specialist's task kept pointing at a deleted patient id forever.
  * Exported so the lifecycle registry (`JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS`) can name exactly this
  * mechanism instead of a second, undeclared one.
  */
-export const ANONYMISE_ON_PURGE_COLUMNS: { table: string; column: string }[] = [
+export const ANONYMISE_ON_PURGE_COLUMNS: AnonymiseOnPurgeTarget[] = [
   { table: 'specialist_tasks', column: 'patient_user_id' },
   // Exhaustive lifecycle census 2026-08-28: both carry a `platform_user_id` that IS the patient
   // (`pgPayments.createPaymentFromIntent` copies it straight from the intent; `pgClientHistory`
@@ -70,6 +136,33 @@ export const ANONYMISE_ON_PURGE_COLUMNS: { table: string; column: string }[] = [
   // record is retained; the person is not.
   { table: 'be_payments', column: 'platform_user_id' },
   { table: 'be_payment_history_events', column: 'platform_user_id' },
+  // Exhaustive lifecycle census audit 2026-08-28, F1. This journal is a RETAINED 180-day delivery
+  // fact, not a second account record: it carries no message text of its own, `recipient_ref` is
+  // already digested (`tg:…1234`, `email:<digest>`), and the diagnostics it feeds are the reason it
+  // exists. What it did carry was the person, on three independent live surfaces — `user_id`
+  // (7044 rows / 36 clients on bcb_webapp_dev), `integrator_user_id`, written separately by the
+  // integrator repo (537 / 110), and the raw uuid embedded in `metadata` by the nonqueue-attempt
+  // path (1956 / 41) — with no purge step at all. The owner's decision (brief finding 1) is the one
+  // already taken for `product_analytics_events_recent`: keep the outcome, drop the person, and let
+  // the row die on its own 180-day sweep. Nothing else in the journal is touched and no second
+  // journal is created.
+  {
+    table: 'notification_delivery_attempts',
+    column: 'user_id',
+    alsoNullColumns: ['integrator_user_id'],
+    scrubJsonColumns: ['metadata'],
+  },
+];
+
+/**
+ * Diary relations emptied by `deleteSymptomAndLfkDiaryForUser` — a second explicit-delete list, kept
+ * apart from `CONTENT_TABLES` only because their FK order forces a hand-written sequence. Exported
+ * for the same reason `CONTENT_TABLES` is: the lifecycle registry declares `explicit-delete` for
+ * them, and that declaration must be checkable against the code that performs it.
+ */
+export const DIARY_TABLES: { table: string; column: string }[] = [
+  { table: 'lfk_complexes', column: 'user_id' },
+  { table: 'symptom_trackings', column: 'user_id' },
 ];
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
@@ -79,11 +172,13 @@ async function deleteSymptomAndLfkDiaryForUser(client: PoolClient, userId: strin
     `UPDATE lfk_complexes SET symptom_tracking_id = NULL, updated_at = now() WHERE user_id = $1`,
     [userId],
   );
-  await runPurgeClientPgText(client, `DELETE FROM lfk_complexes WHERE user_id = $1`, [userId]);
-  await runPurgeClientPgText(client, `DELETE FROM symptom_trackings WHERE user_id = $1`, [userId]);
+  for (const { table, column } of DIARY_TABLES) {
+    await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [userId]);
+  }
 }
 
-const IDENTITY_TABLES: { table: string; column: string }[] = [
+/** Login/identity rows deleted by the purge core; exported for the same declaration check. */
+export const IDENTITY_TABLES: { table: string; column: string }[] = [
   { table: 'user_contacts', column: 'platform_user_id' },
   { table: 'user_channel_bindings', column: 'user_id' },
   { table: 'login_tokens', column: 'user_id' },
@@ -127,12 +222,54 @@ async function deletePhoneKeyedWebappRows(
   );
 }
 
-async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
-  for (const { table, column } of ANONYMISE_ON_PURGE_COLUMNS) {
-    await runPurgeClientPgText(client, `UPDATE ${table} SET ${column} = NULL WHERE ${column} = $1`, [
-      userId,
-    ]);
+/**
+ * Fails the whole purge closed when the account id is also the identity root of another persona.
+ * Runs FIRST, before any statement that changes anything: a purge that deletes the platform
+ * identity and leaves the same raw uuid owning an active specialist card, its schedule and its
+ * appointments is not a purge, and the half-done state cannot be undone from outside a transaction.
+ */
+async function assertNoBlockingIdentityRoot(client: PoolClient, userId: string): Promise<void> {
+  const conflicts: string[] = [];
+  for (const { table, column, reason } of IDENTITY_ROOT_TABLES) {
+    const res = await runPurgeClientPgText<{ n: string }>(
+      client,
+      `SELECT count(*)::text AS n FROM ${table} WHERE ${column} = $1`,
+      [userId],
+    );
+    if (Number.parseInt(res.rows[0]?.n ?? '0', 10) > 0) {
+      conflicts.push(`${table}.${column}: ${reason}`);
+    }
   }
+  if (conflicts.length > 0) throw new PurgeIdentityRootConflictError(conflicts);
+}
+
+async function anonymisePurgedUserReferences(client: PoolClient, userId: string): Promise<void> {
+  for (const target of ANONYMISE_ON_PURGE_COLUMNS) {
+    const nullColumns = [target.column, ...(target.alsoNullColumns ?? [])];
+    const scrubColumns = target.scrubJsonColumns ?? [];
+    const assignments = [
+      ...nullColumns.map((col) => `${col} = CASE WHEN ${col}::text = $1 THEN NULL ELSE ${col} END`),
+      // The uuid appears inside string VALUES of the document (correlation ids, callback data,
+      // message bodies), never as structure, so a textual replacement keeps the document valid and
+      // reaches every nesting depth without guessing a key path.
+      ...scrubColumns.map(
+        (col) => `${col} = replace(${col}::text, $1, '${PURGED_USER_JSON_TOKEN}')::jsonb`,
+      ),
+    ].join(', ');
+    const matches = [
+      ...nullColumns.map((col) => `${col}::text = $1`),
+      ...scrubColumns.map((col) => `position($1 in ${col}::text) > 0`),
+    ].join(' OR ');
+    await runPurgeClientPgText(
+      client,
+      `UPDATE ${target.table} SET ${assignments} WHERE ${matches}`,
+      [userId],
+    );
+  }
+}
+
+async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
+  await anonymisePurgedUserReferences(client, userId);
   await runPurgeClientPgText(
     client,
     `UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`,
@@ -271,6 +408,8 @@ export async function runWebappPurgeCoreInTransaction(
   client: PoolClient,
   user: PurgePlatformUserRow,
 ): Promise<void> {
+  await assertNoBlockingIdentityRoot(client, user.id);
+
   if (user.phone_normalized?.trim()) {
     await deletePhoneKeyedWebappRows(client, user.phone_normalized);
   }
@@ -279,12 +418,9 @@ export async function runWebappPurgeCoreInTransaction(
   await deleteSymptomAndLfkDiaryForUser(client, user.id);
   await deleteContentTablesForUser(client, user.id);
 
-  await runPurgeClientPgText(
-    client,
-    `DELETE FROM message_log
-       WHERE user_id = $1::text OR platform_user_id = $1::uuid`,
-    [user.id],
-  );
+  // `message_log.platform_user_id` is now a `CONTENT_TABLES` row, so only the legacy TEXT column of
+  // the same table is left here. The set of deleted rows is exactly what it was.
+  await runPurgeClientPgText(client, `DELETE FROM message_log WHERE user_id = $1::text`, [user.id]);
 
   for (const { table, column } of IDENTITY_TABLES) {
     await runPurgeClientPgText(client, `DELETE FROM ${table} WHERE ${column} = $1`, [user.id]);
@@ -298,7 +434,15 @@ export type StrictPurgeOutcome = 'completed' | 'partial_failed';
 
 export type PurgePlatformUserResult =
   | { ok: true; outcome?: StrictPurgeOutcome }
-  | { ok: false; error: 'invalid_uuid' | 'not_found' | 'not_client' | 'transaction_failed' };
+  | {
+      ok: false;
+      error:
+        | 'invalid_uuid'
+        | 'not_found'
+        | 'not_client'
+        | 'identity_in_use'
+        | 'transaction_failed';
+    };
 
 /**
  * Удаляет строку `platform_users` и связанные данные (см. CONTENT_TABLES / скрипт purge-by-id).

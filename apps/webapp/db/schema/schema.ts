@@ -2124,6 +2124,14 @@ export const mediaPlaybackStatsHourly = pgTable(
       'btree',
       table.bucketHour.desc().nullsFirst().op('timestamptz_ops'),
     ),
+    // Exhaustive lifecycle census audit 2026-08-28, F3: declared `orgPurge: organization_id` with no
+    // FK at all — 10 rows kept the raw clinic uuid after the organization was gone. An hourly
+    // playback rollup is clinic-owned aggregate state and goes with the clinic.
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'media_playback_stats_hourly_organization_id_fkey',
+    }).onDelete('cascade'),
     check(
       'media_playback_stats_hourly_delivery_check',
       sql`delivery = ANY (ARRAY['hls'::text, 'mp4'::text, 'file'::text])`,

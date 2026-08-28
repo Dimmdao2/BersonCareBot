@@ -1442,9 +1442,17 @@ const TABLE_ROWS: TableRow[] = [
     + 'organization_id, а PERMISSIVE объединяются по OR — подмена value_normalized уводит вход на чужой аккаунт. D5: '
     + 'bootstrap-политики фильтруют роль, а не строку', defect: ['D2-user-contacts-write', 'D5-identity-bootstrap'],
     gate: ['O5-user-identity-cutover'] },
-  { t: 'public.user_email_setup_tokens', cls: 'S', wall: 'pending-removal', rls: 'n/a', disp: 'REMOVED',
-    why: 'УДАЛЕНО миграцией 0388: старые ссылочные токены настройки email заменены живым password_setup OTP flow',
-    wallWhy: 'Физически удалённая legacy-таблица остаётся именованной только для двусторонней проверки каталога' },
+  // `public.user_email_setup_tokens` УДАЛЕНО из декларации 28.08.2026 (исчерпывающая перепись
+  // жизненного цикла, находка 7). Оно объявляло физически несуществующую таблицу, а перепись
+  // обязана классифицировать КАЖДУЮ объявленную таблицу — то есть требовала написать политику
+  // хранения для того, чего нет, и один агент уже описал её как ЖИВОЕ одноразовое хранилище
+  // токенов. Проверено независимо перед удалением: `to_regclass('public.user_email_setup_tokens')
+  // IS NULL` на обеих управляемых базах (bcb_webapp_dev, bersoncarebot_test); ни одного writer,
+  // reader или human-пути в коде (`rg` по всему репозиторию не нашёл НИ ОДНОЙ ссылки в исходниках
+  // `*.ts`/`*.tsx`/`*.mjs`: только эта декларация, реестр жизненного цикла, сгенерированные
+  // артефакты, доки и один разовый исторический скрипт слияния учёток
+  // `apps/webapp/scripts/consolidate-owner-identity.sql`, который выполнялся по одному разу на
+  // TEST и PROD в старой схеме); в Drizzle-схеме её нет. Таблицу НЕ воссоздаём ради переписи.
   { t: 'public.user_identity', cls: 'P', org: false, why: 'ФИО и дата рождения — имя пациента во всех экранах',
     revoke: { app_identity_bootstrap: 'D5: тот же дефект — «кто ты» вместо «какая строка».' },
     pol: 'D6: user_identity_staff_insert несёт WITH CHECK (app.is_staff()) без org — сотрудник любой клиники заводит '

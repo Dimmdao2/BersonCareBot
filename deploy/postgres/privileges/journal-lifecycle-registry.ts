@@ -35,6 +35,25 @@
  * `retention.kind: 'owner-question'` and `userPurge.kind: 'owner-question'` are legitimate, RECORDED
  * decisions — "we asked, we are waiting" — and are deliberately distinguishable from silence, which is
  * what the audit found.
+ *
+ * A COMPLETE PARTITION IS NOT A TRUE ONE (independent audit
+ * `docs/_TODO/runs/FINAL_EXHAUSTIVE_LIFECYCLE_CENSUS_AUDIT_2026-08-28.md`). The first exhaustive pass
+ * classified every declared table exactly once and was still wrong in five places, because a written
+ * decision is not evidence for itself: `notification_delivery_attempts` said the person lived in ONE
+ * column when it lived in three (F1); `auth_rate_limit_events` and `be_specialists` said
+ * `not-user-scoped` over live raw account uuids (F2); four `organization_id` claims named an
+ * organization purge the database would refuse or silently skip (F3); and a decided window pointed at
+ * a root that moves rows INTO the store instead of pruning it (F4). Every entry here is therefore
+ * measured against something outside this file — the live `pg_constraint` graph, `CONTENT_TABLES` /
+ * `ANONYMISE_ON_PURGE_COLUMNS` of the one purge core, the declared installed callables of
+ * `declaration.ts`, and `CRON_JOB_REGISTRY` — by
+ * `apps/webapp/src/modules/db-retention/journalLifecycleRegistry.contract.test.ts` and, physically,
+ * by `apps/webapp/src/infra/platformUserFullPurge.devDbProof.test.ts`.
+ *
+ * Current partition: 221 declared physical tables = 57 registry entries + 164 structured decisions.
+ * (`public.user_email_setup_tokens` left the declaration on 2026-08-28: it existed in no managed
+ * database and had no writer, reader or human path, so it was a policy for nothing — see the comment
+ * where its row used to be in `declaration.ts`.)
  */
 
 
@@ -44,6 +63,15 @@ export type JournalLifecycleUserPurge =
   | { kind: 'cascade'; column: string }
   /** No cascading FK: `platformUserFullPurge` must name the table explicitly. */
   | { kind: 'explicit-delete'; column: string }
+  /**
+   * The row IS deleted by the purge, but AFTER the transaction commits, because the row is the last
+   * handle on an external object that must be destroyed first (audit §D1: dropping the retry
+   * identity before a confirmed S3 delete loses the object forever). The purge core only COLLECTS
+   * its keys — `collectPurgeArtifactKeys` — and `runStrictPurgePlatformUser` deletes the row once
+   * the object is gone. `basis` must name both halves; a plain `explicit-delete` here would be a
+   * false statement, because `CONTENT_TABLES` deliberately does not contain the table.
+   */
+  | { kind: 'deferred-delete'; column: string; basis: string }
   /**
    * No cascading FK, and the ROW is not the purged person's own data (e.g. a specialist's task that
    * merely references a patient) — so the reference column is nulled, not the row deleted.
@@ -71,6 +99,15 @@ export type JournalLifecycleUserPurge =
    */
   | { kind: 'self-expiring'; column: string; basis: string }
   /**
+   * The row is an IDENTITY ROOT of another persona that shares the platform user id — today the
+   * clinic's specialist card, whose `be_specialists.id` IS a `platform_users.id` with no FK. A
+   * client account that also owns such a root is REFUSED by the purge before any destructive work,
+   * because deleting the platform identity while the specialist card, schedule and appointments
+   * keep the same raw uuid is neither a purge nor a working directory (exhaustive census audit
+   * 2026-08-28, F2). `basis` must name the guard that refuses it.
+   */
+  | { kind: 'purge-blocked'; column: string; basis: string }
+  /**
    * Recorded open question — the mechanism is understood, the delete-or-de-identify decision is the
    * owner's and has not been made. NOT the same as silence, and NOT a licence to leave it forever:
    * the id is what the owner answers.
@@ -86,6 +123,12 @@ export type JournalLifecycleUserPurge =
 
 export type JournalLifecycleOrgPurge =
   | { kind: 'organization_id' }
+  /**
+   * The clinic reference is NULLED, not deleted, when the organization goes: the row survives as an
+   * unlinked tombstone because a released public slug must stay un-reusable and its rename history
+   * must stay readable. `basis` must name the FK that performs it (`ON DELETE SET NULL`).
+   */
+  | { kind: 'org-anonymised'; column: string; basis: string }
   | { kind: 'via-parent'; parent: string }
   /** Same statement as the user-purge variant: the relation exists in no managed database. */
   | { kind: 'absent-retired'; basis: string }
@@ -195,22 +238,25 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.notification_delivery_attempts',
     why: 'FAILURE-ONLY journal of real provider calls that failed (Track D #987)',
     // Exhaustive census 2026-08-28: declared `not-user-scoped`, but `user_id uuid` is a real
-    // platform-user reference with no FK and no purge step. Measured on TEST (read-only):
-    // 11195 rows across 40 `role='client'` users. `recipient_ref` is already digested
-    // (`tg:…1234`, `email:<digest>`) and the row carries no message text, so the ONLY personal
-    // datum is this raw id — which is why nulling it and deleting the row are both defensible and
-    // the choice is the owner's, not this file's.
-    userPurge: {
-      kind: 'owner-question',
-      id: 'OQ-DELIVERY-ATTEMPT-USER-PURGE',
-      column: 'user_id',
-      basis:
-        'Missing decision: on account purge, NULL the user_id (keeps the 180-day period-over-period '
-        + 'delivery diagnostics this table exists for, drops the person) or DELETE the rows (loses '
-        + 'that window of diagnostics for the purged patient). Recommended safe default: NULL, '
-        + 'mirroring product_analytics_events_recent, which is already declared `anonymised` for the '
-        + 'same "keep the aggregate, drop the person" reason. No behaviour was changed here.',
-    },
+    // platform-user reference with no FK and no purge step. The independent audit of the same day
+    // (F1) then showed the recorded question was itself false: this row carries the person on THREE
+    // live surfaces, not one. Measured read-only, rows / distinct `role='client'` users:
+    //   bcb_webapp_dev      user_id 7044/36 · integrator_user_id 537/110 · metadata 1956/41
+    //   bersoncarebot_test  user_id 11222/40 · integrator_user_id 536/110 · metadata 3616/44
+    // `integrator_user_id` is written independently by
+    // `apps/integrator/src/infra/db/repos/notificationDeliveryAttempts.ts`, and
+    // `20260820T185707_the_delivery_journal_accepts_a_nonqueue_attempt.sql` copies
+    // `payload.intent.meta.userId` into it while embedding the whole payload under `metadata`, where
+    // the raw uuid turns up inside free text (`correlationId`, `callback_data`, message bodies) —
+    // so the metadata scrub is textual over the whole document, not a key drop.
+    //
+    // OWNER DIRECTIVE (brief `docs/_TODO/runs/briefs/FIX_EXHAUSTIVE_LIFECYCLE_SEMANTICS_2026-08-28.md`,
+    // finding 1), which ANSWERS and retires `OQ-DELIVERY-ATTEMPT-USER-PURGE`: strip the person from
+    // all three surfaces and KEEP the non-identifying delivery outcome until its own 180-day sweep.
+    // That is the safe default the census recommended, and the policy already decided for
+    // `product_analytics_events_recent` — keep the aggregate, drop the person. It is NOT a delete:
+    // no unrelated delivery fact is removed and no second journal is created.
+    userPurge: { kind: 'explicit-anonymise', column: 'user_id' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['failed', 'skipped'],
     retention: {
@@ -293,7 +339,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     retention: {
       kind: 'window',
       days: 730,
-      pruneTarget: 'product_analytics.retention:hourly',
+      pruneTarget: 'analytics.product_analytics.retention:hourly',
       basis: 'productAnalyticsRetention.ts PRODUCT_ANALYTICS_HOURLY_RETENTION_DAYS',
     },
     sweptBy: PRODUCT_ANALYTICS_RETENTION_JOB,
@@ -335,7 +381,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     retention: {
       kind: 'window',
       days: 400,
-      pruneTarget: 'media_playback_stats.retention:hourly',
+      pruneTarget: 'media.playback_stats.retention:hourly',
       basis: 'mediaPlaybackStatsRetention module window',
     },
     sweptBy: MEDIA_PLAYBACK_STATS_RETENTION_JOB,
@@ -346,11 +392,21 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     userPurge: { kind: 'cascade', column: 'user_id' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: [],
+    // Exhaustive lifecycle census audit 2026-08-28, F4, second instance found by the replacement
+    // gate: this declared a 30-day window swept by `media.playback_stats.retention`, and that job
+    // prunes ONLY the hourly rollup — `MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES` has no `events`
+    // branch and nothing in the repository ever deletes a row of this table. The window was a
+    // policy that never ran, exactly audit §B2. Neither the number nor the sweep is invented here.
     retention: {
-      kind: 'window',
-      days: 30,
-      pruneTarget: 'media_playback_stats.retention:events',
-      basis: 'mediaPlaybackStatsRetention module window',
+      kind: 'owner-question',
+      id: 'OQ-PLAYBACK-EVENT-STORES-WINDOW',
+      basis:
+        'Raw per-user playback events grow without bound: no delete exists for '
+        + 'media_playback_resolution_events or media_playback_client_events, and the 30 days the '
+        + 'registry used to claim were never implemented by any job. Both feed the media health '
+        + 'card and the doctor playback analytics, so the window is a product decision (how far '
+        + 'back must playback diagnostics reach), not a mechanical one. Same question for both '
+        + 'stores; the rows die with their user through their cascading FK either way.',
     },
     sweptBy: MEDIA_PLAYBACK_STATS_RETENTION_JOB,
   },
@@ -360,11 +416,17 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     userPurge: { kind: 'cascade', column: 'user_id' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: [],
+    // Same finding, same store class as `media_playback_resolution_events` above.
     retention: {
-      kind: 'window',
-      days: 30,
-      pruneTarget: 'media_playback_stats.retention:client_events',
-      basis: 'mediaPlaybackStatsRetention module window',
+      kind: 'owner-question',
+      id: 'OQ-PLAYBACK-EVENT-STORES-WINDOW',
+      basis:
+        'Raw per-user playback events grow without bound: no delete exists for '
+        + 'media_playback_resolution_events or media_playback_client_events, and the 30 days the '
+        + 'registry used to claim were never implemented by any job. Both feed the media health '
+        + 'card and the doctor playback analytics, so the window is a product decision (how far '
+        + 'back must playback diagnostics reach), not a mechanical one. Same question for both '
+        + 'stores; the rows die with their user through their cascading FK either way.',
     },
     sweptBy: MEDIA_PLAYBACK_STATS_RETENTION_JOB,
   },
@@ -391,7 +453,19 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.media_files',
     why: 'media library content — but `pending` (upload not finished) and `pending_delete`/`deleting` '
       + 'are TEMPORARY states with their own cleanup owner, which is why the row is listed here',
-    userPurge: { kind: 'explicit-delete', column: 'uploaded_by' },
+    // Exhaustive census audit 2026-08-28, F5: `explicit-delete` was false by the letter of its own
+    // definition — `CONTENT_TABLES` deliberately does NOT name this table, because deleting the row
+    // inside the purge transaction would destroy the last handle on the S3 object before the object
+    // itself is gone (§D1). The row IS deleted, after commit, per key, only once its object is
+    // confirmed removed.
+    userPurge: {
+      kind: 'deferred-delete',
+      column: 'uploaded_by',
+      basis:
+        'collectPurgeArtifactKeys() captures every media_files row of the person inside the purge '
+        + 'transaction, before the deletes that hide its inputs; runPostCommitArtifactCleanup() in '
+        + 'strictPlatformUserPurge.ts deletes each row after its S3 object is confirmed gone.',
+    },
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['ready', 'pending_delete', 'deleting'],
     retention: {
@@ -519,28 +593,30 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     sweptBy: null,
   },
   {
-    table: 'public.user_email_setup_tokens',
-    why: 'one-time token for binding an email address',
-    userPurge: { kind: 'not-user-scoped' },
-    orgPurge: { kind: 'not-org-scoped' },
-    terminalStates: ['used', 'expired'],
-    retention: {
-      kind: 'expiry-column',
-      pruneTarget: 'email-setup door: single-use rows consumed or refused after expiry',
-      basis: 'consumed on first use; expired rows are refused',
-    },
-    sweptBy: null,
-  },
-  {
     table: 'public.auth_rate_limit_events',
     why: 'sliding-window counter behind the auth rate limiter',
-    userPurge: { kind: 'not-user-scoped' },
+    // Exhaustive census audit 2026-08-28, F2: `not-user-scoped` was false for one scope.
+    // `auth.channel_link_start` keys its bucket on the RAW platform uuid
+    // (`isChannelLinkStartRateLimited(userId)`), so the key IS the person. Measured read-only:
+    // 15 rows carrying 11 distinct `role='client'` uuids on bcb_webapp_dev, the same 15/11 on
+    // bersoncarebot_test. `key` is now an explicit purge target of the one purge core; a platform
+    // uuid cannot collide with the IP / phone / e-mail keys of the other scopes.
+    userPurge: { kind: 'explicit-delete', column: 'key' },
     orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
       kind: 'expiry-column',
       pruneTarget: 'auth rate limiter: the limiter itself drops rows outside its window',
-      basis: 'the limiter reads and trims its own window on every check',
+      // Same audit, same finding: the DB function only trims `(scope, key)` of the CURRENT call
+      // unless the caller asks for a scope-wide prune, and after the last call for a key there is
+      // no next call — so an identity-bearing bucket was unbounded, not window-bounded. Every
+      // user-keyed scope now configures `scopePrune`, which is the existing bounded, batched
+      // `p_scope_retention_ms` / `p_scope_prune_limit` path of
+      // `app.auth_rate_limit_check_and_record`.
+      basis:
+        'the limiter trims its own (scope,key) window on every check, and the user-keyed scopes '
+        + '(patient.client_boot_report, auth.channel_link_start) additionally run the bounded '
+        + 'scope-wide prune of app.auth_rate_limit_check_and_record — see authRateLimits.ts',
     },
     sweptBy: null,
   },
@@ -574,13 +650,19 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.operator_health_failure_archive',
     why: 'archived operator failures kept out of the live incident table',
     userPurge: { kind: 'not-user-scoped' },
-    orgPurge: { kind: 'not-org-scoped' },
+    // Exhaustive census audit 2026-08-28, F3: labelled `not-org-scoped` while the live FK
+    // `operator_health_failure_archive_organization_id_fkey` is ON DELETE CASCADE — the behaviour
+    // was safe, the written statement was not (23 rows on bcb_webapp_dev, 1 organization).
+    orgPurge: { kind: 'organization_id' },
     terminalStates: [],
     retention: {
       kind: 'window',
       days: 30,
-      pruneTarget: 'app.archive_operator_health_failures',
-      basis: 'healthFailureArchiveConstants.ts window, applied by the archive root itself',
+      // Same audit, F4: the archive root MOVES live failures into this table; it does not prune it.
+      // The installed root that applies the 30-day window is the one the scheduler really calls
+      // (`pruneArchivedOlderThanDays` → `app.prune_operator_health_failure_archive(integer)`).
+      pruneTarget: 'app.prune_operator_health_failure_archive',
+      basis: 'healthFailureArchiveConstants.ts window, applied by the archive prune root',
     },
     sweptBy: 'health.operator_health_critical.tick',
   },
@@ -627,7 +709,8 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.saas_isolation_events',
     why: 'tenant-isolation telemetry events',
     userPurge: { kind: 'not-user-scoped' },
-    orgPurge: { kind: 'organization_id' },
+    // Cross-tenant platform telemetry: the relation has no `organization_id` column at all.
+    orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
       kind: 'owner-question',
@@ -642,7 +725,8 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.saas_isolation_event_hourly',
     why: 'hourly rollup of tenant-isolation telemetry',
     userPurge: { kind: 'not-user-scoped' },
-    orgPurge: { kind: 'organization_id' },
+    // Cross-tenant platform telemetry: the relation has no `organization_id` column at all.
+    orgPurge: { kind: 'not-org-scoped' },
     terminalStates: [],
     retention: {
       kind: 'owner-question',
@@ -682,7 +766,13 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.system_settings_audit',
     why: 'who changed which runtime setting',
     userPurge: { kind: 'anonymised', column: 'changed_by' },
-    orgPurge: { kind: 'organization_id' },
+    // The live FK nulls the clinic instead of cascading: a settings-change audit row must
+    // outlive the organization whose settings it records.
+    orgPurge: {
+      kind: 'org-anonymised',
+      column: 'organization_id',
+      basis: 'system_settings_audit_organization_id_fkey ON DELETE SET NULL',
+    },
     terminalStates: [],
     retention: {
       kind: 'keep-forever',
@@ -718,7 +808,18 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.organization_slug_rename_events',
     why: 'history of public slug renames (old links must stay explainable)',
     userPurge: { kind: 'anonymised', column: 'actor_platform_user_id' },
-    orgPurge: { kind: 'organization_id' },
+    // Exhaustive census audit 2026-08-28, F3: `organization_id` was false — the live FK was the
+    // default NO ACTION, so live rename rows REFUSED the organization delete outright (2 rows on
+    // bcb_webapp_dev). Deleting them instead would erase the proof that a released public slug was
+    // ever held, which is the whole reason the table exists, so the clinic reference is nulled and
+    // the row survives as an unlinked audit fact.
+    orgPurge: {
+      kind: 'org-anonymised',
+      column: 'organization_id',
+      basis:
+        'organization_slug_rename_events_organization_id_fkey ON DELETE SET NULL '
+        + '(20260828T131900_organization_purge_reaches_every_named_class.sql)',
+    },
     terminalStates: [],
     retention: {
       kind: 'keep-forever',
@@ -742,7 +843,9 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     table: 'public.user_phone_history',
     why: 'previous phone numbers of one account (merge/rebinding evidence)',
     userPurge: { kind: 'cascade', column: 'platform_user_id' },
-    orgPurge: { kind: 'not-org-scoped' },
+    // Exhaustive census audit 2026-08-28, F3: labelled `not-org-scoped` while the live FK
+    // `user_phone_history_organization_id_fkey` is ON DELETE CASCADE (91 rows on bcb_webapp_dev).
+    orgPurge: { kind: 'organization_id' },
     terminalStates: [],
     retention: {
       kind: 'bounded-by-parent',
@@ -1065,7 +1168,12 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.be_availability_rules': {
     reason: 'availability configuration a slot search reads; edited in place',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'specialist_id',
+      basis:
+        'the only person this row can reach is the SPECIALIST, whose `be_specialists.id` is a `platform_users.id`; runWebappPurgeCoreInTransaction refuses such an account outright (IDENTITY_ROOT_TABLES), so no account purge ever reaches this schedule',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_booking_form_fields': {
@@ -1105,7 +1213,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.be_package_items': {
     reason: 'composition of a package template',
-    userPurge: { kind: 'via-parent', parent: 'public.be_subscription_packages' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'via-parent', parent: 'public.be_subscription_packages' },
   },
   'public.be_package_usages': {
@@ -1140,12 +1248,12 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.be_prepayment_policies': {
     reason: 'prepayment policy configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_clinic_services' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_refunds': {
     reason: 'a refund is a financial record retained for accounting',
-    userPurge: { kind: 'via-parent', parent: 'public.be_payments' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_reschedule_policies': {
@@ -1155,7 +1263,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.be_rooms': {
     reason: 'branch room configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_schedule_blocks': {
@@ -1165,32 +1273,62 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.be_schedule_templates': {
     reason: 'schedule configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_service_location_availability': {
     reason: 'which branch offers which service — configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_specialist_locations': {
     reason: 'specialist ↔ branch configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'specialist_id',
+      basis:
+        'the only person this row can reach is the SPECIALIST, whose `be_specialists.id` is a `platform_users.id`; runWebappPurgeCoreInTransaction refuses such an account outright (IDENTITY_ROOT_TABLES), so no account purge ever reaches this schedule',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_specialist_rooms': {
     reason: 'specialist ↔ room configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_rooms' },
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'specialist_id',
+      basis:
+        'the only person this row can reach is the SPECIALIST, whose `be_specialists.id` is a `platform_users.id`; runWebappPurgeCoreInTransaction refuses such an account outright (IDENTITY_ROOT_TABLES), so no account purge ever reaches this schedule',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_specialist_service_availability': {
     reason: 'which specialist offers which service — configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'specialist_id',
+      basis:
+        'the only person this row can reach is the SPECIALIST, whose `be_specialists.id` is a `platform_users.id`; runWebappPurgeCoreInTransaction refuses such an account outright (IDENTITY_ROOT_TABLES), so no account purge ever reaches this schedule',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_specialists': {
     reason: 'specialist card of a clinic — live directory row, not an event',
-    userPurge: { kind: 'not-user-scoped' },
+    // Exhaustive census audit 2026-08-28, F2: `not-user-scoped` is false. `be_specialists.id` IS a
+    // `platform_users.id` (no FK), so one person can hold both a client account and an active
+    // specialist root: measured on bcb_webapp_dev, 1 active specialist whose id is a `role='client'`
+    // platform user, with 8 working-hours, 1 service-availability and 12 appointment rows hanging
+    // off it. Strict purge accepted that row, deleted the platform identity and left the same raw
+    // uuid running a live schedule. Purging the doctor's card instead would destroy clinic data
+    // that is not the client's, so the purge now refuses the account, whole, before it touches
+    // anything.
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'id',
+      basis:
+        'runWebappPurgeCoreInTransaction() fails closed with PurgeIdentityRootConflictError before '
+        + 'any destructive statement when public.be_specialists holds a row with the same id; '
+        + 'runStrictPurgePlatformUser maps it to the typed failure `identity_in_use`.',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_subscription_packages': {
@@ -1200,12 +1338,22 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.be_working_days': {
     reason: 'schedule configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'specialist_id',
+      basis:
+        'the only person this row can reach is the SPECIALIST, whose `be_specialists.id` is a `platform_users.id`; runWebappPurgeCoreInTransaction refuses such an account outright (IDENTITY_ROOT_TABLES), so no account purge ever reaches this schedule',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.be_working_hours': {
     reason: 'schedule configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    userPurge: {
+      kind: 'purge-blocked',
+      column: 'specialist_id',
+      basis:
+        'the only person this row can reach is the SPECIALIST, whose `be_specialists.id` is a `platform_users.id`; runWebappPurgeCoreInTransaction refuses such an account outright (IDENTITY_ROOT_TABLES), so no account purge ever reaches this schedule',
+    },
     orgPurge: { kind: 'organization_id' },
   },
   'public.booking_calendar_map': {
@@ -1285,7 +1433,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.clinical_test_regions': {
     reason: 'reference data',
-    userPurge: { kind: 'via-parent', parent: 'public.reference_items' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.clinical_visit': {
@@ -1340,7 +1488,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.lfk_complex_template_exercises': {
     reason: 'program composition',
-    userPurge: { kind: 'via-parent', parent: 'public.lfk_complex_templates' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.lfk_complex_templates': {
@@ -1355,12 +1503,12 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.lfk_exercise_media': {
     reason: 'media attached to an exercise — part of the catalogue row',
-    userPurge: { kind: 'via-parent', parent: 'public.lfk_exercises' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.lfk_exercise_regions': {
     reason: 'reference data',
-    userPurge: { kind: 'via-parent', parent: 'public.lfk_exercises' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.lfk_exercises': {
@@ -1421,7 +1569,18 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   'public.organization_slug_claims': {
     reason: 'live claim on a public slug, not history',
     userPurge: { kind: 'staff-authored', column: 'created_by_platform_user_id', basis: 'a slug is claimed by clinic staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
-    orgPurge: { kind: 'organization_id' },
+    // Exhaustive census audit 2026-08-28, F3: `organization_id` was false — the live FK was the
+    // default NO ACTION, so 5 live claim rows on bcb_webapp_dev REFUSED the organization delete.
+    // Deleting the claim would release the public slug for anyone to take over, which is exactly
+    // what the reserved-slug list exists to prevent, so the clinic reference is nulled and the
+    // claim survives as an unlinked tombstone that still holds the name.
+    orgPurge: {
+      kind: 'org-anonymised',
+      column: 'organization_id',
+      basis:
+        'organization_slug_claims_organization_id_fkey ON DELETE SET NULL '
+        + '(20260828T131900_organization_purge_reaches_every_named_class.sql)',
+    },
   },
   'public.password_login_identifier_protection': {
     reason: 'per-identifier lockout state, one row per identifier',
@@ -1460,7 +1619,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.patient_home_block_items': {
     reason: 'items of a patient-home block — configuration',
-    userPurge: { kind: 'via-parent', parent: 'public.patient_home_blocks' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.patient_home_blocks': {
@@ -1520,7 +1679,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.recommendation_regions': {
     reason: 'reference data',
-    userPurge: { kind: 'via-parent', parent: 'public.reference_items' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.recommendations': {
@@ -1545,7 +1704,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.reference_items': {
     reason: 'reference catalogue items of a clinic',
-    userPurge: { kind: 'via-parent', parent: 'public.reference_categories' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.reminder_rules': {
@@ -1575,7 +1734,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.saas_billing_subscriptions': {
     reason: 'live subscription of a clinic',
-    userPurge: { kind: 'via-parent', parent: 'public.saas_billing_accounts' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.saas_org_entitlement_overrides': {
@@ -1616,7 +1775,14 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   'public.specialist_signup_intents': {
     reason: 'a pending signup, resolved or abandoned; not a journal',
     userPurge: { kind: 'cascade', column: 'user_id' },
-    orgPurge: { kind: 'organization_id' },
+    // The exhaustive census claimed `organization_id`; this table has no such column. Its clinic
+    // reference is the organization the signup PROVISIONED, and the live FK already nulls it, which
+    // is right: the intent is the applicant's record of what happened, not the clinic's row.
+    orgPurge: {
+      kind: 'org-anonymised',
+      column: 'provisioned_organization_id',
+      basis: 'specialist_signup_intents_org_fkey ON DELETE SET NULL',
+    },
   },
   'public.specialist_tasks': {
     reason: 'live task list of a specialist, not a journal — but the row references a patient and must not keep pointing at a purged one',
@@ -1640,7 +1806,7 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.support_question_messages': {
     reason: 'replies inside one question — the content itself',
-    userPurge: { kind: 'via-parent', parent: 'public.support_questions' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.support_questions': {
@@ -1665,12 +1831,12 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.test_results': {
     reason: 'clinical result rows of one test attempt',
-    userPurge: { kind: 'via-parent', parent: 'public.test_attempts' },
+    userPurge: { kind: 'anonymised', column: 'decided_by' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.test_set_items': {
     reason: 'reference composition',
-    userPurge: { kind: 'via-parent', parent: 'public.test_sets' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.test_sets': {
@@ -1705,17 +1871,17 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, Jo
   },
   'public.treatment_program_template_stage_groups': {
     reason: 'template composition',
-    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_template_stages' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.treatment_program_template_stage_items': {
     reason: 'template composition',
-    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_template_stages' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.treatment_program_template_stages': {
     reason: 'template composition',
-    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_templates' },
+    userPurge: { kind: 'not-user-scoped' },
     orgPurge: { kind: 'organization_id' },
   },
   'public.treatment_program_templates': {

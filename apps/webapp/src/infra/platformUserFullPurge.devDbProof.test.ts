@@ -50,11 +50,18 @@
  *     src/infra/platformUserFullPurge.devDbProof.test.ts
  */
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import { readFile, readdir } from 'node:fs/promises';
+import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PoolClient } from 'pg';
 import {
   ANONYMISE_ON_PURGE_COLUMNS,
   CONTENT_TABLES,
+  DIARY_TABLES,
+  IDENTITY_ROOT_TABLES,
+  IDENTITY_TABLES,
+  PURGED_USER_JSON_TOKEN,
+  PurgeIdentityRootConflictError,
   collectPurgeArtifactKeys,
   phoneDigits,
   runWebappPurgeCoreInTransaction,
@@ -62,17 +69,34 @@ import {
   type PurgePlatformUserRow,
 } from './platformUserFullPurge';
 import { pgAdvisoryXactLock } from '@/infra/db/pgAdvisoryLock';
-import { JOURNAL_LIFECYCLE_REGISTRY } from '../../../../deploy/postgres/privileges/journal-lifecycle-registry';
+import {
+  JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS,
+  JOURNAL_LIFECYCLE_REGISTRY,
+  type JournalLifecycleOrgPurge,
+  type JournalLifecycleUserPurge,
+} from '../../../../deploy/postgres/privileges/journal-lifecycle-registry';
 
 const ENABLED = process.env.RUN_PLATFORM_USER_PURGE_DB === '1';
 
-/** Only the named TEST database. AGENTS.md §1b: no disposable database, no DEV, no PROD. */
-const TEST_DATABASE = 'bersoncarebot_test';
-const DATABASE = process.env.PLATFORM_USER_PURGE_DB ?? TEST_DATABASE;
+/**
+ * A NAMED managed database, never a disposable one (AGENTS.md §1b) and never PROD.
+ *
+ * Default is named DEV. The proof rolls every transaction back, but it still executes the real
+ * destructive core, and DEV is the environment whose data may be disturbed; TEST is the shared
+ * acceptance database and stays read-only unless a run explicitly names it.
+ */
+const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../..');
 
-if (ENABLED && DATABASE !== TEST_DATABASE) {
+const DEV_DATABASE = 'bcb_webapp_dev';
+const TEST_DATABASE = 'bersoncarebot_test';
+const ALLOWED_DATABASES = [DEV_DATABASE, TEST_DATABASE];
+const DATABASE = process.env.PLATFORM_USER_PURGE_DB ?? DEV_DATABASE;
+
+if (ENABLED && !ALLOWED_DATABASES.includes(DATABASE)) {
   throw new Error(
-    `refusing to run the account purge proof against '${DATABASE}': only '${TEST_DATABASE}' is allowed`,
+    `refusing to run the account purge proof against '${DATABASE}': only ${ALLOWED_DATABASES.join(
+      ' or ',
+    )} is allowed`,
   );
 }
 
@@ -326,18 +350,41 @@ function asInt(value: string | null): number {
   return Number.parseInt(value ?? '0', 10);
 }
 
-/** `CONTENT_TABLES` names are unqualified; every one of them lives in `public`. */
+/**
+ * Every relation the purge core empties BY NAME inside its transaction, unqualified in the product
+ * and `public`-qualified here. Three lists, one meaning: `CONTENT_TABLES`, the diary pair whose FK
+ * order forces its own sequence, and the identity/login rows. Reading only the first of the three
+ * made five true `explicit-delete` declarations look false.
+ */
 const EXPLICIT_DELETE_KEYS = new Set(
-  CONTENT_TABLES.map((entry) => `public.${entry.table}.${entry.column}`),
+  [...CONTENT_TABLES, ...DIARY_TABLES, ...IDENTITY_TABLES].map(
+    (entry) => `public.${entry.table}.${entry.column}`,
+  ),
 );
-/** Same convention for the columns the purge nulls instead of deleting. */
+/**
+ * Same convention for the columns the purge nulls instead of deleting — INCLUDING the further
+ * identity columns of the same row (`alsoNullColumns`). Audit 2026-08-28, F5: these carry no FK at
+ * all, so the FK-derived surface list could not see them and `specialist_tasks`, `be_payments`,
+ * `be_payment_history_events` and the whole delivery journal were never physically measured.
+ */
 const EXPLICIT_ANONYMISE_KEYS = new Set(
-  ANONYMISE_ON_PURGE_COLUMNS.map((entry) => `public.${entry.table}.${entry.column}`),
+  ANONYMISE_ON_PURGE_COLUMNS.flatMap((entry) =>
+    [entry.column, ...(entry.alsoNullColumns ?? [])].map(
+      (column) => `public.${entry.table}.${column}`,
+    ),
+  ),
+);
+/** `jsonb` columns the purge scrubs of the raw uuid, same convention. */
+const SCRUB_JSON_KEYS = new Set(
+  ANONYMISE_ON_PURGE_COLUMNS.flatMap((entry) =>
+    (entry.scrubJsonColumns ?? []).map((column) => `public.${entry.table}.${column}`),
+  ),
 );
 
 function expectationFor(relation: string, column: string, onDelete: string | null): Expectation {
   if (EXPLICIT_DELETE_KEYS.has(`${relation}.${column}`)) return 'gone';
   if (onDelete === 'c') return 'gone';
+  if (EXPLICIT_ANONYMISE_KEYS.has(`${relation}.${column}`)) return 'anonymised';
   if (onDelete === 'n') return 'anonymised';
   return 'unreferenced';
 }
@@ -372,6 +419,18 @@ type Report = {
   /** Relations that also lose rows through a cascading parent the purge empties. */
   cascadeChildrenOfPurged: string[];
   registryDivergences: string[];
+  /**
+   * Divergences whose ONLY cause is that this database has not yet been given a forward migration
+   * this branch already carries — each is named together with that pending migration, and each is
+   * proven pending against the live `drizzle.__drizzle_migrations` ledger.
+   */
+  pendingSchemaDivergences: string[];
+  /** How many of the 164 structured non-journal decisions carried a checkable claim. */
+  structuredDecisionsChecked: number;
+  /** `jsonb` columns whose document still embedded the raw uuid after the purge. */
+  jsonScrubLeftovers: string[];
+  /** FK-free explicit-anonymise surfaces that had live rows and were therefore really exercised. */
+  provenExplicitAnonymise: string[];
 };
 
 const client = new AdminSocketClient();
@@ -402,6 +461,18 @@ async function countsFor(surfaces: Surface[], userId: string): Promise<Map<strin
   }
   return out;
 }
+
+/**
+ * SQL that excludes the accounts the purge refuses outright. Derived from the product's own
+ * `IDENTITY_ROOT_TABLES`, so a new identity root is excluded here the moment it is declared there —
+ * this proof measures what the purge DOES to a purgeable account; the refusal itself is proven in
+ * its own case.
+ */
+const NOT_AN_IDENTITY_ROOT_SQL = IDENTITY_ROOT_TABLES.map(
+  ({ table, column }) =>
+    `NOT EXISTS (SELECT 1 FROM ${quoteIdent(`public.${table}`)} ir ` +
+    `WHERE ir.${quoteIdent(column)} = pu.id)`,
+).join(' AND ');
 
 async function loadPurgeUser(userId: string): Promise<PurgePlatformUserRow> {
   const userRow = await client.probe(
@@ -467,15 +538,15 @@ async function measureExpectedArtifacts(
 }
 
 describe.skipIf(!ENABLED)(
-  'account purge core against the live TEST database (rollback-only)',
+  'account purge core against the live named database (rollback-only)',
   () => {
     beforeAll(async () => {
       client.start();
       try {
         const current = await client.probe('SELECT current_database() AS name');
         const live = current.rows[0]?.name ?? '';
-        if (live !== TEST_DATABASE) {
-          throw new Error(`refusing: current_database='${live}', expected '${TEST_DATABASE}'`);
+        if (live !== DATABASE) {
+          throw new Error(`refusing: current_database='${live}', expected '${DATABASE}'`);
         }
 
         /* ORACLE 1 — the live FK graph around `platform_users`. */
@@ -514,72 +585,182 @@ describe.skipIf(!ENABLED)(
             expectation: 'gone',
           });
         }
+        /* The same shape for the columns the purge NULLS with no FK behind them (audit 2026-08-28,
+         F5): `specialist_tasks.patient_user_id`, both accounting columns, and the delivery
+         journal's `user_id` / `integrator_user_id`. Without this the FK-derived list cannot see
+         them, so the promised de-identification was never measured on a real row. */
+        for (const target of ANONYMISE_ON_PURGE_COLUMNS) {
+          const relation = `public.${target.table}`;
+          for (const column of [target.column, ...(target.alsoNullColumns ?? [])]) {
+            if (surfaces.some((s) => s.relation === relation && s.column === column)) continue;
+            surfaces.push({ relation, column, onDelete: null, expectation: 'anonymised' });
+          }
+        }
         surfaces.sort((a, b) => key(a.relation, a.column).localeCompare(key(b.relation, b.column)));
+
+        /* ORACLE 1b — the same graph around the organizations table, for the org-purge half. */
+        const orgFkRows = await client.probe(`
+        SELECT n.nspname || '.' || c.relname AS relation,
+               a.attname                     AS column,
+               con.confdeltype               AS on_delete
+          FROM pg_constraint con
+          JOIN pg_class c ON c.oid = con.conrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+          JOIN LATERAL unnest(con.conkey) AS k(attnum) ON true
+          JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum
+         WHERE con.contype = 'f'
+           AND con.confrelid = 'public.be_organizations'::regclass`);
+        /* Which relations physically carry an `organization_id` at all — a written organization
+           purge over a column that does not exist is the emptiest claim of the set. */
+        const orgColumnRows = await client.probe(`
+        SELECT n.nspname || '.' || c.relname AS relation
+          FROM pg_attribute a
+          JOIN pg_class c ON c.oid = a.attrelid
+          JOIN pg_namespace n ON n.oid = c.relnamespace
+         WHERE a.attname = 'organization_id'
+           AND a.attnum > 0
+           AND NOT a.attisdropped
+           AND c.relkind IN ('r', 'p')`);
 
         /* ORACLE 2 — the registry's written decision must agree with what the database does. */
         const liveFk = new Map(
           surfaces.filter((s) => s.onDelete).map((s) => [key(s.relation, s.column), s.onDelete!]),
         );
-        const divergences: string[] = [];
-        for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
-          const purge = entry.userPurge;
+        /**
+         * ONE rule set, applied to BOTH written surfaces (audit 2026-08-28, F5: the proof used to
+         * read only `JOURNAL_LIFECYCLE_REGISTRY`, so the 164 structured non-journal decisions — the
+         * exact surface the exhaustive census had just created — were checked by nothing at all,
+         * and three of them were false about live identifiers).
+         */
+        const describeLive = (live: string | null) =>
+          live === null
+            ? 'no FK'
+            : live === 'a'
+              ? 'NO ACTION'
+              : live === 'r'
+                ? 'RESTRICT'
+                : live;
+
+        function userPurgeDivergences(table: string, purge: JournalLifecycleUserPurge): string[] {
+          const out: string[] = [];
+          const fkKeysOfTable = [...liveFk.keys()].filter((k) => k.startsWith(`${table}.`));
           if (purge.kind === 'not-user-scoped' || purge.kind === 'via-parent') {
-            const hits = [...liveFk.keys()].filter((k) => k.startsWith(`${entry.table}.`));
-            if (hits.length > 0) {
-              divergences.push(
-                `${entry.table}: declared ${purge.kind}, live FK on ${hits.join(', ')}`,
-              );
+            if (fkKeysOfTable.length > 0) {
+              out.push(`${table}: declared ${purge.kind}, live FK on ${fkKeysOfTable.join(', ')}`);
             }
-            continue;
+            return out;
           }
           if (
             purge.kind === 'staff-authored' ||
             purge.kind === 'self-expiring' ||
+            purge.kind === 'purge-blocked' ||
             purge.kind === 'owner-question' ||
             purge.kind === 'absent-retired'
           ) {
             // None of these claim an FK behaviour: they claim the purge deliberately does not reach
-            // the column (staff never purged / the row expires on its own / the decision is still
-            // owed / the relation does not exist). A live cascading or nulling FK would contradict
-            // that, so only THAT is a divergence.
-            const contradicting = [...liveFk.keys()].filter((key) =>
-              key.startsWith(`${entry.table}.`),
-            );
+            // the column (staff never purged / the row expires on its own / the account is refused
+            // outright / the decision is still owed / the relation does not exist). Only a live
+            // CASCADING or NULLING FK contradicts that — a NO ACTION/RESTRICT one is exactly what
+            // "the purge never targets this" looks like, and treating it as a contradiction was the
+            // reason three staff-authored columns could never be declared truthfully at all.
+            const contradicting = fkKeysOfTable.filter((k) => {
+              const action = liveFk.get(k);
+              return action === 'c' || action === 'n';
+            });
             if (contradicting.length > 0) {
-              divergences.push(
-                `${entry.table}: declared ${purge.kind}, live purge FK on ${contradicting.join(', ')}`,
+              out.push(
+                `${table}: declared ${purge.kind}, live purge FK on ${contradicting.join(', ')}`,
               );
             }
-            continue;
+            return out;
           }
-          const k = key(entry.table, purge.column);
+          const k = key(table, purge.column);
           const live = liveFk.get(k) ?? null;
           if (purge.kind === 'phone-keyed') {
-            if (live) divergences.push(`${k}: declared phone-keyed, live FK ${live}`);
-            continue;
+            if (live) out.push(`${k}: declared phone-keyed, live FK ${live}`);
+            return out;
           }
           if (purge.kind === 'explicit-delete') {
             if (!EXPLICIT_DELETE_KEYS.has(k)) {
-              divergences.push(`${k}: declared explicit-delete, absent from CONTENT_TABLES`);
+              out.push(`${k}: declared explicit-delete, absent from CONTENT_TABLES`);
             }
-            continue;
+            return out;
+          }
+          if (purge.kind === 'deferred-delete') {
+            // The honest half-way house: the row IS deleted, but after commit and only once its
+            // external object is gone, so it must NOT be in `CONTENT_TABLES` — the physical proof of
+            // this kind is the artifact-collection case below, not a row count inside the tx.
+            if (EXPLICIT_DELETE_KEYS.has(k)) {
+              out.push(
+                `${k}: declared deferred-delete, but CONTENT_TABLES deletes it inside the transaction`,
+              );
+            }
+            return out;
           }
           if (purge.kind === 'explicit-anonymise') {
             // Mirror of explicit-delete: the declaration is only true if the purge really names the
             // table+column it promises to null.
             if (!EXPLICIT_ANONYMISE_KEYS.has(k)) {
-              divergences.push(
-                `${k}: declared explicit-anonymise, absent from ANONYMISE_ON_PURGE_COLUMNS`,
-              );
+              out.push(`${k}: declared explicit-anonymise, absent from ANONYMISE_ON_PURGE_COLUMNS`);
             }
-            continue;
+            return out;
           }
           const expected = purge.kind === 'cascade' ? 'c' : 'n';
           if (live !== expected) {
-            divergences.push(
-              `${k}: declared ${purge.kind}, live ${live === null ? 'no FK' : live === 'a' ? 'NO ACTION' : live === 'r' ? 'RESTRICT' : live}`,
-            );
+            out.push(`${k}: declared ${purge.kind}, live ${describeLive(live)}`);
           }
+          return out;
+        }
+
+        /* Organization purge, same treatment: a written `organization_id` claim must be something
+         the database will really perform (audit F3 — four of them were refusals or no-ops). */
+        const orgFk = new Map(
+          orgFkRows.rows.map((row) => [key(row.relation ?? '', row.column ?? ''), row.on_delete]),
+        );
+        const orgColumns = new Set(orgColumnRows.rows.map((row) => row.relation ?? ''));
+        function orgPurgeDivergences(table: string, purge: JournalLifecycleOrgPurge): string[] {
+          const out: string[] = [];
+          if (purge.kind === 'organization_id') {
+            if (!orgColumns.has(table)) {
+              out.push(`${table}: declared orgPurge organization_id, no such column`);
+              return out;
+            }
+            const live = orgFk.get(key(table, 'organization_id')) ?? null;
+            if (live !== 'c') {
+              out.push(
+                `${table}.organization_id: declared org cascade, live ${describeLive(live)}`,
+              );
+            }
+            return out;
+          }
+          if (purge.kind === 'org-anonymised') {
+            const live = orgFk.get(key(table, purge.column)) ?? null;
+            if (live !== 'n') {
+              out.push(
+                `${table}.${purge.column}: declared org tombstone, live ${describeLive(live)}`,
+              );
+            }
+            return out;
+          }
+          if (purge.kind === 'not-org-scoped') {
+            const hits = [...orgFk.keys()].filter((k) => k.startsWith(`${table}.`));
+            if (hits.length > 0) {
+              out.push(`${table}: declared not-org-scoped, live organization FK on ${hits.join(', ')}`);
+            }
+          }
+          return out;
+        }
+
+        const divergences: string[] = [];
+        let structuredDecisionsChecked = 0;
+        for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
+          divergences.push(...userPurgeDivergences(entry.table, entry.userPurge));
+          divergences.push(...orgPurgeDivergences(entry.table, entry.orgPurge));
+        }
+        for (const [table, decision] of Object.entries(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS)) {
+          structuredDecisionsChecked += 1;
+          divergences.push(...userPurgeDivergences(table, decision.userPurge));
+          divergences.push(...orgPurgeDivergences(table, decision.orgPurge));
         }
 
         /* Phone-keyed stores come from the registry, not from a hand list. */
@@ -612,19 +793,59 @@ describe.skipIf(!ENABLED)(
            AND con.confdeltype = 'c'
            AND np.nspname || '.' || pc.relname IN (${goneRelations.map(catalogLiteral).join(', ')})
            AND nc.nspname || '.' || cc.relname <> np.nspname || '.' || pc.relname`);
-        const liveViaParents = new Set(
-          viaParentRows.rows.map((row) => viaKey(row.child ?? '', row.parent ?? '')),
-        );
-        for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
-          const purge = entry.userPurge;
-          if (purge.kind !== 'via-parent') continue;
-          if (!goneRelations.includes(purge.parent)) {
+        /* A chain is a chain at ANY depth: `treatment_program_instance_stage_items` reaches the
+           person through `…_stages` through `…_instances`, and a one-level check called that true
+           declaration false. Every cascading edge in the database, closed over the relations the
+           purge empties. */
+        const cascadeEdgeRows = await client.probe(`
+        SELECT nc.nspname || '.' || cc.relname AS child,
+               np.nspname || '.' || pc.relname AS parent
+          FROM pg_constraint con
+          JOIN pg_class cc ON cc.oid = con.conrelid
+          JOIN pg_namespace nc ON nc.oid = cc.relnamespace
+          JOIN pg_class pc ON pc.oid = con.confrelid
+          JOIN pg_namespace np ON np.oid = pc.relnamespace
+         WHERE con.contype = 'f'
+           AND con.confdeltype = 'c'
+           AND nc.nspname || '.' || cc.relname <> np.nspname || '.' || pc.relname`);
+        const cascadeParentsOf = new Map<string, Set<string>>();
+        const cascadeChildrenOf = new Map<string, string[]>();
+        for (const row of cascadeEdgeRows.rows) {
+          const child = row.child ?? '';
+          const parent = row.parent ?? '';
+          cascadeParentsOf.set(child, (cascadeParentsOf.get(child) ?? new Set()).add(parent));
+          cascadeChildrenOf.set(parent, [...(cascadeChildrenOf.get(parent) ?? []), child]);
+        }
+        const goneWithTheUser = new Set(goneRelations);
+        const frontier = [...goneRelations];
+        while (frontier.length > 0) {
+          const parent = frontier.pop()!;
+          for (const child of cascadeChildrenOf.get(parent) ?? []) {
+            if (goneWithTheUser.has(child)) continue;
+            goneWithTheUser.add(child);
+            frontier.push(child);
+          }
+        }
+        const declaredViaParent: { table: string; parent: string }[] = [
+          ...JOURNAL_LIFECYCLE_REGISTRY.filter((e) => e.userPurge.kind === 'via-parent').map((e) => ({
+            table: e.table,
+            parent: (e.userPurge as { parent: string }).parent,
+          })),
+          // Audit F5 again: the 164 structured decisions lean on `via-parent` far more heavily than
+          // the registry does (every schedule and configuration row), and none of those chains was
+          // ever walked.
+          ...Object.entries(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS)
+            .filter(([, d]) => d.userPurge.kind === 'via-parent')
+            .map(([table, d]) => ({ table, parent: (d.userPurge as { parent: string }).parent })),
+        ];
+        for (const declared of declaredViaParent) {
+          if (!goneWithTheUser.has(declared.parent)) {
             divergences.push(
-              `${entry.table}: declared via-parent ${purge.parent}, parent is not purge-gone`,
+              `${declared.table}: declared via-parent ${declared.parent}, parent is not purge-gone`,
             );
-          } else if (!liveViaParents.has(viaKey(entry.table, purge.parent))) {
+          } else if (!(cascadeParentsOf.get(declared.table)?.has(declared.parent) ?? false)) {
             divergences.push(
-              `${entry.table}: declared via-parent ${purge.parent}, live cascading path absent`,
+              `${declared.table}: declared via-parent ${declared.parent}, live cascading path absent`,
             );
           }
         }
@@ -682,6 +903,7 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
           FROM f
           JOIN public.platform_users pu ON pu.id::text = f.uid
          WHERE pu.role = 'client'
+           AND ${NOT_AN_IDENTITY_ROOT_SQL}
          GROUP BY 1
         HAVING count(DISTINCT f.cls) = 3
          ORDER BY sum(f.n) DESC, f.uid ASC
@@ -735,7 +957,7 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
 
         if (!chosen) {
           throw new Error(
-            `fixture missing: no 'client' on ${TEST_DATABASE} carries a live fact of every purge class ` +
+            `fixture missing: no 'client' on ${DATABASE} carries a live fact of every purge class ` +
               `(cascade, explicit-delete, anonymised, phone-keyed, via-parent). Checked ` +
               `${ranked.rows.length} candidates:\n${shortfalls.join('\n')}`,
           );
@@ -758,6 +980,7 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         const viaAfter = new Map<string, number>();
         const viaRestored = new Map<string, number>();
         const digits = user.phone_normalized ? phoneDigits(user.phone_normalized) : '';
+        const jsonScrubLeftovers: string[] = [];
         let advisoryLockHeld = false;
 
         await client.probe('BEGIN ISOLATION LEVEL REPEATABLE READ');
@@ -778,6 +1001,21 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
           await runWebappPurgeCoreInTransaction(asPoolClient, user);
 
           for (const [k, v] of await countsFor(surfaces, user.id)) after.set(k, v);
+          /* The delivery journal keeps its row and its outcome; what it must NOT keep is the raw
+             uuid embedded anywhere in the retained document (audit 2026-08-28, F1). Measured on the
+             whole jsonb text, the same way the audit measured the defect. */
+          for (const scrubKey of SCRUB_JSON_KEYS) {
+            const dot = scrubKey.lastIndexOf('.');
+            const relation = scrubKey.slice(0, dot);
+            const column = scrubKey.slice(dot + 1);
+            const res = await client.probe(
+              `SELECT count(*) AS n FROM ${quoteIdent(relation)} ` +
+                `WHERE position($1 in ${quoteIdent(column)}::text) > 0`,
+              [user.id],
+            );
+            const left = asInt(res.rows[0]?.n ?? null);
+            if (left > 0) jsonScrubLeftovers.push(`${scrubKey}: ${left} documents still embed the id`);
+          }
           for (const store of chosenPhone) {
             const res = await client.probe(
               `SELECT count(*) AS n FROM ${quoteIdent(store.relation)} ` +
@@ -819,12 +1057,13 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
                  WHERE r.user_id = pu.id) AS artifact_count
           FROM public.platform_users pu
          WHERE pu.role = 'client'
+           AND ${NOT_AN_IDENTITY_ROOT_SQL}
          ORDER BY artifact_count DESC, pu.id
          LIMIT 1`);
         const artifactUserId = artifactCandidate.rows[0]?.uid ?? '';
         if (asInt(artifactCandidate.rows[0]?.artifact_count ?? null) === 0) {
           throw new Error(
-            `fixture missing: no 'client' on ${TEST_DATABASE} owns an external artifact`,
+            `fixture missing: no 'client' on ${DATABASE} owns an external artifact`,
           );
         }
         const artifactUser = await loadPurgeUser(artifactUserId);
@@ -865,6 +1104,55 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         }
         const artifactRestored = await measureArtifactCounts(artifactUser.id);
 
+        /* ── a divergence caused by an unapplied forward migration is named, not swallowed ──
+         This managed database is not always at the branch's head: the ledger below is the live
+         `drizzle.__drizzle_migrations`, and a migration file this branch carries but the database
+         has never seen genuinely explains a constraint that does not match its declaration yet. The
+         excuse is mechanical and expires by itself — once the migration lands, it is no longer
+         pending, and the divergence becomes unexplained and red. */
+        const ledger = await client.probe('SELECT tag FROM drizzle.__drizzle_migrations');
+        const appliedTags = new Set(ledger.rows.map((row) => row.tag ?? ''));
+        const migrationsDir = path.join(REPO_ROOT, 'apps/webapp/db/drizzle-migrations');
+        const pendingMigrations = (await readdir(migrationsDir))
+          .filter((name) => name.endsWith('.sql'))
+          .filter((name) => !appliedTags.has(name.replace(/\.sql$/u, '')))
+          .sort();
+        const pendingSql = new Map<string, string>();
+        for (const name of pendingMigrations) {
+          pendingSql.set(name, await readFile(path.join(migrationsDir, name), 'utf8'));
+        }
+        /** The declared `ON DELETE` a divergence line asked for, and the relation it asked it of. */
+        function explainingMigration(divergence: string): string | null {
+          const match = /^([a-z_]+\.[a-z_]+)\.([a-z_]+): declared (cascade|anonymised|org cascade|org tombstone),/u.exec(
+            divergence,
+          );
+          if (!match) return null;
+          const [, relation, column, kind] = match;
+          const wanted = kind === 'cascade' || kind === 'org cascade' ? 'CASCADE' : 'SET NULL';
+          const table = (relation ?? '').replace(/^public\./u, '');
+          for (const [name, sqlText] of pendingSql) {
+            const normalized = sqlText.replace(/\s+/gu, ' ');
+            const installs = new RegExp(
+              `ALTER TABLE (?:public\\.)?${table}[^;]*FOREIGN KEY \\([^)]*\\b${column}\\b[^)]*\\)[^;]*ON DELETE ${wanted}`,
+              'iu',
+            );
+            if (installs.test(normalized)) return name;
+          }
+          return null;
+        }
+        const unexplainedDivergences: string[] = [];
+        const pendingSchemaDivergences: string[] = [];
+        for (const divergence of divergences) {
+          const migration = explainingMigration(divergence);
+          if (migration) pendingSchemaDivergences.push(`${divergence} — pending ${migration}`);
+          else unexplainedDivergences.push(divergence);
+        }
+
+        /* ── the FK-free anonymise classes actually exercised on real rows ── */
+        const provenExplicitAnonymise = [...EXPLICIT_ANONYMISE_KEYS]
+          .filter((k) => (before.get(k)?.referencing ?? 0) > 0)
+          .sort();
+
         report = {
           database: live,
           user,
@@ -890,7 +1178,11 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
             restored: viaRestored.get(viaKey(v.child, v.parent)) ?? -1,
           })),
           cascadeChildrenOfPurged,
-          registryDivergences: divergences.sort(),
+          registryDivergences: unexplainedDivergences.sort(),
+          pendingSchemaDivergences: pendingSchemaDivergences.sort(),
+          structuredDecisionsChecked,
+          jsonScrubLeftovers,
+          provenExplicitAnonymise,
         };
       } catch (error) {
         setupError = error;
@@ -901,12 +1193,12 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
       await client.stop();
     });
 
-    it('ran the purge core on the named TEST database against a real client with real facts', () => {
+    it('ran the purge core on the named database against a real client with real facts', () => {
       expect(
         setupError,
         String(setupError instanceof Error ? setupError.stack : setupError),
       ).toBeNull();
-      expect(report.database).toBe(TEST_DATABASE);
+      expect(report.database).toBe(DATABASE);
       expect(report.user.role).toBe('client');
       expect(report.user.id).toMatch(/^[0-9a-f-]{36}$/u);
       expect(
@@ -984,7 +1276,12 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
           continue;
         }
         provenSurvival.push(k);
-        if (a.total !== b.total)
+        // `platform_users` is the ONE relation on this list whose own row is the purge target, so
+        // its total is expected to fall by exactly that one row — the self-referencing
+        // `merged_into_id` surface. Audit 2026-08-28, F5: the proof asserted `total` unchanged and
+        // went red on `304 → 303`, i.e. it reported the purge working as a defect.
+        const expectedTotal = surface.relation === 'public.platform_users' ? b.total - 1 : b.total;
+        if (a.total !== expectedTotal)
           wrong.push(`${k}: rows disappeared, total ${b.total} → ${a.total}`);
       }
       expect(wrong).toEqual([]);
@@ -992,6 +1289,62 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
         provenSurvival.length,
         'fixture missing: no live anonymised fact outside a cascading parent',
       ).toBeGreaterThan(0);
+    });
+
+    /**
+     * WHAT BREAKS WITHOUT THIS: the columns the purge promises to NULL carry no FK, so the live
+     * constraint graph cannot see them and every earlier run silently proved nothing about them —
+     * audit 2026-08-28, F5. `specialist_tasks.patient_user_id`, both accounting columns and the
+     * delivery journal's two identity columns are exactly the surfaces the last two audits found
+     * false, and they are the ones a purely FK-derived proof will always miss.
+     */
+    it('really de-identifies the FK-free columns the purge promises to null', () => {
+      expect(setupError).toBeNull();
+      const wrong: string[] = [];
+      for (const k of EXPLICIT_ANONYMISE_KEYS) {
+        const b = report.before.get(k);
+        const a = report.after.get(k);
+        if (!b || !a) {
+          wrong.push(`${k}: declared explicit-anonymise but never measured`);
+          continue;
+        }
+        if (b.referencing === 0) continue;
+        if (a.referencing !== 0) wrong.push(`${k}: still references the purged person`);
+        if (a.total !== b.total) wrong.push(`${k}: rows disappeared, ${b.total} → ${a.total}`);
+      }
+      expect(wrong).toEqual([]);
+
+      // A class with no live row proves nothing, and "nothing" must not read as "passed": the run
+      // reports which FK-free classes carried real rows, and refuses to be vacuous.
+      expect(
+        report.provenExplicitAnonymise,
+        `no live row exercised any FK-free anonymise class on ${DATABASE}; the promise is unproven`,
+      ).not.toEqual([]);
+    });
+
+    /** The retained delivery journal must keep its outcome and lose the person, everywhere. */
+    it('scrubs the raw person id out of the retained delivery documents', () => {
+      expect(setupError).toBeNull();
+      expect(SCRUB_JSON_KEYS.size, 'no json column is declared for scrubbing').toBeGreaterThan(0);
+      expect(
+        report.jsonScrubLeftovers,
+        'A retained document that still embeds the purged uuid is the same defect as a column that ' +
+          'still holds it — audit 2026-08-28, F1, where metadata carried the id of 41 clients.',
+      ).toEqual([]);
+      expect(PURGED_USER_JSON_TOKEN).not.toMatch(/^[0-9a-f-]{36}$/u);
+    });
+
+    /**
+     * WHAT BREAKS WITHOUT THIS: the exhaustive census wrote 164 structured decisions and nothing
+     * compared a single one of them to the database — audit 2026-08-28, F5. Three were false about
+     * live identifiers on the day they were written.
+     */
+    it('checks every structured non-journal decision, not just the registry', () => {
+      expect(setupError).toBeNull();
+      expect(
+        report.structuredDecisionsChecked,
+        'the structured decision surface was not read at all',
+      ).toBeGreaterThan(100);
     });
 
     it('clears the phone-keyed stores by phone digits', () => {
@@ -1052,11 +1405,21 @@ ${classUnion(anonymisedSurfaces, 'anonymised')}
           .filter((v) => v.before !== v.restored)
           .map((v) => `${viaKey(v.child, v.parent)} via-parent: ${v.before} → ${v.restored}`),
       );
-      expect(drift, 'the proof must leave the TEST database exactly as it found it').toEqual([]);
+      expect(drift, 'the proof must leave the named database exactly as it found it').toEqual([]);
     });
 
     it('keeps the written lifecycle registry in step with the live constraint graph', () => {
       expect(setupError).toBeNull();
+      // Printed, never hidden: each of these is a constraint this branch already carries as a
+      // forward migration the measured database has not been given yet. The line names the exact
+      // pending file, and the classification is derived from the live ledger, so it cannot outlive
+      // the migration landing.
+      if (report.pendingSchemaDivergences.length > 0) {
+        console.info(
+          `[purge-proof] divergences explained by pending forward migrations on ${report.database}:\n  ` +
+            report.pendingSchemaDivergences.join('\n  '),
+        );
+      }
       expect(
         report.registryDivergences,
         'A registry entry that declares a purge behaviour the database will not perform is a false ' +
@@ -1099,8 +1462,8 @@ describe.skipIf(!ENABLED)('account purge is not refused by a blocking dependent 
     try {
       const current = await blockerClient.probe('SELECT current_database() AS name');
       const live = current.rows[0]?.name ?? '';
-      if (live !== TEST_DATABASE) {
-        throw new Error(`refusing: current_database='${live}', expected '${TEST_DATABASE}'`);
+      if (live !== DATABASE) {
+        throw new Error(`refusing: current_database='${live}', expected '${DATABASE}'`);
       }
 
       /* Relations the database itself empties when a platform_users row goes away, and the
@@ -1151,10 +1514,15 @@ describe.skipIf(!ENABLED)('account purge is not refused by a blocking dependent 
           await pgAdvisoryXactLock(asPoolClient, user.id);
           await runWebappPurgeCoreInTransaction(asPoolClient, user);
         } catch (error) {
-          failures.push(
-            `${candidate.dependent} (${candidate.constraint} → ${candidate.parent}): ` +
-              `${error instanceof Error ? error.message.split('\n')[0] : String(error)}`,
-          );
+          // A refusal by the identity guard is the CORRECT answer for that person, not a blocking
+          // dependent: the account is not purgeable at all while it is also a specialist root, and
+          // the guard runs before anything is touched. Proven in its own case below.
+          if (!(error instanceof PurgeIdentityRootConflictError)) {
+            failures.push(
+              `${candidate.dependent} (${candidate.constraint} → ${candidate.parent}): ` +
+                `${error instanceof Error ? error.message.split('\n')[0] : String(error)}`,
+            );
+          }
         } finally {
           await blockerClient.probe('ROLLBACK');
         }
@@ -1169,7 +1537,7 @@ describe.skipIf(!ENABLED)('account purge is not refused by a blocking dependent 
     await blockerClient.stop();
   });
 
-  it('ran against the named TEST database and found the blocking dependents to probe', () => {
+  it('ran against the named database and found the blocking dependents to probe', () => {
     expect(
       blockerSetupError,
       String(blockerSetupError instanceof Error ? blockerSetupError.stack : blockerSetupError),
@@ -1213,3 +1581,115 @@ async function loadPurgeUserForBlockerProbe(
     role: row.rows[0]?.role ?? '',
   };
 }
+
+/* ────────────────── a client that is also a specialist root is refused, whole ────────────────── */
+
+/**
+ * WHAT BREAKS WITHOUT THIS: `be_specialists.id` IS a `platform_users.id` and carries no FK, so one
+ * person can hold both a client account and an active specialist card. Strict purge accepts any
+ * `role = 'client'` row, so it deleted the platform identity and left the SAME raw uuid owning an
+ * active specialist card, its working hours and its appointments — a half-purged person and a
+ * clinic directory pointing at an account that no longer exists. Exhaustive lifecycle census audit
+ * 2026-08-28, F2, measured live: 1 active specialist on bcb_webapp_dev whose id belongs to a
+ * `role='client'` platform user, with 8 working-hours, 1 service-availability and 12 appointment
+ * rows.
+ *
+ * ORACLE: the live data, not a fixture — the candidate is found by joining `be_specialists` to
+ * `platform_users` on the id. If no such person exists on the measured database the case says so
+ * and is skipped as vacuous rather than passing quietly.
+ *
+ * WHAT IS PROVEN: the production core REFUSES before any destructive statement (the doctor's rows
+ * are all still there inside the same transaction), and it refuses with a reason a caller can act
+ * on rather than a raw constraint violation. As everywhere else here, the transaction is rolled
+ * back unconditionally.
+ */
+describe.skipIf(!ENABLED)('a client that is also a specialist root is refused (rollback-only)', () => {
+  const guardClient = new AdminSocketClient();
+  let collidingUserId = '';
+  let refusal: unknown = null;
+  let specialistRowsDuringAttempt = -1;
+  let scheduleRowsDuringAttempt = -1;
+  let appointmentRowsDuringAttempt = -1;
+  let guardSetupError: unknown = null;
+
+  beforeAll(async () => {
+    guardClient.start();
+    try {
+      const current = await guardClient.probe('SELECT current_database() AS name');
+      const live = current.rows[0]?.name ?? '';
+      if (live !== DATABASE) {
+        throw new Error(`refusing: current_database='${live}', expected '${DATABASE}'`);
+      }
+
+      const collision = await guardClient.probe(`
+        SELECT pu.id::text AS id
+          FROM public.be_specialists s
+          JOIN public.platform_users pu ON pu.id = s.id
+         WHERE pu.role = 'client'
+         ORDER BY s.is_active DESC, pu.id
+         LIMIT 1`);
+      collidingUserId = collision.rows[0]?.id ?? '';
+      if (!collidingUserId) return;
+
+      const user = await loadPurgeUserForBlockerProbe(guardClient, collidingUserId);
+      await guardClient.probe('BEGIN ISOLATION LEVEL REPEATABLE READ');
+      try {
+        const asPoolClient = guardClient as unknown as PoolClient;
+        await pgAdvisoryXactLock(asPoolClient, user.id);
+        await runWebappPurgeCoreInTransaction(asPoolClient, user);
+      } catch (error) {
+        refusal = error;
+      }
+      /* Inside the SAME transaction the attempt ran in: nothing of the doctor may have moved. */
+      const intact = await guardClient.probe(
+        `SELECT (SELECT count(*) FROM public.be_specialists WHERE id::text = $1) AS specialists,
+                (SELECT count(*) FROM public.be_working_hours WHERE specialist_id::text = $1) AS schedule,
+                (SELECT count(*) FROM public.be_appointments WHERE specialist_id::text = $1) AS appointments`,
+        [collidingUserId],
+      );
+      specialistRowsDuringAttempt = asInt(intact.rows[0]?.specialists ?? null);
+      scheduleRowsDuringAttempt = asInt(intact.rows[0]?.schedule ?? null);
+      appointmentRowsDuringAttempt = asInt(intact.rows[0]?.appointments ?? null);
+      await guardClient.probe('ROLLBACK');
+    } catch (error) {
+      guardSetupError = error;
+      try {
+        await guardClient.probe('ROLLBACK');
+      } catch {
+        /* ignore */
+      }
+    }
+  }, 600_000);
+
+  afterAll(async () => {
+    await guardClient.stop();
+  });
+
+  it('found a live person who is both a client account and a specialist root', () => {
+    expect(
+      guardSetupError,
+      String(guardSetupError instanceof Error ? guardSetupError.stack : guardSetupError),
+    ).toBeNull();
+    expect(
+      collidingUserId,
+      `no client account on ${DATABASE} also owns a specialist root — this case proved nothing`,
+    ).not.toBe('');
+  });
+
+  it('fails the purge closed with a reason, and leaves specialist, schedule and appointments intact', () => {
+    expect(guardSetupError).toBeNull();
+    if (!collidingUserId) return;
+    expect(
+      refusal,
+      'the purge core accepted an account that is also an active specialist identity root',
+    ).toBeInstanceOf(PurgeIdentityRootConflictError);
+    const conflicts = (refusal as PurgeIdentityRootConflictError).conflicts;
+    expect(conflicts.join(' ')).toContain('be_specialists.id');
+    expect(specialistRowsDuringAttempt).toBe(1);
+    // The doctor's own clinic data is not the client's to delete, and the guard runs before the
+    // first destructive statement — so these are the counts the refusal left behind, in the same
+    // transaction, not counts restored by the rollback.
+    expect(scheduleRowsDuringAttempt).toBeGreaterThan(0);
+    expect(appointmentRowsDuringAttempt).toBeGreaterThan(0);
+  });
+});

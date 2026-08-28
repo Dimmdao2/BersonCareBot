@@ -602,6 +602,64 @@ FK-графом, а колонка без FK для него не существ
 `product_analytics_events_recent` (`anonymised`) по той же причине «сохранить агрегат, убрать человека».
 Решение агентом не принято, записано в реестре как `userPurge.kind: 'owner-question'`.
 
+**Исправление семантики census и purge — сделано 28.08 (та же ветка `wt/fix-lifecycle-purge-census-20260828`).**
+Полный отчёт с обязательным письменным анализом привилегий миграции и всеми командами:
+`docs/_TODO/runs/EXHAUSTIVE_LIFECYCLE_SEMANTICS_FIX_2026-08-28.md`. Закрыто одним связным проходом, каждый
+пункт — расширением существующей точки, без второго ядра purge, второго реестра, второго лимитера, второго
+сервиса удаления организации и второго стенда:
+
+- `OQ-DELIVERY-ATTEMPT-USER-PURGE` снят решением из брифа: `notification_delivery_attempts` — удерживаемый
+  180 дней факт доставки, поэтому при purge уходит личность, а не строка. Живых поверхностей оказалось три, а
+  не одна: `user_id`, `integrator_user_id` и id внутри `metadata` (DEV 7044/36, 537/110, 1956/41; TEST
+  11222/40, 536/110, 3616/44). Реализовано полями `alsoNullColumns` / `scrubJsonColumns` существующего
+  `ANONYMISE_ON_PURGE_COLUMNS`.
+- `auth.channel_link_start` получил настоящий ограниченный scope prune той же формы и на той же DB-функции,
+  что `patient.client_boot_report`; ключ удалённого человека уносит сам purge через `CONTENT_TABLES`.
+- Client hard purge падает ЗАКРЫТО, если у человека есть живой специалистский корень
+  (`PurgeIdentityRootConflictError` → `error: 'identity_in_use'`): доказано живьём на DEV на настоящем
+  человеке, специалист/расписание/приёмы целы. Данные врача не удаляются.
+- Organization purge стал правдой в миграции `20260828T131900_organization_purge_reaches_every_named_class.sql`:
+  каскад для `outgoing_delivery_queue` и `media_playback_stats_hourly` (FK не было вовсе), каскад
+  `manual_patient_commands` через `org_enrollments` (+ ведущий индекс), `SET NULL`-tombstone для обоих
+  slug-отношений, и расширение ДВУХ существующих стражей ровно на один переход «освобождение личности» —
+  без него `SET NULL` переносил бы отказ с ограничения на триггер. Живая rollback-only демонстрация:
+  queue 102→0, hourly 10→0, claims/renames 5/2 сохранены целиком как 2+2 несвязанных tombstone.
+- Разрешающий ярлык prune-корня заменён проверкой против установленного callable, контракта планировщика и
+  health signal (`staleAfterSec > 0`); запись оператора переведена на настоящий
+  `app.prune_operator_health_failure_archive`. **Шестая инъекция — несуществующий корень с точкой — теперь
+  КРАСНАЯ** (была зелёной, 9/9). Тем же гейтом найден новый экземпляр класса, см. вопрос владельцу ниже.
+- Rollback-only проба расширена на все 164 структурированных решения, FK-free anonymise/delete классы,
+  транзитивное замыкание `via-parent` и org-оракул; исправлено её собственное утверждение о полном числе
+  строк. Пять записанных расхождений закрыты в продукте/схеме/реестре, а не приняты как красный baseline;
+  восемь оставшихся приписаны ИМЕНОВАННЫМ ожидающим миграциям, сверенным с живым ledger.
+- `public.user_email_setup_tokens` независимо признана мёртвой (нет ни в одной управляемой базе, нет писателя,
+  читателя и человеческого пути) — объявление и решение удалены, таблица ради census не воссоздана.
+
+Census: **221 объявленная таблица = 57 реестр + 164 структурированных решения** (было 222/58/164),
+`missing`/`undeclared`/`overlap` пусты. Прогоны: contract 9/9; `RUN_PLATFORM_USER_PURGE_DB=1` DEV-проба
+**16/16 без пропусков**; все шесть инъекций красные и откачены, baseline 9/9 восстановлен побайтно;
+`generate-cli --check` побайтно; typecheck, scoped eslint, `pnpm --dir apps/webapp run lint` (через host lock),
+`check-migration-privileges`, `check-no-new-raw-sql`, `check-c4-migration-owned-function-bodies`,
+`migration-order` — зелёные; `migrate-dev.sh --preflight` **PASS** (`pending=9 total=102`, rollback-only).
+Миграция к DEV/TEST НЕ применена; TEST только на чтение; hard purge остаётся выключенным гейтом PR-03.
+
+Существующий красный ВНЕ скоупа, не вызванный этой работой: `passwordAuth.route.test.ts:312` (403 вместо 200),
+воспроизводится на нетронутой ветке через `git stash`.
+
+**Новые вопросы владельцу, поведение НЕ менялось:**
+
+- `OQ-PLAYBACK-EVENT-STORES-WINDOW`: `media_playback_resolution_events` и `media_playback_client_events`
+  объявляли 30-дневное окно, для которого в репозитории нет ни одного удаления. Срок не выдуман.
+- Реестр против константы модуля: `media_playback_stats_hourly` 400 против
+  `PLAYBACK_HOURLY_STATS_RETENTION_DAYS = 90`; `media_hls_proxy_error_events` 30 против 90. Это политика
+  хранения, а не дефект кода.
+- **24 FK отказывают в `DELETE FROM be_organizations` ВНЕ четырёх названных брифом классов** (каталог клиники
+  `be_clinic_services`/`reference_items`/`tests`/`lfk_exercises`, пациентские назначения, цепочка
+  `saas_billing_*`, `media_folders`). Починить их — значит решить за владельца судьбу каталога клиники и
+  пациентских назначений при её удалении; нужен отдельный пункт плана.
+- Каталожная уборка: вместе с мёртвой таблицей ушла её запись `disp: REMOVED`; три оставшихся собрата с тем же
+  `disp` свои записи сохранили — выносить ли их так же, здесь не решалось.
+
 ### Этап 4. Один контракт результата фоновой операции
 
 - Успех batch-job возможен только когда все обязательные операции завершены; `errors > 0` не превращается в

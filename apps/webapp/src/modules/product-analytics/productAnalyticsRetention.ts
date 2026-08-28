@@ -12,6 +12,18 @@ export const PRODUCT_ANALYTICS_HOURLY_RETENTION_DAYS = 730;
 /** Push send facts (`product_push_notifications`). */
 export const PRODUCT_ANALYTICS_PUSH_RETENTION_DAYS = 730;
 
+/**
+ * The sweep branches `runProductAnalyticsRetention` REALLY performs — see the same-named constant in
+ * `playbackHourlyRetention.ts` for why a prune-root name must be checkable against something the
+ * module actually executes.
+ */
+export const PRODUCT_ANALYTICS_RETENTION_BRANCHES = [
+  'recent',
+  'user_hourly',
+  'hourly',
+  'push',
+] as const;
+
 export type ProductAnalyticsRetentionParams = {
   recentDays?: number;
   userHourlyDays?: number;

@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -10,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { beOrganizations } from './bookingEngine';
 
 /** Исходящая доставка уведомлений (очередь integrator worker, таблица в public). */
 export const outgoingDeliveryQueue = pgTable(
@@ -55,5 +57,14 @@ export const outgoingDeliveryQueue = pgTable(
       table.status,
       table.nextRetryAt,
     ),
+    // Exhaustive lifecycle census audit 2026-08-28, F3: the lifecycle registry declared an
+    // organization purge for this queue while the database knew nothing about the reference — 117
+    // rows kept the raw clinic uuid of a deleted organization. Queue rows are clinic-owned
+    // operational state and go with the clinic.
+    foreignKey({
+      columns: [table.organizationId],
+      foreignColumns: [beOrganizations.id],
+      name: 'outgoing_delivery_queue_organization_id_fkey',
+    }).onDelete('cascade'),
   ],
 );

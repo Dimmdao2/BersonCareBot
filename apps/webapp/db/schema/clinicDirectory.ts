@@ -113,7 +113,12 @@ export const organizationSlugClaims = pgTable(
     id: uuid().defaultRandom().primaryKey().notNull(),
     slug: text().notNull(),
     kind: text().notNull(),
-    organizationId: uuid('organization_id').notNull(),
+    /**
+     * Nullable ON PURPOSE: when the clinic is deleted the FK nulls this and the claim survives as an
+     * unlinked tombstone that still holds the public slug, so the name cannot be taken over
+     * (exhaustive lifecycle census audit 2026-08-28, F3).
+     */
+    organizationId: uuid('organization_id'),
     createdByPlatformUserId: uuid('created_by_platform_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true, mode: 'string' })
       .defaultNow()
@@ -136,7 +141,7 @@ export const organizationSlugClaims = pgTable(
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
       name: 'organization_slug_claims_organization_id_fkey',
-    }),
+    }).onDelete('set null'),
     foreignKey({
       columns: [table.createdByPlatformUserId],
       foreignColumns: [platformUsers.id],
@@ -182,7 +187,8 @@ export const organizationSlugRenameEvents = pgTable(
   'organization_slug_rename_events',
   {
     id: uuid().defaultRandom().primaryKey().notNull(),
-    organizationId: uuid('organization_id').notNull(),
+    /** Nullable ON PURPOSE — same tombstone rule as `organization_slug_claims.organization_id`. */
+    organizationId: uuid('organization_id'),
     actorPlatformUserId: uuid('actor_platform_user_id'),
     /**
      * Кто инициировал смену — ШТАМП на самом событии, поставленный в момент записи. Раньше этот факт
@@ -207,7 +213,7 @@ export const organizationSlugRenameEvents = pgTable(
       columns: [table.organizationId],
       foreignColumns: [beOrganizations.id],
       name: 'organization_slug_rename_events_organization_id_fkey',
-    }),
+    }).onDelete('set null'),
     foreignKey({
       columns: [table.actorPlatformUserId],
       foreignColumns: [platformUsers.id],
