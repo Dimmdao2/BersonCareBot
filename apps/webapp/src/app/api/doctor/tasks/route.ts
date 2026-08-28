@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const includeCompleted = url.searchParams.get('includeCompleted') === '1';
   const limitRaw = url.searchParams.get('limit');
-  const limit = limitRaw ? Math.min(100, Math.max(1, Number.parseInt(limitRaw, 10) || 20)) : 20;
+  const limit = limitRaw ? Math.min(200, Math.max(1, Number.parseInt(limitRaw, 10) || 20)) : 20;
 
   const deps = buildAppDeps();
   // patientUserId omitted (not `null`) — root-cause fix: `null` filtered the query down to
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
   const tasks = await deps.specialistTasks.listForOwner({
     ownerUserId: session.user.userId,
     includeCompleted,
-    limit: includeCompleted ? undefined : limit,
+    limit,
   });
 
   return NextResponse.json({ ok: true, tasks });
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     const identity = await deps.doctorClientsPort.getClientIdentityForOrganization(
       parsed.data.patientUserId,
       gate.ctx.organizationId,
-    gate.ctx,
+      gate.ctx,
     );
     if (!identity) return NextResponse.json({ ok: false, error: 'not_found' }, { status: 404 });
   }

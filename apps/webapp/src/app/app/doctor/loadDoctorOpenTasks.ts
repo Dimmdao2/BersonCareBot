@@ -17,6 +17,8 @@ type Input = {
   organizationId: string;
   visibilityActor: PatientVisibilityActor;
   audience?: DoctorAppointmentsAudience;
+  includeCompleted?: boolean;
+  limit?: number;
 };
 
 export type DoctorOpenTasksData = {
@@ -30,7 +32,8 @@ export async function loadDoctorOpenTasks(input: Input): Promise<DoctorOpenTasks
     input.specialistTasks && input.ownerUserId
       ? await input.specialistTasks.listForOwner({
           ownerUserId: input.ownerUserId,
-          includeCompleted: false,
+          includeCompleted: input.includeCompleted ?? false,
+          limit: input.limit,
         })
       : [];
   const userIds = [

@@ -38,6 +38,7 @@ export function SpecialistTaskDetailsContent({
   error,
 }: SpecialistTaskDetailsContentProps) {
   const overdue = isSpecialistTaskOverdue(task);
+  const completed = Boolean(task.completedAt);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana);
 
   return (
@@ -64,7 +65,7 @@ export function SpecialistTaskDetailsContent({
         <div>
           <p className="text-xs text-muted-foreground">Статус</p>
           <p className={overdue ? 'text-destructive' : 'text-foreground'}>
-            {overdue ? 'Просрочено' : 'Открыта'}
+            {completed ? 'Выполнена' : overdue ? 'Просрочено' : 'Открыта'}
           </p>
         </div>
         {dueLabel ? (
@@ -130,9 +131,11 @@ export function SpecialistTaskDetailsDialog({
               >
                 Изменить
               </Button>
-              <Button type="button" disabled={busy} onClick={() => void complete()}>
-                Выполнить
-              </Button>
+              {!task.completedAt ? (
+                <Button type="button" disabled={busy} onClick={() => void complete()}>
+                  Выполнить
+                </Button>
+              ) : null}
             </>
           ) : undefined
         }

@@ -53,6 +53,7 @@ export function SpecialistTaskRow({
   active = false,
 }: Props) {
   const overdue = isSpecialistTaskOverdue(task);
+  const completed = Boolean(task.completedAt);
   const dueLabel = formatSpecialistTaskWhen(task.dueAt, displayIana);
   const Container = as;
 
@@ -64,7 +65,7 @@ export function SpecialistTaskRow({
           className={cn(
             'grid w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-3 text-left transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
             getDoctorSectionItemClass(
-              overdue || dueToday || task.isImportant ? 'urgent' : 'neutral',
+              !completed && (overdue || dueToday || task.isImportant) ? 'urgent' : 'neutral',
             ),
             active && doctorCatalogRowActiveClass,
           )}
@@ -91,7 +92,7 @@ export function SpecialistTaskRow({
                 overdue || dueToday ? 'text-destructive' : 'text-muted-foreground',
               )}
             >
-              {overdue ? 'Просрочено' : 'Открыта'}
+              {completed ? 'Выполнена' : overdue ? 'Просрочено' : 'Открыта'}
             </span>
             {dueLabel ? (
               <span className={overdue || dueToday ? 'text-destructive' : 'text-muted-foreground'}>

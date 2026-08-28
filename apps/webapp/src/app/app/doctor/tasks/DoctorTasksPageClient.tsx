@@ -1,19 +1,17 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { StickyNotePlus } from 'lucide-react';
+import { LayoutList, ListChecks, ListTodo, Search, StickyNotePlus, X } from 'lucide-react';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
-import {
-  DoctorCatalogFiltersToolbar,
-  doctorCatalogToolbarPrimaryActionClassName,
-} from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { Input } from '@/shared/ui/doctor/primitives/input';
 import { cn } from '@/lib/utils';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
@@ -22,6 +20,7 @@ import { SpecialistTaskDetailsContent } from '../clients/SpecialistTaskDetailsDi
 import { SpecialistTaskFormContent } from '../clients/SpecialistTaskFormDialog';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | { kind: 'create' } | null;
+type TaskView = 'open' | 'completed' | 'all';
 
 export function DoctorTasksPageClient({
   initialTasks,
@@ -41,6 +40,8 @@ export function DoctorTasksPageClient({
   const [pane, setPane] = useState<Pane>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [taskView, setTaskView] = useState<TaskView>('open');
   const selected = useMemo(
     () =>
       pane && 'taskId' in pane ? (tasks.find((task) => task.id === pane.taskId) ?? null) : null,
@@ -51,16 +52,113 @@ export function DoctorTasksPageClient({
       canMutate ? (
         <Button
           type="button"
-          variant="ghost"
           size="icon"
           className="size-10 shrink-0"
           aria-label="Новая задача"
+          title="Новая задача"
           onClick={() => setPane({ kind: 'create' })}
         >
-          <StickyNotePlus className="size-[22px]" aria-hidden />
+          <StickyNotePlus className="size-[20px]" aria-hidden />
         </Button>
       ) : null,
     [canMutate],
+  );
+
+  const matchingTasks = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase('ru-RU');
+    if (!normalizedQuery) return tasks;
+    return tasks.filter((task) => {
+      const patientName = task.patientUserId ? patientNames[task.patientUserId] : '';
+      return [task.title, task.description ?? '', patientName]
+        .join('\n')
+        .toLocaleLowerCase('ru-RU')
+        .includes(normalizedQuery);
+    });
+  }, [patientNames, query, tasks]);
+  const matchingOpenTasks = useMemo(
+    () => matchingTasks.filter((task) => !task.completedAt),
+    [matchingTasks],
+  );
+  const matchingCompletedTasks = useMemo(
+    () => matchingTasks.filter((task) => Boolean(task.completedAt)),
+    [matchingTasks],
+  );
+  const visibleTaskGroups = useMemo(() => {
+    if (taskView === 'open') return [matchingOpenTasks];
+    if (taskView === 'completed') return [matchingCompletedTasks];
+    return [matchingOpenTasks, matchingCompletedTasks];
+  }, [matchingCompletedTasks, matchingOpenTasks, taskView]);
+  const visibleTaskCount = visibleTaskGroups.reduce((sum, group) => sum + group.length, 0);
+
+  const selectTaskView = (nextView: TaskView) => {
+    setTaskView(nextView);
+    setPane(null);
+  };
+
+  const taskFilters = (
+    <div className="flex w-full min-w-0 items-center gap-1.5">
+      <div className="relative min-w-0 flex-1">
+        <Search
+          className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+          aria-hidden
+        />
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Поиск задач"
+          aria-label="Поиск по задачам и пациентам"
+          className="h-8 pl-8 pr-8 text-sm"
+        />
+        {query ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setQuery('')}
+            aria-label="Сбросить поиск"
+            className="absolute right-0 top-0 text-muted-foreground"
+          >
+            <X className="size-3.5" aria-hidden />
+          </Button>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-1" aria-label="Статус задач">
+        <Button
+          type="button"
+          variant={taskView === 'open' ? 'default' : 'outline'}
+          size="icon-sm"
+          aria-label="Открытые задачи"
+          title="Открытые"
+          aria-pressed={taskView === 'open'}
+          onClick={() => selectTaskView('open')}
+        >
+          <LayoutList className="size-4" aria-hidden />
+        </Button>
+        <Button
+          type="button"
+          variant={taskView === 'completed' ? 'default' : 'outline'}
+          size="icon-sm"
+          aria-label="Выполненные задачи"
+          title="Выполненные"
+          aria-pressed={taskView === 'completed'}
+          onClick={() => selectTaskView('completed')}
+        >
+          <ListChecks className="size-4" aria-hidden />
+        </Button>
+        <Button
+          type="button"
+          variant={taskView === 'all' ? 'default' : 'outline'}
+          size="icon-sm"
+          aria-label="Все задачи"
+          title="Все"
+          aria-pressed={taskView === 'all'}
+          onClick={() => selectTaskView('all')}
+        >
+          <ListTodo className="size-4" aria-hidden />
+        </Button>
+      </div>
+    </div>
   );
 
   const saveTask = (saved: Task, patientDisplayName?: string) => {
@@ -90,7 +188,13 @@ export function DoctorTasksPageClient({
         setError('Не удалось выполнить задачу');
         return;
       }
-      setTasks((current) => current.filter((task) => task.id !== taskId));
+      const data = (await response.json()) as { task?: Task };
+      if (!data.task) {
+        setError('Не удалось выполнить задачу');
+        return;
+      }
+      const completedTask = data.task;
+      setTasks((current) => current.map((task) => (task.id === taskId ? completedTask : task)));
       setPane(null);
     } catch {
       setError('Ошибка сети');
@@ -127,9 +231,11 @@ export function DoctorTasksPageClient({
             >
               Изменить
             </Button>
-            <Button disabled={busy} onClick={() => void complete(selected.id)}>
-              Выполнить
-            </Button>
+            {!selected.completedAt ? (
+              <Button disabled={busy} onClick={() => void complete(selected.id)}>
+                Выполнить
+              </Button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -140,28 +246,18 @@ export function DoctorTasksPageClient({
   return (
     <>
       <DoctorShellChromeRegistration title="Задачи" mobileActions={mobileHeaderActions} />
-      <DoctorPageHeader
-        title="Задачи"
-        className="-mb-3 md:hidden"
-        toolbar={<span className="text-sm text-muted-foreground">Открытых: {tasks.length}</span>}
-      />
+      <DoctorPageHeader title="Задачи" className="-mb-3 md:hidden" toolbar={taskFilters} />
       <DoctorCatalogPageLayout
         className="min-h-0 flex-1 gap-0 md:gap-3"
         toolbar={
           <DoctorCatalogFiltersToolbar
             className="hidden md:block"
-            filters={
-              <span className="text-sm text-muted-foreground">Открытых: {tasks.length}</span>
-            }
+            filters={taskFilters}
             end={
               canMutate ? (
-                <button
-                  type="button"
-                  className={doctorCatalogToolbarPrimaryActionClassName}
-                  onClick={() => setPane({ kind: 'create' })}
-                >
+                <Button type="button" size="sm" onClick={() => setPane({ kind: 'create' })}>
                   Новая задача
-                </button>
+                </Button>
               ) : undefined
             }
           />
@@ -181,24 +277,41 @@ export function DoctorTasksPageClient({
               stickySplit={false}
               headerSlot={<p className="hidden text-sm font-medium md:block">Задачи</p>}
             >
-              {tasks.length ? (
-                <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-                  {tasks.map((task) => (
-                    <SpecialistTaskRow
-                      key={task.id}
-                      task={task}
-                      displayIana={displayIana}
-                      patientDisplayName={
-                        task.patientUserId ? patientNames[task.patientUserId] : undefined
-                      }
-                      dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
-                      onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
-                      active={selected?.id === task.id}
-                    />
-                  ))}
-                </ul>
+              {visibleTaskCount ? (
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+                  {visibleTaskGroups.map((group, groupIndex) =>
+                    group.length ? (
+                      <ul
+                        key={groupIndex === 0 ? 'primary' : 'completed'}
+                        className={cn(
+                          'flex flex-col gap-1',
+                          taskView === 'all' &&
+                            groupIndex === 1 &&
+                            matchingOpenTasks.length > 0 &&
+                            'mt-2 border-t border-border/60 pt-2',
+                        )}
+                      >
+                        {group.map((task) => (
+                          <SpecialistTaskRow
+                            key={task.id}
+                            task={task}
+                            displayIana={displayIana}
+                            patientDisplayName={
+                              task.patientUserId ? patientNames[task.patientUserId] : undefined
+                            }
+                            dueToday={isSpecialistTaskDueOnDate(task, todayIso, displayIana)}
+                            onOpen={(row) => setPane({ kind: 'details', taskId: row.id })}
+                            active={selected?.id === task.id}
+                          />
+                        ))}
+                      </ul>
+                    ) : null,
+                  )}
+                </div>
               ) : (
-                <p className="p-3 text-sm text-muted-foreground">Нет открытых задач</p>
+                <p className="p-3 text-sm text-muted-foreground">
+                  {query.trim() ? 'Задачи не найдены' : 'Нет задач'}
+                </p>
               )}
             </CatalogLeftPane>
           }

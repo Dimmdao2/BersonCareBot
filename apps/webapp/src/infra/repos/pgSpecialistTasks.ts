@@ -16,7 +16,9 @@ import type {
 } from '@/modules/specialist-tasks/types';
 import type { SpecialistTaskReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 
-type ReminderPreparation = (task: SpecialistTaskRow) => Promise<SpecialistTaskReadyOutgoingDelivery[]>;
+type ReminderPreparation = (
+  task: SpecialistTaskRow,
+) => Promise<SpecialistTaskReadyOutgoingDelivery[]>;
 const queueWriter = createPgOutgoingDeliveryQueueWritePort();
 
 function mapRow(row: typeof specialistTasks.$inferSelect): SpecialistTaskRow {
@@ -77,6 +79,7 @@ export function createPgSpecialistTasksPort(
         .from(specialistTasks)
         .where(and(...conditions))
         .orderBy(
+          desc(isNull(specialistTasks.completedAt)),
           desc(specialistTasks.isImportant),
           asc(specialistTasks.dueAt),
           desc(specialistTasks.createdAt),

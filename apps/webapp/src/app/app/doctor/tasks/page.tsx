@@ -33,6 +33,8 @@ export default async function DoctorTasksPage() {
       organizationId: workspace.organizationId,
       visibilityActor: workspace,
       audience,
+      includeCompleted: true,
+      limit: 200,
     }),
   );
   const todayIso = DateTime.now().setZone(displayIana).toISODate() ?? '';
