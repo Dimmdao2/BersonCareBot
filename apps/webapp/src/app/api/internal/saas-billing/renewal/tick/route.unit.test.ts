@@ -1,8 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 /**
- * A batch with one rejected renewal is not successful: otherwise the clinic remains uninvoiced
- * while System Health shows a green required job.
+ * WHAT BREAKS WITHOUT THIS (systemic residual audit 2026-08-27, stage 4 — «Успех batch-job возможен
+ * только когда все обязательные операции завершены; `errors > 0` не превращается в `success: true`»):
+ * the hourly renewal tick meets a payment-provider rejection (or a blocked tariff transition) for one
+ * clinic, `runDueSaasBillingRenewals` counts it in `failed`/`errors` and moves on — and the route
+ * still answers HTTP 200 `ok: true` and writes a GREEN `operator_job_status` tick with the failure
+ * buried in `metaJson`. The clinic is not invoiced, and «Здоровье системы» shows the required
+ * `saas_billing_renewal.tick` job as healthy, so nobody looks.
+ *
+ * ORACLE: the plan's stage-4 acceptance sentence above, plus its two already-corrected siblings
+ * (`media-pending-delete/purge`, `media-multipart/cleanup`), which map `errors > 0` to a red tick and
+ * a non-2xx status.
  */
 const mocks = vi.hoisted(() => ({
   runDueSaasBillingRenewals: vi.fn(),
@@ -51,7 +60,7 @@ describe('saas billing renewal tick', () => {
     expect(mocks.recordTick).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
   });
 
-  it('returns a failure and records a red tick when one renewal was rejected', async () => {
+  it('turns a renewal the provider rejected into a red tick, not a green one with failed in meta', async () => {
     vi.clearAllMocks();
     mocks.runDueSaasBillingRenewals.mockResolvedValueOnce({
       dueCount: 2,
