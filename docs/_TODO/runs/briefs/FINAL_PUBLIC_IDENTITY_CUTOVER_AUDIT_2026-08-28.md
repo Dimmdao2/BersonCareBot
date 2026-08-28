@@ -1,6 +1,6 @@
 # Final independent audit — public identity cutover (#987)
 
-## Method classification (`AGENTS.md` §24.4)
+## Тест или взгляд — классификация (`AGENTS.md` §24.4)
 
 - **Read-only inspection:** exhaustively classify every remaining live `integrator_user_id` / `integratorUserId`
   occurrence and trace actual callers, database roots, writers and generated privilege declarations.
