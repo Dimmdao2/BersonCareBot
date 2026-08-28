@@ -1,16 +1,21 @@
 'use client';
 
-import type { CalendarOptions } from '@fullcalendar/core';
+import type { EventInput } from '@fullcalendar/core';
 import { DateTime } from 'luxon';
 import { useMemo } from 'react';
 import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types';
 import { cn } from '@/lib/utils';
-import { ScheduleFullCalendarHost } from './ScheduleFullCalendarHost';
 
 const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'] as const;
 
 function appointmentLastName(appointment: CalendarAppointmentEvent): string {
   return appointment.patientName?.trim().split(/\s+/)[0] || 'Запись';
+}
+
+function eventDateKey(start: EventInput['start'], timeZone: string): string | null {
+  if (typeof start === 'string') return DateTime.fromISO(start, { zone: timeZone }).toISODate();
+  if (start instanceof Date) return DateTime.fromJSDate(start).setZone(timeZone).toISODate();
+  return null;
 }
 
 export function MobileScrollableMonthCalendar({
@@ -24,56 +29,40 @@ export function MobileScrollableMonthCalendar({
   rangeStart: string;
   rangeEnd: string;
   timeZone: string;
-  events: CalendarOptions['events'];
+  events: EventInput[];
   onDateClick: (dateKey: string) => void;
   onAppointmentClick: (appointment: CalendarAppointmentEvent) => void;
 }) {
-  const dayCount = useMemo(() => {
-    const start = DateTime.fromISO(rangeStart, { zone: timeZone });
-    const end = DateTime.fromISO(rangeEnd, { zone: timeZone });
-    return Math.max(7, Math.round(end.diff(start, 'days').days));
+  const days = useMemo(() => {
+    const start = DateTime.fromISO(rangeStart, { zone: timeZone }).startOf('week');
+    const exclusiveEnd = DateTime.fromISO(rangeEnd, { zone: timeZone })
+      .minus({ days: 1 })
+      .endOf('week')
+      .plus({ days: 1 })
+      .startOf('day');
+    const count = Math.max(7, Math.round(exclusiveEnd.diff(start, 'days').days));
+    return Array.from({ length: count }, (_, index) => start.plus({ days: index }));
   }, [rangeEnd, rangeStart, timeZone]);
+
+  const appointmentsByDate = useMemo(() => {
+    const grouped = new Map<string, CalendarAppointmentEvent[]>();
+    for (const event of events) {
+      const appointment = event.extendedProps?.appointment as
+        | CalendarAppointmentEvent
+        | undefined;
+      const dateKey = eventDateKey(event.start, timeZone);
+      if (!appointment || !dateKey) continue;
+      const appointments = grouped.get(dateKey) ?? [];
+      appointments.push(appointment);
+      grouped.set(dateKey, appointments);
+    }
+    return grouped;
+  }, [events, timeZone]);
+
+  const today = DateTime.now().setZone(timeZone).toISODate();
 
   return (
     <div className="doctor-mobile-native-months min-h-full bg-white pb-2">
-      <style>{`
-        .doctor-mobile-native-months .fc {
-          --fc-border-color: color-mix(in srgb, var(--border) 62%, transparent);
-          --fc-today-bg-color: transparent;
-        }
-        .doctor-mobile-native-months .fc-scrollgrid {
-          border-inline: 0;
-          border-top: 0;
-        }
-        .doctor-mobile-native-months .fc-daygrid-day-frame {
-          min-height: 4.75rem;
-        }
-        .doctor-mobile-native-months .fc-day-today {
-          background: transparent !important;
-        }
-        .doctor-mobile-native-months .fc-event {
-          box-shadow: none !important;
-          --fc-event-text-color: var(--foreground) !important;
-        }
-        .doctor-mobile-native-months .fc-event-main {
-          color: var(--foreground) !important;
-        }
-        .doctor-mobile-native-months .fc-daygrid-day-number {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 1.75rem;
-          min-height: 1.75rem;
-          font-size: 0.6875rem;
-          font-weight: 400;
-        }
-        .doctor-mobile-native-months .fc-today-circle {
-          border-radius: 9999px;
-          background: rgb(219 113 93 / 85%);
-          color: white;
-          font-weight: 600;
-        }
-      `}</style>
       <div className="sticky top-0 z-[3] grid grid-cols-7 border-b border-border/60 bg-white/95 text-center text-[10px] text-muted-foreground backdrop-blur-sm">
         {WEEKDAYS.map((weekday) => (
           <span key={weekday} className="py-1.5">
@@ -81,53 +70,55 @@ export function MobileScrollableMonthCalendar({
           </span>
         ))}
       </div>
-      <ScheduleFullCalendarHost
-        key={`${rangeStart}:${rangeEnd}`}
-        initialView="mobileContinuousMonths"
-        views={{
-          mobileContinuousMonths: {
-            type: 'dayGrid',
-            duration: { days: dayCount },
-          },
-        }}
-        initialDate={rangeStart}
-        visibleRange={{ start: rangeStart, end: rangeEnd }}
-        timeZone={timeZone}
-        events={events}
-        headerToolbar={false}
-        height="auto"
-        dayHeaders={false}
-        dayMaxEvents
-        editable={false}
-        selectable={false}
-        navLinks={false}
-        dateClick={(arg) => onDateClick(arg.dateStr.slice(0, 10))}
-        eventClick={(arg) => {
-          const appointment = arg.event.extendedProps?.appointment as
-            | CalendarAppointmentEvent
-            | undefined;
-          if (appointment) onAppointmentClick(appointment);
-        }}
-        dayCellContent={(arg) => {
-          const dateKey = DateTime.fromJSDate(arg.date).setZone(timeZone).toISODate();
-          const isToday = dateKey === DateTime.now().setZone(timeZone).toISODate();
+      <div className="mobile-continuous-calendar grid grid-cols-7">
+        {days.map((day, index) => {
+          const dateKey = day.toISODate();
+          if (!dateKey) return null;
+          const appointments = appointmentsByDate.get(dateKey) ?? [];
           return (
-            <span className={cn('fc-daygrid-day-number', isToday && 'fc-today-circle')}>
-              {arg.date.getDate()}
-            </span>
-          );
-        }}
-        eventContent={(info) => {
-          const appointment = info.event.extendedProps?.appointment as
-            | CalendarAppointmentEvent
-            | undefined;
-          return (
-            <div className="truncate px-1 text-[11px] leading-tight">
-              {appointment ? appointmentLastName(appointment) : info.event.title}
+            <div
+              key={dateKey}
+              className={cn(
+                'fc-daygrid-day relative min-h-[4.75rem] min-w-0 border-b border-r border-border/60 bg-white p-1',
+                index % 7 === 6 && 'border-r-0',
+              )}
+              data-date={dateKey}
+            >
+              <button
+                type="button"
+                className="absolute inset-0 z-0"
+                aria-label={day.setLocale('ru').toFormat('d LLLL yyyy')}
+                onClick={() => onDateClick(dateKey)}
+              />
+              <div className="pointer-events-none relative z-[1] flex min-w-0 flex-col gap-0.5">
+                <span
+                  className={cn(
+                    'inline-flex size-7 items-center justify-center self-end text-[11px] leading-none',
+                    dateKey === today && 'rounded-full bg-[#db715d] font-semibold text-white',
+                  )}
+                >
+                  {day.day}
+                </span>
+                {appointments.slice(0, 3).map((appointment) => (
+                  <button
+                    key={appointment.id}
+                    type="button"
+                    className="pointer-events-auto min-w-0 truncate rounded-sm bg-primary/15 px-1 py-0.5 text-left text-[10px] leading-tight text-foreground"
+                    onClick={() => onAppointmentClick(appointment)}
+                  >
+                    {appointmentLastName(appointment)}
+                  </button>
+                ))}
+                {appointments.length > 3 ? (
+                  <span className="truncate px-1 text-[10px] text-muted-foreground">
+                    +{appointments.length - 3}
+                  </span>
+                ) : null}
+              </div>
             </div>
           );
-        }}
-      />
+        })}
+      </div>
     </div>
   );
 }
