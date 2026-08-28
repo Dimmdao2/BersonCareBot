@@ -1,5 +1,16 @@
 # Final independent audit — exhaustive lifecycle and purge census (#987)
 
+## Тест или взгляд — классификация по пунктам (`AGENTS.md` §24.4)
+
+- **Взгляд + read-only introspection:** полнота всех объявленных таблиц, корректность каждого `userPurge` /
+  `orgPurge`, реальные FK, explicit-purge paths, writers/readers, via-parent chains, staff-only и absent-retired
+  факты. Это разовое итоговое состояние; новый постоянный тест текста или списков его честно не докажет.
+- **Поведенческий тест / fault injection:** произвольное новое имя, голое/неполное решение, двойная
+  классификация, недостижимое окно хранения и реальные account-purge последствия. Это повторяемые дорогие и
+  молчаливые отказы; переиспользовать существующий gate и rollback-only proof, не строить второй harness.
+- **Живой rollback-only проход:** физический account purge и FK/RLS-поведение только существующей DEV-пробой;
+  TEST — только read-only schema/data measurement. Полный CI, deploy и UI здесь ничего дополнительно не доказывают.
+
 You are the independent `auditor-live`. Read `AGENTS.md` heading map first, then §5, §9–§10b and §24. Work only
 in the fresh audit clone/branch supplied by the launcher. Audit candidate implementation commit
 `603f5f7774d47e32dbc99453c0f15beb58111624`; do not edit product code, do not touch UI, env, taskdb, other
