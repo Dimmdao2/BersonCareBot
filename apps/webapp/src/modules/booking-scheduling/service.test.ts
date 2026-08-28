@@ -98,7 +98,12 @@ describe("default slot horizon", () => {
   it("looks far enough ahead to reach next month for online slots", async () => {
     const captured: { dateFrom?: string; dateTo?: string } = {};
     const service = createBookingSchedulingService(capturingPort(captured));
-    await service.getOnlineSlots({ organizationId: "org", date: "2026-08-28", branchTimezone: "UTC" });
+    await service.getOnlineSlots({
+      organizationId: "org",
+      category: "general",
+      date: "2026-08-28",
+      branchTimezone: "UTC",
+    });
     expect(spanDays(captured.dateFrom!, captured.dateTo!)).toBe(60);
   });
 });
