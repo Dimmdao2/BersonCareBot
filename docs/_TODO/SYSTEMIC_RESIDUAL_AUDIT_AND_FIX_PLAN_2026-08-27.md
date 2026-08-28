@@ -259,6 +259,12 @@ VK-код готов, но его живая проверка остаётся �
 ретрай». Terminal `skipped` у недоступной hosted-обложки остаётся нормальным завершённым исходом, а не аварией.
 Таргетированный прогон 28.08: четыре файла, `26/26`; webapp typecheck и ESLint затронутых файлов — PASS.
 
+Повторный живой проход 28.08 нашёл ещё один общий разрыв двух transcode-путей: для ролика короче секунды FFmpeg
+мог вернуть `0`, но не создать кадр на отметке `1s`; воркер замечал это только по позднему `ENOENT poster.jpg`.
+Оба caller теперь используют одну проверку фактического output с fallback `1s → 0s`, а первая же failed job
+делает video-transcode health `degraded`. Коммит `1fc682380`, независимый аудит `PASS`; тот же односекундный
+ролик после deploy обработан, прикреплён пациентом, прочитан врачом и очищен за один живой TEST-проход.
+
 ### E. Политика хранения неполна
 
 #### E1. `message_log` не имеет окна хранения
@@ -303,8 +309,9 @@ warning. Это исправляется общей моделью резуль�
 - полный public booking: путь начинается без заранее существующей кабинетной сессии; после подтверждения телефона
   сервер выдаёт сессию, и уже под ней проверяются создание, чтение, перенос, отмена и история;
 - подтверждение контакта, подтверждение записи и реальное напоминание через узкие роли;
-- media preview worker и очистки подтверждены на TEST; YouTube hosted-preview подтверждён под doctor/patient,
-  а VK остаётся owner-gated до сервисного токена VK API с `video` scope (пункт этапа 5 ниже);
+- media preview worker, очистки и короткое program-submission video подтверждены на TEST; YouTube hosted-preview
+  подтверждён под doctor/patient, а VK остаётся owner-gated до сервисного токена VK API с `video` scope
+  (пункт этапа 5 ниже);
 - mTLS refusal с неправильным сертификатом подтверждён; просроченный/отозванный сертификат и overlap-ротация
   принадлежат отдельному операционному этапу `#1085`, а не текущему дефекту runtime;
 - полный продуктовый проход под patient, doctor, clinic admin и global admin.
@@ -530,6 +537,9 @@ src/infra/platformUserFullPurge.devDbProof.test.ts` → **9/9 PASS**; коман
 - [x] Ошибка в preview batch больше не маскируется зелёным cron tick, а неподтверждённое DB-удаление media row
       остаётся retryable; terminal hosted-video skip считается обработанным исходом. Доказательство 28.08:
       targeted route/worker/lifecycle `26/26`, webapp typecheck и ESLint — PASS.
+- [x] Короткие video submissions не падают на отсутствующем кадре `@1s`: один helper проверяет созданный poster
+      и повторяет `@0s` в program-submission и обычном HLS path. `1fc682380` развёрнут на TEST; живой ролик
+      обработан и прикреплён за `3670 ms`, playback `200/mp4` с poster, врач увидел сообщение, cleanup прошёл.
 - [ ] **Owner-gate:** VK-обложки не появятся, пока владелец не заведёт сервисный токен VK API с правом
       `video` в `system_settings` (ключ `vk_video_service_token`, scope `admin`). Токен бота сообщества
       (`vk_community_access_token`) для `video.get` не годится — подтверждено живым запросом.
