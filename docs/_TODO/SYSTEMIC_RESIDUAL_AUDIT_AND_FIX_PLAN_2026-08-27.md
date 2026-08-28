@@ -783,6 +783,28 @@ owner-врачом командой
 `sudo -n journalctl -u bersoncarebot-webapp-test.service -u bersoncarebot-api-test.service -u bersoncarebot-scheduler-test.service -u bersoncarebot-media-worker-test.service --since '2026-08-28 08:28:00' --no-pager | rg -i '42501|permission denied|status.?500|\b500\b|uncaught|unhandled|fatal|media_files|upload_failed|delete_failed'`
 не вернула строк. Разрыв загрузки и удаления закрыт живьём; временные файлы обоих прогонов удалены через UI.
 
+**Финальная общая выкатка и повторная проверка 28.08.** Накопленный пакет до `cc13a4ed4` прошёл полный
+`pnpm run ci`, был запушен после зелёного GitHub gate и развёрнут штатным
+`bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild --recover-stopped-access`. Recovery-флаг применён только
+потому, что предыдущий неуспешный reconcile уже оставил все четыре TEST-сервиса остановленными; он требует
+доказать это до обхода начального preflight, а финальная tenant-wall проверка остаётся обязательной. Transcript:
+`/var/log/bersoncarebot/deploy-test/deploy-test.20260828T170223Z.0yh7sd.log`. Миграции и declaration/reconcile
+применены, tenant wall `3/3 PASS`, manifest установленного расписания совпал, webapp/API/scheduler/media-worker
+активны, `/api/health` вернул `ok`, старый адрес `https://test.bersoncare.ru/app` вернул `200` и непустую страницу.
+
+После этой выкатки один route/API/console-crawl под настоящими TEST-учётками дал: doctor `74/74`, patient
+`54/54`, global admin `21/21`; clinic admin после удаления из его матрицы намеренно doctor-only страницы —
+`8/8`. Артефакты: `crawl-2026-08-28T17-14-26.797Z.json` и
+`crawl-2026-08-28T17-15-16.811Z.json`. Правка матрицы обходчика — `7e00ef566`; runtime она не меняет и отдельной
+выкатки не требует. Это повторно подтверждает чтение/рендер/API/console всех поверхностей после финального
+reconcile; изменяющие действия подтверждены предыдущим связным проходом этого этапа и повторными media
+upload/delete, а не выдаются за заново выполненные этим crawl.
+
+Вне закрытого runtime-пакета остаются только явно названные внешние/операционные gates: полный anonymous
+public-booking без заранее существующей сессии; реальная доставка подтверждения контакта, записи, напоминания и
+operator digest только на owner TEST-аккаунты; расширенная mTLS-проверка expired/revoked и overlap-ротации;
+VK preview до owner-токена с `video` scope; будущий PROD `A → B0` только по отдельному разрешению.
+
 ## Порядок выполнения
 
 Сначала этапы 1–2: они закрывают риск межклинического доступа и возвращают работающий фон/наблюдаемость. Затем

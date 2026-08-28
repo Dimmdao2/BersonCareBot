@@ -20,7 +20,7 @@ TEST в финальное состояние через `deploy-test` → уд�
 используются в текущем проходе; одна `A → B0` миграция готовится только отдельным будущим этапом после явного
 разрешения владельца.
 
-## Актуальное состояние на 27.08.2026
+## Актуальное состояние на 28.08.2026
 
 Это единственный текущий чек-лист инициативы. Датированные чекбоксы ниже сохранены как хроника построения слоя и
 не определяют статус taskdb.
@@ -28,13 +28,15 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [x] B0, четыре runtime-login, transaction-bound context, FORCE RLS, узкие SECURITY DEFINER roots и
   declaration/reconcile применены на named DEV и named TEST.
 - [x] Канонические `user_contacts`, разделение actor/subject, узкая роль integrator и исправленные seam-owner
-  privileges находятся в текущем `feat`. Поздние runtime-разрывы staff/patient/global-admin были исправлены
-  до TEST HEAD `484056ae5`; старые строки ниже про merge `92cf34ffa4` больше не являются текущим состоянием.
+  privileges находятся в текущем `feat`. Накопленный runtime-пакет до `cc13a4ed4` прошёл полный CI, штатный
+  TEST deploy, declaration/reconcile и финальную tenant-wall проверку; старые строки ниже про merge
+  `92cf34ffa4` и TEST HEAD `484056ae5` больше не являются текущим состоянием.
 - [x] Восстановление старого TEST backup, создание пустой TEST, disposable/A0 и historical migration replay
   отменены более поздними owner-решениями. Их нельзя выполнять; история остаётся только в Git и evidence.
-- [x] Поздние TEST-исправления прав задеплоены и основные входы владельца проверены. Сохранённого полного
-  role/action evidence по всем чтениям и мутациям нет, поэтому открытые public/provider gates ниже не считаются
-  закрытыми этим пунктом.
+- [x] TEST route/API/console-crawl после финального reconcile прошёл под настоящими owner-учётками: doctor
+  `74/74`, patient `54/54`, global admin `21/21`, clinic admin `8/8`. Изменяющие действия врача, пациента и
+  глобального администратора, а также CMS/patient media upload/delete подтверждены предыдущим связным проходом.
+  Это не закрывает отдельно перечисленные anonymous/provider/host gates ниже.
 - [ ] **Оставшаяся аналитика.** Классифицировать её владельца данных, видимость и точную tenant-стену; лишнее
   удалить.
 - [ ] **Анонимная публичная запись.** Живьём пройти полный public-booking путь без кабинетной сессии и доказать,
@@ -42,10 +44,11 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [ ] **Реальная доставка, общий gate с Track D.** Existing owner должен пройти messenger contact proof и код
   входа; запись на приём — реально доставить подтверждение и напоминание; scheduler — реально доставить operator
   digest и перенести следующий запуск после смены `digestTime`.
-- [ ] **Retention/rotation.** Автоочистка данных реализована, но регулярный запуск и фактическая ротация
-  PostgreSQL/systemd/application-журналов не подтверждены живым измерением.
-- [ ] **mTLS host proof.** Доказать на named среде отказ wrong/missing/expired/revoked certificate,
-  CN/login/port и non-TLS/socket, а также рабочую процедуру overlap/rotation/rollback.
+- [ ] **Retention/rotation.** Почасовая DB-retention задача установлена и живьём выполняется; отдельно ещё не
+  подтверждена фактическим измерением ротация PostgreSQL/systemd/application-журналов.
+- [ ] **mTLS host proof.** Отказ с неправильным сертификатом подтверждён. Осталось доказать на named среде
+  missing/expired/revoked certificate, CN/login/port и non-TLS/socket, а также рабочую процедуру
+  overlap/rotation/rollback.
 - [ ] **Декларация как единственный исполняемый источник.** Убрать оставшиеся переходные `revoke`/
   `OWNER_GATES_OPEN`/diagnostic-артефакты и подключить уже существующие function-census/callsite/post-zero
   проверки к обычному рациональному CI gate. Не возвращать права в schema migrations.
@@ -111,7 +114,7 @@ cutover восстановленного dump порядок:
 ## Историческая хроника исполнения — состояние на 13.08 и последующие коррекции
 
 Разделы ниже объясняют происхождение решений и прошлых FAIL/PASS. Их checkbox-синтаксис сохранён как evidence;
-текущий объём и статус задаёт только раздел «Актуальное состояние на 27.08.2026» выше.
+текущий объём и статус задаёт только раздел «Актуальное состояние на 28.08.2026» выше.
 
 **DEV находится на шагах 8–9 owner-порядка.** Legacy удалён; target прошёл backup → offline zero/proof →
 cluster baseline → mTLS readiness → declaration install. Webapp и integrator поднялись через новые pools;
