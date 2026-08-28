@@ -783,6 +783,7 @@ export function ScheduleCalendarTab({
   const mobileScrollRestoreDateRef = useRef<string | null>(null);
   const mobileRangeExpandingRef = useRef(false);
   const mobileTimeAxisCleanupRef = useRef<(() => void) | null>(null);
+  const mobileMonthScrollFrameRef = useRef<number | null>(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -1328,6 +1329,9 @@ export function ScheduleCalendarTab({
   useEffect(
     () => () => {
       mobileTimeAxisCleanupRef.current?.();
+      if (mobileMonthScrollFrameRef.current != null) {
+        window.cancelAnimationFrame(mobileMonthScrollFrameRef.current);
+      }
     },
     [],
   );
@@ -1355,42 +1359,44 @@ export function ScheduleCalendarTab({
     (target: HTMLElement) => {
       if (!mobileScrollableCalendar) return;
       if (mobileScrollableMonthGrid) {
-        const viewportCenter = target.getBoundingClientRect().top + target.clientHeight / 2;
-        const visibleMonth = Array.from(
-          target.querySelectorAll<HTMLElement>('[data-mobile-calendar-month]'),
-        ).reduce<HTMLElement | null>((closest, month) => {
-          const rect = month.getBoundingClientRect();
-          const distance = Math.abs(rect.top + rect.height / 2 - viewportCenter);
-          if (!closest) return month;
-          const closestRect = closest.getBoundingClientRect();
-          return distance < Math.abs(closestRect.top + closestRect.height / 2 - viewportCenter)
-            ? month
-            : closest;
-        }, null);
-        const centerDate = visibleMonth?.dataset.mobileCalendarMonth ?? mobileVisibleDate;
-        setMobileVisibleDate(centerDate);
-        if (mobileRangeExpandingRef.current) return;
-        const edgeThreshold = target.clientHeight * 0.35;
-        const nearStart = target.scrollTop <= edgeThreshold;
-        const nearEnd = target.scrollHeight - target.clientHeight - target.scrollTop <= edgeThreshold;
-        if (!nearStart && !nearEnd) return;
-        mobileRangeExpandingRef.current = true;
-        mobileScrollRestoreDateRef.current = centerDate;
-        mobileScrollPositionedRangeRef.current = null;
-        setMobileMonthCalendarRange((current) => ({
-          start: nearStart
-            ? (DateTime.fromISO(current.start, { zone: timeZone })
-                .minus({ months: 1 })
-                .startOf('month')
-                .toISODate() ?? current.start)
-            : current.start,
-          end: nearEnd
-            ? (DateTime.fromISO(current.end, { zone: timeZone })
-                .plus({ months: 1 })
-                .startOf('month')
-                .toISODate() ?? current.end)
-            : current.end,
-        }));
+        if (mobileMonthScrollFrameRef.current != null) return;
+        mobileMonthScrollFrameRef.current = window.requestAnimationFrame(() => {
+          mobileMonthScrollFrameRef.current = null;
+          const bounds = target.getBoundingClientRect();
+          const visibleCell = document
+            .elementFromPoint(bounds.left + bounds.width / 2, bounds.top + bounds.height / 3)
+            ?.closest<HTMLElement>('.fc-daygrid-day[data-date]');
+          const visibleDate = visibleCell?.dataset.date ?? mobileVisibleDate;
+          const visibleMonth = DateTime.fromISO(visibleDate, { zone: timeZone })
+            .startOf('month')
+            .toISODate();
+          if (visibleMonth) {
+            setMobileVisibleDate((current) => (current === visibleMonth ? current : visibleMonth));
+          }
+          if (mobileRangeExpandingRef.current) return;
+          const edgeThreshold = target.clientHeight * 0.35;
+          const nearStart = target.scrollTop <= edgeThreshold;
+          const nearEnd =
+            target.scrollHeight - target.clientHeight - target.scrollTop <= edgeThreshold;
+          if (!nearStart && !nearEnd) return;
+          mobileRangeExpandingRef.current = true;
+          mobileScrollRestoreDateRef.current = visibleDate;
+          mobileScrollPositionedRangeRef.current = null;
+          setMobileMonthCalendarRange((current) => ({
+            start: nearStart
+              ? (DateTime.fromISO(current.start, { zone: timeZone })
+                  .minus({ months: 3 })
+                  .startOf('month')
+                  .toISODate() ?? current.start)
+              : current.start,
+            end: nearEnd
+              ? (DateTime.fromISO(current.end, { zone: timeZone })
+                  .plus({ months: 3 })
+                  .startOf('month')
+                  .toISODate() ?? current.end)
+              : current.end,
+          }));
+        });
         return;
       }
       if (target.scrollWidth <= target.clientWidth + 8) return;
