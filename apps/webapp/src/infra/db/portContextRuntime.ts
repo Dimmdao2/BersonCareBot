@@ -327,8 +327,11 @@ export function webappPortContextPrincipal(
   opaqueIdentityRefs?: OpaqueIdentityRefs,
 ): { pool: 'staff' | 'patient' | 'globalAdmin'; principal: PortContextPrincipal } {
   if (!principal) throw new Error('A webapp principal is required in port-context mode');
+  const operation = operationStorage.getStore();
   const descriptorName =
-    principal.kind === 'organization'
+    operation
+      ? operation.functionIdentity
+      : principal.kind === 'organization'
       ? 'tenant_service'
       : principal.kind === 'infra'
         ? webappPortCapabilityForInfraSource(principal.source, capabilities)
@@ -336,7 +339,6 @@ export function webappPortContextPrincipal(
           ? 'pre_session'
           : principal.kind;
   const descriptor = capabilityFor(capabilities, descriptorName, principal);
-  const operation = operationStorage.getStore();
   const base = {
     capabilityId: descriptor.capabilityId,
     contextClass: descriptor.contextClass,

@@ -713,6 +713,34 @@ describe('webapp port-context runtime', () => {
     ).toThrow('<missing>');
   });
 
+  it('selects an infra named root without requiring a second relation capability', () => {
+    const functionIdentity = 'app.process_media_pending_delete_step(text,uuid,integer,uuid)';
+    const namedRoot: PortCapabilityDescriptor = {
+      capabilityId: '00000000-0000-0000-0000-000000000117',
+      targetRole: 'app_operational_media_worker',
+      contextClass: 'service',
+      purpose: 'media.pending-delete.step',
+      functionIdentity,
+    };
+
+    expect(
+      runWithWebappPortOperation(
+        { functionIdentity, typedArgs: [] },
+        () =>
+          webappPortContextPrincipal(
+            { kind: 'infra', source: 'api/internal/media-pending-delete/purge:POST' },
+            { media_pending_delete_step: namedRoot },
+          ),
+      ),
+    ).toMatchObject({
+      pool: 'staff',
+      principal: {
+        targetRole: 'app_operational_media_worker',
+        functionIdentity,
+      },
+    });
+  });
+
   it('maps a named bootstrap root to app_pre_session on the patient pool', () => {
     const preSession: PortCapabilityDescriptor = {
       capabilityId: '00000000-0000-0000-0000-000000000116',
