@@ -412,7 +412,6 @@ async function loadPurgeUser(userId: string): Promise<PurgePlatformUserRow> {
   return {
     id: userRow.rows[0]?.id ?? '',
     phone_normalized: userRow.rows[0]?.phone_normalized ?? null,
-    integrator_user_id: userRow.rows[0]?.integrator_user_id ?? null,
     role: userRow.rows[0]?.role ?? '',
   };
 }

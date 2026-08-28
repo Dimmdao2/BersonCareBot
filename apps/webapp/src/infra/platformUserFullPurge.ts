@@ -39,6 +39,28 @@ export const CONTENT_TABLES: { table: string; column: string }[] = [
   { table: 'user_notification_topic_channels', column: 'user_id' },
   { table: 'user_web_push_subscriptions', column: 'user_id' },
   { table: 'online_intake_requests', column: 'user_id' },
+  // Final systemic lifecycle audit 2026-08-28, F1: `manual_patient_commands` references
+  // `org_enrollments` (organization_id, platform_user_id) with the default ON DELETE NO ACTION.
+  // `org_enrollments` itself cascades away with `platform_users`, so an undeleted row here made the
+  // database refuse the final `DELETE FROM platform_users` with `23503` for every client who ever
+  // received a manual command — nothing was purged at all, not just this table.
+  { table: 'manual_patient_commands', column: 'platform_user_id' },
+  // F2: no FK to `platform_users` at all; same class as `reminder_occurrence_history` above — patient
+  // diary content that must die with the account, but nothing cascades it away.
+  { table: 'patient_diary_day_snapshots', column: 'platform_user_id' },
+  { table: 'patient_practice_completions', column: 'user_id' },
+];
+
+/**
+ * Columns nulled — not deleted — on purge: the ROW is not the purged person's own data (it belongs to
+ * the specialist who owns it), only the reference to the purged patient must not survive.
+ * Final systemic lifecycle audit 2026-08-28, F2: `specialist_tasks.patient_user_id` carries no FK to
+ * `platform_users` at all, so a specialist's task kept pointing at a deleted patient id forever.
+ * Exported so the lifecycle registry (`JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS`) can name exactly this
+ * mechanism instead of a second, undeclared one.
+ */
+export const ANONYMISE_ON_PURGE_COLUMNS: { table: string; column: string }[] = [
+  { table: 'specialist_tasks', column: 'patient_user_id' },
 ];
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */
@@ -97,6 +119,11 @@ async function deletePhoneKeyedWebappRows(
 }
 
 async function clearPlatformUserDeleteBlockers(client: PoolClient, userId: string): Promise<void> {
+  for (const { table, column } of ANONYMISE_ON_PURGE_COLUMNS) {
+    await runPurgeClientPgText(client, `UPDATE ${table} SET ${column} = NULL WHERE ${column} = $1`, [
+      userId,
+    ]);
+  }
   await runPurgeClientPgText(
     client,
     `UPDATE platform_users SET blocked_by = NULL WHERE blocked_by = $1`,

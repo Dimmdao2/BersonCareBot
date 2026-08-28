@@ -30,6 +30,13 @@ export type JournalLifecycleUserPurge =
   | { kind: 'cascade'; column: string }
   /** No cascading FK: `platformUserFullPurge` must name the table explicitly. */
   | { kind: 'explicit-delete'; column: string }
+  /**
+   * No cascading FK, and the ROW is not the purged person's own data (e.g. a specialist's task that
+   * merely references a patient) — so the reference column is nulled, not the row deleted.
+   * `platformUserFullPurge.ANONYMISE_ON_PURGE_COLUMNS` must name the table+column explicitly. Mirrors
+   * `explicit-delete`; distinct from `anonymised` below, which is a live FK doing the same thing.
+   */
+  | { kind: 'explicit-anonymise'; column: string }
   /** FK with ON DELETE SET NULL — the row survives, de-identified, on purpose. */
   | { kind: 'anonymised'; column: string }
   /** Keyed by the phone number, purged by phone in the same transaction. */
@@ -807,6 +814,54 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     },
     sweptBy: null,
   },
+  // Final systemic lifecycle audit 2026-08-28, F2: same class as `lfk_sessions` / `program_action_log`
+  // / `test_attempts` above (patient diary content, dies with the patient account), but with NO
+  // cascading FK to `platform_users` — so `explicit-delete` via `CONTENT_TABLES`, not `cascade`.
+  {
+    table: 'public.patient_diary_day_snapshots',
+    why: 'immutable daily snapshot of the patient diary (warm-up + plan), one row per patient/day',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+    terminalStates: [],
+    retention: {
+      kind: 'bounded-by-parent',
+      basis: 'patient diary content, not a journal; dies with the patient account via explicit-delete '
+        + '(no cascading FK exists)',
+    },
+    sweptBy: null,
+  },
+  {
+    table: 'public.patient_practice_completions',
+    why: 'one recorded patient practice-completion event (home/reminder/section/daily-warmup)',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+    terminalStates: [],
+    retention: {
+      kind: 'bounded-by-parent',
+      basis: 'patient diary content, not a journal; dies with the patient account via explicit-delete '
+        + '(no cascading FK exists)',
+    },
+    sweptBy: null,
+  },
+  // Final systemic lifecycle audit 2026-08-28, F1/F3: declared in `declaration.ts:1119`, matched no
+  // suffix and no extra-candidate entry, so it had NO written lifecycle at all. `org_enrollments`
+  // cascades away with `platform_users`; this table references `org_enrollments` with the default ON
+  // DELETE NO ACTION, so an unpurged row here made the database refuse the whole account purge with
+  // `23503` — for every client who ever received a manual command, nothing was deleted at all.
+  {
+    table: 'public.manual_patient_commands',
+    why: 'idempotency ledger for staff-issued manual patient commands (invite, walk-in, …) — the '
+      + 'fingerprint dedup key protects against double-executing one command',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+    terminalStates: [],
+    retention: {
+      kind: 'keep-forever',
+      basis: 'one row per real staff-issued command, bounded by staff action volume, not by time; no '
+        + 'independent growth signal in the audit — explicit-delete on account purge removes it',
+    },
+    sweptBy: null,
+  },
 ] as const;
 
 /** Fast lookup used by the gate and by anything that needs one table's policy. */
@@ -856,13 +911,35 @@ export const JOURNAL_LIFECYCLE_EXTRA_CANDIDATES: readonly string[] = [
   'public.product_push_notifications',
   'public.media_playback_client_events',
   'public.media_playback_resolution_events',
+  // Final systemic lifecycle audit 2026-08-28, F3: these three matched no suffix and were found with
+  // NO written lifecycle decision at all (`manual_patient_commands`, F1) or a bare non-journal reason
+  // string with no purge decision behind it (the other two, F2). Listed explicitly so the census
+  // cannot depend on a future name matching a suffix by luck.
+  'public.manual_patient_commands',
+  'public.patient_diary_day_snapshots',
+  'public.patient_practice_completions',
 ];
+
+/**
+ * A declared table that matches the suffix trigger (or is listed above) but is not a journal or temp
+ * store. `reason` is always required. `userPurge` — final systemic lifecycle audit 2026-08-28, F3 —
+ * closes the SECOND census hole the audit found: a bare reason string let a table be marked "not a
+ * journal" and never say what account purge does to it, so `patient_practice_completions` and
+ * `patient_diary_day_snapshots` were recorded here as "patient diary content" and silently survived
+ * purge (fixed by moving both into `JOURNAL_LIFECYCLE_REGISTRY` instead — they ARE patient content
+ * that must die with the account, same class as `lfk_sessions`). Every entry TOUCHED by this fix
+ * carries `userPurge`; entries outside its scope keep their original plain-string reason unchanged
+ * rather than guessing a purge decision for a table nobody re-audited.
+ */
+export type JournalNonJournalDecision =
+  | string
+  | { reason: string; userPurge: JournalLifecycleUserPurge };
 
 /**
  * Declared tables that MATCH the suffix trigger but are not journals or temp stores, each with the
  * reason. Anything not here and not in the registry fails the gate.
  */
-export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, string>> = {
+export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, JournalNonJournalDecision>> = {
   'public.be_appointment_events':
     'retired duplicate absent from the target schema; declaration entry is cleanup metadata for old databases',
   'drizzle.__drizzle_migrations': 'applied-migration ledger; identity of the schema itself',
@@ -898,15 +975,20 @@ export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, st
   'public.organization_slug_claims': 'live claim on a public slug, not history',
   'public.patient_daily_warmup_presentations': 'one row per patient/day presentation decision',
   'public.patient_daily_warmup_video_views': 'one row per patient/video view decision',
-  'public.patient_practice_completions': 'patient diary content',
-  'public.patient_diary_day_snapshots': 'patient diary content',
   'public.recommendation_regions': 'reference data',
   'public.reference_catalog_baselines': 'versioned reference templates',
   'public.reference_catalog_snapshot_receipts': 'per-organization seeding receipt, one row per org',
   'public.saas_billing_periods': 'reference data',
   'public.saas_organization_trials': 'one trial row per organization',
   'public.specialist_signup_intents': 'a pending signup, resolved or abandoned; not a journal',
-  'public.specialist_tasks': 'live task list of a specialist',
+  'public.specialist_tasks': {
+    reason: 'live task list of a specialist, not a journal — but the row references a patient and '
+      + 'must not keep pointing at a purged one',
+    // Final systemic lifecycle audit 2026-08-28, F2: no FK to `platform_users` on this column at all,
+    // so it silently survived purge. The task itself belongs to the specialist (kept); only the
+    // reference is nulled — see `platformUserFullPurge.ANONYMISE_ON_PURGE_COLUMNS`.
+    userPurge: { kind: 'explicit-anonymise', column: 'patient_user_id' },
+  },
   'public.staff_security_profiles': 'one security profile row per staff user',
   'public.system_settings': 'live runtime configuration',
   'public.test_results': 'clinical result rows of one test attempt',
