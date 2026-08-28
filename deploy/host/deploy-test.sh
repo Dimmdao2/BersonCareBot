@@ -2,7 +2,7 @@
 # Deliver the current committed DEV branch to the existing named TEST environment.
 # B0/post-B0 only: no restore, database recreation, zero-state, greenfield or historical replay.
 #
-# Usage: bash deploy/host/deploy-test.sh [<branch>] [--reapply <tag> ...]
+# Usage: bash deploy/host/deploy-test.sh [<branch>] [--reapply <tag> ...] [--recover-stopped-access]
 
 set -Eeuo pipefail
 { set +x; } 2>/dev/null
@@ -177,6 +177,7 @@ trap cleanup EXIT
 # declaration this script reconciles a few steps below. A bare `node migrate-local.mjs --reapply`
 # would leave the repaired object weaker than it was, so the wrapper refuses it without this marker.
 REAPPLY_ARGS=()
+RECOVER_STOPPED_ACCESS=0
 shift || true
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -185,6 +186,10 @@ while [[ $# -gt 0 ]]; do
       [[ "$2" =~ ^[0-9]{4}[a-z0-9]*_[a-z0-9_]+$ ]] || fail "--reapply tag is not a migration name: $2"
       REAPPLY_ARGS+=(--reapply "$2")
       shift 2
+      ;;
+    --recover-stopped-access)
+      RECOVER_STOPPED_ACCESS=1
+      shift
       ;;
     *) fail "unknown argument: $1" ;;
   esac
@@ -287,9 +292,20 @@ done
 # проба того же файла стоит ниже — после сверки прав и ДО перезапуска служб (см. комментарий там) — и
 # только она проверяет НОВОЕ состояние. Обе — тот же файл, тот же ROLLBACK, ничего не пишут.
 printf 'deploy-test: pre-flight — доказательство стены арендатора на %s ДО остановки служб/миграций/сверки\n' "$DB"
+set +e
 RUN_TENANT_ISOLATION_WALL_DB=1 TENANT_ISOLATION_PROOF_DB="$DB" \
-  db_run 'PRE-FLIGHT: стена арендатора на текущем (ещё не тронутом) состоянии TEST' "$PROOF_TIMEOUT_S" \
-  node --test "$TENANT_ISOLATION_PROOF"
+  timeout --kill-after=10 "$PROOF_TIMEOUT_S" node --test "$TENANT_ISOLATION_PROOF"
+preflight_status=$?
+set -e
+if [[ "$preflight_status" -ne 0 ]]; then
+  [[ "$RECOVER_STOPPED_ACCESS" == 1 ]] ||
+    fail "PRE-FLIGHT: стена арендатора на текущем (ещё не тронутом) состоянии TEST: отказал (код $preflight_status)"
+  for unit_name in "${UNITS[@]}"; do
+    ! sudo systemctl is-active --quiet "bersoncarebot-$unit_name-test" ||
+      fail "--recover-stopped-access requires every TEST writer to be stopped; bersoncarebot-$unit_name-test is active"
+  done
+  printf 'deploy-test: recovery mode accepted the broken pre-flight only because every TEST writer is stopped; post-reconcile wall proof remains mandatory\n'
+fi
 
 sudo -u deploy bash -lc "cd '$DEPLOY_REPO' && export CI=true && \
   pnpm install --frozen-lockfile && \
