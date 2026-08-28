@@ -416,6 +416,35 @@ describe('Ч1 intent policy at the six public intake routes', () => {
     expect(fakes.presignPutUrl).not.toHaveBeenCalled();
   });
 
+  it('rejects a patient video without measured duration before creating an upload', async () => {
+    const response = await submissionPresign(
+      jsonRequest({ filename: 'clip.mp4', mimeType: 'video/mp4', size: 12 }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: 'video_metadata_unavailable',
+    });
+    expect(fakes.createPendingProgramSubmissionMediaFile).not.toHaveBeenCalled();
+    expect(fakes.presignPutUrl).not.toHaveBeenCalled();
+  });
+
+  it('allows a patient video at least ten seconds long to enter the upload path', async () => {
+    const response = await submissionPresign(
+      jsonRequest({
+        filename: 'clip.mp4',
+        mimeType: 'video/mp4',
+        size: 12,
+        durationSeconds: 12,
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(fakes.createPendingProgramSubmissionMediaFile).toHaveBeenCalledOnce();
+    expect(fakes.presignPutUrl).toHaveBeenCalledOnce();
+  });
+
   it('patient video confirm atomically makes the submission ready and queues processing', async () => {
     fakes.getMediaRowForConfirm.mockResolvedValue(
       pendingRow({
