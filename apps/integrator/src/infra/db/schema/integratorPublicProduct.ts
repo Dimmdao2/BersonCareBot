@@ -6,7 +6,6 @@
  * SECURITY DEFINER roots из `repos/bookingCalendarMap.ts`; описание map здесь остаётся каталогом схемы.
  */
 import {
-  bigint,
   bigserial,
   boolean,
   integer,

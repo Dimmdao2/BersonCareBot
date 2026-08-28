@@ -6302,7 +6302,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_integrator_tenant_service",
         "operations": ["SELECT"],
-        "columns": ["id", "integrator_user_id", "merged_into_id"]
+        "columns": ["id", "merged_into_id"]
       },
       {
         "role": "app_platform_settings",
@@ -6335,7 +6335,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "display_name",
           "first_name",
           "id",
-          "integrator_user_id",
           "is_archived",
           "is_blocked",
           "last_name",
@@ -6360,7 +6359,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "calendar_timezone",
           "display_name",
           "first_name",
-          "integrator_user_id",
           "is_archived",
           "is_blocked",
           "last_name",
@@ -6387,7 +6385,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         ],
         "columns": [
           "id",
-          "integrator_user_id",
           "merged_into_id",
           "display_name",
           "first_name",
@@ -6407,7 +6404,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "display_name",
           "first_name",
           "id",
-          "integrator_user_id",
           "last_name",
           "role"
         ]
@@ -6420,7 +6416,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "display_name",
           "first_name",
-          "integrator_user_id",
           "last_name",
           "merged_at",
           "merged_into_id",
@@ -7155,7 +7150,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "UPDATE"
         ],
         "columns": [
-          "integrator_user_id",
           "seen_at"
         ]
       },
@@ -7203,7 +7197,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
       {
         "role": "app_integrator_tenant_service",
         "operations": ["SELECT"],
-        "columns": ["category", "integrator_rule_id", "integrator_user_id", "organization_id"]
+        "columns": ["category", "integrator_rule_id", "organization_id"]
       },
       {
         "role": "app_staff",
@@ -7226,7 +7220,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "display_description",
           "display_title",
           "integrator_rule_id",
-          "integrator_user_id",
           "interval_minutes",
           "is_enabled",
           "linked_object_id",
@@ -7258,7 +7251,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "days_mask",
           "display_description",
           "display_title",
-          "integrator_user_id",
           "interval_minutes",
           "is_enabled",
           "linked_object_id",
@@ -7293,7 +7285,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "days_mask",
           "id",
           "integrator_rule_id",
-          "integrator_user_id",
           "interval_minutes",
           "is_enabled",
           "linked_object_id",
@@ -7324,7 +7315,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "custom_title",
           "days_mask",
           "integrator_rule_id",
-          "integrator_user_id",
           "interval_minutes",
           "is_enabled",
           "linked_object_id",
@@ -7354,7 +7344,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "custom_text",
           "custom_title",
           "days_mask",
-          "integrator_user_id",
           "interval_minutes",
           "is_enabled",
           "linked_object_id",
@@ -8382,7 +8371,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "close_reason",
           "closed_at",
           "integrator_conversation_id",
-          "integrator_user_id",
           "last_message_at",
           "opened_at",
           "organization_id",
@@ -8399,7 +8387,6 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
         "columns": [
           "close_reason",
           "closed_at",
-          "integrator_user_id",
           "last_message_at",
           "organization_id",
           "platform_user_id",

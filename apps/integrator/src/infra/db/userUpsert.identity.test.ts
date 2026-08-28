@@ -137,7 +137,6 @@ describe('D28: брошенный номер без какой-либо исто
     const db = makeDb(tables);
 
     const result = await upsertIdentityProjection(db, {
-      integratorUserId: '9000',
       phoneNormalized: '+79000000055',
       displayName: 'Анна Кузнецова',
       firstName: 'Анна',

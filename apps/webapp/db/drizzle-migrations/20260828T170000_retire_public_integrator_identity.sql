@@ -53,8 +53,8 @@ $migration$;
 DROP FUNCTION app.patient_done_reminder_occurrence(text);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.patient_done_reminder_occurrence(p_platform_user_id uuid, p_integrator_occurrence_id text)
 RETURNS TABLE(done_at timestamptz, first_done_for_occurrence boolean, day_done_count integer, day_sent_total integer, day_fully_done boolean)
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
@@ -159,8 +159,8 @@ $function$;
 DROP FUNCTION app.patient_set_reminder_mute(integer,boolean);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.patient_set_reminder_mute(p_platform_user_id uuid, p_minutes integer, p_until_tomorrow boolean)
 RETURNS TABLE(muted_until timestamptz) LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
 DECLARE v_org uuid:=app.current_org_id(); v_actor uuid; v_timezone text;
@@ -186,8 +186,8 @@ $function$;
 DROP FUNCTION app.patient_disable_reminder_messenger_topic(text,text);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.patient_disable_reminder_messenger_topic(p_platform_user_id uuid, p_integrator_occurrence_id text, p_messenger_channel text)
 RETURNS TABLE(persisted boolean, paragraphs jsonb) LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
 DECLARE v_org uuid:=app.current_org_id(); v_actor uuid; v_topic text; v_label text;
@@ -214,8 +214,8 @@ $function$;
 DROP FUNCTION app.patient_reminder_notification_settings(text,text);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_patient_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.patient_reminder_notification_settings(p_platform_user_id uuid,p_messenger_channel text,p_toggle_topic_code text)
 RETURNS TABLE(topics jsonb,new_state boolean) LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
 DECLARE v_org uuid:=app.current_org_id(); v_actor uuid;
@@ -242,6 +242,8 @@ $function$;
 DROP FUNCTION IF EXISTS app.patient_set_reminder_muted_until(integer,boolean);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 CREATE OR REPLACE FUNCTION app.list_web_push_reminder_organization_ids(p_now timestamptz)
 RETURNS TABLE(organization_id uuid) LANGUAGE sql SECURITY DEFINER SET search_path TO 'pg_catalog','public' AS $function$
 SELECT app.require_attested_context_for_roles('app_seam_reminder_materialization_owner'::name,ARRAY['app_operational_scheduler'::name]::name[]);
@@ -250,6 +252,8 @@ WHERE rule.organization_id IS NOT NULL AND rule.is_enabled=true AND (patient.rem
 $function$;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_reminder_materialization_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: sql
 CREATE OR REPLACE FUNCTION app.patient_reminder_materialization_fingerprint(p_occurrence_id text,p_channel text)
 RETURNS text LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
 SELECT md5(jsonb_build_object('occurrence',jsonb_build_array(h.integrator_rule_id,h.organization_id,h.platform_user_id,h.delivery_generation,h.planned_at),
@@ -261,6 +265,7 @@ $function$;
 --> statement-breakpoint
 
 -- BCB-MIGRATION-OWNER: app_seam_patient_self_actions_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app.ensure_current_patient_support_conversation()
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
@@ -282,8 +287,8 @@ $function$;
 DROP FUNCTION app.integrator_read_platform_user_delivery_identity(text);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.integrator_read_platform_user_delivery_identity(p_platform_user_id text)
 RETURNS TABLE(phone_normalized text) LANGUAGE plpgsql STABLE PARALLEL RESTRICTED SECURITY DEFINER SET search_path TO 'pg_catalog','app','public','pg_temp' AS $function$
 DECLARE v_org uuid:=app.current_org_id(); v_user uuid;
@@ -302,8 +307,8 @@ $function$;
 DROP FUNCTION app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamptz);
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_delivery_scope_owner
--- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 -- BCB-MIGRATION-SCHEMA-CREATE: app
+-- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE FUNCTION app.read_integrator_delivery_target_snapshot(p_organization_id uuid,p_phone_normalized text,p_telegram_id text,p_max_id text,p_platform_user_id uuid,p_topic_code text,p_now timestamptz)
 RETURNS jsonb LANGUAGE plpgsql STABLE PARALLEL RESTRICTED SECURITY DEFINER SET search_path TO 'pg_catalog' AS $function$
 DECLARE v_org uuid:=app.current_org_id(); v_user uuid; v_count integer; v_email text; v_email_verified timestamptz; v_muted timestamptz; v_preferences jsonb; v_topics jsonb; v_bindings jsonb; v_push boolean; v_topic_enabled boolean; v_vapid boolean; v_smtp boolean;
@@ -335,6 +340,7 @@ $function$;
 ALTER TABLE public.reminder_rules DROP CONSTRAINT reminder_rules_platform_user_id_fkey;
 --> statement-breakpoint
 -- BCB-MIGRATION-OWNER: app_seam_identity_lookup_owner
+-- BCB-MIGRATION-SCHEMA-CREATE: app_ext
 -- BCB-MIGRATION-LANGUAGE-USAGE: plpgsql
 CREATE OR REPLACE FUNCTION app_ext.assert_port_context_claim(p_context_class text,p_target_role name,p_actor_ref uuid,p_subject_ref uuid,p_organization_id uuid,p_integrator_user_id bigint)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path TO 'pg_catalog','app','app_ext','pg_temp' AS $function$

@@ -253,7 +253,6 @@ describe('D15b/6 MF-2 — applyMessengerPhonePublicBind canonical contact write'
       channelCode: CHANNEL,
       externalId: EXTERNAL,
       phoneNormalized: PHONE,
-      canonicalIntegratorUserId: INTEGRATOR_ID,
     });
 
     expect(result).toEqual({ platformUserId: BIND_USER });
