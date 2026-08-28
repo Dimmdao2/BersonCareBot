@@ -1,9 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { defaultOperatorHealthAlertConfig } from '@/modules/operator-alerts/operatorHealthAlertConfig';
-import {
-  prepareOperatorHealthDigestDeliveries,
-  resolveOperatorHealthDigestWebPushRecipients,
-} from './prepareOperatorHealthDigestDeliveries';
+import { prepareOperatorHealthDigestDeliveries } from './prepareOperatorHealthDigestDeliveries';
 
 describe('prepareOperatorHealthDigestDeliveries', () => {
   it('materializes only enabled channels and unique recipients with stable per-recipient event ids', () => {
@@ -36,48 +33,5 @@ describe('prepareOperatorHealthDigestDeliveries', () => {
     expect(
       first.every(({ eventId }) => eventId.startsWith('operator-health-digest:2026-10-25:')),
     ).toBe(true);
-  });
-
-  it('excludes disabled or unsubscribed canonical global admins', async () => {
-    const recipients = await resolveOperatorHealthDigestWebPushRecipients({
-      globalAdmins: {
-        listActiveGlobalAdminUserIds: async () => ['global-admin', 'disabled', 'unsubscribed'],
-      },
-      channelPreferences: {
-        getPreferences: async (userId) =>
-          userId === 'disabled'
-            ? [
-                {
-                  channelCode: 'web_push',
-                  isEnabledForMessages: true,
-                  isEnabledForNotifications: false,
-                  isPreferredForAuth: false,
-                },
-              ]
-            : [],
-      },
-      webPushSubscriptions: {
-        hasAnyForUserId: async (userId) => userId !== 'unsubscribed',
-      },
-    });
-    expect(recipients).toEqual(['global-admin']);
-  });
-
-  it('cannot promote an ordinary doctor or clinic-admin membership into the global digest audience', async () => {
-    const getPreferences = vi.fn(async () => []);
-    const hasAnyForUserId = vi.fn(async () => true);
-    const recipients = await resolveOperatorHealthDigestWebPushRecipients({
-      globalAdmins: {
-        listActiveGlobalAdminUserIds: async () => ['global-admin'],
-      },
-      channelPreferences: { getPreferences },
-      webPushSubscriptions: { hasAnyForUserId },
-    });
-    expect(recipients).toEqual(['global-admin']);
-    expect(getPreferences).toHaveBeenCalledOnce();
-    expect(getPreferences).not.toHaveBeenCalledWith('ordinary-doctor');
-    expect(getPreferences).not.toHaveBeenCalledWith('clinic-admin-member');
-    expect(hasAnyForUserId).toHaveBeenCalledOnce();
-    expect(hasAnyForUserId).toHaveBeenCalledWith('global-admin');
   });
 });

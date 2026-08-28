@@ -1,8 +1,8 @@
 export type GlobalAdminWebPushRecipientsPort = {
-  /** Canonical platform-global admins only; organization membership never grants this audience. */
-  listActiveGlobalAdminUserIds(): Promise<string[]>;
+  /** Canonical, active, subscribed platform-global admins with web-push notifications enabled. */
+  listEligibleGlobalAdminUserIds(): Promise<string[]>;
 };
 
 export const emptyGlobalAdminWebPushRecipientsPort: GlobalAdminWebPushRecipientsPort = {
-  listActiveGlobalAdminUserIds: async () => [],
+  listEligibleGlobalAdminUserIds: async () => [],
 };

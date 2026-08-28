@@ -30,7 +30,9 @@ export function createPgStaffUsersPort(): StaffUsersPort {
       return rows.map((r) => r.id);
     },
     /**
-     * Аудитория staff-веб-пуша операторского алерта. Читается объявленным корнем, а не отношением:
+     * Готовая аудитория staff-веб-пуша операторского алерта. Корень сразу исключает заблокированные
+     * учётки, отключённый канал и отсутствие подписки; после него нельзя повторно читать закрытые
+     * таблицы предпочтений и подписок. Читается объявленным корнем, а не отношением:
      * `be_organization_members` — арендаторская таблица, и `app_worker`, под которым идёт
      * пятиминутный критический тик, на ней отказан (замер 19.08 на TEST: `42501 permission denied
      * for table be_organization_members`). Отказ гасился `.catch` в `dispatchOperatorAlert`, канал
@@ -40,9 +42,9 @@ export function createPgStaffUsersPort(): StaffUsersPort {
     async listActiveStaffOrganizationRecipients() {
       const result = await runWebappNamedRoot<{ recipients: unknown }>(
         getWebappSqlDb(),
-        'app.list_operator_alert_staff_push_recipients()',
-        [],
-        sql`SELECT app.list_operator_alert_staff_push_recipients() AS recipients`,
+        'app.list_operator_web_push_recipients(text)',
+        ['staff'],
+        sql`SELECT app.list_operator_web_push_recipients('staff'::text) AS recipients`,
       );
       return parseStaffOrganizationRecipients(result.rows[0]?.recipients);
     },

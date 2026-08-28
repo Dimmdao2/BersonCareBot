@@ -198,6 +198,7 @@ describe('PhoneMessengerAuthFlow automatic delivery', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Submit phone' }));
       await screen.findByLabelText('Код подтверждения');
       fireEvent.click(screen.getByRole('button', { name: 'Подтвердить другим способом' }));
+      await screen.findByRole('button', { name: 'Получить код в Telegram' });
 
       const labels = [
         'Получить код в Max',

@@ -1,10 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { OperatorHealthAlertConfig } from '@/modules/operator-alerts/operatorHealthAlertConfig';
 import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
-import type { ChannelPreferencesPort } from '@/modules/channel-preferences/ports';
-import type { WebPushSubscriptionsPort } from '@/modules/web-push/ports';
 import { stampOperatorAlertSubject } from '@/modules/operator-alerts/operatorAlertEnvLabel';
-import type { GlobalAdminWebPushRecipientsPort } from './globalAdminWebPushRecipientsPort';
 
 export type OperatorHealthDigestRecipients = {
   telegram: readonly string[];
@@ -13,27 +10,6 @@ export type OperatorHealthDigestRecipients = {
   email: readonly string[];
   web_push: readonly string[];
 };
-
-export async function resolveOperatorHealthDigestWebPushRecipients(deps: {
-  globalAdmins: GlobalAdminWebPushRecipientsPort;
-  channelPreferences: Pick<ChannelPreferencesPort, 'getPreferences'>;
-  webPushSubscriptions: Pick<WebPushSubscriptionsPort, 'hasAnyForUserId'>;
-}): Promise<string[]> {
-  const candidates = await deps.globalAdmins.listActiveGlobalAdminUserIds();
-  const eligible = await Promise.all(
-    candidates.map(async (userId) => {
-      const [preferences, hasSubscription] = await Promise.all([
-        deps.channelPreferences.getPreferences(userId),
-        deps.webPushSubscriptions.hasAnyForUserId(userId),
-      ]);
-      const enabled =
-        preferences.find(({ channelCode }) => channelCode === 'web_push')
-          ?.isEnabledForNotifications !== false;
-      return enabled && hasSubscription ? userId : null;
-    }),
-  );
-  return eligible.filter((userId): userId is string => userId !== null);
-}
 
 type DigestChannel = keyof OperatorHealthDigestRecipients;
 

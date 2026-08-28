@@ -244,7 +244,6 @@ import { createPgSpecialistTasksPort } from '@/infra/repos/pgSpecialistTasks';
 import { inMemorySpecialistTasksPort } from '@/infra/repos/inMemorySpecialistTasks';
 import { createSpecialistTasksService } from '@/modules/specialist-tasks/service';
 import { prepareSpecialistTaskReminderDeliveries } from '@/modules/specialist-tasks/prepareReminderDeliveries';
-import { resolveOperatorHealthDigestWebPushRecipients } from '@/modules/operator-health/prepareOperatorHealthDigestDeliveries';
 import {
   emptyGlobalAdminWebPushRecipientsPort,
   type GlobalAdminWebPushRecipientsPort,
@@ -1139,9 +1138,6 @@ const doctorPatientMessageStaffDeps = {
 };
 registerAdminIncidentStaffPushDeps({
   staffUsers: staffUsersPort,
-  channelPreferences: channelPreferencesPort,
-  webPushSubscriptions: webPushSubscriptionsPort,
-  systemSettings: systemSettingsService,
 });
 registerOperatorAlertDedupPort(
   !inMemoryRepos ? pgOperatorHealthAlertSentPort : inMemoryOperatorHealthAlertSentPort,
@@ -1915,11 +1911,7 @@ function _buildAppDeps() {
     operatorHealthDigestDelivery: {
       loadRecipients: async () => ({
         ...(await loadAdminNotificationTargetsFromDb()),
-        web_push: await resolveOperatorHealthDigestWebPushRecipients({
-          globalAdmins: globalAdminWebPushRecipientsPort,
-          channelPreferences: channelPreferencesPort,
-          webPushSubscriptions: webPushSubscriptionsPort,
-        }),
+        web_push: await globalAdminWebPushRecipientsPort.listEligibleGlobalAdminUserIds(),
       }),
       enqueue: inMemoryRepos
         ? async (deliveries: readonly OperatorHealthDigestReadyOutgoingDelivery[]) =>

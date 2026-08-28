@@ -1,4 +1,5 @@
 import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import type { OutboundProviderAlertClaim } from '@/modules/operator-health/ports';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
@@ -29,6 +30,10 @@ function clampErrorMessage(message: string): string {
   return `${message.slice(0, MAX_JOB_ERROR_CHARS)}…`;
 }
 
+async function withOperatorJobStatusWrite(run: () => Promise<void>): Promise<void> {
+  await runWithDbInfraPrincipal({ source: 'operator-cron-job-status:write' }, run);
+}
+
 async function upsertOperatorJobSuccess(input: {
   jobFamily: string;
   jobKey: string;
@@ -36,26 +41,14 @@ async function upsertOperatorJobSuccess(input: {
   durationMs: number;
   metaJson: Record<string, unknown>;
 }): Promise<void> {
-  const db = getDrizzle();
-  const finishedIso = new Date().toISOString();
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(operatorJobStatus)
-      .values({
-        jobKey: input.jobKey,
-        jobFamily: input.jobFamily,
-        lastStatus: 'success',
-        lastStartedAt: input.startedAtIso,
-        lastFinishedAt: finishedIso,
-        lastSuccessAt: finishedIso,
-        lastFailureAt: null,
-        lastDurationMs: input.durationMs,
-        lastError: null,
-        metaJson: input.metaJson,
-      })
-      .onConflictDoUpdate({
-        target: operatorJobStatus.jobKey,
-        set: {
+  await withOperatorJobStatusWrite(async () => {
+    const db = getDrizzle();
+    const finishedIso = new Date().toISOString();
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(operatorJobStatus)
+        .values({
+          jobKey: input.jobKey,
           jobFamily: input.jobFamily,
           lastStatus: 'success',
           lastStartedAt: input.startedAtIso,
@@ -65,8 +58,22 @@ async function upsertOperatorJobSuccess(input: {
           lastDurationMs: input.durationMs,
           lastError: null,
           metaJson: input.metaJson,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: operatorJobStatus.jobKey,
+          set: {
+            jobFamily: input.jobFamily,
+            lastStatus: 'success',
+            lastStartedAt: input.startedAtIso,
+            lastFinishedAt: finishedIso,
+            lastSuccessAt: finishedIso,
+            lastFailureAt: null,
+            lastDurationMs: input.durationMs,
+            lastError: null,
+            metaJson: input.metaJson,
+          },
+        });
+    });
   });
 }
 
@@ -79,38 +86,40 @@ async function upsertOperatorJobFailure(input: {
   metaJson: Record<string, unknown>;
   clearMetaOnFailure: boolean;
 }): Promise<void> {
-  const db = getDrizzle();
-  const finishedIso = new Date().toISOString();
-  const err = clampErrorMessage(input.error);
-  const metaJson = input.clearMetaOnFailure ? {} : input.metaJson;
-  await db.transaction(async (tx) => {
-    await tx
-      .insert(operatorJobStatus)
-      .values({
-        jobKey: input.jobKey,
-        jobFamily: input.jobFamily,
-        lastStatus: 'failure',
-        lastStartedAt: input.startedAtIso,
-        lastFinishedAt: finishedIso,
-        lastSuccessAt: null,
-        lastFailureAt: finishedIso,
-        lastDurationMs: input.durationMs,
-        lastError: err,
-        metaJson,
-      })
-      .onConflictDoUpdate({
-        target: operatorJobStatus.jobKey,
-        set: {
+  await withOperatorJobStatusWrite(async () => {
+    const db = getDrizzle();
+    const finishedIso = new Date().toISOString();
+    const err = clampErrorMessage(input.error);
+    const metaJson = input.clearMetaOnFailure ? {} : input.metaJson;
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(operatorJobStatus)
+        .values({
+          jobKey: input.jobKey,
           jobFamily: input.jobFamily,
           lastStatus: 'failure',
           lastStartedAt: input.startedAtIso,
           lastFinishedAt: finishedIso,
+          lastSuccessAt: null,
           lastFailureAt: finishedIso,
           lastDurationMs: input.durationMs,
           lastError: err,
           metaJson,
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: operatorJobStatus.jobKey,
+          set: {
+            jobFamily: input.jobFamily,
+            lastStatus: 'failure',
+            lastStartedAt: input.startedAtIso,
+            lastFinishedAt: finishedIso,
+            lastFailureAt: finishedIso,
+            lastDurationMs: input.durationMs,
+            lastError: err,
+            metaJson,
+          },
+        });
+    });
   });
 }
 

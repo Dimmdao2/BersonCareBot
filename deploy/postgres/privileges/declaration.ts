@@ -3181,11 +3181,11 @@ const REV10_CONTEXT = {
       functionIdentity: 'app.enqueue_operator_health_digest_delivery(text,text,text,integer)' },
     // Аудитория staff-веб-пуша операторского алерта: до 0040 читалась отношением под `app_worker`
     // и отбивалась 42501 на `be_organization_members` — канал не работал, а тик писал успех.
-    webapp_operator_alert_staff_push_audience_read: { port: 'webapp',
-      runtimeName: 'operator_alert_staff_push_audience_read', sessionRole: 'app_staff',
+    webapp_operator_push_audience_read: { port: 'webapp',
+      runtimeName: 'operator_push_audience_read', sessionRole: 'app_staff',
       targetRole: 'app_worker', contextClass: 'service',
-      purpose: 'notifications.staff-push-audience.read',
-      functionIdentity: 'app.list_operator_alert_staff_push_recipients()' },
+      purpose: 'notifications.operator-push-audience.read',
+      functionIdentity: 'app.list_operator_web_push_recipients(text)' },
     // Открытие критического инцидента: до 0041 писалось отношением под `app_worker` и отбивалось
     // 42501 на `operator_incidents` — сторож замечал сбой и не мог записать ни строки.
     webapp_critical_incident_open: { port: 'webapp',
@@ -3217,6 +3217,10 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_operational_maintenance', contextClass: 'service',
       purpose: 'retention.context-nonce-ledger.sweep',
       functionIdentity: 'app.prune_context_nonce_ledger(integer,integer,boolean)' },
+    webapp_hosted_cover_orphan_stage: { port: 'webapp', runtimeName: 'hosted_cover_orphan_stage',
+      sessionRole: 'app_staff', targetRole: 'app_operational_media_worker', contextClass: 'service',
+      purpose: 'media.hosted-cover.orphan-stage',
+      functionIdentity: 'app.stage_orphan_hosted_video_covers_for_purge(integer)' },
     webapp_media_relation: { port: 'webapp', runtimeName: 'media_worker', sessionRole: 'app_staff',
       targetRole: 'app_operational_media_worker', contextClass: 'service', purpose: 'relation',
       runtimeSources: WEBAPP_MEDIA_SOURCES },
@@ -5194,15 +5198,20 @@ const REV10_CONTEXT = {
     // диспетчера, и критический тик рапортовал успех поверх канала, который не отработал.
     // Тот же владелец шва, что у соседа; `app_worker` получает EXECUTE и ничего больше
     // (миграция 0040).
-    'app.list_operator_alert_staff_push_recipients()': rev10Function({
+    'app.list_operator_web_push_recipients(text)': rev10Function({
       owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
       execute: ['app_worker'],
-      purpose: 'return only the tenant-paired staff audience of an operator alert web push',
-      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      purpose: 'return only eligible operator web-push recipients for the requested closed audience',
+      typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [
-        { relation: 'public.platform_users', columns: ['id', 'role', 'merged_into_id'],
+        { relation: 'public.platform_users', columns: ['id', 'role', 'is_archived', 'is_blocked', 'merged_into_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.be_organization_members', columns: ['organization_id', 'platform_user_id', 'status'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_channel_preferences',
+          columns: ['platform_user_id', 'user_id', 'channel_code', 'is_enabled_for_notifications'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+        { relation: 'public.user_web_push_subscriptions', columns: ['user_id'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

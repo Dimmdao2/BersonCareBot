@@ -3,7 +3,13 @@ import { beforeEach, expect, it, vi } from 'vitest';
 const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
   runWebappNamedRoot: vi.fn(),
+  runWithDbInfraPrincipal: vi.fn(async (_principal, run: () => Promise<unknown>) => run()),
   drizzle: { select: vi.fn(), insert: vi.fn(), transaction: vi.fn() },
+}));
+
+vi.mock('@bersoncare/db-principal', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@bersoncare/db-principal')>()),
+  runWithDbInfraPrincipal: fakes.runWithDbInfraPrincipal,
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
@@ -19,6 +25,7 @@ vi.mock('@/app-layer/db/drizzle', () => ({
 }));
 
 import { createPgStaffUsersPort } from '@/infra/repos/pgStaffUsers';
+import { createPgGlobalAdminWebPushRecipientsPort } from '@/infra/repos/pgGlobalAdminWebPushRecipients';
 import { createPgSaasBillingRepository } from '@/infra/repos/pgSaasBilling';
 import { pgOperatorHealthWritePort } from '@/infra/repos/pgOperatorHealthWrite';
 import { CRITICAL_ALERT_CADENCE_INTEGRATION } from '@/modules/operator-health/ports';
@@ -46,8 +53,8 @@ it('операторский алерт находит, кому слать ве
     { userId: 'user-admin', organizationId: 'org-2' },
   ]);
   expect(fakes.runWebappNamedRoot.mock.calls[0]?.slice(1, 3)).toEqual([
-    'app.list_operator_alert_staff_push_recipients()',
-    [],
+    'app.list_operator_web_push_recipients(text)',
+    ['staff'],
   ]);
   // Прямое чтение `be_organization_members` здесь — это 42501 под `app_worker`, отказ гасится
   // `.catch` диспетчера, и канал веб-пуша молча не срабатывает, пока тик пишет `success`.
@@ -57,9 +64,60 @@ it('операторский алерт находит, кому слать ве
 it('никого не нашлось — это пустая аудитория, а не выдуманный получатель', async () => {
   fakes.runWebappNamedRoot.mockResolvedValue({ rows: [{ recipients: [] }] });
 
+  await expect(createPgStaffUsersPort().listActiveStaffOrganizationRecipients?.()).resolves.toEqual(
+    [],
+  );
+});
+
+it('суточная сводка получает готовых к веб-пушу глобальных администраторов через узкий корень', async () => {
+  fakes.runWebappNamedRoot.mockResolvedValue({
+    rows: [{ recipients: [{ userId: 'global-admin', organizationId: null }] }],
+  });
+
   await expect(
-    createPgStaffUsersPort().listActiveStaffOrganizationRecipients?.(),
-  ).resolves.toEqual([]);
+    createPgGlobalAdminWebPushRecipientsPort().listEligibleGlobalAdminUserIds(),
+  ).resolves.toEqual(['global-admin']);
+  expect(fakes.runWebappNamedRoot.mock.calls[0]?.slice(1, 3)).toEqual([
+    'app.list_operator_web_push_recipients(text)',
+    ['global_admin'],
+  ]);
+  expect(fakes.drizzle.select).not.toHaveBeenCalled();
+});
+
+it('успех и ошибка фоновой задачи проходят через один рабочий контекст записи статуса', async () => {
+  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+  const values = vi.fn(() => ({ onConflictDoUpdate }));
+  const insert = vi.fn(() => ({ values }));
+  fakes.drizzle.transaction.mockImplementation(async (run) => run({ insert }));
+
+  await pgOperatorHealthWritePort.recordOperatorJobTickSuccess({
+    jobFamily: 'health',
+    jobKey: 'health.test',
+    startedAtIso: '2026-08-28T00:00:00.000Z',
+    durationMs: 1,
+    metaJson: {},
+  });
+  await pgOperatorHealthWritePort.recordOperatorJobTickFailure({
+    jobFamily: 'health',
+    jobKey: 'health.test',
+    startedAtIso: '2026-08-28T00:00:00.000Z',
+    durationMs: 2,
+    error: 'probe failed',
+    metaJson: {},
+  });
+
+  expect(fakes.runWithDbInfraPrincipal).toHaveBeenCalledTimes(2);
+  expect(fakes.runWithDbInfraPrincipal).toHaveBeenNthCalledWith(
+    1,
+    { source: 'operator-cron-job-status:write' },
+    expect.any(Function),
+  );
+  expect(fakes.runWithDbInfraPrincipal).toHaveBeenNthCalledWith(
+    2,
+    { source: 'operator-cron-job-status:write' },
+    expect.any(Function),
+  );
+  expect(insert).toHaveBeenCalledTimes(2);
 });
 
 it('тик продления видит подписку, у которой кончился оплаченный период', async () => {
