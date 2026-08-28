@@ -9,18 +9,33 @@ set -uo pipefail
 
 RELEASE_ROOT=/opt/bersoncarebot
 JOURNAL_MAX="${BCB_JOURNAL_MAX:-2G}"
+JOURNALD_ONLY=false
 
 log() { echo "[audit] $*"; }
 die() { echo "[audit] FATAL: $*" >&2; exit 1; }
+
+[ "$#" -le 1 ] || die "usage: $0 [--journald-only]"
+case "${1:-}" in
+  '') ;;
+  --journald-only) JOURNALD_ONLY=true ;;
+  *) die "usage: $0 [--journald-only]" ;;
+esac
+
+[[ "$JOURNAL_MAX" =~ ^[1-9][0-9]*([KMGTPE])?$ ]] || \
+  die "BCB_JOURNAL_MAX must be a positive integer with an optional K/M/G/T/P/E suffix"
+
 [ "$(id -u)" = 0 ] || die "must run as root"
 export DEBIAN_FRONTEND=noninteractive
 
-command -v auditctl >/dev/null || { apt-get update -qq; apt-get install -y -qq --no-install-recommends auditd audispd-plugins; }
-command -v aide >/dev/null || apt-get install -y -qq --no-install-recommends aide aide-common
+if ! $JOURNALD_ONLY; then
+  command -v auditctl >/dev/null || { apt-get update -qq; apt-get install -y -qq --no-install-recommends auditd audispd-plugins; }
+  command -v aide >/dev/null || apt-get install -y -qq --no-install-recommends aide aide-common
+fi
 
 # ---------------------------------------------------------------- auditd
 # Rules are deliberately few. An audit log nobody can read is the same as no audit log, and every extra
 # rule costs disk on a volume that also holds the database.
+if ! $JOURNALD_ONLY; then
 cat > /etc/audit/rules.d/10-bcb.rules <<EOF
 # Managed by deploy/host/setup-audit-and-integrity.sh
 -D
@@ -59,10 +74,12 @@ EOF
 
 augenrules --load >/dev/null 2>&1 || auditctl -R /etc/audit/rules.d/10-bcb.rules >/dev/null 2>&1
 systemctl enable --now auditd >/dev/null 2>&1 || true
+fi
 
 # ---------------------------------------------------------------- journald bounds
 install -d -m 0755 /etc/systemd/journald.conf.d
-cat > /etc/systemd/journald.conf.d/10-bcb.conf <<EOF
+rm -f /etc/systemd/journald.conf.d/10-bcb.conf
+cat > /etc/systemd/journald.conf.d/zz-bcb.conf <<EOF
 [Journal]
 Storage=persistent
 # Bounded on purpose: logs share the encrypted volume with the database, and an unbounded journal turns a
@@ -72,9 +89,10 @@ SystemKeepFree=1G
 MaxRetentionSec=90day
 ForwardToSyslog=no
 EOF
-systemctl restart systemd-journald >/dev/null 2>&1 || true
+systemctl restart systemd-journald >/dev/null 2>&1 || die "systemd-journald restart failed"
 
 # ---------------------------------------------------------------- AIDE
+if ! $JOURNALD_ONLY; then
 cat > /etc/aide/aide.conf.d/99-bcb <<EOF
 # Managed by deploy/host/setup-audit-and-integrity.sh
 !/var/log/.*
@@ -96,34 +114,67 @@ if [ ! -s /var/lib/aide/aide.db ]; then
   [ -s /var/lib/aide/aide.db.new ] && mv /var/lib/aide/aide.db.new /var/lib/aide/aide.db
 fi
 chmod 0600 /var/lib/aide/aide.db 2>/dev/null || true
+fi
 
 # ---------------------------------------------------------------- verify
 log "verifying"
 set +o pipefail   # grep -q plus pipefail turns a successful match into a failure
 vfail=0
 vcheck() { if eval "$2"; then echo "  ok   $1"; else echo "  FAIL $1"; vfail=1; fi; }
+journal_effective() {
+  local key="$1"
+  systemd-analyze cat-config systemd/journald.conf 2>/dev/null | awk -v wanted="$key" '
+    /^\[[^]]+\][[:space:]]*$/ {
+      section = $0
+      gsub(/[[:space:]]/, "", section)
+      next
+    }
+    section == "[Journal]" && $0 !~ /^[[:space:]]*[#;]/ {
+      line = $0
+      sub(/[[:space:]]*[#;].*$/, "", line)
+      split(line, pair, "=")
+      key = pair[1]
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      if (key == wanted) {
+        sub(/^[^=]*=/, "", line)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+        value = line
+      }
+    }
+    END { print value }
+  '
+}
 
-vcheck "auditd running"               'systemctl is-active auditd'
-vcheck "auditd enabled at boot"       'systemctl is-enabled auditd'
+if ! $JOURNALD_ONLY; then
+  vcheck "auditd running"               'systemctl is-active auditd'
+  vcheck "auditd enabled at boot"       'systemctl is-enabled auditd'
+fi
 # Asked of the running kernel, not of the rules file: a rule that failed to load is exactly the case worth
 # catching, and the file on disk says nothing about that.
 # auditctl prints file watches as "-w /path -p wa -k name" but syscall rules as "... key=name". Matching
 # only the second form reports missing rules that are in fact loaded — the tag is accepted in either shape.
 akey() { auditctl -l | grep -qE -- "-k $1( |$)|key=$1( |$)"; }
-vcheck "identity rules loaded"        'akey identity'
-vcheck "secrets rule loaded"          'akey secrets'
-vcheck "privilege rules loaded"       'akey privilege'
-vcheck "time-change rule loaded"      'akey time_change'
-vcheck "sshd config watched"          'akey sshd_config'
-vcheck "unit directory watched"       'akey units'
-vcheck "firewall config watched"      'akey firewall'
-vcheck "root command execution logged" 'akey root_cmd'
-vcheck "audit log is not world-readable" '[ "$(stat -c %a /var/log/audit/audit.log)" -le 640 ]'
+if ! $JOURNALD_ONLY; then
+  vcheck "identity rules loaded"        'akey identity'
+  vcheck "secrets rule loaded"          'akey secrets'
+  vcheck "privilege rules loaded"       'akey privilege'
+  vcheck "time-change rule loaded"      'akey time_change'
+  vcheck "sshd config watched"          'akey sshd_config'
+  vcheck "unit directory watched"       'akey units'
+  vcheck "firewall config watched"      'akey firewall'
+  vcheck "root command execution logged" 'akey root_cmd'
+  vcheck "audit log is not world-readable" '[ "$(stat -c %a /var/log/audit/audit.log)" -le 640 ]'
+fi
 vcheck "journal storage is persistent" 'journalctl --header 2>/dev/null | grep -q "File path: /var/log/journal"'
-vcheck "journal size is bounded"      'grep -q "SystemMaxUse=" /etc/systemd/journald.conf.d/10-bcb.conf'
-vcheck "aide database exists"         '[ -s /var/lib/aide/aide.db ]'
-vcheck "aide database is 0600"        '[ "$(stat -c %a /var/lib/aide/aide.db)" = 600 ]'
-vcheck "aide daily check scheduled"   'systemctl list-timers --all | grep -q dailyaidecheck || [ -x /etc/cron.daily/aide ]'
+vcheck "journal size is bounded"      '[ "$(journal_effective SystemMaxUse)" = "$JOURNAL_MAX" ]'
+vcheck "journal free space is reserved" '[ "$(journal_effective SystemKeepFree)" = 1G ]'
+vcheck "journal retention is bounded" '[ "$(journal_effective MaxRetentionSec)" = 90day ]'
+vcheck "journal does not forward twice" '[ "$(journal_effective ForwardToSyslog)" = no ]'
+if ! $JOURNALD_ONLY; then
+  vcheck "aide database exists"         '[ -s /var/lib/aide/aide.db ]'
+  vcheck "aide database is 0600"        '[ "$(stat -c %a /var/lib/aide/aide.db)" = 600 ]'
+  vcheck "aide daily check scheduled"   'systemctl list-timers --all | grep -q dailyaidecheck || [ -x /etc/cron.daily/aide ]'
+fi
 
 [ "$vfail" = 0 ] || die "audit and integrity setup incomplete"
 log "DONE"
