@@ -3097,7 +3097,6 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.create_current_patient_booking_pending(text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_booking_pending(text)', 'public.patient_bookings', ARRAY['id', 'organization_id', 'platform_user_id', 'booking_type', 'city', 'category', 'slot_start', 'slot_end', 'status', 'canonical_appointment_id', 'contact_phone', 'contact_email', 'contact_name', 'branch_id', 'service_id', 'branch_service_id', 'city_code_snapshot', 'branch_title_snapshot', 'service_title_snapshot', 'duration_minutes_snapshot', 'price_minor_snapshot', 'cancelled_at', 'created_at', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.create_current_patient_reminder_rule(text,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
-  ('app.create_current_patient_reminder_rule(text,text)', 'public.platform_users', ARRAY['id', 'role', 'merged_into_id']::text[], ARRAY['SELECT']::text[]),
   ('app.create_current_patient_reminder_rule(text,text)', 'public.reminder_rules', ARRAY['id', 'organization_id', 'integrator_rule_id', 'platform_user_id', 'category', 'is_enabled', 'schedule_type', 'timezone', 'interval_minutes', 'window_start_minute', 'window_end_minute', 'days_mask', 'content_mode', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'schedule_data', 'display_title', 'display_description', 'quiet_hours_start_minute', 'quiet_hours_end_minute', 'notification_topic_code']::text[], ARRAY['SELECT', 'INSERT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.create_patient_program_submission_media(uuid,text,text,text,bigint)', 'public.media_folders', ARRAY['id', 'organization_id', 'parent_id', 'name', 'kind', 'patient_user_id']::text[], ARRAY['SELECT', 'INSERT']::text[]),
@@ -3344,15 +3343,8 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.patient_done_reminder_occurrence(uuid,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_done_reminder_occurrence(uuid,text)', 'public.system_settings', ARRAY['key', 'scope', 'organization_id', 'value_json']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.reminder_occurrence_history', ARRAY['integrator_occurrence_id', 'integrator_rule_id', 'planned_at', 'organization_id', 'platform_user_id', 'delivery_generation']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.outgoing_delivery_queue', ARRAY['id', 'event_id', 'kind', 'payload_json', 'created_at', 'updated_at', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.platform_users', ARRAY['id', 'created_at', 'updated_at', 'reminder_muted_until']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.reminder_rules', ARRAY['id', 'integrator_rule_id', 'platform_user_id', 'is_enabled', 'updated_at', 'created_at', 'linked_object_type', 'linked_object_id', 'custom_title', 'custom_text', 'reminder_intent', 'display_title', 'notification_topic_code', 'organization_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.system_settings', ARRAY['key', 'scope', 'value_json', 'updated_at', 'organization_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.user_channel_bindings', ARRAY['user_id', 'channel_code', 'external_id', 'created_at', 'bot_blocked_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.user_channel_preferences', ARRAY['id', 'user_id', 'channel_code', 'is_enabled_for_notifications', 'created_at', 'updated_at', 'platform_user_id']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.user_notification_topic_channels', ARRAY['user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.user_notification_topics', ARRAY['user_id', 'topic_code', 'is_enabled', 'updated_at']::text[], ARRAY['SELECT']::text[]),
-  ('app.patient_reminder_materialization_fingerprint(text,text)', 'public.user_web_push_subscriptions', ARRAY['id', 'user_id', 'endpoint', 'p256dh', 'auth', 'created_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_reminder_notification_settings(uuid,text,text)', 'public.user_notification_topic_channels', ARRAY['user_id', 'topic_code', 'channel_code', 'is_enabled', 'updated_at']::text[], ARRAY['SELECT', 'INSERT', 'UPDATE']::text[]),
   ('app.patient_reminder_notification_settings(uuid,text,text)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
   ('app.patient_set_reminder_mute(uuid,integer,boolean)', 'public.org_enrollments', ARRAY['organization_id', 'platform_user_id', 'status']::text[], ARRAY['SELECT']::text[]),
@@ -3463,6 +3455,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_curated_system_health()', 'public.media_playback_client_events', ARRAY['media_id', 'event_class', 'delivery', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_curated_system_health()', 'public.notification_delivery_attempts', ARRAY['created_at', 'channel', 'status', 'reason', 'provider_status_code', 'error_message']::text[], ARRAY['SELECT']::text[]),
   ('app.read_curated_system_health()', 'public.outgoing_delivery_queue', ARRAY['kind', 'channel', 'status', 'sent_at', 'created_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_curated_system_health()', 'public.operator_job_status', ARRAY['job_key', 'job_family', 'last_status', 'last_finished_at', 'last_success_at', 'last_failure_at', 'last_duration_ms']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_org_tariff_transition_usage()', 'public.be_branches', ARRAY['organization_id', 'is_active']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_active_organizations()', 'public.be_organizations', ARRAY['id', 'title', 'is_active', 'created_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_current_patient_active_organizations()', 'public.org_enrollments', ARRAY['id', 'organization_id', 'platform_user_id', 'status', 'created_at']::text[], ARRAY['SELECT']::text[]),
@@ -4028,7 +4021,7 @@ BEGIN
   END LOOP;
   SELECT pg_catalog.string_agg(message, E'\n' ORDER BY message) INTO gap_list FROM bcb_function_surface_gaps;
   IF gap_list IS NOT NULL THEN RAISE EXCEPTION 'function body surface gaps (%):\n%', (SELECT count(*) FROM bcb_function_surface_gaps), gap_list; END IF;
-  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=419 rows=978 special_contracts=8 trigger_sources=1';
+  RAISE NOTICE 'BCB_FUNCTION_BODY_SURFACES_VERIFIED functions=419 rows=971 special_contracts=8 trigger_sources=1';
 END
 $bcb$;
 
@@ -8046,7 +8039,7 @@ INSERT INTO bcb_expected_functions(signature,owner_name,result_type,returns_set,
     ('app.integrator_event_idempotency_store(text,text,integer,text,integer)', 'app_seam_delivery_scope_owner'::name, 'boolean', false, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_pre_session']::name[]),
     ('app.integrator_increment_broadcast_audit_counter(uuid,uuid,text)', 'app_seam_delivery_scope_owner'::name, 'void', false, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request']::name[]),
     ('app.integrator_read_channel_binding_identity(text,text,text)', 'app_seam_identity_lookup_owner'::name, 'record', true, true, 's'::"char", 'r'::"char", ARRAY['search_path=pg_catalog, app, public, pg_temp']::text[], ARRAY['app_integrator_request']::name[]),
-    ('app.integrator_read_platform_user_delivery_identity(text)', 'app_seam_identity_lookup_owner'::name, 'record', true, true, 's'::"char", 'r'::"char", ARRAY['search_path=pg_catalog, app, public, pg_temp']::text[], ARRAY['app_integrator_request']::name[]),
+    ('app.integrator_read_platform_user_delivery_identity(text)', 'app_seam_identity_lookup_owner'::name, 'text', true, true, 's'::"char", 'r'::"char", ARRAY['search_path=pg_catalog, app, public, pg_temp']::text[], ARRAY['app_integrator_request']::name[]),
     ('app.integrator_record_notification_delivery_attempt(uuid,text,text,text,text,text,text,integer,text,text,text,text,text)', 'app_seam_delivery_scope_owner'::name, 'void', false, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request']::name[]),
     ('app.integrator_set_user_channel_bot_blocked(uuid,uuid,text,text,boolean,text)', 'app_seam_delivery_scope_owner'::name, 'void', false, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request']::name[]),
     ('app.integrator_upsert_channel_identity(text,text,text)', 'app_seam_identity_lookup_owner'::name, 'record', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog, app, public, pg_temp']::text[], ARRAY['app_integrator_resolver']::name[]),
@@ -8114,9 +8107,9 @@ INSERT INTO bcb_expected_functions(signature,owner_name,result_type,returns_set,
     ('app.patient_done_reminder_occurrence(uuid,text)', 'app_seam_reminder_patient_owner'::name, 'record', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
     ('app.patient_reminder_materialization_fingerprint(text,text)', 'app_seam_reminder_materialization_owner'::name, 'text', false, true, 's'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY[]::name[]),
     ('app.patient_reminder_notification_settings(uuid,text,text)', 'app_seam_reminder_patient_owner'::name, 'record', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
-    ('app.patient_set_reminder_mute(uuid,integer,boolean)', 'app_seam_reminder_patient_owner'::name, 'record', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
-    ('app.patient_skip_reminder_occurrence(uuid,text,text)', 'app_seam_reminder_patient_owner'::name, 'record', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
-    ('app.patient_snooze_reminder_occurrence(uuid,text,integer)', 'app_seam_reminder_patient_owner'::name, 'record', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
+    ('app.patient_set_reminder_mute(uuid,integer,boolean)', 'app_seam_reminder_patient_owner'::name, 'timestamp with time zone', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
+    ('app.patient_skip_reminder_occurrence(uuid,text,text)', 'app_seam_reminder_patient_owner'::name, 'timestamp with time zone', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
+    ('app.patient_snooze_reminder_occurrence(uuid,text,integer)', 'app_seam_reminder_patient_owner'::name, 'timestamp with time zone', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_integrator_request', 'app_patient']::name[]),
     ('app.phone_auth_find_latest_challenge_created_at(text)', 'app_seam_phone_otp_owner'::name, 'timestamp with time zone', true, true, 's'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_pre_session']::name[]),
     ('app.phone_auth_find_otp_lock(text)', 'app_seam_phone_otp_owner'::name, 'bigint', true, true, 's'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_pre_session']::name[]),
     ('app.phone_auth_register_otp_lockout(text,bigint)', 'app_seam_phone_otp_owner'::name, 'bigint', true, true, 'v'::"char", 'u'::"char", ARRAY['search_path=pg_catalog']::text[], ARRAY['app_pre_session']::name[]),
@@ -15037,6 +15030,7 @@ GRANT SELECT ON TABLE "public"."operator_job_status" TO "app_worker";
 GRANT INSERT ("job_family", "job_key", "last_duration_ms", "last_error", "last_failure_at", "last_finished_at", "last_started_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "app_worker";
 GRANT UPDATE ("job_family", "last_duration_ms", "last_error", "last_failure_at", "last_finished_at", "last_started_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "app_worker";
 GRANT SELECT ("job_family", "job_key", "last_duration_ms", "last_failure_at", "last_finished_at", "last_status", "last_success_at", "meta_json") ON TABLE "public"."operator_job_status" TO "saas_system_health_owner";
+GRANT SELECT ("job_family", "job_key", "last_duration_ms", "last_failure_at", "last_finished_at", "last_status", "last_success_at") ON TABLE "public"."operator_job_status" TO "saas_system_health_owner";
 -- последовательности public.operator_job_status: exact revoke; INSERT/UPDATE ⇒ USAGE,SELECT на её последовательностях
 DO $bcb$
 DECLARE s regclass;
@@ -15336,7 +15330,6 @@ GRANT UPDATE ("attempt_count", "channel", "dead_at", "id", "kind", "last_error",
 GRANT UPDATE ("channel", "dead_at", "id", "kind", "last_error", "organization_id", "payload_json", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_appointment_owner";
 GRANT SELECT ("attempt_count", "channel", "created_at", "dead_at", "event_id", "kind", "last_error", "max_attempts", "next_retry_at", "organization_id", "payload_json", "priority", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel", "event_id", "id", "kind", "organization_id", "payload_json", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_materialization_owner";
-GRANT SELECT ("created_at", "event_id", "id", "kind", "organization_id", "payload_json", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("attempt_count", "channel", "dead_at", "event_id", "failure_class", "kind", "last_error", "max_attempts", "next_retry_at", "organization_id", "payload_json", "priority", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel", "event_id", "id", "kind", "organization_id", "payload_json", "status") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_materialization_owner";
 GRANT INSERT ("attempt_count", "channel", "created_at", "dead_at", "event_id", "kind", "last_error", "max_attempts", "next_retry_at", "organization_id", "payload_json", "priority", "status", "updated_at") ON TABLE "public"."outgoing_delivery_queue" TO "app_seam_reminder_materialization_owner";
@@ -18380,7 +18373,6 @@ GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_payment_webhook_owner";
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_public_booking_owner";
-GRANT SELECT ("key", "organization_id", "scope", "updated_at", "value_json") ON TABLE "public"."system_settings" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("key", "organization_id", "scope", "value_json") ON TABLE "public"."system_settings" TO "app_seam_reminder_patient_owner";
 GRANT SELECT ("key", "organization_id", "scope", "updated_at", "value_json") ON TABLE "public"."system_settings" TO "app_seam_reminder_specialist_owner";
@@ -19104,7 +19096,6 @@ GRANT UPDATE ("created_at") ON TABLE "public"."user_channel_bindings" TO "app_se
 GRANT SELECT ("channel_code", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_platform_analytics_owner";
 GRANT SELECT ("bot_blocked_at", "channel_code", "created_at", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_platform_analytics_owner";
 GRANT SELECT ("bot_blocked_at", "channel_code", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_reminder_appointment_owner";
-GRANT SELECT ("bot_blocked_at", "channel_code", "created_at", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("bot_blocked_at", "channel_code", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel_code", "created_at", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_reminder_specialist_owner";
 GRANT SELECT ("bot_blocked_at", "bot_blocked_reason", "channel_code", "created_at", "external_id", "user_id") ON TABLE "public"."user_channel_bindings" TO "app_seam_reminder_specialist_owner";
@@ -19174,7 +19165,6 @@ GRANT SELECT ("channel_code", "created_at", "id", "is_enabled_for_messages", "is
 GRANT INSERT ("channel_code", "created_at", "id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("channel_code", "created_at", "id", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("channel_code", "id", "is_enabled_for_notifications", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_reminder_appointment_owner";
-GRANT SELECT ("channel_code", "created_at", "id", "is_enabled_for_notifications", "platform_user_id", "updated_at", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "platform_user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel_code", "id", "is_enabled_for_notifications", "platform_user_id", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel_code", "is_enabled_for_messages", "is_enabled_for_notifications", "is_preferred_for_auth", "platform_user_id", "user_id") ON TABLE "public"."user_channel_preferences" TO "app_seam_reminder_specialist_owner";
@@ -19398,7 +19388,6 @@ GRANT SELECT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id
 GRANT INSERT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_reminder_appointment_owner";
-GRANT SELECT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel_code", "is_enabled", "topic_code", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_reminder_patient_owner";
 GRANT INSERT ("channel_code", "is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topic_channels" TO "app_seam_reminder_patient_owner";
@@ -19464,7 +19453,6 @@ GRANT SELECT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "pub
 GRANT INSERT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_reminder_appointment_owner";
-GRANT SELECT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("is_enabled", "topic_code", "user_id") ON TABLE "public"."user_notification_topics" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT, DELETE ON TABLE "public"."user_notification_topics" TO "app_staff";
 GRANT INSERT ("is_enabled", "topic_code", "updated_at", "user_id") ON TABLE "public"."user_notification_topics" TO "app_staff";
@@ -19813,7 +19801,6 @@ GRANT SELECT ("auth", "created_at", "endpoint", "id", "p256dh", "updated_at", "u
 GRANT INSERT ("auth", "created_at", "endpoint", "id", "p256dh", "updated_at", "user_agent", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_patient_self_actions_owner";
 GRANT UPDATE ("auth", "created_at", "endpoint", "id", "p256dh", "updated_at", "user_agent", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_patient_self_actions_owner";
 GRANT SELECT ("id", "updated_at", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_reminder_appointment_owner";
-GRANT SELECT ("auth", "created_at", "endpoint", "id", "p256dh", "updated_at", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("id", "user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_reminder_materialization_owner";
 GRANT SELECT ("user_id") ON TABLE "public"."user_web_push_subscriptions" TO "app_seam_reminder_specialist_owner";

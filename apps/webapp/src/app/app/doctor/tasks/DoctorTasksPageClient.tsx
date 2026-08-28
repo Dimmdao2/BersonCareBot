@@ -99,6 +99,10 @@ export function DoctorTasksPageClient({
     setTaskView(nextView);
     setPane(null);
   };
+  const nextTaskView: TaskView =
+    taskView === 'open' ? 'completed' : taskView === 'completed' ? 'all' : 'open';
+  const nextTaskViewLabel =
+    nextTaskView === 'open' ? 'Открытые' : nextTaskView === 'completed' ? 'Выполненные' : 'Все';
 
   const taskFilters = (
     <div className="flex w-full min-w-0 items-center gap-1.5">
@@ -131,31 +135,18 @@ export function DoctorTasksPageClient({
       <div className="flex shrink-0 items-center gap-1" aria-label="Статус задач">
         <Button
           type="button"
-          variant={taskView === 'all' ? 'outline' : 'default'}
           size="icon-sm"
-          aria-label={
-            taskView === 'open' ? 'Показать выполненные задачи' : 'Показать открытые задачи'
-          }
-          title={taskView === 'open' ? 'Выполненные' : 'Открытые'}
-          aria-pressed={taskView !== 'all'}
-          onClick={() => selectTaskView(taskView === 'open' ? 'completed' : 'open')}
+          aria-label={`Показать: ${nextTaskViewLabel.toLocaleLowerCase('ru-RU')}`}
+          title={`Показать: ${nextTaskViewLabel.toLocaleLowerCase('ru-RU')}`}
+          onClick={() => selectTaskView(nextTaskView)}
         >
-          {taskView === 'completed' ? (
+          {taskView === 'open' ? (
+            <LayoutList className="size-4" aria-hidden />
+          ) : taskView === 'completed' ? (
             <ListChecks className="size-4" aria-hidden />
           ) : (
-            <LayoutList className="size-4" aria-hidden />
+            <ListTodo className="size-4" aria-hidden />
           )}
-        </Button>
-        <Button
-          type="button"
-          variant={taskView === 'all' ? 'default' : 'outline'}
-          size="icon-sm"
-          aria-label="Все задачи"
-          title="Все"
-          aria-pressed={taskView === 'all'}
-          onClick={() => selectTaskView('all')}
-        >
-          <ListTodo className="size-4" aria-hidden />
         </Button>
       </div>
     </div>

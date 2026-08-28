@@ -1005,7 +1005,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     why: 'idempotency ledger for staff-issued manual patient commands (invite, walk-in, …) — the '
       + 'fingerprint dedup key protects against double-executing one command',
     userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
-    orgPurge: { kind: 'organization_id' },
+    orgPurge: { kind: 'via-parent', parent: 'public.org_enrollments' },
     terminalStates: [],
     retention: {
       kind: 'keep-forever',

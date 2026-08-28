@@ -2328,9 +2328,6 @@ const PATIENT_REMINDER_CREATE_SURFACES = [
   ...PATIENT_REMINDER_CORE_SURFACES.filter(
     (surface) => surface.relation !== 'public.platform_users',
   ),
-  patientSurface('public.platform_users', [
-    'id', 'role', 'merged_into_id',
-  ], ['SELECT']),
 ] as const;
 
 const PATIENT_REMINDER_DELETE_SURFACES = [
@@ -2453,7 +2450,7 @@ const PATIENT_PROGRAM_CORE_SURFACES = [
 
 const PATIENT_ROOT_OPERATIONS = {
   create_current_patient_reminder_rule: {
-    'public.org_enrollments': ['SELECT'], 'public.platform_users': ['SELECT'],
+    'public.org_enrollments': ['SELECT'],
     'public.reminder_rules': ['SELECT', 'INSERT'],
   },
   update_current_patient_reminder_rule: { 'public.reminder_rules': ['SELECT', 'UPDATE'] },
@@ -5306,19 +5303,19 @@ const REV10_CONTEXT = {
         { relation: 'public.system_settings', columns: ['key', 'scope', 'organization_id', 'value_json'], operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     'app.patient_skip_reminder_occurrence(uuid,text,text)': rev10Function({
-      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'timestamp with time zone', returnsSet: true,
       execute: ['app_integrator_request', 'app_patient'], purpose: 'atomically authorize and skip one canonical reminder occurrence',
       typedArgs: ['uuid', 'text', 'text'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [REMINDER_CALLBACK_OCCURRENCE_SURFACE, PATIENT_ORG_ENROLLMENT_SURFACE],
     }),
     'app.patient_snooze_reminder_occurrence(uuid,text,integer)': rev10Function({
-      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'timestamp with time zone', returnsSet: true,
       execute: ['app_integrator_request', 'app_patient'], purpose: 'atomically authorize and snooze one canonical reminder occurrence',
       typedArgs: ['uuid', 'text', 'integer'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       relationSurfaces: [REMINDER_CALLBACK_OCCURRENCE_SURFACE, PATIENT_ORG_ENROLLMENT_SURFACE],
     }),
     'app.patient_set_reminder_mute(uuid,integer,boolean)': rev10Function({
-      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      owner: 'app_seam_reminder_patient_owner', security: 'DEFINER', returns: 'timestamp with time zone', returnsSet: true,
       execute: ['app_integrator_request', 'app_patient'], purpose: 'atomically authorize and update canonical reminder mute',
       typedArgs: ['uuid', 'integer', 'boolean'], volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
       // `UPDATE public.platform_users … WHERE id = v_actor`: предикат по `id` оплачивается
@@ -6772,7 +6769,7 @@ const REV10_CONTEXT = {
     // появилось `be_organization_members`: сотрудник клиники — такой же законный получатель, как её
     // клиент, и обе ветки предиката оплачиваются грантом владельца шва.
     'app.integrator_read_platform_user_delivery_identity(text)': rev10Function({
-      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'record', returnsSet: true,
+      owner: 'app_seam_identity_lookup_owner', security: 'DEFINER', returns: 'text', returnsSet: true,
       execute: ['app_integrator_request'], purpose: 'integrator.platform-user-delivery-identity.read',
       typedArgs: ['text'], volatility: 'STABLE', parallel: 'RESTRICTED',
       proconfig: ['search_path=pg_catalog, app, public, pg_temp'],

@@ -5527,22 +5527,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
         "evidence": "pg16-function-body-lexical-upper-bound"
       },
       {
-        "relation": "public.outgoing_delivery_queue",
-        "columns": [
-          "id",
-          "event_id",
-          "kind",
-          "payload_json",
-          "created_at",
-          "updated_at",
-          "organization_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
         "relation": "public.platform_users",
         "columns": [
           "id",
@@ -5572,93 +5556,6 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "display_title",
           "notification_topic_code",
           "organization_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.system_settings",
-        "columns": [
-          "key",
-          "scope",
-          "value_json",
-          "updated_at",
-          "organization_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_channel_bindings",
-        "columns": [
-          "user_id",
-          "channel_code",
-          "external_id",
-          "created_at",
-          "bot_blocked_at"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_channel_preferences",
-        "columns": [
-          "id",
-          "user_id",
-          "channel_code",
-          "is_enabled_for_notifications",
-          "created_at",
-          "updated_at",
-          "platform_user_id"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_notification_topic_channels",
-        "columns": [
-          "user_id",
-          "topic_code",
-          "channel_code",
-          "is_enabled",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_notification_topics",
-        "columns": [
-          "user_id",
-          "topic_code",
-          "is_enabled",
-          "updated_at"
-        ],
-        "operations": [
-          "SELECT"
-        ],
-        "evidence": "pg16-function-body-lexical-upper-bound"
-      },
-      {
-        "relation": "public.user_web_push_subscriptions",
-        "columns": [
-          "id",
-          "user_id",
-          "endpoint",
-          "p256dh",
-          "auth",
-          "created_at",
-          "updated_at"
         ],
         "operations": [
           "SELECT"
@@ -6892,6 +6789,22 @@ export const BUSINESS_SEAM_FUNCTIONS: Record<string, DeclaredFunction> = {
           "status",
           "sent_at",
           "created_at"
+        ],
+        "operations": [
+          "SELECT"
+        ],
+        "evidence": "pg16-function-body-lexical-upper-bound"
+      },
+      {
+        "relation": "public.operator_job_status",
+        "columns": [
+          "job_key",
+          "job_family",
+          "last_status",
+          "last_finished_at",
+          "last_success_at",
+          "last_failure_at",
+          "last_duration_ms"
         ],
         "operations": [
           "SELECT"

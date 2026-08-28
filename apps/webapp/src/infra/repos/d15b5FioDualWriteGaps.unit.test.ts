@@ -90,7 +90,7 @@ describe('D15b/5 MF-1 — pgUserByPhone locked-binding dual-write', () => {
     withPoolTransactionMock.mockImplementation(async (_pool, fn) => fn(fakeClient));
     resolveCanonicalUserIdMock.mockResolvedValue(LOCKED_USER_ID);
     runIdentityClientPgTextMock
-      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ user_id: LOCKED_USER_ID }] })
       .mockResolvedValueOnce({ rows: [{ user_id: LOCKED_USER_ID }] })
       .mockResolvedValueOnce({ rows: [] });
     runIdentityPoolPgTextMock

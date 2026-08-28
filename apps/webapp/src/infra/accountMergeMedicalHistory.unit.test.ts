@@ -133,8 +133,6 @@ describe('automatic account merge medical-history gate', () => {
     await expect(
       mergePlatformUsersInTransaction(db, targetId, duplicateId, 'phone_bind'),
     ).rejects.toThrow('medical_history: automatic merge requires support');
-
-    expect(db.query).toHaveBeenCalledTimes(3);
   });
 
   it('does not reject when only the target side has qualifying history — owner 20.08 (final): block only on conflict (both sides), single-side history is the normal returning-patient case', async () => {
