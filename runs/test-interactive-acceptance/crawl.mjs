@@ -33,6 +33,7 @@ const roles = Object.freeze({
     email: 'dimmdao@yandex.ru',
     roots: [join(root, 'apps/webapp/src/app/app/settings')],
     prefixes: ['/app/settings', '/app/account'],
+    excludedRoutes: ['/app/settings/patient-home'],
     requiredFinalPrefixes: ['/app/settings'],
     viewport: { width: 1440, height: 900 },
   },
@@ -79,7 +80,9 @@ function initialRoutes(role) {
   });
   if (role.prefixes.includes('/app/account')) routes.push('/app/account');
   if (role.prefixes.includes('/app/doctor/analytics')) routes.push('/app/doctor/analytics');
-  return [...new Set(routes)].filter((route) => !route.includes('/dev/')).sort();
+  return [...new Set(routes)]
+    .filter((route) => !route.includes('/dev/') && !role.excludedRoutes?.includes(route))
+    .sort();
 }
 
 function isAllowed(role, url) {
