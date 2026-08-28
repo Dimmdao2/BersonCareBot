@@ -107,6 +107,7 @@ export function DoctorHeader({
           </div>
 
           <div className="flex shrink-0 items-center">
+            {shellChrome?.mobileActions}
             <Button
               type="button"
               id="doctor-menu-toggle"

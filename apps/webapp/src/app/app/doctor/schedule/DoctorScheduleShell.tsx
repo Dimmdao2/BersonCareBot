@@ -1,7 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { CalendarClock, CalendarCog, CalendarDays } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import type { DoctorScheduleScopeBootstrap } from '@/modules/doctor-schedule/scope';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
@@ -81,6 +82,42 @@ function ScheduleTabsNav({ activeTab, canManageOrganization, onTabClick }: Sched
             data-testid={`tab-btn-${tab.id}`}
           >
             {tab.label}
+          </Button>
+        );
+      })}
+    </div>
+  );
+}
+
+function MobileScheduleTabsNav({
+  activeTab,
+  canManageOrganization,
+  onTabClick,
+}: ScheduleTabsNavProps) {
+  const icons = {
+    cal: CalendarDays,
+    work: CalendarClock,
+    setup: CalendarCog,
+  } satisfies Record<ScheduleTabId, ComponentType<{ className?: string; 'aria-hidden'?: boolean }>>;
+
+  return (
+    <div className="flex items-center gap-0.5" aria-label="Разделы расписания">
+      {SCHEDULE_TABS.filter((tab) => tab.id !== 'setup' || canManageOrganization).map((tab) => {
+        const Icon = icons[tab.id];
+        const active = tab.id === activeTab;
+        return (
+          <Button
+            key={tab.id}
+            type="button"
+            variant={active ? 'default' : 'ghost'}
+            size="icon"
+            className="size-10 shrink-0"
+            aria-label={tab.label}
+            aria-current={active ? 'page' : undefined}
+            title={tab.label}
+            onClick={() => onTabClick(tab.id)}
+          >
+            <Icon className="size-[20px]" aria-hidden />
           </Button>
         );
       })}
@@ -244,12 +281,27 @@ export function DoctorScheduleShell({
     [buildTabUrl],
   );
 
+  const mobileHeaderActions = useMemo(
+    () => (
+      <MobileScheduleTabsNav
+        activeTab={activeTab}
+        canManageOrganization={canManageOrganization}
+        onTabClick={handleTabChange}
+      />
+    ),
+    [activeTab, canManageOrganization, handleTabChange],
+  );
+
   return (
-    <DoctorAppShell title="Расписание" layout="full-height">
+    <DoctorAppShell
+      title="Расписание"
+      layout="full-height"
+      mobileHeaderActions={mobileHeaderActions}
+    >
       <DoctorPageHeader
         id="doctor-schedule-header"
         title="Расписание"
-        showTabsOnMobile
+        className="hidden md:flex"
         tabs={
           <ScheduleTabsNav
             activeTab={activeTab}

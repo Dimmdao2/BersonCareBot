@@ -15,6 +15,7 @@ type DoctorShellChrome = {
   title: string;
   backHref?: string;
   backLabel?: string;
+  mobileActions?: ReactNode;
 };
 
 type Registration = DoctorShellChrome & { token: symbol };
@@ -40,14 +41,19 @@ export function DoctorShellChromeProvider({ children }: { children: ReactNode })
   );
 }
 
-export function DoctorShellChromeRegistration({ title, backHref, backLabel }: DoctorShellChrome) {
+export function DoctorShellChromeRegistration({
+  title,
+  backHref,
+  backLabel,
+  mobileActions,
+}: DoctorShellChrome) {
   const context = useContext(DoctorShellChromeContext);
   const register = context?.register;
   const tokenRef = useRef(Symbol('doctor-shell-chrome'));
   useEffect(() => {
     if (!register) return;
-    return register({ title, backHref, backLabel }, tokenRef.current);
-  }, [backHref, backLabel, register, title]);
+    return register({ title, backHref, backLabel, mobileActions }, tokenRef.current);
+  }, [backHref, backLabel, mobileActions, register, title]);
   return null;
 }
 
