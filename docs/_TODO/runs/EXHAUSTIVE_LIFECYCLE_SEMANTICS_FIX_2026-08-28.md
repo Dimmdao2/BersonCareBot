@@ -102,10 +102,11 @@ ERROR:  organization slug aliases are immutable outside same-organization reclai
 чистит её; 30-дневное окно применяет `app.prune_operator_health_failure_archive`, которую и вызывает
 планировщик через `pruneArchivedOlderThanDays`.
 
-Тем же гейтом найден НОВЫЙ экземпляр того же класса: `media_playback_resolution_events` и
-`media_playback_client_events` объявляли 30-дневные окна, указывающие на ветки модуля, которых никто не
-реализует, — удаления этих таблиц нет нигде в репозитории. Срок не выдуман: записан открытый вопрос
-`OQ-PLAYBACK-EVENT-STORES-WINDOW`.
+Тем же гейтом найден ещё один экземпляр того же класса: `media_playback_resolution_events` и
+`media_playback_client_events` объявляли окна, указывающие на несуществующие ветки. Владелец закрыл
+вопрос: агрегаты и HLS-ошибки хранятся 90 дней, сырые события playback и клиентские ошибки —
+400 дней. Существующая еженедельная уборка `media.playback_stats.retention` теперь удаляет все три класса в
+одной транзакции, пишет раздельные счётчики и не трогает пожизненный dedup «видел ли когда-либо».
 
 ### 6. Rollback-only доказательство
 

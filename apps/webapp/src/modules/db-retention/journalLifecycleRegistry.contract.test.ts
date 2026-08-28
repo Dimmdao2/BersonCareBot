@@ -341,10 +341,6 @@ it('does not let an open owner question hide as a silent gap', () => {
       'OQ-TERMINAL-UPLOAD-SESSION-WINDOW',
       'OQ-WEBHOOK-ERROR-EVENTS-WINDOW',
       'OQ-SAAS-ISOLATION-EVENTS-WINDOW',
-      // Surfaced by the replacement prune-root gate on 2026-08-28: both playback event stores
-      // declared a 30-day window swept by a job branch that does not exist, so nothing has ever
-      // deleted a row. Recorded, not invented.
-      'OQ-PLAYBACK-EVENT-STORES-WINDOW',
     ]),
   );
 });

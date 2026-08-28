@@ -25,7 +25,10 @@ import {
   isCancelledAppointmentStatus,
 } from '@/modules/booking-calendar/appointmentStatusLabels';
 import type FullCalendar from '@fullcalendar/react';
-import type { CalendarOptions as FullCalendarOptions } from '@fullcalendar/core';
+import type {
+  CalendarOptions as FullCalendarOptions,
+  EventInput,
+} from '@fullcalendar/core';
 import type {
   CalendarAppointmentEvent,
   CalendarEvent,
@@ -1772,7 +1775,7 @@ export function ScheduleCalendarTab({
     ],
   );
 
-  const calendarEvents = useMemo(() => {
+  const calendarEvents = useMemo<EventInput[]>(() => {
     if (!data) return [];
     const isTimeGrid = view !== 'month';
     // §3.14: paint the whole non-working span (pre-shift + post-shift + breaks)
@@ -1889,7 +1892,7 @@ export function ScheduleCalendarTab({
           },
         ]
       : [];
-    return [...grayFill, ...mapped, ...draft] as FullCalendarOptions['events'];
+    return [...grayFill, ...mapped, ...draft];
   }, [
     data,
     displayableCalendarEvents,

@@ -646,13 +646,11 @@ Census: **221 объявленная таблица = 57 реестр + 164 ст
 Существующий красный ВНЕ скоупа, не вызванный этой работой: `passwordAuth.route.test.ts:312` (403 вместо 200),
 воспроизводится на нетронутой ветке через `git stash`.
 
-**Новые вопросы владельцу, поведение НЕ менялось:**
+**Решения владельца по playback-retention исполнены:**
 
-- `OQ-PLAYBACK-EVENT-STORES-WINDOW`: `media_playback_resolution_events` и `media_playback_client_events`
-  объявляли 30-дневное окно, для которого в репозитории нет ни одного удаления. Срок не выдуман.
-- Реестр против константы модуля: `media_playback_stats_hourly` 400 против
-  `PLAYBACK_HOURLY_STATS_RETENTION_DAYS = 90`; `media_hls_proxy_error_events` 30 против 90. Это политика
-  хранения, а не дефект кода.
+- `media_playback_stats_hourly` и `media_hls_proxy_error_events` хранятся 90 дней.
+- `media_playback_resolution_events` и `media_playback_client_events` хранятся 400 дней.
+- Один уже существовавший тик `media.playback_stats.retention` чистит все три свои ветки; отдельная фоновая задача не создана.
 - **24 FK отказывают в `DELETE FROM be_organizations` ВНЕ четырёх названных брифом классов** (каталог клиники
   `be_clinic_services`/`reference_items`/`tests`/`lfk_exercises`, пациентские назначения, цепочка
   `saas_billing_*`, `media_folders`). Починить их — значит решить за владельца судьбу каталога клиники и

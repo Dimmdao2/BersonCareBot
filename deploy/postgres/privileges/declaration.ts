@@ -7744,7 +7744,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
   'public.media_playback_stats_hourly': {
     kind: 'direct',
     purpose: 'the accepted media housekeeping worker deletes expired aggregate playback telemetry',
-    codePaths: ['apps/webapp/src/app-layer/media/playbackStats.ts'],
+    codePaths: ['apps/webapp/src/app-layer/media/playbackHourlyRetention.ts'],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
+  },
+  'public.media_playback_resolution_events': {
+    kind: 'direct',
+    purpose: 'the accepted maintenance worker deletes expired raw playback resolution telemetry',
+    codePaths: ['apps/webapp/src/app-layer/media/playbackHourlyRetention.ts'],
     grants: [
       { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
     ],
@@ -7765,9 +7773,15 @@ const REV10_SYSTEM_DIRECT_ACCESS: Record<string, DirectAccessSeed> = {
     grants: [{ role: 'app_patient', operations: ['SELECT'], columns: 'table' }],
   },
   'public.media_playback_client_events': {
-    kind: 'direct', purpose: 'patient appends playback failures only through the exact visibility-checked root',
-    codePaths: ['apps/webapp/src/app-layer/media/playbackClientEvents.ts#recordPlaybackClientEvent'],
-    grants: [],
+    kind: 'direct',
+    purpose: 'patient appends visible playback failures through the exact root; maintenance deletes expired telemetry',
+    codePaths: [
+      'apps/webapp/src/app-layer/media/playbackClientEvents.ts#recordPlaybackClientEvent',
+      'apps/webapp/src/app-layer/media/playbackHourlyRetention.ts',
+    ],
+    grants: [
+      { role: 'app_operational_maintenance', operations: ['SELECT', 'DELETE'], columns: 'table' },
+    ],
   },
   'public.media_playback_user_video_first_resolve': {
     kind: 'direct', purpose: 'patient reads its own marker and records it only through the exact visibility-checked root',
@@ -8494,11 +8508,24 @@ function revision10PatientPlaybackTelemetryPolicies(
   const patientOwn = "current_user = 'app_patient'::name AND organization_id = (SELECT app.current_org_id())"
     + ' AND user_id = app.current_patient_user_id()';
   if (tableKey === 'public.media_playback_client_events') {
-    return [{
-      name: `rev10_playback_client_event_patient_insert_${index + 1}`,
-      as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_patient'], withCheck: `(${patientOwn})`,
-      note: 'patient appends browser playback errors only for itself in the current clinic',
-    }];
+    const maintenance = "current_user = 'app_operational_maintenance'::name";
+    return [
+      {
+        name: `rev10_playback_client_event_patient_insert_${index + 1}`,
+        as: 'PERMISSIVE', cmd: 'INSERT', to: ['app_patient'], withCheck: `(${patientOwn})`,
+        note: 'patient appends browser playback errors only for itself in the current clinic',
+      },
+      {
+        name: `rev10_playback_client_event_maintenance_select_${index + 1}`,
+        as: 'PERMISSIVE', cmd: 'SELECT', to: ['app_operational_maintenance'], using: `(${maintenance})`,
+        note: 'accepted maintenance worker counts expired playback errors across clinics',
+      },
+      {
+        name: `rev10_playback_client_event_maintenance_delete_${index + 1}`,
+        as: 'PERMISSIVE', cmd: 'DELETE', to: ['app_operational_maintenance'], using: `(${maintenance})`,
+        note: 'accepted maintenance worker deletes expired playback errors across clinics',
+      },
+    ];
   }
   const staffOrg = "current_user = 'app_staff'::name AND organization_id = (SELECT app.current_org_id())";
   return [{

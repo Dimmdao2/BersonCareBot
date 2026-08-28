@@ -227,7 +227,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     terminalStates: ['sent', 'dead'],
     retention: {
       kind: 'window',
-      days: 30,
+      days: 90,
       pruneTarget: 'outgoing_delivery_queue_sent',
       basis: `${EVIDENCE_16}: sent 30d by sent_at, dead 180d by dead_at; live statuses never pruned`,
     },
@@ -380,7 +380,7 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     terminalStates: [],
     retention: {
       kind: 'window',
-      days: 400,
+      days: 90,
       pruneTarget: 'media.playback_stats.retention:hourly',
       basis: 'mediaPlaybackStatsRetention module window',
     },
@@ -392,21 +392,11 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     userPurge: { kind: 'cascade', column: 'user_id' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: [],
-    // Exhaustive lifecycle census audit 2026-08-28, F4, second instance found by the replacement
-    // gate: this declared a 30-day window swept by `media.playback_stats.retention`, and that job
-    // prunes ONLY the hourly rollup — `MEDIA_PLAYBACK_STATS_RETENTION_BRANCHES` has no `events`
-    // branch and nothing in the repository ever deletes a row of this table. The window was a
-    // policy that never ran, exactly audit §B2. Neither the number nor the sweep is invented here.
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-PLAYBACK-EVENT-STORES-WINDOW',
-      basis:
-        'Raw per-user playback events grow without bound: no delete exists for '
-        + 'media_playback_resolution_events or media_playback_client_events, and the 30 days the '
-        + 'registry used to claim were never implemented by any job. Both feed the media health '
-        + 'card and the doctor playback analytics, so the window is a product decision (how far '
-        + 'back must playback diagnostics reach), not a mechanical one. Same question for both '
-        + 'stores; the rows die with their user through their cascading FK either way.',
+      kind: 'window',
+      days: 400,
+      pruneTarget: 'media.playback_stats.retention:events',
+      basis: 'playbackHourlyRetention.ts PLAYBACK_RAW_EVENTS_RETENTION_DAYS',
     },
     sweptBy: MEDIA_PLAYBACK_STATS_RETENTION_JOB,
   },
@@ -416,17 +406,11 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
     userPurge: { kind: 'cascade', column: 'user_id' },
     orgPurge: { kind: 'organization_id' },
     terminalStates: [],
-    // Same finding, same store class as `media_playback_resolution_events` above.
     retention: {
-      kind: 'owner-question',
-      id: 'OQ-PLAYBACK-EVENT-STORES-WINDOW',
-      basis:
-        'Raw per-user playback events grow without bound: no delete exists for '
-        + 'media_playback_resolution_events or media_playback_client_events, and the 30 days the '
-        + 'registry used to claim were never implemented by any job. Both feed the media health '
-        + 'card and the doctor playback analytics, so the window is a product decision (how far '
-        + 'back must playback diagnostics reach), not a mechanical one. Same question for both '
-        + 'stores; the rows die with their user through their cascading FK either way.',
+      kind: 'window',
+      days: 400,
+      pruneTarget: 'media.playback_stats.retention:client_events',
+      basis: 'playbackHourlyRetention.ts PLAYBACK_RAW_EVENTS_RETENTION_DAYS',
     },
     sweptBy: MEDIA_PLAYBACK_STATS_RETENTION_JOB,
   },
