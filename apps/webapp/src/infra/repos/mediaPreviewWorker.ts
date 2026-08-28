@@ -579,7 +579,7 @@ export async function processMediaPreviewBatch(
               { err: e, mediaId: row.id },
               '[processMediaPreviewBatch] permanent error, skipped',
             );
-            return { outcome: 'error' };
+            return { outcome: 'processed' };
           }
           const prev = row.preview_attempts ?? 0;
           const nextAttempts = prev + 1;

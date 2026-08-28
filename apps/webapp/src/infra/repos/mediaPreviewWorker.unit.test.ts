@@ -187,11 +187,12 @@ describe('processMediaPreviewBatch: обложка ролика по ссылк�
     resolveHostedVideoThumbnail.mockResolvedValue({ kind: 'terminal', reason: 'provider_status_400' });
     claimThen(hostedRow);
 
-    await processMediaPreviewBatch(1);
+    const result = await processMediaPreviewBatch(1);
 
     const statements = issuedSql();
     expect(statements.some((text) => text.includes("preview_status = 'skipped'"))).toBe(true);
     expect(statements.some((text) => text.includes('preview_attempts ='))).toBe(false);
+    expect(result).toEqual({ processed: 1, errors: 0 });
   });
 
   it('нет сервисного токена VK — не вечный pending, а попытка со счётчиком', async () => {

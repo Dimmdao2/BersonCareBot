@@ -302,6 +302,26 @@ describe('pending upload abort lifecycle', () => {
     );
   });
 
+  it('reports an error when the DB does not confirm final row deletion', async () => {
+    fakes.s3DeleteObject.mockResolvedValue(undefined);
+    fakes.runNamedRoot
+      .mockResolvedValueOnce({
+        rows: [{ result: { action: 'stage', stagedCount: 0, removedEmpty: 0 } }],
+      })
+      .mockResolvedValueOnce(claimedStep())
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'complete', deleted: false } }] })
+      .mockResolvedValueOnce({ rows: [{ result: { action: 'retry', retryScheduled: false } }] });
+
+    await expect(purgePendingMediaDeleteBatch(1)).resolves.toEqual({ removed: 0, errors: 1 });
+    expect(fakes.runNamedRoot).toHaveBeenNthCalledWith(
+      4,
+      expect.anything(),
+      'app.process_media_pending_delete_step(text,uuid,integer,uuid)',
+      ['retry', MEDIA_ID, null, CLAIM_TOKEN],
+      expect.anything(),
+    );
+  });
+
   /**
    * AUDITOR ACCEPTANCE TEST (independent audit of 2403aaadf, audit §D1 / stage 4 acceptance
    * "повторный запуск завершает работу ровно один раз").

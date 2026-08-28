@@ -1401,7 +1401,16 @@ export async function purgePendingMediaDeleteBatch(
 
     try {
       const completed = await runMediaPendingDeleteStep('complete', row.id, null, claim.claimToken);
-      if (completed.deleted) removed += 1;
+      if (completed.deleted) {
+        removed += 1;
+      } else {
+        await runMediaPendingDeleteStep('retry', row.id, null, claim.claimToken);
+        errors += 1;
+        logger.warn(
+          { mediaId: row.id },
+          '[purgePendingMediaDeleteBatch] DB completion was not confirmed; retry requested',
+        );
+      }
     } catch (e) {
       if (!isDeterministicDeleteConstraintFailure(e)) {
         throw e;
