@@ -224,7 +224,12 @@ export function DoctorCommunicationsShell({
       <DoctorPageHeader
         id="doctor-communications-header"
         title="Коммуникации"
+        className="-mb-3 md:mb-0"
         showTabsOnMobile
+        toolbar={
+          activeTab === 'chats' ? <div id="doctor-communications-mobile-toolbar" /> : undefined
+        }
+        toolbarClassName="md:hidden"
         info={
           activeTab === 'broadcasts' ? (
             <Link

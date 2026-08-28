@@ -25,6 +25,8 @@ export type DoctorPageHeaderProps = {
    * Прилипает вместе с шапкой как единый блок.
    */
   toolbar?: ReactNode;
+  /** Optional responsive visibility/layout classes for the toolbar wrapper itself. */
+  toolbarClassName?: string;
   className?: string;
   id?: string;
 };
@@ -50,6 +52,7 @@ export function DoctorPageHeader({
   showTabsOnMobile = false,
   tabsClassName,
   toolbar,
+  toolbarClassName,
   className,
   id,
 }: DoctorPageHeaderProps) {
@@ -95,7 +98,10 @@ export function DoctorPageHeader({
       {toolbar ? (
         <div
           data-doctor-page-header-toolbar=""
-          className="border-b border-border/60 bg-[var(--doctor-page-header-background,#fff)] px-[var(--doctor-block-padding,18px)] py-1.5"
+          className={cn(
+            'border-b border-border/60 bg-[var(--doctor-page-header-background,#fff)] px-[var(--doctor-block-padding,18px)] py-1.5',
+            toolbarClassName,
+          )}
         >
           {toolbar}
         </div>
