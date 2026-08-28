@@ -28,9 +28,10 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [x] B0, четыре runtime-login, transaction-bound context, FORCE RLS, узкие SECURITY DEFINER roots и
   declaration/reconcile применены на named DEV и named TEST.
 - [x] Канонические `user_contacts`, разделение actor/subject, узкая роль integrator и исправленные seam-owner
-  privileges находятся в текущем `feat`. Накопленный runtime-пакет до `cc13a4ed4` прошёл полный CI, штатный
-  TEST deploy, declaration/reconcile и финальную tenant-wall проверку; старые строки ниже про merge
-  `92cf34ffa4` и TEST HEAD `484056ae5` больше не являются текущим состоянием.
+  privileges находятся в текущем `feat`. Накопленный runtime-пакет до `cc13a4ed4` прошёл полный CI; последующие
+  изолированные cleanup/deploy-wrapper изменения прошли targeted и независимые audit-gates. Штатный TEST deploy
+  завершился `PASS` на `7f29df6a1`, вместе с declaration/reconcile и финальной tenant-wall проверкой; старые
+  строки ниже про merge `92cf34ffa4` и TEST HEAD `484056ae5` больше не являются текущим состоянием.
 - [x] Восстановление старого TEST backup, создание пустой TEST, disposable/A0 и historical migration replay
   отменены более поздними owner-решениями. Их нельзя выполнять; история остаётся только в Git и evidence.
 - [x] TEST route/API/console-crawl после финального reconcile прошёл под настоящими owner-учётками: doctor

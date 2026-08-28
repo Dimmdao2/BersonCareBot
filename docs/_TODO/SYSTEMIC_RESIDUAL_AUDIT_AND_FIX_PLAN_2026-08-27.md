@@ -810,6 +810,18 @@ VK preview до owner-токена с `video` scope; будущий PROD `A → 
 независимый аудит дали PASS (`3b7ea5860`). PROD-скрипты, которые ещё ссылались на старый C4 и могли
 обойти будущий cutover, закрыты fail-closed до отдельного owner-approved `A→B0`; PROD не читался и не менялся.
 
+**Окончательная выкатка внутреннего пакета 28.08.** После точечных проверок этих двух хвостов коммит
+`7f29df6a1` запушен и развёрнут штатным `bash deploy/host/deploy-test.sh feat/doctor-ui-rebuild`; transcript —
+`/var/log/bersoncarebot/deploy-test/deploy-test.20260828T182821Z.UlYp0n.log`. Deploy завершился `PASS`: pending
+webapp/integrator migrations `0`, declaration/reconcile применён, tenant wall `3/3 PASS`, установленное
+расписание совпало с manifest. После перезапуска `api`, `scheduler`, `webapp`, `media-worker` имеют состояние
+`active`; source/origin/TEST HEAD совпадают с `7f29df6a135da527af72a11aed569141d338043b`; integrator и webapp
+health вернули `{"ok":true,"db":"up"}`, `https://test.bersoncare.ru/` вернул `200` и непустое тело. В свежем
+журнале четырёх TEST-сервисов после deploy нет `42501`, `permission denied`, `500`, `fatal`, `unhandled` или
+`uncaught`. Полный CI накопленного multi-app пакета на `cc13a4ed4` переиспользован по `AGENTS.md` §9: более
+поздние изменения — изолированная очистка декларации и deploy-wrapper — прошли свои targeted, live и
+независимые audit-gates и не меняли непокрытый product contract.
+
 ## Порядок выполнения
 
 Сначала этапы 1–2: они закрывают риск межклинического доступа и возвращают работающий фон/наблюдаемость. Затем
