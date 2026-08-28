@@ -176,6 +176,34 @@ function DoctorTodayPeopleSection({
   );
 }
 
+function DoctorTodayAppointmentsList({
+  appointments,
+}: {
+  appointments: TodayDashboardData['currentWeekAppointments'];
+}) {
+  return appointments.length === 0 ? (
+    <DoctorEmptyState>Записей нет</DoctorEmptyState>
+  ) : (
+    <ul className={doctorDnaFlatListClass}>
+      {appointments.map((appointment, index) => (
+        <li key={appointment.id}>
+          <Link
+            href={appointment.href}
+            className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} justify-between gap-3${index === 0 ? ' border-t-0' : ''}`}
+          >
+            <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
+              {appointment.clientLabel}
+            </span>
+            <span className={`${doctorDnaFlatListMetaClass} shrink-0 tabular-nums`}>
+              {appointment.time}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function DoctorTodayDashboard({
   data,
   displayIana,
@@ -184,7 +212,9 @@ export function DoctorTodayDashboard({
   specialistTasksReadable,
 }: Props) {
   const isMobile = useIsMobileViewport();
-  const [mobileModal, setMobileModal] = useState<'support' | 'calendar' | null>(null);
+  const [mobileModal, setMobileModal] = useState<
+    'support' | 'calendar' | 'week-appointments' | 'week-primary' | null
+  >(null);
   const [tasks, setTasks] = useState(data.globalOpenTasks);
   const [taskPatientNames, setTaskPatientNames] = useState(data.globalTaskPatientNames);
   const [taskMutationPending, setTaskMutationPending] = useState(false);
@@ -304,13 +334,23 @@ export function DoctorTodayDashboard({
           >
             <DoctorStatCard
               id="doctor-today-mobile-kpi-week-appointments"
-              title="Записей за неделю"
+              title="Записей на неделе"
               value={currentWeek?.appointments ?? 0}
+              onClick={
+                data.currentWeekAppointments.length > 0
+                  ? () => setMobileModal('week-appointments')
+                  : undefined
+              }
             />
             <DoctorStatCard
               id="doctor-today-mobile-kpi-week-new-clients"
-              title="Новых клиентов за неделю"
+              title="Первичных на неделе"
               value={currentWeek?.firstAppointments ?? 0}
+              onClick={
+                data.currentWeekFirstAppointments.length > 0
+                  ? () => setMobileModal('week-primary')
+                  : undefined
+              }
             />
           </DoctorMetricList>
         </div>
@@ -375,6 +415,21 @@ export function DoctorTodayDashboard({
           displayIana={displayIana}
           fillHeight
           flushChrome
+        />
+      </DoctorModal>
+      <DoctorModal
+        open={mobileModal === 'week-appointments' || mobileModal === 'week-primary'}
+        onClose={() => setMobileModal(null)}
+        title={mobileModal === 'week-primary' ? 'Первичные на неделе' : 'Записи на неделе'}
+        size="lg"
+        desktopPresentation="right-sheet"
+      >
+        <DoctorTodayAppointmentsList
+          appointments={
+            mobileModal === 'week-primary'
+              ? data.currentWeekFirstAppointments
+              : data.currentWeekAppointments
+          }
         />
       </DoctorModal>
     </div>

@@ -63,6 +63,8 @@ const emptyDashboardData: TodayDashboardData = {
   exerciseCommentAttentionTotal: 0,
   exerciseCommentAttentionTruncated: false,
   weeklyTimeline: [],
+  currentWeekAppointments: [],
+  currentWeekFirstAppointments: [],
 };
 
 describe('DoctorTodayDashboard', () => {

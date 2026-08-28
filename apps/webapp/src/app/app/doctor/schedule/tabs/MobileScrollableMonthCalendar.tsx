@@ -1,141 +1,143 @@
 'use client';
 
+import type { CalendarOptions } from '@fullcalendar/core';
 import { DateTime } from 'luxon';
 import { useMemo } from 'react';
 import type { CalendarAppointmentEvent } from '@/modules/booking-calendar/types';
 import { cn } from '@/lib/utils';
+import { ScheduleFullCalendarHost } from './ScheduleFullCalendarHost';
 
 const WEEKDAYS = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'] as const;
 
-type MonthModel = {
-  key: string;
-  title: string;
-  days: Array<{ dateKey: string; day: number; inMonth: boolean; isToday: boolean }>;
-};
+function appointmentLastName(appointment: CalendarAppointmentEvent): string {
+  return appointment.patientName?.trim().split(/\s+/)[0] || 'Запись';
+}
 
 export function MobileScrollableMonthCalendar({
   rangeStart,
   rangeEnd,
   timeZone,
-  appointments,
+  events,
   onDateClick,
   onAppointmentClick,
 }: {
   rangeStart: string;
   rangeEnd: string;
   timeZone: string;
-  appointments: CalendarAppointmentEvent[];
+  events: CalendarOptions['events'];
   onDateClick: (dateKey: string) => void;
   onAppointmentClick: (appointment: CalendarAppointmentEvent) => void;
 }) {
-  const months = useMemo<MonthModel[]>(() => {
-    const result: MonthModel[] = [];
-    const today = DateTime.now().setZone(timeZone).toISODate();
+  const months = useMemo(() => {
+    const result: string[] = [];
     let cursor = DateTime.fromISO(rangeStart, { zone: timeZone }).startOf('month');
     const end = DateTime.fromISO(rangeEnd, { zone: timeZone }).startOf('month');
     while (cursor < end) {
-      const monthStart = cursor;
-      const gridStart = monthStart.startOf('week');
-      const gridEnd = monthStart.endOf('month').endOf('week');
-      const days: MonthModel['days'] = [];
-      let day = gridStart;
-      while (day <= gridEnd) {
-        const dateKey = day.toISODate();
-        if (dateKey) {
-          days.push({
-            dateKey,
-            day: day.day,
-            inMonth: day.month === monthStart.month,
-            isToday: dateKey === today,
-          });
-        }
-        day = day.plus({ days: 1 });
-      }
-      result.push({
-        key: monthStart.toFormat('yyyy-MM'),
-        title: monthStart.setLocale('ru').toFormat('LLLL yyyy'),
-        days,
-      });
+      const dateKey = cursor.toISODate();
+      if (dateKey) result.push(dateKey);
       cursor = cursor.plus({ months: 1 });
     }
     return result;
   }, [rangeEnd, rangeStart, timeZone]);
 
-  const appointmentsByDate = useMemo(() => {
-    const grouped = new Map<string, CalendarAppointmentEvent[]>();
-    for (const appointment of appointments) {
-      const dateKey = DateTime.fromISO(appointment.startAt).setZone(timeZone).toISODate();
-      if (!dateKey) continue;
-      const current = grouped.get(dateKey);
-      if (current) current.push(appointment);
-      else grouped.set(dateKey, [appointment]);
-    }
-    for (const items of grouped.values()) {
-      items.sort((left, right) => left.startAt.localeCompare(right.startAt));
-    }
-    return grouped;
-  }, [appointments, timeZone]);
-
   return (
-    <div className="min-h-full bg-white pb-4">
-      {months.map((month) => (
-        <section key={month.key} data-mobile-calendar-month={month.key}>
-          <h2 className="sticky top-0 z-[2] border-y border-border/60 bg-white/95 px-3 py-2 text-sm font-medium capitalize backdrop-blur-sm">
-            {month.title}
-          </h2>
-          <div className="grid grid-cols-7 border-b border-border/60 bg-white text-center text-[10px] text-muted-foreground">
-            {WEEKDAYS.map((weekday) => (
-              <span key={weekday} className="py-1.5">
-                {weekday}
-              </span>
-            ))}
-          </div>
-          <div className="grid grid-cols-7">
-            {month.days.map((day) => {
-              const dayAppointments = appointmentsByDate.get(day.dateKey) ?? [];
+    <div className="doctor-mobile-native-months min-h-full bg-white pb-2">
+      <style>{`
+        .doctor-mobile-native-month .fc {
+          --fc-border-color: color-mix(in srgb, var(--border) 62%, transparent);
+          --fc-today-bg-color: transparent;
+        }
+        .doctor-mobile-native-month .fc-scrollgrid {
+          border-inline: 0;
+          border-top: 0;
+        }
+        .doctor-mobile-native-month .fc-daygrid-day-frame {
+          min-height: 4.75rem;
+        }
+        .doctor-mobile-native-month .fc-day-today {
+          background: transparent !important;
+        }
+        .doctor-mobile-native-month .fc-event {
+          box-shadow: none !important;
+          --fc-event-text-color: var(--foreground) !important;
+        }
+        .doctor-mobile-native-month .fc-event-main {
+          color: var(--foreground) !important;
+        }
+        .doctor-mobile-native-month .fc-daygrid-day-number {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 1.75rem;
+          min-height: 1.75rem;
+          font-size: 0.6875rem;
+          font-weight: 400;
+        }
+        .doctor-mobile-native-month .fc-today-circle {
+          border-radius: 9999px;
+          background: rgb(219 113 93 / 85%);
+          color: white;
+          font-weight: 600;
+        }
+        .doctor-mobile-native-month + .doctor-mobile-native-month .fc-scrollgrid {
+          border-top: 0;
+        }
+      `}</style>
+      <div className="sticky top-0 z-[3] grid grid-cols-7 border-b border-border/60 bg-white/95 text-center text-[10px] text-muted-foreground backdrop-blur-sm">
+        {WEEKDAYS.map((weekday) => (
+          <span key={weekday} className="py-1.5">
+            {weekday}
+          </span>
+        ))}
+      </div>
+      {months.map((monthStart) => (
+        <div
+          key={monthStart}
+          data-mobile-calendar-month={monthStart}
+          className="doctor-mobile-native-month"
+        >
+          <ScheduleFullCalendarHost
+            initialView="dayGridMonth"
+            initialDate={monthStart}
+            timeZone={timeZone}
+            events={events}
+            headerToolbar={false}
+            height="auto"
+            fixedWeekCount={false}
+            showNonCurrentDates={false}
+            dayHeaders={false}
+            dayMaxEvents
+            editable={false}
+            selectable={false}
+            navLinks={false}
+            dateClick={(arg) => onDateClick(arg.dateStr.slice(0, 10))}
+            eventClick={(arg) => {
+              const appointment = arg.event.extendedProps?.appointment as
+                | CalendarAppointmentEvent
+                | undefined;
+              if (appointment) onAppointmentClick(appointment);
+            }}
+            dayCellContent={(arg) => {
+              const dateKey = DateTime.fromJSDate(arg.date).setZone(timeZone).toISODate();
+              const isToday = dateKey === DateTime.now().setZone(timeZone).toISODate();
               return (
-                <div
-                  key={day.dateKey}
-                  data-date={day.dateKey}
-                  className={cn(
-                    'doctor-mobile-month-day min-h-[76px] min-w-0 border-r border-b border-border/60 bg-white px-0.5 py-1',
-                    !day.inMonth && 'bg-muted/20 text-muted-foreground/60',
-                  )}
-                  onClick={() => onDateClick(day.dateKey)}
-                >
-                  <span
-                    className={cn(
-                      'mx-auto mb-1 flex size-6 items-center justify-center text-[11px]',
-                      day.isToday && 'rounded-full bg-[#db715d] font-semibold text-white',
-                    )}
-                  >
-                    {day.day}
-                  </span>
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    {dayAppointments.slice(0, 2).map((appointment) => (
-                      <button
-                        key={appointment.id}
-                        type="button"
-                        className="truncate rounded-[3px] border border-primary/25 bg-primary/10 px-0.5 py-px text-left text-[9px] leading-tight text-foreground"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onAppointmentClick(appointment);
-                        }}
-                      >
-                        {appointment.patientName?.trim() || 'Запись'}
-                      </button>
-                    ))}
-                    {dayAppointments.length > 2 ? (
-                      <span className="px-0.5 text-[9px] text-muted-foreground">
-                        +{dayAppointments.length - 2}
-                      </span>
-                    ) : null}
-                  </div>
+                <span className={cn('fc-daygrid-day-number', isToday && 'fc-today-circle')}>
+                  {arg.date.getDate()}
+                </span>
+              );
+            }}
+            eventContent={(info) => {
+              const appointment = info.event.extendedProps?.appointment as
+                | CalendarAppointmentEvent
+                | undefined;
+              return (
+                <div className="truncate px-1 text-[11px] leading-tight">
+                  {appointment ? appointmentLastName(appointment) : info.event.title}
                 </div>
               );
-            })}
-          </div>
-        </section>
+            }}
+          />
+        </div>
       ))}
     </div>
   );
