@@ -1,9 +1,25 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 
 import { declaration } from './declaration.ts';
 import { BUSINESS_SEAM_FUNCTIONS } from './function-census.ts';
 import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
+
+const WEBAPP_ROOT = fileURLToPath(new URL('../../../apps/webapp/', import.meta.url));
+
+function drizzleSchemaColumns(schemaExport) {
+  const expression = [
+    "import { getTableColumns } from 'drizzle-orm'",
+    `import { ${schemaExport} } from './db/schema/schema.ts'`,
+    `process.stdout.write(JSON.stringify(Object.values(getTableColumns(${schemaExport})).map((column) => column.name).sort()))`,
+  ].join(';');
+  return JSON.parse(execFileSync('node_modules/.bin/tsx', ['-e', expression], {
+    cwd: WEBAPP_ROOT,
+    encoding: 'utf8',
+  }));
+}
 
 function directGrants(relation) {
   const access = REV10_CLINICAL_ACCESS[relation];
@@ -46,6 +62,20 @@ function assertNoOperation(relation, role, operation) {
     `${relation} must not grant ${operation} to ${role}`,
   );
 }
+
+test('direct staff Drizzle inserts name every schema column allowed by their INSERT grant', () => {
+  const contracts = [
+    { relation: 'public.media_files', schemaExport: 'mediaFiles' },
+  ];
+  for (const contract of contracts) {
+    exactColumns(
+      contract.relation,
+      'app_staff',
+      'INSERT',
+      drizzleSchemaColumns(contract.schemaExport),
+    );
+  }
+});
 
 test('platform commercial scope is present in the active relation matrix and row walls', () => {
   const expected = {

@@ -4284,6 +4284,7 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "available_qualities_json",
           "created_at",
           "delete_attempts",
+          "delete_claim_token",
           "display_name",
           "folder_id",
           "hls_artifact_prefix",
