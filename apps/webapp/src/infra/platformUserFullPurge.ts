@@ -61,6 +61,15 @@ export const CONTENT_TABLES: { table: string; column: string }[] = [
  */
 export const ANONYMISE_ON_PURGE_COLUMNS: { table: string; column: string }[] = [
   { table: 'specialist_tasks', column: 'patient_user_id' },
+  // Exhaustive lifecycle census 2026-08-28: both carry a `platform_user_id` that IS the patient
+  // (`pgPayments.createPaymentFromIntent` copies it straight from the intent; `pgClientHistory`
+  // reads the history rows as that patient's payment history) and neither column has an FK, so the
+  // raw id of a purged patient stayed on a row accounting keeps. The policy is not invented here:
+  // the column this value is copied FROM — `be_payment_intents.platform_user_id` — already carries
+  // an owner-decided `ON DELETE SET NULL`, as does `be_appointments.platform_user_id`. The money
+  // record is retained; the person is not.
+  { table: 'be_payments', column: 'platform_user_id' },
+  { table: 'be_payment_history_events', column: 'platform_user_id' },
 ];
 
 /** Дневники симптомов и ЛФК: порядок как в `pgDiaryPurge` (FK `lfk_complexes.symptom_tracking_id` → `symptom_trackings`). */

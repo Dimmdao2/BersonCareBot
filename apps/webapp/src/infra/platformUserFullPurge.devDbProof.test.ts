@@ -53,6 +53,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PoolClient } from 'pg';
 import {
+  ANONYMISE_ON_PURGE_COLUMNS,
   CONTENT_TABLES,
   collectPurgeArtifactKeys,
   phoneDigits,
@@ -329,6 +330,10 @@ function asInt(value: string | null): number {
 const EXPLICIT_DELETE_KEYS = new Set(
   CONTENT_TABLES.map((entry) => `public.${entry.table}.${entry.column}`),
 );
+/** Same convention for the columns the purge nulls instead of deleting. */
+const EXPLICIT_ANONYMISE_KEYS = new Set(
+  ANONYMISE_ON_PURGE_COLUMNS.map((entry) => `public.${entry.table}.${entry.column}`),
+);
 
 function expectationFor(relation: string, column: string, onDelete: string | null): Expectation {
   if (EXPLICIT_DELETE_KEYS.has(`${relation}.${column}`)) return 'gone';
@@ -527,6 +532,26 @@ describe.skipIf(!ENABLED)(
             }
             continue;
           }
+          if (
+            purge.kind === 'staff-authored' ||
+            purge.kind === 'self-expiring' ||
+            purge.kind === 'owner-question' ||
+            purge.kind === 'absent-retired'
+          ) {
+            // None of these claim an FK behaviour: they claim the purge deliberately does not reach
+            // the column (staff never purged / the row expires on its own / the decision is still
+            // owed / the relation does not exist). A live cascading or nulling FK would contradict
+            // that, so only THAT is a divergence.
+            const contradicting = [...liveFk.keys()].filter((key) =>
+              key.startsWith(`${entry.table}.`),
+            );
+            if (contradicting.length > 0) {
+              divergences.push(
+                `${entry.table}: declared ${purge.kind}, live purge FK on ${contradicting.join(', ')}`,
+              );
+            }
+            continue;
+          }
           const k = key(entry.table, purge.column);
           const live = liveFk.get(k) ?? null;
           if (purge.kind === 'phone-keyed') {
@@ -536,6 +561,16 @@ describe.skipIf(!ENABLED)(
           if (purge.kind === 'explicit-delete') {
             if (!EXPLICIT_DELETE_KEYS.has(k)) {
               divergences.push(`${k}: declared explicit-delete, absent from CONTENT_TABLES`);
+            }
+            continue;
+          }
+          if (purge.kind === 'explicit-anonymise') {
+            // Mirror of explicit-delete: the declaration is only true if the purge really names the
+            // table+column it promises to null.
+            if (!EXPLICIT_ANONYMISE_KEYS.has(k)) {
+              divergences.push(
+                `${k}: declared explicit-anonymise, absent from ANONYMISE_ON_PURGE_COLUMNS`,
+              );
             }
             continue;
           }

@@ -556,6 +556,52 @@ src/infra/platformUserFullPurge.devDbProof.test.ts` → **9/9 PASS**; коман
 живут именно там и остаются открытыми. `message_log` пуст на TEST, поэтому живого факта для его policy-конфликта
 нет. Публичный destructive route остаётся выключенным; проба его не включает.
 
+**Исчерпывающий census — сделано 28.08 (ветка `wt/fix-lifecycle-purge-census-20260828`).** Приёмка «census не
+допускает новую journal/temp таблицу без owner/retention/purge policy» закрыта не примерами, а классом:
+эвристика по суффиксу имени (`JOURNAL_LIFECYCLE_TABLE_SUFFIXES`) и список исключений
+(`JOURNAL_LIFECYCLE_EXTRA_CANDIDATES`) удалены целиком, кандидатом стала ВСЯ декларация. Каждая из 222
+объявленных в `declaration.ts` физических таблиц лежит ровно в одном из двух множеств: 58 — в
+`JOURNAL_LIFECYCLE_REGISTRY`, 164 — в `JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS`, где голая строка-причина
+больше не принимается: обязательны `reason` + `userPurge` + `orgPurge` в той же грамматике, что у реестра
+(`not-user-scoped` / `not-org-scoped` — законный ответ, но он должен быть НАПИСАН). Классификация выведена из
+живого графа `pg_constraint` обеих управляемых баз, из `platformUserFullPurge.ts` и из call sites писателей, а
+не из имён.
+
+Fault injection (все инъекции откачены, дерево чистое): произвольно названная `public.bcb_probe_sms_deliveries` в
+`declaration.ts` → гейт КРАСНЫЙ (`undecided = ["public.bcb_probe_sms_deliveries"]`), тогда как до правки та же
+инъекция оставляла его зелёным (аудит F3, инъекция A2). Отдельно проверены ещё четыре класса: голая
+строка-исключение, отсутствующая org-семантика, двойная классификация одной таблицы и window с недостижимым
+prune root — каждый даёт красный. Команды:
+`pnpm --dir apps/webapp exec vitest run src/modules/db-retention/journalLifecycleRegistry.contract.test.ts`
+→ **9/9 PASS** после отката инъекций;
+`RUN_PLATFORM_USER_PURGE_DB=1 pnpm --dir apps/webapp exec vitest run
+src/infra/platformUserFullPurge.devDbProof.test.ts` → **10/11**, единственный красный —
+`registryDivergences` с тем же набором из пяти строк, что и на HEAD до правки (замерено stash-прогоном), то есть
+уже зафиксированный открытый дефект выше, а не регрессия этого прохода.
+
+Сам census нашёл три ложные записи, которых не видел ни один прежний детектор (он сравнивал реестр только с
+FK-графом, а колонка без FK для него не существует):
+
+- `public.be_payment_history_events.platform_user_id` и `public.be_payments.platform_user_id` объявлялись
+  `not-user-scoped`, но это ПАЦИЕНТ (`pgClientHistory.ts` читает историю платежей именно по ней;
+  `pgPayments.createPaymentFromIntent` копирует её из intent). FK нет, purge их не касался. Исправлено
+  существующим механизмом `ANONYMISE_ON_PURGE_COLUMNS`: денежная запись сохраняется, ссылка на человека
+  обнуляется — ровно та политика, которая уже решена владельцем для колонки-источника
+  `be_payment_intents.platform_user_id` (живой FK `ON DELETE SET NULL`). Живых строк на TEST — 0.
+- `public.email_otp_locks.user_id` объявлялся `not-user-scoped`, хотя строка состоит ровно из
+  `user_id, locked_until, lockout_cycle`. Поведение не менялось: запись снимается своим `locked_until` и
+  подметается собственным expiry-таргетом; записано новым честным видом `self-expiring`.
+
+**Открытый вопрос владельцу (единственный новый, поведение НЕ менялось): `OQ-DELIVERY-ATTEMPT-USER-PURGE`.**
+`public.notification_delivery_attempts.user_id` — настоящая ссылка на platform user без FK и без шага purge;
+замер на TEST (read-only): **11195 строк по 40 пользователям `role='client'`**. Текста сообщения строка не
+несёт, `recipient_ref` уже дайджест (`tg:…1234`, `email:<digest>`), поэтому единственный персональный факт —
+этот сырой id. Недостающее решение: при purge **обнулять `user_id`** (окно 180 дней диагностики доставки, ради
+которого таблица существует, сохраняется; человек уходит) **или удалять строки** (диагностика за это окно по
+удалённому пациенту теряется). Рекомендуемый safe default — обнулять, как уже решено для
+`product_analytics_events_recent` (`anonymised`) по той же причине «сохранить агрегат, убрать человека».
+Решение агентом не принято, записано в реестре как `userPurge.kind: 'owner-question'`.
+
 ### Этап 4. Один контракт результата фоновой операции
 
 - Успех batch-job возможен только когда все обязательные операции завершены; `errors > 0` не превращается в

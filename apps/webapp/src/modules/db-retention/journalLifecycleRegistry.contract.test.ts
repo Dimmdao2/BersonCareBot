@@ -3,24 +3,28 @@ import path from 'node:path';
 import { expect, it } from 'vitest';
 
 import {
-  JOURNAL_LIFECYCLE_EXTRA_CANDIDATES,
   JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS,
   JOURNAL_LIFECYCLE_REGISTRY,
-  JOURNAL_LIFECYCLE_TABLE_SUFFIXES,
 } from '../../../../../deploy/postgres/privileges/journal-lifecycle-registry';
 import { RETENTION_SWEEP_TARGETS } from '@/infra/db/pruneRetentionTarget';
 import { CRON_JOB_REGISTRY } from '@/modules/operator-health/cronJobRegistry';
 
 /**
- * WHAT BREAKS WITHOUT THIS: a new journal/queue/temp table is declared, migrated and wired to a live
- * writer while belonging to no retention policy, no purge path and no sweep — exactly how
- * `message_log` and the consolidated `reminder_occurrence_history` reached the systemic audit of
- * 2026-08-27 (§E1, §C3). Nothing in lint, typecheck, the privilege generator or the migration gate
+ * WHAT BREAKS WITHOUT THIS: a new table is declared, migrated and wired to a live writer while
+ * belonging to no retention policy, no purge path and no sweep — exactly how `message_log` and the
+ * consolidated `reminder_occurrence_history` reached the systemic audit of 2026-08-27 (§E1, §C3), and
+ * exactly how `manual_patient_commands` reached the audit of 2026-08-28 (F1) and made every account
+ * purge of a patient fail. Nothing in lint, typecheck, the privilege generator or the migration gate
  * looks at data lifecycle, so the omission is invisible until someone measures the database.
  *
  * ORACLE: `deploy/postgres/privileges/declaration.ts` — the independent artifact that must list every
  * physical table before its migration may exist. This test never derives the candidate set from the
  * registry it is checking.
+ *
+ * THE CANDIDATE SET IS EVERY DECLARED TABLE. The previous version of this gate only considered names
+ * ending in `_log` / `_events` / `_queue` / … plus a hand list of extras, so the 2026-08-28 audit
+ * declared `public.bcb_probe_sms_deliveries` and the gate stayed green (F3). A name heuristic cannot
+ * be the trigger: it is precisely the tables nobody thought of as journals that go unclassified.
  */
 
 const REPO_ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../../..');
@@ -44,25 +48,95 @@ async function declaredTables(): Promise<string[]> {
   }
 }
 
-function isLifecycleCandidate(table: string): boolean {
-  if (JOURNAL_LIFECYCLE_EXTRA_CANDIDATES.includes(table)) return true;
-  return JOURNAL_LIFECYCLE_TABLE_SUFFIXES.some((suffix) => table.endsWith(suffix));
+const USER_PURGE_KINDS = new Set([
+  'cascade',
+  'explicit-delete',
+  'explicit-anonymise',
+  'anonymised',
+  'phone-keyed',
+  'via-parent',
+  'staff-authored',
+  'self-expiring',
+  'owner-question',
+  'absent-retired',
+  'not-user-scoped',
+]);
+const ORG_PURGE_KINDS = new Set([
+  'organization_id',
+  'via-parent',
+  'absent-retired',
+  'not-org-scoped',
+]);
+
+/**
+ * Runtime shape check, deliberately not "the TypeScript type says so": the escape hatch this gate
+ * exists to close was a plain string, and a plain string type-checks fine the moment somebody widens
+ * the union again. A decision is only a decision when both purge semantics are actually written.
+ */
+function structuralFaults(table: string, decision: unknown): string[] {
+  const faults: string[] = [];
+  if (typeof decision !== 'object' || decision === null) {
+    return [`${table}: non-structured exception (${typeof decision}) — needs reason + purge semantics`];
+  }
+  const d = decision as { reason?: unknown; userPurge?: unknown; orgPurge?: unknown };
+  if (typeof d.reason !== 'string' || d.reason.trim() === '') {
+    faults.push(`${table}: missing reason`);
+  }
+  const user = d.userPurge as { kind?: unknown } | undefined;
+  if (!user || typeof user.kind !== 'string' || !USER_PURGE_KINDS.has(user.kind)) {
+    faults.push(`${table}: missing or unknown account-purge semantics`);
+  }
+  const org = d.orgPurge as { kind?: unknown } | undefined;
+  if (!org || typeof org.kind !== 'string' || !ORG_PURGE_KINDS.has(org.kind)) {
+    faults.push(`${table}: missing or unknown organization-purge semantics`);
+  }
+  return faults;
 }
 
-it('leaves no declared journal/queue/temp table without a written lifecycle decision', async () => {
+it('leaves no declared table at all without a written lifecycle decision', async () => {
   const registered = new Set(JOURNAL_LIFECYCLE_REGISTRY.map((entry) => entry.table));
   const excluded = new Set(Object.keys(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS));
 
-  const undecided = (await declaredTables())
-    .filter(isLifecycleCandidate)
-    .filter((table) => !registered.has(table) && !excluded.has(table));
+  const undecided = (await declaredTables()).filter(
+    (table) => !registered.has(table) && !excluded.has(table),
+  );
 
   expect(
     undecided,
-    'Every journal/queue/attempt/temp store needs a lifecycle entry (owner, purge key, terminal ' +
-      'states, retention decision, prune root, sweeping job) in journalLifecycleRegistry.ts — or an ' +
-      'explicit "this is not a journal" line with a reason in ' +
-      'JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS.',
+    'Every declared physical table needs either a lifecycle entry (owner, purge key, terminal ' +
+      'states, retention decision, prune root, sweeping job) in journal-lifecycle-registry.ts, or a ' +
+      'structured "this is not a journal" decision in JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS ' +
+      'carrying a reason plus explicit account-purge and organization-purge semantics. There is no ' +
+      'name heuristic: an arbitrarily named new table lands here too.',
+  ).toEqual([]);
+});
+
+it('classifies every declared table exactly once, and nothing it does not declare', async () => {
+  const declared = new Set(await declaredTables());
+  const registered = JOURNAL_LIFECYCLE_REGISTRY.map((entry) => entry.table);
+  const excluded = Object.keys(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS);
+
+  const bothWays = registered.filter((table) => table in JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS);
+  expect(bothWays, 'A table cannot be both a journal and not a journal.').toEqual([]);
+
+  const undeclared = [...registered, ...excluded].filter((table) => !declared.has(table)).sort();
+  expect(
+    undeclared,
+    'A lifecycle decision for a table that declaration.ts does not declare is a policy for nothing — ' +
+      'it hides a rename or a removal instead of surfacing it.',
+  ).toEqual([]);
+});
+
+it('accepts no bare or half-written non-journal exception', () => {
+  const faults = Object.entries(JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS)
+    .flatMap(([table, decision]) => structuralFaults(table, decision))
+    .sort();
+
+  expect(
+    faults,
+    'A bare reason string is how patient_practice_completions and patient_diary_day_snapshots were ' +
+      'marked "not a journal" and survived account purge (audit 2026-08-28, F2). Both purge ' +
+      'semantics must be written, and "not-user-scoped" / "not-org-scoped" are legitimate answers.',
   ).toEqual([]);
 });
 
@@ -89,6 +163,28 @@ it('registers no table twice and never contradicts itself with a non-journal dec
     (table) => table in JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS,
   );
   expect(contradicted).toEqual([]);
+});
+
+it('keeps every recorded open question answerable: a stable id, a column and a written basis', () => {
+  const faults: string[] = [];
+  for (const entry of JOURNAL_LIFECYCLE_REGISTRY) {
+    if (entry.userPurge.kind !== 'owner-question') continue;
+    const purge = entry.userPurge;
+    if (!/^OQ-[A-Z0-9-]+$/.test(purge.id)) faults.push(`${entry.table}: purge question needs a stable id`);
+    if (purge.column.trim() === '') faults.push(`${entry.table}: purge question needs the column`);
+    if (purge.basis.length <= 40) faults.push(`${entry.table}: purge question needs a written basis`);
+  }
+  expect(faults).toEqual([]);
+
+  // Recorded so an unanswered purge decision is a number a reader sees, not something discovered by
+  // measuring the database later.
+  expect(
+    new Set(
+      JOURNAL_LIFECYCLE_REGISTRY.filter((e) => e.userPurge.kind === 'owner-question').map((e) =>
+        (e.userPurge as { id: string }).id,
+      ),
+    ),
+  ).toEqual(new Set(['OQ-DELIVERY-ATTEMPT-USER-PURGE']));
 });
 
 it('makes every decided retention window executable: named prune target plus a sweeping job', () => {

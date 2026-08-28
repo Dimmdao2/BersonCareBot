@@ -1,6 +1,6 @@
 /**
- * CENSUS OF EVERY JOURNAL / QUEUE / ATTEMPT / TEMP STORE, and the executable gate that keeps it
- * complete (systemic residual audit 2026-08-27, stage 3).
+ * CENSUS OF EVERY DECLARED PHYSICAL TABLE, and the executable gate that keeps it complete
+ * (systemic residual audit 2026-08-27, stage 3).
  *
  * Lives next to `declaration.ts`, the artifact it is derived from and checked against: this file is a
  * DECLARATION of data lifecycle, not runtime code. (It also must not sit under an `apps` source root, where
@@ -12,17 +12,31 @@
  * store — `message_log` (§E1), the consolidated `reminder_occurrence_history` (§C3) — could be added,
  * wired to a live writer, and never appear in any policy at all. Nothing in the build noticed.
  *
- * The gate (`journalLifecycleRegistry.contract.test.ts`) derives the CANDIDATE set mechanically from
- * `deploy/postgres/privileges/declaration.ts` — the one place a physical table must be declared before
- * its migration may exist — and refuses any candidate that has no entry here. So a new
- * `*_events` / `*_log` / `*_queue` / `*_sessions` / … table cannot land without a human writing down:
- * why it exists, its canonical user key and org key, what a full account purge does to it, its
- * terminal states, its retention decision, its named prune root, its sweeping job (which carries the
- * schedule and the staleness/health signal through `CRON_JOB_REGISTRY`).
+ * THE CANDIDATE SET IS THE WHOLE DECLARATION. Until 2026-08-28 the gate only looked at names matching a
+ * suffix list (`_log`, `_events`, `_queue`, …) plus a hand list of extras. The independent audit
+ * (`docs/_TODO/runs/FINAL_SYSTEMIC_LIFECYCLE_AUDIT_2026-08-28.md`, F3) injected
+ * `public.bcb_probe_sms_deliveries` into `declaration.ts` and the gate stayed green: a table could be
+ * declared, migrated and wired to a live writer with no lifecycle decision at all, purely because its
+ * name did not rhyme with a log. `public.manual_patient_commands` was already living in that hole, and
+ * it was the table that made every account purge fail (F1). Guessing which names are journals is the
+ * defect; there is no heuristic here any more. Every table declared in `declaration.ts` — the one place
+ * a physical table must appear before its migration may exist — is in EXACTLY ONE of:
  *
- * `retention.kind: 'owner-question'` is a legitimate, RECORDED decision — "we asked, we are waiting" —
- * and is deliberately distinguishable from silence, which is what the audit found.
+ *   1. `JOURNAL_LIFECYCLE_REGISTRY` — it IS a journal / queue / attempt / temp store, and carries why it
+ *      exists, its canonical user key and org key, what a full account purge does to it, its terminal
+ *      states, its retention decision, its named prune root, and its sweeping job (which carries the
+ *      schedule and the staleness/health signal through `CRON_JOB_REGISTRY`); or
+ *   2. `JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS` — it is NOT such a store, and says so with a written
+ *      reason PLUS the same explicit account-purge and organization-purge semantics. A bare reason
+ *      string is no longer accepted: that escape hatch is how `patient_practice_completions` and
+ *      `patient_diary_day_snapshots` were filed as "patient diary content" and silently survived purge
+ *      (F2). `not-user-scoped` / `not-org-scoped` are legitimate answers — but they must be WRITTEN.
+ *
+ * `retention.kind: 'owner-question'` and `userPurge.kind: 'owner-question'` are legitimate, RECORDED
+ * decisions — "we asked, we are waiting" — and are deliberately distinguishable from silence, which is
+ * what the audit found.
  */
+
 
 /** How a full account purge reaches the rows of one physical store. */
 export type JournalLifecycleUserPurge =
@@ -43,12 +57,38 @@ export type JournalLifecycleUserPurge =
   | { kind: 'phone-keyed'; column: string }
   /** Reaches the user only through a parent row that itself cascades from `platform_users`. */
   | { kind: 'via-parent'; parent: string }
+  /**
+   * The only user reference the row carries is the staff member who authored/updated it.
+   * `runStrictPurgePlatformUser` refuses any role other than `client`, so this column is never the
+   * purged person. `basis` must say who writes it — a table where a PATIENT can end up in the column
+   * is not this kind (`public.comments` is, and its `ON DELETE RESTRICT` is why the basis records the
+   * measurement).
+   */
+  | { kind: 'staff-authored'; column: string; basis: string }
+  /**
+   * The row carries the user key but is removed by its own TTL / connection release, never by the
+   * account purge: short-lived auth and per-connection state. `basis` must name the expiry mechanism.
+   */
+  | { kind: 'self-expiring'; column: string; basis: string }
+  /**
+   * Recorded open question — the mechanism is understood, the delete-or-de-identify decision is the
+   * owner's and has not been made. NOT the same as silence, and NOT a licence to leave it forever:
+   * the id is what the owner answers.
+   */
+  | { kind: 'owner-question'; id: string; column: string; basis: string }
+  /**
+   * Declared for cleanup only — the relation exists in no managed database, so no purge reaches it.
+   * `basis` must name where that was verified.
+   */
+  | { kind: 'absent-retired'; basis: string }
   /** Holds no personal owner at all (infra / platform-level fact). */
   | { kind: 'not-user-scoped' };
 
 export type JournalLifecycleOrgPurge =
   | { kind: 'organization_id' }
   | { kind: 'via-parent'; parent: string }
+  /** Same statement as the user-purge variant: the relation exists in no managed database. */
+  | { kind: 'absent-retired'; basis: string }
   | { kind: 'not-org-scoped' };
 
 export type JournalLifecycleRetention =
@@ -154,7 +194,23 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
   {
     table: 'public.notification_delivery_attempts',
     why: 'FAILURE-ONLY journal of real provider calls that failed (Track D #987)',
-    userPurge: { kind: 'not-user-scoped' },
+    // Exhaustive census 2026-08-28: declared `not-user-scoped`, but `user_id uuid` is a real
+    // platform-user reference with no FK and no purge step. Measured on TEST (read-only):
+    // 11195 rows across 40 `role='client'` users. `recipient_ref` is already digested
+    // (`tg:…1234`, `email:<digest>`) and the row carries no message text, so the ONLY personal
+    // datum is this raw id — which is why nulling it and deleting the row are both defensible and
+    // the choice is the owner's, not this file's.
+    userPurge: {
+      kind: 'owner-question',
+      id: 'OQ-DELIVERY-ATTEMPT-USER-PURGE',
+      column: 'user_id',
+      basis:
+        'Missing decision: on account purge, NULL the user_id (keeps the 180-day period-over-period '
+        + 'delivery diagnostics this table exists for, drops the person) or DELETE the rows (loses '
+        + 'that window of diagnostics for the purged patient). Recommended safe default: NULL, '
+        + 'mirroring product_analytics_events_recent, which is already declared `anonymised` for the '
+        + 'same "keep the aggregate, drop the person" reason. No behaviour was changed here.',
+    },
     orgPurge: { kind: 'organization_id' },
     terminalStates: ['failed', 'skipped'],
     retention: {
@@ -405,7 +461,15 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
   {
     table: 'public.email_otp_locks',
     why: 'lockout counter after failed email OTP attempts',
-    userPurge: { kind: 'not-user-scoped' },
+    // Exhaustive census 2026-08-28: the row IS keyed by `user_id` (columns are exactly
+    // `user_id, locked_until, lockout_cycle`), so `not-user-scoped` was inaccurate. Nothing in the
+    // purge deletes it and nothing needs to: the lock releases itself at `locked_until` and is swept
+    // by the expiry-column target below. Measured 0 `role='client'` rows on TEST (read-only).
+    userPurge: {
+      kind: 'self-expiring',
+      column: 'user_id',
+      basis: 'released at locked_until and swept by the email_otp_locks expiry target below',
+    },
     orgPurge: { kind: 'not-org-scoped' },
     terminalStates: ['released'],
     retention: {
@@ -718,7 +782,12 @@ export const JOURNAL_LIFECYCLE_REGISTRY: readonly JournalLifecycleEntry[] = [
   {
     table: 'public.be_payment_history_events',
     why: 'payment state history',
-    userPurge: { kind: 'not-user-scoped' },
+    // Exhaustive census 2026-08-28: the declaration said `not-user-scoped`, but the table carries
+    // `platform_user_id` and `pgClientHistory.ts` reads it as the PATIENT's payment history. The
+    // column has no FK, so the raw id of a purged patient stayed on a row that accounting keeps.
+    // Same family policy as `be_payment_intents.platform_user_id`, whose owner-decided FK is
+    // ON DELETE SET NULL: keep the financial record, drop the person.
+    userPurge: { kind: 'explicit-anonymise', column: 'platform_user_id' },
     orgPurge: { kind: 'via-parent', parent: 'public.be_payments' },
     terminalStates: [],
     retention: {
@@ -870,154 +939,853 @@ export function findJournalLifecycleEntry(table: string): JournalLifecycleEntry 
 }
 
 /**
- * Mechanical trigger for the gate: the shapes that ARE journals/queues/attempt logs/temp stores in
- * this repository's naming. A declared table matching one of these must carry a lifecycle decision.
- * Widening this list is cheap; narrowing it needs a reason.
+ * A declared table that is NOT a journal / queue / attempt / temp store. Structured on purpose:
+ *
+ *  - `reason` says why it is not such a store;
+ *  - `userPurge` / `orgPurge` say what a full account purge and a full organization purge do to it,
+ *    in exactly the same vocabulary the lifecycle registry uses.
+ *
+ * The last two fields exist because the audit of 2026-08-28 (F2) found the previous escape hatch —
+ * a bare reason string — being used to file `patient_practice_completions` and
+ * `patient_diary_day_snapshots` as "patient diary content" with NO purge decision at all; both
+ * silently survived account purge, and both are now lifecycle-registry entries that die with the
+ * account. Saying "this holds nobody" is fine; NOT saying it is not.
  */
-export const JOURNAL_LIFECYCLE_TABLE_SUFFIXES: readonly string[] = [
-  '_log',
-  '_logs',
-  '_event',
-  '_events',
-  '_attempts',
-  '_queue',
-  '_job',
-  '_jobs',
-  '_history',
-  '_audit',
-  '_session',
-  '_sessions',
-  '_ledger',
-  '_outbox',
-  '_keys',
-  '_locks',
-  '_challenges',
-  '_tokens',
-  '_recent',
-  '_hourly',
-  '_status',
-  '_runs',
-];
+export type JournalNonJournalDecision = {
+  reason: string;
+  userPurge: JournalLifecycleUserPurge;
+  orgPurge: JournalLifecycleOrgPurge;
+};
 
 /**
- * Journal/temp stores whose names do not match the suffix trigger. Listed by name so the census is
- * complete even where the naming is not mechanical.
- */
-export const JOURNAL_LIFECYCLE_EXTRA_CANDIDATES: readonly string[] = [
-  'public.media_files',
-  'public.operator_incidents',
-  'public.operator_health_alert_sent',
-  'public.operator_health_failure_archive',
-  'public.product_push_notifications',
-  'public.media_playback_client_events',
-  'public.media_playback_resolution_events',
-  // Final systemic lifecycle audit 2026-08-28, F3: these three matched no suffix and were found with
-  // NO written lifecycle decision at all (`manual_patient_commands`, F1) or a bare non-journal reason
-  // string with no purge decision behind it (the other two, F2). Listed explicitly so the census
-  // cannot depend on a future name matching a suffix by luck.
-  'public.manual_patient_commands',
-  'public.patient_diary_day_snapshots',
-  'public.patient_practice_completions',
-];
-
-/**
- * A declared table that matches the suffix trigger (or is listed above) but is not a journal or temp
- * store. `reason` is always required. `userPurge` — final systemic lifecycle audit 2026-08-28, F3 —
- * closes the SECOND census hole the audit found: a bare reason string let a table be marked "not a
- * journal" and never say what account purge does to it, so `patient_practice_completions` and
- * `patient_diary_day_snapshots` were recorded here as "patient diary content" and silently survived
- * purge (fixed by moving both into `JOURNAL_LIFECYCLE_REGISTRY` instead — they ARE patient content
- * that must die with the account, same class as `lfk_sessions`). Every entry TOUCHED by this fix
- * carries `userPurge`; entries outside its scope keep their original plain-string reason unchanged
- * rather than guessing a purge decision for a table nobody re-audited.
- */
-export type JournalNonJournalDecision =
-  | string
-  | { reason: string; userPurge: JournalLifecycleUserPurge };
-
-/**
- * Declared tables that MATCH the suffix trigger but are not journals or temp stores, each with the
- * reason. Anything not here and not in the registry fails the gate.
+ * Every declared table that is not in `JOURNAL_LIFECYCLE_REGISTRY`. Together the two cover the whole
+ * of `declaration.ts`, with no name heuristic in between — see the file header. A table in neither,
+ * or in both, fails `journalLifecycleRegistry.contract.test.ts`.
+ *
+ * The purge facts here are derived from the live constraint graph of the managed databases (FK to
+ * `public.platform_users` and `public.be_organizations` with their `ON DELETE` action), from
+ * `platformUserFullPurge.ts` (`CONTENT_TABLES`, `ANONYMISE_ON_PURGE_COLUMNS`, the identity and diary
+ * sequences) and from the writer call sites — not from the table names.
  */
 export const JOURNAL_LIFECYCLE_NON_JOURNAL_DECISIONS: Readonly<Record<string, JournalNonJournalDecision>> = {
-  'public.be_appointment_events':
-    'retired duplicate absent from the target schema; declaration entry is cleanup metadata for old databases',
-  'drizzle.__drizzle_migrations': 'applied-migration ledger; identity of the schema itself',
-  'integrator.schema_migrations': 'applied-migration ledger of the integrator schema',
-  'public.schema_migrations': 'applied-migration ledger',
-  'public.webapp_schema_migrations': 'applied-migration ledger',
-  'app.context_signing_secrets': 'key material, not a journal; rotated, never aged out',
-  'app.principal_context': 'per-connection principal state, dropped with the connection',
-  'public.be_appointment_cancellations': 'a cancellation is a booking fact, not a log line',
-  'public.be_appointment_no_shows': 'a no-show is a booking fact, not a log line',
-  'public.be_appointment_reschedules': 'a reschedule is a booking fact, not a log line',
-  'public.be_appointment_staff_comments': 'staff notes on an appointment — clinical content',
-  'public.be_booking_form_submissions': 'a submitted booking form is patient-entered content',
-  'public.be_working_days': 'schedule configuration',
-  'public.be_working_hours': 'schedule configuration',
-  'public.be_schedule_blocks': 'schedule configuration',
-  'public.be_schedule_templates': 'schedule configuration',
-  'public.booking_cities': 'reference data',
-  'public.channel_link_secrets': 'messenger binding secret; single-use credential, not a journal',
-  'public.phone_messenger_bind_secrets': 'messenger binding secret; single-use credential',
-  'public.clinical_test_measure_kinds': 'reference data',
-  'public.clinical_test_regions': 'reference data',
-  'public.comments': 'user-authored content',
-  'public.content_pages': 'published content',
-  'public.content_sections': 'published content',
-  'public.courses': 'published content',
-  'public.lfk_exercise_regions': 'reference data',
-  'public.lfk_complex_exercises': 'program composition',
-  'public.lfk_complex_template_exercises': 'program composition',
-  'public.material_ratings': 'user-authored rating, one row per user/material',
-  'public.motivational_quotes': 'reference content',
-  'public.org_brand_revisions': 'published brand versions; a revision is content, not a log line',
-  'public.organization_slug_claims': 'live claim on a public slug, not history',
-  'public.patient_daily_warmup_presentations': 'one row per patient/day presentation decision',
-  'public.patient_daily_warmup_video_views': 'one row per patient/video view decision',
-  'public.recommendation_regions': 'reference data',
-  'public.reference_catalog_baselines': 'versioned reference templates',
-  'public.reference_catalog_snapshot_receipts': 'per-organization seeding receipt, one row per org',
-  'public.saas_billing_periods': 'reference data',
-  'public.saas_organization_trials': 'one trial row per organization',
-  'public.specialist_signup_intents': 'a pending signup, resolved or abandoned; not a journal',
-  'public.specialist_tasks': {
-    reason: 'live task list of a specialist, not a journal — but the row references a patient and '
-      + 'must not keep pointing at a purged one',
-    // Final systemic lifecycle audit 2026-08-28, F2: no FK to `platform_users` on this column at all,
-    // so it silently survived purge. The task itself belongs to the specialist (kept); only the
-    // reference is nulled — see `platformUserFullPurge.ANONYMISE_ON_PURGE_COLUMNS`.
-    userPurge: { kind: 'explicit-anonymise', column: 'patient_user_id' },
+  'app.context_signing_secrets': {
+    reason: 'key material, not a journal; rotated, never aged out',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
   },
-  'public.staff_security_profiles': 'one security profile row per staff user',
-  'public.system_settings': 'live runtime configuration',
-  'public.test_results': 'clinical result rows of one test attempt',
-  'public.test_set_items': 'reference composition',
-  'public.test_sets': 'reference data',
-  'public.tests': 'reference data',
-  'public.treatment_program_instance_stage_groups': 'program composition',
-  'public.treatment_program_instance_stage_items': 'program composition',
-  'public.treatment_program_instance_stages': 'program composition',
-  'public.treatment_program_instances': 'assigned program, part of the patient record',
-  'public.treatment_program_template_stage_groups': 'template composition',
-  'public.treatment_program_template_stage_items': 'template composition',
-  'public.treatment_program_template_stages': 'template composition',
-  'public.treatment_program_templates': 'reference template',
-  'public.user_notification_topics': 'per-user subscription state',
-  'public.user_notification_topic_channels': 'per-user channel preference',
-  'public.user_passkey_accounts': 'credential state',
-  'public.user_passkey_credentials': 'credential state',
-  'public.user_password_credentials': 'credential state',
-  'public.user_oauth_bindings': 'credential state',
-  'public.user_channel_bindings': 'messenger binding state',
-  'public.user_pins': 'credential state',
-  'public.password_login_identifier_protection': 'per-identifier lockout state, one row per identifier',
-  'public.email_send_cooldowns': 'per-user cooldown state, one row per user/kind',
-  'public.patient_merge_candidates': 'live merge worklist, resolved in place',
-  'integrator.telegram_users': 'retired integrator identity projection',
-  'integrator.user_reminder_rules': 'retired integrator reminder-rule projection',
-  'integrator.user_questions': 'support question rows of the retired integrator schema',
-  'integrator.question_messages': 'support question messages of the retired integrator schema',
-  'integrator.conversation_messages': 'support conversation content',
-  'integrator.integration_data_quality_incidents': 'live data-quality worklist, resolved in place',
+  'app.principal_context': {
+    reason: 'per-connection principal state, dropped with the connection',
+    userPurge: { kind: 'self-expiring', column: 'patient_user_id', basis: 'row is keyed by backend_pid and carries expires_epoch; app.release_principal_context() drops it when the connection is released' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'drizzle.__drizzle_migrations': {
+    reason: 'applied-migration ledger; identity of the schema itself',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'integrator.contacts': {
+    reason: 'retired integrator contact projection of the messenger identity',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.content_access_grants': {
+    reason: 'retired integrator content-access projection',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.conversation_messages': {
+    reason: 'support conversation content',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.conversations': {
+    reason: 'retired integrator support-conversation projection',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.integration_data_quality_incidents': {
+    reason: 'live data-quality worklist, resolved in place',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'integrator.question_messages': {
+    reason: 'support question messages of the retired integrator schema',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.schema_migrations': {
+    reason: 'applied-migration ledger of the integrator schema',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'integrator.telegram_users': {
+    reason: 'retired integrator identity projection',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.user_questions': {
+    reason: 'support question rows of the retired integrator schema',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'integrator.user_reminder_rules': {
+    reason: 'retired integrator reminder-rule projection',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'public.be_appointment_cancellations': {
+    reason: 'a cancellation is a booking fact, not a log line',
+    userPurge: { kind: 'anonymised', column: 'actor_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_appointment_events': {
+    reason: 'retired duplicate absent from the target schema; declaration entry is cleanup metadata for old databases',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'public.be_appointment_no_shows': {
+    reason: 'a no-show is a booking fact, not a log line',
+    userPurge: { kind: 'anonymised', column: 'actor_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_appointment_reschedules': {
+    reason: 'a reschedule is a booking fact, not a log line',
+    userPurge: { kind: 'anonymised', column: 'actor_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_appointment_staff_comments': {
+    reason: 'staff notes on an appointment — clinical content',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_appointments': {
+    reason: 'an appointment is the booking fact itself, mutated in place through its own status; it is not an append-only journal of something else',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_availability_rules': {
+    reason: 'availability configuration a slot search reads; edited in place',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_booking_form_fields': {
+    reason: 'booking-form field configuration',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_booking_form_submissions': {
+    reason: 'a submitted booking form is patient-entered content',
+    userPurge: { kind: 'via-parent', parent: 'public.be_appointments' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_branches': {
+    reason: 'clinic branch configuration',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_cancellation_policies': {
+    reason: 'cancellation policy configuration',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_clinic_services': {
+    reason: 'service catalogue of a clinic',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_organization_members': {
+    reason: 'live membership of a person in a clinic, revoked in place; authorisation reads it, nothing sweeps it',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_organizations': {
+    reason: 'the tenant row itself — one row per clinic, edited in place',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.be_package_items': {
+    reason: 'composition of a package template',
+    userPurge: { kind: 'via-parent', parent: 'public.be_subscription_packages' },
+    orgPurge: { kind: 'via-parent', parent: 'public.be_subscription_packages' },
+  },
+  'public.be_package_usages': {
+    reason: 'session write-off against a bought subscription — the balance movement itself',
+    userPurge: { kind: 'anonymised', column: 'created_by_platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_patient_booking_profiles': {
+    reason: 'per-clinic booking profile of one patient (self-booking allowed / blocked), edited in place',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_patient_package_items': {
+    reason: 'per-service composition of a bought subscription',
+    userPurge: { kind: 'via-parent', parent: 'public.be_patient_packages' },
+    orgPurge: { kind: 'via-parent', parent: 'public.be_patient_packages' },
+  },
+  'public.be_patient_packages': {
+    reason: 'a subscription bought by a patient — live balance, decremented in place',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_payment_intents': {
+    reason: 'a payment intent is the money object, resolved in place',
+    userPurge: { kind: 'anonymised', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_payments': {
+    reason: 'a captured payment is a financial record retained for accounting, not a journal line',
+    userPurge: { kind: 'explicit-anonymise', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_prepayment_policies': {
+    reason: 'prepayment policy configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_clinic_services' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_refunds': {
+    reason: 'a refund is a financial record retained for accounting',
+    userPurge: { kind: 'via-parent', parent: 'public.be_payments' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_reschedule_policies': {
+    reason: 'reschedule policy configuration',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_rooms': {
+    reason: 'branch room configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_schedule_blocks': {
+    reason: 'schedule configuration',
+    userPurge: { kind: 'staff-authored', column: 'created_by_actor_id', basis: 'schedule blocks are created from the clinic cabinet; the column carries no FK and never holds a client; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_schedule_templates': {
+    reason: 'schedule configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_service_location_availability': {
+    reason: 'which branch offers which service — configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_specialist_locations': {
+    reason: 'specialist ↔ branch configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_specialist_rooms': {
+    reason: 'specialist ↔ room configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_rooms' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_specialist_service_availability': {
+    reason: 'which specialist offers which service — configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_specialists': {
+    reason: 'specialist card of a clinic — live directory row, not an event',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_subscription_packages': {
+    reason: 'subscription package catalogue of a clinic',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_working_days': {
+    reason: 'schedule configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.be_working_hours': {
+    reason: 'schedule configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.be_branches' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.booking_calendar_map': {
+    reason: 'mapping of a booking to its external Google Calendar event id; live pointer, deleted with the event',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.booking_cities': {
+    reason: 'reference data',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.broadcast_drafts': {
+    reason: 'a doctor\'s unsent broadcast draft, overwritten in place',
+    userPurge: { kind: 'staff-authored', column: 'doctor_user_id', basis: 'a draft belongs to the doctor who is writing it; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.channel_link_secrets': {
+    reason: 'messenger binding secret; single-use credential, not a journal',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.clinic_dedicated_bot_bindings': {
+    reason: 'binding of a clinic\'s own bot; live routing state, not history',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinic_public_directory_entries': {
+    reason: 'public directory card of a clinic; live, replaced in place',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_anamnesis_illness': {
+    reason: 'anamnesis block: past illnesses',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_anamnesis_lifestyle': {
+    reason: 'anamnesis block: lifestyle',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_anamnesis_trauma': {
+    reason: 'anamnesis block: traumas and operations',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_complaint': {
+    reason: 'complaints in the patient card',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_complaint_update': {
+    reason: 'per-visit dynamics of one complaint — part of the complaint, not a log',
+    userPurge: { kind: 'via-parent', parent: 'public.clinical_complaint' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_diagnosis': {
+    reason: 'diagnoses in the patient card',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_diagnosis_catalog': {
+    reason: 'diagnosis reference book of a clinic',
+    userPurge: { kind: 'staff-authored', column: 'created_by', basis: 'runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_diagnosis_update': {
+    reason: 'per-visit refinement of one diagnosis',
+    userPurge: { kind: 'via-parent', parent: 'public.clinical_diagnosis' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_test_measure_kinds': {
+    reason: 'reference data',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'public.clinical_test_regions': {
+    reason: 'reference data',
+    userPurge: { kind: 'via-parent', parent: 'public.reference_items' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.clinical_visit': {
+    reason: 'the visit record of the patient card',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.comments': {
+    reason: 'user-authored content',
+    userPurge: { kind: 'staff-authored', column: 'author_id', basis: 'the only writer is the doctor comments route; author_id carries ON DELETE RESTRICT, so a client author would refuse the purge — measured 0 client authors; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.content_access_grants_webapp': {
+    reason: 'content access granted to a patient — live entitlement, revoked in place',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.content_pages': {
+    reason: 'published content',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.content_sections': {
+    reason: 'published content',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.courses': {
+    reason: 'published content',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.doctor_notes': {
+    reason: 'doctor\'s private notes about a patient — clinical content',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.doctor_patient_support': {
+    reason: 'clinical/demographic profile of a patient under the clinic wall',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.email_send_cooldowns': {
+    reason: 'per-user cooldown state, one row per user/kind',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.lfk_complex_exercises': {
+    reason: 'program composition',
+    userPurge: { kind: 'via-parent', parent: 'public.lfk_complexes' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.lfk_complex_template_exercises': {
+    reason: 'program composition',
+    userPurge: { kind: 'via-parent', parent: 'public.lfk_complex_templates' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.lfk_complex_templates': {
+    reason: 'exercise-complex templates — clinic library',
+    userPurge: { kind: 'staff-authored', column: 'created_by', basis: 'runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.lfk_complexes': {
+    reason: 'exercise complexes assigned to a patient — patient content',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.lfk_exercise_media': {
+    reason: 'media attached to an exercise — part of the catalogue row',
+    userPurge: { kind: 'via-parent', parent: 'public.lfk_exercises' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.lfk_exercise_regions': {
+    reason: 'reference data',
+    userPurge: { kind: 'via-parent', parent: 'public.lfk_exercises' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.lfk_exercises': {
+    reason: 'exercise catalogue',
+    userPurge: { kind: 'staff-authored', column: 'created_by', basis: 'runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.material_ratings': {
+    reason: 'user-authored rating, one row per user/material',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.media_folders': {
+    reason: 'media-library folders, including a patient private folder — live tree, not a log',
+    userPurge: { kind: 'anonymised', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.media_playback_user_video_first_resolve': {
+    reason: 'one durable "first watched" mark per patient/video — a product fact, not an event stream',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.motivational_quotes': {
+    reason: 'reference content',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.online_intake_answers': {
+    reason: 'answers of one intake request — patient-entered content',
+    userPurge: { kind: 'via-parent', parent: 'public.online_intake_requests' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.online_intake_attachments': {
+    reason: 'files attached to one intake request',
+    userPurge: { kind: 'via-parent', parent: 'public.online_intake_requests' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.online_intake_requests': {
+    reason: 'the intake request itself — patient-entered content',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.org_brand_revisions': {
+    reason: 'published brand versions; a revision is content, not a log line',
+    userPurge: { kind: 'staff-authored', column: 'archived_by_platform_user_id, created_by_platform_user_id, published_by_platform_user_id', basis: 'brand revisions are published by clinic staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.org_enrollments': {
+    reason: 'live attachment of a person to a clinic — the tenant wall itself depends on it',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.organization_member_invites': {
+    reason: 'a staff invite is a pending live object, resolved or expired in place',
+    userPurge: { kind: 'staff-authored', column: 'accepted_by_platform_user_id, created_by_platform_user_id', basis: 'runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.organization_slug_claims': {
+    reason: 'live claim on a public slug, not history',
+    userPurge: { kind: 'staff-authored', column: 'created_by_platform_user_id', basis: 'a slug is claimed by clinic staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.password_login_identifier_protection': {
+    reason: 'per-identifier lockout state, one row per identifier',
+    userPurge: { kind: 'self-expiring', column: 'leased_user_id', basis: 'verification lease, released with verification_lease_until; the row is per identifier, not per person' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.patient_bookings': {
+    reason: 'legacy booking rows kept until the be_appointments cutover finishes; the row is the booking, not a log of it',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_comorbidity': {
+    reason: 'comorbidity block of the patient card',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_content_rating_feedback': {
+    reason: 'one rating row per patient/material',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_daily_warmup_presentations': {
+    reason: 'one row per patient/day presentation decision',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_daily_warmup_video_views': {
+    reason: 'one row per patient/video view decision',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_files': {
+    reason: 'medical documents in the patient card',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_home_block_items': {
+    reason: 'items of a patient-home block — configuration',
+    userPurge: { kind: 'via-parent', parent: 'public.patient_home_blocks' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_home_blocks': {
+    reason: 'patient-home layout configuration of a clinic',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_invites': {
+    reason: 'a portal invite is a live pending object, accepted or revoked in place',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_lfk_assignments': {
+    reason: 'exercise complexes assigned to a patient — patient content',
+    userPurge: { kind: 'explicit-delete', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_merge_candidates': {
+    reason: 'live merge worklist, resolved in place',
+    userPurge: { kind: 'cascade', column: 'anchor_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_payment': {
+    reason: 'payment history line of one patient — a financial record of the clinic',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.patient_specialist_links': {
+    reason: 'live "own patient" link between a patient and a specialist',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.phone_messenger_bind_secrets': {
+    reason: 'messenger binding secret; single-use credential',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.platform_user_contacts': {
+    reason: 'additional contacts of a person — live contact list',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.platform_users': {
+    reason: 'the one personal-data table: the person themselves, not a record about them',
+    userPurge: { kind: 'anonymised', column: 'merged_into_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.program_item_discussion_messages': {
+    reason: 'doctor ↔ patient discussion of a program item — the conversation content itself',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.program_item_discussion_reads': {
+    reason: 'per-patient read marks of a discussion; one row per reader, updated in place',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.recommendation_regions': {
+    reason: 'reference data',
+    userPurge: { kind: 'via-parent', parent: 'public.reference_items' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.recommendations': {
+    reason: 'recommendation reference book of a clinic',
+    userPurge: { kind: 'anonymised', column: 'created_by' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.reference_catalog_baselines': {
+    reason: 'versioned reference templates',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.reference_catalog_snapshot_receipts': {
+    reason: 'per-organization seeding receipt, one row per org',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.reference_categories': {
+    reason: 'reference catalogue categories of a clinic',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.reference_items': {
+    reason: 'reference catalogue items of a clinic',
+    userPurge: { kind: 'via-parent', parent: 'public.reference_categories' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.reminder_rules': {
+    reason: 'the reminder rule of a patient — live configuration; its occurrences live in reminder_occurrence_history',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_billing_accounts': {
+    reason: 'billing profile of a clinic — one live row per organization',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_billing_invoices': {
+    reason: 'issued invoices — financial records retained for accounting',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_billing_periods': {
+    reason: 'reference data',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.saas_billing_refunds': {
+    reason: 'refunds — financial records retained for accounting',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_billing_subscriptions': {
+    reason: 'live subscription of a clinic',
+    userPurge: { kind: 'via-parent', parent: 'public.saas_billing_accounts' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_org_entitlement_overrides': {
+    reason: 'manual entitlement grants to a clinic — live switches',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_organization_trials': {
+    reason: 'one trial row per organization',
+    userPurge: { kind: 'staff-authored', column: 'created_by', basis: 'a trial is opened by platform staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.saas_paid_period_policy': {
+    reason: 'single-row platform policy: what happens after the paid period',
+    userPurge: { kind: 'staff-authored', column: 'updated_by', basis: 'single-row platform policy edited by platform staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.saas_registration_tariff_policy': {
+    reason: 'single-row platform policy: default tariff at registration',
+    userPurge: { kind: 'staff-authored', column: 'updated_by', basis: 'single-row platform policy edited by platform staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.saas_tariffs': {
+    reason: 'platform tariff reference data',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.saas_trial_policy': {
+    reason: 'single-row platform policy: trial duration and aftermath',
+    userPurge: { kind: 'staff-authored', column: 'updated_by', basis: 'single-row platform policy edited by platform staff; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.schema_migrations': {
+    reason: 'applied-migration ledger',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'public.specialist_signup_intents': {
+    reason: 'a pending signup, resolved or abandoned; not a journal',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.specialist_tasks': {
+    reason: 'live task list of a specialist, not a journal — but the row references a patient and must not keep pointing at a purged one',
+    userPurge: { kind: 'explicit-anonymise', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.staff_security_profiles': {
+    reason: 'one security profile row per staff user',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.support_conversation_messages': {
+    reason: 'messages of a support conversation — the content itself',
+    userPurge: { kind: 'via-parent', parent: 'public.support_conversations' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.support_conversations': {
+    reason: 'support conversation of a patient — the conversation object',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.support_question_messages': {
+    reason: 'replies inside one question — the content itself',
+    userPurge: { kind: 'via-parent', parent: 'public.support_questions' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.support_questions': {
+    reason: 'a question from the messenger — live worklist item, answered in place',
+    userPurge: { kind: 'not-user-scoped' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.symptom_entries': {
+    reason: 'diary measurements of a patient — patient content',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.symptom_trackings': {
+    reason: 'what a patient tracks — patient diary configuration',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.system_settings': {
+    reason: 'live runtime configuration',
+    userPurge: { kind: 'staff-authored', column: 'updated_by', basis: 'runtime configuration edited by platform staff; purge additionally nulls the column; runStrictPurgePlatformUser refuses any role other than client, so this staff reference is never the purged person' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.test_results': {
+    reason: 'clinical result rows of one test attempt',
+    userPurge: { kind: 'via-parent', parent: 'public.test_attempts' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.test_set_items': {
+    reason: 'reference composition',
+    userPurge: { kind: 'via-parent', parent: 'public.test_sets' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.test_sets': {
+    reason: 'reference data',
+    userPurge: { kind: 'anonymised', column: 'created_by' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.tests': {
+    reason: 'reference data',
+    userPurge: { kind: 'anonymised', column: 'created_by' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_instance_stage_groups': {
+    reason: 'program composition',
+    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_instance_stages' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_instance_stage_items': {
+    reason: 'program composition',
+    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_instance_stages' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_instance_stages': {
+    reason: 'program composition',
+    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_instances' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_instances': {
+    reason: 'assigned program, part of the patient record',
+    userPurge: { kind: 'cascade', column: 'patient_user_id' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_template_stage_groups': {
+    reason: 'template composition',
+    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_template_stages' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_template_stage_items': {
+    reason: 'template composition',
+    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_template_stages' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_template_stages': {
+    reason: 'template composition',
+    userPurge: { kind: 'via-parent', parent: 'public.treatment_program_templates' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.treatment_program_templates': {
+    reason: 'reference template',
+    userPurge: { kind: 'anonymised', column: 'created_by' },
+    orgPurge: { kind: 'organization_id' },
+  },
+  'public.user_channel_bindings': {
+    reason: 'messenger binding state',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_channel_preferences': {
+    reason: 'per-channel consent of a person — live preference',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_contacts': {
+    reason: 'canonical contact index of a person — live login/search key',
+    userPurge: { kind: 'explicit-delete', column: 'platform_user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_identity': {
+    reason: 'name and birth date of the person',
+    userPurge: { kind: 'cascade', column: 'platform_user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_notification_topic_channels': {
+    reason: 'per-user channel preference',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_notification_topics': {
+    reason: 'per-user subscription state',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_oauth_bindings': {
+    reason: 'credential state',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_passkey_accounts': {
+    reason: 'credential state',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_passkey_credentials': {
+    reason: 'credential state',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_password_credentials': {
+    reason: 'credential state',
+    userPurge: { kind: 'cascade', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.user_pins': {
+    reason: 'credential state',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
+  'public.user_web_push_subscriptions': {
+    reason: 'browser push subscription — live endpoint, removed when it dies',
+    userPurge: { kind: 'explicit-delete', column: 'user_id' },
+    orgPurge: { kind: 'not-org-scoped' },
+  },
+  'public.webapp_schema_migrations': {
+    reason: 'applied-migration ledger',
+    userPurge: { kind: 'absent-retired', basis: 'declared for cleanup only: the relation exists in neither managed database (verified on bcb_webapp_dev and bersoncarebot_test)' },
+    orgPurge: { kind: 'absent-retired', basis: 'same relation: nothing to purge because nothing exists' },
+  },
 };
