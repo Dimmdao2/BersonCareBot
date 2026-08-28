@@ -9,6 +9,8 @@ not create a disposable database. Do not run full CI. Commit all completed work 
 
 Owner-authorized plan: `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`, stage 3:
 
+Источник оракула: `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md` — «Для каждой физической сущности зафиксировать: зачем существует, канонический ключ пользователя/клиники, cascade при account/org purge, terminal states, окно хранения, named prune root, scheduler и health signal.»
+
 > Для каждой физической сущности зафиксировать: зачем существует, канонический ключ пользователя/клиники,
 > cascade при account/org purge, terminal states, окно хранения, named prune root, scheduler и health signal.
 
