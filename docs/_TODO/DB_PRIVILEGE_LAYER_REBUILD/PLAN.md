@@ -44,19 +44,25 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [ ] **Реальная доставка, общий gate с Track D.** Existing owner должен пройти messenger contact proof и код
   входа; запись на приём — реально доставить подтверждение и напоминание; scheduler — реально доставить operator
   digest и перенести следующий запуск после смены `digestTime`.
-- [ ] **Retention/rotation.** Почасовая DB-retention задача установлена и живьём выполняется; отдельно ещё не
-  подтверждена фактическим измерением ротация PostgreSQL/systemd/application-журналов.
+- [x] **Retention/rotation.** Почасовая DB-retention задача установлена; живой тик 28.08 в 19:00
+  завершился успехом. PostgreSQL logrotate активен (`weekly`, `rotate 10`) и имеет живые
+  ротированные файлы; systemd/application stdout живёт в journald, где фактически применены
+  `SystemMaxUse=2G`, `MaxRetentionSec=90day`, `SystemKeepFree=1G`, `ForwardToSyslog=no` (`18f75d8f7`).
 - [ ] **mTLS host proof.** Отказ с неправильным сертификатом подтверждён. Осталось доказать на named среде
   missing/expired/revoked certificate, CN/login/port и non-TLS/socket, а также рабочую процедуру
   overlap/rotation/rollback.
-- [ ] **Декларация как единственный исполняемый источник.** Убрать оставшиеся переходные `revoke`/
-  `OWNER_GATES_OPEN`/diagnostic-артефакты и подключить уже существующие function-census/callsite/post-zero
-  проверки к обычному рациональному CI gate. Не возвращать права в schema migrations.
+- [x] **Декларация как единственный исполняемый источник.** Revision 10 строится только из текущей
+  исполняемой матрицы; `revoke`, `OWNER_GATES_OPEN`, очередь code-change и пустые diagnostic/config-reader
+  роли удалены (`3b7ea5860`). Function census и callsite/relation census входят в штатные
+  privilege-гейты CI; historical disposable post-zero replay не возвращается. Права в schema migrations
+  не выдаются.
 - [ ] **Отдельный архитектурный follow-up слоя доступа.** Довести структурный allowlist владельцев definer,
   публичное чтение и окончательное разделение identity/medical subject там, где это ещё не покрыто текущими
   actor/subject refs. Это не блокирует нынешний TEST, но остаётся owner-requested работой `#1085`.
 - [ ] **PROD — только отдельным разрешённым этапом.** Подготовить одну атомарную `A → B0` миграцию и rollback;
-  на PROD ничего не выполнять без нового явного разрешения владельца и проверки host `135.106.162.170`.
+  на PROD ничего не выполнять без нового явного разрешения владельца и проверки host `135.106.162.170`. До этого
+  все активные PROD deploy/bootstrap/provision entrypoint закрыты fail-closed, чтобы старый C4-путь
+  не мог обойти cutover.
 
 ## Конечный результат
 

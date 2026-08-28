@@ -293,6 +293,7 @@ case "${1:-}" in
 esac
 
 assert_canonical_prod_host
+fail "PROD systemd bootstrap is paused until the owner-approved A→B0 privilege cutover replaces the retired C4 runtime path"
 [ "$(id -u)" -eq 0 ] ||
   fail "systemd unit provisioning is root-only; ordinary deploy must not replace installed units"
 

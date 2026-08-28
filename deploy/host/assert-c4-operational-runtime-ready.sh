@@ -62,6 +62,7 @@ case "${API_ENV_FILE}|${WEBAPP_ENV_FILE}|${MEDIA_WORKER_ENV_FILE}" in
   "${PROD_API_ENV}|${PROD_WEBAPP_ENV}|${PROD_MEDIA_ENV}")
     expected_database=bersoncarebot
     assert_canonical_prod_host
+    fail "PROD C4 readiness is retired; wait for the owner-approved A→B0 privilege cutover"
     ;;
   "${TEST_API_ENV}|${TEST_WEBAPP_ENV}|${TEST_MEDIA_ENV}")
     expected_database=bersoncarebot_test

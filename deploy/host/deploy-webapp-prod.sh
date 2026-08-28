@@ -72,6 +72,7 @@ require_sudo_rule() {
 }
 
 assert_canonical_prod_host
+fail "PROD webapp deploy is paused until the owner-approved A→B0 privilege cutover; this shortcut must not bypass it"
 
 cd "${PROJECT_ROOT}"
 git checkout -- apps/webapp/next-env.d.ts 2>/dev/null || true

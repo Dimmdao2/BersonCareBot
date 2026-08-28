@@ -105,6 +105,7 @@ require_sudo_rule() {
 }
 
 assert_canonical_prod_host
+fail "PROD deploy is paused until the owner-approved A→B0 privilege cutover replaces the retired C4 runtime path"
 
 cd "${PROJECT_ROOT}"
 # Discard local changes to auto-generated file so pull never conflicts (Next.js overwrites it on build).

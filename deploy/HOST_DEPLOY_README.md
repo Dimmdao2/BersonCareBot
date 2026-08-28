@@ -6,6 +6,12 @@
 > запускаться. Разделы TEST относятся к `151.x`. Канон host identity:
 > [`docs/ARCHITECTURE/SERVER CONVENTIONS.md`](../docs/ARCHITECTURE/SERVER%20CONVENTIONS.md).
 
+> **PROD DEPLOY PAUSED:** активные PROD entrypoint сейчас намеренно завершаются fail-closed сразу после
+> проверки канонического хоста. Старый C4-контракт расходится с уже принятой port-context схемой, а отдельная
+> PROD `A→B0` миграция ещё не разрешена владельцем. До owner-approved cutover нельзя запускать ни общий,
+> ни webapp-only deploy, ни systemd bootstrap, ни PROD C4 provision/readiness. TEST entrypoint не затронуты.
+> Нижние C4-инструкции сохранены только как переходный исторический контекст и не являются командами к запуску.
+
 Этот файл описывает operational-модель `BersonCareBot` на двух явно разделённых хостах.
 
 В scope входят:

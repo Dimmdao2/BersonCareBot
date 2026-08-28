@@ -125,6 +125,8 @@ assert_canonical_prod_host(){
 
 if [ "${1:-}" != "--bootstrap-test-env" ]; then
   assert_canonical_prod_host
+  echo "FATAL: PROD C4 provisioning is retired; wait for the owner-approved A→B0 privilege cutover" >&2
+  exit 1
 fi
 
 [ "${EUID}" -eq 0 ] || { echo "FATAL: run as root/DB administrator" >&2; exit 1; }
