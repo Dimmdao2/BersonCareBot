@@ -436,6 +436,48 @@ schedule job красит deploy/reconcile-проверку до запуска 
 и post-purge audit, который сейчас заново сохраняет raw user id и идентификаторы артефактов. Этап остаётся
 открытым; mock SQL не считается живым доказательством.
 
+**Rollback-only DB-proof ядра — сделано 28.08 (ветка `wt/account-purge-proof-20260828`).**
+`apps/webapp/src/infra/platformUserFullPurge.devDbProof.test.ts`, opt-in
+`RUN_PLATFORM_USER_PURGE_DB=1`, канонический admin socket (AGENTS §6), только `bersoncarebot_test`,
+одна транзакция `REPEATABLE READ` с безусловным `ROLLBACK`. Прогон:
+`RUN_PLATFORM_USER_PURGE_DB=1 pnpm --dir apps/webapp exec vitest run
+src/infra/platformUserFullPurge.devDbProof.test.ts` → **9/9 PASS**; без флага файл целиком
+пропускается (`9 skipped`). Проба не повторяет алгоритм удаления: она берёт advisory lock,
+`collectPurgeArtifactKeys` и `runWebappPurgeCoreInTransaction` как есть, а ожидания выводит из
+`pg_constraint` живой TEST-БД и `JOURNAL_LIFECYCLE_REGISTRY`, а не из рукописного списка.
+
+Что показал прогон на настоящем клиенте `387983fd-ce91-4c04-92a0-f48447d7193e`
+(`integrator_user_id = 36`, 126 поверхностей, 32 из них с живыми фактами): ни одно отношение живого
+FK-графа не ссылается на удалённого человека; explicit-delete перебивает `ON DELETE SET NULL`
+(`be_appointments` 3→0, `reminder_rules` 1→0, `support_conversations` 2→0) и достаёт таблицу вообще
+без FK (`reminder_occurrence_history` 15→0, аудит §C1); cascade вычищает 24 отношения;
+`product_analytics_events_recent` де-идентифицируется, не теряя строк (ссылок 1036→0, всего
+16569→16569); via-parent уносит 7 дочерних хранилищ (`support_conversation_messages` 10→0,
+`treatment_program_events` 75→0 через `treatment_program_instances`, и др.); phone-keyed
+`phone_challenges` 1→0 по цифрам номера. После `ROLLBACK` все 126 замеров вернулись к исходным.
+Слепые инъекции (что сломано → что покраснело): убрать `reminder_occurrence_history` из
+`CONTENT_TABLES` → «deletes the rows of every relation…»; отключить `deletePhoneKeyedWebappRows` →
+«clears the phone-keyed stores…»; заменить финальный `DELETE FROM platform_users` на `SELECT` →
+4 утверждения; удалить `product_analytics_events_recent` вместо анонимизации → «keeps ON DELETE SET
+NULL rows alive…»; переименовать запись реестра → «keeps the written lifecycle registry in step…»;
+снять `ROLLBACK` из измерения → «restores every measured count after the rollback».
+
+Найдено пробой, НЕ исправлено, требует решения владельца — четвёртое расхождение помимо трёх выше:
+реестр объявляет `anonymised` (то есть «FK `ON DELETE SET NULL`, строка выживает обезличенной») для
+`public.system_settings_audit.changed_by`, `public.organization_slug_rename_events.actor_platform_user_id`
+и `public.online_intake_status_history.changed_by`, а в живой TEST-БД все три FK — `NO ACTION`, и
+`clearPlatformUserDeleteBlockers` их не снимает: база не обезличит строку, а ОТКАЖЕТ в удалении
+учётки. Сегодня это не достигается только потому, что все три пишутся сотрудниками, а purge принимает
+`role = 'client'`; объявленный жизненный цикл при этом ложен. Набор зафиксирован в самой пробе
+(`RECORDED_REGISTRY_FK_DIVERGENCES`) как незакрытый дефект, чтобы новое расхождение не появилось молча.
+
+Границы этого доказательства: только ядро транзакции. Post-commit удаление строк `media_files`,
+очистка S3 и запись audit в него не входят — два из трёх зафиксированных policy-расхождений живут
+именно там и остаются открытыми. На TEST нет клиента, который одновременно несёт живой факт каждого
+класса purge и владеет медиа (`media_files` 187, `patient_files` 4, intake-вложений 0 на всю базу), а
+`message_log` пуст — поэтому сбор артефактов проба выполняет, но не доказывает, и живого факта по
+`message_log` у неё нет. Публичный destructive route остаётся выключенным; проба его не включает.
+
 ### Этап 4. Один контракт результата фоновой операции
 
 - Успех batch-job возможен только когда все обязательные операции завершены; `errors > 0` не превращается в
