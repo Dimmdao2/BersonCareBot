@@ -10,7 +10,6 @@ import { getAdminStats } from './repos/adminStats.js';
 import { getChannelBindingLinkData } from './repos/platformUserByChannel.js';
 import {
   getReminderOccurrencesForRuleRange,
-  getReminderOccurrenceOwnerPlatformUserId,
   getStaleReminderMessengerMessageIdForResend,
 } from './repos/reminders.js';
 import { getPhoneNormalizedForDeliveryLookup } from './repos/platformUserDeliveryPhone.js';
@@ -124,12 +123,6 @@ export function createDbReadPort(
           const toIso = asNonEmptyString(query.params.toIso);
           if (!ruleId || !fromIso || !toIso) return [] as T;
           return (await getReminderOccurrencesForRuleRange(db, ruleId, fromIso, toIso)) as T;
-        }
-        case 'reminders.occurrence.ownerPlatformUserId': {
-          const occurrenceId = asNonEmptyString(query.params.occurrenceId);
-          if (!occurrenceId) return null as T;
-          const owner = await getReminderOccurrenceOwnerPlatformUserId(db, occurrenceId);
-          return (owner ?? null) as T;
         }
         case 'reminders.delivery.staleMessengerMessage': {
           const ruleId = asNonEmptyString(query.params.ruleId);

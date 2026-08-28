@@ -268,8 +268,7 @@ export async function claimMessengerChannelBindingInTransaction(
 
   await runWebappPgText(
     `UPDATE platform_users
-     SET integrator_user_id = NULL,
-         merged_into_id = $1::uuid,
+     SET merged_into_id = $1::uuid,
          merged_at = now(),
          updated_at = now()
      WHERE id = $2::uuid AND merged_into_id IS NULL`,

@@ -97,7 +97,6 @@ const ADMIN_BOOLEAN_SETTING_KEYS = new Set<string>([
 
 const ADMIN_SCOPE_KEYS = [
   'sms_fallback_enabled',
-  'platform_user_merge_v2_enabled',
   'material_ratings_enabled',
   'important_fallback_delay_minutes',
   'support_contact_url',

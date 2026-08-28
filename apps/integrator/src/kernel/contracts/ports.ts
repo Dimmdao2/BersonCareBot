@@ -27,7 +27,6 @@ export type DbReadQueryType =
   | 'reminders.rules.forUser'
   | 'reminders.rule.forUserAndCategory'
   | 'reminders.occurrences.forRuleRange'
-  | 'reminders.occurrence.ownerPlatformUserId'
   | 'reminders.delivery.staleMessengerMessage'
   | 'delivery.pending';
 
@@ -457,14 +456,16 @@ export type ReminderOccurrenceHistoryItem = {
  */
 export type RemindersWebappWritesPort = {
   postOccurrenceSnooze(input: {
+    platformUserId: string;
     occurrenceId: string;
     minutes: number;
   }): Promise<{ ok: true; snoozedUntil: string } | { ok: false; error: string }>;
   postOccurrenceSkip(input: {
+    platformUserId: string;
     occurrenceId: string;
     reason: string | null;
   }): Promise<{ ok: true; skippedAt: string } | { ok: false; error: string }>;
-  postOccurrenceDone(input: { occurrenceId: string }): Promise<
+  postOccurrenceDone(input: { platformUserId: string; occurrenceId: string }): Promise<
     | {
         ok: true;
         doneAt: string;
@@ -476,16 +477,19 @@ export type RemindersWebappWritesPort = {
     | { ok: false; error: string }
   >;
   postReminderMuteUntil(input: {
+    platformUserId: string;
     minutes: number | null;
     untilTomorrow: boolean;
   }): Promise<{ ok: true; mutedUntil: string } | { ok: false; error: string }>;
   /** Turn off reminder delivery in Telegram/MAX for occurrence's topic (`user_notification_topic_channels`). */
   postMessengerTopicDisable(input: {
+    platformUserId: string;
     occurrenceId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; paragraphs: string[] } | { ok: false; error: string }>;
   /** Fetch per-channel notification topic settings for a user. */
   getNotificationSettings(input: {
+    platformUserId: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<
     | { ok: true; topics: Array<{ code: string; title: string; isEnabled: boolean }> }
@@ -493,6 +497,7 @@ export type RemindersWebappWritesPort = {
   >;
   /** Toggle a notification topic on/off for a specific channel. Returns new state. */
   toggleNotificationTopic(input: {
+    platformUserId: string;
     topicCode: string;
     messengerChannel: 'telegram' | 'max';
   }): Promise<{ ok: true; newState: boolean } | { ok: false; error: string }>;

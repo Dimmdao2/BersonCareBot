@@ -59,9 +59,6 @@ export function classifyMergeFailure(
 
   if (err instanceof MergeConflictError) {
     const msg = err.message;
-    if (msg.includes('two different non-null integrator_user_id')) {
-      return { code: 'merge_blocked_integrator_conflict', candidateIds: idsFromErr };
-    }
     if (msg.includes('two different non-null phone')) {
       return { code: 'merge_blocked_distinct_real_users', candidateIds: idsFromErr };
     }

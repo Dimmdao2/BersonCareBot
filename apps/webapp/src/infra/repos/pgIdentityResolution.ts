@@ -1,4 +1,3 @@
-import type { PoolClient } from 'pg';
 import { sql } from 'drizzle-orm';
 /**
  * Wave 3 phase 12B — Class C transport: `client.query("BEGIN"|"COMMIT"|"ROLLBACK")`.
@@ -6,56 +5,24 @@ import { sql } from 'drizzle-orm';
  */
 import { getPool } from '@/infra/db/client';
 import type { SessionUser } from '@/shared/types/session';
-import type {
-  IdentityResolutionPort,
-  MessengerIdentityResolutionHints,
-} from '@/modules/auth/identityResolutionPort';
-import {
-  findTrustedCanonicalUserIdByPhone,
-  resolveCanonicalUserId,
-} from '@/infra/repos/pgCanonicalPlatformUser';
-import { mergeCanonicalPlatformUserCandidates } from '@/infra/repos/pgUserProjection';
-import { isPlatformUserUuid } from '@/shared/platform-user/isPlatformUserUuid';
+import type { IdentityResolutionPort } from '@/modules/auth/identityResolutionPort';
+import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
 import {
   bindingsFromRows,
   parseChannelBindingLookupParams,
   parseResolveByChannelBindingParams,
   parseIdentityRow,
-  parseMessengerIdentityResolutionHints,
   parseUserRole,
   preSessionChannelBindingSessionRowSchema,
   userIdRowSchema,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText } from '@/infra/repos/identityPhoneSql';
-import { upsertBroadcastDefaultsAfterChannelBind } from '@/infra/upsertBroadcastDefaultsAfterChannelBind';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import {
   getWebappSqlDb,
-  getWebappSqlFromPgClient,
   runWebappNamedRoot,
 } from '@/infra/db/runWebappSql';
-import { syncUserIdentityFioMirrorWebapp } from '@/infra/repos/userIdentityFioSql';
 import { loadSessionIdentityUser } from '@/infra/repos/pgUserByPhone';
-
-async function collectMessengerResolutionCandidates(
-  client: PoolClient,
-  hints: MessengerIdentityResolutionHints | undefined,
-): Promise<string[]> {
-  const parsedHints = parseMessengerIdentityResolutionHints(hints);
-  if (!parsedHints) return [];
-  const ids: string[] = [];
-  const sub = parsedHints.platformUserSub?.trim();
-  if (sub && isPlatformUserUuid(sub)) {
-    const canon = await resolveCanonicalUserId(getWebappSqlFromPgClient(client), sub);
-    if (canon) ids.push(canon);
-  }
-  const phone = parsedHints.phoneNormalized?.trim();
-  if (phone) {
-    const byTrustedPhone = await findTrustedCanonicalUserIdByPhone(getWebappSqlFromPgClient(client), phone);
-    if (byTrustedPhone) ids.push(byTrustedPhone);
-  }
-  return [...new Set(ids)];
-}
 
 async function loadSessionUserForId(
   userId: string,
@@ -69,15 +36,8 @@ async function loadSessionUserForId(
 
 export const pgIdentityResolutionPort: IdentityResolutionPort = {
   /**
-   * Track D (#987): resolve-only. Three outcomes and no fourth:
-   *   1. the binding already exists  → that person's session;
-   *   2. no binding, but a hint from the signed token resolves an EXISTING canon → bind and merge;
-   *   3. nothing resolves            → `null`, and the caller denies the entry.
-   *
-   * The removed fourth branch was `INSERT INTO platform_users` — it is what let an arbitrary
-   * `/start` (which mints a signed entry link for any chat id) open an account for a stranger the
-   * bot had proved nothing about. The owner's rule is that the bot proves phone ownership and the
-   * webapp owns the account record (`docs/OWNER_DECISIONS.md`, 23.08.2026).
+   * Messenger entry is exact-binding-only. A signed token, phone or display name is never an
+   * alternate account locator and never authorizes creating or attaching a binding.
    */
   async resolveByChannelBinding(params) {
     const parsed = parseResolveByChannelBindingParams(params);
@@ -89,82 +49,10 @@ export const pgIdentityResolutionPort: IdentityResolutionPort = {
         [parsed.channelCode, parsed.externalId],
       );
 
-      if (existing.rows.length > 0) {
-        const userId = parseIdentityRow(userIdRowSchema, existing.rows[0], 'existing_binding').user_id;
-        if (process.env.NODE_ENV !== 'test') {
-          console.info(
-            '[identity_resolution] path=existing_binding channel=%s',
-            parsed.channelCode,
-          );
-        }
-        return { userId };
-      }
-
-      const hintCandidates = await collectMessengerResolutionCandidates(
-        client,
-        parsed.resolutionHints,
-      );
-      if (hintCandidates.length === 0) {
-        if (process.env.NODE_ENV !== 'test') {
-          console.info(
-            '[identity_resolution] path=unresolved_no_account channel=%s',
-            parsed.channelCode,
-          );
-        }
-        return null;
-      }
-
-      let userId = await mergeCanonicalPlatformUserCandidates(client, hintCandidates, 'projection');
-      const dn = parsed.displayName?.trim();
-      if (dn) {
-        await runIdentityClientPgText(
-          client,
-          `UPDATE platform_users SET
-             display_name = $2::text,
-             updated_at = now()
-           WHERE id = $1::uuid`,
-          [userId, dn],
-        );
-        await syncUserIdentityFioMirrorWebapp(client, userId);
-      }
-      if (process.env.NODE_ENV !== 'test') {
-        console.info(
-          '[identity_resolution] path=merge_before_bind channel=%s hint_candidates=%d',
-          parsed.channelCode,
-          hintCandidates.length,
-        );
-      }
-
-      const insBinding = await runIdentityClientPgText(
-        client,
-        `INSERT INTO user_channel_bindings (user_id, channel_code, external_id)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (channel_code, external_id) DO NOTHING
-         RETURNING user_id`,
-        [userId, parsed.channelCode, parsed.externalId],
-      );
-      if (insBinding.rows.length > 0) {
-        await upsertBroadcastDefaultsAfterChannelBind(
-          getWebappSqlFromPgClient(client),
-          userId,
-          parsed.channelCode,
-        );
-      } else {
-        // Raced against another binder: the winner owns the channel, we follow it.
-        const reread = await runIdentityClientPgText(
-          client,
-          'SELECT user_id FROM user_channel_bindings WHERE channel_code = $1 AND external_id = $2 FOR UPDATE',
-          [parsed.channelCode, parsed.externalId],
-        );
-        const ownerId = reread.rows[0]
-          ? parseIdentityRow(userIdRowSchema, reread.rows[0], 'binding_reread').user_id
-          : null;
-        if (!ownerId) {
-          throw new Error('resolveByChannelBinding: binding missing after conflict');
-        }
-        userId = ownerId;
-      }
-      return { userId };
+      const row = existing.rows[0];
+      return row
+        ? { userId: parseIdentityRow(userIdRowSchema, row, 'existing_binding').user_id }
+        : null;
     });
     if (!txResult) return null;
     return {

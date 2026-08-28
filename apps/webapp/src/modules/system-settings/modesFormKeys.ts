@@ -4,7 +4,6 @@
  */
 export const MODES_FORM_KEYS = [
   'important_fallback_delay_minutes',
-  'platform_user_merge_v2_enabled',
   'admin_phones',
   'admin_telegram_ids',
   'admin_max_ids',

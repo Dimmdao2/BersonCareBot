@@ -363,20 +363,6 @@ export async function createContentAccessGrant(
  * canonical uuid, and it is read straight off the occurrence row, whose `platform_user_id` is
  * `NOT NULL` — no join through the retired identity and no fallback.
  */
-export async function getReminderOccurrenceOwnerPlatformUserId(
-  db: DbPort,
-  occurrenceId: string,
-): Promise<string | null> {
-  const d = getIntegratorDrizzleSession(db);
-  const rows = await d
-    .select({ platform_user_id: sql<string>`${reminderOccurrenceHistory.platformUserId}::text` })
-    .from(reminderOccurrenceHistory)
-    .where(eq(reminderOccurrenceHistory.integratorOccurrenceId, occurrenceId))
-    .limit(1);
-  const id = rows[0]?.platform_user_id;
-  return id && id.trim().length > 0 ? id.trim() : null;
-}
-
 /** Snooze: move occurrence back to planned at `plannedAtIso`, clear send/queue fields. */
 export async function rescheduleReminderOccurrencePlanned(
   db: DbPort,

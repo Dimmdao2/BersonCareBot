@@ -78,22 +78,16 @@ export function createPgIntegratorDeliveryTargetsPort(): IntegratorDeliveryTarge
         nonEmpty(selector.telegramId),
         nonEmpty(selector.maxId),
         nonEmpty(selector.platformUserId),
-        // Track D (#987): the retired numeric identity is no longer a selector anywhere in TS, so
-        // this positional argument is pinned to NULL. The root keeps its `bigint` parameter for now
-        // because dropping it changes the function's signature — that is a DROP+CREATE, and a
-        // recreated function would need its grants re-issued, which a migration must never do
-        // (AGENTS.md §1). Retiring the parameter itself belongs to a privilege-aware pass.
-        null,
         nonEmpty(selector.topicCode),
         nowIso,
       ] as const;
       const result = await runWebappNamedRoot<JsonResultRow>(
         getWebappSqlDb(),
-        'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,bigint,text,timestamp with time zone)',
+        'app.read_integrator_delivery_target_snapshot(uuid,text,text,text,uuid,text,timestamp with time zone)',
         args,
         sql`SELECT app.read_integrator_delivery_target_snapshot(
           ${args[0]}::uuid, ${args[1]}::text, ${args[2]}::text, ${args[3]}::text,
-          ${args[4]}::uuid, ${args[5]}::bigint, ${args[6]}::text, ${args[7]}::timestamptz
+          ${args[4]}::uuid, ${args[5]}::text, ${args[6]}::timestamptz
         ) AS result`,
       );
       return parseSnapshot(result.rows[0]?.result);

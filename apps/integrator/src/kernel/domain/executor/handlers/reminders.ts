@@ -111,18 +111,6 @@ async function resolveCanonicalPlatformUserId(
  * A different binding, a different person or a different clinic still resolves to a different
  * uuid — or to nothing — and stays denied.
  */
-async function assertOccurrenceOwnedByUser(
-  readPort: NonNullable<ExecutorDeps['readPort']>,
-  occurrenceId: string,
-  platformUserId: string,
-): Promise<boolean> {
-  const owner = await readPort.readDb<string | null>({
-    type: 'reminders.occurrence.ownerPlatformUserId',
-    params: { occurrenceId },
-  });
-  return owner !== null && owner === platformUserId;
-}
-
 export async function handleReminders(
   action: Action,
   ctx: DomainContext,
@@ -165,7 +153,7 @@ export async function handleReminders(
     }
     const minutes = minutesRounded;
     const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -180,6 +168,7 @@ export async function handleReminders(
       };
     }
     const w = await deps.remindersWebappWritesPort.postOccurrenceSnooze({
+      platformUserId: userId,
       occurrenceId,
       minutes,
     });
@@ -248,7 +237,7 @@ export async function handleReminders(
       };
     }
     const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -264,6 +253,7 @@ export async function handleReminders(
       };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceSkip({
+      platformUserId: userId,
       occurrenceId,
       reason: null,
     });
@@ -328,7 +318,7 @@ export async function handleReminders(
       };
     }
     const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    if (!userId) {
       return { actionId: action.id, status: 'failed', error: 'reminders.done.callback: forbidden' };
     }
     if (!deps.remindersWebappWritesPort) {
@@ -339,6 +329,7 @@ export async function handleReminders(
       };
     }
     const web = await deps.remindersWebappWritesPort.postOccurrenceDone({
+      platformUserId: userId,
       occurrenceId,
     });
     if (!web.ok) {
@@ -466,6 +457,7 @@ export async function handleReminders(
       };
     }
     const mute = await deps.remindersWebappWritesPort.postReminderMuteUntil({
+      platformUserId: userId,
       minutes,
       untilTomorrow: mutePreset === 'tomorrow',
     });
@@ -542,7 +534,7 @@ export async function handleReminders(
     }
 
     const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -551,6 +543,7 @@ export async function handleReminders(
     }
 
     const web = await deps.remindersWebappWritesPort.postMessengerTopicDisable({
+      platformUserId: userId,
       occurrenceId,
       messengerChannel,
     });
@@ -619,7 +612,7 @@ export async function handleReminders(
       };
     }
     const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -695,7 +688,7 @@ export async function handleReminders(
       };
     }
     const userId = await resolveCanonicalPlatformUserId(deps.readPort, channelUserId, resource);
-    if (!userId || !(await assertOccurrenceOwnedByUser(deps.readPort, occurrenceId, userId))) {
+    if (!userId) {
       return {
         actionId: action.id,
         status: 'failed',
@@ -704,6 +697,7 @@ export async function handleReminders(
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
+      platformUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];
@@ -787,6 +781,7 @@ export async function handleReminders(
     }
     const messengerChannel: 'telegram' | 'max' = resource === 'max' ? 'max' : 'telegram';
     const toggle = await deps.remindersWebappWritesPort.toggleNotificationTopic({
+      platformUserId: userId,
       topicCode,
       messengerChannel,
     });
@@ -798,6 +793,7 @@ export async function handleReminders(
       };
     }
     const settingsResult = await deps.remindersWebappWritesPort.getNotificationSettings({
+      platformUserId: userId,
       messengerChannel,
     });
     const topics = settingsResult.ok ? settingsResult.topics : [];

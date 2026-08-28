@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { PhoneMessengerBindClaimRow, PhoneMessengerBindSecretRow } from '@/modules/auth/phoneMessengerBind.ports';
-import type { MessengerIdentityResolutionHints } from '@/modules/auth/identityResolutionPort';
 import type { ChannelContext } from '@/modules/auth/channelContext';
 import type { ChannelBindings, SessionIdentityContact } from '@/shared/types/session';
 import type { UserRole } from '@/shared/types/session';
@@ -24,12 +23,6 @@ export const messengerBindStatusSchema = z.enum([
   'expired',
 ]);
 
-export const messengerIdentityResolutionHintsSchema = z.object({
-  /** Canonical `platform_users.id`; Track D (#987) dropped the retired `integratorUserId` hint. */
-  platformUserSub: z.string().trim().min(1).optional(),
-  phoneNormalized: z.string().trim().min(1).optional(),
-});
-
 export const channelBindingLookupParamsSchema = z.object({
   channelCode: identityChannelCodeSchema,
   externalId: z.string().trim().min(1),
@@ -38,7 +31,6 @@ export const channelBindingLookupParamsSchema = z.object({
 export const resolveByChannelBindingParamsSchema = channelBindingLookupParamsSchema.extend({
   displayName: z.string().optional(),
   role: userRoleSchema.optional(),
-  resolutionHints: messengerIdentityResolutionHintsSchema.optional(),
 });
 
 export const channelContextSchema = z.object({
@@ -173,7 +165,6 @@ export const emailVerifiedRowSchema = z.object({
 export const puMergeRowSchema = z.object({
   id: z.string(),
   phone_normalized: z.string().nullable(),
-  integrator_user_id: z.string().nullable(),
   merged_into_id: z.string().nullable(),
   display_name: z.string(),
   first_name: z.string().nullable(),
@@ -220,7 +211,6 @@ export const platformUserInsertRowSchema = z.object({
 
 export const bindingOwnerRowSchema = z.object({
   user_id: z.string(),
-  integrator_user_id: z.string().nullable(),
 });
 
 const phoneMessengerBindSecretRowSchema = z.object({
@@ -273,13 +263,6 @@ export function parseResolveByChannelBindingParams(
 
 export function parseChannelContext(context: ChannelContext): ChannelContext {
   return parseIdentityRow(channelContextSchema, context, 'channel_context');
-}
-
-export function parseMessengerIdentityResolutionHints(
-  hints: MessengerIdentityResolutionHints | undefined,
-): MessengerIdentityResolutionHints | undefined {
-  if (hints == null) return undefined;
-  return parseIdentityRow(messengerIdentityResolutionHintsSchema, hints, 'resolution_hints');
 }
 
 export function bindingsFromRows(rows: unknown[]): ChannelBindings {

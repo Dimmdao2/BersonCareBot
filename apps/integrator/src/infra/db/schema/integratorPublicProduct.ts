@@ -42,7 +42,6 @@ export const bookingCalendarMap = publicSchema.table(
 /** Narrow `public.platform_users` slice for integrator delivery/lookup repos (D18b). */
 export const platformUsers = publicSchema.table('platform_users', {
   id: uuid().primaryKey().notNull(),
-  integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
   mergedIntoId: uuid('merged_into_id'),
 });
 
@@ -77,8 +76,7 @@ export const reminderRules = publicSchema.table('reminder_rules', {
   integratorRuleId: text('integrator_rule_id').primaryKey().notNull(),
   organizationId: uuid('organization_id'),
   /** Track D (#987): единственный ключ владельца правила; retired-id больше не читается. */
-  platformUserId: uuid('platform_user_id'),
-  integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
+  platformUserId: uuid('platform_user_id').notNull(),
   category: text().notNull(),
   isEnabled: boolean('is_enabled').notNull(),
   scheduleType: text('schedule_type').notNull(),
@@ -113,7 +111,6 @@ export const reminderOccurrenceHistory = publicSchema.table(
     id: uuid().defaultRandom().primaryKey().notNull(),
     integratorOccurrenceId: text('integrator_occurrence_id').notNull(),
     integratorRuleId: text('integrator_rule_id').notNull(),
-    integratorUserId: bigint('integrator_user_id', { mode: 'number' }),
     organizationId: uuid('organization_id').notNull(),
     platformUserId: uuid('platform_user_id').notNull(),
     occurrenceKey: text('occurrence_key'),

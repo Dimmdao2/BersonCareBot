@@ -13,7 +13,6 @@ export type {
   PlatformMergeDbClient,
   MergePlatformUsersContext,
   MergePlatformUsersOptions,
-  VerifiedDistinctIntegratorUserIds,
   MergeContactsSaved,
 } from './pgPlatformUserMerge.js';
 

@@ -55,13 +55,6 @@ async function txSql<T = unknown>(
   return runWebappSql<T>(txExecutor(client), fragment);
 }
 
-function deferPlatformUserUniqueConstraints(client: PoolClient) {
-  return txSql(
-    client,
-    sql`SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`,
-  );
-}
-
 class PatchAdminClientProfileNoRowsError extends Error {
   constructor() {
     super('patch_admin_client_profile_no_rows');

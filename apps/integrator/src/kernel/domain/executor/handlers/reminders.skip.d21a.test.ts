@@ -62,7 +62,6 @@ function skipPorts() {
   const readPort: DbReadPort = {
     readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
       if (query.type === 'user.byIdentity') return { userId } as T;
-      if (query.type === 'reminders.occurrence.ownerPlatformUserId') return userId as T;
       throw new Error(`unexpected read: ${query.type}`);
     },
   };
@@ -71,7 +70,7 @@ function skipPorts() {
       mutations.push(mutation);
     },
   };
-  const skipCalls: Array<{ occurrenceId: string; reason: string | null }> = [];
+  const skipCalls: Array<{ platformUserId: string; occurrenceId: string; reason: string | null }> = [];
   const remindersWebappWritesPort: RemindersWebappWritesPort = {
     postOccurrenceSnooze: async () => ({ ok: false, error: 'not used' }),
     postOccurrenceSkip: async (input) => {
@@ -104,7 +103,7 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
 
     expect(result.status).toBe('success');
     expect(deps.mutations).toEqual([]);
-    expect(deps.skipCalls).toEqual([{ occurrenceId, reason: null }]);
+    expect(deps.skipCalls).toEqual([{ platformUserId: userId, occurrenceId, reason: null }]);
     // Confirmation is sent in the same result — pressing skip is exactly one action, not a prompt.
     expect(
       result.intents?.some((i) => i.type === 'message.edit' || i.type === 'message.send'),
@@ -114,14 +113,11 @@ describe('D21a: reminders.skip.applyPreset records skip in one step, no reason a
 
 describe('D21a: skip guards occurrence ownership (D21A_AUDIT.md F5)', () => {
   it('refuses to skip an occurrence owned by a different user', async () => {
-    const otherOwnerUserId = '77777777-7777-4777-8777-777777777777';
     const mutations: DbWriteMutation[] = [];
-    const skipCalls: Array<{ occurrenceId: string; reason: string | null }> = [];
+    const skipCalls: Array<{ platformUserId: string; occurrenceId: string; reason: string | null }> = [];
     const readPort: DbReadPort = {
       readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
         if (query.type === 'user.byIdentity') return { userId } as T;
-        // Occurrence belongs to someone else — the actor pressing "Пропустить" is not the owner.
-        if (query.type === 'reminders.occurrence.ownerPlatformUserId') return otherOwnerUserId as T;
         throw new Error(`unexpected read: ${query.type}`);
       },
     };
@@ -134,7 +130,7 @@ describe('D21a: skip guards occurrence ownership (D21A_AUDIT.md F5)', () => {
       postOccurrenceSnooze: async () => ({ ok: false, error: 'not used' }),
       postOccurrenceSkip: async (input) => {
         skipCalls.push(input);
-        return { ok: true, skippedAt: '2026-07-31T09:00:01.000Z' };
+        return { ok: false, error: 'not_found' };
       },
       postOccurrenceDone: async () => ({ ok: false, error: 'not used' }),
       postReminderMuteUntil: async () => ({ ok: false, error: 'not used' }),
@@ -151,7 +147,7 @@ describe('D21a: skip guards occurrence ownership (D21A_AUDIT.md F5)', () => {
 
     expect(result.status).toBe('failed');
     expect(mutations).toEqual([]);
-    expect(skipCalls).toEqual([]);
+    expect(skipCalls).toEqual([{ platformUserId: userId, occurrenceId, reason: null }]);
   });
 });
 
@@ -179,11 +175,10 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
   function routingExecutorDeps(contentPort: ReturnType<typeof createContentPort>) {
     const templatePort = createTemplatePort({ contentPort });
     const mutations: DbWriteMutation[] = [];
-    const skipCalls: Array<{ occurrenceId: string; reason: string | null }> = [];
+    const skipCalls: Array<{ platformUserId: string; occurrenceId: string; reason: string | null }> = [];
     const readPort: DbReadPort = {
       readDb: async <T>(query: Parameters<DbReadPort['readDb']>[0]): Promise<T> => {
         if (query.type === 'user.byIdentity') return { userId: routingUserId } as T;
-        if (query.type === 'reminders.occurrence.ownerPlatformUserId') return routingUserId as T;
         throw new Error(`unexpected read: ${query.type}`);
       },
     };
@@ -306,7 +301,7 @@ describe('D21a: skip button survives the routing layer — content scripts, mapI
 
       expect(result.status).toBe('success');
       expect(deps.mutations).toEqual([]);
-      expect(deps.skipCalls).toEqual([{ occurrenceId: routingOccurrenceId, reason: null }]);
+      expect(deps.skipCalls).toEqual([{ platformUserId: routingUserId, occurrenceId: routingOccurrenceId, reason: null }]);
     },
   );
 });

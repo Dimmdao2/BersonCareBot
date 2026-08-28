@@ -39,7 +39,7 @@ export const ADMIN_TAB_REDIRECTS: Record<string, string> = {
 
 const ADMIN_SETTINGS_PAGE_REQUIRED_KEYS = [
   'error_tracking_dsn', 'error_tracking_enabled', 'important_fallback_delay_minutes',
-  'platform_user_merge_v2_enabled', 'patient_app_maintenance_enabled',
+  'patient_app_maintenance_enabled',
   'patient_app_maintenance_message', 'patient_program_discussion_doctor_reply_from_log_enabled',
   'patient_program_discussion_ui_enabled', 'patient_program_discussion_media_submission_enabled',
   'patient_booking_url', 'operator_health_alert_config', 'admin_incident_alert_config',
@@ -202,7 +202,6 @@ export function parseHealthArchiveProbeParam(
 
 export type AdminDiagnosticsSettings = {
   importantFallbackDelayMinutes: number;
-  platformUserMergeV2Enabled: boolean;
   patientAppMaintenanceEnabled: boolean;
   patientAppMaintenanceMessage: string;
   patientProgramDiscussionDoctorReplyFromLogEnabled: boolean;
@@ -282,13 +281,6 @@ export async function loadAdminSettingsPageData(): Promise<AdminSettingsPageData
         60,
       ),
     ),
-    platformUserMergeV2Enabled: (() => {
-      const raw = getValueJson<unknown>(
-        adminSettingsList.find((x) => x.key === 'platform_user_merge_v2_enabled')?.valueJson,
-        false,
-      );
-      return raw === true || raw === 'true';
-    })(),
     patientAppMaintenanceEnabled: (() => {
       const raw = getValueJson<unknown>(
         adminSettingsList.find((x) => x.key === 'patient_app_maintenance_enabled')?.valueJson,

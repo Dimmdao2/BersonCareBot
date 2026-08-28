@@ -62,7 +62,6 @@ export type SupportConversationRow = {
   organizationId?: string | null;
   integratorConversationId: string;
   platformUserId: string | null;
-  integratorUserId: string | null;
   source: string;
   adminScope: string;
   status: string;
@@ -124,7 +123,6 @@ export type AdminConversationListRow = {
   conversationId: string;
   integratorConversationId: string;
   source: string;
-  integratorUserId: string | null;
   adminScope: string;
   status: string;
   openedAt: string;
@@ -143,7 +141,6 @@ export type AdminConversationListRow = {
 export type SupportCommunicationPort = {
   upsertConversationFromProjection(params: {
     integratorConversationId: string;
-    integratorUserId: string | null;
     source: string;
     adminScope: string;
     status: string;

@@ -1,6 +1,6 @@
 /**
  * GET /api/doctor/clients/:userId/merge-candidates — canonical clients that may duplicate the anchor
- * (shared phone, email, integrator id, or messenger binding). Admin + admin mode only.
+ * (shared phone, email, or messenger binding). Admin + admin mode only.
  */
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
@@ -41,7 +41,6 @@ export async function GET(request: Request, context: { params: Promise<{ userId:
       displayName: c.display_name,
       phoneNormalized: c.phone_normalized,
       email: c.email,
-      integratorUserId: c.integrator_user_id,
       createdAt: c.created_at.toISOString(),
     })),
   });

@@ -36,7 +36,6 @@ type CandidateRow = {
   displayName: string;
   phoneNormalized: string | null;
   email: string | null;
-  integratorUserId: string | null;
   createdAt: string;
 };
 
@@ -45,7 +44,6 @@ type MergeSearchRow = {
   displayName: string;
   phoneNormalized: string | null;
   email: string | null;
-  integratorUserId: string | null;
   createdAt: string;
 };
 

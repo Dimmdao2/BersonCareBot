@@ -30,11 +30,6 @@ export type MergePlatformUsersReason = 'projection' | 'phone_bind' | 'email_bind
 
 export type { MergeContactsSaved } from './mergeContactFallback.js';
 
-export type VerifiedDistinctIntegratorUserIds = {
-  targetIntegratorUserId: string;
-  duplicateIntegratorUserId: string;
-};
-
 export type MergePlatformUsersContext = {
   channel?: string;
   source?: string;
@@ -43,8 +38,6 @@ export type MergePlatformUsersContext = {
 
 export type MergePlatformUsersOptions = {
   resolution?: ManualMergeResolution;
-  allowDistinctIntegratorUserIds?: boolean;
-  verifiedDistinctIntegratorUserIds?: VerifiedDistinctIntegratorUserIds;
   mergeContext?: MergePlatformUsersContext;
 };
 
@@ -235,7 +228,6 @@ type PuRow = {
   id: string;
   phone_normalized: string | null;
   patient_phone_trust_at: Date | null;
-  integrator_user_id: string | null;
   merged_into_id: string | null;
   display_name: string;
   first_name: string | null;
@@ -250,7 +242,6 @@ type PuRow = {
 export type PickMergeTargetCandidate = {
   id: string;
   phone_normalized: string | null;
-  integrator_user_id: string | null;
   created_at: Date;
   /** Количество строк `patient_bookings` для канона — выше приоритет как merge target (native bookings). */
   patientBookingCount?: number;
@@ -321,7 +312,7 @@ async function dedupeSingletonSymptomTrackingsForMerge(
 /**
  * Merge duplicate platform user into canonical target inside an open transaction.
  * Caller must BEGIN; this function does not COMMIT.
- * Requires migration 061 (DEFERRABLE unique on phone + integrator_user_id).
+ * Requires the canonical phone/contact constraints.
  */
 export async function mergePlatformUsersInTransaction(
   client: PlatformMergeDbClient,
@@ -358,13 +349,11 @@ export async function mergePlatformUsersInTransaction(
     ]);
   }
 
-  await runMergeSql(client, sql`SET CONSTRAINTS platform_users_integrator_user_id_key DEFERRED`);
-
   const lockRes = await runMergeSql<PuRow>(
     client,
     sql`SELECT pu.id,
             phone.value_normalized AS phone_normalized, phone.confirmed_at AS patient_phone_trust_at,
-            pu.integrator_user_id::text AS integrator_user_id, pu.merged_into_id,
+            pu.merged_into_id,
             pu.display_name, pu.first_name, pu.last_name, pu.patronymic,
             email.value_normalized AS email, email.confirmed_at AS email_verified_at,
             pu.role, pu.created_at
@@ -417,52 +406,6 @@ export async function mergePlatformUsersInTransaction(
       duplicateId,
     ]);
   }
-  let iA = a.integrator_user_id?.trim() || null;
-  let iB = b.integrator_user_id?.trim() || null;
-
-  /**
-   * Channel-link / phone_bind: поглощаем «stub» без телефона, у которого уже есть integrator_user_id
-   * из мессенджера (другой id, чем у аккаунта с телефоном). Иначе merge блокируется, хотя COALESCE в UPDATE
-   * оставил бы id канонического аккаунта.
-   */
-  if (reason === 'phone_bind' && !manualResolution && pA && !pB && iA && iB && iA !== iB) {
-    await runMergeSql(
-      client,
-      sql`UPDATE platform_users SET integrator_user_id = NULL, updated_at = now() WHERE id = ${duplicateId}::uuid`,
-    );
-    iB = null;
-    logger.info({
-      scope: 'platform_merge',
-      event: 'phone_bind_drop_duplicate_integrator_user_id',
-      targetId,
-      duplicateId,
-    });
-  }
-
-  if (iA && iB && iA !== iB) {
-    const relaxed =
-      reason === 'manual' &&
-      Boolean(options?.resolution) &&
-      options?.allowDistinctIntegratorUserIds === true;
-    if (!relaxed) {
-      throw new MergeConflictError('merge: two different non-null integrator_user_id', [
-        targetId,
-        duplicateId,
-      ]);
-    }
-    const verified = options?.verifiedDistinctIntegratorUserIds;
-    if (
-      !verified ||
-      verified.targetIntegratorUserId !== iA ||
-      verified.duplicateIntegratorUserId !== iB
-    ) {
-      throw new MergeConflictError('merge: integrator ids changed since gate', [
-        targetId,
-        duplicateId,
-      ]);
-    }
-  }
-
   await assertSharedPhoneGuard(client, targetId, duplicateId, pA, pB);
   await assertAutoMergePasswordCredentialsSafe(client, targetId, duplicateId, reason);
   await assertPatientBookingsSafeToMerge(client, targetId, duplicateId);
@@ -635,7 +578,6 @@ export async function mergePlatformUsersInTransaction(
       client,
       `UPDATE platform_users AS pu
        SET
-         integrator_user_id = COALESCE(pu.integrator_user_id, dup.integrator_user_id),
          display_name = CASE WHEN $3::text = 'target' THEN pu.display_name ELSE dup.display_name END,
          first_name = CASE WHEN $4::text = 'target' THEN pu.first_name ELSE dup.first_name END,
          last_name = CASE WHEN $5::text = 'target' THEN pu.last_name ELSE dup.last_name END,
@@ -656,7 +598,6 @@ export async function mergePlatformUsersInTransaction(
       client,
       `UPDATE platform_users AS root
        SET
-         integrator_user_id = COALESCE(root.integrator_user_id, dup.integrator_user_id),
          display_name = CASE
            WHEN NULLIF(trim(COALESCE(pu.phone_normalized, '')), '') IS NOT NULL
             AND NULLIF(trim(COALESCE(dup.phone_normalized, '')), '') IS NULL
@@ -780,7 +721,6 @@ export async function mergePlatformUsersInTransaction(
   await runMergeSql(
     client,
     sql`UPDATE platform_users SET
-       integrator_user_id = NULL,
        merged_into_id = ${targetId}::uuid,
        merged_at = now(),
        updated_at = now()
@@ -1645,12 +1585,6 @@ export function pickMergeTargetId(
   const cb = b.created_at.getTime();
   if (ca !== cb) {
     return ca < cb ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
-  }
-
-  const ia = a.integrator_user_id?.trim() ? 1 : 0;
-  const ib = b.integrator_user_id?.trim() ? 1 : 0;
-  if (ia !== ib) {
-    return ia > ib ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };
   }
 
   return a.id <= b.id ? { target: a.id, duplicate: b.id } : { target: b.id, duplicate: a.id };

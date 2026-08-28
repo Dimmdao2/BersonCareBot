@@ -12,16 +12,6 @@ export type ResolveByChannelBindingResult = {
  * `integratorUserId` hint: every remaining hint names a canonical person directly.
  * Phone is matched only when the canon already has integrator/trusted projection activation (§5 SPEC).
  */
-export type MessengerIdentityResolutionHints = {
-  /**
-   * Canonical `platform_users.id` UUID, from the token's `platformUserId` or from a `sub` that is
-   * itself a UUID. Resolved through the merge chain; an id with no row resolves to nothing.
-   */
-  platformUserSub?: string;
-  /** E.164; matched only to a canonical phone with `user_contacts.confirmed_at` set. */
-  phoneNormalized?: string;
-};
-
 /**
  * Resolves a canonical platform user by channel binding (telegram/max/vk) — resolve-only.
  *
@@ -38,7 +28,6 @@ export type IdentityResolutionPort = {
     externalId: string;
     displayName?: string;
     role?: SessionUser['role'];
-    resolutionHints?: MessengerIdentityResolutionHints;
   }): Promise<ResolveByChannelBindingResult | null>;
   findByChannelBinding(params: {
     channelCode: 'telegram' | 'max' | 'vk';
