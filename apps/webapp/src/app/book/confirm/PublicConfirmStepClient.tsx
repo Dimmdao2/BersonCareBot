@@ -16,6 +16,8 @@ type InPersonProps = {
   serviceTitle?: string;
   slotStart: string;
   slotEnd: string;
+  slotCount: number;
+  priceMinor: number;
   appDisplayTimeZone: string;
 };
 
@@ -24,6 +26,7 @@ type OnlineProps = {
   category: BookingCategory;
   slotStart: string;
   slotEnd: string;
+  slotCount: number;
   appDisplayTimeZone: string;
 };
 

@@ -1,8 +1,9 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { isPublicOnlineBookingCategory } from '@/shared/publicBook/onlineBookingCategories';
 import { publicBookPaths } from '@/shared/publicBook/paths';
 import { PublicBookingShell } from '../PublicBookingShell';
+import { loadPublicInPersonSlotContextForSlugRsc } from '../publicOrganizationBooking';
 import { PublicConfirmStepClient } from './PublicConfirmStepClient';
 
 type Props = {
@@ -52,6 +53,7 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
   const date = first(raw.date)?.trim();
   const slot = first(raw.slot)?.trim();
   const slotEnd = first(raw.slotEnd)?.trim();
+  const slotCount = Math.max(1, Math.min(8, Number(first(raw.slotCount) ?? '1') || 1));
 
   if (!date || !slot || !slotEnd) {
     const backQ =
@@ -63,21 +65,30 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
     const branchId = first(raw.branchId)?.trim();
     const serviceId = first(raw.serviceId)?.trim();
     if (!branchId || !serviceId) redirect(publicBookPaths.new);
+    const orgSlug = first(raw.orgSlug)?.trim();
+    if (!orgSlug) redirect(publicBookPaths.new);
+    const context = await loadPublicInPersonSlotContextForSlugRsc({
+      orgSlug,
+      branchId,
+      serviceId,
+    });
+    if (!context.ok) notFound();
     const backHref = `${publicBookPaths.newSlot}?${buildInPersonSlotBackQuery(raw)}`;
-    const appDisplayTimeZone = await getAppDisplayTimeZone();
     return (
       <PublicBookingShell title="Подтверждение" step={4} totalSteps={4} backHref={backHref}>
         <PublicConfirmStepClient
           type="in_person"
-          cityCode={first(raw.cityCode)}
-          cityTitle={first(raw.cityTitle)}
-          branchId={branchId}
-          serviceId={serviceId}
-          orgSlug={first(raw.orgSlug)?.trim()}
-          serviceTitle={first(raw.serviceTitle)}
+          cityCode={context.cityCode}
+          cityTitle={context.cityTitle}
+          branchId={context.branchId}
+          serviceId={context.serviceId}
+          orgSlug={orgSlug}
+          serviceTitle={context.serviceTitle}
           slotStart={slot}
           slotEnd={slotEnd}
-          appDisplayTimeZone={appDisplayTimeZone}
+          slotCount={slotCount}
+          priceMinor={context.priceMinor}
+          appDisplayTimeZone={context.appDisplayTimeZone}
         />
       </PublicBookingShell>
     );
@@ -97,6 +108,7 @@ export default async function PublicBookConfirmPage({ searchParams }: Props) {
         category={category}
         slotStart={slot}
         slotEnd={slotEnd}
+        slotCount={slotCount}
         appDisplayTimeZone={appDisplayTimeZone}
       />
     </PublicBookingShell>

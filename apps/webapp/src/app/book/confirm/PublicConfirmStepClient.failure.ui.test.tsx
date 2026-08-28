@@ -52,11 +52,14 @@ describe('public booking confirm — a failed create stays visible', () => {
         serviceTitle="Консультация невролога"
         slotStart="2026-08-20T07:00:00.000Z"
         slotEnd="2026-08-20T07:30:00.000Z"
+        slotCount={1}
+        priceMinor={700000}
         appDisplayTimeZone="Europe/Moscow"
       />,
     );
 
     await waitFor(() => expect(screen.getByLabelText('Фамилия')).toBeInTheDocument());
+    expect(screen.getByText(/7\s000,00\s ?₽/)).toBeInTheDocument();
     await user.type(screen.getByLabelText('Фамилия'), 'Иванов');
     await user.type(screen.getByLabelText('Имя'), 'Иван');
     await user.type(screen.getByLabelText('Телефон'), '+79990000000');
