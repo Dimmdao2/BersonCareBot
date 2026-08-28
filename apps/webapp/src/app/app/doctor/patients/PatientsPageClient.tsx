@@ -48,7 +48,6 @@ import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
-  doctorDnaFlatListInsetClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
@@ -637,136 +636,151 @@ function PatientsContent({
     </>
   );
 
+  const renderListControls = (mobile: boolean) => (
+    <div
+      className={cn(
+        'flex shrink-0 flex-col bg-card',
+        mobile ? 'gap-1.5' : 'z-10 border-b border-border/60',
+      )}
+    >
+      <div
+        className={cn(
+          mobile ? '' : 'border-b border-border/40 px-[var(--doctor-block-padding,18px)] py-2',
+        )}
+      >
+        <div className="relative min-w-0">
+          <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+            <Search className="size-3.5" aria-hidden />
+          </span>
+          <Input
+            type="search"
+            placeholder={`Поиск: ${patientPluralLabelLower}`}
+            value={searchInput}
+            onChange={(event) => onSearchInput(event.target.value)}
+            className="h-8 pl-8 pr-8 text-sm"
+            aria-label={`Поиск: ${patientPluralLabelLower}`}
+          />
+          {searchInput ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={onClearSearch}
+              className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
+              aria-label="Сбросить поиск"
+            >
+              <X className="size-3.5" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+      <div
+        className={cn(
+          'flex flex-wrap items-center justify-between gap-2',
+          mobile ? '' : 'px-[var(--doctor-block-padding,18px)] py-2',
+        )}
+      >
+        <p className="min-w-0 truncate text-xs text-muted-foreground">
+          {isAnyFilterActive ? (
+            <>
+              найдено {filtered.length} / {categoryBase.length}
+            </>
+          ) : activeCategory === 'all' ? (
+            <>
+              {patientPluralLabel}: {allClients.length}
+            </>
+          ) : (
+            <>
+              {patientPluralLabel}: {categoryBase.length}
+            </>
+          )}
+          {isListPending && <span className="ml-1 animate-pulse">…</span>}
+        </p>
+        <div
+          className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
+          aria-label={`Сортировка: ${patientPluralLabelLower}`}
+        >
+          <span className="text-xs text-muted-foreground">Сортировать</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn(
+              'h-8 gap-1.5 px-2 text-xs',
+              sort === 'recent_appointments' && doctorDnaActiveSortToneClass,
+            )}
+            aria-pressed={sort === 'recent_appointments'}
+            aria-label={`Недавние: ${sort === 'recent_appointments' && sortDirection === 'asc' ? 'давние сверху' : 'недавние сверху'}`}
+            onClick={() => onSortSelect('recent_appointments')}
+          >
+            Недавние
+            {sort === 'recent_appointments' ? (
+              sortDirection === 'desc' ? (
+                <ArrowDown className="size-3.5" aria-hidden />
+              ) : (
+                <ArrowUp className="size-3.5" aria-hidden />
+              )
+            ) : null}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={cn(
+              'h-8 gap-1.5 px-2 text-xs',
+              sort === 'fio' && doctorDnaActiveSortToneClass,
+            )}
+            aria-pressed={sort === 'fio'}
+            aria-label={`По фамилии: ${sort === 'fio' && sortDirection === 'desc' ? 'Я–А' : 'А–Я'}`}
+            onClick={() => onSortSelect('fio')}
+          >
+            По фамилии
+            {sort === 'fio' ? (
+              sortDirection === 'asc' ? (
+                <ArrowDown className="size-3.5" aria-hidden />
+              ) : (
+                <ArrowUp className="size-3.5" aria-hidden />
+              )
+            ) : null}
+          </Button>
+          {mobile ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 gap-1.5 px-2 text-xs"
+              onClick={() => onMobileFiltersOpenChange(true)}
+            >
+              <Filter className="size-3.5" aria-hidden />
+              Фильтры
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <DoctorPageHeader
         id="doctor-patients-header"
         title={patientPluralLabel}
+        className="-mb-3 md:mb-0"
         tabs={<DoctorNewClientAction patientSingularLabel={patientSingularLabel} />}
+        toolbar={renderListControls(true)}
+        toolbarClassName="md:hidden"
       />
       <CatalogSplitLayout
         splitFrom="md"
         desktopColsClassName="md:grid-cols-[minmax(0,7fr)_minmax(0,3fr)] lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] xl:grid-cols-2"
         mobileView="list"
-        className="md:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] md:min-h-0 md:overflow-hidden"
+        className="min-h-0 flex-1 md:h-[calc(100dvh_-_var(--doctor-sticky-offset,0px)_-_2.25rem)] md:flex-none md:overflow-hidden"
         left={
           <section
             data-doctor-flat-list-surface
-            className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] bg-card"
+            className="-mx-3 flex h-full min-h-0 flex-col overflow-hidden rounded-none bg-card md:mx-0 md:rounded-[var(--doctor-page-block-radius,12px)]"
           >
-            {/*
-              Sticky header: search, then count + reversible sorting.
-              On mobile the page scrolls naturally; sticky is only needed on lg+ where the section
-              has overflow-hidden and its own scroll context.
-            */}
-            <div className="lg:sticky lg:top-0 z-10 flex shrink-0 flex-col border-b border-border/60 bg-card">
-              {/* Client search lives in this (left) block, not the page header — owner direction. */}
-              <div className="border-b border-border/40 px-[var(--doctor-block-padding,18px)] py-2">
-                <div className="relative min-w-0">
-                  <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-                    <Search className="size-3.5" aria-hidden />
-                  </span>
-                  <Input
-                    type="search"
-                    placeholder={`Поиск: ${patientPluralLabelLower}`}
-                    value={searchInput}
-                    onChange={(event) => onSearchInput(event.target.value)}
-                    className="h-8 pl-8 pr-8 text-sm"
-                    aria-label={`Поиск: ${patientPluralLabelLower}`}
-                  />
-                  {searchInput ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={onClearSearch}
-                      className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-                      aria-label="Сбросить поиск"
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-              <div className="flex flex-wrap items-center justify-between gap-2 px-[var(--doctor-block-padding,18px)] py-2">
-                <p className="min-w-0 truncate text-xs text-muted-foreground">
-                  {isAnyFilterActive ? (
-                    <>
-                      найдено {filtered.length} / {categoryBase.length}
-                    </>
-                  ) : activeCategory === 'all' ? (
-                    <>
-                      {patientPluralLabel}: {allClients.length}
-                    </>
-                  ) : (
-                    <>
-                      {patientPluralLabel}: {categoryBase.length}
-                    </>
-                  )}
-                  {isListPending && <span className="ml-1 animate-pulse">…</span>}
-                </p>
-                <div
-                  className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
-                  aria-label={`Сортировка: ${patientPluralLabelLower}`}
-                >
-                  <span className="text-xs text-muted-foreground">Сортировать</span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={cn(
-                      'h-8 gap-1.5 px-2 text-xs',
-                      // Softened active tone (DNA muted-primary tint, same as the selected segment cards)
-                      // instead of a solid `variant="default"` fill — owner punch-list item 5.
-                      sort === 'recent_appointments' && doctorDnaActiveSortToneClass,
-                    )}
-                    aria-pressed={sort === 'recent_appointments'}
-                    aria-label={`Недавние: ${sort === 'recent_appointments' && sortDirection === 'asc' ? 'давние сверху' : 'недавние сверху'}`}
-                    onClick={() => onSortSelect('recent_appointments')}
-                  >
-                    Недавние
-                    {sort === 'recent_appointments' ? (
-                      sortDirection === 'desc' ? (
-                        <ArrowDown className="size-3.5" aria-hidden />
-                      ) : (
-                        <ArrowUp className="size-3.5" aria-hidden />
-                      )
-                    ) : null}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className={cn(
-                      'h-8 gap-1.5 px-2 text-xs',
-                      sort === 'fio' && doctorDnaActiveSortToneClass,
-                    )}
-                    aria-pressed={sort === 'fio'}
-                    aria-label={`По фамилии: ${sort === 'fio' && sortDirection === 'desc' ? 'Я–А' : 'А–Я'}`}
-                    onClick={() => onSortSelect('fio')}
-                  >
-                    По фамилии
-                    {sort === 'fio' ? (
-                      sortDirection === 'asc' ? (
-                        <ArrowDown className="size-3.5" aria-hidden />
-                      ) : (
-                        <ArrowUp className="size-3.5" aria-hidden />
-                      )
-                    ) : null}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-1.5 px-2 text-xs md:hidden"
-                    onClick={() => onMobileFiltersOpenChange(true)}
-                  >
-                    <Filter className="size-3.5" aria-hidden />
-                    Фильтры
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <div className="hidden md:block">{renderListControls(false)}</div>
 
             {filtered.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground">
@@ -778,7 +792,10 @@ function PatientsContent({
               <ul
                 ref={listRef}
                 id="doctor-patients-list"
-                className={`${doctorDnaFlatListClass} ${doctorDnaFlatListInsetClass} min-h-0 flex-1 overflow-y-auto [content-visibility:auto]`}
+                className={cn(
+                  doctorDnaFlatListClass,
+                  'mx-0 min-h-0 flex-1 overflow-y-auto [content-visibility:auto] md:mx-[var(--doctor-block-padding,18px)]',
+                )}
                 onScroll={(event) => onListScroll(event.currentTarget.scrollTop)}
               >
                 {filtered.map((c, index) => {

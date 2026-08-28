@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { ClipboardList, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -12,7 +13,6 @@ import {
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
-  doctorDnaFlatListInsetClass,
   doctorDnaFlatListMetaClass,
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
@@ -127,6 +127,7 @@ export function DoctorSupportInbox({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [mobileToolbarTarget, setMobileToolbarTarget] = useState<HTMLElement | null>(null);
   const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
 
@@ -154,6 +155,14 @@ export function DoctorSupportInbox({
   useEffect(() => {
     setOverviewOpen(false);
   }, [selectedId]);
+
+  useEffect(() => {
+    if (!active) {
+      setMobileToolbarTarget(null);
+      return;
+    }
+    setMobileToolbarTarget(document.getElementById('doctor-communications-mobile-toolbar'));
+  }, [active]);
 
   const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
     try {
@@ -281,81 +290,86 @@ export function DoctorSupportInbox({
       : selectedConv.displayName
     : '';
 
+  const renderListControls = () => (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex gap-1.5">
+        <Input
+          type="search"
+          placeholder={
+            searchMode === 'name'
+              ? 'Поиск по имени / телефону'
+              : 'Поиск по тексту последнего сообщения'
+          }
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="h-8 min-w-0 flex-1"
+          aria-label={
+            searchMode === 'name'
+              ? 'Поиск по имени пациента'
+              : 'Поиск по тексту последнего сообщения'
+          }
+        />
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          title={
+            searchMode === 'name'
+              ? 'Переключить на поиск по тексту сообщений'
+              : 'Переключить на поиск по имени'
+          }
+          onClick={() => {
+            setSearchMode((mode) => (mode === 'name' ? 'text' : 'name'));
+            setQuery('');
+          }}
+          className={cn(
+            'shrink-0 text-xs',
+            searchMode === 'text' && 'border-primary/40 bg-primary/10 text-primary',
+          )}
+        >
+          {searchMode === 'name' ? 'Аб' : '✉'}
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        <Button
+          type="button"
+          variant={filter === 'unread' ? 'ghost' : 'outline'}
+          size="sm"
+          onClick={() => setFilter(filter === 'unread' ? 'all' : 'unread')}
+          className={cn(
+            'shrink-0 text-xs',
+            filter === 'unread' &&
+              'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
+          )}
+          aria-pressed={filter === 'unread'}
+        >
+          Непрочитанные · {unreadCount}
+        </Button>
+        <Button
+          type="button"
+          variant={filter === 'onSupport' ? 'ghost' : 'outline'}
+          size="sm"
+          onClick={() => setFilter(filter === 'onSupport' ? 'all' : 'onSupport')}
+          className={cn(
+            'shrink-0 text-xs',
+            filter === 'onSupport' &&
+              'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
+          )}
+          aria-pressed={filter === 'onSupport'}
+        >
+          ★ На сопровождении · {onSupportCount}
+        </Button>
+      </div>
+    </div>
+  );
+
   const leftPane = (
     <div
       data-doctor-flat-list-surface
-      className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card"
+      className="relative -mx-3 flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:mx-0 md:rounded-lg md:border md:border-border"
     >
-      {/* Header: search bar, then filter chips below */}
-      <div className="flex shrink-0 flex-col gap-1.5 border-b border-border bg-muted/20 px-3 py-2">
-        <div className="flex gap-1.5">
-          <Input
-            type="search"
-            placeholder={
-              searchMode === 'name'
-                ? 'Поиск по имени / телефону'
-                : 'Поиск по тексту последнего сообщения'
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="h-8 min-w-0 flex-1"
-            aria-label={
-              searchMode === 'name'
-                ? 'Поиск по имени пациента'
-                : 'Поиск по тексту последнего сообщения'
-            }
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            title={
-              searchMode === 'name'
-                ? 'Переключить на поиск по тексту сообщений'
-                : 'Переключить на поиск по имени'
-            }
-            onClick={() => {
-              setSearchMode((m) => (m === 'name' ? 'text' : 'name'));
-              setQuery('');
-            }}
-            className={cn(
-              'shrink-0 text-xs',
-              searchMode === 'text' && 'border-primary/40 bg-primary/10 text-primary',
-            )}
-          >
-            {searchMode === 'name' ? 'Аб' : '✉'}
-          </Button>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          <Button
-            type="button"
-            variant={filter === 'unread' ? 'ghost' : 'outline'}
-            size="sm"
-            onClick={() => setFilter(filter === 'unread' ? 'all' : 'unread')}
-            className={cn(
-              'shrink-0 text-xs',
-              filter === 'unread' &&
-                'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
-            )}
-            aria-pressed={filter === 'unread'}
-          >
-            Непрочитанные · {unreadCount}
-          </Button>
-          <Button
-            type="button"
-            variant={filter === 'onSupport' ? 'ghost' : 'outline'}
-            size="sm"
-            onClick={() => setFilter(filter === 'onSupport' ? 'all' : 'onSupport')}
-            className={cn(
-              'shrink-0 text-xs',
-              filter === 'onSupport' &&
-                'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
-            )}
-            aria-pressed={filter === 'onSupport'}
-          >
-            ★ На сопровождении · {onSupportCount}
-          </Button>
-        </div>
+      <div className="hidden shrink-0 border-b border-border bg-muted/20 px-3 py-2 md:block">
+        {renderListControls()}
       </div>
 
       {error && (
@@ -375,7 +389,12 @@ export function DoctorSupportInbox({
                   : 'Нет открытых диалогов'}
           </div>
         ) : (
-          <ul className={cn(doctorDnaFlatListClass, doctorDnaFlatListInsetClass, 'flex flex-col')}>
+          <ul
+            className={cn(
+              doctorDnaFlatListClass,
+              'mx-0 flex flex-col md:mx-[var(--doctor-block-padding,18px)]',
+            )}
+          >
             {filteredList.map((c, index) => {
               const isSelected = selectedId === c.conversationId;
               return (
@@ -506,22 +525,25 @@ export function DoctorSupportInbox({
   );
 
   return (
-    <CatalogSplitLayout
-      left={leftPane}
-      right={rightPane}
-      mobileView={overviewOpen ? 'list' : selectedId ? 'detail' : 'list'}
-      mobileBackSlot={
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => selectConversation(null)}
-          className="mb-2 h-9 px-2"
-        >
-          ← К списку
-        </Button>
-      }
-      desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
-      className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
-    />
+    <>
+      {mobileToolbarTarget ? createPortal(renderListControls(), mobileToolbarTarget) : null}
+      <CatalogSplitLayout
+        left={leftPane}
+        right={rightPane}
+        mobileView={overviewOpen ? 'list' : selectedId ? 'detail' : 'list'}
+        mobileBackSlot={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => selectConversation(null)}
+            className="mb-2 h-9 px-2"
+          >
+            ← К списку
+          </Button>
+        }
+        desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
+        className={cn(DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS, 'min-h-0 flex-1 md:flex-none')}
+      />
+    </>
   );
 }

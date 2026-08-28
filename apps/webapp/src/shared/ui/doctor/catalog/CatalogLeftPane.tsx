@@ -20,6 +20,8 @@ export type CatalogLeftPaneProps = {
    * Высота учёта липкой полосы над сеткой: один ряд (~3.25rem) или два (~6.5rem), см. константы в doctorWorkspaceLayout.
    */
   stickyToolbarRows?: 1 | 2;
+  /** Mobile master-list fills the page width without a surrounding card. */
+  mobileEdgeToEdge?: boolean;
   className?: string;
 };
 
@@ -29,6 +31,7 @@ export function CatalogLeftPane({
   children,
   stickySplit = true,
   stickyToolbarRows = 1,
+  mobileEdgeToEdge = false,
   className,
 }: CatalogLeftPaneProps) {
   const stickyAsideClass =
@@ -39,7 +42,10 @@ export function CatalogLeftPane({
   return (
     <aside
       className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card',
+        'flex min-h-0 flex-1 flex-col overflow-hidden bg-card',
+        mobileEdgeToEdge
+          ? '-mx-3 h-full rounded-none border-0 md:mx-0 md:rounded-[var(--doctor-page-block-radius,12px)] md:border md:border-border'
+          : 'rounded-[var(--doctor-page-block-radius,12px)] border border-border',
         stickySplit && stickyAsideClass,
         className,
       )}
@@ -52,7 +58,13 @@ export function CatalogLeftPane({
       <div
         className={cn(
           'min-h-0 flex flex-1 flex-col overflow-hidden',
-          headerSlot ? 'px-2 pb-1.5 pt-1' : 'overflow-y-auto p-1.5 pt-1.5',
+          headerSlot
+            ? mobileEdgeToEdge
+              ? 'p-0 md:px-2 md:pb-1.5 md:pt-1'
+              : 'px-2 pb-1.5 pt-1'
+            : mobileEdgeToEdge
+              ? 'overflow-y-auto p-0 md:p-1.5 md:pt-1.5'
+              : 'overflow-y-auto p-1.5 pt-1.5',
         )}
       >
         {children}
