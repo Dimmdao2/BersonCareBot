@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+  DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
@@ -1750,7 +1751,8 @@ export function ScheduleCalendarTab({
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
           DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-          'flex flex-wrap items-center gap-2 bg-white/85 supports-backdrop-filter:bg-white/75',
+          DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
+          'flex flex-wrap items-center gap-2',
         )}
         data-testid="cal-toolbar"
       >

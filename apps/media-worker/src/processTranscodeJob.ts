@@ -31,7 +31,10 @@ import {
 } from './s3.js';
 import { resolveWatermarkFontPath } from './watermarkFont.js';
 import { processProgramSubmissionTranscodeJob } from './processProgramSubmissionTranscode.js';
-import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
+import {
+  probeVideoDurationSeconds,
+  roundVideoDurationSecondsForStorage,
+} from './ffmpeg/probeVideoDurationSeconds.js';
 
 /** Short token for structured logs (no multi-line FFmpeg stderr / URLs). */
 function compactTranscodeLogErrorCode(message: string): string {
@@ -169,7 +172,9 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
           await downloadObjectToFile(ctx.s3Client, ctx.bucket, media.s3_key.trim(), src);
           const durationSeconds = await probeVideoDurationSeconds(ctx.ffmpegBin, src, Math.min(ctx.ffmpegTimeoutMs, 120_000));
           if (durationSeconds != null) {
-            await ctx.control.doneHls(job, ctx.lockId, { durationSeconds });
+            await ctx.control.doneHls(job, ctx.lockId, {
+              durationSeconds: roundVideoDurationSecondsForStorage(durationSeconds),
+            });
             return;
           }
         } catch (e) {
@@ -383,7 +388,13 @@ async function processTranscodeJobInner(ctx: TranscodeContext, job: ClaimedJob):
       { label: '480p', height: 480, path: '480p/index.m3u8', bandwidth: 900_000 },
       { label: '360p', height: 360, path: '360p/index.m3u8', bandwidth: 450_000 },
     ]);
-    await ctx.control.doneHls(job, ctx.lockId, { masterKey, artifactPrefix: hlsBaseKeyPrefix, posterKey, qualitiesJson, durationSeconds: videoDurationSeconds });
+    await ctx.control.doneHls(job, ctx.lockId, {
+      masterKey,
+      artifactPrefix: hlsBaseKeyPrefix,
+      posterKey,
+      qualitiesJson,
+      durationSeconds: roundVideoDurationSecondsForStorage(videoDurationSeconds),
+    });
     ctx.log.info(
       {
         jobId: job.id,

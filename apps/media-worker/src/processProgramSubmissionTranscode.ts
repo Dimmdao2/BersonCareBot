@@ -11,7 +11,10 @@ import {
   mediaRootFromSourceS3Key,
   posterObjectKeyFromMediaRoot,
 } from './hlsStorageLayout.js';
-import { probeVideoDurationSeconds } from './ffmpeg/probeVideoDurationSeconds.js';
+import {
+  probeVideoDurationSeconds,
+  roundVideoDurationSecondsForStorage,
+} from './ffmpeg/probeVideoDurationSeconds.js';
 import {
   downloadObjectToFile,
   headObjectExists,
@@ -144,7 +147,7 @@ export async function processProgramSubmissionTranscodeJob(
       outputKey,
       posterKey,
       qualitiesJson,
-      durationSeconds: videoDurationSeconds,
+      durationSeconds: roundVideoDurationSecondsForStorage(videoDurationSeconds),
     });
     ctx.log.info(
       { jobId: job.id, mediaId: job.mediaId, outcome: 'done', mode: 'program_submission_480p' },

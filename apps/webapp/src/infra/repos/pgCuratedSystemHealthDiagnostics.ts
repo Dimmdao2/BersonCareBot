@@ -158,7 +158,7 @@ export const curatedSystemHealthSnapshotSchema = z
     // The protected aggregate returns every row written through the operator-health port. Product
     // consumers still select only manifest keys, but an old/historical row must not make the entire
     // health snapshot unparsable when the registry grows.
-    operatorJobs: z.array(operatorJobSchema).max(256),
+    operatorJobs: z.array(operatorJobSchema),
     operatorIncidents: z
       .object({
         openCount: nonNegativeNumber,

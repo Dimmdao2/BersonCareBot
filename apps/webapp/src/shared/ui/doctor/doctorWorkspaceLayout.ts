@@ -71,6 +71,10 @@ export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
 export const DOCTOR_CATALOG_STICKY_BAR_CLASS =
   'sticky z-20 -mx-3 -mt-3 border-b border-border/60 bg-background/95 px-3 py-1.5 backdrop-blur-md supports-backdrop-filter:bg-background/90';
 
+/** Shared translucent surface for compact doctor toolbars and fixed mobile action bars. */
+export const DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS =
+  'bg-white/85 backdrop-blur-md supports-backdrop-filter:bg-white/75';
+
 /**
  * Левая колонка master-detail под липкой шапкой страницы и одним липким блоком фильтров (~3.25rem).
  */

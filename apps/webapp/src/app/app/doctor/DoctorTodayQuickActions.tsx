@@ -8,6 +8,8 @@ import type { ResolvedDoctorScheduleScope } from '@/modules/doctor-schedule/scop
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { cn } from '@/lib/utils';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -105,12 +107,16 @@ export function DoctorTodayQuickActions({
 
   return (
     <>
+      {placement === 'mobile-footer' ? (
+        <div className="h-[52px] shrink-0 md:hidden" aria-hidden />
+      ) : null}
       <div
-        className={
+        className={cn(
           placement === 'mobile-footer'
-            ? 'grid shrink-0 grid-cols-2 gap-2 py-2 md:hidden'
-            : 'hidden grid-cols-2 items-center gap-2 md:grid'
-        }
+            ? 'fixed inset-x-0 bottom-[calc(3.25rem+env(safe-area-inset-bottom,0px))] z-30 grid grid-cols-2 gap-2 border-t border-border/60 px-3 py-2 md:hidden'
+            : 'hidden grid-cols-2 items-center gap-2 md:grid',
+          placement === 'mobile-footer' && DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
+        )}
       >
         <Button
           type="button"
