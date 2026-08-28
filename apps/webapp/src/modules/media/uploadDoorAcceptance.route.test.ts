@@ -406,7 +406,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
         filename: 'clip.mp4',
         mimeType: 'video/mp4',
         size: 12,
-        durationSeconds: 9.5,
+        durationSeconds: 9.6,
       }),
     );
 
@@ -458,9 +458,7 @@ describe('Ч1 intent policy at the six public intake routes', () => {
       receivedHead({ contentLength: 12, contentType: 'video/mp4' }),
     );
     fakes.s3GetObjectPrefix.mockResolvedValue(
-      Buffer.from([
-        0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d,
-      ]),
+      Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]),
     );
 
     const response = await submissionConfirm(jsonRequest({ mediaId: ids.media }));
