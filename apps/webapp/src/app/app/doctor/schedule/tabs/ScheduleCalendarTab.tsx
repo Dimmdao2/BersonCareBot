@@ -1204,6 +1204,7 @@ export function ScheduleCalendarTab({
           0,
           timeAxisWidth + targetDay * dayWidth - scroller.clientWidth / 2 + dayWidth / 2,
         );
+        scroller.style.setProperty('--doctor-calendar-scroll-x', `${scroller.scrollLeft}px`);
         mobileRangeExpandingRef.current = false;
       });
     },
@@ -1223,6 +1224,7 @@ export function ScheduleCalendarTab({
   const handleMobileCalendarScroll = useCallback(
     (target: HTMLElement) => {
       if (!mobileScrollableTimeGrid || target.scrollWidth <= target.clientWidth + 8) return;
+      target.style.setProperty('--doctor-calendar-scroll-x', `${target.scrollLeft}px`);
       const rangeStart = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
       const rangeEnd = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
       const totalDays = Math.max(1, Math.round(rangeEnd.diff(rangeStart, 'days').days));
@@ -1822,7 +1824,7 @@ export function ScheduleCalendarTab({
       return {
         timeGrid3days: {
           type: 'timeGrid',
-          duration: { days: 3 },
+          duration: { days: mobileScrollableTimeGrid ? mobileCalendarDayCount : 3 },
           buttonText: '3 дня',
         },
       };
@@ -1835,7 +1837,7 @@ export function ScheduleCalendarTab({
       };
     }
     return {};
-  }, [view]);
+  }, [mobileCalendarDayCount, mobileScrollableTimeGrid, view]);
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
@@ -2437,6 +2439,15 @@ export function ScheduleCalendarTab({
                   padding-top: 0.125rem;
                   padding-bottom: 0.125rem;
                 }
+                @media (max-width: 767px) {
+                  .fc .fc-scrollgrid-section-header .fc-timegrid-axis,
+                  .fc .fc-timegrid-slot-label {
+                    position: relative;
+                    z-index: 5;
+                    background: var(--card);
+                    transform: translateX(var(--doctor-calendar-scroll-x, 0));
+                  }
+                }
                 `}</style>
                 <ScheduleFullCalendarHost
                 calendarRef={calendarRef}
@@ -2636,8 +2647,8 @@ export function ScheduleCalendarTab({
           mode="single"
           locale={ru}
           weekStartsOn={1}
-          selected={DateTime.fromISO(mobileVisibleDate).toJSDate()}
-          defaultMonth={DateTime.fromISO(mobileVisibleDate).toJSDate()}
+          selected={DateTime.fromISO(mobileVisibleDate, { zone: currentTimeZone }).toJSDate()}
+          defaultMonth={DateTime.fromISO(mobileVisibleDate, { zone: currentTimeZone }).toJSDate()}
           onSelect={(date) => {
             if (date) jumpToDate(date);
           }}
