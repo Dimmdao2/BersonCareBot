@@ -343,8 +343,12 @@ patient onboarding/content probes на DEV, затем TEST.
 - [x] Продуктовое ветвление на старую модель снято: `resolveWebappDbPrincipalContextMode`
       (`apps/webapp/src/config/env.ts`) отказывает старту при отсутствующем или ином режиме;
       `infra/db/withClient.ts` спрашивает ту же одну точку. Тестовый harness называет режим явно и работает.
-- [ ] Живые A/B clinic probes и patient onboarding/content probes на DEV, затем TEST. **Не сделано** —
-      выполняется вместе с этапом 7; общий DEV/TEST в этот ход не занимался.
+- [x] Живые A/B clinic и patient onboarding/content probes на TEST; повтор на DEV снят более поздним
+      owner-указанием не тратить текущий проход на DEV-права и проверять после выкатки на TEST. Штатный deploy
+      дважды доказал tenant-wall (своя клиника / чужой контекст / отсутствие контекста), а rollback-only
+      `account-self-service-actor-wall.devDbProof.test.mjs` на `bersoncarebot_test` дал `15/15`: три настоящих
+      аккаунта владельца устанавливают свой класс контекста, пациент видит ровно свой активный content-grant
+      своей клиники и не видит строки другой клиники, другого человека, отозванную и истёкшую.
 
 Слепой kill-set, таблица «что сломано → что покраснело» и прогоны:
 [`runs/systemic-access/BLIND_KILL_SET_2026-08-27.md`](runs/systemic-access/BLIND_KILL_SET_2026-08-27.md).

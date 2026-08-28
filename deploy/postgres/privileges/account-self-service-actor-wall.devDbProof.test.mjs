@@ -368,6 +368,43 @@ test('Ш6 смысл шага: субъектная ссылка чужого ч
       'акторская стена перестала пускать человека к его собственным контактам');
   });
 
+test('A1/A2 live: пациент видит только свой активный доступ к контенту в своей клинике',
+  { skip: !ENABLED }, () => {
+    // Сводный аудит 27.08 уже использует этот настоящий patient-контекст для A1/A2. Пять строк
+    // создаются только внутри rollback-транзакции: законная, чужая клиника, чужой человек,
+    // отозванная и истёкшая. Поэтому зелень невозможна на пустой TEST-таблице и ловит сразу
+    // отсутствие пациентской двери, потерю tenant/user-предиката и потерю terminal-фильтров.
+    const state = fixture();
+    const foreignOrganization = answers(psql(`
+SELECT 'org=' || id::text FROM public.be_organizations
+ WHERE id <> '${state.organization}'::uuid ORDER BY id LIMIT 1;`)).get('org');
+    assert.ok(foreignOrganization, `${DATABASE}: второй клиники нет — A/B-пробу выполнить не на чем`);
+
+    const seen = probe({ questions: `
+RESET SESSION AUTHORIZATION;
+INSERT INTO public.content_access_grants_webapp
+  (integrator_grant_id, platform_user_id, integrator_user_id, content_id, purpose,
+   token_hash, expires_at, revoked_at, organization_id)
+VALUES
+  ('bcb-live-proof-own', '${state.self}'::uuid, -91001, 'bcb-live-proof-own', 'test', NULL,
+   pg_catalog.now() + interval '1 hour', NULL, '${state.organization}'::uuid),
+  ('bcb-live-proof-foreign-org', '${state.self}'::uuid, -91002, 'bcb-live-proof-foreign-org', 'test', NULL,
+   pg_catalog.now() + interval '1 hour', NULL, '${uuid(foreignOrganization, 'foreign organization')}'::uuid),
+  ('bcb-live-proof-foreign-user', '${state.other}'::uuid, -91003, 'bcb-live-proof-foreign-user', 'test', NULL,
+   pg_catalog.now() + interval '1 hour', NULL, '${state.organization}'::uuid),
+  ('bcb-live-proof-revoked', '${state.self}'::uuid, -91004, 'bcb-live-proof-revoked', 'test', NULL,
+   pg_catalog.now() + interval '1 hour', pg_catalog.now(), '${state.organization}'::uuid),
+  ('bcb-live-proof-expired', '${state.self}'::uuid, -91005, 'bcb-live-proof-expired', 'test', NULL,
+   pg_catalog.now() - interval '1 hour', NULL, '${state.organization}'::uuid);
+SET LOCAL SESSION AUTHORIZATION ${state.login};
+SET LOCAL ROLE app_patient;
+SELECT 'visible=' || COALESCE(pg_catalog.string_agg(content_id, ',' ORDER BY content_id), '')
+  FROM public.content_access_grants_webapp
+ WHERE content_id LIKE 'bcb-live-proof-%';` });
+
+    assert.equal(seen.get('visible'), 'bcb-live-proof-own');
+  });
+
 for (const surface of SURFACES) {
   test(`Ш6 инъекция: субъектный аксессор в ${surface.relation} снова открывает чужую личность`,
     { skip: !ENABLED }, () => {
