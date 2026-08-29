@@ -11,7 +11,7 @@ import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+  DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
   DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import {
@@ -2188,7 +2188,7 @@ export function ScheduleCalendarTab({
       <div
         className={cn(
           DOCTOR_CATALOG_STICKY_BAR_CLASS,
-          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+          DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
           DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
           'flex flex-wrap items-center gap-2',
         )}

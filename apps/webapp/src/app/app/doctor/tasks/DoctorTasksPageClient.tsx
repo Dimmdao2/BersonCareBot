@@ -11,6 +11,7 @@ import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+  DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
   DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -247,10 +248,14 @@ export function DoctorTasksPageClient({
       />
       <DoctorCatalogPageLayout
         mobileEdgeToEdge
-        className="min-h-0 flex-1 gap-0 md:gap-3"
+        className={cn(
+          DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
+          'min-h-0 flex-1 gap-0 md:gap-3',
+        )}
         toolbar={
           <DoctorCatalogFiltersToolbar
             className="hidden md:block"
+            withinRemainingHeight
             filters={taskFilters}
             end={
               canMutate ? (
