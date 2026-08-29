@@ -51,11 +51,11 @@ export function DoctorBottomNav({
             aria-current={active ? 'page' : undefined}
             title={item.label}
             className={cn(
-              'flex min-h-12 min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+              'flex min-h-[46px] min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
               active && 'bg-primary/10 text-primary',
             )}
           >
-            <Icon className="size-5" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+            <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
           </Link>
         );
       })}
