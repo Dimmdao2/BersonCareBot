@@ -80,6 +80,9 @@ type FullCalendarInstance = InstanceType<typeof FullCalendar>;
 
 const MOBILE_TIME_AXIS_WIDTH_PX = 32;
 const MOBILE_VISIBLE_DAY_COUNT = 3;
+const MOBILE_TIME_GRID_WINDOW_SHIFT_DAYS = 7;
+const MOBILE_MONTH_WINDOW_SHIFT_MONTHS = 3;
+const DUPLICATE_CALENDAR_LOAD_WINDOW_MS = 2_000;
 
 const DoctorCalendarEventPanel = dynamic(
   () =>
@@ -703,6 +706,7 @@ export function ScheduleCalendarTab({
   const mobileTimeAxisCleanupRef = useRef<(() => void) | null>(null);
   const mobileMonthScrollFrameRef = useRef<number | null>(null);
   const mobileTimeGridScrollFrameRef = useRef<number | null>(null);
+  const recentLoadRef = useRef<{ key: string; startedAt: number } | null>(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -1068,10 +1072,42 @@ export function ScheduleCalendarTab({
 
   // Parallel load: feed + kpis
   const load = useCallback(() => {
+    const requestKey = [
+      view,
+      anchorDate,
+      branchId ?? '',
+      serviceId ?? '',
+      scheduleScope.scope,
+      scheduleScope.specialistId ?? '',
+      renderMode,
+      calendarFeedRange.from,
+      calendarFeedRange.to,
+    ].join('\0');
+    const startedAt = Date.now();
+    const recentLoad = recentLoadRef.current;
+    if (
+      recentLoad?.key === requestKey &&
+      startedAt - recentLoad.startedAt < DUPLICATE_CALENDAR_LOAD_WINDOW_MS
+    ) {
+      return;
+    }
+    recentLoadRef.current = { key: requestKey, startedAt };
     const generation = ++loadGenerationRef.current;
     loadFeed(undefined, undefined, generation);
     loadKpis(view, anchorDate, generation);
-  }, [loadFeed, loadKpis, view, anchorDate]);
+  }, [
+    anchorDate,
+    branchId,
+    calendarFeedRange.from,
+    calendarFeedRange.to,
+    loadFeed,
+    loadKpis,
+    renderMode,
+    scheduleScope.scope,
+    scheduleScope.specialistId,
+    serviceId,
+    view,
+  ]);
 
   useEffect(() => {
     if (settingsSeededRef.current) {
@@ -1365,18 +1401,24 @@ export function ScheduleCalendarTab({
           mobileScrollPositionedRangeRef.current = null;
           updateMobileVisibleDate(visibleMonth ?? visibleDate, true);
           setMobileMonthCalendarRange((current) => ({
-            start: nearStart
-              ? (DateTime.fromISO(current.start, { zone: timeZone })
-                  .minus({ months: 3 })
-                  .startOf('month')
-                  .toISODate() ?? current.start)
-              : current.start,
-            end: nearEnd
-              ? (DateTime.fromISO(current.end, { zone: timeZone })
-                  .plus({ months: 3 })
-                  .startOf('month')
-                  .toISODate() ?? current.end)
-              : current.end,
+            start:
+              DateTime.fromISO(current.start, { zone: timeZone })
+                .plus({
+                  months: nearStart
+                    ? -MOBILE_MONTH_WINDOW_SHIFT_MONTHS
+                    : MOBILE_MONTH_WINDOW_SHIFT_MONTHS,
+                })
+                .startOf('month')
+                .toISODate() ?? current.start,
+            end:
+              DateTime.fromISO(current.end, { zone: timeZone })
+                .plus({
+                  months: nearStart
+                    ? -MOBILE_MONTH_WINDOW_SHIFT_MONTHS
+                    : MOBILE_MONTH_WINDOW_SHIFT_MONTHS,
+                })
+                .startOf('month')
+                .toISODate() ?? current.end,
           }));
         });
         return;
@@ -1423,16 +1465,22 @@ export function ScheduleCalendarTab({
         mobileScrollPositionedRangeRef.current = null;
         if (centerDate) updateMobileVisibleDate(centerDate, true);
         setMobileCalendarRange((current) => ({
-          start: nearStart
-            ? (DateTime.fromISO(current.start, { zone: timeZone })
-                .minus({ days: 14 })
-                .toISODate() ?? current.start)
-            : current.start,
-          end: nearEnd
-            ? (DateTime.fromISO(current.end, { zone: timeZone })
-                .plus({ days: 14 })
-                .toISODate() ?? current.end)
-            : current.end,
+          start:
+            DateTime.fromISO(current.start, { zone: timeZone })
+              .plus({
+                days: nearStart
+                  ? -MOBILE_TIME_GRID_WINDOW_SHIFT_DAYS
+                  : MOBILE_TIME_GRID_WINDOW_SHIFT_DAYS,
+              })
+              .toISODate() ?? current.start,
+          end:
+            DateTime.fromISO(current.end, { zone: timeZone })
+              .plus({
+                days: nearStart
+                  ? -MOBILE_TIME_GRID_WINDOW_SHIFT_DAYS
+                  : MOBILE_TIME_GRID_WINDOW_SHIFT_DAYS,
+              })
+              .toISODate() ?? current.end,
         }));
       });
     },
