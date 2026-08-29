@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { ArrowUp } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
@@ -145,6 +146,25 @@ export function DoctorChatPanel({
     textareaRef.current?.focus();
   }, []);
 
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    textarea.style.height = 'auto';
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
+    const verticalChrome =
+      Number.parseFloat(styles.paddingTop) +
+      Number.parseFloat(styles.paddingBottom) +
+      Number.parseFloat(styles.borderTopWidth) +
+      Number.parseFloat(styles.borderBottomWidth);
+    const maxHeight = lineHeight * 10 + verticalChrome;
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, [draft]);
+
   const composer = (
     <MessageComposer
       value={draft}
@@ -153,11 +173,13 @@ export function DoctorChatPanel({
       submitting={sending}
       placeholder="Ответ..."
       ariaLabel="Текст ответа"
-      submitLabel="Отправить"
-      submittingLabel="Отправка..."
+      submitLabel={<ArrowUp className="size-4" aria-hidden />}
+      submittingLabel={<ArrowUp className="size-4" aria-hidden />}
+      submitAriaLabel="Отправить сообщение"
       maxLength={4000}
+      rows={1}
       textareaRef={textareaRef}
-      className="flex shrink-0 flex-col gap-2 border-t border-border pt-3"
+      className="relative flex shrink-0 flex-col gap-2 border-t border-border pt-3"
       header={
         replyTarget ? (
           <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
@@ -177,8 +199,19 @@ export function DoctorChatPanel({
           </div>
         ) : null
       }
-      renderTextarea={(props) => <Textarea {...props} className="min-h-[88px] resize-y" />}
-      renderSubmit={(props) => <Button {...props} />}
+      renderTextarea={(props) => (
+        <Textarea
+          {...props}
+          className="min-h-10 resize-none rounded-[18px] py-2 pr-12 pl-3 leading-5"
+        />
+      )}
+      renderSubmit={(props) => (
+        <Button
+          {...props}
+          size="icon"
+          className="absolute right-1.5 bottom-1.5 size-8 rounded-full p-0"
+        />
+      )}
     />
   );
 

@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useRef } from 'react';
+import { useLayoutEffect, useMemo, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { ChatBubbleOutgoingMeta } from '@/shared/ui/chat/ChatBubbleOutgoingMeta';
 import {
@@ -103,9 +103,11 @@ export function ChatView({
   onReplyToMessage,
 }: ChatViewProps) {
   const patientRelative = variant === 'patient' && relativeFooters;
-  const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) return;
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
   }, [messages.length]);
 
   const grouped = groupMessagesByDay(messages);
@@ -134,6 +136,7 @@ export function ChatView({
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col overflow-hidden', className)}>
       <div
+        ref={scrollRef}
         className={cn(scrollClasses, messages.length === 0 && 'flex items-center justify-center')}
       >
         {messages.length === 0 ? (
@@ -285,7 +288,6 @@ export function ChatView({
             </div>
           ))
         )}
-        <div ref={bottomRef} />
       </div>
       {composer != null ? (
         <div className={cn('mt-auto shrink-0', variant === 'doctor' && 'px-3')}>{composer}</div>

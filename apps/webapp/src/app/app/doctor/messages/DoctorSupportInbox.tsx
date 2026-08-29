@@ -8,7 +8,9 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
@@ -130,6 +132,7 @@ export function DoctorSupportInbox({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const hasSplitChat = useViewportMinWidth(1024);
   const [mobileToolbarTarget, setMobileToolbarTarget] = useState<HTMLElement | null>(null);
   const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
@@ -530,13 +533,15 @@ export function DoctorSupportInbox({
               <X size={16} />
             </Button>
           </div>
-          <DoctorChatPanel
-            key={selectedId}
-            conversationId={selectedId}
-            className="flex-1 min-h-0"
-            onReadStateChanged={loadList}
-            onSent={loadList}
-          />
+          {hasSplitChat ? (
+            <DoctorChatPanel
+              key={selectedId}
+              conversationId={selectedId}
+              className="min-h-0 flex-1"
+              onReadStateChanged={loadList}
+              onSent={loadList}
+            />
+          ) : null}
         </>
       )}
     </div>
@@ -549,20 +554,28 @@ export function DoctorSupportInbox({
         mobileEdgeToEdge
         left={leftPane}
         right={rightPane}
-        mobileView={overviewOpen ? 'list' : selectedId ? 'detail' : 'list'}
-        mobileBackSlot={
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => selectConversation(null)}
-            className="mb-2 h-9 px-2"
-          >
-            ← К списку
-          </Button>
-        }
+        mobileView={hasSplitChat && selectedId ? 'detail' : 'list'}
         desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
         className={cn(DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS, 'min-h-0 flex-1 md:flex-none')}
       />
+      <DoctorModal
+        open={!hasSplitChat && selectedId != null}
+        onClose={() => selectConversation(null)}
+        title={`Чат: ${selectedConvDisplayName || '—'}`}
+        size="content"
+        desktopPresentation="right-sheet"
+        bodyClassName="p-0"
+      >
+        {selectedId ? (
+          <DoctorChatPanel
+            key={selectedId}
+            conversationId={selectedId}
+            className="min-h-0 flex-1"
+            onReadStateChanged={loadList}
+            onSent={loadList}
+          />
+        ) : null}
+      </DoctorModal>
     </>
   );
 }
