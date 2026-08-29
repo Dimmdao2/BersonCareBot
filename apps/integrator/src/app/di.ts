@@ -69,6 +69,7 @@ import type { WebPushAccessPort } from '../kernel/contracts/index.js';
 import { createWebPushDeliveryAdapter } from '../integrations/web-push/deliveryAdapter.js';
 import { isPlatformIntegrationAvailable } from '../infra/db/platformIntegrationAvailability.js';
 import { createClinicDeliveryCredentialResolver } from '../infra/db/clinicDeliveryCredentials.js';
+import { resolveOutboundProviderIncidentsAfterConfirmedDelivery } from '../infra/db/repos/operatorHealthDrizzle.js';
 
 /**
  * Регистраторы интеграций инжектируются,
@@ -264,6 +265,9 @@ export function buildDeps(input: BuildDepsInput = {}): AppDeps {
       isPlatformIntegrationEnabled: (integrationId: DispatchPlatformIntegrationId) =>
         isPlatformIntegrationAvailable(dbPort, integrationId),
       resolveClinicDeliveryCredential: createClinicDeliveryCredentialResolver(dbPort),
+      onProviderDeliveryConfirmed: async (integrationId) => {
+        await resolveOutboundProviderIncidentsAfterConfirmedDelivery(dbPort, integrationId);
+      },
     });
 
   dispatchPortRef.current = dispatchPort;

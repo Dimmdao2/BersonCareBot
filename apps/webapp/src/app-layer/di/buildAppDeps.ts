@@ -1826,14 +1826,7 @@ function _buildAppDeps() {
           notificationDelivery.recordNotificationDeliveryAttempt(input),
         patientInboundChatPort: supportCommunicationPort,
       },
-      fanOutBroadcastEmailDeps: {
-        emailRecipientsPort: broadcastEmailRecipientsPort,
-        getSmtpValueJson: () =>
-          systemSettingsService
-            .getSetting('smtp_outbound', 'admin')
-            .then((s) => s?.valueJson ?? null)
-            .catch(() => null),
-      },
+      broadcastEmailRecipientsPort,
     }),
     doctorBroadcastComposer: {
       loadDraft: (doctorUserId: string) => broadcastDraftPort.loadDraft(doctorUserId),

@@ -1,9 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { ClientListItem } from '@/modules/doctor-clients/ports';
 import { createDoctorBroadcastsService } from './service';
 import type { BroadcastCommand, DoctorBroadcastQueueJob } from './ports';
-import type { FanOutBroadcastEmailInput, FanOutBroadcastEmailResult } from './fanOutBroadcastEmail';
-import { buildBroadcastEmailHtml } from './fanOutBroadcastEmail';
 
 const SUBSCRIBED_USER_ID = '11111111-1111-4111-8111-111111111111';
 const UNSUBSCRIBED_USER_ID = '22222222-2222-4222-8222-222222222222';
@@ -34,13 +32,6 @@ describe('doctor broadcast topic unsubscribe — send-time gate', () => {
         client(UNSUBSCRIBED_USER_ID, 'Отписан'),
       ];
       let committedJobs: readonly DoctorBroadcastQueueJob[] = [];
-      const capturedEmail = { input: null as FanOutBroadcastEmailInput | null };
-      const fanOutBroadcastEmail = vi.fn(
-        async (input: FanOutBroadcastEmailInput): Promise<FanOutBroadcastEmailResult> => {
-          capturedEmail.input = input;
-          return { attempted: 1, delivered: 1, errors: 0, skipped: 0 };
-        },
-      );
       const service = createDoctorBroadcastsService({
         resolveBroadcastAudience: async () => ({
           audienceSize: clients.length,
@@ -86,9 +77,9 @@ describe('doctor broadcast topic unsubscribe — send-time gate', () => {
             return { ...audit, id: auditId, executedAt: new Date().toISOString() };
           },
         },
-        fanOutBroadcastEmail,
-        fanOutBroadcastEmailDeps: {
-          emailRecipientsPort: { getVerifiedEmailsForUserIds: async () => new Map() },
+        broadcastEmailRecipientsPort: {
+          getVerifiedEmailsForUserIds: async () =>
+            new Map([[SUBSCRIBED_USER_ID, 'patient@example.test']]),
         },
       });
       const command: BroadcastCommand = {
@@ -113,32 +104,28 @@ describe('doctor broadcast topic unsubscribe — send-time gate', () => {
 
       const result = await service.execute(command, context);
       expect(result.auditEntry.audienceSize).toBe(1);
-      expect(committedJobs).toHaveLength(1);
-      const intent = committedJobs[0]?.payloadJson.intent as {
+      expect(committedJobs).toHaveLength(2);
+      const messengerIntent = committedJobs.find((job) => job.channel === 'telegram')?.payloadJson
+        .intent as {
         payload?: {
           replyMarkup?: { inline_keyboard?: Array<Array<{ text?: string; url?: string }>> };
         };
       };
-      const button = intent.payload?.replyMarkup?.inline_keyboard?.[0]?.[0];
+      const button = messengerIntent.payload?.replyMarkup?.inline_keyboard?.[0]?.[0];
       expect(button?.text).toBe(`Отписаться от «${topicTitle}»`);
       expect(button?.url).toContain(`/${SUBSCRIBED_USER_ID}/${topicCode}/`);
       expect(button?.url).not.toContain(UNSUBSCRIBED_USER_ID);
 
-      expect(fanOutBroadcastEmail).toHaveBeenCalledOnce();
-      expect(capturedEmail.input?.eligibleClients.map((row) => row.userId)).toEqual([
-        SUBSCRIBED_USER_ID,
-      ]);
-      expect(capturedEmail.input?.unsubscribeUrlByUserId.get(SUBSCRIBED_USER_ID)).toContain(
-        `/${topicCode}/${encodeURIComponent(topicTitle)}/`,
+      const emailJob = committedJobs.find((job) => job.channel === 'email');
+      expect(emailJob?.payloadJson.clientUserId).toBe(SUBSCRIBED_USER_ID);
+      const emailIntent = emailJob?.payloadJson.intent as {
+        payload?: { recipient?: { email?: string }; html?: string; message?: { text?: string } };
+      };
+      expect(emailIntent.payload?.recipient?.email).toBe('patient@example.test');
+      expect(emailIntent.payload?.html).toContain(`>Отписаться от «${topicTitle}»</a>`);
+      expect(emailIntent.payload?.message?.text).toContain(
+        `/${SUBSCRIBED_USER_ID}/${topicCode}/${encodeURIComponent(topicTitle)}/`,
       );
-      expect(
-        buildBroadcastEmailHtml({
-          title: command.message.title,
-          body: command.message.body,
-          unsubscribeUrl: capturedEmail.input?.unsubscribeUrlByUserId.get(SUBSCRIBED_USER_ID) ?? '',
-          unsubscribeTopicTitle: capturedEmail.input?.unsubscribeTopicTitle ?? '',
-        }),
-      ).toContain(`>Отписаться от «${topicTitle}»</a>`);
     },
   );
 });

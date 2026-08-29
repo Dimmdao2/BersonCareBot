@@ -60,6 +60,9 @@ function buildService() {
     resolveBroadcastAudience,
     broadcastAuditPort,
     doctorBroadcastDeliveryCommitPort,
+    broadcastEmailRecipientsPort: {
+      getVerifiedEmailsForUserIds: async () => new Map(),
+    },
     patientNotificationTopics: {
       listByUserId: async () => [],
       listByUserIds: async () => new Map(),

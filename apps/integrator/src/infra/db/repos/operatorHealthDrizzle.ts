@@ -4,9 +4,10 @@
 import { sql } from 'drizzle-orm';
 import { OUTBOUND_PROVIDER_INCIDENT_DIRECTION } from '@bersoncare/operator-db-schema';
 import { createDbPort } from '../client.js';
-import { runIntegratorSql } from '../runIntegratorSql.js';
+import { runIntegratorNamedRoot, runIntegratorSql } from '../runIntegratorSql.js';
 import { getCurrentIntegratorTechnicalRuntimeRole } from '../withClient.js';
 import { runWithDeliveryWorkerPrincipal } from '../../principal/organizationPrincipal.js';
+import type { DbPort } from '../../../kernel/contracts/index.js';
 
 const ERROR_DETAIL_MAX = 900;
 
@@ -22,6 +23,17 @@ export type OpenOrTouchIncidentResult = {
   id: string;
   occurrenceCount: number;
 };
+
+export type OutboundProviderIntegration =
+  | 'telegram'
+  | 'max'
+  | 'vk'
+  | 'email'
+  | 'smsc'
+  | 'web_push';
+
+const RESOLVE_OUTBOUND_PROVIDER_INCIDENTS_AFTER_DELIVERY_ROOT =
+  'app.resolve_outbound_provider_incidents_after_delivery(text)';
 
 function truncateDetail(detail: string | null | undefined): string | null {
   if (detail === undefined || detail === null || detail === '') return null;
@@ -80,6 +92,26 @@ export async function openOrTouchOperatorIncident(
     throw new Error('openOrTouchOperatorIncident: empty returning');
   }
   return { id: row.id, occurrenceCount: row.occurrence_count };
+}
+
+/**
+ * A real provider acceptance is the recovery signal for that provider channel. Close its stale
+ * provider incident through one bounded capability; callers keep this best-effort because health
+ * bookkeeping must never turn an accepted message into a retry and duplicate delivery.
+ */
+export async function resolveOutboundProviderIncidentsAfterConfirmedDelivery(
+  db: DbPort,
+  integration: OutboundProviderIntegration,
+): Promise<number> {
+  const result = await runWithDeliveryWorkerPrincipal(() =>
+    runIntegratorNamedRoot<{ resolved: number }>(
+      db,
+      RESOLVE_OUTBOUND_PROVIDER_INCIDENTS_AFTER_DELIVERY_ROOT,
+      [integration],
+      sql`SELECT app.resolve_outbound_provider_incidents_after_delivery(${integration}) AS resolved`,
+    ),
+  );
+  return Number(result.rows[0]?.resolved ?? 0);
 }
 
 /**

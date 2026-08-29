@@ -283,6 +283,10 @@ export function createDefaultDispatchPort(deps: {
     channel: ClinicDeliveryChannel,
     options?: ClinicDeliveryCredentialResolveOptions,
   ) => Promise<ClinicDeliveryCredential | null>;
+  /** Best-effort health recovery after a provider really accepted a delivery. */
+  onProviderDeliveryConfirmed?: (
+    integrationId: DispatchPlatformIntegrationId,
+  ) => Promise<void>;
 }): DispatchPort {
   return {
     async dispatchOutgoing(
@@ -376,6 +380,21 @@ export function createDefaultDispatchPort(deps: {
           );
         }
         throw attemptedFailure;
+      }
+      const providerConfirmed =
+        integrationId !== null &&
+        (integrationId !== 'web_push' || sendResult?.webPushOutcome?.status === 'success');
+      if (providerConfirmed && deps.onProviderDeliveryConfirmed) {
+        try {
+          await deps.onProviderDeliveryConfirmed(integrationId);
+        } catch (recoveryError) {
+          // The provider already accepted the message. Health-state repair is independent
+          // bookkeeping and must never cause a retry of the external side effect.
+          logger.warn(
+            { err: recoveryError, integrationId },
+            'outbound_provider_incident_recovery_failed_after_delivery',
+          );
+        }
       }
       // Success, or a completed-but-skipped webPushOutcome, is not a delivery attempt (F5): the
       // surviving outgoing_delivery_queue row's own status/sent_at/failure_class is the lifecycle

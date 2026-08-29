@@ -12,7 +12,7 @@
 | MAX      | `max`              | `outgoing_delivery_queue` → integrator worker (maxId биндинг)             | `user_channel_bindings WHERE channel_code='max'`      |
 | Push     | `push`             | `fanOutBroadcastWebPush` → `runPatientWebPushNotify` (`intentType: news`) | `user_web_push_subscriptions` (активные подписки)     |
 | SMS      | `sms`              | `outgoing_delivery_queue` (smsc)                                          | `platform_users.phone_normalized IS NOT NULL`         |
-| Email    | `email`            | `fanOutBroadcastEmail` → `sendTransactionalSmtpEmail` (guarded)           | `platform_users.email_verified_at IS NOT NULL`        |
+| Email    | `email`            | `outgoing_delivery_queue` → integrator worker (verified primary email)    | confirmed primary email contact                       |
 
 Для каждого внешнего канала рассылки обязателен отдельный tariff entitlement и exact-org credential:
 `clinic_telegram_bot`, `clinic_max_bot`, `clinic_sms`, `clinic_smtp`. Перед постановкой в очередь action
@@ -34,8 +34,8 @@ integrator не подменяет его платформенным sender. Pus
   `wantsEmail`. Legacy-флаг `legacyBotMessage`: если в `channels` встретился `bot_message` —
   трактуется как `telegram+max`.
 - `fanOutBroadcastWebPush.ts` — push-рассылка (eligibility = активная web_push-подписка + тема `news`).
-- `fanOutBroadcastEmail.ts` — email-рассылка (eligibility = верифицированный email) через exact-org SMTP
-  clinic; платформа для неё не является fallback.
+- `emailDelivery.ts` — confirmed-email port и HTML-представление письма; `deliveryJobs.ts` кладёт email в ту
+  же durable-очередь, что Telegram/MAX/SMS, а integrator использует exact-org SMTP без platform fallback.
 - `broadcastEligible.ts` — `filterEligibleBroadcastClients` + `deriveBroadcastDeliveryPolicy`.
 
 Поверх channel eligibility один общий send-time gate читает master-тему из `user_notification_topics`:
@@ -90,13 +90,14 @@ In-memory stub: `infra/repos/inMemoryBroadcastEmailRecipients.ts`.
 - `ports.ts` — `DoctorBroadcastsPort`, `BroadcastAudienceResolveResult` (+ `emailEligibleUserIds`)
 - `draftPort.ts` — `BroadcastDraftPort`, `BroadcastChannelCounts`
 - `deliveryJobs.ts` — создание delivery-jobs по каналам
-- `fanOutBroadcastEmail.ts` — email fan-out
+- `emailDelivery.ts` — verified-email port и HTML письма
 - `broadcastEligible.ts` — eligibility + policy
 - `service.ts` — `DoctorBroadcastsService`
 
 ## Follow-up (TODO)
 
-- **Live-проверка email-рассылки:** `fanOutBroadcastEmail` реализован guarded. Требует SMTP-конфигурации в dev-среде и ручного прогона рассылки.
+- **Live-проверка email-рассылки:** выполнить TEST-рассылку на allowlisted owner-account и проверить queue →
+  provider → signed unsubscribe целиком.
 - **Preview «получат push»:** отдельное число в confirm-step; см. `docs/TODO.md` §«Web Push / PWA».
 - **Новые сегменты аудитории §5.1:** На сопровождении, С программой, Приём в месяце, С абонементами и др. — требуют новых фильтров в `broadcastEligible.ts`.
 - **«Выбрать вручную»:** диалог с чекбоксами пациентов + хранение `userId[]` вместо enum-фильтра.

@@ -20,6 +20,7 @@ import {
   DOCTOR_BROADCAST_DELIVERY_MAX_ATTEMPTS,
   MAX_BROADCAST_DELIVERY_JOBS,
 } from './deliveryQueueKind';
+import { buildBroadcastEmailHtml } from './emailDelivery';
 
 const MESSAGE_TEXT_MAX = 3500;
 
@@ -167,6 +168,39 @@ function buildMessageSendIntent(input: {
   };
 }
 
+function buildEmailMessageSendIntent(input: {
+  eventId: string;
+  clientUserId: string;
+  email: string;
+  title: string;
+  body: string;
+  html: string;
+}): Record<string, unknown> {
+  return {
+    type: 'message.send',
+    meta: {
+      eventId: input.eventId.slice(0, 200),
+      occurredAt: new Date().toISOString(),
+      source: 'email',
+      userId: input.clientUserId,
+      correlationId: `doctor-broadcast:${input.eventId.slice(0, 80)}`,
+      outboundMessageClass: 'broadcast_event',
+      outboundCapability: 'clinic_delivery',
+    },
+    payload: {
+      recipient: { email: input.email },
+      subject: input.title,
+      message: { text: input.body },
+      html: input.html,
+      delivery: {
+        channels: ['email'],
+        maxAttempts: 1,
+        senderScope: 'clinic_required',
+      },
+    },
+  };
+}
+
 export type DoctorBroadcastDeliveryJobsParams = {
   auditId: string;
   /** Тот же состав, что в превью «получатели» (**`eligibleClients`** из резолвера аудитории). */
@@ -184,6 +218,8 @@ export type DoctorBroadcastDeliveryJobsParams = {
   unsubscribeUrlByUserId?: ReadonlyMap<string, string>;
   /** Human title of the one notification topic covered by every unsubscribe URL. */
   unsubscribeTopicTitle?: string;
+  /** Confirmed primary email targets, resolved before the audit+queue transaction. */
+  verifiedEmailByUserId?: ReadonlyMap<string, string>;
 };
 
 /**
@@ -202,6 +238,7 @@ export function buildDoctorBroadcastDeliveryJobs(
   const wantsTelegram = input.channels.includes('telegram') || legacyBotMessage;
   const wantsMax = input.channels.includes('max') || legacyBotMessage;
   const wantsSms = input.channels.includes('sms');
+  const wantsEmail = input.channels.includes('email');
   const jobs: DoctorBroadcastQueueJob[] = [];
   const attachMenu = input.attachMenu === true;
   const plainCombined = buildBroadcastMessageText(input.messageTitle, input.messageBodyPlain);
@@ -297,6 +334,37 @@ export function buildDoctorBroadcastDeliveryJobs(
           },
         });
       }
+    }
+
+    const email = input.verifiedEmailByUserId?.get(client.userId)?.trim();
+    if (wantsEmail && email && unsubscribeUrl && input.unsubscribeTopicTitle) {
+      const eventId = stableEventId(input.auditId, 'email', client.userId, 'email');
+      const emailBody = `${stripMarkdownToPlain(input.messageTitle)}\n\n${stripMarkdownToPlain(input.messageBodyPlain)}\n\nОтписаться от «${input.unsubscribeTopicTitle}»: ${unsubscribeUrl}`;
+      jobs.push({
+        eventId,
+        kind: DOCTOR_BROADCAST_QUEUE_KIND,
+        channel: 'email',
+        maxAttempts: DOCTOR_BROADCAST_DELIVERY_MAX_ATTEMPTS,
+        payloadJson: {
+          broadcastAuditId: input.auditId,
+          clientUserId: client.userId,
+          attachMenu: false,
+          intent: buildEmailMessageSendIntent({
+            eventId,
+            clientUserId: client.userId,
+            email,
+            title: input.messageTitle.trim(),
+            body: emailBody,
+            html: buildBroadcastEmailHtml({
+              title: input.messageTitle,
+              body: stripMarkdownToPlain(input.messageBodyPlain),
+              mediaUrl: input.imageUrl ?? null,
+              unsubscribeUrl,
+              unsubscribeTopicTitle: input.unsubscribeTopicTitle,
+            }),
+          }),
+        },
+      });
     }
   }
 

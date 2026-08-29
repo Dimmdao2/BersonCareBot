@@ -120,6 +120,24 @@ describe('Track D F5/F6: dispatchPort never writes success/skip pseudo-attempts'
     expect(send).toHaveBeenCalledTimes(1);
     expect(writeDb).not.toHaveBeenCalled();
   });
+
+  it('closes stale provider health after a real acceptance without turning repair failure into a resend', async () => {
+    const send = vi.fn(async () => ({ telegramMessageId: 42 }));
+    const onProviderDeliveryConfirmed = vi.fn(async () => {
+      throw new Error('health bookkeeping unavailable');
+    });
+    const port = createDefaultDispatchPort({
+      adapters: [{ canHandle: () => true, send }],
+      onProviderDeliveryConfirmed,
+    });
+
+    await expect(port.dispatchOutgoing(messageSendIntent())).resolves.toEqual({
+      telegramMessageId: 42,
+    });
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(onProviderDeliveryConfirmed).toHaveBeenCalledOnce();
+    expect(onProviderDeliveryConfirmed).toHaveBeenCalledWith('telegram');
+  });
 });
 
 describe('Track D F5/F6 follow-up: dispatchPort records a real attempt for non-queue-backed failures', () => {

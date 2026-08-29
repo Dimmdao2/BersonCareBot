@@ -20,11 +20,7 @@ import {
   fanOutBroadcastWebPush,
   type FanOutBroadcastWebPushResult,
 } from './fanOutBroadcastWebPush';
-import {
-  fanOutBroadcastEmail,
-  type FanOutBroadcastEmailDeps,
-  type FanOutBroadcastEmailResult,
-} from './fanOutBroadcastEmail';
+import type { BroadcastEmailRecipientsPort } from './emailDelivery';
 import {
   appendPatientInboundAdminMessage,
   broadcastChatIntegratorMessageId,
@@ -59,12 +55,8 @@ export type DoctorBroadcastsServiceDeps = {
   ) => Promise<FanOutBroadcastWebPushResult>;
   patientWebPushNotifyDeps?: PatientWebPushNotifyDeps;
   patientInboundChatPort?: PatientInboundChatPort;
-  /**
-   * Email fan-out deps. Если не задан — email-отправка не выполняется (канал
-   * остаётся видимым, счётчик реальный, но фактическая рассылка guarded).
-   */
-  fanOutBroadcastEmailDeps?: FanOutBroadcastEmailDeps;
-  fanOutBroadcastEmail?: typeof fanOutBroadcastEmail;
+  /** Confirmed email targets used to build the same durable queue jobs as every external channel. */
+  broadcastEmailRecipientsPort?: BroadcastEmailRecipientsPort;
   patientNotificationTopics: PatientNotificationTopicsPort;
   buildTopicUnsubscribeUrl: (input: {
     userId: string;
@@ -222,6 +214,17 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
           }),
         ]),
       );
+      const emailUserIds = emailEligibleUserIds
+        ? eligibleClients
+            .filter((client) => emailEligibleUserIds.has(client.userId))
+            .map((client) => client.userId)
+        : eligibleClients.map((client) => client.userId);
+      const verifiedEmailByUserId = channels.includes('email')
+        ? await deps.broadcastEmailRecipientsPort?.getVerifiedEmailsForUserIds(emailUserIds)
+        : undefined;
+      if (channels.includes('email') && verifiedEmailByUserId === undefined) {
+        throw new Error('broadcast_email_recipients_unavailable');
+      }
       const jobs = buildDoctorBroadcastDeliveryJobs({
         auditId,
         eligibleClients,
@@ -234,6 +237,7 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
         imageUrl: command.message.mediaUrl ?? null,
         unsubscribeUrlByUserId,
         unsubscribeTopicTitle: topicTitle,
+        verifiedEmailByUserId,
       });
       const auditBase = {
         organizationId: options.organizationId,
@@ -303,26 +307,6 @@ export function createDoctorBroadcastsService(deps: DoctorBroadcastsServiceDeps)
             webPushEligibleUserIds,
           },
           deps.patientWebPushNotifyDeps,
-        );
-      }
-
-      if (channels.includes('email') && deps.fanOutBroadcastEmailDeps) {
-        const emailClients = emailEligibleUserIds
-          ? eligibleClients.filter((c) => emailEligibleUserIds.has(c.userId))
-          : eligibleClients;
-        await (deps.fanOutBroadcastEmail ?? fanOutBroadcastEmail)(
-          {
-            organizationId: options.organizationId,
-            auditId,
-            broadcastCategory: command.category,
-            broadcastTitle: command.message.title,
-            broadcastBody: stripMarkdownToPlain(command.message.body),
-            mediaUrl: command.message.mediaUrl ?? null,
-            eligibleClients: emailClients,
-            unsubscribeUrlByUserId,
-            unsubscribeTopicTitle: topicTitle,
-          },
-          deps.fanOutBroadcastEmailDeps,
         );
       }
 

@@ -17,7 +17,7 @@
 | Страница                                     | `apps/webapp/src/app/app/doctor/broadcasts/page.tsx`                                                                            |
 | Server actions                               | `.../broadcasts/actions.ts` (`previewBroadcastAction`, `executeBroadcastAction`, `listBroadcastAuditAction`)                    |
 | Доменный сервис                              | `apps/webapp/src/modules/doctor-broadcasts/service.ts`                                                                          |
-| Построение заданий очереди и правила каналов | `.../doctor-broadcasts/deliveryJobs.ts`, `broadcastEligible.ts`                                                                 |
+| Построение заданий очереди и правила каналов | `.../doctor-broadcasts/deliveryJobs.ts`, `emailDelivery.ts`, `broadcastEligible.ts`                                             |
 | Типы и константы                             | `.../doctor-broadcasts/ports.ts`, `deliveryQueueKind.ts` (`BROADCAST_RECIPIENT_PREVIEW_NAME_CAP` = 20)                          |
 | Оценка аудитории                             | `.../doctor-broadcasts/broadcastAudienceMetrics.ts`                                                                             |
 | DI                                           | `apps/webapp/src/app-layer/di/buildAppDeps.ts` (`doctorBroadcasts`, `doctorBroadcastDeliveryCommitPort`)                        |
@@ -80,7 +80,7 @@
 **`execute`** (сервис `doctor-broadcasts`):
 
 1. Собирает текст сообщения (заголовок + тело, с усечением по лимиту в `deliveryJobs.ts`).
-2. Генерирует `auditId`, строит плоский список заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + `clientUserId` + флаг **`attachMenu`** при включённой опции меню).
+2. Генерирует `auditId`, строит единый плоский список Telegram/MAX/SMS/email-заданий (`buildDoctorBroadcastDeliveryJobs`) с `event_id` и `payload_json` (`intent` + `broadcastAuditId` + `clientUserId` + флаг **`attachMenu`** при включённой опции меню).
 3. Ограничение **`MAX_BROADCAST_DELIVERY_JOBS`** — при превышении ошибка до транзакции.
 4. **`commitAuditAndDeliveryQueue`**: `INSERT broadcast_audit` (в т.ч. `message_body`, `delivery_jobs_total`, **`attach_menu_after_send`**) + batch `INSERT` в **`broadcast_audit_recipients`** (все **`eligibleClients`**, включая push-only) + для каждой строки очереди — `INSERT … ON CONFLICT (event_id) DO NOTHING` в `outgoing_delivery_queue`; если вставка строки не произошла (`rowCount ≠ 1`, дубликат `event_id` или иной сбой) — **откат всей транзакции** (в т.ч. запись `broadcast_audit` не фиксируется).
 

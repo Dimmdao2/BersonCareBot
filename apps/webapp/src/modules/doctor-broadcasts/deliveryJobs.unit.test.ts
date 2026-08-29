@@ -15,7 +15,7 @@ const client: ClientListItem = {
 };
 
 describe('clinic-owned doctor broadcast delivery jobs', () => {
-  it.each(['telegram', 'max', 'sms'] as const)(
+  it.each(['telegram', 'max', 'sms', 'email'] as const)(
     'marks every %s provider intent as clinic-required',
     (channel) => {
       const [job] = buildDoctorBroadcastDeliveryJobs({
@@ -24,6 +24,9 @@ describe('clinic-owned doctor broadcast delivery jobs', () => {
         channels: [channel],
         messageTitle: 'Заголовок',
         messageBodyPlain: 'Текст',
+        unsubscribeUrlByUserId: new Map([[client.userId, 'https://example.test/unsubscribe']]),
+        unsubscribeTopicTitle: 'Новости',
+        verifiedEmailByUserId: new Map([[client.userId, 'patient@example.test']]),
       });
 
       expect(job).toBeDefined();
@@ -36,6 +39,12 @@ describe('clinic-owned doctor broadcast delivery jobs', () => {
         outboundMessageClass: 'broadcast_event',
         outboundCapability: 'clinic_delivery',
       });
+      if (channel === 'email') {
+        expect(intent.payload).toMatchObject({
+          recipient: { email: 'patient@example.test' },
+          subject: 'Заголовок',
+        });
+      }
     },
   );
 });

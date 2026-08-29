@@ -142,3 +142,23 @@ describe('openOrTouchOperatorIncident', () => {
     ).rejects.toThrow('openOrTouchOperatorIncident: empty returning');
   });
 });
+
+describe('resolveOutboundProviderIncidentsAfterConfirmedDelivery', () => {
+  it('закрывает только канал подтверждённой доставки через одну именованную дверь', async () => {
+    query.mockResolvedValueOnce({ rows: [{ resolved: 3 }] });
+    const { resolveOutboundProviderIncidentsAfterConfirmedDelivery } = await import(
+      './operatorHealthDrizzle.js'
+    );
+
+    const result = await resolveOutboundProviderIncidentsAfterConfirmedDelivery(
+      { query, tx: vi.fn() },
+      'email',
+    );
+
+    expect(result).toBe(3);
+    const [sqlText, params] = query.mock.calls.at(-1) as [string, unknown[]];
+    expect(sqlText).toContain('app.resolve_outbound_provider_incidents_after_delivery');
+    expect(params).toEqual(['email']);
+    expect(sqlText).not.toMatch(/UPDATE\s+public\.operator_incidents/i);
+  });
+});

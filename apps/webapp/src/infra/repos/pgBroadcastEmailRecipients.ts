@@ -12,7 +12,7 @@ import { getDrizzle } from '@/app-layer/db/drizzle';
 import { drizzleSqlUuidInList } from '@/modules/analytics/analyticsAudience';
 import { drizzlePrimaryEmailCol, drizzlePrimaryEmailConfirmedAtCol } from '@/infra/repos/userContactsSql';
 import { platformUsers } from '../../../db/schema/schema';
-import type { BroadcastEmailRecipientsPort } from '@/modules/doctor-broadcasts/fanOutBroadcastEmail';
+import type { BroadcastEmailRecipientsPort } from '@/modules/doctor-broadcasts/emailDelivery';
 
 export function createPgBroadcastEmailRecipientsPort(): BroadcastEmailRecipientsPort {
   return {

@@ -3532,6 +3532,11 @@ const REV10_CONTEXT = {
     mark_operator_incident_alert_sent: { port: 'integrator', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_delivery_worker', contextClass: 'service',
       purpose: 'delivery.incident-alert-mark', functionIdentity: 'app.mark_operator_incident_alert_sent(uuid)' },
+    resolve_outbound_provider_incidents_after_delivery: {
+      port: 'integrator', sessionRole: 'app_integrator_request',
+      targetRole: 'app_operational_delivery_worker', contextClass: 'service',
+      purpose: 'health.outbound-provider.recover',
+      functionIdentity: 'app.resolve_outbound_provider_incidents_after_delivery(text)' },
     list_scheduler_reminder_organization_ids: { port: 'integrator', sessionRole: 'app_integrator_request',
       targetRole: 'app_operational_scheduler', contextClass: 'service',
       purpose: 'scheduler.reminder-organizations',
@@ -6892,6 +6897,17 @@ const REV10_CONTEXT = {
       relationSurfaces: [{ relation: 'public.operator_incidents',
         columns: ['resolved_at', 'acknowledged_at', 'direction', 'alert_claim_phase', 'alert_claim_token', 'alert_claimed_at'],
         operations: ['SELECT' as const, 'UPDATE' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const }],
+    }),
+    'app.resolve_outbound_provider_incidents_after_delivery(text)': rev10Function({
+      owner: 'app_seam_telemetry_operator_owner', security: 'DEFINER', returns: 'integer', returnsSet: false,
+      execute: ['app_operational_delivery_worker'],
+      purpose: 'health.outbound-provider.recover', typedArgs: ['text'],
+      volatility: 'VOLATILE', parallel: 'UNSAFE', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [{ relation: 'public.operator_incidents',
+        columns: ['id', 'direction', 'integration', 'resolved_at', 'alert_claim_phase',
+          'alert_claim_token', 'alert_claimed_at'],
+        operations: ['SELECT' as const, 'UPDATE' as const],
+        evidence: 'pg16-function-body-lexical-upper-bound' as const }],
     }),
     // Единственная дверь ОТКРЫТИЯ критического инцидента. До неё пятиминутный сторож писал строку
     // прямым drizzle-INSERT под `app_worker`, который перечисляет ВСЕ колонки таблицы: семь

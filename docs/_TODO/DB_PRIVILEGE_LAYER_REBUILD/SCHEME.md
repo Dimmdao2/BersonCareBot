@@ -99,7 +99,7 @@ All context definers are owner `app_seam_context_owner`, `SECURITY DEFINER VOLAT
 | `app.hash_port_typed_args(p_args app.port_typed_arg[])` | `bytea`, **SECURITY INVOKER IMMUTABLE PARALLEL SAFE**, `SET search_path=pg_catalog` | context owner and exact named seam owners |
 | `app_ext.resolve_variant_a_identity(p_platform_user_id uuid)` | `uuid`; private definer resolver | exact declared pre-session root owners |
 
-`app_seam_context_owner` owns exactly two private relations: `port_context_capabilities` and `accepted_port_contexts`. `app_seam_identity_lookup_owner` owns `variant_a_identity_refs` and `resolve_variant_a_identity`; the context owner never reads the physical→opaque map and stores only opaque refs. `PUBLIC`, login/runtime roles and non-owning seam owners have no `USAGE` on `app_ext`, private relation ACL or resolver/helper execute. Closed rows are deleted only by a named context seam after 24h; they cannot be reused because every gate requires matching current transaction ID and `cleared_at IS NULL`.
+`app_seam_context_owner` owns exactly two private relations: `port_context_capabilities` and `accepted_port_contexts`. `app_seam_identity_lookup_owner` owns `variant_a_identity_refs` and `resolve_variant_a_identity`; the context owner never reads the physical→opaque map and stores only opaque refs. `PUBLIC`, login/runtime roles and non-owning seam owners have no `USAGE` on `app_ext`, private relation ACL or resolver/helper execute. Each accepted row is deleted by the deferred owner trigger when its transaction commits; it cannot survive or be reused outside that transaction because every gate also requires the matching current transaction ID and `cleared_at IS NULL`.
 
 ### 2.3 Canonical args, gate and lifecycle
 
