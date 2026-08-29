@@ -44,6 +44,21 @@ function incidentDigestLabel(incident: OperatorIncidentDigestRow): string {
     : `${incident.integration} / ${incident.errorClass}`;
 }
 
+function groupIncidentDigestLabels(
+  incidents: OperatorIncidentDigestRow[],
+): Array<{ label: string; count: number }> {
+  const counts = new Map<string, number>();
+  for (const incident of incidents) {
+    const label = incidentDigestLabel(incident);
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  return [...counts].map(([label, count]) => ({ label, count }));
+}
+
+function formatIncidentDigestGroup(group: { label: string; count: number }): string {
+  return group.count > 1 ? `${group.label} ×${group.count}` : group.label;
+}
+
 export function buildOperatorHealthDigest(
   input: OperatorHealthDigestInput,
 ): OperatorHealthDigestResult {
@@ -61,22 +76,24 @@ export function buildOperatorHealthDigest(
     detailLines.push(`Ошибки в журнале админки: ${input.auditErrorCount}`);
   }
 
-  for (const inc of input.incidentsOpened.slice(0, 3)) {
-    detailLines.push(`Инцидент: ${incidentDigestLabel(inc)}`);
+  const openedGroups = groupIncidentDigestLabels(input.incidentsOpened);
+  for (const group of openedGroups.slice(0, 3)) {
+    detailLines.push(`Инцидент: ${formatIncidentDigestGroup(group)}`);
   }
-  if (input.incidentsOpened.length > 3) {
-    detailLines.push(`…и ещё ${input.incidentsOpened.length - 3} инцидентов`);
+  if (openedGroups.length > 3) {
+    detailLines.push(`…и ещё ${openedGroups.length - 3} типов инцидентов`);
   }
 
   detailLines.push(...input.snapshotLines);
 
   if (!input.suppressRecovery && input.incidentsResolved.length > 0) {
     detailLines.push('Восстановлено за окно:');
-    for (const inc of input.incidentsResolved.slice(0, 2)) {
-      detailLines.push(incidentDigestLabel(inc));
+    const resolvedGroups = groupIncidentDigestLabels(input.incidentsResolved);
+    for (const group of resolvedGroups.slice(0, 2)) {
+      detailLines.push(formatIncidentDigestGroup(group));
     }
-    if (input.incidentsResolved.length > 2) {
-      detailLines.push(`…и ещё ${input.incidentsResolved.length - 2} восстановлений`);
+    if (resolvedGroups.length > 2) {
+      detailLines.push(`…и ещё ${resolvedGroups.length - 2} типов восстановлений`);
     }
   }
 
