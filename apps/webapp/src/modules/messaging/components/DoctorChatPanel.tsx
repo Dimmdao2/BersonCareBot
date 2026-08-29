@@ -204,7 +204,7 @@ export function DoctorChatPanel({
       renderTextarea={(props) => (
         <Textarea
           {...props}
-          className="min-h-10 resize-none rounded-[18px] py-2 pr-12 pl-3 leading-5"
+          className="min-h-10 resize-none rounded-[18px] py-2 pr-10 pl-3 leading-5"
           style={{ borderRadius: 18 }}
         />
       )}
