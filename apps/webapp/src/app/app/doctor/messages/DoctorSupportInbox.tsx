@@ -20,7 +20,10 @@ import {
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
-import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import {
+  DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
+  DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS,
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { patientCardHref } from '../patients/patientCardHref';
 import { ChatClientOverviewPanel } from './ChatClientOverviewPanel';
 
@@ -406,6 +409,7 @@ export function DoctorSupportInbox({
           <ul
             className={cn(
               doctorDnaFlatListClass,
+              DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
               'mx-0 flex flex-col md:mx-[var(--doctor-block-padding,18px)]',
             )}
           >

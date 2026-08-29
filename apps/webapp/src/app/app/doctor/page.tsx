@@ -149,6 +149,7 @@ export default async function DoctorPage() {
       title="Сегодня"
       user={session.user}
       layout="full-height"
+      mobileBottomGutter
       mobileHeaderActions={
         <DoctorTodayQuickActions
           todayIso={todayIso}
