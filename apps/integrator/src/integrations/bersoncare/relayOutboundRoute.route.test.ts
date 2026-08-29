@@ -139,6 +139,25 @@ afterEach(async () => {
 });
 
 describe('POST /api/bersoncare/relay-outbound', () => {
+  it('reports environment suppression as skipped instead of delivered', async () => {
+    const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({
+      suppressedByEnvironment: true as const,
+    }));
+    const app = await buildApp(dispatchOutgoing);
+
+    const response = await injectSigned(
+      app,
+      relayPayload({
+        organizationId: ORGANIZATION_ID,
+        channel: 'email',
+        recipient: 'ordinary-patient@example.test',
+      }),
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true, status: 'skipped' });
+  });
+
   it('preserves clinic-required sender scope for an exact organization relay', async () => {
     const dispatchOutgoing = vi.fn(async (_intent: OutgoingIntent) => ({}));
     const app = await buildApp(dispatchOutgoing);

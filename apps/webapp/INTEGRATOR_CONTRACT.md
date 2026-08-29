@@ -441,7 +441,9 @@ fail-closed конфигурацию из глобального `public.system_
 }
 ```
 
-**Ответы:** `200 { ok: true, status: "accepted" | "duplicate" }`, ошибки как у send-otp / relay-outbound (`invalid_signature`, `dispatch_failed`, …).
+**Ответы:** `200 { ok: true, status: "accepted" | "duplicate" | "skipped" }`; `skipped` означает,
+что единый финальный environment-гейт штатно запретил реальную отправку. Это не успех провайдера и не его
+ошибка. Остальные ошибки — как у send-otp / relay-outbound (`invalid_signature`, `dispatch_failed`, …).
 
 **Идемпотентность (integrator):** дедуп по `idempotencyKey` хранится в durable store `integrator.idempotency_keys` (через `IdempotencyPort`, тот же механизм, что и у event gateway) — переживает рестарт процесса и общий для всех реплик API; TTL задаётся в коде роутера.
 

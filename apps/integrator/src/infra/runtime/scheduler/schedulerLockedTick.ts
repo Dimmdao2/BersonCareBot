@@ -19,6 +19,33 @@ export type SchedulerLockedTickCoordinator = {
   waitForOutgoingDeliveryTick: () => Promise<void>;
 };
 
+export type SchedulerCadenceStep =
+  | 'operator_health_digest_wake'
+  | 'system_health_guard_wake'
+  | 'operator_health_probe';
+
+/** Safe, value-free identification of the periodic step that failed. */
+export class SchedulerCadenceStepError extends Error {
+  constructor(
+    readonly step: SchedulerCadenceStep,
+    options: { cause: unknown },
+  ) {
+    super(`scheduler cadence step failed: ${step}`, options);
+    this.name = 'SchedulerCadenceStepError';
+  }
+}
+
+async function runCadenceStep(
+  step: SchedulerCadenceStep,
+  run: () => Promise<unknown>,
+): Promise<void> {
+  try {
+    await run();
+  } catch (cause) {
+    throw new SchedulerCadenceStepError(step, { cause });
+  }
+}
+
 type SingleFlightBody = {
   startIfIdle: () => void;
   wait: () => Promise<void>;
@@ -87,9 +114,9 @@ export function createSchedulerLockedTickCoordinator(
       await deps.assertLockStillHeld();
       organizationTick.startIfIdle();
       outgoingDeliveryTick.startIfIdle();
-      await deps.runOperatorHealthDigestWake();
-      await deps.runSystemHealthGuardWake();
-      await deps.runOperatorHealthProbeTick();
+      await runCadenceStep('operator_health_digest_wake', deps.runOperatorHealthDigestWake);
+      await runCadenceStep('system_health_guard_wake', deps.runSystemHealthGuardWake);
+      await runCadenceStep('operator_health_probe', deps.runOperatorHealthProbeTick);
     },
 
     waitForOrganizationTick: organizationTick.wait,

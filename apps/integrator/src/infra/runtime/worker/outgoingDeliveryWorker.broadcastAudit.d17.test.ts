@@ -177,6 +177,30 @@ describe('D17 — журнал рассылки врача: имя счётчи�
     expect(bump.principalOrganizationId).toBe(ORG_ID);
   });
 
+  it('дано: TEST-гейт подавил адресата → строка не считается отправленной или ошибочной', async () => {
+    incidentRecorder.mockClear();
+    const h = harness();
+
+    await processClaimedOutgoingDeliveryRow(row(), {
+      db: h.db,
+      writePort: { writeDb: async () => undefined } as never,
+      dispatchOutgoing: async () => ({ suppressedByEnvironment: true }),
+    });
+
+    const bump = onlyCounterBump(h.executed);
+    expect(bump.params).toEqual([AUDIT_ID, ORG_ID, 'blocked_recipient_count']);
+    expect(h.executed.some((call) => call.text.includes("status = 'sent'"))).toBe(false);
+    expect(
+      h.executed.some(
+        (call) =>
+          call.text.includes("status = 'dead'") &&
+          call.params.includes('environment_delivery_suppressed') &&
+          call.params.includes('reminder_not_dispatched'),
+      ),
+    ).toBe(true);
+    expect(incidentRecorder).not.toHaveBeenCalled();
+  });
+
   it('дано: попытка не последняя и отказ повторяемый → когда обработка → тогда счётчик НЕ поднимается вовсе', async () => {
     incidentRecorder.mockClear();
     const h = harness();

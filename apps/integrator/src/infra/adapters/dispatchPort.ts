@@ -301,7 +301,7 @@ export function createDefaultDispatchPort(deps: {
         if (isClinicCredentialProbe(intent)) {
           throw new Error('CLINIC_CHANNEL_PROBE_SUPPRESSED');
         }
-        return {};
+        return { suppressedByEnvironment: true };
       }
 
       const channel = readChannel(safeIntent);

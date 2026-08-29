@@ -7,7 +7,10 @@ import { createDbWritePort } from '../../db/writePort.js';
 import { SchedulerLockLostError, tryAcquireSchedulerLock } from '../../db/repos/schedulerLocks.js';
 import { runWithInfraPrincipal } from '../../principal/organizationPrincipal.js';
 import { runFixedCadenceWake } from './fixedCadenceWake.js';
-import { createSchedulerLockedTickCoordinator } from './schedulerLockedTick.js';
+import {
+  createSchedulerLockedTickCoordinator,
+  SchedulerCadenceStepError,
+} from './schedulerLockedTick.js';
 import {
   assertSchedulerIsolationTelemetryWriterReady,
   assertWorkerIsolationTelemetryWriterReady,
@@ -215,7 +218,13 @@ async function startResident(): Promise<void> {
       }
       captureSchedulerLoopError(err);
       reportSchedulerDispatchIsolationFailure(err);
-      logger.error({ err }, 'Runtime scheduler tick failed');
+      logger.error(
+        {
+          err,
+          cadenceStep: err instanceof SchedulerCadenceStepError ? err.step : 'unknown',
+        },
+        'Runtime scheduler tick failed',
+      );
     }
 
     await sleep(appSettings.runtime.scheduler.pollIntervalMs);

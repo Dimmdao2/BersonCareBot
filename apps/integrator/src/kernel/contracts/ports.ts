@@ -84,6 +84,11 @@ export type DbWritePort = {
 
 /** Результат доставки (например, id сообщения в Telegram / MAX для логов напоминаний). */
 export type DeliverySendResult = {
+  /**
+   * The final DEV/TEST egress gate intentionally made no provider call. Queue-backed callers
+   * must terminalize this as an expected non-dispatch, never as success or provider failure.
+   */
+  suppressedByEnvironment?: true;
   telegramMessageId?: number;
   /** MAX Platform message id (`body.mid`) для `user_reminder_delivery_logs`. */
   maxMessageId?: string;

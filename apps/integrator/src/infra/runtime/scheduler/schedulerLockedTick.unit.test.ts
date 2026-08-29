@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createSchedulerLockedTickCoordinator } from './schedulerLockedTick.js';
+import {
+  createSchedulerLockedTickCoordinator,
+  type SchedulerCadenceStep,
+} from './schedulerLockedTick.js';
 
 function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
   let resolve!: (value: T) => void;
@@ -24,6 +27,32 @@ function deliveryBodyDeps() {
 }
 
 describe('scheduler leader cadence', () => {
+  it.each([
+    ['operator_health_digest_wake', 'runOperatorHealthDigestWake'],
+    ['system_health_guard_wake', 'runSystemHealthGuardWake'],
+    ['operator_health_probe', 'runOperatorHealthProbeTick'],
+  ] as const)('names the failing cadence step: %s', async (step, dependencyName) => {
+    const cadenceError = new Error('details stay behind the safe error serializer');
+    const dependencies = {
+      assertLockStillHeld: vi.fn(async () => undefined),
+      runOrganizationTicks: vi.fn(async () => 0),
+      ...deliveryBodyDeps(),
+      ...healthWakeDeps(),
+      runOperatorHealthProbeTick: vi.fn(async () => false),
+      onOrganizationTickError: vi.fn(),
+    };
+    dependencies[dependencyName].mockRejectedValue(cadenceError);
+    const coordinator = createSchedulerLockedTickCoordinator(dependencies);
+
+    const rejection = coordinator.runTick();
+
+    await expect(rejection).rejects.toMatchObject({
+      name: 'SchedulerCadenceStepError',
+      step: step satisfies SchedulerCadenceStep,
+      cause: cadenceError,
+    });
+  });
+
   it('starts neither organization, delivery nor health work when the leader lock is lost', async () => {
     const runOrganizationTicks = vi.fn(async () => 0);
     const runOperatorHealthProbeTick = vi.fn(async () => false);

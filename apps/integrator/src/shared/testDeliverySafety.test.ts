@@ -111,7 +111,7 @@ describe('final TEST delivery safety gate', () => {
 
     const result = await port.dispatchOutgoing(intent('telegram', { chatId: 555000111 }));
 
-    expect(result).toEqual({});
+    expect(result).toEqual({ suppressedByEnvironment: true });
     expect(sent).toEqual([]);
   });
 

@@ -22,6 +22,9 @@ Producer-adapter внутри `delivery-handler` infra scope читает DB-bac
 Ошибка подготовки до `DeliveryAdapter.send` остаётся в `last_error` и жизненном цикле строки очереди
 (`failed_retryable`/`dead`), но отдельной provider-attempt строкой не становится. Успех, локальный пропуск,
 rate-limit до отправки и блокировка бота также не создают attempt-строку: их итог уже записан в очереди.
+DEV/TEST-гейт возвращает явный исход `suppressedByEnvironment`; воркер закрывает такую строку как ожидаемую
+недоставку без ретраев, provider-инцидента и ложной отметки `sent`. Для совместимости с существующими health-read
+используется уже исключённый из деградации `failure_class=reminder_not_dispatched` (историческое имя класса).
 
 **Блокировка бота (TG/MAX):** при `RECIPIENT_BLOCKED_BOT` строка финализируется как `dead` с `failure_class = recipient_blocked_bot`; отдельная attempt-строка не создаётся. Такие строки **не** входят в operator `deadTotal` («Очередь доставки») и **не** увеличивают `broadcast_audit.error_count` (отдельный счётчик `blocked_recipient_count`). Маркер `user_channel_bindings.bot_blocked_at` снимается при успешной доставке по тому же каналу. См. `docs/ARCHITECTURE/DOCTOR_BROADCASTS.md` и post-deploy backfill SQL.
 

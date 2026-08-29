@@ -349,6 +349,17 @@ export async function registerBersoncareRelayOutboundRoute(
         dispatchPort.dispatchOutgoing(intent),
       );
       inFlight.delete(dedupKey);
+      if (dispatchResult.suppressedByEnvironment) {
+        logger.info(
+          {
+            channel: parsed.channel,
+            messageId: parsed.messageId,
+            recipient: parsed.recipient.slice(0, 6) + '…',
+          },
+          'relay-outbound: suppressed by environment',
+        );
+        return reply.code(200).send({ ok: true, status: 'skipped' });
+      }
       if (db && parsed.channel === 'web_push' && dispatchResult.webPushOutcome?.status === 'failed') {
         const topicCode =
           typeof parsed.metadata?.pushExtras === 'object' && parsed.metadata.pushExtras !== null

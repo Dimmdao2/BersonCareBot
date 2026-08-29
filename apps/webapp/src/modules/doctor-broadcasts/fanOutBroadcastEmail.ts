@@ -137,8 +137,10 @@ export async function fanOutBroadcastEmail(
         deps,
       );
 
-      if (result.ok) {
+      if (result.ok && result.status !== 'skipped') {
         delivered += 1;
+      } else if (result.ok) {
+        skipped += 1;
       } else {
         errors += 1;
         logger.warn(

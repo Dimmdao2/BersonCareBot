@@ -106,7 +106,7 @@ function harness(
   const writes: Array<{ type: string; params: Record<string, unknown> }> = [];
   const queueSent: string[] = [];
   const queueRetryable: string[] = [];
-  const queueDead: Array<{ id: string; error: string }> = [];
+  const queueDead: Array<{ id: string; error: string; failureClass: string }> = [];
   const db: DbPort = {
     async query<T>(sql: string, params?: unknown[]): Promise<DbQueryResult<T>> {
       if (sql.includes('revalidate_patient_reminder_delivery_materialization')) {
@@ -136,6 +136,7 @@ function harness(
       if (sql.includes("SET status = 'dead'")) {
         queueDead.push({
           error: String(params?.at(-3) ?? ''),
+          failureClass: String(params?.at(-2) ?? ''),
           id: String(params?.at(-1) ?? ''),
         });
       }
@@ -181,7 +182,11 @@ describe('D21 reminder delivery generation gate', () => {
       await processOutgoingDeliveryRow(row('web_push', 2, policy), h as never);
       expect(h.queueSent).toEqual([]);
       expect(h.queueDead).toEqual([
-        { id: 'queue-web_push-2', error: 'OUTBOUND_MESSAGE_POLICY_DENIED' },
+        {
+          id: 'queue-web_push-2',
+          error: 'OUTBOUND_MESSAGE_POLICY_DENIED',
+          failureClass: '',
+        },
       ]);
     },
   );
@@ -197,7 +202,13 @@ describe('D21 reminder delivery generation gate', () => {
     await processOutgoingDeliveryRow(row('telegram'), h as never);
     expect(h.dispatchOutgoing).not.toHaveBeenCalled();
     expect(h.queueSent).toEqual([]);
-    expect(h.queueDead).toEqual([{ id: 'queue-telegram-2', error: 'stale_materialization' }]);
+    expect(h.queueDead).toEqual([
+      {
+        id: 'queue-telegram-2',
+        error: 'stale_materialization',
+        failureClass: 'reminder_not_dispatched',
+      },
+    ]);
   });
 
   it('a sent occurrence does not suppress the sibling channel in the same generation', async () => {
@@ -237,8 +248,35 @@ describe('D21 reminder delivery generation gate', () => {
     expect(h.dispatchOutgoing).toHaveBeenCalledTimes(1);
     expect(h.writes).toEqual([]);
     expect(h.queueSent).toEqual([]);
-    expect(h.queueDead).toEqual([{ id: 'queue-web_push-2', error: 'web_push_skipped' }]);
+    expect(h.queueDead).toEqual([
+      {
+        id: 'queue-web_push-2',
+        error: 'web_push_skipped',
+        failureClass: 'reminder_not_dispatched',
+      },
+    ]);
   });
+
+  it.each(['telegram', 'max', 'email', 'web_push'] as const)(
+    'an environment-suppressed %s leg closes once without provider failure or false success',
+    async (channel) => {
+      const h = harness(allowedGate, {
+        deliveryResult: { suppressedByEnvironment: true },
+      });
+      await processOutgoingDeliveryRow(row(channel), h as never);
+      expect(h.dispatchOutgoing).toHaveBeenCalledTimes(1);
+      expect(h.writes).toEqual([]);
+      expect(h.queueRetryable).toEqual([]);
+      expect(h.queueSent).toEqual([]);
+      expect(h.queueDead).toEqual([
+        {
+          id: `queue-${channel}-2`,
+          error: 'environment_delivery_suppressed',
+          failureClass: 'reminder_not_dispatched',
+        },
+      ]);
+    },
+  );
 
   it('a failed Web Push provider outcome enters the isolated retry path and records exactly one real attempt', async () => {
     const h = harness(allowedGate, {
@@ -290,6 +328,12 @@ describe('D21 reminder delivery generation gate', () => {
     await processOutgoingDeliveryRow(row('email'), h as never);
     expect(h.dispatchOutgoing).not.toHaveBeenCalled();
     expect(h.queueSent).toEqual([]);
-    expect(h.queueDead).toEqual([{ id: 'queue-email-2', error: 'rate_limited' }]);
+    expect(h.queueDead).toEqual([
+      {
+        id: 'queue-email-2',
+        error: 'rate_limited',
+        failureClass: 'reminder_not_dispatched',
+      },
+    ]);
   });
 });

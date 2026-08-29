@@ -116,12 +116,15 @@ function runWithDeliveryQueueCapability<T>(fn: () => T): T {
 }
 
 /**
- * `reminder_dispatch` rows that never reach the provider (stale materialization, transactional-email
- * rate limit, web-push provider skip) are not a delivery failure — they read the same as
+ * Queue rows that never reach the provider (environment suppression, stale materialization,
+ * transactional-email rate limit, web-push provider skip) are not a delivery failure — they read the same as
  * `recipient_blocked_bot` (D30): excluded from the "dead"/degradation counts by
  * `read_curated_system_health_pre_0196` (see 20260823T170000_retire_duplicate_reminder_delivery_journals.sql).
+ * The persisted token is retained for compatibility with all existing health readers; its scope is
+ * now the generic expected "not dispatched" outcome, despite the historical reminder-prefixed name.
  */
-const REMINDER_NOT_DISPATCHED_FAILURE_CLASS = 'reminder_not_dispatched';
+const NOT_DISPATCHED_FAILURE_CLASS = 'reminder_not_dispatched';
+const ENVIRONMENT_DELIVERY_SUPPRESSED = 'environment_delivery_suppressed';
 
 function queueMarkDead(
   db: DbPort,
@@ -146,6 +149,21 @@ function queueMarkSent(
 
 function queueMarkDispatching(db: DbPort, id: string): Promise<void> {
   return runWithDeliveryQueueCapability(() => markOutgoingDeliveryDispatching(db, id));
+}
+
+async function finalizeEnvironmentSuppressed(
+  db: DbPort,
+  row: OutgoingDeliveryQueueRow,
+): Promise<void> {
+  await queueMarkDead(
+    db,
+    row.id,
+    ENVIRONMENT_DELIVERY_SUPPRESSED,
+    NOT_DISPATCHED_FAILURE_CLASS,
+  );
+  if (row.kind === DOCTOR_BROADCAST_INTENT_QUEUE_KIND) {
+    await incrementBroadcastAuditBlockedIfDoctorBroadcast(db, row);
+  }
 }
 
 function queueReschedule(
@@ -750,7 +768,7 @@ export async function processOutgoingDeliveryRow(
         db,
         row.id,
         'stale_materialization',
-        REMINDER_NOT_DISPATCHED_FAILURE_CLASS,
+        NOT_DISPATCHED_FAILURE_CLASS,
       );
       return;
     }
@@ -765,7 +783,7 @@ export async function processOutgoingDeliveryRow(
       }
       if (await isReminderTransactionalEmailRateLimited(db, platformUserId)) {
         // F5/F6: rate-limit before any provider call is not a failed provider attempt — no attempt row.
-        await queueMarkDead(db, row.id, 'rate_limited', REMINDER_NOT_DISPATCHED_FAILURE_CLASS);
+        await queueMarkDead(db, row.id, 'rate_limited', NOT_DISPATCHED_FAILURE_CLASS);
         return;
       }
     }
@@ -833,6 +851,10 @@ export async function processOutgoingDeliveryRow(
     await queueMarkDispatching(db, row.id);
     try {
       sendResult = await dispatchOutgoing(intent);
+      if (sendResult.suppressedByEnvironment === true) {
+        await finalizeEnvironmentSuppressed(db, row);
+        return;
+      }
       if (channel === 'web_push') {
         const outcome = sendResult.webPushOutcome;
         if (!outcome || outcome.status === 'failed') {
@@ -854,7 +876,7 @@ export async function processOutgoingDeliveryRow(
             db,
             row.id,
             'web_push_skipped',
-            REMINDER_NOT_DISPATCHED_FAILURE_CLASS,
+            NOT_DISPATCHED_FAILURE_CLASS,
           );
           return;
         }
@@ -951,7 +973,11 @@ export async function processOutgoingDeliveryRow(
         : intent;
     await queueMarkDispatching(db, row.id);
     try {
-      await dispatchOutgoing(toSend);
+      const sendResult = await dispatchOutgoing(toSend);
+      if (sendResult.suppressedByEnvironment === true) {
+        await finalizeEnvironmentSuppressed(db, row);
+        return;
+      }
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
@@ -1025,7 +1051,11 @@ export async function processOutgoingDeliveryRow(
     }
     await queueMarkDispatching(db, row.id);
     try {
-      await dispatchOutgoing(intent);
+      const sendResult = await dispatchOutgoing(intent);
+      if (sendResult.suppressedByEnvironment === true) {
+        await finalizeEnvironmentSuppressed(db, row);
+        return;
+      }
     } catch (err) {
       if (isOutboundMessagePolicyDenied(err)) {
         await finalizeOutboundPolicyDenied(db, row);
