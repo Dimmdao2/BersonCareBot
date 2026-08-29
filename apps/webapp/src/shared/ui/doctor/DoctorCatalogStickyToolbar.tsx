@@ -1,16 +1,11 @@
 'use client';
 
-import type { ReactNode } from 'react';
-import { cn } from '@/lib/utils';
 import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+  DoctorPageToolbar,
+  type DoctorPageToolbarProps,
+} from '@/shared/ui/doctor/shell/DoctorPageToolbar';
 
-export type DoctorCatalogStickyToolbarProps = {
-  children: ReactNode;
-  className?: string;
+export type DoctorCatalogStickyToolbarProps = Omit<DoctorPageToolbarProps, 'placement'> & {
   /** The surrounding flex body already begins below `DoctorPageHeader`. */
   withinRemainingHeight?: boolean;
 };
@@ -20,18 +15,15 @@ export function DoctorCatalogStickyToolbar({
   children,
   className,
   withinRemainingHeight = false,
+  ...props
 }: DoctorCatalogStickyToolbarProps) {
   return (
-    <div
-      className={cn(
-        DOCTOR_CATALOG_STICKY_BAR_CLASS,
-        withinRemainingHeight
-          ? DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS
-          : DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-        className,
-      )}
+    <DoctorPageToolbar
+      placement={withinRemainingHeight ? 'sticky-remaining' : 'sticky-page'}
+      className={className}
+      {...props}
     >
       {children}
-    </div>
+    </DoctorPageToolbar>
   );
 }

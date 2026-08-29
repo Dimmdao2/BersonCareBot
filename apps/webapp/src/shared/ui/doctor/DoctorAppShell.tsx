@@ -47,35 +47,17 @@ export function DoctorAppShell({
 }: DoctorAppShellProps) {
   // `--doctor-sticky-offset` определяется зонально для `#app-shell-doctor` в `doctor.css`
   // (см. doctorWorkspaceLayout.ts): <md → 0, md+ → высота per-page DoctorPageHeader.
-  if (layout === 'full-height') {
-    return (
-      <div
-        id="app-shell-doctor"
-        className={cn(
-          DOCTOR_FULL_HEIGHT_PAGE_CLASS,
-          mobileBottomGutter && DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
-          'theme-bersoncare-doctor-dna',
-        )}
-      >
-        <DoctorShellChromeRegistration
-          title={title}
-          backHref={backHref}
-          backLabel={backLabel}
-          mobileActions={mobileHeaderActions}
-        />
-        <main
-          id="app-shell-content"
-          className={`${DOCTOR_FULL_HEIGHT_CONTENT_CLASS} doctor-page-content gap-3 px-3`}
-        >
-          {children}
-        </main>
-      </div>
-    );
-  }
+  const fullHeight = layout === 'full-height';
+
   return (
     <div
       id="app-shell-doctor"
-      className={`${DOCTOR_PAGE_CONTAINER_CLASS} theme-bersoncare-doctor-dna`}
+      data-doctor-page-layout={layout}
+      className={cn(
+        fullHeight ? DOCTOR_FULL_HEIGHT_PAGE_CLASS : DOCTOR_PAGE_CONTAINER_CLASS,
+        fullHeight && mobileBottomGutter && DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
+        'theme-bersoncare-doctor-dna',
+      )}
     >
       <DoctorShellChromeRegistration
         title={title}
@@ -83,7 +65,13 @@ export function DoctorAppShell({
         backLabel={backLabel}
         mobileActions={mobileHeaderActions}
       />
-      <main id="app-shell-content" className="doctor-page-content flex flex-col gap-3 px-3">
+      <main
+        id="app-shell-content"
+        className={cn(
+          'doctor-page-content flex flex-col gap-3 px-3',
+          fullHeight && DOCTOR_FULL_HEIGHT_CONTENT_CLASS,
+        )}
+      >
         {children}
       </main>
     </div>

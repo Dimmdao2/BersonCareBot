@@ -45,10 +45,7 @@ import {
 } from '@/shared/ui/doctor/primitives/dialog';
 import { cn } from '@/lib/utils';
 import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DoctorPageToolbar } from '@/shared/ui/doctor/shell/DoctorPageToolbar';
 import {
   saveReferenceCatalog,
   softDeleteReferenceItem,
@@ -561,12 +558,9 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
         </DialogContent>
       </Dialog>
 
-      <div
-        className={cn(
-          DOCTOR_CATALOG_STICKY_BAR_CLASS,
-          'flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90',
-          DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-        )}
+      <DoctorPageToolbar
+        placement="sticky-page"
+        className="flex flex-col gap-3 bg-card pb-3 pt-1 supports-backdrop-filter:bg-card/90"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className={`min-w-0 truncate ${doctorPageTitleClass}`}>{categoryTitle}</h1>
@@ -599,7 +593,7 @@ export function ReferenceItemsTableClient({ categoryTitle, categoryCode, initial
             Сохранить справочник
           </Button>
         </div>
-      </div>
+      </DoctorPageToolbar>
 
       {rows.length === 0 ? (
         <p className="text-sm text-muted-foreground">Нет строк в справочнике.</p>

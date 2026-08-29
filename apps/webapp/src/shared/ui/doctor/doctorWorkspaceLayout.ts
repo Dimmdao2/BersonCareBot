@@ -99,14 +99,6 @@ export const DOCTOR_REMAINING_HEIGHT_BODY_CLASS =
  */
 export const DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS = 'md:-mt-3';
 
-/**
- * Липкий блок поиска/фильтров над каталогом: отменяет межблочный gap под шапкой (`-mt-3`)
- * и боковые поля контейнера (`-mx-3`),
- * комбинируется с {@link DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS}.
- */
-export const DOCTOR_CATALOG_STICKY_BAR_CLASS =
-  'sticky z-20 -mx-3 -mt-3 border-b border-border/60 bg-background/95 px-3 py-1.5 backdrop-blur-md supports-backdrop-filter:bg-background/90';
-
 /** Shared translucent surface for compact doctor toolbars and fixed mobile action bars. */
 export const DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS =
   'bg-white/85 backdrop-blur-md supports-backdrop-filter:bg-white/75';

@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 export type DoctorCatalogPageLayoutProps = {
-  /** Липкий блок фильтров/поиска (классы см. `DOCTOR_CATALOG_STICKY_BAR_CLASS` в doctorWorkspaceLayout). */
+  /** Липкая панель фильтров/поиска (`DoctorCatalogFiltersToolbar`). */
   toolbar?: ReactNode;
   children: ReactNode;
   /** Mobile catalog surface fills the shell width; rows keep their own inline padding. */

@@ -1,15 +1,11 @@
 'use client';
 
-import { cn } from '@/lib/utils';
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 
 export default function DoctorRecommendationsLoading() {
   return (
     <div className="flex flex-col gap-3">
-      <div className={cn(DOCTOR_CATALOG_STICKY_BAR_CLASS, DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS)}>
+      <DoctorCatalogStickyToolbar>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
           <div className="grid gap-2 sm:grid-cols-3">
             <div className="h-10 animate-pulse rounded-md bg-muted/50" />
@@ -18,7 +14,7 @@ export default function DoctorRecommendationsLoading() {
           </div>
           <div className="h-9 w-40 animate-pulse self-center rounded-md bg-muted/50" />
         </div>
-      </div>
+      </DoctorCatalogStickyToolbar>
 
       <div className="hidden gap-3 lg:grid lg:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-3">

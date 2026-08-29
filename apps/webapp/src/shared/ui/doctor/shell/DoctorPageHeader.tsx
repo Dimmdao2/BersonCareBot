@@ -8,6 +8,7 @@ import {
   DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
+import { DoctorPageToolbar } from '@/shared/ui/doctor/shell/DoctorPageToolbar';
 
 export type DoctorPageHeaderProps = {
   /** Заголовок страницы (слева). Строка приводится к роли page-title (`text-base`). */
@@ -97,15 +98,9 @@ export function DoctorPageHeader({
         ) : null}
       </div>
       {toolbar ? (
-        <div
-          data-doctor-page-header-toolbar=""
-          className={cn(
-            'border-b border-border/60 bg-[var(--doctor-page-header-background,#fff)] px-[var(--doctor-block-padding,18px)] py-1.5',
-            toolbarClassName,
-          )}
-        >
+        <DoctorPageToolbar className={toolbarClassName}>
           {toolbar}
-        </div>
+        </DoctorPageToolbar>
       ) : null}
     </header>
   );

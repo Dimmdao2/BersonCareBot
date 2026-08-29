@@ -9,11 +9,7 @@ import { ru } from 'react-day-picker/locale';
 import { Calendar, CalendarDays, Columns3, Filter, List, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import {
-  DOCTOR_CATALOG_STICKY_BAR_CLASS,
-  DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
-  DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
-} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import {
   buildDoctorCalendarNonWorkingRanges,
   doctorCalendarNonWorkingClassNames,
@@ -2052,13 +2048,9 @@ export function ScheduleCalendarTab({
     <div className="flex min-h-0 flex-1 flex-col gap-3 md:gap-4">
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
-      <div
-        className={cn(
-          DOCTOR_CATALOG_STICKY_BAR_CLASS,
-          DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
-          DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
-          'flex flex-wrap items-center gap-2',
-        )}
+      <DoctorCatalogStickyToolbar
+        withinRemainingHeight
+        className="flex flex-wrap items-center gap-2"
         data-testid="cal-toolbar"
       >
         <div className="flex w-full min-w-0 items-center gap-1 md:hidden">
@@ -2352,7 +2344,7 @@ export function ScheduleCalendarTab({
             Фильтры
           </Button>
         </div>
-      </div>
+      </DoctorCatalogStickyToolbar>
 
       {renderMode === 'list' ? (
         <div className="relative md:hidden">

@@ -37,7 +37,7 @@ import { fetchDoctorScheduleBootstrap } from '../doctorScheduleApi';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
-import { DOCTOR_CATALOG_STICKY_BAR_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
 import { emitDoctorScheduleCalendarRefresh } from '../scheduleCalendarEvents';
 import { cn } from '@/lib/utils';
@@ -1254,8 +1254,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   return (
     <DoctorSection data-testid="schedule-work-tab" onMouseDown={handleSurfaceMouseDown}>
       {/* Sticky top bar: filter (E3) + month nav */}
-      <div
-        className={`${DOCTOR_CATALOG_STICKY_BAR_CLASS} flex flex-wrap items-center gap-2`}
+      <DoctorCatalogStickyToolbar
+        className="flex flex-wrap items-center gap-2"
         onMouseDown={handleTopBarMouseDown}
         data-testid="schedule-work-topbar"
       >
@@ -1336,7 +1336,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             ▶
           </Button>
         </div>
-      </div>
+      </DoctorCatalogStickyToolbar>
 
       {/* Errors / feedback */}
       {loadError ? (
