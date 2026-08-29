@@ -18,6 +18,11 @@ export type AdminIncidentStaffPushDeps = {
   staffUsers: StaffUsersPort;
 };
 
+export type AdminIncidentStaffPushResult = {
+  audienceCount: number;
+  deliveredCount: number;
+};
+
 export async function sendAdminIncidentStaffWebPush(
   input: {
     organizationId?: string;
@@ -28,14 +33,14 @@ export async function sendAdminIncidentStaffWebPush(
     pushUrl: string;
   },
   deps: AdminIncidentStaffPushDeps,
-): Promise<number> {
+): Promise<AdminIncidentStaffPushResult> {
   const membershipRecipients = deps.staffUsers.listActiveStaffOrganizationRecipients
     ? await deps.staffUsers.listActiveStaffOrganizationRecipients()
     : [];
   const recipients = membershipRecipients.filter(
     (recipient) => !input.organizationId || recipient.organizationId === input.organizationId,
   );
-  if (recipients.length === 0) return 0;
+  if (recipients.length === 0) return { audienceCount: 0, deliveredCount: 0 };
 
   const results = await Promise.all(
     recipients.map(async ({ userId, organizationId }) => {
@@ -66,5 +71,8 @@ export async function sendAdminIncidentStaffWebPush(
     }),
   );
 
-  return results.filter(Boolean).length;
+  return {
+    audienceCount: recipients.length,
+    deliveredCount: results.filter(Boolean).length,
+  };
 }

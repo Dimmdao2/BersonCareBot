@@ -48,25 +48,38 @@ async function loadConfig(): Promise<OperatorHealthAlertConfig> {
  * ACTUALLY HOLDS THE ADMIN ROLE right now (`platform_users.role='admin'` joined to their bound
  * channels), never from the `admin_telegram_ids`/`admin_max_ids`/`admin_phones` DB-resident address
  * lists — those no longer confer any role either (envRole.ts) and are not read here anymore. A
- * failed DB read degrades to an empty audience (never throws): `dispatchOperatorAlert`'s own
- * empty-audience path already counts and alerts that on its own.
+ * A failed DB read is returned separately from a genuinely empty audience: provider/read failure
+ * must not increment the "no recipients" counter.
  */
-async function loadAdminRelayTargets(): Promise<{
+type AdminRelayTargets = {
   telegram: string[];
   max: string[];
   sms: string[];
   email: string[];
+};
+
+async function loadAdminRelayTargets(): Promise<{
+  targets: AdminRelayTargets;
+  resolved: boolean;
 }> {
   const port = getAdminNotificationTargetsPort();
-  if (!port) return { telegram: [], max: [], sms: [], email: [] };
+  if (!port) {
+    return {
+      targets: { telegram: [], max: [], sms: [], email: [] },
+      resolved: false,
+    };
+  }
   try {
-    return await port.loadTargets();
+    return { targets: await port.loadTargets(), resolved: true };
   } catch (err) {
     logger.warn(
       { err, scope: 'operator_alert' },
       '[operator_alert] load admin notification targets failed',
     );
-    return { telegram: [], max: [], sms: [], email: [] };
+    return {
+      targets: { telegram: [], max: [], sms: [], email: [] },
+      resolved: false,
+    };
   }
 }
 
@@ -87,7 +100,7 @@ export type DispatchOperatorAlertInput = {
 
 export type DispatchOperatorAlertResult = {
   dispatched: boolean;
-  reason?: 'disabled' | 'dedup' | 'empty_text' | 'no_recipients';
+  reason?: 'disabled' | 'dedup' | 'empty_text' | 'no_recipients' | 'delivery_failed';
 };
 
 async function fireOperatorRelay(input: {
@@ -157,7 +170,8 @@ export async function dispatchOperatorAlert(
   if (!text.trim()) return { dispatched: false, reason: 'empty_text' };
 
   const channels = cfg.channels[input.block];
-  const targets = await loadAdminRelayTargets();
+  const relayAudience = await loadAdminRelayTargets();
+  const targets = relayAudience.targets;
   // Ports deployed before a newly added channel may omit that list; an absent
   // list is equivalent to an empty recipient audience for every relay channel.
   const telegramTargets = targets.telegram ?? [];
@@ -171,6 +185,16 @@ export async function dispatchOperatorAlert(
   const pushUrl = input.pushUrl ?? '/app/admin/technical';
 
   const attempts: Array<Promise<boolean>> = [];
+  const relayChannelsEnabled =
+    channels.telegram || channels.max || channels.sms || channels.email;
+  const relayAudienceResolved = !relayChannelsEnabled || relayAudience.resolved;
+  const hasRelayAudience =
+    (channels.telegram && telegramTargets.length > 0) ||
+    (channels.max && maxTargets.length > 0) ||
+    (channels.sms && smsTargets.length > 0) ||
+    (channels.email && emailTargets.length > 0);
+  let webPushAudienceCount = 0;
+  let webPushAudienceResolved = !channels.web_push;
 
   if (channels.telegram) {
     if (telegramTargets.length === 0) {
@@ -301,8 +325,10 @@ export async function dispatchOperatorAlert(
           },
           pushDeps,
         )
-          .then((delivered) => {
-            if (delivered > 0) return true;
+          .then((result) => {
+            webPushAudienceResolved = true;
+            webPushAudienceCount = result.audienceCount;
+            if (result.deliveredCount > 0) return true;
             logger.info({
               scope: 'operator_alert',
               event: 'operator_alert_skipped_no_recipients',
@@ -312,6 +338,7 @@ export async function dispatchOperatorAlert(
             return false;
           })
           .catch((err: unknown) => {
+            webPushAudienceResolved = false;
             logger.warn(
               { err, block: input.block, topic: input.topic },
               'operator alert web push failed',
@@ -322,13 +349,20 @@ export async function dispatchOperatorAlert(
     }
   }
 
-  const anyChannelAttempted = (await Promise.all(attempts)).some(Boolean);
+  const anyChannelDelivered = (await Promise.all(attempts)).some(Boolean);
+  const hasAudience = hasRelayAudience || webPushAudienceCount > 0;
+  const audienceResolutionFailed = !relayAudienceResolved || !webPushAudienceResolved;
 
-  if (dedupPort && usesFlatDedup && anyChannelAttempted) {
+  if (dedupPort && usesFlatDedup && anyChannelDelivered) {
     await dedupPort.recordSent({ dedupKey: dk, severity: input.block });
   }
 
-  if (!anyChannelAttempted && input.topic !== 'notification_audience_empty') {
+  if (
+    !anyChannelDelivered &&
+    !hasAudience &&
+    !audienceResolutionFailed &&
+    input.topic !== 'notification_audience_empty'
+  ) {
     // D-b: сам диспетчер алертов не имеет права молча вернуть «некому». Это корневой
     // маршрут (mandatory top-level route у Alertmanager, «Default Policy can't be deleted»
     // у Grafana): пусто → считаем, логируем и уводим в env-fallback, который из админки
@@ -345,7 +379,11 @@ export async function dispatchOperatorAlert(
   }
 
   return {
-    dispatched: anyChannelAttempted,
-    reason: anyChannelAttempted ? undefined : 'no_recipients',
+    dispatched: anyChannelDelivered,
+    reason: anyChannelDelivered
+      ? undefined
+      : !hasAudience && !audienceResolutionFailed
+        ? 'no_recipients'
+        : 'delivery_failed',
   };
 }

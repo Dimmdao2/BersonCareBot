@@ -26,7 +26,7 @@ it('does not restore raw staff fallback when the eligible push audience is empty
         },
       },
     ),
-  ).resolves.toBe(0);
+  ).resolves.toEqual({ audienceCount: 0, deliveredCount: 0 });
 
   expect(listActiveStaffUserIds).not.toHaveBeenCalled();
   expect(relayOperatorAlert).not.toHaveBeenCalled();

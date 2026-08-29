@@ -15,6 +15,10 @@ vi.mock('./emptyAudienceRuntime', () => ({
 
 const relayCalls: Array<{ channel: string; recipient: string; metadata?: Record<string, unknown> }> =
   [];
+type MockRelayResult =
+  | { ok: true; status: 'accepted' | 'duplicate' | 'skipped' }
+  | { ok: false; reason: string };
+const relayResult = vi.hoisted(() => vi.fn<() => Promise<MockRelayResult>>());
 vi.mock('./relayOperatorAlert', () => ({
   relayOperatorAlert: vi.fn(async (input: Record<string, unknown>) => {
     relayCalls.push({
@@ -22,17 +26,20 @@ vi.mock('./relayOperatorAlert', () => ({
       recipient: input.recipient as string,
       metadata: input.metadata as Record<string, unknown> | undefined,
     });
-    return { ok: true, status: 'accepted' };
+    return relayResult();
   }),
 }));
 
 import { dispatchOperatorAlert } from './dispatchOperatorAlert';
+import { registerAdminIncidentStaffPushDeps } from '@/modules/admin-incidents/adminIncidentStaffPushRuntime';
 import { registerAdminNotificationTargetsPort } from './adminNotificationTargetsRuntime';
 import { reportEmptyAudience } from './emptyAudienceRuntime';
 
 describe('dispatchOperatorAlert', () => {
   beforeEach(() => {
     relayCalls.length = 0;
+    relayResult.mockReset();
+    relayResult.mockResolvedValue({ ok: true, status: 'accepted' });
     vi.mocked(reportEmptyAudience).mockClear();
     registerAdminNotificationTargetsPort({
       loadTargets: async () => ({
@@ -41,6 +48,12 @@ describe('dispatchOperatorAlert', () => {
         sms: [],
         email: ['operator@example.com'],
       }),
+    });
+    registerAdminIncidentStaffPushDeps({
+      staffUsers: {
+        listActiveStaffUserIds: async () => [],
+        listActiveStaffOrganizationRecipients: async () => [],
+      },
     });
   });
 
@@ -78,6 +91,20 @@ describe('dispatchOperatorAlert', () => {
       channels: expect.any(Array),
       context: { block: 'critical' },
     });
+  });
+
+  it('does not call a provider failure an empty audience when an email recipient exists', async () => {
+    relayResult.mockResolvedValueOnce({ ok: false, reason: 'fetch failed' });
+
+    const result = await dispatchOperatorAlert({
+      block: 'critical',
+      topic: 'integrator_api',
+      dedupKey: 'critical:integrator_api:unreachable',
+      lines: ['Integrator API: unreachable'],
+    });
+
+    expect(result).toEqual({ dispatched: false, reason: 'delivery_failed' });
+    expect(reportEmptyAudience).not.toHaveBeenCalled();
   });
 
   it('stamps the [TEST] label onto the email subject, text after it intact', async () => {
