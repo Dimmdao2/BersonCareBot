@@ -9,6 +9,7 @@
   --doctor-button-radius: 8px;
   --doctor-control-radius: 8px;
   --doctor-block-padding: 18px;
+  --doctor-page-bottom-gutter: 18px;
   --doctor-block-border: rgba(35, 42, 49, 0.1);
   --doctor-field-sm: 12rem;
   --doctor-field-md: 24rem;
@@ -36,6 +37,11 @@
     --doctor-mobile-header-h,
     calc(3.5rem + env(safe-area-inset-top, 0px))
   );
+}
+
+.doctor-calendar-nonworking {
+  background-color: rgb(238 238 238 / 40%) !important;
+  opacity: 1 !important;
 }
 
 .doctor-button-radius:not(.rounded-none):not(.rounded-full) {

@@ -118,9 +118,7 @@ export function TodayMiniCalendarWithModal({
   fillHeight = false,
   flushChrome = false,
 }: Props) {
-  const [calendarEvents, setCalendarEvents] = useState<CalendarAppointmentEvent[] | undefined>(
-    undefined,
-  );
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[] | undefined>(undefined);
   const [filterMeta, setFilterMeta] = useState<CalendarFilterMeta>(EMPTY_FILTER_META);
   const [ownSpecialistId, setOwnSpecialistId] = useState<string | null>(null);
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
@@ -139,12 +137,7 @@ export function TodayMiniCalendarWithModal({
     fetch(`${API_BASE}/calendar?${qs}`)
       .then((r) => r.json())
       .then((data: CalendarApiResponse) => {
-        if (data.ok && Array.isArray(data.events)) {
-          const appts = data.events.filter(
-            (e): e is CalendarAppointmentEvent => e.kind === 'appointment',
-          );
-          setCalendarEvents(appts);
-        }
+        if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);
         if (data.filters) setFilterMeta(data.filters);
         setWorkingBounds(data.workingBounds);
         setShowWorkingHours(data.showWorkingHours);
@@ -164,12 +157,7 @@ export function TodayMiniCalendarWithModal({
       .then((r) => r.json())
       .then((data: CalendarApiResponse) => {
         if (cancelled) return;
-        if (data.ok && Array.isArray(data.events)) {
-          const appts = data.events.filter(
-            (e): e is CalendarAppointmentEvent => e.kind === 'appointment',
-          );
-          setCalendarEvents(appts);
-        }
+        if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);
         if (data.filters) setFilterMeta(data.filters);
         setWorkingBounds(data.workingBounds);
         setShowWorkingHours(data.showWorkingHours);

@@ -64,7 +64,12 @@ export default async function DoctorTestSetsPage({ searchParams }: PageProps) {
   const bodyRegionIdToCode = Object.fromEntries(bodyRegionItems.map((it) => [it.id, it.code]));
 
   return (
-    <DoctorAppShell title="Наборы тестов" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Наборы тестов"
+      user={session.user}
+      backHref="/app/doctor"
+      layout="full-height"
+    >
       <DoctorPageHeader id="doctor-test-sets-header" title="Наборы тестов" />
       <TestSetsPageClient
         listPromise={listPromise}

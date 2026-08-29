@@ -96,7 +96,12 @@ export default async function DoctorClinicalTestsPage({ searchParams }: PageProp
   const { ClinicalTestsPageClient } = await clinicalTestsClientPromise;
 
   return (
-    <DoctorAppShell title="Клинические тесты" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Клинические тесты"
+      user={session.user}
+      backHref="/app/doctor"
+      layout="full-height"
+    >
       <DoctorPageHeader title="Клинические тесты" />
       <ClinicalTestsPageClient
         listPromise={listPromise}

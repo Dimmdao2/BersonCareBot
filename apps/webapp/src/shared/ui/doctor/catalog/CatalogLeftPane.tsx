@@ -11,14 +11,9 @@ export type CatalogLeftPaneProps = {
   /** Тулбар над списком (счётчик, сортировка, переключатель видов). */
   headerSlot?: ReactNode;
   children: ReactNode;
-  /**
-   * Если true — левая колонка фиксируется под шапкой с учётом липкого блока фильтров страницы.
-   * Если false — как простой блок в сетке (без доп. sticky-высоты).
-   */
+  /** Если true — колонка заполняет высоту, выделенную общим full-height shell. */
   stickySplit?: boolean;
-  /**
-   * Высота учёта липкой полосы над сеткой: один ряд (~3.25rem) или два (~6.5rem), см. константы в doctorWorkspaceLayout.
-   */
+  /** Сохраняет API вариантов toolbar; оба используют одну высоту shell. */
   stickyToolbarRows?: 1 | 2;
   /** Mobile master-list fills the page width without a surrounding card. */
   mobileEdgeToEdge?: boolean;
