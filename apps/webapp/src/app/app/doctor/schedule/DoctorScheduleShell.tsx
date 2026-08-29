@@ -4,12 +4,16 @@ import dynamic from 'next/dynamic';
 import { CalendarClock, CalendarCog, CalendarDays } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
+import { cn } from '@/lib/utils';
 import type { DoctorScheduleScopeBootstrap } from '@/modules/doctor-schedule/scope';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
-import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import {
+  DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
+  DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
@@ -320,7 +324,10 @@ export function DoctorScheduleShell({
           <div
             key={tabId}
             hidden={tabId !== activeTab}
-            className={DOCTOR_REMAINING_HEIGHT_BODY_CLASS}
+            className={cn(
+              DOCTOR_REMAINING_HEIGHT_BODY_CLASS,
+              DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
+            )}
             data-testid={`tab-panel-${tabId}`}
           >
             <TabComponent

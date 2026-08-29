@@ -42,6 +42,12 @@ export const DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
   'top-0 md:top-[var(--doctor-page-header-h,0px)]';
 
 /**
+ * Sticky toolbar inside a full-height body that already starts below `DoctorPageHeader`.
+ * Applying the page-header offset here would reserve the header height twice.
+ */
+export const DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS = 'top-0';
+
+/**
  * Липкий `top` для самой per-page шапки `DoctorPageHeader`: офсет chrome НАД ней.
  * Workspace уже компенсирует фиксированную мобильную `DoctorHeader`, поэтому во всех
  * responsive-зонах page header липнет к началу собственного scroll-контейнера.
@@ -97,6 +103,12 @@ export const DOCTOR_FULL_HEIGHT_CONTENT_CLASS =
  */
 export const DOCTOR_REMAINING_HEIGHT_BODY_CLASS =
   '-mx-3 flex min-h-0 flex-1 flex-col overflow-hidden px-3 md:mx-0 md:px-0';
+
+/**
+ * A full-height body attached directly to `DoctorPageHeader` cancels the shell's
+ * inter-section gap on desktop. Mobile chrome keeps its own spacing contract.
+ */
+export const DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS = 'md:-mt-3';
 
 /**
  * Липкий блок поиска/фильтров над каталогом: отменяет межблочный gap под шапкой (`-mt-3`)

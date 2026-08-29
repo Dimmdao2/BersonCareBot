@@ -60,6 +60,7 @@ import {
 } from '@/modules/media/clientFilesFolders';
 import type { MediaFolderRecord } from '@/modules/media/types';
 import { libraryMediaRowToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
+import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 
 type MediaKindFilter = 'all' | 'image' | 'video' | 'audio' | 'file';
 type SortBy = 'date' | 'size' | 'type' | 'name';
@@ -223,6 +224,7 @@ type FolderTreeProps = {
   onMoveFolder: (folder: { id: string; name: string }, currentParentId: string | null) => void;
   onDeleteFolder: (folder: { id: string; name: string }) => void;
   canCreateFolder: boolean;
+  className?: string;
 };
 
 function MediaFolderTreePane({
@@ -238,6 +240,7 @@ function MediaFolderTreePane({
   onMoveFolder,
   onDeleteFolder,
   canCreateFolder,
+  className,
 }: FolderTreeProps) {
   const grouped = useMemo(() => foldersByParent(folders), [folders]);
 
@@ -310,7 +313,12 @@ function MediaFolderTreePane({
   const rootActive = !viewAllFiles && currentFolderId === null;
 
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <aside
+      className={cn(
+        'flex min-h-0 flex-col overflow-hidden rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card',
+        className,
+      )}
+    >
       <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <p className="text-sm font-semibold">Папки</p>
         {canCreateFolder ? (
@@ -1048,7 +1056,7 @@ export function MediaLibraryClient({
   const deletePhase = deleteDialog?.phase;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col">
       <Dialog
         open={deleteDialog !== null}
         onOpenChange={(open) => {
@@ -1407,8 +1415,9 @@ export function MediaLibraryClient({
         disabled={uploading}
       />
 
-      <div className="grid min-h-0 gap-3 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)] lg:items-start">
+      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)] lg:items-stretch lg:overflow-hidden">
         <MediaFolderTreePane
+          className="lg:h-full"
           folders={flatFolderRecords}
           foldersLoaded={flatFoldersLoaded}
           viewAllFiles={viewAllFiles}
@@ -1423,7 +1432,10 @@ export function MediaLibraryClient({
           canCreateFolder={!systemManagedFolder}
         />
 
-        <div className="flex min-w-0 flex-col gap-4">
+        <CatalogRightPane
+          className="overflow-visible lg:h-full lg:overflow-hidden"
+          contentClassName="gap-4 overflow-visible lg:overflow-y-auto"
+        >
           <div className="flex flex-col gap-2 rounded-md border border-border/80 bg-muted/30 p-3 text-sm">
             <div className="flex flex-wrap items-center gap-1 text-muted-foreground">
               {viewAllFiles ? (
@@ -1835,7 +1847,7 @@ export function MediaLibraryClient({
               ) : null}
             </div>
           ) : null}
-        </div>
+        </CatalogRightPane>
       </div>
     </div>
   );

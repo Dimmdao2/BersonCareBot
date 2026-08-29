@@ -15,6 +15,8 @@ export type DoctorCatalogFiltersToolbarProps = {
   filters: ReactNode;
   end?: ReactNode;
   className?: string;
+  /** The surrounding flex body already begins below `DoctorPageHeader`. */
+  withinRemainingHeight?: boolean;
 };
 
 /** Единая горизонтальная строка контролов слева в тулбаре (поиск, статус и т.д.). */
@@ -27,9 +29,13 @@ export function DoctorCatalogFiltersToolbar({
   filters,
   end,
   className,
+  withinRemainingHeight = false,
 }: DoctorCatalogFiltersToolbarProps) {
   return (
-    <DoctorCatalogStickyToolbar className={className}>
+    <DoctorCatalogStickyToolbar
+      className={className}
+      withinRemainingHeight={withinRemainingHeight}
+    >
       <DoctorCatalogToolbarMainRow start={filters} end={end} />
     </DoctorCatalogStickyToolbar>
   );
