@@ -9,6 +9,7 @@ import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { cn } from '@/lib/utils';
 import {
   COMMUNICATIONS_BASE,
@@ -256,7 +257,7 @@ export function DoctorCommunicationsShell({
           <div
             key={tabId}
             hidden={tabId !== activeTab}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden"
+            className={DOCTOR_REMAINING_HEIGHT_BODY_CLASS}
           >
             <TabComponent
               deepLinkParams={deepLinks[tabId] ?? {}}

@@ -20,8 +20,8 @@ export type DoctorAppShellProps = {
    * - `"default"` (default): padded flow container with the shared 18px bottom gutter.
    * - `"full-height"`: flex-col fill-height container for pages whose inner lists
    *   scroll internally (Пациенты, Коммуникации, Заявки, Расписание-список).
-   *   На md+ shell занимает остаток viewport и делегирует прокрутку внутренним панелям;
-   *   на мобильном сохраняется обычный поток страницы.
+   *   На всех ширинах shell занимает остаток viewport и делегирует прокрутку
+   *   внутренним панелям. Обычные страницы должны использовать `"default"`.
    */
   layout?: 'default' | 'full-height';
   /** Legacy AppShell props — ignored; doctor chrome is in DoctorWorkspaceShell layout. */

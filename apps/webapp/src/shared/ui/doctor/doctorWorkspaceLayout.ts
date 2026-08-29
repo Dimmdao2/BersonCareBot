@@ -64,11 +64,11 @@ export const DOCTOR_PAGE_CONTAINER_CLASS =
  * Альтернативный контейнер для full-height страниц (Пациенты, Коммуникации, Заявки, Расписание-список).
  * ТОТ ЖЕ видимый контейнер, что и DOCTOR_PAGE_CONTAINER_CLASS (`mx-auto w-full max-w-7xl`) —
  * единый шаблон: поля по бокам и выравнивание шапки совпадают с «Сегодня».
- * На desktop/tablet сам shell владеет системным нижним зазором; внутренние панели получают
- * оставшуюся высоту через flex и не вычитают высоту шапки/тулбаров вручную.
+ * На всех ширинах shell ограничен остатком viewport; внутренние панели получают оставшуюся
+ * высоту через flex и не вычитают высоту шапки/тулбаров вручную.
  */
 export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
-  'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+  'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /**
  * Контент полноэкранной страницы занимает остаток shell. Не обрезаем его по горизонтали:
@@ -79,8 +79,13 @@ export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
 export const DOCTOR_FULL_HEIGHT_CONTENT_CLASS =
   'flex min-h-0 flex-1 flex-col';
 
-/** Split/body внутри full-height shell: только flex-остаток, без guessed viewport arithmetic. */
-export const DOCTOR_REMAINING_HEIGHT_BODY_CLASS = 'min-h-0 flex-1 overflow-hidden';
+/**
+ * Tab body внутри full-height shell: только flex-остаток, без guessed viewport arithmetic.
+ * На mobile расширяет clipping boundary до края shell, сохраняя один 12px content inset:
+ * вложенная full-bleed поверхность может отменить inset ровно один раз и не будет обрезана.
+ */
+export const DOCTOR_REMAINING_HEIGHT_BODY_CLASS =
+  '-mx-3 flex min-h-0 flex-1 flex-col overflow-hidden px-3 md:mx-0 md:px-0';
 
 /**
  * Липкий блок поиска/фильтров над каталогом: отменяет межблочный gap под шапкой (`-mt-3`)

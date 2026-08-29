@@ -209,12 +209,23 @@ aside: flex min-h-0 flex-1 flex-col overflow-hidden rounded-[12px] border border
 
 ## 1. Page Shell
 
-`AppShell` с `variant="doctor"` оборачивает контент в `DOCTOR_PAGE_CONTAINER_CLASS`:
+`DoctorAppShell` поддерживает ровно два режима:
+
+- `default` — обычная страница; единый scroll-владелец находится в `DoctorWorkspaceShell`,
+  а страница получает системный нижний зазор `--doctor-page-bottom-gutter`;
+- `full-height` — ограниченное рабочее полотно для каталогов, коммуникаций, расписания и
+  растягиваемого dashboard; его внутренние списки/сетка владеют прокруткой на всех ширинах.
+
+Оба режима находятся внутри одного `h-dvh` workspace. Route-компоненты не вычисляют высоту
+через `100vh`, высоту шапки или нижнего меню самостоятельно. Оба режима заканчиваются общим
+нижним зазором `--doctor-page-bottom-gutter`.
+
+Обычный контейнер задаёт боковые поля на `#app-shell-content` и нижний зазор на shell:
 
 ```ts
 // doctorWorkspaceLayout.ts
 DOCTOR_PAGE_CONTAINER_CLASS =
-  'mx-auto w-full max-w-7xl px-3 pt-3 pb-[var(--doctor-page-bottom-gutter,18px)]';
+  'mx-auto min-h-full w-full max-w-7xl flex-1 pb-[var(--doctor-page-bottom-gutter,18px)]';
 ```
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.
@@ -943,6 +954,11 @@ ml-1.5 rounded-full bg-primary-foreground px-1.5 py-0.5 text-xs font-semibold ta
 
 ## 19. Mobile-паттерны
 
+- **Высота и скролл:** workspace всегда ограничен `100dvh`. Flow-страницы прокручивает общий
+  content viewport; `full-height`-страницы делегируют прокрутку ровно одной внутренней панели.
+  `body` не является владельцем прокрутки кабинета.
+- **Края:** основной inset равен 12px. Полноширинная mobile-поверхность отменяет его один раз через
+  shared catalog layout; вложенные компоненты не добавляют вторую компенсацию.
 - **Split-layout каталога:** на мобильном `mobileView="list" | "detail"` + кнопка «← Назад» (`variant="ghost" mb-2 h-9 px-2`). Не показывать split-колонки одновременно.
 - **Секции:** те же классы что и desktop, без правой колонки.
 - **Тайлы на мобильном:** 3 колонки фиксировано.

@@ -9,6 +9,7 @@ import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import {
   SCHEDULE_BASE,
   SCHEDULE_TABS,
@@ -319,7 +320,7 @@ export function DoctorScheduleShell({
           <div
             key={tabId}
             hidden={tabId !== activeTab}
-            className="flex min-h-0 flex-1 flex-col"
+            className={DOCTOR_REMAINING_HEIGHT_BODY_CLASS}
             data-testid={`tab-panel-${tabId}`}
           >
             <TabComponent

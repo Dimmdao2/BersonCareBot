@@ -78,6 +78,9 @@ import { MobileScrollableMonthCalendar } from './MobileScrollableMonthCalendar';
 
 type FullCalendarInstance = InstanceType<typeof FullCalendar>;
 
+const MOBILE_TIME_AXIS_FALLBACK_WIDTH_PX = 30;
+const MOBILE_VISIBLE_DAY_COUNT = 3;
+
 const DoctorCalendarEventPanel = dynamic(
   () =>
     import('../../calendar/DoctorCalendarEventPanel').then((mod) => mod.DoctorCalendarEventPanel),
@@ -697,7 +700,6 @@ export function ScheduleCalendarTab({
   const mobileScrollPositionedRangeRef = useRef<string | null>(null);
   const mobileScrollRestoreDateRef = useRef<string | null>(null);
   const mobileRangeExpandingRef = useRef(false);
-  const mobileTimeAxisCleanupRef = useRef<(() => void) | null>(null);
   const mobileMonthScrollFrameRef = useRef<number | null>(null);
   const mobileTimeGridScrollFrameRef = useRef<number | null>(null);
 
@@ -760,7 +762,10 @@ export function ScheduleCalendarTab({
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
-  const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now());
+  const [mobileCalendarViewportWidth, setMobileCalendarViewportWidth] = useState(0);
+  const [mobileTimeAxisWidth, setMobileTimeAxisWidth] = useState(
+    MOBILE_TIME_AXIS_FALLBACK_WIDTH_PX,
+  );
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -802,6 +807,12 @@ export function ScheduleCalendarTab({
     const end = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
     return Math.max(1, Math.round(end.diff(start, 'days').days));
   }, [mobileCalendarRange, timeZone]);
+  const mobileTimeGridWidth =
+    mobileCalendarViewportWidth > mobileTimeAxisWidth
+      ? mobileTimeAxisWidth +
+        (mobileCalendarDayCount * (mobileCalendarViewportWidth - mobileTimeAxisWidth)) /
+          MOBILE_VISIBLE_DAY_COUNT
+      : mobileCalendarDayCount * 112 + mobileTimeAxisWidth;
   // R34: подтверждение переноса (drag/resize) перед применением.
   const [pendingReschedule, setPendingReschedule] = useState<PendingReschedule | null>(null);
   const pendingRescheduleRef = useRef<{
@@ -815,11 +826,20 @@ export function ScheduleCalendarTab({
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
 
   useEffect(() => {
-    const updateNow = () => setCalendarNowMs(Date.now());
-    updateNow();
-    const id = window.setInterval(updateNow, 60_000);
-    return () => window.clearInterval(id);
-  }, []);
+    if (!mobileScrollableTimeGrid) return;
+    const viewport = calendarViewportRef.current;
+    if (!viewport) return;
+    const measure = () => {
+      setMobileCalendarViewportWidth(viewport.clientWidth);
+      const axis = viewport.querySelector<HTMLElement>('.fc-timegrid-slot-label');
+      if (axis) setMobileTimeAxisWidth(axis.getBoundingClientRect().width);
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [mobileScrollableTimeGrid]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1280px)');
@@ -1200,22 +1220,29 @@ export function ScheduleCalendarTab({
         const targetDate = DateTime.fromISO(dateKey, { zone: timeZone });
         const totalDays = Math.max(1, Math.round(rangeEnd.diff(rangeStart, 'days').days));
         const targetDay = Math.max(0, Math.round(targetDate.diff(rangeStart, 'days').days));
-        const timeAxisWidth = 48;
-        const dayWidth = Math.max(
-          1,
-          (scroller.scrollWidth - timeAxisWidth) / totalDays,
-        );
-        scroller.scrollLeft = Math.max(
-          0,
-          targetDay * dayWidth,
+        const dayWidth = Math.max(1, (scroller.scrollWidth - mobileTimeAxisWidth) / totalDays);
+        scroller.scrollLeft = Math.max(0, targetDay * dayWidth);
+        calendarViewportShellRef.current?.style.setProperty(
+          '--doctor-calendar-scroll-x',
+          `${scroller.scrollLeft}px`,
         );
         window.requestAnimationFrame(() => {
           mobileRangeExpandingRef.current = false;
         });
       });
     },
-    [mobileCalendarRange, mobileScrollableMonthGrid, timeZone],
+    [mobileCalendarRange, mobileScrollableMonthGrid, mobileTimeAxisWidth, timeZone],
   );
+
+  useEffect(() => {
+    if (!mobileScrollableTimeGrid || mobileCalendarViewportWidth <= 0) return;
+    positionMobileCalendar(mobileVisibleDateRef.current);
+  }, [
+    mobileCalendarViewportWidth,
+    mobileScrollableTimeGrid,
+    mobileTimeAxisWidth,
+    positionMobileCalendar,
+  ]);
 
   useEffect(() => {
     if (!mobileScrollableMonthGrid) return;
@@ -1232,45 +1259,8 @@ export function ScheduleCalendarTab({
     positionMobileCalendar,
   ]);
 
-  const bindMobileTimeAxis = useCallback(() => {
-    mobileTimeAxisCleanupRef.current?.();
-    mobileTimeAxisCleanupRef.current = null;
-    if (!mobileScrollableTimeGrid) return;
-    window.requestAnimationFrame(() => {
-      const root = calendarViewportRef.current;
-      if (!root) return;
-      const verticalScroller = Array.from(root.querySelectorAll<HTMLElement>('.fc-scroller')).find(
-        (node) => node.scrollHeight > node.clientHeight + 8,
-      );
-      if (!verticalScroller) return;
-      const header = root.querySelector<HTMLElement>('.fc-scrollgrid-section-header');
-      const sync = () => {
-        const hourHeight = verticalScroller.scrollHeight / 24;
-        const shell = calendarViewportShellRef.current;
-        if (!shell) return;
-        shell.style.setProperty('--doctor-calendar-scroll-y', `${verticalScroller.scrollTop}px`);
-        shell.style.setProperty('--doctor-calendar-hour-h', `${hourHeight}px`);
-        shell.style.setProperty('--doctor-calendar-half-hour-h', `${hourHeight / 2}px`);
-        shell.style.setProperty(
-          '--doctor-calendar-scroll-content-h',
-          `${verticalScroller.scrollHeight}px`,
-        );
-        shell.style.setProperty(
-          '--doctor-calendar-header-h',
-          `${header?.getBoundingClientRect().height ?? 49}px`,
-        );
-      };
-      sync();
-      verticalScroller.addEventListener('scroll', sync, { passive: true });
-      mobileTimeAxisCleanupRef.current = () => {
-        verticalScroller.removeEventListener('scroll', sync);
-      };
-    });
-  }, [mobileScrollableTimeGrid]);
-
   useEffect(
     () => () => {
-      mobileTimeAxisCleanupRef.current?.();
       if (mobileMonthScrollFrameRef.current != null) {
         window.cancelAnimationFrame(mobileMonthScrollFrameRef.current);
       }
@@ -1283,7 +1273,12 @@ export function ScheduleCalendarTab({
 
   const handleMobileCalendarDatesSet = useCallback(() => {
     if (!mobileScrollableTimeGrid) return;
-    bindMobileTimeAxis();
+    window.requestAnimationFrame(() => {
+      const viewport = calendarViewportRef.current;
+      const axis = viewport?.querySelector<HTMLElement>('.fc-timegrid-slot-label');
+      if (viewport) setMobileCalendarViewportWidth(viewport.clientWidth);
+      if (axis) setMobileTimeAxisWidth(axis.getBoundingClientRect().width);
+    });
     const rangeKey = `${view}:${mobileCalendarRange.start}:${mobileCalendarRange.end}`;
     if (mobileScrollPositionedRangeRef.current === rangeKey) return;
     mobileScrollPositionedRangeRef.current = rangeKey;
@@ -1292,7 +1287,6 @@ export function ScheduleCalendarTab({
     mobileRangeExpandingRef.current = true;
     positionMobileCalendar(target);
   }, [
-    bindMobileTimeAxis,
     mobileCalendarRange,
     mobileScrollableTimeGrid,
     positionMobileCalendar,
@@ -1344,6 +1338,10 @@ export function ScheduleCalendarTab({
         });
         return;
       }
+      calendarViewportShellRef.current?.style.setProperty(
+        '--doctor-calendar-scroll-x',
+        `${target.scrollLeft}px`,
+      );
       if (target.scrollWidth <= target.clientWidth + 8) return;
       if (mobileTimeGridScrollFrameRef.current != null) return;
       mobileTimeGridScrollFrameRef.current = window.requestAnimationFrame(() => {
@@ -1351,8 +1349,7 @@ export function ScheduleCalendarTab({
         const rangeStart = DateTime.fromISO(mobileCalendarRange.start, { zone: timeZone });
         const rangeEnd = DateTime.fromISO(mobileCalendarRange.end, { zone: timeZone });
         const totalDays = Math.max(1, Math.round(rangeEnd.diff(rangeStart, 'days').days));
-        const timeAxisWidth = 48;
-        const dayWidth = Math.max(1, (target.scrollWidth - timeAxisWidth) / totalDays);
+        const dayWidth = Math.max(1, (target.scrollWidth - mobileTimeAxisWidth) / totalDays);
         const firstDay = Math.max(
           0,
           Math.min(totalDays - 1, Math.floor(target.scrollLeft / dayWidth)),
@@ -1361,7 +1358,9 @@ export function ScheduleCalendarTab({
           0,
           Math.min(
             totalDays - 1,
-            Math.floor((target.scrollLeft + target.clientWidth / 2 - timeAxisWidth) / dayWidth),
+            Math.floor(
+              (target.scrollLeft + target.clientWidth / 2 - mobileTimeAxisWidth) / dayWidth,
+            ),
           ),
         );
         const firstDate = rangeStart.plus({ days: firstDay }).toISODate();
@@ -1399,6 +1398,7 @@ export function ScheduleCalendarTab({
       mobileCalendarRange,
       mobileScrollableCalendar,
       mobileScrollableMonthGrid,
+      mobileTimeAxisWidth,
       timeZone,
       updateMobileVisibleDate,
     ],
@@ -1582,14 +1582,6 @@ export function ScheduleCalendarTab({
   );
 
   const currentTimeZone = data?.timeZone ?? timeZone;
-  const calendarNow = DateTime.fromMillis(calendarNowMs).setZone(currentTimeZone);
-  const calendarNowDay = calendarNow.toISODate();
-  const showMobileNowIndicator =
-    mobileScrollableTimeGrid &&
-    calendarNowDay !== null &&
-    calendarNowDay >= mobileCalendarRange.start &&
-    calendarNowDay < mobileCalendarRange.end;
-  const calendarNowMinute = calendarNow.hour * 60 + calendarNow.minute;
   const workingBounds = data?.workingBounds;
   const calendarScrollTime = deriveCalendarInitialScrollTime(
     workingBounds,
@@ -2523,26 +2515,26 @@ export function ScheduleCalendarTab({
                   }
                 }}
               >
-              {mobileScrollableMonthGrid ? (
-                <MobileScrollableMonthCalendar
-                  rangeStart={mobileMonthCalendarRange.start}
-                  rangeEnd={mobileMonthCalendarRange.end}
-                  timeZone={currentTimeZone}
-                  events={calendarEvents}
-                  onDateClick={drillDownDay}
-                  onAppointmentClick={openAppointmentDetails}
-                />
-              ) : (
-                <>
-                  <div
-                    className="h-full min-h-0"
-                    style={
+                {mobileScrollableMonthGrid ? (
+                  <MobileScrollableMonthCalendar
+                    rangeStart={mobileMonthCalendarRange.start}
+                    rangeEnd={mobileMonthCalendarRange.end}
+                    timeZone={currentTimeZone}
+                    events={calendarEvents}
+                    onDateClick={drillDownDay}
+                    onAppointmentClick={openAppointmentDetails}
+                  />
+                ) : (
+                  <>
+                    <div
+                      className="h-full min-h-0"
+                      style={
                       mobileScrollableTimeGrid
-                        ? { width: `${mobileCalendarDayCount * 112 + 48}px` }
+                        ? { width: `${mobileTimeGridWidth}px` }
                         : undefined
-                    }
-                  >
-                <style>{`
+                      }
+                    >
+                      <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
                    принудительно делаем текст записей ТЁМНЫМ (FC форсит белый через
@@ -2673,222 +2665,188 @@ export function ScheduleCalendarTab({
                 @media (max-width: 767px) {
                   .fc .fc-scrollgrid-section-header .fc-timegrid-axis,
                   .fc .fc-timegrid-slot-label {
-                    visibility: hidden;
+                    box-sizing: border-box;
+                    visibility: visible;
+                    transform: translateX(var(--doctor-calendar-scroll-x, 0px));
+                    background: white;
+                    position: relative;
+                    z-index: 5;
+                  }
+                  .fc .fc-scrollgrid-section-header .fc-timegrid-axis {
+                    z-index: 7;
                   }
                 }
                 `}</style>
-                <ScheduleFullCalendarHost
-                calendarRef={calendarRef}
-                key={
-                  mobileScrollableCalendar
-                    ? `mobile:${view}`
-                    : `${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:bounded`
-                }
-                initialView={fcInitialView}
-                views={fcViews}
+                      <ScheduleFullCalendarHost
+                        calendarRef={calendarRef}
+                        key={
+                          mobileScrollableCalendar
+                            ? `mobile:${view}`
+                            : `${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:bounded`
+                        }
+                        initialView={fcInitialView}
+                        views={fcViews}
                 initialDate={mobileScrollableCalendar ? mobileCalendarRange.start : anchorDate}
-                visibleRange={
-                  mobileScrollableCalendar
-                    ? { start: mobileCalendarRange.start, end: mobileCalendarRange.end }
-                    : undefined
-                }
-                timeZone={currentTimeZone}
-                events={calendarEvents}
-                headerToolbar={false}
-                editable={view !== 'month'}
-                eventDurationEditable={view !== 'month'}
-                eventStartEditable={view !== 'month'}
-                // R32: выделение области создаёт запись; клик (без движения) не выделяет,
-                // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
-                selectable={view !== 'month'}
-                selectMirror
-                selectMinDistance={5}
-                // #225: keep FC visual slot selection while the create panel is open.
-                // Default unselectAuto=true clears the blue drag highlight on click-elsewhere,
-                // making it look like the slot choice was lost even though the form is prefilled.
-                unselectAuto={false}
-                select={onSelect}
-                nowIndicator
-                dayMaxEvents
-                allDaySlot={false}
-                height="100%"
-                stickyHeaderDates={mobileScrollableCalendar}
-                datesSet={handleMobileCalendarDatesSet}
-                slotMinTime={slotMinTime}
-                slotMaxTime={slotMaxTime}
-                slotLabelContent={(arg) =>
-                  formatDoctorCalendarHour(
-                    DateTime.fromJSDate(arg.date).setZone(currentTimeZone).hour,
-                  )
-                }
-                scrollTime={calendarScrollTime}
-                scrollTimeReset={false}
-                longPressDelay={450}
-                eventLongPressDelay={450}
-                selectLongPressDelay={450}
-                // Клик по заголовку дня → drill-down (D3)
-                navLinks
-                navLinkDayClick={(date) => {
-                  const dateKey =
+                        visibleRange={
+                          mobileScrollableCalendar
+                            ? { start: mobileCalendarRange.start, end: mobileCalendarRange.end }
+                            : undefined
+                        }
+                        timeZone={currentTimeZone}
+                        events={calendarEvents}
+                        headerToolbar={false}
+                        editable={view !== 'month'}
+                        eventDurationEditable={view !== 'month'}
+                        eventStartEditable={view !== 'month'}
+                        // R32: выделение области создаёт запись; клик (без движения) не выделяет,
+                        // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
+                        selectable={view !== 'month'}
+                        selectMirror
+                        selectMinDistance={5}
+                        // #225: keep FC visual slot selection while the create panel is open.
+                        // Default unselectAuto=true clears the blue drag highlight on click-elsewhere,
+                        // making it look like the slot choice was lost even though the form is prefilled.
+                        unselectAuto={false}
+                        select={onSelect}
+                        nowIndicator
+                        dayMaxEvents
+                        allDaySlot={false}
+                        height="100%"
+                        stickyHeaderDates={mobileScrollableCalendar}
+                        datesSet={handleMobileCalendarDatesSet}
+                        slotMinTime={slotMinTime}
+                        slotMaxTime={slotMaxTime}
+                        slotLabelContent={(arg) =>
+                          formatDoctorCalendarHour(
+                            DateTime.fromJSDate(arg.date).setZone(currentTimeZone).hour,
+                          )
+                        }
+                        scrollTime={calendarScrollTime}
+                        scrollTimeReset={false}
+                        longPressDelay={450}
+                        eventLongPressDelay={450}
+                        selectLongPressDelay={450}
+                        // Клик по заголовку дня → drill-down (D3)
+                        navLinks
+                        navLinkDayClick={(date) => {
+                          const dateKey =
                     DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ?? anchorDate;
-                  drillDownDay(dateKey);
-                }}
-                // CR-1 / Клик по числу в month → drill-down.
-                // Pass dayCellContent only in month view to avoid FullCalendar calling it
-                // (and getting a React element) for timeGrid column headers, which logged a
-                // "1 Issue" console error in the Next.js dev overlay.
-                {...(view === 'month'
-                  ? {
-                      dayCellContent: (arg: { date: Date }) => {
-                        const isToday =
-                          DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
-                          DateTime.now().setZone(currentTimeZone).toISODate();
-                        return (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className={cn(
-                              'fc-daygrid-day-number hover:underline cursor-pointer',
-                              isToday && 'fc-today-circle',
-                            )}
-                            onClick={() => {
-                              const dateKey =
-                                DateTime.fromJSDate(arg.date)
-                                  .setZone(currentTimeZone)
-                                  .toISODate() ?? anchorDate;
-                              drillDownDay(dateKey);
-                            }}
-                          >
-                            {arg.date.getDate()}
-                          </Button>
-                        );
-                      },
-                    }
-                  : {
-                      dayHeaderContent: (arg: { date: Date }) => {
-                        const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
-                        const isToday =
-                          dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
-                        return (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className={cn('fc-timegrid-header-link', isToday && 'fc-today-circle')}
-                            onClick={() => {
-                              const dateKey = dt.toISODate() ?? anchorDate;
-                              drillDownDay(dateKey);
-                            }}
-                          >
-                            <span className="fc-timegrid-header-weekday">
-                              {dt.setLocale('ru').toFormat('ccc')}
-                            </span>
-                            <span className="fc-timegrid-header-day">{dt.day}</span>
-                          </Button>
-                        );
-                      },
-                    })}
-                eventClick={(arg) => {
-                  if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
-                    suppressCalendarInteractionUntilRef.current = 0;
-                    return;
-                  }
-                  const appointment = arg.event.extendedProps?.appointment as
-                    CalendarAppointmentEvent | undefined;
-                  if (!appointment) return;
-                  openAppointmentDetails(appointment);
-                }}
-                dateClick={(arg) => {
-                  if (Date.now() <= suppressCalendarDateClickUntilRef.current) {
-                    suppressCalendarDateClickUntilRef.current = 0;
-                    return;
-                  }
-                  if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
-                    suppressCalendarInteractionUntilRef.current = 0;
-                    return;
-                  }
-                  if (Date.now() - lastSelectAtRef.current < 500) return;
-                  if (filtersPanelOpen) {
-                    setFiltersPanelOpen(false);
-                    return;
-                  }
-                  if (selected || showCreatePanel) {
-                    closeDraftOrSelectionFromGrid();
-                    return;
-                  }
-                  openCreateDraft(arg.date, null);
-                }}
-                eventDrop={onDrop}
-                eventResize={onResize}
-                eventContent={(info) => {
-                  const appointment = info.event.extendedProps?.appointment as
-                    CalendarAppointmentEvent | undefined;
-                  if (appointment) {
-                    if (view === 'month') {
-                      // Плашка = строка, только фамилия
-                      return (
-                        <div className="truncate px-1 text-[11px] leading-tight">
-                          {eventLastName(appointment)}
-                        </div>
-                      );
-                    }
-                    return (
-                      <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
-                        <div className="truncate font-medium">{eventTitle(appointment)}</div>
-                        <div className="truncate opacity-80">
-                          {appointmentStatusLabel(appointment.status)}
-                        </div>
-                      </div>
-                    );
-                  }
-                  return <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>;
-                }}
-                />
-                  </div>
-                </>
-              )}
-              </div>
-              {mobileScrollableTimeGrid ? (
-                <div
-                  className="pointer-events-none absolute -left-3 bottom-0 z-10 w-8 overflow-hidden border-r border-border/60 bg-white md:hidden"
-                  style={{
-                    top: 'var(--doctor-calendar-header-h, 49px)',
-                  }}
-                  aria-hidden
-                >
-                  <div
-                    className="absolute inset-x-0 top-0 bg-white"
-                    style={{
-                      height: 'var(--doctor-calendar-scroll-content-h, 1200px)',
-                      transform:
-                        'translateY(calc(-1 * var(--doctor-calendar-scroll-y, 0px)))',
-                      backgroundImage:
-                        'linear-gradient(to bottom, transparent calc(100% - 1px), color-mix(in srgb, var(--border) 52%, transparent) calc(100% - 1px))',
-                      backgroundSize:
-                        '100% var(--doctor-calendar-half-hour-h, 25px)',
-                    }}
-                  >
-                    {Array.from({ length: 25 }, (_, hour) => (
-                      <span
-                        key={hour}
-                        className="absolute left-0 w-full -translate-y-1/2 bg-white/95 pr-1 text-right text-[10px] leading-none text-muted-foreground"
-                        style={{
-                          top: `calc(var(--doctor-calendar-hour-h, 50px) * ${hour})`,
+                          drillDownDay(dateKey);
                         }}
-                      >
-                        {formatDoctorCalendarHour(hour)}
-                      </span>
-                    ))}
-                    {showMobileNowIndicator ? (
-                      <span
-                        className="absolute right-0 size-0 -translate-y-1/2 border-y-[4px] border-l-[6px] border-y-transparent border-l-destructive"
-                        style={{
-                          top: `calc(var(--doctor-calendar-hour-h, 50px) * ${calendarNowMinute / 60})`,
+                        // CR-1 / Клик по числу в month → drill-down.
+                        // Pass dayCellContent only in month view to avoid FullCalendar calling it
+                        // (and getting a React element) for timeGrid column headers, which logged a
+                        // "1 Issue" console error in the Next.js dev overlay.
+                        {...(view === 'month'
+                          ? {
+                              dayCellContent: (arg: { date: Date }) => {
+                                const isToday =
+                          DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
+                                  DateTime.now().setZone(currentTimeZone).toISODate();
+                                return (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    className={cn(
+                                      'fc-daygrid-day-number hover:underline cursor-pointer',
+                                      isToday && 'fc-today-circle',
+                                    )}
+                                    onClick={() => {
+                                      const dateKey =
+                                        DateTime.fromJSDate(arg.date)
+                                          .setZone(currentTimeZone)
+                                          .toISODate() ?? anchorDate;
+                                      drillDownDay(dateKey);
+                                    }}
+                                  >
+                                    {arg.date.getDate()}
+                                  </Button>
+                                );
+                              },
+                            }
+                          : {
+                              dayHeaderContent: (arg: { date: Date }) => {
+                                const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
+                                const isToday =
+                          dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
+                                return (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                            className={cn('fc-timegrid-header-link', isToday && 'fc-today-circle')}
+                                    onClick={() => {
+                                      const dateKey = dt.toISODate() ?? anchorDate;
+                                      drillDownDay(dateKey);
+                                    }}
+                                  >
+                                    <span className="fc-timegrid-header-weekday">
+                                      {dt.setLocale('ru').toFormat('ccc')}
+                                    </span>
+                                    <span className="fc-timegrid-header-day">{dt.day}</span>
+                                  </Button>
+                                );
+                              },
+                            })}
+                        eventClick={(arg) => {
+                          if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+                            suppressCalendarInteractionUntilRef.current = 0;
+                            return;
+                          }
+                          const appointment = arg.event.extendedProps?.appointment as
+                            CalendarAppointmentEvent | undefined;
+                          if (!appointment) return;
+                          openAppointmentDetails(appointment);
+                        }}
+                        dateClick={(arg) => {
+                          if (Date.now() <= suppressCalendarDateClickUntilRef.current) {
+                            suppressCalendarDateClickUntilRef.current = 0;
+                            return;
+                          }
+                          if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+                            suppressCalendarInteractionUntilRef.current = 0;
+                            return;
+                          }
+                          if (Date.now() - lastSelectAtRef.current < 500) return;
+                          if (filtersPanelOpen) {
+                            setFiltersPanelOpen(false);
+                            return;
+                          }
+                          if (selected || showCreatePanel) {
+                            closeDraftOrSelectionFromGrid();
+                            return;
+                          }
+                          openCreateDraft(arg.date, null);
+                        }}
+                        eventDrop={onDrop}
+                        eventResize={onResize}
+                        eventContent={(info) => {
+                          const appointment = info.event.extendedProps?.appointment as
+                            CalendarAppointmentEvent | undefined;
+                          if (appointment) {
+                            if (view === 'month') {
+                              // Плашка = строка, только фамилия
+                              return (
+                                <div className="truncate px-1 text-[11px] leading-tight">
+                                  {eventLastName(appointment)}
+                                </div>
+                              );
+                            }
+                            return (
+                              <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
+                        <div className="truncate font-medium">{eventTitle(appointment)}</div>
+                                <div className="truncate opacity-80">
+                                  {appointmentStatusLabel(appointment.status)}
+                                </div>
+                              </div>
+                            );
+                          }
+                  return <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>;
                         }}
                       />
-                    ) : null}
-                  </div>
-                </div>
-              ) : null}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </div>
