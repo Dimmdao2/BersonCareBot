@@ -1202,8 +1202,8 @@ _Этот раздел — полный действующий канон уро
 
 **Примеры команд (этот репозиторий):**
 
-- Integrator, один файл/паттерн: `pnpm --dir apps/integrator test -- <path-or-pattern>`
-- Webapp, один файл/паттерн: `pnpm --dir apps/webapp test -- <path-or-pattern>`
+- Integrator, один файл/паттерн: `pnpm --dir apps/integrator exec vitest run <path-or-pattern>`
+- Webapp, один файл/паттерн: `pnpm --dir apps/webapp exec vitest run <path-or-pattern>`
 - Тайпчек одного приложения: `pnpm --dir apps/integrator typecheck` или `pnpm --dir apps/webapp typecheck`
 - Линт webapp: `pnpm --dir apps/webapp lint` (корневой `pnpm lint` охватывает весь репо — тяжелее, на step-level использовать осознанно)
 
