@@ -3572,7 +3572,7 @@ INSERT INTO bcb_function_relation_surfaces(signature,relation_name,columns,opera
   ('app.read_operator_delivery_queue_health()', 'public.outgoing_delivery_queue', ARRAY['status', 'next_retry_at', 'failure_class', 'created_at', 'channel', 'kind', 'sent_at', 'updated_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_operator_health_digest_last_sent_at()', 'public.outgoing_delivery_queue', ARRAY['kind', 'sent_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)', 'public.admin_audit_log', ARRAY['created_at', 'status', 'action']::text[], ARRAY['SELECT']::text[]),
-  ('app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)', 'public.operator_incidents', ARRAY['integration', 'error_class', 'opened_at', 'resolved_at']::text[], ARRAY['SELECT']::text[]),
+  ('app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)', 'public.operator_incidents', ARRAY['direction', 'integration', 'error_class', 'opened_at', 'resolved_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_operator_health_digest_window(timestamp with time zone,timestamp with time zone)', 'public.operator_job_status', ARRAY['job_family', 'job_key', 'last_failure_at']::text[], ARRAY['SELECT']::text[]),
   ('app.read_operator_health_probe_config()', 'public.system_settings', ARRAY['key', 'scope', 'value_json', 'organization_id']::text[], ARRAY['SELECT']::text[]),
   ('app.read_operator_outbound_probe_meta()', 'public.operator_job_status', ARRAY['job_key', 'meta_json']::text[], ARRAY['SELECT']::text[]),
@@ -14994,7 +14994,7 @@ GRANT SELECT ("acknowledged_at", "alert_claim_phase", "alert_claim_token", "aler
 GRANT SELECT ("alert_sent_at", "id") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("dedup_key", "direction", "error_class", "error_detail", "id", "integration", "last_seen_at", "occurrence_count", "opened_at", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("dedup_key", "direction", "error_class", "error_detail", "id", "integration", "last_seen_at", "occurrence_count", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
-GRANT SELECT ("error_class", "integration", "opened_at", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
+GRANT SELECT ("direction", "error_class", "integration", "opened_at", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("acknowledged_at", "direction", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("alert_claim_phase", "alert_claim_token", "alert_claimed_at", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";
 GRANT SELECT ("dedup_key", "id", "resolved_at") ON TABLE "public"."operator_incidents" TO "app_seam_telemetry_operator_owner";

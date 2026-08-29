@@ -1,4 +1,5 @@
 export type OperatorIncidentDigestRow = {
+  direction: string;
   integration: string;
   errorClass: string;
 };

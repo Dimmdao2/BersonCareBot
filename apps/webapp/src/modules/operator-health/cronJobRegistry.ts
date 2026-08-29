@@ -1,5 +1,6 @@
 import {
   BACKGROUND_JOB_MANIFEST,
+  type BackgroundJobEnvironmentId,
   type BackgroundJobManifestEntry,
 } from '@/modules/operator-health/backgroundJobManifest';
 
@@ -42,6 +43,15 @@ export const CRON_JOB_REGISTRY: readonly CronJobRegistryEntry[] = BACKGROUND_JOB
     ...(entry.optionalNoData ? { optionalNoData: true } : {}),
   }),
 );
+
+export function cronJobRegistryForEnvironment(
+  environmentId: BackgroundJobEnvironmentId,
+): readonly CronJobRegistryEntry[] {
+  return CRON_JOB_REGISTRY.filter((entry) => {
+    const manifestEntry = BACKGROUND_JOB_MANIFEST.find((candidate) => candidate.id === entry.id);
+    return !manifestEntry?.environments || manifestEntry.environments.includes(environmentId);
+  });
+}
 
 export function findCronJobRegistryEntry(
   jobFamily: string,

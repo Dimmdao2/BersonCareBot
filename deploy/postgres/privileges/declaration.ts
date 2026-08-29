@@ -5121,7 +5121,7 @@ const REV10_CONTEXT = {
       proconfig: ['search_path=pg_catalog'], relationSurfaces: [
         { relation: 'public.admin_audit_log', columns: ['created_at', 'status', 'action'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
-        { relation: 'public.operator_incidents', columns: ['integration', 'error_class', 'opened_at', 'resolved_at'],
+        { relation: 'public.operator_incidents', columns: ['direction', 'integration', 'error_class', 'opened_at', 'resolved_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.operator_job_status', columns: ['job_family', 'job_key', 'last_failure_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },

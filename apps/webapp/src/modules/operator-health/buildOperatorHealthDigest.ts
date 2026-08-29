@@ -38,6 +38,12 @@ export type OperatorHealthDigestResult = {
   provenGreen: boolean;
 };
 
+function incidentDigestLabel(incident: OperatorIncidentDigestRow): string {
+  return incident.integration === 'critical_alert_cadence'
+    ? `${incident.direction} / ${incident.errorClass}`
+    : `${incident.integration} / ${incident.errorClass}`;
+}
+
 export function buildOperatorHealthDigest(
   input: OperatorHealthDigestInput,
 ): OperatorHealthDigestResult {
@@ -56,7 +62,7 @@ export function buildOperatorHealthDigest(
   }
 
   for (const inc of input.incidentsOpened.slice(0, 3)) {
-    detailLines.push(`Инцидент: ${inc.integration} / ${inc.errorClass}`);
+    detailLines.push(`Инцидент: ${incidentDigestLabel(inc)}`);
   }
   if (input.incidentsOpened.length > 3) {
     detailLines.push(`…и ещё ${input.incidentsOpened.length - 3} инцидентов`);
@@ -67,7 +73,7 @@ export function buildOperatorHealthDigest(
   if (!input.suppressRecovery && input.incidentsResolved.length > 0) {
     detailLines.push('Восстановлено за окно:');
     for (const inc of input.incidentsResolved.slice(0, 2)) {
-      detailLines.push(`${inc.integration} / ${inc.errorClass}`);
+      detailLines.push(incidentDigestLabel(inc));
     }
     if (input.incidentsResolved.length > 2) {
       detailLines.push(`…и ещё ${input.incidentsResolved.length - 2} восстановлений`);

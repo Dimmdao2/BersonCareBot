@@ -11,10 +11,10 @@ const digestWindowSchema = z
     auditErrorCount: z.number().int().nonnegative(),
     hadResolveAll: z.boolean(),
     incidentsOpened: z.array(
-      z.object({ integration: z.string(), errorClass: z.string() }).strict(),
+      z.object({ direction: z.string(), integration: z.string(), errorClass: z.string() }).strict(),
     ),
     incidentsResolved: z.array(
-      z.object({ integration: z.string(), errorClass: z.string() }).strict(),
+      z.object({ direction: z.string(), integration: z.string(), errorClass: z.string() }).strict(),
     ),
     jobFailures: z.array(
       z

@@ -4,10 +4,11 @@ import {
   type OperatorCronJobHealthReason,
 } from '@/modules/operator-health/classifyOperatorCronJobHealthStatus';
 import {
-  CRON_JOB_REGISTRY,
+  cronJobRegistryForEnvironment,
   findCronJobRegistryEntry,
   type CronJobRegistryEntry,
 } from '@/modules/operator-health/cronJobRegistry';
+import type { BackgroundJobEnvironmentId } from '@/modules/operator-health/backgroundJobManifest';
 import { OPERATOR_BACKUP_JOB_FAMILY } from '@/modules/operator-health/reconcileJobKeys';
 import type { OperatorJobStatusTickRow } from '@/modules/operator-health/ports';
 
@@ -108,6 +109,7 @@ export async function collectCronJobsHealth(input?: {
   backupJobs?: Record<string, BackupJobHealthSlice>;
   /** Curated, already-redacted rows supplied by protected System Health diagnostics. */
   jobRows?: OperatorJobStatusTickRow[];
+  environmentId?: BackgroundJobEnvironmentId;
 }): Promise<CronJobsHealthPayload> {
   const read = input?.jobRows ? null : buildAppDeps().operatorHealthRead;
   const backupByKey = input?.backupJobs ?? {};
@@ -117,7 +119,7 @@ export async function collectCronJobsHealth(input?: {
 
   const jobs: CronJobHealthItem[] = [];
 
-  for (const entry of CRON_JOB_REGISTRY) {
+  for (const entry of cronJobRegistryForEnvironment(input?.environmentId ?? 'prod')) {
     let lastTick: CronJobLastTickPayload | null = null;
 
     if (entry.kind === 'backup_shell') {

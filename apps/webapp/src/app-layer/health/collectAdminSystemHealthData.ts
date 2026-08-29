@@ -971,17 +971,19 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
     outboundProviderAcknowledgedCount: outboundProviderIncidents.acknowledgedCount,
   };
   const backupJobs: Record<string, OperatorBackupJobPayload> = {};
-  for (const job of curatedSnapshot?.operatorJobs ?? []) {
-    if (job.jobFamily !== 'backup') continue;
-    backupJobs[job.jobKey] = {
-      lastStatus: job.lastStatus,
-      lastStartedAt: null,
-      lastFinishedAt: job.lastFinishedAt,
-      lastSuccessAt: job.lastSuccessAt,
-      lastFailureAt: job.lastFailureAt,
-      lastDurationMs: job.lastDurationMs,
-      lastError: null,
-    };
+  if (!env.TEST) {
+    for (const job of curatedSnapshot?.operatorJobs ?? []) {
+      if (job.jobFamily !== 'backup') continue;
+      backupJobs[job.jobKey] = {
+        lastStatus: job.lastStatus,
+        lastStartedAt: null,
+        lastFinishedAt: job.lastFinishedAt,
+        lastSuccessAt: job.lastSuccessAt,
+        lastFailureAt: job.lastFailureAt,
+        lastDurationMs: job.lastDurationMs,
+        lastError: null,
+      };
+    }
   }
 
   const outgoingDeliveryPayload: OutgoingDeliveryHealthPayload = curatedSnapshot
@@ -1060,7 +1062,11 @@ export async function collectAdminSystemHealthData(): Promise<SystemHealthRespon
   let cronJobsPayload: CronJobsHealthPayload = { status: 'no_data', jobs: [] };
   try {
     cronJobsPayload = curatedSnapshot
-      ? await collectCronJobsHealth({ backupJobs, jobRows: curatedJobRows })
+      ? await collectCronJobsHealth({
+          backupJobs,
+          jobRows: curatedJobRows,
+          environmentId: env.TEST ? 'test' : 'prod',
+        })
       : { status: 'error', jobs: [] };
   } catch {
     cronJobsPayload = { status: 'error', jobs: [] };
