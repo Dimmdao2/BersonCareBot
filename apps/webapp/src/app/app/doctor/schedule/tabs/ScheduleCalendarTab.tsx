@@ -706,6 +706,10 @@ export function ScheduleCalendarTab({
   const mobileTimeAxisCleanupRef = useRef<(() => void) | null>(null);
   const mobileMonthScrollFrameRef = useRef<number | null>(null);
   const mobileTimeGridScrollFrameRef = useRef<number | null>(null);
+  const mobileCalendarMountedRef = useRef(false);
+  const mobileBootstrapRefreshPendingRef = useRef(false);
+  const mobileBootstrapRefreshFrameRef = useRef<number | null>(null);
+  const mobileBootstrapDeferredLoadKeyRef = useRef<string | null>(null);
   const recentLoadRef = useRef<{ key: string; startedAt: number } | null>(null);
 
   // ─── State ─────────────────────────────────────────────────────────────────
@@ -1109,6 +1113,17 @@ export function ScheduleCalendarTab({
     view,
   ]);
 
+  const queueMobileBootstrapRefresh = useCallback(() => {
+    if (mobileBootstrapRefreshFrameRef.current !== null) return;
+    mobileBootstrapRefreshFrameRef.current = window.requestAnimationFrame(() => {
+      mobileBootstrapRefreshFrameRef.current = window.requestAnimationFrame(() => {
+        mobileBootstrapRefreshFrameRef.current = null;
+        mobileBootstrapDeferredLoadKeyRef.current = null;
+        loadFeed(undefined, undefined, ++loadGenerationRef.current);
+      });
+    });
+  }, [loadFeed]);
+
   useEffect(() => {
     if (settingsSeededRef.current) {
       return;
@@ -1141,15 +1156,45 @@ export function ScheduleCalendarTab({
 
   useEffect(() => {
     if (
-      !mobileScrollableCalendar &&
+      mobileBootstrapDeferredLoadKeyRef.current === calendarLoadKey &&
+      (mobileBootstrapRefreshPendingRef.current ||
+        mobileBootstrapRefreshFrameRef.current !== null)
+    ) {
+      return;
+    }
+    if (
+      mobileBootstrapDeferredLoadKeyRef.current !== null &&
+      mobileBootstrapDeferredLoadKeyRef.current !== calendarLoadKey
+    ) {
+      mobileBootstrapDeferredLoadKeyRef.current = null;
+      mobileBootstrapRefreshPendingRef.current = false;
+      if (mobileBootstrapRefreshFrameRef.current !== null) {
+        window.cancelAnimationFrame(mobileBootstrapRefreshFrameRef.current);
+        mobileBootstrapRefreshFrameRef.current = null;
+      }
+    }
+    if (
       ssrLoadKeyRef.current !== null &&
       calendarLoadKey === ssrLoadKeyRef.current
     ) {
+      ssrLoadKeyRef.current = null;
+      const needsExpandedMobileRange =
+        window.matchMedia('(max-width: 767px)').matches &&
+        renderMode === 'calendar' &&
+        (view === '3days' || view === 'month');
+      if (needsExpandedMobileRange) {
+        mobileBootstrapDeferredLoadKeyRef.current = calendarLoadKey;
+        if (mobileCalendarMountedRef.current) {
+          queueMobileBootstrapRefresh();
+        } else {
+          mobileBootstrapRefreshPendingRef.current = true;
+        }
+      }
       return;
     }
     ssrLoadKeyRef.current = null;
     queueMicrotask(() => load());
-  }, [calendarLoadKey, load, mobileScrollableCalendar]);
+  }, [calendarLoadKey, load, queueMobileBootstrapRefresh, renderMode, view]);
 
   useEffect(() => {
     if (!isActive) return;
@@ -1346,11 +1391,33 @@ export function ScheduleCalendarTab({
       if (mobileTimeGridScrollFrameRef.current != null) {
         window.cancelAnimationFrame(mobileTimeGridScrollFrameRef.current);
       }
+      if (mobileBootstrapRefreshFrameRef.current != null) {
+        window.cancelAnimationFrame(mobileBootstrapRefreshFrameRef.current);
+        mobileBootstrapRefreshFrameRef.current = null;
+        if (mobileBootstrapDeferredLoadKeyRef.current !== null) {
+          mobileBootstrapRefreshPendingRef.current = true;
+        }
+      }
     },
     [],
   );
 
+  const handleMobileCalendarReady = useCallback(() => {
+    mobileCalendarMountedRef.current = true;
+    if (mobileBootstrapRefreshPendingRef.current) {
+      mobileBootstrapRefreshPendingRef.current = false;
+      queueMobileBootstrapRefresh();
+    }
+  }, [queueMobileBootstrapRefresh]);
+
+  useEffect(() => {
+    if (mobileScrollableMonthGrid) {
+      handleMobileCalendarReady();
+    }
+  }, [handleMobileCalendarReady, mobileScrollableMonthGrid]);
+
   const handleMobileCalendarDatesSet = useCallback(() => {
+    handleMobileCalendarReady();
     if (!mobileScrollableTimeGrid) return;
     bindMobileTimeAxis();
     window.requestAnimationFrame(() => {
@@ -1366,6 +1433,7 @@ export function ScheduleCalendarTab({
     positionMobileCalendar(target);
   }, [
     bindMobileTimeAxis,
+    handleMobileCalendarReady,
     mobileCalendarRange,
     mobileScrollableTimeGrid,
     positionMobileCalendar,
