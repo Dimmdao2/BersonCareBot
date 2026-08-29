@@ -1415,9 +1415,9 @@ export function MediaLibraryClient({
         disabled={uploading}
       />
 
-      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)] lg:items-stretch lg:overflow-hidden">
+      <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto md:grid-cols-[minmax(16rem,0.8fr)_minmax(0,2fr)] md:items-stretch md:overflow-hidden">
         <MediaFolderTreePane
-          className="lg:h-full"
+          className="md:h-full"
           folders={flatFolderRecords}
           foldersLoaded={flatFoldersLoaded}
           viewAllFiles={viewAllFiles}
@@ -1433,8 +1433,8 @@ export function MediaLibraryClient({
         />
 
         <CatalogRightPane
-          className="overflow-visible lg:h-full lg:overflow-hidden"
-          contentClassName="gap-4 overflow-visible lg:overflow-y-auto"
+          className="overflow-visible md:h-full md:overflow-hidden"
+          contentClassName="gap-4 overflow-visible md:overflow-y-auto"
         >
           <div className="flex flex-col gap-2 rounded-md border border-border/80 bg-muted/30 p-3 text-sm">
             <div className="flex flex-wrap items-center gap-1 text-muted-foreground">

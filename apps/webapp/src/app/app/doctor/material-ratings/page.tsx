@@ -8,6 +8,7 @@ import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalytics
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { MaterialRatingTargetKind } from '@/modules/material-rating/types';
 import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
@@ -87,6 +88,7 @@ export default async function DoctorMaterialRatingsPage({ searchParams }: Props)
       backHref="/app/doctor/content"
       backLabel="Материалы"
     >
+      <DoctorPageHeader title="Аналитика" />
       <div className="flex flex-col gap-6">
         <MaterialContentStatsClient />
         <p className="text-xs text-muted-foreground">

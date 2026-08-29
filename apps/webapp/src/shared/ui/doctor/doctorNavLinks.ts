@@ -108,6 +108,11 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     badgeKey: 'communicationsTotal',
   },
   {
+    id: 'analytics',
+    label: 'Аналитика',
+    href: '/app/doctor/material-ratings',
+  },
+  {
     id: 'library',
     label: 'Каталог ЛФК',
     items: [

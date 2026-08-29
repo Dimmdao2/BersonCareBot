@@ -103,7 +103,6 @@ type Props = {
    * `null` = рабочих интервалов нет.
    */
   workingBounds?: WorkingBounds | null;
-  showWorkingHours?: boolean;
   fillHeight?: boolean;
   /** Removes the page-section frame when the calendar is already inside DoctorModal. */
   flushChrome?: boolean;
@@ -127,7 +126,6 @@ export function DoctorTodayMiniCalendar({
   todayIso,
   displayIana,
   workingBounds,
-  showWorkingHours,
   fillHeight = false,
   flushChrome = false,
   onCanonicalEventClick,
@@ -142,7 +140,7 @@ export function DoctorTodayMiniCalendar({
     (event) => event.kind === 'working',
   );
   const bgFillEvent =
-    showWorkingHours === true
+    calendarEvents !== undefined
       ? buildDoctorCalendarNonWorkingRanges(workingEvents, displayIana, [todayIso]).map(
           (range) => ({
             ...range,
@@ -152,7 +150,7 @@ export function DoctorTodayMiniCalendar({
         )
       : [];
   const breakFillEvents =
-    showWorkingHours === true
+    calendarEvents !== undefined
       ? (calendarEvents ?? [])
           .filter((event) => event.kind === 'break')
           .map((event) => ({

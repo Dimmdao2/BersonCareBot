@@ -1765,10 +1765,11 @@ export function ScheduleCalendarTab({
       return keys;
     })();
 
-    // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
-    // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
+    // Всегда генерируем серый фон для timeGrid, даже если workingBounds=null
+    // или прежняя display-настройка выключена: рабочие границы — часть самой сетки,
+    // а не опциональный декоративный слой. Если рабочих часов нет, день целиком нерабочий.
     // Временная ось теперь полная (00:00–24:00), поэтому фон покрывает весь день.
-    const grayFill = isTimeGrid && data.showWorkingHours
+    const grayFill = isTimeGrid
       ? buildDoctorCalendarNonWorkingRanges(
           displayableCalendarEvents.filter((e) => e.kind === 'working'),
           currentTimeZone,

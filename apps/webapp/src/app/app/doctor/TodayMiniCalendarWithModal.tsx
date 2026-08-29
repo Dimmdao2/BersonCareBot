@@ -124,7 +124,6 @@ export function TodayMiniCalendarWithModal({
   const [selected, setSelected] = useState<CalendarAppointmentEvent | null>(null);
   const [showFc, setShowFc] = useState(false);
   const [workingBounds, setWorkingBounds] = useState<WorkingBounds | null | undefined>(undefined);
-  const [showWorkingHours, setShowWorkingHours] = useState<boolean | undefined>(undefined);
   const [calendarTimeZone, setCalendarTimeZone] = useState(displayIana);
 
   const { todayIso, nowMinutes, todayDateLabel } = calendarSnapshot;
@@ -140,7 +139,6 @@ export function TodayMiniCalendarWithModal({
         if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);
         if (data.filters) setFilterMeta(data.filters);
         setWorkingBounds(data.workingBounds);
-        setShowWorkingHours(data.showWorkingHours);
         if (data.timeZone) setCalendarTimeZone(data.timeZone);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
         onDone?.();
@@ -160,7 +158,6 @@ export function TodayMiniCalendarWithModal({
         if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);
         if (data.filters) setFilterMeta(data.filters);
         setWorkingBounds(data.workingBounds);
-        setShowWorkingHours(data.showWorkingHours);
         if (data.timeZone) setCalendarTimeZone(data.timeZone);
         setOwnSpecialistId(data.resolvedScope?.ownSpecialistId ?? null);
       })
@@ -194,7 +191,6 @@ export function TodayMiniCalendarWithModal({
           todayDateLabel={todayDateLabel}
           displayIana={calendarTimeZone}
           workingBounds={workingBounds}
-          showWorkingHours={showWorkingHours}
           fillHeight={fillHeight}
           flushChrome={flushChrome}
           onCanonicalEventClick={(appt) => setSelected(appt)}

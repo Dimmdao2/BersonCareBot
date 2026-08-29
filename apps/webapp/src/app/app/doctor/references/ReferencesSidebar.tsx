@@ -18,7 +18,7 @@ export function ReferencesSidebar({
   const pathname = usePathname();
 
   return (
-    <aside className="rounded-xl border border-border bg-card p-3 lg:sticky lg:top-[calc(3.5rem_+_env(safe-area-inset-top,0px))] lg:max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_1.25rem)] lg:overflow-hidden">
+    <aside className="flex shrink-0 flex-col overflow-visible rounded-[var(--doctor-page-block-radius,12px)] border border-border bg-card p-3 md:min-h-0 md:shrink md:overflow-hidden">
       {systemLinks.length > 0 ? (
         <div className="mb-3 border-b border-border pb-3">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -47,7 +47,7 @@ export function ReferencesSidebar({
         </div>
       ) : null}
       <p className="mb-3 text-sm text-muted-foreground">Список справочников</p>
-      <ul className="flex flex-col gap-1 lg:max-h-[calc(100dvh_-_3.5rem_-_env(safe-area-inset-top,0px)_-_5.5rem)] lg:overflow-y-auto pr-1">
+      <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-visible pr-1 md:overflow-y-auto">
         {categories.map((cat) => {
           const href = `/app/doctor/references/${encodeURIComponent(cat.code)}`;
           const active = pathname === href;
