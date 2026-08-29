@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Loader } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
@@ -220,7 +220,17 @@ export function DoctorChatPanel({
   );
 
   if (loading) {
-    return <p className={cn('text-sm text-muted-foreground', className)}>Загрузка сообщений...</p>;
+    return (
+      <div
+        className={cn(
+          'flex items-center gap-2 px-4 pt-5 text-sm text-muted-foreground/70',
+          className,
+        )}
+      >
+        <Loader className="size-4 shrink-0 animate-spin" aria-hidden />
+        <span>Загрузка сообщений…</span>
+      </div>
+    );
   }
 
   return (
