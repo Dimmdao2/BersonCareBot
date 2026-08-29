@@ -30,8 +30,9 @@ TEST в финальное состояние через `deploy-test` → уд�
 - [x] Канонические `user_contacts`, разделение actor/subject, узкая роль integrator и исправленные seam-owner
   privileges находятся в текущем `feat`. Накопленный runtime-пакет до `cc13a4ed4` прошёл полный CI; последующие
   изолированные cleanup/deploy-wrapper изменения прошли targeted и независимые audit-gates. Штатный TEST deploy
-  завершился `PASS` на `0e8060ab4`, а точечное исправление чтения настройки digest — вторым `PASS` на
-  `01530c7e3`, вместе с declaration/reconcile и финальной tenant-wall проверкой; старые
+  завершился `PASS` на `0e8060ab4`, точечное исправление чтения настройки digest — вторым `PASS` на
+  `01530c7e3`, пакет явной TEST-suppression — на `c2a3b36c5`, а защита от feedback-loop health — на
+  `75b371489`; каждый deploy включал declaration/reconcile и финальную tenant-wall проверку. Старые
   строки ниже про merge `92cf34ffa4` и TEST HEAD `484056ae5` больше не являются текущим состоянием.
 - [x] Восстановление старого TEST backup, создание пустой TEST, disposable/A0 и historical migration replay
   отменены более поздними owner-решениями. Их нельзя выполнять; история остаётся только в Git и evidence.
