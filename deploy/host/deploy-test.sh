@@ -429,7 +429,18 @@ sudo -u deploy node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --check |
 sudo -u deploy node "$DEPLOY_REPO/deploy/host/background-jobs-cli.mjs" --verify-installed --env test ||
   fail 'installed TEST schedule does not match the background job manifest'
 
-for unit_name in "${UNITS[@]}"; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
+for unit_name in api scheduler webapp; do sudo systemctl restart "bersoncarebot-$unit_name-test"; done
+webapp_ready=0
+for attempt in $(seq 1 30); do
+  if sudo systemctl is-active --quiet bersoncarebot-webapp-test &&
+     curl -fsS --max-time 3 -H "Host: $WEBAPP_HEALTH_HOST" http://127.0.0.1:6300/api/health >/dev/null; then
+    webapp_ready=1
+    break
+  fi
+  sleep 1
+done
+[[ "$webapp_ready" == 1 ]] || fail 'TEST webapp did not become healthy before media-worker startup'
+sudo systemctl restart bersoncarebot-media-worker-test
 for attempt in $(seq 1 30); do
   all_active=1
   for unit_name in "${UNITS[@]}"; do
