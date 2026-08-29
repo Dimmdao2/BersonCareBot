@@ -45,7 +45,7 @@ export const DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS = 'top-0';
 
 /** Внутренний ряд шапки: во всю ширину viewport (поля по краям), меню слева — только под шапкой. */
 export const DOCTOR_HEADER_INNER_CLASS =
-  'flex h-[46px] w-full items-center gap-1.5 px-4 py-[3px] md:px-6';
+  'flex h-12 w-full items-center gap-1.5 px-4 py-1 md:px-6';
 
 /**
  * Контейнер обычной flow-страницы владеет шириной и системным нижним зазором 18px.

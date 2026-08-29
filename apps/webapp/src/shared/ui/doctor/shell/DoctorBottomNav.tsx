@@ -36,7 +36,7 @@ export function DoctorBottomNav({
   return (
     <nav
       aria-label="Основные разделы"
-      className="relative z-40 flex shrink-0 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md md:hidden"
+      className="relative z-40 flex h-12 shrink-0 border-t border-border/70 bg-background/95 backdrop-blur-md md:hidden"
     >
       {visibleItems.map((item) => {
         const active = isDoctorNavItemActive(item.href, pathname);
@@ -51,7 +51,7 @@ export function DoctorBottomNav({
             aria-current={active ? 'page' : undefined}
             title={item.label}
             className={cn(
-              'flex min-h-[46px] min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+              'flex h-full min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
               active && 'bg-primary/10 text-primary',
             )}
           >
