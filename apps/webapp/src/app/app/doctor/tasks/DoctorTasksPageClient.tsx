@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { LayoutList, ListChecks, ListTodo, Search, StickyNotePlus, X } from 'lucide-react';
+import { ListTodo, Search, StickyNotePlus, X } from 'lucide-react';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -17,14 +17,18 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { cn } from '@/lib/utils';
+import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { SpecialistTaskRow } from '../clients/SpecialistTaskRow';
-import { SpecialistTaskDetailsContent } from '../clients/SpecialistTaskDetailsDialog';
+import {
+  SpecialistTaskDetailsContent,
+  SpecialistTaskDetailsDialog,
+} from '../clients/SpecialistTaskDetailsDialog';
 import { SpecialistTaskFormContent } from '../clients/SpecialistTaskFormDialog';
 
 type Pane = { kind: 'details' | 'edit'; taskId: string } | { kind: 'create' } | null;
-type TaskView = 'open' | 'completed' | 'all';
+type TaskView = 'open' | 'completed';
 
 export function DoctorTasksPageClient({
   initialTasks,
@@ -46,6 +50,7 @@ export function DoctorTasksPageClient({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [taskView, setTaskView] = useState<TaskView>('open');
+  const hasSplitTaskDetails = useViewportMinWidth(1024);
   const selected = useMemo(
     () =>
       pane && 'taskId' in pane ? (tasks.find((task) => task.id === pane.taskId) ?? null) : null,
@@ -89,13 +94,7 @@ export function DoctorTasksPageClient({
   );
   const visibleTaskGroups = useMemo(() => {
     if (taskView === 'open') return [{ kind: 'open' as const, tasks: matchingOpenTasks }];
-    if (taskView === 'completed') {
-      return [{ kind: 'completed' as const, tasks: matchingCompletedTasks }];
-    }
-    return [
-      { kind: 'open' as const, tasks: matchingOpenTasks },
-      { kind: 'completed' as const, tasks: matchingCompletedTasks },
-    ];
+    return [{ kind: 'completed' as const, tasks: matchingCompletedTasks }];
   }, [matchingCompletedTasks, matchingOpenTasks, taskView]);
   const visibleTaskCount = visibleTaskGroups.reduce((sum, group) => sum + group.tasks.length, 0);
 
@@ -103,10 +102,7 @@ export function DoctorTasksPageClient({
     setTaskView(nextView);
     setPane(null);
   };
-  const nextTaskView: TaskView =
-    taskView === 'open' ? 'completed' : taskView === 'completed' ? 'all' : 'open';
-  const nextTaskViewLabel =
-    nextTaskView === 'open' ? 'Открытые' : nextTaskView === 'completed' ? 'Выполненные' : 'Все';
+  const showingCompletedTasks = taskView === 'completed';
 
   const taskFilters = (
     <div className="flex w-full min-w-0 items-center gap-1.5">
@@ -140,17 +136,13 @@ export function DoctorTasksPageClient({
         <Button
           type="button"
           size="icon-sm"
-          aria-label={`Показать: ${nextTaskViewLabel.toLocaleLowerCase('ru-RU')}`}
-          title={`Показать: ${nextTaskViewLabel.toLocaleLowerCase('ru-RU')}`}
-          onClick={() => selectTaskView(nextTaskView)}
+          variant={showingCompletedTasks ? 'default' : 'outline'}
+          aria-label={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
+          title={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
+          aria-pressed={showingCompletedTasks}
+          onClick={() => selectTaskView(showingCompletedTasks ? 'open' : 'completed')}
         >
-          {taskView === 'open' ? (
-            <LayoutList className="size-4" aria-hidden />
-          ) : taskView === 'completed' ? (
-            <ListChecks className="size-4" aria-hidden />
-          ) : (
-            <ListTodo className="size-4" aria-hidden />
-          )}
+          <ListTodo className="size-4" aria-hidden />
         </Button>
       </div>
     </div>
@@ -172,7 +164,7 @@ export function DoctorTasksPageClient({
     setPane({ kind: 'details', taskId: saved.id });
   };
 
-  const complete = async (taskId: string) => {
+  const complete = async (taskId: string): Promise<boolean> => {
     setBusy(true);
     setError(null);
     try {
@@ -181,18 +173,20 @@ export function DoctorTasksPageClient({
       });
       if (!response.ok) {
         setError('Не удалось выполнить задачу');
-        return;
+        return false;
       }
       const data = (await response.json()) as { task?: Task };
       if (!data.task) {
         setError('Не удалось выполнить задачу');
-        return;
+        return false;
       }
       const completedTask = data.task;
       setTasks((current) => current.map((task) => (task.id === taskId ? completedTask : task)));
       setPane(null);
+      return true;
     } catch {
       setError('Ошибка сети');
+      return false;
     } finally {
       setBusy(false);
     }
@@ -269,7 +263,9 @@ export function DoctorTasksPageClient({
       >
         <CatalogSplitLayout
           className={cn(DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE, 'min-h-0 flex-1')}
-          mobileView={pane ? 'detail' : 'list'}
+          mobileView={
+            !hasSplitTaskDetails && pane?.kind === 'details' ? 'list' : pane ? 'detail' : 'list'
+          }
           mobileBackSlot={
             <Button type="button" variant="ghost" onClick={() => setPane(null)}>
               Назад
@@ -334,6 +330,21 @@ export function DoctorTasksPageClient({
           right={<CatalogRightPane>{right}</CatalogRightPane>}
         />
       </DoctorCatalogPageLayout>
+      {!hasSplitTaskDetails ? (
+        <SpecialistTaskDetailsDialog
+          open={pane?.kind === 'details' && selected != null}
+          onClose={() => setPane(null)}
+          task={selected}
+          patientDisplayName={
+            selected?.patientUserId ? patientNames[selected.patientUserId] : undefined
+          }
+          displayIana={displayIana}
+          canMutate={canMutate}
+          busy={busy}
+          onComplete={complete}
+          onTaskSaved={saveTask}
+        />
+      ) : null}
     </>
   );
 }
