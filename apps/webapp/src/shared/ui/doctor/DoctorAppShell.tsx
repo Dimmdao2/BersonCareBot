@@ -46,7 +46,7 @@ export function DoctorAppShell({
   mobileHeaderActions,
 }: DoctorAppShellProps) {
   // `--doctor-sticky-offset` определяется зонально для `#app-shell-doctor` в `doctor.css`
-  // (см. doctorWorkspaceLayout.ts): <md → высота мобильной DoctorHeader, md+ → высота per-page DoctorPageHeader.
+  // (см. doctorWorkspaceLayout.ts): <md → 0, md+ → высота per-page DoctorPageHeader.
   if (layout === 'full-height') {
     return (
       <div

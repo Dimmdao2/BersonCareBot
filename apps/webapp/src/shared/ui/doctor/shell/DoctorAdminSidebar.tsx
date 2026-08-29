@@ -63,7 +63,7 @@ export function DoctorAdminSidebar({
     >
       <div
         className={cn(
-          'flex w-14 flex-col border-r border-border/70 bg-background px-2 pb-4 pt-3 transition-[width] duration-200',
+          'flex w-14 flex-col border-r border-border/70 bg-background px-2 pb-[var(--doctor-page-bottom-gutter,18px)] pt-3 transition-[width] duration-200',
           'md:sticky md:h-[100dvh] md:self-start md:overflow-y-auto',
           DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS,
           tabletExpanded && 'md:w-56 md:shadow-xl',

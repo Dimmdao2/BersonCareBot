@@ -33,9 +33,9 @@ export const tplToolbarTextBtnClass = 'h-7 min-h-7 px-2 text-xs';
 
 /**
  * Sticky toolbar редактора инстанса: компенсация `px-3` контейнера `#app-shell-doctor`.
- * Липкий офсет берём из канонической переменной `--doctor-sticky-offset` (0 на десктопе,
- * высота моб. шапки 3.5rem на <md) — иначе на десктопе тулбар залипал на 56px ниже верха
- * (хардкод мобильного значения), и контент проскальзывал в зазор над ним.
+ * Липкий офсет берём из канонической переменной `--doctor-sticky-offset` (0 на mobile,
+ * высота per-page шапки на desktop) — иначе тулбар может залипнуть ниже своего
+ * scroll-контейнера, и контент проскальзывает в зазор над ним.
  */
 export const INSTANCE_EDITOR_TOOLBAR_STICKY_CLASS =
   'sticky z-20 -mx-3 border-b border-border bg-card/95 px-3 py-2 backdrop-blur-sm top-[var(--doctor-sticky-offset)]';

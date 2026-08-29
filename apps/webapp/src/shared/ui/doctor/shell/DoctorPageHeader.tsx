@@ -58,7 +58,7 @@ export function DoctorPageHeader({
 }: DoctorPageHeaderProps) {
   const ref = useRef<HTMLElement>(null);
   // Высота этой шапки = desktop-офсет липких блоков контента (`--doctor-sticky-offset` на md+).
-  // На <md значение игнорируется зональным правилом (там офсет = высота мобильной DoctorHeader).
+  // На <md значение игнорируется зональным правилом (там content уже расположен под DoctorHeader).
   useReportShellChromeHeight(ref, DOCTOR_PAGE_HEADER_HEIGHT_VAR);
 
   return (

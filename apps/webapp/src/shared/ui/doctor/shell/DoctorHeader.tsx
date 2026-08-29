@@ -2,21 +2,17 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ArrowLeft, Menu } from 'lucide-react';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
 import { cn } from '@/lib/utils';
 import { DoctorMenuAccordion } from '@/shared/ui/doctor/shell/DoctorMenuAccordion';
 import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
-import {
-  DOCTOR_HEADER_INNER_CLASS,
-  DOCTOR_MOBILE_HEADER_HEIGHT_VAR,
-} from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { DOCTOR_HEADER_INNER_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { getDoctorScreenTitle } from '@/shared/ui/doctorScreenTitles';
 import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
-import { useReportShellChromeHeight } from '@/shared/hooks/useReportShellChromeHeight';
 import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { routePaths } from '@/app-layer/routes/paths';
 
@@ -31,8 +27,6 @@ type DoctorHeaderProps = {
   enableBadgePolling?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
   menuKind?: 'doctor' | 'platform';
-  /** Mobile shell pilot: participate in viewport rows instead of overlaying the page. */
-  mobilePlacement?: 'overlay' | 'row';
 };
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
@@ -49,20 +43,14 @@ export function DoctorHeader({
   hideMenuOnDesktop,
   enableBadgePolling,
   menuKind = 'doctor',
-  mobilePlacement = 'overlay',
 }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
   const shellChrome = useDoctorShellChrome();
   const title = shellChrome?.title ?? getDoctorScreenTitle(pathname);
   const [menuOpen, setMenuOpen] = useState(false);
-  const headerRef = useRef<HTMLElement>(null);
   const backHref = shellChrome?.backHref;
   const showBack = Boolean(backHref);
-  // Глобальная шапка видна только на <md (на md+ — `md:hidden`, offsetHeight → 0),
-  // поэтому пишем именно высоту мобильной шапки.
-  useReportShellChromeHeight(headerRef, DOCTOR_MOBILE_HEADER_HEIGHT_VAR);
-
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
   const goBack = useCallback(() => {
@@ -72,13 +60,11 @@ export function DoctorHeader({
   return (
     <>
       <header
-        ref={headerRef}
         id="doctor-header"
         className={cn(
           // Глобальная шапка — только мобильный (<md). На desktop кабинет = сайдбар + контент
           // с per-page шапкой (`DoctorPageHeader`), глобальной шапки нет.
-          'right-0 left-0 z-50 shrink-0 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden',
-          mobilePlacement === 'row' ? 'relative' : 'fixed top-0',
+          'relative z-50 shrink-0 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden',
           isPlatformOperator ? 'bg-destructive/10' : 'bg-background/95',
         )}
       >

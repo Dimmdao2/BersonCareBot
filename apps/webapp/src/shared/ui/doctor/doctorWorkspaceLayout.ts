@@ -1,19 +1,15 @@
 /**
  * Каркас кабинета врача/админа: контент страницы — max-w-7xl.
  *
- * Глобальная шапка `DoctorHeader` фиксирована и видна ТОЛЬКО на мобильном (<md);
+ * Глобальная шапка `DoctorHeader` — верхняя строка viewport и видна ТОЛЬКО на мобильном (<md);
  * на desktop (md+) её нет — кабинет = сайдбар + контент, а роль «липкого якоря»
  * выполняет per-page шапка `DoctorPageHeader` внутри контента.
  *
- * Высоты chrome пишутся в CSS-переменные на `<html>`:
- *   --doctor-mobile-header-h — высота мобильной `DoctorHeader` (для отступа контента/липких блоков на <md);
- *   --doctor-page-header-h   — высота per-page `DoctorPageHeader` (desktop-якорь липких блоков каталога).
+ * Высота desktop chrome пишется в CSS-переменную на `<html>`:
+ *   --doctor-page-header-h — высота per-page `DoctorPageHeader` (якорь липких блоков каталога).
  * Итоговый офсет для липких блоков внутри контента — `--doctor-sticky-offset`
- * (вычисляется зонально в `doctor.css` для `#app-shell-doctor`: <md → mobile-header-h, md+ → page-header-h).
+ * (вычисляется зонально в `doctor.css`: <md → 0, md+ → page-header-h).
  */
-
-/** Высота мобильной `DoctorHeader` (на <md). На desktop элемент скрыт → высота 0. */
-export const DOCTOR_MOBILE_HEADER_HEIGHT_VAR = '--doctor-mobile-header-h';
 
 /** Высота per-page `DoctorPageHeader` (desktop-якорь). Сбрасывается на мобильном. */
 export const DOCTOR_PAGE_HEADER_HEIGHT_VAR = '--doctor-page-header-h';
@@ -26,13 +22,6 @@ export const DOCTOR_ADMIN_SIDEBAR_WIDTH_CLASS = 'md:w-14 lg:w-56';
  * (Сайдбар скрыт на <md, поэтому мобильный кейс не нужен.)
  */
 export const DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS = 'md:top-0';
-
-/**
- * Отступ контента сверху: на <md компенсирует фиксированную `DoctorHeader`;
- * на md+ шапки нет → отступ 0.
- */
-export const DOCTOR_WORKSPACE_TOP_PADDING_CLASS =
-  'pt-[var(--doctor-mobile-header-h,calc(3.5rem_+_env(safe-area-inset-top,0px)))] md:pt-0';
 
 /**
  * Липкая подшапка страницы. На mobile scroll-контейнер уже начинается под DoctorHeader,
@@ -49,7 +38,7 @@ export const DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS = 'top-0';
 
 /**
  * Липкий `top` для самой per-page шапки `DoctorPageHeader`: офсет chrome НАД ней.
- * Workspace уже компенсирует фиксированную мобильную `DoctorHeader`, поэтому во всех
+ * Workspace уже выделяет отдельную строку мобильной `DoctorHeader`, поэтому во всех
  * responsive-зонах page header липнет к началу собственного scroll-контейнера.
  */
 export const DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS = 'top-0';
@@ -77,7 +66,7 @@ export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
   'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /**
- * Mobile dashboard inset above the fixed bottom navigation.
+ * Mobile dashboard inset above the bottom-navigation row.
  * Continuous list/calendar surfaces intentionally do not use it: their white scroll surface
  * reaches the navigation and owns the small trailing space after the final row.
  */

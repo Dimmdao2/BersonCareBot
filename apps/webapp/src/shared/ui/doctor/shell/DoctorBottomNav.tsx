@@ -23,11 +23,9 @@ const items = [
 export function DoctorBottomNav({
   menuAccess,
   patientLabel,
-  mobilePlacement = 'overlay',
 }: {
   menuAccess: DoctorMenuAccess;
   patientLabel?: string;
-  mobilePlacement?: 'overlay' | 'row';
 }) {
   const pathname = usePathname() ?? routePaths.doctor;
   const visibleHrefs = new Set(
@@ -38,10 +36,7 @@ export function DoctorBottomNav({
   return (
     <nav
       aria-label="Основные разделы"
-      className={cn(
-        'right-0 bottom-0 left-0 z-40 flex shrink-0 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md md:hidden',
-        mobilePlacement === 'row' ? 'relative' : 'fixed',
-      )}
+      className="relative z-40 flex shrink-0 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-md md:hidden"
     >
       {visibleItems.map((item) => {
         const active = isDoctorNavItemActive(item.href, pathname);
