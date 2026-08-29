@@ -213,7 +213,7 @@ export function DoctorChatPanel({
           {...props}
           size="icon"
           className="absolute size-8 rounded-full p-0"
-          style={{ right: 6, bottom: 6, borderRadius: '9999px' }}
+          style={{ right: 3, bottom: 6, borderRadius: '9999px' }}
         />
       )}
     />
