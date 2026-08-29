@@ -895,6 +895,21 @@ deploy остановил stale port-context capability artifact, второй �
 инцидента автоматически resolved на следующем пятиминутном тике. После восстановления empty-audience счётчик
 остался `195`, включая прежние `90` исторических self-events: новая feedback-loop не возникла.
 
+**Финальная интеграционная приёмка TEST 29.08.** Текущий `feat/doctor-ui-rebuild` на `736cea21400d` развёрнут
+штатным `deploy-test.sh`; transcript:
+`/var/log/bersoncarebot/deploy-test/deploy-test.20260829T070140Z.Q2mT1U.log`. Deploy дал `PASS`, pre/post
+tenant wall — `3/3`, pending migrations — `0`; декларация доступа сведена, установленное расписание совпало с
+typed manifest. Все четыре TEST-сервиса active, health integrator/webapp возвращает
+`{"ok":true,"db":"up"}`, `https://test.bersoncare.ru/` — `200` и непустое тело. Свежий owner-role crawl дал
+doctor `73/73`, clinic admin `8/8`, patient `54/54`, global admin `21/21`, ошибок нет; artifact:
+`runs/test-interactive-acceptance/out/crawl-2026-08-29T07-13-52.817Z.json`. В свежих service logs нет `42501`,
+permission denial, HTTP 500, fatal, unhandled или uncaught. Read-only замер TEST после crawl сохранил
+empty-audience `total=195`, `lastAt=2026-08-29T03:50:01.751Z`; открытых operator incidents — ноль, то есть ни
+восстановление, ни crawl не запустили alert-loop заново. Остались только owner-operated contact/OTP, завершение
+анонимной записи за этим OTP, подтверждение/напоминание записи, VK service token и будущий PROD/domain cutover;
+без результата реального owner-канала либо отдельной команды на production/domains автономный агент их не
+закрывает.
+
 ## Порядок выполнения
 
 Сначала этапы 1–2: они закрывают риск межклинического доступа и возвращают работающий фон/наблюдаемость. Затем
