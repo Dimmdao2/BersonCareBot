@@ -7,15 +7,12 @@ import { StaffCalendarTimezoneBootstrap } from '@/shared/ui/doctor/StaffCalendar
 import { canAccessDoctor } from '@/modules/roles/service';
 import { resolveLaunchCapabilities } from '@/app-layer/guards/workspaceCapabilities';
 import { DoctorAdminSidebar } from '@/shared/ui/doctor/shell/DoctorAdminSidebar';
-import { DoctorHeader } from '@/shared/ui/doctor/shell/DoctorHeader';
-import { DoctorBottomNav } from '@/shared/ui/doctor/shell/DoctorBottomNav';
+import { DoctorWorkspaceViewport } from '@/shared/ui/doctor/shell/DoctorWorkspaceViewport';
 import { DoctorShellChromeProvider } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 import { DoctorSupportUnreadProvider } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 import { getDoctorShellHomeHref } from '@/shared/ui/doctor/doctorNavLinks';
-import { DOCTOR_WORKSPACE_TOP_PADDING_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import type { UserRole } from '@/shared/types/session';
 import type { DoctorWorkspaceContext } from '@/modules/doctor-workspace/types';
-import { cn } from '@/lib/utils';
 
 type DoctorWorkspaceShellProps = {
   isPlatformOperator: boolean;
@@ -110,23 +107,18 @@ export function DoctorWorkspaceShell({
       <StaffWebPushBootstrap />
       <StaffCalendarTimezoneBootstrap />
       <DoctorShellChromeProvider>
-        <div className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background">
-          <DoctorHeader
-            userDisplayName={userDisplayName}
-            isPlatformOperator={isPlatformOperator}
-            menuAccess={menuAccess}
-            patientLabel={patientLabel}
-            hideMenuOnDesktop={showDoctorDesktopNav}
-            enableBadgePolling={clinicalRuntimeEnabled}
-            menuKind={menuKind}
-          />
-          <div
-            className={cn(
-              'flex min-h-0 flex-1 pb-[calc(3.25rem+env(safe-area-inset-bottom,0px))] md:pb-0',
-              DOCTOR_WORKSPACE_TOP_PADDING_CLASS,
-            )}
-          >
-            {showDoctorDesktopNav ? (
+        <DoctorWorkspaceViewport
+          header={{
+            userDisplayName,
+            isPlatformOperator,
+            menuAccess,
+            patientLabel,
+            hideMenuOnDesktop: showDoctorDesktopNav,
+            enableBadgePolling: clinicalRuntimeEnabled,
+            menuKind,
+          }}
+          sidebar={
+            showDoctorDesktopNav ? (
               <DoctorAdminSidebar
                 userDisplayName={userDisplayName}
                 menuAccess={menuAccess}
@@ -136,13 +128,12 @@ export function DoctorWorkspaceShell({
                 brand={brand}
                 menuKind={menuKind}
               />
-            ) : null}
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
-          </div>
-          {showClinicalShortcuts ? (
-            <DoctorBottomNav menuAccess={menuAccess} patientLabel={patientLabel} />
-          ) : null}
-        </div>
+            ) : undefined
+          }
+          bottomNav={showClinicalShortcuts ? { menuAccess, patientLabel } : undefined}
+        >
+          {children}
+        </DoctorWorkspaceViewport>
       </DoctorShellChromeProvider>
     </DoctorSupportUnreadProvider>
   );

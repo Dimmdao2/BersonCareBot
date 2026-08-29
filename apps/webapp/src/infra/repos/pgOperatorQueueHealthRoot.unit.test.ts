@@ -17,7 +17,10 @@ vi.mock('@/app-layer/db/drizzle', () => ({
   getDrizzle: () => fakes.drizzle,
 }));
 
-import { pgOperatorHealthReadPort } from '@/infra/repos/pgOperatorHealthRead';
+import {
+  parseOutgoingDeliveryQueueHealthSnapshot,
+  pgOperatorHealthReadPort,
+} from '@/infra/repos/pgOperatorHealthRead';
 import { enqueueOperatorHealthDigestDeliveries } from '@/infra/repos/pgOperatorHealthDigestDeliveries';
 import type { OperatorHealthDigestReadyOutgoingDelivery } from '@/modules/messaging/outgoingDeliveryQueuePort';
 
@@ -84,6 +87,16 @@ it('оператор видит настоящие числа очереди, а
   // Прямое чтение отношения здесь — это 42501 под `app_staff`/`app_worker` и упавший ВЕСЬ
   // пятиминутный критический тик: вызов стоит в голом `Promise.all`.
   expect(fakes.drizzle.select).not.toHaveBeenCalled();
+});
+
+it('возраст backlog начинается с назначенного due-time, а не с создания намерения', () => {
+  const dueAt = '2026-08-29T11:00:00.000Z';
+  const snapshot = parseOutgoingDeliveryQueueHealthSnapshot(
+    { ...ROOT_SNAPSHOT, oldestDueCreatedAt: dueAt },
+    Date.parse('2026-08-29T11:00:01.000Z'),
+  );
+
+  expect(snapshot.oldestDueAgeSeconds).toBe(1);
 });
 
 it('суточная сводка попадает в очередь: строка ставится, а не теряется на отказе', async () => {

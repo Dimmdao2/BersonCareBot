@@ -48,6 +48,8 @@ const outgoingDeliveryQueueHealthRootSchema = z
     blockedRecipientTotal: z.number().finite().nonnegative(),
     processingCount: z.number().finite().nonnegative(),
     confirmedSentLast24h: z.number().finite().nonnegative(),
+    // Compatibility wire key: since 20260829T125604 it contains the earliest `next_retry_at`
+    // among rows that are actually due, not the row creation time.
     oldestDueCreatedAt: z.string().nullable(),
     lastSentAt: z.string().nullable(),
     lastQueueActivityAt: z.string().nullable(),
@@ -61,7 +63,7 @@ const outgoingDeliveryQueueHealthRootSchema = z
   })
   .strict();
 
-/** Возраст самой старой готовой строки считается здесь: корень отдаёт момент, а не длительность. */
+/** Просрочка самой старой готовой строки считается здесь: корень отдаёт due-time, а не длительность. */
 export function parseOutgoingDeliveryQueueHealthSnapshot(
   raw: unknown,
   nowMs: number = Date.now(),
@@ -69,9 +71,9 @@ export function parseOutgoingDeliveryQueueHealthSnapshot(
   const parsed = outgoingDeliveryQueueHealthRootSchema.parse(raw);
   let oldestDueAgeSeconds: number | null = null;
   if (parsed.oldestDueCreatedAt) {
-    const createdAtMs = Date.parse(parsed.oldestDueCreatedAt);
-    if (!Number.isNaN(createdAtMs)) {
-      oldestDueAgeSeconds = Math.max(0, Math.floor((nowMs - createdAtMs) / 1000));
+    const dueAtMs = Date.parse(parsed.oldestDueCreatedAt);
+    if (!Number.isNaN(dueAtMs)) {
+      oldestDueAgeSeconds = Math.max(0, Math.floor((nowMs - dueAtMs) / 1000));
     }
   }
   return {

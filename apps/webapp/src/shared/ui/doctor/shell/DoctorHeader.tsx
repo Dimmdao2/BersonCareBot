@@ -31,6 +31,8 @@ type DoctorHeaderProps = {
   enableBadgePolling?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
   menuKind?: 'doctor' | 'platform';
+  /** Mobile shell pilot: participate in viewport rows instead of overlaying the page. */
+  mobilePlacement?: 'overlay' | 'row';
 };
 
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
@@ -47,6 +49,7 @@ export function DoctorHeader({
   hideMenuOnDesktop,
   enableBadgePolling,
   menuKind = 'doctor',
+  mobilePlacement = 'overlay',
 }: DoctorHeaderProps) {
   const router = useRouter();
   const pathname = usePathname() ?? '/app/doctor';
@@ -74,7 +77,8 @@ export function DoctorHeader({
         className={cn(
           // Глобальная шапка — только мобильный (<md). На desktop кабинет = сайдбар + контент
           // с per-page шапкой (`DoctorPageHeader`), глобальной шапки нет.
-          'fixed top-0 right-0 left-0 z-50 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden',
+          'right-0 left-0 z-50 shrink-0 border-b border-border/70 shadow-sm backdrop-blur-sm supports-backdrop-filter:bg-background/80 md:hidden',
+          mobilePlacement === 'row' ? 'relative' : 'fixed top-0',
           isPlatformOperator ? 'bg-destructive/10' : 'bg-background/95',
         )}
       >
