@@ -880,6 +880,14 @@ export function ScheduleCalendarTab({
 
   const drillDownDay = useCallback(
     (dateKey: string) => {
+      if (view === 'month') {
+        setDrillBackView(null);
+        onDeepLinkChange('from', null);
+        setView('3days');
+        setAnchorDate(dateKey);
+        return;
+      }
+
       // Remember current view for Назад
       const backView = view === 'day' ? (drillBackView ?? '3days') : view;
       setDrillBackView(backView);
