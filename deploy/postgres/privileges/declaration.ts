@@ -2536,6 +2536,7 @@ const WEBAPP_WORKER_SOURCES = [
   'api/integrator/operator-health/digest-wake:POST',
   'api/integrator/system-health/guard-wake:POST',
   'api/internal/operator-health-critical/tick:POST',
+  'api/internal/domain-health/tick:POST',
   // Часовой тик продления подписок: до 19.08 он входил платформенным принципалом с выдуманным
   // актором и падал на установке контекста — здесь его не было, потому что и класс был не тот.
   'api/internal/saas-billing/renewal/tick:POST',
@@ -3127,6 +3128,12 @@ const REV10_CONTEXT = {
       sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
       purpose: 'health.delivery-queue.aggregate',
       functionIdentity: 'app.read_operator_delivery_queue_health()' },
+    // Ежедневная проверка DNS/TLS получает только нормализованные публичные hostname. Прямой
+    // cross-tenant SELECT по system_settings рабочей роли не выдаётся.
+    webapp_custom_domain_health_list: { port: 'webapp', runtimeName: 'custom_domain_health_list',
+      sessionRole: 'app_staff', targetRole: 'app_worker', contextClass: 'service',
+      purpose: 'health.custom-domain.list',
+      functionIdentity: 'app.list_configured_custom_domain_hostnames()' },
     // Постановка суточной сводки в очередь: INSERT на очередь не выдан ни одной рабочей роли,
     // поэтому строк `operator_health_digest` не появлялось вовсе. Свой корень, а не универсальный
     // корень исходящего: у сводки собственный вид строки и собственный операторский класс.
@@ -5206,6 +5213,17 @@ const REV10_CONTEXT = {
             'autopay_revoked_at'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
         { relation: 'public.saas_tariffs', columns: ['id', 'billing_period'],
+          operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
+      ],
+    }),
+    'app.list_configured_custom_domain_hostnames()': rev10Function({
+      owner: 'app_seam_settings_runtime_owner', security: 'DEFINER', returns: 'jsonb', returnsSet: false,
+      execute: ['app_worker'],
+      purpose: 'return only normalized non-empty custom-domain hostnames for the daily DNS/TLS check',
+      typedArgs: [], volatility: 'STABLE', parallel: 'RESTRICTED', proconfig: ['search_path=pg_catalog'],
+      relationSurfaces: [
+        { relation: 'public.system_settings',
+          columns: ['key', 'scope', 'organization_id', 'value_json'],
           operations: ['SELECT' as const], evidence: 'pg16-function-body-lexical-upper-bound' as const },
       ],
     }),

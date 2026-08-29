@@ -38,6 +38,7 @@ export const OPERATOR_SYSTEM_HEALTH_GUARD_TICK_JOB_KEY = 'health.system_health_g
 export const OPERATOR_HEALTH_CRITICAL_TICK_JOB_KEY = 'health.operator_health_critical.tick';
 export const OPERATOR_HEALTH_DIGEST_TICK_JOB_KEY = 'health.operator_health_digest.tick';
 export const OPERATOR_OUTBOUND_PROBE_JOB_KEY = 'health.outbound_probe.run';
+export const OPERATOR_DOMAIN_HEALTH_TICK_JOB_KEY = 'health.domain_health.tick';
 
 export const OPERATOR_BACKUP_JOB_FAMILY = 'backup';
 
@@ -284,6 +285,26 @@ const BACKGROUND_JOB_MANIFEST_SOURCE = [
     staleAfterSec: 26 * 60 * 60,
     required: true,
     why: 'D30: сводку будит только резидентный scheduler; digestTime читает вебапп при постановке.',
+  },
+  {
+    id: 'domain_health',
+    jobFamily: OPERATOR_HEALTH_JOB_FAMILY,
+    jobKey: OPERATOR_DOMAIN_HEALTH_TICK_JOB_KEY,
+    label: 'Домен и сертификат клиники',
+    kind: 'internal_http',
+    scheduleOwner: 'host_cron',
+    scheduleHint: 'ежедневно',
+    cron: '50 3 * * *',
+    artifactSlug: 'domain-health',
+    environments: ['prod', 'test'],
+    route: { method: 'POST', path: '/api/internal/domain-health/tick' },
+    principal: 'internal_job_bearer',
+    surfaceIdentity: 'app_public_origin',
+    timeoutSec: 180,
+    staleAfterSec: 26 * 60 * 60,
+    required: true,
+    why: 'C5 (W5, IMPLEMENTATION_PLAN.md): резолвится ли домен клиники туда, куда должен, и сколько дней ' +
+      'осталось до истечения сертификата — тот же класс молчаливого отказа, что и email/SMS.',
   },
   {
     id: 'playback_retention',
