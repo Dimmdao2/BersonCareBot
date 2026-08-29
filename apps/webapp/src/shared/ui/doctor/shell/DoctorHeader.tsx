@@ -8,7 +8,11 @@ import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/shared/ui/doctor/primitives/sheet';
 import { cn } from '@/lib/utils';
 import { DoctorMenuAccordion } from '@/shared/ui/doctor/shell/DoctorMenuAccordion';
-import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
+import {
+  DOCTOR_MENU_ITEM_RADIUS_CLASS,
+  DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS,
+  NAV_STRIP_ICON_STROKE,
+} from '@/shared/ui/doctor/navChrome';
 import { DOCTOR_HEADER_INNER_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { getDoctorScreenTitle } from '@/shared/ui/doctorScreenTitles';
 import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
@@ -32,7 +36,7 @@ type DoctorHeaderProps = {
 /** Touch target ≥ 44px; базовый `icon` = 32px — переопределение. */
 const HEADER_ICON_CLASS = cn(
   buttonVariants({ variant: 'ghost', size: 'icon' }),
-  'size-10 shrink-0',
+  DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS,
 );
 
 export function DoctorHeader({

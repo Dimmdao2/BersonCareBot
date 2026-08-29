@@ -10,6 +10,7 @@ import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
+import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 
 const API_BASE = '/api/doctor/booking-engine';
 
@@ -116,23 +117,28 @@ export function DoctorTodayQuickActions({
       >
         <Button
           type="button"
+          variant={placement === 'mobile-header' ? 'ghost' : 'default'}
           size={placement === 'mobile-header' ? 'icon' : 'sm'}
-          className={placement === 'mobile-header' ? 'size-10 shrink-0' : undefined}
+          className={
+            placement === 'mobile-header' ? DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS : undefined
+          }
           aria-label="Новый визит"
           title="Новый визит"
           onClick={openAppointment}
         >
           {placement === 'mobile-header' ? (
-            <CalendarPlus className="size-[20px]" aria-hidden />
+            <CalendarPlus className="size-[22px]" aria-hidden />
           ) : (
             'Новый визит'
           )}
         </Button>
         <DoctorNewClientAction
           patientSingularLabel="Клиент"
-          className={placement === 'mobile-header' ? 'size-10 p-0' : undefined}
+          className={
+            placement === 'mobile-header' ? DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS : undefined
+          }
           showIcon={placement === 'mobile-header'}
-          triggerIcon={<UserPlus className="size-[20px]" aria-hidden />}
+          triggerIcon={<UserPlus className="size-[22px]" aria-hidden />}
           compactOnMobile={placement === 'mobile-header'}
           desktopPresentation="right-sheet"
         />

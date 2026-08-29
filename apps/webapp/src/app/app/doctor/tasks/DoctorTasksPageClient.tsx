@@ -17,6 +17,7 @@ import {
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { cn } from '@/lib/utils';
+import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
@@ -61,13 +62,14 @@ export function DoctorTasksPageClient({
       canMutate ? (
         <Button
           type="button"
+          variant="ghost"
           size="icon"
-          className="size-10 shrink-0"
+          className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
           aria-label="Новая задача"
           title="Новая задача"
           onClick={() => setPane({ kind: 'create' })}
         >
-          <StickyNotePlus className="size-[20px]" aria-hidden />
+          <StickyNotePlus className="size-[22px]" aria-hidden />
         </Button>
       ) : null,
     [canMutate],
