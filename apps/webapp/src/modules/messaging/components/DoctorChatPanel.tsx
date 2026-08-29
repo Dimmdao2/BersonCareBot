@@ -218,7 +218,7 @@ export function DoctorChatPanel({
           {...props}
           size="icon"
           className="absolute size-8 rounded-full p-0"
-          style={{ right: 3, bottom: 6, borderRadius: '9999px' }}
+          style={{ right: 3, bottom: 4, borderRadius: '9999px' }}
         />
       )}
     />
@@ -228,12 +228,12 @@ export function DoctorChatPanel({
     return (
       <div
         className={cn(
-          'flex items-center gap-2 px-4 pt-5 text-sm text-muted-foreground/70',
+          'flex items-center justify-center gap-2 px-4 pt-5 text-sm text-muted-foreground/70',
           className,
         )}
       >
-        <Loader className="size-4 shrink-0 animate-spin" aria-hidden />
         <span>Загрузка сообщений…</span>
+        <Loader className="size-4 shrink-0 animate-spin" aria-hidden />
       </div>
     );
   }
