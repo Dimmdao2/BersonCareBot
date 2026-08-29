@@ -29,7 +29,7 @@ import {
 import { patientCardHref } from '../patients/patientCardHref';
 import { ChatClientOverviewPanel } from './ChatClientOverviewPanel';
 
-const POLL_INTERVAL_MS = 1_000;
+const POLL_INTERVAL_MS = 15_000;
 
 type ConvRow = {
   conversationId: string;
@@ -137,6 +137,7 @@ export function DoctorSupportInbox({
   const sigRef = useRef<string>('');
   const selectedIdRef = useRef<string | null>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
+  const listRequestRef = useRef<Promise<ConvRow[] | null> | null>(null);
 
   useEffect(() => {
     selectedIdRef.current = selectedId;
@@ -184,19 +185,29 @@ export function DoctorSupportInbox({
     return () => mobileMedia.removeEventListener('change', alignListStart);
   }, [active, loading]);
 
-  const fetchList = useCallback(async (): Promise<ConvRow[] | null> => {
-    try {
-      const url = new URL('/api/doctor/messages/conversations', window.location.origin);
-      const res = await fetch(url.toString());
-      const data = (await res.json()) as {
-        ok?: boolean;
-        conversations?: ConversationApiRow[];
-      };
-      if (!res.ok || !data.ok || !data.conversations) return null;
-      return mapConvRows(data.conversations);
-    } catch {
-      return null;
-    }
+  const fetchList = useCallback((): Promise<ConvRow[] | null> => {
+    if (listRequestRef.current) return listRequestRef.current;
+
+    const request = (async (): Promise<ConvRow[] | null> => {
+      try {
+        const url = new URL('/api/doctor/messages/conversations', window.location.origin);
+        const res = await fetch(url.toString());
+        const data = (await res.json()) as {
+          ok?: boolean;
+          conversations?: ConversationApiRow[];
+        };
+        if (!res.ok || !data.ok || !data.conversations) return null;
+        return mapConvRows(data.conversations);
+      } catch {
+        return null;
+      }
+    })();
+
+    listRequestRef.current = request;
+    void request.finally(() => {
+      if (listRequestRef.current === request) listRequestRef.current = null;
+    });
+    return request;
   }, []);
 
   const loadList = useCallback(async () => {
@@ -226,7 +237,7 @@ export function DoctorSupportInbox({
   }, [loadList]);
 
   useEffect(() => {
-    if (!active) return;
+    if (!active || selectedId) return;
 
     const pollOnce = async () => {
       const rows = await fetchList();
@@ -267,7 +278,7 @@ export function DoctorSupportInbox({
       stopInterval();
       document.removeEventListener('visibilitychange', handleVisibility);
     };
-  }, [active, fetchList]);
+  }, [active, fetchList, selectedId]);
 
   const unreadCount = allList.filter((c) => c.unreadFromUserCount > 0).length;
   const onSupportCount = allList.filter((c) => c.onSupport).length;

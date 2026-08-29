@@ -62,8 +62,11 @@ export function DoctorChatPanel({
         setError('Не удалось загрузить сообщения');
         return;
       }
-      setMessages(data.messages ?? []);
-      await markRead();
+      const nextMessages = data.messages ?? [];
+      setMessages(nextMessages);
+      if (nextMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
+        void markRead();
+      }
     } catch {
       setError('Не удалось загрузить сообщения');
     }
@@ -79,7 +82,9 @@ export function DoctorChatPanel({
         setReplyTarget(null);
         if (initialMessages) {
           if (!cancelled) setMessages(initialMessages);
-          await markRead();
+          if (initialMessages.some((message) => message.senderRole === 'user' && !message.readAt)) {
+            void markRead();
+          }
         } else {
           await loadMessages();
         }
@@ -101,7 +106,7 @@ export function DoctorChatPanel({
       const list = data.messages ?? [];
       setMessages(list);
       if (list.some((m) => m.senderRole === 'user' && !m.readAt)) {
-        await markRead();
+        void markRead();
       }
     } catch {
       // Polling is best-effort; keep current messages and avoid noisy UI flapping.
