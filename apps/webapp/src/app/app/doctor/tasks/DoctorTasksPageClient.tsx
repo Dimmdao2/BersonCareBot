@@ -9,7 +9,10 @@ import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayou
 import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
-import { DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import {
+  DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
+  DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
+} from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { cn } from '@/lib/utils';
@@ -273,7 +276,12 @@ export function DoctorTasksPageClient({
               stickySplit={false}
               headerSlot={<p className="hidden text-sm font-medium md:block">Задачи</p>}
             >
-              <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+              <div
+                className={cn(
+                  DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
+                  'flex min-h-0 flex-1 flex-col overflow-y-auto',
+                )}
+              >
                 {visibleTaskGroups.map((group) => (
                   <section
                     key={group.kind}

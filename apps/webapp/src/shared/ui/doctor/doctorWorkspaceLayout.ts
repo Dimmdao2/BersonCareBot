@@ -68,7 +68,18 @@ export const DOCTOR_PAGE_CONTAINER_CLASS =
  * высоту через flex и не вычитают высоту шапки/тулбаров вручную.
  */
 export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
-  'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden pb-[var(--doctor-page-bottom-gutter,18px)]';
+  'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+
+/**
+ * Mobile dashboard inset above the fixed bottom navigation.
+ * Continuous list/calendar surfaces intentionally do not use it: their white scroll surface
+ * reaches the navigation and owns the small trailing space after the final row.
+ */
+export const DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS =
+  'pb-[var(--doctor-page-bottom-gutter,18px)] md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+
+/** White trailing space owned by a continuous mobile list, after its final row. */
+export const DOCTOR_MOBILE_SCROLL_END_INSET_CLASS = 'pb-3 md:pb-0';
 
 /**
  * Контент полноэкранной страницы занимает остаток shell. Не обрезаем его по горизонтали:

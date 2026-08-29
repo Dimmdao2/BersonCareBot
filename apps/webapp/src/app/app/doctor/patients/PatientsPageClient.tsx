@@ -52,6 +52,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { DOCTOR_MOBILE_SCROLL_END_INSET_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { formatDoctorFio } from '@/shared/lib/fio';
@@ -794,6 +795,7 @@ function PatientsContent({
                 id="doctor-patients-list"
                 className={cn(
                   doctorDnaFlatListClass,
+                  DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
                   'mx-0 min-h-0 flex-1 overflow-y-auto [content-visibility:auto] md:mx-[var(--doctor-block-padding,18px)]',
                 )}
                 onScroll={(event) => onListScroll(event.currentTarget.scrollTop)}

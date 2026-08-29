@@ -8,9 +8,11 @@ import {
   DOCTOR_PAGE_CONTAINER_CLASS,
   DOCTOR_FULL_HEIGHT_PAGE_CLASS,
   DOCTOR_FULL_HEIGHT_CONTENT_CLASS,
+  DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import type { SessionUser } from '@/shared/types/session';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { cn } from '@/lib/utils';
 
 export type DoctorAppShellProps = {
   title: string;
@@ -24,6 +26,8 @@ export type DoctorAppShellProps = {
    *   внутренним панелям. Обычные страницы должны использовать `"default"`.
    */
   layout?: 'default' | 'full-height';
+  /** Keep the shared dashboard gutter above mobile bottom navigation. */
+  mobileBottomGutter?: boolean;
   /** Legacy AppShell props — ignored; doctor chrome is in DoctorWorkspaceShell layout. */
   user?: SessionUser | null;
   backHref?: string;
@@ -36,6 +40,7 @@ export function DoctorAppShell({
   title,
   children,
   layout = 'default',
+  mobileBottomGutter = false,
   backHref,
   backLabel,
   mobileHeaderActions,
@@ -46,7 +51,11 @@ export function DoctorAppShell({
     return (
       <div
         id="app-shell-doctor"
-        className={`${DOCTOR_FULL_HEIGHT_PAGE_CLASS} theme-bersoncare-doctor-dna`}
+        className={cn(
+          DOCTOR_FULL_HEIGHT_PAGE_CLASS,
+          mobileBottomGutter && DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
+          'theme-bersoncare-doctor-dna',
+        )}
       >
         <DoctorShellChromeRegistration
           title={title}
