@@ -917,6 +917,9 @@ empty-audience `total=195`, `lastAt=2026-08-29T03:50:01.751Z`; открытых 
 `20260829T125604_delivery_backlog_age_starts_when_delivery_is_due.sql` переводит тот же агрегат на earliest
 due-time без второй таблицы, второго журнала или нового шва. На DEV миграция прошла owner-aware
 preflight/execute и reconcile; точечный parser-test, webapp typecheck и полный статический privilege gate зелёные.
+TEST deploy `8cd492752` дал PASS и применил миграцию. Живой read-only срез после выкатки показал четыре строки,
+назначенные на будущее, ноль готовых строк и ноль открытых инцидентов; critical tick завершён как `success`.
+Именно этот срез прежде ошибочно объявлял старые по времени создания строки многочасовой просрочкой.
 
 ## Порядок выполнения
 

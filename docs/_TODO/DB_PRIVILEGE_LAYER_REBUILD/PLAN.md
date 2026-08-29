@@ -68,7 +68,13 @@ TEST в финальное состояние через `deploy-test` → уд�
   просрочку. Изменена одна существующая SECURITY DEFINER-функция того же владельца и на той же таблице;
   `next_retry_at` она читала и раньше в due-предикате, поэтому новых прав, ролей, grants или policies нет.
   Точечный Vitest дал `4/4`, webapp typecheck — PASS, privilege gate — `174 pass / 141 opt-in skip / 0 fail`,
-  owner-aware DEV preflight откатился с PASS, execute применил миграцию и завершил reconcile.
+  owner-aware DEV preflight откатился с PASS, execute применил миграцию и завершил reconcile. Штатный TEST
+  deploy `8cd492752` завершился PASS (transcript
+  `/var/log/bersoncarebot/deploy-test/deploy-test.20260829T130659Z.9ZsIv5.log`). Read-only запрос с тем же
+  due-предикатом в 16:14 вернул `due_rows=0`, `scheduled_future_rows=4`, ближайший срок 16:59:59; миграция и
+  `min(next_retry_at)` присутствуют в живом теле, открытых operator incidents — `0`, последний critical tick —
+  `success`. Четыре TEST-unit active, оба health endpoint зелёные, старый домен вернул HTTP 200 и непустое тело;
+  в свежих журналах нет `42501`, permission denial, HTTP 500, fatal, unhandled или uncaught.
 
 ### Разбор прав миграции восстановления provider-инцидента — 29.08
 
