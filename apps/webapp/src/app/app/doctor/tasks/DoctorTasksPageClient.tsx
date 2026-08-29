@@ -341,6 +341,7 @@ export function DoctorTasksPageClient({
           displayIana={displayIana}
           canMutate={canMutate}
           busy={busy}
+          desktopPresentation="right-sheet"
           onComplete={complete}
           onTaskSaved={saveTask}
         />

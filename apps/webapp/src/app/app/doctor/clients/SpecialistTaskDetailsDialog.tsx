@@ -5,7 +5,10 @@ import { useEffect, useState } from 'react';
 import { patientCardHref } from '@/app/app/doctor/patients/patientCardHref';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import {
+  DoctorModal,
+  type DoctorModalDesktopPresentation,
+} from '@/shared/ui/doctor/DoctorModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import { SpecialistTaskFormDialog } from './SpecialistTaskFormDialog';
@@ -19,6 +22,7 @@ type Props = {
   displayIana?: string;
   canMutate: boolean;
   busy?: boolean;
+  desktopPresentation?: DoctorModalDesktopPresentation;
   onComplete: (taskId: string) => Promise<boolean>;
   onTaskSaved: (task: SpecialistTaskRow, patientDisplayName?: string) => void;
 };
@@ -88,6 +92,7 @@ export function SpecialistTaskDetailsDialog({
   displayIana,
   canMutate,
   busy = false,
+  desktopPresentation,
   onComplete,
   onTaskSaved,
 }: Props) {
@@ -101,9 +106,8 @@ export function SpecialistTaskDetailsDialog({
     }
   }, [open]);
 
-  if (!task) return null;
-
   const complete = async () => {
+    if (!task) return;
     setError(null);
     const completed = await onComplete(task.id);
     if (completed) {
@@ -116,10 +120,11 @@ export function SpecialistTaskDetailsDialog({
   return (
     <>
       <DoctorModal
-        open={open && !editOpen}
+        open={open && task != null && !editOpen}
         onClose={onClose}
         title="Задача"
         size="sm"
+        desktopPresentation={desktopPresentation}
         footer={
           canMutate ? (
             <>
@@ -131,7 +136,7 @@ export function SpecialistTaskDetailsDialog({
               >
                 Изменить
               </Button>
-              {!task.completedAt ? (
+              {task && !task.completedAt ? (
                 <Button type="button" disabled={busy} onClick={() => void complete()}>
                   Выполнить
                 </Button>
@@ -140,15 +145,17 @@ export function SpecialistTaskDetailsDialog({
           ) : undefined
         }
       >
-        <SpecialistTaskDetailsContent
-          task={task}
-          patientDisplayName={patientDisplayName}
-          displayIana={displayIana}
-          error={error}
-        />
+        {task ? (
+          <SpecialistTaskDetailsContent
+            task={task}
+            patientDisplayName={patientDisplayName}
+            displayIana={displayIana}
+            error={error}
+          />
+        ) : null}
       </DoctorModal>
 
-      {canMutate ? (
+      {canMutate && task ? (
         <SpecialistTaskFormDialog
           open={editOpen}
           onOpenChange={setEditOpen}

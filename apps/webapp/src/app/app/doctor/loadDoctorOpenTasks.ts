@@ -3,6 +3,7 @@ import type { ClientListItem, DoctorClientsFilters } from '@/modules/doctor-clie
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { SpecialistTasksService } from '@/modules/specialist-tasks/service';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 type Input = {
   specialistTasks?: SpecialistTasksService;
@@ -57,7 +58,17 @@ export async function loadDoctorOpenTasks(input: Input): Promise<DoctorOpenTasks
   return {
     tasks,
     patientNames: Object.fromEntries(
-      patients.map((patient) => [patient.userId, patient.displayName.trim() || '—']),
+      patients.map((patient) => [
+        patient.userId,
+        formatDoctorFio(
+          {
+            lastName: patient.lastName ?? null,
+            firstName: patient.firstName ?? null,
+            patronymic: patient.patronymic ?? null,
+          },
+          patient.displayName.trim() || '—',
+        ),
+      ]),
     ),
   };
 }

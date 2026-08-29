@@ -12,6 +12,7 @@ import {
   DoctorCalendarPatientSearch,
   type CalendarPatientOption,
 } from '@/app/app/doctor/calendar/DoctorCalendarPatientSearch';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 function toLocalInput(iso: string | null): string {
   if (!iso) return '';
@@ -78,13 +79,30 @@ export function SpecialistTaskFormContent({
       .then(
         (data: {
           ok: boolean;
-          header?: { identity: { userId: string; displayName: string; phone: string | null } };
+          header?: {
+            identity: {
+              userId: string;
+              displayName: string;
+              firstName: string | null;
+              lastName: string | null;
+              patronymic: string | null;
+              phone: string | null;
+            };
+          };
         }) => {
           if (cancelled || !data.ok || !data.header) return;
+          const identity = data.header.identity;
           setLinkedPatient({
-            id: data.header.identity.userId,
-            displayName: data.header.identity.displayName,
-            phone: data.header.identity.phone,
+            id: identity.userId,
+            displayName: formatDoctorFio(
+              {
+                lastName: identity.lastName,
+                firstName: identity.firstName,
+                patronymic: identity.patronymic,
+              },
+              identity.displayName,
+            ),
+            phone: identity.phone,
           });
         },
       )
