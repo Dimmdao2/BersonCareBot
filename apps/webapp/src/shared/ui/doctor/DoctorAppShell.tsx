@@ -54,7 +54,10 @@ export function DoctorAppShell({
           backLabel={backLabel}
           mobileActions={mobileHeaderActions}
         />
-        <main id="app-shell-content" className={`${DOCTOR_FULL_HEIGHT_CONTENT_CLASS} gap-3`}>
+        <main
+          id="app-shell-content"
+          className={`${DOCTOR_FULL_HEIGHT_CONTENT_CLASS} doctor-page-content gap-3`}
+        >
           {children}
         </main>
       </div>
@@ -71,7 +74,7 @@ export function DoctorAppShell({
         backLabel={backLabel}
         mobileActions={mobileHeaderActions}
       />
-      <main id="app-shell-content" className="flex flex-col gap-3">
+      <main id="app-shell-content" className="doctor-page-content flex flex-col gap-3">
         {children}
       </main>
     </div>

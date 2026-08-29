@@ -239,7 +239,6 @@ export function DoctorTasksPageClient({
       <DoctorShellChromeRegistration title="Задачи" mobileActions={mobileHeaderActions} />
       <DoctorPageHeader
         title="Задачи"
-        className="-mb-3 md:mb-0"
         toolbar={taskFilters}
         toolbarClassName="md:hidden"
       />

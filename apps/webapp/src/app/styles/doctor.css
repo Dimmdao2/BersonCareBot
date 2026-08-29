@@ -39,6 +39,15 @@
   );
 }
 
+/*
+ * The page header owns the top edge of the doctor workspace. Legacy/embedded routes without a
+ * DoctorPageHeader keep the standard 12px breathing room without forcing that inset onto every
+ * canonical page header.
+ */
+.doctor-page-content:not(:has([data-doctor-page-header])) {
+  padding-top: 0.75rem;
+}
+
 .doctor-calendar-nonworking {
   background-color: rgb(238 238 238 / 40%) !important;
   opacity: 1 !important;

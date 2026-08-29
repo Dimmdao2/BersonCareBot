@@ -67,8 +67,9 @@ export function DoctorPageHeader({
       id={id}
       data-doctor-page-header=""
       className={cn(
-        'sticky z-30 -mx-3 -mt-3 flex flex-col bg-[var(--doctor-page-header-background,#fff)]',
+        'sticky z-30 -mx-3 flex flex-col bg-[var(--doctor-page-header-background,#fff)]',
         DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS,
+        toolbar && '-mb-3 md:mb-0',
         className,
       )}
     >
