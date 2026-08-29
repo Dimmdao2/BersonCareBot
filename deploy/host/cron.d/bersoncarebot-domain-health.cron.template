@@ -1,0 +1,11 @@
+# СГЕНЕРИРОВАНО из apps/webapp/src/modules/operator-health/backgroundJobManifest.ts. Руками не править.
+# Перегенерировать: node deploy/host/background-jobs-cli.mjs --write
+# Сверить (гейт deploy и CI): node deploy/host/background-jobs-cli.mjs --check
+#
+# Домен и сертификат клиники — среда prod.
+# C5 (W5, IMPLEMENTATION_PLAN.md): резолвится ли домен клиники туда, куда должен, и сколько дней осталось до истечения сертификата — тот же класс молчаливого отказа, что и email/SMS.
+# id=domain_health tick=health/health.domain_health.tick POST /api/internal/domain-health/tick
+# principal=internal_job_bearer surface=app_public_origin timeout=180s stale_after=93600s
+# Host/Origin/X-Forwarded-Proto и env-файл (/opt/env/bersoncarebot/webapp.prod) строит общий transport
+# deploy/host/run-internal-job.sh — cron-строка их не копирует и не знает про branding proxy.
+50 3 * * * root /opt/projects/bersoncarebot/deploy/host/run-internal-job.sh prod domain_health
