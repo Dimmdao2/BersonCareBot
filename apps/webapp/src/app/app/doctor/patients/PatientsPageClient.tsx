@@ -765,7 +765,6 @@ function PatientsContent({
       <DoctorPageHeader
         id="doctor-patients-header"
         title={patientPluralLabel}
-        className="-mb-3 md:mb-0"
         tabs={<DoctorNewClientAction patientSingularLabel={patientSingularLabel} />}
         toolbar={renderListControls(true)}
         toolbarClassName="md:hidden"
