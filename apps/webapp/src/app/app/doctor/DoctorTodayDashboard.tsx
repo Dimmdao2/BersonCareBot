@@ -272,7 +272,7 @@ export function DoctorTodayDashboard({
 
       <div
         id="doctor-today-two-panes"
-        className="doctor-today-two-pane-grid grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 overflow-hidden md:h-[calc(100dvh_-_var(--doctor-page-header-h,2.75rem)_-_1.5rem)] md:flex-none md:items-stretch md:pb-3"
+        className="doctor-today-two-pane-grid grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] gap-3 overflow-hidden md:items-stretch"
       >
         <div
           id="doctor-today-left-pane"

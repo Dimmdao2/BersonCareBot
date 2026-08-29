@@ -91,7 +91,12 @@ export default async function DoctorRecommendationsPage({ searchParams }: PagePr
     });
 
   return (
-    <DoctorAppShell title="Рекомендации" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Рекомендации"
+      user={session.user}
+      backHref="/app/doctor"
+      layout="full-height"
+    >
       <DoctorPageHeader title="Рекомендации" />
       <RecommendationsPageClient
         listPromise={listPromise}

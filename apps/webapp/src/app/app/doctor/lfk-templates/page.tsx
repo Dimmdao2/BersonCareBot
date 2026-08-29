@@ -90,7 +90,12 @@ export default async function DoctorLfkTemplatesPage({ searchParams }: PageProps
     });
 
   return (
-    <DoctorAppShell title="Комплексы" user={session.user} backHref="/app/doctor">
+    <DoctorAppShell
+      title="Комплексы"
+      user={session.user}
+      backHref="/app/doctor"
+      layout="full-height"
+    >
       <DoctorPageHeader title="Комплексы" />
       <LfkTemplatesPageClient
         templatesPromise={templatesPromise}

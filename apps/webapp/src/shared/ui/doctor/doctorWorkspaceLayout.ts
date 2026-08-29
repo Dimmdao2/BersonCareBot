@@ -34,35 +34,44 @@ export const DOCTOR_ADMIN_SIDEBAR_STICKY_TOP_CLASS = 'md:top-0';
 export const DOCTOR_WORKSPACE_TOP_PADDING_CLASS =
   'pt-[var(--doctor-mobile-header-h,calc(3.5rem_+_env(safe-area-inset-top,0px)))] md:pt-0';
 
-/** Липкая подшапка страницы (фильтры и т.п.) — прилипает под per-page шапкой (или под мобильной DoctorHeader). */
+/**
+ * Липкая подшапка страницы. На mobile scroll-контейнер уже начинается под DoctorHeader,
+ * поэтому повторный mobile-header offset запрещён; на md+ toolbar идёт под per-page header.
+ */
 export const DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS =
-  'top-[var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))]';
+  'top-0 md:top-[var(--doctor-page-header-h,0px)]';
 
 /**
  * Липкий `top` для самой per-page шапки `DoctorPageHeader`: офсет chrome НАД ней.
- * <md → под фиксированной мобильной `DoctorHeader`; md+ → к верху вьюпорта (0).
- * (Намеренно НЕ `--doctor-sticky-offset`, чтобы избежать самозависимости: на md+ офсет = высота этой шапки.)
+ * Workspace уже компенсирует фиксированную мобильную `DoctorHeader`, поэтому во всех
+ * responsive-зонах page header липнет к началу собственного scroll-контейнера.
  */
-export const DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS =
-  'top-[var(--doctor-mobile-header-h,calc(3.5rem_+_env(safe-area-inset-top,0px)))] md:top-0';
+export const DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS = 'top-0';
 
 /** Внутренний ряд шапки: во всю ширину viewport (поля по краям), меню слева — только под шапкой. */
 export const DOCTOR_HEADER_INNER_CLASS =
   'flex w-full min-h-14 items-center gap-1.5 px-4 py-2 md:px-6';
 
-/** Контейнер страницы врача (как `AppShell` doctor): 12px сверху/по бокам, 24px снизу. */
+/** Контейнер обычной flow-страницы: 12px сверху/по бокам, системный нижний зазор 18px. */
 export const DOCTOR_PAGE_CONTAINER_CLASS =
-  'mx-auto min-h-full w-full max-w-7xl flex-1 px-3 pt-3 pb-6';
+  'mx-auto min-h-full w-full max-w-7xl flex-1 px-3 pt-3 pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /**
  * Альтернативный контейнер для full-height страниц (Пациенты, Коммуникации, Заявки, Расписание-список).
  * ТОТ ЖЕ видимый контейнер, что и DOCTOR_PAGE_CONTAINER_CLASS (`mx-auto w-full max-w-7xl px-3 pt-3`) —
- * единый шаблон: поля по бокам и выравнивание шапки совпадают с «Сегодня». Отличие — вместо `pb-6`
- * растягивается на всю высоту (`flex-1 min-h-0`), чтобы внутренние скролл-контейнеры были ограничены
- * и не вызывали прокрутку всего документа.
+ * единый шаблон: поля по бокам и выравнивание шапки совпадают с «Сегодня».
+ * На desktop/tablet сам shell владеет системным нижним зазором; внутренние панели получают
+ * оставшуюся высоту через flex и не вычитают высоту шапки/тулбаров вручную.
  */
 export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
-  'mx-auto w-full max-w-7xl px-3 pt-3 flex min-h-0 flex-1 flex-col';
+  'mx-auto w-full max-w-7xl px-3 pt-3 flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+
+/** Контент полноэкранной страницы: занимает остаток shell и не прокручивает документ. */
+export const DOCTOR_FULL_HEIGHT_CONTENT_CLASS =
+  'flex min-h-0 flex-1 flex-col overflow-hidden';
+
+/** Split/body внутри full-height shell: только flex-остаток, без guessed viewport arithmetic. */
+export const DOCTOR_REMAINING_HEIGHT_BODY_CLASS = 'min-h-0 flex-1 overflow-hidden';
 
 /**
  * Липкий блок поиска/фильтров над каталогом: компенсирует pt-3 контейнера (`-mt-3 -mx-3`),
@@ -75,29 +84,25 @@ export const DOCTOR_CATALOG_STICKY_BAR_CLASS =
 export const DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS =
   'bg-white/85 backdrop-blur-md supports-backdrop-filter:bg-white/75';
 
-/**
- * Левая колонка master-detail под липкой шапкой страницы и одним липким блоком фильтров (~3.25rem).
- */
+/** Левая колонка master-detail занимает высоту, уже выделенную общим full-height shell. */
 export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_CLASS =
-  'lg:sticky lg:top-[calc(var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_+_3.25rem)] lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_3.25rem_-_1rem)]';
+  'lg:h-full lg:min-h-0';
 
-/**
- * То же при двух строках липкой полосы (фильтры + второй ряд управления списком), ~6.5rem под блок под шапкой.
- */
+/** Совместимое имя для страниц с двухрядным toolbar; высотой всё равно владеет shell. */
 export const DOCTOR_CATALOG_LEFT_ASIDE_STICKY_LAYOUT_DOUBLE_ROW_CLASS =
-  'lg:sticky lg:top-[calc(var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_+_6.5rem)] lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_1rem)]';
+  'lg:h-full lg:min-h-0';
 
 /**
  * Desktop `CatalogSplitLayout`: высота под шапкой + один ряд липких фильтров (~3.25rem).
  */
 export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE =
-  'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_3.25rem_-_1rem)] lg:overflow-hidden';
+  'min-h-0 flex-1 lg:overflow-hidden';
 
 /**
  * То же, когда липкий тулбар фильтров в два ряда (~6.5rem под блок).
  */
 export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
-  'lg:h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_6.5rem_-_1rem)] lg:overflow-hidden';
+  'min-h-0 flex-1 lg:overflow-hidden';
 
 /**
  * Split content inside a page shell that already owns the remaining viewport height.
@@ -105,18 +110,6 @@ export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
  */
 export const DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS =
   'md:h-full md:min-h-0 md:overflow-hidden';
-
-/**
- * Desktop master/detail: ограничение высоты под шапкой + safe-area (без липкого блока над сеткой).
- */
-export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_CLASS =
-  'lg:min-h-0 lg:max-h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_5rem)] lg:overflow-hidden';
-
-/**
- * То же, с большим запасом под липкий блок фильтров над двухколоночной сеткой (упражнения).
- */
-export const DOCTOR_DESKTOP_SPLIT_PANE_MAX_H_WITH_FILTERS_CLASS =
-  'lg:min-h-0 lg:max-h-[calc(100dvh_-_var(--doctor-sticky-offset,calc(3.5rem_+_env(safe-area-inset-top,0px)))_-_10rem)] lg:overflow-hidden';
 
 /** Админ «Запись»: компактные карточки настроек (2 колонки md, 3 xl). */
 export const BOOKING_CARD_GRID_CLASS = 'grid gap-4 md:grid-cols-2 xl:grid-cols-3';

@@ -14,6 +14,11 @@ import {
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
   DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import {
+  buildDoctorCalendarNonWorkingRanges,
+  doctorCalendarNonWorkingClassNames,
+  formatDoctorCalendarHour,
+} from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { cn } from '@/lib/utils';
 import { DEFAULT_APP_DISPLAY_TIMEZONE } from '@/modules/system-settings/calendarIana';
@@ -322,100 +327,6 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
     if (v != null && v !== '') sp.set(k, v);
   }
   return sp.toString();
-}
-
-// ---------------------------------------------------------------------------
-// Helper: slot min/max from workingBounds
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// §3.14 — Non-working gray background fill
-// ---------------------------------------------------------------------------
-
-/**
- * Compute the *non-working* time ranges per local day so the calendar can paint
- * the whole non-working span (before the shift, after the shift, and every break)
- * with a light-gray background. Working time stays white (no fill).
- *
- * Input: the server-provided `working` events (per-date intervals already honour
- * per-date be_working_days with weekday fallback — §3.13) plus the visible slot
- * bounds. For each day that has working intervals we emit the complement within
- * `[slotMin, slotMax]`. Days without working intervals (closed / no schedule) get
- * a full-column grey fill (slotMin..slotMax) — #6: empty/closed days must be grey.
- *
- * @param visibleDayKeys  All YYYY-MM-DD keys in the visible grid (used to detect
- *   days that have no working-hours at all → fill the whole column grey).  When
- *   not provided the old behaviour is preserved: only days with ≥1 working event
- *   are filled.
- */
-function buildNonWorkingFillEvents(
-  workingEvents: { startAt: string; endAt: string }[],
-  timeZone: string,
-  slotMinMinute: number,
-  slotMaxMinute: number,
-  visibleDayKeys?: string[],
-): { id: string; start: string; end: string }[] {
-  // Group working intervals by local calendar day.
-  const byDay = new Map<string, { startMs: number; endMs: number }[]>();
-  for (const ev of workingEvents) {
-    const start = DateTime.fromISO(ev.startAt, { zone: timeZone });
-    if (!start.isValid) continue;
-    const dayKey = start.toISODate();
-    if (!dayKey) continue;
-    const list = byDay.get(dayKey) ?? [];
-    list.push({
-      startMs: DateTime.fromISO(ev.startAt).toMillis(),
-      endMs: DateTime.fromISO(ev.endAt).toMillis(),
-    });
-    byDay.set(dayKey, list);
-  }
-
-  // #6: days that exist in the visible grid but have NO working events at all
-  // must get a full-column grey fill so they render as non-working (not white).
-  if (visibleDayKeys) {
-    for (const dayKey of visibleDayKeys) {
-      if (!byDay.has(dayKey)) {
-        byDay.set(dayKey, []); // empty interval list → full fill below
-      }
-    }
-  } else if (workingEvents.length === 0) {
-    return [];
-  }
-
-  const out: { id: string; start: string; end: string }[] = [];
-  for (const [dayKey, intervals] of byDay.entries()) {
-    intervals.sort((a, b) => a.startMs - b.startMs);
-    // Day boundaries in the visible grid (local wall-clock minutes → UTC ms).
-    const dayStartMs = DateTime.fromISO(dayKey, { zone: timeZone })
-      .plus({ minutes: slotMinMinute })
-      .toMillis();
-    const dayEndMs = DateTime.fromISO(dayKey, { zone: timeZone })
-      .plus({ minutes: slotMaxMinute })
-      .toMillis();
-
-    let cursor = dayStartMs;
-    let idx = 0;
-    for (const iv of intervals) {
-      const ivStart = Math.max(iv.startMs, dayStartMs);
-      const ivEnd = Math.min(iv.endMs, dayEndMs);
-      if (ivStart > cursor) {
-        out.push({
-          id: `nonwork:${dayKey}:${idx++}`,
-          start: new Date(cursor).toISOString(),
-          end: new Date(ivStart).toISOString(),
-        });
-      }
-      if (ivEnd > cursor) cursor = ivEnd;
-    }
-    if (cursor < dayEndMs) {
-      out.push({
-        id: `nonwork:${dayKey}:${idx++}`,
-        start: new Date(cursor).toISOString(),
-        end: new Date(dayEndMs).toISOString(),
-      });
-    }
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -849,6 +760,7 @@ export function ScheduleCalendarTab({
   const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [showCancelledAppointments, setShowCancelledAppointments] = useState(false);
+  const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now());
   const [filterCacheReady, setFilterCacheReady] = useState(false);
   const isMobileViewport = useIsMobileViewport();
   const isWideScheduleLayout = useViewportMinWidth(1280);
@@ -901,6 +813,13 @@ export function ScheduleCalendarTab({
   const [rescheduleComment, setRescheduleComment] = useState('');
   const [rescheduleError, setRescheduleError] = useState<string | null>(null);
   const [rescheduleBusy, setRescheduleBusy] = useState(false);
+
+  useEffect(() => {
+    const updateNow = () => setCalendarNowMs(Date.now());
+    updateNow();
+    const id = window.setInterval(updateNow, 60_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(min-width: 1280px)');
@@ -1663,6 +1582,14 @@ export function ScheduleCalendarTab({
   );
 
   const currentTimeZone = data?.timeZone ?? timeZone;
+  const calendarNow = DateTime.fromMillis(calendarNowMs).setZone(currentTimeZone);
+  const calendarNowDay = calendarNow.toISODate();
+  const showMobileNowIndicator =
+    mobileScrollableTimeGrid &&
+    calendarNowDay !== null &&
+    calendarNowDay >= mobileCalendarRange.start &&
+    calendarNowDay < mobileCalendarRange.end;
+  const calendarNowMinute = calendarNow.hour * 60 + calendarNow.minute;
   const workingBounds = data?.workingBounds;
   const calendarScrollTime = deriveCalendarInitialScrollTime(
     workingBounds,
@@ -1800,19 +1727,19 @@ export function ScheduleCalendarTab({
     // #229: всегда генерируем серый фон для timeGrid, даже если workingBounds=null
     // (нет рабочих часов совсем) — тогда все видимые дни закрашиваются как нерабочие.
     // Временная ось теперь полная (00:00–24:00), поэтому фон покрывает весь день.
-    const grayFill = isTimeGrid
-      ? buildNonWorkingFillEvents(
+    const grayFill = isTimeGrid && data.showWorkingHours
+      ? buildDoctorCalendarNonWorkingRanges(
           displayableCalendarEvents.filter((e) => e.kind === 'working'),
           currentTimeZone,
+          visibleDayKeysForFill,
           loMinute,
           hiMinute,
-          visibleDayKeysForFill,
         ).map((f) => ({
           id: f.id,
           start: f.start,
           end: f.end,
           display: 'background' as const,
-          classNames: ['!bg-[#eeeeee]', '!opacity-60'],
+          classNames: [...doctorCalendarNonWorkingClassNames],
           editable: false,
           extendedProps: { kind: 'nonworking' as const },
         }))
@@ -1833,7 +1760,7 @@ export function ScheduleCalendarTab({
             end: toFcDate(event.endAt, currentTimeZone),
             title: 'Перерыв',
             display: 'background' as const,
-            classNames: ['!bg-[#eeeeee]', '!opacity-60'],
+            classNames: [...doctorCalendarNonWorkingClassNames],
             editable: false,
             extendedProps: { kind: 'break' as const },
           };
@@ -2214,7 +2141,7 @@ export function ScheduleCalendarTab({
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-0 pb-0 md:gap-4 md:pb-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-0 md:gap-4">
       {/* Toolbar (D1) — full width. R30: прилипает 2-м рядом под per-page-шапкой
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <div
@@ -2546,10 +2473,10 @@ export function ScheduleCalendarTab({
       {/* Main content row: calendar/list + aside panel */}
       <div
         className={cn(
-          'block min-h-0 flex-1 pb-0 md:pb-4 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
+          'block min-h-0 flex-1 pb-0 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
           renderMode === 'calendar' &&
-            'md:flex md:min-h-0 md:flex-1 md:pb-0 xl:items-stretch',
-          renderMode === 'list' && 'xl:h-[calc(100dvh-15rem)] xl:min-h-0 xl:pb-0',
+            'flex min-h-0 flex-1 pb-0 xl:items-stretch',
+          renderMode === 'list' && 'xl:min-h-0 xl:overflow-hidden xl:pb-0',
         )}
       >
         {/* Content area */}
@@ -2577,11 +2504,11 @@ export function ScheduleCalendarTab({
             />
           ) : (
             // FullCalendar
-            <div ref={calendarViewportShellRef} className="relative min-h-0 md:h-full">
+            <div ref={calendarViewportShellRef} className="relative h-full min-h-0">
               <div
                 ref={calendarViewportRef}
                 className={cn(
-                  'relative -mx-3 h-[calc(100dvh_-_var(--doctor-mobile-header-h,3.5rem)_-_var(--doctor-mobile-bottom-nav-h,3.25rem)_-_3.125rem)] min-h-0 touch-pan-x touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:h-full md:rounded-xl md:border md:border-border',
+                  'relative -mx-3 h-full min-h-0 flex-1 touch-pan-x touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:mx-0 md:rounded-xl md:border md:border-border',
                   mobileScrollableMonthGrid
                     ? 'overflow-x-hidden overflow-y-auto'
                     : 'overflow-x-auto overflow-y-hidden',
@@ -2789,6 +2716,11 @@ export function ScheduleCalendarTab({
                 datesSet={handleMobileCalendarDatesSet}
                 slotMinTime={slotMinTime}
                 slotMaxTime={slotMaxTime}
+                slotLabelContent={(arg) =>
+                  formatDoctorCalendarHour(
+                    DateTime.fromJSDate(arg.date).setZone(currentTimeZone).hour,
+                  )
+                }
                 scrollTime={calendarScrollTime}
                 scrollTimeReset={false}
                 longPressDelay={450}
@@ -2943,9 +2875,17 @@ export function ScheduleCalendarTab({
                           top: `calc(var(--doctor-calendar-hour-h, 50px) * ${hour})`,
                         }}
                       >
-                        {hour}
+                        {formatDoctorCalendarHour(hour)}
                       </span>
                     ))}
+                    {showMobileNowIndicator ? (
+                      <span
+                        className="absolute right-0 size-0 -translate-y-1/2 border-y-[4px] border-l-[6px] border-y-transparent border-l-destructive"
+                        style={{
+                          top: `calc(var(--doctor-calendar-hour-h, 50px) * ${calendarNowMinute / 60})`,
+                        }}
+                      />
+                    ) : null}
                   </div>
                 </div>
               ) : null}
@@ -2953,7 +2893,7 @@ export function ScheduleCalendarTab({
           )}
         </div>
 
-        <aside className="sticky top-28 hidden max-h-[calc(100dvh-8rem)] w-full self-start space-y-3 overflow-y-auto pb-4 xl:block">
+        <aside className="hidden h-full min-h-0 w-full space-y-3 overflow-y-auto xl:block">
           <section className={doctorSectionCardClass}>
             <h2 className={doctorSectionTitleClass}>Фильтры</h2>
             {renderScheduleFilters('flex flex-col gap-2', 'w-full')}

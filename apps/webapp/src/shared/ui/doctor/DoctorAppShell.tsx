@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import {
   DOCTOR_PAGE_CONTAINER_CLASS,
   DOCTOR_FULL_HEIGHT_PAGE_CLASS,
+  DOCTOR_FULL_HEIGHT_CONTENT_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import type { SessionUser } from '@/shared/types/session';
 import { DoctorShellChromeRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
@@ -16,10 +17,11 @@ export type DoctorAppShellProps = {
   children: ReactNode;
   /**
    * Layout mode:
-   * - `"default"` (default): padded content container (`max-w-7xl px-3 pt-3 pb-6`).
+   * - `"default"` (default): padded flow container with the shared 18px bottom gutter.
    * - `"full-height"`: flex-col fill-height container for pages whose inner lists
    *   scroll internally (Пациенты, Коммуникации, Заявки, Расписание-список).
-   *   Overflow is locked only at `lg+` via child classes; mobile scrolls normally.
+   *   На md+ shell занимает остаток viewport и делегирует прокрутку внутренним панелям;
+   *   на мобильном сохраняется обычный поток страницы.
    */
   layout?: 'default' | 'full-height';
   /** Legacy AppShell props — ignored; doctor chrome is in DoctorWorkspaceShell layout. */
@@ -52,7 +54,7 @@ export function DoctorAppShell({
           backLabel={backLabel}
           mobileActions={mobileHeaderActions}
         />
-        <main id="app-shell-content" className="flex min-h-0 flex-1 flex-col gap-3">
+        <main id="app-shell-content" className={`${DOCTOR_FULL_HEIGHT_CONTENT_CLASS} gap-3`}>
           {children}
         </main>
       </div>

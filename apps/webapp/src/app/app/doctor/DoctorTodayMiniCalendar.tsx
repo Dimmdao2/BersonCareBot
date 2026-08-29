@@ -8,11 +8,20 @@ import luxonPlugin from '@fullcalendar/luxon3';
 import ruLocale from '@fullcalendar/core/locales/ru';
 import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
-import type { CalendarAppointmentEvent, WorkingBounds } from '@/modules/booking-calendar/types';
+import type {
+  CalendarAppointmentEvent,
+  CalendarEvent,
+  WorkingBounds,
+} from '@/modules/booking-calendar/types';
 import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { formatPatientPackageShortLabel } from '@/modules/memberships/display';
 import { cn } from '@/lib/utils';
 import { deriveCalendarInitialScrollTime } from '@/modules/booking-calendar/visibleTimeWindow';
+import {
+  buildDoctorCalendarNonWorkingRanges,
+  doctorCalendarNonWorkingClassNames,
+  formatDoctorCalendarHour,
+} from '@/shared/ui/doctor/calendar/doctorCalendarPresentation';
 
 /** Maps a canonical CalendarAppointmentEvent to a display class matching the schedule calendar. */
 function canonicalEventClass(appt: CalendarAppointmentEvent): string {
@@ -77,7 +86,7 @@ type Props = {
    * When provided, these are used for FullCalendar rendering (instead of the legacy list).
    * Using canonical events ensures the IDs match what DoctorCalendarEventPanel expects.
    */
-  calendarEvents?: CalendarAppointmentEvent[];
+  calendarEvents?: CalendarEvent[];
   /**
    * Минуты с полуночи (больше не используются — FC рисует линию "сейчас" сам).
    * Проп оставлен для обратной совместимости с вызывающим кодом.
@@ -129,23 +138,31 @@ export function DoctorTodayMiniCalendar({
     calendarEvents,
     displayIana,
   );
-  const tomorrowIso =
-    DateTime.fromISO(todayIso, { zone: displayIana }).plus({ days: 1 }).toISODate() ?? todayIso;
-
-  // #6: if today has NO schedule (workingBounds === null, explicitly closed/no data),
-  // paint the whole visible column grey. When workingBounds is undefined (not yet known)
-  // we leave the calendar white — same as before.
+  const workingEvents = (calendarEvents ?? []).filter(
+    (event) => event.kind === 'working',
+  );
   const bgFillEvent =
-    showWorkingHours !== false && workingBounds === null
-      ? [
-          {
-            id: 'nonwork:today:all',
-            start: `${todayIso}T00:00:00`,
-            end: `${tomorrowIso}T00:00:00`,
+    showWorkingHours === true
+      ? buildDoctorCalendarNonWorkingRanges(workingEvents, displayIana, [todayIso]).map(
+          (range) => ({
+            ...range,
             display: 'background' as const,
-            classNames: ['!bg-[#eeeeee]', '!opacity-60'],
-          },
-        ]
+            classNames: [...doctorCalendarNonWorkingClassNames],
+          }),
+        )
+      : [];
+  const breakFillEvents =
+    showWorkingHours === true
+      ? (calendarEvents ?? [])
+          .filter((event) => event.kind === 'break')
+          .map((event) => ({
+            id: `break:${event.id}`,
+            start: event.startAt,
+            end: event.endAt,
+            title: 'Перерыв',
+            display: 'background' as const,
+            classNames: [...doctorCalendarNonWorkingClassNames],
+          }))
       : [];
 
   // Build FullCalendar events.
@@ -155,6 +172,7 @@ export function DoctorTodayMiniCalendar({
     if (calendarEvents !== undefined) {
       // Map CalendarAppointmentEvent → FC event (same pattern as ScheduleCalendarTab)
       return calendarEvents
+        .filter((event): event is CalendarAppointmentEvent => event.kind === 'appointment')
         .filter((appt) => !isCancelledAppointmentStatus(appt.status))
         .map((appt) => ({
           id: appt.id,
@@ -192,7 +210,7 @@ export function DoctorTodayMiniCalendar({
       });
   })();
 
-  const fcEvents = [...bgFillEvent, ...fcAppointmentEvents];
+  const fcEvents = [...bgFillEvent, ...breakFillEvents, ...fcAppointmentEvents];
 
   return (
     <DoctorSection
@@ -267,6 +285,9 @@ export function DoctorTodayMiniCalendar({
           timeZone={displayIana}
           slotMinTime="00:00:00"
           slotMaxTime="24:00:00"
+          slotLabelContent={(arg) =>
+            formatDoctorCalendarHour(DateTime.fromJSDate(arg.date).setZone(displayIana).hour)
+          }
           scrollTime={scrollTime}
           scrollTimeReset={false}
           events={fcEvents}
