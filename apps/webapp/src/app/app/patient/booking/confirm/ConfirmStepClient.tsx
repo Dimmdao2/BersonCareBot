@@ -68,6 +68,8 @@ function isExtraFormField(field: FormField): boolean {
 
 type ConfirmStepOptions = {
   formFieldsApiPath?: string;
+  /** Anonymous booking has no patient account yet, so it cannot own or spend a package. */
+  loadMemberships?: boolean;
   successRedirectPath?: string;
   doneRedirectPath?: string;
   buildAwaitingPaymentHref?: (booking: PatientBookingRecord) => string;
@@ -128,6 +130,7 @@ export function ConfirmStepClient({
   defaultEmail,
   appDisplayTimeZone,
   formFieldsApiPath = '/api/booking/form-fields',
+  loadMemberships = true,
   successRedirectPath = routePaths.bookingNew,
   doneRedirectPath = routePaths.bookingNewDone,
   buildAwaitingPaymentHref,
@@ -194,7 +197,7 @@ export function ConfirmStepClient({
   }, [resolvedFormFieldsApiPath]);
 
   useEffect(() => {
-    if (type !== 'in_person' || !branchId || !serviceId || isReschedule) return;
+    if (!loadMemberships || type !== 'in_person' || !branchId || !serviceId || isReschedule) return;
     let cancelled = false;
     startPackagesLoad(() => {
       void (async () => {
@@ -217,7 +220,7 @@ export function ConfirmStepClient({
     return () => {
       cancelled = true;
     };
-  }, [type, branchId, serviceId, isReschedule, startPackagesLoad]);
+  }, [loadMemberships, type, branchId, serviceId, isReschedule, startPackagesLoad]);
 
   const selection: BookingSelection | null = useMemo(() => {
     if (type === 'in_person' && cityCode && cityTitle && serviceTitle && branchId && serviceId) {

@@ -24,9 +24,6 @@ function stubFetch() {
       if (typeof url === 'string' && url.includes('/api/booking/public/form-fields')) {
         return Promise.resolve(Response.json({ ok: true, fields: [] }));
       }
-      if (typeof url === 'string' && url.includes('/api/booking/memberships/available')) {
-        return Promise.resolve(Response.json({ ok: true, packages: [] }));
-      }
       if (typeof url === 'string' && url.includes('/api/booking/public/create')) {
         return Promise.resolve(
           Response.json({ ok: false, error: 'slot_overlap' }, { status: 409 }),
@@ -59,6 +56,9 @@ describe('public booking confirm — a failed create stays visible', () => {
     );
 
     await waitFor(() => expect(screen.getByLabelText('Фамилия')).toBeInTheDocument());
+    expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+      expect.stringContaining('/api/booking/memberships/available'),
+    );
     expect(screen.getByText(/7\s000,00\s ?₽/)).toBeInTheDocument();
     await user.type(screen.getByLabelText('Фамилия'), 'Иванов');
     await user.type(screen.getByLabelText('Имя'), 'Иван');

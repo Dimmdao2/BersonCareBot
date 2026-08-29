@@ -44,6 +44,7 @@ export function PublicConfirmStepClient(props: InPersonProps | OnlineProps) {
       defaultPhone=""
       defaultEmail=""
       formFieldsApiPath="/api/booking/public/form-fields"
+      loadMemberships={false}
       successRedirectPath={publicBookPaths.done}
       doneRedirectPath={publicBookPaths.done}
       buildAwaitingPaymentHref={(booking) =>
