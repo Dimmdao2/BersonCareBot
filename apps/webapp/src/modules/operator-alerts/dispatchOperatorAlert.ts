@@ -328,11 +328,12 @@ export async function dispatchOperatorAlert(
     await dedupPort.recordSent({ dedupKey: dk, severity: input.block });
   }
 
-  if (!anyChannelAttempted) {
+  if (!anyChannelAttempted && input.topic !== 'notification_audience_empty') {
     // D-b: сам диспетчер алертов не имеет права молча вернуть «некому». Это корневой
     // маршрут (mandatory top-level route у Alertmanager, «Default Policy can't be deleted»
     // у Grafana): пусто → считаем, логируем и уводим в env-fallback, который из админки
-    // не отключается. Рекурсии нет: репортер не зовёт `dispatchOperatorAlert`.
+    // не отключается. Сам сигнал об уже посчитанной пустой аудитории повторно не считаем:
+    // иначе его недоставка обновляет тот же счётчик каждые пять минут и держит сигнал вечным.
     await reportEmptyAudience({
       topic: `operator_alert:${input.topic}`,
       severity: 'operational',

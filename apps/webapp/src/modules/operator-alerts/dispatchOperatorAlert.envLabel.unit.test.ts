@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * Единственный вопрос этого файла: письмо, которое реально уходит через
- * `dispatchOperatorAlert`, несёт метку окружения В ТЕМЕ. Убери `stampOperatorAlertSubject`
- * из чокпоинта (`pushTitle`) — этот тест краснеет первым.
- */
+/** Поведение общей точки отправки операторских алертов: тема окружения и пустая аудитория. */
 
 vi.mock('@/config/env', () => ({ env: { APP_BASE_URL: 'https://test.bersoncare.ru' } }));
 vi.mock('@/infra/logging/logger', () => ({
@@ -12,6 +8,9 @@ vi.mock('@/infra/logging/logger', () => ({
 }));
 vi.mock('@/modules/system-settings/configAdapter', () => ({
   getConfigValue: vi.fn(async () => ''),
+}));
+vi.mock('./emptyAudienceRuntime', () => ({
+  reportEmptyAudience: vi.fn(async () => undefined),
 }));
 
 const relayCalls: Array<{ channel: string; recipient: string; metadata?: Record<string, unknown> }> =
@@ -29,10 +28,12 @@ vi.mock('./relayOperatorAlert', () => ({
 
 import { dispatchOperatorAlert } from './dispatchOperatorAlert';
 import { registerAdminNotificationTargetsPort } from './adminNotificationTargetsRuntime';
+import { reportEmptyAudience } from './emptyAudienceRuntime';
 
-describe('dispatchOperatorAlert — env label reaches the real email subject', () => {
+describe('dispatchOperatorAlert', () => {
   beforeEach(() => {
     relayCalls.length = 0;
+    vi.mocked(reportEmptyAudience).mockClear();
     registerAdminNotificationTargetsPort({
       loadTargets: async () => ({
         telegram: [],
@@ -40,6 +41,42 @@ describe('dispatchOperatorAlert — env label reaches the real email subject', (
         sms: [],
         email: ['operator@example.com'],
       }),
+    });
+  });
+
+  it('does not feed an undeliverable empty-audience signal back into its own counter', async () => {
+    registerAdminNotificationTargetsPort({
+      loadTargets: async () => ({ telegram: [], max: [], sms: [], email: [] }),
+    });
+
+    const result = await dispatchOperatorAlert({
+      block: 'critical',
+      topic: 'notification_audience_empty',
+      dedupKey: 'critical:notification_audience_empty:active',
+      lines: ['Уведомлению некому уйти'],
+    });
+
+    expect(result).toEqual({ dispatched: false, reason: 'no_recipients' });
+    expect(reportEmptyAudience).not.toHaveBeenCalled();
+  });
+
+  it('still records an empty audience for other operator alerts', async () => {
+    registerAdminNotificationTargetsPort({
+      loadTargets: async () => ({ telegram: [], max: [], sms: [], email: [] }),
+    });
+
+    await dispatchOperatorAlert({
+      block: 'critical',
+      topic: 'integrator_api',
+      dedupKey: 'critical:integrator_api:unreachable',
+      lines: ['Integrator API: unreachable'],
+    });
+
+    expect(reportEmptyAudience).toHaveBeenCalledWith({
+      topic: 'operator_alert:integrator_api',
+      severity: 'operational',
+      channels: expect.any(Array),
+      context: { block: 'critical' },
     });
   });
 
