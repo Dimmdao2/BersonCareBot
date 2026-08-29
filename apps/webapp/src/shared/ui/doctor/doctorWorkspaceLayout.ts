@@ -53,26 +53,31 @@ export const DOCTOR_HEADER_INNER_CLASS =
   'flex w-full min-h-14 items-center gap-1.5 px-4 py-2 md:px-6';
 
 /**
- * Контейнер обычной flow-страницы: 12px по бокам, системный нижний зазор 18px.
- * Верхним краем владеет `DoctorPageHeader`; страницы без него получают 12px через
- * `doctor-page-content` в doctor.css.
+ * Контейнер обычной flow-страницы владеет шириной и системным нижним зазором 18px.
+ * Боковые 12px живут на `#app-shell-content`: так шапка и mobile edge-to-edge поверхности
+ * могут доходить до края shell, а обычное содержимое остаётся на общей сетке.
  */
 export const DOCTOR_PAGE_CONTAINER_CLASS =
-  'mx-auto min-h-full w-full max-w-7xl flex-1 px-3 pb-[var(--doctor-page-bottom-gutter,18px)]';
+  'mx-auto min-h-full w-full max-w-7xl flex-1 pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /**
  * Альтернативный контейнер для full-height страниц (Пациенты, Коммуникации, Заявки, Расписание-список).
- * ТОТ ЖЕ видимый контейнер, что и DOCTOR_PAGE_CONTAINER_CLASS (`mx-auto w-full max-w-7xl px-3`) —
+ * ТОТ ЖЕ видимый контейнер, что и DOCTOR_PAGE_CONTAINER_CLASS (`mx-auto w-full max-w-7xl`) —
  * единый шаблон: поля по бокам и выравнивание шапки совпадают с «Сегодня».
  * На desktop/tablet сам shell владеет системным нижним зазором; внутренние панели получают
  * оставшуюся высоту через flex и не вычитают высоту шапки/тулбаров вручную.
  */
 export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
-  'mx-auto w-full max-w-7xl px-3 flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+  'mx-auto w-full max-w-7xl flex min-h-0 flex-1 flex-col overflow-hidden md:pb-[var(--doctor-page-bottom-gutter,18px)]';
 
-/** Контент полноэкранной страницы: занимает остаток shell и не прокручивает документ. */
+/**
+ * Контент полноэкранной страницы занимает остаток shell. Не обрезаем его по горизонтали:
+ * Внутренний padding принадлежит самому main, но clipping — внешнему full-height shell без padding.
+ * Поэтому шапка и mobile edge-to-edge поверхности доходят до настоящего края, а содержимое всё
+ * равно заканчивается над нижней навигацией. Прокрутка остаётся у внутренних панелей.
+ */
 export const DOCTOR_FULL_HEIGHT_CONTENT_CLASS =
-  'flex min-h-0 flex-1 flex-col overflow-hidden';
+  'flex min-h-0 flex-1 flex-col';
 
 /** Split/body внутри full-height shell: только flex-остаток, без guessed viewport arithmetic. */
 export const DOCTOR_REMAINING_HEIGHT_BODY_CLASS = 'min-h-0 flex-1 overflow-hidden';
