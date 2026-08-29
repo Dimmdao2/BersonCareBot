@@ -179,7 +179,9 @@ export function DoctorChatPanel({
       maxLength={4000}
       rows={1}
       textareaRef={textareaRef}
-      className="relative flex shrink-0 flex-col gap-2 border-t border-border pt-3"
+      submitInsideInput
+      inputRowClassName="relative"
+      className="flex shrink-0 flex-col gap-2 pt-3"
       header={
         replyTarget ? (
           <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
@@ -203,13 +205,15 @@ export function DoctorChatPanel({
         <Textarea
           {...props}
           className="min-h-10 resize-none rounded-[18px] py-2 pr-12 pl-3 leading-5"
+          style={{ borderRadius: 18 }}
         />
       )}
       renderSubmit={(props) => (
         <Button
           {...props}
           size="icon"
-          className="absolute right-1.5 bottom-1.5 size-8 rounded-full p-0"
+          className="absolute size-8 rounded-full p-0"
+          style={{ right: 6, bottom: 6, borderRadius: '9999px' }}
         />
       )}
     />

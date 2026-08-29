@@ -290,7 +290,15 @@ export function ChatView({
         )}
       </div>
       {composer != null ? (
-        <div className={cn('mt-auto shrink-0', variant === 'doctor' && 'px-3')}>{composer}</div>
+        <div
+          className={cn(
+            'mt-auto shrink-0',
+            variant === 'doctor' &&
+              'border-t border-border bg-card px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3',
+          )}
+        >
+          {composer}
+        </div>
       ) : null}
     </div>
   );

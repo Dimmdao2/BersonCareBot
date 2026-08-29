@@ -43,6 +43,8 @@ export type MessageComposerProps = {
   onBlur?: FocusEventHandler<HTMLTextAreaElement>;
   renderTextarea: (props: MessageComposerTextareaProps) => ReactNode;
   renderSubmit: (props: MessageComposerSubmitProps) => ReactNode;
+  /** Places the primary submit control inside the textarea row (chat-style composer). */
+  submitInsideInput?: boolean;
   renderActions?: (submit: ReactNode, secondaryActions: ReactNode) => ReactNode;
   header?: ReactNode;
   leadingControl?: ReactNode;
@@ -80,6 +82,7 @@ export function MessageComposer({
   onBlur,
   renderTextarea,
   renderSubmit,
+  submitInsideInput = false,
   renderActions,
   header,
   leadingControl,
@@ -114,17 +117,18 @@ export function MessageComposer({
   return (
     <div className={className}>
       {header}
-      {leadingControl || trailingControl || inputRowClassName ? (
+      {leadingControl || trailingControl || inputRowClassName || submitInsideInput ? (
         <div className={cn(inputRowClassName)}>
           {leadingControl}
           {textarea}
           {trailingControl}
+          {submitInsideInput ? submit : null}
         </div>
       ) : (
         textarea
       )}
       {status}
-      {renderActions ? (
+      {submitInsideInput ? null : renderActions ? (
         renderActions(submit, secondaryActions)
       ) : secondaryActions || actionsClassName ? (
         <div className={actionsClassName}>
