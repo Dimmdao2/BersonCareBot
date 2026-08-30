@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ListTodo, Search, StickyNotePlus, X } from 'lucide-react';
+import { ListTodo, StickyNotePlus } from 'lucide-react';
 import type { SpecialistTaskRow as Task } from '@/modules/specialist-tasks/types';
 import { isSpecialistTaskDueOnDate } from '@/modules/specialist-tasks/taskPriority';
 import { DoctorCatalogPageLayout } from '@/shared/ui/doctor/catalog/DoctorCatalogPageLayout';
@@ -9,13 +9,13 @@ import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayou
 import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
+import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
   DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
   DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
 } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { cn } from '@/lib/utils';
 import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
@@ -108,38 +108,21 @@ export function DoctorTasksPageClient({
 
   const taskFilters = (
     <div className="flex w-full min-w-0 items-center gap-1.5">
-      <div className="relative min-w-0 flex-1">
-        <Search
-          className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-          aria-hidden
-        />
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Поиск задач"
-          aria-label="Поиск по задачам и пациентам"
-          className="h-8 pl-8 pr-8 text-sm"
-        />
-        {query ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => setQuery('')}
-            aria-label="Сбросить поиск"
-            className="absolute right-0 top-0 text-muted-foreground"
-          >
-            <X className="size-3.5" aria-hidden />
-          </Button>
-        ) : null}
-      </div>
+      <DoctorSearchInput
+        value={query}
+        onValueChange={setQuery}
+        onClear={() => setQuery('')}
+        placeholder="Поиск задач"
+        aria-label="Поиск по задачам и пациентам"
+      />
       <div className="flex shrink-0 items-center gap-1" aria-label="Статус задач">
         <Button
           type="button"
           size="icon-sm"
           variant={showingCompletedTasks ? 'default' : 'outline'}
-          aria-label={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
+          aria-label={
+            showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'
+          }
           title={showingCompletedTasks ? 'Показать открытые задачи' : 'Показать выполненные задачи'}
           aria-pressed={showingCompletedTasks}
           onClick={() => selectTaskView(showingCompletedTasks ? 'open' : 'completed')}
@@ -237,17 +220,10 @@ export function DoctorTasksPageClient({
   return (
     <>
       <DoctorShellChromeRegistration title="Задачи" mobileActions={mobileHeaderActions} />
-      <DoctorPageHeader
-        title="Задачи"
-        toolbar={taskFilters}
-        toolbarClassName="md:hidden"
-      />
+      <DoctorPageHeader title="Задачи" toolbar={taskFilters} toolbarClassName="md:hidden" />
       <DoctorCatalogPageLayout
         mobileEdgeToEdge
-        className={cn(
-          DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
-          'min-h-0 flex-1 gap-0 md:gap-3',
-        )}
+        className={cn(DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS, 'min-h-0 flex-1 gap-0 md:gap-3')}
         toolbar={
           <DoctorCatalogFiltersToolbar
             className="hidden md:block"
@@ -282,7 +258,7 @@ export function DoctorTasksPageClient({
               <div
                 className={cn(
                   DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
-                  'flex min-h-0 flex-1 flex-col overflow-y-auto',
+                  'flex min-h-0 flex-1 flex-col overflow-y-auto pt-2 md:pt-0',
                 )}
               >
                 {visibleTaskGroups.map((group) => (

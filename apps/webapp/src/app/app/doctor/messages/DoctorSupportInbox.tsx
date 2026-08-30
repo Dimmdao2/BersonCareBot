@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { ClipboardList, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
@@ -116,8 +116,6 @@ export type DoctorSupportInboxProps = {
   onSelectedConversationChange?: (id: string | null) => void;
 };
 
-type FilterMode = 'all' | 'unread' | 'onSupport';
-
 export function DoctorSupportInbox({
   active = true,
   displayIana = 'Europe/Moscow',
@@ -126,9 +124,7 @@ export function DoctorSupportInbox({
 }: DoctorSupportInboxProps) {
   const [allList, setAllList] = useState<ConvRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<FilterMode>('all');
   const [query, setQuery] = useState('');
-  const [searchMode, setSearchMode] = useState<'name' | 'text'>('name');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
@@ -280,29 +276,16 @@ export function DoctorSupportInbox({
     };
   }, [active, fetchList, selectedId]);
 
-  const unreadCount = allList.filter((c) => c.unreadFromUserCount > 0).length;
-  const onSupportCount = allList.filter((c) => c.onSupport).length;
-
-  const filteredByChip =
-    filter === 'unread'
-      ? allList.filter((c) => c.unreadFromUserCount > 0)
-      : filter === 'onSupport'
-        ? allList.filter((c) => c.onSupport)
-        : allList;
-
   const filteredList = query.trim()
-    ? filteredByChip.filter((c) => {
-        const q = query.toLowerCase();
-        if (searchMode === 'name') {
-          const searchable = [c.lastName, c.firstName, c.displayName, c.phoneNormalized]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-          return searchable.includes(q);
-        }
-        return (c.lastMessageText ?? '').toLowerCase().includes(q);
+    ? allList.filter((c) => {
+        const q = query.trim().toLocaleLowerCase('ru-RU');
+        const searchable = [c.lastName, c.firstName, c.displayName, c.lastMessageText]
+          .filter(Boolean)
+          .join(' ')
+          .toLocaleLowerCase('ru-RU');
+        return searchable.includes(q);
       })
-    : filteredByChip;
+    : allList;
 
   if (loading) {
     return (
@@ -322,76 +305,13 @@ export function DoctorSupportInbox({
     : '';
 
   const renderListControls = () => (
-    <div className="flex flex-col gap-1.5">
-      <div className="flex gap-1.5">
-        <Input
-          type="search"
-          placeholder={
-            searchMode === 'name'
-              ? 'Поиск по имени / телефону'
-              : 'Поиск по тексту последнего сообщения'
-          }
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="h-8 min-w-0 flex-1"
-          aria-label={
-            searchMode === 'name'
-              ? 'Поиск по имени пациента'
-              : 'Поиск по тексту последнего сообщения'
-          }
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          title={
-            searchMode === 'name'
-              ? 'Переключить на поиск по тексту сообщений'
-              : 'Переключить на поиск по имени'
-          }
-          onClick={() => {
-            setSearchMode((mode) => (mode === 'name' ? 'text' : 'name'));
-            setQuery('');
-          }}
-          className={cn(
-            'shrink-0 text-xs',
-            searchMode === 'text' && 'border-primary/40 bg-primary/10 text-primary',
-          )}
-        >
-          {searchMode === 'name' ? 'Аб' : '✉'}
-        </Button>
-      </div>
-      <div className="flex flex-wrap gap-1.5">
-        <Button
-          type="button"
-          variant={filter === 'unread' ? 'ghost' : 'outline'}
-          size="sm"
-          onClick={() => setFilter(filter === 'unread' ? 'all' : 'unread')}
-          className={cn(
-            'shrink-0 text-xs',
-            filter === 'unread' &&
-              'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
-          )}
-          aria-pressed={filter === 'unread'}
-        >
-          Непрочитанные · {unreadCount}
-        </Button>
-        <Button
-          type="button"
-          variant={filter === 'onSupport' ? 'ghost' : 'outline'}
-          size="sm"
-          onClick={() => setFilter(filter === 'onSupport' ? 'all' : 'onSupport')}
-          className={cn(
-            'shrink-0 text-xs',
-            filter === 'onSupport' &&
-              'bg-primary/15 text-primary hover:bg-primary/20 hover:text-primary',
-          )}
-          aria-pressed={filter === 'onSupport'}
-        >
-          ★ На сопровождении · {onSupportCount}
-        </Button>
-      </div>
-    </div>
+    <DoctorSearchInput
+      placeholder="Поиск по клиенту и сообщению"
+      value={query}
+      onValueChange={setQuery}
+      onClear={() => setQuery('')}
+      aria-label="Поиск по клиенту и сообщению"
+    />
   );
 
   const leftPane = (
@@ -411,13 +331,7 @@ export function DoctorSupportInbox({
       <div ref={listScrollRef} className="flex flex-1 flex-col overflow-y-auto">
         {filteredList.length === 0 ? (
           <div className="flex flex-1 items-center justify-center py-8 text-sm text-muted-foreground">
-            {query.trim()
-              ? 'Ничего не найдено'
-              : filter === 'unread'
-                ? 'Нет непрочитанных диалогов'
-                : filter === 'onSupport'
-                  ? 'Нет диалогов на сопровождении'
-                  : 'Нет открытых диалогов'}
+            {query.trim() ? 'Ничего не найдено' : 'Нет открытых диалогов'}
           </div>
         ) : (
           <ul

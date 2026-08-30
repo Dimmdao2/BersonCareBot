@@ -32,17 +32,15 @@ import {
   Dumbbell,
   Filter,
   Handshake,
-  Search,
   Ticket,
-  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ClientListItem, DoctorDashboardPatientMetrics } from '@/modules/doctor-clients/ports';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
+import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
@@ -709,31 +707,13 @@ function PatientsContent({
         )}
       >
         <div className="flex min-w-0 items-center gap-1.5">
-          <div className="relative min-w-0 flex-1">
-            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-              <Search className="size-3.5" aria-hidden />
-            </span>
-            <Input
-              type="search"
-              placeholder="Поиск по ФИО и контактам"
-              value={searchInput}
-              onChange={(event) => onSearchInput(event.target.value)}
-              className="h-8 pl-8 pr-8 text-sm"
-              aria-label="Поиск по ФИО и контактам"
-            />
-            {searchInput ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={onClearSearch}
-                className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-                aria-label="Сбросить поиск"
-              >
-                <X className="size-3.5" />
-              </Button>
-            ) : null}
-          </div>
+          <DoctorSearchInput
+            placeholder="Поиск по ФИО и контактам"
+            value={searchInput}
+            onValueChange={onSearchInput}
+            onClear={onClearSearch}
+            aria-label="Поиск по ФИО и контактам"
+          />
           {mobile ? (
             <Button
               type="button"
