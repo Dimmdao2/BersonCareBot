@@ -26,10 +26,7 @@ import {
   isCancelledAppointmentStatus,
 } from '@/modules/booking-calendar/appointmentStatusLabels';
 import type FullCalendar from '@fullcalendar/react';
-import type {
-  CalendarOptions as FullCalendarOptions,
-  EventInput,
-} from '@fullcalendar/core';
+import type { CalendarOptions as FullCalendarOptions, EventInput } from '@fullcalendar/core';
 import type {
   CalendarAppointmentEvent,
   CalendarEvent,
@@ -869,13 +866,7 @@ export function ScheduleCalendarTab({
 
           // Map v26 view to API view param
           const apiView =
-            v === '3days'
-              ? '3days'
-              : v === 'weekgrid'
-                ? 'week'
-                : v === 'month'
-                  ? 'month'
-                  : 'day';
+            v === '3days' ? '3days' : v === 'weekgrid' ? 'week' : v === 'month' ? 'month' : 'day';
 
           const qs = buildQuery({
             view: apiView,
@@ -914,14 +905,7 @@ export function ScheduleCalendarTab({
         }
       });
     },
-    [
-      view,
-      anchorDate,
-      branchId,
-      serviceId,
-      timeZone,
-      scheduleScope,
-    ],
+    [view, anchorDate, branchId, serviceId, timeZone, scheduleScope],
   );
 
   const loadKpis = useCallback(
@@ -1453,8 +1437,10 @@ export function ScheduleCalendarTab({
           id: event.id,
           start: toFcDate(event.startAt, currentTimeZone),
           end: toFcDate(event.endAt, currentTimeZone),
-          // Для month-вида: только фамилия (D4)
-          title: view === 'month' ? eventLastName(event) : eventTitle(event),
+          title: eventTitle(event),
+          // Timed events in dayGrid default to the compact "dot" presentation. Month appointments
+          // are real cards: this keeps branch/status colors and enough room for their metadata.
+          display: view === 'month' ? ('block' as const) : ('auto' as const),
           editable: !isCancelledAppointmentStatus(event.status),
           durationEditable: !isCancelledAppointmentStatus(event.status),
           startEditable: !isCancelledAppointmentStatus(event.status),
@@ -2097,8 +2083,7 @@ export function ScheduleCalendarTab({
       <div
         className={cn(
           'block min-h-0 flex-1 pb-0 xl:grid xl:grid-cols-[minmax(0,7fr)_minmax(18rem,3fr)] xl:items-start xl:gap-4',
-          renderMode === 'calendar' &&
-            'flex min-h-0 flex-1 pb-0 xl:items-stretch',
+          renderMode === 'calendar' && 'flex min-h-0 flex-1 pb-0 xl:items-stretch',
           renderMode === 'list' && 'xl:min-h-0 xl:overflow-hidden xl:pb-0',
         )}
       >
@@ -2129,7 +2114,12 @@ export function ScheduleCalendarTab({
             // FullCalendar
             <div className="relative -mx-3 h-full min-h-0 md:mx-0">
               <div
-                className="relative h-full min-h-0 w-full flex-1 touch-pan-y overflow-hidden overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-full md:rounded-xl md:border md:border-border"
+                className={cn(
+                  'relative h-full min-h-0 w-full flex-1 touch-pan-y overscroll-contain border-0 bg-card pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:w-full md:rounded-xl md:border md:border-border',
+                  view === 'month' && isMobileViewport
+                    ? 'overflow-x-hidden overflow-y-auto'
+                    : 'overflow-hidden',
+                )}
                 data-mobile-calendar-viewport=""
                 onPointerDownCapture={() => {
                   if (calendarFilterOpenRef.current) {
@@ -2138,7 +2128,7 @@ export function ScheduleCalendarTab({
                 }}
               >
                 <div className="h-full min-h-0">
-                      <style>{`
+                  <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
                    (бьют инлайн-синий FC в timeGrid). Здесь убираем тень FC,
                    принудительно делаем текст записей ТЁМНЫМ (FC форсит белый через
@@ -2261,167 +2251,185 @@ export function ScheduleCalendarTab({
                   line-height: 1.5 !important;
                 }
 
+                @media (max-width: 767px) {
+                  .fc-dayGridMonth-view .fc-daygrid-day-frame {
+                    min-height: 8.75rem;
+                  }
+                  .fc-dayGridMonth-view .fc-daygrid-event {
+                    margin-inline: 0.125rem;
+                    border-radius: 0.25rem;
+                  }
+                }
+
                 .fc-timegrid-slot-label-cushion,
                 .fc-timegrid-axis-cushion {
                   padding-top: 0.125rem;
                   padding-bottom: 0.125rem;
                 }
                 `}</style>
-                      <ScheduleFullCalendarHost
-                        calendarRef={calendarRef}
-                        key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:bounded`}
-                        initialView={fcInitialView}
-                        views={fcViews}
-                        initialDate={anchorDate}
-                        timeZone={currentTimeZone}
-                        events={calendarEvents}
-                        headerToolbar={false}
-                        editable={view !== 'month'}
-                        eventDurationEditable={view !== 'month'}
-                        eventStartEditable={view !== 'month'}
-                        // R32: выделение области создаёт запись; клик (без движения) не выделяет,
-                        // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
-                        selectable={view !== 'month'}
-                        selectMirror
-                        selectMinDistance={5}
-                        // #225: keep FC visual slot selection while the create panel is open.
-                        // Default unselectAuto=true clears the blue drag highlight on click-elsewhere,
-                        // making it look like the slot choice was lost even though the form is prefilled.
-                        unselectAuto={false}
-                        select={onSelect}
-                        nowIndicator
-                        dayMaxEvents
-                        allDaySlot={false}
-                        height="100%"
-                        slotMinTime={slotMinTime}
-                        slotMaxTime={slotMaxTime}
-                        slotLabelContent={(arg) =>
-                          formatDoctorCalendarHour(
-                            DateTime.fromJSDate(arg.date).setZone(currentTimeZone).hour,
-                          )
-                        }
-                        scrollTime={calendarScrollTime}
-                        scrollTimeReset={false}
-                        longPressDelay={450}
-                        eventLongPressDelay={450}
-                        selectLongPressDelay={450}
-                        // Клик по заголовку дня → drill-down (D3)
-                        navLinks
-                        navLinkDayClick={(date) => {
-                          const dateKey =
-                    DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ?? anchorDate;
-                          drillDownDay(dateKey);
-                        }}
-                        // CR-1 / Клик по числу в month → drill-down.
-                        // Pass dayCellContent only in month view to avoid FullCalendar calling it
-                        // (and getting a React element) for timeGrid column headers, which logged a
-                        // "1 Issue" console error in the Next.js dev overlay.
-                        {...(view === 'month'
-                          ? {
-                              dayCellContent: (arg: { date: Date }) => {
-                                const isToday =
-                          DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
-                                  DateTime.now().setZone(currentTimeZone).toISODate();
-                                return (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    className={cn(
-                                      'fc-daygrid-day-number hover:underline cursor-pointer',
-                                      isToday && 'fc-today-circle',
-                                    )}
-                                    onClick={() => {
-                                      const dateKey =
-                                        DateTime.fromJSDate(arg.date)
-                                          .setZone(currentTimeZone)
-                                          .toISODate() ?? anchorDate;
-                                      drillDownDay(dateKey);
-                                    }}
-                                  >
-                                    {arg.date.getDate()}
-                                  </Button>
-                                );
-                              },
-                            }
-                          : {
-                              dayHeaderContent: (arg: { date: Date }) => {
-                                const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
-                                const isToday =
-                          dt.toISODate() === DateTime.now().setZone(currentTimeZone).toISODate();
-                                return (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                            className={cn('fc-timegrid-header-link', isToday && 'fc-today-circle')}
-                                    onClick={() => {
-                                      const dateKey = dt.toISODate() ?? anchorDate;
-                                      drillDownDay(dateKey);
-                                    }}
-                                  >
-                                    <span className="fc-timegrid-header-weekday">
-                                      {dt.setLocale('ru').toFormat('ccc')}
-                                    </span>
-                                    <span className="fc-timegrid-header-day">{dt.day}</span>
-                                  </Button>
-                                );
-                              },
-                            })}
-                        eventClick={(arg) => {
-                          if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
-                            suppressCalendarInteractionUntilRef.current = 0;
-                            return;
-                          }
-                          const appointment = arg.event.extendedProps?.appointment as
-                            CalendarAppointmentEvent | undefined;
-                          if (!appointment) return;
-                          openAppointmentDetails(appointment);
-                        }}
-                        dateClick={(arg) => {
-                          if (Date.now() <= suppressCalendarDateClickUntilRef.current) {
-                            suppressCalendarDateClickUntilRef.current = 0;
-                            return;
-                          }
-                          if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
-                            suppressCalendarInteractionUntilRef.current = 0;
-                            return;
-                          }
-                          if (Date.now() - lastSelectAtRef.current < 500) return;
-                          if (filtersPanelOpen) {
-                            setFiltersPanelOpen(false);
-                            return;
-                          }
-                          if (selected || showCreatePanel) {
-                            closeDraftOrSelectionFromGrid();
-                            return;
-                          }
-                          openCreateDraft(arg.date, null);
-                        }}
-                        eventDrop={onDrop}
-                        eventResize={onResize}
-                        eventContent={(info) => {
-                          const appointment = info.event.extendedProps?.appointment as
-                            CalendarAppointmentEvent | undefined;
-                          if (appointment) {
-                            if (view === 'month') {
-                              // Плашка = строка, только фамилия
-                              return (
-                                <div className="truncate px-1 text-[11px] leading-tight">
-                                  {eventLastName(appointment)}
-                                </div>
-                              );
-                            }
+                  <ScheduleFullCalendarHost
+                    calendarRef={calendarRef}
+                    key={`${view}:${anchorDate}:${branchId ?? 'all'}:${serviceId ?? 'all'}:${calendarScrollTime}:bounded`}
+                    initialView={fcInitialView}
+                    views={fcViews}
+                    initialDate={anchorDate}
+                    timeZone={currentTimeZone}
+                    events={calendarEvents}
+                    headerToolbar={false}
+                    editable={view !== 'month'}
+                    eventDurationEditable={view !== 'month'}
+                    eventStartEditable={view !== 'month'}
+                    // R32: выделение области создаёт запись; клик (без движения) не выделяет,
+                    // чтобы остаться сбросом выбора (R24). selectMinDistance разводит клик и drag.
+                    selectable={view !== 'month'}
+                    selectMirror
+                    selectMinDistance={5}
+                    // #225: keep FC visual slot selection while the create panel is open.
+                    // Default unselectAuto=true clears the blue drag highlight on click-elsewhere,
+                    // making it look like the slot choice was lost even though the form is prefilled.
+                    unselectAuto={false}
+                    select={onSelect}
+                    nowIndicator
+                    dayMaxEvents={view === 'month' && isMobileViewport ? false : true}
+                    allDaySlot={false}
+                    height={view === 'month' && isMobileViewport ? 'auto' : '100%'}
+                    slotMinTime={slotMinTime}
+                    slotMaxTime={slotMaxTime}
+                    slotLabelContent={(arg) =>
+                      formatDoctorCalendarHour(
+                        DateTime.fromJSDate(arg.date).setZone(currentTimeZone).hour,
+                      )
+                    }
+                    scrollTime={calendarScrollTime}
+                    scrollTimeReset={false}
+                    longPressDelay={450}
+                    eventLongPressDelay={450}
+                    selectLongPressDelay={450}
+                    // Клик по заголовку дня → drill-down (D3)
+                    navLinks
+                    navLinkDayClick={(date) => {
+                      const dateKey =
+                        DateTime.fromJSDate(date).setZone(currentTimeZone).toISODate() ??
+                        anchorDate;
+                      drillDownDay(dateKey);
+                    }}
+                    // CR-1 / Клик по числу в month → drill-down.
+                    // Pass dayCellContent only in month view to avoid FullCalendar calling it
+                    // (and getting a React element) for timeGrid column headers, which logged a
+                    // "1 Issue" console error in the Next.js dev overlay.
+                    {...(view === 'month'
+                      ? {
+                          dayCellContent: (arg: { date: Date }) => {
+                            const isToday =
+                              DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ===
+                              DateTime.now().setZone(currentTimeZone).toISODate();
                             return (
-                              <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
-                        <div className="truncate font-medium">{eventTitle(appointment)}</div>
-                                <div className="truncate opacity-80">
-                                  {appointmentStatusLabel(appointment.status)}
-                                </div>
-                              </div>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className={cn(
+                                  'fc-daygrid-day-number hover:underline cursor-pointer',
+                                  isToday && 'fc-today-circle',
+                                )}
+                                onClick={() => {
+                                  const dateKey =
+                                    DateTime.fromJSDate(arg.date)
+                                      .setZone(currentTimeZone)
+                                      .toISODate() ?? anchorDate;
+                                  drillDownDay(dateKey);
+                                }}
+                              >
+                                {arg.date.getDate()}
+                              </Button>
                             );
-                          }
-                  return <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>;
-                        }}
-                      />
+                          },
+                        }
+                      : {
+                          dayHeaderContent: (arg: { date: Date }) => {
+                            const dt = DateTime.fromJSDate(arg.date).setZone(currentTimeZone);
+                            const isToday =
+                              dt.toISODate() ===
+                              DateTime.now().setZone(currentTimeZone).toISODate();
+                            return (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                className={cn(
+                                  'fc-timegrid-header-link',
+                                  isToday && 'fc-today-circle',
+                                )}
+                                onClick={() => {
+                                  const dateKey = dt.toISODate() ?? anchorDate;
+                                  drillDownDay(dateKey);
+                                }}
+                              >
+                                <span className="fc-timegrid-header-weekday">
+                                  {dt.setLocale('ru').toFormat('ccc')}
+                                </span>
+                                <span className="fc-timegrid-header-day">{dt.day}</span>
+                              </Button>
+                            );
+                          },
+                        })}
+                    eventClick={(arg) => {
+                      if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+                        suppressCalendarInteractionUntilRef.current = 0;
+                        return;
+                      }
+                      const appointment = arg.event.extendedProps?.appointment as
+                        CalendarAppointmentEvent | undefined;
+                      if (!appointment) return;
+                      openAppointmentDetails(appointment);
+                    }}
+                    dateClick={(arg) => {
+                      if (Date.now() <= suppressCalendarDateClickUntilRef.current) {
+                        suppressCalendarDateClickUntilRef.current = 0;
+                        return;
+                      }
+                      if (Date.now() <= suppressCalendarInteractionUntilRef.current) {
+                        suppressCalendarInteractionUntilRef.current = 0;
+                        return;
+                      }
+                      if (Date.now() - lastSelectAtRef.current < 500) return;
+                      if (filtersPanelOpen) {
+                        setFiltersPanelOpen(false);
+                        return;
+                      }
+                      if (selected || showCreatePanel) {
+                        closeDraftOrSelectionFromGrid();
+                        return;
+                      }
+                      openCreateDraft(arg.date, null);
+                    }}
+                    eventDrop={onDrop}
+                    eventResize={onResize}
+                    eventContent={(info) => {
+                      const appointment = info.event.extendedProps?.appointment as
+                        CalendarAppointmentEvent | undefined;
+                      if (appointment) {
+                        if (view === 'month') {
+                          return (
+                            <div className="min-w-0 overflow-hidden px-1 py-0.5 text-left leading-tight">
+                              <div className="line-clamp-2 break-words text-[11px] font-medium">
+                                {appointment.patientName?.trim() || eventLastName(appointment)}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return (
+                          <div className="overflow-hidden px-1 py-0.5 text-[11px] leading-tight">
+                            <div className="truncate font-medium">{eventTitle(appointment)}</div>
+                            <div className="truncate opacity-80">
+                              {appointmentStatusLabel(appointment.status)}
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="truncate px-1 py-0.5 text-[11px]">{info.event.title}</div>
+                      );
+                    }}
+                  />
                 </div>
               </div>
             </div>

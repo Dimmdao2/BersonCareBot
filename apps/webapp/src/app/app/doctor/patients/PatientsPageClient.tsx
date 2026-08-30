@@ -42,6 +42,7 @@ import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { doctorMetricValueClass } from '@/shared/ui/doctor/doctorVisual';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -518,11 +519,6 @@ function PatientsContent({
     () => applyCategoryFilter(allClients, activeCategory),
     [allClients, activeCategory],
   );
-  const filteredBySegments = useMemo(
-    () => applySegmentFilters(categoryBase, activeSegments),
-    [categoryBase, activeSegments],
-  );
-
   // PAT-CLIENTS-1: filter+sort is real work (localeCompare sort over the whole roster) and must NOT
   // recompute on every render. Before this was memoized it recomputed synchronously on every native
   // `scroll` event (see onListScroll below), which — combined with the scrollTop restore effect —
@@ -648,7 +644,7 @@ function PatientsContent({
                     );
               const currentValue =
                 seg.key === 'all'
-                  ? filteredBySegments.length
+                  ? categoryBase.length
                   : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
               const totalValue =
                 seg.key === 'all'
@@ -676,6 +672,10 @@ function PatientsContent({
             })}
           </DoctorMetricList>
         </TooltipProvider>
+      </div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-sm text-muted-foreground">Найдено</span>
+        <span className={doctorMetricValueClass}>{filtered.length}</span>
       </div>
     </div>
   );

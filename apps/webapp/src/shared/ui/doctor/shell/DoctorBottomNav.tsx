@@ -36,29 +36,31 @@ export function DoctorBottomNav({
   return (
     <nav
       aria-label="Основные разделы"
-      className="relative z-40 flex h-12 shrink-0 border-t border-border/70 bg-background/95 shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
+      className="relative z-40 shrink-0 border-t border-border/70 bg-background/95 pb-[calc(env(safe-area-inset-bottom,0px)+0.125rem)] shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
     >
-      {visibleItems.map((item) => {
-        const active = isDoctorNavItemActive(item.href, pathname);
-        const Icon = getDoctorMenuIcon(item.id);
-        if (!Icon) return null;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            prefetch={false}
-            aria-label={item.label}
-            aria-current={active ? 'page' : undefined}
-            title={item.label}
-            className={cn(
-              'flex h-full min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
-              active && 'bg-primary/10 text-primary',
-            )}
-          >
-            <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
-          </Link>
-        );
-      })}
+      <div className="flex h-12">
+        {visibleItems.map((item) => {
+          const active = isDoctorNavItemActive(item.href, pathname);
+          const Icon = getDoctorMenuIcon(item.id);
+          if (!Icon) return null;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              prefetch={false}
+              aria-label={item.label}
+              aria-current={active ? 'page' : undefined}
+              title={item.label}
+              className={cn(
+                'flex h-full min-w-0 flex-1 items-center justify-center text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+                active && 'bg-primary/10 text-primary',
+              )}
+            >
+              <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
