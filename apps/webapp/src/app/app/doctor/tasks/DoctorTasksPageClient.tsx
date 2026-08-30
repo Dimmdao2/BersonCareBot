@@ -258,22 +258,12 @@ export function DoctorTasksPageClient({
               <div
                 className={cn(
                   DOCTOR_MOBILE_SCROLL_END_INSET_CLASS,
-                  'flex min-h-0 flex-1 flex-col overflow-y-auto pt-2 md:pt-0',
+                  'flex min-h-0 flex-1 flex-col overflow-y-auto',
                 )}
               >
                 {visibleTaskGroups.map((group) => (
-                  <section
-                    key={group.kind}
-                    className={cn(
-                      group.kind === 'completed' && 'mt-2 border-t border-border/60 pt-2',
-                    )}
-                  >
-                    <p
-                      className={cn(
-                        'px-3 pb-1 text-xs font-medium',
-                        group.kind === 'completed' ? 'text-muted-foreground' : 'text-foreground',
-                      )}
-                    >
+                  <section key={group.kind}>
+                    <p className="px-[var(--doctor-list-inline-padding,18px)] py-2 text-xs font-medium text-muted-foreground md:px-3 md:py-1">
                       {group.kind === 'completed' ? 'Выполненные' : 'Открытых'}:{' '}
                       {group.tasks.length}
                     </p>
