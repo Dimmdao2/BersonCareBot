@@ -71,7 +71,7 @@ export const DOCTOR_FULL_HEIGHT_PAGE_CLASS =
  * reaches the navigation and owns the small trailing space after the final row.
  */
 export const DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS =
-  'pb-[calc(var(--doctor-page-bottom-gutter,18px)-4px)] md:pb-[var(--doctor-page-bottom-gutter,18px)]';
+  'pb-3 md:pb-[var(--doctor-page-bottom-gutter,18px)]';
 
 /** White trailing space owned by a continuous mobile list, after its final row. */
 export const DOCTOR_MOBILE_SCROLL_END_INSET_CLASS = 'pb-3 md:pb-0';
