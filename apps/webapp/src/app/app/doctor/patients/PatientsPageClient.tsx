@@ -554,6 +554,7 @@ function PatientsContent({
           c.displayName?.toLowerCase().includes(q) ||
           c.firstName?.toLowerCase().includes(q) ||
           c.lastName?.toLowerCase().includes(q) ||
+          c.patronymic?.toLowerCase().includes(q) ||
           c.phone?.toLowerCase().includes(q),
       );
     }
@@ -592,49 +593,107 @@ function PatientsContent({
 
   const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase('ru-RU');
 
-  const renderFilters = (idPrefix: string) => (
-    <>
-      <TooltipProvider delay={450}>
-        <DoctorMetricList className="grid-cols-3 gap-1.5 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-          {SEGMENTS.map((seg) => {
-            const segmentContextBase =
-              seg.key === 'all'
-                ? categoryBase
-                : applySegmentFilters(
-                    categoryBase,
-                    activeSegments.filter((key) => key !== seg.key),
-                  );
-            const currentValue =
-              seg.key === 'all'
-                ? filteredBySegments.length
-                : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
-            const totalValue =
-              seg.key === 'all'
-                ? categoryBase.length
-                : getSegmentCount(seg.key, metrics, categoryBase);
-            return (
-              <DoctorStatCard
-                key={seg.key}
-                id={`${idPrefix}-segment-${seg.key}`}
-                title={seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
-                value={renderSegmentMetricValue(currentValue, totalValue)}
-                tooltip={
-                  seg.key === 'all'
-                    ? `Все ${patientPluralLabelLower} этой организации.`
-                    : seg.tooltip
-                }
-                selected={
-                  seg.key === 'all'
-                    ? activeSegments.length === 0 && !archivedOnly
-                    : activeSegments.includes(seg.key)
-                }
-                onClick={() => onSegmentToggle(seg.key)}
-              />
-            );
-          })}
-        </DoctorMetricList>
-      </TooltipProvider>
-    </>
+  const renderSortControls = () => (
+    <div
+      className="flex min-w-0 flex-wrap items-center justify-between gap-2"
+      aria-label={`Сортировка: ${patientPluralLabelLower}`}
+    >
+      <span className="text-sm">Сортировать</span>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={cn(
+            'h-8 gap-1.5 px-2 text-xs',
+            sort === 'recent_appointments' && doctorDnaActiveSortToneClass,
+          )}
+          aria-pressed={sort === 'recent_appointments'}
+          aria-label={`Недавние: ${sort === 'recent_appointments' && sortDirection === 'asc' ? 'давние сверху' : 'недавние сверху'}`}
+          onClick={() => onSortSelect('recent_appointments')}
+        >
+          Недавние
+          {sort === 'recent_appointments' ? (
+            sortDirection === 'desc' ? (
+              <ArrowDown className="size-3.5" aria-hidden />
+            ) : (
+              <ArrowUp className="size-3.5" aria-hidden />
+            )
+          ) : null}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={cn('h-8 gap-1.5 px-2 text-xs', sort === 'fio' && doctorDnaActiveSortToneClass)}
+          aria-pressed={sort === 'fio'}
+          aria-label={`По фамилии: ${sort === 'fio' && sortDirection === 'desc' ? 'Я–А' : 'А–Я'}`}
+          onClick={() => onSortSelect('fio')}
+        >
+          По фамилии
+          {sort === 'fio' ? (
+            sortDirection === 'asc' ? (
+              <ArrowDown className="size-3.5" aria-hidden />
+            ) : (
+              <ArrowUp className="size-3.5" aria-hidden />
+            )
+          ) : null}
+        </Button>
+      </div>
+    </div>
+  );
+
+  const renderFilters = (idPrefix: string, mobile = false) => (
+    <div className="flex min-h-0 flex-col gap-3">
+      {renderSortControls()}
+      <div className="border-t border-border/60 pt-3">
+        <TooltipProvider delay={450}>
+          <DoctorMetricList
+            className={cn(
+              'gap-1.5',
+              mobile ? 'grid-cols-2' : 'grid-cols-3 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3',
+            )}
+          >
+            {SEGMENTS.map((seg) => {
+              const segmentContextBase =
+                seg.key === 'all'
+                  ? categoryBase
+                  : applySegmentFilters(
+                      categoryBase,
+                      activeSegments.filter((key) => key !== seg.key),
+                    );
+              const currentValue =
+                seg.key === 'all'
+                  ? filteredBySegments.length
+                  : (getSegmentCount(seg.key, metrics, segmentContextBase) ?? '—');
+              const totalValue =
+                seg.key === 'all'
+                  ? categoryBase.length
+                  : getSegmentCount(seg.key, metrics, categoryBase);
+              return (
+                <DoctorStatCard
+                  key={seg.key}
+                  id={`${idPrefix}-segment-${seg.key}`}
+                  title={seg.key === 'all' ? `Все ${patientPluralLabelLower}` : seg.title}
+                  value={renderSegmentMetricValue(currentValue, totalValue)}
+                  tooltip={
+                    seg.key === 'all'
+                      ? `Все ${patientPluralLabelLower} этой организации.`
+                      : seg.tooltip
+                  }
+                  selected={
+                    seg.key === 'all'
+                      ? activeSegments.length === 0 && !archivedOnly
+                      : activeSegments.includes(seg.key)
+                  }
+                  onClick={() => onSegmentToggle(seg.key)}
+                />
+              );
+            })}
+          </DoctorMetricList>
+        </TooltipProvider>
+      </div>
+    </div>
   );
 
   const renderListControls = (mobile: boolean) => (
@@ -649,28 +708,42 @@ function PatientsContent({
           mobile ? '' : 'border-b border-border/40 px-[var(--doctor-block-padding,18px)] py-2',
         )}
       >
-        <div className="relative min-w-0">
-          <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
-            <Search className="size-3.5" aria-hidden />
-          </span>
-          <Input
-            type="search"
-            placeholder={`Поиск: ${patientPluralLabelLower}`}
-            value={searchInput}
-            onChange={(event) => onSearchInput(event.target.value)}
-            className="h-8 pl-8 pr-8 text-sm"
-            aria-label={`Поиск: ${patientPluralLabelLower}`}
-          />
-          {searchInput ? (
+        <div className="flex min-w-0 items-center gap-1.5">
+          <div className="relative min-w-0 flex-1">
+            <span className="pointer-events-none absolute inset-y-0 left-2.5 flex items-center text-muted-foreground">
+              <Search className="size-3.5" aria-hidden />
+            </span>
+            <Input
+              type="search"
+              placeholder="Поиск по ФИО и контактам"
+              value={searchInput}
+              onChange={(event) => onSearchInput(event.target.value)}
+              className="h-8 pl-8 pr-8 text-sm"
+              aria-label="Поиск по ФИО и контактам"
+            />
+            {searchInput ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={onClearSearch}
+                className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
+                aria-label="Сбросить поиск"
+              >
+                <X className="size-3.5" />
+              </Button>
+            ) : null}
+          </div>
+          {mobile ? (
             <Button
               type="button"
-              variant="ghost"
               size="icon-sm"
-              onClick={onClearSearch}
-              className="absolute inset-y-0 right-0 my-auto size-8 text-muted-foreground hover:text-foreground"
-              aria-label="Сбросить поиск"
+              variant="outline"
+              className="size-8 shrink-0"
+              onClick={() => onMobileFiltersOpenChange(true)}
+              aria-label="Фильтры"
             >
-              <X className="size-3.5" />
+              <Filter className="size-3.5" aria-hidden />
             </Button>
           ) : null}
         </div>
@@ -697,66 +770,6 @@ function PatientsContent({
           )}
           {isListPending && <span className="ml-1 animate-pulse">…</span>}
         </p>
-        <div
-          className="flex w-full min-w-0 flex-wrap items-center gap-1.5 lg:w-auto lg:shrink-0 lg:justify-end"
-          aria-label={`Сортировка: ${patientPluralLabelLower}`}
-        >
-          <span className="text-xs text-muted-foreground">Сортировать</span>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={cn(
-              'h-8 gap-1.5 px-2 text-xs',
-              sort === 'recent_appointments' && doctorDnaActiveSortToneClass,
-            )}
-            aria-pressed={sort === 'recent_appointments'}
-            aria-label={`Недавние: ${sort === 'recent_appointments' && sortDirection === 'asc' ? 'давние сверху' : 'недавние сверху'}`}
-            onClick={() => onSortSelect('recent_appointments')}
-          >
-            Недавние
-            {sort === 'recent_appointments' ? (
-              sortDirection === 'desc' ? (
-                <ArrowDown className="size-3.5" aria-hidden />
-              ) : (
-                <ArrowUp className="size-3.5" aria-hidden />
-              )
-            ) : null}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className={cn(
-              'h-8 gap-1.5 px-2 text-xs',
-              sort === 'fio' && doctorDnaActiveSortToneClass,
-            )}
-            aria-pressed={sort === 'fio'}
-            aria-label={`По фамилии: ${sort === 'fio' && sortDirection === 'desc' ? 'Я–А' : 'А–Я'}`}
-            onClick={() => onSortSelect('fio')}
-          >
-            По фамилии
-            {sort === 'fio' ? (
-              sortDirection === 'asc' ? (
-                <ArrowDown className="size-3.5" aria-hidden />
-              ) : (
-                <ArrowUp className="size-3.5" aria-hidden />
-              )
-            ) : null}
-          </Button>
-          {mobile ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5 px-2 text-xs"
-              onClick={() => onMobileFiltersOpenChange(true)}
-            >
-              <Filter className="size-3.5" aria-hidden />
-              Фильтры
-            </Button>
-          ) : null}
-        </div>
       </div>
     </div>
   );
@@ -957,7 +970,7 @@ function PatientsContent({
         title="Фильтры"
         size="lg"
       >
-        {renderFilters('doctor-patients-modal')}
+        {renderFilters('doctor-patients-modal', true)}
       </DoctorModal>
     </>
   );
