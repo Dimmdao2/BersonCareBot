@@ -4,7 +4,10 @@
  */
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { UserPlus } from 'lucide-react';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
+import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
+import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
 import { resolvePatientTerms } from '@/modules/system-settings/patientTerms';
 import { PatientsPageClient } from './PatientsPageClient';
@@ -55,7 +58,21 @@ export default async function DoctorPatientsPage({ searchParams }: PageProps) {
   });
 
   return (
-    <DoctorAppShell title={patientPluralLabel} user={session.user} layout="full-height">
+    <DoctorAppShell
+      title={patientPluralLabel}
+      user={session.user}
+      layout="full-height"
+      mobileHeaderActions={
+        <DoctorNewClientAction
+          patientSingularLabel={patientSingularLabel}
+          className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
+          showIcon
+          triggerIcon={<UserPlus className="size-[22px]" aria-hidden />}
+          compactOnMobile
+          desktopPresentation="right-sheet"
+        />
+      }
+    >
       <PatientsPageClient
         listPromise={listPromise}
         metricsPromise={metricsPromise}
