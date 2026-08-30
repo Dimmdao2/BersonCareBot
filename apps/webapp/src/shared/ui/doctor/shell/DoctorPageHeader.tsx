@@ -70,7 +70,6 @@ export function DoctorPageHeader({
       className={cn(
         'sticky z-30 -mx-3 flex flex-col bg-[var(--doctor-page-header-background,#fff)]',
         DOCTOR_PAGE_HEADER_STICKY_TOP_CLASS,
-        toolbar && '-mb-3 md:mb-0',
         className,
       )}
     >
@@ -98,7 +97,7 @@ export function DoctorPageHeader({
         ) : null}
       </div>
       {toolbar ? (
-        <DoctorPageToolbar className={toolbarClassName}>
+        <DoctorPageToolbar dockOnMobile className={toolbarClassName}>
           {toolbar}
         </DoctorPageToolbar>
       ) : null}

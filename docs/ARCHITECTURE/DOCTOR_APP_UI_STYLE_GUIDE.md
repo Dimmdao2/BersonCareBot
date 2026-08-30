@@ -231,9 +231,10 @@ DOCTOR_PAGE_CONTAINER_CLASS =
 
 Прямое использование `DOCTOR_PAGE_CONTAINER_CLASS` — только если не используется `AppShell`.
 
-Навигационный chrome задаёт `DoctorWorkspaceShell`: на mobile `<768px` workspace состоит из трёх
-настоящих строк `DoctorHeader → page content → DoctorBottomNav`; прокруткой владеет только средняя
-строка. На tablet `768–1023px` используется узкий sidebar rail шириной `3.5rem`, раскрываемый поверх
+Навигационный chrome задаёт `DoctorWorkspaceShell`: на mobile `<768px` workspace состоит из настоящих
+строк `DoctorHeader → page content → optional DoctorPageToolbar → DoctorBottomNav`; прокруткой владеет
+только строка контента. Панель фильтров/настроек занимает собственную высоту над нижним меню, а не
+перекрывает содержимое. На tablet `768–1023px` используется узкий sidebar rail шириной `3.5rem`, раскрываемый поверх
 контента; на desktop `≥1024px` — полный sidebar шириной `14rem`. Верх sidebar всегда показывает
 платформенный бренд `Therapysto`, ссылка аккаунта с круглым аватаром закреплена снизу.
 

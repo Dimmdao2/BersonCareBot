@@ -903,6 +903,7 @@ export function InstanceAddLibraryItemDialog(props: {
               </div>
             ) : null}
             <DoctorCatalogFiltersToolbar
+              dockOnMobile={false}
               className="static rounded-lg border border-border/60 bg-card shadow-none"
               filters={
                 <DoctorCatalogToolbarFiltersSlot>

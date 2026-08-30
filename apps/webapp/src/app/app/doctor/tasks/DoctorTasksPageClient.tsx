@@ -252,6 +252,7 @@ export function DoctorTasksPageClient({
           <DoctorCatalogFiltersToolbar
             className="hidden md:block"
             withinRemainingHeight
+            dockOnMobile={false}
             filters={taskFilters}
             end={
               canMutate ? (

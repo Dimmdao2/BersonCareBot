@@ -1255,6 +1255,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
     <DoctorSection data-testid="schedule-work-tab" onMouseDown={handleSurfaceMouseDown}>
       {/* Sticky top bar: filter (E3) + month nav */}
       <DoctorCatalogStickyToolbar
+        dockOnMobile
         className="flex flex-wrap items-center gap-2"
         onMouseDown={handleTopBarMouseDown}
         data-testid="schedule-work-topbar"
