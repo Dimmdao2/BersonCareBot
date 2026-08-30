@@ -51,7 +51,9 @@ export function DoctorPageToolbar({
       data-doctor-page-toolbar=""
       data-doctor-page-toolbar-docked={isDocked ? '' : undefined}
       className={cn(
-        'border-b border-border/60 px-[var(--doctor-block-padding,18px)] py-1.5',
+        'px-[var(--doctor-block-padding,18px)]',
+        isDocked ? 'border-t border-border/60' : 'border-b border-border/60',
+        isDocked ? 'py-2' : 'py-1.5',
         DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
         sticky && 'sticky z-20 -mx-3 -mt-3',
         effectivePlacement === 'sticky-page' && DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
