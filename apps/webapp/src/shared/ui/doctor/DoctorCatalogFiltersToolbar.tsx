@@ -17,8 +17,6 @@ export type DoctorCatalogFiltersToolbarProps = {
   className?: string;
   /** The surrounding flex body already begins below `DoctorPageHeader`. */
   withinRemainingHeight?: boolean;
-  /** На mobile панель занимает отдельную строку над нижним меню. */
-  dockOnMobile?: boolean;
 };
 
 /** Единая горизонтальная строка контролов слева в тулбаре (поиск, статус и т.д.). */
@@ -32,13 +30,11 @@ export function DoctorCatalogFiltersToolbar({
   end,
   className,
   withinRemainingHeight = false,
-  dockOnMobile = true,
 }: DoctorCatalogFiltersToolbarProps) {
   return (
     <DoctorCatalogStickyToolbar
       className={className}
       withinRemainingHeight={withinRemainingHeight}
-      dockOnMobile={dockOnMobile}
     >
       <DoctorCatalogToolbarMainRow start={filters} end={end} />
     </DoctorCatalogStickyToolbar>

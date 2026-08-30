@@ -98,7 +98,7 @@ export function DoctorPageHeader({
         ) : null}
       </div>
       {toolbar ? (
-        <DoctorPageToolbar dockOnMobile className={toolbarClassName}>
+        <DoctorPageToolbar className={toolbarClassName}>
           {toolbar}
         </DoctorPageToolbar>
       ) : null}

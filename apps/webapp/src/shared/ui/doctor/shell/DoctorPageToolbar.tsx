@@ -1,9 +1,5 @@
-'use client';
-
-import { useEffect, useState, type HTMLAttributes, type ReactNode } from 'react';
-import { createPortal } from 'react-dom';
+import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import {
   DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
   DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
@@ -12,14 +8,10 @@ import {
 
 export type DoctorPageToolbarPlacement = 'header' | 'sticky-page' | 'sticky-remaining';
 
-export const DOCTOR_MOBILE_PAGE_TOOLBAR_DOCK_ID = 'doctor-mobile-page-toolbar-dock';
-
 export type DoctorPageToolbarProps = Omit<HTMLAttributes<HTMLDivElement>, 'children'> & {
   children: ReactNode;
   className?: string;
   placement?: DoctorPageToolbarPlacement;
-  /** На mobile переносит эту же панель в настоящую строку над нижней навигацией. */
-  dockOnMobile?: boolean;
 };
 
 /**
@@ -31,40 +23,24 @@ export function DoctorPageToolbar({
   children,
   className,
   placement = 'header',
-  dockOnMobile = false,
   ...props
 }: DoctorPageToolbarProps) {
-  const isMobile = useIsMobileViewport();
-  const [mobileDock, setMobileDock] = useState<HTMLElement | null>(null);
+  const sticky = placement !== 'header';
 
-  useEffect(() => {
-    setMobileDock(document.getElementById(DOCTOR_MOBILE_PAGE_TOOLBAR_DOCK_ID));
-  }, []);
-
-  const isDocked = dockOnMobile && isMobile && mobileDock !== null;
-  const effectivePlacement = isDocked ? 'header' : placement;
-  const sticky = effectivePlacement !== 'header';
-
-  const toolbar = (
+  return (
     <div
       {...props}
       data-doctor-page-toolbar=""
-      data-doctor-page-toolbar-docked={isDocked ? '' : undefined}
       className={cn(
-        'px-[var(--doctor-block-padding,18px)]',
-        isDocked ? 'border-t border-border/60' : 'border-b border-border/60',
-        isDocked ? 'py-2' : 'py-1.5',
+        'border-b border-border/60 px-[var(--doctor-block-padding,18px)] py-2 md:py-1.5',
         DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
         sticky && 'sticky z-20 -mx-3 -mt-3',
-        effectivePlacement === 'sticky-page' && DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
-        effectivePlacement === 'sticky-remaining' && DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
-        dockOnMobile && !isDocked && 'max-md:hidden',
+        placement === 'sticky-page' && DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
+        placement === 'sticky-remaining' && DOCTOR_REMAINING_HEIGHT_TOOLBAR_TOP_CLASS,
         className,
       )}
     >
       {children}
     </div>
   );
-
-  return isDocked ? createPortal(toolbar, mobileDock) : toolbar;
 }

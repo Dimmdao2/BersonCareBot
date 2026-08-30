@@ -1775,7 +1775,6 @@ export function ScheduleCalendarTab({
           (комбинируем базовый sticky-класс с top-офсетом, как эталон exercises). */}
       <DoctorCatalogStickyToolbar
         withinRemainingHeight
-        dockOnMobile
         className="flex flex-wrap items-center gap-2"
         data-testid="cal-toolbar"
       >
