@@ -466,7 +466,6 @@ type PatientsContentProps = {
   searchQuery: string;
   searchInput: string;
   legacyFilters: LegacyFiltersState;
-  isListPending: boolean;
   mobileFiltersOpen: boolean;
   sort: ClientListSort;
   sortDirection: ClientListSortDirection;
@@ -492,7 +491,6 @@ function PatientsContent({
   searchQuery,
   searchInput,
   legacyFilters,
-  isListPending,
   mobileFiltersOpen,
   sort,
   sortDirection,
@@ -576,18 +574,6 @@ function PatientsContent({
     if (!list || Math.abs(list.scrollTop - listScrollTop) < 1) return;
     list.scrollTop = listScrollTop;
   }, [filtered.length, listScrollTop]);
-
-  // Determine if any filter is active (for "найдено N" header)
-  const isAnyFilterActive =
-    activeCategory !== 'all' ||
-    activeSegments.length > 0 ||
-    activeChannel !== null ||
-    legacyFilters.cancellations ||
-    legacyFilters.visitedMonth ||
-    legacyFilters.withoutAppointments ||
-    legacyFilters.memberships ||
-    legacyFilters.reschedules ||
-    !!searchQuery.trim();
 
   const patientPluralLabelLower = patientPluralLabel.toLocaleLowerCase('ru-RU');
 
@@ -727,29 +713,6 @@ function PatientsContent({
             </Button>
           ) : null}
         </div>
-      </div>
-      <div
-        className={cn(
-          'flex flex-wrap items-center justify-between gap-2',
-          mobile ? '' : 'px-[var(--doctor-block-padding,18px)] py-2',
-        )}
-      >
-        <p className="min-w-0 truncate text-xs text-muted-foreground">
-          {isAnyFilterActive ? (
-            <>
-              найдено {filtered.length} / {categoryBase.length}
-            </>
-          ) : activeCategory === 'all' ? (
-            <>
-              {patientPluralLabel}: {allClients.length}
-            </>
-          ) : (
-            <>
-              {patientPluralLabel}: {categoryBase.length}
-            </>
-          )}
-          {isListPending && <span className="ml-1 animate-pulse">…</span>}
-        </p>
       </div>
     </div>
   );
@@ -971,8 +934,6 @@ export function PatientsPageClient({
   patientPluralLabel = 'Пациенты',
   patientSingularLabel = 'Пациент',
 }: PatientsPageClientProps) {
-  const isListPending = false;
-
   // Search state (local, debounced)
   const [searchInput, setSearchInput] = useState(initialFilters.q);
   const [searchQuery, setSearchQuery] = useState(initialFilters.q);
@@ -1129,7 +1090,6 @@ export function PatientsPageClient({
         searchQuery={searchQuery}
         searchInput={searchInput}
         legacyFilters={legacyFilters}
-        isListPending={isListPending}
         mobileFiltersOpen={mobileFiltersOpen}
         sort={sort}
         sortDirection={sortDirection}
