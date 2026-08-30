@@ -32,7 +32,7 @@ export function DoctorPageToolbar({
       {...props}
       data-doctor-page-toolbar=""
       className={cn(
-        'border-b border-border/60 px-[var(--doctor-block-padding,18px)] py-2 md:py-1.5',
+        'border-b border-border/60 px-[var(--doctor-block-padding,18px)] py-2 shadow-sm md:py-1.5 md:shadow-none',
         DOCTOR_TRANSLUCENT_TOOLBAR_SURFACE_CLASS,
         sticky && 'sticky z-20 -mx-3 -mt-3',
         placement === 'sticky-page' && DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS,
