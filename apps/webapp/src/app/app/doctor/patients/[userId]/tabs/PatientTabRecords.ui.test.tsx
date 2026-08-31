@@ -119,9 +119,9 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: /Визитов 1/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Визитов:\s*1/ }));
     expect(await screen.findByRole('dialog')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Открыть' }));
     expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
     expect(createVisit).not.toHaveBeenCalled();
   });

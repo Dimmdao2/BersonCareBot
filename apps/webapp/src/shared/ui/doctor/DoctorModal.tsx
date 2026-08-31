@@ -13,6 +13,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './primitives/sheet';
 import { useIsMobileViewport } from './primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
 export type DoctorModalDesktopPresentation = 'dialog' | 'right-sheet';
@@ -126,7 +127,7 @@ export function DoctorModal({
       <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent showCloseButton={false} className="gap-0 p-0">
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-3 pb-3">
-            <DrawerTitle>{title}</DrawerTitle>
+            <DrawerTitle className={doctorPageTitleClass}>{title}</DrawerTitle>
             {description && <DrawerDescription>{description}</DrawerDescription>}
           </DrawerHeader>
           {body}
@@ -166,7 +167,7 @@ export function DoctorModal({
             className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
             style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
           >
-            <SheetTitle>{title}</SheetTitle>
+            <SheetTitle className={doctorPageTitleClass}>{title}</SheetTitle>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
           </SheetHeader>
           {body}
@@ -186,7 +187,7 @@ export function DoctorModal({
         )}
       >
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
-          <DialogTitle>{title}</DialogTitle>
+          <DialogTitle className={doctorPageTitleClass}>{title}</DialogTitle>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </DialogHeader>
         {body}

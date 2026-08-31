@@ -649,7 +649,15 @@ function ListView({
     const root = scrollRef.current;
     const earlier = earlierSentinelRef.current;
     const later = laterSentinelRef.current;
-    if (!root || !earlier || !later || loading) return;
+    if (
+      !root ||
+      !earlier ||
+      !later ||
+      loading ||
+      typeof IntersectionObserver === 'undefined'
+    ) {
+      return;
+    }
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -965,9 +973,12 @@ export function ScheduleCalendarTab({
   );
 
   useEffect(() => {
-    if (!isMobileViewport || view !== 'weekgrid') return;
-    queueMicrotask(() => setView('3days'));
-  }, [isMobileViewport, setView, view]);
+    if (!isActive || !isMobileViewport || view !== 'weekgrid') return;
+    queueMicrotask(() => {
+      setCalendarLoading(true);
+      setViewState('3days');
+    });
+  }, [isActive, isMobileViewport, view]);
 
   // ─── Drill-down day ────────────────────────────────────────────────────────
 
@@ -1278,7 +1289,9 @@ export function ScheduleCalendarTab({
     }
     recentLoadRef.current = { key: requestKey, startedAt };
     const generation = ++loadGenerationRef.current;
-    loadFeed(undefined, undefined, generation);
+    if (renderMode === 'calendar') {
+      loadFeed(undefined, undefined, generation);
+    }
     loadKpis(view, anchorDate, generation);
   }, [
     anchorDate,
@@ -1326,7 +1339,6 @@ export function ScheduleCalendarTab({
 
   useEffect(() => {
     if (ssrLoadKeyRef.current !== null && calendarLoadKey === ssrLoadKeyRef.current) {
-      ssrLoadKeyRef.current = null;
       return;
     }
     ssrLoadKeyRef.current = null;

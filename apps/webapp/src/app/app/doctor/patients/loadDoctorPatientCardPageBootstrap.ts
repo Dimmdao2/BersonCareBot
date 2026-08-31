@@ -330,8 +330,10 @@ export async function loadDoctorPatientCardTabBootstrap(
       instances.filter((instance) => instance.organizationId === workspace.organizationId),
     );
 
-  const loadProgramInstanceDetail = async () => {
-    const programInstances = await loadProgramInstances();
+  const loadProgramInstanceDetail = async (
+    programInstancesPromise: ReturnType<typeof loadProgramInstances>,
+  ) => {
+    const programInstances = await programInstancesPromise;
     const openInstance = pickOpenTreatmentProgramInstance(programInstances);
     if (!openInstance) return null;
     const detail = await withDoctorWorkspacePrincipal(workspace, () =>
@@ -340,7 +342,8 @@ export async function loadDoctorPatientCardTabBootstrap(
     return detail && detail.organizationId === workspace.organizationId ? detail : null;
   };
 
-  if (activeTab === 'overview' || activeTab === 'karta') {
+  if (activeTab === 'overview') {
+    const programInstancesPromise = loadProgramInstances();
     const [
       clinicalStateResult,
       visitsResult,
@@ -350,12 +353,8 @@ export async function loadDoctorPatientCardTabBootstrap(
       appointmentsResult,
       programInstancesResult,
       programInstanceDetailResult,
-      supportPolicyResult,
       packagesResult,
       exerciseCalendarResult,
-      messagesSnapshotResult,
-      anamnesisResult,
-      comorbiditiesResult,
     ] = await Promise.allSettled([
       loadClinicalState(),
       loadVisits(),
@@ -372,11 +371,8 @@ export async function loadDoctorPatientCardTabBootstrap(
         },
       ),
       deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
-      loadProgramInstances(),
-      loadProgramInstanceDetail(),
-      deps.doctorClients
-        .getPatientProgramInteractionPolicy(patientUserId)
-        .catch((): PatientProgramInteractionPolicy | null => null),
+      programInstancesPromise,
+      loadProgramInstanceDetail(programInstancesPromise),
       membershipAccess.specialistNavigation && deps.memberships
         ? deps.memberships.listPatientPackagesForUser(patientUserId, workspace.organizationId)
         : Promise.resolve(null),
@@ -390,15 +386,6 @@ export async function loadDoctorPatientCardTabBootstrap(
           currentPatientExerciseCalendarMonthRangeInIana(patientIana),
         );
       })(),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        loadDoctorPatientMessagesSnapshot(deps, patientUserId, workspace.organizationId, workspace),
-      ),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientClinical.getAnamnesis(patientUserId),
-      ),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientComorbidities.listActive(patientUserId),
-      ),
     ]);
 
     const packagesValue =
@@ -415,16 +402,31 @@ export async function loadDoctorPatientCardTabBootstrap(
       initialProgramInstances: envelopeFromSettled(programInstancesResult),
       initialProgramInstanceDetail: envelopeFromSettled(programInstanceDetailResult),
       initialPortalState: null,
-      initialSupportEffectivePolicy:
-        supportPolicyResult.status === 'fulfilled'
-          ? { ok: true, value: supportPolicyResult.value }
-          : { ok: false, error: 'load_failed' },
       initialPackages:
         packagesResult.status === 'fulfilled'
           ? { ok: true, value: packagesValue ?? [] }
           : { ok: false, error: 'load_failed' },
       initialExerciseCalendarSnapshot: envelopeFromSettled(exerciseCalendarResult),
-      initialMessagesSnapshot: envelopeFromSettled(messagesSnapshotResult),
+    };
+  }
+
+  if (activeTab === 'karta') {
+    const [clinicalStateResult, visitsResult, anamnesisResult, comorbiditiesResult] =
+      await Promise.allSettled([
+        loadClinicalState(),
+        loadVisits(),
+        withDoctorWorkspacePrincipal(workspace, () =>
+          deps.patientClinical.getAnamnesis(patientUserId),
+        ),
+        withDoctorWorkspacePrincipal(workspace, () =>
+          deps.patientComorbidities.listActive(patientUserId),
+        ),
+      ]);
+
+    return {
+      ...NULL_TAB_BOOTSTRAP,
+      initialClinicalState: envelopeFromSettled(clinicalStateResult),
+      initialVisits: envelopeFromSettled(visitsResult),
       initialAnamnesis: envelopeFromSettled(anamnesisResult),
       initialComorbidities: envelopeFromSettled(comorbiditiesResult),
     };

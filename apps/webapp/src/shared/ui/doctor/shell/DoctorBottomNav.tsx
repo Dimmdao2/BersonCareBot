@@ -14,7 +14,12 @@ import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 
 const items = [
   { id: 'today', label: 'Сегодня', href: routePaths.doctor },
-  { id: 'schedule', label: 'Расписание', href: routePaths.doctorSchedule },
+  {
+    id: 'schedule',
+    label: 'Расписание',
+    href: `${routePaths.doctorSchedule}?view=3days`,
+    accessHref: routePaths.doctorSchedule,
+  },
   { id: 'tasks', label: 'Задачи', href: routePaths.doctorTasks },
   { id: 'patients', label: 'Клиенты', href: routePaths.doctorPatients },
   { id: 'communications', label: 'Коммуникации', href: routePaths.doctorCommunications },
@@ -31,7 +36,9 @@ export function DoctorBottomNav({
   const visibleHrefs = new Set(
     getDoctorMenuItems(menuAccess, patientLabel).flatMap((item) => (item.href ? [item.href] : [])),
   );
-  const visibleItems = items.filter((item) => visibleHrefs.has(item.href));
+  const visibleItems = items.filter((item) =>
+    visibleHrefs.has('accessHref' in item ? item.accessHref : item.href),
+  );
 
   return (
     <nav
@@ -40,7 +47,10 @@ export function DoctorBottomNav({
     >
       <div className="flex h-12">
         {visibleItems.map((item) => {
-          const active = isDoctorNavItemActive(item.href, pathname);
+          const active = isDoctorNavItemActive(
+            'accessHref' in item ? item.accessHref : item.href,
+            pathname,
+          );
           const Icon = getDoctorMenuIcon(item.id);
           if (!Icon) return null;
           return (

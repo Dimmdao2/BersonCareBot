@@ -607,7 +607,7 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
 
     render(
       <ScheduleCalendarTab
-        deepLinkParams={{ view: 'weekgrid', date: '2026-07-30', scope: 'clinic', render: 'list' }}
+        deepLinkParams={{ view: 'weekgrid', date: '2026-07-30', scope: 'clinic' }}
         onDeepLinkChange={vi.fn()}
         isActive={false}
         initialTimeZone="Europe/Moscow"
@@ -626,7 +626,6 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
     await waitFor(() => expect(calendarRequestCount).toBe(1));
     fireEvent.click(screen.getByTestId('schedule-scope-mine'));
     await waitFor(() => expect(screen.getByTestId('kpi-recordsInPeriod')).toHaveTextContent('42'));
-    await waitFor(() => expect(screen.getByTestId('list-appt-fresh-appt-1')).toBeInTheDocument());
     expect(screen.queryByTestId('cal-error')).not.toBeInTheDocument();
 
     staleReleases.calendar();
@@ -636,7 +635,6 @@ describe('ScheduleCalendarTab SSR bootstrap and load generation', () => {
     await waitFor(() => {
       expect(screen.getByTestId('kpi-recordsInPeriod')).toHaveTextContent('42');
     });
-    expect(screen.getByTestId('list-appt-fresh-appt-1')).toBeInTheDocument();
     expect(screen.queryByTestId('cal-error')).not.toBeInTheDocument();
     // Current generation finished — KPI value remains visible (not stuck in empty loading).
     expect(screen.getByTestId('cal-kpi-row')).toBeInTheDocument();

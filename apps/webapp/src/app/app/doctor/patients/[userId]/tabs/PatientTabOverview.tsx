@@ -676,11 +676,7 @@ function isOverviewBootstrapComplete(
   initialProgramInstances: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null | undefined,
   initialProgramInstanceDetail:
     BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null | undefined,
-  initialMessagesSnapshot: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null | undefined,
 ): boolean {
-  if (initialMessagesSnapshot == null) {
-    return false;
-  }
   if (membershipsVisible && initialPackages == null) {
     return false;
   }
@@ -991,7 +987,6 @@ export function PatientTabOverview({
         initialPackages,
         initialProgramInstances,
         initialProgramInstanceDetail,
-        initialMessagesSnapshot,
       )
     ) {
       return;
@@ -1367,8 +1362,13 @@ export function PatientTabOverview({
 
   // SSR-ok seed: first poll after interval. Null seed: one immediate read via polling.
   // Failed seed keeps error until a later successful poll.
-  const messagesPollImmediate = initialMessagesSnapshot == null;
-  useMessagePolling(pollMessages, active && Boolean(userId), 16000, messagesPollImmediate);
+  const messagesPollImmediate = !isOverviewComposition && initialMessagesSnapshot == null;
+  useMessagePolling(
+    pollMessages,
+    active && !isOverviewComposition && Boolean(userId),
+    16000,
+    messagesPollImmediate,
+  );
 
   const isStale = loadedUserId !== userId;
   const isLoading = isStale || data === null;
@@ -2092,16 +2092,19 @@ export function PatientTabOverview({
         </div>
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
-        <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
-          <span className={doctorSectionTitleClass}>Сопровождение</span>
-          <DoctorClientSupportPanel
-            patientUserId={userId}
-            initialEffectivePolicy={unwrapBootstrapEnvelope(initialSupportEffectivePolicy)}
-          />
-        </div>
+        {!isComposed ? (
+          <div className={doctorSectionCardClass}>
+            <span className={doctorSectionTitleClass}>Сопровождение</span>
+            <DoctorClientSupportPanel
+              patientUserId={userId}
+              initialEffectivePolicy={unwrapBootstrapEnvelope(initialSupportEffectivePolicy)}
+            />
+          </div>
+        ) : null}
 
         {/* Сообщения */}
-        <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
+        {!isComposed ? (
+          <div className={doctorSectionCardClass}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={doctorSectionTitleClass}>Сообщения</span>
             {totalMessageUnread > 0 && (
@@ -2158,7 +2161,8 @@ export function PatientTabOverview({
                 })}
             </div>
           )}
-        </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

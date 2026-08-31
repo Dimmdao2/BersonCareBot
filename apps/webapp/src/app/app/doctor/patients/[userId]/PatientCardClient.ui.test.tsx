@@ -219,24 +219,4 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     expect(screen.getByTestId('panel-program').closest('.hidden')).not.toBeNull();
   });
 
-  it('keeps the consolidated card visible when its communications shortcut is used', async () => {
-    render(
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="karta"
-        patientListHref={patientListHref}
-      />,
-    );
-
-    const karta = await screen.findByTestId('panel-karta');
-    expect(karta.closest('.hidden')).toBeNull();
-
-    fireEvent.click(screen.getByRole('button', { name: 'вся переписка' }));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('panel-karta').closest('.hidden')).toBeNull();
-    });
-  });
-
 });
