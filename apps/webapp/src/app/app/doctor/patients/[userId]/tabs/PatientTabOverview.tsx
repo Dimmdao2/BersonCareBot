@@ -49,9 +49,18 @@ import {
 } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
-import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
 import { formatPatientPackageLongLabel } from '@/modules/memberships/display';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -578,8 +587,8 @@ type Props = {
   > | null;
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
-  /** UI-5b places these widgets in the composed right detail pane. */
-  compositionMode?: 'right-pane';
+  /** Places the reusable widgets in a composed patient-card surface. */
+  compositionMode?: 'right-pane' | 'overview';
 };
 
 function monthPartsFromIsoDate(isoDate: string): { year: number; month: number } {
@@ -598,6 +607,15 @@ function resolveProgramSeedFields(
   | 'programCurrentStage'
   | 'programCurrentStageIndex'
 > {
+  if (initialProgramInstances != null && isBootstrapEnvelopeFailed(initialProgramInstances)) {
+    return {
+      programStatus: 'error',
+      programTitle: null,
+      programStages: [],
+      programCurrentStage: null,
+      programCurrentStageIndex: 0,
+    };
+  }
   const programInstanceDetail = unwrapBootstrapEnvelope(initialProgramInstanceDetail);
   if (programInstanceDetail) {
     return deriveOverviewProgramWidgetFromDetail(programInstanceDetail);
@@ -609,6 +627,27 @@ function resolveProgramSeedFields(
       return {
         programStatus: 'empty',
         programTitle: null,
+        programStages: [],
+        programCurrentStage: null,
+        programCurrentStageIndex: 0,
+      };
+    }
+    if (
+      initialProgramInstanceDetail != null &&
+      isBootstrapEnvelopeFailed(initialProgramInstanceDetail)
+    ) {
+      return {
+        programStatus: 'error',
+        programTitle: open.title,
+        programStages: [],
+        programCurrentStage: null,
+        programCurrentStageIndex: 0,
+      };
+    }
+    if (initialProgramInstanceDetail != null) {
+      return {
+        programStatus: 'error',
+        programTitle: open.title,
         programStages: [],
         programCurrentStage: null,
         programCurrentStageIndex: 0,
@@ -639,50 +678,58 @@ function isOverviewBootstrapComplete(
     BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null | undefined,
   initialMessagesSnapshot: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null | undefined,
 ): boolean {
-  if (initialMessagesSnapshot == null || isBootstrapEnvelopeFailed(initialMessagesSnapshot)) {
+  if (initialMessagesSnapshot == null) {
     return false;
   }
-  if (
-    membershipsVisible &&
-    (initialPackages == null || isBootstrapEnvelopeFailed(initialPackages))
-  ) {
+  if (membershipsVisible && initialPackages == null) {
     return false;
   }
-  if (initialProgramInstances == null || isBootstrapEnvelopeFailed(initialProgramInstances)) {
+  if (initialProgramInstances == null) {
     return false;
   }
+  if (isBootstrapEnvelopeFailed(initialProgramInstances)) return true;
   const open = pickOpenTreatmentProgramInstance(
     unwrapBootstrapEnvelope(initialProgramInstances) ?? [],
   );
-  if (
-    open != null &&
-    (initialProgramInstanceDetail == null ||
-      isBootstrapEnvelopeFailed(initialProgramInstanceDetail))
-  ) {
+  if (open != null && initialProgramInstanceDetail == null) {
     return false;
   }
   return true;
 }
 
-/** Derive SSR-seeded OverviewData fields from initial props (all client-fetch-only fields start at loading). */
+/** Derive the complete first-paint overview state from the server bootstrap envelopes. */
 function buildSsrSeedData(
-  clinicalState: ClinicalState,
-  visits: Visit[],
-  notes: DoctorNoteRow[],
-  tasks: SpecialistTaskRow[],
-  programActivity: DoctorPatientProgramActivity,
-  appointments: PatientAppointmentItem[],
+  initialClinicalState: BootstrapEnvelope<ClinicalState>,
+  initialVisits: BootstrapEnvelope<Visit[]>,
+  initialNotes: BootstrapEnvelope<DoctorNoteRow[]>,
+  initialTasks: BootstrapEnvelope<SpecialistTaskRow[]>,
+  initialProgramActivity: BootstrapEnvelope<DoctorPatientProgramActivity>,
+  initialAppointments: BootstrapEnvelope<PatientAppointmentItem[]>,
   initialPackages?: BootstrapEnvelope<PackageItem[]> | null,
   initialExerciseCalendarSnapshot?: BootstrapEnvelope<DoctorPatientExerciseCalendarSnapshot> | null,
   initialMessagesSnapshot?: BootstrapEnvelope<DoctorPatientMessagesSnapshot> | null,
   initialProgramInstances?: BootstrapEnvelope<TreatmentProgramInstanceSummary[]> | null,
   initialProgramInstanceDetail?: BootstrapEnvelope<TreatmentProgramInstanceDetail | null> | null,
 ): OverviewData {
-  const complaints = clinicalState.complaints;
-  const clinicalStatus: WidgetStatus = complaints.length === 0 ? 'empty' : 'ok';
-  const symptomSeries = buildSymptomSeries(
-    complaints,
-    visits.map((v) => ({
+  const clinicalState = unwrapBootstrapEnvelope(initialClinicalState);
+  const visits = unwrapBootstrapEnvelope(initialVisits) ?? [];
+  const notes = unwrapBootstrapEnvelope(initialNotes) ?? [];
+  const tasks = unwrapBootstrapEnvelope(initialTasks) ?? [];
+  const programActivity = unwrapBootstrapEnvelope(initialProgramActivity);
+  const appointments = unwrapBootstrapEnvelope(initialAppointments) ?? [];
+  const complaints = clinicalState?.complaints ?? [];
+  const clinicalFailed =
+    isBootstrapEnvelopeFailed(initialClinicalState) || isBootstrapEnvelopeFailed(initialVisits);
+  const clinicalStatus: WidgetStatus = clinicalFailed
+    ? 'error'
+    : complaints.length === 0
+      ? 'empty'
+      : 'ok';
+  const symptomSeries = clinicalFailed
+    ? []
+    : buildSymptomSeries(
+        complaints,
+        visits.map((v) => ({
       id: v.id,
       date: v.date,
       type: v.type,
@@ -694,18 +741,22 @@ function buildSsrSeedData(
         note: d.note,
         priority: d.priority,
       })),
-    })),
-  );
+        })),
+      );
 
   const upcomingAppts = appointments.filter((a) => a.status === 'upcoming');
   upcomingAppts.sort((a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime());
   const nearestUpcoming = upcomingAppts[0] ?? null;
   const controlDays = nearestUpcoming ? daysFromNow(nearestUpcoming.dateTime) : null;
   const controlDate = nearestUpcoming ? fmtDateShort(nearestUpcoming.dateTime) : null;
-  const appointmentsStatus: WidgetStatus = nearestUpcoming === null ? 'empty' : 'ok';
+  const appointmentsStatus: WidgetStatus = isBootstrapEnvelopeFailed(initialAppointments)
+    ? 'error'
+    : nearestUpcoming === null
+      ? 'empty'
+      : 'ok';
 
   const notesList = notes;
-  const notesStatus: WidgetStatus = 'ok';
+  const notesStatus: WidgetStatus = isBootstrapEnvelopeFailed(initialNotes) ? 'error' : 'ok';
 
   const tasksList = tasks.filter((t) => !t.completedAt);
   tasksList.sort((a, b) => {
@@ -714,7 +765,7 @@ function buildSsrSeedData(
     if (!b.dueAt) return -1;
     return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
   });
-  const tasksStatus: WidgetStatus = 'ok';
+  const tasksStatus: WidgetStatus = isBootstrapEnvelopeFailed(initialTasks) ? 'error' : 'ok';
 
   const activePackages = normalizeActivePackages(unwrapBootstrapEnvelope(initialPackages));
   const activePackage: PackageItem | null = activePackages[0] ?? null;
@@ -794,6 +845,8 @@ export function PatientTabOverview({
   specialistTasksReadable,
   compositionMode,
 }: Props) {
+  const isComposed = compositionMode != null;
+  const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
   const [calView, setCalView] = useState<'month' | 'week'>('month');
   const initialCalParts = seededExerciseCalendar
@@ -803,27 +856,21 @@ export function PatientTabOverview({
   const [calMonth, setCalMonth] = useState(initialCalParts.month);
   const [programStageOffset, setProgramStageOffset] = useState(0);
   const [data, setData] = useState<OverviewData | null>(() => {
-    const clinicalState = unwrapBootstrapEnvelope(initialClinicalState);
-    const visits = unwrapBootstrapEnvelope(initialVisits);
-    const notes = unwrapBootstrapEnvelope(initialNotes);
-    const tasks = unwrapBootstrapEnvelope(initialTasks);
-    const programActivity = unwrapBootstrapEnvelope(initialProgramActivity);
-    const appointments = unwrapBootstrapEnvelope(initialAppointments);
     if (
-      clinicalState != null &&
-      visits != null &&
-      notes != null &&
-      tasks != null &&
-      programActivity != null &&
-      appointments != null
+      initialClinicalState != null &&
+      initialVisits != null &&
+      initialNotes != null &&
+      initialTasks != null &&
+      initialProgramActivity != null &&
+      initialAppointments != null
     ) {
       return buildSsrSeedData(
-        clinicalState,
-        visits,
-        notes,
-        tasks,
-        programActivity,
-        appointments,
+        initialClinicalState,
+        initialVisits,
+        initialNotes,
+        initialTasks,
+        initialProgramActivity,
+        initialAppointments,
         initialPackages,
         initialExerciseCalendarSnapshot,
         initialMessagesSnapshot,
@@ -834,42 +881,34 @@ export function PatientTabOverview({
     return null;
   });
   const [loadedUserId, setLoadedUserId] = useState<string | null>(() => {
-    const clinicalState = unwrapBootstrapEnvelope(initialClinicalState);
-    const visits = unwrapBootstrapEnvelope(initialVisits);
-    const notes = unwrapBootstrapEnvelope(initialNotes);
-    const tasks = unwrapBootstrapEnvelope(initialTasks);
-    const programActivity = unwrapBootstrapEnvelope(initialProgramActivity);
-    const appointments = unwrapBootstrapEnvelope(initialAppointments);
     if (
-      clinicalState != null &&
-      visits != null &&
-      notes != null &&
-      tasks != null &&
-      programActivity != null &&
-      appointments != null
+      initialClinicalState != null &&
+      initialVisits != null &&
+      initialNotes != null &&
+      initialTasks != null &&
+      initialProgramActivity != null &&
+      initialAppointments != null
     ) {
       return userId;
     }
     return null;
   });
 
-  // Note inline form
-  const [addingNote, setAddingNote] = useState(false);
+  const [notesModalOpen, setNotesModalOpen] = useState(false);
+  const [noteFormOpen, setNoteFormOpen] = useState(false);
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
-
-  // Task inline form
-  const [addingTask, setAddingTask] = useState(false);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskSaving, setTaskSaving] = useState(false);
+  const [tasksModalOpen, setTasksModalOpen] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<SpecialistTaskRow | null>(null);
 
   const hasSsrData =
-    unwrapBootstrapEnvelope(initialClinicalState) != null &&
-    unwrapBootstrapEnvelope(initialVisits) != null &&
-    unwrapBootstrapEnvelope(initialNotes) != null &&
-    unwrapBootstrapEnvelope(initialTasks) != null &&
-    unwrapBootstrapEnvelope(initialProgramActivity) != null &&
-    unwrapBootstrapEnvelope(initialAppointments) != null;
+    initialClinicalState != null &&
+    initialVisits != null &&
+    initialNotes != null &&
+    initialTasks != null &&
+    initialProgramActivity != null &&
+    initialAppointments != null;
 
   // Track whether we've seeded SSR data for the current userId to avoid
   // overwriting mutation-triggered setData calls on re-render.
@@ -1351,35 +1390,26 @@ export function PatientTabOverview({
           setData((prev) => (prev ? { ...prev, notes: [newNote, ...prev.notes] } : prev));
         }
         setNoteText('');
-        setAddingNote(false);
+        setNoteFormOpen(false);
       }
     } finally {
       setNoteSaving(false);
     }
   }
 
-  async function handleTaskSubmit() {
-    if (!taskTitle.trim()) return;
-    setTaskSaving(true);
-    try {
-      const res = await fetch(`/api/doctor/clients/${userId}/tasks`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: taskTitle, patientUserId: userId }),
-      });
-      if (res.ok) {
-        const json = (await res.json()) as { task?: SpecialistTaskRow };
-        const newTask = json.task;
-        if (newTask) {
-          setData((prev) => (prev ? { ...prev, tasks: [newTask, ...prev.tasks] } : prev));
-        }
-        setTaskTitle('');
-        setAddingTask(false);
-      }
-    } finally {
-      setTaskSaving(false);
-    }
+  function handleTaskSaved(task: SpecialistTaskRow) {
+    setData((prev) => {
+      if (!prev) return prev;
+      const exists = prev.tasks.some((item) => item.id === task.id);
+      return {
+        ...prev,
+        tasks: exists
+          ? prev.tasks.map((item) => (item.id === task.id ? task : item))
+          : [task, ...prev.tasks],
+      };
+    });
+    setTaskFormOpen(false);
+    setEditingTask(null);
   }
 
   // Compute calendar grid from real data — pass the currently viewed month
@@ -1430,13 +1460,15 @@ export function PatientTabOverview({
       className={cn(
         compositionMode === 'right-pane'
           ? 'flex flex-col gap-2.5'
+          : isOverviewComposition
+            ? 'grid grid-cols-2 items-start gap-2.5'
           : 'grid grid-cols-1 items-start gap-2.5 md:grid-cols-2',
       )}
     >
       {/* ===== LEFT COLUMN ===== */}
-      <div className={cn(compositionMode === 'right-pane' ? 'contents' : 'flex flex-col gap-2.5')}>
+      <div className={cn(isComposed ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* «+ Создать визит» entry point */}
-        <div className={cn('flex justify-end', compositionMode === 'right-pane' && 'hidden')}>
+        <div className={cn('flex justify-end', isComposed && 'hidden')}>
           <Button
             variant="ghost"
             onClick={() => onTabSwitch?.('karta')}
@@ -1447,7 +1479,7 @@ export function PatientTabOverview({
         </div>
 
         {/* KPI row */}
-        <div className={cn('grid grid-cols-2 gap-2', compositionMode === 'right-pane' && 'hidden')}>
+        <div className={cn('grid grid-cols-2 gap-2', isComposed && 'hidden')}>
           {/* Контроль KPI */}
           <KpiCard
             id="patient-overview-kpi-control"
@@ -1498,7 +1530,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Актуальные симптомы */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'hidden')}>
+        <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
           <div className="flex items-center justify-between mb-1">
             <span className={doctorSectionTitleClass}>Актуальные симптомы</span>
             <Button
@@ -1561,7 +1593,13 @@ export function PatientTabOverview({
         </div>
 
         {/* Динамика симптомов */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-3')}>
+        <div
+          className={cn(
+            doctorSectionCardClass,
+            compositionMode === 'right-pane' && 'order-3',
+            isOverviewComposition && 'order-2 col-span-2',
+          )}
+        >
           <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
             <span className={doctorSectionTitleClass}>Динамика симптомов</span>
             {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
@@ -1597,7 +1635,13 @@ export function PatientTabOverview({
         </div>
 
         {/* Выполнение упражнений */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-5')}>
+        <div
+          className={cn(
+            doctorSectionCardClass,
+            compositionMode === 'right-pane' && 'order-5',
+            isOverviewComposition && 'order-4 col-span-2',
+          )}
+        >
           <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
             <div>
               <span className={doctorSectionTitleClass}>Выполнение упражнений</span>
@@ -1731,185 +1775,212 @@ export function PatientTabOverview({
       </div>
 
       {/* ===== RIGHT COLUMN ===== */}
-      <div className={cn(compositionMode === 'right-pane' ? 'contents' : 'flex flex-col gap-2.5')}>
+      <div className={cn(isComposed ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* Заметки */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-1')}>
-          <div className="flex items-center gap-2 mb-1">
-            <span className={doctorSectionTitleClass}>Заметки</span>
-            <Button
-              variant="ghost"
-              size="icon"
-              title="Добавить заметку"
-              onClick={() => {
-                setAddingNote(true);
-                setNoteText('');
-              }}
-              className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
-            >
-              +
-            </Button>
-          </div>
+        <section className={cn(isComposed && 'order-1')} aria-label="Заметки">
+          <button
+            type="button"
+            className={cn(
+              doctorSectionCardClass,
+              'w-full cursor-pointer flex-row items-baseline justify-start gap-2 text-left transition-colors hover:bg-muted/35',
+            )}
+            onClick={() => setNotesModalOpen(true)}
+            aria-haspopup="dialog"
+          >
+            <span className="text-sm font-semibold text-foreground">Заметок:</span>
+            <span className="text-[1.3rem] font-medium tabular-nums text-foreground">
+              {data?.notes.length ?? 0}
+            </span>
+          </button>
 
-          {addingNote && (
-            <div className="flex flex-col gap-1.5 mb-2">
-              <Textarea
-                autoFocus
-                value={noteText}
-                onChange={(e) => setNoteText(e.target.value)}
-                rows={3}
-                placeholder="Текст заметки…"
-                className="w-full resize-none text-xs"
-              />
-              <div className="flex gap-1.5">
-                <Button
-                  variant="default"
-                  onClick={handleNoteSubmit}
-                  disabled={noteSaving || !noteText.trim()}
-                  className="h-auto rounded-md px-3 py-1 text-xs font-medium"
-                >
-                  {noteSaving ? 'Сохранение…' : 'Добавить'}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setAddingNote(false);
-                    setNoteText('');
-                  }}
-                  className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
-                >
+          <DoctorModal
+            open={notesModalOpen}
+            onClose={() => setNotesModalOpen(false)}
+            title={`Заметки: ${data?.notes.length ?? 0}`}
+            size="lg"
+            bodyClassName="px-0"
+            desktopPresentation="right-sheet"
+          >
+            <div className="flex justify-end px-4 pb-2">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setNoteText('');
+                  setNoteFormOpen(true);
+                }}
+              >
+                Добавить
+              </Button>
+            </div>
+            {isLoading ? (
+              <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
+                Загрузка заметок…
+              </p>
+            ) : data?.notesStatus === 'error' ? (
+              <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить заметки.</p>
+            ) : data?.notes.length ? (
+              <ul className={doctorDnaFlatListClass}>
+                {[...data.notes]
+                  .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+                  .map((note) => (
+                    <li key={note.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
+                      <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 whitespace-pre-wrap`}>
+                        {note.text}
+                      </span>
+                      <span className={`${doctorDnaFlatListMetaClass} shrink-0 tabular-nums`}>
+                        {fmtDateMsgShort(note.updatedAt)}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            ) : (
+              <DoctorEmptyState>Заметок нет</DoctorEmptyState>
+            )}
+          </DoctorModal>
+
+          <DoctorModal
+            open={noteFormOpen}
+            onClose={() => setNoteFormOpen(false)}
+            title="Новая заметка"
+            size="sm"
+            footer={
+              <>
+                <Button type="button" variant="outline" onClick={() => setNoteFormOpen(false)}>
                   Отмена
                 </Button>
-              </div>
-            </div>
-          )}
-
-          {isLoading && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка заметок…</p>
-          )}
-          {!isLoading && data?.notesStatus === 'error' && (
-            <p className="text-xs text-destructive py-1">Не удалось загрузить заметки.</p>
-          )}
-          {!isLoading && data?.notesStatus === 'ok' && data.notes.length > 0 && (
-            <div className="flex flex-col gap-1">
-              {/* Notes don't have a pinned field — sort by updatedAt newest first */}
-              {[...data.notes]
-                .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
-                .map((n) => (
-                  <div
-                    key={n.id}
-                    className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
-                  >
-                    <span className="flex-1 text-xs text-foreground">{n.text}</span>
-                    <span className="text-[11px] text-muted-foreground flex-none">
-                      {fmtDateMsgShort(n.updatedAt)}
-                    </span>
-                  </div>
-                ))}
-            </div>
-          )}
-        </div>
+                <Button
+                  type="button"
+                  onClick={() => void handleNoteSubmit()}
+                  disabled={noteSaving || !noteText.trim()}
+                >
+                  {noteSaving ? 'Сохранение…' : 'Сохранить'}
+                </Button>
+              </>
+            }
+          >
+            <Textarea
+              autoFocus
+              value={noteText}
+              onChange={(event) => setNoteText(event.target.value)}
+              rows={5}
+              placeholder="Текст заметки…"
+              className="resize-none"
+            />
+          </DoctorModal>
+        </section>
 
         {/* Задачи */}
         {specialistTasksReadable ? (
-          <div
-            className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-2')}
+          <section
+            className={cn(
+              compositionMode === 'right-pane' && 'order-2',
+              isOverviewComposition && 'order-1',
+            )}
+            aria-label="Задачи"
           >
-            <div className="flex items-center gap-2 mb-1">
-              <span className={doctorSectionTitleClass}>Задачи</span>
-              {specialistTasksAvailable ? (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title="Добавить задачу"
-                  onClick={() => {
-                    setAddingTask(true);
-                    setTaskTitle('');
-                  }}
-                  className="w-5 h-5 rounded-full border border-border text-xs text-muted-foreground hover:bg-muted"
-                >
-                  +
-                </Button>
-              ) : null}
-            </div>
+            <button
+              type="button"
+              className={cn(
+                doctorSectionCardClass,
+                'w-full cursor-pointer flex-row items-baseline justify-start gap-2 text-left transition-colors hover:bg-muted/35',
+              )}
+              onClick={() => setTasksModalOpen(true)}
+              aria-haspopup="dialog"
+            >
+              <span className="text-sm font-semibold text-foreground">Задач:</span>
+              <span className="text-[1.3rem] font-medium tabular-nums text-foreground">
+                {data?.tasks.length ?? 0}
+              </span>
+            </button>
 
-            {addingTask && (
-              <div className="flex flex-col gap-1.5 mb-2">
-                <Input
-                  autoFocus
-                  type="text"
-                  value={taskTitle}
-                  onChange={(e) => setTaskTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      void handleTaskSubmit();
-                    }
-                  }}
-                  placeholder="Название задачи…"
-                  className="w-full text-xs"
-                />
-                <div className="flex gap-1.5">
+            <DoctorModal
+              open={tasksModalOpen}
+              onClose={() => setTasksModalOpen(false)}
+              title={`Задачи: ${data?.tasks.length ?? 0}`}
+              size="lg"
+              bodyClassName="px-0"
+              desktopPresentation="right-sheet"
+            >
+              {specialistTasksAvailable ? (
+                <div className="flex justify-end px-4 pb-2">
                   <Button
-                    variant="default"
-                    onClick={() => void handleTaskSubmit()}
-                    disabled={taskSaving || !taskTitle.trim()}
-                    className="h-auto rounded-md px-3 py-1 text-xs font-medium"
-                  >
-                    {taskSaving ? 'Сохранение…' : 'Добавить'}
-                  </Button>
-                  <Button
-                    variant="outline"
+                    type="button"
+                    size="sm"
                     onClick={() => {
-                      setAddingTask(false);
-                      setTaskTitle('');
+                      setEditingTask(null);
+                      setTaskFormOpen(true);
                     }}
-                    className="h-auto rounded-md px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
                   >
-                    Отмена
+                    Добавить
                   </Button>
                 </div>
-              </div>
-            )}
-
-            {isLoading && (
-              <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка задач…</p>
-            )}
-            {!isLoading && data?.tasksStatus === 'error' && (
-              <p className="text-xs text-destructive py-1">Не удалось загрузить задачи.</p>
-            )}
-            {!isLoading && data?.tasksStatus === 'ok' && data.tasks.length > 0 && (
-              <div className="flex flex-col gap-1">
-                {data.tasks.map((task) => {
-                  const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
-                  return (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-2 py-1.5 text-sm"
-                    >
-                      <span className="flex-none text-base">☐</span>
-                      {task.isImportant && (
-                        <span className="flex-none text-destructive text-xs">!</span>
-                      )}
-                      <span className="flex-1 text-xs text-foreground">{task.title}</span>
-                      {task.dueAt && (
-                        <span
-                          className={cn(
-                            'text-[11px] font-medium flex-none',
-                            isOverdue ? 'text-destructive font-semibold' : 'text-muted-foreground',
-                          )}
+              ) : null}
+              {isLoading ? (
+                <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
+                  Загрузка задач…
+                </p>
+              ) : data?.tasksStatus === 'error' ? (
+                <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить задачи.</p>
+              ) : data?.tasks.length ? (
+                <ul className={doctorDnaFlatListClass}>
+                  {data.tasks.map((task) => {
+                    const isOverdue = task.dueAt ? new Date(task.dueAt) < new Date() : false;
+                    return (
+                      <li key={task.id}>
+                        <button
+                          type="button"
+                          className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} w-full justify-between text-left`}
+                          onClick={() => {
+                            setEditingTask(task);
+                            setTaskFormOpen(true);
+                          }}
                         >
-                          до {fmtDateShort(task.dueAt)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                          <span className={`${doctorDnaFlatListPrimaryClass} min-w-0 truncate`}>
+                            {task.title}
+                          </span>
+                          {task.dueAt ? (
+                            <span
+                              className={cn(
+                                doctorDnaFlatListMetaClass,
+                                'shrink-0 tabular-nums',
+                                isOverdue && 'text-destructive',
+                              )}
+                            >
+                              {fmtDateShort(task.dueAt)}
+                            </span>
+                          ) : null}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <DoctorEmptyState>Задач нет</DoctorEmptyState>
+              )}
+            </DoctorModal>
+
+            <SpecialistTaskFormDialog
+              open={taskFormOpen}
+              onOpenChange={(open) => {
+                setTaskFormOpen(open);
+                if (!open) setEditingTask(null);
+              }}
+              patientUserId={userId}
+              editing={editingTask}
+              onSaved={handleTaskSaved}
+            />
+          </section>
         ) : null}
 
         {/* Программа и комментарии */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'order-4')}>
+        <div
+          className={cn(
+            doctorSectionCardClass,
+            compositionMode === 'right-pane' && 'order-4',
+            isOverviewComposition && 'order-3 col-span-2',
+          )}
+        >
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={doctorSectionTitleClass}>Назначенная программа</span>
             {(data?.programActivity?.unreadCount ?? 0) > 0 && (
@@ -2021,7 +2092,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Сопровождение — moved here from Учётка (S2.5) */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'hidden')}>
+        <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
           <span className={doctorSectionTitleClass}>Сопровождение</span>
           <DoctorClientSupportPanel
             patientUserId={userId}
@@ -2030,7 +2101,7 @@ export function PatientTabOverview({
         </div>
 
         {/* Сообщения */}
-        <div className={cn(doctorSectionCardClass, compositionMode === 'right-pane' && 'hidden')}>
+        <div className={cn(doctorSectionCardClass, isComposed && 'hidden')}>
           <div className="flex items-center gap-2 flex-wrap mb-1">
             <span className={doctorSectionTitleClass}>Сообщения</span>
             {totalMessageUnread > 0 && (

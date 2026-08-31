@@ -364,6 +364,7 @@ export function DoctorSupportInbox({
                             'min-w-0 truncate',
                             doctorDnaFlatListPrimaryClass,
                             isSelected && doctorDnaFlatListSelectedPrimaryClass,
+                            c.unreadFromUserCount > 0 && '!font-semibold',
                           )}
                         >
                           {(c.lastName ?? c.firstName)
@@ -373,18 +374,41 @@ export function DoctorSupportInbox({
                             <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
                           )}
                         </span>
-                        <span className={cn('shrink-0', doctorDnaFlatListMetaClass)}>
+                        <span
+                          className={cn(
+                            'shrink-0',
+                            doctorDnaFlatListMetaClass,
+                            c.unreadFromUserCount > 0 && '!font-semibold',
+                          )}
+                        >
                           {formatConversationTime(c.lastMessageAt, displayIana)}
                         </span>
                       </div>
                       {(c.lastName ?? c.firstName) && (
-                        <p className={cn('truncate', doctorDnaFlatListMetaClass)}>
+                        <p
+                          className={cn(
+                            'truncate',
+                            doctorDnaFlatListMetaClass,
+                            c.unreadFromUserCount > 0 && '!font-semibold',
+                          )}
+                        >
                           {c.displayName}
                         </p>
                       )}
                       {c.lastMessageText && (
-                        <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>
-                          <span className="font-medium text-foreground/80">
+                        <p
+                          className={cn(
+                            'mt-0.5 truncate',
+                            doctorDnaFlatListMetaClass,
+                            c.unreadFromUserCount > 0 && '!font-semibold',
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              'font-medium text-foreground/80',
+                              c.unreadFromUserCount > 0 && '!font-semibold',
+                            )}
+                          >
                             {getSenderPrefix(c)}:
                           </span>{' '}
                           {c.lastMessageText}

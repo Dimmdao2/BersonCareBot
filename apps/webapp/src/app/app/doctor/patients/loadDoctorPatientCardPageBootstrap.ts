@@ -19,20 +19,26 @@ import type { TreatmentProgramInstanceDetail } from '@/modules/treatment-program
 import { pickOpenTreatmentProgramInstance } from './treatmentProgramInstanceOpen';
 import { envelopeFromSettled, type BootstrapEnvelope } from './doctorPatientCardBootstrapShared';
 
-export type PatientCardTabId = 'karta' | 'program' | 'files' | 'account';
+export type PatientCardTabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
 
-const PATIENT_CARD_TABS: PatientCardTabId[] = ['karta', 'program', 'files', 'account'];
+const PATIENT_CARD_TABS: PatientCardTabId[] = [
+  'overview',
+  'karta',
+  'program',
+  'files',
+  'account',
+];
 
-const LEGACY_PATIENT_CARD_TABS = new Set(['overview', 'records', 'comms', 'finances']);
+const LEGACY_PATIENT_CARD_TABS = new Set(['records', 'comms', 'finances']);
 
 export function resolvePatientCardTab(tab: string | undefined): PatientCardTabId {
   if (tab && PATIENT_CARD_TABS.includes(tab as PatientCardTabId)) {
     return tab as PatientCardTabId;
   }
-  // The previous top-level tabs are now sections of «Карточка». Keep existing
-  // direct URLs working without retaining the legacy navigation vocabulary.
+  // Removed top-level tabs remain sections of «Карта». Keep old direct URLs
+  // working without retaining the legacy navigation vocabulary.
   if (tab && LEGACY_PATIENT_CARD_TABS.has(tab)) return 'karta';
-  return 'karta';
+  return 'overview';
 }
 
 type Deps = ReturnType<typeof buildAppDeps>;
@@ -44,6 +50,7 @@ export type DoctorPatientCardShellMeta = {
   specialistTasksAvailable: boolean;
   specialistTasksReadable: boolean;
   cardHeader: Awaited<ReturnType<Deps['doctorClients']['getPatientCardHeader']>>;
+  portalState?: Awaited<ReturnType<Deps['patientInvites']['getPortalStatus']>> | null;
 };
 
 export type DoctorPatientCardTabBootstrap = {
@@ -279,9 +286,12 @@ export async function loadDoctorPatientCardShellMeta(
   patientUserId: string,
   activeTab: PatientCardTabId,
 ): Promise<DoctorPatientCardShellMeta> {
-  const [membershipMeta, cardHeader] = await Promise.all([
+  const [membershipMeta, cardHeader, portalState] = await Promise.all([
     loadMembershipMeta(workspace, activeTab),
     deps.doctorClients.getPatientCardHeader(patientUserId),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
+    ).catch(() => null),
   ]);
 
   return {
@@ -291,6 +301,7 @@ export async function loadDoctorPatientCardShellMeta(
     specialistTasksAvailable: membershipMeta.specialistTasksAvailable,
     specialistTasksReadable: membershipMeta.specialistTasksReadable,
     cardHeader,
+    portalState,
   };
 }
 
@@ -329,7 +340,7 @@ export async function loadDoctorPatientCardTabBootstrap(
     return detail && detail.organizationId === workspace.organizationId ? detail : null;
   };
 
-  if (activeTab === 'karta') {
+  if (activeTab === 'overview' || activeTab === 'karta') {
     const [
       clinicalStateResult,
       visitsResult,
@@ -339,7 +350,6 @@ export async function loadDoctorPatientCardTabBootstrap(
       appointmentsResult,
       programInstancesResult,
       programInstanceDetailResult,
-      portalStateResult,
       supportPolicyResult,
       packagesResult,
       exerciseCalendarResult,
@@ -364,9 +374,6 @@ export async function loadDoctorPatientCardTabBootstrap(
       deps.doctorClientsPort.listPatientAppointments(patientUserId, workspace.organizationId),
       loadProgramInstances(),
       loadProgramInstanceDetail(),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
-      ),
       deps.doctorClients
         .getPatientProgramInteractionPolicy(patientUserId)
         .catch((): PatientProgramInteractionPolicy | null => null),
@@ -407,7 +414,7 @@ export async function loadDoctorPatientCardTabBootstrap(
       initialAppointments: envelopeFromSettled(appointmentsResult),
       initialProgramInstances: envelopeFromSettled(programInstancesResult),
       initialProgramInstanceDetail: envelopeFromSettled(programInstanceDetailResult),
-      initialPortalState: envelopeFromSettled(portalStateResult),
+      initialPortalState: null,
       initialSupportEffectivePolicy:
         supportPolicyResult.status === 'fulfilled'
           ? { ok: true, value: supportPolicyResult.value }
@@ -449,11 +456,8 @@ export async function loadDoctorPatientCardTabBootstrap(
   }
 
   if (activeTab === 'account') {
-    const [rawContactRowsResult, portalStateResult] = await Promise.allSettled([
+    const [rawContactRowsResult] = await Promise.allSettled([
       deps.platformUserContacts.listForPlatformUser(patientUserId),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
-      ),
     ]);
     const cardHeader = await deps.doctorClients.getPatientCardHeader(patientUserId);
     const rawContactRows =
@@ -478,7 +482,7 @@ export async function loadDoctorPatientCardTabBootstrap(
         rawContactRowsResult.status === 'fulfilled' && initialSupplementaryContacts
           ? { ok: true, value: initialSupplementaryContacts }
           : { ok: false, error: 'load_failed' },
-      initialPortalState: envelopeFromSettled(portalStateResult),
+      initialPortalState: null,
     };
   }
 

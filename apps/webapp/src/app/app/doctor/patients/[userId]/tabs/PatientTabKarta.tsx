@@ -1843,7 +1843,9 @@ export function PatientTabKarta({
    *   ADD + history VISIBLE: 0.75fr / 1.25fr — right dominant, card blurred
    */
   const gridCols = composition
-    ? 'md:grid-cols-2'
+    ? panelOpen || composition.selectedAppointmentId
+      ? 'md:grid-cols-2'
+      : 'grid-cols-1'
     : !panelOpen
       ? 'lg:grid-cols-[1.1fr_1fr]'
       : historyVisible
@@ -1870,33 +1872,15 @@ export function PatientTabKarta({
 
   return (
     <>
-      {composition ? (
-        <div className="mb-2 flex gap-1 md:hidden" aria-label="Часть карточки">
-          <Button
-            type="button"
-            size="sm"
-            variant={composition.mobilePane === 'master' ? 'default' : 'outline'}
-            onClick={() => composition.onMobilePaneChange('master')}
-          >
-            Данные
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={composition.mobilePane === 'detail' ? 'default' : 'outline'}
-            onClick={() => composition.onMobilePaneChange('detail')}
-          >
-            Детали
-          </Button>
-        </div>
-      ) : null}
       <div className={cn('grid items-start gap-2.5', gridCols)}>
         {/* ── LEFT: clinical state (Карта) ─────────────────────────────────── */}
         <div
           className={cn(
             'flex flex-col gap-2.5 transition-all duration-200',
             leftBlur && 'opacity-50 blur-[1.5px]',
-            composition?.mobilePane === 'detail' && 'hidden md:flex',
+            composition?.mobilePane === 'detail' &&
+              (panelOpen || composition.selectedAppointmentId) &&
+              'hidden md:flex',
           )}
         >
           {composition?.leftContent}
@@ -2117,7 +2101,9 @@ export function PatientTabKarta({
         <div
           className={cn(
             'flex flex-col gap-2.5',
-            composition?.mobilePane === 'master' && 'hidden md:flex',
+            composition && !panelOpen && !composition.selectedAppointmentId
+              ? 'hidden'
+              : composition?.mobilePane === 'master' && 'hidden md:flex',
           )}
         >
           {composition ? (

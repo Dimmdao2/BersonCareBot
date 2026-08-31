@@ -42,7 +42,7 @@ import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
-import { doctorMetricValueClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -673,10 +673,7 @@ function PatientsContent({
           </DoctorMetricList>
         </TooltipProvider>
       </div>
-      <div className="flex items-baseline justify-between">
-        <span className="text-sm text-muted-foreground">Найдено</span>
-        <span className={doctorMetricValueClass}>{filtered.length}</span>
-      </div>
+      <DoctorResultCount label="Найдено" value={filtered.length} />
     </div>
   );
 

@@ -1,4 +1,5 @@
 import type { buildAppDeps } from '@/app-layer/di/buildAppDeps';
+import { DateTime } from 'luxon';
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import type { CalendarFilterMeta } from '@/modules/booking-calendar/types';
 import type { ScheduleKpis } from '@/modules/doctor-appointments/ports';
@@ -91,6 +92,55 @@ export async function loadDoctorScheduleCalendarBootstrap(input: {
     .then(parseCalendarDoctorSettings)
     .catch(() => parseCalendarDoctorSettings([]));
 
+  const appointmentFeedPromise =
+    input.deepLinkParams.render === 'list'
+      ? (async () => {
+          const rawTarget = DateTime.fromISO(anchorDate, { zone: timeZone });
+          const target = view === 'month' ? rawTarget.startOf('month') : rawTarget.startOf('day');
+          const historyStart = target.minus({ months: 3 }).startOf('month');
+          const targetIso = target.toUTC().toISO();
+          const historyStartIso = historyStart.toUTC().toISO();
+          if (!targetIso || !historyStartIso) return undefined;
+          const [historyPage, futurePage] = await Promise.all([
+            deps.bookingCalendar!.listAppointmentFeed({
+              organizationId,
+              rangeStart: historyStartIso,
+              rangeEnd: target.minus({ milliseconds: 1 }).toUTC().toISO() ?? undefined,
+              order: 'desc',
+              includeCancelled: false,
+              limit: 200,
+              offset: 0,
+              timeZone,
+              specialistId: scheduleScope.specialistId,
+              branchId,
+              serviceId,
+            }),
+            deps.bookingCalendar!.listAppointmentFeed({
+              organizationId,
+              rangeStart: targetIso,
+              order: 'asc',
+              includeCancelled: false,
+              limit: 100,
+              offset: 0,
+              timeZone,
+              specialistId: scheduleScope.specialistId,
+              branchId,
+              serviceId,
+            }),
+          ]);
+          const byId = new Map(
+            [...historyPage.items, ...futurePage.items].map((item) => [item.id, item]),
+          );
+          return {
+            items: [...byId.values()].sort((a, b) => a.startAt.localeCompare(b.startAt)),
+            pastBoundary: historyStartIso,
+            futureFrom: targetIso,
+            futureOffset: futurePage.items.length,
+            hasLater: futurePage.hasMore,
+          };
+        })()
+      : Promise.resolve(undefined);
+
   const calendarPromise = deps.bookingCalendar
     .getCalendar({
       organizationId,
@@ -141,10 +191,11 @@ export async function loadDoctorScheduleCalendarBootstrap(input: {
       : Promise.resolve(null);
 
   try {
-    const [calendar, kpis, settings] = await Promise.all([
+    const [calendar, kpis, settings, appointmentFeed] = await Promise.all([
       calendarPromise,
       kpisPromise,
       settingsPromise,
+      appointmentFeedPromise,
     ]);
     return {
       fetchedAt: new Date().toISOString(),
@@ -156,6 +207,7 @@ export async function loadDoctorScheduleCalendarBootstrap(input: {
       calendar,
       kpis,
       settings,
+      appointmentFeed,
     };
   } catch {
     // Degrade to client fetch — shell/settings still render.

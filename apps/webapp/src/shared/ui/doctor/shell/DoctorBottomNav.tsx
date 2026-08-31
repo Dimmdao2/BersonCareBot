@@ -36,7 +36,7 @@ export function DoctorBottomNav({
   return (
     <nav
       aria-label="Основные разделы"
-      className="relative z-40 shrink-0 border-t border-border/70 bg-background/95 pb-[calc(env(safe-area-inset-bottom,0px)+0.125rem)] shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
+      className="relative z-40 shrink-0 border-t border-border/70 bg-background/95 pb-[env(safe-area-inset-bottom,0px)] shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
     >
       <div className="flex h-12">
         {visibleItems.map((item) => {

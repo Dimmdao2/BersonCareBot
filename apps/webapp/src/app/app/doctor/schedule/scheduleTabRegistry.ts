@@ -26,6 +26,8 @@ export type ScheduleTabProps = {
   scheduleScopeBootstrap?: DoctorScheduleScopeBootstrap;
   /** The single doctor_statistics mechanic controls clinic statistics and booking attribution. */
   doctorStatisticsEnabled: boolean;
+  /** Monotonic request from mobile chrome to open a blank appointment form. */
+  createAppointmentRequestId?: number;
 };
 
 export type ScheduleTabRegistryEntry = {

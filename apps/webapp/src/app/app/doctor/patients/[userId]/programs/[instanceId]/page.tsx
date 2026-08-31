@@ -157,6 +157,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       title="Карточка пациента"
       user={session.user}
       backHref={routePaths.doctorPatients}
+      mobileBottomGutter
     >
       <PatientCardClient
         shellMeta={shellMeta}

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Copy, Link2, Link2Off, RotateCw } from 'lucide-react';
+import { Copy, Link2Off } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
@@ -54,6 +55,7 @@ export function PatientPortalInviteControls({
         typeof json.relativeUrl !== 'string'
       ) {
         setNotice('Не удалось создать приглашение.');
+        toast.error('Не удалось создать приглашение');
         return;
       }
       const absoluteUrl = `${window.location.origin}${json.relativeUrl}`;
@@ -62,13 +64,16 @@ export function PatientPortalInviteControls({
       try {
         await navigator.clipboard.writeText(absoluteUrl);
         setNotice('Новая ссылка скопирована. Предыдущая ссылка больше не действует.');
+        toast.success('Ссылка скопирована');
       } catch {
         setNotice(
           'Ссылка создана. Скопируйте её из поля ниже; предыдущая ссылка больше не действует.',
         );
+        toast.error('Ссылка создана, но не скопирована');
       }
     } catch {
       setNotice('Не удалось создать приглашение.');
+      toast.error('Не удалось создать приглашение');
     } finally {
       setPending(false);
     }
@@ -98,33 +103,25 @@ export function PatientPortalInviteControls({
     }
   }
 
+  if (state.status === 'linked') return null;
+
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2">
+    <div className="mt-3 flex flex-wrap items-center gap-2">
       <span className="inline-flex h-7 items-center gap-1 rounded-full border border-border bg-background px-2.5 text-xs text-foreground">
-        {state.status === 'linked' ? (
-          <Link2 className="h-3.5 w-3.5 text-primary" />
-        ) : (
-          <Link2Off className="h-3.5 w-3.5 text-muted-foreground" />
-        )}
+        <Link2Off className="h-3.5 w-3.5 text-muted-foreground" />
         {labels[state.status]}
       </span>
-      {state.status !== 'linked' ? (
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={pending}
-          onClick={() => void issueAndCopy()}
-          className="h-7 gap-1 px-2.5 text-xs"
-        >
-          {state.status === 'invited' ? (
-            <RotateCw className="h-3.5 w-3.5" />
-          ) : (
-            <Copy className="h-3.5 w-3.5" />
-          )}
-          {state.status === 'invited' ? 'Новая ссылка' : 'Скопировать приглашение'}
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={pending}
+        onClick={() => void issueAndCopy()}
+        className="h-7 gap-1 px-2.5 text-xs"
+      >
+        <Copy className="h-3.5 w-3.5" />
+        Пригласить
+      </Button>
       {state.status === 'invited' ? (
         <Button
           type="button"

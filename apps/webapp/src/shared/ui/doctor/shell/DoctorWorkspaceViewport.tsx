@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import type { DoctorMenuAccess } from '@/shared/ui/doctor/doctorNavLinks';
 import { DoctorBottomNav } from '@/shared/ui/doctor/shell/DoctorBottomNav';
 import { DoctorHeader } from '@/shared/ui/doctor/shell/DoctorHeader';
+import { useDoctorShellChrome } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
 
 type DoctorWorkspaceViewportProps = {
   header: {
@@ -36,16 +37,21 @@ export function DoctorWorkspaceViewport({
   bottomNav,
   children,
 }: DoctorWorkspaceViewportProps) {
+  const shellChrome = useDoctorShellChrome();
+
   return (
     <div
-      className="flex h-dvh min-h-0 flex-col overflow-hidden bg-background"
+      className="flex h-dvh min-h-0 flex-col overflow-hidden bg-[var(--bc-canvas,#f2f2f0)]"
       data-doctor-mobile-frame="rows"
     >
       <DoctorHeader {...header} />
       <div className="flex min-h-0 flex-1">
         {sidebar}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto">{children}</div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto bg-[var(--bc-canvas,#f2f2f0)]">
+          {children}
+        </div>
       </div>
+      {shellChrome?.mobileBottomTabs}
       {bottomNav ? <DoctorBottomNav {...bottomNav} /> : null}
     </div>
   );

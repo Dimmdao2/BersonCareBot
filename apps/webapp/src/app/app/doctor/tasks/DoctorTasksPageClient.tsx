@@ -10,6 +10,7 @@ import { CatalogLeftPane } from '@/shared/ui/doctor/catalog/CatalogLeftPane';
 import { CatalogRightPane } from '@/shared/ui/doctor/catalog/CatalogRightPane';
 import { DoctorCatalogFiltersToolbar } from '@/shared/ui/doctor/DoctorCatalogFiltersToolbar';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
+import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import {
   DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_SINGLE,
   DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
@@ -263,10 +264,11 @@ export function DoctorTasksPageClient({
               >
                 {visibleTaskGroups.map((group) => (
                   <section key={group.kind}>
-                    <p className="px-[var(--doctor-list-inline-padding,18px)] py-2 text-xs font-medium text-muted-foreground md:px-3 md:py-1">
-                      {group.kind === 'completed' ? 'Выполненные' : 'Открытых'}:{' '}
-                      {group.tasks.length}
-                    </p>
+                    <DoctorResultCount
+                      className="px-[var(--doctor-list-inline-padding,18px)] md:px-3"
+                      label={group.kind === 'completed' ? 'Выполненные' : 'Открытых'}
+                      value={group.tasks.length}
+                    />
                     {group.tasks.length ? (
                       <ul className="flex flex-col gap-0 [&>li+li]:border-t [&>li+li]:border-border/60 md:gap-1 md:[&>li+li]:border-t-0">
                         {group.tasks.map((task) => (

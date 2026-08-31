@@ -94,7 +94,7 @@ describe('patient records tab — a refused load is not a visit history', () => 
     expect(openVisit).not.toHaveBeenCalled();
   });
 
-  it('uses the UI-5b KPI master selector and opens prepared notes without creating a duplicate visit', async () => {
+  it('opens the visit history from the summary and opens prepared notes without creating a duplicate visit', async () => {
     const createVisit = vi.fn();
     const openNotes = vi.fn();
     const preparedAppointment = {
@@ -119,48 +119,10 @@ describe('patient records tab — a refused load is not a visit history', () => 
       />,
     );
 
-    expect(screen.getByRole('button', { name: /Визиты/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Будущие записи/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Абонементы/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Визитов 1/ }));
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
     expect(openNotes).toHaveBeenCalledWith('appointment-with-visit');
     expect(createVisit).not.toHaveBeenCalled();
-  });
-
-  it('keeps membership history in the master pane and exposes consume/recalculate only for active memberships', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(respondWith({ sessions: [] }));
-    const openConfiguration = vi.fn();
-
-    render(
-      <PatientTabRecords
-        userId={patientId}
-        compositionMode="master"
-        initialAppointments={[]}
-        initialPackages={[
-          {
-            id: 'active-package',
-            title: 'Активный',
-            status: 'active',
-            validUntil: null,
-            balance: { items: [{ quantityInitial: 5, remaining: 3 }] },
-          },
-          {
-            id: 'closed-package',
-            title: 'Закрытый',
-            status: 'completed',
-            validUntil: null,
-            balance: { items: [{ quantityInitial: 4, remaining: 0 }] },
-          },
-        ]}
-        onOpenMembershipConfiguration={openConfiguration}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /Абонементы/ }));
-    expect(await screen.findByText(/История закрытых абонементов/)).toBeInTheDocument();
-    expect(screen.getAllByRole('button', { name: 'Пересчитать' })).toHaveLength(1);
-    expect(screen.getAllByRole('button', { name: 'Списать' })).toHaveLength(1);
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
-    expect(openConfiguration).toHaveBeenCalledTimes(1);
   });
 });

@@ -5715,15 +5715,34 @@ export const REV10_CLINICAL_ACCESS: Record<string, Revision10ClinicalAccess> = {
           "INSERT"
         ],
         "columns": [
+          "accepted_at",
+          "accepted_by_platform_user_id",
+          "accepted_via",
+          "bearer_exchanged_at",
+          "continuation_expires_at",
+          "continuation_hash",
+          "created_at",
           "created_by_platform_user_id",
+          "delivery_channel_hint",
           "enrollment_id",
           "expires_at",
           "id",
           "invited_email_normalized",
           "organization_id",
           "patient_user_id",
+          "proof_attempts",
+          "proof_code_hash",
+          "proof_email_normalized",
+          "proof_expires_at",
+          "proof_started_at",
+          "proof_verified_at",
           "recipient_binding",
-          "token_hash"
+          "revoked_at",
+          "revoked_by_platform_user_id",
+          "status",
+          "superseded_by_invite_id",
+          "token_hash",
+          "updated_at"
         ]
       },
       {

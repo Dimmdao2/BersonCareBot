@@ -3,10 +3,11 @@
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { Settings } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
+import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
@@ -220,12 +221,27 @@ export function DoctorCommunicationsShell({
     [buildTabUrl],
   );
 
+  const mobileBottomTabs = useMemo(
+    () => (
+      <DoctorMobileSectionTabs
+        tabs={COMMUNICATIONS_TABS.map((tab) => ({ ...tab, badge: badges?.[tab.id] }))}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        ariaLabel="Разделы коммуникаций"
+      />
+    ),
+    [activeTab, badges, handleTabChange],
+  );
+
   return (
-    <DoctorAppShell title="Коммуникации" layout="full-height">
+    <DoctorAppShell
+      title="Коммуникации"
+      layout="full-height"
+      mobileBottomTabs={mobileBottomTabs}
+    >
       <DoctorPageHeader
         id="doctor-communications-header"
         title="Коммуникации"
-        showTabsOnMobile
         toolbar={
           activeTab === 'chats' ? <div id="doctor-communications-mobile-toolbar" /> : undefined
         }

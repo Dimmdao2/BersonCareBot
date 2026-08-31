@@ -9,10 +9,10 @@ import { REV10_CLINICAL_ACCESS } from './relation-access.ts';
 
 const WEBAPP_ROOT = fileURLToPath(new URL('../../../apps/webapp/', import.meta.url));
 
-function drizzleSchemaColumns(schemaExport) {
+function drizzleSchemaColumns(schemaExport, schemaModule = './db/schema/schema.ts') {
   const expression = [
     "import { getTableColumns } from 'drizzle-orm'",
-    `import { ${schemaExport} } from './db/schema/schema.ts'`,
+    `import { ${schemaExport} } from '${schemaModule}'`,
     `process.stdout.write(JSON.stringify(Object.values(getTableColumns(${schemaExport})).map((column) => column.name).sort()))`,
   ].join(';');
   return JSON.parse(execFileSync('node_modules/.bin/tsx', ['-e', expression], {
@@ -66,13 +66,18 @@ function assertNoOperation(relation, role, operation) {
 test('direct staff Drizzle inserts name every schema column allowed by their INSERT grant', () => {
   const contracts = [
     { relation: 'public.media_files', schemaExport: 'mediaFiles' },
+    {
+      relation: 'public.patient_invites',
+      schemaExport: 'patientInvites',
+      schemaModule: './db/schema/patientInvites.ts',
+    },
   ];
   for (const contract of contracts) {
     exactColumns(
       contract.relation,
       'app_staff',
       'INSERT',
-      drizzleSchemaColumns(contract.schemaExport),
+      drizzleSchemaColumns(contract.schemaExport, contract.schemaModule),
     );
   }
 });

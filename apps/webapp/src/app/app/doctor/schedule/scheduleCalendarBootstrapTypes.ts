@@ -1,4 +1,5 @@
 import type {
+  CalendarAppointmentEvent,
   CalendarEvent,
   CalendarFilterMeta,
   WorkingBounds,
@@ -10,6 +11,14 @@ import type {
 } from '@/modules/doctor-schedule/scope';
 import type { CalendarDoctorSettings } from './scheduleCalendarSettings';
 import type { ScheduleCalV26View } from './scheduleCalendarRange';
+
+export type ScheduleAppointmentFeedBootstrap = {
+  items: CalendarAppointmentEvent[];
+  pastBoundary: string;
+  futureFrom: string;
+  futureOffset: number;
+  hasLater: boolean;
+};
 
 /** Client-safe feed snapshot (no server deps). */
 export type ScheduleCalendarFeedSnapshot = {
@@ -36,6 +45,7 @@ export type ScheduleCalendarBootstrap = {
   calendar: ScheduleCalendarFeedSnapshot;
   kpis: ScheduleKpis | null;
   settings: CalendarDoctorSettings;
+  appointmentFeed?: ScheduleAppointmentFeedBootstrap;
 };
 
 export function isScheduleCalendarBootstrap(

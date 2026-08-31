@@ -156,7 +156,7 @@ afterEach(() => {
 });
 
 describe('patient card — final tabs live in DoctorPageHeader', () => {
-  it('renders exactly four product tabs inside the page header', async () => {
+  it('renders patient navigation inside the page header', async () => {
     render(
       <PatientCardClient
         shellMeta={shellMeta}
@@ -178,8 +178,6 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     const accountButtons = screen.getAllByRole('button', { name: 'Учётка' });
     expect(accountButtons).toHaveLength(1);
     expect(tabsSlot!.contains(accountButtons[0]!)).toBe(true);
-    expect(tabsSlot!.querySelectorAll('#doctor-patient-card-tabs button')).toHaveLength(4);
-    expect(screen.queryByRole('button', { name: 'Обзор' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Визиты' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Коммуникации' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Финансы' })).not.toBeInTheDocument();
@@ -195,7 +193,7 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
       <PatientCardClient
         shellMeta={shellMeta}
         tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="overview"
+        initialTab="karta"
         patientListHref={patientListHref}
       />,
     );
@@ -203,7 +201,7 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     await screen.findByTestId('panel-karta');
     expect(screen.queryByTestId('panel-program')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Программа' }));
+    fireEvent.click(screen.getByRole('button', { name: 'ЛФК' }));
 
     const programPanel = await screen.findByTestId('panel-program');
     expect(programPanel.closest('[hidden], .hidden')).toBeNull();
@@ -212,28 +210,13 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     const kartaPanel = screen.getByTestId('panel-karta');
     expect(kartaPanel.closest('.hidden')).not.toBeNull();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Карточка' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Карта' }));
 
     await waitFor(() => {
       expect(screen.getByTestId('panel-karta').closest('.hidden')).toBeNull();
     });
     // Program is still in the DOM, just hidden — its internal state was not thrown away.
     expect(screen.getByTestId('panel-program').closest('.hidden')).not.toBeNull();
-  });
-
-  it('opens legacy direct links in the consolidated card tab', async () => {
-    render(
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="records"
-        patientListHref={patientListHref}
-      />,
-    );
-
-    const kartaPanel = await screen.findByTestId('panel-karta');
-    expect(kartaPanel.closest('.hidden')).toBeNull();
-    expect(screen.queryByTestId('panel-program')).not.toBeInTheDocument();
   });
 
   it('keeps the consolidated card visible when its communications shortcut is used', async () => {
@@ -256,24 +239,4 @@ describe('patient card — final tabs live in DoctorPageHeader', () => {
     });
   });
 
-  it('keeps selected visit detail hidden until selection and opens membership configuration in the detail pane', async () => {
-    render(
-      <PatientCardClient
-        shellMeta={shellMeta}
-        tabPromise={fulfilledThenable(tabBootstrap)}
-        initialTab="karta"
-        patientListHref={patientListHref}
-      />,
-    );
-
-    await screen.findByTestId('card-master-pane');
-    expect(screen.queryByTestId('selected-visit-detail')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Открыть заметки' }));
-    expect(await screen.findByTestId('selected-visit-detail')).toHaveTextContent('appointment-1');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Добавить абонемент' }));
-    expect(await screen.findByTestId('membership-configuration')).toBeInTheDocument();
-    expect(screen.queryByTestId('selected-visit-detail')).not.toBeInTheDocument();
-  });
 });

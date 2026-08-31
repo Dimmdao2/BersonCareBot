@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, isNull, lte, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, ilike, inArray, isNull, lte, notInArray, or, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
   beAppointments,
@@ -20,6 +20,8 @@ import { drizzlePrimaryPhoneCol } from '@/infra/repos/userContactsSql';
 import type { BookingCalendarPort } from '@/modules/booking-calendar/ports';
 import type {
   CalendarAppointmentEvent,
+  AppointmentFeedFilters,
+  AppointmentFeedPage,
   CalendarFilterMeta,
   CalendarFilters,
 } from '@/modules/booking-calendar/types';
@@ -61,7 +63,7 @@ export function isPrepaymentPending(
 }
 
 export function createPgBookingCalendarPort(): BookingCalendarPort {
-  return {
+  const port: BookingCalendarPort = {
     async listFilterMeta(organizationId): Promise<CalendarFilterMeta> {
       const db = getDrizzle();
       const [specialists, branches, rooms, services, serviceAvailability] = await Promise.all([
@@ -174,6 +176,10 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
       }
       if (filters.serviceId) {
         conds.push(eq(beAppointments.serviceId, filters.serviceId));
+      }
+      if (filters.appointmentIds) {
+        if (filters.appointmentIds.length === 0) return [];
+        conds.push(inArray(beAppointments.id, filters.appointmentIds));
       }
 
       const rows = await db
@@ -351,5 +357,99 @@ export function createPgBookingCalendarPort(): BookingCalendarPort {
         };
       });
     },
+
+    async listAppointmentFeed(
+      filters: AppointmentFeedFilters,
+    ): Promise<AppointmentFeedPage> {
+      const db = getDrizzle();
+      const conds = [
+        eq(beAppointments.organizationId, filters.organizationId),
+        isNull(beAppointments.deletedAt),
+      ];
+      if (filters.rangeStart) conds.push(gte(beAppointments.endAt, filters.rangeStart));
+      if (filters.rangeEnd) conds.push(lte(beAppointments.startAt, filters.rangeEnd));
+      if (filters.specialistId) conds.push(eq(beAppointments.specialistId, filters.specialistId));
+      if (filters.branchId) conds.push(eq(beAppointments.branchId, filters.branchId));
+      if (filters.roomId) conds.push(eq(beAppointments.roomId, filters.roomId));
+      if (filters.serviceId) conds.push(eq(beAppointments.serviceId, filters.serviceId));
+      if (!filters.includeCancelled) {
+        conds.push(
+          notInArray(beAppointments.status, [
+            'cancelled_by_patient',
+            'cancelled_by_specialist',
+            'late_cancellation',
+            'no_show',
+          ]),
+        );
+      }
+
+      const search = filters.search?.trim();
+      if (search) {
+        const pattern = `%${search}%`;
+        conds.push(
+          or(
+            ilike(userIdentity.displayName, pattern),
+            ilike(userIdentity.firstName, pattern),
+            ilike(userIdentity.lastName, pattern),
+            ilike(beAppointments.phoneNormalized, pattern),
+          )!,
+        );
+      }
+
+      const base = db
+        .select({ id: beAppointments.id, startAt: beAppointments.startAt })
+        .from(beAppointments)
+        .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+        .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
+        .where(and(...conds));
+      const [pageRows, totalRows] = await Promise.all([
+        base
+          .orderBy(
+            filters.order === 'desc'
+              ? desc(beAppointments.startAt)
+              : asc(beAppointments.startAt),
+            filters.order === 'desc' ? desc(beAppointments.id) : asc(beAppointments.id),
+          )
+          .limit(filters.limit)
+          .offset(filters.offset),
+        db
+          .select({ value: count() })
+          .from(beAppointments)
+          .leftJoin(platformUsers, eq(platformUsers.id, beAppointments.platformUserId))
+          .leftJoin(userIdentity, drizzleUserIdentityFioJoin)
+          .where(and(...conds)),
+      ]);
+      const ids = pageRows.map((row) => row.id);
+      if (ids.length === 0) {
+        return { items: [], total: totalRows[0]?.value ?? 0, hasMore: false };
+      }
+      const chronologicalRows = [...pageRows].sort((a, b) => a.startAt.localeCompare(b.startAt));
+      const byId = new Map(
+        (
+          await port.listAppointmentsInRange({
+            organizationId: filters.organizationId,
+            rangeStart: chronologicalRows[0]!.startAt,
+            rangeEnd: chronologicalRows[chronologicalRows.length - 1]!.startAt,
+            timeZone: filters.timeZone,
+            specialistId: filters.specialistId,
+            branchId: filters.branchId,
+            roomId: filters.roomId,
+            serviceId: filters.serviceId,
+            appointmentIds: ids,
+          })
+        ).map((item) => [item.id, item]),
+      );
+      const items = ids.flatMap((id) => {
+        const item = byId.get(id);
+        return item ? [item] : [];
+      });
+      const total = totalRows[0]?.value ?? 0;
+      return {
+        items,
+        total,
+        hasMore: filters.offset + pageRows.length < total,
+      };
+    },
   };
+  return port;
 }

@@ -34,6 +34,8 @@ export type DoctorAppShellProps = {
   backLabel?: string;
   /** Page-specific actions rendered before the mobile menu button. */
   mobileHeaderActions?: ReactNode;
+  /** Page section tabs rendered as a real shell row above the mobile bottom navigation. */
+  mobileBottomTabs?: ReactNode;
 };
 
 export function DoctorAppShell({
@@ -44,6 +46,7 @@ export function DoctorAppShell({
   backHref,
   backLabel,
   mobileHeaderActions,
+  mobileBottomTabs,
 }: DoctorAppShellProps) {
   // `--doctor-sticky-offset` определяется зонально для `#app-shell-doctor` в `doctor.css`
   // (см. doctorWorkspaceLayout.ts): <md → 0, md+ → высота per-page DoctorPageHeader.
@@ -55,7 +58,7 @@ export function DoctorAppShell({
       data-doctor-page-layout={layout}
       className={cn(
         fullHeight ? DOCTOR_FULL_HEIGHT_PAGE_CLASS : DOCTOR_PAGE_CONTAINER_CLASS,
-        fullHeight && mobileBottomGutter && DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
+        mobileBottomGutter && DOCTOR_MOBILE_PAGE_BOTTOM_GUTTER_CLASS,
         'theme-bersoncare-doctor-dna',
       )}
     >
@@ -64,6 +67,7 @@ export function DoctorAppShell({
         backHref={backHref}
         backLabel={backLabel}
         mobileActions={mobileHeaderActions}
+        mobileBottomTabs={mobileBottomTabs}
       />
       <main
         id="app-shell-content"

@@ -219,6 +219,10 @@ export function createBookingCalendarService(deps: Deps): BookingCalendarService
       return deps.calendarPort.listAppointmentsInRange(filters);
     },
 
+    listAppointmentFeed(filters) {
+      return deps.calendarPort.listAppointmentFeed(filters);
+    },
+
     async getCalendar(filters: CalendarFilters): Promise<CalendarAggregate> {
       const timeZone = filters.timeZone ?? (await getAppDisplayTimeZone());
       const effectiveFilters = { ...filters, timeZone };

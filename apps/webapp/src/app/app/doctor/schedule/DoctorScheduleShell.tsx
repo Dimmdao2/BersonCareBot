@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { CalendarClock, CalendarCog, CalendarDays } from 'lucide-react';
+import { CalendarPlus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,11 @@ import type { DoctorScheduleScopeBootstrap } from '@/modules/doctor-schedule/sco
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
+import {
+  DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS,
+  NAV_STRIP_ICON_STROKE,
+} from '@/shared/ui/doctor/navChrome';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import {
   DOCTOR_DESKTOP_ATTACH_TO_PAGE_HEADER_CLASS,
@@ -94,42 +99,6 @@ function ScheduleTabsNav({ activeTab, canManageOrganization, onTabClick }: Sched
   );
 }
 
-function MobileScheduleTabsNav({
-  activeTab,
-  canManageOrganization,
-  onTabClick,
-}: ScheduleTabsNavProps) {
-  const icons = {
-    cal: CalendarDays,
-    work: CalendarClock,
-    setup: CalendarCog,
-  } satisfies Record<ScheduleTabId, ComponentType<{ className?: string; 'aria-hidden'?: boolean }>>;
-
-  return (
-    <div className="flex items-center gap-0.5" aria-label="Разделы расписания">
-      {SCHEDULE_TABS.filter((tab) => tab.id !== 'setup' || canManageOrganization).map((tab) => {
-        const Icon = icons[tab.id];
-        const active = tab.id === activeTab;
-        return (
-          <Button
-            key={tab.id}
-            type="button"
-            variant={active ? 'default' : 'ghost'}
-            size="icon"
-            className="size-10 shrink-0"
-            aria-label={tab.label}
-            aria-current={active ? 'page' : undefined}
-            title={tab.label}
-            onClick={() => onTabClick(tab.id)}
-          >
-            <Icon className="size-[20px]" aria-hidden />
-          </Button>
-        );
-      })}
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------------------
 // Props & Shell
 // ---------------------------------------------------------------------------
@@ -199,6 +168,7 @@ export function DoctorScheduleShell({
   })();
 
   const [activeTab, setActiveTab] = useState<ScheduleTabId>(resolvedInit);
+  const [createAppointmentRequestId, setCreateAppointmentRequestId] = useState(0);
   const activeTabRef = useRef(activeTab);
 
   // Mount on first visit, keep mounted while hidden (visitedTabs / keepMounted).
@@ -288,10 +258,31 @@ export function DoctorScheduleShell({
 
   const mobileHeaderActions = useMemo(
     () => (
-      <MobileScheduleTabsNav
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
+        aria-label="Новая запись"
+        title="Новая запись"
+        onClick={() => {
+          handleTabChange('cal');
+          setCreateAppointmentRequestId((current) => current + 1);
+        }}
+      >
+        <CalendarPlus className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+      </Button>
+    ),
+    [handleTabChange],
+  );
+
+  const mobileBottomTabs = useMemo(
+    () => (
+      <DoctorMobileSectionTabs
+        tabs={SCHEDULE_TABS.filter((tab) => tab.id !== 'setup' || canManageOrganization)}
         activeTab={activeTab}
-        canManageOrganization={canManageOrganization}
-        onTabClick={handleTabChange}
+        onTabChange={handleTabChange}
+        ariaLabel="Разделы расписания"
       />
     ),
     [activeTab, canManageOrganization, handleTabChange],
@@ -302,6 +293,7 @@ export function DoctorScheduleShell({
       title="Расписание"
       layout="full-height"
       mobileHeaderActions={mobileHeaderActions}
+      mobileBottomTabs={mobileBottomTabs}
     >
       <DoctorPageHeader
         id="doctor-schedule-header"
@@ -343,6 +335,9 @@ export function DoctorScheduleShell({
               packagesReadOnly={packagesReadOnly}
               scheduleScopeBootstrap={scheduleScopeBootstrap}
               doctorStatisticsEnabled={doctorStatisticsEnabled}
+              createAppointmentRequestId={
+                tabId === 'cal' ? createAppointmentRequestId : undefined
+              }
             />
           </div>
         );

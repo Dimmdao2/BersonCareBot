@@ -24,7 +24,7 @@ const VALID_TABS = new Set([
   'finances',
 ]);
 
-const LEGACY_TABS = new Set(['overview', 'records', 'comms', 'finances']);
+const LEGACY_TABS = new Set(['records', 'comms', 'finances']);
 
 type PageProps = {
   params: Promise<{ userId: string; tabSlug: string[] }>;

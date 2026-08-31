@@ -1,12 +1,12 @@
 'use client';
 
 import 'react-day-picker/style.css';
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import dynamic from 'next/dynamic';
 import { DateTime } from 'luxon';
 import { DayPicker } from 'react-day-picker';
 import { ru } from 'react-day-picker/locale';
-import { Calendar, CalendarDays, Columns3, Filter, List, Search } from 'lucide-react';
+import { Calendar, CalendarDays, Columns3, Filter, List, Play, Search } from 'lucide-react';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
@@ -37,6 +37,7 @@ import type { ScheduleTabProps } from '../scheduleTabRegistry';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
@@ -103,6 +104,12 @@ const API_BASE = '/api/doctor/booking-engine';
 const KPIS_API = '/api/doctor/schedule-kpis';
 const SCHEDULE_FILTERS_STORAGE_KEY = 'therapysto.doctor.schedule.filters.v1';
 const INACTIVE_TOOLBAR_BUTTON_CLASS = 'bg-white hover:bg-muted';
+const ACTIVE_FILTER_BUTTON_CLASS =
+  'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5';
+const CREATE_PANEL_REVEAL_DELAY_MS = 180;
+const APPOINTMENT_FEED_API = `${API_BASE}/appointments/feed`;
+const APPOINTMENT_FEED_PAGE_SIZE = 100;
+const APPOINTMENT_FEED_HISTORY_MONTHS = 3;
 
 type CachedScheduleFilters = {
   branchId: string | null;
@@ -190,6 +197,14 @@ type RenderMode = 'calendar' | 'list';
 
 type CalendarResponse = Omit<ScheduleCalendarFeedSnapshot, 'ok'> & {
   ok: boolean;
+  error?: string;
+};
+
+type AppointmentFeedResponse = {
+  ok: boolean;
+  items?: CalendarAppointmentEvent[];
+  total?: number;
+  hasMore?: boolean;
   error?: string;
 };
 
@@ -287,6 +302,14 @@ function buildQuery(params: Record<string, string | null | undefined>): string {
     if (v != null && v !== '') sp.set(k, v);
   }
   return sp.toString();
+}
+
+function mergeAppointmentPages(
+  ...pages: CalendarAppointmentEvent[][]
+): CalendarAppointmentEvent[] {
+  const byId = new Map<string, CalendarAppointmentEvent>();
+  for (const item of pages.flat()) byId.set(item.id, item);
+  return [...byId.values()].sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 
 // ---------------------------------------------------------------------------
@@ -426,7 +449,7 @@ function KpiRowTab({ kpis, kpisLoading, onKpiClick }: KpiRowTabProps) {
 }
 
 // ---------------------------------------------------------------------------
-// List view — period-bound list grouped by day (replaces FeedView)
+// List view — continuous, paged appointment feed grouped by month and day
 // ---------------------------------------------------------------------------
 
 type ListDayCardProps = {
@@ -463,11 +486,13 @@ function ListDayCard({
 }: ListDayCardProps) {
   return (
     <div
-      className="rounded-xl border border-border bg-card p-3 flex flex-col gap-2"
+      className="flex flex-col bg-card md:gap-2 md:rounded-xl md:border md:border-border md:p-3"
       data-testid={`list-day-${dateKey}`}
     >
-      <p className="text-sm font-semibold text-foreground capitalize">{label}</p>
-      <div className="flex flex-col gap-1">
+      <p className="border-b border-border/60 px-3 py-2 text-sm font-semibold capitalize text-foreground md:border-0 md:p-0">
+        {label}
+      </p>
+      <div className="flex flex-col md:gap-1">
         {appointments.map((appt) => {
           const start = parseFeedInstant(appt.startAt, timeZone).toFormat('HH:mm');
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
@@ -480,7 +505,7 @@ function ListDayCard({
               variant="ghost"
               onClick={() => onSelect(appt)}
               className={cn(
-                'flex w-full items-start gap-3 rounded-md border px-3 py-2 text-left text-sm',
+                'flex h-auto min-h-0 w-full items-start gap-3 whitespace-normal rounded-none border-0 border-b border-border/60 px-3 py-2 text-left text-sm md:rounded-md md:border md:px-3 md:py-2',
                 isNext ? 'ring-2 ring-primary/70 ring-offset-1' : '',
                 listRowClass(appt, timeZone),
               )}
@@ -489,34 +514,30 @@ function ListDayCard({
               <span className="shrink-0 font-semibold tabular-nums">
                 {start}–{end}
               </span>
-              <span className={cn('min-w-0 truncate', cancelled && 'line-through')}>
-                {appt.patientName ?? 'Запись'}
+              <span className="min-w-0 flex-1">
+                <span className={cn('block truncate', cancelled && 'line-through')}>
+                  {appt.patientName ?? 'Запись'}
+                </span>
+                <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  <span className={cancelled ? 'font-medium text-destructive' : undefined}>
+                    {appointmentStatusLabel(appt.status)}
+                  </span>
+                  {appt.branchTitle ? <span className="truncate">{appt.branchTitle}</span> : null}
+                  {appt.packageUsageRef || appt.packageTitle ? (
+                    <span
+                      className="rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
+                      title={appt.packageTitle ?? undefined}
+                    >
+                      {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
+                    </span>
+                  ) : null}
+                  {isNext ? (
+                    <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                      Следующая
+                    </span>
+                  ) : null}
+                </span>
               </span>
-              {appt.packageUsageRef || appt.packageTitle ? (
-                <span
-                  className="shrink-0 rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
-                  title={appt.packageTitle ?? undefined}
-                >
-                  {formatPatientPackageShortLabel(appt.packageDisplayNumber)}
-                </span>
-              ) : null}
-              {isNext && (
-                <span className="shrink-0 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                  Следующая
-                </span>
-              )}
-              {cancelled ? (
-                <span className="shrink-0 text-xs font-medium text-destructive">
-                  {appointmentStatusLabel(appt.status)}
-                </span>
-              ) : (
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  {appointmentStatusLabel(appt.status)}
-                </span>
-              )}
-              {appt.branchTitle ? (
-                <span className="ml-auto shrink-0 text-xs opacity-70">{appt.branchTitle}</span>
-              ) : null}
             </Button>
           );
         })}
@@ -526,51 +547,71 @@ function ListDayCard({
 }
 
 type ListViewProps = {
-  events: CalendarEvent[];
+  appointments: CalendarAppointmentEvent[];
   anchorDate: string;
   timeZone: string;
-  rangeFrom: string;
-  rangeTo: string;
+  loading: boolean;
+  loadingEarlier: boolean;
+  loadingLater: boolean;
+  hasEarlier: boolean;
+  hasLater: boolean;
+  onLoadEarlier: () => void;
+  onLoadLater: () => void;
   onSelect: (appt: CalendarAppointmentEvent) => void;
 };
 
-function ListView({ events, timeZone, rangeFrom, rangeTo, onSelect }: ListViewProps) {
-  const from = DateTime.fromISO(rangeFrom, { zone: timeZone });
-  const to = DateTime.fromISO(rangeTo, { zone: timeZone });
-
-  // Build list of all days in range that have appointments
-  const totalDays = Math.ceil(to.diff(from, 'days').days);
-  const dayGroups: Array<{
+function ListView({
+  appointments,
+  anchorDate,
+  timeZone,
+  loading,
+  loadingEarlier,
+  loadingLater,
+  hasEarlier,
+  hasLater,
+  onLoadEarlier,
+  onLoadLater,
+  onSelect,
+}: ListViewProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const anchorMarkerRef = useRef<HTMLDivElement>(null);
+  const earlierSentinelRef = useRef<HTMLDivElement>(null);
+  const laterSentinelRef = useRef<HTMLDivElement>(null);
+  const positionedAnchorRef = useRef<string | null>(null);
+  const prependSnapshotRef = useRef<{ height: number; top: number } | null>(null);
+  const dayGroups = useMemo<Array<{
     dateKey: string;
     label: string;
+    monthKey: string;
+    monthLabel: string;
     appointments: CalendarAppointmentEvent[];
-  }> = [];
-
-  for (let i = 0; i < totalDays; i++) {
-    const day = from.plus({ days: i });
-    const dayKey = day.toISODate() ?? '';
-    const appointments = events
-      .filter(
-        (e): e is CalendarAppointmentEvent =>
-          e.kind === 'appointment' &&
-          // R29: показываем и отменённые (визуально отдельно + «Отмена»); раньше (R15) их прятали.
-          parseFeedInstant(e.startAt, timeZone).toISODate() === dayKey,
-      )
-      // активные выше, отменённые — в конце дня; внутри группы — по времени
-      .sort((a, b) => {
-        const ac = isCancelledAppointmentStatus(a.status) ? 1 : 0;
-        const bc = isCancelledAppointmentStatus(b.status) ? 1 : 0;
-        if (ac !== bc) return ac - bc;
-        return a.startAt < b.startAt ? -1 : 1;
-      });
-    if (appointments.length > 0) {
-      dayGroups.push({
-        dateKey: dayKey,
-        label: day.setLocale('ru').toFormat('cccc, d LLLL'),
-        appointments,
-      });
+  }>>(() => {
+    const byDay = new Map<string, CalendarAppointmentEvent[]>();
+    for (const appointment of appointments) {
+      const dayKey = parseFeedInstant(appointment.startAt, timeZone).toISODate();
+      if (!dayKey) continue;
+      const group = byDay.get(dayKey) ?? [];
+      group.push(appointment);
+      byDay.set(dayKey, group);
     }
-  }
+    return [...byDay.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([dateKey, items]) => {
+        const day = DateTime.fromISO(dateKey, { zone: timeZone }).setLocale('ru');
+        return {
+          dateKey,
+          label: day.toFormat('cccc, d LLLL'),
+          monthKey: day.toFormat('yyyy-MM'),
+          monthLabel: day.toFormat('LLLL yyyy'),
+          appointments: items.sort((a, b) => {
+            const ac = isCancelledAppointmentStatus(a.status) ? 1 : 0;
+            const bc = isCancelledAppointmentStatus(b.status) ? 1 : 0;
+            if (ac !== bc) return ac - bc;
+            return a.startAt.localeCompare(b.startAt);
+          }),
+        };
+      });
+  }, [appointments, timeZone]);
 
   // SCH-09: find first upcoming non-cancelled appointment across all day groups
   const now = DateTime.now().setZone(timeZone);
@@ -587,31 +628,104 @@ function ListView({ events, timeZone, rangeFrom, rangeTo, onSelect }: ListViewPr
     }
   }
 
+  const firstGroupAtOrAfterAnchor = dayGroups.findIndex(({ dateKey }) => dateKey >= anchorDate);
+  const anchorMarkerIndex =
+    firstGroupAtOrAfterAnchor === -1
+      ? Math.max(0, dayGroups.length - 1)
+      : firstGroupAtOrAfterAnchor;
+
+  useEffect(() => {
+    const scrollNode = scrollRef.current;
+    const markerNode = anchorMarkerRef.current;
+    if (loading || !scrollNode || !markerNode || positionedAnchorRef.current === anchorDate) return;
+    const frame = window.requestAnimationFrame(() => {
+      scrollNode.scrollTop = Math.max(0, markerNode.offsetTop - 8);
+      positionedAnchorRef.current = anchorDate;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [anchorDate, loading]);
+
+  useEffect(() => {
+    const root = scrollRef.current;
+    const earlier = earlierSentinelRef.current;
+    const later = laterSentinelRef.current;
+    if (!root || !earlier || !later || loading) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue;
+          if (
+            entry.target === earlier &&
+            positionedAnchorRef.current === anchorDate &&
+            hasEarlier &&
+            !loadingEarlier
+          ) {
+            prependSnapshotRef.current = { height: root.scrollHeight, top: root.scrollTop };
+            onLoadEarlier();
+          }
+          if (entry.target === later && hasLater && !loadingLater) onLoadLater();
+        }
+      },
+      { root, rootMargin: '240px 0px' },
+    );
+    observer.observe(earlier);
+    observer.observe(later);
+    return () => observer.disconnect();
+  }, [anchorDate, hasEarlier, hasLater, loading, loadingEarlier, loadingLater, onLoadEarlier, onLoadLater]);
+
+  useEffect(() => {
+    const snapshot = prependSnapshotRef.current;
+    const root = scrollRef.current;
+    if (!snapshot || !root || loadingEarlier) return;
+    root.scrollTop = snapshot.top + (root.scrollHeight - snapshot.height);
+    prependSnapshotRef.current = null;
+  }, [appointments.length, loadingEarlier]);
+
   return (
     <div
-      className="flex h-full min-h-0 flex-col gap-3 overflow-y-auto pr-1 pb-4"
+      ref={scrollRef}
+      className="flex h-full min-h-0 flex-col overflow-y-auto pb-4 md:gap-3 md:pr-1"
       data-testid="list-view"
     >
-      {dayGroups.length === 0 ? (
+      <div ref={earlierSentinelRef} className="h-px" aria-hidden />
+      {loadingEarlier ? (
+        <div className="py-2 text-center text-xs text-muted-foreground">Загрузка истории…</div>
+      ) : null}
+      {loading ? (
+        <div className="p-6 text-center text-sm text-muted-foreground">Загрузка записей…</div>
+      ) : dayGroups.length === 0 ? (
         <div
           className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground"
           data-testid="list-empty"
         >
-          Записей в этом периоде нет
+          Записей нет
         </div>
       ) : (
-        dayGroups.map(({ dateKey, label, appointments }) => (
-          <ListDayCard
-            key={dateKey}
-            dateKey={dateKey}
-            label={label}
-            appointments={appointments}
-            timeZone={timeZone}
-            onSelect={onSelect}
-            nextApptId={nextApptId}
-          />
-        ))
+        <>
+          {dayGroups.map(({ dateKey, label, appointments }, index) => (
+            <Fragment key={dateKey}>
+              {index === anchorMarkerIndex ? <div ref={anchorMarkerRef} /> : null}
+              {index === 0 || dayGroups[index - 1]?.monthKey !== dayGroups[index]?.monthKey ? (
+                <p className="px-3 pb-1 pt-3 text-sm font-medium capitalize text-muted-foreground md:px-0">
+                  {dayGroups[index]?.monthLabel}
+                </p>
+              ) : null}
+              <ListDayCard
+                dateKey={dateKey}
+                label={label}
+                appointments={appointments}
+                timeZone={timeZone}
+                onSelect={onSelect}
+                nextApptId={nextApptId}
+              />
+            </Fragment>
+          ))}
+        </>
       )}
+      {loadingLater ? (
+        <div className="py-3 text-center text-xs text-muted-foreground">Загрузка записей…</div>
+      ) : null}
+      <div ref={laterSentinelRef} className="h-px" aria-hidden />
     </div>
   );
 }
@@ -629,6 +743,7 @@ export function ScheduleCalendarTab({
   initialTimeZone,
   scheduleScopeBootstrap,
   doctorStatisticsEnabled,
+  createAppointmentRequestId,
 }: ScheduleTabProps) {
   const bootstrap = isScheduleCalendarBootstrap(initialData) ? initialData : null;
   /** While current key equals SSR key, skip client load (survives Strict Mode remount). */
@@ -653,6 +768,9 @@ export function ScheduleCalendarTab({
   const suppressCalendarInteractionUntilRef = useRef(0);
   const suppressCalendarDateClickUntilRef = useRef(0);
   const recentLoadRef = useRef<{ key: string; startedAt: number } | null>(null);
+  const createPanelRevealTimerRef = useRef<number | null>(null);
+  const handledCreateAppointmentRequestRef = useRef(0);
+  const listFeedSeededRef = useRef(Boolean(bootstrap?.appointmentFeed));
 
   // ─── State ─────────────────────────────────────────────────────────────────
   const [timeZone] = useState(initialTimeZone ?? DEFAULT_APP_DISPLAY_TIMEZONE);
@@ -707,6 +825,31 @@ export function ScheduleCalendarTab({
   // #227: ref к FullCalendar для вызова unselect() при отмене создания
   const calendarRef = useRef<FullCalendarInstance>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [listAppointments, setListAppointments] = useState<CalendarAppointmentEvent[]>(
+    () => bootstrap?.appointmentFeed?.items ?? [],
+  );
+  const [listLoading, setListLoading] = useState(false);
+  const [listLoadingEarlier, setListLoadingEarlier] = useState(false);
+  const [listLoadingLater, setListLoadingLater] = useState(false);
+  const [listHasEarlier, setListHasEarlier] = useState(true);
+  const [listHasLater, setListHasLater] = useState(
+    () => bootstrap?.appointmentFeed?.hasLater ?? true,
+  );
+  const [listPastBoundary, setListPastBoundary] = useState<string | null>(
+    () => bootstrap?.appointmentFeed?.pastBoundary ?? null,
+  );
+  const [listFutureFrom, setListFutureFrom] = useState<string | null>(
+    () => bootstrap?.appointmentFeed?.futureFrom ?? null,
+  );
+  const [listFutureOffset, setListFutureOffset] = useState(
+    () => bootstrap?.appointmentFeed?.futureOffset ?? 0,
+  );
+  const [serverSearchItems, setServerSearchItems] = useState<CalendarAppointmentEvent[]>([]);
+  const [serverSearchTotal, setServerSearchTotal] = useState<number | null>(null);
+  const [serverSearchHasMore, setServerSearchHasMore] = useState(false);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
+  const [serverSearchQuery, setServerSearchQuery] = useState<string | null>(null);
+  const listLoadGenerationRef = useRef(0);
   const [kpiModalFilter, setKpiModalFilter] = useState<ScheduleKpiNumberKey | null>(null);
   // R32: время старта/конца, подставляемое в форму создания при выделении области.
   const [createInitialStart, setCreateInitialStart] = useState<string | null>(null);
@@ -720,6 +863,7 @@ export function ScheduleCalendarTab({
   const [calendarSettings, setCalendarSettings] = useState<CalendarDoctorSettings>(
     () => bootstrap?.settings ?? DEFAULT_CALENDAR_SETTINGS,
   );
+  const [calendarLoading, setCalendarLoading] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const calendarFeedRange = useMemo(
@@ -751,18 +895,22 @@ export function ScheduleCalendarTab({
 
   const setView = useCallback(
     (v: CalV26View) => {
+      if (v === view) return;
+      setCalendarLoading(true);
       setViewState(v);
       onDeepLinkChange('view', v);
     },
-    [onDeepLinkChange],
+    [onDeepLinkChange, view],
   );
 
   const setAnchorDate = useCallback(
     (d: string) => {
+      if (d === anchorDate) return;
+      setCalendarLoading(true);
       setAnchorDateState(d);
       onDeepLinkChange('date', d);
     },
-    [onDeepLinkChange],
+    [anchorDate, onDeepLinkChange],
   );
 
   const setBranchId = useCallback(
@@ -828,6 +976,7 @@ export function ScheduleCalendarTab({
       if (view === 'month') {
         setDrillBackView(null);
         onDeepLinkChange('from', null);
+        updateMobileVisibleDate(dateKey, true);
         setView('3days');
         setAnchorDate(dateKey);
         return;
@@ -840,7 +989,7 @@ export function ScheduleCalendarTab({
       setView('day');
       setAnchorDate(dateKey);
     },
-    [view, drillBackView, onDeepLinkChange, setView, setAnchorDate],
+    [view, drillBackView, onDeepLinkChange, setView, setAnchorDate, updateMobileVisibleDate],
   );
 
   const drillBack = useCallback(() => {
@@ -870,6 +1019,7 @@ export function ScheduleCalendarTab({
 
           const qs = buildQuery({
             view: apiView,
+            date: anchor,
             from,
             to,
             branchId,
@@ -902,11 +1052,174 @@ export function ScheduleCalendarTab({
         } catch {
           if (gen !== loadGenerationRef.current) return;
           setError('network_error');
+        } finally {
+          if (gen === loadGenerationRef.current) setCalendarLoading(false);
         }
       });
     },
     [view, anchorDate, branchId, serviceId, timeZone, scheduleScope],
   );
+
+  const fetchAppointmentFeedPage = useCallback(
+    async (params: {
+      from?: string;
+      to?: string;
+      q?: string;
+      order?: 'asc' | 'desc';
+      limit?: number;
+      offset?: number;
+    }): Promise<AppointmentFeedResponse> => {
+      const response = await fetch(
+        `${APPOINTMENT_FEED_API}?${buildQuery({
+          from: params.from,
+          to: params.to,
+          q: params.q,
+          order: params.order,
+          includeCancelled: String(showCancelledAppointments),
+          limit: String(params.limit ?? APPOINTMENT_FEED_PAGE_SIZE),
+          offset: String(params.offset ?? 0),
+          branchId,
+          serviceId,
+          ...doctorScheduleScopeQuery(scheduleScope),
+        })}`,
+      );
+      const json = (await response.json()) as AppointmentFeedResponse;
+      if (!response.ok || !json.ok) throw new Error(json.error ?? 'appointment_feed_load_failed');
+      return json;
+    },
+    [branchId, scheduleScope, serviceId, showCancelledAppointments],
+  );
+
+  const loadInitialAppointmentFeed = useCallback(async () => {
+    const generation = ++listLoadGenerationRef.current;
+    const rawAnchor = DateTime.fromISO(anchorDate, { zone: timeZone });
+    const target = (view === 'month' ? rawAnchor.startOf('month') : rawAnchor.startOf('day'));
+    const historyStart = target
+      .minus({ months: APPOINTMENT_FEED_HISTORY_MONTHS })
+      .startOf('month');
+    const targetIso = target.toUTC().toISO();
+    const historyStartIso = historyStart.toUTC().toISO();
+    if (!targetIso || !historyStartIso) return;
+
+    setListLoading(true);
+    setServerSearchQuery(null);
+    setServerSearchItems([]);
+    setServerSearchTotal(null);
+    try {
+      const [historyPage, futurePage] = await Promise.all([
+        fetchAppointmentFeedPage({
+          from: historyStartIso,
+          to: target.minus({ milliseconds: 1 }).toUTC().toISO() ?? undefined,
+          order: 'desc',
+          limit: 200,
+        }),
+        fetchAppointmentFeedPage({ from: targetIso, order: 'asc' }),
+      ]);
+      if (generation !== listLoadGenerationRef.current) return;
+      const historyItems = historyPage.items ?? [];
+      const futureItems = futurePage.items ?? [];
+      setListAppointments(mergeAppointmentPages(historyItems, futureItems));
+      setListPastBoundary(historyStartIso);
+      setListFutureFrom(targetIso);
+      setListFutureOffset(futureItems.length);
+      setListHasEarlier(true);
+      setListHasLater(Boolean(futurePage.hasMore));
+      setError(null);
+    } catch {
+      if (generation === listLoadGenerationRef.current) setError('network_error');
+    } finally {
+      if (generation === listLoadGenerationRef.current) setListLoading(false);
+    }
+  }, [anchorDate, fetchAppointmentFeedPage, timeZone, view]);
+
+  const loadEarlierAppointments = useCallback(async () => {
+    if (!listPastBoundary || listLoadingEarlier || !listHasEarlier) return;
+    const boundary = DateTime.fromISO(listPastBoundary, { setZone: true });
+    const previousBoundary = boundary
+      .minus({ months: APPOINTMENT_FEED_HISTORY_MONTHS })
+      .startOf('month');
+    const from = previousBoundary.toUTC().toISO();
+    const to = boundary.minus({ milliseconds: 1 }).toUTC().toISO();
+    if (!from || !to) return;
+    setListLoadingEarlier(true);
+    try {
+      const page = await fetchAppointmentFeedPage({ from, to, order: 'desc', limit: 200 });
+      const items = page.items ?? [];
+      setListAppointments((current) => mergeAppointmentPages(items, current));
+      setListPastBoundary(from);
+      setListHasEarlier(items.length > 0);
+    } catch {
+      setError('network_error');
+    } finally {
+      setListLoadingEarlier(false);
+    }
+  }, [fetchAppointmentFeedPage, listHasEarlier, listLoadingEarlier, listPastBoundary]);
+
+  const loadLaterAppointments = useCallback(async () => {
+    if (!listFutureFrom || listLoadingLater || !listHasLater) return;
+    setListLoadingLater(true);
+    try {
+      const page = await fetchAppointmentFeedPage({
+        from: listFutureFrom,
+        order: 'asc',
+        offset: listFutureOffset,
+      });
+      const items = page.items ?? [];
+      setListAppointments((current) => mergeAppointmentPages(current, items));
+      setListFutureOffset((current) => current + items.length);
+      setListHasLater(Boolean(page.hasMore));
+    } catch {
+      setError('network_error');
+    } finally {
+      setListLoadingLater(false);
+    }
+  }, [fetchAppointmentFeedPage, listFutureFrom, listFutureOffset, listHasLater, listLoadingLater]);
+
+  const searchAllAppointments = useCallback(async () => {
+    const query = searchQuery.trim();
+    if (query.length < 3 || serverSearchLoading) return;
+    setServerSearchLoading(true);
+    try {
+      const page = await fetchAppointmentFeedPage({ q: query, order: 'asc', limit: 200 });
+      setServerSearchQuery(query);
+      setServerSearchItems(page.items ?? []);
+      setServerSearchTotal(page.total ?? 0);
+      setServerSearchHasMore(Boolean(page.hasMore));
+      setError(null);
+    } catch {
+      setError('network_error');
+    } finally {
+      setServerSearchLoading(false);
+    }
+  }, [fetchAppointmentFeedPage, searchQuery, serverSearchLoading]);
+
+  const loadMoreSearchResults = useCallback(async () => {
+    if (!serverSearchQuery || serverSearchLoading || !serverSearchHasMore) return;
+    setServerSearchLoading(true);
+    try {
+      const page = await fetchAppointmentFeedPage({
+        q: serverSearchQuery,
+        order: 'asc',
+        limit: 200,
+        offset: serverSearchItems.length,
+      });
+      setServerSearchItems((current) => mergeAppointmentPages(current, page.items ?? []));
+      setServerSearchHasMore(Boolean(page.hasMore));
+    } catch {
+      setError('network_error');
+    } finally {
+      setServerSearchLoading(false);
+    }
+  }, [fetchAppointmentFeedPage, serverSearchHasMore, serverSearchItems.length, serverSearchLoading, serverSearchQuery]);
+
+  useEffect(() => {
+    if (renderMode !== 'list') return;
+    if (listFeedSeededRef.current) {
+      listFeedSeededRef.current = false;
+      return;
+    }
+    void loadInitialAppointmentFeed();
+  }, [loadInitialAppointmentFeed, renderMode]);
 
   const loadKpis = useCallback(
     (v: CalV26View, anchor: string, generation?: number) => {
@@ -1058,7 +1371,10 @@ export function ScheduleCalendarTab({
       // day
       next = dt.plus({ days: delta }).toISODate();
     }
-    if (next) setAnchorDate(next);
+    if (next) {
+      if (isMobileViewport) updateMobileVisibleDate(next, true);
+      setAnchorDate(next);
+    }
   }
 
   function goToday() {
@@ -1165,6 +1481,13 @@ export function ScheduleCalendarTab({
   );
   const selectedScheduleSpecialistId =
     scheduleScope.scope === 'clinic' ? null : scheduleScope.specialistId;
+  const defaultScheduleScope = resolveDoctorScheduleScopeState(scopeBootstrap, null, null);
+  const hasActiveScheduleFilters =
+    branchId !== null ||
+    serviceId !== null ||
+    showCancelledAppointments ||
+    scheduleScope.scope !== defaultScheduleScope.scope ||
+    scheduleScope.specialistId !== defaultScheduleScope.specialistId;
   const handleCalendarFilterOpenChange = useCallback((open: boolean) => {
     const version = ++calendarFilterOpenVersionRef.current;
     if (open) {
@@ -1282,6 +1605,10 @@ export function ScheduleCalendarTab({
   );
 
   const clearDraftAndPanel = useCallback(() => {
+    if (createPanelRevealTimerRef.current !== null) {
+      window.clearTimeout(createPanelRevealTimerRef.current);
+      createPanelRevealTimerRef.current = null;
+    }
     setSelected(null);
     setShowCreatePanel(false);
     setCreateInitialStart(null);
@@ -1295,7 +1622,7 @@ export function ScheduleCalendarTab({
   }, [onDeepLinkChange]);
 
   const openCreateDraft = useCallback(
-    (start: Date, end: Date | null) => {
+    (start: Date, end: Date | null, revealWithDelay = false) => {
       const startLocal =
         DateTime.fromJSDate(start).setZone(currentTimeZone).toFormat("yyyy-MM-dd'T'HH:mm") || null;
       if (!startLocal) return;
@@ -1331,8 +1658,22 @@ export function ScheduleCalendarTab({
         end: DateTime.fromJSDate(endDate).toISO() ?? endDate.toISOString(),
       });
       setCreateFormDirty(false);
-      setShowCreatePanel(true);
-      onDeepLinkChange('appt', null);
+      if (createPanelRevealTimerRef.current !== null) {
+        window.clearTimeout(createPanelRevealTimerRef.current);
+      }
+      const revealPanel = () => {
+        createPanelRevealTimerRef.current = null;
+        setShowCreatePanel(true);
+        onDeepLinkChange('appt', null);
+      };
+      if (revealWithDelay) {
+        createPanelRevealTimerRef.current = window.setTimeout(
+          revealPanel,
+          CREATE_PANEL_REVEAL_DELAY_MS,
+        );
+      } else {
+        revealPanel();
+      }
     },
     [
       currentTimeZone,
@@ -1344,6 +1685,31 @@ export function ScheduleCalendarTab({
       branchId,
       onDeepLinkChange,
     ],
+  );
+
+  useEffect(() => {
+    if (
+      !createAppointmentRequestId ||
+      createAppointmentRequestId <= handledCreateAppointmentRequestRef.current
+    ) {
+      return;
+    }
+    handledCreateAppointmentRequestRef.current = createAppointmentRequestId;
+    const now = DateTime.now().setZone(currentTimeZone);
+    const start =
+      now.minute < 30
+        ? now.set({ minute: 30, second: 0, millisecond: 0 })
+        : now.plus({ hours: 1 }).startOf('hour');
+    openCreateDraft(start.toJSDate(), null);
+  }, [createAppointmentRequestId, currentTimeZone, openCreateDraft]);
+
+  useEffect(
+    () => () => {
+      if (createPanelRevealTimerRef.current !== null) {
+        window.clearTimeout(createPanelRevealTimerRef.current);
+      }
+    },
+    [],
   );
 
   const calendarEvents = useMemo<EventInput[]>(() => {
@@ -1586,7 +1952,7 @@ export function ScheduleCalendarTab({
       const end: Date | null = arg.end ?? null;
       if (!start) return;
       lastSelectAtRef.current = Date.now();
-      window.setTimeout(() => openCreateDraft(start, end ?? null), 0);
+      openCreateDraft(start, end ?? null, true);
     },
     [filtersPanelOpen, openCreateDraft],
   );
@@ -1663,12 +2029,6 @@ export function ScheduleCalendarTab({
 
   const showKpi = doctorStatisticsEnabled;
 
-  // visibleRange for list mode
-  const listRange = useMemo(
-    () => visibleRange(view, anchorDate, currentTimeZone),
-    [view, anchorDate, currentTimeZone],
-  );
-
   // Calendar/list filters: cancellations are hidden by default; search narrows the remainder.
   const visibleEvents = useMemo<CalendarEvent[]>(() => {
     const q = searchQuery.toLowerCase();
@@ -1678,6 +2038,37 @@ export function ScheduleCalendarTab({
         (event.kind === 'appointment' && (event.patientName ?? '').toLowerCase().includes(q)),
     );
   }, [displayableCalendarEvents, searchQuery]);
+
+  useEffect(() => {
+    if (serverSearchQuery !== null && serverSearchQuery !== searchQuery.trim()) {
+      setServerSearchQuery(null);
+      setServerSearchTotal(null);
+      setServerSearchHasMore(false);
+    }
+  }, [searchQuery, serverSearchQuery]);
+
+  const visibleListAppointments = useMemo(() => {
+    const source = serverSearchQuery ? serverSearchItems : listAppointments;
+    const query = searchQuery.trim().toLocaleLowerCase('ru');
+    return source.filter((appointment) => {
+      if (!showCancelledAppointments && isCancelledAppointmentStatus(appointment.status)) {
+        return false;
+      }
+      if (serverSearchQuery || !query) return true;
+      return [
+        appointment.patientName,
+        appointment.patientPhone,
+        appointment.serviceTitle,
+        appointment.branchTitle,
+      ].some((value) => value?.toLocaleLowerCase('ru').includes(query));
+    });
+  }, [
+    listAppointments,
+    searchQuery,
+    serverSearchItems,
+    serverSearchQuery,
+    showCancelledAppointments,
+  ]);
 
   // KPI modal: predicate map + filtered items.
   // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
@@ -1767,30 +2158,6 @@ export function ScheduleCalendarTab({
         <div className="flex w-full min-w-0 items-center gap-1 md:hidden">
           <Button
             type="button"
-            size="icon"
-            variant="default"
-            className="size-[32px] shrink-0"
-            aria-label={view === 'month' ? 'Показать три дня' : 'Показать месяц'}
-            title={view === 'month' ? 'Три дня' : 'Месяц'}
-            onClick={() => {
-              setFiltersPanelOpen(false);
-              updateMobileVisibleDate(mobileVisibleDateRef.current, true);
-              if (view === 'day') {
-                setDrillBackView(null);
-                onDeepLinkChange('from', null);
-              }
-              setView(view === 'month' ? '3days' : 'month');
-            }}
-          >
-            {view === 'month' ? (
-              <CalendarDays className="size-4" aria-hidden />
-            ) : (
-              <Columns3 className="size-4" aria-hidden />
-            )}
-          </Button>
-
-          <Button
-            type="button"
             size="sm"
             variant="outline"
             className={cn(INACTIVE_TOOLBAR_BUTTON_CLASS, 'h-8 px-2 text-xs')}
@@ -1800,6 +2167,20 @@ export function ScheduleCalendarTab({
             }}
           >
             Сегодня
+          </Button>
+
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className={cn('size-[32px] shrink-0', INACTIVE_TOOLBAR_BUTTON_CLASS)}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(-1);
+            }}
+            aria-label="Предыдущий период"
+          >
+            <Play className="size-3 rotate-180" fill="currentColor" aria-hidden />
           </Button>
 
           <Button
@@ -1821,45 +2202,71 @@ export function ScheduleCalendarTab({
             {mobilePeriodLabel(mobileVisibleDate, currentTimeZone)}
           </Button>
 
-          <div
-            className="ml-auto flex shrink-0 items-center gap-1"
-            role="group"
-            aria-label="Вид календаря"
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className={cn('size-[32px] shrink-0', INACTIVE_TOOLBAR_BUTTON_CLASS)}
+            onClick={() => {
+              setFiltersPanelOpen(false);
+              shiftAnchor(1);
+            }}
+            aria-label="Следующий период"
           >
+            <Play className="size-3" fill="currentColor" aria-hidden />
+          </Button>
+
+          <div className="ml-auto flex shrink-0 items-center gap-1">
             <Button
               type="button"
               size="icon"
-              variant={renderMode === 'calendar' ? 'default' : 'outline'}
-              className={cn(
-                'size-[32px]',
-                renderMode !== 'calendar' && INACTIVE_TOOLBAR_BUTTON_CLASS,
+              variant="default"
+              className="size-[32px]"
+              aria-label={
+                renderMode === 'list'
+                  ? 'Список. Переключить на три дня'
+                  : view === 'month'
+                    ? 'Месяц. Переключить на список'
+                    : 'Три дня. Переключить на месяц'
+              }
+              onClick={() => {
+                setFiltersPanelOpen(false);
+                updateMobileVisibleDate(mobileVisibleDateRef.current, true);
+                if (renderMode === 'list') {
+                  setRenderMode('calendar');
+                  setView('3days');
+                  return;
+                }
+                if (view === 'month') {
+                  setRenderMode('list');
+                  return;
+                }
+                if (view === 'day') {
+                  setDrillBackView(null);
+                  onDeepLinkChange('from', null);
+                }
+                setView('month');
+              }}
+            >
+              {renderMode === 'list' ? (
+                <List className="size-4" aria-hidden />
+              ) : view === 'month' ? (
+                <CalendarDays className="size-4" aria-hidden />
+              ) : (
+                <Columns3 className="size-4" aria-hidden />
               )}
-              aria-label="Календарь"
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                setRenderMode('calendar');
-              }}
-            >
-              <Calendar className="size-4" aria-hidden />
-            </Button>
-            <Button
-              type="button"
-              size="icon"
-              variant={renderMode === 'list' ? 'default' : 'outline'}
-              className={cn('size-[32px]', renderMode !== 'list' && INACTIVE_TOOLBAR_BUTTON_CLASS)}
-              aria-label="Список"
-              onClick={() => {
-                setFiltersPanelOpen(false);
-                setRenderMode('list');
-              }}
-            >
-              <List className="size-4" aria-hidden />
             </Button>
             <Button
               type="button"
               size="icon"
               variant={filtersPanelOpen ? 'default' : 'outline'}
-              className={cn('size-[32px]', !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS)}
+              className={cn(
+                'size-[32px]',
+                !filtersPanelOpen &&
+                  (hasActiveScheduleFilters
+                    ? ACTIVE_FILTER_BUTTON_CLASS
+                    : INACTIVE_TOOLBAR_BUTTON_CLASS),
+              )}
               onClick={toggleFiltersPanel}
               aria-label="Фильтры"
               aria-expanded={filtersPanelOpen}
@@ -1869,6 +2276,43 @@ export function ScheduleCalendarTab({
             </Button>
           </div>
         </div>
+
+        {renderMode === 'list' ? (
+          <div className="w-full md:hidden">
+            <div className="relative">
+              <Search
+                className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
+                aria-hidden
+              />
+              <Input
+                type="search"
+                placeholder="Поиск записей…"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="h-8 pl-8 text-sm"
+                aria-label="Поиск записей"
+              />
+            </div>
+            {searchQuery.trim() ? (
+              <div className="mt-1 flex items-center justify-between px-1">
+                <DoctorResultCount
+                  label="Найдено"
+                  value={serverSearchTotal ?? visibleListAppointments.length}
+                />
+                {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
+                  <button
+                    type="button"
+                    className="text-primary underline-offset-2 hover:underline"
+                    onClick={() => void searchAllAppointments()}
+                    disabled={serverSearchLoading}
+                  >
+                    {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="hidden w-full flex-wrap items-center gap-2 md:flex">
           {/* View switcher: 3 дня · Неделя · Месяц (без «Лента» и без «День») */}
@@ -1979,9 +2423,23 @@ export function ScheduleCalendarTab({
 
           {/* найдено N counter when searching */}
           {renderMode === 'list' && searchQuery.trim() ? (
-            <span className="text-xs text-muted-foreground" data-testid="search-count">
-              найдено {visibleEvents.filter((e) => e.kind === 'appointment').length}
-            </span>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <DoctorResultCount
+                data-testid="search-count"
+                label="Найдено"
+                value={serverSearchTotal ?? visibleListAppointments.length}
+              />
+              {searchQuery.trim().length >= 3 && !serverSearchQuery ? (
+                <button
+                  type="button"
+                  className="text-primary underline-offset-2 hover:underline"
+                  onClick={() => void searchAllAppointments()}
+                  disabled={serverSearchLoading}
+                >
+                  {serverSearchLoading ? 'Поиск…' : 'Искать более ранние'}
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           {/* «Сегодня» — вернуть текущий вид к сегодняшнему периоду */}
@@ -2013,7 +2471,7 @@ export function ScheduleCalendarTab({
               aria-label="Предыдущий период"
               data-testid="period-prev"
             >
-              ◀
+              <Play className="size-3 rotate-180" fill="currentColor" aria-hidden />
             </Button>
             <span
               className="text-sm font-medium text-foreground px-1 min-w-[8rem] text-center"
@@ -2033,7 +2491,7 @@ export function ScheduleCalendarTab({
               aria-label="Следующий период"
               data-testid="period-next"
             >
-              ▶
+              <Play className="size-3" fill="currentColor" aria-hidden />
             </Button>
           </>
 
@@ -2043,7 +2501,10 @@ export function ScheduleCalendarTab({
             variant={filtersPanelOpen ? 'default' : 'outline'}
             className={cn(
               'ml-auto gap-2 xl:hidden',
-              !filtersPanelOpen && INACTIVE_TOOLBAR_BUTTON_CLASS,
+              !filtersPanelOpen &&
+                (hasActiveScheduleFilters
+                  ? ACTIVE_FILTER_BUTTON_CLASS
+                  : INACTIVE_TOOLBAR_BUTTON_CLASS),
             )}
             onClick={toggleFiltersPanel}
             aria-expanded={filtersPanelOpen}
@@ -2054,23 +2515,6 @@ export function ScheduleCalendarTab({
           </Button>
         </div>
       </DoctorCatalogStickyToolbar>
-
-      {renderMode === 'list' ? (
-        <div className="relative md:hidden">
-          <Search
-            className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            type="search"
-            placeholder="Поиск записей…"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
-            className="h-8 pl-8 text-sm"
-            aria-label="Поиск записей"
-          />
-        </div>
-      ) : null}
 
       {/* Error */}
       {error ? (
@@ -2092,17 +2536,30 @@ export function ScheduleCalendarTab({
           className={cn(
             'min-h-0 min-w-0 flex-1',
             renderMode === 'calendar' && 'h-full md:min-h-0',
-            renderMode === 'list' && 'h-full min-h-0',
+            renderMode === 'list' && '-mx-3 h-full min-h-0 md:mx-0',
           )}
         >
           {renderMode === 'list' ? (
-            // List view — period-bound, grouped by day
+            // Continuous list view — grouped by month/day, lazily paged in both directions
             <ListView
-              events={visibleEvents}
-              anchorDate={anchorDate}
+              appointments={visibleListAppointments}
+              anchorDate={
+                view === 'month'
+                  ? (DateTime.fromISO(anchorDate, { zone: currentTimeZone })
+                      .startOf('month')
+                      .toISODate() ?? anchorDate)
+                  : anchorDate
+              }
               timeZone={currentTimeZone}
-              rangeFrom={listRange.from}
-              rangeTo={listRange.to}
+              loading={listLoading}
+              loadingEarlier={listLoadingEarlier}
+              loadingLater={listLoadingLater || serverSearchLoading}
+              hasEarlier={!serverSearchQuery && listHasEarlier}
+              hasLater={serverSearchQuery ? serverSearchHasMore : listHasLater}
+              onLoadEarlier={() => void loadEarlierAppointments()}
+              onLoadLater={() =>
+                void (serverSearchQuery ? loadMoreSearchResults() : loadLaterAppointments())
+              }
               onSelect={(appt) => {
                 setFiltersPanelOpen(false);
                 setSelected(appt);
@@ -2127,6 +2584,11 @@ export function ScheduleCalendarTab({
                   }
                 }}
               >
+                {calendarLoading ? (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/70 text-sm text-muted-foreground">
+                    Загрузка записей…
+                  </div>
+                ) : null}
                 <div className="h-full min-h-0">
                   <style>{`
                 /* §3.7 — статусные Tailwind-цвета приходят important-утилитами из eventClassName
@@ -2290,7 +2752,8 @@ export function ScheduleCalendarTab({
                     unselectAuto={false}
                     select={onSelect}
                     nowIndicator
-                    dayMaxEvents={view === 'month' && isMobileViewport ? false : true}
+                    dayMaxEvents={view === 'month' && isMobileViewport ? 4 : true}
+                    moreLinkContent={(arg) => `+ ещё ${arg.num}`}
                     allDaySlot={false}
                     height={view === 'month' && isMobileViewport ? 'auto' : '100%'}
                     slotMinTime={slotMinTime}
@@ -2399,7 +2862,14 @@ export function ScheduleCalendarTab({
                         closeDraftOrSelectionFromGrid();
                         return;
                       }
-                      openCreateDraft(arg.date, null);
+                      if (view === 'month') {
+                        const dateKey =
+                          DateTime.fromJSDate(arg.date).setZone(currentTimeZone).toISODate() ??
+                          anchorDate;
+                        drillDownDay(dateKey);
+                        return;
+                      }
+                      openCreateDraft(arg.date, null, true);
                     }}
                     eventDrop={onDrop}
                     eventResize={onResize}
@@ -2410,7 +2880,7 @@ export function ScheduleCalendarTab({
                         if (view === 'month') {
                           return (
                             <div className="min-w-0 overflow-hidden px-1 py-0.5 text-left leading-tight">
-                              <div className="line-clamp-2 break-words text-[11px] font-medium">
+                              <div className="truncate text-[11px] font-medium">
                                 {appointment.patientName?.trim() || eventLastName(appointment)}
                               </div>
                             </div>

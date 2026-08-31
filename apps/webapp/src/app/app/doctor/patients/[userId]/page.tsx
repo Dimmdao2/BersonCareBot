@@ -72,7 +72,12 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   const patientListHref = sanitizePatientListReturnHref(sp.returnTo);
 
   return (
-    <DoctorAppShell title="Карточка пациента" user={session.user} backHref={patientListHref}>
+    <DoctorAppShell
+      title="Карточка пациента"
+      user={session.user}
+      backHref={patientListHref}
+      mobileBottomGutter
+    >
       <PatientCardClient
         shellMeta={shellMeta}
         tabPromise={tabPromise}

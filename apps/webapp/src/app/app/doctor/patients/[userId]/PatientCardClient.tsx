@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * PatientCardClient — organization card with four product tabs.
+ * PatientCardClient — organization card with five product tabs.
  * Tabs are rendered once and shown/hidden client-side (no server re-fetch per tab).
  *
  * Header: FIO display with inline edit. All other editing lives in the «Учётка» tab.
  */
-import { useState, useEffect, useCallback, Suspense, use, type ReactNode } from 'react';
+import { useState, useEffect, useCallback, useMemo, Suspense, use, type ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
+import type { PatientCardHeader } from '@/modules/doctor-clients/ports';
 import type { AnamnesisState, ClinicalState, Visit } from '@/modules/patient-clinical/ports';
 import type { Comorbidity } from '@/modules/patient-comorbidities/ports';
 import type { DoctorNoteRow } from '@/modules/doctor-notes/ports';
@@ -21,19 +21,23 @@ import type {
 } from '@/modules/treatment-program/types';
 import {
   doctorSectionCardClass,
-  doctorSectionTitleClass,
-  doctorSectionSubtitleClass,
   doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
 import { cn } from '@/lib/utils';
-import { MessageSquare, Send, Smartphone, Mail, Pencil, X, Check } from 'lucide-react';
+import { MessageCircle, Send, Mail, Pencil, X, Check, Phone, Copy } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { DoctorDatePicker } from '@/shared/ui/doctor/DoctorDatePicker';
 import { DoctorOpenChatButton } from '@/shared/ui/doctor/DoctorOpenChatButton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import type { DoctorPatientExerciseCalendarSnapshot } from '../loadDoctorPatientExerciseCalendar';
 import type { DoctorPatientMessagesSnapshot } from '../loadDoctorPatientMessagesSnapshot';
@@ -48,7 +52,20 @@ import type { SupplementaryContact } from './tabs/PatientTabAccount';
 import type { PatientProgramInteractionPolicy } from '@/modules/doctor-clients/supportPolicy';
 import type { PatientPortalStatus } from '@/modules/patient-invites/ports';
 import { PatientPortalInviteControls } from './PatientPortalInviteControls';
-import { DoctorClientMembershipsPanel } from '@/app/app/doctor/clients/DoctorClientMembershipsPanel';
+import toast from 'react-hot-toast';
+import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
+import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+
+function formatSupportStartedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'Europe/Moscow',
+  });
+}
 
 function PatientTabPanelLoading() {
   return (
@@ -112,11 +129,12 @@ type TabPanelsProps = Props & {
   header: NonNullable<DoctorPatientCardShellMeta['cardHeader']>;
 };
 
-type TabId = 'karta' | 'program' | 'files' | 'account';
+type TabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
 
 const PATIENT_TABS: Array<{ id: TabId; label: string; badge?: number }> = [
-  { id: 'karta', label: 'Карточка' },
-  { id: 'program', label: 'Программа' },
+  { id: 'overview', label: 'Обзор' },
+  { id: 'karta', label: 'Карта' },
+  { id: 'program', label: 'ЛФК' },
   { id: 'files', label: 'Файлы' },
   { id: 'account', label: 'Учётка' },
 ];
@@ -137,7 +155,7 @@ function PatientCardTabsNav({
     <nav
       id="doctor-patient-card-tabs"
       aria-label="Разделы карточки пациента"
-      className="flex gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="hidden gap-0.5 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] md:flex [&::-webkit-scrollbar]:hidden"
     >
       {PATIENT_TABS.map((tab) => {
         const active = tab.id === activeTab;
@@ -191,6 +209,126 @@ function phoneHref(phone: string): string {
   return `tel:${normalized || phone}`;
 }
 
+function PatientContactActions({
+  identity,
+  hasTelegram,
+  hasMax,
+  hasEmail,
+  chatButtonHighlighted,
+  className,
+}: {
+  identity: PatientCardHeader['identity'];
+  hasTelegram: boolean;
+  hasMax: boolean;
+  hasEmail: boolean;
+  chatButtonHighlighted: boolean;
+  className?: string;
+}) {
+  const actionClass = 'h-[34px] w-[34px] rounded-md border text-xs md:h-6 md:w-6';
+
+  return (
+    <div className={cn('flex flex-wrap items-center gap-2', className)}>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          type="button"
+          title={identity.phone ? 'Действия с телефоном' : 'Телефон не указан'}
+          disabled={!identity.phone}
+          className={cn(
+            buttonVariants({ variant: 'ghost' }),
+            'h-[34px] gap-1.5 rounded-md border border-primary/30 bg-primary/5 px-2 font-mono text-xs text-primary hover:bg-primary/15 md:h-6',
+          )}
+        >
+          <Phone className="h-3.5 w-3.5" />
+          <span>{identity.phone ?? '—'}</span>
+        </DropdownMenuTrigger>
+        {identity.phone ? (
+          <DropdownMenuContent align="start">
+            <DropdownMenuItem
+              onClick={() => {
+                void navigator.clipboard.writeText(identity.phone!).then(
+                  () => toast.success('Телефон скопирован'),
+                  () => toast.error('Не удалось скопировать телефон'),
+                );
+              }}
+            >
+              <Copy className="h-4 w-4" />
+              Скопировать
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.open(phoneHref(identity.phone!), '_self')}>
+              <Phone className="h-4 w-4" />
+              Позвонить
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        ) : null}
+      </DropdownMenu>
+
+      <DoctorOpenChatButton
+        patientUserId={identity.userId}
+        patientName={identity.displayName ?? undefined}
+        variant="ghost"
+        size="icon"
+        title="Открыть чат"
+        className={cn(
+          actionClass,
+          chatButtonHighlighted
+            ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+            : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
+        )}
+      >
+        <MessageCircle className="h-3.5 w-3.5" />
+      </DoctorOpenChatButton>
+      <DoctorOpenChatButton
+        patientUserId={identity.userId}
+        patientName={identity.displayName ?? undefined}
+        variant="ghost"
+        size="icon"
+        title={hasTelegram ? 'Открыть коммуникации: Telegram' : 'Telegram не привязан'}
+        disabled={!hasTelegram}
+        className={cn(
+          actionClass,
+          hasTelegram
+            ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+            : 'border-transparent bg-muted/30 text-muted-foreground/40',
+        )}
+      >
+        <Send className="h-3.5 w-3.5" />
+      </DoctorOpenChatButton>
+      {hasMax ? (
+        <DoctorOpenChatButton
+          patientUserId={identity.userId}
+          patientName={identity.displayName ?? undefined}
+          variant="ghost"
+          size="icon"
+          title="Открыть коммуникации: MAX"
+          className={cn(
+            actionClass,
+            'border-primary/30 bg-primary/5 font-semibold text-primary hover:bg-primary/15',
+          )}
+        >
+          M
+        </DoctorOpenChatButton>
+      ) : null}
+      <Button
+        variant="ghost"
+        size="icon"
+        title="Написать email"
+        disabled={!hasEmail}
+        onClick={() => {
+          if (identity.email) window.open(`mailto:${identity.email}`, '_self');
+        }}
+        className={cn(
+          actionClass,
+          hasEmail
+            ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
+            : 'border-transparent bg-muted/30 text-muted-foreground/40',
+        )}
+      >
+        <Mail className="h-3.5 w-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 export function PatientCardClient({
   shellMeta,
   tabPromise,
@@ -203,7 +341,9 @@ export function PatientCardClient({
 }: Props) {
   const header = shellMeta.cardHeader;
   const resolvedInitialTab: TabId =
-    initialTab && PATIENT_TABS.some((t) => t.id === initialTab) ? (initialTab as TabId) : 'karta';
+    initialTab && PATIENT_TABS.some((t) => t.id === initialTab)
+      ? (initialTab as TabId)
+      : 'overview';
   const [activeTab, setActiveTab] = useState<TabId>(resolvedInitialTab);
   const [visitedTabs, setVisitedTabs] = useState<ReadonlySet<TabId>>(
     () => new Set<TabId>([resolvedInitialTab]),
@@ -259,6 +399,19 @@ export function PatientCardClient({
     window.addEventListener('patient:open-tab', handleOpenTab);
     return () => window.removeEventListener('patient:open-tab', handleOpenTab);
   }, [selectTab]);
+
+  const mobileBottomTabs = useMemo(
+    () =>
+      header ? (
+        <DoctorMobileSectionTabs
+          tabs={PATIENT_TABS}
+          activeTab={activeTab}
+          onTabChange={selectTab}
+          ariaLabel="Разделы карточки пациента"
+        />
+      ) : null,
+    [activeTab, header, selectTab],
+  );
 
   if (!header) {
     return (
@@ -357,10 +510,11 @@ export function PatientCardClient({
 
   return (
     <>
+      <DoctorShellMobileBottomTabsRegistration content={mobileBottomTabs} />
       <DoctorPageHeader
         id="doctor-patient-card-header"
         title="Карточка пациента"
-        showTabsOnMobile
+        className="hidden md:flex"
         tabs={
           <div className="flex min-w-0 items-center gap-2">
             <Link
@@ -376,7 +530,7 @@ export function PatientCardClient({
           </div>
         }
       />
-      <section className={cn(doctorPageStackClass, 'flex flex-col gap-3')}>
+      <section className={cn(doctorPageStackClass, 'flex flex-col gap-3 pt-3 md:pt-0')}>
         {/* ================================================================
           IDENTITY HEADER CARD — READ ONLY
           Displaying patient identity; all edits live in «Учётка» tab.
@@ -387,7 +541,17 @@ export function PatientCardClient({
           <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
             {/* LEFT: identity */}
             <div className="flex-1 min-w-0 flex flex-col gap-0">
-              {/* FIO (primary) + edit button + support chip */}
+              {/* Support date above the complete patient name. */}
+              {support.isOnSupport ? (
+                <div className="mb-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    ★ На сопровождении с{' '}
+                    {support.startedAt ? formatSupportStartedAt(support.startedAt) : '—'}
+                  </span>
+                </div>
+              ) : null}
+
+              {/* FIO (primary) + edit button */}
               <div className="flex items-start gap-2 flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   {/* FIO row */}
@@ -407,16 +571,6 @@ export function PatientCardClient({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap shrink-0">
-                  {support.isOnSupport && (
-                    <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                      ★ На сопровождении
-                      {support.supportMonthsApprox != null && (
-                        <> · {support.supportMonthsApprox} мес</>
-                      )}
-                    </span>
-                  )}
-                </div>
               </div>
 
               {/* Inline FIO edit form */}
@@ -498,105 +652,37 @@ export function PatientCardClient({
               )}
 
               {/* Дата рождения — read-only; edit via pencil */}
-              <div className="mt-1.5 text-xs text-muted-foreground flex items-center gap-1.5 flex-wrap">
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
                 <span>
                   Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : '—'}
                 </span>
               </div>
 
-              {/* Phone + channel icons */}
-              <div className="flex items-center gap-2 mt-2 flex-wrap">
-                {identity.phone ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    title="Позвонить"
-                    onClick={() => {
-                      window.open(phoneHref(identity.phone!), '_self');
-                    }}
-                    className="h-6 rounded-md border border-primary/30 bg-primary/5 px-2 font-mono text-xs text-primary hover:bg-primary/15"
-                  >
-                    {identity.phone}
-                  </Button>
-                ) : (
-                  <span className="text-xs text-muted-foreground font-mono">—</span>
-                )}
-
-                {/* Channel icon buttons — lucide-react icons; active = colored, inactive = muted */}
-                <span className="flex gap-1">
-                  <DoctorOpenChatButton
-                    patientUserId={identity.userId}
-                    patientName={identity.displayName ?? undefined}
-                    variant="ghost"
-                    size="icon"
-                    title="Открыть чат"
-                    className={cn(
-                      'h-6 w-6 rounded-md border text-xs',
-                      chatButtonHighlighted
-                        ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
-                        : 'border-transparent bg-muted/30 text-muted-foreground/40 hover:bg-primary/15 hover:text-primary',
-                    )}
-                  >
-                    <MessageSquare className="h-3.5 w-3.5" />
-                  </DoctorOpenChatButton>
-                  <DoctorOpenChatButton
-                    patientUserId={identity.userId}
-                    patientName={identity.displayName ?? undefined}
-                    variant="ghost"
-                    size="icon"
-                    title={hasTelegram ? 'Открыть коммуникации: Telegram' : 'Telegram не привязан'}
-                    disabled={!hasTelegram}
-                    className={cn(
-                      'h-6 w-6 rounded-md border text-xs',
-                      hasTelegram
-                        ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
-                        : 'border-transparent bg-muted/30 text-muted-foreground/40',
-                    )}
-                  >
-                    <Send className="h-3.5 w-3.5" />
-                  </DoctorOpenChatButton>
-                  <DoctorOpenChatButton
-                    patientUserId={identity.userId}
-                    patientName={identity.displayName ?? undefined}
-                    variant="ghost"
-                    size="icon"
-                    title={hasMax ? 'Открыть коммуникации: MAX' : 'MAX не привязан'}
-                    disabled={!hasMax}
-                    className={cn(
-                      'h-6 w-6 rounded-md border text-xs',
-                      hasMax
-                        ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
-                        : 'border-transparent bg-muted/30 text-muted-foreground/40',
-                    )}
-                  >
-                    <Smartphone className="h-3.5 w-3.5" />
-                  </DoctorOpenChatButton>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    title="Написать email"
-                    disabled={!hasEmail}
-                    onClick={() => {
-                      if (identity.email) window.open(`mailto:${identity.email}`, '_self');
-                    }}
-                    className={cn(
-                      'h-6 w-6 rounded-md border text-xs',
-                      hasEmail
-                        ? 'border-primary/30 bg-primary/5 text-primary hover:bg-primary/15'
-                        : 'border-transparent bg-muted/30 text-muted-foreground/40',
-                    )}
-                  >
-                    <Mail className="h-3.5 w-3.5" />
-                  </Button>
-                </span>
-              </div>
               <PatientPortalInviteControls
                 patientUserId={identity.userId}
-                initialState={{ status: 'not_activated', inviteId: null, expiresAt: null }}
+                initialState={
+                  shellMeta.portalState ?? {
+                    status: 'not_activated',
+                    inviteId: null,
+                    expiresAt: null,
+                  }
+                }
               />
             </div>
           </div>
         </div>
+
+        {activeTab === 'overview' ? (
+          <div className="rounded-xl border border-border bg-card px-4 py-2.5">
+            <PatientContactActions
+              identity={identity}
+              hasTelegram={hasTelegram}
+              hasMax={hasMax}
+              hasEmail={hasEmail}
+              chatButtonHighlighted={chatButtonHighlighted}
+            />
+          </div>
+        ) : null}
 
         {/* TAB PANELS — mount on first visit; tab data streams in via Suspense. */}
         <Suspense fallback={<PatientTabPanelLoading />}>
@@ -663,29 +749,60 @@ function PatientCardTabPanels({
   const specialistTasksAvailable = shellMeta.specialistTasksAvailable;
   const specialistTasksReadable = shellMeta.specialistTasksReadable;
   const [selectedVisitAppointmentId, setSelectedVisitAppointmentId] = useState<string | null>(null);
-  const [rightPane, setRightPane] = useState<'overview' | 'membership'>('overview');
   const [mobilePane, setMobilePane] = useState<'master' | 'detail'>('master');
   const appointments = unwrapBootstrapEnvelope(tab.initialAppointments) ?? [];
-  const appointmentOptions = appointments.map((item) => {
-    const date = new Date(item.dateTime);
-    const dateLabel = Number.isNaN(date.getTime())
-      ? item.dateTime
-      : date.toLocaleString('ru-RU', {
-          timeZone: 'Europe/Moscow',
-          day: '2-digit',
-          month: '2-digit',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-    return {
-      id: item.id,
-      label: [dateLabel, item.serviceName, item.location].filter(Boolean).join(' · '),
-    };
-  });
 
   return (
     <>
+      {visitedTabs.has('overview') ? (
+        <div className={cn('flex flex-col gap-2.5', activeTab !== 'overview' && 'hidden')}>
+          <PatientTabRecords
+            userId={identity.userId}
+            header={header}
+            compositionMode="master"
+            onCreateVisitFromAppointment={(prefill) => {
+              setSelectedVisitAppointmentId(null);
+              setMobilePane('detail');
+              selectTab('karta');
+              onCreateVisitFromAppointment(prefill);
+            }}
+            onOpenVisitNotes={(appointmentId) => {
+              setSelectedVisitAppointmentId(appointmentId);
+              setMobilePane('detail');
+              selectTab('karta');
+            }}
+            initialAppointments={appointments}
+            initialPackages={[]}
+            membershipsVisible={membershipsVisible}
+            membershipMutationsAllowed={membershipMutationsAllowed}
+          />
+          <PatientTabOverview
+            active={activeTab === 'overview'}
+            userId={identity.userId}
+            header={header}
+            compositionMode="overview"
+            onTabSwitch={(tabId) => {
+              if (tabId === 'program') selectTab('program');
+              if (tabId === 'karta') selectTab('karta');
+            }}
+            initialClinicalState={tab.initialClinicalState}
+            initialVisits={tab.initialVisits}
+            initialNotes={tab.initialNotes}
+            initialTasks={tab.initialTasks}
+            initialProgramActivity={tab.initialProgramActivity}
+            initialAppointments={tab.initialAppointments}
+            initialPackages={tab.initialPackages}
+            initialProgramInstances={tab.initialProgramInstances}
+            initialProgramInstanceDetail={tab.initialProgramInstanceDetail}
+            initialExerciseCalendarSnapshot={tab.initialExerciseCalendarSnapshot}
+            initialMessagesSnapshot={tab.initialMessagesSnapshot}
+            membershipsVisible={membershipsVisible}
+            initialSupportEffectivePolicy={tab.initialSupportEffectivePolicy}
+            specialistTasksAvailable={specialistTasksAvailable}
+            specialistTasksReadable={specialistTasksReadable}
+          />
+        </div>
+      ) : null}
       {visitedTabs.has('karta') ? (
         <div className={cn(activeTab !== 'karta' && 'hidden')}>
           <PatientTabKarta
@@ -702,82 +819,8 @@ function PatientCardTabPanels({
             initialAnamnesis={unwrapBootstrapEnvelope(tab.initialAnamnesis)}
             initialComorbidities={unwrapBootstrapEnvelope(tab.initialComorbidities)}
             composition={{
-              leftContent: (
-                <PatientTabRecords
-                  userId={identity.userId}
-                  header={header}
-                  compositionMode="master"
-                  onCreateVisitFromAppointment={(prefill) => {
-                    setSelectedVisitAppointmentId(null);
-                    setRightPane('overview');
-                    setMobilePane('detail');
-                    onCreateVisitFromAppointment(prefill);
-                  }}
-                  onOpenVisitNotes={(appointmentId) => {
-                    setSelectedVisitAppointmentId(appointmentId);
-                    setRightPane('overview');
-                    setMobilePane('detail');
-                  }}
-                  onOpenMembershipConfiguration={() => {
-                    setSelectedVisitAppointmentId(null);
-                    setRightPane('membership');
-                    setMobilePane('detail');
-                  }}
-                  initialAppointments={appointments}
-                  initialPackages={unwrapBootstrapEnvelope(tab.initialPackages)}
-                  membershipsVisible={membershipsVisible}
-                  membershipMutationsAllowed={membershipMutationsAllowed}
-                />
-              ),
-              rightContent:
-                rightPane === 'membership' ? (
-                  <section className={doctorSectionCardClass}>
-                    <div className="flex items-center justify-between gap-2">
-                      <h2 className={doctorSectionTitleClass}>Абонемент</h2>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setRightPane('overview')}
-                      >
-                        Закрыть
-                      </Button>
-                    </div>
-                    <DoctorClientMembershipsPanel
-                      platformUserId={identity.userId}
-                      appointments={appointmentOptions}
-                      showCreateForm
-                      showPackageList={false}
-                      mutationsAllowed={membershipMutationsAllowed}
-                      consumptionAllowed
-                    />
-                  </section>
-                ) : (
-                  <PatientTabOverview
-                    active={activeTab === 'karta'}
-                    userId={identity.userId}
-                    header={header}
-                    compositionMode="right-pane"
-                    onTabSwitch={(tabId) => {
-                      if (tabId === 'program') selectTab('program');
-                    }}
-                    initialClinicalState={tab.initialClinicalState}
-                    initialVisits={tab.initialVisits}
-                    initialNotes={tab.initialNotes}
-                    initialTasks={tab.initialTasks}
-                    initialProgramActivity={tab.initialProgramActivity}
-                    initialAppointments={tab.initialAppointments}
-                    initialPackages={tab.initialPackages}
-                    initialProgramInstances={tab.initialProgramInstances}
-                    initialProgramInstanceDetail={tab.initialProgramInstanceDetail}
-                    initialExerciseCalendarSnapshot={tab.initialExerciseCalendarSnapshot}
-                    initialMessagesSnapshot={tab.initialMessagesSnapshot}
-                    membershipsVisible={membershipsVisible}
-                    initialSupportEffectivePolicy={tab.initialSupportEffectivePolicy}
-                    specialistTasksAvailable={specialistTasksAvailable}
-                    specialistTasksReadable={specialistTasksReadable}
-                  />
-                ),
+              leftContent: null,
+              rightContent: null,
               selectedAppointmentId: selectedVisitAppointmentId,
               onCloseSelectedVisit: () => setSelectedVisitAppointmentId(null),
               mobilePane,

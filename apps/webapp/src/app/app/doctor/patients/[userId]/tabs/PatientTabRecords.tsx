@@ -23,9 +23,17 @@ import {
   doctorPageStackClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { cn } from '@/lib/utils';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
+import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import {
+  doctorDnaFlatListClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import {
   formatPatientPackageLongLabel,
   formatPatientPackageShortLabel,
@@ -200,9 +208,7 @@ export function PatientTabRecords({
 }: Props) {
   const [cancelsPanelOpen, setCancelsPanelOpen] = useState(false);
   const [highlightedPackageId, setHighlightedPackageId] = useState<string | null>(null);
-  const [compositionSection, setCompositionSection] = useState<
-    'visits' | 'upcoming' | 'memberships'
-  >('visits');
+  const [visitsModalOpen, setVisitsModalOpen] = useState(false);
 
   // Real appointments fetch. Track the userId the loaded state belongs to so we
   // can derive «loading» when the prop changes — instead of resetting state
@@ -276,70 +282,60 @@ export function PatientTabRecords({
   );
 
   if (compositionMode === 'master') {
-    const activeMembershipCount = (initialPackages ?? []).filter((pkg) =>
-      isActivePackageStatus(pkg.status),
-    ).length;
-    const sections = [
-      { id: 'visits' as const, label: 'Визиты', value: historyList.length },
-      { id: 'upcoming' as const, label: 'Будущие записи', value: upcomingList.length },
-      { id: 'memberships' as const, label: 'Абонементы', value: activeMembershipCount },
-    ];
-    const rows = compositionSection === 'upcoming' ? upcomingList : historyList;
-
     return (
-      <section className="flex flex-col gap-2.5" aria-label="Записи и абонементы">
-        <div className="grid grid-cols-3 gap-2">
-          {sections.map((section) => (
-            <DoctorStatCard
-              key={section.id}
-              id={`patient-records-section-${section.id}`}
-              title={section.label}
-              value={section.value}
-              selected={compositionSection === section.id}
-              onClick={() => setCompositionSection(section.id)}
-            />
-          ))}
-        </div>
+      <section aria-label="Записи">
+        <button
+          type="button"
+          className={cn(
+            doctorSectionCardClass,
+            'w-full cursor-pointer items-start text-left transition-colors hover:bg-muted/35',
+          )}
+          onClick={() => setVisitsModalOpen(true)}
+          aria-haspopup="dialog"
+        >
+          <span className="flex items-baseline gap-2 text-foreground">
+            <span className="text-sm font-semibold">Визитов:</span>
+            <span className="text-[1.3rem] font-medium tabular-nums">{completedCount}</span>
+          </span>
+          <span className="text-xs font-normal text-foreground">
+            Будущих {upcomingList.length} · Отмен {cancelsCount} · Переносов {reschedulesCount}
+          </span>
+        </button>
 
-        {compositionSection === 'memberships' ? (
-          membershipsVisible ? (
-            <MembershipPanel
-              userId={userId}
-              initialPackages={initialPackages}
-              highlightedPackageId={highlightedPackageId}
-              onToggleHighlight={(packageId) => {
-                setHighlightedPackageId((current) => (current === packageId ? null : packageId));
-              }}
-              onOpenConfiguration={onOpenMembershipConfiguration}
-              mutationsAllowed={membershipMutationsAllowed}
-            />
-          ) : null
-        ) : (
-          <div className={doctorSectionCardClass}>
-            <div className="flex items-center justify-between gap-2">
-              <p className={doctorSectionTitleClass}>
-                {compositionSection === 'upcoming' ? 'Будущие записи' : 'Визиты'}
-              </p>
-              {compositionSection === 'visits' ? (
-                <Button type="button" size="xs" onClick={openNewVisit}>
-                  + Новый визит
-                </Button>
-              ) : null}
-            </div>
-            {isLoading ? (
-              <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка записей…</p>
-            ) : fetchError ? (
-              <p className="py-1 text-xs text-destructive">Не удалось загрузить записи.</p>
-            ) : (
-              <div className="flex max-h-[360px] flex-col gap-1.5 overflow-y-auto">
-                {rows.map((appt) => (
-                  <div
-                    key={appt.id}
-                    className="flex flex-wrap items-center gap-2 rounded-lg border border-border/70 bg-background px-2.5 py-2 text-xs"
-                  >
-                    <span className="font-semibold text-foreground">{fmtDate(appt.date)}</span>
-                    <span className="text-muted-foreground">{appt.time}</span>
-                    <span className="min-w-0 flex-1 truncate">{appt.service}</span>
+        <DoctorModal
+          open={visitsModalOpen}
+          onClose={() => setVisitsModalOpen(false)}
+          title={`Визиты: ${completedCount}`}
+          size="lg"
+          bodyClassName="px-0"
+          desktopPresentation="right-sheet"
+        >
+          <div className="flex justify-end px-4 pb-2">
+            <Button type="button" size="sm" onClick={openNewVisit}>
+              Добавить
+            </Button>
+          </div>
+          {isLoading ? (
+            <p className="animate-pulse px-4 py-2 text-sm text-muted-foreground">
+              Загрузка записей…
+            </p>
+          ) : fetchError ? (
+            <p className="px-4 py-2 text-sm text-destructive">Не удалось загрузить записи.</p>
+          ) : historyList.length === 0 ? (
+            <DoctorEmptyState>Визитов нет</DoctorEmptyState>
+          ) : (
+            <ul className={doctorDnaFlatListClass}>
+              {historyList.map((appt) => (
+                <li key={appt.id} className={`${doctorDnaFlatListRowClass} justify-between`}>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className={`${doctorDnaFlatListPrimaryClass} truncate`}>
+                      {appt.service}
+                    </span>
+                    <span className={`${doctorDnaFlatListMetaClass} tabular-nums`}>
+                      {fmtDate(appt.date)} · {appt.time}
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-2">
                     <StatusChip status={appt.status} rescheduledToDate={appt.rescheduledToDate} />
                     {appt.status === 'completed' && appt.hasVisitRecord ? (
                       <Button
@@ -348,7 +344,7 @@ export function PatientTabRecords({
                         variant="outline"
                         onClick={() => onOpenVisitNotes?.(appt.id)}
                       >
-                        Открыть заметки
+                        Открыть
                       </Button>
                     ) : null}
                     {appt.status === 'completed' && !appt.hasVisitRecord ? (
@@ -364,15 +360,15 @@ export function PatientTabRecords({
                           })
                         }
                       >
-                        Оформить визит
+                        Оформить
                       </Button>
                     ) : null}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DoctorModal>
       </section>
     );
   }

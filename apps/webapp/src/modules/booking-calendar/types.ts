@@ -21,6 +21,24 @@ export type CalendarFilters = {
   branchId?: string | null;
   roomId?: string | null;
   serviceId?: string | null;
+  /** Repository-only narrowing used to hydrate a paged appointment feed. */
+  appointmentIds?: string[];
+};
+
+export type AppointmentFeedFilters = Omit<CalendarFilters, 'rangeStart' | 'rangeEnd'> & {
+  rangeStart?: string;
+  rangeEnd?: string;
+  search?: string;
+  includeCancelled?: boolean;
+  order?: 'asc' | 'desc';
+  limit: number;
+  offset: number;
+};
+
+export type AppointmentFeedPage = {
+  items: CalendarAppointmentEvent[];
+  total: number;
+  hasMore: boolean;
 };
 
 export type CalendarFilterOption = {
