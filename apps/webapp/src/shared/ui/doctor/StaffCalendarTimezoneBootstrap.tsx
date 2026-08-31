@@ -22,12 +22,16 @@ function syncStaffCalendarTimezone(browserTz: string): Promise<void> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ browserCalendarIana: browserTz }),
     });
-  })().catch(() => {
-    timezoneSyncs.delete(browserTz);
+  })().catch(() => undefined);
+
+  const trackedRequest = request.finally(() => {
+    if (timezoneSyncs.get(browserTz) === trackedRequest) {
+      timezoneSyncs.delete(browserTz);
+    }
   });
 
-  timezoneSyncs.set(browserTz, request);
-  return request;
+  timezoneSyncs.set(browserTz, trackedRequest);
+  return trackedRequest;
 }
 
 /**
