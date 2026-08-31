@@ -14,12 +14,16 @@
 
 import { useEffect, useState } from 'react';
 import { PatientTreatmentProgramsPanel } from '@/app/app/doctor/clients/PatientTreatmentProgramsPanel';
+import type { TreatmentProgramInstanceSummary } from '@/modules/treatment-program/types';
 
 type TemplateOption = { id: string; title: string };
 
-type Props = { userId: string };
+type Props = {
+  userId: string;
+  initialInstances: TreatmentProgramInstanceSummary[];
+};
 
-export function PatientProgramPanelLoader({ userId }: Props) {
+export function PatientProgramPanelLoader({ userId, initialInstances }: Props) {
   const [templates, setTemplates] = useState<TemplateOption[] | null>(null);
   const [templatesError, setTemplatesError] = useState(false);
 
@@ -58,7 +62,11 @@ export function PatientProgramPanelLoader({ userId }: Props) {
           Не удалось загрузить шаблоны программ.
         </p>
       ) : null}
-      <PatientTreatmentProgramsPanel patientUserId={userId} templates={templates} />
+      <PatientTreatmentProgramsPanel
+        patientUserId={userId}
+        templates={templates}
+        initialInstances={initialInstances}
+      />
     </>
   );
 }

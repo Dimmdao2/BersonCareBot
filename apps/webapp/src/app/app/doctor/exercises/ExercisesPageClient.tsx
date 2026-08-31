@@ -56,6 +56,7 @@ import {
 import { ExerciseTileCard } from './ExerciseTileCard';
 import { useDoctorCatalogDisplayList } from '@/shared/hooks/useDoctorCatalogDisplayList';
 import { useDoctorCatalogClientFilterMerge } from '@/shared/hooks/useDoctorCatalogClientFilterMerge';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 
 export type ExercisesViewMode = 'tiles' | 'list';
 
@@ -87,6 +88,8 @@ type Props = {
   viewLockedByUrl: boolean;
   initialTitleSort: ExerciseTitleSort | null;
   bodyRegionIdToCode: Record<string, string>;
+  bodyRegionItems: ReferenceItemDto[];
+  loadTypeItems: ReferenceItemDto[];
   filters: {
     q: string;
     regionCode?: string;
@@ -165,6 +168,8 @@ type ExercisesContentProps = {
   changeTitleSort: (next: ExerciseTitleSort | null) => void;
   filters: ExerciseCatalogFiltersMerged;
   bodyRegionIdToCode: Record<string, string>;
+  bodyRegionItems: ReferenceItemDto[];
+  loadTypeItems: ReferenceItemDto[];
   filterToolbarLayout: DoctorCatalogToolbarLayout;
   onFilterToolbarLayoutChange: (layout: DoctorCatalogToolbarLayout) => void;
 };
@@ -183,6 +188,8 @@ function ExercisesContent({
   changeTitleSort,
   filters,
   bodyRegionIdToCode,
+  bodyRegionItems,
+  loadTypeItems,
   filterToolbarLayout,
   onFilterToolbarLayoutChange,
 }: ExercisesContentProps) {
@@ -309,6 +316,8 @@ function ExercisesContent({
     <CatalogRightPane className="h-full">
       <ExerciseForm
         exercise={mobileSheet?.exercise ?? exerciseForDesktop}
+        bodyRegionItems={bodyRegionItems}
+        loadTypeItems={loadTypeItems}
         saveAction={saveExerciseInline}
         archiveAction={archiveExerciseInline}
         unarchiveAction={unarchiveExerciseInline}
@@ -328,6 +337,8 @@ function ExercisesContent({
               <ExercisesFiltersForm
                 idPrefix="ex"
                 q={filters.q}
+                bodyRegionItems={bodyRegionItems}
+                loadTypeItems={loadTypeItems}
                 regionCode={filters.regionCode}
                 loadType={filters.loadType}
                 view={viewMode}
@@ -481,6 +492,8 @@ export function ExercisesPageClient({
   viewLockedByUrl,
   initialTitleSort,
   bodyRegionIdToCode,
+  bodyRegionItems,
+  loadTypeItems,
   filters,
 }: Props) {
   const [viewMode, setViewMode] = useState<ExercisesViewMode>(initialViewMode);
@@ -546,6 +559,8 @@ export function ExercisesPageClient({
         changeTitleSort={changeTitleSort}
         filters={mergedFilters}
         bodyRegionIdToCode={bodyRegionIdToCode}
+        bodyRegionItems={bodyRegionItems}
+        loadTypeItems={loadTypeItems}
         filterToolbarLayout={filterToolbarLayout}
         onFilterToolbarLayoutChange={onFilterToolbarLayoutChange}
       />

@@ -3,6 +3,33 @@
 import { useEffect } from 'react';
 import { getBrowserCalendarIanaForAuth } from '@/shared/lib/browserCalendarIana';
 
+const timezoneSyncs = new Map<string, Promise<void>>();
+
+function syncStaffCalendarTimezone(browserTz: string): Promise<void> {
+  const existing = timezoneSyncs.get(browserTz);
+  if (existing) return existing;
+
+  const request = (async () => {
+    const getRes = await fetch('/api/doctor/account/timezone');
+    const data = (await getRes.json().catch(() => null)) as {
+      ok?: boolean;
+      timezone?: string | null;
+    };
+    if (!getRes.ok || !data?.ok || (data.timezone?.trim() ?? '') === browserTz) return;
+
+    await fetch('/api/doctor/account/timezone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ browserCalendarIana: browserTz }),
+    });
+  })().catch(() => {
+    timezoneSyncs.delete(browserTz);
+  });
+
+  timezoneSyncs.set(browserTz, request);
+  return request;
+}
+
 /**
  * Пояс сотрудника определяется УСТРОЙСТВОМ, а не настраивается руками (§34 канона владельца,
  * `docs/ARCHITECTURE/OWNER_PRODUCT_RULES.md`). Аналог `PatientCalendarTimezoneBootstrap` для
@@ -17,19 +44,7 @@ export function StaffCalendarTimezoneBootstrap() {
         const browserTz = getBrowserCalendarIanaForAuth();
         if (!browserTz) return;
 
-        const getRes = await fetch('/api/doctor/account/timezone');
-        const data = (await getRes.json().catch(() => null)) as {
-          ok?: boolean;
-          timezone?: string | null;
-        };
-        if (!getRes.ok || !data?.ok) return;
-        if ((data.timezone?.trim() ?? '') === browserTz) return;
-
-        await fetch('/api/doctor/account/timezone', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ browserCalendarIana: browserTz }),
-        });
+        await syncStaffCalendarTimezone(browserTz);
       } catch {
         // ignore
       }

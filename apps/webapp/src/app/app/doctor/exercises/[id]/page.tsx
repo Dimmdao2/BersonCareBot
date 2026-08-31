@@ -5,6 +5,7 @@ import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { doctorCatalogEditorSectionClass } from '@/shared/ui/doctor/doctorVisual';
 import { ExerciseForm } from '../ExerciseForm';
+import { EXERCISE_LOAD_TYPE_CATEGORY_CODE } from '@/modules/lfk-exercises/exerciseLoadTypeReference';
 
 type PageProps = { params: Promise<{ id: string }> };
 
@@ -15,7 +16,11 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
   const deps = buildAppDeps();
   const includePlatformBase = (await requireEntitlementForReadAction(workspace, 'exercise_catalog'))
     .ok;
-  const exercise = await deps.lfkExercises.getExercise(id, { includePlatformBase });
+  const [exercise, bodyRegionItems, loadTypeItems] = await Promise.all([
+    deps.lfkExercises.getExercise(id, { includePlatformBase }),
+    deps.references.listActiveItemsByCategoryCode('body_region'),
+    deps.references.listActiveItemsByCategoryCode(EXERCISE_LOAD_TYPE_CATEGORY_CODE),
+  ]);
   if (!exercise) {
     notFound();
   }
@@ -31,7 +36,12 @@ export default async function DoctorExerciseEditPage({ params }: PageProps) {
       backHref="/app/doctor/exercises"
     >
       <section className={doctorCatalogEditorSectionClass}>
-        <ExerciseForm exercise={exercise} externalUsageSnapshot={usage} />
+        <ExerciseForm
+          exercise={exercise}
+          externalUsageSnapshot={usage}
+          bodyRegionItems={bodyRegionItems}
+          loadTypeItems={loadTypeItems}
+        />
       </section>
     </DoctorAppShell>
   );

@@ -50,6 +50,7 @@ import {
   type ExerciseUsageSection,
 } from './exerciseUsageSummaryText';
 import { MaterialRatingBlock } from '@/shared/ui/doctor/material-rating/MaterialRatingBlock';
+import type { ReferenceItemDto } from '@/modules/references/referenceCache';
 
 function ExerciseUsageSectionsView({ sections }: { sections: ExerciseUsageSection[] }) {
   if (sections.length === 0) {
@@ -135,6 +136,8 @@ type ExerciseFormProps = {
    * подгружается через `fetchDoctorExerciseUsageSnapshot`.
    */
   externalUsageSnapshot?: ExerciseUsageSnapshot;
+  bodyRegionItems?: ReferenceItemDto[];
+  loadTypeItems?: ReferenceItemDto[];
 };
 
 export function ExerciseForm({
@@ -145,6 +148,8 @@ export function ExerciseForm({
   viewHint,
   listArchiveScope,
   externalUsageSnapshot,
+  bodyRegionItems,
+  loadTypeItems,
 }: ExerciseFormProps) {
   const recordKey = exercise?.id ?? 'create';
 
@@ -425,6 +430,7 @@ export function ExerciseForm({
               <span className="text-sm font-medium">Регион</span>
               <ReferenceMultiSelect
                 categoryCode="body_region"
+                prefetchedItems={bodyRegionItems}
                 name="regionRefIds"
                 value={values.regionRefIds}
                 onChange={(ids) => setValues((v) => ({ ...v, regionRefIds: ids }))}
@@ -438,6 +444,7 @@ export function ExerciseForm({
                 id="ex-load-type"
                 name="loadType"
                 categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
+                prefetchedItems={loadTypeItems}
                 valueMatch="code"
                 submitField="code"
                 value={values.loadType || null}

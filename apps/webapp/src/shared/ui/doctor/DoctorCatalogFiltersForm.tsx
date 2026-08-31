@@ -42,6 +42,9 @@ export type DoctorCatalogFiltersChange = {
 
 export type DoctorCatalogFiltersFormProps = {
   q: string;
+  /** SSR-provided shared references avoid one client request per mounted filter form. */
+  bodyRegionItems?: ReferenceItemDto[];
+  loadTypeItems?: ReferenceItemDto[];
   /** Код `reference_items.code` категории `body_region` (в URL `?region=`). */
   regionCode?: string;
   loadType?: ExerciseLoadType | string;
@@ -83,6 +86,8 @@ function applyParamsPatch(
  */
 export function DoctorCatalogFiltersForm({
   q,
+  bodyRegionItems,
+  loadTypeItems,
   regionCode,
   loadType,
   showRegionFilter = true,
@@ -237,6 +242,7 @@ export function DoctorCatalogFiltersForm({
   const regionField = showRegionFilter ? (
     <RegionFilterField
       idPrefix={idPrefix}
+      items={bodyRegionItems}
       selectedRegionCode={selectedRegionCode}
       onRegionChange={(code) => {
         setSelectedRegionCode(code);
@@ -282,6 +288,7 @@ export function DoctorCatalogFiltersForm({
         <ReferenceSelect
           id={`${idPrefix}-load`}
           categoryCode={EXERCISE_LOAD_TYPE_CATEGORY_CODE}
+          prefetchedItems={loadTypeItems}
           valueMatch="code"
           submitField="code"
           value={selectedExerciseLoad}
@@ -327,10 +334,12 @@ export function DoctorCatalogFiltersForm({
 
 function RegionFilterField({
   idPrefix,
+  items,
   selectedRegionCode,
   onRegionChange,
 }: {
   idPrefix: string;
+  items?: ReferenceItemDto[];
   selectedRegionCode: string | null;
   onRegionChange: (code: string | null) => void;
 }) {
@@ -342,6 +351,7 @@ function RegionFilterField({
       <ReferenceSelect
         id={`${idPrefix}-region`}
         categoryCode="body_region"
+        prefetchedItems={items}
         valueMatch="code"
         submitField="code"
         value={selectedRegionCode}

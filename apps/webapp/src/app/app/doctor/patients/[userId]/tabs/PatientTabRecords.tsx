@@ -1171,14 +1171,6 @@ function PaymentsPanel({
     }
   };
 
-  useEffect(() => {
-    if (!fetched) {
-      setFetched(true);
-      void loadPayments();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
-
   const handleSubmitCash = async () => {
     const rubles = parseFloat(cashAmountRub.replace(',', '.'));
     if (!rubles || rubles <= 0) {
@@ -1227,7 +1219,7 @@ function PaymentsPanel({
       void loadPayments();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetched]);
+  }, [fetched, userId]);
 
   return (
     <div className={doctorSectionCardClass}>

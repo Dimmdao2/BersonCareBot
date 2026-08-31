@@ -20,6 +20,33 @@ type DoctorChatPanelProps = {
   onSent?: () => void | Promise<void>;
 };
 
+const initialMessageRequests = new Map<
+  string,
+  Promise<{ ok?: boolean; messages?: SerializedSupportMessage[] }>
+>();
+
+function fetchDoctorChatMessages(conversationId: string, deduplicateInitial = false) {
+  if (deduplicateInitial) {
+    const existing = initialMessageRequests.get(conversationId);
+    if (existing) return existing;
+  }
+
+  const request = fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`).then(
+    async (res) => {
+      const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
+      return { ...data, ok: res.ok && data.ok };
+    },
+  );
+  if (deduplicateInitial) {
+    initialMessageRequests.set(conversationId, request);
+    const release = () => {
+      window.setTimeout(() => initialMessageRequests.delete(conversationId), 1000);
+    };
+    void request.then(release, release);
+  }
+  return request;
+}
+
 export function DoctorChatPanel({
   conversationId,
   initialMessages,
@@ -54,11 +81,10 @@ export function DoctorChatPanel({
     }
   }, [conversationId, onReadStateChanged]);
 
-  const loadMessages = useCallback(async () => {
+  const loadMessages = useCallback(async (deduplicateInitial = false) => {
     try {
-      const res = await fetch(`/api/doctor/messages/${encodeURIComponent(conversationId)}`);
-      const data = (await res.json()) as { ok?: boolean; messages?: SerializedSupportMessage[] };
-      if (!res.ok || !data.ok) {
+      const data = await fetchDoctorChatMessages(conversationId, deduplicateInitial);
+      if (!data.ok) {
         setError('Не удалось загрузить сообщения');
         return;
       }
@@ -86,7 +112,7 @@ export function DoctorChatPanel({
             void markRead();
           }
         } else {
-          await loadMessages();
+          await loadMessages(true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -113,7 +139,9 @@ export function DoctorChatPanel({
     }
   }, [conversationId, markRead]);
 
-  useMessagePolling(poll, Boolean(conversationId), 18000);
+  // The mount effect owns the initial load. Polling starts without another immediate GET,
+  // but still refreshes immediately when the browser tab becomes visible again.
+  useMessagePolling(poll, Boolean(conversationId), 18000, false);
 
   const send = async () => {
     const t = draft.trim();

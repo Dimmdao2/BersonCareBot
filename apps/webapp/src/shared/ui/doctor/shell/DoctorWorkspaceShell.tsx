@@ -99,7 +99,12 @@ export function DoctorWorkspaceShell({
   const clinicalRuntimeEnabled = enableTenantRuntime && showClinicalShortcuts;
 
   return (
-    <DoctorSupportUnreadProvider enabled={clinicalRuntimeEnabled}>
+    <DoctorSupportUnreadProvider
+      enabled={clinicalRuntimeEnabled}
+      registrationFailuresEnabled={
+        clinicalRuntimeEnabled && capabilities.includes('platform.operations')
+      }
+    >
       <Suspense fallback={null}>
         <AppAccessDeniedToastEffect />
       </Suspense>
@@ -114,7 +119,6 @@ export function DoctorWorkspaceShell({
             menuAccess,
             patientLabel,
             hideMenuOnDesktop: showDoctorDesktopNav,
-            enableBadgePolling: clinicalRuntimeEnabled,
             menuKind,
           }}
           sidebar={
@@ -123,7 +127,6 @@ export function DoctorWorkspaceShell({
                 userDisplayName={userDisplayName}
                 menuAccess={menuAccess}
                 patientLabel={patientLabel}
-                enableBadgePolling={clinicalRuntimeEnabled}
                 homeHref={homeHref}
                 brand={brand}
                 menuKind={menuKind}

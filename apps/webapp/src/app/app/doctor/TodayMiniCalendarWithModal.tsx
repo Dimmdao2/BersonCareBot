@@ -94,6 +94,27 @@ type CalendarApiResponse = {
   error?: string;
 };
 
+const todayCalendarRequests = new Map<string, Promise<CalendarApiResponse>>();
+
+function loadTodayCalendar(todayIso: string, refresh = false): Promise<CalendarApiResponse> {
+  if (!refresh) {
+    const existing = todayCalendarRequests.get(todayIso);
+    if (existing) return existing;
+  }
+
+  const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
+  const request = fetch(`${API_BASE}/calendar?${qs}`).then(
+    async (response) => (await response.json()) as CalendarApiResponse,
+  );
+  todayCalendarRequests.set(todayIso, request);
+  void request.catch(() => {
+    if (todayCalendarRequests.get(todayIso) === request) {
+      todayCalendarRequests.delete(todayIso);
+    }
+  });
+  return request;
+}
+
 type Props = {
   /** Server-rendered fallback list — used for sr-only accessibility and empty-state check. */
   appointments: TodayAppointmentItem[];
@@ -132,9 +153,7 @@ export function TodayMiniCalendarWithModal({
   );
 
   function fetchTodayEvents(onDone?: () => void) {
-    const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
-    fetch(`${API_BASE}/calendar?${qs}`)
-      .then((r) => r.json())
+    loadTodayCalendar(todayIso, true)
       .then((data: CalendarApiResponse) => {
         if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);
         if (data.filters) setFilterMeta(data.filters);
@@ -150,9 +169,7 @@ export function TodayMiniCalendarWithModal({
 
   useEffect(() => {
     let cancelled = false;
-    const qs = new URLSearchParams({ view: 'day', from: todayIso, to: todayIso }).toString();
-    fetch(`${API_BASE}/calendar?${qs}`)
-      .then((r) => r.json())
+    loadTodayCalendar(todayIso)
       .then((data: CalendarApiResponse) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.events)) setCalendarEvents(data.events);

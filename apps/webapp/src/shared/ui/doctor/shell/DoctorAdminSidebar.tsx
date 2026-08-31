@@ -25,7 +25,6 @@ type DoctorAdminSidebarProps = {
   menuAccess: DoctorMenuAccess;
   /** Если `"клиент"`, пункт «Пациенты» отображается как «Клиенты». */
   patientLabel?: string;
-  enableBadgePolling?: boolean;
   homeHref?: string;
   /** Server-resolved effective organization brand used by the account entry. */
   brand?: { displayName: string; logoUrl: string | null };
@@ -43,7 +42,6 @@ export function DoctorAdminSidebar({
   userDisplayName,
   menuAccess,
   patientLabel,
-  enableBadgePolling,
   homeHref = routePaths.doctor,
   brand,
   menuKind = 'doctor',
@@ -132,7 +130,6 @@ export function DoctorAdminSidebar({
             menuAccess={menuAccess}
             patientLabel={patientLabel}
             onNavigate={() => setTabletExpanded(false)}
-            enableBadgePolling={enableBadgePolling}
             menuKind={menuKind}
             tabletExpanded={tabletExpanded}
           />

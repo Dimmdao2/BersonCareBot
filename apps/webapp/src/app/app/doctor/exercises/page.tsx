@@ -95,6 +95,8 @@ export default async function DoctorExercisesPage({ searchParams }: PageProps) {
         viewLockedByUrl={viewLockedByUrl}
         initialTitleSort={titleSort}
         bodyRegionIdToCode={bodyRegionIdToCode}
+        bodyRegionItems={bodyRegionItems}
+        loadTypeItems={loadTypeRefItems}
         filters={{
           q,
           regionCode: regionParsed.regionCode,

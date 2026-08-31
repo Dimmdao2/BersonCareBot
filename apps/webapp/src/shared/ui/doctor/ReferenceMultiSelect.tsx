@@ -9,6 +9,8 @@ import { loadReferenceItems, type ReferenceItemDto } from '@/modules/references/
 
 export type ReferenceMultiSelectProps = {
   categoryCode: string;
+  /** Server-loaded items; when provided, the client request is skipped. */
+  prefetchedItems?: ReferenceItemDto[];
   /** Selected `reference_items.id` values. */
   value: readonly string[];
   onChange: (next: string[]) => void;
@@ -27,6 +29,7 @@ export type ReferenceMultiSelectProps = {
  */
 export function ReferenceMultiSelect({
   categoryCode,
+  prefetchedItems,
   value,
   onChange,
   disabled = false,
@@ -36,8 +39,10 @@ export function ReferenceMultiSelect({
   placeholder = 'Добавить регион…',
   searchable = true,
 }: ReferenceMultiSelectProps) {
-  const [items, setItems] = useState<ReferenceItemDto[]>([]);
-  const [loadState, setLoadState] = useState<'loading' | 'done'>('loading');
+  const [remoteItems, setRemoteItems] = useState<ReferenceItemDto[]>([]);
+  const [loadState, setLoadState] = useState<'loading' | 'done'>(
+    prefetchedItems ? 'done' : 'loading',
+  );
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [listScrollOverflowBottom, setListScrollOverflowBottom] = useState(false);
@@ -48,6 +53,7 @@ export function ReferenceMultiSelect({
   const listboxId = useId();
 
   useEffect(() => {
+    if (prefetchedItems) return;
     let cancelled = false;
     queueMicrotask(() => {
       if (!cancelled) setLoadState('loading');
@@ -55,7 +61,7 @@ export function ReferenceMultiSelect({
     void loadReferenceItems(categoryCode)
       .then((list) => {
         if (!cancelled) {
-          setItems(list);
+          setRemoteItems(list);
           setLoadState('done');
         }
       })
@@ -67,7 +73,9 @@ export function ReferenceMultiSelect({
     return () => {
       cancelled = true;
     };
-  }, [categoryCode]);
+  }, [categoryCode, prefetchedItems]);
+
+  const items = prefetchedItems ?? remoteItems;
 
   const selectedSet = useMemo(() => new Set(value), [value]);
 

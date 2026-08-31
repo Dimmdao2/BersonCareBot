@@ -23,12 +23,12 @@ export function useMessagePolling(
 
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
-    const startInterval = () => {
+    const startInterval = (runImmediately: boolean) => {
       if (intervalId !== null) {
         clearInterval(intervalId);
         intervalId = null;
       }
-      if (immediate) {
+      if (runImmediately) {
         void ref.current();
       }
       intervalId = setInterval(() => void ref.current(), intervalMs);
@@ -43,14 +43,14 @@ export function useMessagePolling(
 
     const onVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        startInterval();
+        startInterval(true);
       } else {
         stopInterval();
       }
     };
 
     if (document.visibilityState === 'visible') {
-      startInterval();
+      startInterval(immediate);
     }
 
     document.addEventListener('visibilitychange', onVisibilityChange);

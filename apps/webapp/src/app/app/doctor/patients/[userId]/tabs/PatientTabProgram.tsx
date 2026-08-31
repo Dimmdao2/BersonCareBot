@@ -27,6 +27,9 @@ export function PatientTabProgram({
   const router = useRouter();
   const [historyOpen, setHistoryOpen] = useState(false);
   const [programCheckDone, setProgramCheckDone] = useState(false);
+  const [resolvedProgramInstances, setResolvedProgramInstances] = useState<
+    TreatmentProgramInstanceSummary[] | null
+  >(initialProgramInstances ?? null);
 
   const programHref = (instanceId: string) =>
     `/app/doctor/patients/${encodeURIComponent(userId)}/programs/${encodeURIComponent(instanceId)}`;
@@ -52,6 +55,7 @@ export function PatientTabProgram({
       .then((data: { ok?: boolean; items?: TreatmentProgramInstanceSummary[] }) => {
         if (cancelled) return;
         if (data.ok && Array.isArray(data.items)) {
+          setResolvedProgramInstances(data.items);
           const activeInst = pickOpenTreatmentProgramInstance(data.items);
           if (activeInst) {
             router.push(programHref(activeInst.id));
@@ -101,7 +105,10 @@ export function PatientTabProgram({
         </Button>
       </div>
 
-      <PatientProgramPanelLoader userId={userId} />
+      <PatientProgramPanelLoader
+        userId={userId}
+        initialInstances={resolvedProgramInstances ?? []}
+      />
 
       <ProgramHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} userId={userId} />
     </div>

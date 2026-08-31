@@ -7,9 +7,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { cn } from '@/lib/utils';
-import { useDoctorRegistrationSystemFailureCount } from '@/modules/auth/hooks/useDoctorRegistrationSystemFailureCount';
-import { useDoctorPendingProgramTestsCount } from '@/modules/treatment-program/hooks/useDoctorPendingProgramTestsCount';
-import { useDoctorSupportUnreadCount } from '@/shared/hooks/useSupportUnreadPolling';
+import { useDoctorShellBadgeCounts } from '@/shared/hooks/useSupportUnreadPolling';
 import {
   getDoctorMenuItems,
   isDoctorNavItemActive,
@@ -18,7 +16,6 @@ import {
   type DoctorMenuLinkItem,
 } from '@/shared/ui/doctor/doctorNavLinks';
 import { getPlatformMenuItems } from '@/shared/ui/doctor/platformNavLinks';
-import { hasLaunchCapability } from '@/app-layer/guards/workspaceCapabilities';
 import { DOCTOR_MENU_ITEM_RADIUS_CLASS, NAV_STRIP_ICON_STROKE } from '@/shared/ui/doctor/navChrome';
 import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
 import {
@@ -90,7 +87,6 @@ export type DoctorMenuAccordionProps = {
   /** Вызывается после навигации по пункту меню (например закрытие Sheet на mobile). */
   onNavigate?: () => void;
   /** Global-only surfaces have no tenant workspace and must not poll tenant badge APIs. */
-  enableBadgePolling?: boolean;
   /**
    * Which item source to render. `"doctor"` (default) is the clinical/staff menu
    * (`doctorNavLinks.ts`). `"platform"` is the global admin's own flat menu
@@ -424,7 +420,6 @@ export function DoctorMenuAccordion({
   menuAccess,
   patientLabel,
   onNavigate,
-  enableBadgePolling = true,
   menuKind = 'doctor',
   tabletExpanded = false,
 }: DoctorMenuAccordionProps) {
@@ -439,11 +434,8 @@ export function DoctorMenuAccordion({
     return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
   }, [menuKind, menuAccess, patientLabel, variant]);
 
-  const messagesUnread = useDoctorSupportUnreadCount();
-  const pendingProgramTests = useDoctorPendingProgramTestsCount(enableBadgePolling);
-  const registrationSystemFailures = useDoctorRegistrationSystemFailureCount(
-    enableBadgePolling && hasLaunchCapability(menuAccess.capabilities, 'platform.operations'),
-  );
+  const { messagesUnread, pendingProgramTests, registrationSystemFailures } =
+    useDoctorShellBadgeCounts();
 
   const badgeCounts = useMemo(
     () =>

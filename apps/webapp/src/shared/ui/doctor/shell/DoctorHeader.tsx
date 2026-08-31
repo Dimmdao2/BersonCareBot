@@ -28,7 +28,6 @@ type DoctorHeaderProps = {
   patientLabel?: string;
   /** Когда true (админ + левый сайдбар в layout), кнопка «Меню» скрыта на md+. */
   hideMenuOnDesktop?: boolean;
-  enableBadgePolling?: boolean;
   /** Which item source `DoctorMenuAccordion` renders. See `DoctorMenuAccordionProps.menuKind`. */
   menuKind?: 'doctor' | 'platform';
 };
@@ -45,7 +44,6 @@ export function DoctorHeader({
   menuAccess,
   patientLabel,
   hideMenuOnDesktop,
-  enableBadgePolling,
   menuKind = 'doctor',
 }: DoctorHeaderProps) {
   const router = useRouter();
@@ -138,7 +136,6 @@ export function DoctorHeader({
                 menuAccess={menuAccess}
                 patientLabel={patientLabel}
                 onNavigate={closeMenu}
-                enableBadgePolling={enableBadgePolling}
                 menuKind={menuKind}
               />
             </nav>
