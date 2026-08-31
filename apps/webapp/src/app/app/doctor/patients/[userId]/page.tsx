@@ -12,6 +12,7 @@ import { sanitizePatientListReturnHref } from '../patientListWorkspaceState';
 import {
   loadDoctorPatientCardShellMeta,
   loadDoctorPatientCardTabBootstrap,
+  loadDoctorPatientProgramInstances,
   resolvePatientCardTab,
 } from '../loadDoctorPatientCardPageBootstrap';
 
@@ -41,18 +42,25 @@ export default async function DoctorPatientCardPage({ params, searchParams }: Pa
   }
 
   const activeTab = resolvePatientCardTab(typeof sp.tab === 'string' ? sp.tab : undefined);
+  const programInstancesPromise = loadDoctorPatientProgramInstances(
+    deps,
+    workspace,
+    identity.userId,
+  );
   // Start tab bootstrap before awaiting shell so Suspense can overlap progressive stream.
   const tabPromise = loadDoctorPatientCardTabBootstrap(
     deps,
     workspace,
     identity.userId,
     activeTab,
+    programInstancesPromise,
   );
   const loadedShellMeta = await loadDoctorPatientCardShellMeta(
     deps,
     workspace,
     identity.userId,
     activeTab,
+    programInstancesPromise,
   );
   const shellMeta = loadedShellMeta.cardHeader
     ? {

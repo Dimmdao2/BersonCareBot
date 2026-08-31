@@ -21,13 +21,7 @@ import { envelopeFromSettled, type BootstrapEnvelope } from './doctorPatientCard
 
 export type PatientCardTabId = 'overview' | 'karta' | 'program' | 'files' | 'account';
 
-const PATIENT_CARD_TABS: PatientCardTabId[] = [
-  'overview',
-  'karta',
-  'program',
-  'files',
-  'account',
-];
+const PATIENT_CARD_TABS: PatientCardTabId[] = ['overview', 'karta', 'program', 'files', 'account'];
 
 const LEGACY_PATIENT_CARD_TABS = new Set(['records', 'comms', 'finances']);
 
@@ -51,7 +45,20 @@ export type DoctorPatientCardShellMeta = {
   specialistTasksReadable: boolean;
   cardHeader: Awaited<ReturnType<Deps['doctorClients']['getPatientCardHeader']>>;
   portalState?: Awaited<ReturnType<Deps['patientInvites']['getPortalStatus']>> | null;
+  currentProgramStartedAt: string | null;
 };
+
+export function loadDoctorPatientProgramInstances(
+  deps: Deps,
+  workspace: DoctorWorkspaceAccessContext,
+  patientUserId: string,
+) {
+  return withDoctorWorkspacePrincipal(workspace, () =>
+    deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
+  ).then((instances) =>
+    instances.filter((instance) => instance.organizationId === workspace.organizationId),
+  );
+}
 
 export type DoctorPatientCardTabBootstrap = {
   initialClinicalState: BootstrapEnvelope<
@@ -285,13 +292,17 @@ export async function loadDoctorPatientCardShellMeta(
   workspace: DoctorWorkspaceAccessContext,
   patientUserId: string,
   activeTab: PatientCardTabId,
+  programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, patientUserId),
 ): Promise<DoctorPatientCardShellMeta> {
-  const [membershipMeta, cardHeader, portalState] = await Promise.all([
+  const [membershipMeta, cardHeader, portalState, currentProgramStartedAt] = await Promise.all([
     loadMembershipMeta(workspace, activeTab),
     deps.doctorClients.getPatientCardHeader(patientUserId),
     withDoctorWorkspacePrincipal(workspace, () =>
       deps.patientInvites.getPortalStatus(workspace.organizationId, patientUserId),
     ).catch(() => null),
+    programInstancesPromise
+      .then((instances) => pickOpenTreatmentProgramInstance(instances)?.createdAt ?? null)
+      .catch(() => null),
   ]);
 
   return {
@@ -302,6 +313,7 @@ export async function loadDoctorPatientCardShellMeta(
     specialistTasksReadable: membershipMeta.specialistTasksReadable,
     cardHeader,
     portalState,
+    currentProgramStartedAt,
   };
 }
 
@@ -310,6 +322,7 @@ export async function loadDoctorPatientCardTabBootstrap(
   workspace: DoctorWorkspaceAccessContext,
   patientUserId: string,
   activeTab: PatientCardTabId,
+  sharedProgramInstancesPromise?: ReturnType<typeof loadDoctorPatientProgramInstances>,
 ): Promise<DoctorPatientCardTabBootstrap> {
   const session = workspace.session;
   const membershipMeta = await loadMembershipMeta(workspace, activeTab);
@@ -324,11 +337,8 @@ export async function loadDoctorPatientCardTabBootstrap(
     withDoctorWorkspacePrincipal(workspace, () => deps.patientClinical.listVisits(patientUserId));
 
   const loadProgramInstances = () =>
-    withDoctorWorkspacePrincipal(workspace, () =>
-      deps.treatmentProgramInstance.listForPatientClinicalView(patientUserId),
-    ).then((instances) =>
-      instances.filter((instance) => instance.organizationId === workspace.organizationId),
-    );
+    sharedProgramInstancesPromise ??
+    loadDoctorPatientProgramInstances(deps, workspace, patientUserId);
 
   const loadProgramInstanceDetail = async (
     programInstancesPromise: ReturnType<typeof loadProgramInstances>,

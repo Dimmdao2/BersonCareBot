@@ -19,10 +19,7 @@ import type {
   TreatmentProgramInstanceSummary,
   TreatmentProgramInstanceDetail,
 } from '@/modules/treatment-program/types';
-import {
-  doctorSectionCardClass,
-  doctorPageStackClass,
-} from '@/shared/ui/doctor/doctorVisual';
+import { doctorSectionCardClass, doctorPageStackClass } from '@/shared/ui/doctor/doctorVisual';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
@@ -441,6 +438,7 @@ export function PatientCardClient({
   }
 
   const { identity, support } = header;
+  const supportStartedAt = support.startedAt ?? shellMeta.currentProgramStartedAt;
 
   // Resolved FIO: local override wins over server data
   const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
@@ -530,7 +528,9 @@ export function PatientCardClient({
           </div>
         }
       />
-      <section className={cn(doctorPageStackClass, 'flex flex-col gap-3 pt-3 md:pt-0')}>
+      <section
+        className={cn(doctorPageStackClass, 'flex flex-col gap-3 pt-3 pb-3 md:pt-0 md:pb-0')}
+      >
         {/* ================================================================
           IDENTITY HEADER CARD — READ ONLY
           Displaying patient identity; all edits live in «Учётка» tab.
@@ -546,7 +546,7 @@ export function PatientCardClient({
                 <div className="mb-1.5">
                   <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                     ★ На сопровождении с{' '}
-                    {support.startedAt ? formatSupportStartedAt(support.startedAt) : '—'}
+                    {supportStartedAt ? formatSupportStartedAt(supportStartedAt) : '—'}
                   </span>
                 </div>
               ) : null}
@@ -570,7 +570,6 @@ export function PatientCardClient({
                     </Button>
                   </div>
                 </div>
-
               </div>
 
               {/* Inline FIO edit form */}

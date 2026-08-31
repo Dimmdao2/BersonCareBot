@@ -351,9 +351,7 @@ function buildCurrentWeekAppointmentLists(
       const weekKey = recordAt.isValid ? recordAt.startOf('week').toISODate() : null;
       return weekKey ? [{ row, weekKey }] : [];
     })
-    .sort((left, right) =>
-      (left.row.recordAtIso ?? '').localeCompare(right.row.recordAtIso ?? ''),
-    );
+    .sort((left, right) => (left.row.recordAtIso ?? '').localeCompare(right.row.recordAtIso ?? ''));
   const firstWeekByClient = new Map<string, string>();
   for (const { row, weekKey } of eligible) {
     const clientKey = timelineClientKey(row);
@@ -654,7 +652,8 @@ export async function loadDoctorTodayDashboard(
   const clientAudience = scopedAudience;
   const [todayRaw, futureRaw, timelineRaw, unreadConversations, unreadTotal, onSupportListRaw] =
     await Promise.all([
-      // #9: use statsRange so cancelled appointments are included in today lists
+      // The stats range contains cancellations; the dashboard filters them below so every
+      // Today surface (KPI, list and compact calendar) uses the same active-only collection.
       deps.doctorAppointments.listAppointmentsForSpecialist(
         { kind: 'statsRange', range: 'today' },
         scopedAudience,
@@ -684,6 +683,10 @@ export async function loadDoctorTodayDashboard(
         clientAudience,
       ),
     ]);
+
+  const activeTodayRaw = todayRaw.filter(
+    (row) => !isCancelledAppointmentStatus(row.rawStatus ?? row.status),
+  );
 
   // Week/month lists are only needed for the owner-deferred right KPI row.
   // Keep empty arrays on the first-screen path to avoid extra appointment scans.
@@ -792,7 +795,7 @@ export async function loadDoctorTodayDashboard(
   const currentWeekLists = buildCurrentWeekAppointmentLists(timelineRaw, deps.displayIana);
 
   return {
-    todayAppointments: todayRaw.map(mapAppointmentToTodayItem),
+    todayAppointments: activeTodayRaw.map(mapAppointmentToTodayItem),
     nextAppointment,
     weekAppointments: weekRaw.map(mapAppointmentToTodayItem),
     monthAppointments: monthRaw.map(mapAppointmentToTodayItem),
@@ -800,7 +803,7 @@ export async function loadDoctorTodayDashboard(
       mapConversationToTodayItem(row, appDisplayTimeZone),
     ),
     unreadTotal,
-    upcomingAppointments: getUpcomingAppointments(todayRaw, weekRaw, 5),
+    upcomingAppointments: getUpcomingAppointments(activeTodayRaw, weekRaw, 5),
     peopleListMode: preferences.peopleListMode,
     peopleCount,
     people: peopleWithStats,

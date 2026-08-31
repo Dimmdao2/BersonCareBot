@@ -11,6 +11,7 @@ import {
   type MouseEvent,
 } from 'react';
 import { DateTime } from 'luxon';
+import { Check, MapPin, Play } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -39,6 +40,7 @@ import { DoctorSection } from '@/shared/ui/doctor/DoctorSection';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorCatalogStickyToolbar } from '@/shared/ui/doctor/DoctorCatalogStickyToolbar';
 import { DoctorDateTimePicker } from '@/shared/ui/doctor/DoctorDateTimePicker';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { emitDoctorScheduleCalendarRefresh } from '../scheduleCalendarEvents';
 import { cn } from '@/lib/utils';
 import type { ScheduleTabProps } from '../scheduleTabRegistry';
@@ -648,6 +650,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
 
   // E5 — Create template dialog with N breaks
   const [tplDialogOpen, setTplDialogOpen] = useState(false);
+  const [monthPickerOpen, setMonthPickerOpen] = useState(false);
+  const [branchPickerOpen, setBranchPickerOpen] = useState(false);
   const [tplName, setTplName] = useState('');
   const [tplStart, setTplStart] = useState(DEFAULT_PANEL_START);
   const [tplEnd, setTplEnd] = useState(DEFAULT_PANEL_END);
@@ -656,6 +660,14 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // ── Today string ─────────────────────────────────────────────────────────
 
   const today = DateTime.now().toISODate() ?? '';
+  const monthChoices = useMemo(() => {
+    const currentYear = DateTime.now().year;
+    return Array.from({ length: 11 * 12 }, (_, index) => {
+      const year = currentYear - 5 + Math.floor(index / 12);
+      const month = (index % 12) + 1;
+      return { year, month, value: formatMonth(year, month) };
+    });
+  }, []);
 
   // ── Deep-link sync ────────────────────────────────────────────────────────
 
@@ -716,6 +728,17 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       onDeepLinkChange('month', formatMonth(y, m));
     },
     [viewMonth, viewYear, onDeepLinkChange],
+  );
+
+  const selectMonth = useCallback(
+    (year: number, month: number) => {
+      setViewYear(year);
+      setViewMonth(month);
+      resetGridSelection();
+      onDeepLinkChange('month', formatMonth(year, month));
+      setMonthPickerOpen(false);
+    },
+    [onDeepLinkChange, resetGridSelection],
   );
 
   // ── Load all working days for visible month; location selection is composed client-side. ──
@@ -1252,518 +1275,579 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <DoctorSection data-testid="schedule-work-tab" onMouseDown={handleSurfaceMouseDown}>
-      {/* Sticky top bar: filter (E3) + month nav */}
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden"
+      data-testid="schedule-work-tab"
+      onMouseDown={handleSurfaceMouseDown}
+    >
+      {/* Shared schedule toolbar: centered month navigation + branch filter action. */}
       <DoctorCatalogStickyToolbar
-        className="flex flex-wrap items-center gap-2"
+        withinRemainingHeight
+        className="grid grid-cols-[2rem_minmax(0,1fr)_2rem] items-center gap-1"
         onMouseDown={handleTopBarMouseDown}
         data-testid="schedule-work-topbar"
       >
-        {/* UI-1b: independent location filters; «Все» restores every location. */}
-        <div
-          className="flex flex-wrap items-center gap-1"
-          role="group"
-          aria-label="Фильтр по филиалу"
-        >
+        <span aria-hidden />
+        <div className="flex min-w-0 items-center justify-center gap-1">
           <Button
             type="button"
-            variant="ghost"
-            size="sm"
-            onClick={selectAllGridBranches}
-            className={cn(
-              'inline-flex h-7 items-center rounded-md border px-2.5 text-xs font-medium transition-colors',
-              allBranchesSelected
-                ? 'border-primary/25 bg-primary/15 text-primary'
-                : 'border-border text-muted-foreground hover:bg-muted/60',
-            )}
-            aria-pressed={allBranchesSelected}
-            data-testid="branch-filter-all"
-          >
-            Все
-          </Button>
-          {branches.map((b) => {
-            const branchHex = resolveBranchHex(branches, b.id);
-            const isActive = selectedBranchIds.has(b.id);
-            return (
-              <Button
-                key={b.id}
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => toggleGridBranch(b.id)}
-                style={isActive ? branchStyle(branchHex, true) : undefined}
-                className={cn(
-                  'inline-flex h-7 items-center gap-1 rounded-md border px-2.5 text-xs font-medium transition-colors',
-                  isActive
-                    ? 'border-[color:var(--branch-border)] bg-[color:var(--branch-bg)] text-[color:var(--branch-fg)]'
-                    : 'border-border text-muted-foreground hover:bg-muted/60',
-                )}
-                aria-pressed={isActive}
-                data-testid={`branch-btn-${b.id}`}
-              >
-                ● {getBranchDisplayLabel(b)}
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* Month nav */}
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            type="button"
-            size="sm"
+            size="icon"
             variant="outline"
+            className="size-8 shrink-0"
             onClick={() => navigateMonth(-1)}
             aria-label="Предыдущий месяц"
             data-testid="month-prev"
           >
-            ◀
+            <Play className="size-3 rotate-180" fill="currentColor" aria-hidden />
           </Button>
-          <span
-            className="min-w-[120px] text-center text-sm font-semibold"
-            data-testid="month-label"
-          >
-            {RU_MONTHS[viewMonth]} {viewYear}
-          </span>
           <Button
             type="button"
             size="sm"
             variant="outline"
+            className="h-8 min-w-0 max-w-48 flex-1 truncate px-3 text-sm font-medium"
+            onClick={() => setMonthPickerOpen(true)}
+            aria-label="Выбрать месяц"
+            data-testid="month-label"
+          >
+            {RU_MONTHS[viewMonth]} {viewYear}
+          </Button>
+          <Button
+            type="button"
+            size="icon"
+            variant="outline"
+            className="size-8 shrink-0"
             onClick={() => navigateMonth(1)}
             aria-label="Следующий месяц"
             data-testid="month-next"
           >
-            ▶
+            <Play className="size-3" fill="currentColor" aria-hidden />
           </Button>
         </div>
+        <Button
+          type="button"
+          size="icon"
+          variant={allBranchesSelected ? 'outline' : 'default'}
+          className="size-8"
+          onClick={() => setBranchPickerOpen(true)}
+          aria-label="Выбрать филиалы"
+          title="Филиалы"
+          data-testid="branch-filter-open"
+        >
+          <MapPin className="size-4" aria-hidden />
+        </Button>
       </DoctorCatalogStickyToolbar>
 
-      {/* Errors / feedback */}
-      {loadError ? (
-        <p className="text-sm text-destructive" data-testid="load-error">
-          {loadError}
-        </p>
-      ) : null}
-      {actionError ? (
-        <p className="text-sm text-destructive" data-testid="action-error">
-          {actionError}
-        </p>
-      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-3 [scrollbar-width:thin]">
+        <div className="flex flex-col gap-3">
+          {/* Errors / feedback */}
+          {loadError ? (
+            <p className="text-sm text-destructive" data-testid="load-error">
+              {loadError}
+            </p>
+          ) : null}
+          {actionError ? (
+            <p className="text-sm text-destructive" data-testid="action-error">
+              {actionError}
+            </p>
+          ) : null}
 
-      {/* E1: Two-column layout on large screens */}
-      <>
-        {/* #235: клик в стороне от активных элементов (за пределами month-grid и hours-panel)
+          {/* E1: Two-column layout on large screens */}
+          {/* #235: клик в стороне от активных элементов (за пределами month-grid и hours-panel)
           сбрасывает выбор. Используем onMouseDown чтобы перехватить раньше дочерних onClick. */}
-        <div
-          className="grid gap-3 lg:grid-cols-[1fr_320px]"
-          onMouseDown={(e) => {
-            const target = e.target as HTMLElement;
-            // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel.
-            // #829: также не сбрасываем для содержимого Select-дропдауна («Локация»/город) —
-            // оно рендерится в портал в document.body (base-ui `Select`), т.е. НЕ является
-            // DOM-потомком hours-panel, хотя и остаётся React-потомком (событие всё равно
-            // всплывает сюда). Без этого выбор дня недели/дней сбрасывался и панель редактирования
-            // пропадала при простом открытии/выборе города.
-            const inside = target.closest(
-              `[data-testid='month-grid'], [data-testid='hours-panel'], ${INTERACTIVE_PORTAL_SELECTOR}`,
-            );
-            if (!inside) {
-              setSelected(new Set());
-              setSelectedPrimaryDate(null);
-              setSelectionMode('dates');
-              setSelectedWeekday(null);
-              lastClickedRef.current = null;
-            }
-          }}
-        >
-          {/* LEFT: month grid */}
-          <div className="flex flex-col gap-2">
-            <div
-              className={cn(doctorSectionCardClass, 'p-0 overflow-hidden')}
-              data-testid="month-grid"
-            >
-              {/* Weekday header — click selects entire weekday column (SCH-R-03) */}
-              <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-center">
-                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d, colIndex) => {
-                  const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
-                  const isActiveWd = selectionMode === 'weekday' && selectedWeekday === wd;
-                  const templateSummaries = weekdayTemplateSummaries(
-                    wd,
-                    visibleWorkingHours,
-                    branches,
-                  );
-                  return (
-                    <Button
-                      key={d}
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleWeekdayHeaderClick(colIndex)}
-                      className={cn(
-                        // #236: border как у DayCell — видно что кликабельна
-                        'h-auto min-h-8 flex-col gap-0.5 rounded border px-0.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer',
-                        isActiveWd
-                          ? 'text-primary font-semibold bg-primary/10 border-primary/40'
-                          : 'text-muted-foreground border-border/60 hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/30',
-                      )}
-                      aria-label={`Выбрать все ${d} месяца${templateSummaries.length > 0 ? `, ${templateSummaries.join(', ')}` : ''}`}
-                      aria-pressed={isActiveWd}
-                      data-testid={`weekday-header-${wd}`}
-                    >
-                      <span>{d}</span>
-                      {templateSummaries.length > 0 ? (
-                        <span
-                          className="max-w-full truncate text-[10px] font-normal leading-none text-muted-foreground"
-                          data-testid={`weekday-template-summary-${wd}`}
+          <div
+            className="grid gap-3 lg:grid-cols-[1fr_320px]"
+            onMouseDown={(e) => {
+              const target = e.target as HTMLElement;
+              // Не сбрасываем если клик внутри month-grid (дни/заголовки) или hours-panel.
+              // #829: также не сбрасываем для содержимого Select-дропдауна («Локация»/город) —
+              // оно рендерится в портал в document.body (base-ui `Select`), т.е. НЕ является
+              // DOM-потомком hours-panel, хотя и остаётся React-потомком (событие всё равно
+              // всплывает сюда). Без этого выбор дня недели/дней сбрасывался и панель редактирования
+              // пропадала при простом открытии/выборе города.
+              const inside = target.closest(
+                `[data-testid='month-grid'], [data-testid='hours-panel'], ${INTERACTIVE_PORTAL_SELECTOR}`,
+              );
+              if (!inside) {
+                setSelected(new Set());
+                setSelectedPrimaryDate(null);
+                setSelectionMode('dates');
+                setSelectedWeekday(null);
+                lastClickedRef.current = null;
+              }
+            }}
+          >
+            {/* LEFT: month grid */}
+            <div className="flex flex-col gap-2">
+              <div
+                className={cn(doctorSectionCardClass, 'p-0 overflow-hidden')}
+                data-testid="month-grid"
+              >
+                {/* Weekday header — click selects entire weekday column (SCH-R-03) */}
+                <div className="grid grid-cols-7 gap-0.5 px-1.5 pb-0.5 pt-1.5 text-center">
+                  {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d, colIndex) => {
+                    const wd = [1, 2, 3, 4, 5, 6, 0][colIndex]!;
+                    const isActiveWd = selectionMode === 'weekday' && selectedWeekday === wd;
+                    const templateSummaries = weekdayTemplateSummaries(
+                      wd,
+                      visibleWorkingHours,
+                      branches,
+                    );
+                    return (
+                      <Button
+                        key={d}
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleWeekdayHeaderClick(colIndex)}
+                        className={cn(
+                          // #236: border как у DayCell — видно что кликабельна
+                          'h-auto min-h-8 flex-col gap-0.5 rounded border px-0.5 py-0.5 text-[10px] font-medium transition-colors cursor-pointer',
+                          isActiveWd
+                            ? 'text-primary font-semibold bg-primary/10 border-primary/40'
+                            : 'text-muted-foreground border-border/60 hover:bg-muted/50 hover:text-foreground hover:border-muted-foreground/30',
+                        )}
+                        aria-label={`Выбрать все ${d} месяца${templateSummaries.length > 0 ? `, ${templateSummaries.join(', ')}` : ''}`}
+                        aria-pressed={isActiveWd}
+                        data-testid={`weekday-header-${wd}`}
+                      >
+                        <span>{d}</span>
+                        {templateSummaries.length > 0 ? (
+                          <span
+                            className="max-w-full truncate text-[10px] font-normal leading-none text-muted-foreground"
+                            data-testid={`weekday-template-summary-${wd}`}
+                          >
+                            {templateSummaries.join('; ')}
+                          </span>
+                        ) : null}
+                      </Button>
+                    );
+                  })}
+                </div>
+                {/* Day cells (E2 — компактнее, время крупнее) */}
+                <div className="grid grid-cols-7 gap-0.5 p-1.5">
+                  {cells.map((dateKey, idx) => (
+                    <DayCell
+                      key={dateKey ?? `pad-${idx}`}
+                      cellIndex={idx}
+                      dateKey={dateKey}
+                      today={today}
+                      record={dateKey ? dayMap.get(dateKey) : undefined}
+                      branches={branches}
+                      isSelected={dateKey ? selected.has(dateKey) : false}
+                      onToggle={toggleDay}
+                      effectiveHours={
+                        dateKey
+                          ? resolveEffectiveHours(dateKey, dayMap, visibleWorkingHours)
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: hours panel (E4) */}
+            <div>
+              {selectedCount > 0 ? (
+                <DoctorSection className="border-primary/40 bg-primary/5" data-testid="hours-panel">
+                  <h3 className={cn(doctorSectionTitleClass, 'text-primary')}>
+                    {selectionMode === 'weekday' && selectedWeekday !== null
+                      ? `Расписание для всех ${WD_LABEL[selectedWeekday] ?? ''} (${selectedCount} дн.)`
+                      : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? 'дня' : 'дней'} (${
+                          selectedDates.length <= 3
+                            ? selectedDates
+                                .map((d) => {
+                                  const dt = DateTime.fromISO(d);
+                                  return `${dt.day} ${dt.setLocale('ru').toFormat('LLLL').slice(0, 3)}`;
+                                })
+                                .join(', ')
+                            : `${DateTime.fromISO(selectedDates[0] ?? '').day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? '').day} …`
+                        })`}
+                  </h3>
+
+                  {/* #232: чекбокс «постоянное расписание» УДАЛЁН. Выбор дня недели
+                  всегда сохраняется как постоянный шаблон weekday. */}
+
+                  {/* E4 — строчная раскладка */}
+                  <div className="flex flex-col gap-2">
+                    {/* Start / End row */}
+                    <div className="flex flex-wrap items-end gap-2">
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="panel-start" className="text-xs">
+                          Начало
+                        </Label>
+                        <DoctorDateTimePicker
+                          mode="time"
+                          id="panel-start"
+                          className="w-26"
+                          value={panelStart}
+                          onChange={setPanelStart}
+                          ariaLabel="Начало рабочего дня"
+                          testId="panel-start"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <Label htmlFor="panel-end" className="text-xs">
+                          Конец
+                        </Label>
+                        <DoctorDateTimePicker
+                          mode="time"
+                          id="panel-end"
+                          className="w-26"
+                          value={panelEnd}
+                          onChange={setPanelEnd}
+                          ariaLabel="Конец рабочего дня"
+                          testId="panel-end"
+                        />
+                      </div>
+                    </div>
+
+                    {/* E4 — Break rows */}
+                    <div className="flex flex-col gap-1.5" data-testid="panel-breaks">
+                      {panelBreaks.map((row, i) => (
+                        <BreakRowField
+                          key={i}
+                          index={i}
+                          row={row}
+                          onChange={(idx, field, val) =>
+                            setPanelBreaks(updateBreakRow(panelBreaks, idx, field, val))
+                          }
+                          onRemove={(idx) => setPanelBreaks(removeBreakRow(panelBreaks, idx))}
+                        />
+                      ))}
+                      {panelBreaks.length < 6 && (
+                        <Button
+                          type="button"
+                          variant="link"
+                          size="sm"
+                          className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
+                          onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
+                          data-testid="btn-add-break"
                         >
-                          {templateSummaries.join('; ')}
-                        </span>
-                      ) : null}
+                          + перерыв
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Location selector (E3 — in right panel, not filter bar) */}
+                    <div className="flex flex-col gap-1">
+                      <Label className="text-xs">Локация</Label>
+                      <Select value={panelBranchId} onValueChange={(v) => v && setPanelBranchId(v)}>
+                        <SelectTrigger className="h-8" data-testid="panel-branch">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {branches.map((b) => (
+                            <SelectItem key={b.id} value={b.id} label={b.title}>
+                              {b.title}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={pending}
+                      onClick={handleSave}
+                      data-testid="btn-save"
+                    >
+                      Установить
                     </Button>
-                  );
-                })}
-              </div>
-              {/* Day cells (E2 — компактнее, время крупнее) */}
-              <div className="grid grid-cols-7 gap-0.5 p-1.5">
-                {cells.map((dateKey, idx) => (
-                  <DayCell
-                    key={dateKey ?? `pad-${idx}`}
-                    cellIndex={idx}
-                    dateKey={dateKey}
-                    today={today}
-                    record={dateKey ? dayMap.get(dateKey) : undefined}
-                    branches={branches}
-                    isSelected={dateKey ? selected.has(dateKey) : false}
-                    onToggle={toggleDay}
-                    effectiveHours={
-                      dateKey
-                        ? resolveEffectiveHours(dateKey, dayMap, visibleWorkingHours)
-                        : undefined
-                    }
-                  />
-                ))}
-              </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending || !hasScheduleForSelection}
+                      onClick={handleClearSchedule}
+                      data-testid="btn-clear-schedule"
+                    >
+                      {selectionMode === 'weekday' ? 'Очистить шаблон' : 'Очистить расписание'}
+                    </Button>
+                  </div>
+                </DoctorSection>
+              ) : (
+                <DoctorSection className="border-dashed">
+                  <DoctorEmptyState size="xs">
+                    Выберите дни в сетке — появится панель настройки часов.
+                  </DoctorEmptyState>
+                </DoctorSection>
+              )}
             </div>
           </div>
 
-          {/* RIGHT: hours panel (E4) */}
-          <div>
-            {selectedCount > 0 ? (
-              <DoctorSection className="border-primary/40 bg-primary/5" data-testid="hours-panel">
-                <h3 className={cn(doctorSectionTitleClass, 'text-primary')}>
-                  {selectionMode === 'weekday' && selectedWeekday !== null
-                    ? `Расписание для всех ${WD_LABEL[selectedWeekday] ?? ''} (${selectedCount} дн.)`
-                    : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? 'дня' : 'дней'} (${
-                        selectedDates.length <= 3
-                          ? selectedDates
-                              .map((d) => {
-                                const dt = DateTime.fromISO(d);
-                                return `${dt.day} ${dt.setLocale('ru').toFormat('LLLL').slice(0, 3)}`;
-                              })
-                              .join(', ')
-                          : `${DateTime.fromISO(selectedDates[0] ?? '').day}–${DateTime.fromISO(selectedDates[selectedDates.length - 1] ?? '').day} …`
-                      })`}
-                </h3>
+          {/* BOTTOM (full width): templates panel (E5) */}
+          <DoctorSection data-testid="templates-panel">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setTplDialogOpen(true)}
+                data-testid="btn-create-template"
+              >
+                + Создать
+              </Button>
+            </div>
 
-                {/* #232: чекбокс «постоянное расписание» УДАЛЁН. Выбор дня недели
-                  всегда сохраняется как постоянный шаблон weekday. */}
-
-                {/* E4 — строчная раскладка */}
-                <div className="flex flex-col gap-2">
-                  {/* Start / End row */}
-                  <div className="flex flex-wrap items-end gap-2">
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="panel-start" className="text-xs">
-                        Начало
-                      </Label>
-                      <DoctorDateTimePicker
-                        mode="time"
-                        id="panel-start"
-                        className="w-26"
-                        value={panelStart}
-                        onChange={setPanelStart}
-                        ariaLabel="Начало рабочего дня"
-                        testId="panel-start"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <Label htmlFor="panel-end" className="text-xs">
-                        Конец
-                      </Label>
-                      <DoctorDateTimePicker
-                        mode="time"
-                        id="panel-end"
-                        className="w-26"
-                        value={panelEnd}
-                        onChange={setPanelEnd}
-                        ariaLabel="Конец рабочего дня"
-                        testId="panel-end"
-                      />
-                    </div>
-                  </div>
-
-                  {/* E4 — Break rows */}
-                  <div className="flex flex-col gap-1.5" data-testid="panel-breaks">
-                    {panelBreaks.map((row, i) => (
-                      <BreakRowField
-                        key={i}
-                        index={i}
-                        row={row}
-                        onChange={(idx, field, val) =>
-                          setPanelBreaks(updateBreakRow(panelBreaks, idx, field, val))
-                        }
-                        onRemove={(idx) => setPanelBreaks(removeBreakRow(panelBreaks, idx))}
-                      />
-                    ))}
-                    {panelBreaks.length < 6 && (
-                      <Button
-                        type="button"
-                        variant="link"
-                        size="sm"
-                        className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
-                        onClick={() => setPanelBreaks(addBreakRow(panelBreaks))}
-                        data-testid="btn-add-break"
-                      >
-                        + перерыв
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* Location selector (E3 — in right panel, not filter bar) */}
-                  <div className="flex flex-col gap-1">
-                    <Label className="text-xs">Локация</Label>
-                    <Select value={panelBranchId} onValueChange={(v) => v && setPanelBranchId(v)}>
-                      <SelectTrigger className="h-8" data-testid="panel-branch">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {branches.map((b) => (
-                          <SelectItem key={b.id} value={b.id} label={b.title}>
-                            {b.title}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={pending}
-                    onClick={handleSave}
-                    data-testid="btn-save"
-                  >
-                    Установить
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={pending || !hasScheduleForSelection}
-                    onClick={handleClearSchedule}
-                    data-testid="btn-clear-schedule"
-                  >
-                    {selectionMode === 'weekday' ? 'Очистить шаблон' : 'Очистить расписание'}
-                  </Button>
-                </div>
-              </DoctorSection>
+            {templates.length === 0 ? (
+              <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
             ) : (
-              <DoctorSection className="border-dashed">
-                <DoctorEmptyState size="xs">
-                  Выберите дни в сетке — появится панель настройки часов.
-                </DoctorEmptyState>
-              </DoctorSection>
-            )}
-          </div>
-        </div>
+              <ul className="flex flex-col gap-1.5">
+                {templates
+                  .filter((t) => t.isActive)
+                  .map((tpl) => {
+                    // E5: short branch label in template
+                    const tplBranch = tpl.branchId
+                      ? branches.find((b) => b.id === tpl.branchId)
+                      : undefined;
+                    const tplBranchLabel = tplBranch
+                      ? (tplBranch.shortTitle ?? tplBranch.title)
+                      : null;
+                    const tplBreaksSummary = formatBreakSummary(tpl.breaks ?? []);
 
-        {/* BOTTOM (full width): templates panel (E5) */}
-        <DoctorSection data-testid="templates-panel">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className={doctorSectionTitleClass}>Шаблоны расписаний</h3>
+                    return (
+                      <li
+                        key={tpl.id}
+                        className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm"
+                        data-testid={`template-${tpl.id}`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <span className="truncate text-sm">{tpl.name}</span>
+                          {(tplBranchLabel || tplBreaksSummary) && (
+                            <span className="ml-1.5 text-xs text-muted-foreground">
+                              {[tplBranchLabel, tplBreaksSummary].filter(Boolean).join(' · ')}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            disabled={pending || selectedCount === 0}
+                            title={selectedCount === 0 ? 'Выберите дни для применения' : undefined}
+                            onClick={() => handleApplyTemplate(tpl.id)}
+                            data-testid={`btn-apply-template-${tpl.id}`}
+                          >
+                            Применить
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
+                            disabled={pending}
+                            onClick={() => handleDeleteTemplate(tpl.id)}
+                            data-testid={`btn-delete-template-${tpl.id}`}
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+              </ul>
+            )}
+
+            {selectedCount === 0 && templates.length > 0 && (
+              <p className="text-[10px] text-muted-foreground">
+                Выберите дни для применения шаблона.
+              </p>
+            )}
+          </DoctorSection>
+        </div>
+      </div>
+
+      {/* E5: Create template dialog with N breaks */}
+      <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Создать шаблон расписания</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 py-1">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="tpl-name" className="text-xs">
+                Название
+              </Label>
+              <Input
+                id="tpl-name"
+                className="h-8"
+                placeholder="СПб день · 11–19"
+                value={tplName}
+                onChange={(e) => setTplName(e.target.value)}
+                data-testid="tpl-name"
+              />
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="tpl-start" className="text-xs">
+                  Начало
+                </Label>
+                <DoctorDateTimePicker
+                  mode="time"
+                  id="tpl-start"
+                  className="w-28"
+                  value={tplStart}
+                  onChange={setTplStart}
+                  ariaLabel="Начало шаблона"
+                  testId="tpl-start"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="tpl-end" className="text-xs">
+                  Конец
+                </Label>
+                <DoctorDateTimePicker
+                  mode="time"
+                  id="tpl-end"
+                  className="w-28"
+                  value={tplEnd}
+                  onChange={setTplEnd}
+                  ariaLabel="Конец шаблона"
+                  testId="tpl-end"
+                />
+              </div>
+            </div>
+            {/* E5 — Template breaks */}
+            <div className="flex flex-col gap-1.5" data-testid="tpl-breaks">
+              {tplBreaks.map((row, i) => (
+                <BreakRowField
+                  key={i}
+                  index={i}
+                  row={row}
+                  onChange={(idx, field, val) =>
+                    setTplBreaks(updateBreakRow(tplBreaks, idx, field, val))
+                  }
+                  onRemove={(idx) => setTplBreaks(removeBreakRow(tplBreaks, idx))}
+                />
+              ))}
+              {tplBreaks.length < 6 && (
+                <Button
+                  type="button"
+                  variant="link"
+                  size="sm"
+                  className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
+                  onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
+                  data-testid="tpl-btn-add-break"
+                >
+                  + перерыв
+                </Button>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setTplDialogOpen(false);
+                setTplBreaks([]);
+              }}
+            >
+              Отмена
+            </Button>
             <Button
               type="button"
               size="sm"
-              variant="outline"
-              onClick={() => setTplDialogOpen(true)}
-              data-testid="btn-create-template"
+              disabled={pending}
+              onClick={handleCreateTemplate}
+              data-testid="btn-create-template-submit"
             >
-              + Создать
+              Создать
             </Button>
-          </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-          {templates.length === 0 ? (
-            <DoctorEmptyState size="xs">Нет шаблонов.</DoctorEmptyState>
-          ) : (
-            <ul className="flex flex-col gap-1.5">
-              {templates
-                .filter((t) => t.isActive)
-                .map((tpl) => {
-                  // E5: short branch label in template
-                  const tplBranch = tpl.branchId
-                    ? branches.find((b) => b.id === tpl.branchId)
-                    : undefined;
-                  const tplBranchLabel = tplBranch
-                    ? (tplBranch.shortTitle ?? tplBranch.title)
-                    : null;
-                  const tplBreaksSummary = formatBreakSummary(tpl.breaks ?? []);
-
-                  return (
-                    <li
-                      key={tpl.id}
-                      className="flex items-center justify-between gap-2 rounded-md border border-border bg-card px-2.5 py-1.5 text-sm"
-                      data-testid={`template-${tpl.id}`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <span className="truncate text-sm">{tpl.name}</span>
-                        {(tplBranchLabel || tplBreaksSummary) && (
-                          <span className="ml-1.5 text-xs text-muted-foreground">
-                            {[tplBranchLabel, tplBreaksSummary].filter(Boolean).join(' · ')}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-xs"
-                          disabled={pending || selectedCount === 0}
-                          title={selectedCount === 0 ? 'Выберите дни для применения' : undefined}
-                          onClick={() => handleApplyTemplate(tpl.id)}
-                          data-testid={`btn-apply-template-${tpl.id}`}
-                        >
-                          Применить
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive"
-                          disabled={pending}
-                          onClick={() => handleDeleteTemplate(tpl.id)}
-                          data-testid={`btn-delete-template-${tpl.id}`}
-                        >
-                          ×
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-          )}
-
-          {selectedCount === 0 && templates.length > 0 && (
-            <p className="text-[10px] text-muted-foreground">
-              Выберите дни для применения шаблона.
-            </p>
-          )}
-        </DoctorSection>
-
-        {/* E5: Create template dialog with N breaks */}
-        <Dialog open={tplDialogOpen} onOpenChange={setTplDialogOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Создать шаблон расписания</DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-3 py-1">
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="tpl-name" className="text-xs">
-                  Название
-                </Label>
-                <Input
-                  id="tpl-name"
-                  className="h-8"
-                  placeholder="СПб день · 11–19"
-                  value={tplName}
-                  onChange={(e) => setTplName(e.target.value)}
-                  data-testid="tpl-name"
-                />
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="tpl-start" className="text-xs">
-                    Начало
-                  </Label>
-                  <DoctorDateTimePicker
-                    mode="time"
-                    id="tpl-start"
-                    className="w-28"
-                    value={tplStart}
-                    onChange={setTplStart}
-                    ariaLabel="Начало шаблона"
-                    testId="tpl-start"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Label htmlFor="tpl-end" className="text-xs">
-                    Конец
-                  </Label>
-                  <DoctorDateTimePicker
-                    mode="time"
-                    id="tpl-end"
-                    className="w-28"
-                    value={tplEnd}
-                    onChange={setTplEnd}
-                    ariaLabel="Конец шаблона"
-                    testId="tpl-end"
-                  />
-                </div>
-              </div>
-              {/* E5 — Template breaks */}
-              <div className="flex flex-col gap-1.5" data-testid="tpl-breaks">
-                {tplBreaks.map((row, i) => (
-                  <BreakRowField
-                    key={i}
-                    index={i}
-                    row={row}
-                    onChange={(idx, field, val) =>
-                      setTplBreaks(updateBreakRow(tplBreaks, idx, field, val))
-                    }
-                    onRemove={(idx) => setTplBreaks(removeBreakRow(tplBreaks, idx))}
-                  />
-                ))}
-                {tplBreaks.length < 6 && (
-                  <Button
-                    type="button"
-                    variant="link"
-                    size="sm"
-                    className="inline-flex items-center gap-1 text-xs text-primary/70 hover:text-primary mt-0.5 w-fit h-auto p-0"
-                    onClick={() => setTplBreaks(addBreakRow(tplBreaks))}
-                    data-testid="tpl-btn-add-break"
-                  >
-                    + перерыв
-                  </Button>
+      <DoctorModal
+        open={monthPickerOpen}
+        onClose={() => setMonthPickerOpen(false)}
+        title="Выбрать месяц"
+        size="sm"
+        bodyClassName="p-0"
+      >
+        <div className="max-h-[60dvh] overflow-y-auto py-1" role="listbox">
+          {monthChoices.map((choice) => {
+            const active = choice.year === viewYear && choice.month === viewMonth;
+            return (
+              <Button
+                key={choice.value}
+                type="button"
+                variant="ghost"
+                className={cn(
+                  'h-10 w-full justify-between rounded-none px-4 text-sm font-normal',
+                  active && 'bg-primary/10 font-medium text-primary',
                 )}
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setTplDialogOpen(false);
-                  setTplBreaks([]);
-                }}
+                onClick={() => selectMonth(choice.year, choice.month)}
+                role="option"
+                aria-selected={active}
               >
-                Отмена
+                <span>
+                  {RU_MONTHS[choice.month]} {choice.year}
+                </span>
+                {active ? <Check className="size-4" aria-hidden /> : null}
               </Button>
+            );
+          })}
+        </div>
+      </DoctorModal>
+
+      <DoctorModal
+        open={branchPickerOpen}
+        onClose={() => setBranchPickerOpen(false)}
+        title="Филиалы"
+        size="sm"
+        bodyClassName="p-0"
+      >
+        <div className="py-1" role="group" aria-label="Фильтр по филиалу">
+          <Button
+            type="button"
+            variant="ghost"
+            className={cn(
+              'h-11 w-full justify-between rounded-none px-4 font-normal',
+              allBranchesSelected && 'bg-primary/10 font-medium text-primary',
+            )}
+            onClick={selectAllGridBranches}
+            aria-pressed={allBranchesSelected}
+            data-testid="branch-filter-all"
+          >
+            <span>Все филиалы</span>
+            {allBranchesSelected ? <Check className="size-4" aria-hidden /> : null}
+          </Button>
+          {branches.map((branch) => {
+            const branchHex = resolveBranchHex(branches, branch.id);
+            const active = selectedBranchIds.has(branch.id);
+            return (
               <Button
+                key={branch.id}
                 type="button"
-                size="sm"
-                disabled={pending}
-                onClick={handleCreateTemplate}
-                data-testid="btn-create-template-submit"
+                variant="ghost"
+                className="h-11 w-full justify-between rounded-none px-4 font-normal"
+                onClick={() => toggleGridBranch(branch.id)}
+                aria-pressed={active}
+                data-testid={`branch-btn-${branch.id}`}
               >
-                Создать
+                <span className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="size-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: branchHex }}
+                    aria-hidden
+                  />
+                  <span className="truncate">{getBranchDisplayLabel(branch)}</span>
+                </span>
+                {active ? <Check className="size-4 shrink-0 text-primary" aria-hidden /> : null}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </>
-    </DoctorSection>
+            );
+          })}
+        </div>
+      </DoctorModal>
+    </div>
   );
 }
