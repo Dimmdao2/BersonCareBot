@@ -1,7 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
-import { env } from '@/config/env';
+import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { logger } from '@/app-layer/logging/logger';
 import {
   PLAYBACK_HOURLY_STATS_RETENTION_DAYS,
@@ -14,13 +13,6 @@ import {
   OPERATOR_MEDIA_PLAYBACK_STATS_RETENTION_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
 
-function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 /**
  * HOUSEKEEPING: trims aggregate and raw playback telemetry using their declared retention windows.
  *
@@ -30,16 +22,8 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
  * The `media_playback_user_video_first_resolve` dedup table is deliberately untouched.
  */
 export async function POST(request: Request) {
-  const secret = env.INTERNAL_JOB_SECRET;
-  if (!secret) {
-    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
+  const auth = verifyInternalJobBearer(request);
+  if (!auth.ok) return auth.response;
   enterWithDbInfraPrincipal({ source: 'api/internal/media-playback-stats/retention:POST' });
 
   let dryRun = false;
