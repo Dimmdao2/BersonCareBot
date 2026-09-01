@@ -1,10 +1,6 @@
 /** Wave 3 phase 15C — doctor detail TZ aggregates via `runWebappPgText`. */
 import { and, avg, count, desc, eq, inArray, sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { resolveMaterialRatingTargetVideoMediaIds } from '@/infra/repos/materialRatingTargetVideoMediaIds';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import {
@@ -244,23 +240,17 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
 
       const viewByDay = new Map<string, number>();
       if (mediaIds.length > 0) {
-        const viewBase = `SELECT (timezone($1::text, first_resolved_at))::date::text AS d,
+        const viewBase = sql`SELECT (timezone(${input.iana}::text, first_resolved_at))::date::text AS d,
                   count(*)::int AS c
            FROM media_playback_user_video_first_resolve
-           WHERE organization_id = $2::uuid
-             AND media_id = ANY($3::uuid[])
-             AND first_resolved_at >= $4::timestamptz
-             AND first_resolved_at < $5::timestamptz`;
-        const viewQ = appendSqlExcludeUserIds(viewBase, 'user_id', excludedUserIds, [
-          input.iana,
-          input.organizationId,
-          mediaIds,
-          input.startUtcIso,
-          input.endExclusiveUtcIso,
-        ]);
-        const vr = await runWebappPgText<{ d: string; c: number }>(
-          `${viewQ.sql} GROUP BY 1`,
-          viewQ.params,
+           WHERE organization_id = ${input.organizationId}::uuid
+             AND media_id = ANY(${sql.param(mediaIds)}::uuid[])
+             AND first_resolved_at >= ${input.startUtcIso}::timestamptz
+             AND first_resolved_at < ${input.endExclusiveUtcIso}::timestamptz`;
+        const viewQ = appendSqlExcludeUserIds(viewBase, 'user_id', excludedUserIds);
+        const vr = await runWebappSql<{ d: string; c: number }>(
+          getWebappSqlDb(),
+          sql`${viewQ} GROUP BY 1`,
         );
         for (const row of vr.rows) {
           if (row.d) viewByDay.set(row.d, row.c);
@@ -268,25 +258,18 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
       }
 
       const ratingByDay = new Map<string, { cnt: number; avg: number | null }>();
-      const ratingBase = `SELECT (timezone($1::text, updated_at))::date::text AS d,
+      const ratingBase = sql`SELECT (timezone(${input.iana}::text, updated_at))::date::text AS d,
                 count(*)::int AS cnt,
                 avg(stars::numeric)::text AS avg_stars
          FROM material_ratings
-         WHERE organization_id = $2::uuid
-           AND target_kind = $3 AND target_id = $4::uuid
-           AND updated_at >= $5::timestamptz
-           AND updated_at < $6::timestamptz`;
-      const ratingQ = appendSqlExcludeUserIds(ratingBase, 'user_id', excludedUserIds, [
-        input.iana,
-        input.organizationId,
-        input.targetKind,
-        input.targetId,
-        input.startUtcIso,
-        input.endExclusiveUtcIso,
-      ]);
-      const rr = await runWebappPgText<{ d: string; cnt: number; avg_stars: string | null }>(
-        `${ratingQ.sql} GROUP BY 1`,
-        ratingQ.params,
+         WHERE organization_id = ${input.organizationId}::uuid
+           AND target_kind = ${input.targetKind} AND target_id = ${input.targetId}::uuid
+           AND updated_at >= ${input.startUtcIso}::timestamptz
+           AND updated_at < ${input.endExclusiveUtcIso}::timestamptz`;
+      const ratingQ = appendSqlExcludeUserIds(ratingBase, 'user_id', excludedUserIds);
+      const rr = await runWebappSql<{ d: string; cnt: number; avg_stars: string | null }>(
+        getWebappSqlDb(),
+        sql`${ratingQ} GROUP BY 1`,
       );
       for (const row of rr.rows) {
         if (!row.d) continue;
@@ -298,7 +281,7 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
         });
       }
 
-      const ratersBase = `SELECT mr.user_id::text AS user_id,
+      const ratersBase = sql`SELECT mr.user_id::text AS user_id,
                 mr.stars,
                 mr.updated_at::text AS updated_at,
                 COALESCE(
@@ -310,23 +293,17 @@ export function createPgMaterialRatingPort(): MaterialRatingPort {
          FROM material_ratings mr
          LEFT JOIN platform_users pu ON pu.id = mr.user_id
          LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
-         WHERE mr.organization_id = $1::uuid
-           AND mr.target_kind = $2 AND mr.target_id = $3::uuid
-           AND mr.updated_at >= $4::timestamptz
-           AND mr.updated_at < $5::timestamptz`;
-      const ratersQ = appendSqlExcludeUserIds(ratersBase, 'mr.user_id', excludedUserIds, [
-        input.organizationId,
-        input.targetKind,
-        input.targetId,
-        input.startUtcIso,
-        input.endExclusiveUtcIso,
-      ]);
-      const ratersR = await runWebappPgText<{
+         WHERE mr.organization_id = ${input.organizationId}::uuid
+           AND mr.target_kind = ${input.targetKind} AND mr.target_id = ${input.targetId}::uuid
+           AND mr.updated_at >= ${input.startUtcIso}::timestamptz
+           AND mr.updated_at < ${input.endExclusiveUtcIso}::timestamptz`;
+      const ratersQ = appendSqlExcludeUserIds(ratersBase, 'mr.user_id', excludedUserIds);
+      const ratersR = await runWebappSql<{
         user_id: string;
         stars: number;
         updated_at: string;
         display_label: string;
-      }>(`${ratersQ.sql} ORDER BY mr.updated_at DESC LIMIT 2000`, ratersQ.params);
+      }>(getWebappSqlDb(), sql`${ratersQ} ORDER BY mr.updated_at DESC LIMIT 2000`);
 
       const days: MaterialRatingDoctorDetailDay[] = input.dayKeys.map((day) => {
         const v = viewByDay.get(day) ?? 0;
