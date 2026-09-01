@@ -181,7 +181,6 @@ const loadDoctorShell = cache(async (allowCabinetRecovery = false) => {
     telegramId: session.user.bindings.telegramId,
     maxId: session.user.bindings.maxId,
   });
-
   return {
     workspaceAccess,
     session,

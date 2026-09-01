@@ -4,6 +4,7 @@ import { type ReactNode, useState } from 'react';
 import { DoctorModal, type DoctorModalDesktopPresentation } from './DoctorModal';
 import { Button } from './primitives/button';
 import { Input } from './primitives/input';
+import { DoctorPanelLoading } from './DoctorPanelLoading';
 import { cn } from '@/lib/utils';
 
 export type KpiQuickFilter<T> = {
@@ -18,6 +19,10 @@ export type KpiPreviewModalProps<T> = {
   title: string;
   /** Total count shown in header */
   count: number;
+  /** Keep title concise when the count already belongs to the KPI card. */
+  showCount?: boolean;
+  /** Optional icon action in the canonical modal header. */
+  headerAction?: ReactNode;
   /** List of entities to display */
   items: T[];
   /** Renderer for each item */
@@ -46,6 +51,8 @@ export function KpiPreviewModal<T>({
   onClose,
   title,
   count,
+  showCount = true,
+  headerAction,
   items,
   renderItem,
   searchPlaceholder,
@@ -84,13 +91,14 @@ export function KpiPreviewModal<T>({
       title={
         <span>
           {title}
-          {count > 0 ? (
+          {showCount && count > 0 ? (
             <span className="ml-2 text-sm font-normal text-muted-foreground">{count}</span>
           ) : null}
         </span>
       }
       size="lg"
       desktopPresentation={desktopPresentation}
+      headerAction={headerAction}
     >
       <div className="flex flex-col gap-3">
         {/* Search */}
@@ -141,17 +149,13 @@ export function KpiPreviewModal<T>({
         {/* Scrollable list */}
         <div className="max-h-[60vh] overflow-y-auto pr-1">
           {loading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 animate-pulse rounded-md bg-muted" />
-              ))}
-            </div>
+            <DoctorPanelLoading className="min-h-32" />
           ) : filtered.length === 0 ? (
             (emptyState ?? (
               <p className="py-4 text-center text-sm text-muted-foreground">Нет элементов</p>
             ))
           ) : (
-            <ul className="m-0 list-none space-y-2 p-0">
+            <ul className="m-0 flex list-none flex-col p-0 [&>li+li]:border-t [&>li+li]:border-border/60">
               {filtered.map((item, idx) => (
                 // biome-ignore lint/suspicious/noArrayIndexKey: renderItem is opaque
                 <li key={idx}>{renderItem(item)}</li>

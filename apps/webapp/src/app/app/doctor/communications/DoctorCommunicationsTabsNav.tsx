@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { DOCTOR_STICKY_PAGE_TOOLBAR_TOP_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { COMMUNICATIONS_TABS, type CommunicationsTabId } from './doctorCommunicationsTabs';
 
 type Props = {
@@ -38,19 +39,6 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
           const active = tab.id === activeTab;
           const badge = badges?.[tab.id];
           const itemClass = doctorSectionTabClass(active);
-          const badgeEl =
-            badge && badge > 0 ? (
-              <span
-                className={cn(
-                  'inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums',
-                  active
-                    ? 'bg-primary-foreground/20 text-primary-foreground'
-                    : 'bg-destructive/10 text-destructive',
-                )}
-              >
-                {badge}
-              </span>
-            ) : null;
 
           return onTabClick ? (
             <Button
@@ -62,7 +50,7 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
               className={itemClass}
             >
               {tab.label}
-              {badgeEl}
+              <DoctorAttentionBadge count={badge} active={active} />
             </Button>
           ) : (
             <Link
@@ -72,7 +60,7 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
               className={itemClass}
             >
               {tab.label}
-              {badgeEl}
+              <DoctorAttentionBadge count={badge} active={active} />
             </Link>
           );
         })}

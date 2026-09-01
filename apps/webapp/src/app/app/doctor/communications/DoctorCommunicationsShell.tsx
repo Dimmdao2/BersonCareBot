@@ -8,6 +8,7 @@ import type { ComponentType } from 'react';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
@@ -41,24 +42,11 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
       data-testid="tabs-nav"
       data-active={activeTab}
       aria-label="Разделы коммуникаций"
-      className="flex gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex w-full gap-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {COMMUNICATIONS_TABS.map((tab) => {
         const active = tab.id === activeTab;
         const badge = badges?.[tab.id];
-        const badgeEl =
-          badge && badge > 0 ? (
-            <span
-              className={cn(
-                'inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums',
-                active
-                  ? 'bg-primary-foreground/20 text-primary-foreground'
-                  : 'bg-destructive/10 text-destructive',
-              )}
-            >
-              {badge}
-            </span>
-          ) : null;
         return (
           <Button
             key={tab.id}
@@ -67,10 +55,10 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
             data-testid={`btn-${tab.id}`}
             aria-current={active ? 'page' : undefined}
             onClick={() => onTabClick(tab.id)}
-            className={doctorSectionTabClass(active)}
+            className={cn(doctorSectionTabClass(active), 'min-w-0 flex-1 px-2')}
           >
             {tab.label}
-            {badgeEl}
+            <DoctorAttentionBadge count={badge} active={active} />
           </Button>
         );
       })}

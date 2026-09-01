@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/shared/ui/doctor/primitives/card';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 
 type Row = {
   id: string;
@@ -69,7 +70,7 @@ export function BroadcastDeliveryArchiveClient() {
   return (
     <div className="space-y-4">
       {err ? <p className="text-sm text-destructive">Не удалось загрузить ({err}).</p> : null}
-      {loading ? <p className="text-sm text-muted-foreground">Загрузка…</p> : null}
+      {loading ? <DoctorPanelLoading className="min-h-24" /> : null}
 
       {!loading && !err && items.length === 0 ? (
         <p className="text-sm text-muted-foreground">Записей нет.</p>

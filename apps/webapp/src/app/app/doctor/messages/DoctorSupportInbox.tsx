@@ -9,6 +9,7 @@ import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorChatPanel } from '@/modules/messaging/components/DoctorChatPanel';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import {
@@ -288,11 +289,7 @@ export function DoctorSupportInbox({
     : allList;
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
-        Загрузка…
-      </div>
-    );
+    return <DoctorPanelLoading className="h-full" />;
   }
 
   const selectedConv = selectedId

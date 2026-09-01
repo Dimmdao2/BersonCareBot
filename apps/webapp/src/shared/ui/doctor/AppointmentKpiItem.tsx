@@ -2,6 +2,12 @@
 
 import Link from 'next/link';
 import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 
 /**
  * Normalized appointment shape accepted by AppointmentKpiItem.
@@ -34,7 +40,13 @@ export type AppointmentKpiItemData = {
  * Etalon: DoctorTodayRightKpiRow (страница «Сегодня»).
  * Used by: DoctorTodayRightKpiRow, ScheduleCalendarTab.
  */
-export function AppointmentKpiItem({ item }: { item: AppointmentKpiItemData }) {
+export function AppointmentKpiItem({
+  item,
+  flat = false,
+}: {
+  item: AppointmentKpiItemData;
+  flat?: boolean;
+}) {
   const {
     clientLabel,
     time,
@@ -54,18 +66,26 @@ export function AppointmentKpiItem({ item }: { item: AppointmentKpiItemData }) {
   return (
     <div
       className={
-        cancelled
-          ? 'rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2'
-          : doctorSectionItemClass
+        flat && !cancelled
+          ? doctorDnaFlatListRowClass
+          : cancelled
+            ? 'rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2'
+            : doctorSectionItemClass
       }
     >
       <div className="flex items-baseline justify-between gap-2">
         <p
-          className={`font-medium ${cancelled ? 'text-destructive/80 line-through' : 'text-foreground'}`}
+          className={
+            cancelled
+              ? 'font-medium text-destructive/80 line-through'
+              : flat
+                ? doctorDnaFlatListPrimaryClass
+                : 'font-medium text-foreground'
+          }
         >
           {clientLabel}
         </p>
-        <span className="shrink-0 text-xs text-muted-foreground">{time}</span>
+        <span className={flat ? `${doctorDnaFlatListMetaClass} shrink-0` : 'shrink-0 text-xs text-muted-foreground'}>{time}</span>
       </div>
 
       {cancelled ? (
@@ -74,13 +94,24 @@ export function AppointmentKpiItem({ item }: { item: AppointmentKpiItemData }) {
         </p>
       ) : null}
 
-      {altNameNote ? <p className="mt-0.5 text-xs text-muted-foreground">{altNameNote}</p> : null}
+      {altNameNote ? (
+        <p className={flat ? `${doctorDnaFlatListMetaClass} mt-0.5` : 'mt-0.5 text-xs text-muted-foreground'}>
+          {altNameNote}
+        </p>
+      ) : null}
 
-      {secondary ? <p className="mt-0.5 text-xs text-muted-foreground">{secondary}</p> : null}
+      {secondary ? (
+        <p className={flat ? `${doctorDnaFlatListMetaClass} mt-0.5` : 'mt-0.5 text-xs text-muted-foreground'}>
+          {secondary}
+        </p>
+      ) : null}
 
       {!cancelled && href && ctaLabel ? (
         <p className="mt-2">
-          <Link href={href} className={doctorInlineLinkClass}>
+          <Link
+            href={href}
+            className={flat ? doctorDnaFlatListClickableClass : doctorInlineLinkClass}
+          >
             {ctaLabel}
           </Link>
         </p>

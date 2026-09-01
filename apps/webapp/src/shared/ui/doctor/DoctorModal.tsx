@@ -35,6 +35,8 @@ type DoctorModalProps = {
   size?: DoctorModalSize;
   /** Опциональный слот кнопок-действий (закреплён внизу). */
   footer?: ReactNode;
+  /** Optional icon action in the modal header. */
+  headerAction?: ReactNode;
   /** Доп. классы на прокручиваемое тело (например, убрать паддинги). */
   bodyClassName?: string;
   /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
@@ -65,6 +67,7 @@ export function DoctorModal({
   children,
   size = 'md',
   footer,
+  headerAction,
   bodyClassName,
   desktopPresentation = 'dialog',
   onRightSheetOutsidePress,
@@ -127,7 +130,10 @@ export function DoctorModal({
       <Drawer open={open} onOpenChange={handleOpenChange}>
         <DrawerContent showCloseButton={false} className="gap-0 p-0">
           <DrawerHeader className="shrink-0 border-b border-border/60 px-4 pt-3 pb-3">
-            <DrawerTitle className={doctorPageTitleClass}>{title}</DrawerTitle>
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <DrawerTitle className={doctorPageTitleClass}>{title}</DrawerTitle>
+              {headerAction}
+            </div>
             {description && <DrawerDescription>{description}</DrawerDescription>}
           </DrawerHeader>
           {body}
@@ -167,7 +173,10 @@ export function DoctorModal({
             className="shrink-0 justify-center border-b border-border/60 px-4 py-1 pr-12"
             style={{ minHeight: 'var(--doctor-page-header-h, 2.75rem)' }}
           >
-            <SheetTitle className={doctorPageTitleClass}>{title}</SheetTitle>
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <SheetTitle className={doctorPageTitleClass}>{title}</SheetTitle>
+              {headerAction}
+            </div>
             {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
           </SheetHeader>
           {body}
@@ -187,7 +196,10 @@ export function DoctorModal({
         )}
       >
         <DialogHeader className="shrink-0 border-b border-border/60 px-4 pt-4 pb-3 pr-12">
-          <DialogTitle className={doctorPageTitleClass}>{title}</DialogTitle>
+          <div className="flex min-w-0 items-center justify-between gap-2">
+            <DialogTitle className={doctorPageTitleClass}>{title}</DialogTitle>
+            {headerAction}
+          </div>
           {description && <p className="text-sm text-muted-foreground">{description}</p>}
         </DialogHeader>
         {body}
