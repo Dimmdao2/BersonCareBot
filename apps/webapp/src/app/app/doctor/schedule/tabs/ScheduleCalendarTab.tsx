@@ -539,9 +539,6 @@ function ListDayCard({
                   {appt.patientName ?? 'Запись'}
                 </span>
                 <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  {cancelled ? (
-                    <span className="font-medium text-destructive">{appointmentStatusLabel(appt.status)}</span>
-                  ) : null}
                   {showSpecialist && appt.specialistName ? (
                     <span className="truncate">{appt.specialistName}</span>
                   ) : null}
