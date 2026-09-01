@@ -353,6 +353,7 @@ describe('Р-14: clinic tariff schedule uses the paid-subscription boundary', ()
       } as unknown as SaasBillingRepositoryPort,
       settings: { getSaasBillingPaymentProviderValue: async () => null },
       resolvePaymentProvider: () => ({}) as never,
+      now: () => new Date('2026-08-15T00:00:00.000Z'),
     });
 
     await cancelService.cancelOwnTariffChange({ organizationId: 'org', actorId: 'actor' });

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DoctorScheduleShell } from './DoctorScheduleShell';
 import { ScheduleSetupTab } from './tabs/ScheduleSetupTab';
@@ -126,11 +126,12 @@ describe('doctor schedule access visibility', () => {
     );
 
     await screen.findByText('Пять визитов');
-    expect(screen.getByRole('button', { name: 'Абонементы' })).toBeInTheDocument();
+    const desktopNavigation = within(screen.getByTestId('setup-subnav'));
+    expect(desktopNavigation.getByRole('button', { name: 'Абонементы' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Деактивировать' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Создать шаблон' })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Календарь' }));
+    fireEvent.click(desktopNavigation.getByRole('button', { name: 'Календарь' }));
     expect(screen.getByTestId('setup-section-calendar')).toBeInTheDocument();
   });
 });
