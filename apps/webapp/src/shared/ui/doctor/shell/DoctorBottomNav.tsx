@@ -11,6 +11,8 @@ import {
   type DoctorMenuAccess,
 } from '@/shared/ui/doctor/doctorNavLinks';
 import { getDoctorMenuIcon } from '@/shared/ui/doctor/doctorNavIcons';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { useOptionalDoctorShellBadgeCounts } from '@/shared/ui/doctor/shell/DoctorSupportUnreadProvider';
 
 const items = [
   { id: 'today', label: 'Сегодня', href: routePaths.doctor },
@@ -33,6 +35,7 @@ export function DoctorBottomNav({
   patientLabel?: string;
 }) {
   const pathname = usePathname() ?? routePaths.doctor;
+  const { messagesUnread, unreadExerciseComments, overdueTasks } = useOptionalDoctorShellBadgeCounts();
   const visibleHrefs = new Set(
     getDoctorMenuItems(menuAccess, patientLabel).flatMap((item) => (item.href ? [item.href] : [])),
   );
@@ -53,12 +56,24 @@ export function DoctorBottomNav({
           );
           const Icon = getDoctorMenuIcon(item.id);
           if (!Icon) return null;
+          const hasAttention =
+            item.id === 'communications'
+              ? messagesUnread + unreadExerciseComments > 0
+              : item.id === 'tasks'
+                ? overdueTasks > 0
+                : false;
           return (
             <Link
               key={item.href}
               href={item.href}
               prefetch={false}
-              aria-label={item.label}
+              aria-label={
+                hasAttention
+                  ? item.id === 'tasks'
+                    ? `${item.label}. Есть просроченные задачи.`
+                    : `${item.label}. Есть непрочитанные.`
+                  : item.label
+              }
               aria-current={active ? 'page' : undefined}
               title={item.label}
               className={cn(
@@ -66,7 +81,10 @@ export function DoctorBottomNav({
                 active && 'bg-primary/10 text-primary',
               )}
             >
-              <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+              <span className="relative">
+                <Icon className="size-[22px]" strokeWidth={NAV_STRIP_ICON_STROKE} aria-hidden />
+                <DoctorAttentionBadge count={hasAttention ? 1 : 0} dot />
+              </span>
             </Link>
           );
         })}

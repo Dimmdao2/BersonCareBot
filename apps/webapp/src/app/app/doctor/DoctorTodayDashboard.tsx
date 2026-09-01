@@ -30,6 +30,7 @@ import { DoctorTodayWeeklyAppointmentsChart } from './DoctorTodayWeeklyAppointme
 import { TodayMiniCalendarWithModal } from './TodayMiniCalendarWithModal';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import type { TodayDashboardData } from './loadDoctorTodayDashboard';
+import { isCancelledAppointmentStatus } from '@/modules/booking-calendar/appointmentStatusLabels';
 import { ON_SUPPORT_LIST_HREF, RECENT_VISITS_LIST_HREF } from './doctorTodayLinks';
 
 export type DoctorTodayCalendarSnapshot = {
@@ -220,6 +221,9 @@ export function DoctorTodayDashboard({
   const [taskMutationPending, setTaskMutationPending] = useState(false);
   const currentWeek =
     data.weeklyTimeline.find((point) => point.isCurrent) ?? data.weeklyTimeline.at(-1);
+  const activeTodayAppointments = data.todayAppointments.filter(
+    (appointment) => !isCancelledAppointmentStatus(appointment.status),
+  );
 
   const handleTaskSaved = (task: SpecialistTaskRow, patientDisplayName?: string) => {
     setTasks((current) => {
@@ -314,9 +318,9 @@ export function DoctorTodayDashboard({
             <DoctorStatCard
               id="doctor-today-mobile-kpi-appointments"
               title="Записей сегодня"
-              value={data.todayAppointments.length}
+              value={activeTodayAppointments.length}
               onClick={
-                isMobile && data.todayAppointments.length > 0
+                isMobile && activeTodayAppointments.length > 0
                   ? () => setMobileModal('calendar')
                   : undefined
               }
@@ -361,7 +365,7 @@ export function DoctorTodayDashboard({
             className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden"
           >
             <TodayMiniCalendarWithModal
-              appointments={data.todayAppointments}
+              appointments={activeTodayAppointments}
               calendarSnapshot={calendarSnapshot}
               displayIana={displayIana}
               fillHeight
@@ -373,14 +377,7 @@ export function DoctorTodayDashboard({
       <DoctorModal
         open={mobileModal === 'support'}
         onClose={() => setMobileModal(null)}
-        title={
-          <span>
-            Сопровождение
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {data.onSupportPeopleCount}
-            </span>
-          </span>
-        }
+        title="Сопровождение"
         size="lg"
         bodyClassName={isMobile ? 'px-0' : undefined}
         desktopPresentation="right-sheet"
@@ -398,19 +395,12 @@ export function DoctorTodayDashboard({
       <DoctorModal
         open={mobileModal === 'calendar'}
         onClose={() => setMobileModal(null)}
-        title={
-          <span>
-            Записей сегодня
-            <span className="ml-2 text-sm font-normal text-muted-foreground">
-              {data.todayAppointments.length}
-            </span>
-          </span>
-        }
+        title="Записей сегодня"
         size="content"
         bodyClassName="p-0"
       >
         <TodayMiniCalendarWithModal
-          appointments={data.todayAppointments}
+          appointments={activeTodayAppointments}
           calendarSnapshot={calendarSnapshot}
           displayIana={displayIana}
           fillHeight

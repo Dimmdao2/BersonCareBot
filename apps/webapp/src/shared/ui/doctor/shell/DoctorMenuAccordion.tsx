@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { ArrowLeft, ChevronRight } from 'lucide-react';
-import type { ElementType } from 'react';
+import type { ElementType, ReactNode } from 'react';
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
@@ -22,6 +22,7 @@ import {
   DoctorSidebarRowContent,
   doctorSidebarRowClassName,
 } from '@/shared/ui/doctor/shell/DoctorSidebarRowContent';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 
 /** Отображаемый текст бейджа; `null` — не показывать. */
 export function formatNavBadgeCount(n: number): string | null {
@@ -35,6 +36,7 @@ function badgeSpanAriaLabel(badgeKey: DoctorMenuBadgeKey, formatted: string): st
   if (badgeKey === 'pendingProgramTests') return `К проверке: ${formatted}`;
   if (badgeKey === 'todayAttention') return `Требует внимания: ${formatted}`;
   if (badgeKey === 'communicationsTotal') return `Непрочитанных: ${formatted}`;
+  if (badgeKey === 'overdueTasks') return 'Есть просроченные задачи';
   return `Непрочитанных сообщений: ${formatted}`;
 }
 
@@ -44,8 +46,30 @@ function linkAriaLabelWhenBadged(item: DoctorMenuLinkItem, formatted: string): s
     return `${item.label}. Сбоев регистрации: ${formatted}.`;
   if (item.badgeKey === 'pendingProgramTests') return `${item.label}. К проверке: ${formatted}.`;
   if (item.badgeKey === 'todayAttention') return `${item.label}. Требует внимания: ${formatted}.`;
-  if (item.badgeKey === 'communicationsTotal') return `${item.label}. Непрочитанных: ${formatted}.`;
+  if (item.badgeKey === 'communicationsTotal') return `${item.label}. Есть непрочитанные.`;
+  if (item.badgeKey === 'overdueTasks') return `${item.label}. Есть просроченные задачи.`;
   return `${item.label}. Непрочитанных сообщений: ${formatted}.`;
+}
+
+function isDotBadge(badgeKey: DoctorMenuBadgeKey): boolean {
+  return badgeKey === 'communicationsTotal' || badgeKey === 'overdueTasks';
+}
+
+function navigationBadge(badgeKey: DoctorMenuBadgeKey, count: number): ReactNode {
+  if (count <= 0) return null;
+  if (isDotBadge(badgeKey)) {
+    return (
+      <span className="relative size-3 shrink-0">
+        <DoctorAttentionBadge count={count} dot />
+      </span>
+    );
+  }
+  const formatted = formatNavBadgeCount(count);
+  return formatted ? (
+    <span className={navBadgeClassName(badgeKey)} aria-label={badgeSpanAriaLabel(badgeKey, formatted)}>
+      {formatted}
+    </span>
+  ) : null;
 }
 
 function navBadgeClassName(badgeKey: DoctorMenuBadgeKey): string {
@@ -253,14 +277,7 @@ function SidebarGroupFlyout({
                 >
                   <span className="flex min-w-0 flex-1 items-center justify-between gap-2">
                     <span className="min-w-0 flex-1 truncate">{sub.label}</span>
-                    {badgeText && sub.badgeKey ? (
-                      <span
-                        className={navBadgeClassName(sub.badgeKey)}
-                        aria-label={badgeSpanAriaLabel(sub.badgeKey, badgeText)}
-                      >
-                        {badgeText}
-                      </span>
-                    ) : null}
+                    {sub.badgeKey ? navigationBadge(sub.badgeKey, rawCount) : null}
                   </span>
                 </Link>
               );
@@ -323,14 +340,7 @@ function SheetTwoLevelMenu({
             )}
             <span className="min-w-0 flex-1 truncate">{item.label}</span>
           </span>
-          {badgeText && item.badgeKey ? (
-            <span
-              className={navBadgeClassName(item.badgeKey)}
-              aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
-            >
-              {badgeText}
-            </span>
-          ) : null}
+          {item.badgeKey ? navigationBadge(item.badgeKey, rawCount) : null}
         </span>
       </Link>
     );
@@ -434,8 +444,13 @@ export function DoctorMenuAccordion({
     return menuItems.filter((item) => !MOBILE_SHELL_NAV_IDS.has(item.id));
   }, [menuKind, menuAccess, patientLabel, variant]);
 
-  const { messagesUnread, pendingProgramTests, registrationSystemFailures } =
-    useDoctorShellBadgeCounts();
+  const {
+    messagesUnread,
+    unreadExerciseComments,
+    overdueTasks,
+    pendingProgramTests,
+    registrationSystemFailures,
+  } = useDoctorShellBadgeCounts();
 
   const badgeCounts = useMemo(
     () =>
@@ -444,9 +459,16 @@ export function DoctorMenuAccordion({
         registrationSystemFailures,
         pendingProgramTests,
         todayAttention: pendingProgramTests,
-        communicationsTotal: messagesUnread,
+        communicationsTotal: messagesUnread + unreadExerciseComments,
+        overdueTasks,
       }) satisfies Record<DoctorMenuBadgeKey, number>,
-    [messagesUnread, registrationSystemFailures, pendingProgramTests],
+    [
+      messagesUnread,
+      unreadExerciseComments,
+      overdueTasks,
+      registrationSystemFailures,
+      pendingProgramTests,
+    ],
   );
 
   if (variant === 'sheet') {
@@ -492,15 +514,15 @@ export function DoctorMenuAccordion({
                   ) : null
                 }
                 label={item.label}
+                iconBadge={
+                  item.badgeKey && isDotBadge(item.badgeKey)
+                    ? <DoctorAttentionBadge count={rawCount} dot />
+                    : undefined
+                }
                 trailing={
-                  badgeText && item.badgeKey ? (
-                  <span
-                    className={navBadgeClassName(item.badgeKey)}
-                    aria-label={badgeSpanAriaLabel(item.badgeKey, badgeText)}
-                  >
-                    {badgeText}
-                  </span>
-                  ) : null
+                  item.badgeKey && !isDotBadge(item.badgeKey)
+                    ? navigationBadge(item.badgeKey, rawCount)
+                    : null
                 }
                 tabletExpanded={tabletExpanded}
               />

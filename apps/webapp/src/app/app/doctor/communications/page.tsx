@@ -32,38 +32,33 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
     getAppDisplayTimeZone(),
   ]);
 
-  let commentsData: Awaited<ReturnType<typeof loadDoctorExerciseCommentsForTab>> | null = null;
-  let patients: Awaited<ReturnType<typeof loadDoctorCommentPatients>> | null = null;
-
-  if (initialTab === 'comments') {
-    const audience = await loadDoctorAnalyticsAudience();
-    const excludedUserIds = audience?.excludedUserIds ?? [];
-
-    [commentsData, patients] = await Promise.all([
-      withDoctorWorkspacePrincipal(workspace, () =>
-        loadDoctorExerciseCommentsForTab(deps, {
+  const audience = await loadDoctorAnalyticsAudience();
+  const excludedUserIds = audience?.excludedUserIds ?? [];
+  const [commentsData, patients] = await Promise.all([
+    withDoctorWorkspacePrincipal(workspace, () =>
+      loadDoctorExerciseCommentsForTab(deps, {
+        viewerUserId: session.user.userId,
+        organizationId: workspace.organizationId,
+        excludedUserIds,
+        visibilityActor: workspace,
+      }),
+    ),
+    withDoctorWorkspacePrincipal(workspace, () =>
+      loadDoctorCommentPatients(
+        {
+          doctorClientsPort: deps.doctorClientsPort,
+          programItemDiscussion: deps.programItemDiscussion,
+        },
+        {
           viewerUserId: session.user.userId,
           organizationId: workspace.organizationId,
-          excludedUserIds,
           visibilityActor: workspace,
-        }),
+        },
+        { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
       ),
-      withDoctorWorkspacePrincipal(workspace, () =>
-        loadDoctorCommentPatients(
-          {
-            doctorClientsPort: deps.doctorClientsPort,
-            programItemDiscussion: deps.programItemDiscussion,
-          },
-          {
-            viewerUserId: session.user.userId,
-            organizationId: workspace.organizationId,
-            visibilityActor: workspace,
-          },
-          { excludedUserIds: excludedUserIds.length ? excludedUserIds : undefined },
-        ),
-      ),
-    ]);
-  }
+    ),
+  ]);
+  const commentsUnread = patients.reduce((sum, patient) => sum + patient.unreadCount, 0);
 
   return (
     <DoctorCommunicationsShell
@@ -71,18 +66,16 @@ export default async function DoctorCommunicationsPage({ searchParams }: Props) 
       mailingsMutationAvailable={
         mailingsMutationAvailability.available && brandingMutationAvailability.available
       }
-      badges={badges}
+      badges={commentsUnread > 0 ? { ...badges, comments: commentsUnread } : badges}
       displayIana={displayIana}
       initialTabData={
-        initialTab === 'comments' && commentsData
-          ? {
-              comments: {
-                feed: commentsData,
-                patients,
-                displayIana,
-              },
-            }
-          : undefined
+        {
+          comments: {
+            feed: commentsData,
+            patients,
+            displayIana,
+          },
+        }
       }
     />
   );

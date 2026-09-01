@@ -22,7 +22,8 @@ export type DoctorMenuBadgeKey =
   | 'registrationSystemFailures'
   | 'pendingProgramTests'
   | 'todayAttention'
-  | 'communicationsTotal';
+  | 'communicationsTotal'
+  | 'overdueTasks';
 
 export type DoctorMenuLinkItem = {
   id: string;
@@ -99,6 +100,7 @@ const RAW_DOCTOR_MENU_ITEMS: DoctorMenuLinkItem[] = [
     id: 'tasks',
     label: 'Задачи',
     href: routePaths.doctorTasks,
+    badgeKey: 'overdueTasks',
     requiresSpecialistTasksEntitlement: true,
   },
   {
