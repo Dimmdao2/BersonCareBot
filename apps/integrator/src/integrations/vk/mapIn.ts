@@ -29,7 +29,6 @@ export function fromVk(callback: VkCallback): IncomingUpdate | null {
       action: normalized.action,
       callbackData: normalized.action,
       callbackQueryId: `${event.event_id}:${event.user_id}:${event.peer_id}`,
-      ...(normalized.conversationId ? { conversationId: normalized.conversationId } : {}),
       ...(normalized.reminderOccurrenceId
         ? { reminderOccurrenceId: normalized.reminderOccurrenceId }
         : {}),

@@ -8,10 +8,6 @@ Tenant identity thread: при активном organization principal 1:1 ди�
 ensure переиспользует видимый legacy webapp-thread своей клиники, но не запускает глобальный legacy merge: общий
 пациент, зачисленный в две клиники, получает два изолированных диалога, а не одну конфликтующую строку.
 
-Signed integrator `admin-reply` не устанавливает tenant principal. До появления доверенного organization context
-он отклоняет org-scoped conversation key с `organization_context_required`; legacy `webapp:platform:*` callback
-остаётся совместимым. Разрешать scoped callback только по извлечённому `platformUserId` запрещено.
-
 Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача),
 исторический [`RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 (интеграция выведена 2026-07-27), [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md) (**Web Push — основной канал**),

@@ -50,9 +50,10 @@
   нумерацию `$N`. Перевод выполняется функциональными группами на существующий typed Drizzle-путь, без нового
   адаптера рядом. Сначала auth/session, затем необратимый purge, admin, doctor/patient CRUD и infra.
 - [x] **W6 — убрать мёртвые действия ботов без изменения будущего меню.** Кнопки удалены в `f456bf8ba`; в этом
-  коммите удалены недостижимые callback/state/M2M-ветки и устаревшие активные описания. `rg -n
-  "program_reply|webapp\\.programNote\\.replyBegin|beginProgramNoteReply|program-note/reply-begin|programNoteStageItemId|programNoteReplyState|#pn:"
-  apps packages docs --glob "!docs/archive/**"` → пусто; `pnpm --dir apps/integrator typecheck` и
+  коммите удалены обе недостижимые callback/state/M2M-ветки — обычного сообщения и program note — вместе с
+  устаревшими активными описаниями. `rg -n
+  "admin_reply:|admin_reply_continue:|admin_close_dialog:|support/admin-reply|applySupportAdminReply|program_reply|webapp\\.programNote\\.replyBegin|program-note/reply-begin|programNoteStageItemId|programNoteReplyState|#pn:"
+  apps packages docs/ARCHITECTURE docs/README.md` → пусто; `pnpm --dir apps/integrator typecheck` и
   `pnpm --dir apps/webapp typecheck` → PASS. Рабочий `sendProgramNoteReply` из кабинета сохранён; будущее меню,
   Telegram Mini App и MAX не изменялись.
 - [ ] **W7 — подключить реально существующие тесты к CI.** Тесты media-worker не запускаются GitHub Actions, а

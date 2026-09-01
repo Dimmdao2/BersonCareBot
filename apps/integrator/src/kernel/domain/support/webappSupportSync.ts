@@ -1,13 +1,4 @@
-import { randomUUID } from 'node:crypto';
 import type { ExecutorDeps } from '../executor/helpers.js';
-import { webappPlatformConversationId } from '../../../shared/support/platformConversationId.js';
-
-export function adminReplyConversationId(
-  integratorConversationId: string,
-  platformUserId: string | null,
-): string {
-  return platformUserId ? webappPlatformConversationId(platformUserId) : integratorConversationId;
-}
 
 export async function resolvePlatformUserIdForChannel(
   deps: ExecutorDeps,
@@ -48,36 +39,4 @@ export async function setWebappSupportStatus(
     return {};
   }
   return result.canonicalWrite ? { canonicalWrite: result.canonicalWrite } : {};
-}
-
-export async function applyWebappAdminReplyFromMessenger(
-  deps: ExecutorDeps,
-  input: {
-    integratorConversationId: string;
-    text: string;
-    createdAt: string;
-    senderDisplayName?: string;
-    adminMessageId?: string | null;
-  },
-): Promise<{ ok: boolean; error?: string }> {
-  const apply = deps.webappEventsPort?.applySupportAdminReply;
-  if (!apply) return { ok: false, error: 'webapp_events_port_missing' };
-  const integratorMessageId = input.adminMessageId?.trim() || `integrator-admin:${randomUUID()}`;
-  const body = JSON.stringify({
-    integratorConversationId: input.integratorConversationId,
-    integratorMessageId,
-    text: input.text,
-    ...(input.senderDisplayName?.trim()
-      ? { senderDisplayName: input.senderDisplayName.trim() }
-      : {}),
-    createdAt: input.createdAt,
-  });
-  const result = await apply({
-    body,
-    idempotencyKey: `support-admin:${integratorMessageId}`,
-  });
-  if (!result.ok) {
-    return { ok: false, error: result.error ?? `http_${result.status}` };
-  }
-  return { ok: true };
 }

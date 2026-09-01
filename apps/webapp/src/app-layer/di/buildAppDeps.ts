@@ -1400,7 +1400,6 @@ const sendProgramNoteReply = createSendProgramNoteReply({
   supportCommunication: supportCommunicationPort,
   discussion: programItemDiscussionService,
   resolveProgramNoteReplyContext,
-  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
 });
 
 const notifyDoctorOfPatientMessageImpl = async (input: {
@@ -1433,7 +1432,6 @@ const integratorSupportBridge = createIntegratorSupportBridge({
       { organizationId, source: 'integrator.support-canonical-write' },
       fn,
     ),
-  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
   notifyDoctorOfPatientMessage: notifyDoctorOfPatientMessageImpl,
   resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });

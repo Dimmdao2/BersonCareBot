@@ -75,7 +75,6 @@ export type IncomingCallbackUpdate = {
   channelLastName?: string | null;
   callbackData: string;
   callbackQueryId: string;
-  conversationId?: string;
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
   reminderMuteMinutes?: number;
