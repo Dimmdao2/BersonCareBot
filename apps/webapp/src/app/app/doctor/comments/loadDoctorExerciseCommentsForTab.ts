@@ -23,8 +23,9 @@ import type {
 } from '@/modules/program-item-discussion/types';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
-import { formatDateTimeRu } from '../doctorTodayFormat';
+import { formatCommentDateRu } from '../doctorTodayFormat';
 import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 export const DOCTOR_EXERCISE_COMMENTS_TAB_PAGE_SIZE = 50;
 
@@ -33,7 +34,14 @@ export type LoadDoctorExerciseCommentsForTabDeps = {
     listClients(
       filters: Pick<DoctorClientsFilters, 'supportStatus' | 'organizationId' | 'visibilityActor'>,
       audience?: { excludedUserIds?: string[] },
-    ): Promise<Array<{ userId: string; displayName: string }>>;
+    ): Promise<
+      Array<{
+        userId: string;
+        displayName: string;
+        firstName?: string | null;
+        lastName?: string | null;
+      }>
+    >;
   };
   programItemDiscussion: {
     listUnreadExerciseCommentsForDoctor(
@@ -74,8 +82,22 @@ export async function loadDoctorExerciseCommentsForTab(
     return { items: [], nextCursor: null, hasMore: false };
   }
 
-  const nameById = new Map<string, string>(
-    onSupport.map((c) => [c.userId.trim(), c.displayName.trim() || '—']),
+  const nameById = new Map(
+    onSupport.map((client) => {
+      const firstName = client.firstName?.trim() || null;
+      const lastName = client.lastName?.trim() || null;
+      return [
+        client.userId.trim(),
+        {
+          displayName: formatDoctorFio(
+            { lastName, firstName, patronymic: null },
+            client.displayName.trim() || '—',
+          ),
+          firstName,
+          lastName,
+        },
+      ] as const;
+    }),
   );
   const patientUserIds = [...nameById.keys()];
 
@@ -92,12 +114,14 @@ export async function loadDoctorExerciseCommentsForTab(
 
   const items: TodayExerciseCommentAttentionItem[] = pageRows.map((row) => ({
     patientUserId: row.patientUserId,
-    patientDisplayName: nameById.get(row.patientUserId) ?? '—',
+    patientDisplayName: nameById.get(row.patientUserId)?.displayName ?? '—',
+    patientFirstName: nameById.get(row.patientUserId)?.firstName ?? null,
+    patientLastName: nameById.get(row.patientUserId)?.lastName ?? null,
     instanceId: row.instanceId,
     stageItemId: row.stageItemId,
     stageItemTitle: row.stageItemTitle || 'Упражнение',
     latestMessage: row.latestMessage,
-    latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt, appDisplayTimeZone),
+    latestMessageAtLabel: formatCommentDateRu(row.latestMessage.createdAt, appDisplayTimeZone),
     href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
       discussionItemId: row.stageItemId,
     }),

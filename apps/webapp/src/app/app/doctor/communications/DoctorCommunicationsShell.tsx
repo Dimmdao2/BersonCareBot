@@ -55,10 +55,10 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
             data-testid={`btn-${tab.id}`}
             aria-current={active ? 'page' : undefined}
             onClick={() => onTabClick(tab.id)}
-            className={cn(doctorSectionTabClass(active), 'min-w-0 flex-1 px-2')}
+            className={cn(doctorSectionTabClass(active), 'min-w-0 flex-auto px-2')}
           >
             {tab.label}
-            <DoctorAttentionBadge count={badge} active={active} />
+            <DoctorAttentionBadge count={badge} />
           </Button>
         );
       })}
@@ -222,11 +222,7 @@ export function DoctorCommunicationsShell({
   );
 
   return (
-    <DoctorAppShell
-      title="Коммуникации"
-      layout="full-height"
-      mobileBottomTabs={mobileBottomTabs}
-    >
+    <DoctorAppShell title="Коммуникации" layout="full-height" mobileBottomTabs={mobileBottomTabs}>
       <DoctorPageHeader
         id="doctor-communications-header"
         title="Коммуникации"

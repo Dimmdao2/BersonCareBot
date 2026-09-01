@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useLayoutEffect, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './primitives/dialog';
 import {
@@ -76,6 +76,12 @@ export function DoctorModal({
   const isWideDesktop = useViewportMinWidth(1280);
   const isContent = size === 'content';
   const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!open || !bodyRef.current) return;
+    bodyRef.current.scrollTop = 0;
+  }, [open]);
 
   useLayoutEffect(() => {
     if (!open || isMobile || desktopPresentation !== 'right-sheet') return;
@@ -103,6 +109,7 @@ export function DoctorModal({
 
   const body = (
     <div
+      ref={bodyRef}
       className={cn(
         'min-h-0 flex-1',
         isContent

@@ -21,7 +21,7 @@ import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole
 import { loadDoctorAnalyticsAudience } from '@/app-layer/analytics/loadAnalyticsAudience';
 import type { DoctorExerciseCommentCursor } from '@/modules/program-item-discussion/types';
 import type { TodayExerciseCommentAttentionItem } from '@/app/app/doctor/loadDoctorExerciseCommentAttention';
-import { formatDateTimeRu } from '@/app/app/doctor/doctorTodayFormat';
+import { formatCommentDateRu } from '@/app/app/doctor/doctorTodayFormat';
 import { patientProgramInstanceHref } from '@/app/app/doctor/patients/patientProgramInstanceHref';
 
 const DEFAULT_PAGE_SIZE = 30;
@@ -127,7 +127,7 @@ export async function GET(request: Request) {
     stageItemId: row.stageItemId,
     stageItemTitle: row.stageItemTitle || 'Упражнение',
     latestMessage: row.latestMessage,
-    latestMessageAtLabel: formatDateTimeRu(row.latestMessage.createdAt),
+    latestMessageAtLabel: formatCommentDateRu(row.latestMessage.createdAt),
     href: patientProgramInstanceHref(row.patientUserId, row.instanceId, {
       discussionItemId: row.stageItemId,
     }),

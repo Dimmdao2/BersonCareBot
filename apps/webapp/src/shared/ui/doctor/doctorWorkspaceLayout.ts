@@ -128,7 +128,7 @@ export const DOCTOR_CATALOG_SPLIT_LAYOUT_MAX_H_EXPANDED =
  * Unlike catalog max-height helpers, this does not subtract a toolbar row.
  */
 export const DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS =
-  'md:h-full md:min-h-0 md:overflow-hidden';
+  'flex min-h-0 flex-1 flex-col overflow-hidden md:h-full';
 
 /** Админ «Запись»: компактные карточки настроек (2 колонки md, 3 xl). */
 export const BOOKING_CARD_GRID_CLASS = 'grid gap-4 md:grid-cols-2 xl:grid-cols-3';

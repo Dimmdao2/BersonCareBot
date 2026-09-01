@@ -37,10 +37,13 @@ import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHr
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
+import { ExerciseCommentPreviewItemContent } from './ExerciseCommentPreviewItem';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -452,7 +455,7 @@ function ThreadMessage({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommentsTabProps) {
+function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommentsTabProps) {
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
@@ -987,9 +990,7 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
 
         {/* Exercise list */}
         <div className="flex flex-1 flex-col overflow-y-auto">
-          {exercisesLoading && (
-            <DoctorPanelLoading />
-          )}
+          {exercisesLoading && <DoctorPanelLoading />}
           {exercisesError && (
             <DoctorEmptyState
               size="xs"
@@ -1103,9 +1104,7 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
 
         {/* Thread messages */}
         <div className={cn('flex flex-1 flex-col overflow-y-auto', chatThreadSurfaceClass)}>
-          {threadLoading && (
-            <DoctorPanelLoading />
-          )}
+          {threadLoading && <DoctorPanelLoading />}
           {threadError && (
             <DoctorEmptyState
               size="xs"
@@ -1153,10 +1152,7 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
   ) : null;
 
   return (
-    <div
-      id="doctor-communications-comments"
-      className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
-    >
+    <div id="doctor-communications-comments" className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}>
       <CatalogSplitLayout
         left={leftPane}
         right={rightPane}
@@ -1166,5 +1162,65 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
         className="h-full"
       />
     </div>
+  );
+}
+
+function DoctorCommentsMobileTab({ initialItems }: DoctorCommentsTabProps) {
+  const [selectedItem, setSelectedItem] = useState<TodayExerciseCommentAttentionItem | null>(null);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {initialItems.length === 0 ? (
+          <DoctorEmptyState size="sm" className="flex min-h-full items-center justify-center py-10">
+            Нет новых комментариев по упражнениям
+          </DoctorEmptyState>
+        ) : (
+          <ul className={doctorDnaFlatListClass}>
+            {initialItems.map((item) => (
+              <li key={`${item.stageItemId}:${item.latestMessage.id}`}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setSelectedItem(item)}
+                  className={cn(
+                    doctorDnaFlatListRowClass,
+                    doctorDnaFlatListClickableClass,
+                    'h-auto w-full items-start rounded-none bg-transparent text-left shadow-none',
+                  )}
+                >
+                  <ExerciseCommentPreviewItemContent item={item} />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <DoctorModal
+        open={selectedItem !== null}
+        onClose={() => setSelectedItem(null)}
+        title="Комментарий"
+        size="content"
+      >
+        {selectedItem ? (
+          <div className="flex min-h-0 flex-1 flex-col gap-3">
+            <ExerciseCommentPreviewItemContent item={selectedItem} />
+            <Link href={selectedItem.href} className={doctorInlineLinkClass}>
+              Открыть обсуждение
+            </Link>
+          </div>
+        ) : null}
+      </DoctorModal>
+    </div>
+  );
+}
+
+export function DoctorCommentsTab(props: DoctorCommentsTabProps) {
+  const isMobile = useIsMobileViewport();
+  return isMobile ? (
+    <DoctorCommentsMobileTab {...props} />
+  ) : (
+    <DoctorCommentsDesktopTab {...props} />
   );
 }

@@ -55,6 +55,7 @@ export type TodayConversationSourceRow = {
   phoneNormalized: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
+  lastSenderRole: string | null;
   unreadFromUserCount: number;
 };
 
@@ -163,8 +164,10 @@ export type TodayUnreadConversationItem = {
   conversationId: string;
   displayName: string;
   phoneNormalized: string | null;
+  lastMessageAt: string;
   lastMessageAtLabel: string;
   lastMessageText: string | null;
+  lastSenderRole: string | null;
   lastMessagePreview: string | null;
   unreadFromUserCount: number;
   href: string;
@@ -515,8 +518,10 @@ export function mapConversationToTodayItem(
     conversationId: row.conversationId,
     displayName: row.displayName.trim() || '—',
     phoneNormalized: row.phoneNormalized,
+    lastMessageAt: row.lastMessageAt,
     lastMessageAtLabel: formatDateTimeRu(row.lastMessageAt, timeZone),
     lastMessageText: row.lastMessageText,
+    lastSenderRole: row.lastSenderRole,
     lastMessagePreview: truncateText(row.lastMessageText),
     unreadFromUserCount: row.unreadFromUserCount,
     // #812: deep-link to the exact dialog (not just the chats tab) — Today KPI

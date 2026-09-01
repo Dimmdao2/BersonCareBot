@@ -15,15 +15,12 @@ import type { TodayExerciseCommentAttentionItem } from './loadDoctorExerciseComm
 import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
 import type { TodayUnreadConversationItem } from './loadDoctorTodayDashboard';
 
-export type DoctorTodayAttentionKind =
-  | 'messages'
-  | 'pendingTests'
-  | 'exerciseComments';
+export type DoctorTodayAttentionKind = 'messages' | 'pendingTests' | 'exerciseComments';
 
 const TITLES: Record<DoctorTodayAttentionKind, string> = {
   messages: 'Сообщения',
   pendingTests: 'Тесты к проверке',
-  exerciseComments: 'Новые комментарии по упражнениям',
+  exerciseComments: 'Комментарии',
 };
 
 const EMPTY_MESSAGES: Record<DoctorTodayAttentionKind, string> = {
@@ -295,9 +292,20 @@ export function DoctorTodayAttentionDialog({
   onExerciseCommentResolved,
 }: Props) {
   const title = kind ? TITLES[kind] : '';
+  const exerciseCommentsOpen = kind === 'exerciseComments';
   return (
-    <DoctorModal open={open} onClose={() => onOpenChange(false)} title={title} size="lg">
-      <div className="max-h-[65vh] overflow-y-auto pr-1">
+    <DoctorModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title={title}
+      size="lg"
+      bodyClassName={
+        exerciseCommentsOpen
+          ? 'overscroll-contain px-0 pt-0 pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+          : undefined
+      }
+    >
+      <div className={exerciseCommentsOpen ? 'px-4 pb-4' : undefined}>
         {kind === 'messages' ? (
           <>
             {unreadTotal > 0 ? (
@@ -382,11 +390,10 @@ export function DoctorTodayAttentionDialog({
           </>
         ) : null}
 
-
-        {kind === 'exerciseComments' ? (
+        {exerciseCommentsOpen ? (
           <>
             {exerciseCommentAttentionTotal > 0 ? (
-              <p className="mb-2 text-xs text-muted-foreground">
+              <p className="pt-3 pb-2 text-xs text-muted-foreground">
                 Новых комментариев: {exerciseCommentAttentionTotal}
               </p>
             ) : null}

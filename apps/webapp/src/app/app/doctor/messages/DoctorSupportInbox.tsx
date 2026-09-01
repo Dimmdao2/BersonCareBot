@@ -12,15 +12,8 @@ import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
-import {
-  DoctorDnaFlatListSelectionStrip,
-  doctorDnaFlatListClass,
-  doctorDnaFlatListClickableClass,
-  doctorDnaFlatListMetaClass,
-  doctorDnaFlatListPrimaryClass,
-  doctorDnaFlatListRowClass,
-  doctorDnaFlatListSelectedPrimaryClass,
-} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { doctorDnaFlatListClass } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
 import {
@@ -62,25 +55,6 @@ type ConversationApiRow = {
   onSupport?: boolean;
   patientUserId?: string | null;
 };
-
-function formatConversationTime(value: string, tz = 'Europe/Moscow'): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const now = new Date();
-  const isToday =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-  const time = date.toLocaleString('ru-RU', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
-  if (isToday) return time;
-  const dayMonth = date.toLocaleString('ru-RU', { timeZone: tz, day: '2-digit', month: '2-digit' });
-  return `${dayMonth} · ${time}`;
-}
-
-function getSenderPrefix(conv: ConvRow): string {
-  if (conv.lastSenderRole === 'admin') return 'Вы';
-  return conv.firstName || (conv.displayName.split(' ')[0] ?? '').trim() || 'Пациент';
-}
 
 function mapConvRows(conversations: ConversationApiRow[]): ConvRow[] {
   return conversations.map((c) => ({
@@ -338,86 +312,16 @@ export function DoctorSupportInbox({
               'mx-0 flex flex-col md:mx-[var(--doctor-block-padding,18px)]',
             )}
           >
-            {filteredList.map((c, index) => {
+            {filteredList.map((c) => {
               const isSelected = selectedId === c.conversationId;
               return (
                 <li key={c.conversationId}>
-                  <Button
-                    type="button"
-                    variant="ghost"
+                  <DoctorConversationListRow
+                    conversation={c}
+                    displayIana={displayIana}
+                    selected={isSelected}
                     onClick={() => selectConversation(c.conversationId)}
-                    className={cn(
-                      doctorDnaFlatListRowClass,
-                      doctorDnaFlatListClickableClass,
-                      'h-auto w-full rounded-none bg-transparent text-left shadow-none',
-                      index === 0 && 'border-t-0',
-                    )}
-                  >
-                    {isSelected ? <DoctorDnaFlatListSelectionStrip /> : null}
-                    <div className="min-w-0 flex-1 overflow-hidden">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span
-                          className={cn(
-                            'min-w-0 truncate',
-                            doctorDnaFlatListPrimaryClass,
-                            isSelected && doctorDnaFlatListSelectedPrimaryClass,
-                            c.unreadFromUserCount > 0 && '!font-semibold',
-                          )}
-                        >
-                          {(c.lastName ?? c.firstName)
-                            ? [c.lastName, c.firstName].filter(Boolean).join(' ')
-                            : c.displayName || 'Без имени'}
-                          {c.onSupport && (
-                            <span className="ml-1.5 text-[10px] font-semibold text-primary">★</span>
-                          )}
-                        </span>
-                        <span
-                          className={cn(
-                            'shrink-0',
-                            doctorDnaFlatListMetaClass,
-                            c.unreadFromUserCount > 0 && '!font-semibold',
-                          )}
-                        >
-                          {formatConversationTime(c.lastMessageAt, displayIana)}
-                        </span>
-                      </div>
-                      {(c.lastName ?? c.firstName) && (
-                        <p
-                          className={cn(
-                            'truncate',
-                            doctorDnaFlatListMetaClass,
-                            c.unreadFromUserCount > 0 && '!font-semibold',
-                          )}
-                        >
-                          {c.displayName}
-                        </p>
-                      )}
-                      {c.lastMessageText && (
-                        <p
-                          className={cn(
-                            'mt-0.5 truncate',
-                            doctorDnaFlatListMetaClass,
-                            c.unreadFromUserCount > 0 && '!font-semibold',
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              'font-medium text-foreground/80',
-                              c.unreadFromUserCount > 0 && '!font-semibold',
-                            )}
-                          >
-                            {getSenderPrefix(c)}:
-                          </span>{' '}
-                          {c.lastMessageText}
-                        </p>
-                      )}
-                    </div>
-                    {c.unreadFromUserCount > 0 && (
-                      <span className="self-center rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                        {c.unreadFromUserCount}
-                      </span>
-                    )}
-                  </Button>
+                  />
                 </li>
               );
             })}

@@ -8,6 +8,7 @@ import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import { DoctorConversationListRow } from '@/modules/messaging/components/DoctorConversationListRow';
 import {
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
@@ -70,25 +71,17 @@ const attentionKpiValueClass = 'text-destructive';
 
 function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
   return (
-    <Link
+    <DoctorConversationListRow
+      conversation={{
+        conversationId: item.conversationId,
+        displayName: item.displayName,
+        lastMessageAt: item.lastMessageAt,
+        lastMessageText: item.lastMessageText,
+        lastSenderRole: item.lastSenderRole,
+        unreadFromUserCount: item.unreadFromUserCount,
+      }}
       href={item.href}
-      className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} block`}
-    >
-      <div className="flex items-baseline justify-between gap-2">
-        <p className={doctorDnaFlatListPrimaryClass}>{item.displayName}</p>
-        <span className={`${doctorDnaFlatListMetaClass} shrink-0`}>{item.lastMessageAtLabel}</span>
-      </div>
-      {item.lastMessagePreview ? (
-        <p className={`${doctorDnaFlatListMetaClass} mt-0.5 line-clamp-2`}>
-          {item.lastMessagePreview}
-        </p>
-      ) : null}
-      {item.unreadFromUserCount > 0 ? (
-        <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>
-          {item.unreadFromUserCount} непрочитанных
-        </p>
-      ) : null}
-    </Link>
+    />
   );
 }
 

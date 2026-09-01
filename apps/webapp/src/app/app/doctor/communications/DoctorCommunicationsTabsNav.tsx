@@ -38,7 +38,7 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
         {COMMUNICATIONS_TABS.map((tab) => {
           const active = tab.id === activeTab;
           const badge = badges?.[tab.id];
-          const itemClass = doctorSectionTabClass(active);
+          const itemClass = cn(doctorSectionTabClass(active), 'min-w-0 flex-auto px-2');
 
           return onTabClick ? (
             <Button
@@ -50,7 +50,7 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
               className={itemClass}
             >
               {tab.label}
-              <DoctorAttentionBadge count={badge} active={active} />
+              <DoctorAttentionBadge count={badge} />
             </Button>
           ) : (
             <Link
@@ -60,7 +60,7 @@ export function DoctorCommunicationsTabsNav({ activeTab, badges, onTabClick }: P
               className={itemClass}
             >
               {tab.label}
-              <DoctorAttentionBadge count={badge} active={active} />
+              <DoctorAttentionBadge count={badge} />
             </Link>
           );
         })}

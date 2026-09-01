@@ -16,7 +16,8 @@ import type {
 } from '@/modules/treatment-program/types';
 import { pickActivePlanInstance } from '@/modules/treatment-program/pickActivePlanInstance';
 import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimezone';
-import { formatDateTimeRu } from './doctorTodayFormat';
+import { formatCommentDateRu } from './doctorTodayFormat';
+import { formatDoctorFio } from '@/shared/lib/fio';
 import { patientProgramInstanceHref } from './patients/patientProgramInstanceHref';
 import {
   firstSnapshotMedia,
@@ -28,6 +29,8 @@ export const DOCTOR_TODAY_EXERCISE_COMMENTS_PREVIEW_LIMIT = 30;
 export type TodayExerciseCommentAttentionItem = {
   patientUserId: string;
   patientDisplayName: string;
+  patientFirstName?: string | null;
+  patientLastName?: string | null;
   instanceId: string;
   stageItemId: string;
   stageItemTitle: string;
@@ -118,15 +121,27 @@ export async function loadDoctorExerciseCommentAttention(
     return { items: [], total: 0, truncated: false };
   }
 
-  const patientDisplayNameById = new Map<string, string>();
+  const patientNameById = new Map<
+    string,
+    { displayName: string; firstName: string | null; lastName: string | null }
+  >();
   for (const row of onSupportListRaw) {
     const uid = row.userId.trim();
     if (!uid) continue;
-    patientDisplayNameById.set(uid, row.displayName.trim() || '—');
+    const firstName = row.firstName?.trim() || null;
+    const lastName = row.lastName?.trim() || null;
+    patientNameById.set(uid, {
+      displayName: formatDoctorFio(
+        { lastName, firstName, patronymic: null },
+        row.displayName.trim() || '—',
+      ),
+      firstName,
+      lastName,
+    });
   }
 
   const perPatientRows = await Promise.all(
-    [...patientDisplayNameById.keys()].map(async (patientUserId) => {
+    [...patientNameById.keys()].map(async (patientUserId) => {
       try {
         const allInstances =
           await deps.treatmentProgramInstance!.listForPatientClinicalView(patientUserId);
@@ -174,13 +189,15 @@ export async function loadDoctorExerciseCommentAttention(
             if (!item) return null;
             return {
               patientUserId,
-              patientDisplayName: patientDisplayNameById.get(patientUserId) ?? '—',
+              patientDisplayName: patientNameById.get(patientUserId)?.displayName ?? '—',
+              patientFirstName: patientNameById.get(patientUserId)?.firstName ?? null,
+              patientLastName: patientNameById.get(patientUserId)?.lastName ?? null,
               instanceId: active.id,
               stageItemId,
               stageItemTitle: stageItemSnapshotTitle(item.snapshot),
               thumb: firstSnapshotMedia(item.snapshot),
               latestMessage: latest,
-              latestMessageAtLabel: formatDateTimeRu(latest.createdAt, appDisplayTimeZone),
+              latestMessageAtLabel: formatCommentDateRu(latest.createdAt, appDisplayTimeZone),
               href: patientProgramInstanceHref(patientUserId, active.id, {
                 discussionItemId: stageItemId,
               }),

@@ -13,6 +13,7 @@ import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doc
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
+import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import type { CommunicationsTabProps } from '../communicationsTabRegistry';
 
 /** Таб «Рассылки». ?archive=1 → лог ошибок в правой панели. */
@@ -52,6 +53,7 @@ function BroadcastsMainView({
   const [prefill, setPrefill] = useState<BroadcastFormPrefill | undefined>(undefined);
   const [selectedEntry, setSelectedEntry] = useState<BroadcastAuditEntry | null>(null);
   const prefillNonceRef = useRef(0);
+  const isMobile = useIsMobileViewport();
 
   const refreshLog = useCallback(async () => {
     try {
@@ -88,7 +90,13 @@ function BroadcastsMainView({
   }, []);
 
   const formPane = (
-    <section className={cn(doctorSectionCardClass, 'h-full overflow-y-auto')}>
+    <section
+      className={cn(
+        doctorSectionCardClass,
+        'h-full overflow-y-auto',
+        isMobile && 'h-auto overflow-visible rounded-none border-0',
+      )}
+    >
       <div className="flex items-center justify-between gap-2 mb-1">
         <h2 className={doctorSectionTitleClass}>Новая рассылка</h2>
         <Button
@@ -120,9 +128,18 @@ function BroadcastsMainView({
   );
 
   const rightPane = (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden">
+    <div
+      className={cn(
+        'flex h-full min-h-0 flex-col overflow-hidden',
+        isMobile && 'h-auto overflow-visible',
+      )}
+    >
       <section
-        className={cn(doctorSectionCardClass, 'flex min-h-0 flex-1 flex-col overflow-hidden')}
+        className={cn(
+          doctorSectionCardClass,
+          'flex min-h-0 flex-1 flex-col overflow-hidden',
+          isMobile && 'overflow-visible rounded-none border-0',
+        )}
       >
         <div className="mb-1 flex shrink-0 items-center justify-between gap-2">
           <h2 className={doctorSectionTitleClass}>
@@ -145,13 +162,13 @@ function BroadcastsMainView({
           ) : null}
         </div>
         {errorLogOpen ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className={cn('min-h-0 flex-1 overflow-y-auto', isMobile && 'overflow-visible')}>
             <BroadcastDeliveryArchiveClient />
           </div>
         ) : loading ? (
           <DoctorPanelLoading />
         ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className={cn('min-h-0 flex-1 overflow-y-auto', isMobile && 'overflow-visible')}>
             <BroadcastAuditLog
               entries={entries}
               selectedId={selectedEntry?.id}
@@ -165,6 +182,18 @@ function BroadcastsMainView({
       </section>
     </div>
   );
+
+  if (isMobile) {
+    const showDetail = errorLogOpen || mobileView === 'detail';
+    return (
+      <div
+        id="broadcasts-main-view"
+        className="min-h-0 flex-1 overflow-y-auto bg-background pb-[var(--doctor-page-bottom-gutter)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {showDetail ? rightPane : leftPane}
+      </div>
+    );
+  }
 
   if (!mailingsMutationAvailable) {
     return (
