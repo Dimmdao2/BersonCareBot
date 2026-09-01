@@ -8,10 +8,6 @@ import {
   notifyDoctorPatientMessageToStaff,
   type NotifyDoctorPatientMessageToStaffDeps,
 } from '@/modules/doctor-notifications/notifyDoctorPatientMessageToStaff';
-import {
-  isWebappPlatformConversationId,
-  webappPlatformConversationId,
-} from '@/modules/messaging/supportConversationIds';
 import { communicationsChatHref } from '@/app/app/doctor/communications/doctorCommunicationsTabs';
 import { logger, serializeError } from '@/infra/logging/logger';
 import { reportEmptyAudience } from '@/modules/operator-alerts/emptyAudienceRuntime';
@@ -35,11 +31,6 @@ export function buildDoctorPatientMessageNotifyText(input: {
   return input.deepLink ? `${notificationText}\n\n${input.deepLink}` : notificationText;
 }
 
-/** Inline callback для integrator: `admin_reply:webapp:platform:{uuid}`. */
-export function doctorReplyCallbackConversationId(platformUserId: string): string {
-  return webappPlatformConversationId(platformUserId);
-}
-
 export type NotifyDoctorPatientMessageInput = {
   organizationId: string;
   platformUserId: string;
@@ -57,14 +48,10 @@ export async function notifyDoctorPatientMessage(
   },
 ): Promise<void> {
   const deepLink = buildDoctorMessagesDeepLink(input.conversationId, env.APP_BASE_URL);
-  const replyConversationId = doctorReplyCallbackConversationId(input.platformUserId);
   const text = buildDoctorPatientMessageNotifyText({
     patientLabel: input.patientLabel,
     deepLink,
   });
-  const replyMarkup = {
-    inline_keyboard: [[{ text: 'Ответить', callback_data: `admin_reply:${replyConversationId}` }]],
-  };
 
   if (opts?.staffDeps) {
     void notifyDoctorPatientMessageToStaff(
@@ -74,7 +61,6 @@ export async function notifyDoctorPatientMessage(
         messageId: `patient-msg-notify:${input.messageId}`,
         senderDisplayName: input.patientLabel,
         notificationUrl: deepLink,
-        replyMarkup,
       },
       opts.staffDeps,
     ).catch((err: unknown) => {
@@ -100,8 +86,5 @@ export async function notifyDoctorPatientMessage(
     targets,
     text,
     'patient-msg-notify',
-    replyMarkup,
   );
 }
-
-export { isWebappPlatformConversationId };

@@ -1,5 +1,4 @@
 import {
-  buildProgramNoteReplyState,
   exerciseTitleFromSnapshot,
   type ProgramNoteReplyContext,
 } from '@/modules/messaging/programNoteReplyContext';
@@ -22,7 +21,6 @@ export async function resolveProgramNoteReplyContext(
     stageItemId: id,
     exerciseTitle: exerciseTitleFromSnapshot(row.snapshot),
     integratorConversationId,
-    programNoteReplyState: buildProgramNoteReplyState(integratorConversationId, id),
     assignmentSource: row.assignmentSource,
     itemStatus: row.itemStatus,
   };

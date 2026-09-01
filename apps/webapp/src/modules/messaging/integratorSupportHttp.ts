@@ -16,7 +16,6 @@ export const integratorSupportAdminReplySchema = z.object({
   text: z.string().min(1).max(4000),
   senderDisplayName: z.string().min(1).max(500).optional(),
   createdAt: z.string().min(1),
-  programNoteStageItemId: z.string().uuid().optional(),
 });
 
 export const integratorSupportStatusSchema = z.object({

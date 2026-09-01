@@ -10,7 +10,6 @@ import {
 } from '@/modules/messaging/supportConversationIds';
 import type { NotifyPatientDoctorReplyParams } from '@/modules/messaging/notifyPatientDoctorReply';
 import { NOTIFICATION_TOPIC_SUPPORT_MESSAGES } from '@/modules/patient-notifications/notificationTopicCodes';
-import type { SendProgramNoteReply } from '@/modules/messaging/sendProgramNoteReply';
 import { logger, serializeError } from '@/infra/logging/logger';
 
 export type IntegratorSupportSyncMessageInput = {
@@ -29,7 +28,6 @@ export type IntegratorSupportAdminReplyInput = {
   text: string;
   createdAt: string;
   senderDisplayName?: string;
-  programNoteStageItemId?: string;
 };
 
 export type IntegratorSupportStatusInput = {
@@ -60,7 +58,6 @@ export function createIntegratorSupportBridge(deps: {
   ) => Promise<{ ok: true; organizationId: string } | { ok: false; error: string }>;
   withOrganizationPrincipal: <T>(organizationId: string, fn: () => Promise<T>) => Promise<T>;
   notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
-  sendProgramNoteReply?: SendProgramNoteReply;
   notifyDoctorOfPatientMessage?: (input: {
     organizationId: string;
     platformUserId: string;
@@ -147,20 +144,6 @@ export function createIntegratorSupportBridge(deps: {
 
       const trimmed = input.text.trim();
       if (!trimmed) return { ok: false, error: 'empty' };
-
-      if (input.programNoteStageItemId && deps.sendProgramNoteReply) {
-        const result = await deps.sendProgramNoteReply({
-          integratorConversationId: input.integratorConversationId,
-          integratorMessageId: input.integratorMessageId,
-          stageItemId: input.programNoteStageItemId,
-          text: trimmed,
-          senderDisplayName: input.senderDisplayName,
-          createdAt: input.createdAt,
-          source: 'webapp',
-        });
-        if (!result.ok) return result;
-        return { ok: true };
-      }
 
       const organization = await deps.resolvePatientOrganization(
         platformUserId,

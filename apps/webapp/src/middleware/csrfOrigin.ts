@@ -1,3 +1,5 @@
+import { internalJobBearerCsrfExemptPaths } from '@/modules/operator-health/backgroundJobManifest';
+
 export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/appointment-reminders/materialize',
   '/api/integrator/channel-link/complete',
@@ -7,7 +9,6 @@ export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/patient-notifications/web-push',
   '/api/integrator/phone-messenger-bind/complete',
   '/api/integrator/phone-messenger-bind/claim',
-  '/api/integrator/program-note/reply-begin',
   '/api/integrator/reminders/dispatch',
   '/api/integrator/system-health/guard-wake',
   '/api/integrator/support/admin-reply',
@@ -16,25 +17,6 @@ export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/support/status',
   '/api/integrator/support/sync-user-message',
   '/api/integrator/web-push/subscriptions/delete',
-] as const;
-
-export const INTERNAL_BEARER_CSRF_EXEMPT_PATHS = [
-  '/api/internal/media-hls-proxy-errors/retention',
-  '/api/internal/media-multipart/cleanup',
-  '/api/internal/media-pending-delete/purge',
-  '/api/internal/media-playback-stats/retention',
-  '/api/internal/media-preview/process',
-  '/api/internal/media-transcode/enqueue',
-  '/api/internal/media-transcode/reconcile',
-  '/api/internal/media-worker/control',
-  // Приёмник dead man's switch (design D-d). Имена — закрытый набор из
-  // `modules/operator-health/heartbeat.ts`, поэтому перечислены явно, а не паттерном:
-  // список должен оставаться читаемым при аудите.
-  '/api/internal/heartbeat/pipeline_delivery',
-  '/api/internal/heartbeat/digest',
-  '/api/internal/operator-health-critical/tick',
-  '/api/internal/product-analytics/retention',
-  '/api/internal/saas-billing/renewal/tick',
 ] as const;
 
 export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [
@@ -46,7 +28,9 @@ export const PAYMENT_WEBHOOK_CSRF_EXEMPT_PATTERNS = [
 export const APPLE_FORM_POST_CSRF_EXEMPT_PATH = '/api/auth/oauth/callback/apple';
 
 const integratorHmacPaths: ReadonlySet<string> = new Set(INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS);
-const internalBearerPaths: ReadonlySet<string> = new Set(INTERNAL_BEARER_CSRF_EXEMPT_PATHS);
+// Derived from the background-job manifest (§ backgroundJobManifest.ts) instead of a second
+// hand-copied path list — see internalJobBearerCsrfExemptPaths() for why.
+const internalBearerPaths: ReadonlySet<string> = new Set(internalJobBearerCsrfExemptPaths());
 const unsafeMethods: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 export type CsrfMutationClass =

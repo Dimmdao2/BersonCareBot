@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { decideCsrfOrigin } from './csrfOrigin';
+import { decideCsrfOrigin, classifyCsrfMutation } from './csrfOrigin';
+import {
+  BACKGROUND_JOB_MANIFEST,
+  INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS,
+} from '@/modules/operator-health/backgroundJobManifest';
 
 describe('decideCsrfOrigin — integrator signed server-to-server mutations', () => {
   it.each([
@@ -76,4 +80,37 @@ describe('decideCsrfOrigin — media-worker control', () => {
 
     expect(decision.action).toBe('reject');
   });
+});
+
+describe('decideCsrfOrigin — internal_bearer class derives from the background-job manifest (W2)', () => {
+  const manifestBearerRoutes = BACKGROUND_JOB_MANIFEST.filter(
+    (entry) => entry.principal === 'internal_job_bearer' && entry.route,
+  );
+
+  it('has at least one manifest job route to guard against an empty, trivially-passing sweep', () => {
+    expect(manifestBearerRoutes.length).toBeGreaterThan(0);
+  });
+
+  it.each(manifestBearerRoutes.map((entry) => [entry.id, entry.route!.path] as const))(
+    'classifies every manifest internal_job_bearer route (%s → %s) as internal_bearer',
+    (_id, path) => {
+      expect(classifyCsrfMutation('POST', path)).toBe('internal_bearer');
+    },
+  );
+
+  it.each(INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS)(
+    'classifies the non-scheduled internal_job_bearer route %s as internal_bearer',
+    (path) => {
+      expect(classifyCsrfMutation('POST', path)).toBe('internal_bearer');
+    },
+  );
+
+  // Regression for the exact defect W2 fixed: these two manifest job routes were missing from the
+  // old hand-copied CSRF path list and fell through to the 'browser' class instead.
+  it.each(['/api/internal/domain-health/tick', '/api/internal/db-journal-retention/tick'])(
+    'keeps %s classified as internal_bearer, not browser',
+    (path) => {
+      expect(classifyCsrfMutation('POST', path)).toBe('internal_bearer');
+    },
+  );
 });

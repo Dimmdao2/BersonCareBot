@@ -134,6 +134,8 @@ export type TelegramWebhookDeps = {
   eventGateway: EventGateway;
   /** Keep provider bootstrap enabled in production; controlled one-shot checks disable external setup calls. */
   setupProviderSurface?: boolean;
+  /** Long-polling owns the platform bot, while dedicated clinic bots still need their webhook route. */
+  registerPlatformWebhook?: boolean;
   /** Defaults to the DB-backed provider config; injectable for a provider-free route proof. */
   getRuntimeConfig?: typeof getTelegramRuntimeConfig;
   /** Публичный deployment origin вебаппа (`APP_BASE_URL`); для ссылок в кнопках WebApp. */
@@ -376,18 +378,19 @@ export async function registerTelegramWebhookRoutes(
   if (deps.setupProviderSurface !== false) void setupTelegramMenuButton();
   const readRuntimeConfig = deps.getRuntimeConfig ?? getTelegramRuntimeConfig;
 
-  app.post('/webhook/telegram', async (request, reply) => {
-    const correlationId = request.id;
-    const eventId = newEventId('incoming');
-    const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
+  if (deps.registerPlatformWebhook !== false) {
+    app.post('/webhook/telegram', async (request, reply) => {
+      const correlationId = request.id;
+      const eventId = newEventId('incoming');
+      const reqLogger = getRequestLogger(request.id, { correlationId, eventId });
 
-    try {
-      const config = await readRuntimeConfig();
-      if (!config.enabled) {
-        return reply.code(503).send({ ok: false, error: 'Unavailable' });
-      }
-      const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
-      if (!isWebhookSecretValid(headerSecret, config.webhookSecret)) {
+      try {
+        const config = await readRuntimeConfig();
+        if (!config.enabled) {
+          return reply.code(503).send({ ok: false, error: 'Unavailable' });
+        }
+        const headerSecret = request.headers['x-telegram-bot-api-secret-token'];
+        if (!isWebhookSecretValid(headerSecret, config.webhookSecret)) {
           reqLogger.warn('telegram webhook secret mismatch');
           recordTelegramWebhookOutcome({
             source: 'telegram',
@@ -397,46 +400,47 @@ export async function registerTelegramWebhookRoutes(
             detail: 'secret mismatch',
           });
           return reply.code(200).send({ ok: false, error: 'Forbidden' });
-      }
+        }
 
-      const parseResult = parseWebhookBody(request.body);
-      if (!parseResult.success) {
-        reqLogger.warn(
-          { err: parseResult.error.flatten(), hasBody: request.body != null },
-          'telegram webhook body validation failed',
-        );
+        const parseResult = parseWebhookBody(request.body);
+        if (!parseResult.success) {
+          reqLogger.warn(
+            { err: parseResult.error.flatten(), hasBody: request.body != null },
+            'telegram webhook body validation failed',
+          );
+          recordTelegramWebhookOutcome({
+            source: 'telegram',
+            processedOk: false,
+            httpStatusReturned: 200,
+            errorClass: 'webhook_parse_failed',
+            detail: 'body validation failed',
+          });
+          return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
+        }
+
+        const outcome = await processTelegramUpdate(parseResult.data, deps, {
+          correlationId,
+          eventId,
+          logger: reqLogger,
+        });
+        if (outcome.status === 'rejected') {
+          return reply.code(200).send({ ok: false, error: 'Processing failed' });
+        }
+        return reply.code(200).send({ ok: true });
+      } catch (err) {
+        reqLogger.error({ err }, 'telegram webhook failed');
+        const msg = err instanceof Error ? err.message : String(err);
         recordTelegramWebhookOutcome({
           source: 'telegram',
           processedOk: false,
           httpStatusReturned: 200,
-          errorClass: 'webhook_parse_failed',
-          detail: 'body validation failed',
+          errorClass: 'webhook_internal_error',
+          detail: msg,
         });
-        return reply.code(200).send({ ok: false, error: 'Invalid webhook body' });
+        return reply.code(200).send({ ok: false, error: 'Internal error' });
       }
-
-      const outcome = await processTelegramUpdate(parseResult.data, deps, {
-        correlationId,
-        eventId,
-        logger: reqLogger,
-      });
-      if (outcome.status === 'rejected') {
-        return reply.code(200).send({ ok: false, error: 'Processing failed' });
-      }
-      return reply.code(200).send({ ok: true });
-    } catch (err) {
-      reqLogger.error({ err }, 'telegram webhook failed');
-      const msg = err instanceof Error ? err.message : String(err);
-      recordTelegramWebhookOutcome({
-        source: 'telegram',
-        processedOk: false,
-        httpStatusReturned: 200,
-        errorClass: 'webhook_internal_error',
-        detail: msg,
-      });
-      return reply.code(200).send({ ok: false, error: 'Internal error' });
-    }
-  });
+    });
+  }
 
   app.post<{ Params: { credentialFingerprint: string } }>(
     '/webhook/telegram/dedicated/:credentialFingerprint',
