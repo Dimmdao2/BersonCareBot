@@ -75,6 +75,8 @@ function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationIt
       conversation={{
         conversationId: item.conversationId,
         displayName: item.displayName,
+        firstName: item.firstName,
+        lastName: item.lastName,
         lastMessageAt: item.lastMessageAt,
         lastMessageText: item.lastMessageText,
         lastSenderRole: item.lastSenderRole,

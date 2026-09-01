@@ -30,6 +30,7 @@
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { ListDoctorExerciseCommentsInput } from '@/modules/program-item-discussion/types';
+import { formatDoctorFio } from '@/shared/lib/fio';
 
 /** Поля пациента для многополевого поиска в левом пейне. */
 export type CommentPatientSearchFields = {
@@ -61,6 +62,8 @@ export type LoadDoctorCommentPatientsDeps = {
       Array<{
         userId: string;
         displayName: string;
+        firstName?: string | null;
+        lastName?: string | null;
         phone: string | null;
         bindings: { telegramId?: string | null; maxId?: string | null };
       }>
@@ -111,7 +114,10 @@ export async function loadDoctorCommentPatients(
     onSupport.map((c) => [
       c.userId.trim(),
       {
-        displayName: c.displayName.trim() || '—',
+        displayName: formatDoctorFio(
+          { firstName: c.firstName, lastName: c.lastName, patronymic: null },
+          c.displayName.trim() || '—',
+        ),
         phone: c.phone ?? null,
         telegramId: c.bindings?.telegramId ?? null,
         maxId: c.bindings?.maxId ?? null,

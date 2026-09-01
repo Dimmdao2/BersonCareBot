@@ -7,7 +7,11 @@
 
 import type { ComponentProps } from 'react';
 import { cn } from '@/lib/utils';
-import { doctorMetaTextClass, doctorPrimaryListTextClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorMetaTextClass,
+  doctorPrimaryListTextClass,
+  doctorSecondaryListTextClass,
+} from '@/shared/ui/doctor/doctorVisual';
 
 /**
  * The divider lives here on the `<ul>`, not on the row itself: `doctorDnaFlatListRowClass`
@@ -46,6 +50,8 @@ export const doctorDnaFlatListClickableClass =
   'cursor-pointer no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset';
 
 export const doctorDnaFlatListPrimaryClass = doctorPrimaryListTextClass;
+
+export const doctorDnaFlatListSecondaryClass = doctorSecondaryListTextClass;
 
 /** Shared emphasis for unread rows and their metadata across doctor flat lists. */
 export const doctorDnaFlatListUnreadTextClass = '!font-semibold';
