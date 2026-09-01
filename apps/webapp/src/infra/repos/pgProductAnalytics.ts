@@ -43,6 +43,7 @@ import {
   getWebappSqlDb,
   runWebappNamedRoot,
   runWebappPgText,
+  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
@@ -239,18 +240,11 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
           }
           const occurredAt = event.occurredAt ?? new Date().toISOString();
           const result = await runWithWebappDbOperationFamily('patient_product_analytics', () =>
-            runWebappPgText<{ recorded: boolean }>(
-              `SELECT app.record_current_patient_analytics_event(
-                 $1::timestamptz, $2::text, $3::text, $4::text, $5::text, $6::jsonb
+            runWebappSql<{ recorded: boolean }>(
+              getWebappSqlDb(),
+              sql`SELECT app.record_current_patient_analytics_event(
+                 ${occurredAt}::timestamptz, ${event.eventType}::text, ${event.entryChannel}::text, ${event.pageKey ?? null}::text, ${event.clientSessionId ?? null}::text, ${JSON.stringify(event.metadata ?? {})}::jsonb
                ) AS recorded`,
-              [
-                occurredAt,
-                event.eventType,
-                event.entryChannel,
-                event.pageKey ?? null,
-                event.clientSessionId ?? null,
-                JSON.stringify(event.metadata ?? {}),
-              ],
             ),
           );
           if (result.rows[0]?.recorded !== true) {
@@ -306,14 +300,10 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
           throw new Error('patient_analytics_principal_mismatch');
         }
         const result = await runWithWebappDbOperationFamily('patient_product_analytics', () =>
-          runWebappPgText<{ recorded: boolean; deduped: boolean }>(
-            `SELECT recorded, deduped
-             FROM app.record_current_patient_push_open($1::timestamptz, $2::text, $3::uuid)`,
-            [
-              input.occurredAt ?? new Date().toISOString(),
-              input.entryChannel ?? 'pwa',
-              input.pushTrackingId,
-            ],
+          runWebappSql<{ recorded: boolean; deduped: boolean }>(
+            getWebappSqlDb(),
+            sql`SELECT recorded, deduped
+             FROM app.record_current_patient_push_open(${input.occurredAt ?? new Date().toISOString()}::timestamptz, ${input.entryChannel ?? 'pwa'}::text, ${input.pushTrackingId}::uuid)`,
           ),
         );
         const outcome = result.rows[0];
@@ -466,7 +456,15 @@ export function createPgProductAnalyticsPort(): ProductAnalyticsPort {
       }>(
         getWebappSqlDb(),
         'app.list_platform_registration_analytics_events(timestamp with time zone,timestamp with time zone,text,text,text,integer,integer)',
-        [params.startIso, params.endExclusiveIso, eventType, errorClass, authMethod, params.limit, offset],
+        [
+          params.startIso,
+          params.endExclusiveIso,
+          eventType,
+          errorClass,
+          authMethod,
+          params.limit,
+          offset,
+        ],
         sql`SELECT id::text AS id, occurred_at, event_type, entry_channel, metadata,
                    total_count::text AS total_count
             FROM app.list_platform_registration_analytics_events(

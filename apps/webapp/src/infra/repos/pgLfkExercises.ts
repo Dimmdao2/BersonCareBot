@@ -1,5 +1,7 @@
 import {
+  getWebappSqlDb,
   runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
@@ -125,18 +127,18 @@ export async function pgListExerciseUsageForMediaIds(
   if (unique.length === 0) return out;
 
   const urls = unique.map((id) => `/api/media/${id}`);
-  const res = await runWebappPgText<{ media_url: string; exercise_id: string; title: string }>(
-    `SELECT DISTINCT ON (m.media_url, e.id)
+  const res = await runWebappSql<{ media_url: string; exercise_id: string; title: string }>(
+    getWebappSqlDb(),
+    sql`SELECT DISTINCT ON (m.media_url, e.id)
         m.media_url,
         e.id::text AS exercise_id,
         e.title
      FROM lfk_exercise_media m
      INNER JOIN lfk_exercises e ON e.id = m.exercise_id AND e.is_archived = false AND e.catalog_scope = 'catalog'
-     WHERE m.media_url = ANY($1::text[])
-       AND m.organization_id = ${ORG_ID_EXPR}
-       AND e.organization_id = ${ORG_ID_EXPR}
+     WHERE m.media_url = ANY(${sql.param(urls)}::text[])
+       AND m.organization_id = ${sql.raw(ORG_ID_EXPR)}
+       AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}
      ORDER BY m.media_url, e.id, e.title ASC`,
-    [urls],
   );
 
   const MAX_PER_MEDIA = 40;
@@ -248,21 +250,19 @@ async function replaceLfkExerciseRegions(
   exerciseId: string,
   regionRefIds: readonly string[],
 ) {
-  await runWebappPgText(
-    `DELETE FROM lfk_exercise_regions
-      WHERE exercise_id = $1
-        AND organization_id = ${ORG_ID_EXPR}`,
-    [exerciseId],
+  await runWebappSql(
     tx,
+    sql`DELETE FROM lfk_exercise_regions
+      WHERE exercise_id = ${exerciseId}
+        AND organization_id = ${sql.raw(ORG_ID_EXPR)}`,
   );
   for (const rid of regionRefIds) {
     const t = rid.trim();
     if (!t) continue;
-    await runWebappPgText(
-      `INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
-       VALUES ('organization', ${ORG_ID_EXPR}, $1, $2::uuid)`,
-      [exerciseId, t],
+    await runWebappSql(
       tx,
+      sql`INSERT INTO lfk_exercise_regions (owner_kind, organization_id, exercise_id, region_ref_id)
+       VALUES ('organization', ${sql.raw(ORG_ID_EXPR)}, ${exerciseId}, ${t}::uuid)`,
     );
   }
 }
@@ -271,16 +271,16 @@ async function loadAllMediaForExercise(
   exerciseId: string,
   options: ExerciseAccessOptions = {},
 ): Promise<ExerciseMedia[]> {
-  const r = await runWebappPgText<MediaDbRow>(
-    `SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
+  const r = await runWebappSql<MediaDbRow>(
+    getWebappSqlDb(),
+    sql`SELECT em.id, em.owner_kind, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at
      FROM lfk_exercise_media em
-     WHERE em.exercise_id = $1
+     WHERE em.exercise_id = ${exerciseId}
        AND (
-         (em.owner_kind = 'organization' AND em.organization_id = ${ORG_ID_EXPR})
-         OR ($2::boolean AND em.owner_kind = 'platform' AND em.organization_id IS NULL)
+         (em.owner_kind = 'organization' AND em.organization_id = ${sql.raw(ORG_ID_EXPR)})
+         OR (${options.includePlatformBase === true}::boolean AND em.owner_kind = 'platform' AND em.organization_id IS NULL)
        )
      ORDER BY em.sort_order ASC, em.created_at ASC`,
-    [exerciseId, options.includePlatformBase === true],
   );
   return withMediaLadder(r.rows);
 }
@@ -712,16 +712,16 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       const out = new Map<string, string>();
       const unique = [...new Set(ids.map((x) => x.trim()).filter(Boolean))];
       if (unique.length === 0) return out;
-      const r = await runWebappPgText<{ id: string; title: string }>(
-        `SELECT id::text AS id, title
+      const r = await runWebappSql<{ id: string; title: string }>(
+        getWebappSqlDb(),
+        sql`SELECT id::text AS id, title
            FROM lfk_exercises
-          WHERE id = ANY($1::uuid[])
+          WHERE id = ANY(${sql.param(unique)}::uuid[])
             AND catalog_scope = 'catalog'
             AND (
-              (owner_kind = 'organization' AND organization_id = ${ORG_ID_EXPR})
-              OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+              (owner_kind = 'organization' AND organization_id = ${sql.raw(ORG_ID_EXPR)})
+              OR (${options.includePlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
             )`,
-        [unique, options.includePlatformBase === true],
       );
       for (const row of r.rows ?? []) {
         out.set(row.id, row.title);
@@ -731,8 +731,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
 
     async getById(id: string, options: ExerciseAccessOptions = {}): Promise<Exercise | null> {
       requireOrganizationPrincipal();
-      const r = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+      const r = await runWebappSql<ExerciseDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -742,13 +743,12 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                     AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
-         WHERE e.id = $1
+         WHERE e.id = ${id}
            AND e.catalog_scope = 'catalog'
            AND (
-             (e.owner_kind = 'organization' AND e.organization_id = ${ORG_ID_EXPR})
-             OR ($2::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
+             (e.owner_kind = 'organization' AND e.organization_id = ${sql.raw(ORG_ID_EXPR)})
+             OR (${options.includePlatformBase === true}::boolean AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
            )`,
-        [id, options.includePlatformBase === true],
       );
       if (!r.rows[0]) return null;
       const media = await loadAllMediaForExercise(id, options);
@@ -879,8 +879,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
       if (!touched) return null;
 
       const media = await loadAllMediaForExercise(id);
-      const rowR = await runWebappPgText<ExerciseDbRow>(
-        `SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
+      const rowR = await runWebappSql<ExerciseDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                 e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                 COALESCE((
                   SELECT array_agg(x.region_ref_id ORDER BY x.region_ref_id)
@@ -890,10 +891,9 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
                     AND x.organization_id IS NOT DISTINCT FROM e.organization_id
                 ), ARRAY[]::uuid[]) AS region_m2m_ids
          FROM lfk_exercises e
-         WHERE e.id = $1
+         WHERE e.id = ${id}
            AND e.catalog_scope = 'catalog'
-           AND e.organization_id = ${ORG_ID_EXPR}`,
-        [id],
+           AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
       );
       return mapExerciseRow(rowR.rows[0]!, media);
     },
@@ -901,14 +901,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async archive(id: string): Promise<boolean> {
       requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
-        runWebappPgText(
-          `UPDATE lfk_exercises SET is_archived = true, updated_at = now()
-            WHERE id = $1
-              AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}
-              AND is_archived = false`,
-          [id],
+        runWebappSql(
           tx,
+          sql`UPDATE lfk_exercises SET is_archived = true, updated_at = now()
+            WHERE id = ${id}
+              AND catalog_scope = 'catalog'
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND is_archived = false`,
         ),
       );
       return (r.rowCount ?? 0) > 0;
@@ -917,14 +916,13 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
     async unarchive(id: string): Promise<boolean> {
       requireOrganizationPrincipal();
       const r = await runWebappTransaction((tx) =>
-        runWebappPgText(
-          `UPDATE lfk_exercises SET is_archived = false, updated_at = now()
-            WHERE id = $1
-              AND catalog_scope = 'catalog'
-              AND organization_id = ${ORG_ID_EXPR}
-              AND is_archived = true`,
-          [id],
+        runWebappSql(
           tx,
+          sql`UPDATE lfk_exercises SET is_archived = false, updated_at = now()
+            WHERE id = ${id}
+              AND catalog_scope = 'catalog'
+              AND organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND is_archived = true`,
         ),
       );
       return (r.rowCount ?? 0) > 0;

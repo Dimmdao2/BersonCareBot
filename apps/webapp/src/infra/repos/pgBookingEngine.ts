@@ -9,7 +9,7 @@ import { getDrizzleOrMutationTx as getDrizzle } from '@/infra/db/drizzleMutation
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
 import { getConfigValue } from '@/modules/system-settings/configAdapter';
@@ -231,9 +231,7 @@ function mapCurrentPatientAppointment(row: CurrentPatientAppointmentRow): BeAppo
     appointmentReminderAllowedPresetIds: reminderSettings.allowedPresetIds,
     appointmentReminderPresetId: reminderSettings.defaultPresetId,
     appointmentReminderSelectionSource:
-      row.appointment_reminder_selection_source === 'patient'
-        ? 'patient'
-        : 'specialist_default',
+      row.appointment_reminder_selection_source === 'patient' ? 'patient' : 'specialist_default',
   };
 }
 
@@ -312,9 +310,7 @@ async function readPublicBookingCatalog(
  * восстанавливаются здесь как факт двери, а не как догадка: услуга, у которой они иные, из двери
  * не выходит вовсе.
  */
-function mapPublicBookingService(
-  row: z.infer<typeof publicBookingServiceSchema>,
-): BeClinicService {
+function mapPublicBookingService(row: z.infer<typeof publicBookingServiceSchema>): BeClinicService {
   return {
     id: row.id,
     organizationId: row.organizationId,
@@ -803,19 +799,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
               { organizationId: existing.organizationId, mechanic: 'branches' },
               (quota) =>
                 quota.assertStockAvailable(async () => {
-                  const usage = await runWebappPgText<{ used_value: number }>(
-                    `SELECT count(*)::int AS used_value
-                     FROM be_branches
-                     WHERE organization_id = $1
-                       AND is_active = true
-                       AND lower(city_code) <> $2
-                       AND lower(title) <> $3`,
-                    [
-                      existing.organizationId,
-                      ONLINE_LOCATION_CITY_CODE,
-                      ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru'),
-                    ],
+                  const usage = await runWebappSql<{ used_value: number }>(
                     tx,
+                    sql`SELECT count(*)::int AS used_value
+                     FROM be_branches
+                     WHERE organization_id = ${existing.organizationId}
+                       AND is_active = true
+                       AND lower(city_code) <> ${ONLINE_LOCATION_CITY_CODE}
+                       AND lower(title) <> ${ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru')}`,
                   );
                   return usage.rows[0]?.used_value ?? 0;
                 }),
@@ -875,19 +866,14 @@ export function createPgBookingEnginePort(): BookingEngineCorePort {
           { organizationId: input.organizationId, mechanic: 'branches' },
           (quota) =>
             quota.assertStockAvailable(async () => {
-              const usage = await runWebappPgText<{ used_value: number }>(
-                `SELECT count(*)::int AS used_value
-                 FROM be_branches
-                 WHERE organization_id = $1
-                   AND is_active = true
-                   AND lower(city_code) <> $2
-                   AND lower(title) <> $3`,
-                [
-                  input.organizationId,
-                  ONLINE_LOCATION_CITY_CODE,
-                  ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru'),
-                ],
+              const usage = await runWebappSql<{ used_value: number }>(
                 tx,
+                sql`SELECT count(*)::int AS used_value
+                 FROM be_branches
+                 WHERE organization_id = ${input.organizationId}
+                   AND is_active = true
+                   AND lower(city_code) <> ${ONLINE_LOCATION_CITY_CODE}
+                   AND lower(title) <> ${ONLINE_LOCATION_TITLE.toLocaleLowerCase('ru')}`,
               );
               return usage.rows[0]?.used_value ?? 0;
             }),

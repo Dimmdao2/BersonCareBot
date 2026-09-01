@@ -1,7 +1,8 @@
+import { sql } from 'drizzle-orm';
 /**
  * Wave 3 phase 14D — domain SQL via `runWebappPgText` (Class B dynamic filters in `buildWhere`).
  */
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappPgText, runWebappSql } from '@/infra/db/runWebappSql';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type {
   MessageLogEntry,
@@ -83,7 +84,7 @@ type MessageLogRow = {
 export function createPgMessageLogPort(): MessageLogPort {
   return {
     async append(entry): Promise<MessageLogEntry> {
-      const r = await runWebappPgText<{
+      const r = await runWebappSql<{
         id: string;
         user_id: string;
         platform_user_id: string | null;
@@ -95,20 +96,12 @@ export function createPgMessageLogPort(): MessageLogPort {
         outcome: MessageLogEntry['outcome'];
         error_message: string | null;
       }>(
-        `INSERT INTO message_log (
+        getWebappSqlDb(),
+        sql`INSERT INTO message_log (
            user_id, platform_user_id, sender_id, text, category, channel_bindings_used, outcome, error_message
          )
-         VALUES ($1::text, $1::uuid, $2, $3, $4, $5, $6, $7)
+         VALUES (${entry.userId}::text, ${entry.userId}::uuid, ${entry.senderId}, ${entry.text}, ${entry.category}, ${JSON.stringify(entry.channelBindingsUsed ?? {})}, ${entry.outcome}, ${entry.errorMessage ?? null})
          RETURNING id, user_id, platform_user_id, sender_id, text, category, channel_bindings_used, sent_at, outcome, error_message`,
-        [
-          entry.userId,
-          entry.senderId,
-          entry.text,
-          entry.category,
-          JSON.stringify(entry.channelBindingsUsed ?? {}),
-          entry.outcome,
-          entry.errorMessage ?? null,
-        ],
       );
       const row = r.rows[0]!;
       return {

@@ -5,7 +5,7 @@ import {
   getDrizzleOrMutationTx,
   runDrizzleMutationTransaction,
 } from '@/infra/db/drizzleMutationTx';
-import { getWebappSqlDb, runWebappNamedRoot, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import {
   bePaymentHistoryEvents,
   bePaymentIntents,
@@ -310,13 +310,13 @@ export function createPgPaymentsPort(): PaymentsPort {
     },
 
     async resolveProviderWebhookOrganization(providerId, idempotencyKey, eventType) {
-      const result = await runWebappPgText<{ organization_id: string | null }>(
-        `SELECT app.resolve_payment_webhook_organization(
-           $1::text,
-           $2::text,
-           $3::text
+      const result = await runWebappSql<{ organization_id: string | null }>(
+        getWebappSqlDb(),
+        sql`SELECT app.resolve_payment_webhook_organization(
+           ${providerId}::text,
+           ${idempotencyKey}::text,
+           ${eventType}::text
          )::text AS organization_id`,
-        [providerId, idempotencyKey, eventType],
       );
       return result.rows[0]?.organization_id ?? null;
     },

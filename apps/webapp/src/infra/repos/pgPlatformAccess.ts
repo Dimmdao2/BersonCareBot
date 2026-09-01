@@ -1,11 +1,9 @@
+import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { resolveCanonicalUserId } from '@/infra/repos/pgCanonicalPlatformUser';
-import {
-  CONTACTS,
-  USER_CONTACTS_PRIMARY_LATERALS,
-} from '@/infra/repos/userContactsSql';
-import { getWebappSqlDb, runWebappPgText } from '@/infra/db/runWebappSql';
+import { CONTACTS, USER_CONTACTS_PRIMARY_LATERALS } from '@/infra/repos/userContactsSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import type { PlatformAccessCanonRow, PlatformAccessPort } from '@/modules/platform-access/ports';
 
 function credentialPresenceSql(): string {
@@ -26,16 +24,16 @@ export const pgPlatformAccessPort: PlatformAccessPort = {
   resolveCanonicalUserId: async (userId) => resolveCanonicalUserId(getWebappSqlDb(), userId),
   async loadCanonRow(canonicalUserId) {
     const credentialsSql = credentialPresenceSql();
-    const r = await runWebappPgText<PlatformAccessCanonRow>(
-      `SELECT pu.role,
-              ${CONTACTS.phoneNormalized} AS phone_normalized,
-              ${CONTACTS.phoneConfirmedAt} AS patient_phone_trust_at,
-              ${CONTACTS.emailVerifiedAt} AS email_verified_at,
-              ${credentialsSql}
+    const r = await runWebappSql<PlatformAccessCanonRow>(
+      getWebappSqlDb(),
+      sql`SELECT pu.role,
+              ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
+              ${sql.raw(CONTACTS.phoneConfirmedAt)} AS patient_phone_trust_at,
+              ${sql.raw(CONTACTS.emailVerifiedAt)} AS email_verified_at,
+              ${sql.raw(credentialsSql)}
        FROM platform_users pu
-       ${USER_CONTACTS_PRIMARY_LATERALS}
-       WHERE pu.id = $1::uuid`,
-      [canonicalUserId],
+       ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
+       WHERE pu.id = ${canonicalUserId}::uuid`,
     );
     return r.rows[0] ?? null;
   },

@@ -56,20 +56,37 @@ import {
   sessionIdentityContactsFromRows,
 } from '@/infra/repos/identityPhoneRowSchemas';
 import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
-import { getWebappSqlDb, getWebappSqlFromPgClient, runWebappNamedRoot } from '@/infra/db/runWebappSql';
+import {
+  getWebappSqlDb,
+  getWebappSqlFromPgClient,
+  runWebappNamedRoot,
+} from '@/infra/db/runWebappSql';
 import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
-import { drizzlePrimaryPhoneCol, drizzlePrimaryPhoneConfirmedAtCol } from '@/infra/repos/userContactsSql';
+import {
+  drizzlePrimaryPhoneCol,
+  drizzlePrimaryPhoneConfirmedAtCol,
+} from '@/infra/repos/userContactsSql';
 import {
   FIO,
   syncUserIdentityFioMirrorWebapp,
   USER_IDENTITY_FIO_JOIN,
 } from '@/infra/repos/userIdentityFioSql';
 
-async function markPatientPhoneTrusted(client: PoolClient, userId: string, phoneNormalized: string): Promise<void> {
-  await mutateCanonicalUserContactsWebapp(client, userId, [{
-    action: 'upsert', kind: 'phone', valueNormalized: phoneNormalized, isPrimary: true,
-    confirmedAt: new Date().toISOString(), sourceOrigin: 'direct',
-  }]);
+async function markPatientPhoneTrusted(
+  client: PoolClient,
+  userId: string,
+  phoneNormalized: string,
+): Promise<void> {
+  await mutateCanonicalUserContactsWebapp(client, userId, [
+    {
+      action: 'upsert',
+      kind: 'phone',
+      valueNormalized: phoneNormalized,
+      isPrimary: true,
+      confirmedAt: new Date().toISOString(),
+      sourceOrigin: 'direct',
+    },
+  ]);
 }
 
 async function loadPuRowForMerge(client: PoolClient, id: string) {
@@ -473,11 +490,16 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [displayName, userId],
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await mutateCanonicalUserContactsWebapp(client, userId, [{
-            action: 'upsert', kind: 'phone', valueNormalized: normalized, isPrimary: true,
-            confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
-            sourceOrigin: 'direct',
-          }]);
+          await mutateCanonicalUserContactsWebapp(client, userId, [
+            {
+              action: 'upsert',
+              kind: 'phone',
+              valueNormalized: normalized,
+              isPrimary: true,
+              confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
+              sourceOrigin: 'direct',
+            },
+          ]);
           if (options?.phoneNumberProven === true) {
             trustedPatientPhoneWriteAnchor(TrustedPatientPhoneSource.OtpCreateOrBind);
             await markPatientPhoneTrusted(client, userId, normalized);
@@ -498,7 +520,8 @@ export const pgUserByPhonePort: UserByPhonePort = {
         let wasCreated = false;
         const requestedProfileId = options?.profileBindUserId?.trim() || null;
         const canonicalProfileId = requestedProfileId
-          ? ((await resolveCanonicalUserId(getWebappSqlFromPgClient(client), requestedProfileId)) ?? requestedProfileId)
+          ? ((await resolveCanonicalUserId(getWebappSqlFromPgClient(client), requestedProfileId)) ??
+            requestedProfileId)
           : null;
 
         if (canonicalProfileId) {
@@ -531,7 +554,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
               phoneRow.rows[0],
               'profile_phone_owner',
             );
-            const canonicalOwnerId = (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), owner.id)) ?? owner.id;
+            const canonicalOwnerId =
+              (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), owner.id)) ??
+              owner.id;
             if (canonicalOwnerId !== canonicalProfileId) {
               await mergePlatformUsersInTransaction(
                 client,
@@ -568,11 +593,16 @@ export const pgUserByPhonePort: UserByPhonePort = {
             [displayName, userId],
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await mutateCanonicalUserContactsWebapp(client, userId, [{
-            action: 'upsert', kind: 'phone', valueNormalized: normalized, isPrimary: true,
-            confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
-            sourceOrigin: 'direct',
-          }]);
+          await mutateCanonicalUserContactsWebapp(client, userId, [
+            {
+              action: 'upsert',
+              kind: 'phone',
+              valueNormalized: normalized,
+              isPrimary: true,
+              confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
+              sourceOrigin: 'direct',
+            },
+          ]);
         } else {
           wasCreated = true;
           const insert = await runIdentityClientPgText(
@@ -594,11 +624,16 @@ export const pgUserByPhonePort: UserByPhonePort = {
             confirmingChannel: options?.confirmingChannel,
           });
           await syncUserIdentityFioMirrorWebapp(client, userId);
-          await mutateCanonicalUserContactsWebapp(client, userId, [{
-            action: 'upsert', kind: 'phone', valueNormalized: normalized, isPrimary: true,
-            confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
-            sourceOrigin: 'direct',
-          }]);
+          await mutateCanonicalUserContactsWebapp(client, userId, [
+            {
+              action: 'upsert',
+              kind: 'phone',
+              valueNormalized: normalized,
+              isPrimary: true,
+              confirmedAt: options?.phoneNumberProven === true ? new Date().toISOString() : null,
+              sourceOrigin: 'direct',
+            },
+          ]);
         }
 
         if (key) {
@@ -613,7 +648,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
           );
           const bindOutcome = insB.rows[0];
           if (bindOutcome?.inserted === true && bindOutcome.user_id) {
-            await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), userId, channelCode);
+            await upsertBroadcastDefaultsAfterChannelBind(
+              getWebappSqlFromPgClient(client),
+              userId,
+              channelCode,
+            );
           } else {
             const other = bindOutcome?.user_id ?? null;
             if (!other) {

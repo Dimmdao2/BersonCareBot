@@ -1,6 +1,7 @@
+import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { getSaasIsolationOperatorPool } from '@/infra/db/saasIsolationTelemetry';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import type { TenantIsolationCanarySnapshot } from '@/modules/operator-health/ports';
 
 const nonNegativeNumber = z.number().finite().nonnegative();
@@ -287,12 +288,12 @@ const tenantIsolationCanarySnapshotSchema = z
 
 /** Uses the already-protected diagnostics credential; never the principal-aware app pool. */
 export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHealthSnapshot> {
-  const result = await runPgPoolPgText<{
+  const result = await runPgPoolSql<{
     snapshot: unknown;
     outbound_provider_incidents: unknown;
   }>(
     getSaasIsolationOperatorPool(),
-    'SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents',
+    sql`SELECT app.read_curated_system_health() AS snapshot, app.read_outbound_provider_incident_health() AS outbound_provider_incidents`,
   );
   const row = result.rows[0];
   if (!row) throw new Error('curated_system_health_snapshot_missing');
@@ -305,9 +306,9 @@ export async function loadCuratedSystemHealthSnapshot(): Promise<CuratedSystemHe
 
 /** Bounded cross-tenant canary through the same protected diagnostics capability. */
 export async function loadTenantIsolationCanarySnapshot(): Promise<TenantIsolationCanarySnapshot> {
-  const result = await runPgPoolPgText<{ snapshot: unknown }>(
+  const result = await runPgPoolSql<{ snapshot: unknown }>(
     getSaasIsolationOperatorPool(),
-    'SELECT app.read_tenant_isolation_canary() AS snapshot',
+    sql`SELECT app.read_tenant_isolation_canary() AS snapshot`,
   );
   const row = result.rows[0];
   if (!row) throw new Error('tenant_isolation_canary_snapshot_missing');
@@ -316,9 +317,9 @@ export async function loadTenantIsolationCanarySnapshot(): Promise<TenantIsolati
 
 /** Uses a redacted SECURITY DEFINER aggregate; the operator role has no source-table access. */
 export async function loadCuratedPlaybackHealthSnapshot(): Promise<CuratedPlaybackHealthSnapshot> {
-  const result = await runPgPoolPgText<{ snapshot: unknown }>(
+  const result = await runPgPoolSql<{ snapshot: unknown }>(
     getSaasIsolationOperatorPool(),
-    'SELECT app.read_curated_playback_health() AS snapshot',
+    sql`SELECT app.read_curated_playback_health() AS snapshot`,
   );
   const row = result.rows[0];
   if (!row) throw new Error('curated_playback_health_snapshot_missing');

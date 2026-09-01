@@ -1,7 +1,8 @@
+import { sql } from 'drizzle-orm';
 /** Wave 3 phase 15C — TX-scoped SQL via `runWebappPgText` on caller `PoolClient`. */
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
-import { getWebappSqlFromPgClient, runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';
 import { mutateCanonicalUserContactsWebapp } from '@/infra/repos/userContactsSql';
 
 /** F6 case 4 (§2a, migration 0342): 'oauth' — phone added as a confirmed contact by an OAuth
@@ -27,34 +28,43 @@ export async function applyPlatformUserPhoneHistoryTransition(
   const db = getWebappSqlFromPgClient(client as PoolClient);
   const principalMode = process.env.DB_PRINCIPAL_CONTEXT_MODE;
   if (principalMode === 'locked' || principalMode === 'port-context') {
-    await runWebappPgText(
-      'SELECT app.close_active_user_phone_history($1::uuid)',
-      [opts.platformUserId],
+    await runWebappSql(
       db,
+      sql`SELECT app.close_active_user_phone_history(${opts.platformUserId}::uuid)`,
     );
   } else {
-    await runWebappPgText(
-      `UPDATE user_phone_history SET valid_to = now()
-       WHERE platform_user_id = $1::uuid AND valid_to IS NULL`,
-      [opts.platformUserId],
+    await runWebappSql(
       db,
+      sql`UPDATE user_phone_history SET valid_to = now()
+       WHERE platform_user_id = ${opts.platformUserId}::uuid AND valid_to IS NULL`,
     );
   }
 
   const p = opts.newPhoneNormalized?.trim();
   if (p) {
     const organizationId = getCurrentDbPrincipalOrganizationId() ?? null;
-    await runWebappPgText(
-      `INSERT INTO user_phone_history (
+    await runWebappSql(
+      db,
+      sql`INSERT INTO user_phone_history (
          platform_user_id, phone_normalized, valid_from, valid_to, source, organization_id, confirming_channel
        )
-       VALUES ($1::uuid, $2::text, now(), NULL, $3::text, $4::uuid, $5::text)`,
-      [opts.platformUserId, p, opts.source, organizationId, opts.confirmingChannel ?? null],
-      db,
+       VALUES (${opts.platformUserId}::uuid, ${p}::text, now(), NULL, ${opts.source}::text, ${sql.param(organizationId)}::uuid, ${opts.confirmingChannel ?? null}::text)`,
     );
   }
-  await mutateCanonicalUserContactsWebapp(db, opts.platformUserId, p
-    ? [{ action: 'upsert', kind: 'phone', valueNormalized: p, isPrimary: true,
-        confirmedAt: new Date().toISOString(), sourceOrigin: 'direct' }]
-    : [{ action: 'remove', kind: 'phone' }]);
+  await mutateCanonicalUserContactsWebapp(
+    db,
+    opts.platformUserId,
+    p
+      ? [
+          {
+            action: 'upsert',
+            kind: 'phone',
+            valueNormalized: p,
+            isPrimary: true,
+            confirmedAt: new Date().toISOString(),
+            sourceOrigin: 'direct',
+          },
+        ]
+      : [{ action: 'remove', kind: 'phone' }],
+  );
 }

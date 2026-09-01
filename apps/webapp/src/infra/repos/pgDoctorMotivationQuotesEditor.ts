@@ -1,9 +1,9 @@
-import { asc } from 'drizzle-orm';
+import { asc, sql } from 'drizzle-orm';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { getPool } from '@/infra/db/client';
 import {
   getWebappSqlFromPgClient,
-  runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
@@ -33,43 +33,38 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
       await runWebappTransaction(async (tx) => {
         if (params.id) {
           const sortOrder = params.sortOrder ?? 0;
-          await runWebappPgText(
-            `UPDATE motivational_quotes SET body_text = $2, author = $3, is_active = $4, sort_order = $5 WHERE id = $1::uuid`,
-            [params.id, params.bodyText, params.author, params.isActive, sortOrder],
+          await runWebappSql(
             tx,
+            sql`UPDATE motivational_quotes SET body_text = ${params.bodyText}, author = ${params.author}, is_active = ${params.isActive}, sort_order = ${sortOrder} WHERE id = ${params.id}::uuid`,
           );
           return;
         }
-        const nextOrder = await runWebappPgText<{ n: string }>(
-          `SELECT (COALESCE(MAX(sort_order), -1) + 1)::text AS n FROM motivational_quotes`,
-          [],
+        const nextOrder = await runWebappSql<{ n: string }>(
           tx,
+          sql`SELECT (COALESCE(MAX(sort_order), -1) + 1)::text AS n FROM motivational_quotes`,
         );
         const insertOrder = Number(nextOrder.rows[0]?.n ?? '0');
-        await runWebappPgText(
-          `INSERT INTO motivational_quotes (body_text, author, is_active, sort_order) VALUES ($1, $2, $3, $4)`,
-          [params.bodyText, params.author, params.isActive, insertOrder],
+        await runWebappSql(
           tx,
+          sql`INSERT INTO motivational_quotes (body_text, author, is_active, sort_order) VALUES (${params.bodyText}, ${params.author}, ${params.isActive}, ${insertOrder})`,
         );
       });
     },
 
     async setQuoteArchived(id, archived) {
       await runWebappTransaction((tx) =>
-        runWebappPgText(
-          `UPDATE motivational_quotes SET archived_at = $2::timestamptz WHERE id = $1::uuid`,
-          [id, archived ? new Date() : null],
+        runWebappSql(
           tx,
+          sql`UPDATE motivational_quotes SET archived_at = ${archived ? new Date() : null}::timestamptz WHERE id = ${id}::uuid`,
         ),
       );
     },
 
     async setQuoteActive(id, nextActive) {
       await runWebappTransaction((tx) =>
-        runWebappPgText(
-          `UPDATE motivational_quotes SET is_active = $2 WHERE id = $1::uuid`,
-          [id, nextActive],
+        runWebappSql(
           tx,
+          sql`UPDATE motivational_quotes SET is_active = ${nextActive} WHERE id = ${id}::uuid`,
         ),
       );
     },
@@ -77,10 +72,9 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
     async reorderQuotes(orderedIds) {
       const pool = getPool();
       await withPoolTransaction(pool, async (client) => {
-        const check = await runWebappPgText<{ id: string }>(
-          `SELECT id::text AS id FROM motivational_quotes`,
-          [],
+        const check = await runWebappSql<{ id: string }>(
           getWebappSqlFromPgClient(client),
+          sql`SELECT id::text AS id FROM motivational_quotes`,
         );
         const inDb = new Set(check.rows.map((r) => r.id));
         if (inDb.size !== orderedIds.length) throw new Error('mismatch');
@@ -88,10 +82,9 @@ export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuot
           if (!inDb.has(id)) throw new Error('unknown');
         }
         for (let i = 0; i < orderedIds.length; i++) {
-          await runWebappPgText(
-            `UPDATE motivational_quotes SET sort_order = $1 WHERE id = $2::uuid`,
-            [i, orderedIds[i]],
+          await runWebappSql(
             getWebappSqlFromPgClient(client),
+            sql`UPDATE motivational_quotes SET sort_order = ${i} WHERE id = ${orderedIds[i]}::uuid`,
           );
         }
       });

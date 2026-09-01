@@ -1,5 +1,8 @@
+import { sql } from 'drizzle-orm';
 import {
+  getWebappSqlDb,
   runWebappPgText,
+  runWebappSql,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
 } from '@/infra/db/runWebappSql';
@@ -607,19 +610,20 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
 
     async getById(id: string, options: TemplateAccessOptions = {}): Promise<Template | null> {
       requireOrganizationPrincipal();
-      const tr = await runWebappPgText<TemplateHeaderDbRow>(
-        `SELECT id, owner_kind, title, description, status, created_by, created_at, updated_at
+      const tr = await runWebappSql<TemplateHeaderDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT id, owner_kind, title, description, status, created_by, created_at, updated_at
          FROM lfk_complex_templates
-         WHERE id = $1
+         WHERE id = ${id}
            AND (
-             (owner_kind = 'organization' AND organization_id = ${ORG_ID_EXPR})
-             OR ($2::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
+             (owner_kind = 'organization' AND organization_id = ${sql.raw(ORG_ID_EXPR)})
+             OR (${options.includePlatformBase === true}::boolean AND owner_kind = 'platform' AND organization_id IS NULL)
            )`,
-        [id, options.includePlatformBase === true],
       );
       if (!tr.rows[0]) return null;
-      const er = await runWebappPgText<TemplateExerciseDbRow>(
-        `SELECT te.id, te.template_id, te.exercise_id, te.sort_order, te.reps, te.sets, te.side,
+      const er = await runWebappSql<TemplateExerciseDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT te.id, te.template_id, te.exercise_id, te.sort_order, te.reps, te.sets, te.side,
                 te.max_pain_0_10, te.comment, e.title AS exercise_title
          FROM lfk_complex_template_exercises te
          JOIN lfk_exercises e
@@ -629,15 +633,10 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
             (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
             OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
           )
-         WHERE te.template_id = $1
-           AND te.owner_kind = $2
-           AND te.organization_id IS NOT DISTINCT FROM $3::uuid
+         WHERE te.template_id = ${id}
+           AND te.owner_kind = ${tr.rows[0].owner_kind}
+           AND te.organization_id IS NOT DISTINCT FROM ${sql.param(tr.rows[0].owner_kind === 'platform' ? null : getCurrentDbPrincipalOrganizationId())}::uuid
          ORDER BY te.sort_order ASC, te.id ASC`,
-        [
-          id,
-          tr.rows[0].owner_kind,
-          tr.rows[0].owner_kind === 'platform' ? null : getCurrentDbPrincipalOrganizationId(),
-        ],
       );
       const exercises = er.rows.map(mapTeRow);
       return mapTemplateRow(tr.rows[0], exercises);

@@ -9,6 +9,7 @@ import {
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
   runWebappPgText,
+  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
 import type { BroadcastNotificationPrefsFlags } from '@/modules/doctor-broadcasts/ports';
@@ -106,23 +107,17 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
       return rowToPreference(row);
     }
     const now = new Date();
-    await runWebappPgText(
-      `INSERT INTO user_channel_preferences (
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`INSERT INTO user_channel_preferences (
          user_id, platform_user_id, channel_code, is_enabled_for_messages, is_enabled_for_notifications, updated_at
        )
-       VALUES ($1::text, $1::uuid, $2, $3, $4, $5)
+       VALUES (${params.userId}::text, ${params.userId}::uuid, ${params.channelCode}, ${params.isEnabledForMessages}, ${params.isEnabledForNotifications}, ${now})
        ON CONFLICT (user_id, channel_code) DO UPDATE SET
          platform_user_id = COALESCE(user_channel_preferences.platform_user_id, EXCLUDED.platform_user_id),
          is_enabled_for_messages = EXCLUDED.is_enabled_for_messages,
          is_enabled_for_notifications = EXCLUDED.is_enabled_for_notifications,
          updated_at = EXCLUDED.updated_at`,
-      [
-        params.userId,
-        params.channelCode,
-        params.isEnabledForMessages,
-        params.isEnabledForNotifications,
-        now,
-      ],
     );
     const result = await runWebappPgText<{
       channel_code: string;
@@ -146,16 +141,16 @@ export const pgChannelPreferencesPort: ChannelPreferencesPort = {
     }
     if (platformUserIds.length === 0) return out;
 
-    const result = await runWebappPgText<{
+    const result = await runWebappSql<{
       platform_user_id: string;
       channel_code: string;
       is_enabled_for_notifications: boolean;
     }>(
-      `SELECT platform_user_id, channel_code, is_enabled_for_notifications
+      getWebappSqlDb(),
+      sql`SELECT platform_user_id, channel_code, is_enabled_for_notifications
        FROM user_channel_preferences
-       WHERE platform_user_id = ANY($1::uuid[])
+       WHERE platform_user_id = ANY(${sql.param(platformUserIds)}::uuid[])
          AND channel_code = ANY(ARRAY['telegram'::text, 'max'::text, 'sms'::text])`,
-      [platformUserIds],
     );
     for (const row of result.rows) {
       const cur = out.get(row.platform_user_id);

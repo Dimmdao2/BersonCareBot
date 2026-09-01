@@ -1,9 +1,10 @@
+import { sql } from 'drizzle-orm';
 import type { Pool, PoolClient } from 'pg';
 
 import { classifyMergeFailure, mergePlatformUsersInTransaction } from '@bersoncare/platform-merge';
 import {
   getWebappSqlFromPgClient,
-  runWebappPgText,
+  runWebappSql,
   type WebappSqlExecutor,
 } from '@/infra/db/runWebappSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
@@ -34,17 +35,16 @@ export async function classifyChannelBindingOwnerForLink(
   db: WebappSqlExecutor,
   stubUserId: string,
 ): Promise<ChannelBindingOwnerClass> {
-  const pu = await runWebappPgText<{
+  const pu = await runWebappSql<{
     merged_into_id: string | null;
     phone_normalized: string | null;
     role: string | null;
   }>(
-    `SELECT merged_into_id::text AS merged_into_id, ${CONTACTS.phoneNormalized} AS phone_normalized, role::text AS role
-     FROM platform_users pu
-     ${USER_CONTACTS_PRIMARY_PHONE_LATERAL}
-     WHERE pu.id = $1::uuid`,
-    [stubUserId],
     db,
+    sql`SELECT merged_into_id::text AS merged_into_id, ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized, role::text AS role
+     FROM platform_users pu
+     ${sql.raw(USER_CONTACTS_PRIMARY_PHONE_LATERAL)}
+     WHERE pu.id = ${stubUserId}::uuid`,
   );
   const row = pu.rows[0];
   if (!row) return { kind: 'real', reason: 'stub_user_missing' };
@@ -54,10 +54,9 @@ export async function classifyChannelBindingOwnerForLink(
   const phone = row.phone_normalized?.trim() ?? '';
   if (phone.length > 0) return { kind: 'real', reason: 'stub_has_phone' };
 
-  const bindCount = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c FROM user_channel_bindings WHERE user_id = $1::uuid`,
-    [stubUserId],
+  const bindCount = await runWebappSql<{ c: string }>(
     db,
+    sql`SELECT count(*)::text AS c FROM user_channel_bindings WHERE user_id = ${stubUserId}::uuid`,
   );
   const nBindings = Number.parseInt(bindCount.rows[0]?.c ?? '0', 10);
   if (!Number.isFinite(nBindings) || nBindings !== 1) {
@@ -67,57 +66,51 @@ export async function classifyChannelBindingOwnerForLink(
     };
   }
 
-  const oauth = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c
-     FROM app.auth_oauth_list_user_providers($1::uuid)`,
-    [stubUserId],
+  const oauth = await runWebappSql<{ c: string }>(
     db,
+    sql`SELECT count(*)::text AS c
+     FROM app.auth_oauth_list_user_providers(${stubUserId}::uuid)`,
   );
   const nOauth = Number.parseInt(oauth.rows[0]?.c ?? '0', 10);
   if (Number.isFinite(nOauth) && nOauth > 0) return { kind: 'real', reason: 'stub_has_oauth' };
 
-  const meaningfulSymptoms = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c
+  const meaningfulSymptoms = await runWebappSql<{ c: string }>(
+    db,
+    sql`SELECT count(*)::text AS c
      FROM symptom_trackings st
-     WHERE (st.platform_user_id = $1::uuid OR st.user_id = $2::text)
+     WHERE (st.platform_user_id = ${stubUserId}::uuid OR st.user_id = ${stubUserId}::text)
        AND st.deleted_at IS NULL
        AND (st.symptom_key IS NULL OR st.symptom_key NOT IN ('general_wellbeing', 'warmup_feeling'))`,
-    [stubUserId, stubUserId],
-    db,
   );
   const nSym = Number.parseInt(meaningfulSymptoms.rows[0]?.c ?? '0', 10);
   if (Number.isFinite(nSym) && nSym > 0)
     return { kind: 'real', reason: 'stub_has_non_system_symptom_trackings' };
 
-  const bookings = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
-    [stubUserId],
+  const bookings = await runWebappSql<{ c: string }>(
     db,
+    sql`SELECT count(*)::text AS c FROM patient_bookings WHERE platform_user_id = ${stubUserId}::uuid`,
   );
   if (Number.parseInt(bookings.rows[0]?.c ?? '0', 10) > 0)
     return { kind: 'real', reason: 'stub_has_bookings' };
 
-  const notes = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c FROM doctor_notes WHERE user_id = $1::uuid`,
-    [stubUserId],
+  const notes = await runWebappSql<{ c: string }>(
     db,
+    sql`SELECT count(*)::text AS c FROM doctor_notes WHERE user_id = ${stubUserId}::uuid`,
   );
   if (Number.parseInt(notes.rows[0]?.c ?? '0', 10) > 0)
     return { kind: 'real', reason: 'stub_has_doctor_notes' };
 
-  const intake = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c FROM online_intake_requests WHERE user_id = $1::uuid`,
-    [stubUserId],
+  const intake = await runWebappSql<{ c: string }>(
     db,
+    sql`SELECT count(*)::text AS c FROM online_intake_requests WHERE user_id = ${stubUserId}::uuid`,
   );
   if (Number.parseInt(intake.rows[0]?.c ?? '0', 10) > 0)
     return { kind: 'real', reason: 'stub_has_online_intake' };
 
-  const lfk = await runWebappPgText<{ c: string }>(
-    `SELECT count(*)::text AS c
-     FROM patient_lfk_assignments WHERE patient_user_id = $1::uuid AND is_active = true`,
-    [stubUserId],
+  const lfk = await runWebappSql<{ c: string }>(
     db,
+    sql`SELECT count(*)::text AS c
+     FROM patient_lfk_assignments WHERE patient_user_id = ${stubUserId}::uuid AND is_active = true`,
   );
   if (Number.parseInt(lfk.rows[0]?.c ?? '0', 10) > 0)
     return { kind: 'real', reason: 'stub_has_active_lfk_assignments' };
@@ -139,8 +132,7 @@ export type ClaimMessengerChannelBindingResult =
   | { ok: false; code: 'failed'; err: unknown };
 
 export type ChannelLinkOwnersMergeResult =
-  | { ok: true }
-  | { ok: false; reason: string; candidateIds: string[] };
+  { ok: true } | { ok: false; reason: string; candidateIds: string[] };
 
 export async function tryMergeChannelLinkOwners(
   pool: Pool,
@@ -160,10 +152,9 @@ export async function tryMergeChannelLinkOwners(
         'phone_bind',
         { mergeContext: { channel: params.channelCode } },
       );
-      await runWebappPgText(
-        `SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked`,
-        [params.secretRowId],
+      await runWebappSql(
         getWebappSqlFromPgClient(client),
+        sql`SELECT app.auth_channel_link_mark_secret_used_if_unused(${params.secretRowId}::uuid) AS marked`,
       );
     });
     return { ok: true };
@@ -208,10 +199,9 @@ export async function claimMessengerChannelBindingInTransaction(
   const { tokenUserId, stubUserId, channelCode, externalId, secretRowId } = input;
   const db = getWebappSqlFromPgClient(client);
 
-  await runWebappPgText(
-    `SELECT id FROM platform_users WHERE id IN ($1::uuid, $2::uuid) AND merged_into_id IS NULL FOR UPDATE`,
-    [tokenUserId, stubUserId],
+  await runWebappSql(
     db,
+    sql`SELECT id FROM platform_users WHERE id IN (${tokenUserId}::uuid, ${stubUserId}::uuid) AND merged_into_id IS NULL FOR UPDATE`,
   );
 
   const recheck = await classifyChannelBindingOwnerForLink(db, stubUserId);
@@ -219,10 +209,9 @@ export async function claimMessengerChannelBindingInTransaction(
     throw new ChannelLinkClaimRejectedError(recheck.reason);
   }
 
-  const sec = await runWebappPgText<{ locked: boolean }>(
-    `SELECT app.auth_channel_link_lock_unused_secret($1::uuid) AS locked`,
-    [secretRowId],
+  const sec = await runWebappSql<{ locked: boolean }>(
     db,
+    sql`SELECT app.auth_channel_link_lock_unused_secret(${secretRowId}::uuid) AS locked`,
   );
   if (sec.rows[0]?.locked !== true) {
     throw new Error(
@@ -230,13 +219,12 @@ export async function claimMessengerChannelBindingInTransaction(
     );
   }
 
-  const bind = await runWebappPgText<{ user_id: string }>(
-    `SELECT user_id::text AS user_id
-     FROM user_channel_bindings
-     WHERE channel_code = $1 AND external_id = $2
-     FOR UPDATE`,
-    [channelCode, externalId],
+  const bind = await runWebappSql<{ user_id: string }>(
     db,
+    sql`SELECT user_id::text AS user_id
+     FROM user_channel_bindings
+     WHERE channel_code = ${channelCode} AND external_id = ${externalId}
+     FOR UPDATE`,
   );
   if (bind.rows.length === 0) {
     throw new Error('claimMessengerChannelBindingInTransaction: binding row missing');
@@ -245,41 +233,40 @@ export async function claimMessengerChannelBindingInTransaction(
     throw new Error('claimMessengerChannelBindingInTransaction: binding owner mismatch');
   }
 
-  await runWebappPgText(
-    `UPDATE symptom_trackings
+  await runWebappSql(
+    db,
+    sql`UPDATE symptom_trackings
      SET is_active = false, deleted_at = now(), updated_at = now()
-     WHERE (platform_user_id = $1::uuid OR user_id = $2::text)
+     WHERE (platform_user_id = ${stubUserId}::uuid OR user_id = ${stubUserId}::text)
        AND deleted_at IS NULL
        AND symptom_key IN ('general_wellbeing', 'warmup_feeling')`,
-    [stubUserId, stubUserId],
-    db,
   );
 
-  await runWebappPgText(
-    `UPDATE user_channel_bindings SET user_id = $1::uuid
-     WHERE channel_code = $2 AND external_id = $3 AND user_id = $4::uuid`,
-    [tokenUserId, channelCode, externalId, stubUserId],
+  await runWebappSql(
     db,
+    sql`UPDATE user_channel_bindings SET user_id = ${tokenUserId}::uuid
+     WHERE channel_code = ${channelCode} AND external_id = ${externalId} AND user_id = ${stubUserId}::uuid`,
   );
 
-  await upsertBroadcastDefaultsAfterChannelBind(getWebappSqlFromPgClient(client), tokenUserId, channelCode);
+  await upsertBroadcastDefaultsAfterChannelBind(
+    getWebappSqlFromPgClient(client),
+    tokenUserId,
+    channelCode,
+  );
 
   await mutateCanonicalUserContactsWebapp(client, stubUserId, [{ action: 'remove-all' }]);
 
-  await runWebappPgText(
-    `UPDATE platform_users
-     SET merged_into_id = $1::uuid,
+  await runWebappSql(
+    db,
+    sql`UPDATE platform_users
+     SET merged_into_id = ${tokenUserId}::uuid,
          merged_at = now(),
          updated_at = now()
-     WHERE id = $2::uuid AND merged_into_id IS NULL`,
-    [tokenUserId, stubUserId],
-    db,
+     WHERE id = ${stubUserId}::uuid AND merged_into_id IS NULL`,
   );
 
-  await runWebappPgText(
-    `SELECT app.auth_channel_link_mark_secret_used_if_unused($1::uuid) AS marked`,
-    [secretRowId],
+  await runWebappSql(
     db,
+    sql`SELECT app.auth_channel_link_mark_secret_used_if_unused(${secretRowId}::uuid) AS marked`,
   );
-
 }

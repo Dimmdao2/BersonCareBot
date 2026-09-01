@@ -1,14 +1,12 @@
+import { sql } from 'drizzle-orm';
 /**
  * Manual merge preview (read-only): conflicts, hard blockers, dependent counts, recommendations.
  * Apply flow is implemented separately (manual merge engine).
  */
 import type { Pool } from 'pg';
-import { runPgPoolPgText } from '@/infra/db/runWebappSql';
+import { runPgPoolPgText, runPgPoolSql } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
-import {
-  CONTACTS,
-  USER_CONTACTS_PRIMARY_LATERALS,
-} from '@/infra/repos/userContactsSql';
+import { CONTACTS, USER_CONTACTS_PRIMARY_LATERALS } from '@/infra/repos/userContactsSql';
 import {
   effectiveAutoMergedDisplayName,
   effectiveAutoMergedFirstName,
@@ -86,12 +84,7 @@ export type MergePreviewHardBlocker = {
 };
 
 export type MergePreviewScalarFieldKey =
-  | 'phone_normalized'
-  | 'display_name'
-  | 'first_name'
-  | 'last_name'
-  | 'patronymic'
-  | 'email';
+  'phone_normalized' | 'display_name' | 'first_name' | 'last_name' | 'patronymic' | 'email';
 
 export type MergePreviewScalarConflict = {
   field: MergePreviewScalarFieldKey;
@@ -501,10 +494,10 @@ async function loadPlatformUser(
   pool: Pool,
   id: string,
 ): Promise<MergePreviewPlatformUserRow | null> {
-  const r = await runPgPoolPgText<MergePreviewPlatformUserRow>(
+  const r = await runPgPoolSql<MergePreviewPlatformUserRow>(
     pool,
-    `SELECT pu.id,
-            ${CONTACTS.phoneNormalized} AS phone_normalized,
+    sql`SELECT pu.id,
+            ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
             merged_into_id,
             display_name,
             first_name,
@@ -521,33 +514,30 @@ async function loadPlatformUser(
             blocked_reason,
             blocked_by::text AS blocked_by
      FROM platform_users pu
-     ${USER_CONTACTS_PRIMARY_LATERALS}
-     WHERE pu.id = $1::uuid`,
-    [id],
+     ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
+     WHERE pu.id = ${id}::uuid`,
   );
   return r.rows[0] ?? null;
 }
 
 async function loadBindings(pool: Pool, userId: string): Promise<MergePreviewChannelBinding[]> {
-  const r = await runPgPoolPgText<MergePreviewChannelBinding>(
+  const r = await runPgPoolSql<MergePreviewChannelBinding>(
     pool,
-    `SELECT channel_code, external_id, created_at
+    sql`SELECT channel_code, external_id, created_at
      FROM user_channel_bindings
-     WHERE user_id = $1::uuid
+     WHERE user_id = ${userId}::uuid
      ORDER BY channel_code`,
-    [userId],
   );
   return r.rows;
 }
 
 async function loadOauth(pool: Pool, userId: string): Promise<MergePreviewOAuthBinding[]> {
-  const r = await runPgPoolPgText<MergePreviewOAuthBinding>(
+  const r = await runPgPoolSql<MergePreviewOAuthBinding>(
     pool,
-    `SELECT provider, provider_user_id, email, created_at
+    sql`SELECT provider, provider_user_id, email, created_at
      FROM user_oauth_bindings
-     WHERE user_id = $1::uuid
+     WHERE user_id = ${userId}::uuid
      ORDER BY provider`,
-    [userId],
   );
   return r.rows;
 }
@@ -572,75 +562,61 @@ async function countMeaningfulData(pool: Pool, userId: string): Promise<number> 
 
 async function countDependents(pool: Pool, userId: string): Promise<MergePreviewDependentCounts> {
   const [pb, rr, sc, st, lfk, mf, oi, mr, pcrf, ppc, tpi, pal, beAppt, puc] = await Promise.all([
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM reminder_rules WHERE platform_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM reminder_rules WHERE platform_user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM support_conversations WHERE platform_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM support_conversations WHERE platform_user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = ${userId}::uuid OR user_id = ${userId}::text`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = ${userId}::uuid OR user_id = ${userId}::text`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM media_files WHERE uploaded_by = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM media_files WHERE uploaded_by = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM material_ratings WHERE user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM material_ratings WHERE user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM patient_content_rating_feedback WHERE user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM patient_content_rating_feedback WHERE user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM patient_practice_completions WHERE user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM patient_practice_completions WHERE user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM treatment_program_instances WHERE patient_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM treatment_program_instances WHERE patient_user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM program_action_log WHERE patient_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM program_action_log WHERE patient_user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM be_appointments WHERE platform_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM be_appointments WHERE platform_user_id = ${userId}::uuid`,
     ),
-    runPgPoolPgText<{ c: number }>(
+    runPgPoolSql<{ c: number }>(
       pool,
-      `SELECT COUNT(*)::int AS c FROM platform_user_contacts WHERE platform_user_id = $1::uuid`,
-      [userId],
+      sql`SELECT COUNT(*)::int AS c FROM platform_user_contacts WHERE platform_user_id = ${userId}::uuid`,
     ),
   ]);
   return {
@@ -666,19 +642,18 @@ async function countActiveBookingOverlap(
   targetId: string,
   duplicateId: string,
 ): Promise<number> {
-  const overlap = await runPgPoolPgText<{ c: string }>(
+  const overlap = await runPgPoolSql<{ c: string }>(
     pool,
-    `SELECT COUNT(*)::text AS c
+    sql`SELECT COUNT(*)::text AS c
      FROM patient_bookings pb1
      INNER JOIN patient_bookings pb2
-       ON pb1.platform_user_id = $1::uuid
-      AND pb2.platform_user_id = $2::uuid
+       ON pb1.platform_user_id = ${targetId}::uuid
+      AND pb2.platform_user_id = ${duplicateId}::uuid
       AND pb1.id <> pb2.id
       AND tstzrange(pb1.slot_start, pb1.slot_end, '[)') && tstzrange(pb2.slot_start, pb2.slot_end, '[)')
       AND pb1.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
       AND pb2.status IN ('confirmed', 'rescheduled', 'creating', 'cancelling', 'cancel_failed')
       `,
-    [targetId, duplicateId],
   );
   return parseInt(overlap.rows[0]?.c ?? '0', 10);
 }
@@ -688,18 +663,17 @@ async function countActiveLfkTemplateConflict(
   targetId: string,
   duplicateId: string,
 ): Promise<number> {
-  const r = await runPgPoolPgText<{ c: string }>(
+  const r = await runPgPoolSql<{ c: string }>(
     pool,
-    `SELECT COUNT(*)::text AS c
+    sql`SELECT COUNT(*)::text AS c
      FROM patient_lfk_assignments a
      INNER JOIN patient_lfk_assignments b
-       ON a.patient_user_id = $1::uuid
-      AND b.patient_user_id = $2::uuid
+       ON a.patient_user_id = ${targetId}::uuid
+      AND b.patient_user_id = ${duplicateId}::uuid
       AND a.organization_id = b.organization_id
       AND a.template_id = b.template_id
       AND a.is_active = true
       AND b.is_active = true`,
-    [targetId, duplicateId],
   );
   return parseInt(r.rows[0]?.c ?? '0', 10);
 }
@@ -709,18 +683,17 @@ async function countActiveTreatmentProgramConflict(
   targetId: string,
   duplicateId: string,
 ): Promise<number> {
-  const r = await runPgPoolPgText<{ c: string }>(
+  const r = await runPgPoolSql<{ c: string }>(
     pool,
-    `SELECT COUNT(*)::text AS c
+    sql`SELECT COUNT(*)::text AS c
      FROM treatment_program_instances t
      INNER JOIN treatment_program_instances d
-       ON t.patient_user_id = $1::uuid
-      AND d.patient_user_id = $2::uuid
+       ON t.patient_user_id = ${targetId}::uuid
+      AND d.patient_user_id = ${duplicateId}::uuid
       AND t.status = 'active'
       AND d.status = 'active'
       AND t.assignment_source <> 'promo'
       AND d.assignment_source <> 'promo'`,
-    [targetId, duplicateId],
   );
   return parseInt(r.rows[0]?.c ?? '0', 10);
 }
@@ -730,17 +703,16 @@ async function countOpenTestAttemptConflict(
   targetId: string,
   duplicateId: string,
 ): Promise<number> {
-  const r = await runPgPoolPgText<{ c: string }>(
+  const r = await runPgPoolSql<{ c: string }>(
     pool,
-    `SELECT COUNT(*)::text AS c
+    sql`SELECT COUNT(*)::text AS c
      FROM test_attempts t
      INNER JOIN test_attempts d
-       ON t.patient_user_id = $1::uuid
-      AND d.patient_user_id = $2::uuid
+       ON t.patient_user_id = ${targetId}::uuid
+      AND d.patient_user_id = ${duplicateId}::uuid
       AND t.submitted_at IS NULL
       AND d.submitted_at IS NULL
       AND t.instance_stage_item_id = d.instance_stage_item_id`,
-    [targetId, duplicateId],
   );
   return parseInt(r.rows[0]?.c ?? '0', 10);
 }

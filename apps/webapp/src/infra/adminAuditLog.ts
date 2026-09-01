@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 /**
  * Wave 3 phase 14C — domain SQL via `runWebappPgText` / `getWebappSqlFromPgClient`.
  * R0/S3S routes the open-conflict transaction through `withPoolTransaction`.
@@ -11,6 +12,7 @@ import {
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
   runWebappPgText,
+  runWebappSql,
   webappSqlFromPgText,
 } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
@@ -105,18 +107,10 @@ export async function writeAuditLog(_pool: Pool, entry: AuditLogWriteEntry): Pro
   const status: AuditLogStatus = entry.status ?? 'ok';
   const organizationId = currentAuditOrganizationId();
   try {
-    await runWebappPgText(
-      `INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7)`,
-      [
-        organizationId,
-        entry.actorId,
-        entry.action,
-        entry.targetId ?? null,
-        entry.conflictKey ?? null,
-        JSON.stringify(entry.details ?? {}),
-        status,
-      ],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
+       VALUES (${organizationId}::uuid, ${entry.actorId}::uuid, ${entry.action}, ${entry.targetId ?? null}, ${entry.conflictKey ?? null}, ${JSON.stringify(entry.details ?? {})}::jsonb, ${status})`,
     );
   } catch (err) {
     logger.error({ err, action: entry.action }, 'writeAuditLog failed');
@@ -131,10 +125,11 @@ export async function writePlatformAuditLog(entry: AuditLogWriteEntry): Promise<
     getWebappSqlDb(),
     'app.append_platform_audit_event(text,text,text)',
     [entry.action, detailsJson, status],
-    webappSqlFromPgText(
-      'SELECT app.append_platform_audit_event($1::text,$2::text,$3::text)',
-      [entry.action, detailsJson, status],
-    ),
+    webappSqlFromPgText('SELECT app.append_platform_audit_event($1::text,$2::text,$3::text)', [
+      entry.action,
+      detailsJson,
+      status,
+    ]),
   );
 }
 
@@ -148,13 +143,13 @@ export async function getLastAuditLogDetailsField(
   field: string,
 ): Promise<string | null> {
   try {
-    const res = await runWebappPgText<{ value: string | null }>(
-      `SELECT details->>$2 AS value
+    const res = await runWebappSql<{ value: string | null }>(
+      getWebappSqlDb(),
+      sql`SELECT details->>${field} AS value
        FROM admin_audit_log
-       WHERE action = $1
+       WHERE action = ${action}
        ORDER BY created_at DESC
        LIMIT 1`,
-      [action, field],
     );
     const v = res.rows[0]?.value;
     return typeof v === 'string' ? v : null;
@@ -171,18 +166,10 @@ export async function writeAuditLogDedupeOpenConflictKey(
   const status: AuditLogStatus = entry.status ?? 'ok';
   const organizationId = currentAuditOrganizationId();
   try {
-    await runWebappPgText(
-      `INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
-       VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6::jsonb, $7)`,
-      [
-        organizationId,
-        entry.actorId,
-        entry.action,
-        entry.targetId ?? null,
-        entry.conflictKey,
-        JSON.stringify(entry.details ?? {}),
-        status,
-      ],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`INSERT INTO admin_audit_log (organization_id, actor_id, action, target_id, conflict_key, details, status)
+       VALUES (${organizationId}::uuid, ${entry.actorId}::uuid, ${entry.action}, ${entry.targetId ?? null}, ${entry.conflictKey}, ${JSON.stringify(entry.details ?? {})}::jsonb, ${status})`,
     );
   } catch (err) {
     if (isPgUniqueViolation(err)) return;
@@ -208,9 +195,7 @@ export type UpsertOpenConflictLogInput = {
 };
 
 export type UpsertOpenConflictLogResult =
-  | { kind: 'anomaly' }
-  | { kind: 'conflict'; insertedFirst: boolean }
-  | { kind: 'skipped' };
+  { kind: 'anomaly' } | { kind: 'conflict'; insertedFirst: boolean } | { kind: 'skipped' };
 
 /**
  * Dedup open rows by `conflict_key` among unresolved (`resolved_at IS NULL`) audit rows.
@@ -590,10 +575,9 @@ export async function resolveAdminAuditConflictById(
       getWebappSqlDb(),
       'app.resolve_platform_audit_conflict(uuid)',
       [trimmed],
-      webappSqlFromPgText(
-        'SELECT app.resolve_platform_audit_conflict($1::uuid) AS result',
-        [trimmed],
-      ),
+      webappSqlFromPgText('SELECT app.resolve_platform_audit_conflict($1::uuid) AS result', [
+        trimmed,
+      ]),
     );
     const platformResult = result.rows[0]?.result;
     if (platformResult === 'updated') return { ok: true, updated: true };

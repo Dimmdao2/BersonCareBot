@@ -1,19 +1,15 @@
 /** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type { OauthProvider, OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
 
 const ALLOWED_PROVIDERS: OauthProvider[] = ['google', 'apple', 'yandex', 'vk'];
 
 export const pgOAuthBindingsPort: OAuthBindingsPort = {
   async listProvidersForUser(userId: string): Promise<OauthProvider[]> {
-    const res = await runWebappPgText<{ provider: string }>(
-      `SELECT provider FROM app.auth_oauth_list_user_providers($1::uuid)`,
-      [userId],
+    const res = await runWebappSql<{ provider: string }>(
+      getWebappSqlDb(),
+      sql`SELECT provider FROM app.auth_oauth_list_user_providers(${userId}::uuid)`,
     );
     const out: OauthProvider[] = [];
     for (const row of res.rows) {

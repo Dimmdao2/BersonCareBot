@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappPgText, runWebappSql } from '@/infra/db/runWebappSql';
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from '../../../db/schema/schema';
 import { testSetItems, testSets } from '../../../db/schema/clinicalTests';
 import {
@@ -185,8 +185,9 @@ async function templateListFirstItemPreviewByTemplateId(
     preview_type: string | null;
   };
 
-  const res = await runWebappPgText<PreviewRow>(
-    `
+  const res = await runWebappSql<PreviewRow>(
+    getWebappSqlDb(),
+    sql`
     WITH first_item AS (
       SELECT DISTINCT ON (s.template_id)
         s.template_id,
@@ -194,9 +195,9 @@ async function templateListFirstItemPreviewByTemplateId(
         i.item_ref_id
       FROM treatment_program_template_stage_items i
       INNER JOIN treatment_program_template_stages s ON s.id = i.stage_id
-      WHERE s.template_id = ANY($1::uuid[])
-        AND s.organization_id = $2::uuid
-        AND i.organization_id = $2::uuid
+      WHERE s.template_id = ANY(${sql.param(templateIds)}::uuid[])
+        AND s.organization_id = ${organizationId}::uuid
+        AND i.organization_id = ${organizationId}::uuid
       ORDER BY s.template_id, s.sort_order ASC, s.id ASC, i.sort_order ASC, i.id ASC
     )
     SELECT fi.template_id::text AS template_id,
@@ -204,7 +205,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_url::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -212,7 +213,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'recommendation' THEN (
           SELECT (r.media->0->>'mediaUrl') FROM recommendations r
           WHERE r.id = fi.item_ref_id
-            AND r.organization_id = $2::uuid
+            AND r.organization_id = ${organizationId}::uuid
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
@@ -220,7 +221,7 @@ async function templateListFirstItemPreviewByTemplateId(
           SELECT (t.media->0->>'mediaUrl')
           FROM tests t
           WHERE t.id = fi.item_ref_id
-            AND t.organization_id = $2::uuid
+            AND t.organization_id = ${organizationId}::uuid
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -228,9 +229,9 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
-            AND ((te.owner_kind = 'organization' AND te.organization_id = $2::uuid)
+            AND ((te.owner_kind = 'organization' AND te.organization_id = ${organizationId}::uuid)
               OR (te.owner_kind = 'platform' AND te.organization_id IS NULL))
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -241,7 +242,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'exercise' THEN (
           SELECT em.media_type::text FROM lfk_exercise_media em
           WHERE em.exercise_id = fi.item_ref_id
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -249,7 +250,7 @@ async function templateListFirstItemPreviewByTemplateId(
         WHEN 'recommendation' THEN (
           SELECT (r.media->0->>'mediaType') FROM recommendations r
           WHERE r.id = fi.item_ref_id
-            AND r.organization_id = $2::uuid
+            AND r.organization_id = ${organizationId}::uuid
             AND jsonb_typeof(r.media) = 'array' AND COALESCE(jsonb_array_length(r.media), 0) > 0
           LIMIT 1
         )
@@ -257,7 +258,7 @@ async function templateListFirstItemPreviewByTemplateId(
           SELECT (t.media->0->>'mediaType')
           FROM tests t
           WHERE t.id = fi.item_ref_id
-            AND t.organization_id = $2::uuid
+            AND t.organization_id = ${organizationId}::uuid
           LIMIT 1
         )
         WHEN 'lfk_complex' THEN (
@@ -265,9 +266,9 @@ async function templateListFirstItemPreviewByTemplateId(
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_exercise_media em ON em.exercise_id = te.exercise_id
           WHERE te.template_id = fi.item_ref_id
-            AND ((te.owner_kind = 'organization' AND te.organization_id = $2::uuid)
+            AND ((te.owner_kind = 'organization' AND te.organization_id = ${organizationId}::uuid)
               OR (te.owner_kind = 'platform' AND te.organization_id IS NULL))
-            AND ((em.owner_kind = 'organization' AND em.organization_id = $2::uuid)
+            AND ((em.owner_kind = 'organization' AND em.organization_id = ${organizationId}::uuid)
               OR (em.owner_kind = 'platform' AND em.organization_id IS NULL))
           ORDER BY te.sort_order ASC, te.id ASC, em.sort_order ASC, em.created_at ASC NULLS LAST
           LIMIT 1
@@ -276,7 +277,6 @@ async function templateListFirstItemPreviewByTemplateId(
       END AS preview_type
     FROM first_item fi
     `,
-    [templateIds, organizationId],
   );
 
   for (const row of res.rows) {

@@ -11,6 +11,7 @@ import {
   getWebappSqlDb,
   runWebappNamedRoot,
   runWebappPgText,
+  runWebappSql,
 } from '@/infra/db/runWebappSql';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { MediaPreviewStatus } from '@/modules/media/types';
@@ -195,24 +196,14 @@ function userMatchSql(tableAlias: string, userParamIndex: number): string {
 export const pgLfkDiaryPort: LfkDiaryPort = {
   async createComplex(params) {
     const now = new Date();
-    const result = await runWebappPgText<LfkComplexDbRow>(
-      `INSERT INTO lfk_complexes (
+    const result = await runWebappSql<LfkComplexDbRow>(
+      getWebappSqlDb(),
+      sql`INSERT INTO lfk_complexes (
          user_id, platform_user_id, title, origin, is_active, updated_at,
          symptom_tracking_id, region_ref_id, side, diagnosis_text, diagnosis_ref_id
        )
-       VALUES ($1::text, $1::uuid, $2, $3, true, $4, $5, $6, $7, $8, $9)
-       RETURNING ${COMPLEX_RETURNING}`,
-      [
-        params.userId,
-        params.title,
-        params.origin ?? 'manual',
-        now,
-        params.symptomTrackingId ?? null,
-        params.regionRefId ?? null,
-        params.side ?? null,
-        params.diagnosisText ?? null,
-        params.diagnosisRefId ?? null,
-      ],
+       VALUES (${params.userId}::text, ${params.userId}::uuid, ${params.title}, ${params.origin ?? 'manual'}, true, ${now}, ${params.symptomTrackingId ?? null}, ${params.regionRefId ?? null}, ${params.side ?? null}, ${params.diagnosisText ?? null}, ${params.diagnosisRefId ?? null})
+       RETURNING ${sql.raw(COMPLEX_RETURNING)}`,
     );
     return rowToComplex(result.rows[0]!);
   },
@@ -245,30 +236,20 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       if (!result.session) throw new Error('current_patient_lfk_session_create_failed');
       return rowToSession(result.session);
     }
-    const result = await runWebappPgText<LfkSessionInsertDbRow>(
-      `INSERT INTO lfk_sessions (
+    const result = await runWebappSql<LfkSessionInsertDbRow>(
+      getWebappSqlDb(),
+      sql`INSERT INTO lfk_sessions (
          user_id, complex_id, completed_at, source, recorded_at,
          duration_minutes, difficulty_0_10, pain_0_10, comment
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       VALUES (${params.userId}, ${params.complexId}, ${completedAt}, ${params.source}, ${recordedAt}, ${params.durationMinutes ?? null}, ${params.difficulty0_10 ?? null}, ${params.pain0_10 ?? null}, ${params.comment ?? null})
        RETURNING id, user_id, complex_id, completed_at, source, created_at,
          recorded_at, duration_minutes, difficulty_0_10, pain_0_10, comment`,
-      [
-        params.userId,
-        params.complexId,
-        completedAt,
-        params.source,
-        recordedAt,
-        params.durationMinutes ?? null,
-        params.difficulty0_10 ?? null,
-        params.pain0_10 ?? null,
-        params.comment ?? null,
-      ],
     );
     const row = result.rows[0]!;
-    const complex = await runWebappPgText<{ title: string }>(
-      `SELECT title FROM lfk_complexes WHERE id = $1`,
-      [params.complexId],
+    const complex = await runWebappSql<{ title: string }>(
+      getWebappSqlDb(),
+      sql`SELECT title FROM lfk_complexes WHERE id = ${params.complexId}`,
     );
     return rowToSession({
       ...row,
@@ -281,14 +262,14 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       const result = await currentPatientLfkSessions('list', { limit });
       return (result.sessions ?? []).map(rowToSession);
     }
-    const result = await runWebappPgText<LfkSessionDbRow>(
-      `SELECT ${SESSION_SELECT}
+    const result = await runWebappSql<LfkSessionDbRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(SESSION_SELECT)}
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
-       WHERE s.user_id = $1
+       WHERE s.user_id = ${userId}
        ORDER BY s.completed_at DESC
-       LIMIT $2`,
-      [userId, limit],
+       LIMIT ${limit}`,
     );
     return result.rows.map(rowToSession);
   },
@@ -362,9 +343,9 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       const result = await currentPatientLfkSessions('min_completed_at');
       return nullableToIsoStringSafe(result.completed_at);
     }
-    const result = await runWebappPgText<{ m: Date | string | null }>(
-      `SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = $1`,
-      [userId],
+    const result = await runWebappSql<{ m: Date | string | null }>(
+      getWebappSqlDb(),
+      sql`SELECT MIN(completed_at) AS m FROM lfk_sessions WHERE user_id = ${userId}`,
     );
     const m = result.rows[0]?.m as Date | string | null | undefined;
     return nullableToIsoStringSafe(m);
@@ -375,12 +356,12 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       const result = await currentPatientLfkSessions('get', { session_id: params.sessionId });
       return result.session ? rowToSession(result.session) : null;
     }
-    const result = await runWebappPgText<LfkSessionDbRow>(
-      `SELECT ${SESSION_SELECT}
+    const result = await runWebappSql<LfkSessionDbRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(SESSION_SELECT)}
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
-       WHERE s.id = $1 AND s.user_id = $2`,
-      [params.sessionId, params.userId],
+       WHERE s.id = ${params.sessionId} AND s.user_id = ${params.userId}`,
     );
     return result.rows[0] ? rowToSession(result.rows[0]) : null;
   },
@@ -400,23 +381,15 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       if (!result.updated) throw new Error('current_patient_lfk_session_not_found');
       return;
     }
-    await runWebappPgText(
-      `UPDATE lfk_sessions
-       SET completed_at = $3::timestamptz,
-           duration_minutes = $4,
-           difficulty_0_10 = $5,
-           pain_0_10 = $6,
-           comment = $7
-       WHERE id = $2 AND user_id = $1`,
-      [
-        params.userId,
-        params.sessionId,
-        params.completedAt,
-        params.durationMinutes ?? null,
-        params.difficulty0_10 ?? null,
-        params.pain0_10 ?? null,
-        comment,
-      ],
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE lfk_sessions
+       SET completed_at = ${params.completedAt}::timestamptz,
+           duration_minutes = ${params.durationMinutes ?? null},
+           difficulty_0_10 = ${params.difficulty0_10 ?? null},
+           pain_0_10 = ${params.pain0_10 ?? null},
+           comment = ${comment}
+       WHERE id = ${params.sessionId} AND user_id = ${params.userId}`,
     );
   },
 
@@ -426,10 +399,10 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       if (!result.deleted) throw new Error('current_patient_lfk_session_not_found');
       return;
     }
-    await runWebappPgText(`DELETE FROM lfk_sessions WHERE id = $2 AND user_id = $1`, [
-      params.userId,
-      params.sessionId,
-    ]);
+    await runWebappSql(
+      getWebappSqlDb(),
+      sql`DELETE FROM lfk_sessions WHERE id = ${params.sessionId} AND user_id = ${params.userId}`,
+    );
   },
 
   async listLfkComplexExerciseLinesForUser(params: {
