@@ -11,7 +11,7 @@ import {
   type MouseEvent,
 } from 'react';
 import { DateTime } from 'luxon';
-import { Check, MapPin, Play } from 'lucide-react';
+import { Check, Layers, MapPin, Play } from 'lucide-react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
@@ -637,6 +637,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selectedPrimaryDate, setSelectedPrimaryDate] = useState<string | null>(null);
   const lastClickedRef = useRef<string | null>(null);
+  const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
 
   // Panel state (E4 — строчная раскладка + N перерывов)
   const [panelStart, setPanelStart] = useState(DEFAULT_PANEL_START);
@@ -656,6 +657,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
   const [tplStart, setTplStart] = useState(DEFAULT_PANEL_START);
   const [tplEnd, setTplEnd] = useState(DEFAULT_PANEL_END);
   const [tplBreaks, setTplBreaks] = useState<BreakRow[]>([]);
+  const [tplBranchId, setTplBranchId] = useState('');
 
   // ── Today string ─────────────────────────────────────────────────────────
 
@@ -722,23 +724,25 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       }
       setViewYear(y);
       setViewMonth(m);
-      setSelected(new Set());
-      setSelectedPrimaryDate(null);
-      lastClickedRef.current = null;
+      if (!multiSelectEnabled) {
+        setSelected(new Set());
+        setSelectedPrimaryDate(null);
+        lastClickedRef.current = null;
+      }
       onDeepLinkChange('month', formatMonth(y, m));
     },
-    [viewMonth, viewYear, onDeepLinkChange],
+    [multiSelectEnabled, viewMonth, viewYear, onDeepLinkChange],
   );
 
   const selectMonth = useCallback(
     (year: number, month: number) => {
       setViewYear(year);
       setViewMonth(month);
-      resetGridSelection();
+      if (!multiSelectEnabled) resetGridSelection();
       onDeepLinkChange('month', formatMonth(year, month));
       setMonthPickerOpen(false);
     },
-    [onDeepLinkChange, resetGridSelection],
+    [multiSelectEnabled, onDeepLinkChange, resetGridSelection],
   );
 
   // ── Load all working days for visible month; location selection is composed client-side. ──
@@ -856,7 +860,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             if (d >= a && d <= b) next.add(d);
           }
           nextPrimaryDate = nextPrimaryDate ?? date;
-        } else if (meta) {
+        } else if (meta || multiSelectEnabled) {
           if (next.has(date)) {
             next.delete(date);
             if (nextPrimaryDate === date) {
@@ -884,7 +888,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
       setSelectionMode('dates');
       setSelectedWeekday(null);
     },
-    [gridDates, selectedPrimaryDate],
+    [gridDates, multiSelectEnabled, selectedPrimaryDate],
   );
 
   const handleWeekdayHeaderClick = useCallback(
@@ -1171,7 +1175,7 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
           startMinute,
           endMinute,
           breaks,
-          branchId: panelBranchId || undefined,
+          branchId: tplBranchId || undefined,
         }),
       });
       setTplDialogOpen(false);
@@ -1287,7 +1291,21 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         onMouseDown={handleTopBarMouseDown}
         data-testid="schedule-work-topbar"
       >
-        <span aria-hidden />
+        <Button
+          type="button"
+          size="icon"
+          variant="outline"
+          className={cn(
+            'size-8',
+            !allBranchesSelected && 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+          )}
+          onClick={() => setBranchPickerOpen(true)}
+          aria-label="Выбрать филиалы"
+          title="Филиалы"
+          data-testid="branch-filter-open"
+        >
+          <MapPin className="size-4" aria-hidden />
+        </Button>
         <div className="flex min-w-0 items-center justify-center gap-1">
           <Button
             type="button"
@@ -1326,14 +1344,18 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
         <Button
           type="button"
           size="icon"
-          variant={allBranchesSelected ? 'outline' : 'default'}
-          className="size-8"
-          onClick={() => setBranchPickerOpen(true)}
-          aria-label="Выбрать филиалы"
-          title="Филиалы"
-          data-testid="branch-filter-open"
+          variant="outline"
+          className={cn(
+            'size-8',
+            multiSelectEnabled && 'border-primary text-primary ring-1 ring-primary/70 hover:bg-primary/5',
+          )}
+          onClick={() => setMultiSelectEnabled((enabled) => !enabled)}
+          aria-pressed={multiSelectEnabled}
+          aria-label="Выбирать несколько дней"
+          title="Выбрать несколько дней"
+          data-testid="multi-select-toggle"
         >
-          <MapPin className="size-4" aria-hidden />
+          <Layers className="size-4" aria-hidden />
         </Button>
       </DoctorCatalogStickyToolbar>
 
@@ -1449,8 +1471,8 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
             {/* RIGHT: hours panel (E4) */}
             <div>
               {selectedCount > 0 ? (
-                <DoctorSection className="border-primary/40 bg-primary/5" data-testid="hours-panel">
-                  <h3 className={cn(doctorSectionTitleClass, 'text-primary')}>
+                <DoctorSection className="bg-card" data-testid="hours-panel">
+                  <h3 className={doctorSectionTitleClass}>
                     {selectionMode === 'weekday' && selectedWeekday !== null
                       ? `Расписание для всех ${WD_LABEL[selectedWeekday] ?? ''} (${selectedCount} дн.)`
                       : `Задать расписание для ${selectedCount} ${selectedCount === 1 ? 'дня' : 'дней'} (${
@@ -1587,7 +1609,10 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => setTplDialogOpen(true)}
+                onClick={() => {
+                  setTplBranchId(panelBranchId);
+                  setTplDialogOpen(true);
+                }}
                 data-testid="btn-create-template"
               >
                 + Создать
@@ -1713,6 +1738,23 @@ export function ScheduleWorkTab({ deepLinkParams, onDeepLinkChange, isActive }: 
                   testId="tpl-end"
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-xs">Локация</Label>
+              <Select value={tplBranchId} onValueChange={(value) => value && setTplBranchId(value)}>
+                <SelectTrigger
+                  className="h-8"
+                  displayLabel={branches.find((branch) => branch.id === tplBranchId)?.title}
+                  data-testid="tpl-branch"
+                />
+                <SelectContent>
+                  {branches.map((branch) => (
+                    <SelectItem key={branch.id} value={branch.id} label={branch.title}>
+                      {branch.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             {/* E5 — Template breaks */}
             <div className="flex flex-col gap-1.5" data-testid="tpl-breaks">

@@ -13,18 +13,21 @@ export function DoctorMobileSectionTabs<T extends string>({
   activeTab,
   onTabChange,
   ariaLabel,
+  scrollable = false,
 }: {
   tabs: readonly DoctorMobileSectionTab<T>[];
   activeTab: T;
   onTabChange: (tab: T) => void;
   ariaLabel: string;
+  /** Use the canonical mobile tabs as a horizontally scrollable subsection row. */
+  scrollable?: boolean;
 }) {
   return (
     <nav
       aria-label={ariaLabel}
       className="relative z-40 shrink-0 border-t border-border/70 bg-background/95 shadow-[0_-2px_6px_rgba(15,23,42,0.08)] backdrop-blur-md md:hidden"
     >
-      <div className="flex h-11">
+      <div className={cn('flex h-11', scrollable && 'overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden')}>
         {tabs.map((tab) => {
           const active = tab.id === activeTab;
           return (
@@ -34,7 +37,8 @@ export function DoctorMobileSectionTabs<T extends string>({
               aria-current={active ? 'page' : undefined}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+                'flex min-w-0 items-center justify-center gap-1.5 px-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset',
+                scrollable ? 'shrink-0 whitespace-nowrap' : 'flex-1',
                 active && 'bg-primary/10 text-primary',
               )}
             >

@@ -21,6 +21,7 @@ import {
 import { doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { BOOKING_CARD_GRID_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { Button } from '@/shared/ui/doctor/primitives/button';
+import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import {
@@ -894,10 +895,17 @@ export function ScheduleSetupTab({
   );
 
   return (
-    <div className="flex flex-col gap-3" data-testid="schedule-setup-tab">
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-3" data-testid="schedule-setup-tab">
+      <DoctorMobileSectionTabs
+        tabs={visibleSections}
+        activeTab={activeSection}
+        onTabChange={setActiveSection}
+        ariaLabel="Разделы настроек"
+        scrollable
+      />
       {/* Sub-navigation */}
       <nav
-        className="flex flex-wrap gap-1"
+        className="hidden flex-wrap gap-1 md:flex"
         aria-label="Разделы настройки записи"
         data-testid="setup-subnav"
       >
