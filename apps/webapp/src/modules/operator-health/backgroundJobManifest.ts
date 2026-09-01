@@ -537,6 +537,37 @@ export function renderCronCommand(
   return `${internalJobRunnerPath(environment)} ${environment.id} ${entry.id}`;
 }
 
+/**
+ * Internal-Bearer-secured routes that are NOT scheduled background jobs, so they have no manifest
+ * entry (no cadence, no `staleAfterSec`, no health-board row): `media-transcode/enqueue` is called
+ * synchronously by other server code on upload, `media-worker/control` is polled continuously by the
+ * external media-worker process, and the two `heartbeat/*` receivers accept dead-man's-switch pings
+ * from the resident scheduler. Listed explicitly, not derived from a pattern, for the same
+ * audit-readability reason the manifest itself gives for `id`/`route` fields — a wildcard here would
+ * silently exempt a future unrelated `/api/internal/*` route from CSRF origin checks.
+ */
+export const INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS = [
+  '/api/internal/heartbeat/digest',
+  '/api/internal/heartbeat/pipeline_delivery',
+  '/api/internal/media-transcode/enqueue',
+  '/api/internal/media-worker/control',
+] as const;
+
+/**
+ * Single source for the CSRF middleware's `internal_bearer` mutation class (W2, systemic residual
+ * audit 27.08.2026): every manifest job route whose `principal` is `internal_job_bearer`, plus the
+ * non-scheduled routes above. Before this, `middleware/csrfOrigin.ts` hand-copied the manifest job
+ * paths into a second list that silently drifted — two active routes (`domain-health/tick`,
+ * `db-journal-retention/tick`) were missing from it. A new manifest job with this principal is now
+ * covered automatically; only the non-scheduled routes still need a manual add, right above.
+ */
+export function internalJobBearerCsrfExemptPaths(): readonly string[] {
+  const manifestPaths = BACKGROUND_JOB_MANIFEST.filter(
+    (entry) => entry.principal === 'internal_job_bearer' && entry.route,
+  ).map((entry) => (entry.route as BackgroundJobRoute).path);
+  return [...manifestPaths, ...INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS];
+}
+
 export const CRON_ARTIFACT_GENERATED_BY =
   'apps/webapp/src/modules/operator-health/backgroundJobManifest.ts';
 

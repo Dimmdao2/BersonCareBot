@@ -509,8 +509,7 @@ fail-closed конфигурацию из глобального `public.system_
 Ответ врача/админа из бота в тот же thread.
 
 **Body (JSON):** `integratorConversationId`, `integratorMessageId`, `text`, `createdAt`; опционально
-**`senderDisplayName`** (имя отправителя для redacted-уведомления) и **`programNoteStageItemId`** — при ответе
-на наблюдение по упражнению webapp добавляет префикс `Ответ на ваш комментарий к упражнению «…»:` перед текстом.
+**`senderDisplayName`** (имя отправителя для redacted-уведомления).
 Если `senderDisplayName` отсутствует (в том числе при rolling deploy со старым integrator), payload принимается,
 а уведомление содержит нейтральное «новое сообщение от специалиста» без текста ответа.
 
@@ -518,15 +517,7 @@ fail-closed конфигурацию из глобального `public.system_
 
 **Ответ 200:** `{ ok: true }` (и поля доставки пациенту по каналам — см. `integratorSupportBridge`).
 
-### `POST /api/integrator/program-note/reply-begin`
-
-Подготовка режима ответа на program note (callback `program_reply:{stageItemId}` в Telegram/MAX).
-
-**Body (JSON):** `{ stageItemId: uuid }`.
-
-**Ответ 200:** `{ ok: true, programNoteReplyState, platformUserId, exerciseTitle, integratorConversationId }` — `programNoteReplyState` имеет вид `admin_reply:webapp:platform:{platformUserId}#pn:{stageItemId}` для `user.state.set` в integrator.
-
-**Integrator action:** `webapp.programNote.replyBegin` → сценарии `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start`.
+Ответ на комментарий к упражнению не проходит через этот endpoint: врач отвечает в кабинете через doctor API.
 
 ---
 

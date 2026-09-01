@@ -1,7 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
-import { env } from '@/config/env';
+import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { logger } from '@/app-layer/logging/logger';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
@@ -9,13 +8,6 @@ import {
   OPERATOR_SAAS_BILLING_JOB_FAMILY,
   OPERATOR_SAAS_BILLING_RENEWAL_TICK_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
-
-function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 /**
  * POST — К5: raises the renewal invoice for every `paid_subscription` whose paid period has ended.
@@ -29,16 +21,8 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
  * period is a no-op by construction (`saas_billing_invoices_period_uidx`), not a pre-check.
  */
 export async function POST(request: Request) {
-  const secret = env.INTERNAL_JOB_SECRET;
-  if (!secret) {
-    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
+  const auth = verifyInternalJobBearer(request);
+  if (!auth.ok) return auth.response;
   // Машинный тик — машинный принципал (класс `service`, роль `app_worker`), как у КАЖДОГО
   // остального внутреннего тика вебаппа. Прежде маршрут входил ПЛАТФОРМЕННЫМ принципалом и
   // подставлял актором нулевой UUID; класс `platform` по построению требует живого администратора

@@ -58,7 +58,6 @@ export async function applyWebappAdminReplyFromMessenger(
     createdAt: string;
     senderDisplayName?: string;
     adminMessageId?: string | null;
-    programNoteStageItemId?: string | null;
   },
 ): Promise<{ ok: boolean; error?: string }> {
   const apply = deps.webappEventsPort?.applySupportAdminReply;
@@ -72,9 +71,6 @@ export async function applyWebappAdminReplyFromMessenger(
       ? { senderDisplayName: input.senderDisplayName.trim() }
       : {}),
     createdAt: input.createdAt,
-    ...(input.programNoteStageItemId?.trim()
-      ? { programNoteStageItemId: input.programNoteStageItemId.trim() }
-      : {}),
   });
   const result = await apply({
     body,

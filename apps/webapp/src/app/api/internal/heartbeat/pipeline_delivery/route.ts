@@ -1,6 +1,5 @@
-import { timingSafeEqual } from 'node:crypto';
-import { NextResponse } from 'next/server';
-import { env } from '@/config/env';
+import type { NextResponse } from 'next/server';
+import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import {
   readHeartbeatVerdict,
   recordHeartbeatPing,
@@ -18,24 +17,9 @@ import {
  * POST — записать пульс. GET — прочитать вердикт (жив / пропал / не приходил ни разу).
  */
 
-function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 function authorize(request: Request): NextResponse | null {
-  const secret = env.INTERNAL_JOB_SECRET;
-  if (!secret) {
-    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
-  }
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
-  return null;
+  const auth = verifyInternalJobBearer(request);
+  return auth.ok ? null : auth.response;
 }
 
 export async function POST(request: Request) {

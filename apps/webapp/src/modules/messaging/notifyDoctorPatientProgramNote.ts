@@ -65,9 +65,6 @@ export async function notifyDoctorPatientProgramNote(
   });
   const noteKey = createHash('sha256').update(input.noteText.trim()).digest('hex').slice(0, 16);
   const messageId = `patient-program-note:${input.stageItemId}:${noteKey}`;
-  const replyMarkup = {
-    inline_keyboard: [[{ text: 'Ответить', callback_data: `program_reply:${input.stageItemId}` }]],
-  };
 
   if (opts?.staffDeps) {
     void notifyDoctorPatientMessageToStaff(
@@ -77,7 +74,6 @@ export async function notifyDoctorPatientProgramNote(
         messageId,
         senderDisplayName: input.patientLabel,
         notificationUrl: deepLink,
-        replyMarkup,
       },
       opts.staffDeps,
     ).catch((err: unknown) => {
@@ -101,5 +97,5 @@ export async function notifyDoctorPatientProgramNote(
     return;
   }
 
-  await relayTextToDoctorTargets(messageId, targets, text, 'patient-program-note', replyMarkup);
+  await relayTextToDoctorTargets(messageId, targets, text, 'patient-program-note');
 }

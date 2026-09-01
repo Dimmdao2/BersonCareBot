@@ -392,13 +392,6 @@ export type WebappEventsPort = {
     error?: string;
     canonicalWrite?: SupportQuestionCanonicalWrite;
   }>;
-  /** Начало ответа на наблюдение пациента по упражнению (POST /api/integrator/program-note/reply-begin). */
-  beginProgramNoteReply?(input: { stageItemId: string; idempotencyKey: string }): Promise<{
-    ok: boolean;
-    status: number;
-    error?: string;
-    programNoteReplyState?: string;
-  }>;
 };
 
 /** Channel bindings for multi-channel delivery (telegramId, maxId). */

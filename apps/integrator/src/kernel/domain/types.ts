@@ -76,8 +76,6 @@ export type IncomingCallbackUpdate = {
   callbackData: string;
   callbackQueryId: string;
   conversationId?: string;
-  /** Parsed from program_reply:{stageItemId} (ответ врача на наблюдение пациента по упражнению). */
-  stageItemId?: string;
   reminderOccurrenceId?: string;
   reminderSnoozeMinutes?: number;
   reminderMuteMinutes?: number;
