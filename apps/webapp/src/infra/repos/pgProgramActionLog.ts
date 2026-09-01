@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, lt, max, or, isNull, sql } from 'drizzle-orm';
+import { and, count, desc, eq, gte, lt, max, or, isNull, sql, type SQL } from 'drizzle-orm';
 import {
   getCurrentDbPrincipal,
   getCurrentDbPrincipalOrganizationId,
@@ -23,6 +23,23 @@ import type {
 } from '@/modules/treatment-program/types';
 import { PROGRAM_ACTION_TYPES } from '@/modules/treatment-program/types';
 import { programActionDoneActivityKey } from '@/modules/treatment-program/programActionActivityKey';
+
+/**
+ * Local calendar date of `created_at` in the caller's display zone.
+ *
+ * The IANA name keeps its allowlist validation and is then BOUND as a parameter — it is no
+ * longer escaped into the SQL text by hand. Callers that also group by this expression must use
+ * a positional `GROUP BY` ordinal rather than repeating the fragment: PostgreSQL matches a
+ * GROUP BY entry to the select list by parse-node equality, and Drizzle emits a distinct `$n`
+ * for every occurrence of a bound value, so two spelled-out copies stop matching (SQLSTATE
+ * 42803). Grouping by ordinal selects the very same expression, so the grouping is unchanged.
+ */
+function localDoneDateSql(displayIana: string): SQL {
+  if (!/^[-+/_0-9a-zA-Z]+$/.test(displayIana)) {
+    throw new Error('invalid_timezone');
+  }
+  return sql`((${logTable.createdAt} AT TIME ZONE ${displayIana})::date)`;
+}
 
 function currentWriteOrganizationId(...fallbacks: (string | null | undefined)[]): string | null {
   const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
@@ -77,12 +94,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
       }>(
         getWebappSqlDb(),
         'app.complete_current_patient_program_item(uuid,uuid,integer,text)',
-        [
-          params.instanceId,
-          params.instanceStageItemId,
-          params.repeatCooldownMinutes,
-          metrics,
-        ],
+        [params.instanceId, params.instanceStageItemId, params.repeatCooldownMinutes, metrics],
         sql`SELECT app.complete_current_patient_program_item(
           ${params.instanceId}::uuid,
           ${params.instanceStageItemId}::uuid,
@@ -262,9 +274,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             ),
           )
           .returning({ id: logTable.id, createdAt: logTable.createdAt, payload: logTable.payload });
-        return row
-          ? { id: row.id, createdAt: row.createdAt, payload: row.payload ?? null }
-          : null;
+        return row ? { id: row.id, createdAt: row.createdAt, payload: row.payload ?? null } : null;
       });
     },
 
@@ -462,17 +472,11 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async countDistinctLocalCalendarDaysWithDoneInWindow(params) {
-      const iana = params.displayIana;
-      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error('invalid_timezone');
-      }
-      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const localDate = localDoneDateSql(params.displayIana);
       const db = getDrizzle();
       const [row] = await db
         .select({
-          c: sql<number>`count(distinct ((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date))::int`.mapWith(
-            Number,
-          ),
+          c: sql<number>`count(distinct ${localDate})::int`.mapWith(Number),
         })
         .from(logTable)
         .where(
@@ -488,15 +492,11 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
     },
 
     async listDistinctLocalDoneDateKeysInWindowForPatient(params) {
-      const iana = params.displayIana;
-      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error('invalid_timezone');
-      }
-      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const localDate = localDoneDateSql(params.displayIana);
       const db = getDrizzle();
       const rows = await db
         .select({
-          dayKey: sql<string>`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`,
+          dayKey: sql<string>`${localDate}::text`,
         })
         .from(logTable)
         .where(
@@ -508,22 +508,18 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
         )
-        .groupBy(sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`);
+        .groupBy(sql`1`);
       return rows
         .map((r) => r.dayKey)
         .filter((v): v is string => typeof v === 'string' && v.length > 0);
     },
 
     async listDoneItemsByLocalDateInWindow(params) {
-      const iana = params.displayIana;
-      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error('invalid_timezone');
-      }
-      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const localDate = localDoneDateSql(params.displayIana);
       const db = getDrizzle();
       const rows = await db
         .select({
-          localDate: sql<string>`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`,
+          localDate: sql<string>`${localDate}::text`,
           itemId: logTable.instanceStageItemId,
         })
         .from(logTable)
@@ -536,23 +532,16 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
         )
-        .groupBy(
-          sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)`,
-          logTable.instanceStageItemId,
-        );
+        .groupBy(sql`1`, sql`2`);
       return rows.map((r) => ({ localDate: r.localDate, itemId: r.itemId }));
     },
 
     async listDoneItemsByLocalDateInWindowForPatient(params) {
-      const iana = params.displayIana;
-      if (!/^[-+/_0-9a-zA-Z]+$/.test(iana)) {
-        throw new Error('invalid_timezone');
-      }
-      const zoneSql = sql.raw(`'${iana.replace(/'/g, "''")}'`);
+      const localDate = localDoneDateSql(params.displayIana);
       const db = getDrizzle();
       const rows = await db
         .select({
-          localDate: sql<string>`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)::text`,
+          localDate: sql<string>`${localDate}::text`,
           itemId: logTable.instanceStageItemId,
           instanceId: logTable.instanceId,
         })
@@ -566,11 +555,7 @@ export function createPgProgramActionLogPort(): ProgramActionLogPort {
             lt(logTable.createdAt, params.windowEndUtcExclusiveIso),
           ),
         )
-        .groupBy(
-          sql`((${logTable.createdAt} AT TIME ZONE ${zoneSql})::date)`,
-          logTable.instanceStageItemId,
-          logTable.instanceId,
-        );
+        .groupBy(sql`1`, sql`2`, sql`3`);
       return rows.map((r) => ({
         localDate: r.localDate,
         itemId: r.itemId,
