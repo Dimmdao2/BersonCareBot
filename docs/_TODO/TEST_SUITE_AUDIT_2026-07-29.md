@@ -1,5 +1,23 @@
 # Ревизия тестового набора — решение владельца 29.07
 
+> **🔴 СТАТУС 02.09.2026 (W9, `docs/_TODO/SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md`):** ниже — исполнимая
+> история прохода 29.07–16.08. Он содержит собственные `OWNER-SUPERSEDED 16.08.2026` пометки по ходу текста, но
+> ранние разделы (Блок Б, «одноразовая PostgreSQL», `.postgres.integration.test.ts`, job `test-webapp-postgres`,
+> project `inprocess`) читаются как активная инструкция, если остановиться до этих пометок. Текущая реальность:
+> - **Disposable-PostgreSQL harness и весь Блок Б retired 16.08.2026** — см.
+>   `docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`. `pnpm run test:postgres`, project
+>   `postgres-integration`, job `test-webapp-postgres` и `*.postgres.integration.test.ts` не существуют.
+> - **DB/RLS доказывается именованной DEV/TEST** через `*.devDbProof.test.mjs`/`.ts` и `*.rls.integration.test.ts`
+>   (opt-in по env, вне обычного CI) — актуальный контракт: `AGENTS.md` §10b «DB/RLS — актуальный механизм
+>   проверки».
+> - **Webapp Vitest-таксономия — четыре project:** `fast`/`unit`/`route`/`ui` (`apps/webapp/vitest.config.ts`);
+>   `inprocess` не существует. CI: `test-webapp-core` (шардированный `fast`) + `test-webapp-behavior`
+>   (`unit`+`route`+`ui`), оба на каждом push и PR — не только на `push` в `main`.
+> - **Media-worker и `packages/error-tracking`** тесты теперь в CI (`test-media-worker`, `test-error-tracking`
+>   в `.github/workflows/ci.yml`) и в локальном `pnpm run ci` (W7).
+>
+> Ниже — не редактировано (историческая evidence прохода); текущий канон — `AGENTS.md` §9–§12 и §24.
+
 > **⛔ ПЕРЕД СТАРТОМ ЭТАПА — перечитать, не по памяти:** `AGENTS.md` (§24 оркестрация, §7-9 коммит/CI/пуш feat),
 > `docs/ORCHESTRATION_BINDINGS.md`, `docs/ORCHESTRATOR_CHECKLIST.md`, релевантные `.cursor/rules/*.mdc`.
 > Агентов запускать только через `tools/orch-launch.sh`. **НЕ ИЗОБРЕТАТЬ:** сначала искать готовое.

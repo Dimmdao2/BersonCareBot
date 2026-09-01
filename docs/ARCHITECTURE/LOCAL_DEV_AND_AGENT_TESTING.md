@@ -301,12 +301,12 @@ staff-порт → telemetry-role → protected functions. Перезапуск 
 
 ## 7. Автотесты (не путать с живым UI)
 
-| Команда                      | Область                  |
-| ---------------------------- | ------------------------ |
-| `pnpm test:webapp:fast`      | Быстрые unit/contract    |
-| `pnpm test:webapp:inprocess` | Тяжёлые in-process       |
-| `pnpm test:webapp`           | оба набора               |
-| `pnpm run ci`                | полный барьер перед push |
+| Команда                       | Область                                     |
+| ------------------------------ | -------------------------------------------- |
+| `pnpm test:webapp:fast`        | Vitest project `fast` (шардируется в CI)     |
+| `pnpm test:webapp:behavior`    | Projects `unit` + `route` + `ui`             |
+| `pnpm test:webapp`             | все четыре project сразу                     |
+| `pnpm run ci`                  | полный барьер перед push                     |
 
 Политика: [`.cursor/rules/test-execution-policy.md`](../../.cursor/rules/test-execution-policy.md), [`apps/webapp/e2e/README.md`](../../apps/webapp/e2e/README.md).
 

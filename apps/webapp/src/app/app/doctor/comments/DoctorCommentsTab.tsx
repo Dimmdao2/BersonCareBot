@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
@@ -20,7 +21,6 @@ import type {
 } from './loadDoctorPatientExercisesWithComments';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
-  DoctorDnaFlatList,
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
@@ -28,6 +28,7 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
   doctorDnaFlatListSelectedPrimaryClass,
+  doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -38,16 +39,11 @@ import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHr
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
-import {
-  ExerciseCommentPreviewItemContent,
-  ExerciseCommentPreviewListRow,
-} from './ExerciseCommentPreviewItem';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -88,6 +84,7 @@ export type DoctorCommentsTabProps = {
   initialPatients: CommentPatientRow[];
   /** IANA timezone string for displaying dates in clinic's local time. */
   displayIana?: string;
+  active?: boolean;
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -151,7 +148,7 @@ function PatientRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          'w-full rounded-none bg-transparent shadow-none',
+          'h-auto min-h-12 w-full rounded-none bg-transparent text-left shadow-none',
           isFirst && 'border-t-0',
         )}
         aria-pressed={isSelected}
@@ -164,7 +161,7 @@ function PatientRow({
               className={cn(
                 'min-w-0 truncate',
                 doctorDnaFlatListPrimaryClass,
-                hasUnread && 'font-bold',
+                hasUnread && doctorDnaFlatListUnreadTextClass,
                 isSelected && doctorDnaFlatListSelectedPrimaryClass,
               )}
             >
@@ -179,11 +176,7 @@ function PatientRow({
                 </span>
               )}
             </span>
-            {hasUnread && (
-              <span className="shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                {patient.unreadCount}
-              </span>
-            )}
+            <DoctorAttentionBadge count={patient.unreadCount} className="shrink-0" />
           </div>
         </div>
       </Button>
@@ -214,7 +207,7 @@ function ExerciseRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          'w-full rounded-none bg-transparent shadow-none',
+          'h-auto min-h-12 w-full rounded-none bg-transparent text-left shadow-none',
           isFirst && 'border-t-0',
         )}
       >
@@ -227,7 +220,7 @@ function ExerciseRow({
             className={cn(
               'truncate',
               doctorDnaFlatListPrimaryClass,
-              hasUnread && 'font-bold',
+              hasUnread && doctorDnaFlatListUnreadTextClass,
               isSelected && doctorDnaFlatListSelectedPrimaryClass,
             )}
           >
@@ -241,9 +234,7 @@ function ExerciseRow({
         </div>
         <div className="shrink-0 text-right">
           {hasUnread ? (
-            <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-              {item.unreadComments}
-            </span>
+            <DoctorAttentionBadge count={item.unreadComments} />
           ) : (
             <span className={doctorDnaFlatListMetaClass}>{item.totalComments}</span>
           )}
@@ -459,7 +450,11 @@ function ThreadMessage({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommentsTabProps) {
+function DoctorCommentsDesktopTab({
+  initialPatients,
+  displayIana,
+  active = true,
+}: DoctorCommentsTabProps) {
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
@@ -470,6 +465,7 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
 
   // ── Search / filter state ──
   const [query, setQuery] = useState('');
+  const [mobileToolbarTarget, setMobileToolbarTarget] = useState<HTMLElement | null>(null);
 
   // ── All-mode: lazy-loaded patients ──
   const [allModePatients, setAllModePatients] = useState<CommentPatientRow[] | null>(null);
@@ -847,29 +843,33 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   const patientsLoading = viewMode === 'all' && allModePatientsLoading;
   const patientsError = viewMode === 'all' ? allModePatientsError : null;
 
-  const leftPane = (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-      {/* Search + filters header */}
-      <div className="shrink-0 border-b border-border bg-muted/20 px-3 py-2 space-y-1.5">
-        <Input
-          type="search"
-          placeholder="Поиск"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="h-8 w-full"
-          aria-label="Поиск пациентов"
-        />
+  useEffect(() => {
+    if (!active) {
+      setMobileToolbarTarget(null);
+      return;
+    }
+    setMobileToolbarTarget(document.getElementById('doctor-communications-mobile-toolbar'));
+  }, [active]);
+
+  const renderListControls = (showFilters: boolean) => (
+    <div className="space-y-1.5">
+      <Input
+        type="search"
+        placeholder="Поиск"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="h-8 w-full"
+        aria-label="Поиск пациентов"
+      />
+      {showFilters ? (
         <div className="flex flex-wrap gap-1.5">
-          {/* ── Независимые toggle-фильтры: «Непрочитанные» и «На сопровождении» ──
-              Оба переключаются кликом независимо друг от друга; ни один активный
-              фильтр не требуется — тогда список показывает всех пациентов. */}
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => handleSwitchViewMode(viewMode === 'unread' ? 'all' : 'unread')}
             className={cn(
-              'cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto',
+              'h-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors',
               viewMode === 'unread'
                 ? 'bg-destructive/15 text-destructive'
                 : 'border border-border text-muted-foreground hover:bg-muted/40',
@@ -884,7 +884,7 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
             size="sm"
             onClick={handleToggleOnSupportOnly}
             className={cn(
-              'cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto',
+              'h-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors',
               onSupportOnly
                 ? 'bg-primary/15 text-primary'
                 : 'border border-border text-muted-foreground hover:bg-muted/40',
@@ -894,6 +894,18 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
             ★ На сопровождении{onSupportCount > 0 ? ` ${onSupportCount}` : ''}
           </Button>
         </div>
+      ) : null}
+    </div>
+  );
+
+  const leftPane = (
+    <div
+      data-doctor-flat-list-surface
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:rounded-lg md:border md:border-border"
+    >
+      {/* Search + filters header */}
+      <div className="hidden shrink-0 space-y-1.5 border-b border-border bg-muted/20 px-3 py-2 md:block">
+        {renderListControls(true)}
       </div>
 
       {/* Patient list */}
@@ -1156,66 +1168,21 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   ) : null;
 
   return (
-    <div id="doctor-communications-comments" className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}>
+    <>
+      {mobileToolbarTarget ? createPortal(renderListControls(false), mobileToolbarTarget) : null}
       <CatalogSplitLayout
+        mobileEdgeToEdge
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
         mobileBackSlot={mobileBackSlot}
         desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
-        className="h-full"
+        className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
       />
-    </div>
-  );
-}
-
-function DoctorCommentsMobileTab({ initialItems }: DoctorCommentsTabProps) {
-  const [selectedItem, setSelectedItem] = useState<TodayExerciseCommentAttentionItem | null>(null);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
-      <div className="min-h-0 flex-1 overflow-y-auto bg-card">
-        {initialItems.length === 0 ? (
-          <DoctorEmptyState size="sm" className="flex min-h-full items-center justify-center py-10">
-            Нет новых комментариев по упражнениям
-          </DoctorEmptyState>
-        ) : (
-          <DoctorDnaFlatList>
-            {initialItems.map((item) => (
-              <ExerciseCommentPreviewListRow
-                key={`${item.stageItemId}:${item.latestMessage.id}`}
-                item={item}
-                onActivate={() => setSelectedItem(item)}
-              />
-            ))}
-          </DoctorDnaFlatList>
-        )}
-      </div>
-
-      <DoctorModal
-        open={selectedItem !== null}
-        onClose={() => setSelectedItem(null)}
-        title="Комментарий"
-        size="content"
-      >
-        {selectedItem ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <ExerciseCommentPreviewItemContent item={selectedItem} />
-            <Link href={selectedItem.href} className={doctorInlineLinkClass}>
-              Открыть обсуждение
-            </Link>
-          </div>
-        ) : null}
-      </DoctorModal>
-    </div>
+    </>
   );
 }
 
 export function DoctorCommentsTab(props: DoctorCommentsTabProps) {
-  const isMobile = useIsMobileViewport();
-  return isMobile ? (
-    <DoctorCommentsMobileTab {...props} />
-  ) : (
-    <DoctorCommentsDesktopTab {...props} />
-  );
+  return <DoctorCommentsDesktopTab {...props} />;
 }

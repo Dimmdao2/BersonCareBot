@@ -1433,8 +1433,6 @@ const integratorSupportBridge = createIntegratorSupportBridge({
       { organizationId, source: 'integrator.support-canonical-write' },
       fn,
     ),
-  notifyPatientOfDoctorReply: notifyPatientDoctorReply,
-  sendProgramNoteReply,
   notifyDoctorOfPatientMessage: notifyDoctorOfPatientMessageImpl,
   resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });

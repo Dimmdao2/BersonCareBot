@@ -82,6 +82,6 @@ function toProps(initialData: unknown): DoctorCommentsTabProps {
 }
 
 /** Таб «Комментарии» — SSR-данные передаются через initialData из страницы-шелла. */
-export function CommentsTab({ initialData }: CommunicationsTabProps) {
-  return <DoctorCommentsTab {...toProps(initialData)} />;
+export function CommentsTab({ initialData, isActive }: CommunicationsTabProps) {
+  return <DoctorCommentsTab {...toProps(initialData)} active={isActive} />;
 }

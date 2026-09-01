@@ -8,7 +8,7 @@ import {
 import { integrationRegistry } from '../integrations/registry.js';
 import { buildDeps, type BuildDepsInput } from './di.js';
 import { registerRoutes } from './routes.js';
-import { isRecognizedSaasIsolationFailure } from '@bersoncare/db-principal';
+import { isRecognizedSaasIsolationFailure } from '@bersoncare/error-tracking';
 import { reportIntegratorIsolationFailure } from '../infra/observability/saasIsolationTelemetry.js';
 import { captureUnexpectedIntegratorHttpError } from '../infra/observability/errorTracking.js';
 

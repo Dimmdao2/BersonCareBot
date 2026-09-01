@@ -1,17 +1,10 @@
-import type { MediaWorkerControlPort, MediaWorkerIsolationEventClass } from './control.js';
+import {
+  classifySaasIsolationFailure,
+  isRecognizedSaasIsolationFailure,
+} from '@bersoncare/error-tracking';
+import type { MediaWorkerControlPort } from './control.js';
 
 const CIRCUIT_OPEN_MS = 30_000;
-
-function classification(error: unknown): MediaWorkerIsolationEventClass | null {
-  const record = typeof error === 'object' && error !== null ? error as { code?: unknown; message?: unknown } : {};
-  const message = typeof error === 'string' ? error : typeof record.message === 'string' ? record.message : '';
-  if (/principal context is required/i.test(message)) return 'missing_principal';
-  if (/signed context|signature|install_signed_context/i.test(message)) return 'invalid_signature_or_install';
-  if ((record.code === '42501' || record.code === undefined) && /row-level security|row level security|policy/i.test(message)) return 'rls_denial';
-  if ((record.code === '42501' || record.code === undefined) && /permission denied for (table|schema|sequence|function|relation)/i.test(message)) return 'role_pool_mismatch';
-  if (/release_principal_context|cleanup/i.test(message)) return 'cleanup_failure';
-  return null;
-}
 
 /** A failed telemetry command is isolated from the original worker failure and circuit-broken. */
 export function createMediaWorkerIsolationReporter(
@@ -21,9 +14,11 @@ export function createMediaWorkerIsolationReporter(
   let circuitOpenUntil = 0;
   return {
     report(error: unknown): void {
-      const eventClass = classification(error);
-      if (!eventClass || now() < circuitOpenUntil) return;
-      void control.isolationFailure(eventClass).catch(() => {
+      // Ordinary transcode/S3 failures are not isolation events. An isolation failure that no rule
+      // recognized IS one, and is reported as `unclassified_background_operation` instead of being
+      // dropped — the control seam and `app.report_saas_isolation_event` both accept that class.
+      if (!isRecognizedSaasIsolationFailure(error) || now() < circuitOpenUntil) return;
+      void control.isolationFailure(classifySaasIsolationFailure(error)).catch(() => {
         circuitOpenUntil = now() + CIRCUIT_OPEN_MS;
       });
     },

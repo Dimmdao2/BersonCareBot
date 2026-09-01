@@ -100,8 +100,6 @@ export function incomingCallbackPayloadFromNormalized(
   normalized: DynamicChannelCallbackPayload,
 ): IncomingCallbackPayloadFromNormalize {
   const out: IncomingCallbackPayloadFromNormalize = {};
-  if (typeof normalized.conversationId === 'string') out.conversationId = normalized.conversationId;
-  if (typeof normalized.stageItemId === 'string') out.stageItemId = normalized.stageItemId;
   if (typeof normalized.reminderOccurrenceId === 'string')
     out.reminderOccurrenceId = normalized.reminderOccurrenceId;
   if (typeof normalized.reminderSnoozeMinutes === 'number')
@@ -121,23 +119,6 @@ export function incomingCallbackPayloadFromNormalized(
 export function normalizeChannelCallbackPayload(value: string): DynamicChannelCallbackPayload {
   const trimmed = value.trim();
   if (!trimmed) return { action: '' };
-  if (trimmed.startsWith('program_reply:')) {
-    const stageItemId = trimmed.slice('program_reply:'.length).trim();
-    if (stageItemId) {
-      return { action: 'program_reply', stageItemId };
-    }
-    return { action: 'program_reply' };
-  }
-  for (const prefix of ['admin_reply:', 'admin_reply_continue:', 'admin_close_dialog:']) {
-    if (trimmed.startsWith(prefix)) {
-      const conversationId = trimmed.slice(prefix.length).trim();
-      if (!conversationId) return { action: trimmed };
-      return {
-        action: prefix.slice(0, -1),
-        conversationId,
-      };
-    }
-  }
   if (trimmed.startsWith('rem_snooze:')) {
     const rest = trimmed.slice('rem_snooze:'.length);
     const lastColon = rest.lastIndexOf(':');

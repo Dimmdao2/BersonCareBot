@@ -2,25 +2,16 @@ import {
   createSaasIsolationBackgroundReporter,
   type SaasIsolationBackgroundReporter,
   type SaasIsolationBackgroundSource,
+  type SaasIsolationEventSink,
   type SaasIsolationTelemetryTransportStatus,
-} from '@bersoncare/db-principal';
+} from '@bersoncare/error-tracking';
 import { logger } from './logger.js';
 
-function query(sql: string, values: readonly unknown[]): Promise<unknown> {
+const write: SaasIsolationEventSink = () =>
   // Context-install/query failures must never recurse into another DB checkout. In port-context
-  // mode PostgreSQL logs the denial; this reporter deliberately stays process-local.
-  void sql;
-  void values;
-  return Promise.reject(new Error('port_context_telemetry_is_local'));
-}
-
-export async function probeSaasIsolationTelemetryWriter(
-  _pool: never,
-  source: SaasIsolationBackgroundSource,
-): Promise<void> {
-  void source;
-  throw new Error('port_context_telemetry_is_local');
-}
+  // mode PostgreSQL logs the denial; this reporter deliberately stays process-local, so the sink
+  // is a declared failure and the degraded transport status below is what makes it visible.
+  Promise.reject(new Error('port_context_telemetry_is_local'));
 
 function logTransportStatus(
   source: SaasIsolationBackgroundSource,
@@ -37,8 +28,7 @@ function logTransportStatus(
 function createReporter(source: SaasIsolationBackgroundSource): SaasIsolationBackgroundReporter {
   return createSaasIsolationBackgroundReporter({
     source,
-    query,
-    probe: () => Promise.reject(new Error('port_context_telemetry_is_local')),
+    write,
     onStatus: (status) => logTransportStatus(source, status),
   });
 }
@@ -67,24 +57,3 @@ export const reportSchedulerDispatchIsolationFailure = createReporter({
   service: 'scheduler',
   operation: 'scheduler_dispatch_tick',
 });
-
-async function assertWriterReadyInLockedMode(
-  reporter: SaasIsolationBackgroundReporter,
-  processFamily: 'api' | 'worker' | 'scheduler',
-): Promise<void> {
-  if ((process.env.DB_PRINCIPAL_CONTEXT_MODE ?? '').trim() !== 'locked') return;
-  if (await reporter.probeWriter()) return;
-  throw new Error(`saas_isolation_telemetry_writer_unavailable:${processFamily}`);
-}
-
-export function assertApiIsolationTelemetryWriterReady(): Promise<void> {
-  return assertWriterReadyInLockedMode(reportIntegratorIsolationFailure, 'api');
-}
-
-export function assertWorkerIsolationTelemetryWriterReady(): Promise<void> {
-  return assertWriterReadyInLockedMode(reportWorkerQueueIsolationFailure, 'worker');
-}
-
-export function assertSchedulerIsolationTelemetryWriterReady(): Promise<void> {
-  return assertWriterReadyInLockedMode(reportSchedulerLockIsolationFailure, 'scheduler');
-}

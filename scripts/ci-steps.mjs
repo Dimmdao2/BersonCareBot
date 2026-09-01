@@ -22,6 +22,7 @@ const phases = [
       command('test:db-principal', Math.max(1, Math.floor(cpuBudget / 4))),
       command('test:db-privileges'),
       command('test:media-worker', 1),
+      command('test:error-tracking', 1),
     ],
   ],
   [[command('build')]],

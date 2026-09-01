@@ -1,8 +1,8 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
-import { env } from '@/config/env';
+import { SAAS_ISOLATION_EVENT_CLASSES } from '@bersoncare/error-tracking';
+import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { logger } from '@/app-layer/logging/logger';
 import {
   assertMediaWorkerControlReady, claimMediaWorkerControlJob, completeMediaWorkerHlsJob,
@@ -12,10 +12,8 @@ import {
 } from '@/app-layer/media/mediaWorkerControl';
 
 const jobSchema = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() }).strict();
-const isolationEventSchema = z.enum([
-  'missing_principal', 'invalid_signature_or_install', 'role_pool_mismatch', 'rls_denial',
-  'cleanup_failure', 'unclassified_background_operation',
-]);
+// Wire contract of the media control seam: the same closed class list the classifier produces.
+const isolationEventSchema = z.enum(SAAS_ISOLATION_EVENT_CLASSES);
 const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ready') }),
   z.object({ type: z.literal('watermark') }),
@@ -30,18 +28,9 @@ const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('done_program'), job: jobSchema, lockedBy: z.string().min(1).max(200), values: z.object({ outputKey: z.string().min(1).max(2000), posterKey: z.string().min(1).max(2000), qualitiesJson: z.string().max(8000), durationSeconds: z.number().nonnegative().nullable() }) }),
 ]);
 
-function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 export async function POST(request: Request) {
-  const secret = env.INTERNAL_JOB_SECRET;
-  if (!secret) return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token || !bearerMatchesSecret(token, secret)) return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
+  const auth = verifyInternalJobBearer(request);
+  if (!auth.ok) return auth.response;
   enterWithDbInfraPrincipal({ source: 'api/internal/media-worker/control:POST' });
   const parsed = commandSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });

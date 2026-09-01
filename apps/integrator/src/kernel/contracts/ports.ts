@@ -373,11 +373,6 @@ export type WebappEventsPort = {
     current?: boolean;
     inserted?: number;
   }>;
-  /** Ответ врача из admin_reply для `webapp:platform:{uuid}` (POST /api/integrator/support/admin-reply). */
-  applySupportAdminReply?(input: {
-    body: string;
-    idempotencyKey: string;
-  }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Смена статуса webapp-owned обращения (POST /api/integrator/support/status). */
   setSupportStatus?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;
@@ -391,13 +386,6 @@ export type WebappEventsPort = {
     status: number;
     error?: string;
     canonicalWrite?: SupportQuestionCanonicalWrite;
-  }>;
-  /** Начало ответа на наблюдение пациента по упражнению (POST /api/integrator/program-note/reply-begin). */
-  beginProgramNoteReply?(input: { stageItemId: string; idempotencyKey: string }): Promise<{
-    ok: boolean;
-    status: number;
-    error?: string;
-    programNoteReplyState?: string;
   }>;
 };
 

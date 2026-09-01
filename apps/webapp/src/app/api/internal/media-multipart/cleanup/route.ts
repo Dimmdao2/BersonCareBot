@@ -1,7 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
-import { env } from '@/config/env';
+import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { getPool } from '@/app-layer/db/client';
 import { logger } from '@/app-layer/logging/logger';
 import { withMultipartSessionLock } from '@/app-layer/locks/multipartSessionLock';
@@ -14,15 +13,6 @@ import {
   OPERATOR_MEDIA_JOB_FAMILY,
   OPERATOR_MEDIA_MULTIPART_CLEANUP_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
-
-function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
-  if (a.length !== b.length) {
-    return false;
-  }
-  return timingSafeEqual(a, b);
-}
 
 /**
  * Expired multipart sessions are HANDED to the one media cleanup state machine
@@ -39,16 +29,8 @@ function bearerMatchesSecret(token: string, secret: string): boolean {
  * `errors > 0` makes the tick FAIL.
  */
 export async function POST(request: Request) {
-  const secret = env.INTERNAL_JOB_SECRET;
-  if (!secret) {
-    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
+  const auth = verifyInternalJobBearer(request);
+  if (!auth.ok) return auth.response;
   // INFRA: cleanup scans expired multipart sessions across organizations and purges abandoned rows.
   enterWithDbInfraPrincipal({ source: 'api/internal/media-multipart/cleanup:POST' });
 

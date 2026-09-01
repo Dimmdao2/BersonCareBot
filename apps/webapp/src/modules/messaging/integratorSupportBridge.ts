@@ -8,9 +8,6 @@ import {
   webappOrganizationConversationId,
   webappPlatformConversationId,
 } from '@/modules/messaging/supportConversationIds';
-import type { NotifyPatientDoctorReplyParams } from '@/modules/messaging/notifyPatientDoctorReply';
-import { NOTIFICATION_TOPIC_SUPPORT_MESSAGES } from '@/modules/patient-notifications/notificationTopicCodes';
-import type { SendProgramNoteReply } from '@/modules/messaging/sendProgramNoteReply';
 import { logger, serializeError } from '@/infra/logging/logger';
 
 export type IntegratorSupportSyncMessageInput = {
@@ -21,15 +18,6 @@ export type IntegratorSupportSyncMessageInput = {
   createdAt: string;
   externalChatId?: string | null;
   externalMessageId?: string | null;
-};
-
-export type IntegratorSupportAdminReplyInput = {
-  integratorConversationId: string;
-  integratorMessageId: string;
-  text: string;
-  createdAt: string;
-  senderDisplayName?: string;
-  programNoteStageItemId?: string;
 };
 
 export type IntegratorSupportStatusInput = {
@@ -59,8 +47,6 @@ export function createIntegratorSupportBridge(deps: {
     verifiedOrganizationId?: string,
   ) => Promise<{ ok: true; organizationId: string } | { ok: false; error: string }>;
   withOrganizationPrincipal: <T>(organizationId: string, fn: () => Promise<T>) => Promise<T>;
-  notifyPatientOfDoctorReply?: (params: NotifyPatientDoctorReplyParams) => Promise<void>;
-  sendProgramNoteReply?: SendProgramNoteReply;
   notifyDoctorOfPatientMessage?: (input: {
     organizationId: string;
     platformUserId: string;
@@ -136,68 +122,6 @@ export function createIntegratorSupportBridge(deps: {
           organizationId,
         },
       };
-    },
-
-    async applyAdminReply(
-      input: IntegratorSupportAdminReplyInput,
-    ): Promise<{ ok: true } | { ok: false; error: string }> {
-      const parsedConversation = parseWebappConversationId(input.integratorConversationId);
-      if (!parsedConversation) return { ok: false, error: 'not_webapp_conversation' };
-      const { platformUserId } = parsedConversation;
-
-      const trimmed = input.text.trim();
-      if (!trimmed) return { ok: false, error: 'empty' };
-
-      if (input.programNoteStageItemId && deps.sendProgramNoteReply) {
-        const result = await deps.sendProgramNoteReply({
-          integratorConversationId: input.integratorConversationId,
-          integratorMessageId: input.integratorMessageId,
-          stageItemId: input.programNoteStageItemId,
-          text: trimmed,
-          senderDisplayName: input.senderDisplayName,
-          createdAt: input.createdAt,
-          source: 'webapp',
-        });
-        if (!result.ok) return result;
-        return { ok: true };
-      }
-
-      const organization = await deps.resolvePatientOrganization(
-        platformUserId,
-        parsedConversation.scope === 'organization' ? parsedConversation.organizationId : undefined,
-      );
-      if (!organization.ok) return organization;
-      const { organizationId } = organization;
-      const integratorMessageId =
-        input.integratorMessageId.trim() || `webapp-msg:${crypto.randomUUID()}`;
-      const createdAt = input.createdAt || new Date().toISOString();
-
-      await deps.withOrganizationPrincipal(organizationId, async () => {
-        const { id: conversationId } =
-          await deps.port.ensureWebappConversationForUser(platformUserId);
-        await deps.port.appendWebappMessage({
-          conversationId,
-          integratorMessageId,
-          senderRole: 'admin',
-          text: trimmed,
-          source: 'webapp',
-          createdAt,
-          organizationId,
-        });
-      });
-
-      if (organizationId && deps.notifyPatientOfDoctorReply) {
-        await deps.notifyPatientOfDoctorReply({
-          organizationId,
-          platformUserId,
-          messageId: integratorMessageId,
-          text: trimmed,
-          senderDisplayName: input.senderDisplayName,
-          topicCode: NOTIFICATION_TOPIC_SUPPORT_MESSAGES,
-        });
-      }
-
-      return { ok: true };
     },
 
     async setStatus(

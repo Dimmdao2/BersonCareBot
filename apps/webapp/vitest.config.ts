@@ -36,6 +36,7 @@ export default defineConfig({
             'node_modules',
             '.next',
             'src/**/*.unit.test.ts',
+            'src/**/*.unit.test.tsx',
             'src/**/*.route.test.ts',
             'src/**/*.ui.test.tsx',
             'src/**/*.devDb.integration.test.ts',
@@ -49,7 +50,7 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
-          include: ['src/**/*.unit.test.ts'],
+          include: ['src/**/*.unit.test.ts', 'src/**/*.unit.test.tsx'],
           exclude: ['node_modules', '.next'],
           testTimeout: 20_000,
           hookTimeout: 25_000,

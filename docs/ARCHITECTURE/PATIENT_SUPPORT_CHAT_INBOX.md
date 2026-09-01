@@ -8,10 +8,6 @@ Tenant identity thread: при активном organization principal 1:1 ди�
 ensure переиспользует видимый legacy webapp-thread своей клиники, но не запускает глобальный legacy merge: общий
 пациент, зачисленный в две клиники, получает два изолированных диалога, а не одну конфликтующую строку.
 
-Signed integrator `admin-reply` не устанавливает tenant principal. До появления доверенного organization context
-он отклоняет org-scoped conversation key с `organization_context_required`; legacy `webapp:platform:*` callback
-остаётся совместимым. Разрешать scoped callback только по извлечённому `platformUserId` запрещено.
-
 Связанные документы: [`DOCTOR_BROADCASTS.md`](DOCTOR_BROADCASTS.md) (рассылки врача),
 исторический [`RUBITIME_BOOKING_PIPELINE.md`](../archive/2026-07-rubitime-retirement/ARCHITECTURE/RUBITIME_BOOKING_PIPELINE.md)
 (интеграция выведена 2026-07-27), [`NOTIFICATION_CHANNELS.md`](NOTIFICATION_CHANNELS.md) (**Web Push — основной канал**),
@@ -24,7 +20,7 @@ Signed integrator `admin-reply` не устанавливает tenant principal
 | Событие                                                    | Текст в чате                                         | Web Push `openUrl`                                   | Telegram / MAX / SMS                                                              |
 | ---------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------- | --------------------------------------------------------------------------------- |
 | Ответ врача в чате (1:1)                                   | Текст ответа                                         | `/app/patient/messages` (`notifyPatientDoctorReply`) | Preview + ссылка на чат                                                           |
-| Ответ врача на **наблюдение по упражнению** (program note) | `Ответ на ваш комментарий к упражнению «…»:` + текст | `/app/patient/messages`                              | То же (`notifyPatientDoctorReply`); кнопка в боте — `program_reply:{stageItemId}` |
+| Ответ врача на **наблюдение по упражнению** (program note) | `Ответ на ваш комментарий к упражнению «…»:` + текст | `/app/patient/messages`                              | Уведомление по настройкам пациента; врач отвечает только в кабинете              |
 
 ## Что попадает в колокольчик уведомлений
 
@@ -100,12 +96,12 @@ Signed integrator `admin-reply` не устанавливает tenant principal
 | Lifecycle запись           | [`patientWebPushNotify.ts`](../../apps/webapp/src/modules/patient-notifications/patientWebPushNotify.ts) при `intentType === appointment_lifecycle`                                                                                                                                                                      |
 | Unread API                 | [`patientMessagingService.ts`](../../apps/webapp/src/modules/messaging/patientMessagingService.ts), [`pgSupportCommunication.ts`](../../apps/webapp/src/infra/repos/pgSupportCommunication.ts)                                                                                                                           |
 | Notification inbox         | [`patientNotificationInboxService.ts`](../../apps/webapp/src/modules/messaging/patientNotificationInboxService.ts), [`PatientNotificationInboxButton.tsx`](../../apps/webapp/src/shared/ui/patient/shell/PatientNotificationInboxButton.tsx)                                                                             |
-| Program note → ответ врача | [`notifyDoctorPatientProgramNote.ts`](../../apps/webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts), [`programNoteReplyContext.ts`](../../apps/webapp/src/modules/messaging/programNoteReplyContext.ts), [`integratorSupportBridge.ts`](../../apps/webapp/src/modules/messaging/integratorSupportBridge.ts) |
+| Program note → ответ врача | [`notifyDoctorPatientProgramNote.ts`](../../apps/webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts), [`programNoteReplyContext.ts`](../../apps/webapp/src/modules/messaging/programNoteReplyContext.ts), [`sendProgramNoteReply.ts`](../../apps/webapp/src/modules/messaging/sendProgramNoteReply.ts) |
 
 ## Код (integrator)
 
 - [`recordM2mRoute.ts`](../../apps/integrator/src/integrations/rubitime/recordM2mRoute.ts) — webapp `runPatientWebPushNotify`: для `appointment_lifecycle` итоговый `openUrl` = `{appBase}/app/patient?notifications=1`.
-- Program note reply: `content/*/admin/scripts.json` (`program_reply`, `reply.message`), `handlers/supportRelay.ts`, `webapp.programNote.replyBegin` — см. [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
+- Program note: integrator доставляет уведомление врачу и входящие сообщения пациента; ответ врача выполняется webapp — см. [`DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Тесты (ориентир)
 

@@ -1,4 +1,3 @@
-import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
@@ -9,19 +8,12 @@ import {
   PRODUCT_ANALYTICS_RECENT_RETENTION_DAYS,
   PRODUCT_ANALYTICS_USER_HOURLY_RETENTION_DAYS,
 } from '@/modules/product-analytics/productAnalyticsRetention';
-import { env } from '@/config/env';
+import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { recordOperatorCronJobTickBestEffort } from '@/app-layer/operator-health/recordOperatorCronJobTick';
 import {
   OPERATOR_ANALYTICS_JOB_FAMILY,
   OPERATOR_PRODUCT_ANALYTICS_RETENTION_JOB_KEY,
 } from '@/modules/operator-health/reconcileJobKeys';
-
-function bearerMatchesSecret(token: string, secret: string): boolean {
-  const a = Buffer.from(token, 'utf8');
-  const b = Buffer.from(secret, 'utf8');
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 function parsePositiveDaysParam(raw: string | null, fallback: number): number | 'invalid' {
   if (raw == null || raw.trim() === '') return fallback;
@@ -45,16 +37,8 @@ function parseDryRun(url: URL): boolean {
  * (defaults 90 / 180 / 730 / 730), `dryRun=1` for counts only.
  */
 export async function POST(request: Request) {
-  const secret = env.INTERNAL_JOB_SECRET;
-  if (!secret) {
-    return NextResponse.json({ ok: false, error: 'not_configured' }, { status: 503 });
-  }
-
-  const auth = request.headers.get('authorization') ?? '';
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  if (!token || !bearerMatchesSecret(token, secret)) {
-    return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-  }
+  const auth = verifyInternalJobBearer(request);
+  if (!auth.ok) return auth.response;
   // INFRA pending owner confirmation: retention deletes old analytics rows across all organizations.
   enterWithDbInfraPrincipal({ source: 'api/internal/product-analytics/retention:POST' });
 

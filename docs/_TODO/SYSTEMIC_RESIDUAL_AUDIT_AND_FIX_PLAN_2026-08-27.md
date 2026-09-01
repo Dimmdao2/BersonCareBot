@@ -26,42 +26,149 @@
 
 ### Подтверждённые разрывы
 
-- [ ] **W1 — единый действующий DB-mode контракт.** PROD preflight всё ещё принимает только прежние
+- [x] **W1 — единый действующий DB-mode контракт.** PROD preflight всё ещё принимал только прежние
   `shadow/locked`, тогда как текущий webapp стартует только в `port-context`. Допуск `locked` на входе полного
   TEST-reset сам по себе не ошибка: это разрешённое исходное состояние до атомарного перехода, и его нельзя
   бездумно запретить. Нужно убрать именно runtime/deploy-противоречие, удалить мёртвые locked-only startup-пробы
   и оставить разные фазы явно названными, а не сводить все допустимые значения в один глобальный список.
-- [ ] **W2 — одна дверь внутренних фоновых HTTP-задач.** Пути jobs объявлены в manifest и отдельно вручную в
+  — СДЕЛАНО (ветка `wt/systemic-db-runtime-contracts-20260902`): `deploy/host/saas-c2-secret-preflight.mjs`
+  требует обязательный `--runtime-phase`, и фазы названы раздельно, а не слиты в общий список: `final-runtime`
+  требует ровно `port-context` плюс те пулы, которые рантайм реально открывает
+  (`DATABASE_URL_STAFF|PATIENT|GLOBAL_ADMIN`, `INTEGRATOR_DB_URL`) и отвергает оставшиеся кредентивы
+  подписанного контекста; `pre-cutover-source` требует ровно `locked` и сохраняет прежний контракт входа
+  полного TEST-reset. Вызовы названы по месту: `deploy/host/deploy-prod.sh:144` — `final-runtime` (там
+  стартует финальный webapp), `deploy/host/provision-c4-operational-runtime.sh:153` и
+  `deploy/host/assert-c4-operational-runtime-ready.sh:81` — `pre-cutover-source`. Мёртвые locked-only
+  startup-пробы сняты: `assertApiIsolationTelemetryWriterReady` / `assertWorker…` / `assertScheduler…` и
+  `probeSaasIsolationTelemetryWriter` удалены из `apps/integrator/src/infra/observability/saasIsolationTelemetry.ts`,
+  `main.ts`, `infra/runtime/scheduler/main.ts` — в `port-context` они были no-op, в `locked` фатальны, а
+  fail-visible путь (`logger.error` про degraded transport) остался. Вместе с ними снята мёртвая
+  probe-поверхность репортёра (`probeWriter`/`probe`/probe-счётчики). Доказано лично:
+  `node deploy/host/saas-c2-secret-preflight.mjs --self-test` (self-test теперь проверяет обе фазы и то, что
+  каждая отвергает env другой), ручной прогон обеих фаз на временных env-файлах, `bash -n` трёх изменённых
+  скриптов, `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`,
+  `pnpm --dir apps/integrator test` (110 файлов / 577 passed). НЕ проверено: full CI и живой TEST/PROD —
+  по границе задачи.
+- [x] **W2 — одна дверь внутренних фоновых HTTP-задач.** Закрыто `3e7492416`, принято независимым аудитом и
+  сведено в `d080b58b9`: CSRF-класс выводится из manifest, Bearer проверяется общей дверью, особый `503` reconcile
+  сохранён; аудит дал `PASS` по всем шести классам и две fault injection покрасили целевые тесты. Исходный разрыв:
+  пути jobs были объявлены в manifest и отдельно вручную в
   CSRF-классификаторе; два действующих маршрута уже отсутствуют во втором списке. Проверка Bearer-секрета
   скопирована в каждом route. Нужно вывести CSRF-класс и авторизацию из одной общей точки, сохранив особый
   `503`-контракт reconcile-задачи.
-- [ ] **W3 — одна классификация isolation-ошибок.** Integrator, webapp и media-worker по-разному решают, какой
-  отказ записывать. Media-worker сейчас выбрасывает неизвестный класс молча, хотя принимающая сторона умеет
+- [x] **W3 — одна классификация isolation-ошибок.** Integrator, webapp и media-worker по-разному решали, какой
+  отказ записывать. Media-worker выбрасывал неизвестный класс молча, хотя принимающая сторона умеет
   хранить общий `unclassified` результат. Нужен общий лёгкий классификатор и fail-visible fallback.
-- [ ] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry сейчас совпадает в overlay и
-  forward migration только случайно; механической сверки нет. Нельзя снова оставить два определения, где
+  — СДЕЛАНО: классификатор живёт в одном месте — `packages/error-tracking/src/saasIsolationClassification.ts`
+  (`@bersoncare/error-tracking` уже зависимость всех трёх приложений). Media-worker НЕ получил зависимость от
+  `@bersoncare/db-principal`: у него по контракту нет ни одного DB-кредентива, и preflight валит выкатку, если
+  он появится. Своя копия предиката в `apps/media-worker/src/saasIsolationTelemetry.ts` удалена; неизвестный
+  отказ теперь уходит как `unclassified_background_operation`, а не отбрасывается, и обычные транспортные
+  ошибки (S3/ffmpeg) по-прежнему не считаются isolation-событием. Одна и та же закрытая номенклатура классов
+  теперь у всех: `apps/media-worker/src/control.ts`, zod-схема шва
+  `apps/webapp/src/app/api/internal/media-worker/control/route.ts:17` и
+  `apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts` берут её из пакета. Фоновый репортёр
+  переехал туда же (`saasIsolationReporter.ts`) и НЕ несёт SQL: он принимает sink
+  (`SaasIsolationEventSink`), а сам оператор остаётся за именованной DB-дверью приложения — это требование
+  `scripts/check-no-new-raw-sql.mjs`, а не вкусовое. Доказано лично: новый
+  `packages/error-tracking/src/saasIsolationClassification.test.ts` (в т.ч. «неизвестный отказ → принятый
+  класс, а не пусто»), новый кейс в `apps/media-worker/src/saasIsolationTelemetry.unit.test.ts`,
+  `pnpm --dir packages/error-tracking test` (13), `pnpm --dir apps/media-worker test` (21),
+  typecheck integrator/webapp/media-worker, `node scripts/check-no-new-raw-sql.mjs` (production debt: 0).
+  ⚠️ ОСТАЁТСЯ ОТКРЫТЫМ вне этой ветки: тесты `packages/error-tracking` по-прежнему не подключены ни к
+  GitHub Actions, ни к локальному full CI — это ровно W7, новый тест наследует ту же слепую зону.
+  Независимый аудит 02.09 нашёл и закрепил последний разрыв W3: webapp отбрасывал `42501`, текст которого не
+  совпал с двумя локальными шаблонами. Исправлено после аудита: webapp-дверь теперь использует тот же
+  `classifySaasIsolationFailure`, что integrator и media-worker, поэтому неизвестный вид PostgreSQL-объекта
+  записывается как `unclassified_background_operation`, а обычные продуктовые ошибки по-прежнему не попадают
+  в isolation-журнал. Доказано перед коммитом тем же oracle
+  `apps/webapp/src/infra/db/saasIsolationDbFailureReporting.unit.test.ts` (2 passed) и
+  `pnpm --dir apps/webapp typecheck` (PASS). Реализация `90a4e2e55`, независимый audit/oracle `0d2ea418d`,
+  локализованное исправление ведущего `535c20f58`.
+- [x] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry совпадало в overlay и
+  forward migration только случайно; механической сверки не было. Нельзя снова оставить два определения, где
   побеждает последнее применённое. Нужен канонический источник или generated parity-гейт.
+  — СДЕЛАНО БЕЗ НОВОЙ МИГРАЦИИ (действующая функция уже верна, дублировался только источник поставки):
+  тело `app.report_saas_isolation_event` осталось за ledger-миграцией
+  `apps/webapp/db/drizzle-migrations/20260828T092521_deliver_cron_isolation_operations.sql`, а из overlay
+  `deploy/postgres/saas-isolation-telemetry.sql` `CREATE OR REPLACE` этой функции убран — overlay владеет
+  только владельцем и точными EXECUTE-грантами. Это ровно тот же канон, что уже действует для
+  `app.open_or_touch_operator_incident` в `c4-operational-runtime.sql`, и overlay применяется ПОСЛЕ миграций
+  (`deploy/host/deploy-test-saas.sh` → `run_strict_post_migration_closure`), поэтому функция к этому моменту
+  существует. Прав/ролей/политик в миграции не появилось: миграция не менялась вовсе. Механическая сверка:
+  `scripts/check-c4-migration-owned-function-bodies.mjs` обобщён на список overlay-файлов и теперь стережёт эту
+  функцию; гейт уже в `pnpm lint`. Доказано лично: `--self-test` OK; обратная проба — временно дописал
+  `CREATE OR REPLACE FUNCTION app.report_saas_isolation_event(...)` в overlay, гейт упал с exit 1 и назвал
+  файл и функцию, после отката снова OK. ⚠️ НЕ СДЕЛАНО (за границей формулировки W4, выношу как вопрос):
+  CHECK-констрейнт `saas_isolation_events_source_operation_check` по-прежнему объявлен и в той же миграции, и
+  в overlay — тот же класс «побеждает последний применённый», но это уже не тело функции.
 - [ ] **W5 — закончить перевод разрешённых webapp DB-портов.** Команда
   `rg -o "runWebappPgText\\(|runPgPoolPgText\\(" apps/webapp/src --glob "!**/*.test.*" | wc -l`
   вернула `103` вызова в `29` файлах. Они параметризованы и текущей SQL-инъекции не создают, но сохраняют ручную
   нумерацию `$N`. Перевод выполняется функциональными группами на существующий typed Drizzle-путь, без нового
   адаптера рядом. Сначала auth/session, затем необратимый purge, admin, doctor/patient CRUD и infra.
-- [ ] **W6 — убрать мёртвые действия ботов без изменения будущего меню.** Два живых уведомления врачу всё ещё
-  присылают кнопку «Ответить», но её сценарии удалены более поздним решением владельца: переписка читается в
-  кабинете. Удалить эти две кнопки и недостижимые callbacks/no-op/устаревшие описания. Состав будущего меню,
-  Telegram Mini App и MAX не изобретать; это отдельное позднее продуктовое решение.
-- [ ] **W7 — подключить реально существующие тесты к CI.** Тесты media-worker не запускаются GitHub Actions, а
+- [x] **W6 — убрать мёртвые действия ботов без изменения будущего меню.** Кнопки удалены в `f456bf8ba`; в этом
+  коммите удалены обе недостижимые callback/state/M2M-ветки — обычного сообщения и program note — вместе с
+  устаревшими активными описаниями. `rg -n
+  "admin_reply:|admin_reply_continue:|admin_close_dialog:|support/admin-reply|applySupportAdminReply|program_reply|webapp\\.programNote\\.replyBegin|program-note/reply-begin|programNoteStageItemId|programNoteReplyState|#pn:"
+  apps packages docs/ARCHITECTURE docs/README.md` → пусто; `pnpm --dir apps/integrator typecheck` и
+  `pnpm --dir apps/webapp typecheck` → PASS. Рабочий `sendProgramNoteReply` из кабинета сохранён; будущее меню,
+  Telegram Mini App и MAX не изменялись. Финальный независимый аудит нашёл одну регрессию проводки: ответ врача
+  из обсуждения программы сохранялся, но пациент не получал уведомление. Ведущий вернул только действующую
+  `notifyPatientOfDoctorReply` в `createSendProgramNoteReply` и сделал зависимость обязательной, поэтому повторное
+  снятие проводки теперь ломает typecheck; старые callback/M2M-ответы через бота не возвращены. Доказано:
+  `pnpm --dir apps/webapp typecheck` — PASS.
+- [x] **W7 — подключить реально существующие тесты к CI.** Тесты media-worker не запускаются GitHub Actions, а
   тесты error-tracking не запускаются ни GitHub, ни локальным full CI. Три `*.unit.test.tsx` ошибочно попадают в
   fast-project вместо unit. Исправить wiring и видимость project-класса; не менять продукт под старые UI-тесты.
-- [ ] **W8 — восстановить только потерянные поведенческие контракты.** Старые text-pinning списки целиком
+  **Закрыто 02.09.2026 (wt/systemic-test-suite-20260902).** `.github/workflows/ci.yml`: новые независимые job
+  `test-media-worker` (`pnpm test:media-worker`) и `test-error-tracking` (`pnpm test:error-tracking`, новый
+  root-скрипт), по образцу существующих `test-scripts`/`test-db-principal` — не сериализуют webapp/build. Локальный
+  `pnpm run ci` (`scripts/ci-steps.mjs`): `test:error-tracking` добавлен в существующий параллельный lane рядом с
+  `test:media-worker`; все `ci:resume:after-*` в `package.json` и их список в `AGENTS.md` §9/§10 дополнены
+  `ci:resume:after-test-error-tracking`. Routing-баг `*.unit.test.tsx`: `apps/webapp/vitest.config.ts` — `unit`
+  project не включал `.tsx`, `fast` не исключал `.tsx`, поэтому все три файла шли в `fast`; исправлены оба списка.
+  `scripts/check-test-runner-visibility.mjs` расширен (не новый реестр — суффиксная конвенция AGENTS.md §10b как
+  данные): для webapp сверяет фактический project каждого файла с ожидаемым по имени, `wrongProject` — новый класс
+  FAIL. Гейт самопроверен: до фикса вылавливал ровно эти три файла (`ожидался [unit], реально [fast]`), после
+  фикса — `check-test-runner-visibility: OK`. Evidence: `pnpm test:media-worker` (8 файлов/20 тестов),
+  `pnpm test:error-tracking` (2 файла/9 тестов), `node scripts/check-test-runner-visibility.mjs` (диск=раннер по
+  всем трём приложениям, 0 wrongProject), `node scripts/ci-steps.mjs --dry-run` (оба скрипта в phase 2).
+- [x] **W8 — восстановить только потерянные поведенческие контракты.** Старые text-pinning списки целиком
   устарели и не должны возвращаться. Отдельно подтверждены несколько удалённых настоящих тестов без преемника:
   HTTP-клиент MAX, список сессий пакета пациента, перестановка элементов программы и lifecycle записи. Для каждого
   сначала подтвердить живой owner-контракт, затем покрыть самый дешёвый публичный слой. Сотни удалённых тестов
   один-к-одному не восстанавливать.
-- [ ] **W9 — актуализировать тестовый план.** `TEST_SUITE_AUDIT_2026-07-29.md` всё ещё объявляет действующей
+  **Закрыто 02.09.2026.** Все четыре — oracle: соответствующий удалённый тест из `a380533b4` («test(testsuite):
+  remove legacy test suite (#1074)») сверен построчно против текущего исходника; поведение подтверждено живым,
+  восстановлено на самом дешёвом публичном слое, каждое утверждение красится целевой fault injection (внесена и
+  откачена):
+  - MAX HTTP client — `apps/integrator/src/integrations/max/client.unit.test.ts` (2 теста): `sendMaxMessage`
+    бросает `MaxSendError` вместо тихого `null` на отказе API и на отсутствии chatId/userId.
+  - Список сессий пакета пациента — `.../patient-packages/[id]/sessions/route.route.test.ts` (4 теста, через
+    реальный `GET`, не напрямую сервис): org-scoping по `gate.ctx.organizationId`, `includePast` из query
+    независимо от `allowPastUnlink` из system setting, отказ при незапросе gate.
+  - Перестановка treatment-program — `treatmentProgramReorderHelpers.unit.test.ts` (6 тестов, 1:1 восстановлен
+    исходный набор, сигнатуры всех 4 функций не изменились).
+  - Booking appointment lifecycle — `booking-appointment-lifecycle/service.unit.test.ts` (2 теста): бесплатная
+    отмена задолго до визита + `not_found` на чужой/несуществующей записи (новый тест сверх исходного, `BeAppointment`
+    приобрёл 3 обязательных reminder-preset поля — заполнены по текущей фикстурной конвенции).
+  Text-pinning списки (`testsuite-*textpin*`, `testsuite-mock-echo.txt`) не восстанавливались — архивированы в W9.
+- [x] **W9 — актуализировать тестовый план.** `TEST_SUITE_AUDIT_2026-07-29.md` всё ещё объявляет действующей
   удалённую disposable-Postgres инфраструктуру и не отражает named DEV/TEST devDbProof-путь; README и этот
   `AGENTS.md` ссылаются на уже удалённый `test:webapp:inprocess`. Исправить активный канон и архивировать
   одноразовые списки старого аудита после переноса остающихся фактов сюда.
+  **Закрыто 02.09.2026.** `README.md`, `AGENTS.md` §9/§10, `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`,
+  `apps/webapp/e2e/CI_BASELINE.md` — все живые `inprocess`-упоминания заменены на текущую таксономию
+  (`fast`/`unit`/`route`/`ui`, `test:webapp:behavior`, job `test-webapp-behavior`, оба на push и PR). Верх
+  `TEST_SUITE_AUDIT_2026-07-29.md` получил статус-баннер 02.09: документ — история прохода 29.07–16.08, ранние
+  разделы (Блок Б, disposable-PostgreSQL) читались как активная инструкция при чтении без пометок
+  `OWNER-SUPERSEDED` ниже; исторический текст не редактировался. Одиннадцать одноразовых артефактов рёбилда
+  (`TESTSUITE_*RESEARCH*`, `TESTSUITE_*AUDIT*`, `TESTSUITE_PILOT_*`, `testsuite-batch{1,2}.txt`,
+  `testsuite-{mixed,pure}-textpin.txt`, `testsuite-mock-echo.txt`, `testsuite-rewrite-list.md`) перенесены
+  `git mv` в `docs/archive/2026-07-testsuite-rebuild/` (свой README) — ни один не имел входящих ссылок из активного
+  канона/скриптов (проверено `grep` по `AGENTS.md`/`README.md`/`CLAUDE.md`/`scripts/*.mjs`), только из других
+  архивных run-briefs.
 - [ ] **W10 — пересобрать A→B snapshot из окончательной schema B.** Безопасный
   `pnpm run check:prod-to-target-cutover` остановился до любых изменений БД: `schema-pre.sql`,
   `schema-post.sql` и `ledgers-and-baseline.sql` расходятся с текущей named DEV. Snapshot обновляется один раз
