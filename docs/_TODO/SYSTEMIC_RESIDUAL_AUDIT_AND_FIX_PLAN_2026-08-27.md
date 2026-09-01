@@ -83,7 +83,8 @@
   записывается как `unclassified_background_operation`, а обычные продуктовые ошибки по-прежнему не попадают
   в isolation-журнал. Доказано перед коммитом тем же oracle
   `apps/webapp/src/infra/db/saasIsolationDbFailureReporting.unit.test.ts` (2 passed) и
-  `pnpm --dir apps/webapp typecheck` (PASS).
+  `pnpm --dir apps/webapp typecheck` (PASS). Реализация `90a4e2e55`, независимый audit/oracle `0d2ea418d`,
+  локализованное исправление ведущего `535c20f58`.
 - [x] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry совпадало в overlay и
   forward migration только случайно; механической сверки не было. Нельзя снова оставить два определения, где
   побеждает последнее применённое. Нужен канонический источник или generated parity-гейт.
