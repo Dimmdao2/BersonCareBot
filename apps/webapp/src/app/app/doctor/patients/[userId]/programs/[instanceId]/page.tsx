@@ -8,9 +8,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import {
-  requireEntitlementForReadAction,
-} from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -60,8 +58,7 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   const [
     testResults,
     attemptAcceptMap,
-    programEvents,
-    programActionLog,
+    discussionUnreadCounts,
     appDisplayTimeZone,
     exercises,
     lfkTemplates,
@@ -69,13 +66,14 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     clinicalTests,
     recommendations,
     contentPagesAll,
-    discussionDoctorReplyFlag,
     bodyRegionItems,
   ] = await Promise.all([
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
-    deps.treatmentProgramInstance.listProgramEvents(instanceId),
-    deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
+    deps.programItemDiscussion.listUnreadCountsForViewerByStageItems({
+      stageItemIds: detail.stages.flatMap((stage) => stage.items.map((item) => item.id)),
+      viewerUserId: session.user.userId,
+    }),
     getAppDisplayTimeZone(),
     deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
     deps.lfkTemplates.listTemplates({
@@ -87,10 +85,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     deps.clinicalTests.listClinicalTests({ archiveScope: 'active' }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
-    deps.systemSettings.getSetting(
-      'patient_program_discussion_doctor_reply_from_log_enabled',
-      'admin',
-    ),
     deps.references.listActiveItemsByCategoryCode('body_region'),
   ]);
 
@@ -104,11 +98,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     contentPagesAll,
     bodyRegionIdToCode,
   });
-
-  const doctorReplyFromLogEnabled =
-    discussionDoctorReplyFlag?.valueJson !== null &&
-    typeof discussionDoctorReplyFlag?.valueJson === 'object' &&
-    (discussionDoctorReplyFlag.valueJson as Record<string, unknown>).value === true;
 
   const discussionItemRaw = discussionItemParam?.trim();
   const initialOpenDiscussionItemId =
@@ -140,18 +129,15 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
 
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
-      patientProfileHref=""
-      patientDisplayName=""
       initial={detail}
       initialTestResults={testResults}
       initialAttemptAcceptMap={attemptAcceptMap}
-      initialEvents={programEvents}
-      initialActionLog={programActionLog}
-      currentUserId={session.user.userId}
-      isAdmin={session.user.role === 'admin'}
+      initialDiscussionUnreadCount={discussionUnreadCounts.reduce(
+        (total, row) => total + row.unread,
+        0,
+      )}
       appDisplayTimeZone={appDisplayTimeZone}
       treatmentProgramLibrary={treatmentProgramLibrary}
-      doctorReplyFromLogEnabled={doctorReplyFromLogEnabled}
       initialOpenDiscussionItemId={initialOpenDiscussionItemId}
       initialFocusTestResultId={initialFocusTestResultId}
     />

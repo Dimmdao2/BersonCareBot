@@ -1,7 +1,7 @@
 'use client';
 
-import { CornerDownLeft, SendHorizontal, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowUp, CornerDownLeft, Trash2, X } from 'lucide-react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import {
   Dialog,
@@ -42,7 +42,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   nextCursor: string | null;
   onLoadOlder: () => void;
   itemLabelById?: Map<string, string>;
-  onSelectItemFilter?: (stageItemId: string) => void;
   onSendReply?: (stageItemId: string, text: string) => Promise<{ ok: boolean; error?: string }>;
   onDeleteMediaMessage?: (messageId: string) => Promise<{ ok: boolean; error?: string }>;
   peerLastReadAt?: string | null;
@@ -56,7 +55,6 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     nextCursor,
     onLoadOlder,
     itemLabelById,
-    onSelectItemFilter,
     onSendReply,
     onDeleteMediaMessage,
     peerLastReadAt = null,
@@ -74,6 +72,9 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
   const [deleteTarget, setDeleteTarget] = useState<ProgramItemDiscussionMessage | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastTailMessageIdRef = useRef<string | null>(null);
   const touchDragRef = useRef<{
     messageId: string;
     startX: number;
@@ -81,6 +82,10 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     openedBySwipe: boolean;
   } | null>(null);
   const ignoreTapMessageIdRef = useRef<string | null>(null);
+  const activeReplyMessage = useMemo(
+    () => sortedMessages.find((message) => message.id === activeReplyMessageId) ?? null,
+    [activeReplyMessageId, sortedMessages],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
@@ -109,11 +114,37 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
     setReplyError(null);
   }, [activeReplyMessageId, sortedMessages]);
 
+  useLayoutEffect(() => {
+    const scrollContainer = scrollRef.current;
+    const tailMessageId = sortedMessages.at(-1)?.id ?? null;
+    if (!scrollContainer || tailMessageId === lastTailMessageIdRef.current) return;
+    scrollContainer.scrollTop = scrollContainer.scrollHeight;
+    lastTailMessageIdRef.current = tailMessageId;
+  }, [sortedMessages]);
+
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    const styles = window.getComputedStyle(textarea);
+    const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
+    const verticalChrome =
+      Number.parseFloat(styles.paddingTop) +
+      Number.parseFloat(styles.paddingBottom) +
+      Number.parseFloat(styles.borderTopWidth) +
+      Number.parseFloat(styles.borderBottomWidth);
+    const maxHeight = lineHeight * 10 + verticalChrome;
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+  }, [replyDraft]);
+
   const openReplyComposer = (messageId: string) => {
     setActiveReplyMessageId(messageId);
     setReplyDraft('');
     setReplyError(null);
     setTouchReplyTargetId(null);
+    window.requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   const closeReplyComposer = () => {
@@ -203,6 +234,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
         </Button>
       ) : null}
       <div
+        ref={scrollRef}
         className={cn('min-h-0 flex-1 overflow-y-auto space-y-4 pb-2', chatThreadSurfaceClass)}
         data-testid="doctor-program-discussion-messages"
       >
@@ -233,35 +265,24 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                   'group/row relative flex w-full flex-col gap-1',
                   fromPatient
                     ? canDeleteMedia
-                      ? 'items-start pr-20'
-                      : 'items-start pr-12'
+                      ? 'items-start pr-32'
+                      : 'items-start pr-24'
                     : 'items-end',
                 )}
                 onClick={() => {
-                  if (!touchEnabled || supportsHover || !fromPatient || !onSendReply) return;
+                  if (!fromPatient || !onSendReply) return;
                   if (ignoreTapMessageIdRef.current === m.id) {
                     ignoreTapMessageIdRef.current = null;
                     return;
                   }
-                  setTouchReplyTargetId((prev) => (prev === m.id ? null : m.id));
+                  if (touchEnabled && !supportsHover) {
+                    setTouchReplyTargetId(m.id);
+                  }
+                  openReplyComposer(m.id);
                 }}
               >
                 {itemLabel ? (
-                  onSelectItemFilter ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto p-0 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onSelectItemFilter(m.instanceStageItemId);
-                      }}
-                    >
-                      {itemLabel}
-                    </Button>
-                  ) : (
-                    <p className="text-xs font-medium text-muted-foreground">{itemLabel}</p>
-                  )
+                  <p className="text-xs font-medium text-muted-foreground">{itemLabel}</p>
                 ) : null}
                 <p className="text-xs text-muted-foreground">
                   {authorLabel} · {formatChatRelativeDateLabelRu(m.createdAt, new Date())}
@@ -330,10 +351,10 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                 {fromPatient && onSendReply ? (
                   <Button
                     type="button"
-                    size="icon"
+                    size="sm"
                     variant="outline"
                     className={cn(
-                      'absolute right-0 bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity',
+                      'absolute right-0 bottom-1 h-8 rounded-full border-border/70 bg-background/95 px-2.5 text-xs shadow-sm transition-opacity',
                       touchEnabled && !supportsHover
                         ? replyAffordanceVisible
                           ? 'opacity-100'
@@ -346,7 +367,8 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                       openReplyComposer(m.id);
                     }}
                   >
-                    <CornerDownLeft className="size-4" />
+                    <CornerDownLeft className="size-3.5" />
+                    Ответить
                   </Button>
                 ) : null}
                 {canDeleteMedia ? (
@@ -356,7 +378,7 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     variant="outline"
                     className={cn(
                       'absolute bottom-1 size-8 rounded-full border-border/70 bg-background/95 shadow-sm transition-opacity',
-                      onSendReply ? 'right-10' : 'right-0',
+                      onSendReply ? 'right-24' : 'right-0',
                       touchEnabled && !supportsHover
                         ? 'opacity-100'
                         : 'pointer-events-none opacity-0 group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100',
@@ -371,47 +393,66 @@ export function DoctorProgramDiscussionMessagesPanel(props: {
                     <Trash2 className="size-4" />
                   </Button>
                 ) : null}
-                {fromPatient && onSendReply && activeReplyMessageId === m.id ? (
-                  <div className="w-full max-w-[min(100%,26rem)]">
-                    <MessageComposer
-                      value={replyDraft}
-                      onValueChange={setReplyDraft}
-                      onSubmit={() => submitReply(m)}
-                      submitting={replySending}
-                      placeholder="Введите ответ пациенту"
-                      ariaLabel="Ответ пациенту"
-                      submitLabel={
-                        <>
-                          <SendHorizontal className="size-4 mr-1" />
-                          Отправить
-                        </>
-                      }
-                      submittingLabel={
-                        <>
-                          <SendHorizontal className="size-4 mr-1" />
-                          Отправить
-                        </>
-                      }
-                      submitAriaLabel="Отправить ответ"
-                      maxLength={4000}
-                      rows={3}
-                      className={`mt-1 rounded-md border border-border bg-background p-2${replySending ? ' pointer-events-none opacity-50' : ''}`}
-                      actionsClassName="mt-2 flex justify-end"
-                      renderTextarea={(props) => <Textarea {...props} />}
-                      renderSubmit={(props) => (
-                        <Button {...props} size="sm" className="rounded-full" />
-                      )}
-                    />
-                    {replyError ? (
-                      <p className="mt-1 text-xs text-destructive">{replyError}</p>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
             );
           })
         )}
       </div>
+      {activeReplyMessage && onSendReply ? (
+        <MessageComposer
+          value={replyDraft}
+          onValueChange={setReplyDraft}
+          onSubmit={() => submitReply(activeReplyMessage)}
+          submitting={replySending}
+          placeholder="Ответ..."
+          ariaLabel="Ответ пациенту"
+          submitLabel={<ArrowUp className="size-4" aria-hidden />}
+          submittingLabel={<ArrowUp className="size-4" aria-hidden />}
+          submitAriaLabel="Отправить ответ"
+          maxLength={4000}
+          rows={1}
+          textareaRef={textareaRef}
+          submitInsideInput
+          inputRowClassName="relative"
+          className={cn('shrink-0 border-t border-border pt-3', replySending && 'opacity-50')}
+          header={
+            <div className="mb-2 rounded-md border border-border bg-muted/30 px-2 py-1.5 text-xs text-muted-foreground">
+              <div className="flex items-start gap-2">
+                <span className="min-w-0 flex-1 truncate">
+                  Ответ на:{' '}
+                  {activeReplyMessage.body?.trim() ||
+                    itemLabelById?.get(activeReplyMessage.instanceStageItemId) ||
+                    'сообщение с вложением'}
+                </span>
+                <button
+                  type="button"
+                  className="shrink-0 text-foreground/70 hover:text-foreground"
+                  onClick={closeReplyComposer}
+                  aria-label="Убрать выбранное сообщение"
+                >
+                  <X className="size-3.5" aria-hidden />
+                </button>
+              </div>
+            </div>
+          }
+          status={replyError ? <p className="mt-1 text-xs text-destructive">{replyError}</p> : null}
+          renderTextarea={(textareaProps) => (
+            <Textarea
+              {...textareaProps}
+              className="min-h-10 resize-none rounded-[18px] py-2 pr-10 pl-3 leading-5"
+              style={{ borderRadius: 18 }}
+            />
+          )}
+          renderSubmit={(buttonProps) => (
+            <Button
+              {...buttonProps}
+              size="icon"
+              className="absolute size-8 rounded-full p-0"
+              style={{ right: 3, bottom: 4, borderRadius: '9999px' }}
+            />
+          )}
+        />
+      ) : null}
     </div>
   );
 }
