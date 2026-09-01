@@ -77,6 +77,15 @@
   typecheck integrator/webapp/media-worker, `node scripts/check-no-new-raw-sql.mjs` (production debt: 0).
   ⚠️ ОСТАЁТСЯ ОТКРЫТЫМ вне этой ветки: тесты `packages/error-tracking` по-прежнему не подключены ни к
   GitHub Actions, ни к локальному full CI — это ровно W7, новый тест наследует ту же слепую зону.
+  ⚠️ НЕЗАВИСИМЫЙ АУДИТ 02.09 — W3 НЕ ЗАКРЫТ (`docs/_TODO/runs/DB_RUNTIME_CONTRACTS_W1_W3_W4_INDEPENDENT_AUDIT_2026-09-02.md`,
+  находка W3-1): третье приложение осталось со своей классификацией — `classifyPostgresIsolationDenial`
+  (`apps/webapp/src/infra/db/saasIsolationDbFailureReporting.ts:9-38`) возвращает `null` на любой `42501`, чей
+  текст не совпал с двумя регэкспами, и оба вызывающих (`webappPoolProvider.ts:122-130` — живая port-context
+  дверь, `withClient.ts:170-173`) тогда не пишут НИЧЕГО, хотя общий контракт хранит это как
+  `unclassified_background_operation`. Живой пример: `permission denied for view …` (PostgreSQL называет вид
+  отношения) — отказ стены исчезает из диагностики. Oracle передан падающим тестом
+  `apps/webapp/src/infra/db/saasIsolationDbFailureReporting.unit.test.ts` (на HEAD: 1 failed; с общим
+  классификатором: 2 passed, правка ~3 строки). Галочку выше не трогал — состояние бокса решает ведущий.
 - [x] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry совпадало в overlay и
   forward migration только случайно; механической сверки не было. Нельзя снова оставить два определения, где
   побеждает последнее применённое. Нужен канонический источник или generated parity-гейт.
