@@ -1,10 +1,11 @@
 import { sql } from 'drizzle-orm';
+import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';
 /**
  * Manual merge preview (read-only): conflicts, hard blockers, dependent counts, recommendations.
  * Apply flow is implemented separately (manual merge engine).
  */
 import type { Pool } from 'pg';
-import { runPgPoolPgText, runPgPoolSql } from '@/infra/db/runWebappSql';
+import { runPgPoolSql } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { CONTACTS, USER_CONTACTS_PRIMARY_LATERALS } from '@/infra/repos/userContactsSql';
 import {
@@ -544,17 +545,17 @@ async function loadOauth(pool: Pool, userId: string): Promise<MergePreviewOAuthB
 
 async function countMeaningfulData(pool: Pool, userId: string): Promise<number> {
   const q = [
-    `SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = $1::uuid`,
-    `SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = $1::uuid`,
-    `SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = $1::uuid`,
-    `SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
-    `SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
-    `SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = $1::uuid`,
-    `SELECT COUNT(*)::int AS c FROM message_log WHERE platform_user_id = $1::uuid OR user_id = $1::text`,
+    sql`SELECT COUNT(*)::int AS c FROM patient_bookings WHERE platform_user_id = ${userId}::uuid`,
+    sql`SELECT COUNT(*)::int AS c FROM doctor_notes WHERE user_id = ${userId}::uuid`,
+    sql`SELECT COUNT(*)::int AS c FROM online_intake_requests WHERE user_id = ${userId}::uuid`,
+    sql`SELECT COUNT(*)::int AS c FROM symptom_trackings WHERE ${platformUserMatchSql(null, userId)}`,
+    sql`SELECT COUNT(*)::int AS c FROM lfk_complexes WHERE ${platformUserMatchSql(null, userId)}`,
+    sql`SELECT COUNT(*)::int AS c FROM patient_lfk_assignments WHERE patient_user_id = ${userId}::uuid`,
+    sql`SELECT COUNT(*)::int AS c FROM message_log WHERE ${platformUserMatchSql(null, userId)}`,
   ];
   let sum = 0;
-  for (const sql of q) {
-    const r = await runPgPoolPgText<{ c: number }>(pool, sql, [userId]);
+  for (const fragment of q) {
+    const r = await runPgPoolSql<{ c: number }>(pool, fragment);
     sum += r.rows[0]?.c ?? 0;
   }
   return sum;
@@ -845,50 +846,46 @@ export async function searchMergeCandidates(
   }
 
   const q = normStr(qRaw ?? null);
-  const params: unknown[] = [anchorUserId];
-  let qFilter = '';
-  if (q) {
-    params.push(`%${q}%`);
-    const p = params.length;
-    qFilter = `
+  const qFilter = q
+    ? sql`
       AND (
-        pu.id::text ILIKE $${p}
-        OR ${CONTACTS.phoneNormalized} ILIKE $${p}
-        OR ${CONTACTS.email} ILIKE $${p}
-        OR ${FIO.displayName} ILIKE $${p}
-        OR ${FIO.firstName} ILIKE $${p}
-        OR ${FIO.lastName} ILIKE $${p}
+        pu.id::text ILIKE ${`%${q}%`}
+        OR ${sql.raw(CONTACTS.phoneNormalized)} ILIKE ${`%${q}%`}
+        OR ${sql.raw(CONTACTS.email)} ILIKE ${`%${q}%`}
+        OR ${sql.raw(FIO.displayName)} ILIKE ${`%${q}%`}
+        OR ${sql.raw(FIO.firstName)} ILIKE ${`%${q}%`}
+        OR ${sql.raw(FIO.lastName)} ILIKE ${`%${q}%`}
         OR EXISTS (
           SELECT 1 FROM user_channel_bindings ucb
-          WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE $${p}
+          WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE ${`%${q}%`}
         )
       )
-    `;
-  }
+    `
+    : sql``;
 
-  const sql = `
+  const candidatesSql = sql`
     WITH anchor AS (
-      SELECT pu.id, ${CONTACTS.phoneNormalized} AS phone_normalized, ${CONTACTS.email} AS email
+      SELECT pu.id, ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized, ${sql.raw(CONTACTS.email)} AS email
       FROM platform_users pu
-      ${USER_CONTACTS_PRIMARY_LATERALS}
-      WHERE pu.id = $1::uuid
+      ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
+      WHERE pu.id = ${anchorUserId}::uuid
     )
     SELECT pu.id,
-           ${FIO.displayName} AS display_name,
-           ${CONTACTS.phoneNormalized} AS phone_normalized,
-           ${CONTACTS.email} AS email,
+           ${sql.raw(FIO.displayName)} AS display_name,
+           ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
+           ${sql.raw(CONTACTS.email)} AS email,
            pu.created_at
     FROM platform_users pu, anchor
-    ${USER_IDENTITY_FIO_JOIN}
-    ${USER_CONTACTS_PRIMARY_LATERALS}
+    ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+    ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
     WHERE pu.id <> anchor.id
       AND pu.role = 'client'
       AND pu.merged_into_id IS NULL
       AND (
-        (anchor.phone_normalized IS NOT NULL AND ${CONTACTS.phoneNormalized} IS NOT DISTINCT FROM anchor.phone_normalized)
+        (anchor.phone_normalized IS NOT NULL AND ${sql.raw(CONTACTS.phoneNormalized)} IS NOT DISTINCT FROM anchor.phone_normalized)
         OR (
-          anchor.email IS NOT NULL AND ${CONTACTS.email} IS NOT NULL
-          AND lower(trim(${CONTACTS.email})) = lower(trim(anchor.email))
+          anchor.email IS NOT NULL AND ${sql.raw(CONTACTS.email)} IS NOT NULL
+          AND lower(trim(${sql.raw(CONTACTS.email)})) = lower(trim(anchor.email))
         )
         OR EXISTS (
           SELECT 1
@@ -904,7 +901,7 @@ export async function searchMergeCandidates(
     LIMIT 100
   `;
 
-  const r = await runPgPoolPgText<MergeCandidateRow>(pool, sql, params);
+  const r = await runPgPoolSql<MergeCandidateRow>(pool, candidatesSql);
   return { ok: true, anchorUserId, candidates: r.rows };
 }
 
@@ -923,32 +920,34 @@ export async function searchMergeUsersForManualMerge(
   }
   const pattern = `%${q}%`;
   const lim = Math.min(Math.max(1, limit), 100);
-  const sql = `
+  const r = await runPgPoolSql<MergeCandidateRow>(
+    pool,
+    sql`
     SELECT pu.id,
-           ${FIO.displayName} AS display_name,
-           ${CONTACTS.phoneNormalized} AS phone_normalized,
-           ${CONTACTS.email} AS email,
+           ${sql.raw(FIO.displayName)} AS display_name,
+           ${sql.raw(CONTACTS.phoneNormalized)} AS phone_normalized,
+           ${sql.raw(CONTACTS.email)} AS email,
            pu.created_at
     FROM platform_users pu
-    ${USER_IDENTITY_FIO_JOIN}
-    ${USER_CONTACTS_PRIMARY_LATERALS}
+    ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+    ${sql.raw(USER_CONTACTS_PRIMARY_LATERALS)}
     WHERE pu.role = 'client'
       AND pu.merged_into_id IS NULL
       AND (
-        pu.id::text ILIKE $1
-        OR ${CONTACTS.phoneNormalized} ILIKE $1
-        OR ${CONTACTS.email} ILIKE $1
-        OR ${FIO.displayName} ILIKE $1
-        OR ${FIO.firstName} ILIKE $1
-        OR ${FIO.lastName} ILIKE $1
+        pu.id::text ILIKE ${pattern}
+        OR ${sql.raw(CONTACTS.phoneNormalized)} ILIKE ${pattern}
+        OR ${sql.raw(CONTACTS.email)} ILIKE ${pattern}
+        OR ${sql.raw(FIO.displayName)} ILIKE ${pattern}
+        OR ${sql.raw(FIO.firstName)} ILIKE ${pattern}
+        OR ${sql.raw(FIO.lastName)} ILIKE ${pattern}
         OR EXISTS (
           SELECT 1 FROM user_channel_bindings ucb
-          WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE $1
+          WHERE ucb.user_id = pu.id AND ucb.external_id ILIKE ${pattern}
         )
       )
     ORDER BY pu.created_at DESC
-    LIMIT $2::int
-  `;
-  const r = await runPgPoolPgText<MergeCandidateRow>(pool, sql, [pattern, lim]);
+    LIMIT ${lim}::int
+  `,
+  );
   return r.rows;
 }

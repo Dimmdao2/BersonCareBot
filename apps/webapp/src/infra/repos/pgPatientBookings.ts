@@ -5,12 +5,7 @@ import { getCurrentDbPrincipal } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { patientBookings as patientBookingsTable } from '../../../db/schema/schema';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-  runWebappSql,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type {
   PatientBookingsPort,
   CreatePendingPatientBookingInput,
@@ -197,16 +192,16 @@ async function listCurrentPatientBookingRows(
   const patientRowsCapabilitySql = (() => {
     switch (kind) {
       case 'upcoming':
-        return `SELECT booking
-                FROM app.read_current_patient_booking_rows('upcoming', $1::timestamptz)`;
+        return sql`SELECT booking
+                FROM app.read_current_patient_booking_rows('upcoming', ${nowIso}::timestamptz)`;
       case 'history':
-        return `SELECT booking
-                FROM app.read_current_patient_booking_rows('history', $1::timestamptz)`;
+        return sql`SELECT booking
+                FROM app.read_current_patient_booking_rows('history', ${nowIso}::timestamptz)`;
       default:
         throw new Error('Unsupported patient booking row kind');
     }
   })();
-  const result = await runWebappPgText<{ booking: Row }>(patientRowsCapabilitySql, [nowIso]);
+  const result = await runWebappSql<{ booking: Row }>(getWebappSqlDb(), patientRowsCapabilitySql);
   return result.rows.map((row) => mapRow(row.booking));
 }
 

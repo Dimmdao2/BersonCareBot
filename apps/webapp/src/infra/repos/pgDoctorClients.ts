@@ -7,7 +7,6 @@ import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
   runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
@@ -1475,38 +1474,35 @@ export function createPgDoctorClientsPort(): DoctorClientsPort {
       userId: string,
       names: { firstName?: string | null; lastName?: string | null; patronymic?: string | null },
     ): Promise<void> {
-      const sets: string[] = [];
-      const params: unknown[] = [userId];
-      let firstNameExpr = 'first_name';
-      let lastNameExpr = 'last_name';
-      let patronymicExpr = 'patronymic';
+      // `display_name` is recomputed from the values this statement is about to write, so each
+      // name expression is either the incoming bound value or the column left untouched.
+      const sets: SQL[] = [];
+      let firstNameExpr = sql`first_name`;
+      let lastNameExpr = sql`last_name`;
+      let patronymicExpr = sql`patronymic`;
       if (names.firstName !== undefined) {
-        params.push(names.firstName);
-        sets.push(`first_name = $${params.length}`);
-        firstNameExpr = `$${params.length}::text`;
+        firstNameExpr = sql`${names.firstName}::text`;
+        sets.push(sql`first_name = ${names.firstName}`);
       }
       if (names.lastName !== undefined) {
-        params.push(names.lastName);
-        sets.push(`last_name = $${params.length}`);
-        lastNameExpr = `$${params.length}::text`;
+        lastNameExpr = sql`${names.lastName}::text`;
+        sets.push(sql`last_name = ${names.lastName}`);
       }
       if (names.patronymic !== undefined) {
-        params.push(names.patronymic);
-        sets.push(`patronymic = $${params.length}`);
-        patronymicExpr = `$${params.length}::text`;
+        patronymicExpr = sql`${names.patronymic}::text`;
+        sets.push(sql`patronymic = ${names.patronymic}`);
       }
       if (sets.length === 0) return;
-      sets.push(`display_name = COALESCE(NULLIF(concat_ws(' ',
+      sets.push(sql`display_name = COALESCE(NULLIF(concat_ws(' ',
           ${lastNameExpr},
           ${firstNameExpr},
           ${patronymicExpr}
         ), ''), '')`);
       await runWebappTransaction(async (tx) => {
-        await runWebappPgText(
-          `UPDATE platform_users SET ${sets.join(', ')}, updated_at = now()
-           WHERE id = $1::uuid AND role = 'client'`,
-          params,
+        await runWebappSql(
           tx,
+          sql`UPDATE platform_users SET ${sql.join(sets, sql`, `)}, updated_at = now()
+           WHERE id = ${userId}::uuid AND role = 'client'`,
         );
         await syncUserIdentityFioMirrorWebapp(tx, userId);
       });

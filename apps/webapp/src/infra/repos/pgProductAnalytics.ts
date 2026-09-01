@@ -39,12 +39,7 @@ import {
   productAnalyticsHourly,
   productPushNotifications,
 } from '../../../db/schema/productAnalytics';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-  runWebappSql,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { runWithWebappDbOperationFamily } from '@/infra/db/saasIsolationOperationContext';
 import { toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 
@@ -70,28 +65,19 @@ async function upsertHourlyCount(
   const dims = hourlyDimsFromEvent(event);
   const now = new Date().toISOString();
 
+  // Conflict target is an index specification, not a value: it is chosen from these two
+  // literals here and stays raw.
   const conflict = organizationId
     ? `(organization_id,bucket_hour,event_type,entry_channel,page_key,topic_code,push_kind,warmup_slogan_key) WHERE organization_id IS NOT NULL`
     : `(bucket_hour,event_type,entry_channel,page_key,topic_code,push_kind,warmup_slogan_key) WHERE organization_id IS NULL`;
-  await runWebappPgText(
-    `INSERT INTO product_analytics_hourly(
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`INSERT INTO product_analytics_hourly(
        organization_id,bucket_hour,event_type,entry_channel,page_key,topic_code,push_kind,warmup_slogan_key,event_count,updated_at
-     ) VALUES ($1::uuid,$2::timestamptz,$3,$4,$5,$6,$7,$8,$9,$10::timestamptz)
-     ON CONFLICT ${conflict} DO UPDATE SET
+     ) VALUES (${organizationId}::uuid,${bucketHour}::timestamptz,${event.eventType},${dims.entryChannel},${dims.pageKey},${dims.topicCode},${dims.pushKind},${dims.warmupSloganKey},${increment},${now}::timestamptz)
+     ON CONFLICT ${sql.raw(conflict)} DO UPDATE SET
        event_count=product_analytics_hourly.event_count+EXCLUDED.event_count,
        updated_at=EXCLUDED.updated_at`,
-    [
-      organizationId,
-      bucketHour,
-      event.eventType,
-      dims.entryChannel,
-      dims.pageKey,
-      dims.topicCode,
-      dims.pushKind,
-      dims.warmupSloganKey,
-      increment,
-      now,
-    ],
   );
 }
 
@@ -107,30 +93,18 @@ async function upsertUserHourly(event: ProductAnalyticsIngestEvent, organization
   const conflict = organizationId
     ? `(organization_id,bucket_hour,user_id,entry_channel,page_key) WHERE organization_id IS NOT NULL`
     : `(bucket_hour,user_id,entry_channel,page_key) WHERE organization_id IS NULL`;
-  await runWebappPgText(
-    `INSERT INTO product_analytics_user_hourly(
+  await runWebappSql(
+    getWebappSqlDb(),
+    sql`INSERT INTO product_analytics_user_hourly(
        organization_id,bucket_hour,user_id,entry_channel,page_key,app_opens,page_views,push_opens,active_minutes,last_seen_at,updated_at
-     ) VALUES ($1::uuid,$2::timestamptz,$3::uuid,$4,$5,$6,$7,$8,$9,$10::timestamptz,$11::timestamptz)
-     ON CONFLICT ${conflict} DO UPDATE SET
+     ) VALUES (${organizationId}::uuid,${bucketHour}::timestamptz,${event.userId}::uuid,${event.entryChannel},${pageKey},${delta.appOpens},${delta.pageViews},${delta.pushOpens},${delta.activeMinutes},${occurredAt}::timestamptz,${now}::timestamptz)
+     ON CONFLICT ${sql.raw(conflict)} DO UPDATE SET
        app_opens=product_analytics_user_hourly.app_opens+EXCLUDED.app_opens,
        page_views=product_analytics_user_hourly.page_views+EXCLUDED.page_views,
        push_opens=product_analytics_user_hourly.push_opens+EXCLUDED.push_opens,
        active_minutes=product_analytics_user_hourly.active_minutes+EXCLUDED.active_minutes,
        last_seen_at=GREATEST(product_analytics_user_hourly.last_seen_at,EXCLUDED.last_seen_at),
        updated_at=EXCLUDED.updated_at`,
-    [
-      organizationId,
-      bucketHour,
-      event.userId,
-      event.entryChannel,
-      pageKey,
-      delta.appOpens,
-      delta.pageViews,
-      delta.pushOpens,
-      delta.activeMinutes,
-      occurredAt,
-      now,
-    ],
   );
 }
 

@@ -1,10 +1,5 @@
 import { type SQL, sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappPgText,
-  runWebappSql,
-  runWebappTransaction,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql, runWebappTransaction } from '@/infra/db/runWebappSql';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { ExerciseMedia, ExerciseMediaType } from '@/modules/lfk-exercises/types';
 import type { MediaPreviewStatus } from '@/modules/media/types';
@@ -412,26 +407,27 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
 
     async list(filter: TemplateFilter): Promise<Template[]> {
       requireOrganizationPrincipal();
-      const conds: string[] = [
+      const conds: SQL[] = [
         filter.includePlatformBase
-          ? `((t.owner_kind = 'organization' AND t.organization_id = ${ORG_ID_EXPR}) OR (t.owner_kind = 'platform' AND t.organization_id IS NULL))`
-          : `t.owner_kind = 'organization' AND t.organization_id = ${ORG_ID_EXPR}`,
+          ? sql`((t.owner_kind = 'organization' AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}) OR (t.owner_kind = 'platform' AND t.organization_id IS NULL))`
+          : sql`t.owner_kind = 'organization' AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
       ];
-      const params: unknown[] = [];
-      let i = 1;
       if (filter.status) {
-        conds.push(`t.status = $${i++}`);
-        params.push(filter.status);
+        conds.push(sql`t.status = ${filter.status}`);
       } else if (filter.statusIn && filter.statusIn.length > 0) {
-        const statusPlaceholders = filter.statusIn.map(() => `$${i++}`);
-        conds.push(`t.status IN (${statusPlaceholders.join(', ')})`);
-        params.push(...filter.statusIn);
+        conds.push(
+          sql`t.status IN (${sql.join(
+            filter.statusIn.map((status) => sql`${status}`),
+            sql`, `,
+          )})`,
+        );
       }
       if (filter.search?.trim()) {
-        conds.push(`t.title ILIKE $${i++}`);
-        params.push(`%${filter.search.trim()}%`);
+        conds.push(sql`t.title ILIKE ${`%${filter.search.trim()}%`}`);
       }
-      const sql = `
+      const r = await runWebappSql<TemplateListDbRow>(
+        getWebappSqlDb(),
+        sql`
         SELECT t.id, t.owner_kind, t.title, t.description, t.status, t.created_by, t.created_at, t.updated_at,
                COALESCE(c.cnt, 0)::int AS exercise_count
         FROM lfk_complex_templates t
@@ -440,9 +436,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           FROM lfk_complex_template_exercises
           GROUP BY template_id
         ) c ON c.template_id = t.id
-        WHERE ${conds.join(' AND ')}
-        ORDER BY t.updated_at DESC`;
-      const r = await runWebappPgText<TemplateListDbRow>(sql, params);
+        WHERE ${sql.join(conds, sql` AND `)}
+        ORDER BY t.updated_at DESC`,
+      );
       const templates = r.rows.map((row) =>
         mapTemplateRow(
           {
@@ -465,7 +461,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
       const includeDetails = filter.includeExerciseDetails === true;
 
       if (!includeDetails) {
-        const thumbSql = `
+        const thumbSql = sql`
         WITH te_ranked AS (
           SELECT te.template_id,
                  te.exercise_id,
@@ -481,7 +477,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
              (e.owner_kind = te.owner_kind AND e.organization_id IS NOT DISTINCT FROM te.organization_id)
              OR (te.owner_kind = 'organization' AND e.owner_kind = 'platform' AND e.organization_id IS NULL)
            )
-          WHERE te.template_id = ANY($1::uuid[])
+          WHERE te.template_id = ANY(${sql.param(ids)}::uuid[])
         )
         SELECT tr.template_id,
                em.id, em.exercise_id, em.media_url, em.media_type, em.sort_order, em.created_at,
@@ -505,7 +501,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
           AND mf.organization_id IS NOT DISTINCT FROM tr.exercise_organization_id
         WHERE tr.rn <= 6
         ORDER BY tr.template_id, tr.sort_order`;
-        const tr = await runWebappPgText(thumbSql, [ids]);
+        const tr = await runWebappSql(getWebappSqlDb(), thumbSql);
         const byTemplate = new Map<string, ExerciseMedia[]>();
         for (const row of tr.rows as TemplateListThumbRow[]) {
           const tid = String(row.template_id);
@@ -531,7 +527,7 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         }));
       }
 
-      const exercisesSql = `
+      const exercisesSql = sql`
         SELECT te.template_id,
                te.id,
                te.exercise_id,
@@ -574,9 +570,9 @@ export function createPgLfkTemplatesPort(): LfkTemplatesPort {
         )::uuid
           AND mf.owner_kind = e.owner_kind
           AND mf.organization_id IS NOT DISTINCT FROM e.organization_id
-        WHERE te.template_id = ANY($1::uuid[])
+        WHERE te.template_id = ANY(${sql.param(ids)}::uuid[])
         ORDER BY te.template_id, te.sort_order ASC, te.id ASC`;
-      const er = await runWebappPgText(exercisesSql, [ids]);
+      const er = await runWebappSql(getWebappSqlDb(), exercisesSql);
       const byTemplate = new Map<string, TemplateExercise[]>();
       for (const row of er.rows as TemplateListExerciseJoinRow[]) {
         const tid = String(row.template_id);

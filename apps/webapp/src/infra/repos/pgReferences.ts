@@ -2,11 +2,10 @@
  * PostgreSQL implementation of ReferencesPort (Stage 6 reference_categories / reference_items).
  */
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
-import { sql } from 'drizzle-orm';
+import { type SQL, sql } from 'drizzle-orm';
 import {
   getWebappSqlDb,
   runWebappNamedRoot,
-  runWebappPgText,
   runWebappSql,
   runWebappTransaction,
 } from '@/infra/db/runWebappSql';
@@ -254,20 +253,15 @@ export const pgReferencesPort: ReferencesPort = {
   },
 
   async updateItem(itemId, input) {
-    const updates: string[] = [];
-    const values: unknown[] = [];
-    let idx = 1;
+    const updates: SQL[] = [];
     if (input.title !== undefined) {
-      updates.push(`title = $${idx++}`);
-      values.push(input.title);
+      updates.push(sql`title = ${input.title}`);
     }
     if (input.sortOrder !== undefined) {
-      updates.push(`sort_order = $${idx++}`);
-      values.push(input.sortOrder);
+      updates.push(sql`sort_order = ${input.sortOrder}`);
     }
     if (input.isActive !== undefined) {
-      updates.push(`is_active = $${idx++}`);
-      values.push(input.isActive);
+      updates.push(sql`is_active = ${input.isActive}`);
     }
     if (updates.length === 0) {
       throw new Error('empty_update');
@@ -287,8 +281,7 @@ export const pgReferencesPort: ReferencesPort = {
       if (!currentRow) throw new Error('item_not_found');
       currentWriteOrganizationId(currentRow.item_org, currentRow.category_org);
 
-      const writeValues = [...values, organizationId, itemId];
-      const res = await runWebappPgText<{
+      const res = await runWebappSql<{
         id: string;
         category_id: string;
         code: string;
@@ -298,12 +291,11 @@ export const pgReferencesPort: ReferencesPort = {
         deleted_at: Date | string | null;
         meta_json: Record<string, unknown>;
       }>(
-        `UPDATE reference_items
-         SET ${updates.join(', ')}, organization_id = $${idx}
-         WHERE id = $${idx + 1} AND organization_id = $${idx}::uuid AND deleted_at IS NULL
-         RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
-        writeValues,
         tx,
+        sql`UPDATE reference_items
+         SET ${sql.join(updates, sql`, `)}, organization_id = ${organizationId}
+         WHERE id = ${itemId} AND organization_id = ${organizationId}::uuid AND deleted_at IS NULL
+         RETURNING id, category_id, code, title, sort_order, is_active, deleted_at, meta_json`,
       );
       if (!res.rows[0]) throw new Error('item_not_found');
       return res.rows[0];

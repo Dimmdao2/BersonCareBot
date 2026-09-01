@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { type SQL, sql } from 'drizzle-orm';
 /**
  * UX-05 slice B1 — PostgreSQL implementation of the organization brand publication port
  * (migration 0238_org_brand_publication.sql).
@@ -15,7 +15,6 @@ import { sql } from 'drizzle-orm';
  */
 import {
   getWebappSqlDb,
-  runWebappPgText,
   runWebappSql,
   runWebappTransaction,
   type WebappSqlExecutor,
@@ -85,7 +84,7 @@ function mapRevision(row: RevisionRow): OrgBrandRevision {
  * owned by an organization (never a platform asset), owned by THIS organization, upload finished,
  * and an image. Anything else leaves `logo_media_ready = false` so presentation degrades.
  */
-const revisionSelectSql = `
+const revisionSelectSql = (organizationId: string, status: OrgBrandRevisionStatus): SQL => sql`
   SELECT
     revision.id::text AS id,
     revision.organization_id::text AS organization_id,
@@ -109,8 +108,8 @@ const revisionSelectSql = `
    AND logo.organization_id = revision.organization_id
    AND logo.status = 'ready'
    AND logo.mime_type LIKE 'image/%'
-  WHERE revision.organization_id = $1::uuid
-    AND revision.status = $2::text
+  WHERE revision.organization_id = ${organizationId}::uuid
+    AND revision.status = ${status}::text
   LIMIT 1
 `;
 
@@ -119,9 +118,10 @@ async function selectRevision(
   status: OrgBrandRevisionStatus,
   db?: WebappSqlExecutor,
 ): Promise<OrgBrandRevision | null> {
-  const { rows } = db
-    ? await runWebappPgText<RevisionRow>(revisionSelectSql, [organizationId, status], db)
-    : await runWebappPgText<RevisionRow>(revisionSelectSql, [organizationId, status]);
+  const { rows } = await runWebappSql<RevisionRow>(
+    db ?? getWebappSqlDb(),
+    revisionSelectSql(organizationId, status),
+  );
   const row = rows[0];
   return row ? mapRevision(row) : null;
 }

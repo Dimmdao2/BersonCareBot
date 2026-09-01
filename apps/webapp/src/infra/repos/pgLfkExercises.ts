@@ -1,6 +1,5 @@
 import {
   getWebappSqlDb,
-  runWebappPgText,
   runWebappSql,
   runWebappTransaction,
   type WebappSqlTransactionExecutor,
@@ -589,57 +588,48 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
   return {
     async list(filter: ExerciseFilter): Promise<Exercise[]> {
       requireOrganizationPrincipal();
-      const conds: string[] = [
-        "e.catalog_scope = 'catalog'",
+      const conds: SQL[] = [
+        sql`e.catalog_scope = 'catalog'`,
         filter.includePlatformBase
-          ? `((e.owner_kind = 'organization' AND e.organization_id = ${ORG_ID_EXPR}) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))`
-          : `e.owner_kind = 'organization' AND e.organization_id = ${ORG_ID_EXPR}`,
+          ? sql`((e.owner_kind = 'organization' AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}) OR (e.owner_kind = 'platform' AND e.organization_id IS NULL))`
+          : sql`e.owner_kind = 'organization' AND e.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
       ];
-      const params: unknown[] = [];
-      let i = 1;
-
       const scope = exerciseListArchiveScope(filter);
       if (scope === 'active') {
-        conds.push('e.is_archived = false');
+        conds.push(sql`e.is_archived = false`);
       } else if (scope === 'archived') {
-        conds.push('e.is_archived = true');
+        conds.push(sql`e.is_archived = true`);
       }
       if (filter.regionRefId) {
+        const regionRefId = filter.regionRefId;
         conds.push(
-          `(EXISTS (
+          sql`(EXISTS (
              SELECT 1 FROM lfk_exercise_regions r0
               WHERE r0.exercise_id = e.id
                 AND r0.owner_kind = e.owner_kind
                 AND r0.organization_id IS NOT DISTINCT FROM e.organization_id
-                AND r0.region_ref_id = $${i}
-           ) OR e.region_ref_id = $${i})`,
+                AND r0.region_ref_id = ${regionRefId}
+           ) OR e.region_ref_id = ${regionRefId})`,
         );
-        params.push(filter.regionRefId);
-        i += 1;
       }
       if (filter.loadType) {
-        conds.push(`e.load_type = $${i++}`);
-        params.push(filter.loadType);
+        conds.push(sql`e.load_type = ${filter.loadType}`);
       }
       if (filter.difficultyMin != null) {
-        conds.push(`e.difficulty_1_10 >= $${i++}`);
-        params.push(filter.difficultyMin);
+        conds.push(sql`e.difficulty_1_10 >= ${filter.difficultyMin}`);
       }
       if (filter.difficultyMax != null) {
-        conds.push(`e.difficulty_1_10 <= $${i++}`);
-        params.push(filter.difficultyMax);
+        conds.push(sql`e.difficulty_1_10 <= ${filter.difficultyMax}`);
       }
       if (filter.tags && filter.tags.length > 0) {
-        conds.push(`e.tags && $${i++}::text[]`);
-        params.push(filter.tags);
+        conds.push(sql`e.tags && ${sql.param(filter.tags)}::text[]`);
       }
       const searchPattern = filter.search ? pgRuSubstringSearchPattern(filter.search) : null;
       if (searchPattern) {
-        conds.push(`normalize(e.title, NFC) ILIKE $${i++} ESCAPE '\\'`);
-        params.push(searchPattern);
+        conds.push(sql`normalize(e.title, NFC) ILIKE ${searchPattern} ESCAPE '\\'`);
       }
 
-      const sql = `
+      const listSql = sql`
         SELECT e.id, e.owner_kind, e.catalog_scope, e.title, e.description, e.region_ref_id, e.load_type, e.difficulty_1_10,
                e.contraindications, e.tags, e.is_archived, e.created_by, e.created_at, e.updated_at,
                COALESCE((
@@ -661,10 +651,10 @@ export function createPgLfkExercisesPort(): LfkExercisesPort {
           ORDER BY em.sort_order ASC, em.created_at ASC
           LIMIT 1
         ) pm ON true
-        WHERE ${conds.join(' AND ')}
+        WHERE ${sql.join(conds, sql` AND `)}
         ORDER BY e.updated_at DESC`;
 
-      const result = await runWebappPgText<ExerciseListRow>(sql, params);
+      const result = await runWebappSql<ExerciseListRow>(getWebappSqlDb(), listSql);
 
       /* Одна дверь на всю страницу списка, не по запросу на карточку. */
       const previewRows = new Map<string, MediaDbRow>();

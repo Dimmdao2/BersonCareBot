@@ -8,12 +8,7 @@
 import { sql } from 'drizzle-orm';
 import { getPool } from '@/infra/db/client';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-  runWebappSql,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { formatDoctorFio } from '@/shared/lib/fio';
 import { withPoolTransaction } from '@/infra/db/withClient';
@@ -568,22 +563,21 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
         const integratorConversationId = principalOrganizationId
           ? webappOrganizationConversationId(principalOrganizationId, platformUserId)
           : webappPlatformConversationId(platformUserId);
-        const existing = await runWebappPgText<{ id: string; organization_id: string | null }>(
+        const existing = await runWebappSql<{ id: string; organization_id: string | null }>(
+          tx,
           principalOrganizationId
-            ? `SELECT id, organization_id
+            ? sql`SELECT id, organization_id
                FROM support_conversations
-               WHERE organization_id = $1::uuid
-                 AND platform_user_id = $2::uuid
+               WHERE organization_id = ${principalOrganizationId}::uuid
+                 AND platform_user_id = ${platformUserId}::uuid
                  AND source = 'webapp'
                  AND admin_scope = 'support'
-               ORDER BY (integrator_conversation_id = $3) DESC, created_at ASC
+               ORDER BY (integrator_conversation_id = ${integratorConversationId}) DESC, created_at ASC
                LIMIT 1`
-            : `SELECT id, organization_id
+            : sql`SELECT id, organization_id
                FROM support_conversations
-               WHERE integrator_conversation_id = $3
+               WHERE integrator_conversation_id = ${integratorConversationId}
                LIMIT 1`,
-          [principalOrganizationId, platformUserId, integratorConversationId],
-          tx,
         );
         const existingRow = existing.rows[0];
         if (existingRow) {

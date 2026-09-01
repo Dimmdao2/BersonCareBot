@@ -1,6 +1,6 @@
-import { sql } from 'drizzle-orm';
+import { type SQL, sql } from 'drizzle-orm';
 /**
- * Wave 3 phase 14C — domain SQL via `runWebappPgText` / `getWebappSqlFromPgClient`.
+ * Wave 3 phase 14C — domain SQL via typed Drizzle fragments / `getWebappSqlFromPgClient`.
  * R0/S3S routes the open-conflict transaction through `withPoolTransaction`.
  */
 import { createHash } from 'node:crypto';
@@ -11,7 +11,6 @@ import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
-  runWebappPgText,
   runWebappSql,
   webappSqlFromPgText,
 } from '@/infra/db/runWebappSql';
@@ -358,13 +357,14 @@ export type ListAdminAuditLogParams = {
 export async function countOpenAutoMergeConflicts(_pool: Pool): Promise<number> {
   try {
     const principalOrganizationId = currentPrincipalOrganizationId();
-    const orgSql = principalOrganizationId ? ' AND organization_id = $1::uuid' : '';
-    const values = principalOrganizationId ? [principalOrganizationId] : [];
-    const r = await runWebappPgText<{ n: string }>(
-      `SELECT count(*)::text AS n
+    const orgSql = principalOrganizationId
+      ? sql` AND organization_id = ${principalOrganizationId}::uuid`
+      : sql``;
+    const r = await runWebappSql<{ n: string }>(
+      getWebappSqlDb(),
+      sql`SELECT count(*)::text AS n
        FROM admin_audit_log
        WHERE action = 'auto_merge_conflict' AND resolved_at IS NULL${orgSql}`,
-      values,
     );
     return Number(r.rows[0]?.n ?? 0);
   } catch (err) {
@@ -388,30 +388,22 @@ export async function listAdminAuditLog(
   const limit = Math.min(200, Math.max(1, params.limit));
   const offset = (page - 1) * limit;
 
-  const conditions: string[] = ['1=1'];
-  const values: unknown[] = [];
-  let i = 1;
+  const conditions: SQL[] = [sql`1=1`];
   const principalOrganizationId = currentPrincipalOrganizationId();
   if (principalOrganizationId) {
-    conditions.push(`l.organization_id = $${i}::uuid`);
-    values.push(principalOrganizationId);
-    i++;
+    conditions.push(sql`l.organization_id = ${principalOrganizationId}::uuid`);
   }
 
   if (params.action) {
-    conditions.push(`l.action = $${i}`);
-    values.push(params.action);
-    i++;
+    conditions.push(sql`l.action = ${params.action}`);
   }
   if (params.targetId) {
-    conditions.push(`l.target_id = $${i}`);
-    values.push(params.targetId);
-    i++;
+    conditions.push(sql`l.target_id = ${params.targetId}`);
   }
   if (params.involvesPlatformUserId?.trim()) {
     const uid = params.involvesPlatformUserId.trim();
     conditions.push(
-      `(l.target_id = $${i} OR (
+      sql`(l.target_id = ${uid} OR (
         l.action IN (
           'auto_merge_conflict',
           'email_auth_conflict',
@@ -420,73 +412,67 @@ export async function listAdminAuditLog(
         ) AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements_text(COALESCE(l.details->'candidateIds', '[]'::jsonb)) AS cid
-          WHERE cid = $${i}
+          WHERE cid = ${uid}
         )
       ) OR (
         l.action = 'channel_link_ownership_conflict' AND EXISTS (
           SELECT 1
           FROM jsonb_array_elements_text(COALESCE(l.details->'candidateIds', '[]'::jsonb)) AS cid
-          WHERE cid = $${i}
+          WHERE cid = ${uid}
         )
       ) OR (
         l.action IN ('user_merge', 'integrator_user_merge') AND (
-          l.details->>'targetId' = $${i} OR l.details->>'duplicateId' = $${i}
+          l.details->>'targetId' = ${uid} OR l.details->>'duplicateId' = ${uid}
         )
       ))`,
     );
-    values.push(uid);
-    i++;
   }
   if (params.status) {
-    conditions.push(`l.status = $${i}`);
-    values.push(params.status);
-    i++;
+    conditions.push(sql`l.status = ${params.status}`);
   }
   if (params.fromInclusive) {
-    conditions.push(`l.created_at >= $${i}::timestamptz`);
-    values.push(params.fromInclusive);
-    i++;
+    conditions.push(sql`l.created_at >= ${params.fromInclusive}::timestamptz`);
   }
   if (params.toInclusive) {
-    conditions.push(`l.created_at <= $${i}::timestamptz`);
-    values.push(params.toInclusive);
-    i++;
+    conditions.push(sql`l.created_at <= ${params.toInclusive}::timestamptz`);
   }
   if (params.actionPrefix?.trim()) {
-    conditions.push(`l.action LIKE $${i} || '%'`);
-    values.push(params.actionPrefix.trim());
-    i++;
+    conditions.push(sql`l.action LIKE ${params.actionPrefix.trim()} || '%'`);
   }
   if (params.systemHealthScopeOnly) {
-    conditions.push(`(l.action LIKE $${i} || '%' OR l.action = ANY($${i + 1}::text[]))`);
-    values.push('system_health_', [...ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS]);
-    i += 2;
+    conditions.push(
+      sql`(l.action LIKE ${'system_health_'} || '%' OR l.action = ANY(${sql.param([...ADMIN_AUDIT_SYSTEM_HEALTH_OPERATOR_ACTIONS])}::text[]))`,
+    );
   }
   if (params.excludeActionPrefix?.trim()) {
-    conditions.push(`l.action NOT LIKE $${i} || '%'`);
-    values.push(params.excludeActionPrefix.trim());
-    i++;
+    conditions.push(sql`l.action NOT LIKE ${params.excludeActionPrefix.trim()} || '%'`);
   }
 
-  const whereSql = conditions.join(' AND ');
-  const filterValues = [...values];
+  const whereSql = sql.join(conditions, sql` AND `);
   // app_platform_settings deliberately has no SELECT on platform_users (the C5A exact role
   // wall asserts that invariant). A platform principal has no organization id, so keep the
   // global audit query on admin_audit_log alone. Organization staff retain the actor-name join.
-  const actorDisplayNameSql = principalOrganizationId
-    ? `${FIO.displayName} AS actor_display_name`
-    : 'NULL::text AS actor_display_name';
-  const actorJoinSql = principalOrganizationId
-    ? `LEFT JOIN platform_users pu ON pu.id = l.actor_id ${USER_IDENTITY_FIO_JOIN}`
-    : '';
+  const actorDisplayNameSql = sql.raw(
+    principalOrganizationId
+      ? `${FIO.displayName} AS actor_display_name`
+      : 'NULL::text AS actor_display_name',
+  );
+  const actorJoinSql = sql.raw(
+    principalOrganizationId
+      ? `LEFT JOIN platform_users pu ON pu.id = l.actor_id ${USER_IDENTITY_FIO_JOIN}`
+      : '',
+  );
 
-  const countRes = await runWebappPgText<{ n: string }>(
-    `SELECT count(*)::text AS n FROM admin_audit_log l WHERE ${whereSql}`,
-    filterValues,
+  const db = getWebappSqlDb();
+  const countRes = await runWebappSql<{ n: string }>(
+    db,
+    sql`SELECT count(*)::text AS n FROM admin_audit_log l WHERE ${whereSql}`,
   );
   const total = Number(countRes.rows[0]?.n ?? 0);
 
-  const listSql = `
+  const listRes = await runWebappSql<AdminAuditLogRow>(
+    db,
+    sql`
     SELECT
       l.id,
       l.actor_id,
@@ -504,11 +490,9 @@ export async function listAdminAuditLog(
     ${actorJoinSql}
     WHERE ${whereSql}
     ORDER BY l.created_at DESC
-    LIMIT $${i} OFFSET $${i + 1}
-  `;
-  const listValues = [...filterValues, limit, offset];
-
-  const listRes = await runWebappPgText<AdminAuditLogRow>(listSql, listValues);
+    LIMIT ${limit} OFFSET ${offset}
+  `,
+  );
 
   return {
     items: listRes.rows.map((row) => ({
@@ -569,12 +553,13 @@ export async function resolveAdminAuditConflictById(
     }
     throw new Error('unexpected platform audit conflict result');
   }
-  const orgSql = principalOrganizationId ? ' AND organization_id = $2::uuid' : '';
-  const orgValues = principalOrganizationId ? [principalOrganizationId] : [];
+  const orgSql = principalOrganizationId
+    ? sql` AND organization_id = ${principalOrganizationId}::uuid`
+    : sql``;
 
-  const meta = await runWebappPgText<{ action: string; resolved_at: string | null }>(
-    `SELECT action, resolved_at FROM admin_audit_log WHERE id = $1::uuid${orgSql}`,
-    [trimmed, ...orgValues],
+  const meta = await runWebappSql<{ action: string; resolved_at: string | null }>(
+    getWebappSqlDb(),
+    sql`SELECT action, resolved_at FROM admin_audit_log WHERE id = ${trimmed}::uuid${orgSql}`,
   );
   const row = meta.rows[0];
   if (!row) return { ok: false, error: 'not_found' };
@@ -587,17 +572,15 @@ export async function resolveAdminAuditConflictById(
     return { ok: false, error: 'not_closeable' };
   }
 
-  const upd = await runWebappPgText(
-    `UPDATE admin_audit_log
+  const upd = await runWebappSql(
+    getWebappSqlDb(),
+    sql`UPDATE admin_audit_log
      SET resolved_at = NOW()
-     WHERE id = $1::uuid
-       ${principalOrganizationId ? 'AND organization_id = $3::uuid' : ''}
+     WHERE id = ${trimmed}::uuid
+       ${orgSql}
        AND resolved_at IS NULL
-       AND action = ANY($2::text[])
+       AND action = ANY(${sql.param([...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS])}::text[])
      RETURNING id`,
-    principalOrganizationId
-      ? [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS], principalOrganizationId]
-      : [trimmed, [...MANUALLY_RESOLVABLE_ADMIN_AUDIT_ACTIONS]],
   );
   if ((upd.rowCount ?? 0) === 0) {
     return { ok: false, error: 'already_resolved' };
