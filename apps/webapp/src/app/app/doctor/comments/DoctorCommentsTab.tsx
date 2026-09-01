@@ -20,7 +20,6 @@ import type {
 } from './loadDoctorPatientExercisesWithComments';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
-  DoctorDnaFlatList,
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
@@ -38,16 +37,10 @@ import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHr
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
-import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
-import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
-import {
-  ExerciseCommentPreviewItemContent,
-  ExerciseCommentPreviewListRow,
-} from './ExerciseCommentPreviewItem';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -848,7 +841,10 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   const patientsError = viewMode === 'all' ? allModePatientsError : null;
 
   const leftPane = (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+    <div
+      data-doctor-flat-list-surface
+      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:rounded-lg md:border md:border-border"
+    >
       {/* Search + filters header */}
       <div className="shrink-0 border-b border-border bg-muted/20 px-3 py-2 space-y-1.5">
         <Input
@@ -1158,6 +1154,7 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   return (
     <div id="doctor-communications-comments" className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}>
       <CatalogSplitLayout
+        mobileEdgeToEdge
         left={leftPane}
         right={rightPane}
         mobileView={mobileView}
@@ -1169,53 +1166,6 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   );
 }
 
-function DoctorCommentsMobileTab({ initialItems }: DoctorCommentsTabProps) {
-  const [selectedItem, setSelectedItem] = useState<TodayExerciseCommentAttentionItem | null>(null);
-
-  return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
-      <div className="min-h-0 flex-1 overflow-y-auto bg-card">
-        {initialItems.length === 0 ? (
-          <DoctorEmptyState size="sm" className="flex min-h-full items-center justify-center py-10">
-            Нет новых комментариев по упражнениям
-          </DoctorEmptyState>
-        ) : (
-          <DoctorDnaFlatList>
-            {initialItems.map((item) => (
-              <ExerciseCommentPreviewListRow
-                key={`${item.stageItemId}:${item.latestMessage.id}`}
-                item={item}
-                onActivate={() => setSelectedItem(item)}
-              />
-            ))}
-          </DoctorDnaFlatList>
-        )}
-      </div>
-
-      <DoctorModal
-        open={selectedItem !== null}
-        onClose={() => setSelectedItem(null)}
-        title="Комментарий"
-        size="content"
-      >
-        {selectedItem ? (
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
-            <ExerciseCommentPreviewItemContent item={selectedItem} />
-            <Link href={selectedItem.href} className={doctorInlineLinkClass}>
-              Открыть обсуждение
-            </Link>
-          </div>
-        ) : null}
-      </DoctorModal>
-    </div>
-  );
-}
-
 export function DoctorCommentsTab(props: DoctorCommentsTabProps) {
-  const isMobile = useIsMobileViewport();
-  return isMobile ? (
-    <DoctorCommentsMobileTab {...props} />
-  ) : (
-    <DoctorCommentsDesktopTab {...props} />
-  );
+  return <DoctorCommentsDesktopTab {...props} />;
 }
