@@ -14,6 +14,7 @@
 import type { DoctorClientsFilters } from '@/modules/doctor-clients/ports';
 import type { PatientVisibilityActor } from '@/modules/patient-visibility/ports';
 import type { ListDoctorExerciseCommentsInput } from '@/modules/program-item-discussion/types';
+import { formatDoctorFio } from '@/shared/lib/fio';
 import type { CommentPatientRow } from './loadDoctorCommentPatients';
 
 export type LoadDoctorAllCommentPatientsDeps = {
@@ -25,6 +26,8 @@ export type LoadDoctorAllCommentPatientsDeps = {
       Array<{
         userId: string;
         displayName: string;
+        firstName?: string | null;
+        lastName?: string | null;
         phone: string | null;
         bindings: { telegramId?: string | null; maxId?: string | null };
         isOnSupport?: boolean;
@@ -107,7 +110,10 @@ export async function loadDoctorAllCommentPatients(
     allClients.map((c) => [
       c.userId.trim(),
       {
-        displayName: c.displayName.trim() || '—',
+        displayName: formatDoctorFio(
+          { firstName: c.firstName ?? null, lastName: c.lastName ?? null, patronymic: null },
+          c.displayName.trim() || '—',
+        ),
         phone: c.phone ?? null,
         telegramId: c.bindings?.telegramId ?? null,
         maxId: c.bindings?.maxId ?? null,
