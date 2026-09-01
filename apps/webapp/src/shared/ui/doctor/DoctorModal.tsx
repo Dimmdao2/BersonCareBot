@@ -16,6 +16,7 @@ import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { doctorPageTitleClass } from '@/shared/ui/doctor/doctorVisual';
 
 type DoctorModalSize = 'sm' | 'md' | 'lg' | 'content';
+type DoctorModalBodyVariant = 'default' | 'list';
 export type DoctorModalDesktopPresentation = 'dialog' | 'right-sheet';
 
 /** Десктоп: ограничение ширины по размеру. Мобила — всегда bottom-sheet во всю ширину. */
@@ -39,6 +40,8 @@ type DoctorModalProps = {
   headerAction?: ReactNode;
   /** Доп. классы на прокручиваемое тело (например, убрать паддинги). */
   bodyClassName?: string;
+  /** A flat list owns no local scroll or card chrome: the modal body is its only scroll owner. */
+  bodyVariant?: DoctorModalBodyVariant;
   /** Desktop/tablet presentation. Mobile always uses the canonical bottom drawer. */
   desktopPresentation?: DoctorModalDesktopPresentation;
   /** Called before a non-modal right sheet closes from a pointer press outside it. */
@@ -69,12 +72,14 @@ export function DoctorModal({
   footer,
   headerAction,
   bodyClassName,
+  bodyVariant = 'default',
   desktopPresentation = 'dialog',
   onRightSheetOutsidePress,
 }: DoctorModalProps) {
   const isMobile = useIsMobileViewport();
   const isWideDesktop = useViewportMinWidth(1280);
   const isContent = size === 'content';
+  const isListBody = bodyVariant === 'list';
   const [rightSheetWidth, setRightSheetWidth] = useState<string | null>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
 
@@ -112,9 +117,11 @@ export function DoctorModal({
       ref={bodyRef}
       className={cn(
         'min-h-0 flex-1',
-        isContent
-          ? 'flex flex-col overflow-hidden px-4 pt-3 pb-4'
-          : 'overflow-y-auto px-4 pt-3 pb-4',
+        isListBody
+          ? 'overflow-y-auto p-0'
+          : isContent
+            ? 'flex flex-col overflow-hidden px-4 pt-3 pb-4'
+            : 'overflow-y-auto px-4 pt-3 pb-4',
         bodyClassName,
       )}
     >

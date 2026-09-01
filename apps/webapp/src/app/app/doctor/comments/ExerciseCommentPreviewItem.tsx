@@ -1,7 +1,14 @@
 'use client';
 
+import type { ComponentProps, ReactNode } from 'react';
+import { cn } from '@/lib/utils';
 import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCommentAttention';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
+import {
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
+import { Button } from '@/shared/ui/doctor/primitives/button';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
 
 export function ExerciseCommentPreviewItemContent({
@@ -41,5 +48,55 @@ export function ExerciseCommentPreviewItemContent({
         <p className="mt-0.5 line-clamp-2 text-xs text-foreground/80">{bodyPreview}</p>
       </div>
     </div>
+  );
+}
+
+/**
+ * Shared flat-list row for comment previews in the mobile comments tab and
+ * attention modal. Callers can add their own actions without reintroducing
+ * per-row card chrome.
+ */
+export function ExerciseCommentPreviewListRow({
+  item,
+  onActivate,
+  listItemProps,
+  previewProps,
+  children,
+}: {
+  item: TodayExerciseCommentAttentionItem;
+  onActivate?: () => void;
+  listItemProps?: ComponentProps<'li'>;
+  previewProps?: ComponentProps<'div'>;
+  children?: ReactNode;
+}) {
+  const { className, ...restListItemProps } = listItemProps ?? {};
+  const { className: previewClassName, ...restPreviewProps } = previewProps ?? {};
+  const content = <ExerciseCommentPreviewItemContent item={item} />;
+
+  return (
+    <li {...restListItemProps} className={cn('group/row relative', className)}>
+      {onActivate ? (
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onActivate}
+          className={cn(
+            doctorDnaFlatListRowClass,
+            doctorDnaFlatListClickableClass,
+            'h-auto w-full items-start rounded-none bg-transparent text-left shadow-none',
+          )}
+        >
+          {content}
+        </Button>
+      ) : (
+        <div
+          {...restPreviewProps}
+          className={cn(doctorDnaFlatListRowClass, 'items-start', previewClassName)}
+        >
+          {content}
+        </div>
+      )}
+      {children}
+    </li>
   );
 }

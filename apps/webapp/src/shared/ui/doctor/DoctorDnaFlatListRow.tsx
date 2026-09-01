@@ -5,6 +5,8 @@
  * come from a warm hairline divider, text weight, and the 3px primary marker.
  */
 
+import type { ComponentProps } from 'react';
+import { cn } from '@/lib/utils';
 import { doctorMetaTextClass, doctorPrimaryListTextClass } from '@/shared/ui/doctor/doctorVisual';
 
 /**
@@ -20,12 +22,25 @@ export const doctorDnaFlatListClass =
   'm-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-[var(--doctor-flat-list-divider,#f0efeb)]';
 
 /**
+ * Canonical doctor flat-list container. It promotes the existing DNA class
+ * vocabulary to a semantic component without introducing a second list API.
+ */
+export function DoctorDnaFlatList({ className, ...props }: ComponentProps<'ul'>) {
+  return <ul {...props} className={cn(doctorDnaFlatListClass, className)} />;
+}
+
+/**
  * Adds the same outer inset that a flat list gets inside a padded DoctorSection.
  * Use it only when the list sits directly against an unpadded master-pane edge.
  */
 export const doctorDnaFlatListInsetClass = 'mx-[var(--doctor-block-padding,18px)]';
 
 export const doctorDnaFlatListRowClass = `relative flex items-center gap-3 border-x-0 border-b-0 border-t-0 px-[var(--doctor-list-inline-padding,18px)] py-2.5 ${doctorPrimaryListTextClass}`;
+
+/** A non-interactive canonical flat-list row; links and buttons keep their native semantics. */
+export function DoctorDnaFlatListRow({ className, ...props }: ComponentProps<'li'>) {
+  return <li {...props} className={cn(doctorDnaFlatListRowClass, className)} />;
+}
 
 export const doctorDnaFlatListClickableClass =
   'cursor-pointer no-underline transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset';

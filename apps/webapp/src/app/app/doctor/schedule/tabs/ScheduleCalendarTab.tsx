@@ -3053,21 +3053,23 @@ export function ScheduleCalendarTab({
           // Match the «Сегодня» etalon row format: «HH:mm DD.MM».
           const timeLabel = dt.toFormat('HH:mm dd.MM');
           return (
-            <AppointmentKpiItem
-              item={{
-                clientLabel: item.patientName ?? 'Запись',
-                time: timeLabel,
-                typeLabel: item.serviceTitle ?? null,
-                statusLabel: appointmentStatusLabel(item.status),
-                branchName: item.branchTitle ?? null,
-                altNameNote: null,
-                cancelled: isCancelledAppointmentStatus(item.status),
-                href: item.platformUserId
-                  ? routePaths.doctorPatientCard(item.platformUserId)
-                  : null,
-                ctaLabel: item.platformUserId ? 'Открыть карточку' : null,
-              }}
-            />
+            <li>
+              <AppointmentKpiItem
+                item={{
+                  clientLabel: item.patientName ?? 'Запись',
+                  time: timeLabel,
+                  typeLabel: item.serviceTitle ?? null,
+                  statusLabel: appointmentStatusLabel(item.status),
+                  branchName: item.branchTitle ?? null,
+                  altNameNote: null,
+                  cancelled: isCancelledAppointmentStatus(item.status),
+                  href: item.platformUserId
+                    ? routePaths.doctorPatientCard(item.platformUserId)
+                    : null,
+                  ctaLabel: item.platformUserId ? 'Открыть карточку' : null,
+                }}
+              />
+            </li>
           );
         }}
       />

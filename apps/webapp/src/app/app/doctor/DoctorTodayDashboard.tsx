@@ -6,6 +6,7 @@ import { useState } from 'react';
 import type { SpecialistTaskRow } from '@/modules/specialist-tasks/types';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import {
+  DoctorDnaFlatList,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
   doctorDnaFlatListMetaClass,
@@ -108,7 +109,7 @@ function DoctorTodayPeopleSection({
         </DoctorEmptyState>
       ) : (
         <>
-          <ul className={doctorDnaFlatListClass}>
+          <DoctorDnaFlatList>
             {people.map((client, index) => (
               <li key={client.userId}>
                 <Link
@@ -159,7 +160,7 @@ function DoctorTodayPeopleSection({
                 </Link>
               </li>
             ))}
-          </ul>
+          </DoctorDnaFlatList>
           {peopleListTruncated ? (
             <p>
               <Link
@@ -185,7 +186,7 @@ function DoctorTodayAppointmentsList({
   return appointments.length === 0 ? (
     <DoctorEmptyState>Записей нет</DoctorEmptyState>
   ) : (
-    <ul className={doctorDnaFlatListClass}>
+    <DoctorDnaFlatList>
       {appointments.map((appointment, index) => (
         <li key={appointment.id}>
           <Link
@@ -201,7 +202,7 @@ function DoctorTodayAppointmentsList({
           </Link>
         </li>
       ))}
-    </ul>
+    </DoctorDnaFlatList>
   );
 }
 
@@ -258,10 +259,7 @@ export function DoctorTodayDashboard({
   };
 
   return (
-    <div
-      id="doctor-today-dashboard"
-      className={`${doctorPageStackClass} min-h-0 flex-1`}
-    >
+    <div id="doctor-today-dashboard" className={`${doctorPageStackClass} min-h-0 flex-1`}>
       <DoctorPageHeader
         id="doctor-today-header"
         title="Сегодня"
@@ -379,7 +377,7 @@ export function DoctorTodayDashboard({
         onClose={() => setMobileModal(null)}
         title="Сопровождение"
         size="lg"
-        bodyClassName={isMobile ? 'px-0' : undefined}
+        bodyVariant="list"
         desktopPresentation="right-sheet"
       >
         <DoctorTodayPeopleSection
@@ -397,7 +395,7 @@ export function DoctorTodayDashboard({
         onClose={() => setMobileModal(null)}
         title="Записей сегодня"
         size="content"
-        bodyClassName="p-0"
+        bodyVariant="list"
       >
         <TodayMiniCalendarWithModal
           appointments={activeTodayAppointments}
@@ -412,6 +410,7 @@ export function DoctorTodayDashboard({
         onClose={() => setMobileModal(null)}
         title={mobileModal === 'week-primary' ? 'Первичные на неделе' : 'Записи на неделе'}
         size="lg"
+        bodyVariant="list"
         desktopPresentation="right-sheet"
       >
         <DoctorTodayAppointmentsList

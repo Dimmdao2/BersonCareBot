@@ -18,6 +18,7 @@ export type DoctorConversationListRowData = {
   displayName: string;
   firstName?: string | null;
   lastName?: string | null;
+  phoneNormalized?: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
   lastSenderRole?: string | null;
@@ -109,6 +110,11 @@ export function DoctorConversationListRow({
             )}
           >
             {conversation.displayName}
+          </p>
+        ) : null}
+        {conversation.phoneNormalized ? (
+          <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>
+            Тел.: {conversation.phoneNormalized}
           </p>
         ) : null}
         {conversation.lastMessageText ? (

@@ -20,6 +20,7 @@ import type {
 } from './loadDoctorPatientExercisesWithComments';
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
+  DoctorDnaFlatList,
   DoctorDnaFlatListSelectionStrip,
   doctorDnaFlatListClass,
   doctorDnaFlatListClickableClass,
@@ -43,7 +44,10 @@ import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileVi
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
-import { ExerciseCommentPreviewItemContent } from './ExerciseCommentPreviewItem';
+import {
+  ExerciseCommentPreviewItemContent,
+  ExerciseCommentPreviewListRow,
+} from './ExerciseCommentPreviewItem';
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -1176,24 +1180,15 @@ function DoctorCommentsMobileTab({ initialItems }: DoctorCommentsTabProps) {
             Нет новых комментариев по упражнениям
           </DoctorEmptyState>
         ) : (
-          <ul className={doctorDnaFlatListClass}>
+          <DoctorDnaFlatList>
             {initialItems.map((item) => (
-              <li key={`${item.stageItemId}:${item.latestMessage.id}`}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setSelectedItem(item)}
-                  className={cn(
-                    doctorDnaFlatListRowClass,
-                    doctorDnaFlatListClickableClass,
-                    'h-auto w-full items-start rounded-none bg-transparent text-left shadow-none',
-                  )}
-                >
-                  <ExerciseCommentPreviewItemContent item={item} />
-                </Button>
-              </li>
+              <ExerciseCommentPreviewListRow
+                key={`${item.stageItemId}:${item.latestMessage.id}`}
+                item={item}
+                onActivate={() => setSelectedItem(item)}
+              />
             ))}
-          </ul>
+          </DoctorDnaFlatList>
         )}
       </div>
 

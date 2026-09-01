@@ -144,20 +144,22 @@ export function DoctorGlobalTasksSection({
         count={tasksTotal}
         items={sortedTasks}
         renderItem={(task) => (
-          <TaskRow
-            task={task}
-            as="div"
-            displayIana={displayIana}
-            patientDisplayName={
-              task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
-            }
-            dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
-            canMutate={available}
-            onOpen={(selected) => {
-              setTaskModalOpen(false);
-              setSelectedTaskId(selected.id);
-            }}
-          />
+          <li>
+            <TaskRow
+              task={task}
+              as="div"
+              displayIana={displayIana}
+              patientDisplayName={
+                task.patientUserId ? taskPatientNames[task.patientUserId] : undefined
+              }
+              dueToday={displayIana ? isSpecialistTaskDueOnDate(task, todayIso, displayIana) : false}
+              canMutate={available}
+              onOpen={(selected) => {
+                setTaskModalOpen(false);
+                setSelectedTaskId(selected.id);
+              }}
+            />
+          </li>
         )}
         searchPlaceholder="Поиск по задаче…"
         searchPredicate={(task, q) =>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { type ReactNode, useState } from 'react';
+import { useState } from 'react';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
@@ -123,22 +123,24 @@ function SplitAppointmentStatCard({
   );
 }
 
-function renderAppointmentItem(item: TodayAppointmentItem): ReactNode {
+function renderAppointmentItem(item: TodayAppointmentItem) {
   return (
+    <li>
       <AppointmentKpiItem
         flat
         item={{
-        clientLabel: item.clientLabel,
-        time: item.time,
-        typeLabel: item.type,
-        statusLabel: item.status,
-        branchName: item.branchName,
-        altNameNote: null,
-        cancelled: isCancelledItem(item),
-        href: item.href,
-        ctaLabel: item.ctaLabel,
-      }}
-    />
+          clientLabel: item.clientLabel,
+          time: item.time,
+          typeLabel: item.type,
+          statusLabel: item.status,
+          branchName: item.branchName,
+          altNameNote: null,
+          cancelled: isCancelledItem(item),
+          href: item.href,
+          ctaLabel: item.ctaLabel,
+        }}
+      />
+    </li>
   );
 }
 
