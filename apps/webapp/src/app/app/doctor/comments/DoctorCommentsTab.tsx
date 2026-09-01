@@ -36,6 +36,7 @@ import { patientCardHref } from '../patients/patientCardHref';
 import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHref';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
@@ -891,9 +892,7 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
       {/* Patient list */}
       <div className="flex flex-1 flex-col overflow-y-auto">
         {patientsLoading ? (
-          <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-6">
-            Загрузка…
-          </DoctorEmptyState>
+          <DoctorPanelLoading />
         ) : patientsError ? (
           <DoctorEmptyState
             size="xs"
@@ -989,9 +988,7 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
         {/* Exercise list */}
         <div className="flex flex-1 flex-col overflow-y-auto">
           {exercisesLoading && (
-            <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
-              Загрузка…
-            </DoctorEmptyState>
+            <DoctorPanelLoading />
           )}
           {exercisesError && (
             <DoctorEmptyState
@@ -1107,9 +1104,7 @@ export function DoctorCommentsTab({ initialPatients, displayIana }: DoctorCommen
         {/* Thread messages */}
         <div className={cn('flex flex-1 flex-col overflow-y-auto', chatThreadSurfaceClass)}>
           {threadLoading && (
-            <DoctorEmptyState size="xs" className="flex flex-1 items-center justify-center py-8">
-              Загрузка…
-            </DoctorEmptyState>
+            <DoctorPanelLoading />
           )}
           {threadError && (
             <DoctorEmptyState

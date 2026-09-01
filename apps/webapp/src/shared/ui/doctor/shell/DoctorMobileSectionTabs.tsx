@@ -1,6 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 
 export type DoctorMobileSectionTab<T extends string> = {
   id: T;
@@ -39,16 +40,7 @@ export function DoctorMobileSectionTabs<T extends string>({
               )}
             >
               <span className="truncate">{tab.label}</span>
-              {tab.badge && tab.badge > 0 ? (
-                <span
-                  className={cn(
-                    'inline-flex min-w-4 items-center justify-center rounded-full px-1 text-[10px] leading-none tabular-nums',
-                    active ? 'bg-primary/15 text-primary' : 'bg-destructive/10 text-destructive',
-                  )}
-                >
-                  {tab.badge}
-                </span>
-              ) : null}
+              <DoctorAttentionBadge count={tab.badge} active={active} />
             </button>
           );
         })}

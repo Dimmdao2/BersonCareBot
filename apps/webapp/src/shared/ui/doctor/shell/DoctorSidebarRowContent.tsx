@@ -8,6 +8,7 @@ type DoctorSidebarRowContentProps = {
   icon: ReactNode;
   label?: ReactNode;
   trailing?: ReactNode;
+  iconBadge?: ReactNode;
   tabletExpanded: boolean;
   iconVisibility?: 'always' | 'collapsed-only';
 };
@@ -31,6 +32,7 @@ export function DoctorSidebarRowContent({
   icon,
   label,
   trailing,
+  iconBadge,
   tabletExpanded,
   iconVisibility = 'always',
 }: DoctorSidebarRowContentProps) {
@@ -51,12 +53,13 @@ export function DoctorSidebarRowContent({
     >
       <span
         className={cn(
-          'flex size-7 items-center justify-center',
+          'relative flex size-7 items-center justify-center',
           collapsedOnlyIcon && 'lg:hidden',
           collapsedOnlyIcon && tabletExpanded && 'md:hidden',
         )}
       >
         {icon}
+        {iconBadge}
       </span>
       {label ? (
         <span

@@ -17,7 +17,6 @@ import type { TodayAppointmentItem } from './loadDoctorTodayDashboard';
 import { cn } from '@/lib/utils';
 
 type Props = {
-  appointmentsTodayCount: number;
   weekAppointmentsCount: number;
   monthAppointmentCount: number;
   displayIana: string;
@@ -126,8 +125,9 @@ function SplitAppointmentStatCard({
 
 function renderAppointmentItem(item: TodayAppointmentItem): ReactNode {
   return (
-    <AppointmentKpiItem
-      item={{
+      <AppointmentKpiItem
+        flat
+        item={{
         clientLabel: item.clientLabel,
         time: item.time,
         typeLabel: item.type,
@@ -143,7 +143,6 @@ function renderAppointmentItem(item: TodayAppointmentItem): ReactNode {
 }
 
 export function DoctorTodayRightKpiRow({
-  appointmentsTodayCount,
   weekAppointmentsCount,
   monthAppointmentCount,
   displayIana,
@@ -153,9 +152,10 @@ export function DoctorTodayRightKpiRow({
 }: Props) {
   const [openModal, setOpenModal] = useState<AppointmentModalState>(null);
 
-  const todayItems = todayAppointments ?? [];
-  const weekItems = weekAppointments ?? [];
-  const monthItems = monthAppointments ?? [];
+  const todayItems = (todayAppointments ?? []).filter((item) => !isCancelledItem(item));
+  const weekItems = (weekAppointments ?? []).filter((item) => !isCancelledItem(item));
+  const monthItems = (monthAppointments ?? []).filter((item) => !isCancelledItem(item));
+  const todayCount = todayItems.length;
   const weekFutureItems = futureAppointmentItems(weekItems);
   const monthFutureItems = futureAppointmentItems(monthItems);
   const weekFutureCount = weekFutureItems.length;
@@ -177,16 +177,16 @@ export function DoctorTodayRightKpiRow({
         <DoctorStatCard
           id="doctor-today-right-kpi-today"
           title="Записи сегодня"
-          value={appointmentsTodayCount}
+          value={todayCount}
           className="flex h-[5.5rem] flex-col"
           valueClassName="mt-auto pt-1"
           onClick={
-            appointmentsTodayCount > 0
+            todayCount > 0
               ? () =>
                   openIfNotEmpty({
                     kind: 'today',
                     title: 'Записи сегодня',
-                    count: appointmentsTodayCount,
+                    count: todayCount,
                     items: todayItems,
                   })
               : undefined

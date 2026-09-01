@@ -3,9 +3,17 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { StickyNotePlus } from 'lucide-react';
 import { DoctorMetricList } from '@/shared/ui/doctor/DoctorMetricList';
 import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
-import { doctorInlineLinkClass, doctorSectionItemClass } from '@/shared/ui/doctor/doctorVisual';
+import { Button } from '@/shared/ui/doctor/primitives/button';
+import { doctorInlineLinkClass } from '@/shared/ui/doctor/doctorVisual';
+import {
+  doctorDnaFlatListClickableClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
+  doctorDnaFlatListRowClass,
+} from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { DoctorStatCard } from './analytics/clients/DoctorStatCard';
 import { ExerciseCommentPreviewItemContent } from './comments/ExerciseCommentPreviewItem';
 import type {
@@ -22,7 +30,9 @@ import {
 } from '@/modules/specialist-tasks/taskPriority';
 import { SpecialistTaskRow as TaskRow } from './clients/SpecialistTaskRow';
 import { SpecialistTaskDetailsDialog } from './clients/SpecialistTaskDetailsDialog';
+import { SpecialistTaskFormDialog } from './clients/SpecialistTaskFormDialog';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
+import { DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS } from '@/shared/ui/doctor/navChrome';
 
 type Props = Pick<
   TodayDashboardData,
@@ -60,45 +70,40 @@ const attentionKpiValueClass = 'text-destructive';
 
 function UnreadConversationModalItem({ item }: { item: TodayUnreadConversationItem }) {
   return (
-    <div className={doctorSectionItemClass}>
+    <Link
+      href={item.href}
+      className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} block`}
+    >
       <div className="flex items-baseline justify-between gap-2">
-        <p className="font-medium text-foreground">{item.displayName}</p>
-        <span className="shrink-0 text-xs text-muted-foreground">{item.lastMessageAtLabel}</span>
+        <p className={doctorDnaFlatListPrimaryClass}>{item.displayName}</p>
+        <span className={`${doctorDnaFlatListMetaClass} shrink-0`}>{item.lastMessageAtLabel}</span>
       </div>
       {item.lastMessagePreview ? (
-        <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+        <p className={`${doctorDnaFlatListMetaClass} mt-0.5 line-clamp-2`}>
           {item.lastMessagePreview}
         </p>
       ) : null}
       {item.unreadFromUserCount > 0 ? (
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>
           {item.unreadFromUserCount} непрочитанных
         </p>
       ) : null}
-      <p className="mt-2">
-        {/* #812: deep-link to this exact dialog, not just the chats tab */}
-        <Link href={item.href} className={doctorInlineLinkClass}>
-          Открыть переписку
-        </Link>
-      </p>
-    </div>
+    </Link>
   );
 }
 
 function PendingTestModalItem({ item }: { item: TodayPendingProgramTestItem }) {
   return (
-    <div className={doctorSectionItemClass}>
-      <p className="font-medium text-foreground">{item.patientDisplayName}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">
+    <Link
+      href={item.href}
+      className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} block`}
+    >
+      <p className={doctorDnaFlatListPrimaryClass}>{item.patientDisplayName}</p>
+      <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>
         {item.instanceTitle} · {item.stageTitle}
       </p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{item.submittedAtLabel}</p>
-      <p className="mt-2">
-        <Link href={item.href} className={doctorInlineLinkClass}>
-          Проверить тест
-        </Link>
-      </p>
-    </div>
+      <p className={`${doctorDnaFlatListMetaClass} mt-0.5`}>{item.submittedAtLabel}</p>
+    </Link>
   );
 }
 
@@ -106,7 +111,7 @@ function ExerciseCommentModalItem({ item }: { item: TodayExerciseCommentAttentio
   return (
     <Link
       href={item.href}
-      className={`${doctorSectionItemClass} block transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40`}
+      className={`${doctorDnaFlatListRowClass} ${doctorDnaFlatListClickableClass} block`}
     >
       <ExerciseCommentPreviewItemContent item={item} />
     </Link>
@@ -139,6 +144,7 @@ export function DoctorTodayLeftKpiRow({
   // Keep KPI navigation on the same boundary so tablet widths do not open the mobile modal.
   const isDesktopViewport = useViewportMinWidth(768);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false);
   // SEG-07: items сохраняем локально (список в KpiPreviewModal);
   // total берётся из exerciseCommentsTotalOverride, управляемого DoctorTodayDashboard,
   // чтобы синхронизировать с обработкой комментария в диалоге.
@@ -223,6 +229,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Комментарии"
         count={displayTotal}
+        showCount={false}
         desktopPresentation="right-sheet"
         items={exerciseCommentItems}
         renderItem={(item) => <ExerciseCommentModalItem item={item} />}
@@ -239,6 +246,7 @@ export function DoctorTodayLeftKpiRow({
         onClose={() => setKpiModal(null)}
         title="Сообщения"
         count={unreadTotal}
+        showCount={false}
         desktopPresentation="right-sheet"
         items={unreadConversations}
         renderItem={(item) => <UnreadConversationModalItem item={item} />}
@@ -271,9 +279,25 @@ export function DoctorTodayLeftKpiRow({
       <KpiPreviewModal<SpecialistTaskRow>
         open={kpiModal === 'tasks'}
         onClose={() => setKpiModal(null)}
-        title="Задачи"
+        title="Задачи на сегодня"
         count={attentionTasks.length}
+        showCount={false}
         desktopPresentation="right-sheet"
+        headerAction={
+          tasksAvailable ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
+              aria-label="Новая задача"
+              title="Новая задача"
+              onClick={() => setTaskCreateOpen(true)}
+            >
+              <StickyNotePlus className="size-[22px]" aria-hidden />
+            </Button>
+          ) : undefined
+        }
         items={attentionTasks}
         renderItem={(task) => (
           <TaskRow
@@ -311,6 +335,18 @@ export function DoctorTodayLeftKpiRow({
         onComplete={onTaskComplete}
         onTaskSaved={onTaskSaved}
       />
+      {tasksAvailable ? (
+        <SpecialistTaskFormDialog
+          open={taskCreateOpen}
+          onOpenChange={setTaskCreateOpen}
+          patientUserId=""
+          editing={null}
+          onSaved={(task, patientDisplayName) => {
+            onTaskSaved(task, patientDisplayName);
+            setTaskCreateOpen(false);
+          }}
+        />
+      ) : null}
     </>
   );
 }

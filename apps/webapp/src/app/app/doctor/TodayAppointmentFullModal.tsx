@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorCalendarEventPanel } from './calendar/DoctorCalendarEventPanel';
 import type {
   CalendarAppointmentEvent,
@@ -102,7 +103,7 @@ export function TodayAppointmentFullModal({
       desktopPresentation="right-sheet"
     >
       {loading ? (
-        <div className="py-4 text-sm text-muted-foreground">Загрузка записи…</div>
+        <DoctorPanelLoading className="min-h-32" />
       ) : event ? (
         <DoctorCalendarEventPanel
           apiBase={API_BASE}

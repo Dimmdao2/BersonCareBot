@@ -29,6 +29,8 @@ type DoctorWorkspaceShellProps = {
   cmsEnabled?: boolean;
   patientHomeTodayEnabled?: boolean;
   specialistTasksEnabled?: boolean;
+  /** Server bootstrap for navigation-only attention dots; no client fetch is started for these. */
+  initialNavigationAttention?: { unreadExerciseComments: boolean; overdueTasks: boolean };
   /** Disable tenant-only background badge requests on global operator surfaces. */
   enableTenantRuntime?: boolean;
   /**
@@ -67,6 +69,7 @@ export function DoctorWorkspaceShell({
   cmsEnabled = false,
   patientHomeTodayEnabled = false,
   specialistTasksEnabled = false,
+  initialNavigationAttention,
   enableTenantRuntime = true,
   brand,
   menuKind = 'doctor',
@@ -104,6 +107,7 @@ export function DoctorWorkspaceShell({
       registrationFailuresEnabled={
         clinicalRuntimeEnabled && capabilities.includes('platform.operations')
       }
+      initialAttention={initialNavigationAttention}
     >
       <Suspense fallback={null}>
         <AppAccessDeniedToastEffect />

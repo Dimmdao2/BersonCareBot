@@ -27,9 +27,12 @@ import {
   SpecialistTaskDetailsContent,
   SpecialistTaskDetailsDialog,
 } from '../clients/SpecialistTaskDetailsDialog';
-import { SpecialistTaskFormContent } from '../clients/SpecialistTaskFormDialog';
+import {
+  SpecialistTaskFormContent,
+  SpecialistTaskFormDialog,
+} from '../clients/SpecialistTaskFormDialog';
 
-type Pane = { kind: 'details' | 'edit'; taskId: string } | { kind: 'create' } | null;
+type Pane = { kind: 'details' | 'edit'; taskId: string } | null;
 type TaskView = 'open' | 'completed';
 
 export function DoctorTasksPageClient({
@@ -48,6 +51,7 @@ export function DoctorTasksPageClient({
   const [tasks, setTasks] = useState(initialTasks);
   const [patientNames, setPatientNames] = useState(initialPatientNames);
   const [pane, setPane] = useState<Pane>(null);
+  const [createOpen, setCreateOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -68,7 +72,7 @@ export function DoctorTasksPageClient({
           className={DOCTOR_MOBILE_HEADER_ICON_ACTION_CLASS}
           aria-label="Новая задача"
           title="Новая задача"
-          onClick={() => setPane({ kind: 'create' })}
+          onClick={() => setCreateOpen(true)}
         >
           <StickyNotePlus className="size-[22px]" aria-hidden />
         </Button>
@@ -179,13 +183,13 @@ export function DoctorTasksPageClient({
   };
 
   const right =
-    pane?.kind === 'create' || (pane?.kind === 'edit' && selected) ? (
+    pane?.kind === 'edit' && selected ? (
       <SpecialistTaskFormContent
-        key={pane.kind === 'create' ? 'new' : selected?.id}
+        key={selected.id}
         patientUserId=""
-        editing={pane.kind === 'edit' ? selected : null}
+        editing={selected}
         onSaved={saveTask}
-        onClose={() => setPane(selected ? { kind: 'details', taskId: selected.id } : null)}
+        onClose={() => setPane({ kind: 'details', taskId: selected.id })}
       />
     ) : selected ? (
       <div className="flex flex-col gap-4">
@@ -232,7 +236,7 @@ export function DoctorTasksPageClient({
             filters={taskFilters}
             end={
               canMutate ? (
-                <Button type="button" size="sm" onClick={() => setPane({ kind: 'create' })}>
+                <Button type="button" size="sm" onClick={() => setCreateOpen(true)}>
                   Новая задача
                 </Button>
               ) : undefined
@@ -314,6 +318,18 @@ export function DoctorTasksPageClient({
           desktopPresentation="right-sheet"
           onComplete={complete}
           onTaskSaved={saveTask}
+        />
+      ) : null}
+      {canMutate ? (
+        <SpecialistTaskFormDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          patientUserId=""
+          editing={null}
+          onSaved={(task, patientDisplayName) => {
+            saveTask(task, patientDisplayName);
+            setCreateOpen(false);
+          }}
         />
       ) : null}
     </>

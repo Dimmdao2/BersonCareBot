@@ -11,6 +11,7 @@ import { BroadcastDeliveryArchiveClient } from '../../broadcasts/BroadcastDelive
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionCardClass, doctorSectionTitleClass } from '@/shared/ui/doctor/doctorVisual';
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import type { CommunicationsTabProps } from '../communicationsTabRegistry';
 
@@ -53,18 +54,25 @@ function BroadcastsMainView({
   const prefillNonceRef = useRef(0);
 
   const refreshLog = useCallback(async () => {
-    const data = await listBroadcastAuditAction(50);
-    setEntries(data);
-    setLoading(false);
+    try {
+      setEntries(await listBroadcastAuditAction(50));
+    } catch {
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const data = await listBroadcastAuditAction(50);
-      if (!cancelled) {
-        setEntries(data);
-        setLoading(false);
+      try {
+        const data = await listBroadcastAuditAction(50);
+        if (!cancelled) setEntries(data);
+      } catch {
+        if (!cancelled) setEntries([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
@@ -141,7 +149,7 @@ function BroadcastsMainView({
             <BroadcastDeliveryArchiveClient />
           </div>
         ) : loading ? (
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
+          <DoctorPanelLoading />
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <BroadcastAuditLog
