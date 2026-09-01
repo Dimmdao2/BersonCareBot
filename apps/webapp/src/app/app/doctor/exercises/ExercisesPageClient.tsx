@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/shared/ui/doctor/primitives/dropdown-menu';
 import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import type {
   Exercise,
   ExerciseLoadType,
@@ -63,11 +64,7 @@ export type ExercisesViewMode = 'tiles' | 'list';
 export type ExerciseTitleSort = 'asc' | 'desc';
 
 const ExerciseForm = dynamic(() => import('./ExerciseForm').then((mod) => mod.ExerciseForm), {
-  loading: () => (
-    <div className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
-      Загрузка формы…
-    </div>
-  ),
+  loading: () => <DoctorPanelLoading className="min-h-48" label="Загрузка формы…" />,
 });
 
 const LIST_ROW_VISIBILITY_STYLE = {
@@ -439,50 +436,7 @@ function ExercisesContent({
 }
 
 function CatalogSplitLayoutSkeleton() {
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="hidden gap-3 lg:grid lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-3">
-          <div className="mb-3 flex items-center justify-between gap-2 border-b border-border/60 pb-3">
-            <div className="h-4 w-32 animate-pulse rounded bg-muted/50" />
-            <div className="flex gap-2">
-              <div className="h-8 w-36 animate-pulse rounded-md bg-muted/50" />
-              <div className="h-8 w-8 animate-pulse rounded-md bg-muted/50" />
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 9 }).map((_, idx) => (
-              <div key={idx} className="rounded-xl border border-border/60 p-2">
-                <div className="h-32 animate-pulse rounded-md bg-muted/50" />
-                <div className="mx-auto mt-3 h-4 w-4/5 animate-pulse rounded bg-muted/50" />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="rounded-xl bg-card px-6 py-4">
-          <div className="space-y-3">
-            {Array.from({ length: 6 }).map((_, idx) => (
-              <div key={idx} className="space-y-2">
-                <div className="h-4 w-28 animate-pulse rounded bg-muted/50" />
-                <div className="h-10 animate-pulse rounded-md bg-muted/50" />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-border bg-card p-3 lg:hidden">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="rounded-xl border border-border/60 p-2">
-              <div className="h-24 animate-pulse rounded-md bg-muted/50" />
-              <div className="mx-auto mt-2 h-4 w-4/5 animate-pulse rounded bg-muted/50" />
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return <DoctorPanelLoading className="min-h-48" />;
 }
 
 export function ExercisesPageClient({

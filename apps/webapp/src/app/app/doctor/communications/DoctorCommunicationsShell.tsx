@@ -9,6 +9,7 @@ import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { DoctorPageHeader } from '@/shared/ui/doctor/shell/DoctorPageHeader';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { Button, buttonVariants } from '@/shared/ui/doctor/primitives/button';
 import { doctorSectionTabClass } from '@/shared/ui/doctor/DoctorSectionTabs';
 import { DOCTOR_REMAINING_HEIGHT_BODY_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
@@ -73,7 +74,10 @@ function CommunicationsTabsNav({ activeTab, badges, onTabClick }: Communications
 const DYNAMIC_TABS = new Map<CommunicationsTabId, ComponentType<CommunicationsTabProps>>(
   COMMUNICATIONS_TAB_REGISTRY.map((entry) => [
     entry.id,
-    dynamic(entry.loader, { ssr: false }) as ComponentType<CommunicationsTabProps>,
+    dynamic(entry.loader, {
+      ssr: false,
+      loading: () => <DoctorPanelLoading className="h-full" />,
+    }) as ComponentType<CommunicationsTabProps>,
   ]),
 );
 

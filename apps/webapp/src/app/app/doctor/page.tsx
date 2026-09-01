@@ -24,24 +24,14 @@ import {
   DoctorSectionTitle,
 } from '@/shared/ui/doctor/DoctorSection';
 import { buttonVariants } from '@/shared/ui/doctor/primitives/button-variants';
-import { doctorSectionCardClass } from '@/shared/ui/doctor/doctorVisual';
-import { cn } from '@/lib/utils';
+import { DoctorPageLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { DoctorTodayAdminBannersSuspense } from './DoctorTodayAdminBanners';
 import { DoctorTodayDashboard, type DoctorTodayCalendarSnapshot } from './DoctorTodayDashboard';
 import { DoctorTodayQuickActions } from './DoctorTodayQuickActions';
 import { loadDoctorTodayDashboard } from './loadDoctorTodayDashboard';
 
 function DoctorTodayDashboardFallback() {
-  return (
-    <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
-      <div className="h-5 w-32 animate-pulse rounded-md bg-muted" />
-      <div className="grid gap-3 md:grid-cols-2">
-        <div className="h-40 animate-pulse rounded-lg bg-muted/70" />
-        <div className="h-40 animate-pulse rounded-lg bg-muted/70" />
-      </div>
-      <span className="sr-only">Загрузка…</span>
-    </div>
-  );
+  return <DoctorPageLoading />;
 }
 
 async function DoctorTodayDashboardSection({

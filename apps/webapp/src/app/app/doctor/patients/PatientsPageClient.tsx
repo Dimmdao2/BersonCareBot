@@ -43,6 +43,7 @@ import { DoctorNewClientAction } from '@/shared/ui/doctor/DoctorNewClientAction'
 import { DoctorSearchInput } from '@/shared/ui/doctor/DoctorSearchInput';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { TooltipProvider } from '@/shared/ui/doctor/primitives/tooltip';
 import {
   doctorDnaFlatListClass,
@@ -431,25 +432,7 @@ function IconSlot({ visible, label, badge, className, children }: IconSlotProps)
 // ---------------------------------------------------------------------------
 
 function PatientListSkeleton() {
-  return (
-    <div className="grid gap-3 lg:min-h-0 lg:grid-cols-2 lg:items-start">
-      {/* List skeleton — left */}
-      <div className="rounded-lg border border-border bg-card">
-        <div className="border-b border-border/60 px-5 py-2">
-          <div className="h-6 w-full animate-pulse rounded bg-muted/50" />
-        </div>
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="mx-2 mb-1.5 mt-1.5 h-10 animate-pulse rounded-md bg-muted/40" />
-        ))}
-      </div>
-      {/* Filter skeleton — right */}
-      <div className="rounded-lg border border-border bg-card p-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="mb-2 h-8 animate-pulse rounded bg-muted/50" />
-        ))}
-      </div>
-    </div>
-  );
+  return <DoctorPanelLoading className="min-h-48" />;
 }
 
 // ---------------------------------------------------------------------------

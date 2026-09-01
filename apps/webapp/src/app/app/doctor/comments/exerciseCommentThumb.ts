@@ -26,9 +26,15 @@ export function firstSnapshotMedia(
   if (entries.length === 0) return null;
   const sorted = [...entries].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0));
   const m = sorted[0]!;
-  const url = typeof m.url === 'string' ? m.url : null;
+  const url =
+    typeof m.mediaUrl === 'string'
+      ? m.mediaUrl
+      : typeof m.url === 'string'
+        ? m.url
+        : null;
   if (!url) return null;
-  const mediaType = m.type === 'video' || m.type === 'gif' ? m.type : 'image';
+  const rawMediaType = m.mediaType ?? m.type;
+  const mediaType = rawMediaType === 'video' || rawMediaType === 'gif' ? rawMediaType : 'image';
   return {
     url,
     mediaType,

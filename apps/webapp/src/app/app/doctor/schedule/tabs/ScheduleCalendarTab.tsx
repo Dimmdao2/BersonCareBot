@@ -38,6 +38,7 @@ import { KpiPreviewModal } from '@/shared/ui/doctor/KpiPreviewModal';
 import { AppointmentKpiItem } from '@/shared/ui/doctor/AppointmentKpiItem';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
 import { DoctorResultCount } from '@/shared/ui/doctor/DoctorResultCount';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import { useIsMobileViewport } from '@/shared/ui/doctor/primitives/useIsMobileViewport';
 import { useViewportMinWidth } from '@/shared/hooks/useViewportMinWidth';
 import { Switch } from '@/shared/ui/doctor/primitives/switch';
@@ -90,9 +91,7 @@ const ScheduleFullCalendarHost = dynamic(
   () => import('./ScheduleFullCalendarHost').then((mod) => mod.ScheduleFullCalendarHost),
   {
     ssr: false,
-    loading: () => (
-      <div className="min-h-[28rem] animate-pulse rounded-lg border border-border bg-muted/30" />
-    ),
+    loading: () => <DoctorPanelLoading className="min-h-[28rem]" />,
   },
 );
 

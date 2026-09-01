@@ -17,6 +17,7 @@ import { MediaThumb } from '@/shared/ui/doctor/media/MediaThumb';
 import { clinicalTestMediaItemToPreviewUi } from '@/shared/ui/doctor/media/mediaPreviewUiModel';
 import { VirtualizedItemGrid } from '@/shared/ui/doctor/catalog/VirtualizedItemGrid';
 import { DoctorCatalogMasterListHeader } from '@/shared/ui/doctor/DoctorCatalogMasterListHeader';
+import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
 import {
   doctorCatalogToolbarPrimaryActionClassName,
   DoctorCatalogFiltersToolbar,
@@ -85,25 +86,7 @@ type Props = {
 };
 
 function CatalogSplitLayoutSkeleton() {
-  return (
-    <div className="hidden gap-3 lg:grid lg:grid-cols-2">
-      <div className="rounded-xl border border-border bg-card p-3">
-        <div className="mb-3 h-8 animate-pulse rounded-md bg-muted/50" />
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <div key={idx} className="h-40 animate-pulse rounded-md bg-muted/40" />
-          ))}
-        </div>
-      </div>
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="space-y-3">
-          {Array.from({ length: 4 }).map((_, idx) => (
-            <div key={idx} className="h-10 animate-pulse rounded-md bg-muted/50" />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+  return <DoctorPanelLoading className="min-h-48" />;
 }
 
 /** Как у упражнений: минимум 3 колонки на desktop. */

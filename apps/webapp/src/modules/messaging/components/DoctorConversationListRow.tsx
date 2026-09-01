@@ -112,11 +112,6 @@ export function DoctorConversationListRow({
             {conversation.displayName}
           </p>
         ) : null}
-        {conversation.phoneNormalized ? (
-          <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>
-            Тел.: {conversation.phoneNormalized}
-          </p>
-        ) : null}
         {conversation.lastMessageText ? (
           <p
             className={cn(

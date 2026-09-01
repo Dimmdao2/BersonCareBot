@@ -19,7 +19,7 @@ import { doctorMetaTextClass, doctorPrimaryListTextClass } from '@/shared/ui/doc
  * list wrapper instead only cares about `<li>` sibling order, so it works for both shapes.
  */
 export const doctorDnaFlatListClass =
-  'm-0 list-none p-0 [&>li+li]:border-t [&>li+li]:border-t-[var(--doctor-flat-list-divider,#f0efeb)]';
+  'm-0 list-none bg-card p-0 [&>li+li]:border-t [&>li+li]:border-t-[var(--doctor-flat-list-divider,#f0efeb)]';
 
 /**
  * Canonical doctor flat-list container. It promotes the existing DNA class

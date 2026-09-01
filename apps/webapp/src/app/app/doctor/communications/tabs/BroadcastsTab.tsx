@@ -94,7 +94,7 @@ function BroadcastsMainView({
       className={cn(
         doctorSectionCardClass,
         'h-full overflow-y-auto',
-        isMobile && 'h-auto overflow-visible rounded-none border-0',
+        isMobile && 'h-auto overflow-visible',
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-1">
@@ -138,7 +138,7 @@ function BroadcastsMainView({
         className={cn(
           doctorSectionCardClass,
           'flex min-h-0 flex-1 flex-col overflow-hidden',
-          isMobile && 'overflow-visible rounded-none border-0',
+          isMobile && 'overflow-visible',
         )}
       >
         <div className="mb-1 flex shrink-0 items-center justify-between gap-2">

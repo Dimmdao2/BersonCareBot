@@ -1173,8 +1173,8 @@ function DoctorCommentsMobileTab({ initialItems }: DoctorCommentsTabProps) {
   const [selectedItem, setSelectedItem] = useState<TodayExerciseCommentAttentionItem | null>(null);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <div className="min-h-0 flex-1 overflow-y-auto">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-card">
         {initialItems.length === 0 ? (
           <DoctorEmptyState size="sm" className="flex min-h-full items-center justify-center py-10">
             Нет новых комментариев по упражнениям
