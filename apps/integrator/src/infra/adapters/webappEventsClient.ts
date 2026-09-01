@@ -202,17 +202,6 @@ export function createWebappEventsPort(deps: {
       return { ...baseResult, ...(canonicalWrite ? { canonicalWrite } : {}) };
     },
 
-    async applySupportAdminReply(input: {
-      body: string;
-      idempotencyKey: string;
-    }): Promise<{ ok: boolean; status: number; error?: string }> {
-      return postSignedJson({
-        path: '/api/integrator/support/admin-reply',
-        body: input.body,
-        idempotencyKey: input.idempotencyKey,
-      });
-    },
-
     async notifyPatientWebPush(input: { body: string; idempotencyKey: string }): Promise<{
       ok: boolean;
       status: number;

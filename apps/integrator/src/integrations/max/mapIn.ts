@@ -243,9 +243,6 @@ export function fromMax(body: MaxUpdateValidated, botToken?: string): IncomingUp
       action: normalized.action,
       callbackData: normalized.action,
       callbackQueryId: callbackId,
-      ...(typeof normalized.conversationId === 'string'
-        ? { conversationId: normalized.conversationId }
-        : {}),
       ...(typeof body.callback.user?.username === 'string'
         ? { channelUsername: body.callback.user.username }
         : {}),

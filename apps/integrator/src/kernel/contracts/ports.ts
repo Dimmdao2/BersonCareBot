@@ -373,11 +373,6 @@ export type WebappEventsPort = {
     current?: boolean;
     inserted?: number;
   }>;
-  /** Ответ врача из admin_reply для `webapp:platform:{uuid}` (POST /api/integrator/support/admin-reply). */
-  applySupportAdminReply?(input: {
-    body: string;
-    idempotencyKey: string;
-  }): Promise<{ ok: boolean; status: number; error?: string }>;
   /** Смена статуса webapp-owned обращения (POST /api/integrator/support/status). */
   setSupportStatus?(input: { body: string; idempotencyKey: string }): Promise<{
     ok: boolean;

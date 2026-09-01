@@ -11,7 +11,6 @@ export const INTEGRATOR_HMAC_CSRF_EXEMPT_PATHS = [
   '/api/integrator/phone-messenger-bind/claim',
   '/api/integrator/reminders/dispatch',
   '/api/integrator/system-health/guard-wake',
-  '/api/integrator/support/admin-reply',
   '/api/integrator/support/delivery-attempt',
   '/api/integrator/support/question',
   '/api/integrator/support/status',

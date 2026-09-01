@@ -504,21 +504,6 @@ fail-closed конфигурацию из глобального `public.system_
 
 Входящее сообщение пациента из бота в thread `webapp:platform:{platformUserId}`. После записи в thread — уведомление staff (doctor/admin). **Канон каналов:** [`docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md`](../../docs/ARCHITECTURE/NOTIFICATION_CHANNELS.md) — **Web Push основной**; topics `doctor_patient_messages` / `doctor_patient_program_notes`: по умолчанию **`web_push` → `telegram` → `max`** (при подписке/привязках); матрица `/app/settings`; env `doctor_telegram_ids` / `admin_telegram_ids` — fallback **только** для telegram/max.
 
-### `POST /api/integrator/support/admin-reply`
-
-Ответ врача/админа из бота в тот же thread.
-
-**Body (JSON):** `integratorConversationId`, `integratorMessageId`, `text`, `createdAt`; опционально
-**`senderDisplayName`** (имя отправителя для redacted-уведомления).
-Если `senderDisplayName` отсутствует (в том числе при rolling deploy со старым integrator), payload принимается,
-а уведомление содержит нейтральное «новое сообщение от специалиста» без текста ответа.
-
-**Idempotency key:** `support-admin:{integratorMessageId}`.
-
-**Ответ 200:** `{ ok: true }` (и поля доставки пациенту по каналам — см. `integratorSupportBridge`).
-
-Ответ на комментарий к упражнению не проходит через этот endpoint: врач отвечает в кабинете через doctor API.
-
 ---
 
 ## Future Extensions
