@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 
 /**
  * Правило владельца 19.08: «Если вдруг за это время имя забрали - ошибка создания слаг а не
@@ -7,10 +8,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * выглядеть как занятое имя клиники.
  */
 
-const runWebappPgText = vi.fn();
+const runWebappSql = vi.fn();
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText: (...args: unknown[]) => runWebappPgText(...args),
+  getWebappSqlDb: () => ({}),
+  runWebappNamedRoot: vi.fn(),
+  runWebappSql: (...args: unknown[]) => runWebappSql(...args),
   runWebappTransaction: async (fn: (tx: unknown) => Promise<unknown>) => fn({}),
 }));
 
@@ -32,12 +35,12 @@ const intent = {
 };
 
 beforeEach(() => {
-  runWebappPgText.mockReset();
+  runWebappSql.mockReset();
 });
 
 describe('чей уникальный конфликт называется занятым именем', () => {
   it('конфликт по индексу владения адресом — это занятое имя', async () => {
-    runWebappPgText.mockRejectedValue(new PgUniqueViolation('uq_organization_slug_claims_slug'));
+    runWebappSql.mockRejectedValue(new PgUniqueViolation('uq_organization_slug_claims_slug'));
 
     await expect(
       createPgOrganizationProvisioningPort().createSpecialistSignupIntent(intent),
@@ -45,7 +48,7 @@ describe('чей уникальный конфликт называется за
   });
 
   it('повторная заявка того же человека именем не называется', async () => {
-    runWebappPgText.mockRejectedValue(new PgUniqueViolation('uq_specialist_signup_intents_user_id'));
+    runWebappSql.mockRejectedValue(new PgUniqueViolation('uq_specialist_signup_intents_user_id'));
 
     await expect(
       createPgOrganizationProvisioningPort().createSpecialistSignupIntent(intent),
@@ -53,7 +56,7 @@ describe('чей уникальный конфликт называется за
   });
 
   it('повторный challenge именем не называется', async () => {
-    runWebappPgText.mockRejectedValue(
+    runWebappSql.mockRejectedValue(
       new PgUniqueViolation('specialist_signup_intents_challenge_id_key'),
     );
 
@@ -63,7 +66,7 @@ describe('чей уникальный конфликт называется за
   });
 
   it('явный slug_unavailable из функции БД проходит как есть', async () => {
-    runWebappPgText.mockRejectedValue(new Error('slug_unavailable'));
+    runWebappSql.mockRejectedValue(new Error('slug_unavailable'));
 
     await expect(
       createPgOrganizationProvisioningPort().createSpecialistSignupIntent(intent),

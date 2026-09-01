@@ -4,14 +4,13 @@ const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
   runWebappNamedRoot: vi.fn(),
   drizzle: { select: vi.fn(), transaction: vi.fn(), execute: vi.fn() },
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: () => fakes.db,
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
-  runWebappSql: vi.fn(),
+  runWebappSql: fakes.runWebappSql,
   webappSqlFromPgText: vi.fn(),
 }));
 
@@ -75,7 +74,7 @@ it('счётчики идут через объявленную дверь, а �
   // Прямое чтение `platform_users`/`user_channel_bindings` здесь — это 42501 под
   // `app_platform_settings` и HTTP 500 на обоих экранах (живой обход TEST 22.08.2026).
   expect(fakes.drizzle.select).not.toHaveBeenCalled();
-  expect(fakes.runWebappPgText).not.toHaveBeenCalled();
+  expect(fakes.runWebappSql).not.toHaveBeenCalled();
 });
 
 it('служебные учётки уходят за дверь идентификаторами, а не резолвятся в id', async () => {

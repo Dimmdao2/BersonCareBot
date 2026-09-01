@@ -13,7 +13,6 @@ vi.mock('@/infra/db/runWebappSql', () => ({
   runWebappNamedRoot: fakes.runWebappNamedRoot,
   runWebappSql: fakes.runWebappSql,
   runWebappTransaction: fakes.runWebappTransaction,
-  runWebappPgText: vi.fn(),
   webappSqlFromPgText: vi.fn(),
 }));
 

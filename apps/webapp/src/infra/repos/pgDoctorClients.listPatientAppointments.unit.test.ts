@@ -1,7 +1,8 @@
+import type { SQL } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fakes = vi.hoisted(() => ({
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
 }));
 
 vi.mock('@/infra/db/client', () => ({ getPool: vi.fn() }));
@@ -9,12 +10,13 @@ vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: vi.fn() }));
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: vi.fn(),
   runWebappTransaction: vi.fn(),
-  runWebappPgText: fakes.runWebappPgText,
+  runWebappSql: fakes.runWebappSql,
 }));
 vi.mock('@/infra/repos/pgCanonicalPlatformUser', () => ({
   resolveCanonicalUserId: vi.fn(async (_db: unknown, userId: string) => userId),
 }));
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { createPgDoctorClientsPort } from './pgDoctorClients';
 
 const PATIENT_ID = '00000000-0000-4000-8000-000000000001';
@@ -30,7 +32,8 @@ const fakeCatalog = new Set([
   'clinical_visit',
 ]);
 
-function executeAgainstFakeCatalog(statement: string) {
+function executeAgainstFakeCatalog(_db: unknown, fragment: SQL) {
+  const statement = drizzleSqlFragmentToPgQuery(fragment).sql;
   const referencedRelations = Array.from(
     statement.matchAll(/\b(?:FROM|JOIN)\s+([a-z_][a-z0-9_]*)/gi),
     (match) => match[1].toLowerCase(),
@@ -63,7 +66,7 @@ function executeAgainstFakeCatalog(statement: string) {
 describe('pgDoctorClients.listPatientAppointments', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    fakes.runWebappPgText.mockImplementation(executeAgainstFakeCatalog);
+    fakes.runWebappSql.mockImplementation(executeAgainstFakeCatalog);
   });
 
   it('returns appointments when the repository query is executed against the canonical relation catalog', async () => {

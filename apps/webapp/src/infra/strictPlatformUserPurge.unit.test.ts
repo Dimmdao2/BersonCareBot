@@ -22,7 +22,7 @@ const PATIENT_FILE_KEY = 'private/patient/raw-result.pdf';
 const fakes = vi.hoisted(() => ({
   s3Enabled: false,
   writeAuditLog: vi.fn(async () => undefined),
-  runPgPoolPgText: vi.fn(),
+  runPgPoolSql: vi.fn(),
   startPoolTransaction: vi.fn(),
   advisoryLock: vi.fn(async () => undefined),
   collectArtifactKeys: vi.fn(),
@@ -37,7 +37,7 @@ vi.mock('@/config/env', () => ({
 vi.mock('@/infra/adminAuditLog', () => ({ writeAuditLog: fakes.writeAuditLog }));
 vi.mock('@/infra/db/client', () => ({ getPool: () => ({}) as Pool }));
 vi.mock('@/infra/db/withClient', () => ({ startPoolTransaction: fakes.startPoolTransaction }));
-vi.mock('@/infra/db/runWebappSql', () => ({ runPgPoolPgText: fakes.runPgPoolPgText }));
+vi.mock('@/infra/db/runWebappSql', () => ({ runPgPoolSql: fakes.runPgPoolSql }));
 vi.mock('@/infra/db/pgAdvisoryLock', () => ({ pgAdvisoryXactLock: fakes.advisoryLock }));
 vi.mock('@/infra/platformUserFullPurge', () => ({
   isPlatformUserUuid: (value: string) => /^[0-9a-f-]{36}$/iu.test(value),
@@ -48,6 +48,7 @@ vi.mock('@/infra/s3/client', () => ({
   deleteS3ObjectsWithPerKeyResults: fakes.deleteS3Objects,
 }));
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { runStrictPurgePlatformUser } from './strictPlatformUserPurge';
 
 const client = {} as PoolClient;
@@ -63,7 +64,7 @@ describe('strict account purge external cleanup contract', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     fakes.s3Enabled = false;
-    fakes.runPgPoolPgText.mockResolvedValue({
+    fakes.runPgPoolSql.mockResolvedValue({
       rows: [{ id: USER_ID, phone_normalized: PHONE, role: 'client' }],
       rowCount: 1,
     });
@@ -139,11 +140,11 @@ describe('strict account purge external cleanup contract', () => {
       MEDIA_KEY,
       PATIENT_FILE_KEY,
     ]);
-    expect(fakes.runPgPoolPgText).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.stringContaining('DELETE FROM media_files'),
-      [MEDIA_ID],
-    );
+    const mediaDelete = fakes.runPgPoolSql.mock.calls
+      .map((call) => drizzleSqlFragmentToPgQuery(call[1]))
+      .find((query) => query.sql.includes('DELETE FROM media_files'));
+    expect(mediaDelete).toBeDefined();
+    expect(mediaDelete!.values).toEqual([MEDIA_ID]);
     expect(auditPayload()).toMatchObject({ status: 'ok', details: { failureClasses: [] } });
   });
 

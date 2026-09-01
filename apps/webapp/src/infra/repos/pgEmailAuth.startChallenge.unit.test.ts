@@ -4,7 +4,6 @@ const fakes = vi.hoisted(() => ({
   db: { execute: vi.fn() },
   getWebappSqlDb: vi.fn(),
   runWebappNamedRoot: vi.fn(),
-  runWebappPgText: vi.fn(),
   runWebappTransaction: vi.fn(),
   webappSqlFromPgText: vi.fn(() => ({ kind: 'sql-fragment' })),
 }));
@@ -12,11 +11,11 @@ const fakes = vi.hoisted(() => ({
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: fakes.getWebappSqlDb,
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: fakes.runWebappPgText,
   runWebappTransaction: fakes.runWebappTransaction,
   webappSqlFromPgText: fakes.webappSqlFromPgText,
 }));
 
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 import { startEmailChallengeInDb } from './pgEmailAuth';
 
 beforeEach(() => {
@@ -45,12 +44,12 @@ describe('email challenge exact pre-session root', () => {
     });
 
     expect(fakes.runWebappNamedRoot).toHaveBeenCalledOnce();
-    const [db, identity, args] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
+    const [db, identity, args, fragment] = fakes.runWebappNamedRoot.mock.calls[0] as unknown[];
     expect(db).toBe(fakes.db);
     expect(identity).toBe(
       'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
     );
-    expect(args).toEqual([
+    const expectedArgs = [
       params.userId,
       params.email,
       params.codeHash,
@@ -62,7 +61,14 @@ describe('email challenge exact pre-session root', () => {
       null,
       null,
       null,
-    ]);
+    ];
+    expect(args).toEqual(expectedArgs);
+    // The statement the root actually receives binds those same eleven values in the same order,
+    // and carries neither the address nor the one-time code as literal text.
+    const executed = drizzleSqlFragmentToPgQuery(fragment as never);
+    expect(executed.values).toEqual(expectedArgs);
+    expect(executed.sql).not.toContain(params.email);
+    expect(executed.sql).not.toContain(params.code);
   });
 
   it('preserves the root cooldown result without inventing a challenge', async () => {

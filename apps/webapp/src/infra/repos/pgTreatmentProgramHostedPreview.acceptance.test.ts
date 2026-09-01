@@ -1,11 +1,14 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const getDrizzleMock = vi.hoisted(() => vi.fn());
-const runWebappPgTextMock = vi.hoisted(() => vi.fn());
+const runWebappSqlMock = vi.hoisted(() => vi.fn());
 const catalogMediaLadderLookupMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: getDrizzleMock }));
-vi.mock('@/infra/db/runWebappSql', () => ({ runWebappPgText: runWebappPgTextMock }));
+vi.mock('@/infra/db/runWebappSql', () => ({
+  getWebappSqlDb: () => ({}),
+  runWebappSql: runWebappSqlMock,
+}));
 vi.mock('@/infra/repos/catalogMediaLadderLookup', () => ({
   catalogMediaLadderLookup: catalogMediaLadderLookupMock,
 }));
@@ -64,7 +67,7 @@ beforeEach(() => {
     .mockReturnValueOnce(selectQuery('groupBy', []))
     .mockReturnValueOnce(selectQuery('groupBy', []));
   getDrizzleMock.mockReturnValue({ select });
-  runWebappPgTextMock.mockResolvedValue({
+  runWebappSqlMock.mockResolvedValue({
     rows: [{ template_id: TEMPLATE_ID, preview_url: HOSTED_URL, preview_type: 'hosted_video' }],
   });
   catalogMediaLadderLookupMock.mockResolvedValue({

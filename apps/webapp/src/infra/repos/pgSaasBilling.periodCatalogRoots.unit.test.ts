@@ -13,7 +13,7 @@ vi.mock('@bersoncare/db-principal', () => ({
 vi.mock('@/infra/db/runWebappSql', () => ({
   getWebappSqlDb: fakes.getWebappSqlDb,
   runWebappNamedRoot: fakes.runWebappNamedRoot,
-  runWebappPgText: vi.fn(),
+  runWebappSql: vi.fn(),
 }));
 vi.mock('@/app-layer/db/drizzle', () => ({ getDrizzle: vi.fn() }));
 

@@ -1,4 +1,6 @@
+import type { SQL } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { drizzleSqlFragmentToPgQuery } from '@/infra/db/drizzleSqlDebugText';
 
 /**
  * Владелец: «картинку скачиваем один раз и кладём в НАШЕ хранилище».
@@ -8,11 +10,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * похода в сеть. Проверяется поведение записи: что ушло в базу и сколько раз, а не форма кода.
  */
 
-const runWebappPgText =
-  vi.hoisted(() => vi.fn(async (_text: string, _values?: readonly unknown[], _tx?: unknown) => ({
+const runWebappSql = vi.hoisted(() =>
+  vi.fn(async (_db: unknown, _fragment: unknown) => ({
     rows: [] as unknown[],
     rowCount: 0,
-  })));
+  })),
+);
 const catalogMediaLadderLookup = vi.hoisted(() => vi.fn());
 const drizzleInsertValues = vi.hoisted(() => vi.fn());
 const drizzleConflict = vi.hoisted(() => vi.fn());
@@ -30,7 +33,8 @@ const drizzleInsert = vi.hoisted(() =>
 );
 
 vi.mock('@/infra/db/runWebappSql', () => ({
-  runWebappPgText,
+  getWebappSqlDb: () => ({}),
+  runWebappSql,
   runWebappTransaction: async (fn: (tx: unknown) => Promise<unknown>) =>
     fn({ insert: drizzleInsert }),
 }));
@@ -60,12 +64,9 @@ const EXERCISE_ROW = {
   updated_at: '2026-08-27T00:00:00.000Z',
 };
 
-/** Statements the repository issued, as `[sql, values]` pairs. */
+/** Statements the repository issued, exactly as PostgreSQL would receive them. */
 function issued(): { sql: string; values: readonly unknown[] }[] {
-  return runWebappPgText.mock.calls.map((call) => ({
-    sql: String(call[0]),
-    values: (call[1] ?? []) as readonly unknown[],
-  }));
+  return runWebappSql.mock.calls.map((call) => drizzleSqlFragmentToPgQuery(call[1] as SQL));
 }
 
 function coverValues(): Record<string, unknown>[] {
@@ -73,13 +74,14 @@ function coverValues(): Record<string, unknown>[] {
 }
 
 beforeEach(() => {
-  runWebappPgText.mockReset();
+  runWebappSql.mockReset();
   catalogMediaLadderLookup.mockReset();
   drizzleInsert.mockClear();
   drizzleInsertValues.mockClear();
   drizzleConflict.mockClear();
   catalogMediaLadderLookup.mockResolvedValue({ get: () => undefined, size: 0 });
-  runWebappPgText.mockImplementation(async (text: string) => {
+  runWebappSql.mockImplementation(async (_db: unknown, fragment: unknown) => {
+    const text = drizzleSqlFragmentToPgQuery(fragment as SQL).sql;
     if (text.includes('INSERT INTO lfk_exercises')) return { rows: [EXERCISE_ROW], rowCount: 1 };
     if (text.includes('SELECT id FROM lfk_exercises')) return { rows: [{ id: 'ex-1' }], rowCount: 1 };
     if (text.includes('FROM lfk_exercises e')) return { rows: [EXERCISE_ROW], rowCount: 1 };
@@ -185,7 +187,8 @@ describe('упражнение со ссылкой на видеохостинг
   });
 
   it('состояние превью и файла, и ссылки читается общей дверью, а не вторым join', async () => {
-    runWebappPgText.mockImplementation(async (text: string) => {
+    runWebappSql.mockImplementation(async (_db: unknown, fragment: unknown) => {
+      const text = drizzleSqlFragmentToPgQuery(fragment as SQL).sql;
       if (text.includes('INSERT INTO lfk_exercises')) return { rows: [EXERCISE_ROW], rowCount: 1 };
       if (text.includes('FROM lfk_exercise_media em')) {
         return {
