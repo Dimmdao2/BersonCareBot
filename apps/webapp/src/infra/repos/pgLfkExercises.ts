@@ -339,68 +339,69 @@ type ExerciseUsageSummaryRow = {
 
 async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsageSnapshot> {
   const lim = EXERCISE_USAGE_DETAIL_LIMIT;
-  const r = await runWebappPgText<ExerciseUsageSummaryRow>(
-    `SELECT
+  const r = await runWebappSql<ExerciseUsageSummaryRow>(
+    getWebappSqlDb(),
+    sql`SELECT
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-         WHERE te.exercise_id = $1::uuid
-           AND te.organization_id = ${ORG_ID_EXPR}
-           AND ct.organization_id = ${ORG_ID_EXPR}
+         WHERE te.exercise_id = ${exerciseId}::uuid
+           AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+           AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND ct.status = 'published') AS published_lfk_templates,
        (SELECT COUNT(DISTINCT ct.id)::int
           FROM lfk_complex_template_exercises te
           INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-         WHERE te.exercise_id = $1::uuid
-           AND te.organization_id = ${ORG_ID_EXPR}
-           AND ct.organization_id = ${ORG_ID_EXPR}
+         WHERE te.exercise_id = ${exerciseId}::uuid
+           AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+           AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND ct.status = 'draft') AS draft_lfk_templates,
        (SELECT COUNT(DISTINCT pla.id)::int
           FROM patient_lfk_assignments pla
-         WHERE pla.organization_id = ${ORG_ID_EXPR}
+         WHERE pla.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND pla.is_active = true
            AND (
              (pla.complex_id IS NOT NULL AND EXISTS (
                SELECT 1 FROM lfk_complex_exercises ce
                WHERE ce.complex_id = pla.complex_id
-                 AND ce.organization_id = ${ORG_ID_EXPR}
-                 AND ce.exercise_id = $1::uuid
+                 AND ce.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                 AND ce.exercise_id = ${exerciseId}::uuid
              ))
              OR
              (pla.complex_id IS NULL AND EXISTS (
                SELECT 1 FROM lfk_complex_template_exercises te2
                WHERE te2.template_id = pla.template_id
-                 AND te2.organization_id = ${ORG_ID_EXPR}
-                 AND te2.exercise_id = $1::uuid
+                 AND te2.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                 AND te2.exercise_id = ${exerciseId}::uuid
              ))
            )) AS active_patient_lfk,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-           AND t.organization_id = ${ORG_ID_EXPR}
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+           AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND t.status = 'published') AS published_tp_templates,
        (SELECT COUNT(DISTINCT t.id)::int
           FROM treatment_program_template_stage_items si
           INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
           INNER JOIN treatment_program_templates t ON t.id = st.template_id
-         WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-           AND t.organization_id = ${ORG_ID_EXPR}
+         WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+           AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND t.status = 'draft') AS draft_tp_templates,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-           AND i.organization_id = ${ORG_ID_EXPR}
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+           AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND i.status = 'active') AS active_tp_instances,
        (SELECT COUNT(DISTINCT i.id)::int
           FROM treatment_program_instance_stage_items sii
           INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
           INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
-         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-           AND i.organization_id = ${ORG_ID_EXPR}
+         WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+           AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
            AND i.status = 'completed') AS completed_tp_instances,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
@@ -412,9 +413,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
               ) AS obj
             FROM lfk_complex_template_exercises te
             INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-            WHERE te.exercise_id = $1::uuid
-              AND te.organization_id = ${ORG_ID_EXPR}
-              AND ct.organization_id = ${ORG_ID_EXPR}
+            WHERE te.exercise_id = ${exerciseId}::uuid
+              AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND ct.status = 'published'
             ORDER BY ct.id, ct.title ASC
             LIMIT ${lim}
@@ -429,9 +430,9 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
               ) AS obj
             FROM lfk_complex_template_exercises te
             INNER JOIN lfk_complex_templates ct ON ct.id = te.template_id
-            WHERE te.exercise_id = $1::uuid
-              AND te.organization_id = ${ORG_ID_EXPR}
-              AND ct.organization_id = ${ORG_ID_EXPR}
+            WHERE te.exercise_id = ${exerciseId}::uuid
+              AND te.organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND ct.status = 'draft'
             ORDER BY ct.id, ct.title ASC
             LIMIT ${lim}
@@ -447,8 +448,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-              AND t.organization_id = ${ORG_ID_EXPR}
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+              AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND t.status = 'published'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
@@ -464,8 +465,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             FROM treatment_program_template_stage_items si
             INNER JOIN treatment_program_template_stages st ON st.id = si.stage_id
             INNER JOIN treatment_program_templates t ON t.id = st.template_id
-            WHERE si.item_type = 'exercise' AND si.item_ref_id = $1::uuid
-              AND t.organization_id = ${ORG_ID_EXPR}
+            WHERE si.item_type = 'exercise' AND si.item_ref_id = ${exerciseId}::uuid
+              AND t.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND t.status = 'draft'
             ORDER BY t.id, t.title ASC
             LIMIT ${lim}
@@ -483,8 +484,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-              AND i.organization_id = ${ORG_ID_EXPR}
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+              AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
@@ -502,8 +503,8 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN treatment_program_instance_stages ist ON ist.id = sii.stage_id
             INNER JOIN treatment_program_instances i ON i.id = ist.instance_id
             LEFT JOIN treatment_program_templates tpl ON tpl.id = i.template_id
-            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = $1::uuid
-              AND i.organization_id = ${ORG_ID_EXPR}
+            WHERE sii.item_type = 'exercise' AND sii.item_ref_id = ${exerciseId}::uuid
+              AND i.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
@@ -526,32 +527,31 @@ async function loadExerciseUsageSummary(exerciseId: string): Promise<ExerciseUsa
             INNER JOIN lfk_complex_templates ct ON ct.id = pla.template_id
             LEFT JOIN platform_users pu ON pu.id = pla.patient_user_id
             LEFT JOIN user_identity ui ON ui.platform_user_id = pu.id
-            WHERE pla.organization_id = ${ORG_ID_EXPR}
-              AND ct.organization_id = ${ORG_ID_EXPR}
+            WHERE pla.organization_id = ${sql.raw(ORG_ID_EXPR)}
+              AND ct.organization_id = ${sql.raw(ORG_ID_EXPR)}
               AND pla.is_active = true
               AND (
                 (pla.complex_id IS NOT NULL AND EXISTS (
                   SELECT 1 FROM lfk_complex_exercises ce
                   WHERE ce.complex_id = pla.complex_id
-                    AND ce.organization_id = ${ORG_ID_EXPR}
-                    AND ce.exercise_id = $1::uuid
+                    AND ce.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                    AND ce.exercise_id = ${exerciseId}::uuid
                 ))
                 OR
                 (pla.complex_id IS NULL AND EXISTS (
                   SELECT 1 FROM lfk_complex_template_exercises te2
                   WHERE te2.template_id = pla.template_id
-                    AND te2.organization_id = ${ORG_ID_EXPR}
-                    AND te2.exercise_id = $1::uuid
+                    AND te2.organization_id = ${sql.raw(ORG_ID_EXPR)}
+                    AND te2.exercise_id = ${exerciseId}::uuid
                 ))
               )
             ORDER BY pla.assigned_at DESC NULLS LAST
             LIMIT ${lim}
           ) q) AS active_patient_lfk_refs
      FROM lfk_exercises owned
-     WHERE owned.id = $1::uuid
+     WHERE owned.id = ${exerciseId}::uuid
        AND owned.catalog_scope = 'catalog'
-       AND owned.organization_id = ${ORG_ID_EXPR}`,
-    [exerciseId],
+       AND owned.organization_id = ${sql.raw(ORG_ID_EXPR)}`,
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_EXERCISE_USAGE_SNAPSHOT };

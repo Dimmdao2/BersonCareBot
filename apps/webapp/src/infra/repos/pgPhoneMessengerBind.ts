@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 import type { Pool, QueryResultRow } from 'pg';
 /**
- * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgTextOnPool`.
+ * Domain SQL — `runIdentityClientSql` / `runIdentityPoolSqlOnPool`.
  */
 import { getPool } from '@/infra/db/client';
 import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra/db/runWebappSql';
@@ -90,12 +90,7 @@ async function runPhoneMessengerBindCompletionStateRoot(params: {
   return runWebappNamedRoot<PhoneMessengerBindCompletionStateRow>(
     getWebappSqlDb(),
     'app.phone_messenger_bind_completion_state(text,text,text,text)',
-    [
-      params.tokenHash,
-      params.channelCode,
-      params.externalId,
-      params.contactPhoneNormalized,
-    ],
+    [params.tokenHash, params.channelCode, params.externalId, params.contactPhoneNormalized],
     webappSqlFromPgText(
       `SELECT * FROM app.phone_messenger_bind_completion_state($1::text, $2::text, $3::text, $4::text)`,
       args,
@@ -157,14 +152,12 @@ async function runPhoneMessengerBindClaimedSecretRoot(params: {
  * principal and always failed before its first query, silently, leaving the admin manual-merge review
  * with no case to resolve. This JS layer no longer attempts that write.
  */
-async function applyMessengerContactPreOtpImpl(
-  params: {
-    phoneNormalized: string;
-    channelCode: PhoneMessengerBindChannel;
-    externalId: string;
-    sessionUserId?: string | null;
-  },
-): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure> {
+async function applyMessengerContactPreOtpImpl(params: {
+  phoneNormalized: string;
+  channelCode: PhoneMessengerBindChannel;
+  externalId: string;
+  sessionUserId?: string | null;
+}): Promise<{ ok: true; accountCreated: boolean } | PhoneMessengerBindPreOtpFailure> {
   const channelCode = params.channelCode;
   const key = channelToBindingKey(channelCode);
   if (!key) return { ok: false, code: 'unsupported_channel' };
@@ -192,7 +185,11 @@ async function applyMessengerContactPreOtpImpl(
   );
   if (payload.outcome === 'conflict') {
     if (payload.candidate_ids && payload.candidate_ids.length > 0) {
-      return { ok: false, code: 'merge_blocked_ambiguous_candidates', candidateIds: payload.candidate_ids };
+      return {
+        ok: false,
+        code: 'merge_blocked_ambiguous_candidates',
+        candidateIds: payload.candidate_ids,
+      };
     }
     return { ok: false, code: 'invalid_phone' };
   }
@@ -332,8 +329,7 @@ export function createPgPhoneMessengerBindPort(_pool: Pool = getPool()): PhoneMe
         accountCreated: row?.account_created === true,
         syncTargetUserId:
           typeof row?.sync_target_user_id === 'string' ? row.sync_target_user_id : null,
-        canonicalUserId:
-          typeof row?.canonical_user_id === 'string' ? row.canonical_user_id : null,
+        canonicalUserId: typeof row?.canonical_user_id === 'string' ? row.canonical_user_id : null,
       };
     },
 

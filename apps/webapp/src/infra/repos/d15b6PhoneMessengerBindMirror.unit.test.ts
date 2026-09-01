@@ -10,8 +10,8 @@ const runIdentityClientPgTextMock = vi.hoisted(() => vi.fn());
 const runWebappNamedRootMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/infra/repos/identityPhoneSql', () => ({
-  runIdentityClientPgText: runIdentityClientPgTextMock,
-  runIdentityPoolPgTextOnPool: vi.fn(),
+  runIdentityClientSql: runIdentityClientPgTextMock,
+  runIdentityPoolSqlOnPool: vi.fn(),
 }));
 
 vi.mock('@/infra/db/runWebappSql', () => ({
@@ -137,7 +137,9 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     expect(runWebappNamedRootMock).toHaveBeenCalledTimes(1);
     const [db, identity, args] = runWebappNamedRootMock.mock.calls[0]!;
     expect(db).toEqual({ tag: 'root-db' });
-    expect(identity).toBe('app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)');
+    expect(identity).toBe(
+      'app.pre_session_messenger_channel_resolve(text,text,text,text,text,uuid)',
+    );
     expect(args).toEqual(['telegram', 'tg-1', '+79001234567', null, 'telegram', SESSION_USER_ID]);
     expect(runIdentityClientPgTextMock).not.toHaveBeenCalled();
   });
@@ -154,5 +156,4 @@ describe('D15b/6 — pgPhoneMessengerBind canonical contact write', () => {
     expect(result).toEqual({ ok: false, code: 'session_required' });
     expect(runWebappNamedRootMock).not.toHaveBeenCalled();
   });
-
 });

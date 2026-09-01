@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';
 import { runDrizzleMutationTransaction } from '@/infra/db/drizzleMutationTx';
-import { getWebappSqlDb, runWebappPgText, runWebappSql } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { lfkComplexTemplateExercises, lfkComplexTemplates } from '../../../db/schema/schema';
 import { testSetItems, testSets } from '../../../db/schema/clinicalTests';
 import {
@@ -454,7 +454,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
   organizationId: string,
 ): Promise<TreatmentProgramTemplateUsageSnapshot> {
   const lim = TREATMENT_PROGRAM_TEMPLATE_USAGE_DETAIL_LIMIT;
-  const r = await runWebappPgText<{
+  const r = await runWebappSql<{
     active_inst: string | number | null;
     completed_inst: string | number | null;
     pub_courses: string | number | null;
@@ -466,12 +466,13 @@ async function loadTreatmentProgramTemplateUsageSummary(
     draft_course_refs: unknown;
     arch_course_refs: unknown;
   }>(
-    `SELECT
-       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = $1::uuid AND organization_id = $2::uuid AND status = 'active') AS active_inst,
-       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = $1::uuid AND organization_id = $2::uuid AND status = 'completed') AS completed_inst,
-       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = $1::uuid AND organization_id = $2::uuid AND status = 'published') AS pub_courses,
-       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = $1::uuid AND organization_id = $2::uuid AND status = 'draft') AS draft_courses,
-       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = $1::uuid AND organization_id = $2::uuid AND status = 'archived') AS arch_courses,
+    getWebappSqlDb(),
+    sql`SELECT
+       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'active') AS active_inst,
+       (SELECT COUNT(*)::int FROM treatment_program_instances WHERE template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'completed') AS completed_inst,
+       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'published') AS pub_courses,
+       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'draft') AS draft_courses,
+       (SELECT COUNT(*)::int FROM courses WHERE program_template_id = ${templateId}::uuid AND organization_id = ${organizationId}::uuid AND status = 'archived') AS arch_courses,
        (SELECT COALESCE(jsonb_agg(q.obj), '[]'::jsonb)
           FROM (
             SELECT DISTINCT ON (i.id)
@@ -482,7 +483,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
                 'patientUserId', i.patient_user_id::text
               ) AS obj
             FROM treatment_program_instances i
-            WHERE i.template_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'active'
+            WHERE i.template_id = ${templateId}::uuid AND i.organization_id = ${organizationId}::uuid AND i.status = 'active'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS active_inst_refs,
@@ -496,7 +497,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
                 'patientUserId', i.patient_user_id::text
               ) AS obj
             FROM treatment_program_instances i
-            WHERE i.template_id = $1::uuid AND i.organization_id = $2::uuid AND i.status = 'completed'
+            WHERE i.template_id = ${templateId}::uuid AND i.organization_id = ${organizationId}::uuid AND i.status = 'completed'
             ORDER BY i.id, i.title ASC
             LIMIT ${lim}
           ) q) AS completed_inst_refs,
@@ -505,7 +506,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
             SELECT DISTINCT ON (c.id)
               jsonb_build_object('kind', 'course', 'id', c.id::text, 'title', c.title) AS obj
             FROM courses c
-            WHERE c.program_template_id = $1::uuid AND c.organization_id = $2::uuid AND c.status = 'published'
+            WHERE c.program_template_id = ${templateId}::uuid AND c.organization_id = ${organizationId}::uuid AND c.status = 'published'
             ORDER BY c.id, c.title ASC
             LIMIT ${lim}
           ) q) AS pub_course_refs,
@@ -514,7 +515,7 @@ async function loadTreatmentProgramTemplateUsageSummary(
             SELECT DISTINCT ON (c.id)
               jsonb_build_object('kind', 'course', 'id', c.id::text, 'title', c.title) AS obj
             FROM courses c
-            WHERE c.program_template_id = $1::uuid AND c.organization_id = $2::uuid AND c.status = 'draft'
+            WHERE c.program_template_id = ${templateId}::uuid AND c.organization_id = ${organizationId}::uuid AND c.status = 'draft'
             ORDER BY c.id, c.title ASC
             LIMIT ${lim}
           ) q) AS draft_course_refs,
@@ -523,11 +524,10 @@ async function loadTreatmentProgramTemplateUsageSummary(
             SELECT DISTINCT ON (c.id)
               jsonb_build_object('kind', 'course', 'id', c.id::text, 'title', c.title) AS obj
             FROM courses c
-            WHERE c.program_template_id = $1::uuid AND c.organization_id = $2::uuid AND c.status = 'archived'
+            WHERE c.program_template_id = ${templateId}::uuid AND c.organization_id = ${organizationId}::uuid AND c.status = 'archived'
             ORDER BY c.id, c.title ASC
             LIMIT ${lim}
           ) q) AS arch_course_refs`,
-    [templateId, organizationId],
   );
   const row = r.rows[0];
   if (!row) return { ...EMPTY_TREATMENT_PROGRAM_TEMPLATE_USAGE_SNAPSHOT };

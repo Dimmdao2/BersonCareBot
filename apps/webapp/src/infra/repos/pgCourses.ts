@@ -1,10 +1,10 @@
-import { and, desc, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, ne, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import {
   getDrizzleOrMutationTx as getDrizzle,
   runDrizzleMutationTransaction,
 } from '@/infra/db/drizzleMutationTx';
-import { runWebappPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { courses as coursesTable } from '../../../db/schema/courses';
 import { contentPages } from '../../../db/schema/schema';
 import { treatmentProgramTemplates } from '../../../db/schema/treatmentProgramTemplates';
@@ -113,7 +113,7 @@ async function loadCourseUsageSummary(courseId: string): Promise<CourseUsageSnap
   const lim = COURSE_USAGE_DETAIL_LIMIT;
   const principalOrganizationId = currentPrincipalOrganizationId();
   const values = [courseId, principalOrganizationId];
-  const r = await runWebappPgText<{
+  const r = await runWebappSql<{
     tpl_id: string | null;
     tpl_title: string | null;
     active_inst: string | number | null;
@@ -127,7 +127,8 @@ async function loadCourseUsageSummary(courseId: string): Promise<CourseUsageSnap
     draft_page_refs: unknown;
     arch_page_refs: unknown;
   }>(
-    `SELECT
+    getWebappSqlDb(),
+    sql`SELECT
        c.program_template_id::text AS tpl_id,
        tpl.title AS tpl_title,
        (SELECT COUNT(*)::int FROM treatment_program_instances i
@@ -198,8 +199,7 @@ async function loadCourseUsageSummary(courseId: string): Promise<CourseUsageSnap
      FROM courses c
      LEFT JOIN treatment_program_templates tpl
        ON tpl.id = c.program_template_id AND tpl.organization_id = c.organization_id
-     WHERE c.id = $1::uuid AND c.organization_id = $2::uuid`,
-    values,
+     WHERE c.id = ${courseId}::uuid AND c.organization_id = ${principalOrganizationId}::uuid`,
   );
   const row = r.rows[0];
   if (!row || row.tpl_id == null || row.tpl_id === '') return null;

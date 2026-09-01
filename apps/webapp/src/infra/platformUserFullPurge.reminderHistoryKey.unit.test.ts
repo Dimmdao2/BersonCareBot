@@ -11,11 +11,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { PoolClient } from 'pg';
 
-const { runPurgeClientPgText } = vi.hoisted(() => ({ runPurgeClientPgText: vi.fn() }));
+const { runPurgeClientSql } = vi.hoisted(() => ({ runPurgeClientSql: vi.fn() }));
 
 vi.mock('@/infra/platformUserPurgeSql', () => ({
-  runPurgeClientPgText,
-  runPurgePoolPgText: vi.fn(),
+  runPurgeClientSql,
+  runPurgePoolSql: vi.fn(),
 }));
 
 import { runWebappPurgeCoreInTransaction } from './platformUserFullPurge';
@@ -24,7 +24,7 @@ const fakeClient = {} as PoolClient;
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 
 function issuedStatements(): { text: string; values: readonly unknown[] }[] {
-  return runPurgeClientPgText.mock.calls.map((call) => ({
+  return runPurgeClientSql.mock.calls.map((call) => ({
     text: String(call[1]),
     values: (call[2] ?? []) as readonly unknown[],
   }));
@@ -32,8 +32,8 @@ function issuedStatements(): { text: string; values: readonly unknown[] }[] {
 
 describe('account purge — reminder history is keyed on the canonical platform user', () => {
   it('deletes reminder_occurrence_history by platform_user_id', async () => {
-    runPurgeClientPgText.mockReset();
-    runPurgeClientPgText.mockResolvedValue({ rows: [], rowCount: 0 });
+    runPurgeClientSql.mockReset();
+    runPurgeClientSql.mockResolvedValue({ rows: [], rowCount: 0 });
 
     await runWebappPurgeCoreInTransaction(fakeClient, {
       id: USER_ID,

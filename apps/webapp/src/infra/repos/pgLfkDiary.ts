@@ -7,12 +7,8 @@ import {
   getCurrentDbPrincipalOrganizationId,
 } from '@bersoncare/db-principal';
 import { sql } from 'drizzle-orm';
-import {
-  getWebappSqlDb,
-  runWebappNamedRoot,
-  runWebappPgText,
-  runWebappSql,
-} from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
+import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';
 import { nullableToIsoStringSafe, toIsoStringSafe } from '@/shared/lib/toIsoStringSafe';
 import type { MediaPreviewStatus } from '@/modules/media/types';
 import type { LfkDiaryPort } from '@/modules/diaries/ports';
@@ -189,10 +185,6 @@ async function currentPatientLfkSessions(
   return value;
 }
 
-function userMatchSql(tableAlias: string, userParamIndex: number): string {
-  return `(${tableAlias}.platform_user_id = $${userParamIndex}::uuid OR (${tableAlias}.platform_user_id IS NULL AND ${tableAlias}.user_id = $${userParamIndex}::text))`;
-}
-
 export const pgLfkDiaryPort: LfkDiaryPort = {
   async createComplex(params) {
     const now = new Date();
@@ -209,13 +201,13 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async listComplexes(userId, activeOnly = true) {
-    const result = await runWebappPgText<LfkComplexDbRow>(
-      `SELECT ${COMPLEX_SELECT}
+    const result = await runWebappSql<LfkComplexDbRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(COMPLEX_SELECT)}
        FROM lfk_complexes c
-       ${complexCoverJoinForCurrentPrincipal()}
-       WHERE ${userMatchSql('c', 1)} ${activeOnly ? 'AND c.is_active = true' : ''}
+       ${sql.raw(complexCoverJoinForCurrentPrincipal())}
+       WHERE ${platformUserMatchSql('c', userId)} ${sql.raw(activeOnly ? 'AND c.is_active = true' : '')}
        ORDER BY c.updated_at DESC`,
-      [userId],
     );
     return result.rows.map(rowToComplex);
   },
@@ -275,12 +267,12 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   },
 
   async getComplexForUser(params) {
-    const result = await runWebappPgText<LfkComplexDbRow>(
-      `SELECT ${COMPLEX_SELECT}
+    const result = await runWebappSql<LfkComplexDbRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(COMPLEX_SELECT)}
        FROM lfk_complexes c
-       ${complexCoverJoinForCurrentPrincipal()}
-       WHERE c.id = $1 AND ${userMatchSql('c', 2)}`,
-      [params.complexId, params.userId],
+       ${sql.raw(complexCoverJoinForCurrentPrincipal())}
+       WHERE c.id = ${params.complexId} AND ${platformUserMatchSql('c', params.userId)}`,
     );
     return result.rows[0] ? rowToComplex(result.rows[0]) : null;
   },
@@ -296,44 +288,33 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       });
       return (result.sessions ?? []).map(rowToSession);
     }
-    const orgCondition = params.organizationId ? 'AND s.organization_id = $5::uuid' : '';
+    const orgCondition = params.organizationId
+      ? sql`AND s.organization_id = ${params.organizationId}::uuid`
+      : sql``;
     if (params.complexId) {
-      const result = await runWebappPgText<LfkSessionDbRow>(
-        `SELECT ${SESSION_SELECT}
+      const result = await runWebappSql<LfkSessionDbRow>(
+        getWebappSqlDb(),
+        sql`SELECT ${sql.raw(SESSION_SELECT)}
          FROM lfk_sessions s
          JOIN lfk_complexes c ON c.id = s.complex_id
-         WHERE s.user_id = $1 AND s.complex_id = $2
-           AND s.completed_at >= $3::timestamptz AND s.completed_at < $4::timestamptz
+         WHERE s.user_id = ${params.userId} AND s.complex_id = ${params.complexId}
+           AND s.completed_at >= ${params.fromCompletedAt}::timestamptz AND s.completed_at < ${params.toCompletedAtExclusive}::timestamptz
            ${orgCondition}
          ORDER BY s.completed_at DESC
-         LIMIT ${params.organizationId ? '$6' : '$5'}`,
-        [
-          params.userId,
-          params.complexId,
-          params.fromCompletedAt,
-          params.toCompletedAtExclusive,
-          ...(params.organizationId ? [params.organizationId] : []),
-          lim,
-        ],
+         LIMIT ${lim}`,
       );
       return result.rows.map(rowToSession);
     }
-    const result = await runWebappPgText<LfkSessionDbRow>(
-      `SELECT ${SESSION_SELECT}
+    const result = await runWebappSql<LfkSessionDbRow>(
+      getWebappSqlDb(),
+      sql`SELECT ${sql.raw(SESSION_SELECT)}
        FROM lfk_sessions s
        JOIN lfk_complexes c ON c.id = s.complex_id
-       WHERE s.user_id = $1
-         AND s.completed_at >= $2::timestamptz AND s.completed_at < $3::timestamptz
-         ${params.organizationId ? 'AND s.organization_id = $4::uuid' : ''}
+       WHERE s.user_id = ${params.userId}
+         AND s.completed_at >= ${params.fromCompletedAt}::timestamptz AND s.completed_at < ${params.toCompletedAtExclusive}::timestamptz
+         ${orgCondition}
        ORDER BY s.completed_at DESC
-       LIMIT ${params.organizationId ? '$5' : '$4'}`,
-      [
-        params.userId,
-        params.fromCompletedAt,
-        params.toCompletedAtExclusive,
-        ...(params.organizationId ? [params.organizationId] : []),
-        lim,
-      ],
+       LIMIT ${lim}`,
     );
     return result.rows.map(rowToSession);
   },
@@ -411,7 +392,7 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
   }): Promise<Record<string, LfkComplexExerciseLine[]>> {
     if (params.complexIds.length === 0) return {};
     const isPatientPrincipal = getCurrentDbPrincipal()?.kind === 'patient';
-    const result = await runWebappPgText<{
+    const result = await runWebappSql<{
       complex_id: string;
       id: string;
       sort_order: number;
@@ -419,19 +400,19 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
       comment: string | null;
       local_comment: string | null;
     }>(
+      getWebappSqlDb(),
       isPatientPrincipal
-        ? `SELECT complex_id, id, sort_order, exercise_title, comment, local_comment
-           FROM app.read_patient_lfk_complex_exercise_lines($1::uuid[])`
-        : `SELECT ce.complex_id, ce.id, ce.sort_order,
+        ? sql`SELECT complex_id, id, sort_order, exercise_title, comment, local_comment
+           FROM app.read_patient_lfk_complex_exercise_lines(${sql.param(params.complexIds)}::uuid[])`
+        : sql`SELECT ce.complex_id, ce.id, ce.sort_order,
                   COALESCE(NULLIF(trim(e.title), ''), 'Упражнение') AS exercise_title,
                   ce.comment, ce.local_comment
            FROM lfk_complex_exercises ce
            INNER JOIN lfk_exercises e ON e.id = ce.exercise_id
            INNER JOIN lfk_complexes c ON c.id = ce.complex_id
-           WHERE ce.complex_id = ANY($1::uuid[])
-             AND ${userMatchSql('c', 2)}
+           WHERE ce.complex_id = ANY(${sql.param(params.complexIds)}::uuid[])
+             AND ${platformUserMatchSql('c', params.userId)}
            ORDER BY ce.complex_id, ce.sort_order ASC, ce.id ASC`,
-      isPatientPrincipal ? [params.complexIds] : [params.complexIds, params.userId],
     );
     const byComplex: Record<string, LfkComplexExerciseLine[]> = {};
     for (const row of result.rows) {
@@ -459,15 +440,15 @@ export const pgLfkDiaryPort: LfkDiaryPort = {
     localComment: string | null;
   }): Promise<void> {
     const principalOrganizationId = getCurrentDbPrincipalOrganizationId();
-    const r = await runWebappPgText(
-      `UPDATE lfk_complex_exercises ce
-       SET local_comment = $3
+    const r = await runWebappSql(
+      getWebappSqlDb(),
+      sql`UPDATE lfk_complex_exercises ce
+       SET local_comment = ${params.localComment}
        FROM lfk_complexes c
-       WHERE ce.id = $1::uuid
+       WHERE ce.id = ${params.rowId}::uuid
          AND ce.complex_id = c.id
-         AND ${userMatchSql('c', 2)}
-         AND ($4::uuid IS NULL OR c.organization_id = $4::uuid)`,
-      [params.rowId, params.userId, params.localComment, principalOrganizationId],
+         AND ${platformUserMatchSql('c', params.userId)}
+         AND (${principalOrganizationId}::uuid IS NULL OR c.organization_id = ${principalOrganizationId}::uuid)`,
     );
     if (r.rowCount === 0) {
       throw new Error('Строка упражнения не найдена или нет доступа');

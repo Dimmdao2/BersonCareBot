@@ -7,7 +7,7 @@ import {
 import { platformUsers } from '../../../db/schema/schema';
 /**
  * Wave 3 phase 12B + R0/S3Q — create/bind transaction checkout goes through `withPoolTransaction`.
- * Domain SQL — `runIdentityClientPgText` / `runIdentityPoolPgText`; row-shape — Zod in `identityPhoneRowSchemas`.
+ * Domain SQL — `runIdentityClientSql` / `runIdentityPoolSql`; row-shape — Zod in `identityPhoneRowSchemas`.
  */
 import { getPool } from '@/infra/db/client';
 import { getDrizzle } from '@/app-layer/db/drizzle';
@@ -55,7 +55,7 @@ import {
   puMergeRowSchema,
   sessionIdentityContactsFromRows,
 } from '@/infra/repos/identityPhoneRowSchemas';
-import { runIdentityClientPgText, runIdentityPoolPgText } from '@/infra/repos/identityPhoneSql';
+import { runIdentityClientSql, runIdentityPoolSql } from '@/infra/repos/identityPhoneSql';
 import {
   getWebappSqlDb,
   getWebappSqlFromPgClient,
@@ -90,17 +90,16 @@ async function markPatientPhoneTrusted(
 }
 
 async function loadPuRowForMerge(client: PoolClient, id: string) {
-  const r = await runIdentityClientPgText(
+  const r = await runIdentityClientSql(
     client,
-    `SELECT pu.id,
+    sql`SELECT pu.id,
             phone.value_normalized AS phone_normalized,
             pu.merged_into_id,
             pu.display_name, pu.first_name, pu.last_name, email.value_normalized AS email, pu.created_at
      FROM platform_users pu
      LEFT JOIN user_contacts phone ON phone.platform_user_id = pu.id AND phone.contact_kind = 'phone' AND phone.is_primary = true
      LEFT JOIN user_contacts email ON email.platform_user_id = pu.id AND email.contact_kind = 'email' AND email.is_primary = true
-     WHERE pu.id = $1`,
-    [id],
+     WHERE pu.id = ${id}`,
   );
   return r.rows[0] ? parseIdentityRow(puMergeRowSchema, r.rows[0], 'pu_merge_row') : null;
 }
@@ -125,35 +124,34 @@ export async function loadSessionIdentityUser(
   options: { includeSecurityFactor?: boolean; onMissingRow?: 'throw' | 'null' } = {},
 ): Promise<SessionUser | null> {
   const canonicalId = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-  const userRow = await runIdentityPoolPgText(
+  const userRow = await runIdentityPoolSql(
     options.includeSecurityFactor
-      ? `SELECT pu.id,
-                ${FIO.displayName} AS display_name,
-                ${FIO.firstName} AS first_name,
-                ${FIO.lastName} AS last_name,
-                ${FIO.patronymic} AS patronymic,
+      ? sql`SELECT pu.id,
+                ${sql.raw(FIO.displayName)} AS display_name,
+                ${sql.raw(FIO.firstName)} AS first_name,
+                ${sql.raw(FIO.lastName)} AS last_name,
+                ${sql.raw(FIO.patronymic)} AS patronymic,
                 pu.role,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 COALESCE(pu.is_blocked, false) AS is_blocked,
                 COALESCE(sss.factor_required, false) AS security_factor_required
          FROM platform_users pu
-         ${USER_IDENTITY_FIO_JOIN}
+         ${sql.raw(USER_IDENTITY_FIO_JOIN)}
          LEFT JOIN LATERAL app.get_staff_security_session_state() sss ON true
-         WHERE pu.id = $1`
-      : `SELECT pu.id,
-                ${FIO.displayName} AS display_name,
-                ${FIO.firstName} AS first_name,
-                ${FIO.lastName} AS last_name,
-                ${FIO.patronymic} AS patronymic,
+         WHERE pu.id = ${canonicalId}`
+      : sql`SELECT pu.id,
+                ${sql.raw(FIO.displayName)} AS display_name,
+                ${sql.raw(FIO.firstName)} AS first_name,
+                ${sql.raw(FIO.lastName)} AS last_name,
+                ${sql.raw(FIO.patronymic)} AS patronymic,
                 pu.role,
                 pu.session_epoch,
                 COALESCE(pu.is_archived, false) AS is_archived,
                 COALESCE(pu.is_blocked, false) AS is_blocked
          FROM platform_users pu
-         ${USER_IDENTITY_FIO_JOIN}
-         WHERE pu.id = $1`,
-    [canonicalId],
+         ${sql.raw(USER_IDENTITY_FIO_JOIN)}
+         WHERE pu.id = ${canonicalId}`,
   );
   if (userRow.rows.length === 0) {
     if (options.onMissingRow === 'null') return null;
@@ -164,18 +162,15 @@ export async function loadSessionIdentityUser(
   const firstName = u.first_name?.trim() || undefined;
   const lastName = u.last_name?.trim() || undefined;
   const patronymic = u.patronymic?.trim() || undefined;
-  const bindingsRows = await runIdentityPoolPgText(
-    'SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = $1',
-    [canonicalId],
+  const bindingsRows = await runIdentityPoolSql(
+    sql`SELECT channel_code, external_id FROM user_channel_bindings WHERE user_id = ${canonicalId}`,
   );
   const bindings = bindingsFromRows(bindingsRows.rows);
-  const contactRows = await runIdentityPoolPgText(
-    `SELECT contact_kind, value_normalized, is_primary, confirmed_at, source_origin
+  const contactRows =
+    await runIdentityPoolSql(sql`SELECT contact_kind, value_normalized, is_primary, confirmed_at, source_origin
      FROM user_contacts
-     WHERE platform_user_id = $1
-     ORDER BY contact_kind, is_primary DESC, created_at, id`,
-    [canonicalId],
-  );
+     WHERE platform_user_id = ${canonicalId}
+     ORDER BY contact_kind, is_primary DESC, created_at, id`);
   const contacts = sessionIdentityContactsFromRows(contactRows.rows);
   const phone = contacts.find((contact) => contact.kind === 'phone' && contact.isPrimary)?.value;
   const email = contacts.find((contact) => contact.kind === 'email' && contact.isPrimary)?.value;
@@ -239,11 +234,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
   async getPhoneByUserId(userId: string): Promise<string | null> {
     const pool = getPool();
     const canonical = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-    const res = await runIdentityPoolPgText(
-      `SELECT value_normalized AS phone_normalized FROM user_contacts
-       WHERE platform_user_id = $1::uuid AND contact_kind = 'phone' AND is_primary = true`,
-      [canonical],
-    );
+    const res =
+      await runIdentityPoolSql(sql`SELECT value_normalized AS phone_normalized FROM user_contacts
+       WHERE platform_user_id = ${canonical}::uuid AND contact_kind = 'phone' AND is_primary = true`);
     const p = res.rows[0]
       ? parseIdentityRow(phoneOnlyRowSchema, res.rows[0], 'get_phone').phone_normalized
       : null;
@@ -253,13 +246,10 @@ export const pgUserByPhonePort: UserByPhonePort = {
   async getVerifiedEmailForUser(userId: string): Promise<string | null> {
     const pool = getPool();
     const canonical = (await resolveCanonicalUserId(getWebappSqlDb(), userId)) ?? userId;
-    const res = await runIdentityPoolPgText(
-      `SELECT uc.value_normalized AS email
+    const res = await runIdentityPoolSql(sql`SELECT uc.value_normalized AS email
        FROM user_contacts uc
-       WHERE uc.platform_user_id = $1::uuid AND uc.contact_kind = 'email'
-         AND uc.is_primary = true AND uc.confirmed_at IS NOT NULL`,
-      [canonical],
-    );
+       WHERE uc.platform_user_id = ${canonical}::uuid AND uc.contact_kind = 'email'
+         AND uc.is_primary = true AND uc.confirmed_at IS NOT NULL`);
     const e = res.rows[0]
       ? parseIdentityRow(emailVerifiedRowSchema, res.rows[0], 'verified_email').email
       : null;
@@ -314,7 +304,7 @@ export const pgUserByPhonePort: UserByPhonePort = {
    * for any user without an MFA enrollment row (every current TEST user).
    */
   async invalidateSessionsForSelf(): Promise<void> {
-    await runIdentityPoolPgText('SELECT app.bump_platform_user_session_epoch_self()');
+    await runIdentityPoolSql(sql`SELECT app.bump_platform_user_session_epoch_self()`);
   },
 
   /**
@@ -463,10 +453,9 @@ export const pgUserByPhonePort: UserByPhonePort = {
 
     const bindInTransaction = () =>
       withPoolTransaction(pool, async (client) => {
-        const bindingLock = await runIdentityClientPgText(
+        const bindingLock = await runIdentityClientSql(
           client,
-          `SELECT app.auth_phone_bind_lock_channel_binding($1, $2) AS user_id`,
-          [channelCode, parsedContext.chatId],
+          sql`SELECT app.auth_phone_bind_lock_channel_binding(${channelCode}, ${parsedContext.chatId}) AS user_id`,
         );
 
         // Accessor always returns one row; null user_id means no binding (unlike table SELECT).
@@ -476,18 +465,17 @@ export const pgUserByPhonePort: UserByPhonePort = {
             (await resolveCanonicalUserId(getWebappSqlFromPgClient(client), lockedBindingUserId)) ??
             lockedBindingUserId;
           const displayName = parsedContext.displayName ?? normalized;
-          await runIdentityClientPgText(
+          await runIdentityClientSql(
             client,
-            `UPDATE platform_users
+            sql`UPDATE platform_users
            SET display_name = CASE
                  WHEN first_name IS NOT NULL OR last_name IS NOT NULL OR patronymic IS NOT NULL
                    THEN display_name
-                 WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN $1::text
+                 WHEN ${displayName}::text IS NOT NULL AND trim(${displayName}::text) <> '' THEN ${displayName}::text
                  ELSE display_name
                END,
                updated_at = now()
-           WHERE id = $2`,
-            [displayName, userId],
+           WHERE id = ${userId}`,
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
           await mutateCanonicalUserContactsWebapp(client, userId, [
@@ -507,13 +495,12 @@ export const pgUserByPhonePort: UserByPhonePort = {
           return { userId, wasCreated: false };
         }
 
-        const phoneRow = await runIdentityClientPgText(
+        const phoneRow = await runIdentityClientSql(
           client,
-          `SELECT pu.id, pu.display_name, pu.role FROM user_contacts uc
+          sql`SELECT pu.id, pu.display_name, pu.role FROM user_contacts uc
          JOIN platform_users pu ON pu.id = uc.platform_user_id
-         WHERE uc.contact_kind = 'phone' AND uc.value_normalized = $1 AND pu.merged_into_id IS NULL
+         WHERE uc.contact_kind = 'phone' AND uc.value_normalized = ${normalized} AND pu.merged_into_id IS NULL
          FOR UPDATE`,
-          [normalized],
         );
 
         let userId: string;
@@ -525,12 +512,11 @@ export const pgUserByPhonePort: UserByPhonePort = {
           : null;
 
         if (canonicalProfileId) {
-          const profileRow = await runIdentityClientPgText(
+          const profileRow = await runIdentityClientSql(
             client,
-            `SELECT id, display_name, role FROM platform_users
-           WHERE id = $1::uuid AND merged_into_id IS NULL
+            sql`SELECT id, display_name, role FROM platform_users
+           WHERE id = ${canonicalProfileId}::uuid AND merged_into_id IS NULL
            FOR UPDATE`,
-            [canonicalProfileId],
           );
           if (profileRow.rows.length === 0) {
             throw new MergeConflictError('createOrBind: profile_bind user missing', [
@@ -579,18 +565,17 @@ export const pgUserByPhonePort: UserByPhonePort = {
           const u = parseIdentityRow(platformUserPhoneRoleRowSchema, phoneRow.rows[0], 'phone_row');
           userId = u.id;
           const displayName = parsedContext.displayName ?? u.display_name ?? normalized;
-          await runIdentityClientPgText(
+          await runIdentityClientSql(
             client,
-            `UPDATE platform_users
+            sql`UPDATE platform_users
            SET display_name = CASE
                  WHEN first_name IS NOT NULL OR last_name IS NOT NULL OR patronymic IS NOT NULL
                    THEN display_name
-                 WHEN $1::text IS NOT NULL AND trim($1::text) <> '' THEN $1::text
+                 WHEN ${displayName}::text IS NOT NULL AND trim(${displayName}::text) <> '' THEN ${displayName}::text
                  ELSE display_name
                END,
                updated_at = now()
-           WHERE id = $2`,
-            [displayName, userId],
+           WHERE id = ${userId}`,
           );
           await syncUserIdentityFioMirrorWebapp(client, userId);
           await mutateCanonicalUserContactsWebapp(client, userId, [
@@ -605,11 +590,10 @@ export const pgUserByPhonePort: UserByPhonePort = {
           ]);
         } else {
           wasCreated = true;
-          const insert = await runIdentityClientPgText(
+          const insert = await runIdentityClientSql(
             client,
-            `INSERT INTO platform_users (display_name, role)
-           VALUES ($1, 'client') RETURNING id, display_name`,
-            [parsedContext.displayName ?? normalized],
+            sql`INSERT INTO platform_users (display_name, role)
+           VALUES (${parsedContext.displayName ?? normalized}, 'client') RETURNING id, display_name`,
           );
           const inserted = parseIdentityRow(
             platformUserInsertRowSchema,
@@ -637,14 +621,13 @@ export const pgUserByPhonePort: UserByPhonePort = {
         }
 
         if (key) {
-          const insB = await runIdentityClientPgText<{
+          const insB = await runIdentityClientSql<{
             inserted: boolean;
             user_id: string | null;
           }>(
             client,
-            `SELECT inserted, owner_user_id AS user_id
-           FROM app.auth_phone_bind_upsert_channel_binding($1::uuid, $2, $3)`,
-            [userId, channelCode, parsedContext.chatId],
+            sql`SELECT inserted, owner_user_id AS user_id
+           FROM app.auth_phone_bind_upsert_channel_binding(${userId}::uuid, ${channelCode}, ${parsedContext.chatId})`,
           );
           const bindOutcome = insB.rows[0];
           if (bindOutcome?.inserted === true && bindOutcome.user_id) {

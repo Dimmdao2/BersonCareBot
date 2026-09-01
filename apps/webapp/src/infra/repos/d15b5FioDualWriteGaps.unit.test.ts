@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 /**
  * D15b/5 audit MF-1..2: dual-write mirror after FIO writers.
  *
@@ -34,8 +35,8 @@ vi.mock('@/infra/repos/userIdentityFioSql', async (importOriginal) => {
 });
 
 vi.mock('@/infra/repos/identityPhoneSql', () => ({
-  runIdentityClientPgText: runIdentityClientPgTextMock,
-  runIdentityPoolPgText: runIdentityPoolPgTextMock,
+  runIdentityClientSql: runIdentityClientPgTextMock,
+  runIdentityPoolSql: runIdentityPoolPgTextMock,
 }));
 
 vi.mock('@/infra/db/withClient', () => ({
