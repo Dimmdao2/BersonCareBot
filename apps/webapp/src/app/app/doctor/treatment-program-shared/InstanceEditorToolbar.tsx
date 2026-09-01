@@ -106,7 +106,7 @@ export function InstanceEditorToolbar(props: {
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 min-w-0 px-1.5 text-xs sm:px-3"
+            className="min-w-0 px-1.5 text-xs sm:px-3"
             disabled={editLocked}
             onClick={onAddStageClick}
             data-testid="instance-editor-add-stage"
@@ -117,7 +117,7 @@ export function InstanceEditorToolbar(props: {
             type="button"
             size="sm"
             variant="outline"
-            className="h-8 min-w-0 px-1.5 text-xs sm:px-3"
+            className="min-w-0 px-1.5 text-xs sm:px-3"
             disabled={editLocked || pipelineStageCount < 2}
             onClick={onChangeStageOrderClick}
             data-testid="instance-editor-change-stage-order"
@@ -127,7 +127,7 @@ export function InstanceEditorToolbar(props: {
           <Button
             type="button"
             size="sm"
-            className="h-8 min-w-0 px-1.5 text-xs sm:px-3"
+            className="min-w-0 px-1.5 text-xs sm:px-3"
             disabled={editLocked || !isDirty || saving}
             onClick={handleSave}
           >

@@ -750,7 +750,7 @@ export function TreatmentProgramInstanceDetailClient(props: {
   initialAttemptAcceptMap: Record<string, boolean>;
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
-  initialDiscussionUnreadCount: number;
+  initialDiscussionUnreadCountByStageItemId: Record<string, number>;
   initialOpenDiscussionItemId?: string | null;
   initialFocusTestResultId?: string | null;
 }) {
@@ -792,7 +792,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   initialAttemptAcceptMap: Record<string, boolean>;
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
-  initialDiscussionUnreadCount: number;
+  initialDiscussionUnreadCountByStageItemId: Record<string, number>;
   initialOpenDiscussionItemId?: string | null;
   initialFocusTestResultId?: string | null;
   baseline: TreatmentProgramInstanceDetail;
@@ -805,7 +805,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     initialAttemptAcceptMap,
     appDisplayTimeZone,
     treatmentProgramLibrary,
-    initialDiscussionUnreadCount,
+    initialDiscussionUnreadCountByStageItemId,
     baseline,
     refreshBaseline,
   } = props;
@@ -817,7 +817,29 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   const [attemptAcceptMap, setAttemptAcceptMap] =
     useState<Record<string, boolean>>(initialAttemptAcceptMap);
   const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
-  const [discussionUnreadCount, setDiscussionUnreadCount] = useState(initialDiscussionUnreadCount);
+  const [discussionUnreadCountByStageItemId, setDiscussionUnreadCountByStageItemId] = useState(
+    initialDiscussionUnreadCountByStageItemId,
+  );
+  const discussionUnreadCount = useMemo(
+    () =>
+      Object.values(discussionUnreadCountByStageItemId).reduce(
+        (total, unread) => total + unread,
+        0,
+      ),
+    [discussionUnreadCountByStageItemId],
+  );
+  const handleDiscussionRead = useCallback((stageItemIds: string[]) => {
+    setDiscussionUnreadCountByStageItemId((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const stageItemId of stageItemIds) {
+        if ((next[stageItemId] ?? 0) === 0) continue;
+        next[stageItemId] = 0;
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, []);
   const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const [discussionTarget, setDiscussionTarget] = useState<{
     itemId: string;
@@ -1015,7 +1037,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         onOpenChange={setInstanceDiscussionOpen}
         instanceId={detail.id}
         programItems={discussionProgramItems}
-        onRead={() => setDiscussionUnreadCount(0)}
+        onRead={handleDiscussionRead}
       />
       {error ? (
         <p className="text-sm text-destructive" role="alert">

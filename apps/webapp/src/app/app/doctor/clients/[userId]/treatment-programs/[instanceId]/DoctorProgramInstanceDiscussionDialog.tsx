@@ -39,7 +39,7 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   programItems: DoctorProgramInstanceDiscussionItemOption[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onRead?: () => void;
+  onRead?: (stageItemIds: string[]) => void;
 }) {
   const { instanceId, programItems, open, onOpenChange, onRead } = props;
   const [messages, setMessages] = useState<ProgramItemDiscussionMessage[]>([]);
@@ -102,7 +102,11 @@ export function DoctorProgramInstanceDiscussionDialog(props: {
   const markVisibleDiscussionRead = useCallback(
     (loaded: ProgramItemDiscussionMessage[]) => {
       const stageItemIds = uniqueStageItemIds(loaded);
-      void markDoctorProgramDiscussionReadForStageItems({ instanceId, stageItemIds }).then(onRead);
+      void markDoctorProgramDiscussionReadForStageItems({ instanceId, stageItemIds }).then(
+        (markedStageItemIds) => {
+          if (markedStageItemIds.length > 0) onRead?.(markedStageItemIds);
+        },
+      );
     },
     [instanceId, onRead],
   );

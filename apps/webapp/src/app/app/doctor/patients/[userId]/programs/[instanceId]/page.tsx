@@ -132,9 +132,8 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       initial={detail}
       initialTestResults={testResults}
       initialAttemptAcceptMap={attemptAcceptMap}
-      initialDiscussionUnreadCount={discussionUnreadCounts.reduce(
-        (total, row) => total + row.unread,
-        0,
+      initialDiscussionUnreadCountByStageItemId={Object.fromEntries(
+        discussionUnreadCounts.map((row) => [row.stageItemId, row.unread]),
       )}
       appDisplayTimeZone={appDisplayTimeZone}
       treatmentProgramLibrary={treatmentProgramLibrary}
