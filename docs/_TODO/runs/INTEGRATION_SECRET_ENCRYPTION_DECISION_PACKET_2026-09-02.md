@@ -3,6 +3,12 @@
 Date: 2026-09-02. Branch `wt/integration-secret-encryption-decision-20260902`. Read-only research pass:
 no product code, migration, env, DB, host or active plan was changed.
 
+**Revision note.** This is a correction pass over the first draft, made against
+`docs/_TODO/runs/AUDIT_INTEGRATION_SECRET_ENCRYPTION_DECISION_PACKET_2026-09-02.md` (verdict: FAIL — A1 must-fix,
+A2–A5 should-fix). That audit artifact is historical and is not rewritten; every A1–A5 finding is folded into
+this document in place — §5/§6 step 5 (A1), §4.1a/§6 step 6 (A2), §3.4/§6 step 4 (A3), §1.3/§1.4/§1.5 (A4),
+§1.1 (A5) — so this text, not the audit, is the current source of truth for the design.
+
 **Authority.** `docs/_TODO/OWNER_PUNCHLIST_2026-07-28.md` §12.7 — «Защитить credentials клиники настоящим
 authenticated encryption, а не текущим `valueContract='secret_envelope'`, который классифицирует и редактирует
 JSON, но не шифрует его. До реализации утвердить key custody/rotation/recovery и threat model из `CRYPTO-01`
@@ -23,8 +29,14 @@ Every statement below was read out of this checkout, not from prior prose.
 ### 1.1 What `secret_envelope` actually is
 
 `valueContract: 'secret_envelope'` is a **classification label in one registry**, nothing else.
-`apps/webapp/src/modules/system-settings/registry.ts` carries it on **31 keys**; the label drives UI redaction
-and client serialization. The stored shape is `{"value": <plaintext>}` — literally the wrapper parsed by
+`apps/webapp/src/modules/system-settings/registry.ts` carries it on **31 keys**. `valueContract` is read
+**nowhere** outside `registry.ts` (verified by grep over `apps/webapp/src`); it drives neither redaction nor
+client serialization today. Redaction runs off the hand-maintained sets in
+`modules/system-settings/auditRedaction.ts` (§1.8) and the explicit key arrays in
+`app/api/admin/settings/route.ts`; client serialization is the separate `clientSerialization` field on the same
+registry entry (`registry.ts:40`, consumed in `infra/repos/pgAppRuntimeSettings.ts:55-57`). §6 step 7 below
+fixes this: derive redaction from the registry and leave serialization as its own explicit field — a correction
+to the current mislabel-as-mechanism, not new machinery. The stored shape is `{"value": <plaintext>}` — literally the wrapper parsed by
 `systemSettingValueEnvelopeSchema` in `apps/integrator/src/infra/db/publicSystemSettings.ts:29-35`. There is no
 ciphertext, no key id, no authentication tag. The module's own comment already says so:
 `apps/webapp/src/modules/system-settings/auditRedaction.ts:12-13` — «values are stored there as given (see the
@@ -63,7 +75,7 @@ One application chokepoint: `createSystemSettingsService()` in
 `booking_payment_providers`). **`valueForWrite()` is the natural and only place encryption belongs** — this is
 an existing chokepoint to parameterize, not a new one to build.
 
-Writers outside the chokepoint, both of which must be accounted for at cutover:
+Writers outside the chokepoint, all of which must be accounted for at cutover:
 - six `INSERT INTO public.system_settings` sites in `apps/webapp/db/drizzle-migrations/*.sql` (seeds; none seed a
   secret value);
 - `deploy/host/deploy-test-saas.sh:279-315` snapshots `smtp_outbound.value_json` to a `0600` temp file and
@@ -72,7 +84,14 @@ Writers outside the chokepoint, both of which must be accounted for at cutover:
   `secure`, `user`, `from` and that `password` is a non-empty string. Under the composite-shape rule of §3.4
   every one of those stays plaintext and `password` becomes a non-empty envelope string, so the gate keeps
   passing unchanged — with the caveat that it then proves only that a password field is present, not that it is
-  usable.
+  usable. **This is also the pattern §4.1a generalizes to close A2** — it already proves that a same-environment
+  snapshot/restore round-trips an opaque `value_json` across a full reset without ever touching the key;
+- `deploy/postgres/test-settings-override.sql:73-82` writes `smtp_outbound` as `{"value":null}` and
+  `deploy/postgres/prod-to-target-cutover-finish.sql:77-88` inserts `vk_id_client_secret` /
+  `vk_id_application_id` as `{"value":""}`. Both are raw, outside the chokepoint census above; neither writes
+  real credential material today, so neither breaks the design, but both are exactly where a future plaintext
+  write would silently bypass encryption and pass the dual-read step unnoticed — worth a one-line comment at
+  each site pointing at `valueForWrite()` when this cutover ships.
 
 ### 1.4 Readers
 
@@ -85,6 +104,11 @@ Two processes read secret values: **webapp** and **integrator**. `apps/media-wor
 - integrator: `apps/integrator/src/infra/db/publicSystemSettings.ts` and `clinicDeliveryCredentials.ts`, always
   through DB-owned fixed-allowlist capabilities — the integrator login has **no** table SELECT
   (`deploy/postgres/integrator-server-runtime-config.sql:124`).
+- a third, out-of-band consumer: `apps/webapp/scripts/qa-push-direct.mjs:21-31` reads
+  `value_json->'value'->>'privateKey'` off `web_push_vapid` by raw SQL on DEV, bypassing every port above. It
+  stops working the moment step 6 (§6) turns writes on — a DEV-only QA script, not a production reader, but it
+  needs the same fix (read through the shared `packages/secret-envelope` primitive, or be retired) in the same
+  change or it silently starts failing.
 
 Caching: `apps/webapp/src/modules/system-settings/configAdapter.ts` — in-process `Map`, 60 s TTL, invalidated
 per key on write (`invalidateConfigKey`). It caches process-local values only; decrypt-on-read then cache
@@ -92,7 +116,8 @@ plaintext in that map does not widen exposure beyond the process, which §2 alre
 
 ### 1.5 In-SQL consumers of the plaintext value — the real coupling
 
-This is where a naive "encrypt the whole envelope" breaks the product. Four SQL surfaces read *inside* `value`:
+This is where a naive "encrypt the whole envelope" breaks the product. Five SQL surfaces read *inside* `value`
+or fold the row into a hash:
 
 1. **`app.sync_clinic_dedicated_bot_binding()`** — an `AFTER INSERT OR UPDATE OR DELETE` trigger on
    `system_settings` (`deploy/postgres/generated/prod-to-target/schema-pre.sql:23045`). For
@@ -110,6 +135,14 @@ This is where a naive "encrypt the whole envelope" breaks the product. Four SQL 
    id/secret keys (`apps/webapp/db/drizzle-migrations/20260824T154700_derive_public_oauth_availability_at_read.sql:60-84`).
    Replacing the string `value` with an object would silently report every OAuth provider as disabled.
 4. `app.read_integrator_smtp_outbound_setting()` returns the whole envelope — opaque, unaffected.
+5. **`app.patient_reminder_materialization_fingerprint()` and
+   `app.specialist_task_reminder_materialization_fingerprint()`** (`deploy/postgres/generated/prod-to-target/schema-pre.sql:10180,22630`)
+   fold `web_push_vapid` / `smtp_outbound`'s `value_json` into an md5 change-detector that gates
+   `app.revalidate_patient_reminder_delivery_materialization()`: a mismatch means the in-flight reminder is not
+   (re-)sent. The rewrap job (§6 step 7 / §4.3 step 2) rewrites those rows and therefore changes this hash for
+   every row it touches — bounded and pre-existing (`updated_at` is already part of the hash, so an ordinary
+   admin re-save has the same effect today), but the rewrap runbook must say so, since it invalidates every
+   in-flight email/web-push reminder fingerprint at once rather than one row at a time.
 
 ### 1.6 Deploy and runtime identities
 
@@ -157,7 +190,7 @@ is durable and read back by the audit UI. The other six uncovered keys are the p
 are not a finding.
 
 This is a defect in the current product independent of encryption, caused by the list being hand-maintained
-instead of derived from the registry. It belongs in the same change (§6, step 6).
+instead of derived from the registry. It belongs in the same change (§6, step 7).
 
 ---
 
@@ -170,8 +203,8 @@ instead of derived from the registry. It belongs in the same change (§6, step 6
 | DB dump / restored copy without the keyring | Selected fields are AES-256-GCM ciphertext; unreadable. The primary gain. |
 | Any DB principal with `SELECT` on `system_settings` — `app_staff` (own-org rows), `app_platform_settings`, `app_worker`, 14 seam owners, `saas_system_health_owner` | Reads ciphertext, not credentials. Removes the "who can read the settings table owns the bot" property recorded in `IS-I4-09`. |
 | Superuser / table owner / migrator `psql` session, read-only SQL injection, an over-broad future grant | Same — the value is not in the row. |
-| DEV/TEST database copies and developer access to them | Ciphertext under a different (DEV/TEST) key; a leaked dev copy no longer carries usable credentials. |
-| Settings audit ledger reader | Already partly redacted; §6 step 6 closes the 3 remaining keys. |
+| DEV/TEST database copies and developer access to them | Ciphertext under a different (DEV/TEST) key; a leaked dev copy no longer carries usable credentials. **This is also why a plain PROD dump restore into DEV/TEST cannot decrypt on arrival — see §4.1a for the required environment-local snapshot/restore step, not a new gap this design creates but a direct and necessary consequence of it.** |
+| Settings audit ledger reader | Already partly redacted; §6 step 7 closes the 3 remaining keys. |
 
 **Not covered — stated plainly, because a control that claims these is a decoration**
 
@@ -240,10 +273,17 @@ and it is what `CRYPTO-01` C1 means by "domain-bound additional authenticated da
   corrected in the registry in the same change — that is a mislabel, not a secret.
 - One sibling field is added for the bot-binding coupling: `value_json.fp` = `sha256(plaintext)` hex for
   `clinic_telegram_bot_token` / `clinic_max_bot_api_key`, computed application-side at write time. The trigger
-  of §1.5.1 is changed to prefer `NEW.value_json #>> '{fp}'` and to fall back to hashing `{value}` while legacy
-  plaintext rows exist. **The fingerprint definition does not change**, so no webhook re-registration with
-  Telegram or MAX is needed. Publishing it in the row leaks nothing: it is already the public path segment of
-  the webhook URL, and SHA-256 of a bot token is preimage-resistant.
+  of §1.5.1 (`app.sync_clinic_dedicated_bot_binding()`) is changed to: (a) prefer `NEW.value_json #>> '{fp}'`
+  when present; (b) when absent, look at `NEW.value_json #>> '{value}'` — if that string matches the envelope
+  prefix `bcbset.v1.`, **refuse and leave the existing binding untouched** rather than fingerprinting it (a
+  ciphertext with no `fp` is a raw write, a partially-run backfill, or a restored copy — never a value the
+  trigger should hash); (c) only when `{value}` does **not** look like an envelope — true legacy plaintext — fall
+  back to `encode(app_ext.digest(NEW.value_json #>> '{value}', 'sha256'), 'hex')` as today. This closes the gap
+  the packet's first draft left open: hashing ciphertext produces a fingerprint that matches no registered
+  webhook and silently unroutes inbound clinic bot traffic with no error anywhere. **The fingerprint definition
+  itself does not change**, so no webhook re-registration with Telegram or MAX is needed. Publishing `fp` in the
+  row leaks nothing: it is already the public path segment of the webhook URL, and SHA-256 of a bot token is
+  preimage-resistant.
 
 ### 3.5 KEK / DEK
 
@@ -273,6 +313,45 @@ stays in force unchanged for patient media (`I2`), where the hierarchy earns its
 **Which process can decrypt: webapp and integrator, and nothing else.** Not PostgreSQL, not `media-worker`, not
 `psql`, not any backup or deploy script. The integrator has no keyring today
 (`apps/integrator/src/config/env.ts` declares none) — adding one is part of this work, not an afterthought.
+
+### 4.1a Cutover through a PROD dump: environment-local snapshot/restore (closes A2)
+
+Per-environment keys mean a row's ciphertext decrypts only under the key of the environment that wrote it.
+Two existing flows overwrite a whole environment's `system_settings` from a **live PROD dump**:
+`deploy/host/deploy-test-saas.sh` (TEST) and the DEV refresh recipe in
+`docs/ARCHITECTURE/DB_DUMPS/README.md` (`AGENTS.md` §6). Once step 6 (§6) turns writes on, every one of those
+resets would land PROD ciphertext for the 25 secret-bearing keys into TEST/DEV, which cannot decrypt it there —
+without a fix, every clinic-owned credential, `google_refresh_token` and `web_push_vapid` in the target
+environment goes from "TEST/DEV's own working value" to "unreadable" on every refresh, not just on key loss.
+
+**Fix: generalize the pattern the repository already runs safely for one key.**
+`deploy/host/deploy-test-saas.sh:279-315` already snapshots `smtp_outbound.value_json` to a `0600` file
+immediately before the destructive restore and re-inserts it verbatim afterward — the ciphertext round-trips
+opaquely and never touches the key (§1.3). This cutover extends that same snapshot/restore step, in the same
+script, to **all rows scoped to the target environment across the 25 secret-bearing keys**
+(`clinic_smtp_outbound`, `clinic_smsc_api_key`, `clinic_telegram_bot_token`, `clinic_max_bot_api_key`,
+`clinic_vk_community_access_token`, `booking_payment_providers`, `google_refresh_token`, `web_push_vapid`, and
+the remaining scalar/composite keys), applied identically to the TEST reset in `deploy-test-saas.sh` and to the
+DEV refresh-from-prod recipe:
+
+1. Immediately before the destructive restore, `SELECT key, scope, organization_id, value_json FROM
+   public.system_settings WHERE key = ANY(<the 25 keys>)` on the **target** environment (its own current,
+   already-decryptable-there values) into a `postgres:postgres 0600` snapshot file — never printed, never
+   logged, same discipline as the existing SMTP snapshot.
+2. Restore the PROD dump as today. This necessarily brings in PROD's ciphertext for those rows too.
+3. Immediately after restore, re-insert the snapshotted rows over the freshly-restored ones, keyed by
+   `(key, scope, organization_id)` — the target environment's **own** ciphertext, under the target's **own**
+   key, wins. PROD's ciphertext for these 25 keys is never activated in TEST/DEV; it is overwritten before any
+   process reads it.
+4. A key or organization present in the PROD dump but absent from the target's own snapshot (e.g. a clinic that
+   only exists in PROD) is intentionally **not** carried forward — no cross-environment credential is ever
+   activated, matching the brief's "не активировать чужие production credentials в TEST/DEV".
+
+This needs no manual re-entry of any secret: the target environment already holds a working, decryptable copy
+of its own settings before the reset, and this step is exactly what preserves it across the reset, the same way
+the current script already preserves `smtp_outbound`. `google_refresh_token` and `web_push_vapid` are named
+explicitly because they are the two values named in §4.4 as not cheaply re-issuable/re-authorizable — losing
+them to a routine refresh would be a self-inflicted outage this step exists to prevent.
 
 ### 4.2 Independent recovery copy (`IS-I4-02`, decision 4)
 
@@ -312,10 +391,20 @@ Drills to run on DEV before TEST, on DEV data only (no new database — `AGENTS.
 1. **Rotate:** add `kid2`, flip active, restart, confirm rows written under `kid1` still read and new writes
    carry `kid2`.
 2. **Rewrap:** run the job, confirm the `kid1` count query returns 0, remove `kid1`, confirm reads still work.
-3. **Fail-closed:** remove `SETTINGS_KEYRING_JSON` and confirm the process refuses to start; then restore it and
-   remove only the *specific* kid a row uses, and confirm the dependent channel reports "not configured" and
-   sends nothing, rather than 500-ing or falling back to another clinic's credential.
-4. **Dump proof:** §6, step 7.
+3. **Fail-closed, two distinct states:** remove `SETTINGS_KEYRING_JSON` and confirm the process refuses to
+   start. Then restore it and remove only the *specific* kid one clinic's row uses (a decrypt failure —
+   "unavailable"), and confirm: the channel refuses to send, the failure is observable (the job fails and
+   surfaces through the same job-failure path `CLINIC_CHANNEL_NOT_CONFIGURED` already relies on — see §5/§6
+   step 5), and there is **no** fallback to the platform or to another clinic's credential. Separately, confirm
+   a clinic that has genuinely never configured that channel (no row at all — "not configured") still degrades
+   to the platform sender exactly as it does today, per `dispatchPort.ts`'s existing `clinic_if_configured` /
+   `clinic_preferred` scopes — this drill must show the two states are handled differently, not that both are
+   now equally strict.
+4. **Environment key mismatch:** on a DEV copy, restore a row's `value_json` as if it came from a different
+   environment's snapshot (a ciphertext under a kid DEV's keyring does not hold) and confirm the same
+   "unavailable" path as drill 3, never a fallback — this is the drill that proves §4.1a's snapshot/restore step
+   is load-bearing, not optional.
+5. **Dump proof:** §6, step 8.
 
 ---
 
@@ -332,23 +421,52 @@ Fail-closed rules:
   route-level 500 during the 2026-07-27 global-admin walkthrough
   (`docs/_TODO/OWNER_WALKTHROUGHS/2026-07-27_global-admin.md:236`). Settings crypto validates eagerly at
   startup instead.
-- **A row whose kid is absent from the keyring ⇒ decryption throws ⇒ the reader returns "unavailable"**, via the
-  module that already exists for exactly this (`modules/system-settings/runtimeSettingUnavailable.ts`). The
-  dependent channel is treated as *not configured*: no send, no delivery attempt, and never a fallback to a
-  different clinic's or the platform's credential.
+- **A row whose kid is absent from the keyring ⇒ decryption throws ⇒ the reader must report a distinct
+  "unavailable" state, never "not configured".** These two states are not the same and existing code must not be
+  allowed to collapse them:
+  - **webapp** already has the right shape: `modules/system-settings/runtimeSettingUnavailable.ts`'s
+    `RuntimeSettingUnavailableError` is exactly "we have no answer, we do not substitute a default." Settings
+    crypto reuses it unchanged for webapp readers.
+  - **integrator is measured to do the opposite today, and this is not acceptable to ship as-is.**
+    `apps/integrator/src/infra/db/clinicDeliveryCredentials.ts:52-91` — `createClinicDeliveryCredentialResolver`
+    — ends its whole body in one `catch { return null }`, so a decrypt/AAD/tag failure is indistinguishable from
+    "this clinic never configured the channel." `dispatchPort.ts:103-112`'s `clinic_if_configured` then degrades
+    a null credential to `platform_required`, and `dispatchPort.ts:351-366` sends under the platform identity
+    whenever `senderScope` is not `clinic_required`. Concretely, this means: `kid` retirement (§4.3 step 3), a
+    tampered/truncated row, or a restored copy missing its own key (§4.1a) does not stop delivery — it silently
+    reroutes it through the platform's SMTP/SMS/bot identity, with no operator signal. `webapp`'s
+    `runtimeSettingUnavailable.ts` module cannot be reused here: it lives in `apps/webapp`, which the integrator
+    cannot import under §5 clean-architecture rules.
+  - **Required fix, named so it ships with step 5 of §6, not deferred:** `clinicDeliveryCredentials.ts`'s
+    resolver keeps returning `null` for the cases that must keep today's fallback semantics — no principal, no
+    row, disabled tariff mechanic, `deliveryReadiness` not `enabled` (requirement: an ordinary absent clinic
+    credential is unaffected by this change). It must stop swallowing a decrypt exception from
+    `packages/secret-envelope` into that same `null`; instead it rethrows a new typed
+    `ClinicCredentialUnavailableError(channel, key)`. `dispatchPort.ts`'s `clinicSenderScope()` catches that
+    error and refuses the channel outright — unconditionally, not only when `requestedScope === 'clinic_required'`
+    — so the send fails the job instead of falling through to `adapter.send(intentForChannel)` under the
+    platform identity. The failure must be observable the same way `CLINIC_CHANNEL_NOT_CONFIGURED` already is
+    (it fails the job, which is visible in the existing job-failure/error path); turning that into a *proactive*
+    operator alert is the pre-existing gap named in the operator-alerting backlog and is not solved by this
+    packet. Verification: extend `clinicDeliveryCredentialGate.audit.test.ts`,
+    `clinicDeliveryCredentials.unit.test.ts` and `dispatchPort.test.ts` with a decrypt-failure fixture (missing
+    kid / mutated tag) asserting refusal-not-fallback, plus §4.4 drills 3–4.
 - **Tamper or truncation** fails the GCM tag check, which is the same path as a missing key: unavailable, not a
-  partial or silently wrong value.
+  partial or silently wrong value, and — after the fix above — refused rather than routed through the platform.
 
 The trade the owner is accepting: **today, losing the env file loses `SESSION_COOKIE_SECRET` and sessions;
 after this change, losing the keyring additionally takes every integration down until the values are re-entered,
 and permanently costs the existing web-push subscriptions.** That is a genuine increase in availability risk and
-is decision **D4** in §7.
+is decision **D4** in §7. It is a separate thing from the integrator fix above: D4 is the owner's call on how
+much availability risk to accept when the key really is gone everywhere; the integrator fix is not offered as a
+choice — an "unavailable" credential silently sent under the platform's identity is a defect this packet must
+not ship, independent of what the owner decides about D4.
 
 ---
 
 ## 6. Minimal migration and cutover order
 
-Each step is independently deployable; the ordering is chosen so that rollback is free until step 5.
+Each step is independently deployable; the ordering is chosen so that rollback is free until step 6.
 
 1. **Extract the primitive.** `packages/secret-envelope` from the staff-security core; `staff-security` becomes
    its caller with prefix and AAD unchanged. Behavior-neutral; covered by the existing staff-security tests plus
@@ -358,19 +476,34 @@ Each step is independently deployable; the ordering is chosen so that rollback i
    a typed port through `buildAppDeps` / the integrator DI. Nothing reads or writes ciphertext yet. Deploy.
 3. **Readers become dual-read.** Plaintext passes through unchanged; a `bcbset.v1.` prefix decrypts. Deploy.
    Still zero ciphertext in the database; rollback is a plain revert.
-4. **Rebind the bot fingerprint.** Forward migration changing `app.sync_clinic_dedicated_bot_binding()` to prefer
-   `NEW.value_json #>> '{fp}'` and fall back to hashing `{value}`. No data change, no webhook re-registration.
-   Per `AGENTS.md` §1 this migration grants and revokes nothing.
-5. **Turn writes on.** `valueForWrite()` encrypts the secret field of the 25 keys. The TEST-reset SMTP snapshot
-   gate needs no change (§1.3), but re-run it once on TEST to confirm that in practice.
-   **Precondition:** the rewrap job of step 6 must already support rewrap-to-plaintext, because after this step
-   a revert to step-4 code cannot read rows written by step-5 code.
-6. **Backfill and close the audit gap.** Run the rewrap job over existing rows (counts, idempotent, resumable).
-   In the same change, extend audit redaction to `web_push_vapid`, `booking_payment_providers` and
-   `saas_billing_payment_provider`, and **derive both redaction sets from the registry** instead of the
-   hand-maintained lists — a hand list is what produced this gap twice already (2026-07-27 and 2026-07-28, per
-   the module's own comments).
-7. **Proof that a dump without the KEK reveals nothing** — obtained without creating any database, as
+4. **Rebind the bot fingerprint.** Forward migration changing `app.sync_clinic_dedicated_bot_binding()` per
+   §3.4's three-way rule: prefer `value_json.fp`; if absent and `{value}` looks like a `bcbset.v1.` envelope,
+   refuse and leave the binding untouched; only hash `{value}` when it is not an envelope (true legacy
+   plaintext). No data change, no webhook re-registration. Per `AGENTS.md` §1 this migration grants and revokes
+   nothing.
+5. **Integrator distinguishes "unavailable" from "not configured" (closes A1).** Ship before step 6, because
+   step 6 is the first point a clinic's own row can actually be ciphertext in production traffic:
+   `clinicDeliveryCredentials.ts`'s resolver stops swallowing a decrypt/AAD/tag failure into the same `null` it
+   returns for "no credential configured", and `dispatchPort.ts`'s `clinicSenderScope()` refuses the channel
+   outright on that failure instead of falling through to the platform sender — the exact change named in §5.
+   Covered by `clinicDeliveryCredentialGate.audit.test.ts`, `clinicDeliveryCredentials.unit.test.ts`,
+   `dispatchPort.test.ts` plus §4.4 drills 3–4. Behavior-neutral for every clinic that has no row at all — the
+   existing platform-fallback semantics for a genuinely unconfigured channel do not change.
+6. **Turn writes on.** `valueForWrite()` encrypts the secret field of the 25 keys.
+   **Preconditions, both must land first:**
+   - the rewrap job of step 7 must already support rewrap-to-plaintext, because after this step a revert to
+     step-4 code cannot read rows written by step-6 code;
+   - §4.1a's environment-local snapshot/restore generalization must already be live in
+     `deploy/host/deploy-test-saas.sh` and the DEV refresh recipe (closes A2) — otherwise the very next TEST
+     reset or DEV refresh from a live PROD dump imports PROD ciphertext under a key TEST/DEV does not hold.
+   The TEST-reset SMTP snapshot gate needs no change to its own logic (§1.3), but re-run it once on TEST to
+   confirm that in practice, alongside the generalized snapshot from §4.1a.
+7. **Backfill and close the audit gap.** Run the rewrap job over existing rows (counts, idempotent, resumable) —
+   note its effect on the materialization fingerprint (§1.5 item 5). In the same change, extend audit redaction
+   to `web_push_vapid`, `booking_payment_providers` and `saas_billing_payment_provider`, and **derive both
+   redaction sets from the registry** instead of the hand-maintained lists — a hand list is what produced this
+   gap twice already (2026-07-27 and 2026-07-28, per the module's own comments).
+8. **Proof that a dump without the KEK reveals nothing** — obtained without creating any database, as
    `AGENTS.md` §1b.3a requires:
    a. `SELECT key, scope, organization_id, value_json FROM public.system_settings WHERE key = ANY(<the 25 keys>)` on
       DEV shows every secret field as `bcbset.v1.…`, and the row count matches the number of configured keys;
@@ -390,8 +523,13 @@ grant and no role.
 
 ## 7. Decisions that genuinely remain
 
-Everything else in this packet is an engineering choice already made against the repository and world practice.
-These five need the owner or an external reviewer.
+Everything else in this packet is an engineering choice already made against the repository and world practice —
+including the fail-closed integrator fix (A1/§5/§6 step 5), the trigger's refuse-on-ciphertext-without-`fp`
+behavior (A3/§3.4/§6 step 4), and the environment-local snapshot/restore that keeps TEST/DEV working after a
+PROD-dump reset (A2/§4.1a/§6 step 6). None of those is offered as a choice between safe and unsafe behavior —
+they ship as part of the implementation, not as an owner gate. What remains below is five decisions that are
+either genuinely about the owner's own custody arrangements or a proportionality call this document cannot make
+for him; each already carries a recommendation, none of them trades security for convenience.
 
 **D1 — Scope of the encrypted set.**
 Encrypt the 25 secret-bearing keys (19 scalar + 6 composite); leave the six public OAuth identifiers in
