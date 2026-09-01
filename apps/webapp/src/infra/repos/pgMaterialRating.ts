@@ -1,4 +1,4 @@
-/** Wave 3 phase 15C — doctor detail TZ aggregates via `runWebappPgText`. */
+/** Doctor detail TZ aggregates. */
 import { and, avg, count, desc, eq, inArray, sql } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import { resolveMaterialRatingTargetVideoMediaIds } from '@/infra/repos/materialRatingTargetVideoMediaIds';

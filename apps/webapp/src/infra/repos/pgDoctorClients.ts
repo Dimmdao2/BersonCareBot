@@ -1,5 +1,6 @@
 /**
- * Wave 3 phase 13C — domain SQL via `runWebappPgText`; canonical helpers still accept `getPool()`.
+ * Domain SQL as typed Drizzle fragments through `runWebappSql`; canonical helpers still accept
+ * `getPool()`.
  */
 import { getPool } from '@/infra/db/client';
 import { getDrizzle } from '@/app-layer/db/drizzle';

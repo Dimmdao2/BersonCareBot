@@ -1,4 +1,3 @@
-/** Wave 3 phase 13B — domain SQL via `runWebappPgText`. */
 import { randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';

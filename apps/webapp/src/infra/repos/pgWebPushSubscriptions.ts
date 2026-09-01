@@ -1,5 +1,5 @@
 /**
- * Wave 3 phase 14D — domain SQL via `runWebappPgText`; Class C TX on `saveSubscription`.
+ * Domain SQL as typed Drizzle fragments; Class C TX on `saveSubscription`.
  */
 import { sql } from 'drizzle-orm';
 import { getCurrentDbPrincipal } from '@bersoncare/db-principal';

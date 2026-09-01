@@ -2,7 +2,7 @@
  * Support communication history repo: projection/backfill writes and shadow reads.
  * Idempotent by integrator_*_id; platform_user_id resolved from platform_users when present.
  *
- * Wave 3 phase 14A — domain SQL via `runWebappPgText` (Drizzle `execute(sql)`); no direct `pool.query`.
+ * Domain SQL as typed Drizzle fragments on `execute(sql)`; no direct `pool.query`.
  */
 
 import { sql } from 'drizzle-orm';

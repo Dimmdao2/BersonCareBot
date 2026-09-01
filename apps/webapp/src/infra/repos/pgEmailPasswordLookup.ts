@@ -1,7 +1,6 @@
 /**
- * Wave 3 phase 15B — domain SQL via `runWebappPgText`; duplicate-email merge via
- * `runWebappTransaction` + `PlatformMergeDbClient`. `getPool()` only for Class C
- * `upsertOpenConflictLog` in `adminAuditLog` (P14C).
+ * Domain SQL as typed Drizzle fragments; duplicate-email merge via `runWebappTransaction` +
+ * `PlatformMergeDbClient`. `getPool()` only for Class C `upsertOpenConflictLog` in `adminAuditLog`.
  */
 import type { QueryResultRow } from 'pg';
 import { sql } from 'drizzle-orm';

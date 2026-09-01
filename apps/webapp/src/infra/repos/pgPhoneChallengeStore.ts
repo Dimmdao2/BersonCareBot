@@ -1,5 +1,5 @@
-/** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
-import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra/db/runWebappSql';
+import { sql } from 'drizzle-orm';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import type { ChannelContext } from '@/modules/auth/channelContext';
 import type {
   PhoneChallengePayload,
@@ -104,9 +104,6 @@ function mergeChannelContextJson(payload: PhoneChallengePayload): string | null 
 export function createPgPhoneChallengeStore(): PhoneChallengeStore {
   return {
     async set(challengeId: string, payload: PhoneChallengePayload): Promise<void> {
-      const query = `SELECT app.phone_challenge_store_upsert(
-           $1::text, $2::text, $3::bigint, $4::text, $5::text, $6::integer
-         ) AS ok`;
       const result = await runWebappNamedRoot<{ ok: boolean }>(
         getWebappSqlDb(),
         'app.phone_challenge_store_upsert(text,text,bigint,text,text,integer)',
@@ -118,22 +115,17 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
           mergeChannelContextJson(payload),
           payload.verifyAttempts ?? 0,
         ],
-        webappSqlFromPgText(query, [
-          challengeId,
-          payload.phone,
-          payload.expiresAt,
-          payload.code ?? null,
-          mergeChannelContextJson(payload),
-          payload.verifyAttempts ?? 0,
-        ]),
+        sql`SELECT app.phone_challenge_store_upsert(
+           ${challengeId}::text, ${payload.phone}::text, ${payload.expiresAt}::bigint,
+           ${payload.code ?? null}::text, ${mergeChannelContextJson(payload)}::text,
+           ${payload.verifyAttempts ?? 0}::integer
+         ) AS ok`,
       );
       if (result.rows[0]?.ok !== true) {
         throw new Error('Phone challenge could not be stored');
       }
     },
     async get(challengeId: string): Promise<PhoneChallengePayload | null> {
-      const query = `SELECT phone, expires_at, code, channel_context, verify_attempts
-         FROM app.phone_challenge_store_read($1::text)`;
       const r = await runWebappNamedRoot<{
         phone: string;
         expires_at: number | string;
@@ -144,7 +136,8 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
         getWebappSqlDb(),
         'app.phone_challenge_store_read(text)',
         [challengeId],
-        webappSqlFromPgText(query, [challengeId]),
+        sql`SELECT phone, expires_at, code, channel_context, verify_attempts
+         FROM app.phone_challenge_store_read(${challengeId}::text)`,
       );
       if (r.rows.length === 0) return null;
       const row = r.rows[0]!;
@@ -169,21 +162,19 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       };
     },
     async delete(challengeId: string): Promise<void> {
-      const query = 'SELECT app.phone_challenge_store_delete($1::text)';
       await runWebappNamedRoot(
         getWebappSqlDb(),
         'app.phone_challenge_store_delete(text)',
         [challengeId],
-        webappSqlFromPgText(query, [challengeId]),
+        sql`SELECT app.phone_challenge_store_delete(${challengeId}::text)`,
       );
     },
     async deleteByPhone(phone: string): Promise<void> {
-      const query = 'SELECT app.phone_challenge_store_delete_by_phone($1::text)';
       await runWebappNamedRoot(
         getWebappSqlDb(),
         'app.phone_challenge_store_delete_by_phone(text)',
         [phone],
-        webappSqlFromPgText(query, [phone]),
+        sql`SELECT app.phone_challenge_store_delete_by_phone(${phone}::text)`,
       );
     },
     async incrementVerifyAttempts(challengeId: string): Promise<number | null> {
@@ -195,14 +186,13 @@ export function createPgPhoneChallengeStore(): PhoneChallengeStore {
       // only ever needs the relative increment itself. `expires_at > now` guards against
       // incrementing a row that is expired but not yet reaped by a concurrent `get()`.
       const now = Math.floor(Date.now() / 1000);
-      const query = `SELECT app.phone_challenge_store_increment_attempts(
-           $1::text, $2::bigint
-         ) AS verify_attempts`;
       const r = await runWebappNamedRoot<{ verify_attempts: number | string }>(
         getWebappSqlDb(),
         'app.phone_challenge_store_increment_attempts(text,bigint)',
         [challengeId, now],
-        webappSqlFromPgText(query, [challengeId, now]),
+        sql`SELECT app.phone_challenge_store_increment_attempts(
+           ${challengeId}::text, ${now}::bigint
+         ) AS verify_attempts`,
       );
       const row = r.rows[0];
       return row ? Number(row.verify_attempts) : null;

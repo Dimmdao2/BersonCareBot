@@ -50,16 +50,22 @@ export async function startEmailChallengeInDb(params: {
   code: string;
   mailProfile: MailProfileRequest;
 }): Promise<{ challengeId: string | null; retryAfterSeconds: number }> {
-  const profileArgs =
+  const profile =
     params.mailProfile.kind === 'platform'
-      ? [params.mailProfile.kind, params.mailProfile.senderDisplayName, null, null, null]
-      : [
-          params.mailProfile.kind,
-          null,
-          params.mailProfile.organizationId,
-          params.mailProfile.clinicName,
-          params.mailProfile.platformName,
-        ];
+      ? {
+          kind: params.mailProfile.kind,
+          senderDisplayName: params.mailProfile.senderDisplayName,
+          organizationId: null,
+          clinicName: null,
+          platformName: null,
+        }
+      : {
+          kind: params.mailProfile.kind,
+          senderDisplayName: null,
+          organizationId: params.mailProfile.organizationId,
+          clinicName: params.mailProfile.clinicName,
+          platformName: params.mailProfile.platformName,
+        };
   const args = [
     params.userId,
     params.email,
@@ -67,10 +73,12 @@ export async function startEmailChallengeInDb(params: {
     params.expiresAt,
     params.purpose,
     params.code,
-    ...profileArgs,
+    profile.kind,
+    profile.senderDisplayName,
+    profile.organizationId,
+    profile.clinicName,
+    profile.platformName,
   ];
-  const query = `SELECT challenge_id::text, retry_after_seconds
-    FROM app.email_auth_start_challenge($1::uuid, $2, $3, $4::bigint, $5, $6, $7, $8, $9::uuid, $10, $11)`;
   const result = await runWebappNamedRoot<{
     challenge_id: string | null;
     retry_after_seconds: number | string;
@@ -78,7 +86,8 @@ export async function startEmailChallengeInDb(params: {
     getWebappSqlDb(),
     'app.email_auth_start_challenge(uuid,text,text,bigint,text,text,text,text,uuid,text,text)',
     args,
-    webappSqlFromPgText(query, args),
+    sql`SELECT challenge_id::text, retry_after_seconds
+    FROM app.email_auth_start_challenge(${params.userId}::uuid, ${params.email}, ${params.codeHash}, ${params.expiresAt}::bigint, ${params.purpose}, ${params.code}, ${profile.kind}, ${profile.senderDisplayName}, ${profile.organizationId}::uuid, ${profile.clinicName}, ${profile.platformName})`,
   );
   const row = result.rows[0];
   if (!row) throw new Error('email_auth_start_challenge_empty_result');
@@ -124,9 +133,7 @@ export async function deleteEmailChallengesForUser(userId: string): Promise<void
     getWebappSqlDb(),
     'app.email_auth_delete_email_challenges_for_user(uuid)',
     [userId],
-    webappSqlFromPgText('SELECT app.email_auth_delete_email_challenges_for_user($1::uuid)', [
-      userId,
-    ]),
+    sql`SELECT app.email_auth_delete_email_challenges_for_user(${userId}::uuid)`,
   );
 }
 
@@ -183,13 +190,12 @@ export async function findEmailChallengeForConfirm(
   challengeId: string,
   userId: string,
 ): Promise<EmailChallengeRow | null> {
-  const query = `SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
-     FROM app.email_auth_find_email_challenge_for_confirm($1::uuid, $2::uuid)`;
   const row = await runWebappNamedRoot<EmailChallengeRow>(
     getWebappSqlDb(),
     'app.email_auth_find_email_challenge_for_confirm(uuid,uuid)',
     [challengeId, userId],
-    webappSqlFromPgText(query, [challengeId, userId]),
+    sql`SELECT id::text, email, code_hash, expires_at::text, attempts::text, purpose
+     FROM app.email_auth_find_email_challenge_for_confirm(${challengeId}::uuid, ${userId}::uuid)`,
   );
   return row.rows[0] ?? null;
 }
@@ -207,10 +213,7 @@ export async function incrementEmailChallengeAttempts(challengeId: string): Prom
     getWebappSqlDb(),
     'app.email_auth_increment_email_challenge_attempts(uuid)',
     [challengeId],
-    webappSqlFromPgText(
-      'SELECT attempts FROM app.email_auth_increment_email_challenge_attempts($1::uuid)',
-      [challengeId],
-    ),
+    sql`SELECT attempts FROM app.email_auth_increment_email_challenge_attempts(${challengeId}::uuid)`,
   );
   const row = r.rows[0];
   return row ? Number(row.attempts) : null;
@@ -221,10 +224,7 @@ export async function findEmailOwnerConflict(userId: string, email: string): Pro
     getWebappSqlDb(),
     'app.email_auth_find_email_owner_conflict(uuid,text)',
     [userId, email],
-    webappSqlFromPgText(
-      'SELECT app.email_auth_find_email_owner_conflict($1::uuid, $2) AS conflict',
-      [userId, email],
-    ),
+    sql`SELECT app.email_auth_find_email_owner_conflict(${userId}::uuid, ${email}) AS conflict`,
   );
   return Boolean(conflict.rows[0]?.conflict);
 }
@@ -249,7 +249,7 @@ export async function verifyUserEmail(userId: string, email: string): Promise<vo
     getWebappSqlDb(),
     'app.email_auth_verify_user_email(uuid,text)',
     [userId, email],
-    webappSqlFromPgText('SELECT app.email_auth_verify_user_email($1::uuid, $2)', [userId, email]),
+    sql`SELECT app.email_auth_verify_user_email(${userId}::uuid, ${email})`,
   );
 }
 
@@ -376,12 +376,11 @@ export async function findLatestPendingEmailChallengeForUser(
 export async function findEmailOtpLock(
   userId: string,
 ): Promise<{ locked_until: string | number } | null> {
-  const query = 'SELECT locked_until FROM app.email_auth_find_email_otp_lock($1::uuid)';
   const row = await runWebappNamedRoot<{ locked_until: string | number }>(
     getWebappSqlDb(),
     'app.email_auth_find_email_otp_lock(uuid)',
     [userId],
-    webappSqlFromPgText(query, [userId]),
+    sql`SELECT locked_until FROM app.email_auth_find_email_otp_lock(${userId}::uuid)`,
   );
   return row.rows[0] ?? null;
 }
@@ -392,24 +391,22 @@ export async function findEmailOtpLock(
  * inside a single `INSERT ... ON CONFLICT DO UPDATE` -- see that function's comment for the formula.
  */
 export async function registerEmailOtpLockout(userId: string): Promise<number> {
-  const query = 'SELECT locked_until FROM app.email_auth_register_email_otp_lockout($1::uuid)';
   const r = await runWebappNamedRoot<{ locked_until: string | number }>(
     getWebappSqlDb(),
     'app.email_auth_register_email_otp_lockout(uuid)',
     [userId],
-    webappSqlFromPgText(query, [userId]),
+    sql`SELECT locked_until FROM app.email_auth_register_email_otp_lockout(${userId}::uuid)`,
   );
   return Number(r.rows[0]!.locked_until);
 }
 
 /** NIST SP 800-63B §5.2.2: disregard previous failed attempts after a successful verification. */
 export async function resetEmailOtpLockout(userId: string): Promise<void> {
-  const query = 'SELECT app.email_auth_reset_email_otp_lockout($1::uuid)';
   await runWebappNamedRoot(
     getWebappSqlDb(),
     'app.email_auth_reset_email_otp_lockout(uuid)',
     [userId],
-    webappSqlFromPgText(query, [userId]),
+    sql`SELECT app.email_auth_reset_email_otp_lockout(${userId}::uuid)`,
   );
 }
 

@@ -10,7 +10,6 @@ import { withPoolTransaction } from '@/infra/db/withClient';
 import type { DoctorMotivationQuotesEditorPort } from '@/modules/doctor-motivation-quotes/ports';
 import { motivationalQuotes } from '../../../db/schema';
 
-/** Wave 3 phase 13D — list via Drizzle; writes via `runWebappPgText`. */
 export function createPgDoctorMotivationQuotesEditorPort(): DoctorMotivationQuotesEditorPort {
   return {
     async listQuotesForEditor() {

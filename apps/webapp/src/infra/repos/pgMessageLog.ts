@@ -1,6 +1,6 @@
 import { sql, type SQL } from 'drizzle-orm';
 /**
- * Wave 3 phase 14D — domain SQL via `runWebappPgText` (Class B dynamic filters in `buildWhere`).
+ * Domain SQL as typed Drizzle fragments (dynamic filters composed in `buildWhere`).
  */
 import { getWebappSqlDb, runWebappSql } from '@/infra/db/runWebappSql';
 import { platformUserMatchSql } from '@/infra/repos/platformUserMatchSql';

@@ -1,4 +1,4 @@
-/** Wave 3 phase 15C — list preview / usage summary SQL via `runWebappPgText`. */
+/** List preview / usage summary SQL. */
 import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import { getDrizzle } from '@/app-layer/db/drizzle';

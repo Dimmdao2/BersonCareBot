@@ -12,7 +12,6 @@ import {
   getWebappSqlFromPgClient,
   runWebappNamedRoot,
   runWebappSql,
-  webappSqlFromPgText,
 } from '@/infra/db/runWebappSql';
 import { FIO, USER_IDENTITY_FIO_JOIN } from '@/infra/repos/userIdentityFioSql';
 import { withPoolTransaction } from '@/infra/db/withClient';
@@ -116,11 +115,7 @@ export async function writePlatformAuditLog(entry: AuditLogWriteEntry): Promise<
     getWebappSqlDb(),
     'app.append_platform_audit_event(text,text,text)',
     [entry.action, detailsJson, status],
-    webappSqlFromPgText('SELECT app.append_platform_audit_event($1::text,$2::text,$3::text)', [
-      entry.action,
-      detailsJson,
-      status,
-    ]),
+    sql`SELECT app.append_platform_audit_event(${entry.action}::text,${detailsJson}::text,${status}::text)`,
   );
 }
 
@@ -538,9 +533,7 @@ export async function resolveAdminAuditConflictById(
       getWebappSqlDb(),
       'app.resolve_platform_audit_conflict(uuid)',
       [trimmed],
-      webappSqlFromPgText('SELECT app.resolve_platform_audit_conflict($1::uuid) AS result', [
-        trimmed,
-      ]),
+      sql`SELECT app.resolve_platform_audit_conflict(${trimmed}::uuid) AS result`,
     );
     const platformResult = result.rows[0]?.result;
     if (platformResult === 'updated') return { ok: true, updated: true };

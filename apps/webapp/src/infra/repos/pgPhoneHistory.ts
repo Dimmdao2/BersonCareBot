@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-/** Wave 3 phase 15C — TX-scoped SQL via `runWebappPgText` on caller `PoolClient`. */
+/** TX-scoped SQL on the caller's `PoolClient`. */
 import { getCurrentDbPrincipalOrganizationId } from '@bersoncare/db-principal';
 import type { Pool, PoolClient } from 'pg';
 import { getWebappSqlFromPgClient, runWebappSql } from '@/infra/db/runWebappSql';

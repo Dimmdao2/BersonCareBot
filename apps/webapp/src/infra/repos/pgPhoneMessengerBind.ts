@@ -4,7 +4,7 @@ import type { Pool, QueryResultRow } from 'pg';
  * Domain SQL — `runIdentityClientSql` / `runIdentityPoolSqlOnPool`.
  */
 import { getPool } from '@/infra/db/client';
-import { getWebappSqlDb, runWebappNamedRoot, webappSqlFromPgText } from '@/infra/db/runWebappSql';
+import { getWebappSqlDb, runWebappNamedRoot } from '@/infra/db/runWebappSql';
 import { channelToBindingKey } from '@/modules/auth/channelContext';
 import type {
   PhoneMessengerBindChannel,
@@ -46,25 +46,11 @@ async function runPhoneMessengerBindSecretRoot<T extends QueryResultRow = QueryR
   return runWebappNamedRoot<T>(
     getWebappSqlDb(),
     'app.phone_messenger_bind_secret(text,text,uuid,text,text,text,uuid,text,text,timestamp with time zone)',
-    [
-      action,
-      tokenHash,
-      secretId,
-      phoneNormalized,
-      channelCode,
-      purpose,
-      userId,
-      challengeId,
-      failureCode,
-      expiresAtIso,
-    ],
-    webappSqlFromPgText(
-      `SELECT * FROM app.phone_messenger_bind_secret(
-        $1::text, $2::text, $3::uuid, $4::text, $5::text,
-        $6::text, $7::uuid, $8::text, $9::text, $10::timestamptz
+    args,
+    sql`SELECT * FROM app.phone_messenger_bind_secret(
+        ${action}::text, ${tokenHash}::text, ${secretId}::uuid, ${phoneNormalized}::text, ${channelCode}::text,
+        ${purpose}::text, ${userId}::uuid, ${challengeId}::text, ${failureCode}::text, ${expiresAtIso}::timestamptz
       )`,
-      args,
-    ),
   );
 }
 
@@ -90,11 +76,8 @@ async function runPhoneMessengerBindCompletionStateRoot(params: {
   return runWebappNamedRoot<PhoneMessengerBindCompletionStateRow>(
     getWebappSqlDb(),
     'app.phone_messenger_bind_completion_state(text,text,text,text)',
-    [params.tokenHash, params.channelCode, params.externalId, params.contactPhoneNormalized],
-    webappSqlFromPgText(
-      `SELECT * FROM app.phone_messenger_bind_completion_state($1::text, $2::text, $3::text, $4::text)`,
-      args,
-    ),
+    args,
+    sql`SELECT * FROM app.phone_messenger_bind_completion_state(${params.tokenHash}::text, ${params.channelCode}::text, ${params.externalId}::text, ${params.contactPhoneNormalized}::text)`,
   );
 }
 
@@ -108,10 +91,7 @@ async function runPhoneMessengerBindClaimRoot(params: {
     getWebappSqlDb(),
     'app.phone_messenger_bind_claim(text,text,text)',
     args,
-    webappSqlFromPgText(
-      'SELECT app.phone_messenger_bind_claim($1::text, $2::text, $3::text) AS code',
-      args,
-    ),
+    sql`SELECT app.phone_messenger_bind_claim(${params.tokenHash}::text, ${params.channelCode}::text, ${params.externalId}::text) AS code`,
   );
 }
 
@@ -125,10 +105,7 @@ async function runPhoneMessengerBindClaimedSecretRoot(params: {
     getWebappSqlDb(),
     'app.phone_messenger_bind_claimed_secret(text,text,text)',
     args,
-    webappSqlFromPgText(
-      'SELECT * FROM app.phone_messenger_bind_claimed_secret($1::text, $2::text, $3::text)',
-      args,
-    ),
+    sql`SELECT * FROM app.phone_messenger_bind_claimed_secret(${params.tokenHash ?? null}::text, ${params.channelCode}::text, ${params.externalId}::text)`,
   );
 }
 

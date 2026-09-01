@@ -1,4 +1,3 @@
-/** Wave 3 phase 15B — domain SQL via `runWebappPgText`. */
 import { sql } from 'drizzle-orm';
 import { getWebappSqlDb, runWebappNamedRoot, runWebappSql } from '@/infra/db/runWebappSql';
 import type { OauthProvider, OAuthBindingsPort } from '@/modules/auth/oauthBindingsPort';
