@@ -259,7 +259,7 @@ function periodLabel(view: CalV26View, anchorDate: string, zone: string): string
     return anchor.setLocale('ru').toFormat('cccc, d LLLL yyyy');
   }
   if (view === 'month') {
-    return anchor.setLocale('ru').toFormat('LLLL yyyy');
+    return capitalizeRussianLabel(anchor.setLocale('ru').toFormat('LLLL yyyy'));
   }
   if (view === '3days') {
     const start = anchor.startOf('day');
@@ -281,7 +281,13 @@ function periodLabel(view: CalV26View, anchorDate: string, zone: string): string
 }
 
 function mobilePeriodLabel(anchorDate: string, zone: string): string {
-  return DateTime.fromISO(anchorDate, { zone }).setLocale('ru').toFormat('LLLL yyyy');
+  return capitalizeRussianLabel(
+    DateTime.fromISO(anchorDate, { zone }).setLocale('ru').toFormat('LLLL yyyy'),
+  );
+}
+
+function capitalizeRussianLabel(label: string): string {
+  return label ? `${label[0]?.toLocaleUpperCase('ru')}${label.slice(1)}` : label;
 }
 
 // ---------------------------------------------------------------------------
@@ -459,6 +465,8 @@ type ListDayCardProps = {
   timeZone: string;
   onSelect: (appt: CalendarAppointmentEvent) => void;
   nextApptId?: string;
+  branchShortLabels: ReadonlyMap<string, string>;
+  showSpecialist: boolean;
 };
 
 // R29: фон строки списка повторяет статусную палитру календаря (eventClassName);
@@ -483,6 +491,8 @@ function ListDayCard({
   timeZone,
   onSelect,
   nextApptId,
+  branchShortLabels,
+  showSpecialist,
 }: ListDayCardProps) {
   return (
     <div
@@ -498,6 +508,9 @@ function ListDayCard({
           const end = parseFeedInstant(appt.endAt, timeZone).toFormat('HH:mm');
           const cancelled = isCancelledAppointmentStatus(appt.status);
           const isNext = appt.id === nextApptId;
+          const branchLabel = appt.branchId
+            ? (branchShortLabels.get(appt.branchId) ?? appt.branchTitle)
+            : appt.branchTitle;
           return (
             <Button
               key={appt.id}
@@ -511,18 +524,28 @@ function ListDayCard({
               )}
               data-testid={`list-appt-${appt.id}`}
             >
-              <span className="shrink-0 font-semibold tabular-nums">
-                {start}–{end}
+              <span className="flex w-16 shrink-0 flex-col gap-0.5 overflow-hidden text-xs">
+                <span className="font-semibold tabular-nums">
+                  {start}–{end}
+                </span>
+                {branchLabel ? (
+                  <span className="truncate text-muted-foreground" title={appt.branchTitle ?? undefined}>
+                    {branchLabel}
+                  </span>
+                ) : null}
               </span>
               <span className="min-w-0 flex-1">
                 <span className={cn('block truncate', cancelled && 'line-through')}>
                   {appt.patientName ?? 'Запись'}
                 </span>
                 <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                  <span className={cancelled ? 'font-medium text-destructive' : undefined}>
-                    {appointmentStatusLabel(appt.status)}
-                  </span>
-                  {appt.branchTitle ? <span className="truncate">{appt.branchTitle}</span> : null}
+                  {cancelled ? (
+                    <span className="font-medium text-destructive">{appointmentStatusLabel(appt.status)}</span>
+                  ) : null}
+                  {showSpecialist && appt.specialistName ? (
+                    <span className="truncate">{appt.specialistName}</span>
+                  ) : null}
+                  {appt.serviceTitle ? <span className="truncate">{appt.serviceTitle}</span> : null}
                   {appt.packageUsageRef || appt.packageTitle ? (
                     <span
                       className="rounded-md border border-violet-500/30 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-violet-900"
@@ -558,6 +581,8 @@ type ListViewProps = {
   onLoadEarlier: () => void;
   onLoadLater: () => void;
   onSelect: (appt: CalendarAppointmentEvent) => void;
+  branchShortLabels: ReadonlyMap<string, string>;
+  showSpecialist: boolean;
 };
 
 function ListView({
@@ -572,6 +597,8 @@ function ListView({
   onLoadEarlier,
   onLoadLater,
   onSelect,
+  branchShortLabels,
+  showSpecialist,
 }: ListViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const anchorMarkerRef = useRef<HTMLDivElement>(null);
@@ -602,7 +629,7 @@ function ListView({
           dateKey,
           label: day.toFormat('cccc, d LLLL'),
           monthKey: day.toFormat('yyyy-MM'),
-          monthLabel: day.toFormat('LLLL yyyy'),
+          monthLabel: capitalizeRussianLabel(day.toFormat('LLLL yyyy')),
           appointments: items.sort((a, b) => {
             const ac = isCancelledAppointmentStatus(a.status) ? 1 : 0;
             const bc = isCancelledAppointmentStatus(b.status) ? 1 : 0;
@@ -725,6 +752,8 @@ function ListView({
                 timeZone={timeZone}
                 onSelect={onSelect}
                 nextApptId={nextApptId}
+                branchShortLabels={branchShortLabels}
+                showSpecialist={showSpecialist}
               />
             </Fragment>
           ))}
@@ -2081,6 +2110,13 @@ export function ScheduleCalendarTab({
     serverSearchQuery,
     showCancelledAppointments,
   ]);
+  const branchShortLabels = useMemo(
+    () =>
+      new Map(
+        filters.branches.map((branch) => [branch.id, branch.shortLabel ?? branch.label] as const),
+      ),
+    [filters.branches],
+  );
 
   // KPI modal: predicate map + filtered items.
   // firstVisitInPeriod / repeatVisitInPeriod use the id-set returned by the API
@@ -2578,6 +2614,8 @@ export function ScheduleCalendarTab({
                 setShowCreatePanel(false);
                 onDeepLinkChange('appt', appt.id);
               }}
+              branchShortLabels={branchShortLabels}
+              showSpecialist={filters.specialists.length > 1}
             />
           ) : (
             // FullCalendar
