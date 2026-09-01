@@ -64,6 +64,42 @@ function formatSupportStartedAt(value: string): string {
   });
 }
 
+function formatSupportDuration(value: string, now = new Date()): string | null {
+  const startedAt = new Date(value);
+  if (Number.isNaN(startedAt.getTime()) || startedAt > now) return null;
+
+  const addMonthsClamped = (base: Date, count: number) => {
+    const targetYear = base.getFullYear() + Math.floor((base.getMonth() + count) / 12);
+    const targetMonth = ((base.getMonth() + count) % 12 + 12) % 12;
+    const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+    return new Date(targetYear, targetMonth, Math.min(base.getDate(), lastDay));
+  };
+
+  let months =
+    (now.getFullYear() - startedAt.getFullYear()) * 12 + now.getMonth() - startedAt.getMonth();
+  let monthAnchor = addMonthsClamped(startedAt, months);
+  if (monthAnchor > now) {
+    months -= 1;
+    monthAnchor = addMonthsClamped(startedAt, months);
+  }
+
+  const startOfAnchor = new Date(
+    monthAnchor.getFullYear(),
+    monthAnchor.getMonth(),
+    monthAnchor.getDate(),
+  );
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.max(0, Math.floor((startOfToday.getTime() - startOfAnchor.getTime()) / 86_400_000));
+  const dayLabel =
+    days % 10 === 1 && days % 100 !== 11
+      ? 'день'
+      : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14)
+        ? 'дня'
+        : 'дней';
+
+  return `${months} мес. ${days} ${dayLabel}`;
+}
+
 function PatientTabPanelLoading() {
   return (
     <div className={cn(doctorSectionCardClass, 'gap-3')} aria-busy="true">
@@ -439,6 +475,7 @@ export function PatientCardClient({
 
   const { identity, support } = header;
   const supportStartedAt = support.startedAt ?? shellMeta.currentProgramStartedAt;
+  const supportDuration = supportStartedAt ? formatSupportDuration(supportStartedAt) : null;
 
   // Resolved FIO: local override wins over server data
   const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
@@ -541,16 +578,6 @@ export function PatientCardClient({
           <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
             {/* LEFT: identity */}
             <div className="flex-1 min-w-0 flex flex-col gap-0">
-              {/* Support date above the complete patient name. */}
-              {support.isOnSupport ? (
-                <div className="mb-1.5">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                    ★ На сопровождении с{' '}
-                    {supportStartedAt ? formatSupportStartedAt(supportStartedAt) : '—'}
-                  </span>
-                </div>
-              ) : null}
-
               {/* FIO (primary) + edit button */}
               <div className="flex items-start gap-2 flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
@@ -656,6 +683,20 @@ export function PatientCardClient({
                   Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : '—'}
                 </span>
               </div>
+
+              {support.isOnSupport ? (
+                <div className="mt-2">
+                  <span className="inline-flex flex-wrap items-center gap-x-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    <span>
+                      ★ На сопровождении с{' '}
+                      {supportStartedAt ? formatSupportStartedAt(supportStartedAt) : '—'}
+                    </span>
+                    {supportDuration ? (
+                      <span className="font-normal text-primary/70">{supportDuration}</span>
+                    ) : null}
+                  </span>
+                </div>
+              ) : null}
 
               <PatientPortalInviteControls
                 patientUserId={identity.userId}

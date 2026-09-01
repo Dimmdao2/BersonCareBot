@@ -3,8 +3,8 @@
 /**
  * PatientTabOverview — Wave 4: «Обзор» tab wired to real backend.
  * Two columns 50/50 from `md:` up, single column below (mobile-width fix 2026-08-20):
- *   LEFT  — KPIs · Сигналы · Актуальные симптомы · Динамика симптомов · Выполнение упражнений
- *   RIGHT — Заметки · Задачи · Программа и комментарии · Сообщения
+ *   LEFT  — KPIs · Сигналы · Актуальные симптомы · Динамика симптомов
+ *   RIGHT — Заметки · Задачи · Программа ЛФК · Сообщения
  *
  * All widgets fetch independently; each degrades gracefully on error/empty.
  * Parallel fetches via Promise.all — no waterfall.
@@ -12,6 +12,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { PatientCardHeader, PatientAppointmentItem } from '@/modules/doctor-clients/ports';
 import { DoctorClientSupportPanel } from '@/app/app/doctor/clients/DoctorClientSupportPanel';
@@ -45,7 +46,6 @@ import {
   doctorMetaTextClass,
   doctorSectionCardClass,
   doctorSectionTitleClass,
-  doctorSectionSubtitleClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
@@ -61,6 +61,7 @@ import {
   doctorDnaFlatListRowClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { SpecialistTaskFormDialog } from '@/app/app/doctor/clients/SpecialistTaskFormDialog';
+import { isSpecialistTaskOverdue } from '@/modules/specialist-tasks/taskPriority';
 
 // ---------------------------------------------------------------------------
 // Backend response types
@@ -844,13 +845,12 @@ export function PatientTabOverview({
   const isComposed = compositionMode != null;
   const isOverviewComposition = compositionMode === 'overview';
   const seededExerciseCalendar = unwrapBootstrapEnvelope(initialExerciseCalendarSnapshot);
-  const [calView, setCalView] = useState<'month' | 'week'>('month');
   const initialCalParts = seededExerciseCalendar
     ? monthPartsFromIsoDate(seededExerciseCalendar.from)
     : monthPartsFromIsoDate(new Date().toISOString().slice(0, 10));
   const [calYear, setCalYear] = useState(initialCalParts.year);
   const [calMonth, setCalMonth] = useState(initialCalParts.month);
-  const [programStageOffset, setProgramStageOffset] = useState(0);
+  const calendarSwipeStartXRef = useRef<number | null>(null);
   const [data, setData] = useState<OverviewData | null>(() => {
     if (
       initialClinicalState != null &&
@@ -1412,9 +1412,6 @@ export function PatientTabOverview({
     setEditingTask(null);
   }
 
-  // Compute calendar grid from real data — pass the currently viewed month
-  const calendarGrid = buildCalendarGrid(data?.calendarDays ?? [], calYear, calMonth);
-
   // Calendar month nav helpers
   const nowCal = new Date();
   const isCalCurrentMonth = calYear === nowCal.getFullYear() && calMonth === nowCal.getMonth() + 1;
@@ -1435,22 +1432,128 @@ export function PatientTabOverview({
     setCalMonth(m);
   }
 
-  // Program stage to display (offset from current stage)
-  const displayStageIndex = data
-    ? Math.max(
-        0,
-        Math.min(data.programCurrentStageIndex + programStageOffset, data.programStages.length - 1),
-      )
-    : 0;
-  const displayStage = data?.programStages[displayStageIndex] ?? null;
+  const displayStageIndex = data?.programCurrentStageIndex ?? 0;
+  const displayStage = data?.programCurrentStage ?? null;
   const programControlDate = displayStage
     ? expectedStageControlDateIso({
         startedAt: displayStage.startedAt ?? null,
         expectedDurationDays: displayStage.expectedDurationDays ?? null,
       })
     : null;
-  const maxStageOffset = data ? data.programStages.length - 1 - data.programCurrentStageIndex : 0;
-  const minStageOffset = data ? -data.programCurrentStageIndex : 0;
+  const hasActiveAssignments = (displayStage?.items.length ?? 0) > 0;
+  const calendarGrid = buildCalendarGrid(
+    data?.calendarDays ?? [],
+    calYear,
+    calMonth,
+    hasActiveAssignments,
+  );
+  const tasksNeedAttention =
+    data?.tasks.some((task) => {
+      if (isSpecialistTaskOverdue(task)) return true;
+      if (!task.dueAt) return false;
+      const dueAt = new Date(task.dueAt);
+      const today = new Date();
+      return (
+        dueAt.getFullYear() === today.getFullYear() &&
+        dueAt.getMonth() === today.getMonth() &&
+        dueAt.getDate() === today.getDate()
+      );
+    }) ?? false;
+
+  function handleCalendarTouchEnd(clientX: number) {
+    const startX = calendarSwipeStartXRef.current;
+    calendarSwipeStartXRef.current = null;
+    if (startX == null) return;
+    const delta = clientX - startX;
+    if (Math.abs(delta) < 48) return;
+    if (delta > 0) navigateCalMonth(-1);
+    if (delta < 0 && !isCalCurrentMonth) navigateCalMonth(1);
+  }
+
+  const exerciseCalendar = (
+    <div
+      className="mt-3 border-t border-border/60 pt-3"
+      onTouchStart={(event) => {
+        calendarSwipeStartXRef.current = event.touches[0]?.clientX ?? null;
+      }}
+      onTouchEnd={(event) => handleCalendarTouchEnd(event.changedTouches[0]?.clientX ?? 0)}
+    >
+      <div className="mb-1.5 flex items-center gap-1.5" data-testid="cal-month-nav">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label="Предыдущий месяц"
+          data-testid="cal-month-prev"
+          onClick={() => navigateCalMonth(-1)}
+          className="size-7 p-0 text-muted-foreground"
+        >
+          <ChevronLeft className="size-4" />
+        </Button>
+        <span
+          className="flex-1 text-center text-xs font-medium capitalize text-foreground"
+          data-testid="cal-month-label"
+        >
+          {monthLabelFor(calYear, calMonth)}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label="Следующий месяц"
+          data-testid="cal-month-next"
+          onClick={() => navigateCalMonth(1)}
+          disabled={isCalCurrentMonth}
+          className="size-7 p-0 text-muted-foreground disabled:opacity-30"
+        >
+          <ChevronRight className="size-4" />
+        </Button>
+      </div>
+
+      {isLoading || data?.calendarStatus === 'loading' ? (
+        <p className="animate-pulse py-2 text-xs text-muted-foreground">Загрузка календаря…</p>
+      ) : null}
+      {!isLoading && data?.calendarStatus === 'error' ? (
+        <p className="py-2 text-xs text-muted-foreground">Данные о выполнении недоступны.</p>
+      ) : null}
+      {!isLoading && data?.calendarStatus === 'ok' ? (
+        <>
+          <div className="mb-0.5 grid grid-cols-7 gap-0.5">
+            {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map((day) => (
+              <div
+                key={day}
+                className="flex h-4 items-center justify-center text-[10px] uppercase text-muted-foreground/70"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-0.5">
+            {Array.from({ length: calendarGrid.firstDOW }).map((_, index) => (
+              <div key={`blank-${index}`} />
+            ))}
+            {calendarGrid.days.map((day) => (
+              <CalendarCell key={day.day} day={day} />
+            ))}
+          </div>
+          <div className="mt-1.5 flex flex-wrap gap-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1">
+              <span className="size-2.5 rounded-sm bg-primary" />
+              Полностью
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="size-2.5 rounded-sm bg-[hsl(215_45%_76%)]" />
+              Частично
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="size-2.5 rounded-sm border border-border bg-background" />
+              Не выполнено
+            </span>
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
 
   // Message unread count
   const totalMessageUnread = data?.unreadFromUserCount ?? 0;
@@ -1593,18 +1696,19 @@ export function PatientTabOverview({
         </div>
 
         {/* Динамика симптомов */}
-        <div
-          className={cn(
-            doctorSectionCardClass,
-            compositionMode === 'right-pane' && 'order-3',
-            isOverviewComposition && 'order-2 col-span-2',
-          )}
-        >
+        {isLoading || data?.symptomSeries.some((series) => series.points.length >= 2) ? (
+          <div
+            className={cn(
+              doctorSectionCardClass,
+              compositionMode === 'right-pane' && 'order-3',
+              isOverviewComposition && 'order-2 col-span-2',
+            )}
+          >
           <div className="flex items-center justify-between flex-wrap gap-1.5 mb-1">
             <span className={doctorSectionTitleClass}>Динамика симптомов</span>
             {!isLoading && data?.symptomSeries && data.symptomSeries.length > 0 && (
               <span className="flex gap-2.5 items-center">
-                {data.symptomSeries.map((s) => (
+                {data.symptomSeries.filter((series) => series.points.length >= 2).map((s) => (
                   <span
                     key={s.name}
                     className="flex items-center gap-1 text-xs text-muted-foreground"
@@ -1623,175 +1727,26 @@ export function PatientTabOverview({
             <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка данных…</p>
           )}
           {!isLoading &&
-            (data?.clinicalStatus === 'empty' ||
-              data?.symptomSeries?.every((s) => s.points.length < 2)) && (
-              <p className="text-xs text-muted-foreground py-2">Недостаточно данных для графика.</p>
-            )}
-          {!isLoading &&
             data?.symptomSeries &&
             data.symptomSeries.some((s) => s.points.length >= 2) && (
               <SymptomChart series={data.symptomSeries} />
             )}
-        </div>
-
-        {/* Выполнение упражнений */}
-        <div
-          className={cn(
-            doctorSectionCardClass,
-            compositionMode === 'right-pane' && 'order-5',
-            isOverviewComposition && 'order-4 col-span-2',
-          )}
-        >
-          <div className="flex items-start justify-between gap-2 flex-wrap mb-1">
-            <div>
-              <span className={doctorSectionTitleClass}>Выполнение упражнений</span>
-              {data?.programTitle && (
-                <p className={cn(doctorSectionSubtitleClass, 'mt-0.5')}>{data.programTitle}</p>
-              )}
-            </div>
-            <div className="flex rounded-md border border-border overflow-hidden text-xs font-medium">
-              <Button
-                variant="ghost"
-                onClick={() => setCalView('month')}
-                className={cn(
-                  'h-auto rounded-none px-2.5 py-1',
-                  calView === 'month'
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-muted/50',
-                )}
-              >
-                Месяц
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => setCalView('week')}
-                className={cn(
-                  'h-auto rounded-none border-l border-border px-2.5 py-1',
-                  calView === 'week'
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:bg-muted/50',
-                )}
-              >
-                Неделя
-              </Button>
-            </div>
           </div>
+        ) : null}
 
-          {/* Month navigation row */}
-          <div className="flex items-center gap-1.5 mb-1.5" data-testid="cal-month-nav">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label="Предыдущий месяц"
-              data-testid="cal-month-prev"
-              onClick={() => navigateCalMonth(-1)}
-              className="h-6 w-6 rounded-md border border-border p-0 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
-            >
-              ◀
-            </Button>
-            <span
-              className="flex-1 text-center text-xs font-medium text-foreground capitalize"
-              data-testid="cal-month-label"
-            >
-              {calView === 'month' ? monthLabelFor(calYear, calMonth) : 'текущая неделя'}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              aria-label="Следующий месяц"
-              data-testid="cal-month-next"
-              onClick={() => navigateCalMonth(1)}
-              disabled={isCalCurrentMonth}
-              className="h-6 w-6 rounded-md border border-border p-0 text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
-            >
-              ▶
-            </Button>
-          </div>
-
-          {(isLoading || data?.calendarStatus === 'loading') && (
-            <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка календаря…</p>
-          )}
-          {!isLoading && data?.calendarStatus === 'error' && (
-            <p className="text-xs text-muted-foreground py-2">Данные о выполнении недоступны.</p>
-          )}
-          {!isLoading && data?.calendarStatus === 'ok' && (
-            <>
-              <div className="grid grid-cols-7 gap-0.5 mb-0.5">
-                {['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'].map((d) => (
-                  <div
-                    key={d}
-                    className="h-4 flex items-center justify-center text-[10px] text-muted-foreground/70 uppercase"
-                  >
-                    {d}
-                  </div>
-                ))}
-              </div>
-
-              {calView === 'month' ? (
-                <div className="grid grid-cols-7 gap-0.5">
-                  {Array.from({ length: calendarGrid.firstDOW }).map((_, i) => (
-                    <div key={`blank-${i}`} />
-                  ))}
-                  {calendarGrid.days.map((d) => (
-                    <CalendarCell key={d.day} day={d} />
-                  ))}
-                </div>
-              ) : (
-                <div className="grid grid-cols-7 gap-0.5">
-                  {calendarGrid.weekDays.map((d) => (
-                    <CalendarCell key={d.day} day={d} />
-                  ))}
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-3 mt-1.5 text-[11px] text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-primary" />
-                  полностью
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-[hsl(215_45%_76%)]" />
-                  частично
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-background border border-border" />
-                  не выполнено
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="w-2.5 h-2.5 rounded-sm bg-muted/40" />
-                  нет назначений
-                </span>
-              </div>
-
-              <p className="text-xs text-foreground mt-2">
-                За месяц: <strong>{data.calendarDays.length}</strong> дн с выполнением
-                {data.calendarDays.length === 0 && ' · нет данных'}
-              </p>
-            </>
-          )}
-        </div>
       </div>
 
       {/* ===== RIGHT COLUMN ===== */}
       <div className={cn(isComposed ? 'contents' : 'flex flex-col gap-2.5')}>
         {/* Заметки */}
         <section className={cn(isComposed && 'order-1')} aria-label="Заметки">
-          <button
-            type="button"
-            className={cn(
-              doctorSectionCardClass,
-              'w-full cursor-pointer flex-row items-baseline justify-start gap-2 text-left transition-colors hover:bg-muted/35',
-            )}
+          <DoctorStatCard
+            id="patient-overview-notes"
+            title="Заметок:"
+            value={data?.notes.length ?? 0}
             onClick={() => setNotesModalOpen(true)}
-            aria-haspopup="dialog"
-          >
-            <span className="text-sm font-semibold text-foreground">Заметок:</span>
-            <span className="text-[1.3rem] font-medium tabular-nums text-foreground">
-              {data?.notes.length ?? 0}
-            </span>
-          </button>
+            className="h-full"
+          />
 
           <DoctorModal
             open={notesModalOpen}
@@ -1879,20 +1834,15 @@ export function PatientTabOverview({
             )}
             aria-label="Задачи"
           >
-            <button
-              type="button"
-              className={cn(
-                doctorSectionCardClass,
-                'w-full cursor-pointer flex-row items-baseline justify-start gap-2 text-left transition-colors hover:bg-muted/35',
-              )}
+            <DoctorStatCard
+              id="patient-overview-tasks"
+              title="Задач:"
+              value={data?.tasks.length ?? 0}
+              tone={tasksNeedAttention ? 'warning' : 'neutral'}
+              valueClassName={tasksNeedAttention ? 'text-destructive' : undefined}
               onClick={() => setTasksModalOpen(true)}
-              aria-haspopup="dialog"
-            >
-              <span className="text-sm font-semibold text-foreground">Задач:</span>
-              <span className="text-[1.3rem] font-medium tabular-nums text-foreground">
-                {data?.tasks.length ?? 0}
-              </span>
-            </button>
+              className="h-full"
+            />
 
             <DoctorModal
               open={tasksModalOpen}
@@ -1973,7 +1923,7 @@ export function PatientTabOverview({
           </section>
         ) : null}
 
-        {/* Программа и комментарии */}
+        {/* Программа ЛФК */}
         <div
           className={cn(
             doctorSectionCardClass,
@@ -1981,31 +1931,14 @@ export function PatientTabOverview({
             isOverviewComposition && 'order-3 col-span-2',
           )}
         >
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className={doctorSectionTitleClass}>Назначенная программа</span>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span className={doctorSectionTitleClass}>Программа ЛФК</span>
             {(data?.programActivity?.unreadCount ?? 0) > 0 && (
-              <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0 text-[10px] font-semibold text-destructive">
-                {data!.programActivity!.unreadCount} непрочит.
+              <span className="inline-flex shrink-0 items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+                {data!.programActivity!.unreadCount} непрочитанных
               </span>
             )}
-            <Button
-              variant="ghost"
-              onClick={() => onTabSwitch?.('program')}
-              className="ml-auto h-auto rounded px-2 py-0.5 text-xs font-medium text-primary bg-primary/8 hover:bg-primary/15 gap-0.5"
-            >
-              Открыть программу →
-            </Button>
           </div>
-
-          {!isLoading && data?.programActivity?.lastMark && (
-            <p className="text-[11px] text-muted-foreground mb-1.5">
-              Последняя отметка: {data.programActivity.lastMark.atLabel}
-              <span className="text-muted-foreground/70">
-                {' '}
-                · {data.programActivity.lastMark.stageItemTitle}
-              </span>
-            </p>
-          )}
 
           {isLoading && (
             <p className="text-xs text-muted-foreground animate-pulse py-2">Загрузка программы…</p>
@@ -2024,10 +1957,7 @@ export function PatientTabOverview({
                   type="button"
                   variant="ghost"
                   onClick={() => onTabSwitch?.('program')}
-                  className={cn(
-                    doctorSectionTitleClass,
-                    'mb-1.5 h-auto p-0 hover:bg-transparent hover:text-primary',
-                  )}
+                  className="mb-1.5 h-auto p-0 text-base font-normal text-foreground hover:bg-transparent hover:text-primary"
                 >
                   {data.programTitle}
                 </Button>
@@ -2038,55 +1968,14 @@ export function PatientTabOverview({
                 </p>
               ) : null}
 
-              {/* Stage pager */}
-              {data.programStages.length > 0 && displayStage && (
-                <>
-                  <div
-                    className={cn(
-                      'mb-2 flex items-center gap-2 rounded-lg border px-2 py-1.5',
-                      displayStage.status === 'in_progress'
-                        ? 'border-primary/50 bg-primary/10'
-                        : 'border-border bg-muted/10',
-                    )}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Предыдущий этап"
-                      onClick={() => setProgramStageOffset((o) => Math.max(o - 1, minStageOffset))}
-                      disabled={programStageOffset <= minStageOffset}
-                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
-                    >
-                      ◀
-                    </Button>
-                    <div className="flex-1 text-center">
-                      <div className={doctorSectionTitleClass}>
-                        Этап {displayStageIndex + 1} из {data.programStages.length} ·{' '}
-                        {displayStage.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {displayStage.status === 'in_progress'
-                          ? 'активный'
-                          : displayStage.status === 'completed'
-                            ? 'завершён'
-                            : displayStage.status === 'available'
-                              ? 'доступен'
-                              : displayStage.status}
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      title="Следующий этап"
-                      onClick={() => setProgramStageOffset((o) => Math.min(o + 1, maxStageOffset))}
-                      disabled={programStageOffset >= maxStageOffset}
-                      className="w-6 h-6 rounded-md border border-border text-[11px] text-muted-foreground hover:bg-muted disabled:opacity-30"
-                    >
-                      ▶
-                    </Button>
-                  </div>
-                </>
-              )}
+              {displayStage ? (
+                <div className="rounded-lg border border-primary/50 bg-primary/10 px-3 py-2">
+                  <p className="w-full text-sm font-medium text-foreground">
+                    Этап {displayStageIndex + 1} · {displayStage.title}
+                  </p>
+                </div>
+              ) : null}
+              {exerciseCalendar}
             </>
           )}
         </div>
@@ -2175,7 +2064,6 @@ export function PatientTabOverview({
 interface CalendarGrid {
   firstDOW: number; // blank cells before day 1 (0 = Mon)
   days: CalendarCellData[];
-  weekDays: CalendarCellData[];
 }
 
 /** Build renderable calendar cells for the given year+month (1-based). */
@@ -2183,6 +2071,7 @@ function buildCalendarGrid(
   apiDays: CalendarDay[],
   viewYear: number,
   viewMonth: number,
+  hasAssignments: boolean,
 ): CalendarGrid {
   const now = new Date();
   const todayYear = now.getFullYear();
@@ -2222,8 +2111,7 @@ function buildCalendarGrid(
     } else if (isToday) {
       status = 'today';
     } else if (isPast && completedCount === undefined) {
-      // Past day with no data — we don't know if it had assignments
-      status = 'no-assign';
+      status = hasAssignments ? 'missed' : 'no-assign';
     } else if (!isPast && completedCount === undefined) {
       status = 'future';
     } else if ((completedCount ?? 0) >= 3) {
@@ -2241,11 +2129,5 @@ function buildCalendarGrid(
     });
   }
 
-  // Week view: for current month use today; for past month use last day of month
-  const pivotDay = isCurrentMonth ? todayDay : daysInMonth;
-  const weekStart = Math.max(1, pivotDay - 3);
-  const weekEnd = Math.min(daysInMonth, weekStart + 6);
-  const weekDays = days.slice(weekStart - 1, weekEnd);
-
-  return { firstDOW, days, weekDays };
+  return { firstDOW, days };
 }

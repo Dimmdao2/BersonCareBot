@@ -18,7 +18,6 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { buildTreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers';
 import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
 import { PatientCardClient } from '../../PatientCardClient';
-import { patientCardHref } from '../../../patientCardHref';
 import {
   loadDoctorPatientCardShellMeta,
   loadDoctorPatientCardTabBootstrap,
@@ -58,7 +57,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   }
 
   const [
-    cardHeader,
     testResults,
     attemptAcceptMap,
     programEvents,
@@ -73,7 +71,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     discussionDoctorReplyFlag,
     bodyRegionItems,
   ] = await Promise.all([
-    deps.doctorClients.getPatientCardHeader(userId),
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
     deps.treatmentProgramInstance.listProgramEvents(instanceId),
@@ -107,10 +104,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     bodyRegionIdToCode,
   });
 
-  const patientDisplayNameRaw = cardHeader?.identity.displayName?.trim() ?? '';
-  const patientDisplayName =
-    patientDisplayNameRaw !== '' ? patientDisplayNameRaw : 'Имя не указано';
-
   const doctorReplyFromLogEnabled =
     discussionDoctorReplyFlag?.valueJson !== null &&
     typeof discussionDoctorReplyFlag?.valueJson === 'object' &&
@@ -128,15 +121,13 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       ? focusItemIdRaw
       : undefined;
 
-  const patientCardTabHref = patientCardHref(userId, { tab: 'program' });
-
   const tabPromise = loadDoctorPatientCardTabBootstrap(deps, workspace, userId, 'program');
   const shellMeta = await loadDoctorPatientCardShellMeta(deps, workspace, userId, 'program');
 
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
-      patientProfileHref={patientCardTabHref}
-      patientDisplayName={patientDisplayName}
+      patientProfileHref=""
+      patientDisplayName=""
       initial={detail}
       initialTestResults={testResults}
       initialAttemptAcceptMap={attemptAcceptMap}
