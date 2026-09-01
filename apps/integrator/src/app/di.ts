@@ -57,7 +57,10 @@ import { registerMaxWebhookRoutes } from '../integrations/max/webhook.js';
 import { createVkDeliveryAdapter } from '../integrations/vk/deliveryAdapter.js';
 import { registerVkWebhookRoutes } from '../integrations/vk/webhook.js';
 import { createTelegramDeliveryAdapter } from '../integrations/telegram/deliveryAdapter.js';
-import { registerTelegramWebhookRoutes } from '../integrations/telegram/webhook.js';
+import {
+  registerTelegramWebhookRoutes,
+  type TelegramWebhookDeps,
+} from '../integrations/telegram/webhook.js';
 import type { ResolveMessengerStaffAdmin } from '../kernel/contracts/index.js';
 import { createWebappEventsPort } from '../infra/adapters/webappEventsClient.js';
 import { createDeliveryTargetsPort } from '../infra/adapters/deliveryTargetsPort.js';
@@ -99,9 +102,7 @@ export type MessengerWebappEntryIdentityDeps = {
 
 export type TelegramRoutesRegistrar = (
   app: FastifyInstance,
-  deps: {
-    eventGateway: EventGateway;
-  } & MessengerWebappEntryIdentityDeps,
+  deps: TelegramWebhookDeps,
 ) => Promise<void> | void;
 
 export type MaxRoutesRegistrar = (
