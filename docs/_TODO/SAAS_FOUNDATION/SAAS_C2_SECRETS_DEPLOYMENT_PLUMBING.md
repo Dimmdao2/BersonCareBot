@@ -35,22 +35,43 @@ Repo-managed preflight:
 
 ```bash
 node deploy/host/saas-c2-secret-preflight.mjs \
+  --runtime-phase=final-runtime \
   --process-env-file=webapp:/absolute/path/to/webapp.env \
   --process-env-file=integrator:/absolute/path/to/api.env \
   --process-env-file=media-worker:/absolute/path/to/media-worker.env
 ```
 
-The preflight:
+`--runtime-phase` is REQUIRED and names which runtime the env files are for. The allowed values are not one
+merged list of tolerated modes: each phase has its own mode and its own key contract.
 
-- requires `DB_PRINCIPAL_CONTEXT_MODE=shadow|locked`;
-- requires `DB_PRINCIPAL_SIGNING_SECRET` to be at least 32 bytes in each process;
+| Phase | Mode | Used by | Contract |
+| --- | --- | --- | --- |
+| `final-runtime` | `port-context` | `deploy/host/deploy-prod.sh` | The env the shipped processes actually start from. |
+| `pre-cutover-source` | `locked` | `provision-c4-operational-runtime.sh`, `assert-c4-operational-runtime-ready.sh` | Entry state of the destructive TEST full reset, before `cutover-postgres-port-context.sh`. |
+
+In `final-runtime` the preflight:
+
+- requires `DB_PRINCIPAL_CONTEXT_MODE=port-context` in webapp and integrator — the webapp process refuses to
+  boot in any other mode (`apps/webapp/src/config/env.ts`), so a deploy that accepted `shadow|locked` here was
+  gating on a runtime that can no longer start;
+- requires the pools the processes actually open: `DATABASE_URL_STAFF`, `DATABASE_URL_PATIENT`,
+  `DATABASE_URL_GLOBAL_ADMIN` for webapp and `INTEGRATOR_DB_URL` for integrator, all distinct logins;
+- rejects the retired signed-context credentials if they are still declared (`DB_PRINCIPAL_SIGNING_SECRET`,
+  `DATABASE_URL`, `DATABASE_URL_NONSTAFF`, `SAAS_ISOLATION_OPERATOR_DATABASE_URL`, and the three integrator
+  operational URLs) — the cutover removes them, and leaving one live keeps a wide login usable beside the
+  narrow ones.
+
+In `pre-cutover-source` the preflight keeps the original signed-context contract:
+
+- requires `DB_PRINCIPAL_CONTEXT_MODE=locked`;
+- requires `DB_PRINCIPAL_SIGNING_SECRET` to be at least 32 bytes in webapp and integrator;
 - compares signing secrets by SHA-256 fingerprint prefix only;
 - requires all three webapp URLs to exist and the operator URL to differ from both ambient URLs;
 - compares PostgreSQL usernames across every webapp, integrator, operator, scheduler, delivery, diagnostic, and media URL,
-  and rejects any cross-process role reuse even when the credential-bearing URLs differ;
-- prints URL shape only, never credential-bearing URLs;
-- self-tests fingerprint mismatch, webapp-to-operational and operational-to-operational username collisions, and that
-  output does not contain fixture secrets.
+  and rejects any cross-process role reuse even when the credential-bearing URLs differ.
+
+In both phases it prints URL shape only, never credential-bearing URLs, and rejects media-worker DB
+credentials outright. `--self-test` covers both phases, including that each rejects the other's env shape.
 
 ## Restart And Rollback
 

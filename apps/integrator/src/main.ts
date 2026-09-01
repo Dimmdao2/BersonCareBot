@@ -6,11 +6,9 @@ import './config/loadEnv.js';
 
 /**
  * Запускает Fastify-приложение и пишет лог старта.
- * Перед стартом применяет legacy startup-миграции или выполняет locked-runtime preflight.
+ * Перед стартом проверяет, что все миграции репозитория применены (startup migration gate).
  */
 async function start() {
-  const { assertApiIsolationTelemetryWriterReady } =
-    await import('./infra/observability/saasIsolationTelemetry.js');
   const { runStartupMigrationGate } = await import('./infra/db/migrate.js');
   const { createDbPort } = await import('./infra/db/client.js');
   const { buildApp } = await import('./app/index.js');
@@ -23,7 +21,6 @@ async function start() {
   await initIntegratorErrorTracking(runtimeDb, 'api');
 
   await runStartupMigrationGate();
-  await assertApiIsolationTelemetryWriterReady();
   const app = await buildApp();
   await app.listen({
     port: env.PORT,

@@ -12,8 +12,6 @@ import {
   SchedulerCadenceStepError,
 } from './schedulerLockedTick.js';
 import {
-  assertSchedulerIsolationTelemetryWriterReady,
-  assertWorkerIsolationTelemetryWriterReady,
   reportSchedulerDispatchIsolationFailure,
   reportSchedulerLockIsolationFailure,
   reportWorkerOutgoingIsolationFailure,
@@ -56,8 +54,6 @@ async function sleep(ms: number): Promise<void> {
 async function startResident(): Promise<void> {
   const runtimeDb = createDbPort();
   await initIntegratorErrorTracking(runtimeDb, 'scheduler');
-  await assertSchedulerIsolationTelemetryWriterReady();
-  await assertWorkerIsolationTelemetryWriterReady();
   await assertSchedulerPoolReady();
   await assertDeliveryWorkerPoolReady();
 

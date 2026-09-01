@@ -141,6 +141,7 @@ bash "${PROJECT_ROOT}/deploy/host/assert-no-mock-payment-deploy.sh" "${PROJECT_R
 # All three service env files are checked as raw declarations before a build,
 # migration, or restart can leave a media DB credential live.
 node "${PROJECT_ROOT}/${SAAS_C2_SECRET_PREFLIGHT}" \
+  --runtime-phase=final-runtime \
   --process-env-file="webapp:${WEBAPP_ENV_FILE}" \
   --process-env-file="integrator:${ENV_FILE}" \
   --process-env-file="media-worker:${MEDIA_WORKER_ENV_FILE}"

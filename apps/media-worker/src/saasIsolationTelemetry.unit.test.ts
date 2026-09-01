@@ -19,4 +19,15 @@ describe('media worker isolation telemetry control adapter', () => {
     reporter.report(new Error('ordinary S3 failure'));
     expect(isolationFailure).toHaveBeenCalledTimes(1);
   });
+
+  it('reports an isolation failure no rule recognizes as unclassified instead of dropping it', async () => {
+    const isolationFailure = vi.fn(async () => {});
+    const reporter = createMediaWorkerIsolationReporter({ isolationFailure }, () => 1_000);
+
+    // A wall denial the classifier has no specific rule for: SQLSTATE 42501 with a message none of
+    // the patterns match. The receiving control seam stores it; it must not vanish here.
+    reporter.report(Object.assign(new Error('denied by an unnamed guard'), { code: '42501' }));
+    await Promise.resolve();
+    expect(isolationFailure).toHaveBeenCalledWith('unclassified_background_operation');
+  });
 });
