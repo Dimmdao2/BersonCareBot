@@ -32,10 +32,9 @@ Patient POST записывает сообщение и обновляет `last
 
 ## Program note (наблюдение по упражнению)
 
-- [`notifyDoctorPatientProgramNote.ts`](notifyDoctorPatientProgramNote.ts) — уведомление врачу в TG/MAX, кнопка «Ответить» → callback `program_reply:{stageItemId}`.
+- [`notifyDoctorPatientProgramNote.ts`](notifyDoctorPatientProgramNote.ts) — уведомление врачу без bot-reply callback.
 - [`programNoteReplyContext.ts`](programNoteReplyContext.ts) — resolve по `stageItemId`, префикс `Ответ на ваш комментарий к упражнению «…»:`.
-- [`integratorSupportBridge.ts`](integratorSupportBridge.ts) — `applyAdminReply` с опциональным `programNoteStageItemId`.
-- Integrator: `webapp.programNote.replyBegin`, state `admin_reply:webapp:platform:{userId}#pn:{stageItemId}`.
+- [`sendProgramNoteReply.ts`](sendProgramNoteReply.ts) — единственный путь ответа из кабинета: обсуждение пункта + patient chat + уведомление пациента.
 
 Канон потока: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 

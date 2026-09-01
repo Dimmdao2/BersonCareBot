@@ -62,11 +62,7 @@ export async function POST(request: Request) {
     const status =
       result.error === 'empty' ||
       result.error === 'not_webapp_conversation' ||
-      result.error === 'organization_context_required' ||
-      result.error === 'too_long' ||
-      result.error === 'stage_item_mismatch' ||
-      result.error === 'program_not_doctor_assigned' ||
-      result.error === 'program_item_not_active'
+      result.error === 'organization_context_required'
         ? 400
         : 404;
     const body = { ok: false, error: result.error };

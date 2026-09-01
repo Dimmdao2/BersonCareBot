@@ -2,7 +2,7 @@
 
 > **SUPERSEDED AS TARGET — 2026-07-27.** The patient-dialogue/reply scenarios below must not authorize a doctor to reply inside Telegram/MAX. Current authority is the **«Уведомления»** row in [`CURRENT_AUTHORITY_MAP.md`](../../../../../../docs/CURRENT_AUTHORITY_MAP.md): `OWNER_PRODUCT_RULES.md` §15 (doctor Telegram is notifications only; reply in cabinet).
 
-Сценарии и шаблоны для **админ-чата** в Telegram и MAX: диалоги с пользователями, ответы на вопросы поддержки, списки неотвеченных вопросов, ответ на **наблюдение пациента по упражнению** (program note).
+Сценарии и шаблоны для **админ-чата** в Telegram и MAX: legacy-диалоги с пользователями, ответы на вопросы поддержки и списки неотвеченных вопросов. Комментарии к программе приходят врачу как уведомления; ответ доступен только в кабинете.
 
 ## Кто считается admin в боте
 
@@ -19,14 +19,11 @@
 2. Сценарий `telegram.admin.reply.start` → `user.state.set` → prompt.
 3. Текст → `telegram.admin.reply.message` → M2M `POST /api/integrator/support/admin-reply` → PWA-чат + `notifyPatientDoctorReply`.
 
-## Ответ на наблюдение по упражнению (program note)
+## Комментарий к упражнению
 
-1. Уведомление [`notifyDoctorPatientProgramNote`](../../../../../webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts) → кнопка **«Ответить»** → callback **`program_reply:{stageItemId}`** (укладывается в лимит 64 байта).
-2. `telegram.admin.programNote.reply.start` / `max.admin.programNote.reply.start` → `webapp.programNote.replyBegin` (внутри экшена — `user.state.set` с state `admin_reply:webapp:platform:{userId}#pn:{stageItemId}` для telegram и max).
-3. Текст → `*.admin.reply.message` → `admin-reply` с **`programNoteStageItemId`** → префикс в чате пациента.
-4. После ответа state **не** сбрасывается в `idle` (можно дописать несколько сообщений); **«Дополнить ответ»** снова через `program_reply:{stageItemId}`.
-
-Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
+[`notifyDoctorPatientProgramNote`](../../../../../webapp/src/modules/messaging/notifyDoctorPatientProgramNote.ts)
+доставляет только уведомление. Врач открывает программу пациента и отвечает в webapp; бот не создаёт режим
+ответа. Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md).
 
 ## Прочие команды
 

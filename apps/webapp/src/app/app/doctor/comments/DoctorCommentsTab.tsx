@@ -37,6 +37,7 @@ import { patientProgramInstanceHref } from '../patients/patientProgramInstanceHr
 import { CatalogSplitLayout } from '@/shared/ui/doctor/catalog/CatalogSplitLayout';
 import { DoctorEmptyState } from '@/shared/ui/doctor/DoctorEmptyState';
 import { DoctorPanelLoading } from '@/shared/ui/doctor/DoctorPanelLoading';
+import { DoctorAttentionBadge } from '@/shared/ui/doctor/DoctorAttentionBadge';
 import { DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS } from '@/shared/ui/doctor/doctorWorkspaceLayout';
 import { type ExerciseMetricPoint } from '@/shared/ui/doctor/ExerciseMicroChart';
 import { ExerciseExecutionGraph, type DayBar } from '@/shared/ui/doctor/ExerciseExecutionGraph';
@@ -144,7 +145,7 @@ function PatientRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          'w-full rounded-none bg-transparent shadow-none',
+          'h-auto min-h-12 w-full rounded-none bg-transparent text-left shadow-none',
           isFirst && 'border-t-0',
         )}
         aria-pressed={isSelected}
@@ -157,7 +158,7 @@ function PatientRow({
               className={cn(
                 'min-w-0 truncate',
                 doctorDnaFlatListPrimaryClass,
-                hasUnread && 'font-bold',
+                hasUnread && '!font-semibold',
                 isSelected && doctorDnaFlatListSelectedPrimaryClass,
               )}
             >
@@ -172,11 +173,7 @@ function PatientRow({
                 </span>
               )}
             </span>
-            {hasUnread && (
-              <span className="shrink-0 rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                {patient.unreadCount}
-              </span>
-            )}
+            <DoctorAttentionBadge count={patient.unreadCount} className="shrink-0" />
           </div>
         </div>
       </Button>
@@ -207,7 +204,7 @@ function ExerciseRow({
         className={cn(
           doctorDnaFlatListRowClass,
           doctorDnaFlatListClickableClass,
-          'w-full rounded-none bg-transparent shadow-none',
+          'h-auto min-h-12 w-full rounded-none bg-transparent text-left shadow-none',
           isFirst && 'border-t-0',
         )}
       >
@@ -234,9 +231,7 @@ function ExerciseRow({
         </div>
         <div className="shrink-0 text-right">
           {hasUnread ? (
-            <span className="rounded-full bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-              {item.unreadComments}
-            </span>
+            <DoctorAttentionBadge count={item.unreadComments} />
           ) : (
             <span className={doctorDnaFlatListMetaClass}>{item.totalComments}</span>
           )}
@@ -1152,17 +1147,15 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   ) : null;
 
   return (
-    <div id="doctor-communications-comments" className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}>
-      <CatalogSplitLayout
-        mobileEdgeToEdge
-        left={leftPane}
-        right={rightPane}
-        mobileView={mobileView}
-        mobileBackSlot={mobileBackSlot}
-        desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
-        className="h-full"
-      />
-    </div>
+    <CatalogSplitLayout
+      mobileEdgeToEdge
+      left={leftPane}
+      right={rightPane}
+      mobileView={mobileView}
+      mobileBackSlot={mobileBackSlot}
+      desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
+      className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
+    />
   );
 }
 

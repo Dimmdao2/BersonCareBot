@@ -1,22 +1,12 @@
-export const PROGRAM_NOTE_REPLY_STATE_SUFFIX = '#pn:';
-
 export type ProgramNoteReplyContext = {
   organizationId: string;
   platformUserId: string;
   stageItemId: string;
   exerciseTitle: string;
   integratorConversationId: string;
-  programNoteReplyState: string;
   assignmentSource: string;
   itemStatus: string;
 };
-
-export function buildProgramNoteReplyState(
-  integratorConversationId: string,
-  stageItemId: string,
-): string {
-  return `admin_reply:${integratorConversationId}${PROGRAM_NOTE_REPLY_STATE_SUFFIX}${stageItemId}`;
-}
 
 export function exerciseTitleFromSnapshot(snapshot: unknown): string {
   if (snapshot && typeof snapshot === 'object' && 'title' in snapshot) {

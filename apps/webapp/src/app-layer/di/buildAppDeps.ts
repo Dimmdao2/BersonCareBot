@@ -1434,7 +1434,6 @@ const integratorSupportBridge = createIntegratorSupportBridge({
       fn,
     ),
   notifyPatientOfDoctorReply: notifyPatientDoctorReply,
-  sendProgramNoteReply,
   notifyDoctorOfPatientMessage: notifyDoctorOfPatientMessageImpl,
   resolvePatientLabel: resolvePatientLabelForDoctorNotify,
 });
