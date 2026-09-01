@@ -111,7 +111,7 @@ export async function loadDoctorAllCommentPatients(
       c.userId.trim(),
       {
         displayName: formatDoctorFio(
-          { firstName: c.firstName, lastName: c.lastName, patronymic: null },
+          { firstName: c.firstName ?? null, lastName: c.lastName ?? null, patronymic: null },
           c.displayName.trim() || '—',
         ),
         phone: c.phone ?? null,
