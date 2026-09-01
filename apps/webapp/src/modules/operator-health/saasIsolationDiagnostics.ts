@@ -1,15 +1,17 @@
+import {
+  SAAS_ISOLATION_EVENT_CLASSES,
+  type SaasIsolationTelemetryEventClass,
+} from '@bersoncare/error-tracking';
+
 export const SAAS_ISOLATION_DIAGNOSTICS_SCHEMA_VERSION = 3 as const;
 export const SAAS_ISOLATION_COVERAGE_FRESH_HOURS = 24;
 
-export const SAAS_ISOLATION_EVENT_CLASSES = [
-  'missing_principal',
-  'invalid_signature_or_install',
-  'role_pool_mismatch',
-  'rls_denial',
-  'cleanup_failure',
-  'unclassified_background_operation',
-] as const;
-export type SaasIsolationEventClass = (typeof SAAS_ISOLATION_EVENT_CLASSES)[number];
+/**
+ * The diagnostics screen reads the SAME closed class list the reporters write, so a class added to
+ * the classifier can never stay invisible here (or vice versa).
+ */
+export { SAAS_ISOLATION_EVENT_CLASSES };
+export type SaasIsolationEventClass = SaasIsolationTelemetryEventClass;
 
 export const SAAS_ISOLATION_REQUIRED_SERVICES = [
   'webapp',

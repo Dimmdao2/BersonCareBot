@@ -4,7 +4,7 @@ import { reportSaasIsolationEventBestEffort } from '@/infra/saasIsolationReporte
 import {
   classifySaasIsolationFailure,
   isRecognizedSaasIsolationFailure,
-} from '@bersoncare/db-principal';
+} from '@bersoncare/error-tracking';
 import { resolveCronIsolationOperation } from '@/modules/operator-health/cronIsolationOperations';
 import { runWithDbInfraPrincipal } from '@bersoncare/db-principal';
 

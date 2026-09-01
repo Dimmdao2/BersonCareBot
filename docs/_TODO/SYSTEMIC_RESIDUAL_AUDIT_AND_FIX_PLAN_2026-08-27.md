@@ -26,11 +26,29 @@
 
 ### Подтверждённые разрывы
 
-- [ ] **W1 — единый действующий DB-mode контракт.** PROD preflight всё ещё принимает только прежние
+- [x] **W1 — единый действующий DB-mode контракт.** PROD preflight всё ещё принимал только прежние
   `shadow/locked`, тогда как текущий webapp стартует только в `port-context`. Допуск `locked` на входе полного
   TEST-reset сам по себе не ошибка: это разрешённое исходное состояние до атомарного перехода, и его нельзя
   бездумно запретить. Нужно убрать именно runtime/deploy-противоречие, удалить мёртвые locked-only startup-пробы
   и оставить разные фазы явно названными, а не сводить все допустимые значения в один глобальный список.
+  — СДЕЛАНО (ветка `wt/systemic-db-runtime-contracts-20260902`): `deploy/host/saas-c2-secret-preflight.mjs`
+  требует обязательный `--runtime-phase`, и фазы названы раздельно, а не слиты в общий список: `final-runtime`
+  требует ровно `port-context` плюс те пулы, которые рантайм реально открывает
+  (`DATABASE_URL_STAFF|PATIENT|GLOBAL_ADMIN`, `INTEGRATOR_DB_URL`) и отвергает оставшиеся кредентивы
+  подписанного контекста; `pre-cutover-source` требует ровно `locked` и сохраняет прежний контракт входа
+  полного TEST-reset. Вызовы названы по месту: `deploy/host/deploy-prod.sh:144` — `final-runtime` (там
+  стартует финальный webapp), `deploy/host/provision-c4-operational-runtime.sh:153` и
+  `deploy/host/assert-c4-operational-runtime-ready.sh:81` — `pre-cutover-source`. Мёртвые locked-only
+  startup-пробы сняты: `assertApiIsolationTelemetryWriterReady` / `assertWorker…` / `assertScheduler…` и
+  `probeSaasIsolationTelemetryWriter` удалены из `apps/integrator/src/infra/observability/saasIsolationTelemetry.ts`,
+  `main.ts`, `infra/runtime/scheduler/main.ts` — в `port-context` они были no-op, в `locked` фатальны, а
+  fail-visible путь (`logger.error` про degraded transport) остался. Вместе с ними снята мёртвая
+  probe-поверхность репортёра (`probeWriter`/`probe`/probe-счётчики). Доказано лично:
+  `node deploy/host/saas-c2-secret-preflight.mjs --self-test` (self-test теперь проверяет обе фазы и то, что
+  каждая отвергает env другой), ручной прогон обеих фаз на временных env-файлах, `bash -n` трёх изменённых
+  скриптов, `bash deploy/host/deploy-test-saas.sh --c4-operational-chain-self-test`,
+  `pnpm --dir apps/integrator test` (110 файлов / 577 passed). НЕ проверено: full CI и живой TEST/PROD —
+  по границе задачи.
 - [x] **W2 — одна дверь внутренних фоновых HTTP-задач.** Закрыто `3e7492416`, принято независимым аудитом и
   сведено в `d080b58b9`: CSRF-класс выводится из manifest, Bearer проверяется общей дверью, особый `503` reconcile
   сохранён; аудит дал `PASS` по всем шести классам и две fault injection покрасили целевые тесты. Исходный разрыв:
@@ -38,12 +56,52 @@
   CSRF-классификаторе; два действующих маршрута уже отсутствуют во втором списке. Проверка Bearer-секрета
   скопирована в каждом route. Нужно вывести CSRF-класс и авторизацию из одной общей точки, сохранив особый
   `503`-контракт reconcile-задачи.
-- [ ] **W3 — одна классификация isolation-ошибок.** Integrator, webapp и media-worker по-разному решают, какой
-  отказ записывать. Media-worker сейчас выбрасывает неизвестный класс молча, хотя принимающая сторона умеет
+- [x] **W3 — одна классификация isolation-ошибок.** Integrator, webapp и media-worker по-разному решали, какой
+  отказ записывать. Media-worker выбрасывал неизвестный класс молча, хотя принимающая сторона умеет
   хранить общий `unclassified` результат. Нужен общий лёгкий классификатор и fail-visible fallback.
-- [ ] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry сейчас совпадает в overlay и
-  forward migration только случайно; механической сверки нет. Нельзя снова оставить два определения, где
+  — СДЕЛАНО: классификатор живёт в одном месте — `packages/error-tracking/src/saasIsolationClassification.ts`
+  (`@bersoncare/error-tracking` уже зависимость всех трёх приложений). Media-worker НЕ получил зависимость от
+  `@bersoncare/db-principal`: у него по контракту нет ни одного DB-кредентива, и preflight валит выкатку, если
+  он появится. Своя копия предиката в `apps/media-worker/src/saasIsolationTelemetry.ts` удалена; неизвестный
+  отказ теперь уходит как `unclassified_background_operation`, а не отбрасывается, и обычные транспортные
+  ошибки (S3/ffmpeg) по-прежнему не считаются isolation-событием. Одна и та же закрытая номенклатура классов
+  теперь у всех: `apps/media-worker/src/control.ts`, zod-схема шва
+  `apps/webapp/src/app/api/internal/media-worker/control/route.ts:17` и
+  `apps/webapp/src/modules/operator-health/saasIsolationDiagnostics.ts` берут её из пакета. Фоновый репортёр
+  переехал туда же (`saasIsolationReporter.ts`) и НЕ несёт SQL: он принимает sink
+  (`SaasIsolationEventSink`), а сам оператор остаётся за именованной DB-дверью приложения — это требование
+  `scripts/check-no-new-raw-sql.mjs`, а не вкусовое. Доказано лично: новый
+  `packages/error-tracking/src/saasIsolationClassification.test.ts` (в т.ч. «неизвестный отказ → принятый
+  класс, а не пусто»), новый кейс в `apps/media-worker/src/saasIsolationTelemetry.unit.test.ts`,
+  `pnpm --dir packages/error-tracking test` (13), `pnpm --dir apps/media-worker test` (21),
+  typecheck integrator/webapp/media-worker, `node scripts/check-no-new-raw-sql.mjs` (production debt: 0).
+  ⚠️ ОСТАЁТСЯ ОТКРЫТЫМ вне этой ветки: тесты `packages/error-tracking` по-прежнему не подключены ни к
+  GitHub Actions, ни к локальному full CI — это ровно W7, новый тест наследует ту же слепую зону.
+  Независимый аудит 02.09 нашёл и закрепил последний разрыв W3: webapp отбрасывал `42501`, текст которого не
+  совпал с двумя локальными шаблонами. Исправлено после аудита: webapp-дверь теперь использует тот же
+  `classifySaasIsolationFailure`, что integrator и media-worker, поэтому неизвестный вид PostgreSQL-объекта
+  записывается как `unclassified_background_operation`, а обычные продуктовые ошибки по-прежнему не попадают
+  в isolation-журнал. Доказано перед коммитом тем же oracle
+  `apps/webapp/src/infra/db/saasIsolationDbFailureReporting.unit.test.ts` (2 passed) и
+  `pnpm --dir apps/webapp typecheck` (PASS). Реализация `90a4e2e55`, независимый audit/oracle `0d2ea418d`,
+  локализованное исправление ведущего `535c20f58`.
+- [x] **W4 — один источник тела DB seam.** Тело функции записи isolation telemetry совпадало в overlay и
+  forward migration только случайно; механической сверки не было. Нельзя снова оставить два определения, где
   побеждает последнее применённое. Нужен канонический источник или generated parity-гейт.
+  — СДЕЛАНО БЕЗ НОВОЙ МИГРАЦИИ (действующая функция уже верна, дублировался только источник поставки):
+  тело `app.report_saas_isolation_event` осталось за ledger-миграцией
+  `apps/webapp/db/drizzle-migrations/20260828T092521_deliver_cron_isolation_operations.sql`, а из overlay
+  `deploy/postgres/saas-isolation-telemetry.sql` `CREATE OR REPLACE` этой функции убран — overlay владеет
+  только владельцем и точными EXECUTE-грантами. Это ровно тот же канон, что уже действует для
+  `app.open_or_touch_operator_incident` в `c4-operational-runtime.sql`, и overlay применяется ПОСЛЕ миграций
+  (`deploy/host/deploy-test-saas.sh` → `run_strict_post_migration_closure`), поэтому функция к этому моменту
+  существует. Прав/ролей/политик в миграции не появилось: миграция не менялась вовсе. Механическая сверка:
+  `scripts/check-c4-migration-owned-function-bodies.mjs` обобщён на список overlay-файлов и теперь стережёт эту
+  функцию; гейт уже в `pnpm lint`. Доказано лично: `--self-test` OK; обратная проба — временно дописал
+  `CREATE OR REPLACE FUNCTION app.report_saas_isolation_event(...)` в overlay, гейт упал с exit 1 и назвал
+  файл и функцию, после отката снова OK. ⚠️ НЕ СДЕЛАНО (за границей формулировки W4, выношу как вопрос):
+  CHECK-констрейнт `saas_isolation_events_source_operation_check` по-прежнему объявлен и в той же миграции, и
+  в overlay — тот же класс «побеждает последний применённый», но это уже не тело функции.
 - [ ] **W5 — закончить перевод разрешённых webapp DB-портов.** Команда
   `rg -o "runWebappPgText\\(|runPgPoolPgText\\(" apps/webapp/src --glob "!**/*.test.*" | wc -l`
   вернула `103` вызова в `29` файлах. Они параметризованы и текущей SQL-инъекции не создают, но сохраняют ручную

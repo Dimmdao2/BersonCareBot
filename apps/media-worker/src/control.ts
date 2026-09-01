@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { SaasIsolationTelemetryEventClass } from '@bersoncare/error-tracking';
 
 export type ClaimedJob = { id: string; mediaId: string; organizationId: string; attempts: number };
 export type ControlledMedia = {
@@ -25,9 +26,8 @@ export type MediaWorkerControlPort = {
   doneProgram(job: ClaimedJob, lockedBy: string, values: { outputKey: string; posterKey: string; qualitiesJson: string; durationSeconds: number | null }): Promise<void>;
 };
 
-export type MediaWorkerIsolationEventClass =
-  | 'missing_principal' | 'invalid_signature_or_install' | 'role_pool_mismatch'
-  | 'rls_denial' | 'cleanup_failure' | 'unclassified_background_operation';
+/** One vocabulary with the classifier and the webapp control seam; never a second local list. */
+export type MediaWorkerIsolationEventClass = SaasIsolationTelemetryEventClass;
 
 const responseSchema = z.object({ ok: z.literal(true), result: z.unknown() });
 

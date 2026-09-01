@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { enterWithDbInfraPrincipal } from '@bersoncare/db-principal';
+import { SAAS_ISOLATION_EVENT_CLASSES } from '@bersoncare/error-tracking';
 import { verifyInternalJobBearer } from '@/middleware/internalJobBearer';
 import { logger } from '@/app-layer/logging/logger';
 import {
@@ -11,10 +12,8 @@ import {
 } from '@/app-layer/media/mediaWorkerControl';
 
 const jobSchema = z.object({ id: z.string().uuid(), mediaId: z.string().uuid() }).strict();
-const isolationEventSchema = z.enum([
-  'missing_principal', 'invalid_signature_or_install', 'role_pool_mismatch', 'rls_denial',
-  'cleanup_failure', 'unclassified_background_operation',
-]);
+// Wire contract of the media control seam: the same closed class list the classifier produces.
+const isolationEventSchema = z.enum(SAAS_ISOLATION_EVENT_CLASSES);
 const commandSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ready') }),
   z.object({ type: z.literal('watermark') }),
