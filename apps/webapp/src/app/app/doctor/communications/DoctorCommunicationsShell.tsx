@@ -231,7 +231,9 @@ export function DoctorCommunicationsShell({
         id="doctor-communications-header"
         title="Коммуникации"
         toolbar={
-          activeTab === 'chats' ? <div id="doctor-communications-mobile-toolbar" /> : undefined
+          activeTab === 'chats' || activeTab === 'comments' ? (
+            <div id="doctor-communications-mobile-toolbar" />
+          ) : undefined
         }
         toolbarClassName="md:hidden"
         info={

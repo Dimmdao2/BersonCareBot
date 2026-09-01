@@ -2,7 +2,7 @@
 
 > **SUPERSEDED AS TARGET — 2026-07-27.** The patient-dialogue/reply scenarios below must not authorize a doctor to reply inside Telegram/MAX. Current authority is the **«Уведомления»** row in [`CURRENT_AUTHORITY_MAP.md`](../../../../../../docs/CURRENT_AUTHORITY_MAP.md): `OWNER_PRODUCT_RULES.md` §15 (doctor Telegram is notifications only; reply in cabinet).
 
-Сценарии и шаблоны для **админ-чата** в Telegram и MAX: legacy-диалоги с пользователями, ответы на вопросы поддержки и списки неотвеченных вопросов. Комментарии к программе приходят врачу как уведомления; ответ доступен только в кабинете.
+Сценарии и шаблоны для служебных команд в Telegram и MAX. Сообщения пациента и комментарии к программе приходят врачу как уведомления; врач читает и отвечает только в кабинете.
 
 ## Кто считается admin в боте
 
@@ -12,12 +12,6 @@
 - **`isAdmin`** в facts webhook = env-admin (`TELEGRAM_ADMIN_ID` / MAX admin) **∪** id из `admin_telegram_ids` / `doctor_telegram_ids` (Telegram) или `admin_max_ids` / `doctor_max_ids` (MAX) в `system_settings` (scope `admin`).
 - Резолвер: `apps/integrator/src/infra/db/messengerStaffIds.ts` (TTL-кеш списков 60 с).
 - Канон: [`docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md`](../../../../../../docs/ARCHITECTURE/DOCTOR_TELEGRAM_PROGRAM_NOTE_REPLY.md) §«Админ-бот».
-
-## Ответ на сообщение пациента (поддержка)
-
-1. Уведомление с кнопкой **«Ответить»** → callback `admin_reply:webapp:platform:{platformUserId}` (64 байта).
-2. Сценарий `telegram.admin.reply.start` → `user.state.set` → prompt.
-3. Текст → `telegram.admin.reply.message` → M2M `POST /api/integrator/support/admin-reply` → PWA-чат + `notifyPatientDoctorReply`.
 
 ## Комментарий к упражнению
 

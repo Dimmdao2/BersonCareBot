@@ -63,13 +63,19 @@ pnpm run scheduler:dev
 pnpm run typecheck
 pnpm run lint
 pnpm test                 # integrator
-pnpm test:webapp          # webapp (fast + inprocess)
+pnpm test:webapp          # webapp (все vitest-project: fast + unit + route + ui)
 pnpm run build && pnpm run build:webapp
 ```
 
 **Полный CI** (`pnpm run ci` / `pnpm check`) — не обязательная церемония перед deploy или push. Его запускают, когда накопленные изменения оставляют конкретный непокрытый интеграционный риск; уже зелёный прогон переиспользуют вместе с целевыми проверками последующих локальных правок. Точный критерий: [`AGENTS.md` §9](AGENTS.md#9-full-ci-gate).
 
-В GitHub Actions на **pull request** для webapp гоняется только быстрый набор (`pnpm test:webapp:fast`, шардирование); полный in-process (`pnpm test:webapp:inprocess`) — на **push в `main`**. Локальный полный `pnpm run ci` выбирается по непокрытому repo-level риску, а не по названию следующего действия. Политика «не раздувать» webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компактность), подробности — [`apps/webapp/e2e/README.md`](apps/webapp/e2e/README.md).
+В GitHub Actions на **pull request и push** webapp гоняется двумя независимыми job: быстрый шардированный набор
+(`pnpm test:webapp:fast`, project `fast`) и поведенческий набор (`pnpm test:webapp:behavior` — projects `unit` +
+`route` + `ui`); ни один из них не называется `inprocess` — этот project был удалён вместе с disposable-PostgreSQL
+инфраструктурой (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`). Локальный полный `pnpm run ci`
+выбирается по непокрытому repo-level риску, а не по названию следующего действия. Политика «не раздувать»
+webapp-тесты: [`AGENTS.md` §11](AGENTS.md#11-webapp-тесты-компактность), подробности —
+[`apps/webapp/e2e/README.md`](apps/webapp/e2e/README.md).
 
 ## Конфигурация
 
@@ -111,8 +117,11 @@ pnpm run build && pnpm run build:webapp
 | `pnpm run typecheck`                        | Typecheck всех workspace-пакетов           |
 | `pnpm run lint`                             | ESLint (integrator + webapp)               |
 | `pnpm test`                                 | Тесты integrator                           |
-| `pnpm test:webapp`                          | Тесты webapp (fast + inprocess)            |
+| `pnpm test:webapp`                          | Тесты webapp (все project: fast/unit/route/ui) |
+| `pnpm test:webapp:fast`                     | Webapp, project `fast` (шардируется в CI)  |
+| `pnpm test:webapp:behavior`                 | Webapp, project `unit`+`route`+`ui`        |
 | `pnpm test:media-worker`                    | Тесты media-worker                         |
+| `pnpm test:error-tracking`                  | Тесты packages/error-tracking              |
 | `pnpm run ci` / `pnpm check`                | Полный пайплайн CI                         |
 | `pnpm run ci:resume:after-*`                | Догон хвоста CI после падения шага         |
 

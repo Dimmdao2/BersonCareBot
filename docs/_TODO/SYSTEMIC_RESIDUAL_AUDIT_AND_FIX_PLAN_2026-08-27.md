@@ -107,23 +107,67 @@
   нумерацию `$N`. Перевод выполняется функциональными группами на существующий typed Drizzle-путь, без нового
   адаптера рядом. Сначала auth/session, затем необратимый purge, admin, doctor/patient CRUD и infra.
 - [x] **W6 — убрать мёртвые действия ботов без изменения будущего меню.** Кнопки удалены в `f456bf8ba`; в этом
-  коммите удалены недостижимые callback/state/M2M-ветки и устаревшие активные описания. `rg -n
-  "program_reply|webapp\\.programNote\\.replyBegin|beginProgramNoteReply|program-note/reply-begin|programNoteStageItemId|programNoteReplyState|#pn:"
-  apps packages docs --glob "!docs/archive/**"` → пусто; `pnpm --dir apps/integrator typecheck` и
+  коммите удалены обе недостижимые callback/state/M2M-ветки — обычного сообщения и program note — вместе с
+  устаревшими активными описаниями. `rg -n
+  "admin_reply:|admin_reply_continue:|admin_close_dialog:|support/admin-reply|applySupportAdminReply|program_reply|webapp\\.programNote\\.replyBegin|program-note/reply-begin|programNoteStageItemId|programNoteReplyState|#pn:"
+  apps packages docs/ARCHITECTURE docs/README.md` → пусто; `pnpm --dir apps/integrator typecheck` и
   `pnpm --dir apps/webapp typecheck` → PASS. Рабочий `sendProgramNoteReply` из кабинета сохранён; будущее меню,
-  Telegram Mini App и MAX не изменялись.
-- [ ] **W7 — подключить реально существующие тесты к CI.** Тесты media-worker не запускаются GitHub Actions, а
+  Telegram Mini App и MAX не изменялись. Финальный независимый аудит нашёл одну регрессию проводки: ответ врача
+  из обсуждения программы сохранялся, но пациент не получал уведомление. Ведущий вернул только действующую
+  `notifyPatientOfDoctorReply` в `createSendProgramNoteReply` и сделал зависимость обязательной, поэтому повторное
+  снятие проводки теперь ломает typecheck; старые callback/M2M-ответы через бота не возвращены. Доказано:
+  `pnpm --dir apps/webapp typecheck` — PASS.
+- [x] **W7 — подключить реально существующие тесты к CI.** Тесты media-worker не запускаются GitHub Actions, а
   тесты error-tracking не запускаются ни GitHub, ни локальным full CI. Три `*.unit.test.tsx` ошибочно попадают в
   fast-project вместо unit. Исправить wiring и видимость project-класса; не менять продукт под старые UI-тесты.
-- [ ] **W8 — восстановить только потерянные поведенческие контракты.** Старые text-pinning списки целиком
+  **Закрыто 02.09.2026 (wt/systemic-test-suite-20260902).** `.github/workflows/ci.yml`: новые независимые job
+  `test-media-worker` (`pnpm test:media-worker`) и `test-error-tracking` (`pnpm test:error-tracking`, новый
+  root-скрипт), по образцу существующих `test-scripts`/`test-db-principal` — не сериализуют webapp/build. Локальный
+  `pnpm run ci` (`scripts/ci-steps.mjs`): `test:error-tracking` добавлен в существующий параллельный lane рядом с
+  `test:media-worker`; все `ci:resume:after-*` в `package.json` и их список в `AGENTS.md` §9/§10 дополнены
+  `ci:resume:after-test-error-tracking`. Routing-баг `*.unit.test.tsx`: `apps/webapp/vitest.config.ts` — `unit`
+  project не включал `.tsx`, `fast` не исключал `.tsx`, поэтому все три файла шли в `fast`; исправлены оба списка.
+  `scripts/check-test-runner-visibility.mjs` расширен (не новый реестр — суффиксная конвенция AGENTS.md §10b как
+  данные): для webapp сверяет фактический project каждого файла с ожидаемым по имени, `wrongProject` — новый класс
+  FAIL. Гейт самопроверен: до фикса вылавливал ровно эти три файла (`ожидался [unit], реально [fast]`), после
+  фикса — `check-test-runner-visibility: OK`. Evidence: `pnpm test:media-worker` (8 файлов/20 тестов),
+  `pnpm test:error-tracking` (2 файла/9 тестов), `node scripts/check-test-runner-visibility.mjs` (диск=раннер по
+  всем трём приложениям, 0 wrongProject), `node scripts/ci-steps.mjs --dry-run` (оба скрипта в phase 2).
+- [x] **W8 — восстановить только потерянные поведенческие контракты.** Старые text-pinning списки целиком
   устарели и не должны возвращаться. Отдельно подтверждены несколько удалённых настоящих тестов без преемника:
   HTTP-клиент MAX, список сессий пакета пациента, перестановка элементов программы и lifecycle записи. Для каждого
   сначала подтвердить живой owner-контракт, затем покрыть самый дешёвый публичный слой. Сотни удалённых тестов
   один-к-одному не восстанавливать.
-- [ ] **W9 — актуализировать тестовый план.** `TEST_SUITE_AUDIT_2026-07-29.md` всё ещё объявляет действующей
+  **Закрыто 02.09.2026.** Все четыре — oracle: соответствующий удалённый тест из `a380533b4` («test(testsuite):
+  remove legacy test suite (#1074)») сверен построчно против текущего исходника; поведение подтверждено живым,
+  восстановлено на самом дешёвом публичном слое, каждое утверждение красится целевой fault injection (внесена и
+  откачена):
+  - MAX HTTP client — `apps/integrator/src/integrations/max/client.unit.test.ts` (2 теста): `sendMaxMessage`
+    бросает `MaxSendError` вместо тихого `null` на отказе API и на отсутствии chatId/userId.
+  - Список сессий пакета пациента — `.../patient-packages/[id]/sessions/route.route.test.ts` (4 теста, через
+    реальный `GET`, не напрямую сервис): org-scoping по `gate.ctx.organizationId`, `includePast` из query
+    независимо от `allowPastUnlink` из system setting, отказ при незапросе gate.
+  - Перестановка treatment-program — `treatmentProgramReorderHelpers.unit.test.ts` (6 тестов, 1:1 восстановлен
+    исходный набор, сигнатуры всех 4 функций не изменились).
+  - Booking appointment lifecycle — `booking-appointment-lifecycle/service.unit.test.ts` (2 теста): бесплатная
+    отмена задолго до визита + `not_found` на чужой/несуществующей записи (новый тест сверх исходного, `BeAppointment`
+    приобрёл 3 обязательных reminder-preset поля — заполнены по текущей фикстурной конвенции).
+  Text-pinning списки (`testsuite-*textpin*`, `testsuite-mock-echo.txt`) не восстанавливались — архивированы в W9.
+- [x] **W9 — актуализировать тестовый план.** `TEST_SUITE_AUDIT_2026-07-29.md` всё ещё объявляет действующей
   удалённую disposable-Postgres инфраструктуру и не отражает named DEV/TEST devDbProof-путь; README и этот
   `AGENTS.md` ссылаются на уже удалённый `test:webapp:inprocess`. Исправить активный канон и архивировать
   одноразовые списки старого аудита после переноса остающихся фактов сюда.
+  **Закрыто 02.09.2026.** `README.md`, `AGENTS.md` §9/§10, `docs/ARCHITECTURE/LOCAL_DEV_AND_AGENT_TESTING.md`,
+  `apps/webapp/e2e/CI_BASELINE.md` — все живые `inprocess`-упоминания заменены на текущую таксономию
+  (`fast`/`unit`/`route`/`ui`, `test:webapp:behavior`, job `test-webapp-behavior`, оба на push и PR). Верх
+  `TEST_SUITE_AUDIT_2026-07-29.md` получил статус-баннер 02.09: документ — история прохода 29.07–16.08, ранние
+  разделы (Блок Б, disposable-PostgreSQL) читались как активная инструкция при чтении без пометок
+  `OWNER-SUPERSEDED` ниже; исторический текст не редактировался. Одиннадцать одноразовых артефактов рёбилда
+  (`TESTSUITE_*RESEARCH*`, `TESTSUITE_*AUDIT*`, `TESTSUITE_PILOT_*`, `testsuite-batch{1,2}.txt`,
+  `testsuite-{mixed,pure}-textpin.txt`, `testsuite-mock-echo.txt`, `testsuite-rewrite-list.md`) перенесены
+  `git mv` в `docs/archive/2026-07-testsuite-rebuild/` (свой README) — ни один не имел входящих ссылок из активного
+  канона/скриптов (проверено `grep` по `AGENTS.md`/`README.md`/`CLAUDE.md`/`scripts/*.mjs`), только из других
+  архивных run-briefs.
 - [ ] **W10 — пересобрать A→B snapshot из окончательной schema B.** Безопасный
   `pnpm run check:prod-to-target-cutover` остановился до любых изменений БД: `schema-pre.sql`,
   `schema-post.sql` и `ledgers-and-baseline.sql` расходятся с текущей named DEV. Snapshot обновляется один раз

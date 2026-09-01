@@ -10,14 +10,6 @@ export const integratorSupportSyncUserMessageSchema = z.object({
   externalMessageId: z.string().max(500).nullable().optional(),
 });
 
-export const integratorSupportAdminReplySchema = z.object({
-  integratorConversationId: z.string().min(1).max(200),
-  integratorMessageId: z.string().min(1).max(200),
-  text: z.string().min(1).max(4000),
-  senderDisplayName: z.string().min(1).max(500).optional(),
-  createdAt: z.string().min(1),
-});
-
 export const integratorSupportStatusSchema = z.object({
   integratorConversationId: z.string().min(1).max(200),
   status: z.enum(['open', 'closed']),
@@ -54,7 +46,6 @@ export const integratorSupportQuestionWriteSchema = z.discriminatedUnion('operat
 export type IntegratorSupportSyncUserMessageBody = z.infer<
   typeof integratorSupportSyncUserMessageSchema
 >;
-export type IntegratorSupportAdminReplyBody = z.infer<typeof integratorSupportAdminReplySchema>;
 export type IntegratorSupportStatusBody = z.infer<typeof integratorSupportStatusSchema>;
 export type IntegratorSupportQuestionWriteBody = z.infer<
   typeof integratorSupportQuestionWriteSchema

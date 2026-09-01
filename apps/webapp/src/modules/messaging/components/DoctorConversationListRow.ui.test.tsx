@@ -7,6 +7,8 @@ afterEach(cleanup);
 const conversation = {
   conversationId: 'conversation-1',
   displayName: 'Берсон Дмитрий',
+  firstName: 'Дмитрий',
+  lastName: 'Берсон',
   lastMessageAt: '2026-08-31T18:14:00.000Z',
   lastMessageText: 'Нужна помощь',
   lastSenderRole: 'user',
@@ -27,8 +29,9 @@ describe('DoctorConversationListRow', () => {
     expect(row).toHaveAttribute('href', '/app/doctor/communications?conversation=conversation-1');
     expect(row).toHaveClass('flex');
     expect(row).not.toHaveClass('block');
-    expect(row).toHaveTextContent('Берсон: Нужна помощь');
+    expect(row).toHaveTextContent('Дмитрий: Нужна помощь');
     expect(row).toHaveTextContent('1');
+    expect(screen.getAllByText('Берсон Дмитрий')).toHaveLength(1);
   });
 
   it('uses the same row content for the selectable communications list', () => {
