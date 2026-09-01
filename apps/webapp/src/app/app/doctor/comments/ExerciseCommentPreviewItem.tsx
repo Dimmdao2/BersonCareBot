@@ -6,7 +6,11 @@ import type { TodayExerciseCommentAttentionItem } from '../loadDoctorExerciseCom
 import { ExerciseListCatalogThumb } from '@/shared/ui/doctor/media/ExerciseListCatalogThumb';
 import {
   doctorDnaFlatListClickableClass,
+  doctorDnaFlatListMetaClass,
+  doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
+  doctorDnaFlatListSecondaryClass,
+  doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { Button } from '@/shared/ui/doctor/primitives/button';
 import { thumbToExerciseMedia } from './exerciseCommentThumb';
@@ -29,7 +33,13 @@ export function ExerciseCommentPreviewItemContent({
       <ExerciseListCatalogThumb media={thumbToExerciseMedia(item.thumb)} />
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2">
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate',
+              doctorDnaFlatListPrimaryClass,
+              doctorDnaFlatListUnreadTextClass,
+            )}
+          >
             {item.patientDisplayName}
             {isOnSupport ? (
               <span
@@ -40,12 +50,16 @@ export function ExerciseCommentPreviewItemContent({
               </span>
             ) : null}
           </span>
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+          <span className={cn('ml-auto shrink-0', doctorDnaFlatListMetaClass)}>
             {item.latestMessageAtLabel}
           </span>
         </div>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.stageItemTitle}</p>
-        <p className="mt-0.5 line-clamp-2 text-xs text-foreground/80">{bodyPreview}</p>
+        <p className={cn('mt-0.5 truncate', doctorDnaFlatListMetaClass)}>
+          {item.stageItemTitle}
+        </p>
+        <p className={cn('mt-0.5 line-clamp-2', doctorDnaFlatListSecondaryClass)}>
+          {bodyPreview}
+        </p>
       </div>
     </div>
   );

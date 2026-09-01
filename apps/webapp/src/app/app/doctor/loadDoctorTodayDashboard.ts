@@ -52,6 +52,8 @@ export const DOCTOR_TODAY_ON_SUPPORT_PREVIEW_LIMIT = 10;
 export type TodayConversationSourceRow = {
   conversationId: string;
   displayName: string;
+  firstName?: string | null;
+  lastName?: string | null;
   phoneNormalized: string | null;
   lastMessageAt: string;
   lastMessageText: string | null;
@@ -163,6 +165,8 @@ export type TodayNextAppointmentItem = {
 export type TodayUnreadConversationItem = {
   conversationId: string;
   displayName: string;
+  firstName: string | null;
+  lastName: string | null;
   phoneNormalized: string | null;
   lastMessageAt: string;
   lastMessageAtLabel: string;
@@ -517,6 +521,8 @@ export function mapConversationToTodayItem(
   return {
     conversationId: row.conversationId,
     displayName: row.displayName.trim() || '—',
+    firstName: row.firstName?.trim() || null,
+    lastName: row.lastName?.trim() || null,
     phoneNormalized: row.phoneNormalized,
     lastMessageAt: row.lastMessageAt,
     lastMessageAtLabel: formatDateTimeRu(row.lastMessageAt, timeZone),

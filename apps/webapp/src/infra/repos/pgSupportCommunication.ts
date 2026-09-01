@@ -148,6 +148,7 @@ type AdminConversationListDbRow = {
   last_message_at: string;
   closed_at: string | null;
   close_reason: string | null;
+  platform_user_id: string | null;
   display_name: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -170,10 +171,13 @@ function mapAdminConversationListRow(row: AdminConversationListDbRow): AdminConv
     lastMessageAt: row.last_message_at,
     closedAt: row.closed_at,
     closeReason: row.close_reason,
+    platformUserId: row.platform_user_id,
     displayName: formatDoctorFio(
       { lastName: row.last_name, firstName: row.first_name, patronymic: row.patronymic },
       row.display_name ?? '',
     ),
+    firstName: row.first_name,
+    lastName: row.last_name,
     phoneNormalized: row.phone_normalized,
     channelExternalId: row.channel_external_id,
     lastMessageText: row.last_message_text,
@@ -557,6 +561,7 @@ export function createPgSupportCommunicationPort(): SupportCommunicationPort {
           COALESCE(last_personal.personal_msg_at, sc.created_at)::text AS last_message_at,
           sc.closed_at::text,
           sc.close_reason,
+          sc.platform_user_id,
           ${FIO.displayName} AS display_name,
           ${FIO.firstName} AS first_name,
           ${FIO.lastName} AS last_name,

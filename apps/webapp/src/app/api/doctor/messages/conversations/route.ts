@@ -5,7 +5,6 @@
 import { NextResponse } from 'next/server';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { doctorSupportUnreadOnlyFromQuery } from '@/modules/messaging/supportAdminListQuery';
-import { parsePlatformUserIdFromWebappConversationId } from '@/modules/messaging/supportConversationIds';
 import { requireDoctorWorkspaceApiContext } from '@/app-layer/guards/requireRole';
 import { withDoctorWorkspacePrincipal } from '@/app-layer/guards/doctorWorkspacePrincipal';
 
@@ -27,17 +26,9 @@ export async function GET(request: Request) {
     }),
   );
 
-  // Step 2: extract unique patient userIds from the conversation list.
   const patientUserIds = Array.from(
-    new Set(
-      list.flatMap((c) => {
-        const uid = parsePlatformUserIdFromWebappConversationId(c.integratorConversationId);
-        return uid ? [uid] : [];
-      }),
-    ),
+    new Set(list.flatMap((conversation) => conversation.platformUserId ?? [])),
   );
-
-  // Step 3: look up only the specific clients we need (≤50), not the full patient list.
   const scopedClients =
     patientUserIds.length > 0
       ? await withDoctorWorkspacePrincipal(auth.ctx, () =>
@@ -48,25 +39,21 @@ export async function GET(request: Request) {
           }),
         )
       : [];
-
-  // Build userId → { firstName, lastName, isOnSupport } map.
-  const clientInfoMap = new Map<
-    string,
-    { firstName: string | null; lastName: string | null; isOnSupport: boolean }
-  >();
-  for (const c of scopedClients) {
-    clientInfoMap.set(c.userId, {
-      firstName: c.firstName ?? null,
-      lastName: c.lastName ?? null,
-      isOnSupport: c.isOnSupport ?? false,
-    });
-  }
+  const clientInfoMap = new Map(
+    scopedClients.map((client) => [
+      client.userId,
+      {
+        firstName: client.firstName ?? null,
+        lastName: client.lastName ?? null,
+        isOnSupport: client.isOnSupport ?? false,
+      },
+    ]),
+  );
 
   return NextResponse.json({
     ok: true,
     conversations: list.map((c) => {
-      const patientUserId = parsePlatformUserIdFromWebappConversationId(c.integratorConversationId);
-      const clientInfo = patientUserId ? clientInfoMap.get(patientUserId) : null;
+      const clientInfo = c.platformUserId ? clientInfoMap.get(c.platformUserId) : null;
       return {
         conversationId: c.conversationId,
         integratorConversationId: c.integratorConversationId,
@@ -75,8 +62,8 @@ export async function GET(request: Request) {
         openedAt: c.openedAt,
         lastMessageAt: c.lastMessageAt,
         displayName: c.displayName,
-        firstName: clientInfo?.firstName ?? null,
-        lastName: clientInfo?.lastName ?? null,
+        firstName: clientInfo?.firstName ?? c.firstName,
+        lastName: clientInfo?.lastName ?? c.lastName,
         phoneNormalized: c.phoneNormalized,
         lastMessageText: c.lastMessageText,
         lastSenderRole: c.lastSenderRole,
@@ -85,7 +72,7 @@ export async function GET(request: Request) {
         onSupport: clientInfo?.isOnSupport ?? false,
         // #813: already derived above (no extra query) — lets the chat header link to the
         // patient's card. null for non-webapp-platform conversations (e.g. Telegram/MAX).
-        patientUserId: patientUserId ?? null,
+        patientUserId: c.platformUserId,
       };
     }),
   });
