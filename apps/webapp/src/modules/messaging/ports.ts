@@ -129,7 +129,10 @@ export type AdminConversationListRow = {
   lastMessageAt: string;
   closedAt: string | null;
   closeReason: string | null;
+  platformUserId: string | null;
   displayName: string;
+  firstName: string | null;
+  lastName: string | null;
   phoneNormalized: string | null;
   channelExternalId: string | null;
   lastMessageText: string | null;

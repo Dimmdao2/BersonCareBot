@@ -68,6 +68,9 @@ export const doctorBodyTextClass = 'text-sm text-foreground';
 /** Primary entity/title line in doctor lists. */
 export const doctorPrimaryListTextClass = 'text-base font-normal text-foreground';
 
+/** Secondary content line in doctor lists (message/comment preview). */
+export const doctorSecondaryListTextClass = 'text-sm font-normal text-foreground/80';
+
 /** Secondary labels, timestamps, hints, and metadata. */
 export const doctorMetaTextClass = 'text-xs text-muted-foreground';
 
