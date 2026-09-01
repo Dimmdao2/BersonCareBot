@@ -27,7 +27,11 @@ export async function GET(request: Request) {
   );
 
   const patientUserIds = Array.from(
-    new Set(list.flatMap((conversation) => conversation.platformUserId ?? [])),
+    new Set(
+      list.flatMap((conversation) =>
+        conversation.platformUserId ? [conversation.platformUserId] : [],
+      ),
+    ),
   );
   const scopedClients =
     patientUserIds.length > 0
@@ -70,8 +74,8 @@ export async function GET(request: Request) {
         unreadFromUserCount: c.unreadFromUserCount,
         hasUnreadFromUser: c.unreadFromUserCount > 0,
         onSupport: clientInfo?.isOnSupport ?? false,
-        // #813: already derived above (no extra query) — lets the chat header link to the
-        // patient's card. null for non-webapp-platform conversations (e.g. Telegram/MAX).
+        // Lets the chat header link to the current patient record. Null is kept for an
+        // unlinked external conversation rather than guessing an identity from a name snapshot.
         patientUserId: c.platformUserId,
       };
     }),
