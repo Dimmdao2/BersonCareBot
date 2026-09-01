@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
@@ -27,6 +28,7 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
   doctorDnaFlatListSelectedPrimaryClass,
+  doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Button } from '@/shared/ui/doctor/primitives/button';
@@ -82,6 +84,7 @@ export type DoctorCommentsTabProps = {
   initialPatients: CommentPatientRow[];
   /** IANA timezone string for displaying dates in clinic's local time. */
   displayIana?: string;
+  active?: boolean;
 };
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -158,7 +161,7 @@ function PatientRow({
               className={cn(
                 'min-w-0 truncate',
                 doctorDnaFlatListPrimaryClass,
-                hasUnread && '!font-semibold',
+                hasUnread && doctorDnaFlatListUnreadTextClass,
                 isSelected && doctorDnaFlatListSelectedPrimaryClass,
               )}
             >
@@ -217,7 +220,7 @@ function ExerciseRow({
             className={cn(
               'truncate',
               doctorDnaFlatListPrimaryClass,
-              hasUnread && 'font-bold',
+              hasUnread && doctorDnaFlatListUnreadTextClass,
               isSelected && doctorDnaFlatListSelectedPrimaryClass,
             )}
           >
@@ -447,7 +450,11 @@ function ThreadMessage({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommentsTabProps) {
+function DoctorCommentsDesktopTab({
+  initialPatients,
+  displayIana,
+  active = true,
+}: DoctorCommentsTabProps) {
   // ── View mode: «Непрочитанные» (unread) or «Все» (all) ──
   // Default: «Все» — показать всю историю комментариев; «Непрочитанные» — только непрочитанные.
   const [viewMode, setViewMode] = useState<'unread' | 'all'>('all');
@@ -458,6 +465,7 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
 
   // ── Search / filter state ──
   const [query, setQuery] = useState('');
+  const [mobileToolbarTarget, setMobileToolbarTarget] = useState<HTMLElement | null>(null);
 
   // ── All-mode: lazy-loaded patients ──
   const [allModePatients, setAllModePatients] = useState<CommentPatientRow[] | null>(null);
@@ -835,32 +843,33 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   const patientsLoading = viewMode === 'all' && allModePatientsLoading;
   const patientsError = viewMode === 'all' ? allModePatientsError : null;
 
-  const leftPane = (
-    <div
-      data-doctor-flat-list-surface
-      className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:rounded-lg md:border md:border-border"
-    >
-      {/* Search + filters header */}
-      <div className="shrink-0 border-b border-border bg-muted/20 px-3 py-2 space-y-1.5">
-        <Input
-          type="search"
-          placeholder="Поиск"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className="h-8 w-full"
-          aria-label="Поиск пациентов"
-        />
+  useEffect(() => {
+    if (!active) {
+      setMobileToolbarTarget(null);
+      return;
+    }
+    setMobileToolbarTarget(document.getElementById('doctor-communications-mobile-toolbar'));
+  }, [active]);
+
+  const renderListControls = (showFilters: boolean) => (
+    <div className="space-y-1.5">
+      <Input
+        type="search"
+        placeholder="Поиск"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="h-8 w-full"
+        aria-label="Поиск пациентов"
+      />
+      {showFilters ? (
         <div className="flex flex-wrap gap-1.5">
-          {/* ── Независимые toggle-фильтры: «Непрочитанные» и «На сопровождении» ──
-              Оба переключаются кликом независимо друг от друга; ни один активный
-              фильтр не требуется — тогда список показывает всех пациентов. */}
           <Button
             type="button"
             variant="ghost"
             size="sm"
             onClick={() => handleSwitchViewMode(viewMode === 'unread' ? 'all' : 'unread')}
             className={cn(
-              'cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto',
+              'h-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors',
               viewMode === 'unread'
                 ? 'bg-destructive/15 text-destructive'
                 : 'border border-border text-muted-foreground hover:bg-muted/40',
@@ -875,7 +884,7 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
             size="sm"
             onClick={handleToggleOnSupportOnly}
             className={cn(
-              'cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors h-auto',
+              'h-auto cursor-pointer rounded-md px-2 py-1 text-xs font-medium transition-colors',
               onSupportOnly
                 ? 'bg-primary/15 text-primary'
                 : 'border border-border text-muted-foreground hover:bg-muted/40',
@@ -885,6 +894,18 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
             ★ На сопровождении{onSupportCount > 0 ? ` ${onSupportCount}` : ''}
           </Button>
         </div>
+      ) : null}
+    </div>
+  );
+
+  const leftPane = (
+    <div
+      data-doctor-flat-list-surface
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden rounded-none border-0 bg-card md:rounded-lg md:border md:border-border"
+    >
+      {/* Search + filters header */}
+      <div className="hidden shrink-0 space-y-1.5 border-b border-border bg-muted/20 px-3 py-2 md:block">
+        {renderListControls(true)}
       </div>
 
       {/* Patient list */}
@@ -1147,15 +1168,18 @@ function DoctorCommentsDesktopTab({ initialPatients, displayIana }: DoctorCommen
   ) : null;
 
   return (
-    <CatalogSplitLayout
-      mobileEdgeToEdge
-      left={leftPane}
-      right={rightPane}
-      mobileView={mobileView}
-      mobileBackSlot={mobileBackSlot}
-      desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
-      className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
-    />
+    <>
+      {mobileToolbarTarget ? createPortal(renderListControls(false), mobileToolbarTarget) : null}
+      <CatalogSplitLayout
+        mobileEdgeToEdge
+        left={leftPane}
+        right={rightPane}
+        mobileView={mobileView}
+        mobileBackSlot={mobileBackSlot}
+        desktopColsClassName="lg:grid-cols-[minmax(0,9fr)_minmax(0,11fr)]"
+        className={DOCTOR_REMAINING_HEIGHT_SPLIT_LAYOUT_CLASS}
+      />
+    </>
   );
 }
 

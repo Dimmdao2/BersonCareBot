@@ -47,6 +47,9 @@ export const doctorDnaFlatListClickableClass =
 
 export const doctorDnaFlatListPrimaryClass = doctorPrimaryListTextClass;
 
+/** Shared emphasis for unread rows and their metadata across doctor flat lists. */
+export const doctorDnaFlatListUnreadTextClass = '!font-semibold';
+
 export const doctorDnaFlatListSelectedPrimaryClass = 'font-semibold text-primary';
 
 export const doctorDnaFlatListMetaClass = doctorMetaTextClass;

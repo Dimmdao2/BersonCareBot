@@ -11,6 +11,7 @@ import {
   doctorDnaFlatListPrimaryClass,
   doctorDnaFlatListRowClass,
   doctorDnaFlatListSelectedPrimaryClass,
+  doctorDnaFlatListUnreadTextClass,
 } from '@/shared/ui/doctor/DoctorDnaFlatListRow';
 
 export type DoctorConversationListRowData = {
@@ -81,7 +82,7 @@ export function DoctorConversationListRow({
               'min-w-0 truncate',
               doctorDnaFlatListPrimaryClass,
               selected && doctorDnaFlatListSelectedPrimaryClass,
-              conversation.unreadFromUserCount > 0 && '!font-semibold',
+              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
             )}
           >
             {hasStructuredName
@@ -95,7 +96,7 @@ export function DoctorConversationListRow({
             className={cn(
               'shrink-0',
               doctorDnaFlatListMetaClass,
-              conversation.unreadFromUserCount > 0 && '!font-semibold',
+              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
             )}
           >
             {formatConversationTime(conversation.lastMessageAt, displayIana)}
@@ -106,7 +107,7 @@ export function DoctorConversationListRow({
             className={cn(
               'truncate',
               doctorDnaFlatListMetaClass,
-              conversation.unreadFromUserCount > 0 && '!font-semibold',
+              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
             )}
           >
             {conversation.displayName}
@@ -117,13 +118,13 @@ export function DoctorConversationListRow({
             className={cn(
               'mt-0.5 truncate',
               doctorDnaFlatListMetaClass,
-              conversation.unreadFromUserCount > 0 && '!font-semibold',
+              conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
             )}
           >
             <span
               className={cn(
                 'font-medium text-foreground/80',
-                conversation.unreadFromUserCount > 0 && '!font-semibold',
+                conversation.unreadFromUserCount > 0 && doctorDnaFlatListUnreadTextClass,
               )}
             >
               {getSenderPrefix(conversation)}:
