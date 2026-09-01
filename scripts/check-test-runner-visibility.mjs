@@ -31,15 +31,40 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const knownInvisiblePath = join(repoRoot, 'scripts/test-runner-visibility-known-invisible.json');
 
+// W7 (SYSTEMIC_RESIDUAL_AUDIT_AND_FIX_PLAN_2026-08-27.md): a file can be selected by SOME vitest
+// project and still be routed to the WRONG one — `*.unit.test.tsx` matched webapp's `fast` project
+// because `fast`'s exclude list and `unit`'s include list only spelled out `.unit.test.ts`, missing
+// the `.tsx` variant (fixed in apps/webapp/vitest.config.ts alongside this check). That file was
+// never "invisible" — `disk`/`runner` counts matched — so the existing visibility diff above cannot
+// see it; only comparing the ACTUAL project against the project the AGENTS.md §10b filename suffix
+// convention names can. `projectRoutingRules` below is that convention read as data — not a second
+// registry of files (no per-file list to keep in sync): any file matching a suffix must land in the
+// named project, anything else must land in `fast`. Only webapp defines named vitest projects.
 const APPS = [
   { name: 'integrator', dir: 'apps/integrator', testRoots: ['src', 'e2e'] },
   {
     name: 'webapp',
     dir: 'apps/webapp',
     testRoots: ['src'],
+    projectRoutingRules: [
+      { suffix: '.unit.test.ts', project: 'unit' },
+      { suffix: '.unit.test.tsx', project: 'unit' },
+      { suffix: '.route.test.ts', project: 'route' },
+      { suffix: '.ui.test.tsx', project: 'ui' },
+      // Legacy read-only DEV-DB smoke files (§10 «Dev-DB opt-in smoke-тесты») are opt-in and not
+      // wired into any named project by design; routing does not apply to them.
+      { suffix: '.devDb.integration.test.ts', project: null },
+    ],
   },
   { name: 'media-worker', dir: 'apps/media-worker', testRoots: ['src'] },
 ];
+
+function expectedProjectFor(file, rules) {
+  for (const rule of rules) {
+    if (file.endsWith(rule.suffix)) return rule.project;
+  }
+  return 'fast';
+}
 
 function loadKnownInvisible() {
   const raw = JSON.parse(readFileSync(knownInvisiblePath, 'utf8'));
@@ -73,7 +98,9 @@ function listDiskTestFiles(appDirAbs, testRoots) {
   return files.sort();
 }
 
-function listRunnerFiles(appDirAbs, invocation = { args: [], env: {} }) {
+// Returns file -> set of project names that select it. Bracket-less lines (apps with no named
+// vitest projects, e.g. integrator/media-worker) map to a file with an empty project set.
+function listRunnerFilesDetailed(appDirAbs, invocation = { args: [], env: {} }) {
   const result = spawnSync('pnpm', ['exec', 'vitest', 'list', '--filesOnly', ...invocation.args], {
     cwd: appDirAbs,
     encoding: 'utf8',
@@ -87,25 +114,31 @@ function listRunnerFiles(appDirAbs, invocation = { args: [], env: {} }) {
       `vitest list вернул код ${result.status} в ${appDirAbs}:\n${result.stderr || result.stdout}`,
     );
   }
-  const files = new Set();
+  const filesToProjects = new Map();
   for (const rawLine of result.stdout.split('\n')) {
     const line = rawLine.trim();
     if (!line) continue;
-    const match = line.match(/^\[[^\]]+\]\s+(.+)$/);
-    files.add((match ? match[1] : line).trim());
+    const match = line.match(/^\[([^\]]+)\]\s+(.+)$/);
+    const project = match ? match[1] : null;
+    const file = (match ? match[2] : line).trim();
+    if (!filesToProjects.has(file)) filesToProjects.set(file, new Set());
+    if (project) filesToProjects.get(file).add(project);
   }
-  return files;
+  return filesToProjects;
 }
 
 function checkApp(app, known) {
   const appDirAbs = join(repoRoot, app.dir);
   const disk = listDiskTestFiles(appDirAbs, app.testRoots);
   const diskSet = new Set(disk);
-  const runner = new Set(
-    (app.runnerInvocations ?? [{ args: [], env: {} }]).flatMap((invocation) => [
-      ...listRunnerFiles(appDirAbs, invocation),
-    ]),
-  );
+  const filesToProjects = new Map();
+  for (const invocation of app.runnerInvocations ?? [{ args: [], env: {} }]) {
+    for (const [file, projects] of listRunnerFilesDetailed(appDirAbs, invocation)) {
+      if (!filesToProjects.has(file)) filesToProjects.set(file, new Set());
+      for (const project of projects) filesToProjects.get(file).add(project);
+    }
+  }
+  const runner = new Set(filesToProjects.keys());
   const invisible = disk.filter((file) => !runner.has(file));
   const knownFiles = known.apps[app.name] ?? new Set();
   const baselineFiles = known.frozenBaseline[app.name] ?? new Set();
@@ -117,8 +150,26 @@ function checkApp(app, known) {
   // сегодня реально невидим раннеру, дописать его в исключения без правки frozenBaseline — FAIL.
   const baselineGrowth = [...knownFiles].filter((file) => !baselineFiles.has(file));
 
+  // W7: a file that IS visible can still be routed to the wrong named project (§10b filename
+  // suffix convention). Only checked where the app declares projectRoutingRules (webapp); files
+  // whose rule maps to `project: null` (legacy devDb opt-in smoke) are exempt. Invisible files are
+  // reported above already, not duplicated here.
+  const wrongProject = [];
+  if (app.projectRoutingRules) {
+    for (const file of disk) {
+      if (!runner.has(file)) continue;
+      const expected = expectedProjectFor(file, app.projectRoutingRules);
+      if (expected === null) continue;
+      const actual = filesToProjects.get(file) ?? new Set();
+      if (!actual.has(expected)) {
+        wrongProject.push({ file, expected, actual: [...actual].sort() });
+      }
+    }
+  }
+
   return {
     app: app.name,
+    wrongProject,
     disk: disk.length,
     runner: runner.size,
     invisible,
@@ -166,6 +217,19 @@ function printReport(results, known) {
       );
       console.error(`  исключение — правку принимает владелец плана блока М, и она обязана явно`);
       console.error(`  редактировать сам 'frozenBaseline', а не только 'apps'.`);
+    }
+    if (r.wrongProject.length > 0) {
+      failed = true;
+      console.error(`  НЕВЕРНАЯ МАРШРУТИЗАЦИЯ ПРОЕКТА (файл выбирается, но не тем vitest-проектом):`);
+      for (const w of r.wrongProject) {
+        console.error(
+          `    - ${r.app}/${w.file}: ожидался [${w.expected}], реально [${w.actual.join(', ') || '—'}]`,
+        );
+      }
+      console.error(
+        '  Имя файла называет проект по конвенции AGENTS.md §10b («Какой файл писать»); почини',
+      );
+      console.error('  include/exclude соответствующего vitest project, а не имя файла.');
     }
   }
   return failed;

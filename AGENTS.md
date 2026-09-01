@@ -1125,6 +1125,7 @@ build/test graph, проверяются своим syntax/smoke gate и так�
   - `ci:resume:after-test`
   - `ci:resume:after-test-webapp`
   - `ci:resume:after-test-media-worker`
+  - `ci:resume:after-test-error-tracking`
   - `ci:resume:after-build`
   - `ci:resume:after-build-webapp`
 
@@ -1217,7 +1218,11 @@ _Этот раздел — полный действующий канон уро
 
 - Все тесты integrator: `pnpm test` (корень) или `pnpm --dir apps/integrator test` без аргументов после Vitest
 - Все тесты webapp: `pnpm test:webapp` или `pnpm --dir apps/webapp test` без аргументов
-- Узкий webapp: `pnpm test:webapp:fast` (проект Vitest `fast`) или `pnpm test:webapp:inprocess` (проект `inprocess`; в GitHub Actions только на `push` в `main`)
+- Узкий webapp: `pnpm test:webapp:fast` (проект Vitest `fast`, в GitHub Actions шардируется), `pnpm test:webapp:unit`
+  (проект `unit`), `pnpm test:webapp:route` (проект `route`) или `pnpm test:webapp:ui` (проект `ui`); все три
+  последних вместе — `pnpm test:webapp:behavior`. Проект `inprocess` не существует — удалён вместе с disposable-
+  PostgreSQL инфраструктурой (`docs/archive/2026-08-no-disposable-db-retirement/RETIREMENT.md`); текущая таксономия
+  webapp — `fast`/`unit`/`route`/`ui` (`apps/webapp/vitest.config.ts`).
 
 #### Webapp Vitest / e2e: не раздувать
 
@@ -1256,6 +1261,7 @@ _Этот раздел — полный действующий канон уро
 - после `test` (integrator): `pnpm run ci:resume:after-test`
 - после `test:webapp`: `pnpm run ci:resume:after-test-webapp`
 - после `test:media-worker`: `pnpm run ci:resume:after-test-media-worker`
+- после `test:error-tracking`: `pnpm run ci:resume:after-test-error-tracking`
 - после `build`: `pnpm run ci:resume:after-build`
 - после `build:webapp`: `pnpm run ci:resume:after-build-webapp`
 
