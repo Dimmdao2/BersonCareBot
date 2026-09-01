@@ -1440,12 +1440,10 @@ export function PatientTabOverview({
         expectedDurationDays: displayStage.expectedDurationDays ?? null,
       })
     : null;
-  const hasActiveAssignments = (displayStage?.items.length ?? 0) > 0;
   const calendarGrid = buildCalendarGrid(
     data?.calendarDays ?? [],
     calYear,
     calMonth,
-    hasActiveAssignments,
   );
   const tasksNeedAttention =
     data?.tasks.some((task) => {
@@ -2071,7 +2069,6 @@ function buildCalendarGrid(
   apiDays: CalendarDay[],
   viewYear: number,
   viewMonth: number,
-  hasAssignments: boolean,
 ): CalendarGrid {
   const now = new Date();
   const todayYear = now.getFullYear();
@@ -2111,7 +2108,7 @@ function buildCalendarGrid(
     } else if (isToday) {
       status = 'today';
     } else if (isPast && completedCount === undefined) {
-      status = hasAssignments ? 'missed' : 'no-assign';
+      status = 'no-assign';
     } else if (!isPast && completedCount === undefined) {
       status = 'future';
     } else if ((completedCount ?? 0) >= 3) {

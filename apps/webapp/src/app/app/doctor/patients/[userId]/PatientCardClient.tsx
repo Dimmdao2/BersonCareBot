@@ -52,6 +52,7 @@ import { PatientPortalInviteControls } from './PatientPortalInviteControls';
 import toast from 'react-hot-toast';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { DateTime } from 'luxon';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -65,31 +66,18 @@ function formatSupportStartedAt(value: string): string {
 }
 
 function formatSupportDuration(value: string, now = new Date()): string | null {
-  const startedAt = new Date(value);
-  if (Number.isNaN(startedAt.getTime()) || startedAt > now) return null;
+  const zone = 'Europe/Moscow';
+  const startedAt = DateTime.fromISO(value, { setZone: true }).setZone(zone).startOf('day');
+  const today = DateTime.fromJSDate(now).setZone(zone).startOf('day');
+  if (!startedAt.isValid || startedAt > today) return null;
 
-  const addMonthsClamped = (base: Date, count: number) => {
-    const targetYear = base.getFullYear() + Math.floor((base.getMonth() + count) / 12);
-    const targetMonth = ((base.getMonth() + count) % 12 + 12) % 12;
-    const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
-    return new Date(targetYear, targetMonth, Math.min(base.getDate(), lastDay));
-  };
-
-  let months =
-    (now.getFullYear() - startedAt.getFullYear()) * 12 + now.getMonth() - startedAt.getMonth();
-  let monthAnchor = addMonthsClamped(startedAt, months);
-  if (monthAnchor > now) {
+  let months = Math.max(0, Math.floor(today.diff(startedAt, 'months').months));
+  let monthAnchor = startedAt.plus({ months });
+  if (monthAnchor > today) {
     months -= 1;
-    monthAnchor = addMonthsClamped(startedAt, months);
+    monthAnchor = startedAt.plus({ months });
   }
-
-  const startOfAnchor = new Date(
-    monthAnchor.getFullYear(),
-    monthAnchor.getMonth(),
-    monthAnchor.getDate(),
-  );
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const days = Math.max(0, Math.floor((startOfToday.getTime() - startOfAnchor.getTime()) / 86_400_000));
+  const days = Math.max(0, Math.floor(today.diff(monthAnchor, 'days').days));
   const dayLabel =
     days % 10 === 1 && days % 100 !== 11
       ? 'день'

@@ -21,6 +21,7 @@ import { PatientCardClient } from '../../PatientCardClient';
 import {
   loadDoctorPatientCardShellMeta,
   loadDoctorPatientCardTabBootstrap,
+  loadDoctorPatientProgramInstances,
 } from '../../../loadDoctorPatientCardPageBootstrap';
 
 type Props = {
@@ -121,8 +122,21 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       ? focusItemIdRaw
       : undefined;
 
-  const tabPromise = loadDoctorPatientCardTabBootstrap(deps, workspace, userId, 'program');
-  const shellMeta = await loadDoctorPatientCardShellMeta(deps, workspace, userId, 'program');
+  const programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, userId);
+  const tabPromise = loadDoctorPatientCardTabBootstrap(
+    deps,
+    workspace,
+    userId,
+    'program',
+    programInstancesPromise,
+  );
+  const shellMeta = await loadDoctorPatientCardShellMeta(
+    deps,
+    workspace,
+    userId,
+    'program',
+    programInstancesPromise,
+  );
 
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
