@@ -35,16 +35,21 @@ export async function markDoctorProgramDiscussionRead(
   return { ok: true };
 }
 
-/** Mark read for each stage item (best-effort; errors are ignored). */
+/** Mark read for each stage item and return the ids that were updated successfully. */
 export async function markDoctorProgramDiscussionReadForStageItems(input: {
   instanceId: string;
   stageItemIds: string[];
-}): Promise<void> {
+}): Promise<string[]> {
   const ids = [...new Set(input.stageItemIds.map((id) => id.trim()).filter(Boolean))];
-  if (ids.length === 0) return;
-  await Promise.all(
-    ids.map((stageItemId) =>
-      markDoctorProgramDiscussionRead({ instanceId: input.instanceId, stageItemId }),
-    ),
+  if (ids.length === 0) return [];
+  const results = await Promise.all(
+    ids.map(async (stageItemId) => ({
+      stageItemId,
+      result: await markDoctorProgramDiscussionRead({
+        instanceId: input.instanceId,
+        stageItemId,
+      }),
+    })),
   );
+  return results.filter(({ result }) => result.ok).map(({ stageItemId }) => stageItemId);
 }

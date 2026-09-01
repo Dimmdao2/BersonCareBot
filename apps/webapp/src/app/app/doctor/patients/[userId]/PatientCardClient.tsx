@@ -52,6 +52,7 @@ import { PatientPortalInviteControls } from './PatientPortalInviteControls';
 import toast from 'react-hot-toast';
 import { DoctorMobileSectionTabs } from '@/shared/ui/doctor/shell/DoctorMobileSectionTabs';
 import { DoctorShellMobileBottomTabsRegistration } from '@/shared/ui/doctor/shell/DoctorShellChromeContext';
+import { DateTime } from 'luxon';
 
 function formatSupportStartedAt(value: string): string {
   const date = new Date(value);
@@ -62,6 +63,29 @@ function formatSupportStartedAt(value: string): string {
     year: 'numeric',
     timeZone: 'Europe/Moscow',
   });
+}
+
+function formatSupportDuration(value: string, now = new Date()): string | null {
+  const zone = 'Europe/Moscow';
+  const startedAt = DateTime.fromISO(value, { setZone: true }).setZone(zone).startOf('day');
+  const today = DateTime.fromJSDate(now).setZone(zone).startOf('day');
+  if (!startedAt.isValid || startedAt > today) return null;
+
+  let months = Math.max(0, Math.floor(today.diff(startedAt, 'months').months));
+  let monthAnchor = startedAt.plus({ months });
+  if (monthAnchor > today) {
+    months -= 1;
+    monthAnchor = startedAt.plus({ months });
+  }
+  const days = Math.max(0, Math.floor(today.diff(monthAnchor, 'days').days));
+  const dayLabel =
+    days % 10 === 1 && days % 100 !== 11
+      ? 'день'
+      : days % 10 >= 2 && days % 10 <= 4 && (days % 100 < 12 || days % 100 > 14)
+        ? 'дня'
+        : 'дней';
+
+  return `${months} мес. ${days} ${dayLabel}`;
 }
 
 function PatientTabPanelLoading() {
@@ -439,6 +463,7 @@ export function PatientCardClient({
 
   const { identity, support } = header;
   const supportStartedAt = support.startedAt ?? shellMeta.currentProgramStartedAt;
+  const supportDuration = supportStartedAt ? formatSupportDuration(supportStartedAt) : null;
 
   // Resolved FIO: local override wins over server data
   const resolvedFirstName = fioOverride ? fioOverride.firstName : identity.firstName;
@@ -541,16 +566,6 @@ export function PatientCardClient({
           <div className="px-4 pt-3.5 pb-2.5 flex flex-wrap gap-3.5 items-start">
             {/* LEFT: identity */}
             <div className="flex-1 min-w-0 flex flex-col gap-0">
-              {/* Support date above the complete patient name. */}
-              {support.isOnSupport ? (
-                <div className="mb-1.5">
-                  <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                    ★ На сопровождении с{' '}
-                    {supportStartedAt ? formatSupportStartedAt(supportStartedAt) : '—'}
-                  </span>
-                </div>
-              ) : null}
-
               {/* FIO (primary) + edit button */}
               <div className="flex items-start gap-2 flex-wrap">
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
@@ -656,6 +671,20 @@ export function PatientCardClient({
                   Дата рождения: {resolvedBirthDate ? fmtBirthDate(resolvedBirthDate) : '—'}
                 </span>
               </div>
+
+              {support.isOnSupport ? (
+                <div className="mt-2">
+                  <span className="inline-flex flex-wrap items-center gap-x-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    <span>
+                      ★ На сопровождении с{' '}
+                      {supportStartedAt ? formatSupportStartedAt(supportStartedAt) : '—'}
+                    </span>
+                    {supportDuration ? (
+                      <span className="font-normal text-primary/70">{supportDuration}</span>
+                    ) : null}
+                  </span>
+                </div>
+              ) : null}
 
               <PatientPortalInviteControls
                 patientUserId={identity.userId}

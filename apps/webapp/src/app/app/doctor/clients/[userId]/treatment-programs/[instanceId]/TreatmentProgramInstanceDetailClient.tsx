@@ -22,7 +22,6 @@ import { Badge } from '@/shared/ui/doctor/primitives/badge';
 import { Input } from '@/shared/ui/doctor/primitives/input';
 import { Label } from '@/shared/ui/doctor/primitives/label';
 import { Textarea } from '@/shared/ui/doctor/primitives/textarea';
-import { MessageComposer } from '@/shared/ui/chat/MessageComposer';
 import { MarkdownEditor } from '@/shared/ui/doctor/markdown/MarkdownEditor';
 import {
   Dialog,
@@ -45,32 +44,20 @@ import type {
   TreatmentProgramItemType,
 } from '@/modules/treatment-program/types';
 import type { TreatmentProgramTestResultDetailRow } from '@/modules/treatment-program/types';
-import type { TreatmentProgramEventRow } from '@/modules/treatment-program/types';
-import type { ProgramActionLogListRow } from '@/modules/treatment-program/types';
-import { DoctorProgramActionLogMediaPreview } from './DoctorProgramActionLogMediaPreview';
 import { DoctorProgramItemDiscussionDialog } from './DoctorProgramItemDiscussionDialog';
 import { DoctorProgramInstanceDiscussionDialog } from './DoctorProgramInstanceDiscussionDialog';
-import { DoctorProgramInstanceTimelineEventRow } from './DoctorProgramInstanceTimelineEventRow';
 import {
   formatNormalizedTestDecisionRu,
   formatTreatmentProgramStageStatusRu,
-  formatProgramActionLogSummaryRu,
   formatLfkPostSessionDifficultyRu,
-  shouldOmitTreatmentProgramEventFromDoctorTimeline,
 } from '@/modules/treatment-program/types';
 import { cn } from '@/lib/utils';
-import {
-  doctorClientOverviewPrimaryCardClass,
-  doctorClientSectionTitleClass,
-} from '@/app/app/doctor/clients/doctorClientCardChrome';
-import { doctorHistoryRowClass } from '@/shared/ui/doctor/doctorVisual';
+import { doctorClientSectionTitleClass } from '@/app/app/doctor/clients/doctorClientCardChrome';
 import {
   doctorRecommendationActionabilitySelectItems,
   treatmentProgramGroupSelectNoneItemValue,
   treatmentProgramGroupSelectNoneLabel,
 } from '@/shared/ui/doctor/selectOpaqueValueLabels';
-import { formatBookingDateTimeShortStyleRu } from '@/shared/lib/formatBusinessDateTime';
-import { CommentBlock } from '@/components/comments/CommentBlock';
 import { parseTestSetSnapshotTests } from '@/modules/treatment-program/testSetSnapshotView';
 import {
   isTreatmentProgramInstanceSystemStageGroup,
@@ -97,8 +84,6 @@ import { InstanceEditorStageOrderDialog } from '@/app/app/doctor/treatment-progr
 import { useInstanceEditorPipelineStageExpansion } from '@/app/app/doctor/treatment-program-shared/useInstanceEditorPipelineStageExpansion';
 import { useInstanceEditorUnsavedGate } from '@/app/app/doctor/treatment-program-shared/InstanceEditorUnsavedChangesDialog';
 import {
-  INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS,
-  INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS,
   INSTANCE_HEADER_BG_STAGE_EDITABLE,
   TPL_HEADER_BG_RECOMMENDATIONS,
   instanceGroupHeaderSurfaceStyle,
@@ -123,7 +108,7 @@ import type { TreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-
 import { doctorProgramTestResultDomId } from '@/app/app/doctor/treatment-program-shared/doctorProgramTestResultDomId';
 import { DoctorCatalogMediaStaticThumb } from '@/shared/ui/doctor/media/DoctorCatalogMediaStaticThumb';
 import { primaryMediaForStageItem } from '@/app/app/patient/treatment/stageItemSnapshot';
-import { ProgramEditHistoryModal } from './ProgramEditHistoryModal';
+import { DoctorSection, DoctorSectionTitle } from '@/shared/ui/doctor/DoctorSection';
 
 function snapshotTitle(snapshot: Record<string, unknown>, itemType: string): string {
   const t = snapshot.title;
@@ -137,15 +122,6 @@ function itemTitleById(detail: TreatmentProgramInstanceDetail): Map<string, stri
     for (const it of st.items) {
       m.set(it.id, snapshotTitle(it.snapshot, it.itemType));
     }
-  }
-  return m;
-}
-
-function stageTitleById(detail: TreatmentProgramInstanceDetail): Map<string, string> {
-  const m = new Map<string, string>();
-  for (const st of detail.stages) {
-    const t = st.title?.trim();
-    m.set(st.id, t !== undefined && t !== '' ? t : 'Этап');
   }
   return m;
 }
@@ -171,32 +147,20 @@ function groupTestResultsByAttempt(rows: TreatmentProgramTestResultDetailRow[]) 
   return groups;
 }
 
-function doctorTimelineWhoRu(
-  actorId: string | null,
-  opts: { currentUserId: string; patientUserId: string },
-): string | null {
-  if (!actorId) return null;
-  if (actorId === opts.currentUserId) return 'Вы';
-  if (actorId === opts.patientUserId) return 'Пациент';
-  return 'Врач';
-}
-
-function isPatientObservationActionRow(row: ProgramActionLogListRow): boolean {
-  if (row.actionType !== 'note') return false;
-  const source = row.payload && typeof row.payload.source === 'string' ? row.payload.source : null;
-  if (source === 'patient_media') return true;
-  if (!row.note?.trim()) return false;
-  return source === 'patient_observation';
-}
-
-function patientMediaFileIdFromActionRow(row: ProgramActionLogListRow): string | null {
-  if (row.actionType !== 'note') return null;
-  const payload = row.payload;
-  if (!payload || typeof payload !== 'object') return null;
-  const source = typeof payload.source === 'string' ? payload.source : null;
-  if (source !== 'patient_media') return null;
-  const id = typeof payload.mediaFileId === 'string' ? payload.mediaFileId.trim() : '';
-  return id || null;
+function formatProgramAssignmentMeta(createdAt: string, timeZone: string): string {
+  const assigned = new Date(createdAt);
+  if (Number.isNaN(assigned.getTime())) return 'Дата назначения не указана';
+  const assignedDate = new Intl.DateTimeFormat('ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone,
+  }).format(assigned);
+  const elapsedWeeks = Math.max(
+    0,
+    Math.floor((Date.now() - assigned.getTime()) / (7 * 24 * 60 * 60 * 1000)),
+  );
+  return `Назначена ${assignedDate} · ${elapsedWeeks} нед.`;
 }
 
 /** Строки тестов из снимка элемента этапа (`tests[]` в JSON снимка). */
@@ -506,9 +470,8 @@ function DoctorProgramInstanceItemCard(props: {
   } = props;
   const recPhase0 = phaseZeroRecommendation && item.itemType === 'recommendation';
   const editLocked = isProgramInstanceEditLocked(programStatus);
-  const hasLocalCommentOverride = Boolean(item.localComment?.trim());
   return (
-    <details className="group rounded-lg border border-border/80 bg-muted/20 open:shadow-sm">
+    <details className="group rounded-lg border border-border/80 bg-background open:shadow-sm">
       <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 marker:content-none [&::-webkit-details-marker]:hidden">
         {dragHandle ? (
           <div
@@ -545,11 +508,6 @@ function DoctorProgramInstanceItemCard(props: {
             <span className="font-normal text-muted-foreground">({item.itemType})</span>
           )}
         </p>
-        {hasLocalCommentOverride ? (
-          <Badge variant="secondary" className="shrink-0 text-[10px] font-normal">
-            Комментарий: своё
-          </Badge>
-        ) : null}
         <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">Развернуть</span>
         <span className="hidden shrink-0 text-xs text-muted-foreground group-open:inline">
           Свернуть
@@ -575,15 +533,6 @@ function DoctorProgramInstanceItemCard(props: {
             {item.itemType === 'clinical_test' ? (
               <ClinicalTestCatalogSnapshotLines snapshot={item.snapshot} />
             ) : null}
-            <ItemLocalCommentForm
-              key={`${item.id}:${item.localComment ?? ''}`}
-              itemId={item.id}
-              editLocked={editLocked}
-              initialDraft={item.localComment ?? ''}
-              placeholder={
-                item.comment?.trim() ? `Из шаблона: ${item.comment.trim()}` : 'Из шаблона: —'
-              }
-            />
           </div>
         </div>
       </div>
@@ -591,7 +540,7 @@ function DoctorProgramInstanceItemCard(props: {
   );
 }
 
-/** Завершение экземпляра программы (не путать с «Завершить этап» у отдельного этапа). */
+/** Lifecycle экземпляра программы (не путать с завершением отдельного этапа). */
 function ProgramInstanceCompleteControl(props: {
   instanceId: string;
   status: TreatmentProgramInstanceDetail['status'];
@@ -603,9 +552,10 @@ function ProgramInstanceCompleteControl(props: {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  if (status !== 'active') return null;
+  const targetStatus: TreatmentProgramInstanceStatus = status === 'active' ? 'completed' : 'active';
+  const completing = targetStatus === 'completed';
 
-  const complete = async () => {
+  const patchStatus = async () => {
     setSaving(true);
     setMsg(null);
     try {
@@ -614,7 +564,7 @@ function ProgramInstanceCompleteControl(props: {
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'completed' }),
+          body: JSON.stringify({ status: targetStatus }),
         },
       );
       const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
@@ -630,16 +580,17 @@ function ProgramInstanceCompleteControl(props: {
   };
 
   return (
-    <>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+    <div className="min-w-0">
+      <div className="flex flex-col gap-1">
         <Button
           type="button"
           size="sm"
-          variant="destructive"
+          variant={completing ? 'destructive' : 'default'}
+          className="h-9 w-full min-w-0 whitespace-normal px-2 text-xs sm:text-sm"
           disabled={saving}
           onClick={() => runOrPromptSave(() => setOpen(true))}
         >
-          Завершить программу лечения
+          {completing ? 'Завершить программу' : 'Активировать программу'}
         </Button>
         {msg ? (
           <span className="text-xs text-destructive" role="alert">
@@ -651,10 +602,13 @@ function ProgramInstanceCompleteControl(props: {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Завершить программу лечения?</DialogTitle>
+            <DialogTitle>
+              {completing ? 'Завершить программу?' : 'Активировать программу?'}
+            </DialogTitle>
             <DialogDescription>
-              У пациента программа будет отмечена как завершённая. После этого при необходимости
-              можно назначить новую активную программу.
+              {completing
+                ? 'У пациента программа будет отмечена как завершённая.'
+                : 'Программа снова станет активной для пациента.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -668,16 +622,20 @@ function ProgramInstanceCompleteControl(props: {
             </Button>
             <Button
               type="button"
-              variant="destructive"
+              variant={completing ? 'destructive' : 'default'}
               disabled={saving}
-              onClick={() => void complete()}
+              onClick={() => void patchStatus()}
             >
-              {saving ? 'Сохранение…' : 'Завершить программу'}
+              {saving
+                ? 'Сохранение…'
+                : completing
+                  ? 'Завершить программу'
+                  : 'Активировать программу'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   );
 }
 
@@ -705,8 +663,8 @@ function DoctorInstancePipelineStageBlock(props: {
   const editLocked = isProgramInstanceEditLocked(programStatus);
 
   return (
-    <section
-      className={INSTANCE_CONSTRUCTOR_LEARNING_STAGE_CARD_CLASS}
+    <DoctorSection
+      className="overflow-hidden p-0"
       data-testid={`instance-editor-pipeline-stage-${stage.id}`}
       data-expanded={expanded ? 'true' : 'false'}
     >
@@ -781,33 +739,22 @@ function DoctorInstancePipelineStageBlock(props: {
           </div>
         </CollapsibleContent>
       </Collapsible>
-    </section>
+    </DoctorSection>
   );
 }
 
 export function TreatmentProgramInstanceDetailClient(props: {
-  /** Карточка клиента (с тем же `scope`, что и «Назад» в шапке). */
-  patientProfileHref: string;
-  patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   /** attemptId → врач может принять эту попытку (актуальный хвост, ещё не принята). */
   initialAttemptAcceptMap: Record<string, boolean>;
-  initialEvents: TreatmentProgramEventRow[];
-  initialActionLog: ProgramActionLogListRow[];
-  currentUserId: string;
-  isAdmin?: boolean;
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
-  doctorReplyFromLogEnabled: boolean;
+  initialDiscussionUnreadCountByStageItemId: Record<string, number>;
   initialOpenDiscussionItemId?: string | null;
   initialFocusTestResultId?: string | null;
 }) {
   const [baseline, setBaseline] = useState(props.initial);
-  const [programEvents, setProgramEvents] = useState<TreatmentProgramEventRow[]>(
-    props.initialEvents,
-  );
-  const [actionLog, setActionLog] = useState<ProgramActionLogListRow[]>(props.initialActionLog);
 
   const refreshBaseline = useCallback(async (): Promise<TreatmentProgramInstanceDetail> => {
     const res = await fetch(
@@ -821,22 +768,6 @@ export function TreatmentProgramInstanceDetailClient(props: {
       throw new Error('Не удалось обновить данные');
     }
     setBaseline(data.item);
-    const evRes = await fetch(
-      `/api/doctor/treatment-program-instances/${encodeURIComponent(baseline.id)}/events`,
-    );
-    const evData = (await evRes.json().catch(() => null)) as {
-      ok?: boolean;
-      events?: TreatmentProgramEventRow[];
-    };
-    if (evRes.ok && evData.ok && evData.events) setProgramEvents(evData.events);
-    const alRes = await fetch(
-      `/api/doctor/treatment-program-instances/${encodeURIComponent(baseline.id)}/action-log`,
-    );
-    const alData = (await alRes.json().catch(() => null)) as {
-      ok?: boolean;
-      entries?: ProgramActionLogListRow[];
-    };
-    if (alRes.ok && alData.ok && alData.entries) setActionLog(alData.entries);
     return data.item;
   }, [baseline.id]);
 
@@ -849,11 +780,6 @@ export function TreatmentProgramInstanceDetailClient(props: {
       <TreatmentProgramInstanceDetailClientBody
         {...props}
         baseline={baseline}
-        setBaseline={setBaseline}
-        programEvents={programEvents}
-        setProgramEvents={setProgramEvents}
-        actionLog={actionLog}
-        setActionLog={setActionLog}
         refreshBaseline={refreshBaseline}
       />
     </InstanceEditorDraftProvider>
@@ -861,45 +787,26 @@ export function TreatmentProgramInstanceDetailClient(props: {
 }
 
 function TreatmentProgramInstanceDetailClientBody(props: {
-  patientProfileHref: string;
-  patientDisplayName: string;
   initial: TreatmentProgramInstanceDetail;
   initialTestResults: TreatmentProgramTestResultDetailRow[];
   initialAttemptAcceptMap: Record<string, boolean>;
-  initialEvents: TreatmentProgramEventRow[];
-  initialActionLog: ProgramActionLogListRow[];
-  currentUserId: string;
-  isAdmin?: boolean;
   appDisplayTimeZone: string;
   treatmentProgramLibrary: TreatmentProgramLibraryPickers;
-  doctorReplyFromLogEnabled: boolean;
+  initialDiscussionUnreadCountByStageItemId: Record<string, number>;
   initialOpenDiscussionItemId?: string | null;
   initialFocusTestResultId?: string | null;
   baseline: TreatmentProgramInstanceDetail;
-  setBaseline: (detail: TreatmentProgramInstanceDetail) => void;
-  programEvents: TreatmentProgramEventRow[];
-  setProgramEvents: (events: TreatmentProgramEventRow[]) => void;
-  actionLog: ProgramActionLogListRow[];
-  setActionLog: (rows: ProgramActionLogListRow[]) => void;
   refreshBaseline: () => Promise<TreatmentProgramInstanceDetail>;
 }) {
   const {
-    patientProfileHref,
-    patientDisplayName,
     initialOpenDiscussionItemId,
     initialFocusTestResultId,
     initialTestResults,
     initialAttemptAcceptMap,
-    currentUserId,
-    isAdmin = false,
     appDisplayTimeZone,
     treatmentProgramLibrary,
-    doctorReplyFromLogEnabled,
+    initialDiscussionUnreadCountByStageItemId,
     baseline,
-    programEvents,
-    setProgramEvents,
-    actionLog,
-    setActionLog,
     refreshBaseline,
   } = props;
   const { displayDetail, setItemReorder } = useInstanceEditorDraft();
@@ -910,50 +817,54 @@ function TreatmentProgramInstanceDetailClientBody(props: {
   const [attemptAcceptMap, setAttemptAcceptMap] =
     useState<Record<string, boolean>>(initialAttemptAcceptMap);
   const [addLibrarySpec, setAddLibrarySpec] = useState<InstanceAddLibraryItemSpec | null>(null);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [noteReplyOpen, setNoteReplyOpen] = useState(false);
-  const [noteReplyTarget, setNoteReplyTarget] = useState<ProgramActionLogListRow | null>(null);
-  const [noteReplyDraft, setNoteReplyDraft] = useState('');
-  const [noteReplySaving, setNoteReplySaving] = useState(false);
-  const [noteReplyError, setNoteReplyError] = useState<string | null>(null);
+  const [discussionUnreadCountByStageItemId, setDiscussionUnreadCountByStageItemId] = useState(
+    initialDiscussionUnreadCountByStageItemId,
+  );
+  const discussionUnreadCount = useMemo(
+    () =>
+      Object.values(discussionUnreadCountByStageItemId).reduce(
+        (total, unread) => total + unread,
+        0,
+      ),
+    [discussionUnreadCountByStageItemId],
+  );
+  const handleDiscussionRead = useCallback((stageItemIds: string[]) => {
+    setDiscussionUnreadCountByStageItemId((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const stageItemId of stageItemIds) {
+        if ((next[stageItemId] ?? 0) === 0) continue;
+        next[stageItemId] = 0;
+        changed = true;
+      }
+      return changed ? next : current;
+    });
+  }, []);
+  const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
   const [discussionTarget, setDiscussionTarget] = useState<{
     itemId: string;
     label: string;
-  } | null>(null);
+  } | null>(() => {
+    const itemId = initialOpenDiscussionItemId?.trim();
+    return itemId ? { itemId, label: itemTitles.get(itemId) ?? 'Элемент' } : null;
+  });
   const [instanceDiscussionOpen, setInstanceDiscussionOpen] = useState(false);
   const [addStageDialogOpen, setAddStageDialogOpen] = useState(false);
   const [stageOrderDialogOpen, setStageOrderDialogOpen] = useState(false);
-  const [expandedTimelineEventIds, setExpandedTimelineEventIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-
-  const itemTitles = useMemo(() => itemTitleById(detail), [detail]);
-  const stageTitles = useMemo(() => stageTitleById(detail), [detail]);
-  const doctorTimelineEvents = useMemo(
-    () => programEvents.filter((e) => !shouldOmitTreatmentProgramEventFromDoctorTimeline(e)),
-    [programEvents],
-  );
-  const eventLabels = useMemo(
-    () => ({
-      itemTitle: (id: string) => itemTitles.get(id),
-      stageTitle: (id: string) => stageTitles.get(id),
-    }),
-    [itemTitles, stageTitles],
-  );
-  const assignedByLabel = useMemo(
-    () =>
-      doctorTimelineWhoRu(detail.assignedBy, {
-        currentUserId,
-        patientUserId: detail.patientUserId,
-      }),
-    [detail.assignedBy, detail.patientUserId, currentUserId],
-  );
 
   const sortedStages = useMemo(
     () => [...detail.stages].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
     [detail.stages],
   );
   const pipelineStages = useMemo(() => sortedStages.filter((s) => s.sortOrder > 0), [sortedStages]);
+  const currentStage = useMemo(
+    () =>
+      pipelineStages.find((stage) => stage.status === 'in_progress') ??
+      pipelineStages.find((stage) => stage.status === 'available') ??
+      pipelineStages[0] ??
+      null,
+    [pipelineStages],
+  );
   const { isStageExpanded, setStageExpanded } = useInstanceEditorPipelineStageExpansion(
     pipelineStages.map((stage) => ({
       id: stage.id,
@@ -1026,40 +937,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     [stageZero, setItemReorder],
   );
 
-  const openProgramNoteReplyDialog = useCallback(
-    (row: ProgramActionLogListRow) => {
-      if (!doctorReplyFromLogEnabled) return;
-      if (!isPatientObservationActionRow(row)) return;
-      setNoteReplyTarget(row);
-      setNoteReplyDraft('');
-      setNoteReplyError(null);
-      setNoteReplyOpen(true);
-    },
-    [doctorReplyFromLogEnabled],
-  );
-
-  const openDiscussionDialog = useCallback(
-    (row: ProgramActionLogListRow) => {
-      const itemLabel = itemTitles.get(row.instanceStageItemId) ?? 'Элемент';
-      setDiscussionTarget({ itemId: row.instanceStageItemId, label: itemLabel });
-    },
-    [itemTitles],
-  );
-
-  const openDiscussionForItemId = useCallback(
-    (itemId: string) => {
-      const itemLabel = itemTitles.get(itemId) ?? 'Элемент';
-      setDiscussionTarget({ itemId, label: itemLabel });
-    },
-    [itemTitles],
-  );
-
-  useEffect(() => {
-    const id = initialOpenDiscussionItemId?.trim();
-    if (!id) return;
-    openDiscussionForItemId(id);
-  }, [initialOpenDiscussionItemId, openDiscussionForItemId]);
-
   useEffect(() => {
     const resultId = initialFocusTestResultId?.trim();
     if (!resultId) return;
@@ -1099,59 +976,49 @@ function TreatmentProgramInstanceDetailClientBody(props: {
     };
   }, [initialFocusTestResultId]);
 
-  const sendProgramNoteReply = useCallback(async () => {
-    if (!noteReplyTarget) return;
-    const text = noteReplyDraft.trim();
-    if (!text) {
-      setNoteReplyError('Введите ответ');
-      return;
-    }
-    setNoteReplySaving(true);
-    setNoteReplyError(null);
-    try {
-      const res = await fetch(
-        `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/items/${encodeURIComponent(noteReplyTarget.instanceStageItemId)}/program-note-reply`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        },
-      );
-      const data = (await res.json().catch(() => null)) as { ok?: boolean; error?: string };
-      if (!res.ok || !data?.ok) {
-        setNoteReplyError(
-          data?.error === 'feature_disabled'
-            ? 'Функция временно отключена'
-            : data?.error === 'program_not_doctor_assigned'
-              ? 'Ответы доступны только для программ, назначенных врачом'
-              : data?.error === 'program_item_not_active'
-                ? 'Элемент уже не активен'
-                : data?.error === 'not_found' || data?.error === 'stage_item_not_found'
-                  ? 'Элемент не найден'
-                  : (data?.error ?? 'Не удалось отправить ответ'),
-        );
-        return;
-      }
-      setNoteReplyOpen(false);
-      setNoteReplyTarget(null);
-      setNoteReplyDraft('');
-      toast.success('Ответ отправлен');
-    } finally {
-      setNoteReplySaving(false);
-    }
-  }, [detail.id, noteReplyDraft, noteReplyTarget]);
-
   return (
     <div className="flex flex-col gap-4">
+      <DoctorSection id="doctor-program-instance-summary">
+        <div>
+          <DoctorSectionTitle>
+            {detail.status === 'completed' ? 'Завершённая программа' : 'Назначенная программа'}
+          </DoctorSectionTitle>
+          <p className="mt-1 text-base font-normal text-foreground">{detail.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatProgramAssignmentMeta(detail.createdAt, appDisplayTimeZone)}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="relative h-9 min-w-0"
+            onClick={() => setInstanceDiscussionOpen(true)}
+            data-testid="instance-editor-comments"
+          >
+            <MessageSquare className="size-3.5" aria-hidden />
+            Комментарии
+            {discussionUnreadCount > 0 ? (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1.5">
+                {discussionUnreadCount}
+              </Badge>
+            ) : null}
+          </Button>
+          <ProgramInstanceCompleteControl
+            instanceId={detail.id}
+            status={detail.status}
+            onPatched={refresh}
+          />
+        </div>
+      </DoctorSection>
       <InstanceEditorToolbar
-        programTitle={detail.title}
-        patientProfileHref={patientProfileHref}
-        patientDisplayName={patientDisplayName}
+        stageNumber={currentStage?.sortOrder ?? null}
+        stageTitle={currentStage?.title ?? 'Этапы не добавлены'}
         programStatus={detail.status}
         pipelineStageCount={pipelineStages.length}
         onAddStageClick={() => setAddStageDialogOpen(true)}
         onChangeStageOrderClick={() => setStageOrderDialogOpen(true)}
-        onCommentsClick={() => setInstanceDiscussionOpen(true)}
       />
       <InstanceEditorAddStageDialog
         open={addStageDialogOpen}
@@ -1170,6 +1037,7 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         onOpenChange={setInstanceDiscussionOpen}
         instanceId={detail.id}
         programItems={discussionProgramItems}
+        onRead={handleDiscussionRead}
       />
       {error ? (
         <p className="text-sm text-destructive" role="alert">
@@ -1177,279 +1045,180 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         </p>
       ) : null}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-left">
-          <section
-            className={doctorClientOverviewPrimaryCardClass}
-            id="doctor-program-instance-summary"
-          >
-            <ProgramInstanceCompleteControl
-              instanceId={detail.id}
-              status={detail.status}
-              onPatched={refresh}
+      <DoctorSection
+        className="overflow-hidden p-0"
+        id="doctor-program-instance-phase0-recommendations"
+      >
+        <div
+          className="flex items-center justify-between gap-2 border-b border-border/25 px-2 py-2"
+          style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
+        >
+          <h3 className="text-sm font-semibold leading-tight text-foreground">
+            Общие рекомендации (этап 0)
+          </h3>
+          {stageZero ? (
+            <TreatmentProgramAddItemSquareButton
+              disabled={isProgramInstanceEditLocked(detail.status)}
+              onClick={() =>
+                setAddLibrarySpec({
+                  stageId: stageZero.id,
+                  context: 'phase_zero_recommendations',
+                  customGroupId: null,
+                })
+              }
             />
-          </section>
-
-          <div id="doctor-program-instance-comments">
-            <CommentBlock
-              targetType="program_instance"
-              targetId={detail.id}
-              currentUserId={currentUserId}
-              isAdmin={isAdmin}
-              mutationsDisabled={detail.status === 'completed'}
-              title="Комментарии к программе"
-            />
-          </div>
-
-          <section
-            className={INSTANCE_CONSTRUCTOR_GLOBAL_RECOMMENDATIONS_CARD_CLASS}
-            id="doctor-program-instance-phase0-recommendations"
-          >
-            <div
-              className="flex items-center justify-between gap-2 border-b border-border/25 px-2 py-2"
-              style={{ background: TPL_HEADER_BG_RECOMMENDATIONS }}
-            >
-              <h3 className="text-sm font-semibold leading-tight text-foreground">
-                Общие рекомендации (этап 0)
-              </h3>
-              {stageZero ? (
-                <TreatmentProgramAddItemSquareButton
-                  disabled={isProgramInstanceEditLocked(detail.status)}
-                  onClick={() =>
-                    setAddLibrarySpec({
-                      stageId: stageZero.id,
-                      context: 'phase_zero_recommendations',
-                      customGroupId: null,
-                    })
-                  }
-                />
-              ) : null}
-            </div>
-            <div className="p-3">
-              {!stageZero ? (
-                <p className="text-sm text-muted-foreground">В программе нет этапа с номером 0.</p>
-              ) : phaseZeroRecommendations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {phaseZeroRecommendations.map((item, idx) => (
-                    <DoctorProgramInstanceItemCard
-                      key={item.id}
-                      stage={stageZero}
-                      item={item}
-                      testResults={testResults}
-                      programStatus={detail.status}
-                      phaseZeroRecommendation
-                      reorderInGroup={{
-                        disableAll: isProgramInstanceEditLocked(detail.status),
-                        disableUp: idx <= 0,
-                        disableDown: idx >= phaseZeroRecommendations.length - 1,
-                        onMove: (dir) => void reorderPhaseZeroItem(item.id, dir),
-                      }}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* Action log: per-item observation rows — render buttons so discussions are reachable */}
-          {actionLog.filter(isPatientObservationActionRow).map((row) => (
-            <div
-              key={row.id}
-              className="flex flex-wrap items-center gap-2 rounded-md border border-border/40 bg-muted/5 px-3 py-2 text-sm"
-            >
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {itemTitles.get(row.instanceStageItemId) ?? formatProgramActionLogSummaryRu(row)}
-                {row.note?.trim() ? ` — ${row.note.trim()}` : ''}
-              </span>
-              <div className="flex shrink-0 gap-2">
-                {doctorReplyFromLogEnabled ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-6 px-2 text-xs"
-                    onClick={() => openProgramNoteReplyDialog(row)}
-                  >
-                    Ответить
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => openDiscussionDialog(row)}
-                >
-                  Обсуждение
-                </Button>
-              </div>
-            </div>
-          ))}
-
-          <div id="doctor-program-instance-events-trigger">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => setHistoryOpen(true)}
-            >
-              История правок
-            </Button>
-          </div>
-
-          <ProgramEditHistoryModal
-            open={historyOpen}
-            onOpenChange={setHistoryOpen}
-            createdAt={detail.createdAt}
-            assignedByLabel={assignedByLabel}
-            doctorTimelineEvents={doctorTimelineEvents}
-            eventLabels={eventLabels}
-            appDisplayTimeZone={appDisplayTimeZone}
-            currentUserId={currentUserId}
-            patientUserId={detail.patientUserId}
-            expandedTimelineEventIds={expandedTimelineEventIds}
-            onToggleExpandEvent={(id) => {
-              setExpandedTimelineEventIds((prev) => {
-                const next = new Set(prev);
-                if (next.has(id)) next.delete(id);
-                else next.add(id);
-                return next;
-              });
-            }}
-          />
-
-          {testResults.length > 0 ? (
-            <section
-              className={doctorClientOverviewPrimaryCardClass}
-              id="doctor-program-instance-test-results"
-            >
-              <h3 className={doctorClientSectionTitleClass}>Результаты тестов</h3>
-              <ul className="mt-3 space-y-3 text-sm">
-                {groupTestResultsByAttempt(testResults).map((g) => {
-                  const pending = g.results.filter((x) => !x.decidedBy).length;
-                  return (
-                    <li
-                      key={g.attemptId}
-                      className="rounded-lg border border-border/70 bg-muted/15 p-2"
-                    >
-                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
-                        <p className="text-xs text-muted-foreground">
-                          {g.submittedAt
-                            ? `Отправлено: ${g.submittedAt.slice(0, 19).replace('T', ' ')}`
-                            : `Начато: ${g.startedAt.slice(0, 19).replace('T', ' ')}`}
-                          {g.acceptedAt
-                            ? ` · принято: ${g.acceptedAt.slice(0, 19).replace('T', ' ')}`
-                            : ''}
-                          {pending > 0 ? ` · без оценки: ${pending}` : ''}
-                        </p>
-                        {g.submittedAt &&
-                        !g.acceptedAt &&
-                        detail.status !== 'completed' &&
-                        attemptAcceptMap[g.attemptId] ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="secondary"
-                            onClick={async () => {
-                              await runIfProgramInstanceMutationAllowed(detail.status, async () => {
-                                const res = await fetch(
-                                  `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-attempts/${encodeURIComponent(g.attemptId)}/accept`,
-                                  { method: 'POST' },
-                                );
-                                if (res.ok) {
-                                  void refreshResults();
-                                  void refresh();
-                                }
-                              });
-                            }}
-                          >
-                            Принять попытку
-                          </Button>
-                        ) : null}
-                      </div>
-                      <ul className="m-0 list-none space-y-2 p-0">
-                        {g.results.map((r) => (
-                          <li
-                            key={r.id}
-                            id={doctorProgramTestResultDomId(r.id)}
-                            className="rounded border border-border/50 bg-background/50 p-2"
-                          >
-                            <p className="font-medium">
-                              {r.testTitle ?? r.testId}{' '}
-                              <span className="text-xs font-normal text-muted-foreground">
-                                ({r.stageTitle}) ·{' '}
-                                {formatNormalizedTestDecisionRu(r.normalizedDecision)} (
-                                {r.normalizedDecision})
-                              </span>
-                              {r.decidedBy ? (
-                                <span className="ml-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100">
-                                  переопределено врачом
-                                </span>
-                              ) : null}
-                            </p>
-                            <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
-                              {JSON.stringify(r.rawValue, null, 0)}
-                            </pre>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {(['passed', 'failed', 'partial'] as const).map((d) => (
-                                <Button
-                                  key={d}
-                                  type="button"
-                                  size="sm"
-                                  variant={r.normalizedDecision === d ? 'default' : 'outline'}
-                                  disabled={detail.status === 'completed'}
-                                  onClick={async () => {
-                                    await runIfProgramInstanceMutationAllowed(
-                                      detail.status,
-                                      async () => {
-                                        const res = await fetch(
-                                          `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
-                                          {
-                                            method: 'PATCH',
-                                            headers: { 'Content-Type': 'application/json' },
-                                            body: JSON.stringify({ normalizedDecision: d }),
-                                          },
-                                        );
-                                        if (res.ok) void refreshResults();
-                                      },
-                                    );
-                                  }}
-                                >
-                                  {d}
-                                </Button>
-                              ))}
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
-                    </li>
-                  );
-                })}
-              </ul>
-            </section>
           ) : null}
         </div>
-
-        <div className="flex min-w-0 flex-col gap-4" id="doctor-program-instance-right">
-          <div id="doctor-program-instance-pipeline" className="flex flex-col gap-4">
-            {pipelineStages.map((stage) => (
-              <DoctorInstancePipelineStageBlock
-                key={`${stage.id}:${stage.sortOrder}`}
-                instanceId={detail.id}
-                stage={stage}
-                programStatus={detail.status}
-                testResults={testResults}
-                onSaved={refresh}
-                onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
-                expanded={isStageExpanded(stage.id)}
-                onExpandedChange={(open) => setStageExpanded(stage.id, open)}
-              />
-            ))}
-          </div>
+        <div className="p-3">
+          {!stageZero ? (
+            <p className="text-sm text-muted-foreground">В программе нет этапа с номером 0.</p>
+          ) : phaseZeroRecommendations.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Нет рекомендаций на этапе 0.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {phaseZeroRecommendations.map((item, idx) => (
+                <DoctorProgramInstanceItemCard
+                  key={item.id}
+                  stage={stageZero}
+                  item={item}
+                  testResults={testResults}
+                  programStatus={detail.status}
+                  phaseZeroRecommendation
+                  reorderInGroup={{
+                    disableAll: isProgramInstanceEditLocked(detail.status),
+                    disableUp: idx <= 0,
+                    disableDown: idx >= phaseZeroRecommendations.length - 1,
+                    onMove: (dir) => void reorderPhaseZeroItem(item.id, dir),
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
+      </DoctorSection>
+
+      {testResults.length > 0 ? (
+        <DoctorSection id="doctor-program-instance-test-results">
+          <h3 className={doctorClientSectionTitleClass}>Результаты тестов</h3>
+          <ul className="mt-3 space-y-3 text-sm">
+            {groupTestResultsByAttempt(testResults).map((g) => {
+              const pending = g.results.filter((x) => !x.decidedBy).length;
+              return (
+                <li
+                  key={g.attemptId}
+                  className="rounded-lg border border-border/70 bg-muted/15 p-2"
+                >
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2 border-b border-border/40 pb-2">
+                    <p className="text-xs text-muted-foreground">
+                      {g.submittedAt
+                        ? `Отправлено: ${g.submittedAt.slice(0, 19).replace('T', ' ')}`
+                        : `Начато: ${g.startedAt.slice(0, 19).replace('T', ' ')}`}
+                      {g.acceptedAt
+                        ? ` · принято: ${g.acceptedAt.slice(0, 19).replace('T', ' ')}`
+                        : ''}
+                      {pending > 0 ? ` · без оценки: ${pending}` : ''}
+                    </p>
+                    {g.submittedAt &&
+                    !g.acceptedAt &&
+                    detail.status !== 'completed' &&
+                    attemptAcceptMap[g.attemptId] ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                          await runIfProgramInstanceMutationAllowed(detail.status, async () => {
+                            const res = await fetch(
+                              `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-attempts/${encodeURIComponent(g.attemptId)}/accept`,
+                              { method: 'POST' },
+                            );
+                            if (res.ok) {
+                              void refreshResults();
+                              void refresh();
+                            }
+                          });
+                        }}
+                      >
+                        Принять попытку
+                      </Button>
+                    ) : null}
+                  </div>
+                  <ul className="m-0 list-none space-y-2 p-0">
+                    {g.results.map((r) => (
+                      <li
+                        key={r.id}
+                        id={doctorProgramTestResultDomId(r.id)}
+                        className="rounded border border-border/50 bg-background/50 p-2"
+                      >
+                        <p className="font-medium">
+                          {r.testTitle ?? r.testId}{' '}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            ({r.stageTitle}) ·{' '}
+                            {formatNormalizedTestDecisionRu(r.normalizedDecision)} (
+                            {r.normalizedDecision})
+                          </span>
+                          {r.decidedBy ? (
+                            <span className="ml-1 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:text-amber-100">
+                              переопределено врачом
+                            </span>
+                          ) : null}
+                        </p>
+                        <pre className="mt-1 max-h-24 overflow-auto text-[11px] text-muted-foreground">
+                          {JSON.stringify(r.rawValue, null, 0)}
+                        </pre>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {(['passed', 'failed', 'partial'] as const).map((d) => (
+                            <Button
+                              key={d}
+                              type="button"
+                              size="sm"
+                              variant={r.normalizedDecision === d ? 'default' : 'outline'}
+                              disabled={detail.status === 'completed'}
+                              onClick={async () => {
+                                await runIfProgramInstanceMutationAllowed(
+                                  detail.status,
+                                  async () => {
+                                    const res = await fetch(
+                                      `/api/doctor/treatment-program-instances/${encodeURIComponent(detail.id)}/test-results/${encodeURIComponent(r.id)}`,
+                                      {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ normalizedDecision: d }),
+                                      },
+                                    );
+                                    if (res.ok) void refreshResults();
+                                  },
+                                );
+                              }}
+                            >
+                              {d}
+                            </Button>
+                          ))}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              );
+            })}
+          </ul>
+        </DoctorSection>
+      ) : null}
+
+      <div id="doctor-program-instance-pipeline" className="flex min-w-0 flex-col gap-4">
+        {pipelineStages.map((stage) => (
+          <DoctorInstancePipelineStageBlock
+            key={`${stage.id}:${stage.sortOrder}`}
+            instanceId={detail.id}
+            stage={stage}
+            programStatus={detail.status}
+            testResults={testResults}
+            onSaved={refresh}
+            onRequestAddLibraryItem={(spec) => setAddLibrarySpec(spec)}
+            expanded={isStageExpanded(stage.id)}
+            onExpandedChange={(open) => setStageExpanded(stage.id, open)}
+          />
+        ))}
       </div>
       <InstanceAddLibraryItemDialog
         open={addLibrarySpec !== null}
@@ -1460,68 +1229,6 @@ function TreatmentProgramInstanceDetailClientBody(props: {
         library={treatmentProgramLibrary}
         editLocked={isProgramInstanceEditLocked(detail.status)}
       />
-      <Dialog
-        open={noteReplyOpen}
-        onOpenChange={(open) => {
-          setNoteReplyOpen(open);
-          if (!open) {
-            setNoteReplyError(null);
-            setNoteReplySaving(false);
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Ответ на заметку пациента</DialogTitle>
-            <DialogDescription>
-              {noteReplyTarget?.note?.trim()
-                ? `Заметка: ${noteReplyTarget.note.trim()}`
-                : 'Добавьте ответ'}
-            </DialogDescription>
-          </DialogHeader>
-          <MessageComposer
-            value={noteReplyDraft}
-            onValueChange={setNoteReplyDraft}
-            onSubmit={sendProgramNoteReply}
-            submitting={noteReplySaving}
-            disableSubmitWhenEmpty={false}
-            placeholder="Введите ответ"
-            ariaLabel="Ответ"
-            submitLabel="Отправить"
-            submittingLabel="Отправка…"
-            maxLength={4000}
-            rows={4}
-            className="contents"
-            inputRowClassName="space-y-2"
-            leadingControl={<Label htmlFor="doctor-program-note-reply-text">Ответ</Label>}
-            trailingControl={
-              noteReplyError ? (
-                <p className="text-xs text-destructive" role="alert">
-                  {noteReplyError}
-                </p>
-              ) : null
-            }
-            secondaryActions={
-              <Button
-                type="button"
-                variant="outline"
-                disabled={noteReplySaving}
-                onClick={() => setNoteReplyOpen(false)}
-              >
-                Отмена
-              </Button>
-            }
-            renderTextarea={(props) => <Textarea {...props} id="doctor-program-note-reply-text" />}
-            renderSubmit={(props) => <Button {...props} />}
-            renderActions={(submit, secondaryActions) => (
-              <DialogFooter>
-                {secondaryActions}
-                {submit}
-              </DialogFooter>
-            )}
-          />
-        </DialogContent>
-      </Dialog>
       {discussionTarget ? (
         <DoctorProgramItemDiscussionDialog
           instanceId={detail.id}
@@ -2672,43 +2379,6 @@ function StageDoctorControls(props: {
         </DialogContent>
       </Dialog>
       {unsavedDialog}
-    </div>
-  );
-}
-
-function ItemLocalCommentForm(props: {
-  itemId: string;
-  initialDraft: string;
-  placeholder?: string;
-  editLocked: boolean;
-}) {
-  const { itemId, initialDraft, placeholder, editLocked } = props;
-  const { patchItemLocalComment } = useInstanceEditorDraft();
-  const [draft, setDraft] = useState(initialDraft);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset comment draft when itemId/initialDraft changes
-    setDraft(initialDraft);
-  }, [itemId, initialDraft]);
-
-  return (
-    <div className="flex flex-col gap-2">
-      <label className="text-xs font-medium text-muted-foreground" htmlFor={`lc-${itemId}`}>
-        Индивидуальный комментарий
-      </label>
-      <Textarea
-        id={`lc-${itemId}`}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => {
-          if (editLocked) return;
-          patchItemLocalComment(itemId, draft.trim() === '' ? null : draft.trim());
-        }}
-        rows={3}
-        className="text-sm"
-        disabled={editLocked}
-        placeholder={placeholder ?? 'Из шаблона: —'}
-      />
     </div>
   );
 }

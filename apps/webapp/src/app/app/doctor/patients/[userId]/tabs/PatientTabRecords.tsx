@@ -21,6 +21,10 @@ import {
   doctorSectionItemClass,
   doctorSectionItemUrgentClass,
   doctorPageStackClass,
+  doctorInteractiveSurfaceButtonClass,
+  doctorMetricValueClass,
+  doctorStatCardInteractiveClass,
+  doctorStatCardShellClass,
 } from '@/shared/ui/doctor/doctorVisual';
 import { DoctorStatCard } from '@/app/app/doctor/analytics/clients/DoctorStatCard';
 import { DoctorModal } from '@/shared/ui/doctor/DoctorModal';
@@ -263,6 +267,9 @@ export function PatientTabRecords({
   const displayList: DisplayAppointment[] = isStale || fetchError ? [] : (allAppointments ?? []);
 
   const upcomingList = displayList.filter((a) => a.status === 'upcoming');
+  const nextAppointment = [...upcomingList].sort((a, b) =>
+    `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`),
+  )[0];
   const historyList = displayList.filter((a) => a.status !== 'upcoming');
 
   // KPI: real values from header where available
@@ -287,18 +294,29 @@ export function PatientTabRecords({
         <button
           type="button"
           className={cn(
-            doctorSectionCardClass,
-            'w-full cursor-pointer items-start text-left transition-colors hover:bg-muted/35',
+            doctorInteractiveSurfaceButtonClass,
+            doctorStatCardShellClass,
+            doctorStatCardInteractiveClass,
+            'flex w-full flex-col gap-2.5 text-left',
           )}
           onClick={() => setVisitsModalOpen(true)}
           aria-haspopup="dialog"
         >
-          <span className="flex items-baseline gap-2 text-foreground">
-            <span className="text-sm font-semibold">Визитов:</span>
-            <span className="text-[1.3rem] font-medium tabular-nums">{completedCount}</span>
+          <span className="flex w-full items-baseline justify-between gap-3">
+            <span className="flex items-baseline gap-2 text-foreground">
+              <span className="text-sm font-semibold">Визитов:</span>
+              <span className={doctorMetricValueClass}>{completedCount}</span>
+            </span>
+            {nextAppointment ? (
+              <span className="shrink-0 text-xs text-muted-foreground">
+                Следующий: {fmtDate(nextAppointment.date).slice(0, 5)}, {nextAppointment.time}
+              </span>
+            ) : null}
           </span>
-          <span className="text-xs font-normal text-foreground">
-            Будущих {upcomingList.length} · Отмен {cancelsCount} · Переносов {reschedulesCount}
+          <span className="grid w-full grid-cols-3 gap-2 text-xs font-normal text-foreground">
+            <span>Будущих {upcomingList.length}</span>
+            <span className="text-center">Отмен {cancelsCount}</span>
+            <span className="text-right">Переносов {reschedulesCount}</span>
           </span>
         </button>
 

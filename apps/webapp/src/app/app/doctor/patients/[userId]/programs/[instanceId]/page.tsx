@@ -8,9 +8,7 @@
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { requireDoctorWorkspaceContext } from '@/app-layer/guards/requireRole';
-import {
-  requireEntitlementForReadAction,
-} from '@/app-layer/guards/requireEntitlement';
+import { requireEntitlementForReadAction } from '@/app-layer/guards/requireEntitlement';
 import { buildAppDeps } from '@/app-layer/di/buildAppDeps';
 import { DoctorAppShell } from '@/shared/ui/doctor/DoctorAppShell';
 import { routePaths } from '@/app-layer/routes/paths';
@@ -18,10 +16,10 @@ import { getAppDisplayTimeZone } from '@/modules/system-settings/appDisplayTimez
 import { buildTreatmentProgramLibraryPickers } from '@/app/app/doctor/treatment-program-templates/buildTreatmentProgramLibraryPickers';
 import { TreatmentProgramInstanceDetailClient } from '@/app/app/doctor/clients/[userId]/treatment-programs/[instanceId]/TreatmentProgramInstanceDetailClient';
 import { PatientCardClient } from '../../PatientCardClient';
-import { patientCardHref } from '../../../patientCardHref';
 import {
   loadDoctorPatientCardShellMeta,
   loadDoctorPatientCardTabBootstrap,
+  loadDoctorPatientProgramInstances,
 } from '../../../loadDoctorPatientCardPageBootstrap';
 
 type Props = {
@@ -58,11 +56,9 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
   }
 
   const [
-    cardHeader,
     testResults,
     attemptAcceptMap,
-    programEvents,
-    programActionLog,
+    discussionUnreadCounts,
     appDisplayTimeZone,
     exercises,
     lfkTemplates,
@@ -70,14 +66,14 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     clinicalTests,
     recommendations,
     contentPagesAll,
-    discussionDoctorReplyFlag,
     bodyRegionItems,
   ] = await Promise.all([
-    deps.doctorClients.getPatientCardHeader(userId),
     deps.treatmentProgramProgress.listTestResultsForInstance(instanceId),
     deps.treatmentProgramProgress.getDoctorAttemptAcceptMap(instanceId),
-    deps.treatmentProgramInstance.listProgramEvents(instanceId),
-    deps.treatmentProgramProgress.listProgramActionLogForInstance(instanceId),
+    deps.programItemDiscussion.listUnreadCountsForViewerByStageItems({
+      stageItemIds: detail.stages.flatMap((stage) => stage.items.map((item) => item.id)),
+      viewerUserId: session.user.userId,
+    }),
     getAppDisplayTimeZone(),
     deps.lfkExercises.listExercises({ includeArchived: false, includePlatformBase }),
     deps.lfkTemplates.listTemplates({
@@ -89,10 +85,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     deps.clinicalTests.listClinicalTests({ archiveScope: 'active' }),
     deps.recommendations.listRecommendations({ includeArchived: false }),
     deps.contentPages.listAll(),
-    deps.systemSettings.getSetting(
-      'patient_program_discussion_doctor_reply_from_log_enabled',
-      'admin',
-    ),
     deps.references.listActiveItemsByCategoryCode('body_region'),
   ]);
 
@@ -107,15 +99,6 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
     bodyRegionIdToCode,
   });
 
-  const patientDisplayNameRaw = cardHeader?.identity.displayName?.trim() ?? '';
-  const patientDisplayName =
-    patientDisplayNameRaw !== '' ? patientDisplayNameRaw : 'Имя не указано';
-
-  const doctorReplyFromLogEnabled =
-    discussionDoctorReplyFlag?.valueJson !== null &&
-    typeof discussionDoctorReplyFlag?.valueJson === 'object' &&
-    (discussionDoctorReplyFlag.valueJson as Record<string, unknown>).value === true;
-
   const discussionItemRaw = discussionItemParam?.trim();
   const initialOpenDiscussionItemId =
     discussionItemRaw && z.string().uuid().safeParse(discussionItemRaw).success
@@ -128,25 +111,32 @@ export default async function DoctorPatientProgramEmbeddedPage({ params, searchP
       ? focusItemIdRaw
       : undefined;
 
-  const patientCardTabHref = patientCardHref(userId, { tab: 'program' });
-
-  const tabPromise = loadDoctorPatientCardTabBootstrap(deps, workspace, userId, 'program');
-  const shellMeta = await loadDoctorPatientCardShellMeta(deps, workspace, userId, 'program');
+  const programInstancesPromise = loadDoctorPatientProgramInstances(deps, workspace, userId);
+  const tabPromise = loadDoctorPatientCardTabBootstrap(
+    deps,
+    workspace,
+    userId,
+    'program',
+    programInstancesPromise,
+  );
+  const shellMeta = await loadDoctorPatientCardShellMeta(
+    deps,
+    workspace,
+    userId,
+    'program',
+    programInstancesPromise,
+  );
 
   const embeddedEditor = (
     <TreatmentProgramInstanceDetailClient
-      patientProfileHref={patientCardTabHref}
-      patientDisplayName={patientDisplayName}
       initial={detail}
       initialTestResults={testResults}
       initialAttemptAcceptMap={attemptAcceptMap}
-      initialEvents={programEvents}
-      initialActionLog={programActionLog}
-      currentUserId={session.user.userId}
-      isAdmin={session.user.role === 'admin'}
+      initialDiscussionUnreadCountByStageItemId={Object.fromEntries(
+        discussionUnreadCounts.map((row) => [row.stageItemId, row.unread]),
+      )}
       appDisplayTimeZone={appDisplayTimeZone}
       treatmentProgramLibrary={treatmentProgramLibrary}
-      doctorReplyFromLogEnabled={doctorReplyFromLogEnabled}
       initialOpenDiscussionItemId={initialOpenDiscussionItemId}
       initialFocusTestResultId={initialFocusTestResultId}
     />
