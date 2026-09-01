@@ -6,6 +6,8 @@ import {
   cronArtifactName,
   findBackgroundJob,
   hostCronJobsForEnvironment,
+  internalJobBearerCsrfExemptPaths,
+  INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS,
   renderCronArtifact,
   renderCronCommand,
 } from '@/modules/operator-health/backgroundJobManifest';
@@ -27,6 +29,22 @@ describe('background job manifest', () => {
     expect(CRON_JOB_REGISTRY.map((entry) => `${entry.id}:${entry.jobFamily}/${entry.jobKey}`)).toEqual(
       BACKGROUND_JOB_MANIFEST.map((entry) => `${entry.id}:${entry.jobFamily}/${entry.jobKey}`),
     );
+  });
+
+  it('internalJobBearerCsrfExemptPaths() покрывает КАЖДЫЙ manifest-route с principal internal_job_bearer (W2)', () => {
+    const exempt = new Set(internalJobBearerCsrfExemptPaths());
+    const manifestBearerPaths = BACKGROUND_JOB_MANIFEST.filter(
+      (entry) => entry.principal === 'internal_job_bearer' && entry.route,
+    ).map((entry) => entry.route!.path);
+    expect(manifestBearerPaths.length).toBeGreaterThan(0);
+    for (const path of manifestBearerPaths) {
+      expect(exempt.has(path), `${path}: manifest job route отсутствует в CSRF-исключении`).toBe(true);
+    }
+    for (const path of INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS) {
+      expect(exempt.has(path)).toBe(true);
+    }
+    // Без дублей между двумя источниками — иначе граница «manifest ⇄ не-manifest» стёрта.
+    expect(exempt.size).toBe(manifestBearerPaths.length + INTERNAL_JOB_BEARER_NON_MANIFEST_PATHS.length);
   });
 
   it('id, tick-ключи и имена artifacts уникальны', () => {
